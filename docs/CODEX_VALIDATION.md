@@ -672,28 +672,50 @@ authorization or Microsoft desktop.
 provider integration, with independently verified OS
 session admission kept closed until explicit evidence.
 
-## Pending native TLS -> CredSSP DER intake (2026-10-14; NOT RUN)
+## Verified native TLS -> CredSSP DER intake (2026-10-14)
 
-**Prior verified base:** `c753b7d205647374c14e24be52b9f9f22fa8efcc`,
-[CI 38604244975](https://github.com/k1moradi/RDP-server/actions/runs/38604244975)
-passed Linux/GCC 50/50 CTests, macOS/Clang and
-Windows/MSVC 48/48 in both configurations, policy,
-installed consumer, three packages/checksums.
+**Prior baseline:** `c753b7d205647374c14e24be52b9f9f22fa8efcc`,
+[CI 38604244975](https://github.com/k1moradi/RDP-server/actions/runs/38604244975),
+Linux/GCC 50/50, macOS/Clang and Windows/MSVC
+48/48 in Debug/Release, installed SDK, all packages
+and policy PASS.
 
-**Proposed new code:** single-step finished-server-TLS
-`SSL_read_ex` handoff into existing bounded DER frame reader.
-One SSL identity per object, exact next-byte budget,
-Progress/WANT_READ/WANT_WRITE distinction, strict
-release-before-next-frame, fail-closed source mixing,
-malformed records, EOF and buffer wiping. Three new
-behavior-named OpenSSL in-memory TLS CTests in the
-existing regression executable are registered (expected
-Linux 53; macOS/Windows 51). Modified code/tests:
-`src/server/security/credssp_tsrequest.{h,cpp}`,
+**New code and tests:** exact implementation
+`d2885363502e34e52c71c41342902908b781fd58`.
+Changed `src/server/security/credssp_tsrequest.{h,cpp}`,
 `tests/test_owned_preauth_session.cpp`,
-`tests/CMakeLists.txt`. Documentation co-changed
-in the same commit. **NOT RUN:** new CI and owner's
-updated build, authenticated CredSSP/GSS/TLS-binding,
-OS admission, real clients or desktop.
-**Next:** first trust-verified GSS/TLS binding,
-then independently verified OS session authorization.
+`tests/CMakeLists.txt`, plus same-commit roadmap,
+architecture and standards. Add single bounded
+`SSL_read_ex` from established server SSL directly
+to the owned DER TSRequest framer; pin TLS identity,
+separate `Progress` from WANT_READ/WANT_WRITE, never
+read a coalesced second frame before release, reject
+mixed plaintext/TLS sources and TLS EOF and wipe buffers.
+Add three dedicated positive/negative real in-memory
+OpenSSL TLS CTests (not simply reusing prior assertions).
+**PASS:** [Actions run 38607049062](https://github.com/k1moradi/RDP-server/actions/runs/38607049062),
+completed all four jobs successfully: Linux/GCC
+**53/53** Debug and Release, macOS/Clang and Windows/MSVC
+**51/51** each in Debug and Release. Each new
+`transport.credssp-tls-fragments`,
+`transport.credssp-tls-coalesced` and
+`transport.credssp-tls-rejections` passed on all
+three systems. SDK installed downstream consumer,
+per-OS ZIP/SHA-256 uploads and policy PASS. Commands
+within the sole CI `build/` root:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON -DRDP_SERVER_TEST_LINUX_GSSAPI=ON`
+(Linux, OFF for macOS/Windows), `cmake --build build
+--config Debug --parallel 2`, `ctest --test-dir build
+--build-config Debug --output-on-failure`,
+then reconfigure same root for Release, build,
+CTest, install/consumer, CPack and SHA-256/upload.
+The earlier Ubuntu Release preauth test fixture
+warning `-Wstringop-overflow` remains nonfatal
+(line shifted from 582 to 584).
+**NOT RUN:** owner-local updated build, real
+CredSSP/GSS provider ticket/keytab, TLS public-key
+binding, independent OS identity authority, or
+external Microsoft RDP desktop acceptance.
+**Next:** authenticated real GSS/TLS binding and
+OS session policy, not a synthetic admission.

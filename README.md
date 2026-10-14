@@ -11,14 +11,51 @@ platform-independent C++23 RDP server**, without requiring xrdp, a VNC/RFB
 server, or an existing RDP daemon. Target Windows, macOS, Linux, BSD and other
 operating systems through a portable protocol core and OS-specific adapters.
 
-**Current status: under construction — not yet a functional standalone RDP
-server.** The previous research and C++23 core live at
-[the migration source repository](https://github.com/k1moradi/xrdp-console).
-The existing source-owned modules cover parts of X.224/TPKT, MCS, security
-negotiation, CredSSP framing, CLIPRDR parsing and graphics policy, but a
-complete authenticated RDP listener, desktop backend, input, virtual channel
+**Current status: under construction — not yet a functional standalone
+RDP server.** This repository contains the migrated first-party C++23
+protocol, clipboard, security, graphics, core and X11 adapter source. A
+subset is compiled as a platform-independent static protocol archive;
+additional imported algorithms are staged for review.
+
+The implementation covers parts of X.224/TPKT, MCS/GCC, security
+negotiation, CredSSP framing, CLIPRDR and graphics policy, but a complete
+authenticated RDP listener, desktop backend, input, virtual channel
 management, clipboard integration and interoperable end-to-end runtime are
 still incomplete. No ready-to-install server is claimed here.
+
+The [historical xrdp-console repository](https://github.com/k1moradi/xrdp-console)
+remains a **migration/provenance reference**, not a runtime dependency.
+
+## Build the standalone C++23 protocol foundation
+
+The library has **no xrdp source download, patched chansrv, VNC/RFB daemon or
+packaged xrdp services**. A C++23 compiler, CMake 3.22+ and OpenSSL development
+libraries are required.
+
+```bash
+git clone https://github.com/k1moradi/RDP-server.git
+cd RDP-server
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
+```
+
+The output is `rdp-server-protocol`, a **static library**, not an installable
+remote desktop server. The source layout is deliberately separated:
+
+- `src/server/transport` — X.224, TPKT, GCC, MCS and negotiation primitives.
+- `src/server/security` — C++23 CredSSP/DER, TLS binding and identity policies.
+- `src/server/clipboard` and `src/clipboard` — CLIPRDR transfer serialization,
+  PNG and DIB payload validation.
+- `src/core` and `src/rdp` — native graphics, geometry and frame/cache logic.
+- `src/x11` — candidate **Linux/X11-specific platform adapter**, not a
+  requirement for macOS, Windows or the portable protocol library.
+- `tests` — regression tests and Microsoft RDP protocol example fixtures.
+
+The original project contained many more Linux deployment scripts, binary
+graphics fixtures, patched xrdp C files and experimental tests. They were
+**not** blindly copied into this standalone C++23 repository. No new
+development branches were created during migration.
 
 ## Architectural rules
 

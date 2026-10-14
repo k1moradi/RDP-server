@@ -76,6 +76,11 @@ are [coding standards](docs/coding_standards.md),
 See [validation evidence](docs/CODEX_VALIDATION.md). All new learned policies
 belong in the relevant existing standard; don't fragment them.
 
+Other agent-specific entry points — [CODEX.md](CODEX.md),
+[CLAUDE.md](CLAUDE.md), [agent.md](agent.md), and
+[GitHub Copilot instructions](.github/copilot-instructions.md) — all defer to
+the canonical [AGENTS.md](AGENTS.md); none overrides it.
+
 After every implementation, update the existing TODO and affected
 documentation in the **same commit**. Maintain **one reused local
 `~/rdp-server/build/`**; hosted CI has one ephemeral checkout-local
@@ -121,9 +126,9 @@ See [the architectural charter](docs/ARCHITECTURE.md) and
 
 ## License and credits
 
-The first-party project is GPL-3.0-or-later. All reused third-party code
-must preserve its original notices and compatible licensing; see
-[third-party attributions](docs/THIRD_PARTY.md). The project
+The first-party project is [GPL-3.0-or-later](LICENSE). All reused third-party
+code must preserve its original notices and compatible licensing; see
+[NOTICE](NOTICE) and [third-party attributions](docs/THIRD_PARTY.md). The project
 traces historical upstream-derived work transparently; code origin is not
 the same thing as a runtime dependency.
 

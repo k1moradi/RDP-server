@@ -204,3 +204,10 @@ install it through `X509_set_subject_name` and
 weaken assertions, silently pin OpenSSL to hide a compiler
 error, or confuse test self-signed certificates with
 trusted production credential management.
+
+**Post-fix evidence:** `5c4f3ad7273d17948327b7d351ff9840de2b0395`,
+[CI run 38564403002](https://github.com/k1moradi/RDP-server/actions/runs/38564403002)
+passed Linux, macOS and Windows Debug/Release tests and SDK gates.
+The successful macOS runner selected OpenSSL 3.6.4, so OpenSSL
+4 compile compatibility after the RAII fixture change remains
+unverified until an explicit 4.x compile is recorded.

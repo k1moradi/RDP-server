@@ -184,9 +184,16 @@ acceptance evidence; no synthetic completion claims.
   `X509_get_subject_name` now returns `const X509_NAME*`,
   invalidating the synthetic certificate fixture's mutable cast.
   A follow-up constructs its own `X509_NAME` and assigns it
-  through `X509_set_subject_name` to support OpenSSL 3 and 4.
-  **Next:** cross-platform exact-head CI, then secure live TLS
-  socket I/O, authentication and MCS Connect-Response.
+  through `X509_set_subject_name`, avoiding reliance on
+  the changed mutable return type.
+  **PASS:** corrected `5c4f3ad7273d17948327b7d351ff9840de2b0395`
+  in [CI run 38564403002](https://github.com/k1moradi/RDP-server/actions/runs/38564403002):
+  Ubuntu/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+  Debug/Release **23 CTests**, installed consumer and three SDK ZIPs.
+  macOS selected OpenSSL **3.6.4** on the passing run;
+  the corrected fixture's OpenSSL 4 runtime/compiler gate remains
+  **NOT RUN**. **Next:** verify OpenSSL 4 explicitly, complete
+  actual live TLS/socket I/O, authentication and MCS response.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

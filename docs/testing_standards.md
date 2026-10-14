@@ -275,7 +275,7 @@ and all three ZIP/hash uploads. Ubuntu logs confirm
 implementation compiles on all three platforms; scripted
 TCP I/O, not connected live sockets, drives the new tests.
 
-## OpenSSL 4 X.509 fixture compatibility (2026-10-14; CI pending)
+## OpenSSL 4 X.509 fixture compatibility (2026-10-14; CI follow-up)
 
 [Actions run 38564061700](https://github.com/k1moradi/RDP-server/actions/runs/38564061700)
 failed macOS/Clang Debug compile because Homebrew's FindOpenSSL
@@ -287,3 +287,13 @@ The offline TLS fixture now uses its own RAII `X509_NAME_new()`,
 construct the self-signed ephemeral certificate. This avoids
 casting away `const` and is compatible with OpenSSL 3 and 4.
 The test still does not establish live certificate trust.
+
+**PASS:** fixed implementation `5c4f3ad7273d17948327b7d351ff9840de2b0395`
+[GitHub Actions run 38564403002](https://github.com/k1moradi/RDP-server/actions/runs/38564403002)
+completed Linux/GCC, macOS/Clang and Windows/MSVC
+Debug/Release **23/23 CTests**, documentation-policy, staged SDK
+installation and downstream consumer, and three ZIP/checksum uploads.
+The macOS passing runner used OpenSSL **3.6.4**, not 4.0.3; a
+post-fix test specifically linked against OpenSSL 4 remains
+**NOT RUN**. Preserve explicit version evidence rather than
+calling an API change verified across both versions.

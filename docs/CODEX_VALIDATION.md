@@ -306,6 +306,16 @@ actual native TCP adapter implementation had independently passed
 on all three OSes and 23/23 Debug/Release tests on Ubuntu.
 The fix creates a temporary RAII `X509_NAME` and sets both
 certificate subject and issuer using OpenSSL APIs; no
-`const_cast` or reduced test assertion. **NOT RUN:**
-cross-platform post-fix CI until recorded. **NOT RUN:**
-owner-local new tests, connected socket, real client or OS admission.
+`const_cast` or reduced test assertion.
+**PASS:** fixed implementation `5c4f3ad7273d17948327b7d351ff9840de2b0395`,
+[Actions run 38564403002](https://github.com/k1moradi/RDP-server/actions/runs/38564403002):
+Ubuntu/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+both Debug/Release **23 CTests**, downstream installed SDK consumer
+and three platform ZIP/checksum artifacts.
+**Caveat:** the successful macOS run found OpenSSL **3.6.4**;
+post-fix compilation with 4.0.3 is **NOT RUN** and needs a
+separate explicit CI check. **NOT RUN:** owner's local new tests,
+actual native connected socket, real RDP clients, TLS-over-socket,
+NLA, MCS Connect-Response and independently authorized OS desktop.
+**Next functional boundary:** live socket TLS provider lifecycle
+and authenticated session sequencing, then MCS response.

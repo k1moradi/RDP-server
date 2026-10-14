@@ -895,3 +895,52 @@ Windows App/FreeRDP or desktop.
 authentication and independent OS session
 policy BEFORE any real MCS channel/domain
 reply or remote desktop admission.
+
+## Pending Linux GSSAPI-sourced TLS reply handoff (2026-10-14)
+
+**Previous known green main:**
+`195603ce733724b8940523f11b59d8c328d14e66`,
+[CI 38615240623](https://github.com/k1moradi/RDP-server/actions/runs/38615240623):
+Linux/GCC 61/61, macOS/Clang and Windows/MSVC
+57/57 full CTests in BOTH Debug and Release;
+SDK downstream consumers, ZIP/SHA256 artifacts
+and documentation gate PASS.
+
+**New code/tests (CI NOT RUN yet):**
+`src/server/security/gssapi_spnego_acceptor.{h,cpp}`
+now connects the existing TLS-provenance
+`acceptFramedNegoRequest` real MIT GSS
+provider output to the existing
+`TsRequestTlsReplyWriter` only for a live
+GSS continuation, with one outgoing
+`negoTokens` reply on the exact TLS
+identity/version. Adds
+`processFinalFramedNegoAndQueueBindingReply`
+in `gssapi_credssp_binding.cpp` that
+requires actual GSS completion, signed and
+confidential client-to-server binding
+verification, and the original selected
+TLS certificate before queuing an opaque
+GSS-wrapped server `pubKeyAuth` proof.
+The new methods require the writer be
+idle and wipe transient tokens on either
+outcome. They do NOT send TLS by themselves
+or authorize OS credentials/MCS.
+Three new dedicated Linux-only security
+tests in the existing real memory-BIO
+OpenSSL fixture exercise no-keytab
+rejection, replay, fake final TLS proof,
+synthetic/partial DER and pending-writer
+denial. Registered in `tests/CMakeLists.txt`;
+expected 64 Linux, 57 macOS/Windows.
+All code, tests and roadmap/architecture/
+coding/testing standards co-changed.
+**NOT RUN:** new-code CI; owner-local test,
+genuine positive Kerberos keytab/ticket,
+TLS certificate binding, independently
+authorized OS session, Microsoft client
+or interactive desktop.
+**Next:** opt-in controlled successful
+real MIT Kerberos+GSS TLS-binding transcript
+and independently checked OS authorization
+before live MCS replies.

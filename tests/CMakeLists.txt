@@ -119,7 +119,10 @@ if(TARGET rdp-server-linux-gssapi)
         RDP_TEST_LINUX_GSSAPI=1)
     foreach(case_name IN ITEMS
             gssapi-tls-ownership
-            gssapi-final-combined-denials)
+            gssapi-final-combined-denials
+            gssapi-negotiation-reply-gates
+            gssapi-binding-reply-gates
+            gssapi-reply-order-denials)
         add_test(NAME "security.${case_name}"
             COMMAND test_owned_preauth_session "${case_name}")
         set_tests_properties("security.${case_name}" PROPERTIES

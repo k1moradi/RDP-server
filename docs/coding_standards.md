@@ -552,3 +552,35 @@ SSL provenance only across explicit successful
 release, and leave policy to the one future trusted
 CredSSP/session owner. Green TLS wire tests alone
 are not positive GSS or OS authorization evidence.
+
+## Linux MIT GSSAPI -> TLS writer handoff (2026-10-14)
+
+When forwarding real provider tokens per MS-CSSP
+3.1.5, source the TLS pointer only from the
+currently complete actual server-side
+`TsRequestFrameReader` frame. Neither
+caller-provided DER nor an unrelated `SSL*`
+can impersonate that identity. During
+SPNEGO, queue `negoTokens` ONLY for an
+actual `GSS_S_CONTINUE_NEEDED` result with
+nonempty opaque output; if context completes
+on a negotiation-only frame without the
+mandatory client final binding, reject rather
+than accepting a wrong stage. Require any
+previous TLS server response to be completely
+sent AND explicitly released before consuming
+a subsequent GSS client token. The final client
+request must contain combined `negoTokens`
+and confidential client `pubKeyAuth` in
+the single same-TLS frame. Only a real GSS
+context plus successful version-pinned TLS
+binding may queue the confidentially wrapped
+server proof. The producer's temporary
+GSS token vector must be cleansed once its
+bytes are snapshotted by the writer; clear
+reader/writer/context on every failure.
+The helper merely queues a response for a
+future TLS readiness loop; it does NOT
+create an authenticated OS session, perform
+credential delegation, alter X.224 selection
+or emit MCS domain/channel responses.

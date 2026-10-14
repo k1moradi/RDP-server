@@ -4,6 +4,8 @@
 #include <gssapi/gssapi_ext.h>
 #include <gssapi/gssapi_krb5.h>
 
+#include <openssl/crypto.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -335,6 +337,57 @@ SpnegoStep GssapiSpnegoAcceptor::acceptFramedNegoRequest(
         reader.close();
     }
     return step;
+}
+
+
+SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply(
+    TsRequestFrameReader &reader, TsRequestTlsReplyWriter &writer) noexcept
+{
+    const SSL *sourceTls = reader.completedFrameServerTls();
+    // The previous server reply must be completely sent and released;
+    // do not accept another peer token while outgoing TLS is pending.
+    if (sourceTls == nullptr ||
+        writer.status() != TsRequestTlsWriteStatus::Idle)
+    {
+        reader.close();
+        writer.close();
+        reject();
+        return SpnegoStatus::Rejected;
+    }
+
+    auto result = acceptFramedNegoRequest(reader);
+    const bool validContinuation =
+        result.status == SpnegoStatus::Continue &&
+        stage_ == SpnegoStage::ContinueNeeded &&
+        negotiatedServerTls_ == sourceTls &&
+        (negotiatedVersion_ == 5 || negotiatedVersion_ == 6) &&
+        !result.outputToken.empty();
+
+    bool queued = false;
+    if (validContinuation)
+    {
+        // The only source of the outgoing token is a real
+        // gss_accept_sec_context output in this exact TLS transcript.
+        queued = writer.queueReply(
+            const_cast<SSL *>(sourceTls),
+            static_cast<std::uint8_t>(negotiatedVersion_),
+            CredSspServerReplyField::NegoToken, result.outputToken);
+    }
+    if (!result.outputToken.empty())
+    {
+        // The writer owns its own DER snapshot; erase the transient
+        // provider token on either successful queue or rejection.
+        OPENSSL_cleanse(result.outputToken.data(), result.outputToken.size());
+        result.outputToken.clear();
+    }
+    if (!queued)
+    {
+        reader.close();
+        writer.close();
+        reject();
+        return SpnegoStatus::Rejected;
+    }
+    return SpnegoStatus::Continue;
 }
 
 SpnegoStep GssapiSpnegoAcceptor::accept(

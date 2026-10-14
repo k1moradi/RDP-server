@@ -393,3 +393,34 @@ second connection/session authority, GSS provider,
 proof of Kerberos trust or permission to enable
 PROTOCOL_HYBRID, send an MCS domain reply or
 admit a desktop session.
+
+### GSS provider-originated server CredSSP replies (2026-10-14)
+
+MS-CSSP 3.1.5 distinguishes server SPNEGO
+`negoTokens` responses while a real authenticated
+GSS context is CONTINUING, and a server
+`pubKeyAuth` response after the final combined
+client token and binding has been verified.
+The optional Linux `GssapiSpnegoAcceptor`
+provides two additional synchronous orchestration
+methods using the existing TLS-derived
+`TsRequestFrameReader` and bounded
+`TsRequestTlsReplyWriter`. It pins the SAME
+actual server SSL and v5/v6 version already held
+by the provider, verifies that the writer is
+idle before consuming another client message,
+then calls the REAL MIT GSSAPI context for
+provider-originated tokens. The last combined
+message requires verified GSS completion,
+confidential GSS unwrap, active TLS certificate
+binding comparison and server gss_wrap.
+Each method queues only a single canonical
+server DER response on matching SSL and
+erases transient provider vectors immediately.
+Invalid stage, missing credentials, synthetic
+frame, outstanding reply, GSS provider failure
+or mismatch is a terminal close of all three
+components. No extra session controller or
+portable GSS dependency was added. TLS
+queuing alone is not a trusted client, account
+authorization or permission to respond to MCS.

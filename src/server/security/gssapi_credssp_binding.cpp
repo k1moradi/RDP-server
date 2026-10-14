@@ -91,6 +91,55 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processFinalFramedNegoAndBinding(
     return result;
 }
 
+
+bool GssapiSpnegoAcceptor::processFinalFramedNegoAndQueueBindingReply(
+    TsRequestFrameReader &reader, TsRequestTlsReplyWriter &writer) noexcept
+{
+    const SSL *sourceTls = reader.completedFrameServerTls();
+    if (sourceTls == nullptr ||
+        writer.status() != TsRequestTlsWriteStatus::Idle)
+    {
+        reader.close();
+        writer.close();
+        reject();
+        return false;
+    }
+
+    auto result = processFinalFramedNegoAndBinding(reader);
+    const bool validBinding =
+        result.ready &&
+        stage_ == SpnegoStage::ServerBindingPrepared &&
+        negotiatedServerTls_ == sourceTls &&
+        (negotiatedVersion_ == 5 || negotiatedVersion_ == 6) &&
+        !result.encryptedServerBinding.empty();
+
+    bool queued = false;
+    if (validBinding)
+    {
+        // A real confidential gss_wrap output, only after successful
+        // same-frame GSS completion and active-TLS certificate proof.
+        queued = writer.queueReply(
+            const_cast<SSL *>(sourceTls),
+            static_cast<std::uint8_t>(negotiatedVersion_),
+            CredSspServerReplyField::EncryptedServerBinding,
+            result.encryptedServerBinding);
+    }
+    if (!result.encryptedServerBinding.empty())
+    {
+        OPENSSL_cleanse(result.encryptedServerBinding.data(),
+                        result.encryptedServerBinding.size());
+        result.encryptedServerBinding.clear();
+    }
+    if (!queued)
+    {
+        reader.close();
+        writer.close();
+        reject();
+        return false;
+    }
+    return true;
+}
+
 CredSspProtectedReply GssapiSpnegoAcceptor::processVerifiedBinding(
     const SSL *activeServerTls,
     const TsRequestResult &request, bool combinedFinal) noexcept

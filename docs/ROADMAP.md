@@ -600,6 +600,52 @@ acceptance evidence; no synthetic completion claims.
   to a real provider-generated GSS exchange, verify
   TLS pubKeyAuth end to end, and independently
   authorize OS session access before any MCS reply.
+  **Linux real-GSS-to-TLS server reply handoff
+  (2026-10-14; new CI NOT RUN):** Microsoft
+  [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)
+  requires server SPNEGO reply tokens inside TLS
+  `negoTokens`, and a confidential server
+  `pubKeyAuth` proof after the client's last
+  combined negoToken+binding request. Integrate
+  the existing Linux real MIT GSS acceptor and
+  canonical `TsRequestTlsReplyWriter` rather than
+  building a second authentication owner: a
+  TLS-derived GSS continuation may queue one
+  actual provider output token; a fully verified
+  same-TLS Kerberos and pubKeyAuth step may
+  queue the real `gss_wrap` server binding.
+  Require a pending-free writer, exact same
+  SSL/version across frames, strict GSS stages,
+  a nonempty provider output and no forbidden
+  full completion on a negotiation-only request.
+  Wipe the transient GSS output after queuing
+  a bounded DER snapshot; close reader, writer
+  and provider together on any error. The new
+  methods only **queue** TLS bytes: they do not
+  send a socket record, select PROTOCOL_HYBRID,
+  authorize an account or admit an MCS session.
+  Add three new Linux-only behavior CTests in
+  the existing shared real-TLS fixture, covering
+  missing credentials/rejected GSS tokens,
+  forged final public-key proof, synthetic/
+  partial input, replay and unflushed outgoing
+  reply denial; no fake successful Kerberos.
+  Expected Linux **64** named CTests versus 61;
+  macOS/Windows remain **57** each.
+  **PASS previous baseline:** main
+  `195603ce733724b8940523f11b59d8c328d14e66`,
+  [CI 38615240623](https://github.com/k1moradi/RDP-server/actions/runs/38615240623),
+  Linux 61/61, macOS/Windows 57/57,
+  Debug/Release, SDK/policy/package.
+  **NOT RUN:** new CI, owner-local build,
+  actual positive Kerberos/keytab/TLS proof,
+  independently authorized OS desktop or
+  Microsoft RDP client. **Next:** an opt-in
+  controlled genuine positive Kerberos
+  transcript and GSS/TLS proof, independent
+  OS identity authorization and a single
+  authenticated connection controller before
+  live MCS/domain and desktop admission.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

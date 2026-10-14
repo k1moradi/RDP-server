@@ -123,6 +123,17 @@ public:
     [[nodiscard]] SpnegoStep acceptFramedNegoRequest(
         TsRequestFrameReader &reader) noexcept;
 
+    // MS-CSSP 3.1.5 SPNEGO continuation -> server negoTokens reply.
+    // Only a REAL GSS continuation result on the completed TLS-derived
+    // frame can queue a response. A full GSS completion without the
+    // mandatory combined final client binding is rejected here.
+    // The caller must drive the existing writer's SSL_write_ex readiness
+    // loop and release the completed reply before accepting another token.
+    // Rejected results permanently close reader, writer and GSS context.
+    [[nodiscard]] SpnegoStatus acceptFramedNegoAndQueueReply(
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer) noexcept;
+
     // Once SPNEGO/Kerberos completes, require a DER TSRequest holding
     // EXACTLY a v5/v6 pubKeyAuth + 32-byte clientNonce (no authInfo).
     // gss_unwrap MUST verify integrity and confidentiality *before* any
@@ -145,6 +156,15 @@ public:
     // Neither success nor failure constitutes OS user authorization.
     [[nodiscard]] CredSspProtectedReply processFinalFramedNegoAndBinding(
         TsRequestFrameReader &reader) noexcept;
+
+    // Final combined client negoTokens+pubKeyAuth -> GSS-protected
+    // server pubKeyAuth on the same pinned TLS. No caller-supplied
+    // ciphertext or claimed GSS identity may reach the writer.
+    // False is terminal for all three objects. True queues but DOES
+    // NOT send a TLS record, authenticate OS identity or admit MCS.
+    [[nodiscard]] bool processFinalFramedNegoAndQueueBindingReply(
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer) noexcept;
 
     // One-shot protected-credential boundary, ONLY after the GSS-bound
     // server response. Parses raw DER, GSS-unwraps with confidentiality,

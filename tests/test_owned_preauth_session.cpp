@@ -1902,6 +1902,188 @@ void testTlsCredSspProvenance()
 
 #ifdef RDP_TEST_LINUX_GSSAPI
 
+
+void receiveOneCredSspTlsFrame(
+    TsRequestFrameReader &reader, SSL *server, std::size_t expected)
+{
+    std::size_t total = 0;
+    for (std::size_t index = 0; index < expected + 8; ++index)
+    {
+        const auto step = reader.readOneTlsStep(server);
+        total += step.plaintextBytesRead;
+        assert(step.error == TsRequestError::None);
+        if (step.status == TsRequestTlsReadStatus::Complete)
+        {
+            assert(total == expected);
+            assert(reader.completedFrameServerTls() == server);
+            return;
+        }
+        assert(step.status == TsRequestTlsReadStatus::Progress);
+        assert(step.plaintextBytesRead > 0);
+    }
+    assert(false && "no complete real TLS CredSSP frame");
+}
+
+void assertNoGssReplyDelivered(SSL *client)
+{
+    // A rejected GSS provider must not produce even one TLS application
+    // record, independent of whether the DER token was syntactically valid.
+    std::array<std::uint8_t, 32> received{};
+    std::size_t count = 0;
+    const int result = SSL_read_ex(client, received.data(), received.size(),
+                                   &count);
+    assert(result != 1);
+    assert(SSL_get_error(client, result) == SSL_ERROR_WANT_READ);
+    assert(count == 0);
+}
+
+void testGssapiNegotiationReplyHandoffDenied()
+{
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        auto request = kTestCredSspDer;
+        request[6] = version;
+        writeTlsClientApplicationData(tls.client.get(), request);
+        receiveOneCredSspTlsFrame(reader, tls.server.get(), request.size());
+        GssapiSpnegoAcceptor acceptor;
+        // Only a real accepted GSS_C_CONTINUE_NEEDED output may be queued.
+        // These bytes came through real TLS but are NOT a valid Kerberos
+        // exchange and no keytab was explicitly configured.
+        assert(acceptor.acceptFramedNegoAndQueueReply(reader, writer) ==
+               SpnegoStatus::Rejected);
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(acceptor.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(writer.bytesRemaining() == 0);
+        assert(writer.writeOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsWriteStatus::Closed);
+        assertNoGssReplyDelivered(tls.client.get());
+
+        TsRequestFrameReader replay;
+        TsRequestTlsReplyWriter replayWriter;
+        writeTlsClientApplicationData(tls.client.get(), request);
+        receiveOneCredSspTlsFrame(replay, tls.server.get(), request.size());
+        assert(acceptor.acceptFramedNegoAndQueueReply(
+                   replay, replayWriter) == SpnegoStatus::Rejected);
+        assert(replay.status() == TsRequestFrameStatus::Closed);
+        assert(replayWriter.status() == TsRequestTlsWriteStatus::Closed);
+        assertNoGssReplyDelivered(tls.client.get());
+    }
+
+    // Caller-supplied DER lacks a completed TLS source, even if it parses.
+    TsRequestFrameReader synthetic;
+    assert(synthetic.consume(kTestCredSspDer).status ==
+           TsRequestFrameStatus::Complete);
+    GssapiSpnegoAcceptor acceptor;
+    TsRequestTlsReplyWriter writer;
+    assert(acceptor.acceptFramedNegoAndQueueReply(synthetic, writer) ==
+           SpnegoStatus::Rejected);
+    assert(synthetic.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+}
+
+void testGssapiBindingReplyHandoffDenied()
+{
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        const auto finalRequest = makeFinalCredSspDer(version);
+        writeTlsClientApplicationData(tls.client.get(), finalRequest);
+        receiveOneCredSspTlsFrame(
+            reader, tls.server.get(), finalRequest.size());
+        const auto parsed = parseCredSspTsRequest(reader.completeDer());
+        assert(parsed && parsed.value.finalNegoAndBindingOnly());
+
+        GssapiSpnegoAcceptor acceptor;
+        // Ciphertext bytes or the existence of a clientNonce cannot
+        // manufacture a GSS security context or TLS public-key proof.
+        assert(!acceptor.processFinalFramedNegoAndQueueBindingReply(
+            reader, writer));
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(acceptor.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(writer.bytesRemaining() == 0);
+        assertNoGssReplyDelivered(tls.client.get());
+    }
+
+    // An incomplete or plaintext-injected final message must not be
+    // "upgraded" to a protected GSS reply on any future SSL handle.
+    GssapiSpnegoAcceptor manualProvider;
+    TsRequestFrameReader manual;
+    TsRequestTlsReplyWriter manualWriter;
+    const auto finalRequest = makeFinalCredSspDer(6);
+    assert(manual.consume(finalRequest).status ==
+           TsRequestFrameStatus::Complete);
+    assert(!manualProvider.processFinalFramedNegoAndQueueBindingReply(
+        manual, manualWriter));
+    assert(manual.status() == TsRequestFrameStatus::Closed);
+    assert(manualWriter.status() == TsRequestTlsWriteStatus::Closed);
+
+    GssapiSpnegoAcceptor partialProvider;
+    TsRequestFrameReader partial;
+    TsRequestTlsReplyWriter partialWriter;
+    assert(partial.consume(std::span(finalRequest).first(6)).status ==
+           TsRequestFrameStatus::NeedMore);
+    assert(!partialProvider.processFinalFramedNegoAndQueueBindingReply(
+        partial, partialWriter));
+    assert(partial.status() == TsRequestFrameStatus::Closed);
+    assert(partialWriter.status() == TsRequestTlsWriteStatus::Closed);
+}
+
+void testGssapiReplyOrderAndPendingDenials()
+{
+    // The provider must refuse to accept another client token while
+    // a previous server reply remains queued and unwritten. Even a
+    // caller-generated offline DER reply must never sneak onto the wire.
+    for (const bool finalBinding : {false, true})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        constexpr std::array<std::uint8_t, 2> opaque{0x41, 0x42};
+        assert(writer.queueReply(tls.server.get(), 6,
+                                  CredSspServerReplyField::NegoToken,
+                                  opaque));
+        assert(writer.status() == TsRequestTlsWriteStatus::NeedWrite);
+        const auto finalRequest = makeFinalCredSspDer(6);
+        if (finalBinding)
+        {
+            writeTlsClientApplicationData(tls.client.get(), finalRequest);
+            receiveOneCredSspTlsFrame(
+                reader, tls.server.get(), finalRequest.size());
+        }
+        else
+        {
+            writeTlsClientApplicationData(tls.client.get(), kTestCredSspDer);
+            receiveOneCredSspTlsFrame(
+                reader, tls.server.get(), kTestCredSspDer.size());
+        }
+        GssapiSpnegoAcceptor provider;
+        if (finalBinding)
+            assert(!provider.processFinalFramedNegoAndQueueBindingReply(
+                reader, writer));
+        else
+            assert(provider.acceptFramedNegoAndQueueReply(
+                       reader, writer) == SpnegoStatus::Rejected);
+        assert(provider.stage() == SpnegoStage::Failed);
+        assert(provider.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(writer.bytesRemaining() == 0);
+        assertNoGssReplyDelivered(tls.client.get());
+    }
+}
+
 void testGssapiCombinedFinalBindingDenied()
 {
     // A valid final MS-CSSP envelope received over real TLS must remain
@@ -2125,6 +2307,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
 #ifdef RDP_TEST_LINUX_GSSAPI
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
     {"gssapi-final-combined-denials", &testGssapiCombinedFinalBindingDenied},
+    {"gssapi-negotiation-reply-gates", &testGssapiNegotiationReplyHandoffDenied},
+    {"gssapi-binding-reply-gates", &testGssapiBindingReplyHandoffDenied},
+    {"gssapi-reply-order-denials", &testGssapiReplyOrderAndPendingDenials},
 #endif
 });
 

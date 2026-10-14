@@ -732,3 +732,34 @@ is nonfatal.
 **NOT RUN:** owner-local build, positive GSS
 Kerberos, TLS binding, independently authorized
 OS session or Windows App interactive desktop.
+
+## Provider-sourced CredSSP TLS reply tests (2026-10-14; CI NOT RUN)
+
+Register three NEW Linux-only named CTests
+using the already-linked MIT GSSAPI target
+and the existing real OpenSSL memory-BIO
+server/client fixture in
+`tests/test_owned_preauth_session.cpp`:
+`security.gssapi-negotiation-reply-gates`
+asserts genuine TLS-carried syntactically
+correct v5/v6 initial GSS frames with no
+service credentials remain rejected and
+produce no decrypted server TLS reply,
+including replay and synthetic DER injection;
+`security.gssapi-binding-reply-gates`
+asserts that real TLS-derived syntactically
+combined v5/v6 final requests cannot produce
+a binding response without a continuing and
+verified GSS context, and that manually
+injected and truncated plaintext fail;
+`security.gssapi-reply-order-denials`
+asserts that an already-pending outgoing TLS
+reply blocks negotiation/final input and
+all three owners close with zero outbound
+plaintext. Preserve all 61 existing Linux
+tests and 57 macOS/Windows tests; expected
+Linux 64, portable 57 per Debug/Release.
+**NOT RUN:** new provider CI; real Kerberos
+ticket/keytab, positive GSS/TLS binding and
+OS session authority are unavailable in these
+negative-only regression tests.

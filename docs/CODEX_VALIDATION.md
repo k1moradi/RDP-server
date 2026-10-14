@@ -896,51 +896,77 @@ authentication and independent OS session
 policy BEFORE any real MCS channel/domain
 reply or remote desktop admission.
 
-## Pending Linux GSSAPI-sourced TLS reply handoff (2026-10-14)
+## Verified Linux MIT GSSAPI -> bounded TLS replies (2026-10-14)
 
-**Previous known green main:**
-`195603ce733724b8940523f11b59d8c328d14e66`,
+**Prior exact main:** `195603ce733724b8940523f11b59d8c328d14e66`,
 [CI 38615240623](https://github.com/k1moradi/RDP-server/actions/runs/38615240623):
-Linux/GCC 61/61, macOS/Clang and Windows/MSVC
-57/57 full CTests in BOTH Debug and Release;
-SDK downstream consumers, ZIP/SHA256 artifacts
-and documentation gate PASS.
+Linux 61/61 and macOS/Windows 57/57
+Debug+Release CTests, documentation,
+SDK consumer and packages PASS.
 
-**New code/tests (CI NOT RUN yet):**
-`src/server/security/gssapi_spnego_acceptor.{h,cpp}`
-now connects the existing TLS-provenance
-`acceptFramedNegoRequest` real MIT GSS
-provider output to the existing
-`TsRequestTlsReplyWriter` only for a live
-GSS continuation, with one outgoing
-`negoTokens` reply on the exact TLS
-identity/version. Adds
+**Implementation:**
+`27e8342aee0e475c3b0854330678e7c7596fc912`
+changes
+`src/server/security/gssapi_spnego_acceptor.{h,cpp}`,
+`src/server/security/gssapi_credssp_binding.cpp`,
+`tests/test_owned_preauth_session.cpp`,
+`tests/CMakeLists.txt` and the existing
+roadmap, architecture, coding/testing
+standards and this verification ledger.
+Adds two direct provider->writer methods:
+`acceptFramedNegoAndQueueReply` requires
+a continuing real MIT GSS context and
+its nonempty provider output;
 `processFinalFramedNegoAndQueueBindingReply`
-in `gssapi_credssp_binding.cpp` that
-requires actual GSS completion, signed and
-confidential client-to-server binding
-verification, and the original selected
-TLS certificate before queuing an opaque
-GSS-wrapped server `pubKeyAuth` proof.
-The new methods require the writer be
-idle and wipe transient tokens on either
-outcome. They do NOT send TLS by themselves
-or authorize OS credentials/MCS.
-Three new dedicated Linux-only security
-tests in the existing real memory-BIO
-OpenSSL fixture exercise no-keytab
-rejection, replay, fake final TLS proof,
-synthetic/partial DER and pending-writer
-denial. Registered in `tests/CMakeLists.txt`;
-expected 64 Linux, 57 macOS/Windows.
-All code, tests and roadmap/architecture/
-coding/testing standards co-changed.
-**NOT RUN:** new-code CI; owner-local test,
-genuine positive Kerberos keytab/ticket,
-TLS certificate binding, independently
-authorized OS session, Microsoft client
-or interactive desktop.
-**Next:** opt-in controlled successful
-real MIT Kerberos+GSS TLS-binding transcript
-and independently checked OS authorization
-before live MCS replies.
+requires successful combined-final
+GSS context verification, confidential
+client binding, matching active server
+TLS certificate, and real GSS-wrapped
+server binding. Both require writer
+idle, same SSL/version, wipe transient
+tokens and close reader/writer/provider
+atomically on error. They queue DER
+but do NOT call `SSL_write_ex`,
+admit identity, send an MCS reply
+or install a live server.
+
+**PASS:** [Actions 38617602493](https://github.com/k1moradi/RDP-server/actions/runs/38617602493)
+completed SUCCESS with all 4 jobs:
+Linux/GCC Debug and Release **64/64**,
+macOS/Clang and Windows/MSVC
+Debug and Release **57/57** CTests.
+All 3 new Linux-only named tests
+`security.gssapi-negotiation-reply-gates`,
+`security.gssapi-binding-reply-gates`,
+`security.gssapi-reply-order-denials`
+passed. SDK installed consumer, CPack
+ZIP/SHA-256 manifests and all three
+artifact uploads, documentation-policy
+PASSED. CI uses each checkout-local
+single `build/`:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON -DRDP_SERVER_TEST_LINUX_GSSAPI=ON`
+(Linux; OFF on macOS/Windows);
+`cmake --build build --config Debug --parallel 2`;
+`ctest --test-dir build --build-config Debug
+--output-on-failure`; same-root Release
+reconfigure/build/CTest, staged SDK
+installation, downstream consumer,
+CPack and SHA-256 package upload.
+Existing Ubuntu Release
+`tests/test_owned_preauth_session.cpp:589`
+`-Wstringop-overflow` warning
+remains nonfatal. Prerelease skipped
+(no tag).
+**NOT RUN:** user's own persistent
+local `~/rdp-server/build`, successful
+positive Kerberos service keytab,
+client tickets, mutually verified
+GSS/TLS certificate-bound proof,
+independent OS session admission,
+Windows App/FreeRDP or desktop.
+**Next:** controlled opt-in positive
+GSS Kerberos / selected TLS proof
+then independently audited OS
+authorization before live RDP
+channel, graphics or desktop.

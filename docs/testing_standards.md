@@ -733,33 +733,46 @@ is nonfatal.
 Kerberos, TLS binding, independently authorized
 OS session or Windows App interactive desktop.
 
-## Provider-sourced CredSSP TLS reply tests (2026-10-14; CI NOT RUN)
+## Verified real-provider CredSSP TLS reply safety tests (2026-10-14)
 
-Register three NEW Linux-only named CTests
-using the already-linked MIT GSSAPI target
-and the existing real OpenSSL memory-BIO
-server/client fixture in
-`tests/test_owned_preauth_session.cpp`:
+Three NEW Linux-only security CTests reuse
+the original real OpenSSL memory-BIO TLS fixture
+with the actual linked MIT GSSAPI target:
 `security.gssapi-negotiation-reply-gates`
-asserts genuine TLS-carried syntactically
-correct v5/v6 initial GSS frames with no
-service credentials remain rejected and
-produce no decrypted server TLS reply,
-including replay and synthetic DER injection;
+asserts v5/v6 TLS-derived initial requests,
+replay and synthetically injected DER cannot
+produce a server GSS `negoTokens` reply
+without a configured positive Kerberos context;
 `security.gssapi-binding-reply-gates`
-asserts that real TLS-derived syntactically
-combined v5/v6 final requests cannot produce
-a binding response without a continuing and
-verified GSS context, and that manually
-injected and truncated plaintext fail;
+asserts that v5/v6 combined final
+`negoTokens+pubKeyAuth` frames cannot queue
+a server GSS-wrapped binding without actual
+provider verification, and manual/partial
+DER remains rejected;
 `security.gssapi-reply-order-denials`
-asserts that an already-pending outgoing TLS
-reply blocks negotiation/final input and
-all three owners close with zero outbound
-plaintext. Preserve all 61 existing Linux
-tests and 57 macOS/Windows tests; expected
-Linux 64, portable 57 per Debug/Release.
-**NOT RUN:** new provider CI; real Kerberos
-ticket/keytab, positive GSS/TLS binding and
-OS session authority are unavailable in these
-negative-only regression tests.
+proves a pending unflushed server TLS reply
+blocks another client token and causes
+terminal reader/writer/GSS cleanup with NO
+client-readable TLS response. The existing
+all-platform GSS framing, TLS writer,
+credential and binding assertions remain
+unaltered.
+
+**PASS:** exact code commit
+`27e8342aee0e475c3b0854330678e7c7596fc912`,
+[Actions run 38617602493](https://github.com/k1moradi/RDP-server/actions/runs/38617602493)
+all four required jobs passed:
+Linux/GCC **64/64**, macOS/Clang and
+Windows/MSVC **57/57** CTests in both
+Debug and Release, including all 3
+new Linux-only cases; installed SDK
+consumer, ZIP/SHA256 artifact upload
+and policy PASS.
+**NOT RUN:** owner-local tests,
+positive service keytab/TGT,
+successful GSS confidentiality/TLS
+pubKeyAuth, independent OS
+user authorization, actual client
+or interactive desktop. The
+preexisting nonfatal Ubuntu Release
+test warning at line 589 remains.

@@ -88,13 +88,15 @@ public:
     [[nodiscard]] ConnectionIntakeResult consumeConnectionRequest(
         std::span<const std::uint8_t> receivedBytes) noexcept;
 
+    // The transport must call this only AFTER all 19 X.224 reply bytes
+    // have been transmitted. Partial sends and failures must report false;
+    // a premature or repeated report terminates the diagnostic.
+    [[nodiscard]] bool onConnectionReplySent(bool completed) noexcept;
+
     // The caller must first send all ReplyThenTls bytes and execute
     // a real TLS provider handshake. This bool is a diagnostic signal,
     // NOT proof of credential authentication or OS session authorization.
-    [[nodiscard]] bool onTlsHandshake(bool completed) noexcept
-    {
-        return session_.onTlsHandshake(completed);
-    }
+    [[nodiscard]] bool onTlsHandshake(bool completed) noexcept;
 
     // One already-decrypted complete MCS envelope. Remains diagnostic;
     // the existing preauth state machine closes after examining it.
@@ -113,6 +115,8 @@ private:
     std::array<std::uint8_t, kMaximumConnectionRequestBytes> requestBuffer_{};
     std::size_t bufferedBytes_{};
     std::size_t expectedBytes_{};
+    // True only after exactly one completed X.224 Confirm write.
+    bool connectionReplySent_{};
 };
 
 } // namespace rdp_server::server::transport

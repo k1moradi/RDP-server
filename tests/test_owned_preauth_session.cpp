@@ -118,6 +118,7 @@ void testConnectionRequestByteBoundaryAndFailure()
     assert(withTrailingTls.consumeConnectionRequest(
                std::span(coalesced).subspan(request.size())).bytesConsumed == 0);
     assert(withTrailingTls.stage() == PreauthStage::AwaitTls);
+    assert(withTrailingTls.onConnectionReplySent(true));
     assert(withTrailingTls.onTlsHandshake(true));
     assert(withTrailingTls.stage() == PreauthStage::AwaitMcsConnectInitial);
     withTrailingTls.close();
@@ -140,6 +141,47 @@ void testConnectionRequestByteBoundaryAndFailure()
     assert(bad.bytesConsumed == invalid.size());
     assert(malformed.stage() == PreauthStage::Closed);
     assert(malformed.consumeConnectionRequest(request).bytesConsumed == 0);
+}
+
+void testConnectionReplyMustBeSentBeforeTls()
+{
+    const std::array<std::uint8_t, 19> request{
+        3, 0, 0, 19, 14, 0xe0, 0, 0, 0, 0, 0,
+        1, 0, 8, 0, 1, 0, 0, 0,
+    };
+
+    PreauthConnectionStream prematureTls;
+    assert(prematureTls.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(!prematureTls.onTlsHandshake(true));
+    assert(prematureTls.stage() == PreauthStage::Closed);
+
+    PreauthConnectionStream failedSend;
+    assert(failedSend.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(!failedSend.onConnectionReplySent(false));
+    assert(failedSend.stage() == PreauthStage::Closed);
+
+    PreauthConnectionStream repeatedSend;
+    assert(repeatedSend.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(repeatedSend.onConnectionReplySent(true));
+    assert(!repeatedSend.onConnectionReplySent(true));
+    assert(repeatedSend.stage() == PreauthStage::Closed);
+
+    PreauthConnectionStream prematureReport;
+    assert(!prematureReport.onConnectionReplySent(true));
+    assert(prematureReport.stage() == PreauthStage::Closed);
+
+    PreauthConnectionStream successfulTls;
+    assert(successfulTls.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(successfulTls.onConnectionReplySent(true));
+    assert(successfulTls.onTlsHandshake(true));
+    assert(successfulTls.stage() == PreauthStage::AwaitMcsConnectInitial);
+    // The same TLS transition is not reusable.
+    assert(!successfulTls.onTlsHandshake(true));
+    assert(successfulTls.stage() == PreauthStage::Closed);
 }
 
 void testConnectionRequestLengthRejectionAndClose()
@@ -238,5 +280,6 @@ int main()
 
     testFragmentedConnectionRequestIntake();
     testConnectionRequestByteBoundaryAndFailure();
+    testConnectionReplyMustBeSentBeforeTls();
     testConnectionRequestLengthRejectionAndClose();
 }

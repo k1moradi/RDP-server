@@ -68,7 +68,31 @@ void PreauthConnectionStream::clearRequestBuffer() noexcept
 void PreauthConnectionStream::close() noexcept
 {
     clearRequestBuffer();
+    connectionReplySent_ = false;
     session_.close();
+}
+
+bool PreauthConnectionStream::onConnectionReplySent(bool completed) noexcept
+{
+    if (stage() != PreauthStage::AwaitTls ||
+        connectionReplySent_ || !completed)
+    {
+        close();
+        return false;
+    }
+    connectionReplySent_ = true;
+    return true;
+}
+
+bool PreauthConnectionStream::onTlsHandshake(bool completed) noexcept
+{
+    if (stage() != PreauthStage::AwaitTls || !connectionReplySent_)
+    {
+        close();
+        return false;
+    }
+    connectionReplySent_ = false;
+    return session_.onTlsHandshake(completed);
 }
 
 ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(

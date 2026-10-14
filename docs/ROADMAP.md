@@ -83,6 +83,11 @@ acceptance evidence; no synthetic completion claims.
   The *overall* milestone stays **open**: a real TCP listener, TLS provider,
   authenticated session, MCS response and external-client handshake
   remain **NOT RUN / unimplemented**.
+  **New ordering gate in this commit:** the same preauth owner refuses a
+  TLS transition until it receives exactly one successful completion
+  acknowledgment for the full X.224 reply; premature, partial-failure
+  and duplicate completions close the diagnostic. Exact-head CTests
+  are pending CI; no real socket or TLS provider has been tested.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

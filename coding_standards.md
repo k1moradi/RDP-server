@@ -77,3 +77,15 @@ failure before closing. The caller must send the whole X.224 Confirm
 **before** handing the stream to TLS; no app-data authorization occurs.
 Avoid a second transport/session state owner or speculative network
 listener until a real TLS and session admission boundary exists.
+
+## X.224 send-before-TLS invariant (2026-10-14)
+
+An X.224 Connection Confirm must be fully transmitted **before** the
+external security provider begins TLS (MS-RDPBCGR 3.3.5.3.2).
+The single `PreauthConnectionStream` state owner now requires exactly
+one `onConnectionReplySent(true)` acknowledgment before allowing
+`onTlsHandshake`. Transport adapters must report success only after
+the full response was written; partial send, false completion and
+duplicate acknowledgment fail closed. A caller-provided bool is still
+only an internal test signal and does **not** establish real TLS,
+CredSSP or session authorization.

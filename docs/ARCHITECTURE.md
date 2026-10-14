@@ -57,3 +57,9 @@ Confirm or failure decision. A transport adapter must send the entire
 response before starting TLS and leave already-received TLS bytes
 unconsumed. This is **not** an active TCP listener, a TLS provider,
 an authenticated RDP session or a connection to a desktop.
+
+The stream owner additionally enforces send-before-TLS ordering:
+an adapter must report a **single successful full X.224 response
+write** before the diagnostic TLS transition is permitted. Failed,
+premature or duplicate completion closes it. This guards the future
+transport adapter contract but does not implement that adapter.

@@ -90,3 +90,12 @@ coalesced trailing TLS bytes, size/version/type rejection,
 unsupported security and terminal replay/close behavior.
 No TCP listener, TLS server, session admission or external client
 was exercised; these acceptance categories remain NOT RUN.
+
+## X.224 response-ordering regression (pending exact-head CI)
+
+The existing `transport.preauth-session` suite also tests that a TLS
+completion signal before the Connection Confirm has been fully sent is
+rejected, as are failed/partial and duplicate send acknowledgments.
+It verifies exactly one completed Confirm allows progression to the
+existing *synthetic* TLS stage, but **not** real TLS negotiation or
+authenticated desktop access.

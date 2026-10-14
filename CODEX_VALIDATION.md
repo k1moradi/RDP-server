@@ -75,3 +75,13 @@ boundary is a network listener coupled to a real TLS provider and
 authenticated post-negotiation session. Real TLS/credential validation,
 desktop admission and external RDP clients remain **NOT RUN**;
 no production activation.
+
+## X.224 write-completion ordering (pending exact-head CI)
+
+In the existing `PreauthConnectionStream`, the connection reply
+completion gate now precedes the preauthentication TLS transition.
+Tests were added to the existing `transport.preauth-session` CTest:
+premature TLS, write failure, duplicate reply completion, early
+completion report and accepted one-shot completion. Status at commit
+creation: **NOT RUN**, pending GitHub Actions exact-head verification.
+No listening socket, real TLS provider or OS session access.

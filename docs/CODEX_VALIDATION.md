@@ -497,11 +497,16 @@ from Microsoft wire examples with truncated/invalid negative
 cases; expected **37 registered CTests**. No MCS channel state,
 live response emission, OS admission, independent identity
 or credential acceptance was implemented.
-**NOT RUN:** exact-head Linux/GCC, macOS/Clang and Windows/MSVC
-Debug/Release full CTests, downstream consumer and packages,
-owner-local updated build, external clients, CredSSP/NLA and
-desktop access. **Next gate:** verify hosted CI and then
-implement authoritative authentication-owned MCS lifecycle.
+**PASS:** corrected implementation
+`6effdb76229e2514511ebe5dd8cb404841403b1b`
+in [Actions run 38588538653](https://github.com/k1moradi/RDP-server/actions/runs/38588538653):
+Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy,
+Debug/Release **37 registered CTests**, installed SDK consumer
+and all three platform packages/checksums.
+**NOT RUN:** owner-local corrected tests, external clients,
+CredSSP/NLA or authenticated OS desktop.
+**Next:** authoritative, independent authentication gate
+before server-owned MCS channel/join replies.
 
 ## First MCS Erect-domain fixture failure (2026-10-14)
 
@@ -515,5 +520,13 @@ so the production decoder correctly rejected it.
 Other 36 CTests PASS on Ubuntu. Fix only the test vector to
 encode length 3 for 0x010203; no production code changes,
 no weakened input bounds or removed assertions.
-**NOT RUN:** corrected exact-head CI, owner-local new tests,
-external RDP clients and authenticated domain/OS admission.
+**PASS:** corrected code
+`6effdb76229e2514511ebe5dd8cb404841403b1b`,
+[CI run 38588538653](https://github.com/k1moradi/RDP-server/actions/runs/38588538653):
+Linux, macOS, Windows and documentation-policy PASS with
+Debug/Release **37/37 CTests** on Ubuntu and full tests on
+other platforms, staged installation, downstream consumer and
+three SDK ZIPs/checksums. No code path grants user access
+or sends an MCS channel response. **NOT RUN:** owner-local
+new CTests, external Microsoft clients, credential/session
+authorization and graphics.

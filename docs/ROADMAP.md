@@ -345,11 +345,18 @@ acceptance evidence; no synthetic completion claims.
   Other 36 CTests passed. The production parser correctly
   rejected the inconsistent packet. The test vector has been
   corrected from 0x04 to 0x03 without changing the decoder.
-  **NOT RUN:** corrected exact-head Debug/Release CI, owner-local
-  post-change build, TLS-verified MCS phase admission, CredSSP/NLA,
-  live replies or OS authorization. **Next:** verify corrected CI,
-  then independent authenticated session gate and server-owned
-  MCS Attach/ChannelJoin confirms within one session owner.
+  **PASS:** corrected implementation
+  `6effdb76229e2514511ebe5dd8cb404841403b1b`,
+  [Actions run 38588538653](https://github.com/k1moradi/RDP-server/actions/runs/38588538653)
+  on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy:
+  both Debug/Release **37 CTests**, installed downstream SDK
+  consumer, and three SDK ZIP/SHA-256 uploads. Ubuntu logs
+  explicitly show **37/37 PASS** in both configurations.
+  **NOT RUN:** owner's local build at the corrected commit,
+  TLS-verified domain phase admission, CredSSP/NLA,
+  live attach/channel replies, OS authorization and desktop.
+  **Next:** independent authenticated session authority and
+  its single-owner MCS Attach/ChannelJoin lifecycle.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

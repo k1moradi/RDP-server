@@ -457,7 +457,7 @@ The older parser suites remain active; no code path may
 send a response or claim credential/OS admission from these
 offline tests.
 
-## Offline MCS Erect/Attach/ChannelJoin request regressions (CI pending)
+## Verified offline MCS Erect/Attach/ChannelJoin request regressions (2026-10-14)
 
 In the existing `test_owned_mcs_connect_initial` binary, register
 three additional behavior-named CTests without another executable:
@@ -484,4 +484,11 @@ failed `transport.mcs-erect-request`, with 36 other
 CTest commands PASS in Debug. Correct the fixture determinant
 to `0x03`; preserve the assertion that the resulting value
 is 0x010203 and leave production parsing unchanged.
-Post-fix CI: NOT RUN until recorded.
+**PASS:** corrected commit
+`6effdb76229e2514511ebe5dd8cb404841403b1b`,
+[run 38588538653](https://github.com/k1moradi/RDP-server/actions/runs/38588538653):
+Ubuntu/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+Debug/Release full **37 CTests**, installed SDK consumer and
+all three ZIP/checksum uploads. Ubuntu logs explicitly
+confirm **37/37 passing** in both configurations.
+Owner-local corrected tests and authenticated runtime remain NOT RUN.

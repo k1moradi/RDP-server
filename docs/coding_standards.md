@@ -374,3 +374,13 @@ allocated or joined. Even a syntactically valid out-of-domain
 channelId must be checked by the future authenticated domain
 owner. Do not fork the MCS parser or create a competing
 session or channel controller.
+
+**Verified parser boundary:** the strict T.125 Erect, Attach and
+ChannelJoin decoding increment at
+`6effdb76229e2514511ebe5dd8cb404841403b1b` passed
+[Actions run 38588538653](https://github.com/k1moradi/RDP-server/actions/runs/38588538653)
+on GCC/Linux, Clang/macOS and MSVC/Windows, including full
+Debug/Release **37 CTests** and SDK gates. An early incorrect
+PER test-vector length was corrected without changing the
+strict decoder; do not interpret this as authenticated domain
+or channel admission.

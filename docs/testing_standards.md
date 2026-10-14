@@ -153,3 +153,10 @@ CMP0057 NEW can reject valid syntax. Use policy-independent
 `list(FIND ... index)` for set membership in these scripts, or
 explicitly declare the script's required minimum CMake version.
 Preserve the root layout assertions and check all hosted toolchains.
+
+**PASS after correction:** commit
+`f68d1d417424823eed7856761ff95f0ebe1eabb2`,
+[Actions run 38544988535](https://github.com/k1moradi/RDP-server/actions/runs/38544988535)
+passed policy and full Debug/Release protocol tests, downstream
+consumer installation and packaging on all three hosted OSes.
+This verifies the policy-independent root document membership check.

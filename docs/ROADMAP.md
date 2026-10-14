@@ -142,15 +142,22 @@ acceptance evidence; no synthetic completion claims.
   checks, but was **SKIPPED / NOT RUN** because no release tag was
   created. Publishing an SDK is **not** installation, activation or
   authenticated end-to-end deployment of an RDP server.
-- [ ] Consolidate all non-entrypoint Markdown documentation under `docs/`,
-  keeping `README.md`, agent-discovery files, `LICENSE` and `NOTICE` at
-  the root; update cross-links, CMake package attribution paths and
-  project-policy CTest. **Initial CI FAIL:** [run 38544805819](https://github.com/k1moradi/RDP-server/actions/runs/38544805819)
-  exposed a `cmake -P` CMP0057 `IN_LIST` policy dependency in the
-  new root layout guard; all 10 protocol CTests passed. The policy
-  check now uses version-independent `list(FIND)`.
-  **Next:** exact-head full Debug/Release CI and SDK install/packaging
-  verification.
+- [x] Consolidate all seven non-entrypoint root Markdown documents
+  under `docs/` while retaining `README.md`, `AGENTS.md`,
+  `CLAUDE.md`, `CODEX.md`, `agent.md`, `LICENSE` and `NOTICE`
+  at repository root. Rebase 47 links, fix attribution package
+  install path and enforce the layout using the canonical policy CTest.
+  **Initial FAIL:** [run 38544805819](https://github.com/k1moradi/RDP-server/actions/runs/38544805819)
+  at `e3e6a7576f530280a1095f8e15f058d7da07f52d` uncovered
+  missing CMP0057 in standalone `cmake -P` policy script (10 native
+  protocol tests still passed on Ubuntu).
+  **PASS:** corrected `list(FIND)` at
+  `f68d1d417424823eed7856761ff95f0ebe1eabb2` in
+  [Actions run 38544988535](https://github.com/k1moradi/RDP-server/actions/runs/38544988535):
+  Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy
+  passed full Debug/Release CTests, SDK installation, downstream
+  consumer and package upload.
+  **NOT RUN:** owner-local builds, real clients and service deployment.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
 

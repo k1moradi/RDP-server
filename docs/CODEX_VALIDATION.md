@@ -139,5 +139,13 @@ failed `project.policy` on Ubuntu during Debug CTest because
 `cmake -P` did not enable CMP0057 for `if(IN_LIST)`.
 Ten native protocol suites passed on Ubuntu. Changed the root-layout
 policy guard to `list(FIND)` in this follow-up implementation.
-**NOT RUN:** full CI on corrected commit until triggered;
-real RDP server/host access remains NOT RUN.
+**PASS:** the corrected `cmake -P` root-layout guard at
+`f68d1d417424823eed7856761ff95f0ebe1eabb2` passed
+[GitHub Actions run 38544988535](https://github.com/k1moradi/RDP-server/actions/runs/38544988535)
+on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
+Each runner passed Debug and Release full CTests, staged SDK install,
+downstream CMake consumer, CPack ZIP and SHA-256 artifact upload.
+`project.policy` now checks required relocated docs and permits only
+five canonical root-level Markdown entrypoints.
+**NOT RUN:** owner-local `~/rdp-server/build/`, real clients, RDP
+network listener, OS admission and service deployment.

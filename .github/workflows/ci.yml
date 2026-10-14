@@ -13,13 +13,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install OpenSSL (macOS)
         if: runner.os == 'macOS'
         run: brew install openssl@3
+      - name: Locate or install Windows OpenSSL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dirs = @('C:\Program Files\OpenSSL-Win64',
+                    'C:\Program Files\OpenSSL',
+                    'C:\Program Files (x86)\OpenSSL-Win32')
+          $found = $dirs | Where-Object { Test-Path (Join-Path $_ 'include/openssl/ssl.h') } | Select-Object -First 1
+          if (-not $found) {
+            choco install openssl --no-progress -y
+            $found = $dirs | Where-Object { Test-Path (Join-Path $_ 'include/openssl/ssl.h') } | Select-Object -First 1
+          }
+          if (-not $found) { throw 'OpenSSL headers are unavailable on the Windows runner' }
+          Add-Content -Path $env:GITHUB_ENV -Value "OPENSSL_ROOT_DIR=$found"
       - name: Configure C++23 source-owned protocol
         shell: bash
         run: |

@@ -776,3 +776,34 @@ user authorization, actual client
 or interactive desktop. The
 preexisting nonfatal Ubuntu Release
 test warning at line 589 remains.
+
+## Real-TLS selected-certificate binding checks (2026-10-14; CI NOT RUN)
+
+Add three dedicated named CTests to the EXISTING
+`test_owned_preauth_session` executable and reuse
+the current ephemeral X.509 EC key and actual
+OpenSSL in-memory TLS handshake. No extra cert
+test controller or executable is permitted.
+`security.credssp-active-tls-binding-positive`
+compares the v5/v6 Client-to-Server and Server-to-Client
+hashes computed against the live selected TLS
+SubjectPublicKey BIT STRING to the independent
+`computeCredSspBindingHash` reference with two
+different 32-byte client nonces; selected SHA-256
+fingerprint is nonzero. It is positive TLS math,
+NOT successful GSS confidentiality or OS admission.
+`security.credssp-active-tls-binding-rejections`
+checks unrelated live TLS certificates, reflection,
+every nonce/hash mutation, null/client-role/
+pre-handshake TLS, short/long nonce/hash and
+zeroed output on failure. `transport.credssp-tls-certificate-pinning`
+tests the ORIGINAL SSL pointer with a replaced
+local selected X509 after a complete DER frame and
+during an incomplete frame: the provenance pointer
+must disappear, reads must invalidate and securely
+close; unchanged certificate across frame release
+must remain usable. Expected +3 portable CTests:
+Linux 67, macOS and Windows 60 per Debug and Release.
+The full new CI and owner's local build are NOT RUN;
+real positive keytab/GSS pubKeyAuth remain BLOCKED
+without controlled credentials.

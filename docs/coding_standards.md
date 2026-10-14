@@ -584,3 +584,27 @@ future TLS readiness loop; it does NOT
 create an authenticated OS session, perform
 credential delegation, alter X.224 selection
 or emit MCS domain/channel responses.
+
+## Selected server certificate continuity for CredSSP (2026-10-14)
+
+Per MS-CSSP 2.2.1/3.1.5, the v5/v6 client/server
+proof uses the SubjectPublicKey from the server's
+selected TLS certificate, with a direction-specific
+NUL-terminated binding label and the client's
+32-byte nonce. Do NOT hash the peer certificate,
+a mutable SSL_CTX default before handshake, the
+full SubjectPublicKeyInfo or raw TLS bytes.
+Validate finished TLS >=1.2, server role, active
+cipher and selected certificate in ONE existing
+certificate module. SHA-256 fingerprint the selected
+DER certificate on the FIRST authentic TLS read,
+pin it alongside the existing `SSL*`, compare it
+in constant time before every later read and
+completed GSS handoff, and fail closed on same-SSL
+certificate substitution/renegotiation.
+Do NOT reset the pin merely because a successfully
+parsed frame is released; wipe it on the reader's
+terminal close. No GSS token, binding hash or
+certificate fingerprint is a user-authorization
+capability. Test with actual OpenSSL selected
+certificates, never a fabricated OS identity.

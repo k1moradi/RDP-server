@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "credssp_tls_certificate.h"
+
 #include <openssl/ssl.h>
 
 #include <array>
@@ -185,11 +187,7 @@ public:
     // directly from the established server SSL. Null for manual inputs,
     // partial frames, released frames and closed readers. This is proof
     // of transport provenance, never of user/GSS authentication.
-    [[nodiscard]] const SSL *completedFrameServerTls() const noexcept
-    {
-        return status_ == TsRequestFrameStatus::Complete
-                   ? boundServerTls_ : nullptr;
-    }
+    [[nodiscard]] const SSL *completedFrameServerTls() const noexcept;
     // Only after a synchronous GSS/DER handoff; wipes all buffered bytes.
     // This permits receiving the next CredSSP message but authorizes nothing.
     [[nodiscard]] bool releaseFrame() noexcept;
@@ -206,6 +204,12 @@ private:
     std::size_t expected_{};
     TsRequestFrameStatus status_{TsRequestFrameStatus::NeedMore};
     const SSL *boundServerTls_{};
+    // Borrowed TLS pointer alone is insufficient: SSL credentials may be
+    // reconfigured/renegotiated without replacing the SSL object. Pin the
+    // selected certificate's fingerprint from the FIRST read and verify it
+    // before every later TLS read and completed-frame handoff.
+    CredSspTlsCertificateFingerprint pinnedCertificate_{};
+    bool certificatePinned_{};
 };
 
 

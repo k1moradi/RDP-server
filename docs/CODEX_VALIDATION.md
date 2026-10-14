@@ -970,3 +970,54 @@ GSS Kerberos / selected TLS proof
 then independently audited OS
 authorization before live RDP
 channel, graphics or desktop.
+
+## Pending same-SSL selected certificate pinning and live TLS binding (2026-10-14)
+
+**Prior exact verified main:** `1bfbc3452078ed1a4676551953e325366981e587`,
+[CI 38618001913](https://github.com/k1moradi/RDP-server/actions/runs/38618001913)
+Linux/GCC **64/64**, macOS/Clang/Windows/MSVC **57/57**
+in both Debug and Release; SDK downstream consumer,
+three ZIP/checksum uploads and documentation policy PASS.
+
+**New implementation and tests (CI NOT RUN):**
+`src/server/security/credssp_tls_certificate.{h,cpp}`
+adds one SHA-256 fingerprint of the actual
+selected established server TLS DER certificate;
+`src/server/security/credssp_tsrequest.{h,cpp}`
+pins this fingerprint alongside the same `SSL*`
+on the first TLS read and rechecks it before all
+subsequent reads or completed-frame GSS handoffs.
+A changed certificate on the SAME SSL handle
+terminally invalidates the reader and the borrowed
+GSS frame identity; release preserves the pin,
+close securely wipes it. Shared certificate selection
+requires negotiated TLS >=1.2 with active server
+cipher, not client role or unhandshaken SSL.
+Three distinct all-platform CTests are added to the
+existing OpenSSL memory-BIO test and registered in
+`tests/CMakeLists.txt`:
+`security.credssp-active-tls-binding-positive`,
+`security.credssp-active-tls-binding-rejections`,
+`transport.credssp-tls-certificate-pinning`.
+Expect Linux **67**, macOS/Windows **60** full
+Debug/Release CTests. Same-commit updates to
+roadmap, architecture, coding/testing standards
+and this validation ledger. CI uses the sole job
+`build/` for Debug:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON` plus
+`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON` only Linux,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build --build-config Debug
+--output-on-failure`, then same-root Release
+reconfigure/build/CTest, SDK consumer, package,
+SHA256 and upload.
+**NOT RUN:** new implementation CI,
+owner-local updated build, actual successful
+Kerberos and mutual GSS with service keytab,
+gss_unwrap/GSS-wrap public-key proof,
+OS authorization or Windows App desktop.
+**Next:** genuine controlled opt-in positive
+Kerberos/GSS and selected-TLS proof;
+independently authorized account policy
+before real MCS/session admission.

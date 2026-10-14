@@ -424,3 +424,26 @@ components. No extra session controller or
 portable GSS dependency was added. TLS
 queuing alone is not a trusted client, account
 authorization or permission to respond to MCS.
+
+### Pin selected TLS certificate across the CredSSP handshake (2026-10-14)
+
+MS-CSSP 3.1.5 requires the client and server to derive their
+direction-specific binding hashes from the actual TLS-selected
+server certificate SubjectPublicKey and client nonce. An SSL pointer
+alone is not a sufficient long-lived certificate identity if
+credentials change within the same TLS connection. The existing
+first-party `credssp_tls_certificate` module now hashes the
+selected, finished TLS 1.2+ server X.509 DER certificate to a
+fixed SHA-256 fingerprint, sharing selected-certificate role,
+cipher and handshake checks with the SubjectPublicKey binding
+computation. The original single bounded
+`TsRequestFrameReader` retains this one fingerprint from its
+first real TLS read, tests it before every subsequent step,
+and hides completed SSL provenance from the GSS provider
+if that selected certificate changes even between frame
+completion and the synchronous handoff. Secure close
+clears the fingerprint; `releaseFrame()` cleanses only
+that one DER frame, retaining the transcript identity
+for the next request. The fingerprint proves transport
+continuity, NOT genuine Kerberos, client OS identity,
+account admission or executable desktop availability.

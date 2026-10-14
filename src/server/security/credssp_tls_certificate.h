@@ -5,11 +5,21 @@
 
 #include <openssl/ssl.h>
 
+#include <array>
 #include <cstdint>
 #include <span>
 
 namespace rdp_server::server::security
 {
+
+// A SHA-256 identity of the SELECTED server-side TLS certificate.
+ // Pin this value, in addition to SSL* identity, across the full CredSSP
+ // handshake. Never interpret this digest as a GSS or OS identity.
+using CredSspTlsCertificateFingerprint = std::array<std::uint8_t, 32>;
+
+[[nodiscard]] bool fingerprintActiveCredSspServerTlsCertificate(
+    const SSL *serverTls,
+    CredSspTlsCertificateFingerprint &output) noexcept;
 
 // Computes the CredSSP v5/6 binding against the *selected local certificate*
 // of an already established SERVER-side TLS session, not a caller-supplied

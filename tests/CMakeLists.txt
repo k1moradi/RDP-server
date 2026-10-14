@@ -60,6 +60,7 @@ function(add_rdp_test source_file suite behavior)
                 credssp-tls-coalesced
                 credssp-tls-rejections
                 credssp-tls-provenance
+                credssp-tls-certificate-pinning
                 credssp-tls-reply-wire
                 credssp-tls-reply-backpressure
                 credssp-tls-reply-rejections)
@@ -67,6 +68,17 @@ function(add_rdp_test source_file suite behavior)
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES
                 LABELS "protocol;transport")
+        endforeach()
+        # Live server-cert binding belongs to the existing real TLS
+        # fixture, but exposes separate positive and negative security
+        # contracts rather than hiding them under transport CTest.
+        foreach(case_name IN ITEMS
+                credssp-active-tls-binding-positive
+                credssp-active-tls-binding-rejections)
+            add_test(NAME "security.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("security.${case_name}" PROPERTIES
+                LABELS "protocol;security")
         endforeach()
     elseif(test_target STREQUAL "test_linux_gssapi_spnego")
         foreach(case_name IN ITEMS

@@ -646,6 +646,42 @@ acceptance evidence; no synthetic completion claims.
   Kerberos/GSS+TLS public-key binding,
   then independently checked OS policy and
   single-owner live X.224/MCS transitions.
+  **Active server TLS certificate identity pin and live binding
+  validation (2026-10-14; new CI NOT RUN):** MS-CSSP
+  [2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
+  and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)
+  bind the CredSSP SPNEGO transcript to the selected server TLS
+  certificate's SubjectPublicKey and a 32-byte client nonce.
+  The existing single `TsRequestFrameReader` must pin both the
+  established server `SSL*` AND a SHA-256 identity of its
+  selected DER certificate at its FIRST actual TLS read.
+  Check the selected certificate on each subsequent read,
+  completed-frame handoff and read after release: even a
+  swapped certificate within the SAME SSL object must
+  invalidate the frame before GSS receives a borrowed token.
+  Centralize valid finished server-role TLS >=1.2 and selected
+  cipher/certificate checks in the existing
+  `credssp_tls_certificate` module. Wipe pinned digest on
+  terminal close; release clears frame but retains TLS/cert
+  pin. The portable library performs no OS authorization.
+  Three new existing-executable all-platform behavior CTests:
+  positive actual OpenSSL handshake selected SubjectPublicKey
+  v5/v6 nonce/direction hashes against independent reference;
+  wrong live TLS cert, wrong nonce/direction, malformed length
+  and unfinished/client-role TLS denials; and a same-SSL
+  server-certificate replacement before/within DER frames
+  with no post-mutation GSS transport provenance.
+  Expected Linux **67** from 64 and macOS/Windows **60**
+  from 57 in both Debug and Release.
+  **PASS prior exact main:** `1bfbc3452078ed1a4676551953e325366981e587`,
+  [CI 38618001913](https://github.com/k1moradi/RDP-server/actions/runs/38618001913):
+  Linux 64/64, macOS and Windows 57/57, SDK and policy.
+  **NOT RUN:** new CI, owner's local build, actual positive
+  GSS/Kerberos with keytab/tickets, real GSS unwrap/wrap,
+  authorized OS session, external Microsoft RDP client/desktop.
+  **Next:** controlled positive keytab + ticket GSS exchange
+  bound to the same selected certificate, OS account policy
+  before any MCS/desktop admission.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

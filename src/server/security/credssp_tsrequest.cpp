@@ -375,6 +375,8 @@ void TsRequestFrameReader::close() noexcept
 {
     clear();
     boundServerTls_ = nullptr;
+    OPENSSL_cleanse(pinnedCertificate_.data(), pinnedCertificate_.size());
+    certificatePinned_ = false;
     status_ = TsRequestFrameStatus::Closed;
 }
 
@@ -397,6 +399,22 @@ std::size_t TsRequestFrameReader::bytesNeeded() const noexcept
     const std::size_t header = lengthByte < 128 ? 2 :
                                lengthByte == 0x81 ? 3 : 4;
     return header - buffered_;
+}
+
+const SSL *TsRequestFrameReader::completedFrameServerTls() const noexcept
+{
+    if (status_ != TsRequestFrameStatus::Complete ||
+        boundServerTls_ == nullptr || !certificatePinned_)
+        return nullptr;
+    CredSspTlsCertificateFingerprint current{};
+    if (!fingerprintActiveCredSspServerTlsCertificate(
+            boundServerTls_, current))
+        return nullptr;
+    const bool identical = CRYPTO_memcmp(
+        current.data(), pinnedCertificate_.data(),
+        current.size()) == 0;
+    OPENSSL_cleanse(current.data(), current.size());
+    return identical ? boundServerTls_ : nullptr;
 }
 
 std::span<const std::uint8_t>
@@ -447,7 +465,7 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
     {
         // A manually supplied Complete frame must never acquire TLS
         // provenance after the fact. No second TLS read before release.
-        if (boundServerTls_ == nullptr)
+        if (completedFrameServerTls() == nullptr)
         {
             close();
             return {0, TsRequestTlsReadStatus::Invalid,
@@ -464,6 +482,27 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
         return {0, TsRequestTlsReadStatus::Invalid,
                 TsRequestError::InvalidFields};
     }
+    // An unchanged SSL* is NOT sufficient: the same object could have a
+    // different selected certificate after renegotiation/reconfiguration.
+    // Check it even for Complete frames and WANT retries before touching
+    // any further untrusted TLS plaintext.
+    CredSspTlsCertificateFingerprint current{};
+    if (!fingerprintActiveCredSspServerTlsCertificate(serverTls, current) ||
+        (certificatePinned_ &&
+         CRYPTO_memcmp(current.data(), pinnedCertificate_.data(),
+                       current.size()) != 0))
+    {
+        OPENSSL_cleanse(current.data(), current.size());
+        close();
+        return {0, TsRequestTlsReadStatus::Invalid,
+                TsRequestError::InvalidFields};
+    }
+    if (!certificatePinned_)
+    {
+        pinnedCertificate_ = current;
+        certificatePinned_ = true;
+    }
+    OPENSSL_cleanse(current.data(), current.size());
     boundServerTls_ = serverTls;
     std::array<std::uint8_t, 512> plaintext{};
     const std::size_t length =

@@ -3,6 +3,7 @@
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/tpkt_x224.h"
 #include "security/credssp_tsrequest.h"
+#include "security/credssp_tls_certificate.h"
 #ifdef RDP_TEST_LINUX_GSSAPI
 #include "security/gssapi_spnego_acceptor.h"
 #endif
@@ -1524,6 +1525,212 @@ std::size_t drainCredSspFromTls(
 }
 
 
+
+void testLiveTlsCertificateBindingPositive()
+{
+    // The OpenSSL TLS fixture performs a real handshake and chooses an
+    // ephemeral X.509 certificate. This proves the selected certificate
+    // hash computation, NOT a GSS unwrapped/authenticated token.
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        assert(SSL_is_init_finished(tls.server.get()) == 1);
+        assert(SSL_is_server(tls.server.get()) == 1);
+        const X509 *selected = SSL_get_certificate(tls.server.get());
+        assert(selected);
+        const ASN1_BIT_STRING *bits = X509_get0_pubkey_bitstr(selected);
+        assert(bits);
+        const int keyLength = ASN1_STRING_length(bits);
+        assert(keyLength > 0);
+        const auto *keyBytes = ASN1_STRING_get0_data(bits);
+        assert(keyBytes);
+        const auto keyView = std::span{
+            static_cast<const std::uint8_t *>(keyBytes),
+            static_cast<std::size_t>(keyLength)};
+
+        CredSspTlsCertificateFingerprint fingerprint{};
+        assert(fingerprintActiveCredSspServerTlsCertificate(
+            tls.server.get(), fingerprint));
+        assert(std::any_of(fingerprint.begin(), fingerprint.end(),
+                           [](std::uint8_t octet) { return octet != 0; }));
+        for (const auto seed : {std::uint8_t{0}, std::uint8_t{0x73}})
+        {
+            std::array<std::uint8_t, 32> nonce{};
+            for (std::size_t i = 0; i < nonce.size(); ++i)
+                nonce[i] = static_cast<std::uint8_t>(seed + i + version);
+            for (auto direction : {
+                     CredSspBindingDirection::ClientToServer,
+                     CredSspBindingDirection::ServerToClient})
+            {
+                CredSspHash independent{};
+                CredSspHash selectedTls{};
+                assert(computeCredSspBindingHash(
+                    direction, nonce, keyView, independent));
+                assert(computeCredSspBindingForActiveServerTls(
+                    tls.server.get(), direction, nonce, selectedTls));
+                assert(selectedTls == independent);
+                assert(verifyCredSspClientBindingForActiveServerTls(
+                    tls.server.get(), nonce,
+                    direction == CredSspBindingDirection::ClientToServer
+                        ? independent : CredSspHash{}) ==
+                    (direction == CredSspBindingDirection::ClientToServer));
+            }
+        }
+    }
+}
+
+void testLiveTlsCertificateBindingRejections()
+{
+    TlsHandshakeFixture left;
+    TlsHandshakeFixture right;
+    const std::array<std::uint8_t, 32> nonce{
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
+    CredSspTlsCertificateFingerprint lhs{};
+    CredSspTlsCertificateFingerprint rhs{};
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        left.server.get(), lhs));
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        right.server.get(), rhs));
+    assert(lhs != rhs);
+    CredSspHash clientHash{};
+    CredSspHash serverHash{};
+    assert(computeCredSspBindingForActiveServerTls(
+        left.server.get(), CredSspBindingDirection::ClientToServer,
+        nonce, clientHash));
+    assert(computeCredSspBindingForActiveServerTls(
+        left.server.get(), CredSspBindingDirection::ServerToClient,
+        nonce, serverHash));
+    assert(clientHash != serverHash);
+    assert(verifyCredSspClientBindingForActiveServerTls(
+        left.server.get(), nonce, clientHash));
+    assert(!verifyCredSspClientBindingForActiveServerTls(
+        right.server.get(), nonce, clientHash));
+    assert(!verifyCredSspClientBindingForActiveServerTls(
+        left.server.get(), nonce, serverHash));
+    for (std::size_t i = 0; i < nonce.size(); ++i)
+    {
+        auto changed = nonce;
+        changed[i] ^= 0x01U;
+        assert(!verifyCredSspClientBindingForActiveServerTls(
+            left.server.get(), changed, clientHash));
+    }
+    for (std::size_t i = 0; i < clientHash.size(); ++i)
+    {
+        auto changed = clientHash;
+        changed[i] ^= 0x80U;
+        assert(!verifyCredSspClientBindingForActiveServerTls(
+            left.server.get(), nonce, changed));
+    }
+    assert(!verifyCredSspClientBindingForActiveServerTls(
+        left.server.get(), nonce, std::span(clientHash).first(31)));
+    assert(!verifyCredSspClientBindingForActiveServerTls(
+        left.server.get(), nonce, std::span(clientHash).first(0)));
+
+    for (auto *tls : {static_cast<SSL *>(nullptr),
+                      left.client.get()})
+    {
+        CredSspTlsCertificateFingerprint fingerprint{};
+        fingerprint.fill(0xff);
+        assert(!fingerprintActiveCredSspServerTlsCertificate(
+            tls, fingerprint));
+        assert(std::all_of(fingerprint.begin(), fingerprint.end(),
+                           [](std::uint8_t v) { return v == 0; }));
+        CredSspHash invalid{};
+        invalid.fill(0xee);
+        assert(!computeCredSspBindingForActiveServerTls(
+            tls, CredSspBindingDirection::ClientToServer, nonce, invalid));
+        assert(std::all_of(invalid.begin(), invalid.end(),
+                           [](std::uint8_t v) { return v == 0; }));
+        assert(!verifyCredSspClientBindingForActiveServerTls(
+            tls, nonce, clientHash));
+    }
+    TlsHandshakeFixture unfinished{false};
+    CredSspTlsCertificateFingerprint noHandshake{};
+    assert(!fingerprintActiveCredSspServerTlsCertificate(
+        unfinished.server.get(), noHandshake));
+    assert(!verifyCredSspClientBindingForActiveServerTls(
+        unfinished.server.get(), nonce, clientHash));
+    for (const auto length : {std::size_t{0}, std::size_t{31},
+                              std::size_t{33}})
+    {
+        const std::vector<std::uint8_t> invalidNonce(length, 0xaa);
+        CredSspHash output{};
+        output.fill(0xcc);
+        assert(!computeCredSspBindingForActiveServerTls(
+            left.server.get(), CredSspBindingDirection::ClientToServer,
+            invalidNonce, output));
+        assert(std::all_of(output.begin(), output.end(),
+                           [](std::uint8_t v) { return v == 0; }));
+        assert(!verifyCredSspClientBindingForActiveServerTls(
+            left.server.get(), invalidNonce, clientHash));
+    }
+}
+
+void testTlsCredSspCertificatePinning()
+{
+    // The SSL* stays the same, but changing its configured selected cert
+    // after a complete TLS handshake must invalidate the original pinned
+    // certificate identity across both completion and the next DER frame.
+    TlsHandshakeFixture tls;
+    TlsHandshakeFixture other;
+    TsRequestFrameReader reader;
+    writeTlsClientApplicationData(tls.client.get(), kTestCredSspDer);
+    assert(drainCredSspFromTls(reader, tls.server.get(),
+                              TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size());
+    assert(reader.completedFrameServerTls() == tls.server.get());
+    const X509 *replacement = SSL_get_certificate(other.server.get());
+    assert(replacement);
+    assert(SSL_use_certificate(tls.server.get(), replacement) == 1);
+    assert(SSL_get_certificate(tls.server.get()) == replacement);
+    assert(reader.completedFrameServerTls() == nullptr);
+    const auto refused = reader.readOneTlsStep(tls.server.get());
+    assert(refused.status == TsRequestTlsReadStatus::Invalid);
+    assert(refused.plaintextBytesRead == 0);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(reader.completeDer().empty());
+    assert(reader.completedFrameServerTls() == nullptr);
+
+    // A partial frame also pins the certificate from its first live
+    // read. A swap before the following chunk must be terminal.
+    TlsHandshakeFixture partialTls;
+    TlsHandshakeFixture otherCert;
+    TsRequestFrameReader partial;
+    writeTlsClientApplicationData(partialTls.client.get(),
+                                  std::span(kTestCredSspDer).first(2));
+    const auto first = partial.readOneTlsStep(partialTls.server.get());
+    assert(first.status == TsRequestTlsReadStatus::Progress);
+    assert(first.plaintextBytesRead == 2);
+    assert(partial.completedFrameServerTls() == nullptr);
+    assert(SSL_use_certificate(
+        partialTls.server.get(),
+        SSL_get_certificate(otherCert.server.get())) == 1);
+    writeTlsClientApplicationData(
+        partialTls.client.get(), std::span(kTestCredSspDer).subspan(2));
+    const auto second = partial.readOneTlsStep(partialTls.server.get());
+    assert(second.status == TsRequestTlsReadStatus::Invalid);
+    assert(second.plaintextBytesRead == 0);
+    assert(partial.status() == TsRequestFrameStatus::Closed);
+
+    // Without a certificate change, release must keep exactly the same
+    // selected TLS identity for all subsequent TSRequest frames.
+    TlsHandshakeFixture stable;
+    TsRequestFrameReader reused;
+    for (int iteration = 0; iteration < 3; ++iteration)
+    {
+        writeTlsClientApplicationData(stable.client.get(), kTestCredSspDer);
+        assert(drainCredSspFromTls(
+            reused, stable.server.get(), TsRequestTlsReadStatus::Complete) ==
+               kTestCredSspDer.size());
+        assert(reused.completedFrameServerTls() == stable.server.get());
+        assert(reused.releaseFrame());
+        assert(reused.completedFrameServerTls() == nullptr);
+    }
+    reused.close();
+    assert(reused.status() == TsRequestFrameStatus::Closed);
+}
+
 void testTlsCredSspReplyWire()
 {
     // Bytes come from the existing offline encoder; this test validates
@@ -2301,6 +2508,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-coalesced", &testTlsCredSspCoalescingAndIdentity},
     {"credssp-tls-rejections", &testTlsCredSspRejections},
     {"credssp-tls-provenance", &testTlsCredSspProvenance},
+    {"credssp-tls-certificate-pinning", &testTlsCredSspCertificatePinning},
+    {"credssp-active-tls-binding-positive", &testLiveTlsCertificateBindingPositive},
+    {"credssp-active-tls-binding-rejections", &testLiveTlsCertificateBindingRejections},
     {"credssp-tls-reply-wire", &testTlsCredSspReplyWire},
     {"credssp-tls-reply-backpressure", &testTlsCredSspReplyBackpressure},
     {"credssp-tls-reply-rejections", &testTlsCredSspReplyRejections},

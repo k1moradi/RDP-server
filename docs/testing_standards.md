@@ -327,3 +327,23 @@ ZIP/checksum uploads. The TLS event-loop handshake is verified
 against an in-memory BIO peer, not a native TCP socket or real
 RDP client. An explicit OpenSSL 4.x post-fix runner is still
 NOT RUN; see the compatibility gate above.
+
+## Real native TCP loopback TLS/MCS transport (CI pending)
+
+The existing `test_owned_preauth_session` CTest registry adds two
+independently named behaviors without duplicating the executable:
+`transport.tcp-native-loopback-tls` and
+`transport.tcp-native-loopback-close`. Each test creates a
+short-lived, OS-assigned ephemeral loopback port, connects one
+client, accepts one server socket, and closes its temporary
+listener before protocol traffic. The first exchanges real
+TCP X.224 Request and Confirm using `NativeTcpIo`, attaches
+OpenSSL through the borrowed custom BIO on **both peers**,
+drives a TLS server handshake with WANT readiness, sends a
+real encrypted Microsoft 416-byte MCS/GCC example and validates
+the envelope without OS admission. The second verifies real
+native EOF during a truncated Connection Request and a complete
+protocol Negotiation Failure over connected sockets, with no TLS.
+All socket resources are RAII/closed. Expected full CTest
+registration: **27**, formerly 25. **NOT RUN** until CI;
+no external client, credential trust, desktop or daemon.

@@ -230,6 +230,24 @@ acceptance evidence; no synthetic completion claims.
   **Next:** drive the same TLS handshake over real connected
   nonblocking sockets in a safe loopback test, then authenticated
   RDP session establishment.
+  **Native nonblocking loopback/TLS increment (pending CI; expected
+  27 CTests):** a first-party OpenSSL custom BIO now borrows the
+  existing `TcpNonblockingIo` and translates partial send/recv,
+  would-block, EOF and I/O failure to OpenSSL readiness semantics
+  without narrowing 64-bit Windows SOCKET handles. The existing
+  `PreauthTcpAdapter` attaches this BIO only after the full X.224
+  Confirm is sent; the same connection owner then drives
+  `SSL_do_handshake` and bounded TLS MCS/GCC intake. Two new
+  behavior-named CTests open ephemeral **127.0.0.1:0-only** TCP pairs,
+  immediately close the temporary listener and verify native X.224,
+  real TLS records carrying the Microsoft 416-byte MCS fixture,
+  terminal EOF on a truncated CR and delivery of RDP_NEG_FAILURE.
+  This is an isolated CI test, NOT installation/activation of a
+  daemon or an externally reachable RDP server. **NOT RUN:**
+  exact-head CI, user's local new build, real external clients,
+  certificate enrollment/trust, CredSSP/NLA, MCS Connect-Response,
+  authorized OS session and desktop. **Next:** integrate verified
+  credential policy and standards-compliant MCS connection response.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

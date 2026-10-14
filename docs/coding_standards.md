@@ -235,3 +235,20 @@ on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy,
 with **25** Debug/Release CTests and per-OS package verification.
 Keep certificate trust, live sockets and identity authorization
 independent of this in-memory protocol handshake evidence.
+
+## Nonblocking OpenSSL BIO over native socket adapter (2026-10-14)
+
+OpenSSL permits custom nonblocking `BIO_METHOD` operations through
+`BIO_meth_set_read_ex`, `BIO_meth_set_write_ex` and retry flags.
+Map the existing borrowed `TcpNonblockingIo` exactly: positive
+counts no greater than the offered span progress; WouldBlock sets
+the matching BIO read/write retry bit; FIN, errors, invalid counts
+and zero-success never count as progress. Use `SSL_set_bio` once
+to transfer the BIO into SSL; it MUST NOT transfer ownership of
+the socket or adapter. Verify no previous BIO/handshake exists.
+This avoids narrowing Windows SOCKET handles and keeps
+platform-native headers out of the protocol core. Avoid
+spin-polling inside production TLS callbacks; one handshake
+operation is driven per event-loop readiness event. Test-only
+port-zero IPv4 loopback connections must be short-lived, bound
+to 127.0.0.1 only and must never authorize an OS desktop session.

@@ -20,6 +20,20 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <thread>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 
 #ifndef OWNED_MCS_FIXTURE_PATH
 #error OWNED_MCS_FIXTURE_PATH must point to the checked-in Microsoft fixture
@@ -69,7 +83,8 @@ struct TlsHandshakeFixture final
     SslPointer server{nullptr, SSL_free};
     SslPointer client{nullptr, SSL_free};
 
-    explicit TlsHandshakeFixture(bool completeImmediately = true)
+    explicit TlsHandshakeFixture(bool completeImmediately = true,
+                                 bool useMemoryBio = true)
     {
         assert(serverContext && clientContext);
         assert(SSL_CTX_set_min_proto_version(serverContext.get(),
@@ -105,18 +120,22 @@ struct TlsHandshakeFixture final
         server.reset(SSL_new(serverContext.get()));
         client.reset(SSL_new(clientContext.get()));
         assert(server && client);
-        BIO *serverBio = nullptr;
-        BIO *clientBio = nullptr;
-        assert(BIO_new_bio_pair(&serverBio, 0, &clientBio, 0) == 1);
-        // SSL_set_bio takes ownership of both ends. The shared pointer
-        // for each SSL's read/write sides is freed only once by SSL_free.
-        SSL_set_bio(server.get(), serverBio, serverBio);
-        SSL_set_bio(client.get(), clientBio, clientBio);
+        if (useMemoryBio)
+        {
+            BIO *serverBio = nullptr;
+            BIO *clientBio = nullptr;
+            assert(BIO_new_bio_pair(&serverBio, 0, &clientBio, 0) == 1);
+            // OpenSSL assumes ownership of both ends for memory-only
+            // regressions. Native socket tests attach their own BIOs.
+            SSL_set_bio(server.get(), serverBio, serverBio);
+            SSL_set_bio(client.get(), clientBio, clientBio);
+        }
         SSL_set_accept_state(server.get());
         SSL_set_connect_state(client.get());
 
         if (completeImmediately)
         {
+            assert(useMemoryBio);
             completeHandshake();
         }
     }
@@ -1102,6 +1121,293 @@ void testNonblockingTlsHandshakeFailures()
     }
 }
 
+
+#ifdef _WIN32
+using LocalSocketId = SOCKET;
+constexpr LocalSocketId kInvalidLocalSocket = INVALID_SOCKET;
+#else
+using LocalSocketId = int;
+constexpr LocalSocketId kInvalidLocalSocket = -1;
+#endif
+
+class LocalSocket final
+{
+public:
+    LocalSocketId value{kInvalidLocalSocket};
+    LocalSocket() = default;
+    LocalSocket(const LocalSocket &) = delete;
+    LocalSocket &operator=(const LocalSocket &) = delete;
+    ~LocalSocket() { close(); }
+
+    void close() noexcept
+    {
+        if (value == kInvalidLocalSocket) return;
+#ifdef _WIN32
+        ::closesocket(value);
+#else
+        ::close(value);
+#endif
+        value = kInvalidLocalSocket;
+    }
+};
+
+class LoopbackSocketPair final
+{
+public:
+    LocalSocket listener{};
+    LocalSocket client{};
+    LocalSocket server{};
+
+    LoopbackSocketPair()
+    {
+#ifdef _WIN32
+        assert(WSAStartup(MAKEWORD(2, 2), &wsa_) == 0);
+#endif
+        listener.value = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        assert(listener.value != kInvalidLocalSocket);
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        address.sin_port = 0; // OS-assigned ephemeral port, loopback only.
+        assert(::bind(listener.value,
+                      reinterpret_cast<const sockaddr *>(&address),
+                      sizeof(address)) == 0);
+        assert(::listen(listener.value, 1) == 0);
+#ifdef _WIN32
+        int addressLength = sizeof(address);
+#else
+        socklen_t addressLength = sizeof(address);
+#endif
+        assert(::getsockname(listener.value,
+                             reinterpret_cast<sockaddr *>(&address),
+                             &addressLength) == 0);
+        assert(address.sin_addr.s_addr == htonl(INADDR_LOOPBACK));
+        client.value = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        assert(client.value != kInvalidLocalSocket);
+        // Connect and accept synchronously before switching both ends to
+        // nonblocking mode. No RDP service or externally reachable port.
+        assert(::connect(client.value,
+                         reinterpret_cast<const sockaddr *>(&address),
+                         sizeof(address)) == 0);
+        server.value = ::accept(listener.value, nullptr, nullptr);
+        assert(server.value != kInvalidLocalSocket);
+        listener.close(); // No open listener while exercising TLS.
+        makeNonblocking(server.value);
+        makeNonblocking(client.value);
+    }
+
+    LoopbackSocketPair(const LoopbackSocketPair &) = delete;
+    LoopbackSocketPair &operator=(const LoopbackSocketPair &) = delete;
+
+    ~LoopbackSocketPair()
+    {
+        // Members are destroyed AFTER this body, so close sockets before
+        // the Windows socket subsystem is deinitialized.
+        server.close();
+        client.close();
+        listener.close();
+#ifdef _WIN32
+        assert(WSACleanup() == 0);
+#endif
+    }
+
+private:
+#ifdef _WIN32
+    WSADATA wsa_{};
+#endif
+    static void makeNonblocking(LocalSocketId s)
+    {
+#ifdef _WIN32
+        u_long mode = 1;
+        assert(::ioctlsocket(s, FIONBIO, &mode) == 0);
+#else
+        const int flags = ::fcntl(s, F_GETFL, 0);
+        assert(flags >= 0);
+        assert(::fcntl(s, F_SETFL, flags | O_NONBLOCK) == 0);
+#ifdef SO_NOSIGPIPE
+        const int enabled = 1;
+        assert(::setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE,
+                            &enabled, sizeof(enabled)) == 0);
+#endif
+#endif
+    }
+};
+
+void nativeSendAll(TcpNonblockingIo &io,
+                   std::span<const std::uint8_t> payload)
+{
+    std::size_t total = 0;
+    for (int tries = 0; tries < 16384 && total < payload.size(); ++tries)
+    {
+        const auto sent = io.send(payload.subspan(total));
+        if (sent.outcome == TcpIoOutcome::WouldBlock)
+        {
+            assert(sent.bytes == 0);
+            std::this_thread::yield();
+            continue;
+        }
+        assert(sent.outcome == TcpIoOutcome::Progress);
+        assert(sent.bytes > 0 && sent.bytes <= payload.size() - total);
+        total += sent.bytes;
+    }
+    assert(total == payload.size());
+}
+
+void nativeReadAll(TcpNonblockingIo &io, std::span<std::uint8_t> output)
+{
+    std::size_t total = 0;
+    for (int tries = 0; tries < 16384 && total < output.size(); ++tries)
+    {
+        const auto received = io.receive(output.subspan(total));
+        if (received.outcome == TcpIoOutcome::WouldBlock)
+        {
+            assert(received.bytes == 0);
+            std::this_thread::yield();
+            continue;
+        }
+        assert(received.outcome == TcpIoOutcome::Progress);
+        assert(received.bytes > 0 &&
+               received.bytes <= output.size() - total);
+        total += received.bytes;
+    }
+    assert(total == output.size());
+}
+
+void testNativeLoopbackTlsAndMcs()
+{
+    LoopbackSocketPair pair;
+    NativeTcpIo serverIo{static_cast<std::uintptr_t>(pair.server.value)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    PreauthTcpAdapter adapter{serverIo};
+    const auto request = validRequestWire();
+    nativeSendAll(clientIo, request);
+    assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+    assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+    std::array<std::uint8_t, 19> confirm{};
+    nativeReadAll(clientIo, confirm);
+    assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
+
+    // Both SSLs use real native nonblocking TCP I/O. No SSL_set_fd int
+    // narrowing on Windows; BIO callbacks borrow the platform adapter.
+    TlsHandshakeFixture tls{false, false};
+    assert(adapter.attachTlsTransport(tls.server.get()));
+    assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
+    assert(SSL_get_rbio(tls.server.get()) != nullptr);
+    assert(SSL_get_wbio(tls.client.get()) != nullptr);
+    assert(SSL_get_rbio(tls.server.get()) ==
+           SSL_get_wbio(tls.server.get()));
+
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    for (int pass = 0; pass < 16384; ++pass)
+    {
+        if (!clientEstablished)
+        {
+            const int clientResult = SSL_do_handshake(tls.client.get());
+            if (clientResult == 1)
+                clientEstablished = true;
+            else
+            {
+                const int error = SSL_get_error(tls.client.get(),
+                                                clientResult);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+        if (!serverEstablished)
+        {
+            const auto status = adapter.onTlsIoReady(tls.server.get());
+            assert(status == TlsHandshakeStatus::NeedRead ||
+                   status == TlsHandshakeStatus::NeedWrite ||
+                   status == TlsHandshakeStatus::Established);
+            serverEstablished = status == TlsHandshakeStatus::Established;
+        }
+        if (clientEstablished && serverEstablished) break;
+        std::this_thread::yield();
+    }
+    assert(clientEstablished);
+    assert(serverEstablished);
+    assert(adapter.connection().stage() ==
+           PreauthStage::AwaitMcsConnectInitial);
+
+    const auto frame = validMcsPacket();
+    std::size_t written = 0;
+    for (int pass = 0; pass < 16384 && written != frame.size(); ++pass)
+    {
+        std::size_t output = 0;
+        const int success = SSL_write_ex(
+            tls.client.get(), frame.data() + written,
+            frame.size() - written, &output);
+        if (success == 1)
+        {
+            assert(output > 0 && output <= frame.size() - written);
+            written += output;
+        }
+        else
+        {
+            const int error = SSL_get_error(tls.client.get(), success);
+            assert(error == SSL_ERROR_WANT_READ ||
+                   error == SSL_ERROR_WANT_WRITE);
+            std::this_thread::yield();
+        }
+    }
+    assert(written == frame.size());
+
+    McsIntakeResult result{};
+    std::size_t totalDecrypted = 0;
+    for (int pass = 0; pass < 16384; ++pass)
+    {
+        result = adapter.connection().consumeMcsConnectInitialFromTls(
+            tls.server.get());
+        totalDecrypted += result.bytesConsumed;
+        if (result.status != McsIntakeStatus::NeedMore) break;
+        std::this_thread::yield();
+    }
+    assert(result.status == McsIntakeStatus::EnvelopeValidated);
+    assert(totalDecrypted == frame.size());
+    assert(adapter.connection().stage() == PreauthStage::Closed);
+    // Only offline protocol validation occurred; no OS identity was
+    // authenticated and the diagnostic never sends MCS Connect-Response.
+}
+
+void testNativeLoopbackCloseAndFailure()
+{
+    // A real socket FIN in the middle of the plaintext X.224 CR
+    // terminates preauthentication; there is no TLS downgrade.
+    {
+        LoopbackSocketPair pair;
+        NativeTcpIo serverIo{static_cast<std::uintptr_t>(pair.server.value)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        const auto request = validRequestWire();
+        nativeSendAll(clientIo, std::span(request).first(3));
+        PreauthTcpAdapter adapter{serverIo};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedRead);
+        pair.client.close();
+        assert(adapter.onReadable() == TcpPreauthEvent::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+    // The protocol-rejected request delivers a real X.224 NEG_FAILURE
+    // on the connected socket and must not attach a TLS session.
+    {
+        LoopbackSocketPair pair;
+        NativeTcpIo serverIo{static_cast<std::uintptr_t>(pair.server.value)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        auto request = validRequestWire();
+        request[15] = 0;
+        nativeSendAll(clientIo, request);
+        PreauthTcpAdapter adapter{serverIo};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::Closed);
+        std::array<std::uint8_t, 19> response{};
+        nativeReadAll(clientIo, response);
+        assert(response == negotiateDiagnosticTls(
+            parseConnectionRequest(request)).packet);
+        assert(response[11] == 3);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+        assert(adapter.onWritable() == TcpPreauthEvent::Closed);
+    }
+}
+
 void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
@@ -1171,7 +1477,7 @@ struct PreauthTestCase
 // Keep one executable/fixture implementation but expose independent
 // behavior-named CTest cases to make regressions visible in CTest output.
 // Running without an argument still executes the complete native suite.
-constexpr std::array<PreauthTestCase, 15> kPreauthTestCases{{
+constexpr std::array<PreauthTestCase, 17> kPreauthTestCases{{
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
@@ -1181,6 +1487,8 @@ constexpr std::array<PreauthTestCase, 15> kPreauthTestCases{{
     {"tcp-adapter-backpressure", &testTcpAdapterFailureAndBackpressure},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
+    {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},
+    {"tcp-native-loopback-close", &testNativeLoopbackCloseAndFailure},
     {"tls-handshake-gate", &testRealTlsTransportGate},
     {"x224-length-and-close", &testConnectionRequestLengthRejectionAndClose},
     {"mcs-decrypted-fragments", &testIncrementalDecryptedMcsIntake},

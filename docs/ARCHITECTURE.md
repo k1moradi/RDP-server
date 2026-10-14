@@ -157,3 +157,22 @@ forwards this readiness call without a second state machine.
 The socket/BIO still belongs to the caller; no socket listener,
 certificate enrollment, CredSSP, MCS response or OS admission
 is added in this increment.
+
+### Borrowed nonblocking native socket BIO and TLS loopback (2026-10-14)
+
+The native `PreauthTcpAdapter` and the same protocol owner now
+cross the previously synthetic TLS/network boundary. An OpenSSL
+custom `BIO_METHOD` delegates encrypted record read/write to the
+existing `TcpNonblockingIo` rather than using platform-specific
+`SSL_set_fd` integer casts. It reports SSL WANT_READ/WANT_WRITE on
+would-block, and ordinary EOF/error on closed/failed I/O; `SSL`
+owns/free the BIO, while the external caller owns the already
+connected nonblocking socket and its IO object. The BIO neither
+copies/owns the socket nor creates a second RDP state controller.
+Attaching on the server adapter requires completion of X.224
+Confirm output. The same SSL then drives server handshake and the
+existing bounded MCS/GCC diagnostic. A test-only listener binds
+to 127.0.0.1 port 0, accepts one peer and closes the listener
+before TLS; no installed daemon or persistent listening service.
+Credential verification, OS identity and MCS server response remain
+unimplemented.

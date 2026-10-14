@@ -354,3 +354,28 @@ OS desktop admission and MCS server response.
 **Next:** safe loopback native TLS I/O/regression; full secure
 connection and authenticated RDP session remain open.
 
+
+## Native loopback OpenSSL/TCP integration (pending exact-head CI)
+
+User-provided owner-local Linux output for `91e066b8214dd04299e94ccfd8167c940148e2a4`:
+reused `~/rdp-server/build/`, Debug C++23 compilation and
+`ctest --test-dir build -C Debug --output-on-failure` were
+**PASS 25/25**. This local evidence predates this change.
+
+The implementation adds a borrowed nonblocking OpenSSL BIO atop
+`TcpNonblockingIo`, then tests real short-lived IPv4 loopback
+socket exchange of X.224 CR/Confirm, server-side TLS handshake
+and encrypted 416-byte MCS/GCC frame. Native EOF and
+NEG_FAILURE delivery are separate negative test behavior.
+Expected CTest registration **27**. OpenSSL BIO callbacks
+follow its documented retry/ownership semantics; no socket
+handle narrowing, persistent listener or user authorization.
+
+**NOT RUN:** this commit's Linux/GCC, macOS/Clang and Windows/MSVC
+Debug/Release hosted CTests, SDK consumer/package and
+documentation-policy until the exact-head Actions run completes.
+**NOT RUN:** user's local update, external RDP client handshake,
+certificate enrollment/validation, CredSSP/NLA, licensing,
+MCS Connect-Response, approved OS identity and desktop.
+First remaining server boundary: independent authenticated
+session policy followed by standards-compliant MCS response.

@@ -57,6 +57,14 @@ private:
     std::uintptr_t socket_{};
 };
 
+// Borrow an existing NONBLOCKING TCP transport for OpenSSL, using custom
+// BIO callbacks rather than converting a Windows SOCKET to a POSIX int.
+// SSL owns the BIO; the adapter/socket owner outlives every SSL operation.
+// The SSL must have no BIO attached and its role must already be chosen.
+// This is transport plumbing, NOT certificate/user authorization.
+[[nodiscard]] bool attachNonblockingTcpBio(
+    SSL *tls, TcpNonblockingIo &io) noexcept;
+
 enum class TcpPreauthEvent : std::uint8_t
 {
     NeedRead,
@@ -83,6 +91,10 @@ public:
     // After ReadyForTls, the owner must attach the same configured SSL
     // to the connected nonblocking socket/BIO and drive the appropriate
     // readiness callback. No second state machine or listener is added.
+    // Only after the complete X.224 Confirm: borrow the very same
+    // connected TCP adapter for TLS network records. No socket ownership.
+    [[nodiscard]] bool attachTlsTransport(SSL *serverTls) noexcept;
+
     [[nodiscard]] TlsHandshakeStatus onTlsIoReady(
         SSL *serverTls) noexcept
     {

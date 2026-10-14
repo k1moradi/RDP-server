@@ -2,6 +2,10 @@
 #include "nonblocking_tcp_adapter.h"
 
 #include <array>
+#include <memory>
+
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -28,6 +32,139 @@ namespace
                 ? TcpIoOutcome::WouldBlock : TcpIoOutcome::Failure, 0};
 #endif
 }
+}
+
+// OpenSSL invokes these callbacks synchronously during SSL_do_handshake,
+// SSL_read_ex and SSL_write_ex. The BIO borrows TcpNonblockingIo and does not
+// own, duplicate, close or alter the native socket.
+namespace
+{
+int tcpBioCreate(BIO *bio)
+{
+    BIO_set_init(bio, 0);
+    BIO_set_data(bio, nullptr);
+    BIO_set_shutdown(bio, 0);
+    return 1;
+}
+
+int tcpBioDestroy(BIO *bio)
+{
+    if (bio == nullptr) return 0;
+    BIO_set_init(bio, 0);
+    BIO_set_data(bio, nullptr);
+    return 1;
+}
+
+int tcpBioRead(BIO *bio, char *data, std::size_t size,
+               std::size_t *readBytes)
+{
+    if (readBytes == nullptr) return 0;
+    *readBytes = 0;
+    BIO_clear_retry_flags(bio);
+    if (data == nullptr || size == 0 || BIO_get_init(bio) != 1)
+        return 0;
+    auto *io = static_cast<TcpNonblockingIo *>(BIO_get_data(bio));
+    if (io == nullptr) return 0;
+    const auto result = io->receive(
+        {reinterpret_cast<std::uint8_t *>(data), size});
+    if (result.outcome == TcpIoOutcome::WouldBlock && result.bytes == 0)
+    {
+        BIO_set_retry_read(bio);
+        return 0;
+    }
+    if (result.outcome != TcpIoOutcome::Progress ||
+        result.bytes == 0 || result.bytes > size)
+        return 0;
+    *readBytes = result.bytes;
+    return 1;
+}
+
+int tcpBioWrite(BIO *bio, const char *data, std::size_t size,
+                std::size_t *writtenBytes)
+{
+    if (writtenBytes == nullptr) return 0;
+    *writtenBytes = 0;
+    BIO_clear_retry_flags(bio);
+    if (data == nullptr || size == 0 || BIO_get_init(bio) != 1)
+        return 0;
+    auto *io = static_cast<TcpNonblockingIo *>(BIO_get_data(bio));
+    if (io == nullptr) return 0;
+    const auto result = io->send(
+        {reinterpret_cast<const std::uint8_t *>(data), size});
+    if (result.outcome == TcpIoOutcome::WouldBlock && result.bytes == 0)
+    {
+        BIO_set_retry_write(bio);
+        return 0;
+    }
+    if (result.outcome != TcpIoOutcome::Progress ||
+        result.bytes == 0 || result.bytes > size)
+        return 0;
+    *writtenBytes = result.bytes;
+    return 1;
+}
+
+long tcpBioCtrl(BIO *, int command, long, void *)
+{
+    if (command == BIO_CTRL_FLUSH) return 1;
+    // These socket BIOs have no internal plaintext buffering or state.
+    return 0;
+}
+
+struct TcpBioMethod final
+{
+    std::unique_ptr<BIO_METHOD, decltype(&BIO_meth_free)>
+        method{BIO_meth_new(BIO_get_new_index() | BIO_TYPE_SOURCE_SINK,
+                            "rdp-server borrowed nonblocking TCP"),
+               BIO_meth_free};
+
+    TcpBioMethod()
+    {
+        if (!method) return;
+        if (BIO_meth_set_create(method.get(), tcpBioCreate) != 1 ||
+            BIO_meth_set_destroy(method.get(), tcpBioDestroy) != 1 ||
+            BIO_meth_set_read_ex(method.get(), tcpBioRead) != 1 ||
+            BIO_meth_set_write_ex(method.get(), tcpBioWrite) != 1 ||
+            BIO_meth_set_ctrl(method.get(), tcpBioCtrl) != 1)
+            method.reset();
+    }
+};
+
+[[nodiscard]] const BIO_METHOD *tcpBioMethod() noexcept
+{
+    static const TcpBioMethod method{};
+    return method.method.get();
+}
+}
+
+bool attachNonblockingTcpBio(SSL *tls, TcpNonblockingIo &io) noexcept
+{
+    if (tls == nullptr || SSL_get_rbio(tls) != nullptr ||
+        SSL_get_wbio(tls) != nullptr || SSL_is_init_finished(tls) == 1)
+        return false;
+    const auto *method = tcpBioMethod();
+    if (method == nullptr) return false;
+    BIO *bio = BIO_new(method);
+    if (bio == nullptr) return false;
+    BIO_set_data(bio, &io);
+    BIO_set_init(bio, 1);
+    // SSL assumes ownership of exactly one shared read/write BIO, but
+    // the caller still owns the borrowed TcpNonblockingIo and socket.
+    SSL_set_bio(tls, bio, bio);
+    return true;
+}
+
+bool PreauthTcpAdapter::attachTlsTransport(SSL *serverTls) noexcept
+{
+    if (serverTls == nullptr ||
+        connection_.stage() != PreauthStage::AwaitTls ||
+        !connection_.pendingConnectionReply().empty() ||
+        SSL_is_server(serverTls) != 1 ||
+        !attachNonblockingTcpBio(serverTls, io_))
+    {
+        connection_.close();
+        return false;
+    }
+    return true;
 }
 
 TcpIoResult NativeTcpIo::receive(std::span<std::uint8_t> destination) noexcept

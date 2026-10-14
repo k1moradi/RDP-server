@@ -129,12 +129,19 @@ acceptance evidence; no synthetic completion claims.
   jobs all succeeded. This proves the **CI's isolated checkout
   exception** and offline protocol/policy gates only; the owner's
   persistent `~/rdp-server/build/` and real clients were NOT RUN.
-- [ ] Automate Debug/Release C++23 builds and all offline protocol tests,
-  staged library SDK installation, downstream consumer verification,
-  SHA-256 package generation and prerelease publication for reviewed
-  version tags. **Implementation committed; cross-platform CI is pending.**
-  This is SDK artifact delivery, **NOT** deployment of an RDP daemon
-  or real client/desktop acceptance.
+- [x] Automate Debug/Release C++23 builds and full offline CTest,
+  staged SDK installation, downstream package consumer verification,
+  per-OS ZIP archives and SHA-256 manifests. **PASS:** commit
+  `1aa025960288d40f476e85c5a9c5f97b06bebf20`,
+  [Actions run 38543429777](https://github.com/k1moradi/RDP-server/actions/runs/38543429777):
+  Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy;
+  **three uploaded protocol SDK packages verified**.
+- [ ] Exercise automatic tagged GitHub **prerelease publication**
+  (`protocol-vX.Y.Z` corresponding to CMake project version, from `main`).
+  Release job is configured and gated on successful matrix/maintenance
+  checks, but was **SKIPPED / NOT RUN** because no release tag was
+  created. Publishing an SDK is **not** installation, activation or
+  authenticated end-to-end deployment of an RDP server.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
 

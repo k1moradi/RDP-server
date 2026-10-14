@@ -110,3 +110,14 @@ installation. The tag must match `PROJECT_VERSION` and point to a
 commit reachable from `main`; tests on all 3 OSes and the documentation
 gate must pass first. Do not describe this as RDP-server deployment
 until a real authenticated server and OS adapters have been accepted.
+
+## Verified SDK packaging on CI (2026-10-14)
+
+The unified build/test/staged-install/downstream-consumer/CPack steps
+passed in [Actions run 38543429777](https://github.com/k1moradi/RDP-server/actions/runs/38543429777)
+for exact commit `1aa025960288d40f476e85c5a9c5f97b06bebf20`
+on Linux, macOS and Windows. All runner output remained in the
+runner's checkout-local `build/`; three distinct SDK ZIP artifacts
+and SHA-256 manifests uploaded. The tag-triggered GitHub prerelease
+job was SKIPPED (no tag). Direct local `~/rdp-server/build/` testing
+and production server installation are NOT RUN.

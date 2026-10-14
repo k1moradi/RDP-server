@@ -132,3 +132,14 @@ CPack ZIP archives and SHA-256 manifests are delivered only after all
 runner-local gates succeed; tagged prerelease publication waits for
 all OS jobs and documentation checks. A protocol library archive
 is never a substitute for real-client, NLA or desktop acceptance.
+
+## Verified automated release-package smoke gates (2026-10-14)
+
+Commit `1aa025960288d40f476e85c5a9c5f97b06bebf20`
+[Actions run 38543429777](https://github.com/k1moradi/RDP-server/actions/runs/38543429777)
+passed the full Debug and Release CTests, separately compiled and
+executed the installed SDK consumer, and uploaded a CPack ZIP and
+SHA-256 manifest on each of Linux/GCC, macOS/Clang and Windows/MSVC;
+documentation-policy PASS. These are **offline packaging and link
+checks** only. GitHub Release publication is NOT RUN pending an
+explicit version tag; authenticated RDP host deployment is unavailable.

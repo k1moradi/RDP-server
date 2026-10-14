@@ -99,7 +99,7 @@ gains every-split, truncation, coalesced-packet, invalid header,
 malformed BER, wrong-state and replay tests against production code.
 **PASS:** [Actions run 38541509607](https://github.com/k1moradi/RDP-server/actions/runs/38541509607) at `49c6006d47476184f7448028cd332e377ec9bd0b` completed Linux/GCC, macOS/Clang, Windows/MSVC CMake builds and full CTests, plus documentation-policy. **NOT RUN:** owner's local `~/rdp-server/build/`, host networking, real TLS certificates, CredSSP/NLA, external RDP clients and OS admission. **Next:** authenticated TLS provider and MCS response lifecycle.
 
-## CI/CD protocol SDK automation (pending exact-head CI)
+## Verified CI/CD protocol SDK automation (2026-10-14)
 
 The unified `.github/workflows/ci.yml` now runs Debug and Release
 builds/full CTests on Linux/GCC, macOS/Clang and Windows/MSVC, followed
@@ -110,7 +110,21 @@ publication. A matching `protocol-vX.Y.Z` tag reachable from
 and documentation-policy jobs have succeeded. The new consumer tests
 that the installed `RDPServer::protocol` target is usable.
 
-**Validation: NOT RUN** until exact-head CI completes, especially
-Windows install/export and CPack behavior. No git tag was pushed;
-release publication itself has **NOT RUN**, and no service, socket,
-authenticated RDP desktop or remote host was deployed.
+**PASS:** [GitHub Actions run 38543429777](https://github.com/k1moradi/RDP-server/actions/runs/38543429777)
+at exact commit `1aa025960288d40f476e85c5a9c5f97b06bebf20`
+completed Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
+For each OS the workflow configured/built/ran CTest in Debug,
+reconfigured the **same** `build/` root for Release, ran Release
+CTest, installed the SDK under `build/stage/`, compiled and ran the
+downstream `tests/consumer` CTest under `build/consumer/`, and
+successfully generated/uploaded CPack ZIP and SHA-256 manifests.
+Artifacts: `protocol-package-ubuntu-latest`,
+`protocol-package-macos-latest`, and
+`protocol-package-windows-latest` (3 packages confirmed).
+
+**SKIPPED / NOT RUN:** the gated GitHub release publishing job
+(no `protocol-vX.Y.Z` tag was pushed), owner's local PC build,
+live server/socket/service, real TLS/NLA, OS authorization, and
+external RDP desktop acceptance. The next delivery gate is
+a reviewed version tag to test the prerelease publish step;
+the next functional gate is an authenticated native RDP server.

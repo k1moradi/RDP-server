@@ -65,11 +65,12 @@ acceptance evidence; no synthetic completion claims.
 - [x] Independently compile/test C++23 static protocol foundation;
   historical Actions run 38516048776 succeeded at 77c94c75b467.
   This **is not** a working RDP desktop server.
-- [ ] Import all remaining former implementation progress (historical
-  source, clipboard experiments, unique development-tip edits and tracked
-  local work) from the owner's local checkout per
-  [migration instructions](MIGRATION.md). Verify no source loss;
-  the old Git history is **not** an import objective.
+- [x] Retire the obsolete legacy-source migration guide and both import
+  scripts by owner request. The original project was **not fully
+  imported**; only the maintained, checked-in first-party code is in
+  scope for ongoing development. Additional historical source requires
+  a separately authorized and reviewed integration, not an automatic
+  import. This is a cleanup gate, not a functional RDP milestone.
 - [ ] Implement bounded X.224/TPKT/MCS/GCC network listener and complete
   standards-compliant server connection state machine with external-client
   handshake and malformed-packet evidence.

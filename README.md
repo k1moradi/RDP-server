@@ -1,15 +1,10 @@
 # RDP-server
 
-> **Source migration not yet complete.** The deleted `xrdp-console`
-> repository held substantially more code than the initial C++23 subset.
-> Preserving that **existing implementation progress** is the priority,
-> not preserving old commit history. The
-> [source-progress importer](scripts/import-current-progress.py) reads the
-> development PC's original checkout and imports the complete main source
-> tree, the clipboard experiment, independent development-tip differences
-> and tracked local edits to this repository without replacing newer C++23
-> files. [Instructions](docs/MIGRATION.md). This import has **not yet been
-> run against that PC**.
+> **Project status:** The maintained first-party C++23 protocol library
+> is only a foundation, not a working standalone RDP server. The old
+> `xrdp-console` repository was deleted and its complete source was
+> not migrated. The legacy-source import scripts and guide have been
+> retired; see [the living roadmap](docs/ROADMAP.md) for current work.
 
 
 **Open-source C++23 implementation of the Remote Desktop Protocol (RDP) server.**
@@ -35,9 +30,9 @@ authenticated RDP listener, desktop backend, input, virtual channel
 management, clipboard integration and interoperable end-to-end runtime are
 still incomplete. No ready-to-install server is claimed here.
 
-The former xrdp-console GitHub repository was deleted. Its remaining local
-source and experiments are migration inputs, **not** runtime dependencies.
-The new source import keeps the independent C++23 build as the default.
+The former xrdp-console GitHub repository was deleted. Its historical
+code is not a dependency of the maintained native C++23 protocol library.
+No automated legacy-source import workflow is part of this repository.
 
 ## Build the standalone C++23 protocol foundation
 

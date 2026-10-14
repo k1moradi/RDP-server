@@ -10,6 +10,28 @@ include(CTest)
 if(NOT CMAKE_BINARY_DIR STREQUAL "${PROJECT_SOURCE_DIR}/build")
     message(FATAL_ERROR "Reuse only ${PROJECT_SOURCE_DIR}/build; local path: ~/rdp-server/build")
 endif()
+
+# Hosted CI has an isolated ephemeral checkout; ordinary local builds must
+# also use the specified home checkout, not merely a same-named build subdir.
+if(NOT "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+    if(WIN32)
+        set(rdp_home_directory "$ENV{USERPROFILE}")
+    else()
+        set(rdp_home_directory "$ENV{HOME}")
+    endif()
+    if(rdp_home_directory STREQUAL "")
+        message(FATAL_ERROR "Cannot determine home directory for ~/rdp-server")
+    endif()
+    file(TO_CMAKE_PATH "${rdp_home_directory}" normalized_rdp_home)
+    set(required_rdp_source_directory "${normalized_rdp_home}/rdp-server")
+    cmake_path(NORMAL_PATH required_rdp_source_directory)
+    cmake_path(NORMAL_PATH PROJECT_SOURCE_DIR OUTPUT_VARIABLE actual_rdp_source_directory)
+    if(NOT actual_rdp_source_directory STREQUAL required_rdp_source_directory)
+        message(FATAL_ERROR
+            "Local checkout must be ~/rdp-server (actual: ${PROJECT_SOURCE_DIR}). "
+            "Only ~/rdp-server/build may contain local build output.")
+    endif()
+endif()
 include(GNUInstallDirs)
 option(RDP_SERVER_BUILD_TESTING "Build protocol regression tests" ON)
 set(CMAKE_CXX_STANDARD 23)

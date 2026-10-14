@@ -92,7 +92,7 @@ acceptance evidence; no synthetic completion claims.
 
 ### P0 — Standards and repeatable automation
 
-- [x] Cross-platform Actions
+- [ ] Cross-platform Actions
   [run 38535115706](https://github.com/k1moradi/RDP-server/actions/runs/38535115706)
   passed at `3196a764ffbe24482ad131ad6949f1c2c23d44d9`:
   Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy jobs.
@@ -105,3 +105,8 @@ acceptance evidence; no synthetic completion claims.
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.
+
+- [ ] Revalidate the added non-CI `~/rdp-server` checkout-path guard
+  across Linux/macOS/Windows CI (which uses its explicit workspace
+  exception). Local user checkout execution remains NOT RUN until
+  separately exercised on that machine.

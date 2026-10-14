@@ -15,7 +15,10 @@ and logs within it. Nested output directories are allowed *inside*
 that root, but never `build-debug`, `build-release`,
 `cmake-build-*`, `tests/build`, or /tmp compilation roots.
 Never routinely destroy the build cache or another agent's work.
-CMake enforces `CMAKE_BINARY_DIR == <checkout>/build`.
+CMake enforces `CMAKE_BINARY_DIR == <checkout>/build` and, outside
+GitHub-hosted CI, requires the checkout itself at `~/rdp-server`.
+The `GITHUB_ACTIONS=true` CI environment allows a hosted ephemeral
+workspace but does not allow another build directory within that checkout.
 
 GitHub-hosted CI cannot persist the owner's home checkout across jobs,
 so **each isolated job** uses exactly one ephemeral

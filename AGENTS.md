@@ -9,21 +9,24 @@ Never import policy from an unrelated project.
 
 ## Required context and architecture
 
-Read current `main` versions of `AGENTS.md`, `VISION.md`,
-`docs/ROADMAP.md`, `coding_standards.md`, `testing_standards.md`,
-`compile.md`, `benchmark.md` and `CODEX_VALIDATION.md`
+Read current `main` versions of `AGENTS.md`, `docs/VISION.md`,
+`docs/ROADMAP.md`, `docs/coding_standards.md`, `docs/testing_standards.md`,
+`docs/compile.md`, `docs/benchmark.md` and `docs/CODEX_VALIDATION.md`
 **at the beginning of each prompt**. Read affected source and existing tests.
 Consult Microsoft's normative RDP specifications before wire design;
 keep C++23 protocol independent of xrdp, VNC and OS-specific adapters.
 The existing static library is **not** a functional independent RDP server.
 
-`VISION.md` owns product objectives. **`docs/ROADMAP.md` owns the sole
+`docs/VISION.md` owns product objectives. **`docs/ROADMAP.md` owns the sole
 current milestone/TODO list**; re-read the relevant item before work and
-update it when evidence, scope or blockers change. The four mandatory root
-standards own coding, testing, build and benchmark rules, respectively.
+update it when evidence, scope or blockers change. The four mandatory standards in `docs/` own coding, testing, build
+and benchmark rules, respectively.
 New project lessons belong in the **relevant existing standards document**,
 not another competing policy, TODO, test or experiment report.
-`README.md` provides public orientation and `CODEX_VALIDATION.md`
+Keep `README.md`, `AGENTS.md`, `CODEX.md`, `agent.md` and `CLAUDE.md`
+at the repository root for discovery. Keep other Markdown reference
+material under `docs/` and update its links when it moves.
+`README.md` provides public orientation and `docs/CODEX_VALIDATION.md`
 records validation results; both link to the canonical details.
 
 **After every implementation prompt**, update the affected existing
@@ -39,7 +42,7 @@ and reuse it for *all* compiles, tests, profiling and generated outputs.
 Subdirectories *within* this root are allowed; additional `build-debug`,
 `build-release`, `cmake-build-*`, `tests/build` and external temporary
 compile roots are not. Never routinely delete the root or unrelated
-artifacts. `compile.md` defines the platform-specific commands.
+artifacts. `docs/compile.md` defines the platform-specific commands.
 Hosted CI cannot reuse the owner's home checkout; each ephemeral job is
 restricted to one `<checkout>/build` root.
 

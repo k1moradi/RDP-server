@@ -1,12 +1,12 @@
 # CODEX_VALIDATION.md — validation ledger and agent contract
 
-Read **[AGENTS.md](AGENTS.md)** on every prompt together with
+Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 [VISION.md](VISION.md), the living TODO in
-[docs/ROADMAP.md](docs/ROADMAP.md), and the mandatory
+[docs/ROADMAP.md](ROADMAP.md), and the mandatory
 [coding](coding_standards.md), [testing](testing_standards.md),
 [compilation](compile.md) and [benchmark](benchmark.md) standards.
 
-The detailed acceptance contracts live in `testing_standards.md`.
+The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
 ## Local validation (one reused build root)

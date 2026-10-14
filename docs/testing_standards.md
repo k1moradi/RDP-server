@@ -1,7 +1,7 @@
 # Testing standards — reusable RDP correctness and acceptance
 
-Read [AGENTS.md](AGENTS.md), [VISION.md](VISION.md), and
-[docs/ROADMAP.md](docs/ROADMAP.md) **on each prompt**. This is the
+Read [AGENTS.md](../AGENTS.md), [VISION.md](VISION.md), and
+[docs/ROADMAP.md](ROADMAP.md) **on each prompt**. This is the
 single authoritative testing policy; record new acceptance lessons here.
 
 ## Reusable semantic suites

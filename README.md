@@ -68,12 +68,12 @@ development branches were created during migration.
 ## Required project documents and living TODO
 
 **Every agent must read [AGENTS.md](AGENTS.md) on every prompt.**
-[Project vision](VISION.md) and the [live roadmap/TODO](docs/ROADMAP.md)
+[Project vision](docs/VISION.md) and the [live roadmap/TODO](docs/ROADMAP.md)
 guide every change. The four mandatory canonical engineering documents
-are [coding standards](coding_standards.md),
-[testing standards](testing_standards.md),
-[compilation](compile.md), and [benchmarking](benchmark.md).
-See [validation evidence](CODEX_VALIDATION.md). All new learned policies
+are [coding standards](docs/coding_standards.md),
+[testing standards](docs/testing_standards.md),
+[compilation](docs/compile.md), and [benchmarking](docs/benchmark.md).
+See [validation evidence](docs/CODEX_VALIDATION.md). All new learned policies
 belong in the relevant existing standard; don't fragment them.
 
 After every implementation, update the existing TODO and affected
@@ -117,12 +117,13 @@ documentation in the **same commit**. Maintain **one reused local
 | Packaging and release | Self-contained installs without xrdp/VNC | Not complete |
 
 See [the architectural charter](docs/ARCHITECTURE.md) and
-[migration and acceptance plan](docs/ROADMAP.md).
+[living development roadmap](docs/ROADMAP.md).
 
 ## License and credits
 
 The first-party project is GPL-3.0-or-later. All reused third-party code
-must preserve its original notices and compatible licensing. The project
+must preserve its original notices and compatible licensing; see
+[third-party attributions](docs/THIRD_PARTY.md). The project
 traces historical upstream-derived work transparently; code origin is not
 the same thing as a runtime dependency.
 

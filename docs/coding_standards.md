@@ -1,7 +1,7 @@
 # Coding standards — native C++23 RDP server
 
-**Mandatory on every agent prompt:** [AGENTS.md](AGENTS.md),
-[VISION.md](VISION.md), the [living TODO](docs/ROADMAP.md), and the
+**Mandatory on every agent prompt:** [AGENTS.md](../AGENTS.md),
+[VISION.md](VISION.md), the [living TODO](ROADMAP.md), and the
 other three domain standards. Record new verified coding and protocol
 lessons in this file; do not create a parallel coding-policy document.
 

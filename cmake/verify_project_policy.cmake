@@ -3,10 +3,22 @@
 if(NOT DEFINED RDP_SERVER_SOURCE_ROOT)
     message(FATAL_ERROR "RDP_SERVER_SOURCE_ROOT required")
 endif()
+# Keep agent entrypoints discoverable while locating long-form docs in docs/.
 set(documents
-    AGENTS.md VISION.md README.md coding_standards.md testing_standards.md
-    compile.md benchmark.md CODEX_VALIDATION.md CODEX.md agent.md CLAUDE.md
-    docs/ROADMAP.md .github/copilot-instructions.md)
+    AGENTS.md README.md CODEX.md agent.md CLAUDE.md
+    docs/VISION.md docs/ROADMAP.md docs/ARCHITECTURE.md
+    docs/coding_standards.md docs/testing_standards.md
+    docs/compile.md docs/benchmark.md docs/CODEX_VALIDATION.md
+    docs/THIRD_PARTY.md .github/copilot-instructions.md)
+set(root_entrypoints AGENTS.md README.md CODEX.md agent.md CLAUDE.md)
+file(GLOB root_markdown RELATIVE "${RDP_SERVER_SOURCE_ROOT}"
+    "${RDP_SERVER_SOURCE_ROOT}/*.md")
+foreach(document IN LISTS root_markdown)
+    if(NOT document IN_LIST root_entrypoints)
+        message(FATAL_ERROR
+            "Move non-entrypoint root documentation to docs/: ${document}")
+    endif()
+endforeach()
 foreach(document IN LISTS documents)
     if(NOT EXISTS "${RDP_SERVER_SOURCE_ROOT}/${document}")
         message(FATAL_ERROR "Missing mandatory document: ${document}")

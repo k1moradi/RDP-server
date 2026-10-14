@@ -54,10 +54,10 @@ server session. The library has no shipping daemon/installer.
 
 This is the **single current TODO list**, required context on **every
 prompt**. Update the *same* item when implementation, blocker or evidence
-changes; don't create another milestone list. Apply [VISION](../VISION.md)
-and the four mandatory [coding](../coding_standards.md),
-[testing](../testing_standards.md), [build](../compile.md) and
-[benchmark](../benchmark.md) standards. Checkboxes require measured
+changes; don't create another milestone list. Apply [VISION](VISION.md)
+and the four mandatory [coding](coding_standards.md),
+[testing](testing_standards.md), [build](compile.md) and
+[benchmark](benchmark.md) standards. Checkboxes require measured
 acceptance evidence; no synthetic completion claims.
 
 ### P0 — Preserve work and implement a native RDP server
@@ -142,6 +142,10 @@ acceptance evidence; no synthetic completion claims.
   checks, but was **SKIPPED / NOT RUN** because no release tag was
   created. Publishing an SDK is **not** installation, activation or
   authenticated end-to-end deployment of an RDP server.
+- [ ] Consolidate all non-entrypoint Markdown documentation under `docs/`,
+  keeping `README.md`, agent-discovery files, `LICENSE` and `NOTICE` at
+  the root; update cross-links, CMake package attribution paths and
+  project-policy CTest. **Pending exact-head CI verification.**
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
 

@@ -1,8 +1,8 @@
 # Compile standards — one persistent and reusable build directory
 
-**Mandatory:** Follow [AGENTS.md](AGENTS.md), [VISION.md](VISION.md),
+**Mandatory:** Follow [AGENTS.md](../AGENTS.md), [VISION.md](VISION.md),
 [testing_standards.md](testing_standards.md) and the living
-[roadmap/TODO](docs/ROADMAP.md). New verified compilation lessons
+[roadmap/TODO](ROADMAP.md). New verified compilation lessons
 belong here rather than in additional build guides.
 
 ## Strict local directory contract

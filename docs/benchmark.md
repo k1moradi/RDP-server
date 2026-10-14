@@ -1,9 +1,9 @@
 # Benchmark standards — reliable native RDP-server measurements
 
-**Mandatory:** Read [AGENTS.md](AGENTS.md), [VISION.md](VISION.md),
+**Mandatory:** Read [AGENTS.md](../AGENTS.md), [VISION.md](VISION.md),
 [testing_standards.md](testing_standards.md),
 [compile.md](compile.md), and the living
-[roadmap/TODO](docs/ROADMAP.md) with every relevant prompt.
+[roadmap/TODO](ROADMAP.md) with every relevant prompt.
 Record performance lessons in this single reference, not fragmented
 benchmark reports.
 

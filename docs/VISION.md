@@ -45,8 +45,8 @@ and OS adapters. Accept each milestone only with negative tests and
 appropriate real-client evidence. No production access from synthetic
 security fixtures.
 
-The one living TODO is [docs/ROADMAP.md](docs/ROADMAP.md).
+The one living TODO is [docs/ROADMAP.md](ROADMAP.md).
 Mandatory standards:
 [coding](coding_standards.md), [testing](testing_standards.md),
 [compilation](compile.md), [benchmarks](benchmark.md).
-All agents follow [AGENTS.md](AGENTS.md) on every task.
+All agents follow [AGENTS.md](../AGENTS.md) on every task.

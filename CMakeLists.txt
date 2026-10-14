@@ -108,7 +108,7 @@ install(FILES
 install(FILES
     "${PROJECT_SOURCE_DIR}/LICENSE"
     "${PROJECT_SOURCE_DIR}/NOTICE"
-    "${PROJECT_SOURCE_DIR}/THIRD_PARTY.md"
+    "${PROJECT_SOURCE_DIR}/docs/THIRD_PARTY.md"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/rdp-server")
 
 # Cross-platform ZIP packages are SDK artifacts only; they do not contain

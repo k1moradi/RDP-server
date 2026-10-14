@@ -68,3 +68,14 @@ three CI systems in [run 38535115706](https://github.com/k1moradi/RDP-server/act
 This verifies CI checkout-local layout; it does **not** attest to the
 existence of a persistent `~/rdp-server/build/` on the owner's machine
 or to a production RDP daemon.
+
+## Additional local-home-path enforcement (2026-10-14)
+
+At `e1843b07c8772588f29e45a9b8e328e51c59e2ff`, the CMake
+configure now **also refuses ordinary local checkouts outside
+`~/rdp-server`**. The existing single `build/` root check applies
+in both local and CI configurations. GitHub Actions
+[run 38535723210](https://github.com/k1moradi/RDP-server/actions/runs/38535723210)
+passed Linux, macOS and Windows with the explicit hosted-CI workspace
+exception. No claim is made about directly executing a build on the
+owner's local machine.

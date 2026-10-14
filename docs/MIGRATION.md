@@ -45,21 +45,21 @@ inspect the inventory for these limitations.
 
 ## Run from the development PC
 
-If `~/RDP-server` does not exist:
+Use the **single canonical checkout** at `~/rdp-server`. If it
+does not exist yet:
 
 ```bash
-cd ~
-git clone https://github.com/k1moradi/RDP-server.git
-cd RDP-server
-python3 scripts/import-current-progress.py /home/keivan/xrdp-console
+git clone https://github.com/k1moradi/RDP-server.git "$HOME/rdp-server"
+cd "$HOME/rdp-server"
+python3 scripts/import-current-progress.py "$HOME/xrdp-console"
 ```
 
-If the new repository is already checked out:
+If already checked out, **reuse** that same directory:
 
 ```bash
-cd ~/RDP-server
+cd "$HOME/rdp-server"
 git pull --ff-only
-python3 scripts/import-current-progress.py /home/keivan/xrdp-console
+python3 scripts/import-current-progress.py "$HOME/xrdp-console"
 ```
 
 The deprecated `bash scripts/import-full-project.sh` command now invokes

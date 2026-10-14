@@ -46,3 +46,15 @@ protocol boundary, exact commands/environment, PASS/FAIL/BLOCKED/NOT RUN
 results, first failing transition, safety/ownership constraints,
 updated documentation and next milestone. Never turn synthetic
 authentication fixtures into a claim of real OS session admission.
+
+## Verified strict local-path policy CI (2026-10-14)
+
+The stricter home-checkout and single-build-root guard in
+`e1843b07c8772588f29e45a9b8e328e51c59e2ff` passed all four
+[Actions run 38535723210](https://github.com/k1moradi/RDP-server/actions/runs/38535723210)
+jobs: Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
+CMake enforces the checkout-local `build/` and requires ordinary
+non-CI checkouts at `~/rdp-server`; GitHub-hosted CI has a documented
+workspace exception. Direct verification on the owner's local computer
+remains NOT RUN. No live client or authenticated desktop acceptance is
+implied by these green jobs.

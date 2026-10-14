@@ -92,21 +92,18 @@ acceptance evidence; no synthetic completion claims.
 
 ### P0 — Standards and repeatable automation
 
-- [ ] Cross-platform Actions
-  [run 38535115706](https://github.com/k1moradi/RDP-server/actions/runs/38535115706)
-  passed at `3196a764ffbe24482ad131ad6949f1c2c23d44d9`:
-  Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy jobs.
-  Ten semantic protocol CTests and one project-policy CTest are
-  registered and passed through the CI jobs. This is **offline library
-  and policy validation only**, not authenticated desktop acceptance.
+- [x] The canonical agent policy, four mandatory domain standards,
+  behavior-named CTest suites, documentation co-change checker and
+  local-home-checkout/single-build-root CMake guards passed
+  [Actions run 38535723210](https://github.com/k1moradi/RDP-server/actions/runs/38535723210)
+  at `e1843b07c8772588f29e45a9b8e328e51c59e2ff`.
+  Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy
+  jobs all succeeded. This proves the **CI's isolated checkout
+  exception** and offline protocol/policy gates only; the owner's
+  persistent `~/rdp-server/build/` and real clients were NOT RUN.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
 
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.
-
-- [ ] Revalidate the added non-CI `~/rdp-server` checkout-path guard
-  across Linux/macOS/Windows CI (which uses its explicit workspace
-  exception). Local user checkout execution remains NOT RUN until
-  separately exercised on that machine.

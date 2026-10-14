@@ -529,3 +529,26 @@ final message as a binding-only request. Do not claim
 end-to-end authenticated session admission from
 negative-only GSS tests; controlled positive Kerberos
 and OS policy verification remain mandatory.
+
+## Secure nonblocking CredSSP server reply transport (2026-10-14)
+
+For MS-CSSP 2.2.1/3.1.5, keep server-side
+`negoTokens` and encrypted `pubKeyAuth` replies
+within the existing canonical encoder, never accept
+arbitrary preframed DER or raw GSS bytes for direct
+TLS transport. Queue exactly one bounded 16 KiB
+reply with a pinned server `SSL*` after TLS 1.2+
+handshake completion and selected certificate/cipher.
+`SSL_write_ex` can partially write or return
+WANT_READ/WANT_WRITE; a stable owned vector must
+remain unchanged, with the *same pointer and remaining
+length* across all retry calls when OpenSSL reports
+WANT and offsets advanced **only** for successful
+writes. Never reinterpret WANT as EOF, spin on
+readiness, overwrite a pending reply, send twice
+after Complete or permit SSL pointer substitution.
+Cleanse the payload on release/cancel/error, preserve
+SSL provenance only across explicit successful
+release, and leave policy to the one future trusted
+CredSSP/session owner. Green TLS wire tests alone
+are not positive GSS or OS authorization evidence.

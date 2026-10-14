@@ -369,3 +369,27 @@ and acceptor; no credentials or OS authorization result
 is exposed. Positive live Kerberos and Microsoft-client
 acceptance still require separately verified credentials
 and independently authorized OS admission.
+
+### Bounded TLS writing of CredSSP server replies (2026-10-14)
+
+MS-CSSP 2.2.1/3.1.5 requires all server negoTokens and
+protected pubKeyAuth replies as canonical DER TSRequest
+application plaintext inside established TLS. The
+existing `credssp_tsrequest` module now provides
+`TsRequestTlsReplyWriter`: only the already
+tested offline server encoder can produce the one
+pending DER frame, with at most the existing 16-KiB
+limit. The transport writer borrows/pins the same
+completed server-role SSL pointer for its entire
+lifetime, owns the stable encrypted-by-TLS plaintext
+until `SSL_write_ex` fully succeeds, returns readiness
+requirements on real OpenSSL WANT states, and never
+replaces or interleaves an outstanding reply. Explicit
+release wipes the one pending buffer and keeps the TLS
+association for the next provider reply. Terminal
+failure and close erase bytes and invalidate identity.
+This is transport serialization only, *not* a
+second connection/session authority, GSS provider,
+proof of Kerberos trust or permission to enable
+PROTOCOL_HYBRID, send an MCS domain reply or
+admit a desktop session.

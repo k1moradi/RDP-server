@@ -59,7 +59,10 @@ function(add_rdp_test source_file suite behavior)
                 credssp-tls-fragments
                 credssp-tls-coalesced
                 credssp-tls-rejections
-                credssp-tls-provenance)
+                credssp-tls-provenance
+                credssp-tls-reply-wire
+                credssp-tls-reply-backpressure
+                credssp-tls-reply-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

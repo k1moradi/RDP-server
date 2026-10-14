@@ -208,4 +208,78 @@ private:
     const SSL *boundServerTls_{};
 };
 
+
+ // An outbound TLS transport helper for ONE already-encoded CredSSP
+ // server reply. The protocol/GSS handshake owner alone decides when a
+ // reply is allowed; this helper never authenticates a token or grants
+ // permission to send an RDP MCS response.
+enum class TsRequestTlsWriteStatus : std::uint8_t
+{
+    Idle,
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Complete,
+    Invalid,
+    Closed,
+};
+
+struct TsRequestTlsWriteResult
+{
+    std::size_t plaintextBytesWritten{};
+    TsRequestTlsWriteStatus status{TsRequestTlsWriteStatus::Idle};
+};
+
+// Owns exactly one DER reply until the TLS library finishes writing it;
+// retains the same stable plaintext pointer and remaining byte count
+// across SSL_ERROR_WANT_READ/WRITE. No second or interleaved reply may
+// overwrite an outstanding record. TLS, socket, and BIO are caller-owned
+// and must outlive this writer. Not an authorization/session controller.
+class TsRequestTlsReplyWriter final
+{
+public:
+    TsRequestTlsReplyWriter() noexcept = default;
+    TsRequestTlsReplyWriter(const TsRequestTlsReplyWriter &) = delete;
+    TsRequestTlsReplyWriter &operator=(const TsRequestTlsReplyWriter &) = delete;
+    ~TsRequestTlsReplyWriter() { close(); }
+
+    // Only the existing canonical v5/v6 server encoder can supply bytes.
+    // A failed enqueue is terminal: no retry with a substituted TLS peer.
+    [[nodiscard]] bool queueReply(
+        SSL *serverTls, std::uint8_t version, CredSspServerReplyField field,
+        std::span<const std::uint8_t> providerOutput) noexcept;
+
+    // Exactly one SSL_write_ex per invocation. Progress means a partial
+    // OpenSSL write was completed and can be advanced immediately;
+    // NeedRead/NeedWrite require the indicated readiness event.
+    // Identical SSL* must be supplied throughout the entire lifetime.
+    [[nodiscard]] TsRequestTlsWriteResult writeOneTlsStep(
+        SSL *serverTls) noexcept;
+
+    [[nodiscard]] TsRequestTlsWriteStatus status() const noexcept
+    {
+        return status_;
+    }
+    [[nodiscard]] std::size_t bytesRemaining() const noexcept
+    {
+        return status_ == TsRequestTlsWriteStatus::Complete ||
+                       status_ == TsRequestTlsWriteStatus::Idle ||
+                       status_ == TsRequestTlsWriteStatus::Closed
+                   ? 0 : frame_.size() - offset_;
+    }
+    // Only a fully written response can be released. Wipes plaintext
+    // and allows the next reply on the SAME TLS identity.
+    [[nodiscard]] bool releaseReply() noexcept;
+    void close() noexcept;
+
+private:
+    void clear() noexcept;
+    [[nodiscard]] static bool suitableTls(const SSL *serverTls) noexcept;
+
+    std::vector<std::uint8_t> frame_{};
+    std::size_t offset_{};
+    SSL *boundServerTls_{};
+    TsRequestTlsWriteStatus status_{TsRequestTlsWriteStatus::Idle};
+};
+
 } // namespace rdp_server::server::security

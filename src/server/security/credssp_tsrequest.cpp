@@ -594,4 +594,124 @@ TsRequestFrameResult TsRequestFrameReader::consumePlaintext(
     }
 }
 
+
+bool TsRequestTlsReplyWriter::suitableTls(const SSL *serverTls) noexcept
+{
+    return serverTls != nullptr &&
+           SSL_is_server(serverTls) == 1 &&
+           SSL_is_init_finished(serverTls) == 1 &&
+           SSL_version(serverTls) >= TLS1_2_VERSION &&
+           SSL_get_current_cipher(serverTls) != nullptr &&
+           SSL_get_certificate(serverTls) != nullptr;
+}
+
+void TsRequestTlsReplyWriter::clear() noexcept
+{
+    if (!frame_.empty())
+        OPENSSL_cleanse(frame_.data(), frame_.size());
+    frame_.clear();
+    offset_ = 0;
+}
+
+void TsRequestTlsReplyWriter::close() noexcept
+{
+    clear();
+    boundServerTls_ = nullptr;
+    status_ = TsRequestTlsWriteStatus::Closed;
+}
+
+bool TsRequestTlsReplyWriter::queueReply(
+    SSL *serverTls, std::uint8_t version, CredSspServerReplyField field,
+    std::span<const std::uint8_t> providerOutput) noexcept
+{
+    if (status_ == TsRequestTlsWriteStatus::Closed)
+        return false;
+    if (status_ != TsRequestTlsWriteStatus::Idle ||
+        !suitableTls(serverTls) ||
+        (boundServerTls_ != nullptr && boundServerTls_ != serverTls))
+    {
+        close();
+        return false;
+    }
+
+    // Use the existing bounded DER encoder: never accept arbitrary
+    // preframed input or an unauthorized server field combination.
+    auto encoded = encodeCredSspServerTsRequest(
+        version, field, providerOutput);
+    if (encoded.empty() ||
+        encoded.size() > kMaximumCredSspRequestBytes)
+    {
+        close();
+        return false;
+    }
+    frame_.swap(encoded); // Stable OpenSSL retry pointer, no additional copy.
+    offset_ = 0;
+    boundServerTls_ = serverTls;
+    status_ = TsRequestTlsWriteStatus::NeedWrite;
+    return true;
+}
+
+TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStep(
+    SSL *serverTls) noexcept
+{
+    if (status_ == TsRequestTlsWriteStatus::Closed)
+        return {0, TsRequestTlsWriteStatus::Closed};
+    if (status_ == TsRequestTlsWriteStatus::Idle)
+        return {0, TsRequestTlsWriteStatus::Idle};
+    if (!suitableTls(serverTls) || boundServerTls_ != serverTls)
+    {
+        close();
+        return {0, TsRequestTlsWriteStatus::Invalid};
+    }
+    if (status_ == TsRequestTlsWriteStatus::Complete)
+        return {0, TsRequestTlsWriteStatus::Complete};
+
+    const auto remaining = frame_.size() - offset_;
+    if (remaining == 0)
+    {
+        close();
+        return {0, TsRequestTlsWriteStatus::Invalid};
+    }
+    std::size_t written = 0;
+    const int ok = SSL_write_ex(serverTls, frame_.data() + offset_,
+                                remaining, &written);
+    if (ok != 1)
+    {
+        // OpenSSL's nonblocking retry MUST use the same buffer and size
+        // on WANT_READ/WANT_WRITE: never advance offsets in those cases.
+        const int error = SSL_get_error(serverTls, ok);
+        if (error == SSL_ERROR_WANT_READ)
+        {
+            status_ = TsRequestTlsWriteStatus::NeedRead;
+            return {0, status_};
+        }
+        if (error == SSL_ERROR_WANT_WRITE)
+        {
+            status_ = TsRequestTlsWriteStatus::NeedWrite;
+            return {0, status_};
+        }
+        close();
+        return {0, TsRequestTlsWriteStatus::Invalid};
+    }
+    if (written == 0 || written > remaining)
+    {
+        close();
+        return {0, TsRequestTlsWriteStatus::Invalid};
+    }
+    offset_ += written;
+    status_ = offset_ == frame_.size()
+                  ? TsRequestTlsWriteStatus::Complete
+                  : TsRequestTlsWriteStatus::Progress;
+    return {written, status_};
+}
+
+bool TsRequestTlsReplyWriter::releaseReply() noexcept
+{
+    if (status_ != TsRequestTlsWriteStatus::Complete)
+        return false;
+    clear();
+    status_ = TsRequestTlsWriteStatus::Idle;
+    return true;
+}
+
 } // namespace rdp_server::server::security

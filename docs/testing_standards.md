@@ -689,3 +689,31 @@ Microsoft client or live desktop. The previously
 reported unrelated Ubuntu Release warning at
 `tests/test_owned_preauth_session.cpp:587`
 remains nonfatal.
+
+## New CredSSP server TLS write regressions (2026-10-14; CI NOT RUN)
+
+Re-use the existing `test_owned_preauth_session`
+real in-memory OpenSSL server/client handshake,
+rather than introducing duplicate test certificates
+or a synthetic GSS context. Register three NEW
+behavior-named CTests in the same executable:
+`transport.credssp-tls-reply-wire` compares exact
+client-decrypted bytes against the canonical DER
+encoder for server negoToken/binding responses,
+including 1, 127, 128, 256 and 8192-byte
+provider payloads, tests owned-output lifetime,
+one-shot completion and release/reuse.
+`transport.credssp-tls-reply-backpressure` uses
+a constrained BIO pair to exercise a real OpenSSL
+WANT_WRITE and stable retry semantics with an
+8192-byte payload, checking byte-exact delivery
+and no duplication. `transport.credssp-tls-reply-rejections`
+rejects null/client-role/unhandshaken SSL, invalid
+version/field/payload length, SSL substitution
+and replacing an outstanding reply, with terminal
+wiping and no resend. Keep all previous cases.
+Expected totals Linux 61 and macOS/Windows 57
+for each Debug and Release configuration.
+**NOT RUN:** new-code CI, owner-local build,
+positive keytab/Kerberos and TLS pubKeyAuth,
+OS admission or external clients.

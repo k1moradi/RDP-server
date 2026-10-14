@@ -558,6 +558,42 @@ acceptance evidence; no synthetic completion claims.
   positive real GSS/Kerberos and binding interoperability,
   then independent OS authorization before any MCS
   domain replies or desktop activation.
+  **CredSSP bounded server TLS reply transport increment
+  (2026-10-14; new CI NOT RUN):** extend the existing
+  first-party `credssp_tsrequest` module with one
+  `TsRequestTlsReplyWriter` for the server's encrypted
+  TSRequest responses per [MS-CSSP 2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
+  and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c).
+  Queue ONLY canonical server negoTokens OR protected
+  pubKeyAuth from the existing 16-KiB bounded encoder,
+  pin an established server-role TLS >=1.2 identity,
+  retain a stable owned DER buffer across nonblocking
+  `SSL_write_ex` WANT_READ/WANT_WRITE retries, count
+  only successfully written TLS plaintext, refuse
+  duplicate outstanding messages and SSL substitution,
+  and wipe/release the complete envelope before the
+  next reply. No new connection controller, listener,
+  GSS authentication result, credential authorization,
+  or MCS response is enabled. Reuse the existing real
+  OpenSSL memory-BIO TLS fixture and add **three new**
+  behavior-named CTests for exact encrypted reply bytes
+  and canonical lengths, forced write backpressure and
+  retry without record duplication, and fail-closed
+  TLS/queue/field rejections. Expected Linux **61**
+  (prior 58), macOS/Windows **57** (prior 54).
+  **PASS baseline:** implementation
+  `ad848646391eb7f2dce5c8e2a6238212e7f4e5ae`,
+  [CI 38612269453](https://github.com/k1moradi/RDP-server/actions/runs/38612269453),
+  verified final documentation head
+  `a3f841a572aa861cbaa1ff890b228598e612fccc`,
+  [CI 38612678888](https://github.com/k1moradi/RDP-server/actions/runs/38612678888).
+  **NOT RUN:** new-code CI, owner-local test run,
+  positive Kerberos keytab/ticket and TLS public-key
+  binding, independent OS authorization or real desktop.
+  **Next:** integrate this transport with actual
+  provider-selected GSS replies and controlled positive
+  Kerberos/TLS proof, then independently authorized
+  OS account admission before live MCS.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

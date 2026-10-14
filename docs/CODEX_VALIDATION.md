@@ -824,3 +824,47 @@ OS identity, external Windows App/FreeRDP or desktop.
 **Next:** verify real successful GSS/Kerberos + active
 TLS pubKeyAuth and independent OS policy before
 enabling live MCS domain response emission.
+
+## Pending CredSSP nonblocking TLS server reply transport (2026-10-14)
+
+**Prior known green head:** `a3f841a572aa861cbaa1ff890b228598e612fccc`,
+[CI 38612678888](https://github.com/k1moradi/RDP-server/actions/runs/38612678888).
+Linux/GCC 58/58 and macOS/Clang, Windows/MSVC
+54/54 CTests passed in both Debug and Release;
+downstream SDK consumer, 3 ZIP/SHA256 uploads,
+documentation-policy PASS.
+
+**New code/tests (CI NOT RUN):** extend
+`src/server/security/credssp_tsrequest.{h,cpp}`
+with a single bounded nonblocking
+`TsRequestTlsReplyWriter`. Use existing exact
+canonical reply encoder, one pinned finished
+server TLS identity, stable DER bytes across
+`SSL_write_ex` backpressure, and terminal
+zeroization/overlap rejection. Add three
+independent named CTests using existing OpenSSL
+BIO handshake fixture in
+`tests/test_owned_preauth_session.cpp`
+and registry `tests/CMakeLists.txt`;
+update roadmap, architecture, coding/testing
+standards and this verification ledger together.
+Expected Linux 61 CTests and macOS/Windows 57
+per Debug/Release configuration.
+CI commands in its sole checkout-local `build/`:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON` with
+`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON` on Linux
+(OFF elsewhere), `cmake --build build
+--config Debug --parallel 2`,
+`ctest --test-dir build --build-config Debug
+--output-on-failure`, then reconfigure
+same root Release/build/test, SDK consumer,
+CPack, checksum and artifact upload.
+**NOT RUN:** this implementation CI,
+owner-local build, positive GSS credentials,
+successful TLS pubKeyAuth, OS authorization
+or Microsoft RDP desktop. **Next:** real
+Kerberos/GSS context and protected response
+wire integration on the same TLS identity,
+then independent OS account authorization
+before MCS and activation.

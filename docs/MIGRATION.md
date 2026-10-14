@@ -1,101 +1,92 @@
-# Migration provenance and scope
+# Preserving the existing implementation progress
 
-## Full-project recovery pending
+## Current situation
 
-**The complete former `xrdp-console` repository was NOT moved.** The
-original GitHub repository has been deleted; the new repository has only
-the 125 selectively migrated C++23 files and limited protocol tests.
+The original `k1moradi/xrdp-console` GitHub repository was deleted before
+the full source tree was migrated. The current `RDP-server` repository has
+125 selectively imported C++23 source/header files and a passing independent
+C++23 protocol library, **but it is not the whole original project**.
 
-If the original `~/xrdp-console` Git checkout still exists on the dedicated
-development PC, the checked-in [full-history importer](../scripts/import-full-project.sh)
-copies **all files tracked in its historical `main`**, preserves the current
-standalone C++23 build, and creates a single two-parent commit joining both
-repositories' real Git histories. It pushes to **the existing `main`**:
-no new branches and no force push.
+The goal is to preserve code and engineering progress, **not the old Git
+commit history**. In particular we must not lose unfinished clipboard work,
+graphics tests, project sources or alternative fixes which were on
+development branches.
+
+## Source snapshot import
+
+The [current-progress importer](../scripts/import-current-progress.py)
+reads the original development PC's existing `~/xrdp-console` Git checkout.
+It does **not** need the deleted GitHub remote.
+
+It preserves:
+
+- Every tracked file from the most advanced available original `main`
+  snapshot. Files absent from the new repository enter at their original
+  paths. Existing new C++23 files take priority; old versions of overlapping
+  paths remain under `migration/source-main-overlaps/`.
+- The newest locally available `dev/clipboard` or
+  `experiment/png-prefetch-native-review-20261013` implementation's
+  **actual changed files**, under `migration/clipboard-delta/`.
+- Code from every available independent *maximal* development tip,
+  under `migration/other-tip-deltas/`; already-integrated ancestor refs
+  are not duplicated.
+- Tracked but uncommitted local changes under
+  `migration/local-working-changes/`.
+- A machine-readable file inventory under
+  `migration/PROGRESS_INVENTORY.json`. Deleted or absent files are listed
+  explicitly rather than silently forgotten.
+
+Old patched-xrdp C/vendor files, packaging and GitHub workflows are kept
+under `migration/source-main/`, **not** activated or linked into the
+independent C++23 default build. Importing code is not equivalent to
+completing its C++23 port. Untracked/ignored local files and remote branch
+tips not present in the local Git checkout cannot be recovered automatically;
+inspect the inventory for these limitations.
+
+## Run from the development PC
+
+If `~/RDP-server` does not exist:
 
 ```bash
 cd ~
 git clone https://github.com/k1moradi/RDP-server.git
 cd RDP-server
-bash scripts/import-full-project.sh /home/keivan/xrdp-console
+python3 scripts/import-current-progress.py /home/keivan/xrdp-console
 ```
 
-If `~/RDP-server` already exists, use `git -C ~/RDP-server pull --ff-only`
-instead of cloning, then execute the importer there. It requires a clean
-current new-repository checkout. It never activates a daemon, touches the
-clipboard, makes backups, or alters the old working tree.
+If the new repository is already checked out:
 
-The importer verifies the original tracked-file inventory and requires that
-the remote `main` has not moved since the local checkout. Its merge commit
-preserves both parents. It imports the old project’s Linux runtime, patched
-xrdp files and test infrastructure **as archival migration source**, while
-keeping the active default CMake build independent of xrdp and VNC. Such
-files are present but are not part of the new active C++23 protocol archive.
+```bash
+cd ~/RDP-server
+git pull --ff-only
+python3 scripts/import-current-progress.py /home/keivan/xrdp-console
+```
 
-If the old checkout has been lost, GitHub permits restoration of eligible
-deleted repositories within 90 days: Settings → Repositories → Deleted
-repositories → Restore. Only the account owner can perform that web action.
-Once restored, the original source and history can be imported. The
-source is not currently recoverable by this assistant's GitHub connector
-while the deleted repository returns 404.
+The deprecated `bash scripts/import-full-project.sh` command now invokes
+**the same source-only importer**. It does not import old Git history.
 
-**This is not yet confirmation that the full import has executed.** The
-original local checkout remains outside the assistant's tool access.
+The importer updates only the existing `main`, commits the source
+snapshots, and pushes normally. It does not make a branch, force-push,
+create a rollback backup, change or activate an RDP service, or disturb
+the old development checkout. It refuses to proceed if it cannot find
+the old clipboard experiment because losing that work is unacceptable.
 
+### Acceptance after importing
 
-## New project home
+- Verify the GitHub repository now includes `src/module/`, `tests/`,
+  `tools/`, the retained source material and
+  `migration/PROGRESS_INVENTORY.json`.
+- Check the clipboard and independent-tip inventories against the source
+  development PC. Continue actively reconciling needed source into the
+  actual C++23 targets and tests; archived deltas are **preserved**, not
+  yet compiled or merged into the functional protocol path.
+- Run the standalone Linux/macOS/Windows C++23 CI and resolve any
+  build/test regressions before advertising a working RDP server.
 
-[`k1moradi/RDP-server`](https://github.com/k1moradi/RDP-server)
-is the standalone, open-source C++23 RDP server protocol project.
+If `~/xrdp-console` was deleted locally as well, the missing files are
+unavailable through the GitHub connector. Restore the old GitHub repository
+through GitHub's deleted-repository recovery settings if it is still eligible,
+then recover its source to a local checkout.
 
-**Motto:** RDP protocol first. Fast native C++23 implementation. No
-workarounds when a standards-compliant RDP mechanism already solves the problem.
-
-## Transfer completed
-
-The following **125 first-party C++ `.cpp`/`.h` files** were copied from
-historical `k1moradi/xrdp-console`, frozen at commit
-`1a8b83f07165783d62ce5f6657d4e1670ce62ff4`:
-
-- `src/server`: 50 files, transport/security/clipboard/adapters
-- `src/rdp`: 38 files, native graphics algorithms
-- `src/core`: 19 files, geometry, scheduling and image state
-- `src/clipboard`: 4 files, clipboard wire formats and validation
-- `src/x11`: 14 files, candidate OS-specific Linux/X11 adapters
-
-Source namespaces were migrated from `xrdp_console` to `rdp_server`.
-The original GPL-3.0 license and creator attribution were retained.
-Microsoft protocol fixtures and focused C++23 tests were imported.
-
-The published CMake archive currently compiles **14 portable C++23 translation
-units**. The remaining files are staged source under architectural review:
-their presence does **not** mean they are linked into a functional server.
-
-Two direct dependencies on upstream C have been replaced in the new home:
-a native bounded RFC 4648 Base64 implementation replaces the old imported
-`base64.c`, and the CLIPRDR coordinator no longer imports the old
-`ms-rdpeclip.h`. This does not invalidate upstream author credit for
-historical research.
-
-## Deliberately not migrated
-
-The old source tree had patched xrdp 0.10.6.1, chansrv and a patch series,
-Linux systemd deployment scripts, RFB/VNC benchmarks, private host-test
-harnesses, and binary fixture archives. These are **not** the new product's
-dependencies, server implementation or release artifacts. They remain at
-[`k1moradi/xrdp-console`](https://github.com/k1moradi/xrdp-console)
-for historical traceability and to resolve outstanding experiments.
-
-The Git history, pull requests, historical development branches and issues of
-the old project have not been mechanically moved: the new repository was
-created independently with its own `main` history and selected first-party
-source migration. No new development branches were created.
-
-## Outstanding implementation blockers
-
-No tested production RDP daemon exists yet. Implement and accept a complete
-server handshake, authenticated session and post-auth channel lifecycle;
-graphics and desktop capture/input adapters across OSes; bidirectional
-CLIPRDR; and client acceptance before describing RDP-server as usable.
-See `docs/ROADMAP.md`. Do not hide missing functionality behind an
-xrdp-dependent fallback.
+**Do not call the migration complete until the source snapshot import has
+actually run and the resulting files are verified on `RDP-server/main`.**

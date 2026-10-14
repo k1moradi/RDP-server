@@ -75,6 +75,17 @@ struct ConnectionIntakeResult
     SecurityReply reply{};
 };
 
+// Track only bytes actually sent by a nonblocking output adapter.
+// Zero-byte writes are retryable; failure responses drain before close.
+enum class ConnectionReplyWriteStatus : std::uint8_t
+{
+    NeedMore,
+    ReplySentStartTls,
+    ReplySentClose,
+    Invalid,
+    Closed,
+};
+
 // MS-RDPBCGR 2.2.1.3: decrypted TPKT/X.224 Data TPDU encapsulating
 // an MCS Connect Initial with GCC Conference Create Request.
 enum class McsIntakeStatus : std::uint8_t
@@ -107,10 +118,14 @@ public:
     [[nodiscard]] ConnectionIntakeResult consumeConnectionRequest(
         std::span<const std::uint8_t> receivedBytes) noexcept;
 
-    // The transport must call this only AFTER all 19 X.224 reply bytes
-    // have been transmitted. Partial sends and failures must report false;
-    // a premature or repeated report terminates the diagnostic.
-    [[nodiscard]] bool onConnectionReplySent(bool completed) noexcept;
+    // The sole connection owner stores the exact 19-byte X.224 response.
+    // Send ONLY the pending suffix and acknowledge the byte count actually
+    // accepted by the socket. Zero means would-block; hard errors call close().
+    // A span is borrowed only until the next mutating call on this stream.
+    [[nodiscard]] std::span<const std::uint8_t>
+    pendingConnectionReply() const noexcept;
+    [[nodiscard]] ConnectionReplyWriteStatus onConnectionReplyBytesWritten(
+        std::size_t bytesWritten) noexcept;
 
     // The caller must first send all ReplyThenTls bytes and complete a
     // SERVER-side OpenSSL TLS handshake. An arbitrary bool no longer
@@ -147,7 +162,10 @@ private:
     std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> intakeBuffer_{};
     std::size_t bufferedBytes_{};
     std::size_t expectedBytes_{};
-    // True only after exactly one completed X.224 Confirm write.
+    SecurityReply pendingReply_{};
+    std::size_t replyBytesWritten_{};
+    bool replyPending_{};
+    // True only after every byte of X.224 Confirm is acknowledged.
     bool connectionReplySent_{};
     // Borrowed identity only: the caller must keep this SSL alive until
     // the diagnostic closes. No TLS or OS session ownership is duplicated.

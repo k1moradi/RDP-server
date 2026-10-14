@@ -72,20 +72,67 @@ void PreauthConnectionStream::close() noexcept
 {
     clearIntakeBuffer();
     connectionReplySent_ = false;
+    pendingReply_ = {};
+    replyBytesWritten_ = 0;
+    replyPending_ = false;
     activeServerTls_ = nullptr;
     session_.close();
 }
 
-bool PreauthConnectionStream::onConnectionReplySent(bool completed) noexcept
+std::span<const std::uint8_t>
+PreauthConnectionStream::pendingConnectionReply() const noexcept
 {
-    if (stage() != PreauthStage::AwaitTls ||
-        connectionReplySent_ || !completed)
+    if (!replyPending_)
+    {
+        return {};
+    }
+    return std::span(pendingReply_.packet).subspan(replyBytesWritten_);
+}
+
+ConnectionReplyWriteStatus
+PreauthConnectionStream::onConnectionReplyBytesWritten(
+    std::size_t bytesWritten) noexcept
+{
+    if (!replyPending_)
+    {
+        const auto result = stage() == PreauthStage::Closed
+                                ? ConnectionReplyWriteStatus::Closed
+                                : ConnectionReplyWriteStatus::Invalid;
+        close();
+        return result;
+    }
+    const std::size_t remaining =
+        pendingReply_.packet.size() - replyBytesWritten_;
+    if (bytesWritten > remaining)
     {
         close();
-        return false;
+        return ConnectionReplyWriteStatus::Invalid;
     }
-    connectionReplySent_ = true;
-    return true;
+    if (bytesWritten == 0)
+    {
+        return ConnectionReplyWriteStatus::NeedMore;
+    }
+    replyBytesWritten_ += bytesWritten;
+    if (replyBytesWritten_ != pendingReply_.packet.size())
+    {
+        return ConnectionReplyWriteStatus::NeedMore;
+    }
+
+    replyPending_ = false;
+    replyBytesWritten_ = 0;
+    const auto decision = pendingReply_.decision;
+    pendingReply_ = {};
+    if (decision == SecurityDecision::Tls &&
+        stage() == PreauthStage::AwaitTls)
+    {
+        connectionReplySent_ = true;
+        return ConnectionReplyWriteStatus::ReplySentStartTls;
+    }
+    // MS-RDPBCGR 3.3.5.3.2: NEG_FAILURE must be sent before close.
+    close();
+    return decision == SecurityDecision::Reject
+               ? ConnectionReplyWriteStatus::ReplySentClose
+               : ConnectionReplyWriteStatus::Invalid;
 }
 
 bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
@@ -182,6 +229,9 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
 
     const auto reply = session_.onConnectionRequest(parsed);
     clearIntakeBuffer();
+    pendingReply_ = reply;
+    replyBytesWritten_ = 0;
+    replyPending_ = true;
     if (reply.decision != SecurityDecision::Tls)
     {
         // Send the existing standards-defined negotiation failure

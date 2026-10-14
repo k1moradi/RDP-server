@@ -229,3 +229,17 @@ passed Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
 Ubuntu's full Debug and Release CTest logs each report **20/20 PASS**;
 all three platform SDK install/consumer and ZIP checks passed. No
 owner-local post-change run, external client or OS admission was tested.
+
+## Exact X.224 partial-write regressions (2026-10-14; CI pending)
+
+The existing `test_owned_preauth_session` executable registers
+a new independent `transport.x224-confirm-partial-writes`
+CTest. Verify every 0..19-byte split of the full Confirm,
+every one-byte send, an EAGAIN/zero write, suffix exactness,
+a partial-write TLS attempt, overreported positive counts,
+terminal writer cancellation, post-completion replay and
+an entirely delivered failure PDU followed by close.
+The preexisting 20 CTests remain, making **21 registered
+cases** with the same binary/fixture ownership. This measures
+real additional wire-output behavior, not extra fake coverage
+or successful network authentication.

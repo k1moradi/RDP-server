@@ -112,3 +112,16 @@ the diagnostic does not accept that extra packet. WANT_READ/WRITE are
 retryable; close_notify, provider errors, wrong SSL identity and
 invalid framing terminate. No extra session state authority,
 network listener, MCS response or OS admission exists.
+
+### Byte-accurate X.224 Confirm/Failure output (2026-10-14)
+
+The existing preauthentication stream now owns precisely one 19-byte
+X.224 negotiation response and exposes only the unsent suffix.
+A nonblocking transport must report the **actual** positive number
+of bytes accepted from that suffix; zero means retry on writable
+readiness. A short write cannot advance the TLS handshake. On
+`RDP_NEG_FAILURE` the same stream permits the entire failure
+response to drain, then closes; on `RDP_NEG_RSP` it permits TLS
+only after every byte has been acknowledged. Hard socket failures
+abort the stream. This is a portable I/O boundary, not an
+active network listener, TLS credential verifier or OS admission.

@@ -160,13 +160,22 @@ validRequestWire() noexcept
     return parseConnectionRequest(validRequestWire());
 }
 
+[[nodiscard]] bool acknowledgeCompleteReply(
+    PreauthConnectionStream &connection)
+{
+    const auto remaining = connection.pendingConnectionReply();
+    return remaining.size() == 19 &&
+           connection.onConnectionReplyBytesWritten(remaining.size()) ==
+               ConnectionReplyWriteStatus::ReplySentStartTls;
+}
+
 void advanceToMcs(PreauthConnectionStream &connection)
 {
     const auto request = connection.consumeConnectionRequest(
         validRequestWire());
     assert(request.bytesConsumed == validRequestWire().size());
     assert(request.status == ConnectionIntakeStatus::ReplyThenTls);
-    assert(connection.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(connection));
     assert(connection.onTlsHandshake(completedTls().server.get()));
     assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
 }
@@ -227,7 +236,7 @@ void testConnectionRequestByteBoundaryAndFailure()
     assert(withTrailingTls.consumeConnectionRequest(
                std::span(coalesced).subspan(request.size())).bytesConsumed == 0);
     assert(withTrailingTls.stage() == PreauthStage::AwaitTls);
-    assert(withTrailingTls.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(withTrailingTls));
     assert(withTrailingTls.onTlsHandshake(completedTls().server.get()));
     assert(withTrailingTls.stage() == PreauthStage::AwaitMcsConnectInitial);
     withTrailingTls.close();
@@ -272,7 +281,7 @@ void testRealTlsTransportGate()
     PreauthConnectionStream wrongRole;
     assert(wrongRole.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(wrongRole.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(wrongRole));
     assert(!wrongRole.onTlsHandshake(tls.client.get()));
     assert(wrongRole.stage() == PreauthStage::Closed);
 
@@ -284,21 +293,21 @@ void testRealTlsTransportGate()
     PreauthConnectionStream incomplete;
     assert(incomplete.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(incomplete.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(incomplete));
     assert(!incomplete.onTlsHandshake(unfinished.get()));
     assert(incomplete.stage() == PreauthStage::Closed);
 
     PreauthConnectionStream nullTls;
     assert(nullTls.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(nullTls.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(nullTls));
     assert(!nullTls.onTlsHandshake(nullptr));
     assert(nullTls.stage() == PreauthStage::Closed);
 
     PreauthConnectionStream real;
     assert(real.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(real.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(real));
     assert(real.onTlsHandshake(tls.server.get()));
     assert(real.stage() == PreauthStage::AwaitMcsConnectInitial);
     // The same completed TLS object cannot be replayed to advance again.
@@ -319,29 +328,134 @@ void testConnectionReplyMustBeSentBeforeTls()
     PreauthConnectionStream failedSend;
     assert(failedSend.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(!failedSend.onConnectionReplySent(false));
+    // A hard socket I/O error aborts any pending reply.
+    failedSend.close();
     assert(failedSend.stage() == PreauthStage::Closed);
 
     PreauthConnectionStream repeatedSend;
     assert(repeatedSend.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(repeatedSend.onConnectionReplySent(true));
-    assert(!repeatedSend.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(repeatedSend));
+    assert(repeatedSend.onConnectionReplyBytesWritten(1) ==
+           ConnectionReplyWriteStatus::Invalid);
     assert(repeatedSend.stage() == PreauthStage::Closed);
 
     PreauthConnectionStream prematureReport;
-    assert(!prematureReport.onConnectionReplySent(true));
+    assert(prematureReport.onConnectionReplyBytesWritten(19) ==
+           ConnectionReplyWriteStatus::Invalid);
     assert(prematureReport.stage() == PreauthStage::Closed);
 
     PreauthConnectionStream successfulTls;
     assert(successfulTls.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(successfulTls.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(successfulTls));
     assert(successfulTls.onTlsHandshake(completedTls().server.get()));
     assert(successfulTls.stage() == PreauthStage::AwaitMcsConnectInitial);
     // The same TLS transition is not reusable.
     assert(!successfulTls.onTlsHandshake(completedTls().server.get()));
     assert(successfulTls.stage() == PreauthStage::Closed);
+}
+
+
+void testPartialConnectionReplyWrites()
+{
+    constexpr std::size_t kReplyBytes = 19;
+    const auto request = validRequestWire();
+    const auto expected =
+        negotiateDiagnosticTls(parseConnectionRequest(request)).packet;
+
+    for (std::size_t split = 0; split <= kReplyBytes; ++split)
+    {
+        PreauthConnectionStream connection;
+        assert(connection.pendingConnectionReply().empty());
+        const auto response = connection.consumeConnectionRequest(request);
+        assert(response.status == ConnectionIntakeStatus::ReplyThenTls);
+        assert(response.reply.packet == expected);
+        assert(connection.pendingConnectionReply().size() == kReplyBytes);
+        assert(connection.onConnectionReplyBytesWritten(0) ==
+               ConnectionReplyWriteStatus::NeedMore);
+        if (split != 0)
+        {
+            assert(connection.onConnectionReplyBytesWritten(split) ==
+                   (split == kReplyBytes
+                        ? ConnectionReplyWriteStatus::ReplySentStartTls
+                        : ConnectionReplyWriteStatus::NeedMore));
+        }
+        if (split < kReplyBytes)
+        {
+            const auto suffix = connection.pendingConnectionReply();
+            assert(suffix.size() == kReplyBytes - split);
+            assert(std::equal(suffix.begin(), suffix.end(),
+                              expected.begin() + split));
+            assert(connection.stage() == PreauthStage::AwaitTls);
+            assert(connection.onConnectionReplyBytesWritten(suffix.size()) ==
+                   ConnectionReplyWriteStatus::ReplySentStartTls);
+        }
+        assert(connection.pendingConnectionReply().empty());
+        assert(connection.onTlsHandshake(completedTls().server.get()));
+        connection.close();
+    }
+
+    PreauthConnectionStream bytewise;
+    assert(bytewise.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    for (std::size_t i = 0; i < kReplyBytes; ++i)
+    {
+        const auto pending = bytewise.pendingConnectionReply();
+        assert(pending.size() == kReplyBytes - i);
+        assert(pending.front() == expected[i]);
+        assert(bytewise.onConnectionReplyBytesWritten(1) ==
+               (i + 1 == kReplyBytes
+                    ? ConnectionReplyWriteStatus::ReplySentStartTls
+                    : ConnectionReplyWriteStatus::NeedMore));
+    }
+    bytewise.close();
+
+    PreauthConnectionStream overrun;
+    assert(overrun.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(overrun.onConnectionReplyBytesWritten(kReplyBytes + 1) ==
+           ConnectionReplyWriteStatus::Invalid);
+    assert(overrun.stage() == PreauthStage::Closed);
+    assert(overrun.pendingConnectionReply().empty());
+
+    PreauthConnectionStream premature;
+    assert(premature.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(premature.onConnectionReplyBytesWritten(kReplyBytes - 1) ==
+           ConnectionReplyWriteStatus::NeedMore);
+    assert(!premature.onTlsHandshake(completedTls().server.get()));
+    assert(premature.stage() == PreauthStage::Closed);
+
+    auto unsupported = request;
+    unsupported[15] = 0;
+    PreauthConnectionStream rejected;
+    const auto failure = rejected.consumeConnectionRequest(unsupported);
+    assert(failure.status == ConnectionIntakeStatus::ReplyThenClose);
+    assert(rejected.stage() == PreauthStage::Closed);
+    assert(failure.reply.packet[11] == 3);
+    const auto pending = rejected.pendingConnectionReply();
+    assert(pending.size() == kReplyBytes);
+    assert(std::equal(pending.begin(), pending.end(),
+                      failure.reply.packet.begin()));
+    assert(rejected.onConnectionReplyBytesWritten(9) ==
+           ConnectionReplyWriteStatus::NeedMore);
+    assert(rejected.pendingConnectionReply().size() == 10);
+    assert(rejected.onConnectionReplyBytesWritten(10) ==
+           ConnectionReplyWriteStatus::ReplySentClose);
+    assert(rejected.pendingConnectionReply().empty());
+    assert(rejected.onConnectionReplyBytesWritten(1) ==
+           ConnectionReplyWriteStatus::Closed);
+
+    PreauthConnectionStream cancelled;
+    assert(cancelled.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(cancelled.onConnectionReplyBytesWritten(5) ==
+           ConnectionReplyWriteStatus::NeedMore);
+    cancelled.close();
+    assert(cancelled.pendingConnectionReply().empty());
+    assert(cancelled.onConnectionReplyBytesWritten(14) ==
+           ConnectionReplyWriteStatus::Closed);
 }
 
 void testIncrementalDecryptedMcsIntake()
@@ -483,7 +597,7 @@ void advanceToTlsMcs(PreauthConnectionStream &connection, SSL *server)
 {
     const auto response = connection.consumeConnectionRequest(validRequestWire());
     assert(response.status == ConnectionIntakeStatus::ReplyThenTls);
-    assert(connection.onConnectionReplySent(true));
+    assert(acknowledgeCompleteReply(connection));
     assert(connection.onTlsHandshake(server));
     assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
 }
@@ -722,11 +836,12 @@ struct PreauthTestCase
 // Keep one executable/fixture implementation but expose independent
 // behavior-named CTest cases to make regressions visible in CTest output.
 // Running without an argument still executes the complete native suite.
-constexpr std::array<PreauthTestCase, 10> kPreauthTestCases{{
+constexpr std::array<PreauthTestCase, 11> kPreauthTestCases{{
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
     {"x224-confirm-write-order", &testConnectionReplyMustBeSentBeforeTls},
+    {"x224-confirm-partial-writes", &testPartialConnectionReplyWrites},
     {"tls-handshake-gate", &testRealTlsTransportGate},
     {"x224-length-and-close", &testConnectionRequestLengthRejectionAndClose},
     {"mcs-decrypted-fragments", &testIncrementalDecryptedMcsIntake},

@@ -147,3 +147,18 @@ TPKT-preserving algorithm at `a226f15827e9da48ad7a91b7cfa53528c3498802`
 passed [Actions run 38557465241](https://github.com/k1moradi/RDP-server/actions/runs/38557465241)
 on Ubuntu, macOS and Windows. Keep network I/O cancellation and
 user authorization separate from validated TLS record decoding.
+
+## Real nonblocking X.224 send progression (2026-10-14)
+
+MS-RDPBCGR 3.3.5.3.2 requires the server to send the X.224
+Connection Confirm before invoking external TLS and to send
+RDP Negotiation Failure before closing. The former boolean
+`onConnectionReplySent(true)` could be misreported after a
+partial socket write, violating that ordering. Use the sole
+connection owner's `pendingConnectionReply()` suffix and
+`onConnectionReplyBytesWritten(n)` event to account for exactly
+the bytes accepted by the OS. Zero-byte progress does not advance;
+over-count, replay, invalid state and hard I/O failure close
+without TLS admission. The rejected-security path may drain
+the error PDU while remaining terminal. No duplicated send
+state, separate controller, socket listener or private protocol.

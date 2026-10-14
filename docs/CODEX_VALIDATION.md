@@ -249,3 +249,18 @@ SDK ZIP/sha256 artifacts. Ubuntu's CTest logs explicitly show
 **NOT RUN:** owner's local CTest after this registration change,
 external RDP clients, real TCP listener, CredSSP/NLA,
 OS authorization or desktop acceptance.
+
+## Partial X.224 output accounting (pending exact-head CI)
+
+Removed the Boolean send-completion escape hatch from
+`PreauthConnectionStream`. The existing owner tracks each
+of the exact 19 negotiation-response bytes accepted by a
+future nonblocking socket writer; it only allows SSL/TLS after
+the last Confirm byte, or allows the Failure response to
+drain before terminal close. The new named CTest validates
+all split boundaries, bytewise writes, would-block, duplicate,
+overrun, premature TLS, explicit failure and rejection output.
+**Expected:** 21 CTests, up from 20 for a distinct tested
+transport behavior. **NOT RUN:** new exact-head hosted CI,
+local owner checkout, network listener, CredSSP/NLA,
+MCS Connect-Response, external RDP clients and OS admission.

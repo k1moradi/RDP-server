@@ -143,6 +143,19 @@ acceptance evidence; no synthetic completion claims.
   TCP TLS listener, OS identity admission and desktop interaction.
   **Next:** nonblocking socket adapter and authenticated session policy,
   without equating a TLS handshake with user authentication.
+  **New partial-send protocol increment (pending CI):**
+  `PreauthConnectionStream` now owns the 19-byte X.224
+  Confirm/Failure response and tracks byte-accurate nonblocking
+  write progress. Zero-byte output is retryable; overrun, premature
+  TLS and replay fail closed; a rejected negotiation's response
+  drains before transport closure. The existing preauth executable
+  has an independent `transport.x224-confirm-partial-writes` CTest
+  covering all 20 split boundaries, bytewise writes, cancellation,
+  malformed accounting and both negotiation outcomes. Expected
+  CTest total: **21**, up from 20 for a substantive new behavior.
+  **NOT RUN:** exact-head CI, user local build, real network listener,
+  external client, CredSSP/OS authorization. **Next:** portable
+  nonblocking transport adapter and real authenticated session.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

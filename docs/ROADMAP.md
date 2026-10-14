@@ -527,6 +527,39 @@ acceptance evidence; no synthetic completion claims.
   with selected TLS certificate and interoperable
   MS-CSSP final negoToken+pubKeyAuth phase, followed
   by independent OS authorization before MCS admission.
+  **MS-CSSP final combined token/binding processing increment
+  (2026-10-14; NEW CI NOT RUN):** Microsoft's
+  [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)
+  requires the last client SPNEGO token and encrypted TLS
+  public-key binding to share one TSRequest. Add a strict
+  portable v5/v6 `finalNegoAndBindingOnly()` shape check
+  (one token, encrypted binding and exact 32-byte nonce,
+  no authInfo or errorCode) and one Linux-only
+  `processFinalFramedNegoAndBinding()` handoff. Require
+  an already continuing, TLS-pinned GSS context;
+  synchronously accept the last real provider token,
+  reject if authentication has not completed or an
+  untransmittable GSS output token remains, verify
+  GSS confidentiality and the pinned active TLS binding,
+  wrap server binding, and wipe the single frame.
+  No independent controller, token cache, credentials,
+  OS admission or live RDP negotiation is enabled.
+  Three new behavior-named CTests: portable combined
+  shape success, malformed/downgraded/mixed fields
+  rejection and Linux real-TLS/GSS negative final
+  handshake. Expected Linux **58** vs previous 55;
+  macOS/Windows **54** vs previous 52.
+  **PASS:** prior implementation
+  `6e11b25224e1a5e6c3f45778436afc3950a3e866`
+  [CI 38609620612](https://github.com/k1moradi/RDP-server/actions/runs/38609620612),
+  final documentation head `5a17ed4bd38a4af818f2541c2d1f858f5765d92c`
+  [CI 38610037109](https://github.com/k1moradi/RDP-server/actions/runs/38610037109).
+  **NOT RUN:** new implementation CI, positive Kerberos,
+  actual TLS public-key binding verification, independent
+  OS account authorization, Microsoft clients and desktop.
+  **Next:** positive real keytab/Kerberos/GSS handshake
+  with last-token response handling before independently
+  authorized OS admission and live MCS replies.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

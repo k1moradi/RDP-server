@@ -1479,6 +1479,23 @@ constexpr std::array<std::uint8_t, 21> kTestCredSspDer{
     0xa1, 0x0c, 0x30, 0x0a, 0x30, 0x08,
     0xa0, 0x06, 0x04, 0x04, 0x60, 0x82, 0x01, 0x00};
 
+
+[[nodiscard]] std::vector<std::uint8_t> makeFinalCredSspDer(
+    std::uint8_t version)
+{
+    // One syntactically correct but NOT GSS-authenticated final TSRequest.
+    // A negative fixture must never be accepted as Kerberos identity.
+    std::vector<std::uint8_t> bytes(kTestCredSspDer.begin(),
+                                    kTestCredSspDer.end());
+    bytes.insert(bytes.end(), {0xa3, 0x03, 0x04, 0x01, 0x55,
+                                0xa5, 0x22, 0x04, 0x20});
+    bytes.insert(bytes.end(), 32, 0x42);
+    assert(bytes.size() == 62);
+    bytes[1] = static_cast<std::uint8_t>(bytes.size() - 2);
+    bytes[6] = version;
+    return bytes;
+}
+
 // Read as many already-available TLS plaintext segments as required for
 // exactly one DER envelope; 1 SSL_read_ex per production method invocation.
 std::size_t drainCredSspFromTls(
@@ -1694,6 +1711,75 @@ void testTlsCredSspProvenance()
 }
 
 #ifdef RDP_TEST_LINUX_GSSAPI
+
+void testGssapiCombinedFinalBindingDenied()
+{
+    // A valid final MS-CSSP envelope received over real TLS must remain
+    // rejected without a positive, previously continuing Kerberos context.
+    // No ciphertext may be interpreted as plaintext TLS hash or authority.
+    for (std::uint8_t version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        const auto finalDer = makeFinalCredSspDer(version);
+        writeTlsClientApplicationData(tls.client.get(), finalDer);
+        std::size_t read = 0;
+        for (std::size_t step = 0; step < 8; ++step)
+        {
+            const auto response = reader.readOneTlsStep(tls.server.get());
+            read += response.plaintextBytesRead;
+            assert(response.status == TsRequestTlsReadStatus::Progress ||
+                   response.status == TsRequestTlsReadStatus::Complete);
+            if (response.status == TsRequestTlsReadStatus::Complete)
+                break;
+        }
+        assert(read == finalDer.size());
+        assert(reader.completedFrameServerTls() == tls.server.get());
+        const auto parsed = parseCredSspTsRequest(reader.completeDer());
+        assert(parsed && parsed.value.finalNegoAndBindingOnly());
+        GssapiSpnegoAcceptor acceptor;
+        const auto denied = acceptor.processFinalFramedNegoAndBinding(reader);
+        assert(!denied.ready);
+        assert(denied.encryptedServerBinding.empty());
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(acceptor.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+        assert(reader.completedFrameServerTls() == nullptr);
+        // No retry, even if the attacker reconnects with a correct TLS
+        // handle and a syntactically valid final GSS/binding envelope.
+        TsRequestFrameReader again;
+        writeTlsClientApplicationData(tls.client.get(), finalDer);
+        for (std::size_t step = 0; step < 8; ++step)
+        {
+            const auto r = again.readOneTlsStep(tls.server.get());
+            assert(r.status == TsRequestTlsReadStatus::Progress ||
+                   r.status == TsRequestTlsReadStatus::Complete);
+            if (r.status == TsRequestTlsReadStatus::Complete) break;
+        }
+        assert(again.status() == TsRequestFrameStatus::Complete);
+        assert(!acceptor.processFinalFramedNegoAndBinding(again).ready);
+        assert(again.status() == TsRequestFrameStatus::Closed);
+    }
+
+    GssapiSpnegoAcceptor synthetic;
+    TsRequestFrameReader manual;
+    const auto der = makeFinalCredSspDer(6);
+    assert(manual.consume(der).status == TsRequestFrameStatus::Complete);
+    assert(manual.completedFrameServerTls() == nullptr);
+    assert(!synthetic.processFinalFramedNegoAndBinding(manual).ready);
+    assert(synthetic.stage() == SpnegoStage::Failed);
+    assert(manual.status() == TsRequestFrameStatus::Closed);
+
+    GssapiSpnegoAcceptor premature;
+    TsRequestFrameReader partial;
+    assert(partial.consume(std::span(der).first(13)).status ==
+           TsRequestFrameStatus::NeedMore);
+    assert(!premature.processFinalFramedNegoAndBinding(partial).ready);
+    assert(partial.status() == TsRequestFrameStatus::Closed);
+    assert(premature.stage() == SpnegoStage::Failed);
+}
+
 void testGssapiTlsBoundHandoffDenials()
 {
     // An authentic TLS record does not make a fabricated SPNEGO token
@@ -1845,6 +1931,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-provenance", &testTlsCredSspProvenance},
 #ifdef RDP_TEST_LINUX_GSSAPI
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
+    {"gssapi-final-combined-denials", &testGssapiCombinedFinalBindingDenied},
 #endif
 });
 

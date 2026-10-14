@@ -653,3 +653,24 @@ preexisting and nonfatal. **NOT RUN:** owner's
 local build, positive GSS Kerberos credential/keytab,
 TLS pubKeyAuth, OS admission or real clients. Synthetic
 negative evidence is not desktop authorization.
+
+## Final combined CredSSP handshake regression plan (2026-10-14; NOT RUN)
+
+New behavior requires new CTests: reuse the existing
+`test_owned_credssp_tsrequest` executable for
+`security.credssp-final-negotiation-binding`
+(v5 and v6, borrowed token/nonce/ciphertext views,
+single-byte-fragment framing, near-limit rejection)
+and `security.credssp-final-binding-rejections`
+(missing token/binding/nonce, authInfo, errorCode,
+wrong nonce sizes, downgraded v2/v4, oversize
+ciphertext, multiple tokens and non-DER mutations).
+Reuse `test_owned_preauth_session` for the Linux-only
+`security.gssapi-final-combined-denials` with genuine
+in-memory TLS, real MIT GSSAPI linked, fabricated
+v5/v6 final frames, terminal denial, replay denial
+and synthetic/partial frame rejection. Do not use
+synthetic GSS output as proof of successful Kerberos.
+Expected CTests: Linux **58**, macOS/Windows **54**
+in Debug and Release. New-code CI, owner's local
+build and real Kerberos/desktop acceptance **NOT RUN**.

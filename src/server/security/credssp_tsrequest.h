@@ -54,6 +54,20 @@ struct TsRequestInfo
         return tokenCount != 0 && !hasAuthInfo && !hasPubKeyAuth &&
                !hasErrorCode && !hasClientNonce;
     }
+
+    // MS-CSSP 3.1.5: the final client GSS negotiation token and the
+    // encrypted client->server public-key binding share one TSRequest.
+    // Shape validation ONLY; does not authenticate GSS or verify the hash.
+    [[nodiscard]] bool finalNegoAndBindingOnly() const noexcept
+    {
+        return (version == 5 || version == 6) &&
+               tokenCount == 1 && !tokens[0].empty() &&
+               tokens[0].size() <= kMaximumCredSspTokenBytes &&
+               hasPubKeyAuth && !encryptedPubKeyAuth.empty() &&
+               encryptedPubKeyAuth.size() <= kMaximumCredSspTokenBytes &&
+               hasClientNonce && clientNonce.size() == 32 &&
+               !hasAuthInfo && !hasErrorCode;
+    }
 };
 
 struct TsRequestResult

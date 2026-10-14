@@ -486,6 +486,118 @@ void testServerReplyRejections()
     }
 }
 
+
+void testFinalNegotiationBindingShape()
+{
+    // MS-CSSP 3.1.5: the LAST client SPNEGO token shares the frame
+    // with encrypted pubKeyAuth and its 32-byte nonce in versions 5/6.
+    const Bytes token{0xa1, 0x22, 0x33};
+    const Bytes protectedHash{0x11, 0x22, 0x33, 0x44};
+    const Bytes nonce(32, 0x6a);
+    for (const std::uint8_t wireVersion : {std::uint8_t{5},
+                                           std::uint8_t{6}})
+    {
+        Bytes body = append(version(wireVersion), tokens(token));
+        body = append(body, octetContext(0xa3, protectedHash));
+        body = append(body, octetContext(0xa5, nonce));
+        const auto der = makeRequest(body);
+        const auto parsed = parseCredSspTsRequest(der);
+        assert(parsed && parsed.value.version == wireVersion);
+        assert(parsed.value.finalNegoAndBindingOnly());
+        assert(!parsed.value.initialNegoTokenOnly());
+        assert(parsed.value.tokenCount == 1);
+        assert(std::equal(parsed.value.tokens[0].begin(),
+                          parsed.value.tokens[0].end(), token.begin()));
+        assert(std::equal(parsed.value.encryptedPubKeyAuth.begin(),
+                          parsed.value.encryptedPubKeyAuth.end(),
+                          protectedHash.begin()));
+        assert(std::equal(parsed.value.clientNonce.begin(),
+                          parsed.value.clientNonce.end(), nonce.begin()));
+        TsRequestFrameReader reader;
+        for (const auto byte : der)
+        {
+            const auto step = reader.consume(
+                std::span<const std::uint8_t>{&byte, 1});
+            assert(step.bytesConsumed == 1);
+            assert(step.status == TsRequestFrameStatus::NeedMore ||
+                   step.status == TsRequestFrameStatus::Complete);
+        }
+        assert(reader.status() == TsRequestFrameStatus::Complete);
+        assert(parseCredSspTsRequest(reader.completeDer())
+                   .value.finalNegoAndBindingOnly());
+        assert(reader.releaseFrame());
+        assert(reader.completeDer().empty());
+    }
+
+    // The largest accepted 8192-byte ciphertext/token shapes use canonical
+    // 0x82 DER lengths and remain within the existing 16 KiB frame cap.
+    const Bytes nearLimit(8192, 0x44);
+    const auto tooLargeTotal = makeRequest(append(
+        append(append(version(6), tokens(nearLimit)),
+               octetContext(0xa3, nearLimit)),
+        octetContext(0xa5, nonce)));
+    assert(!parseCredSspTsRequest(tooLargeTotal));
+}
+
+void testFinalNegotiationBindingRejections()
+{
+    const Bytes token{0xa1, 0x22};
+    const Bytes binding{0x66, 0x77};
+    const Bytes nonce(32, 0x09);
+    auto base = append(version(6), tokens(token));
+    const auto protectedField = octetContext(0xa3, binding);
+    const auto nonceField = octetContext(0xa5, nonce);
+    const auto good = makeRequest(append(append(base, protectedField),
+                                         nonceField));
+    assert(parseCredSspTsRequest(good).value.finalNegoAndBindingOnly());
+
+    const auto assertNotFinal = [](const Bytes &der)
+    {
+        const auto parsed = parseCredSspTsRequest(der);
+        assert(!parsed || !parsed.value.finalNegoAndBindingOnly());
+    };
+    assertNotFinal(makeRequest(base)); // missing binding and nonce
+    assertNotFinal(makeRequest(append(base, nonceField)));
+    assertNotFinal(makeRequest(append(base, protectedField)));
+    assertNotFinal(makeRequest(append(version(6),
+        append(protectedField, nonceField)))); // no GSS token
+    assertNotFinal(makeRequest(append(
+        append(append(base, octetContext(0xa2, binding)),
+               protectedField), nonceField))); // credential mixing
+    assertNotFinal(makeRequest(append(
+        append(append(base, protectedField),
+               wrap(0xa4, wrap(0x02, std::array<std::uint8_t, 1>{1}))),
+        nonceField))); // NTSTATUS cannot authenticate
+    assertNotFinal(makeRequest(append(append(base, protectedField),
+        octetContext(0xa5, Bytes(31, 0x09)))));
+    assertNotFinal(makeRequest(append(append(base, protectedField),
+        octetContext(0xa5, Bytes(33, 0x09)))));
+    assertNotFinal(makeRequest(append(append(base, protectedField),
+        octetContext(0xa5, Bytes{}))));
+    assertNotFinal(makeRequest(append(append(version(4), tokens(token)),
+        append(protectedField, nonceField))));
+    assertNotFinal(makeRequest(append(append(version(2), tokens(token)),
+        append(protectedField, nonceField))));
+    assertNotFinal(makeRequest(append(
+        append(base, octetContext(0xa3, Bytes(8193, 0x33))),
+        nonceField)));
+
+    // Multiple NegoDataItem tokens are parsed but never acceptable
+    // as a single final mechanism token.
+    const Bytes item = wrap(0x30, wrap(0xa0, wrap(0x04, token)));
+    const Bytes multiToken = wrap(0xa1, wrap(0x30, append(item, item)));
+    assertNotFinal(makeRequest(append(
+        append(append(version(6), multiToken), protectedField),
+        nonceField)));
+
+    auto damaged = good;
+    damaged[0] = 0x31;
+    assertNotFinal(damaged);
+    damaged = good;
+    damaged[1] = 0x80;
+    assertNotFinal(damaged);
+}
+
 void testAllByteMutationsRemainBounded()
 {
     const auto fixture = initialRequest();
@@ -520,7 +632,7 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 10> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 12> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
@@ -531,6 +643,8 @@ constexpr std::array<CredSspTestCase, 10> kCredSspTests{{
     {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},
     {"credssp-server-reply-wire", &testServerReplyWire},
     {"credssp-server-reply-rejections", &testServerReplyRejections},
+    {"credssp-final-negotiation-binding", &testFinalNegotiationBindingShape},
+    {"credssp-final-binding-rejections", &testFinalNegotiationBindingRejections},
 }};
 
 int main(int argc, char **argv)

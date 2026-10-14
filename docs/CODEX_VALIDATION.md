@@ -767,3 +767,38 @@ authorization, Windows App/FreeRDP or desktop.
 combined final client negoTokens/pubKeyAuth
 interoperability and independently verified OS
 identity before a live MCS or desktop.
+
+## Pending combined final SPNEGO + TLS pubKeyAuth (2026-10-14)
+
+**Previous verified main:** `5a17ed4bd38a4af818f2541c2d1f858f5765d92c`,
+[CI 38610037109](https://github.com/k1moradi/RDP-server/actions/runs/38610037109):
+Linux/GCC 55/55, macOS/Clang and Windows/MSVC
+52/52 Debug and Release CTests and SDK/policy/package
+pipeline PASS.
+
+**New code/test increment (CI NOT RUN yet):**
+`src/server/security/credssp_tsrequest.h` adds
+final combined v5/v6 frame shape validation.
+`src/server/security/gssapi_spnego_acceptor.h` and
+`src/server/security/gssapi_credssp_binding.cpp`
+add a one-shot TLS-pinned final token->GSS completion->
+confidential client binding check->server binding
+GSS wrap handoff using the SAME borrowed/securely
+released DER frame. Reject bad ordering, missing GSS
+context, leftover untransmitted GSS output token,
+TLS/version mismatch, bad GSS unwrap, and never
+grant OS session admission. Three new CTests in
+`tests/test_owned_credssp_tsrequest.cpp`,
+`tests/test_owned_preauth_session.cpp`, registered
+in `tests/CMakeLists.txt`. Expected Linux 58,
+macOS/Windows 54, across Debug/Release.
+Co-change roadmap, architecture, coding/testing
+standards, this validation ledger. Build and tests
+use only the CI checkout-local `build/` with GSSAPI
+enabled on Linux, disabled elsewhere.
+**NOT RUN:** new-code CI and owner-local build,
+positive real Kerberos or keytab, actual client
+hash GSS unwrap, OS admission and Windows App
+interactive desktop. **Next:** verify a controlled
+positive real GSS/TLS handshake and OS authorization,
+then advance to correctly gated RDP MCS server replies.

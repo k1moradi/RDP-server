@@ -135,6 +135,17 @@ public:
         const SSL *activeServerTls,
         std::span<const std::uint8_t> protectedRequestDer) noexcept;
 
+    // MS-CSSP 3.1.5 final client message: exactly one last negoToken,
+    // encrypted pubKeyAuth and a 32-byte nonce in the SAME TLS-derived
+    // TSRequest. Requires an already continuing GSS context. Complete
+    // the GSS step, unwrap/verify active TLS binding, and seal the server
+    // binding reply synchronously before wiping the frame. A required
+    // extra GSS output token cannot be omitted: reject rather than
+    // send an incomplete public-key-only server response.
+    // Neither success nor failure constitutes OS user authorization.
+    [[nodiscard]] CredSspProtectedReply processFinalFramedNegoAndBinding(
+        TsRequestFrameReader &reader) noexcept;
+
     // One-shot protected-credential boundary, ONLY after the GSS-bound
     // server response. Parses raw DER, GSS-unwraps with confidentiality,
     // examines structure without exposing secrets, securely erases the
@@ -158,6 +169,12 @@ public:
     void reject() noexcept;
 
 private:
+    // Shared protected-binding implementation; combinedFinal permits the
+    // one final GSS token ONLY after the one-shot framed GSS completion.
+    [[nodiscard]] CredSspProtectedReply processVerifiedBinding(
+        const SSL *activeServerTls,
+        const TsRequestResult &request,
+        bool combinedFinal) noexcept;
     void deleteContext() noexcept;
     [[nodiscard]] bool keepAuthenticatedPrincipal(gss_name_t name) noexcept;
 

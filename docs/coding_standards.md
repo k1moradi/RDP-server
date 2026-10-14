@@ -505,3 +505,27 @@ capability, stored plaintext, extra controller or generic
 SSPI emulation is created. Keep positive Kerberos,
 combined final negotiation/binding, credentials and
 independent OS authorization open until tested.
+
+## Final combined CredSSP token + pubKeyAuth gate (2026-10-14)
+
+MS-CSSP 2.2.1 and 3.1.5 specify that the last
+client `negoTokens` item and protected `pubKeyAuth`
+co-occur in one TSRequest. Keep exact one-token,
+v5/v6, 32-byte nonce, no-delegated-credentials/no-error
+checks in the existing borrowed-span type rather than
+inventing a second ASN.1 parser. Accept this final
+request only on the single pinned SSL transcript with
+an already continuing Linux MIT GSSAPI context. Process
+both phases synchronously before wiping/releasing the
+existing frame: GSS accept with required mechanism
+security flags, unwrap the encrypted binding with
+confidentiality, compare against selected TLS certificate
+hash and nonce, wrap server proof. If an extra provider
+output token remains and the defined server binding
+reply cannot carry it, fail closed rather than silently
+discard it. The prior binding-only helper remains
+independently gated and MUST NOT treat a token-containing
+final message as a binding-only request. Do not claim
+end-to-end authenticated session admission from
+negative-only GSS tests; controlled positive Kerberos
+and OS policy verification remain mandatory.

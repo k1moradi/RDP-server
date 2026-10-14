@@ -348,3 +348,24 @@ buffer, session owner, or token cache is introduced.
 The portable SDK remains independent of GSSAPI; no real
 Kerberos authentication, OS session admission or live RDP
 listener is enabled.
+
+### Combined final CredSSP SPNEGO and TLS binding (2026-10-14)
+
+Per [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),
+the client's last GSS token is accompanied by the encrypted
+`pubKeyAuth` value (and v5/v6 nonce) in the *same*
+TLS-protected TSRequest. The portable parser retains
+borrowed spans and performs only field-shape validation.
+A Linux GSSAPI method receives the existing completed
+TLS-owned frame, requires `ContinueNeeded` and the
+pinned SSL/version, accepts the final GSS token and
+requires full GSS completion with no extra output token
+that a binding-only server reply could not carry.
+It then GSS-unwraps/validates the client's hash of
+the selected active TLS certificate and nonce, produces
+a confidentially GSS-wrapped server hash and releases
+the one bounded DER frame. Any failure closes reader
+and acceptor; no credentials or OS authorization result
+is exposed. Positive live Kerberos and Microsoft-client
+acceptance still require separately verified credentials
+and independently authorized OS admission.

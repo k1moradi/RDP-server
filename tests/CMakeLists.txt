@@ -87,7 +87,9 @@ function(add_rdp_test source_file suite behavior)
                 credssp-stream-coalesced
                 credssp-stream-rejections
                 credssp-server-reply-wire
-                credssp-server-reply-rejections)
+                credssp-server-reply-rejections
+                credssp-final-negotiation-binding
+                credssp-final-binding-rejections)
             add_test(NAME "security.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("security.${case_name}" PROPERTIES
@@ -112,10 +114,14 @@ if(TARGET rdp-server-linux-gssapi)
         rdp-server-linux-gssapi)
     target_compile_definitions(test_owned_preauth_session PRIVATE
         RDP_TEST_LINUX_GSSAPI=1)
-    add_test(NAME security.gssapi-tls-ownership
-        COMMAND test_owned_preauth_session gssapi-tls-ownership)
-    set_tests_properties(security.gssapi-tls-ownership PROPERTIES
-        LABELS "security;linux-provider")
+    foreach(case_name IN ITEMS
+            gssapi-tls-ownership
+            gssapi-final-combined-denials)
+        add_test(NAME "security.${case_name}"
+            COMMAND test_owned_preauth_session "${case_name}")
+        set_tests_properties("security.${case_name}" PROPERTIES
+            LABELS "security;linux-provider")
+    endforeach()
 endif()
 add_rdp_test(test_owned_remote_transfer.cpp clipboard remote-transfer)
 add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)

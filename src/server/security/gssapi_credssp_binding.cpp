@@ -14,10 +14,13 @@ namespace rdp_server::server::security
 namespace
 {
 [[nodiscard]] bool permittedBindingRequest(
-    const TsRequestResult &request) noexcept
+    const TsRequestResult &request, bool combinedFinal) noexcept
 {
-    return request &&
-           request.value.version >= 5 && request.value.version <= 6 &&
+    if (!request)
+        return false;
+    if (combinedFinal)
+        return request.value.finalNegoAndBindingOnly();
+    return (request.value.version == 5 || request.value.version == 6) &&
            request.value.hasPubKeyAuth && request.value.hasClientNonce &&
            !request.value.hasAuthInfo && !request.value.hasErrorCode &&
            request.value.tokenCount == 0 &&
@@ -30,14 +33,68 @@ namespace
 bool isCredSspPublicKeyAuthRequest(
     std::span<const std::uint8_t> der) noexcept
 {
-    return permittedBindingRequest(parseCredSspTsRequest(der));
+    return permittedBindingRequest(parseCredSspTsRequest(der), false);
 }
 
 CredSspProtectedReply GssapiSpnegoAcceptor::processProtectedBinding(
     const SSL *activeServerTls,
     std::span<const std::uint8_t> protectedRequestDer) noexcept
 {
-    const auto request = parseCredSspTsRequest(protectedRequestDer);
+    return processVerifiedBinding(
+        activeServerTls, parseCredSspTsRequest(protectedRequestDer), false);
+}
+
+CredSspProtectedReply GssapiSpnegoAcceptor::processFinalFramedNegoAndBinding(
+    TsRequestFrameReader &reader) noexcept
+{
+    const SSL *sourceTls = reader.completedFrameServerTls();
+    const auto parsed = parseCredSspTsRequest(reader.completeDer());
+    if (stage_ != SpnegoStage::ContinueNeeded ||
+        negotiatedServerTls_ == nullptr ||
+        sourceTls == nullptr || sourceTls != negotiatedServerTls_ ||
+        negotiatedVersion_ != parsed.value.version ||
+        !parsed || !parsed.value.finalNegoAndBindingOnly())
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+
+    // All views, including the encrypted binding and GSS input token, are
+    // borrowed from the SINGLE TLS-derived frame, kept alive until GSS
+    // acceptance, unwrap and wrap have all completed synchronously.
+    auto mechanism = accept(parsed.value.tokens[0]);
+    const bool verified = mechanism.status == SpnegoStatus::MechanismVerified;
+    const bool noOutstandingToken = mechanism.outputToken.empty();
+    // The server binding-only TSRequest cannot silently discard an
+    // outstanding SPNEGO output token from the final accept step. Wipe
+    // that ephemeral provider output even on a terminal rejection.
+    if (!mechanism.outputToken.empty())
+    {
+        OPENSSL_cleanse(mechanism.outputToken.data(),
+                        mechanism.outputToken.size());
+        mechanism.outputToken.clear();
+    }
+    if (!verified || !noOutstandingToken)
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+    auto result = processVerifiedBinding(sourceTls, parsed, true);
+    if (!result.ready || !reader.releaseFrame())
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+    return result;
+}
+
+CredSspProtectedReply GssapiSpnegoAcceptor::processVerifiedBinding(
+    const SSL *activeServerTls,
+    const TsRequestResult &request, bool combinedFinal) noexcept
+{
     // This call is legal ONLY after the actual system GSS provider completed
     // the Kerberos mechanism and checked mutual/conf/integ/replay/sequence
     // flags. Never accept an arbitrary raw hash or a parser-only token.
@@ -49,7 +106,7 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processProtectedBinding(
         negotiatedVersion_ != request.value.version ||
         SSL_is_server(activeServerTls) != 1 ||
         SSL_is_init_finished(activeServerTls) != 1 ||
-        !permittedBindingRequest(request))
+        !permittedBindingRequest(request, combinedFinal))
     {
         reject();
         return {};

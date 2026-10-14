@@ -160,3 +160,15 @@ Preserve the root layout assertions and check all hosted toolchains.
 passed policy and full Debug/Release protocol tests, downstream
 consumer installation and packaging on all three hosted OSes.
 This verifies the policy-independent root document membership check.
+
+## Real OpenSSL handshake evidence (pending exact-head CI)
+
+`transport.preauth-session` constructs an ephemeral EC P-256 key
+and self-signed X.509 certificate **in memory**, performs actual
+OpenSSL client/server TLS negotiation across a BIO pair, and tests
+that only the completed server SSL object can pass the stream
+boundary after the entire X.224 reply. It rejects unfinished,
+client-role, null, premature and repeated transitions. The fixture
+does not validate certificate trust, CredSSP, user credentials
+or an OS session. Hosted Linux/macOS/Windows Debug/Release
+CTV and package gates remain to be verified on this commit.

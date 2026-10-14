@@ -149,3 +149,19 @@ downstream CMake consumer, CPack ZIP and SHA-256 artifact upload.
 five canonical root-level Markdown entrypoints.
 **NOT RUN:** owner-local `~/rdp-server/build/`, real clients, RDP
 network listener, OS admission and service deployment.
+
+## OpenSSL server TLS transition evidence (pending exact-head CI)
+
+The previous `PreauthConnectionStream::onTlsHandshake(bool)` could
+proceed on a caller-supplied synthetic signal. This transport API
+now requires a fully handshaken server-side OpenSSL `SSL*` with a
+selected certificate, cipher, and negotiated TLS 1.2+.
+The existing `transport.preauth-session` CTest performs a real
+in-memory OpenSSL client/server handshake and checks wrong role,
+unfinished handshake, missing pointer, send-before-TLS and replay.
+
+**NOT RUN** until exact-head CI verifies Linux/GCC, macOS/Clang,
+Windows/MSVC, documentation-policy, Debug/Release, downstream
+consumer and SDK packaging. **NOT RUN:** local owner checkout,
+actual TCP listener, certificate enrollment, CredSSP/NLA,
+OS identity authorization and external RDP clients.

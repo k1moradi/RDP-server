@@ -101,3 +101,17 @@ version/reserved/length (bounded to 8,192 bytes), then X.224 before
 buffering BER; consume only the first envelope. Reuse the preauth
 storage and zero its occupied bytes after close. No parser evidence
 alone implies authenticated session admission.
+
+## OpenSSL server TLS evidence boundary (2026-10-14)
+
+Per MS-RDPBCGR 5.4 Enhanced RDP Security and 3.3.5.3.2,
+the X.224 Confirm must be **fully sent** before entering the
+external TLS provider. An arbitrary `bool completed` from a future
+socket adapter is not sufficient evidence that a TLS server handshake
+happened. The single `PreauthConnectionStream` owner now checks a
+borrowed OpenSSL `SSL*` for **server role**, completed handshake,
+TLS version 1.2+, negotiated cipher, and selected certificate before
+advancing to the diagnostic MCS parser. Only a *borrowed* `SSL*`
+is accepted; lifetime, encrypted network I/O, certificate provisioning
+and cancellation remain caller-owned. A TLS handshake alone does not
+authenticate OS accounts or approve an RDP desktop session.

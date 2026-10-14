@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <span>
 
+#include <openssl/ssl.h>
+
 namespace rdp_server::server::transport
 {
 
@@ -110,10 +112,12 @@ public:
     // a premature or repeated report terminates the diagnostic.
     [[nodiscard]] bool onConnectionReplySent(bool completed) noexcept;
 
-    // The caller must first send all ReplyThenTls bytes and execute
-    // a real TLS provider handshake. This bool is a diagnostic signal,
-    // NOT proof of credential authentication or OS session authorization.
-    [[nodiscard]] bool onTlsHandshake(bool completed) noexcept;
+    // The caller must first send all ReplyThenTls bytes and complete a
+    // SERVER-side OpenSSL TLS handshake. An arbitrary bool no longer
+    // suffices at the stream boundary. The SSL object remains borrowed,
+    // must outlive this call, and MUST NOT grant identity/OS admission.
+    // The caller owns socket/BIO I/O, encrypted data, and TLS cancellation.
+    [[nodiscard]] bool onTlsHandshake(const SSL *serverTls) noexcept;
 
     // Feed bytes returned by a TLS provider *after* a successful TLS
     // transition. Decrypted fragments may split/coalesce TPKTs.

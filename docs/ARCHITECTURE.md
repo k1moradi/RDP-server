@@ -86,3 +86,15 @@ uploading CI artifacts. An authorized matching version tag can
 publish a GitHub **protocol SDK prerelease**. This is an artifact
 delivery mechanism only: it does not introduce an RDP listener,
 service installation, authentication or desktop deployment.
+
+### Real TLS handshake evidence boundary
+
+Before the one-owner preauth stream progresses from X.224 to decrypted
+MCS, it now requires a **completed OpenSSL server SSL session**
+(TLS 1.2+, negotiated cipher and selected server certificate), not
+merely a Boolean callback. Test transport uses an in-memory BIO
+pair and a temporary self-signed test certificate. A future
+socket adapter must retain the live SSL object and handle all
+encrypted I/O, send acknowledgments, shutdown and cancellation.
+No network listener, CredSSP/OS identity, real desktop or
+MCS Connect-Response is created by this offline increment.

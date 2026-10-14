@@ -9,6 +9,10 @@
 #include <array>
 #include <cstdint>
 #include <fstream>
+#include <memory>
+
+#include <openssl/evp.h>
+#include <openssl/x509.h>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -47,6 +51,99 @@ namespace
     return bytes;
 }
 
+
+using ContextPointer = std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)>;
+using SslPointer = std::unique_ptr<SSL, decltype(&SSL_free)>;
+using KeyPointer = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
+using CertificatePointer = std::unique_ptr<X509, decltype(&X509_free)>;
+
+struct TlsHandshakeFixture final
+{
+    ContextPointer serverContext{SSL_CTX_new(TLS_server_method()), SSL_CTX_free};
+    ContextPointer clientContext{SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
+    SslPointer server{nullptr, SSL_free};
+    SslPointer client{nullptr, SSL_free};
+
+    TlsHandshakeFixture()
+    {
+        assert(serverContext && clientContext);
+        assert(SSL_CTX_set_min_proto_version(serverContext.get(),
+                                             TLS1_2_VERSION) == 1);
+        assert(SSL_CTX_set_min_proto_version(clientContext.get(),
+                                             TLS1_2_VERSION) == 1);
+        // A fresh key/certificate exists ONLY in memory during this test.
+        // Client verification is disabled only for this self-signed test.
+        const KeyPointer key{EVP_EC_gen("prime256v1"), EVP_PKEY_free};
+        const CertificatePointer cert{X509_new(), X509_free};
+        assert(key && cert);
+        assert(X509_set_version(cert.get(), 2) == 1);
+        assert(ASN1_INTEGER_set(X509_get_serialNumber(cert.get()), 1) == 1);
+        assert(X509_gmtime_adj(X509_getm_notBefore(cert.get()), -60));
+        assert(X509_gmtime_adj(X509_getm_notAfter(cert.get()), 3600));
+        assert(X509_set_pubkey(cert.get(), key.get()) == 1);
+        X509_NAME *name = X509_get_subject_name(cert.get());
+        assert(name);
+        assert(X509_NAME_add_entry_by_txt(
+            name, "CN", MBSTRING_ASC,
+            reinterpret_cast<const unsigned char *>("rdp-test-only"),
+            -1, -1, 0) == 1);
+        assert(X509_set_issuer_name(cert.get(), name) == 1);
+        assert(X509_sign(cert.get(), key.get(), EVP_sha256()) > 0);
+        assert(SSL_CTX_use_certificate(serverContext.get(), cert.get()) == 1);
+        assert(SSL_CTX_use_PrivateKey(serverContext.get(), key.get()) == 1);
+        assert(SSL_CTX_check_private_key(serverContext.get()) == 1);
+
+        server.reset(SSL_new(serverContext.get()));
+        client.reset(SSL_new(clientContext.get()));
+        assert(server && client);
+        BIO *serverBio = nullptr;
+        BIO *clientBio = nullptr;
+        assert(BIO_new_bio_pair(&serverBio, 0, &clientBio, 0) == 1);
+        // SSL_set_bio takes ownership of both ends. The shared pointer
+        // for each SSL's read/write sides is freed only once by SSL_free.
+        SSL_set_bio(server.get(), serverBio, serverBio);
+        SSL_set_bio(client.get(), clientBio, clientBio);
+        SSL_set_accept_state(server.get());
+        SSL_set_connect_state(client.get());
+
+        // Non-blocking in-memory transport: OpenSSL owns all TLS records.
+        // No sockets, listeners, file credentials or external services.
+        for (int pass = 0; pass < 64; ++pass)
+        {
+            const int clientResult = SSL_do_handshake(client.get());
+            if (clientResult != 1)
+            {
+                const int error = SSL_get_error(client.get(), clientResult);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+            const int serverResult = SSL_do_handshake(server.get());
+            if (serverResult != 1)
+            {
+                const int error = SSL_get_error(server.get(), serverResult);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+            if (SSL_is_init_finished(client.get()) == 1 &&
+                SSL_is_init_finished(server.get()) == 1)
+            {
+                break;
+            }
+        }
+        assert(SSL_is_init_finished(client.get()) == 1);
+        assert(SSL_is_init_finished(server.get()) == 1);
+        assert(SSL_version(server.get()) >= TLS1_2_VERSION);
+    }
+};
+
+[[nodiscard]] const TlsHandshakeFixture &completedTls()
+{
+    // Reuse one real, completed OpenSSL handshake across deterministic
+    // preauth framing regressions; it does NOT authorize user identity.
+    static const TlsHandshakeFixture fixture{};
+    return fixture;
+}
+
 [[nodiscard]] constexpr std::array<std::uint8_t, 19>
 validRequestWire() noexcept
 {
@@ -68,7 +165,7 @@ void advanceToMcs(PreauthConnectionStream &connection)
     assert(request.bytesConsumed == validRequestWire().size());
     assert(request.status == ConnectionIntakeStatus::ReplyThenTls);
     assert(connection.onConnectionReplySent(true));
-    assert(connection.onTlsHandshake(true));
+    assert(connection.onTlsHandshake(completedTls().server.get()));
     assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
 }
 
@@ -96,7 +193,7 @@ void testFragmentedConnectionRequestIntake()
         // A valid request is never accepted twice.
         assert(connection.consumeConnectionRequest(request).status ==
                ConnectionIntakeStatus::Closed);
-        assert(connection.onTlsHandshake(false) == false);
+        assert(connection.onTlsHandshake(nullptr) == false);
         assert(connection.stage() == PreauthStage::Closed);
     }
 
@@ -129,7 +226,7 @@ void testConnectionRequestByteBoundaryAndFailure()
                std::span(coalesced).subspan(request.size())).bytesConsumed == 0);
     assert(withTrailingTls.stage() == PreauthStage::AwaitTls);
     assert(withTrailingTls.onConnectionReplySent(true));
-    assert(withTrailingTls.onTlsHandshake(true));
+    assert(withTrailingTls.onTlsHandshake(completedTls().server.get()));
     assert(withTrailingTls.stage() == PreauthStage::AwaitMcsConnectInitial);
     withTrailingTls.close();
 
@@ -153,6 +250,60 @@ void testConnectionRequestByteBoundaryAndFailure()
     assert(malformed.consumeConnectionRequest(request).bytesConsumed == 0);
 }
 
+
+void testRealTlsTransportGate()
+{
+    const auto request = validRequestWire();
+    const auto &tls = completedTls();
+    assert(SSL_is_server(tls.server.get()) == 1);
+    assert(SSL_is_init_finished(tls.server.get()) == 1);
+
+    // Even a cryptographically complete handshake cannot be installed
+    // before the X.224 Confirm write has completed.
+    PreauthConnectionStream early;
+    assert(early.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(!early.onTlsHandshake(tls.server.get()));
+    assert(early.stage() == PreauthStage::Closed);
+
+    // A TLS CLIENT SSL handle is not valid evidence for the server.
+    PreauthConnectionStream wrongRole;
+    assert(wrongRole.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(wrongRole.onConnectionReplySent(true));
+    assert(!wrongRole.onTlsHandshake(tls.client.get()));
+    assert(wrongRole.stage() == PreauthStage::Closed);
+
+    // SSL_new only allocates an SSL handle: neither a configured
+    // certificate nor SSL_set_accept_state establishes a TLS session.
+    const SslPointer unfinished{SSL_new(tls.serverContext.get()), SSL_free};
+    assert(unfinished);
+    SSL_set_accept_state(unfinished.get());
+    PreauthConnectionStream incomplete;
+    assert(incomplete.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(incomplete.onConnectionReplySent(true));
+    assert(!incomplete.onTlsHandshake(unfinished.get()));
+    assert(incomplete.stage() == PreauthStage::Closed);
+
+    PreauthConnectionStream nullTls;
+    assert(nullTls.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(nullTls.onConnectionReplySent(true));
+    assert(!nullTls.onTlsHandshake(nullptr));
+    assert(nullTls.stage() == PreauthStage::Closed);
+
+    PreauthConnectionStream real;
+    assert(real.consumeConnectionRequest(request).status ==
+           ConnectionIntakeStatus::ReplyThenTls);
+    assert(real.onConnectionReplySent(true));
+    assert(real.onTlsHandshake(tls.server.get()));
+    assert(real.stage() == PreauthStage::AwaitMcsConnectInitial);
+    // The same completed TLS object cannot be replayed to advance again.
+    assert(!real.onTlsHandshake(tls.server.get()));
+    assert(real.stage() == PreauthStage::Closed);
+}
+
 void testConnectionReplyMustBeSentBeforeTls()
 {
     const auto request = validRequestWire();
@@ -160,7 +311,7 @@ void testConnectionReplyMustBeSentBeforeTls()
     PreauthConnectionStream prematureTls;
     assert(prematureTls.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
-    assert(!prematureTls.onTlsHandshake(true));
+    assert(!prematureTls.onTlsHandshake(completedTls().server.get()));
     assert(prematureTls.stage() == PreauthStage::Closed);
 
     PreauthConnectionStream failedSend;
@@ -184,10 +335,10 @@ void testConnectionReplyMustBeSentBeforeTls()
     assert(successfulTls.consumeConnectionRequest(request).status ==
            ConnectionIntakeStatus::ReplyThenTls);
     assert(successfulTls.onConnectionReplySent(true));
-    assert(successfulTls.onTlsHandshake(true));
+    assert(successfulTls.onTlsHandshake(completedTls().server.get()));
     assert(successfulTls.stage() == PreauthStage::AwaitMcsConnectInitial);
     // The same TLS transition is not reusable.
-    assert(!successfulTls.onTlsHandshake(true));
+    assert(!successfulTls.onTlsHandshake(completedTls().server.get()));
     assert(successfulTls.stage() == PreauthStage::Closed);
 }
 
@@ -340,7 +491,7 @@ void testConnectionRequestLengthRejectionAndClose()
     // The diagnostic does not grant authorization even when given a
     // complete handshake and a valid fixture later in the sequence.
     PreauthConnectionStream prematureTls;
-    assert(!prematureTls.onTlsHandshake(true));
+    assert(!prematureTls.onTlsHandshake(completedTls().server.get()));
     assert(prematureTls.stage() == PreauthStage::Closed);
 }
 
@@ -407,6 +558,7 @@ int main()
     testFragmentedConnectionRequestIntake();
     testConnectionRequestByteBoundaryAndFailure();
     testConnectionReplyMustBeSentBeforeTls();
+    testRealTlsTransportGate();
     testConnectionRequestLengthRejectionAndClose();
     testIncrementalDecryptedMcsIntake();
     testRejectedDecryptedMcsBoundaries();

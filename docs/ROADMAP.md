@@ -101,6 +101,14 @@ acceptance evidence; no synthetic completion claims.
   **PASS:** [Actions run 38541509607](https://github.com/k1moradi/RDP-server/actions/runs/38541509607) on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy. **NOT RUN:** live TLS/NLA, host listener and external client.
   **Next boundary:** real TLS provider plus authenticated session
   policy and complete MCS response handling.
+  **Current partial security increment (CI pending):**
+  `PreauthConnectionStream` requires a completed, server-role
+  OpenSSL TLS 1.2+ session with selected certificate/cipher, instead of
+  accepting a caller-supplied Boolean. The existing transport CTest
+  now exercises an actual in-memory OpenSSL TLS handshake and negative
+  wrong-role, pre-handshake, null, early and replay transitions.
+  This does **not** implement socket TLS I/O, trusted OS session
+  authorization, CredSSP/NLA or MCS Connect-Response.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

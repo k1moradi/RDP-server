@@ -85,7 +85,7 @@ bool PreauthConnectionStream::onConnectionReplySent(bool completed) noexcept
     return true;
 }
 
-bool PreauthConnectionStream::onTlsHandshake(bool completed) noexcept
+bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
 {
     if (stage() != PreauthStage::AwaitTls || !connectionReplySent_)
     {
@@ -93,7 +93,29 @@ bool PreauthConnectionStream::onTlsHandshake(bool completed) noexcept
         return false;
     }
     connectionReplySent_ = false;
-    return session_.onTlsHandshake(completed);
+
+    // MS-RDPBCGR 5.4: PROTOCOL_SSL delegates TLS to the security provider.
+    // Do not accept an SSL object that is merely configured/started, or
+    // one from the peer/client role. This is a transport phase check,
+    // NOT certificate-chain trust or user/desktop authorization.
+    const bool established =
+        serverTls != nullptr &&
+        SSL_is_server(serverTls) == 1 &&
+        SSL_is_init_finished(serverTls) == 1 &&
+        SSL_version(serverTls) >= TLS1_2_VERSION &&
+        SSL_get_current_cipher(serverTls) != nullptr &&
+        SSL_get_certificate(serverTls) != nullptr;
+    if (!established)
+    {
+        close();
+        return false;
+    }
+    if (!session_.onTlsHandshake(true))
+    {
+        close();
+        return false;
+    }
+    return true;
 }
 
 ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(

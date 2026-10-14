@@ -243,7 +243,15 @@ acceptance evidence; no synthetic completion claims.
   real TLS records carrying the Microsoft 416-byte MCS fixture,
   terminal EOF on a truncated CR and delivery of RDP_NEG_FAILURE.
   This is an isolated CI test, NOT installation/activation of a
-  daemon or an externally reachable RDP server. **NOT RUN:**
+  daemon or an externally reachable RDP server.
+  **First CI FAIL:** [run 38578878083](https://github.com/k1moradi/RDP-server/actions/runs/38578878083)
+  passed Ubuntu/GCC, Windows/MSVC and documentation-policy; on
+  macOS/Clang two native loopback tests failed because the test
+  assumed immediate recv readiness and immediate observation of TCP
+  FIN. Corrected the **test driver only** to tolerate would-block
+  and wait with bounded 1ms sleeps while retaining exact framing
+  and terminal assertions. **Next gate:** rerun all OSes.
+  **NOT RUN:**
   exact-head CI, user's local new build, real external clients,
   certificate enrollment/trust, CredSSP/NLA, MCS Connect-Response,
   authorized OS session and desktop. **Next:** integrate verified

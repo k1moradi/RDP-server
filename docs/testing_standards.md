@@ -347,3 +347,20 @@ protocol Negotiation Failure over connected sockets, with no TLS.
 All socket resources are RAII/closed. Expected full CTest
 registration: **27**, formerly 25. **NOT RUN** until CI;
 no external client, credential trust, desktop or daemon.
+
+## Deterministic loopback event readiness (2026-10-14)
+
+**First CI FAIL:** implementation
+`c53a591c8d5b6dbb4cd63f742bddb2c3eeb2ede8`,
+[run 38578878083](https://github.com/k1moradi/RDP-server/actions/runs/38578878083)
+reported both `tcp-native-loopback-*` CTests failing on
+macOS Debug due to an incorrect test assumption: after TCP
+send or close, the very next nonblocking recv need not
+observe the bytes or FIN. Ubuntu and Windows plus
+documentation-policy passed. Test-only code now waits
+a bounded number of short 1ms intervals until the exact
+expected read/EOF readiness event, verifies the expected
+prefix was actually consumed before client close, and
+still fails if it never occurs. Do not hide native
+callback errors or spin in production code.
+**NOT RUN:** corrected exact-head CI until reported.

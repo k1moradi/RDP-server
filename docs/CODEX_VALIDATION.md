@@ -379,3 +379,18 @@ certificate enrollment/validation, CredSSP/NLA, licensing,
 MCS Connect-Response, approved OS identity and desktop.
 First remaining server boundary: independent authenticated
 session policy followed by standards-compliant MCS response.
+
+## Loopback TCP readiness timing regression (2026-10-14)
+
+**FAIL:** `c53a591c8d5b6dbb4cd63f742bddb2c3eeb2ede8`,
+[CI 38578878083](https://github.com/k1moradi/RDP-server/actions/runs/38578878083):
+macOS Debug `transport.tcp-native-loopback-tls` and
+`transport.tcp-native-loopback-close` expected TCP recv/readable
+FIN synchronously after client send/close. Actual native nonblocking
+sockets may return WouldBlock first. Linux and Windows passed
+all 27 CTests, packaging and documentation-policy passed.
+Correct the **test event driver** to retry only in bounded
+short sleeps with unchanged exact packet, EOF and protocol
+acceptance assertions; no production behavior is altered.
+**NOT RUN:** post-fix CI on the corrected commit, new
+owner-local tests and any external RDP client or desktop.

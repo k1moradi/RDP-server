@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 #include <thread>
+#include <chrono>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -1243,7 +1244,7 @@ void nativeSendAll(TcpNonblockingIo &io,
         if (sent.outcome == TcpIoOutcome::WouldBlock)
         {
             assert(sent.bytes == 0);
-            std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
         assert(sent.outcome == TcpIoOutcome::Progress);
@@ -1262,7 +1263,7 @@ void nativeReadAll(TcpNonblockingIo &io, std::span<std::uint8_t> output)
         if (received.outcome == TcpIoOutcome::WouldBlock)
         {
             assert(received.bytes == 0);
-            std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
         assert(received.outcome == TcpIoOutcome::Progress);
@@ -1273,6 +1274,26 @@ void nativeReadAll(TcpNonblockingIo &io, std::span<std::uint8_t> output)
     assert(total == output.size());
 }
 
+void waitForNativeRequest(PreauthTcpAdapter &adapter)
+{
+    // A connected NONBLOCKING peer may legitimately have no readable
+    // bytes yet. Poll only inside this bounded test fixture, not
+    // inside the production event-loop callback.
+    bool complete = false;
+    for (int attempt = 0; attempt < 2048; ++attempt)
+    {
+        const auto event = adapter.onReadable();
+        if (event == TcpPreauthEvent::NeedWrite)
+        {
+            complete = true;
+            break;
+        }
+        assert(event == TcpPreauthEvent::NeedRead);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(complete);
+}
+
 void testNativeLoopbackTlsAndMcs()
 {
     LoopbackSocketPair pair;
@@ -1281,7 +1302,7 @@ void testNativeLoopbackTlsAndMcs()
     PreauthTcpAdapter adapter{serverIo};
     const auto request = validRequestWire();
     nativeSendAll(clientIo, request);
-    assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+    waitForNativeRequest(adapter);
     assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
     std::array<std::uint8_t, 19> confirm{};
     nativeReadAll(clientIo, confirm);
@@ -1381,9 +1402,32 @@ void testNativeLoopbackCloseAndFailure()
         const auto request = validRequestWire();
         nativeSendAll(clientIo, std::span(request).first(3));
         PreauthTcpAdapter adapter{serverIo};
-        assert(adapter.onReadable() == TcpPreauthEvent::NeedRead);
+        bool partialReceived = false;
+        for (int attempt = 0; attempt < 2048; ++attempt)
+        {
+            assert(adapter.onReadable() == TcpPreauthEvent::NeedRead);
+            if (adapter.connection().connectionRequestBytesNeeded() == 1)
+            {
+                partialReceived = true;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(partialReceived);
         pair.client.close();
-        assert(adapter.onReadable() == TcpPreauthEvent::Invalid);
+        bool sawEof = false;
+        for (int attempt = 0; attempt < 2048; ++attempt)
+        {
+            const auto event = adapter.onReadable();
+            if (event == TcpPreauthEvent::Invalid)
+            {
+                sawEof = true;
+                break;
+            }
+            assert(event == TcpPreauthEvent::NeedRead);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(sawEof);
         assert(adapter.connection().stage() == PreauthStage::Closed);
     }
     // The protocol-rejected request delivers a real X.224 NEG_FAILURE
@@ -1396,7 +1440,7 @@ void testNativeLoopbackCloseAndFailure()
         request[15] = 0;
         nativeSendAll(clientIo, request);
         PreauthTcpAdapter adapter{serverIo};
-        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        waitForNativeRequest(adapter);
         assert(adapter.onWritable() == TcpPreauthEvent::Closed);
         std::array<std::uint8_t, 19> response{};
         nativeReadAll(clientIo, response);

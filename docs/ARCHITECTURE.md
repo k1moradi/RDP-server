@@ -235,3 +235,22 @@ user identity, mutate an MCS domain, join a channel, decrypt
 additional PDUs, send replies or create a server listener.
 Those transitions require a separately verified authentication
 and OS session authority, which remains unimplemented.
+
+### Offline T.125 server Attach User/Channel Join confirmations (2026-10-14)
+
+The existing first-party `mcs_channel_connection` portable module
+now encodes the T.125 aligned-PER **server** responses specified
+in [MS-RDPBCGR 2.2.1.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/3b3d850b-99b1-4a9a-852b-1eb2da5024e5)
+and [4.1.8.2.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/7443e65e-3482-4cec-823a-741eb1fe27b4).
+For an externally provided assigned user, the 11-byte Attach
+User Confirm carries its PER UserId offset. The 15-byte Channel
+Join Confirm is conditional on a decoded Join Request with the
+same assigned user and requested channel that occurs once in
+a bounded external allocation list; it repeats the confirmed
+channelId. Both return fixed-size values only, with no retained
+pointers, domain mutations or SSL writes. These are *offline*
+wire primitives, NOT a server acceptance gate. The existing
+preauthentication stream still closes after the Connect-Initial
+diagnostic; an actual OS authentication/authorization provider
+and one authoritative MCS owner remain essential before any
+success packet may be transmitted.

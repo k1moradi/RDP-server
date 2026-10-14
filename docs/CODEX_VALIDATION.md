@@ -530,3 +530,28 @@ three SDK ZIPs/checksums. No code path grants user access
 or sends an MCS channel response. **NOT RUN:** owner-local
 new CTests, external Microsoft clients, credential/session
 authorization and graphics.
+
+## Offline T.125 Attach/Channel response wire encoders (2026-10-14; CI NOT RUN)
+
+**User-provided prior evidence:** `3135d66e557ecc8144fba02a8a69b5054b62ede9`
+at the single `~/rdp-server/build/` Debug configuration
+compiled and passed **37/37 CTests**. Hosted CI on that
+same SHA [38588943436](https://github.com/k1moradi/RDP-server/actions/runs/38588943436)
+also passed Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release,
+SDK consumer/package and documentation policy. Those
+results do not verify the present changes.
+
+**New implementation:** add offline fixed-array T.125
+`rt-successful` Attach User Confirm and Channel Join
+Confirm encoders beside the existing request decoders.
+Test exact Microsoft 11- and 15-byte positive example
+packets and negative allocation/UserId checks in two
+additional CTest cases (expected **39**). The returned
+buffer is not an authenticated session or permission to
+transmit. **NOT RUN:** new exact-head cross-platform CI,
+owner-local rebuild, identity verification, independent
+OS authorization, live SSL writes, real client connection,
+licensing/share activation or desktop.
+**Next gate:** three-platform CI and a separately proven
+real CredSSP/NLA + OS authorization integration before
+wire admission or response emission.

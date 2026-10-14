@@ -384,3 +384,20 @@ Debug/Release **37 CTests** and SDK gates. An early incorrect
 PER test-vector length was corrected without changing the
 strict decoder; do not interpret this as authenticated domain
 or channel admission.
+
+## Offline MCS Attach/Channel success encoding (2026-10-14)
+
+Follow T.125 BASIC aligned PER semantics and the exact server
+wire samples of [MS-RDPBCGR 4.1.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/3b3d850b-99b1-4a9a-852b-1eb2da5024e5)
+and [4.1.8.2.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/7443e65e-3482-4cec-823a-741eb1fe27b4):
+`2e 00 [UserId offset:2]` and
+`3e 00 [UserId offset:2] [requested:2] [channelId:2]`,
+framed with exact TPKT and X.224 bytes. Never choose, reserve,
+attach, or join identifiers in a serialization function.
+Fail closed on assigned UserId outside 1001..65536, a
+mismatched client initiator, wrong request variant, unallocated
+or multiply listed requested channel, or empty/oversized
+allocation list. The future authenticated domain controller
+must perform an independently audited admission before using
+any positive response on a socket. Synthetic tests and
+caller-provided lists are not identity evidence.

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 
@@ -57,5 +59,41 @@ struct McsChannelParseResult
 // domain ownership or authorization, nor does it allow a response.
 [[nodiscard]] McsChannelParseResult parseMcsChannelRequest(
     std::span<const std::uint8_t> completeTpkt) noexcept;
+
+// OFFLINE server confirmation serializers from MS-RDPBCGR 2.2.1.7
+// and 2.2.1.9. Producing a value never assigns a UserId, accepts a
+// credential, attaches a domain, or sends an MCS confirmation over TLS.
+// A future *single authenticated domain owner* must approve identifiers,
+// ordering and actual emission; a caller-provided list is not proof.
+struct McsChannelConfirm
+{
+    std::array<std::uint8_t, 15> packet{};
+    std::size_t length{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return length != 0;
+    }
+    [[nodiscard]] std::span<const std::uint8_t> bytes() const noexcept
+    {
+        return std::span(packet).first(length);
+    }
+};
+
+// T.125 AttachUserConfirm rt-successful with initiator present.
+// 'assignedUserId' is an explicit external allocation, never
+// chosen or reserved by this pure encoder.
+[[nodiscard]] McsChannelConfirm encodeMcsAttachUserConfirm(
+    std::uint32_t assignedUserId) noexcept;
+
+// ChannelJoinConfirm rt-successful with optional channelId present.
+// Inputs must describe a checked Join REQUEST, matching assigned user,
+// and exactly one matching entry in a bounded caller-supplied list.
+// The list cannot confer authorization. A real owner must check
+// OS/NLA identity and MCS channel state before sending any bytes.
+[[nodiscard]] McsChannelConfirm encodeMcsChannelJoinConfirm(
+    const McsChannelRequest &joinRequest,
+    std::uint32_t assignedUserId,
+    std::span<const std::uint16_t> assignedChannelIds) noexcept;
 
 } // namespace rdp_server::server::transport

@@ -352,11 +352,39 @@ acceptance evidence; no synthetic completion claims.
   both Debug/Release **37 CTests**, installed downstream SDK
   consumer, and three SDK ZIP/SHA-256 uploads. Ubuntu logs
   explicitly show **37/37 PASS** in both configurations.
-  **NOT RUN:** owner's local build at the corrected commit,
-  TLS-verified domain phase admission, CredSSP/NLA,
+  **PASS (owner-local):** the user's reused
+  `~/rdp-server/build/` Linux Debug configure/build/CTest
+  at `3135d66e557ecc8144fba02a8a69b5054b62ede9`
+  passed **37/37**. This predates the new reply encoders.
+  **NOT RUN:** TLS-verified domain phase admission, CredSSP/NLA,
   live attach/channel replies, OS authorization and desktop.
   **Next:** independent authenticated session authority and
   its single-owner MCS Attach/ChannelJoin lifecycle.
+  **Offline Attach User and Channel Join confirmation encoding
+  (2026-10-14; exact-head CI NOT RUN, expected 39 CTests):**
+  the existing portable `mcs_channel_connection.{h,cpp}` now
+  constructs complete bounded TPKT/X.224/T.125 aligned-PER
+  `rt-successful` Server Attach User Confirm and Channel Join Confirm
+  packets without mutating session/domain/channel state.
+  The assigned UserId must be 1001..65536 and is serialized
+  as the 16-bit PER offset. A Channel Join Confirm requires a
+  previously parsed Join request, the same explicitly assigned
+  UserId, a nonzero requested channel, exactly one matching
+  entry in a bounded externally supplied channel list, and
+  correct repeated requested/confirmed ChannelId.
+  Complete Microsoft example packets in MS-RDPBCGR 4.1.7
+  (11 bytes) and 4.1.8.2.2 (15 bytes) are bytewise test oracles.
+  Two new behavior CTests test successful encoding, both extrema
+  of UserId, mismatched/duplicate/unallocated channels, wrong
+  request kind and invalid identifiers. The library **does NOT**
+  use these encoders to send packets; the supplied channel list
+  does not prove OS identity, credential approval or MCS admission.
+  **NOT RUN:** new exact-head hosted CI, owner's updated local
+  build, real authenticated authority, encrypted reply emission,
+  external Microsoft clients and OS desktop.
+  **Next:** implement a genuine CredSSP/NLA and independent OS
+  identity authority, then let the sole server connection owner
+  enforce MCS ordering, allocations and reply transmission.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

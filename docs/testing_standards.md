@@ -492,3 +492,22 @@ Debug/Release full **37 CTests**, installed SDK consumer and
 all three ZIP/checksum uploads. Ubuntu logs explicitly
 confirm **37/37 passing** in both configurations.
 Owner-local corrected tests and authenticated runtime remain NOT RUN.
+
+## Offline MCS server confirmation wire tests (CI NOT RUN)
+
+Add two separate behavior-named CTests to the existing
+`test_owned_mcs_connect_initial` binary and shared
+`tests/CMakeLists.txt` registry:
+`transport.mcs-attach-confirm-wire` and
+`transport.mcs-channel-join-confirm`. Compare full
+TPKT/X.224/PER frames byte for byte to Microsoft examples:
+Attach User Confirm 11 bytes for UserId 1007; Channel Join
+Confirm 15 bytes for UserId 1007 and ChannelId 1003.
+Check UserId boundary offsets 1001 and 65536 and the
+published rdpdr 1004 variant. Reject all invalid IDs,
+wrong incoming request type, foreign initiator, empty,
+duplicate/omitted, or oversized approval lists, and
+nonsensical auxiliary fields. Confirm these server-directed
+packets remain invalid as *client* requests in the existing
+parser. Full expected CTests: **39**, previously 37. No
+positive test grants OS authorization or sends TLS data.

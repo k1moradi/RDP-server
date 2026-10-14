@@ -4,6 +4,7 @@
 #include "transport/mcs_connect_initial.h"
 #include "transport/mcs_connect_response.h"
 #include "transport/mcs_channel_connection.h"
+#include "transport/gcc_conference_create.h"
 
 #include <algorithm>
 #include <array>
@@ -474,6 +475,109 @@ void testMcsChannelJoinRequest()
            == McsChannelParseError::InvalidDomainPdu);
 }
 
+
+void testMcsAttachConfirmWire()
+{
+    // Independent published Microsoft MS-RDPBCGR 4.1.7 example.
+    constexpr std::array<std::uint8_t, 11> golden{
+        0x03, 0x00, 0x00, 0x0b, 0x02, 0xf0, 0x80,
+        0x2e, 0x00, 0x00, 0x06};
+    const auto reply = encodeMcsAttachUserConfirm(1007);
+    assert(reply && reply.length == golden.size());
+    assert(std::equal(reply.bytes().begin(), reply.bytes().end(),
+                      golden.begin()));
+    std::span<const std::uint8_t> payload;
+    assert(parseDataTpdu(reply.bytes(), payload));
+    assert(payload.size() == 4);
+    // Confirm direction can never be interpreted as AttachUserRequest.
+    assert(!parseMcsChannelRequest(reply.bytes()));
+
+    const auto min = encodeMcsAttachUserConfirm(1001);
+    assert(min && min.bytes()[9] == 0 && min.bytes()[10] == 0);
+    const auto max = encodeMcsAttachUserConfirm(65536);
+    assert(max && max.bytes()[9] == 0xfc && max.bytes()[10] == 0x17);
+    for (const auto id : {0U, 1U, 1000U, 65537U, 0xffffffffU})
+    {
+        const auto invalid = encodeMcsAttachUserConfirm(id);
+        assert(!invalid && invalid.bytes().empty() &&
+               invalid.length == 0);
+    }
+}
+
+void testMcsChannelJoinConfirmWireAndRejections()
+{
+    // MS-RDPBCGR 4.1.8.2.1 client request and 4.1.8.2.2
+    // independently specified server Join Confirm for I/O 1003.
+    constexpr std::array<std::uint8_t, 12> requestBytes{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x06, 0x03, 0xeb};
+    constexpr std::array<std::uint8_t, 15> golden{
+        0x03, 0x00, 0x00, 0x0f, 0x02, 0xf0, 0x80,
+        0x3e, 0x00, 0x00, 0x06, 0x03, 0xeb, 0x03, 0xeb};
+    const auto request = parseMcsChannelRequest(requestBytes);
+    assert(request && request.request.kind ==
+           McsChannelRequestKind::ChannelJoin);
+    constexpr std::array<std::uint16_t, 5> permitted{
+        1007, 1003, 1004, 1005, 1006};
+    const auto reply =
+        encodeMcsChannelJoinConfirm(request.request, 1007, permitted);
+    assert(reply && reply.length == golden.size());
+    assert(std::equal(reply.bytes().begin(), reply.bytes().end(),
+                      golden.begin()));
+    std::span<const std::uint8_t> payload;
+    assert(parseDataTpdu(reply.bytes(), payload));
+    assert(payload.size() == 8);
+    assert(!parseMcsChannelRequest(reply.bytes()));
+
+    // MS-RDPBCGR 4.1.8.3.2 rdpdr channel 1004.
+    auto different = request.request;
+    different.channelId = 1004;
+    const auto rdpdr = encodeMcsChannelJoinConfirm(different, 1007, permitted);
+    assert(rdpdr && rdpdr.bytes()[12] == 0xec &&
+           rdpdr.bytes()[14] == 0xec);
+    // The maximum encodable UserId is 65536, consistent with
+    // the request decoder's 16-bit PER UserId offset.
+    different.initiator = 65536;
+    const auto maximum = encodeMcsChannelJoinConfirm(different, 65536,
+                                                      permitted);
+    assert(maximum && maximum.bytes()[9] == 0xfc &&
+           maximum.bytes()[10] == 0x17);
+
+    const auto reject = [](const McsChannelConfirm &response)
+    {
+        assert(!response && response.bytes().empty() &&
+               response.length == 0);
+    };
+    reject(encodeMcsChannelJoinConfirm(request.request, 1006, permitted));
+    reject(encodeMcsChannelJoinConfirm(request.request, 1000, permitted));
+    reject(encodeMcsChannelJoinConfirm(request.request, 65537, permitted));
+    reject(encodeMcsChannelJoinConfirm(
+        request.request, 1007, std::span(permitted).first(1)));
+    reject(encodeMcsChannelJoinConfirm(
+        request.request, 1007, std::span<const std::uint16_t>{}));
+    constexpr std::array<std::uint16_t, 2> duplicated{1003, 1003};
+    reject(encodeMcsChannelJoinConfirm(request.request, 1007, duplicated));
+    constexpr std::array<std::uint16_t, 3> unrelatedDuplicate{
+        1003, 1004, 1004};
+    reject(encodeMcsChannelJoinConfirm(request.request, 1007,
+                                       unrelatedDuplicate));
+    constexpr std::array<std::uint16_t, 2> zeroAllocation{1003, 0};
+    reject(encodeMcsChannelJoinConfirm(request.request, 1007,
+                                       zeroAllocation));
+    std::array<std::uint16_t, kMaximumStaticChannelCount + 3> overbudget{};
+    overbudget.fill(1003);
+    reject(encodeMcsChannelJoinConfirm(request.request, 1007, overbudget));
+
+    auto invalid = request.request;
+    invalid.kind = McsChannelRequestKind::AttachUser;
+    reject(encodeMcsChannelJoinConfirm(invalid, 1007, permitted));
+    invalid = request.request;
+    invalid.channelId = 0;
+    reject(encodeMcsChannelJoinConfirm(invalid, 1007, permitted));
+    invalid = request.request;
+    invalid.subHeight = 1; // contradictory request fields
+    reject(encodeMcsChannelJoinConfirm(invalid, 1007, permitted));
+}
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -500,7 +604,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 11> kMcsTestCases{{
+constexpr std::array<McsTestCase, 13> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -512,6 +616,8 @@ constexpr std::array<McsTestCase, 11> kMcsTestCases{{
     {"mcs-erect-request", &testMcsErectDomainRequest},
     {"mcs-attach-request", &testMcsAttachUserRequest},
     {"mcs-channel-join-request", &testMcsChannelJoinRequest},
+    {"mcs-attach-confirm-wire", &testMcsAttachConfirmWire},
+    {"mcs-channel-join-confirm", &testMcsChannelJoinConfirmWireAndRejections},
 }};
 
 int main(int argc, char **argv)

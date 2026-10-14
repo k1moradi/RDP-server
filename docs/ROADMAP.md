@@ -24,11 +24,12 @@ server session. The library has no shipping daemon/installer.
    Confirm Active, share data, transport lifecycle and disconnect
 3. **Virtual channels:** CLIPRDR/RDPSND/DRDYNVC channel routing,
    fragmentation/reassembly, concurrent lifecycle and error semantics
-4. **Graphics (H.264 first):** deliver a negotiated RDPGFX AVC420-only
-   desktop update path with damage-aware capture, persistent reference frames,
-   bounded latest-frame scheduling, client acknowledgments/backpressure and
-   correct surface/resize lifecycle. No ClearCodec, Planar or RemoteFX encoder
-   is a prerequisite for the first usable Microsoft-client server
+4. **Graphics (H.264 first, x264 software encoder):** deliver a negotiated
+   RDPGFX AVC420-only desktop update path with damage-aware capture, persistent
+   reference frames, bounded latest-frame scheduling, client ACK/backpressure
+   and correct surface/resize lifecycle. Use a statically linked x264 software
+   encoder behind a minimal C++23 RAII adapter, without FFmpeg. ClearCodec,
+   Planar and RemoteFX are not prerequisites for the first usable server.
 5. **Platform adapters:** Linux (X11/Wayland as separately negotiated backends),
    macOS, Windows and other platforms for capture, input, cursor, session and
    identity with the same protocol-independent C++ core
@@ -271,6 +272,16 @@ acceptance evidence; no synthetic completion claims.
   resizing and reconnects together with authorized desktop capture/input.
   Reuse existing first-party C++23 dirty-tile/fingerprint/NV12 scheduling;
   permit native RDPGFX fills, copies and cache reuse (not additional codecs).
+  **Use x264 as the sole initial software H.264 encoder:** build a pinned,
+  license-reviewed static x264 library (without its CLI/FFmpeg) within the one
+  reused build root and link it into the future server executable through a
+  small C++23 RAII wrapper. Verify static-link feasibility on Linux/GCC,
+  macOS/Clang and Windows/MSVC; keep the current standalone protocol SDK
+  independent of encoder dependencies until the runtime is implemented.
+  Give one owner exclusive encoder access and lifetime, validate NV12 strides
+  and dimensions, and preserve NAL output until packetization. x264 encodes
+  complete H.264 pictures even when capture/conversion and RDPGFX updates
+  are dirty-region-aware; preserve reference continuity across submissions.
   Defer ClearCodec, Planar and RemoteFX compression entirely; AVC444/v2 is a
   later H.264-only option **only if client negotiation or text fidelity requires
   it**. Never advertise an unsupported mode or silently fall back when AVC420
@@ -303,7 +314,17 @@ acceptance evidence; no synthetic completion claims.
   RDPGFX frame ACK from actual presentation. Also record capture/encode/queue
   timings, CPU on older scalar/dual-core hardware, client decode cost,
   network bytes, RSS/allocations, text fidelity and frame drops at fixed
-  resolution, load and network conditions. **Status: NOT RUN.**
+  resolution, load and network conditions. **Tune x264, not competing H.264
+  libraries:** start with `superfast` and `zerolatency`, no B-frames/lookahead,
+  persistent NV12 input and bounded in-flight work. Compare x264's
+  `ultrafast`/`superfast`/`veryfast`, single-frame-thread versus low-latency
+  slice threading, and `X264_MBINFO_CONSTANT` unchanged-16x16-macroblock hints
+  enabled/disabled. Only set hints verified against the encoder's reference
+  history; test frame skips, refresh, resize and reconnect. Compare matched
+  visual quality on LAN and bandwidth-limited WAN, prioritizing end-to-end
+  latency over encode-only throughput. **Exclude OpenH264 benchmarking and
+  generic alternative-encoder evaluations** from this roadmap.
+  **Status: NOT RUN.**
 - [ ] **Only after H.264 usability is verified, evaluate ClearCodec** as an
   optional optimization, not a prerequisite. Research and test existing
   [IronRDP ClearCodecEncoder](https://docs.rs/ironrdp-graphics/0.9.0/ironrdp_graphics/clearcodec/struct.ClearCodecEncoder.html)

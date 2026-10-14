@@ -251,12 +251,16 @@ acceptance evidence; no synthetic completion claims.
   assumed immediate recv readiness and immediate observation of TCP
   FIN. Corrected the **test driver only** to tolerate would-block
   and wait with bounded 1ms sleeps while retaining exact framing
-  and terminal assertions. **Next gate:** rerun all OSes.
-  **NOT RUN:**
-  exact-head CI, user's local new build, real external clients,
-  certificate enrollment/trust, CredSSP/NLA, MCS Connect-Response,
-  authorized OS session and desktop. **Next:** integrate verified
-  credential policy and standards-compliant MCS connection response.
+  and terminal assertions.
+  **PASS:** corrected [Actions run 38579350917](https://github.com/k1moradi/RDP-server/actions/runs/38579350917)
+  on Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy;
+  both Debug/Release full **27/27 CTests** (confirmed in Ubuntu logs),
+  installed SDK consumer and three ZIP/SHA-256 platform packages.
+  **NOT RUN:** user's local build of the new code, external RDP
+  clients, production certificate trust/enrollment, CredSSP/NLA,
+  MCS Connect-Response, OS authorization and desktop.
+  **Next:** authenticated session policy and the standards-compliant
+  MCS server response.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

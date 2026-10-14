@@ -371,4 +371,8 @@ expected read/EOF readiness event, verifies the expected
 prefix was actually consumed before client close, and
 still fails if it never occurs. Do not hide native
 callback errors or spin in production code.
-**NOT RUN:** corrected exact-head CI until reported.
+**PASS after correction:** full cross-platform Debug/Release
+27-CTest matrix, downstream SDK consumer and three packages in
+[Actions run 38579350917](https://github.com/k1moradi/RDP-server/actions/runs/38579350917)
+at `7ce64737ccef439af2f0cfd383208181cc0e9513`.
+The owner's new local run and real external clients remain NOT RUN.

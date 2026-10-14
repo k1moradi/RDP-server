@@ -115,7 +115,17 @@ acceptance evidence; no synthetic completion claims.
   because OpenSSL's platform includes exposed a `min` macro
   affecting the existing `std::min(...)` intake calls.
   The follow-up fixes OpenSSL header isolation and call syntax.
-  **Next gate:** complete exact-head cross-platform CI.
+  **PASS:** fixed OpenSSL include/Windows macro handling at
+  `edfaf2e7ea684ab5adc77bf58441ff467288f818`, verified by
+  [Actions run 38551496274](https://github.com/k1moradi/RDP-server/actions/runs/38551496274):
+  Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy
+  all passed Debug/Release full CTests, downstream SDK consumer
+  and per-OS ZIP/checksum artifact uploads.
+  **NOT RUN:** real socket TLS peer, trusted credentials/NLA,
+  OS desktop admission, external RDP clients or owner's local
+  build of this new commit. **Next:** integrate an authenticated
+  TLS transport/session lifecycle without permitting OS admission
+  before CredSSP/identity authorization.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

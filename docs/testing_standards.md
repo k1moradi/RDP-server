@@ -172,3 +172,10 @@ client-role, null, premature and repeated transitions. The fixture
 does not validate certificate trust, CredSSP, user credentials
 or an OS session. Hosted Linux/macOS/Windows Debug/Release
 CTV and package gates remain to be verified on this commit.
+
+**Exact-head PASS:** `edfaf2e7ea684ab5adc77bf58441ff467288f818`,
+[Actions run 38551496274](https://github.com/k1moradi/RDP-server/actions/runs/38551496274)
+passed all Debug and Release protocol and policy CTests, nested
+downstream install/consumer CTest, and CPack SDK packaging on
+Linux/GCC, macOS/Clang, Windows/MSVC, as well as documentation-policy.
+No live network client, OS admission or external server was tested.

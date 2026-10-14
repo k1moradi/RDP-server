@@ -179,3 +179,24 @@ translation units using OpenSSL, and protected the two
 `std::min` expressions with parenthesized function names.
 **Next:** cross-platform Debug/Release full CTests, downstream
 SDK consumer and ZIP packages on the corrected exact head.
+
+## Verified OpenSSL TLS preauth stream gate (2026-10-14)
+
+Initial security implementation
+`a25b5186398e4a5619baea2998a61596fa7b2887` introduced a
+completed-OpenSSL-server SSL check after X.224 reply completion and
+a real memory-BIO client/server TLS handshake regression.
+**First FAIL:** [Actions run 38551275680](https://github.com/k1moradi/RDP-server/actions/runs/38551275680)
+on Windows/MSVC Compile Debug (Windows macro expanded in `std::min`).
+Header isolation and parenthesized `std::min` at
+`edfaf2e7ea684ab5adc77bf58441ff467288f818` corrected it.
+**Exact-head PASS:** [Actions run 38551496274](https://github.com/k1moradi/RDP-server/actions/runs/38551496274)
+passed Linux/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+Debug/Release CTests, installed SDK consumer and ZIP upload.
+This verifies that a completed in-memory **server-side OpenSSL
+handshake** advances the offline stream when in order and rejects
+null, client-role, unfinished, premature and repeated transitions.
+It does **not** verify live socket TLS I/O, user authentication,
+CredSSP/NLA, real external RDP client, OS admission or desktop.
+The user-reported 11/11 local CTests preceded this TLS change;
+local tests of the new exact commit remain **NOT RUN**.

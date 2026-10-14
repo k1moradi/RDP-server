@@ -58,3 +58,14 @@ non-CI checkouts at `~/rdp-server`; GitHub-hosted CI has a documented
 workspace exception. Direct verification on the owner's local computer
 remains NOT RUN. No live client or authenticated desktop acceptance is
 implied by these green jobs.
+
+## New transport stream intake milestone (pending CI)
+
+This commit adds `PreauthConnectionStream` on top of the existing
+X.224 parser and preauthentication session, with bounded first-packet
+reassembly and exact consumed-byte accounting. The reused
+`transport.preauth-session` CTest was extended with fragment,
+coalescing, malformed-length, TLS-dispatch and terminal-close negatives.
+**PASS/FAIL: NOT RUN until the new exact-head cross-platform CI completes.**
+Real TCP listeners, TLS/credential validation, desktop admission and
+external RDP clients remain **NOT RUN**; no production activation.

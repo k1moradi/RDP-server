@@ -73,6 +73,12 @@ acceptance evidence; no synthetic completion claims.
 - [ ] Implement bounded X.224/TPKT/MCS/GCC network listener and complete
   standards-compliant server connection state machine with external-client
   handshake and malformed-packet evidence.
+  **Increment in this commit:** first plaintext X.224 Connection Request
+  now supports bounded incremental TCP-chunk intake, TLS/close response
+  routing, and exact consumed-byte accounting in the existing preauth
+  owner. Test status: pending cross-platform CI; actual TCP listener,
+  TLS provider, authentication, MCS responses and external-client
+  connection remain **NOT RUN / incomplete**.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

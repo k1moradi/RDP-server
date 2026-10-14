@@ -67,3 +67,14 @@ job at commit `3196a764ffbe24482ad131ad6949f1c2c23d44d9`.
 CMake registers ten behavior-named C++23 protocol tests and a project
 policy check. Do not infer external-client functionality, real session
 authorization or desktop/clipboard usability from these tests.
+
+## TCP connection-request stream regression (2026-10-14)
+
+The existing `transport.preauth-session` suite now covers splitting
+the 19-byte X.224 CR at every byte offset, one-byte TCP fragments,
+coalesced CR plus TLS bytes (exact consumed length), malformed TPKT
+versions, reserved bytes, short/oversize declared lengths, invalid
+X.224 type, unsupported security, close and replay rejection. This is
+an offline stream-intake test only; no listening socket, real TLS peer,
+CredSSP, authenticated desktop or external client is included.
+Cross-platform CI results must be recorded in the validation ledger.

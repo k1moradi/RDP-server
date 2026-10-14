@@ -64,3 +64,16 @@ X11 PNG delivery to a generic consumer does not prove Firefox obtained
 a non-null synchronous image `File`. CLIPRDR file streaming is distinct
 from RDPDR drive browsing; neither protocol intrinsically requires FUSE.
 Record new facts here and update the same existing TODO.
+
+## TCP intake implementation decision (2026-10-14)
+
+RFC 1006 treats TCP as a byte stream, **not** as a sequence of complete
+TPKTs. `PreauthConnectionStream` therefore buffers no more than the
+initial 260-byte X.224 CR, validates the four-byte length before copying
+the rest, returns the exact consumed prefix and leaves any coalesced
+TLS data to the caller. Invalid framing terminates the diagnostic;
+unsupported proposals use the existing protocol-defined negotiation
+failure before closing. The caller must send the whole X.224 Confirm
+**before** handing the stream to TLS; no app-data authorization occurs.
+Avoid a second transport/session state owner or speculative network
+listener until a real TLS and session admission boundary exists.

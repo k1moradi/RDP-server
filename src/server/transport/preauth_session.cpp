@@ -2,6 +2,8 @@
 #include "preauth_session.h"
 #include "gcc_conference_create.h"
 
+#include <algorithm>
+
 namespace rdp_server::server::transport
 {
 
@@ -51,6 +53,93 @@ bool PreauthSession::onEncryptedMcsConnectInitial(
     // Static channel names and flags are checked but NEVER registered.
     const auto gcc = parseGccConferenceCreate(parsed.value.gccUserData);
     return static_cast<bool>(gcc);
+}
+
+
+void PreauthConnectionStream::clearRequestBuffer() noexcept
+{
+    // The unauthenticated request may contain routing identifiers/cookies.
+    // Clear the fixed buffer after completing or abandoning the request.
+    std::fill(requestBuffer_.begin(), requestBuffer_.end(), 0);
+    bufferedBytes_ = 0;
+    expectedBytes_ = 0;
+}
+
+void PreauthConnectionStream::close() noexcept
+{
+    clearRequestBuffer();
+    session_.close();
+}
+
+ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
+    std::span<const std::uint8_t> receivedBytes) noexcept
+{
+    if (stage() != PreauthStage::AwaitConnectionRequest)
+    {
+        return {0, ConnectionIntakeStatus::Closed, {}};
+    }
+
+    std::size_t bytesConsumed = 0;
+    // TCP has no packet boundaries. Read only the bytes required for the
+    // four-byte TPKT header, then for the validated complete X.224 CR.
+    const auto consumeUntil = [&](std::size_t targetBytes)
+    {
+        const std::size_t remaining = receivedBytes.size() - bytesConsumed;
+        const std::size_t needed = targetBytes - bufferedBytes_;
+        const std::size_t copyLength = std::min(remaining, needed);
+        const auto nextBytes = receivedBytes.subspan(bytesConsumed, copyLength);
+        std::copy(nextBytes.begin(), nextBytes.end(),
+                  requestBuffer_.begin() + bufferedBytes_);
+        bufferedBytes_ += copyLength;
+        bytesConsumed += copyLength;
+    };
+
+    if (bufferedBytes_ < 4)
+    {
+        consumeUntil(4);
+        if (bufferedBytes_ < 4)
+        {
+            return {bytesConsumed, ConnectionIntakeStatus::NeedMore, {}};
+        }
+
+        // Validated before buffering the rest: no peer-controlled
+        // 16-bit TPKT length can allocate an unbounded receive buffer.
+        const auto expected = connectionRequestLength(
+            std::span(requestBuffer_).first(4));
+        if (!expected)
+        {
+            close();
+            return {bytesConsumed, ConnectionIntakeStatus::Invalid, {}};
+        }
+        expectedBytes_ = *expected;
+    }
+
+    consumeUntil(expectedBytes_);
+    if (bufferedBytes_ != expectedBytes_)
+    {
+        return {bytesConsumed, ConnectionIntakeStatus::NeedMore, {}};
+    }
+
+    const auto parsed = parseConnectionRequest(
+        std::span(requestBuffer_).first(expectedBytes_));
+    if (!parsed)
+    {
+        // Malformed protocol traffic is dropped, not negotiated.
+        close();
+        return {bytesConsumed, ConnectionIntakeStatus::Invalid, {}};
+    }
+
+    const auto reply = session_.onConnectionRequest(parsed);
+    clearRequestBuffer();
+    if (reply.decision != SecurityDecision::Tls)
+    {
+        // Send the existing standards-defined negotiation failure
+        // before closing the underlying socket.
+        return {bytesConsumed, ConnectionIntakeStatus::ReplyThenClose, reply};
+    }
+    // Remaining bytes in this receive belong to TLS; do not consume them
+    // as plaintext TPKT or make a session admission decision.
+    return {bytesConsumed, ConnectionIntakeStatus::ReplyThenTls, reply};
 }
 
 } // namespace rdp_server::server::transport

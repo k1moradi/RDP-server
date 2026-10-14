@@ -46,3 +46,14 @@ to be a complete server.
 - OS adapters handle session selection and desktop capture without contaminating
   RDP protocol state.
 - Strict tests, sanitizers and real-client gates before release.
+
+### Current connection intake boundary
+
+The portable `PreauthConnectionStream` extends the existing
+`PreauthSession` and X.224 parser with bounded TCP byte-stream intake.
+It consumes **only** the initial plaintext Connection Request, returns
+the exact consumed bytes, and produces the existing TLS-negotiation
+Confirm or failure decision. A transport adapter must send the entire
+response before starting TLS and leave already-received TLS bytes
+unconsumed. This is **not** an active TCP listener, a TLS provider,
+an authenticated RDP session or a connection to a desktop.

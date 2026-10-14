@@ -355,3 +355,22 @@ be nonduplicated, and obey the merged channel limit; odd
 counts need two padding bytes. The serializer must not
 own channels, admit users, send to a live peer, or reuse
 a partial packet after rejection.
+
+## T.125 channel-connection PER syntax-only boundary (2026-10-14)
+
+For MS-RDPBCGR sections
+[2.2.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/04c60697-0d9a-4afd-a0cd-2cc133151a9c),
+[2.2.1.6](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/f5d6a541-9b36-4100-b78f-18710f39f247)
+and
+[2.2.1.8](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/64564639-3b2d-4d2c-ae77-1105b4cc011b),
+reuse the existing `parseDataTpdu` validator for exactly one
+complete TPKT. Recognize aligned PER DomainMCSPDU choice octets
+0x04, 0x28 and 0x38; reject other directions/types and extra
+data. For Erect, require both bounded, present PER INTEGER
+values with canonical lengths. For Join, decode UserId as the
+big-endian wire offset + 1001 with overflow protection, but
+never infer that the user or requested channel has been
+allocated or joined. Even a syntactically valid out-of-domain
+channelId must be checked by the future authenticated domain
+owner. Do not fork the MCS parser or create a competing
+session or channel controller.

@@ -309,12 +309,39 @@ acceptance evidence; no synthetic completion claims.
   from [MS-RDPBCGR 4.1.4](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/d23f7725-876c-48d4-9e41-8288896a19d3);
   `transport.mcs-response-rejections` covers malformed or
   contradictory inputs and BER integer sign padding.
-  **NOT RUN:** hosted exact-head CI, owner-local new build,
-  production GCC/MCS response sending, authenticated CredSSP/NLA
-  policy, MCS attach/channel joins and OS desktop.
-  **Next:** bind response emission to a genuinely authenticated
-  connection authority; then implement MCS Erect/Attach/Join lifecycle
-  and integrate external-client validation.
+  **PASS:** implementation `e25cd3a05f46b7eaa2a259eb2da8ddb3b7459a87`
+  passed Linux/GCC Debug/Release **34 CTests**, Windows/MSVC
+  Debug/Release CTests, SDK consumer and packaging, and
+  documentation-policy in [CI run 38586253181](https://github.com/k1moradi/RDP-server/actions/runs/38586253181).
+  The owner's local Linux Debug `~/rdp-server/build/` run at
+  `ddfc2d372285c397c52dca0197d30bf1c61c338e` confirmed
+  **34/34 CTests PASS**; macOS status for that implementation is
+  not independently asserted here.
+  **NOT RUN:** production response emission, CredSSP/NLA user
+  authentication, MCS domain lifecycle and desktop access.
+  **Next:** implement bounded offline Erect/Attach/Join decoding,
+  then authenticated connection admission and response ownership.
+  **Offline MCS channel-connection request decoding (pending
+  cross-platform CI; expected 37 CTests):** the portable
+  `parseMcsChannelRequest` parses exactly one complete RFC1006
+  TPKT/X.224 Data PDU holding T.125 aligned BASIC-PER
+  ErectDomainRequest (subHeight/subInterval), AttachUserRequest or
+  ChannelJoinRequest (initiator UserId and requested channel ID).
+  It uses existing validated `parseDataTpdu` framing, bounded
+  1..4-octet PER integers, canonical encodings and exact consumed
+  lengths, and rejects wrong-direction PDU types, malformed padding,
+  length mismatch, trailing bytes and UserId overflow. The
+  initiator offset of 1001 is decoded **without** verifying that
+  the account or channel exists. New CTests reuse the same MCS
+  executable and Microsoft's 4.1.5/4.1.6/4.1.8 request examples:
+  `transport.mcs-erect-request`,
+  `transport.mcs-attach-request`,
+  `transport.mcs-channel-join-request`.
+  **NOT RUN:** exact-head Debug/Release CI, owner-local post-change
+  build, TLS-verified MCS phase admission, CredSSP/NLA, live replies
+  or OS authorization. **Next:** independent authenticated session
+  gate, then server-owned MCS Attach/ChannelJoin confirms and live
+  channel lifecycle, respecting the existing single session owner.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

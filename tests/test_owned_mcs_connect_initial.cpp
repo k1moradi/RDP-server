@@ -3,6 +3,7 @@
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/2610fcc7-3df4-4166-85bb-2c7ae21f6151
 #include "transport/mcs_connect_initial.h"
 #include "transport/mcs_connect_response.h"
+#include "transport/mcs_channel_connection.h"
 
 #include <algorithm>
 #include <array>
@@ -321,6 +322,158 @@ void testMcsResponseRejectInvalidInputs()
     bad.target.values[0] = 4; // cannot represent 3 channels + 3 IDs
     reject(encodeMcsConnectResponse(bad, ids, 31219, 1));
 }
+
+[[nodiscard]] std::vector<std::uint8_t> frameDomainPdu(
+    std::span<const std::uint8_t> payload)
+{
+    assert(payload.size() <= 65528);
+    const auto length = payload.size() + 7U;
+    std::vector<std::uint8_t> frame{
+        3, 0, static_cast<std::uint8_t>(length >> 8U),
+        static_cast<std::uint8_t>(length),
+        2, 0xf0, 0x80};
+    frame.insert(frame.end(), payload.begin(), payload.end());
+    return frame;
+}
+
+void testMcsErectDomainRequest()
+{
+    // MS-RDPBCGR 4.1.5 exact published Client MCS Erect Domain PDU.
+    constexpr std::array<std::uint8_t, 12> golden{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x04, 0x01, 0x00, 0x01, 0x00};
+    const auto parsed = parseMcsChannelRequest(golden);
+    assert(parsed);
+    assert(parsed.request.kind == McsChannelRequestKind::ErectDomain);
+    assert(parsed.request.subHeight == 0 && parsed.request.subInterval == 0);
+    assert(parsed.request.initiator == 0 && parsed.request.channelId == 0);
+
+    // Aligned PER unconstrained INTEGERs can use 1..4 octets; do not
+    // invent a rule limiting valid ErectDomain values to zero.
+    constexpr std::array<std::uint8_t, 8> wider{
+        0x04, 0x02, 0x01, 0x00, 0x04, 0x01, 0x02, 0x03};
+    const auto expanded = parseMcsChannelRequest(frameDomainPdu(wider));
+    assert(expanded);
+    assert(expanded.request.subHeight == 256);
+    assert(expanded.request.subInterval == 0x010203U);
+
+    for (std::size_t size = 0; size < golden.size(); ++size)
+        assert(!parseMcsChannelRequest(std::span(golden).first(size)));
+    auto appended = frameDomainPdu(
+        std::span(golden).subspan(7));
+    appended.push_back(0);
+    assert(!parseMcsChannelRequest(appended));
+
+    constexpr std::array<std::uint8_t, 5> zeroLength{
+        0x04, 0x00, 0x00, 0x01, 0x00};
+    constexpr std::array<std::uint8_t, 5> exceedsRemaining{
+        0x04, 0x03, 0x00, 0x01, 0x00};
+    constexpr std::array<std::uint8_t, 7> nonminimal{
+        0x04, 0x02, 0x00, 0x01, 0x01, 0x00, 0x00};
+    constexpr std::array<std::uint8_t, 5> oversized{
+        0x04, 0x05, 0x00, 0x01, 0x00};
+    constexpr std::array<std::uint8_t, 4> missingSecond{
+        0x04, 0x01, 0x00, 0x01};
+    for (auto bytes : {
+             frameDomainPdu(zeroLength),
+             frameDomainPdu(exceedsRemaining),
+             frameDomainPdu(nonminimal),
+             frameDomainPdu(oversized),
+             frameDomainPdu(missingSecond)})
+    {
+        const auto failure = parseMcsChannelRequest(bytes);
+        assert(!failure);
+        assert(failure.error == McsChannelParseError::InvalidPerValue);
+        assert(failure.request.kind == McsChannelRequestKind::None);
+    }
+}
+
+void testMcsAttachUserRequest()
+{
+    // MS-RDPBCGR 4.1.6 published TPKT/X.224/AttachUserRequest.
+    constexpr std::array<std::uint8_t, 8> golden{
+        0x03, 0x00, 0x00, 0x08, 0x02, 0xf0, 0x80, 0x28};
+    const auto parsed = parseMcsChannelRequest(golden);
+    assert(parsed);
+    assert(parsed.request.kind == McsChannelRequestKind::AttachUser);
+    assert(parsed.request.subHeight == 0 && parsed.request.initiator == 0);
+
+    for (std::size_t size = 0; size < golden.size(); ++size)
+        assert(!parseMcsChannelRequest(std::span(golden).first(size)));
+    const std::array<std::uint8_t, 2> surplus{0x28, 0x00};
+    const auto invalid = parseMcsChannelRequest(frameDomainPdu(surplus));
+    assert(!invalid);
+    assert(invalid.error == McsChannelParseError::InvalidDomainPdu);
+
+    auto corrupted = golden;
+    corrupted[3] = 9; // mismatched declared TPKT length
+    assert(parseMcsChannelRequest(corrupted).error ==
+           McsChannelParseError::InvalidTransport);
+    corrupted = golden;
+    corrupted[5] = 0xe0; // X.224 CR, not Data TPDU
+    assert(parseMcsChannelRequest(corrupted).error ==
+           McsChannelParseError::InvalidTransport);
+    corrupted = golden;
+    corrupted[7] = 0x29; // nonzero choice padding/extension bit
+    assert(parseMcsChannelRequest(corrupted).error ==
+           McsChannelParseError::InvalidDomainPdu);
+}
+
+void testMcsChannelJoinRequest()
+{
+    // MS-RDPBCGR 4.1.8.2.1 exact published Channel 1003 packet.
+    constexpr std::array<std::uint8_t, 12> golden{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x06, 0x03, 0xeb};
+    const auto parsed = parseMcsChannelRequest(golden);
+    assert(parsed);
+    assert(parsed.request.kind == McsChannelRequestKind::ChannelJoin);
+    assert(parsed.request.initiator == 1007);
+    assert(parsed.request.channelId == 1003);
+    assert(parsed.request.subHeight == 0);
+
+    constexpr std::array<std::uint8_t, 5> rdpsnd{
+        0x38, 0x00, 0x06, 0x03, 0xee};
+    const auto sound = parseMcsChannelRequest(frameDomainPdu(rdpsnd));
+    assert(sound && sound.request.channelId == 1006);
+    assert(sound.request.initiator == 1007);
+
+    // Largest offset representable by a T.125 UserId (65536)
+    // matches the limit used by the existing GCC response encoder.
+    constexpr std::array<std::uint8_t, 5> topUser{
+        0x38, 0xfc, 0x17, 0x03, 0xeb};
+    const auto maximum = parseMcsChannelRequest(frameDomainPdu(topUser));
+    assert(maximum && maximum.request.initiator == 65536);
+
+    // This is syntax only. A wire request to join channel 0 can be
+    // decoded, but is NOT proof the channel is allocated or joinable.
+    constexpr std::array<std::uint8_t, 5> unassigned{
+        0x38, 0x00, 0x06, 0x00, 0x00};
+    const auto zeroChannel =
+        parseMcsChannelRequest(frameDomainPdu(unassigned));
+    assert(zeroChannel && zeroChannel.request.channelId == 0);
+
+    for (std::size_t size = 0; size < golden.size(); ++size)
+        assert(!parseMcsChannelRequest(std::span(golden).first(size)));
+    constexpr std::array<std::uint8_t, 5> overflowInitiator{
+        0x38, 0xff, 0xff, 0x03, 0xeb};
+    assert(parseMcsChannelRequest(frameDomainPdu(overflowInitiator)).error ==
+           McsChannelParseError::InvalidPerValue);
+
+    constexpr std::array<std::uint8_t, 4> shortJoin{
+        0x38, 0x00, 0x06, 0x03};
+    constexpr std::array<std::uint8_t, 6> trailingJoin{
+        0x38, 0x00, 0x06, 0x03, 0xeb, 0x00};
+    for (const auto frame : {frameDomainPdu(shortJoin),
+                             frameDomainPdu(trailingJoin)})
+        assert(parseMcsChannelRequest(frame).error ==
+               McsChannelParseError::InvalidDomainPdu);
+    constexpr std::array<std::uint8_t, 5> confirmWrongDirection{
+        0x3e, 0x00, 0x06, 0x03, 0xeb};
+    assert(parseMcsChannelRequest(frameDomainPdu(confirmWrongDirection)).error
+           == McsChannelParseError::InvalidDomainPdu);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -347,7 +500,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 8> kMcsTestCases{{
+constexpr std::array<McsTestCase, 11> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -356,6 +509,9 @@ constexpr std::array<McsTestCase, 8> kMcsTestCases{{
     {"mcs-domain-rejections", &testMcsDomainNegotiationRejections},
     {"mcs-response-wire", &testMcsResponseWire},
     {"mcs-response-rejections", &testMcsResponseRejectInvalidInputs},
+    {"mcs-erect-request", &testMcsErectDomainRequest},
+    {"mcs-attach-request", &testMcsAttachUserRequest},
+    {"mcs-channel-join-request", &testMcsChannelJoinRequest},
 }};
 
 int main(int argc, char **argv)

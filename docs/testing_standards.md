@@ -456,3 +456,21 @@ Expected full CTest registration **34**, up from 32.
 The older parser suites remain active; no code path may
 send a response or claim credential/OS admission from these
 offline tests.
+
+## Offline MCS Erect/Attach/ChannelJoin request regressions (CI pending)
+
+In the existing `test_owned_mcs_connect_initial` binary, register
+three additional behavior-named CTests without another executable:
+`transport.mcs-erect-request`, `transport.mcs-attach-request`,
+`transport.mcs-channel-join-request`. Use independent literal
+TPKT/X.224/PER wire oracles from Microsoft's published
+MS-RDPBCGR 4.1.5, 4.1.6 and 4.1.8.2.1 examples, plus 4.1.8.5.1
+for channel 1006. Each test checks all byte-boundary
+truncations and malformed framing, payload surplus, invalid
+PER integer lengths/nonminimal values, UserId overflow,
+wrong direction/choice padding and preservation of valid
+channel identifiers without falsely calling them joined.
+The previous 34 CTests remain; expected **37 CTests**.
+Live phase ordering, authorization, send/confirm responses,
+client interoperability and authenticated OS session
+admission remain **NOT RUN**.

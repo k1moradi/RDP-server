@@ -216,3 +216,22 @@ preauthentication state transition and not permission to send
 rt-successful on a live connection. The existing owner still
 closes after diagnostic MCS intake. No TLS record emission,
 CredSSP, OS session or MCS domain/channel lifecycle was enabled.
+
+### Pure PER MCS Channel Connection request decoding (2026-10-14)
+
+The first-party `mcs_channel_connection.{h,cpp}` adds a pure,
+non-allocating request decoder for MS-RDPBCGR 2.2.1.5 (Erect Domain),
+2.2.1.6 (Attach User) and 2.2.1.8 (Channel Join). It reuses the
+existing exact TPKT/X.224 Data TPDU validator and decodes the T.125
+aligned BASIC-PER discriminator and fields into a *value only*.
+Erect accepts canonical 1..4 octet nonnegative subHeight and
+subInterval. Attach has no payload beyond its one-byte type.
+Join extracts the PER UserId offset (wire value plus 1001) and
+channelId without treating that as evidence of allocation.
+
+This does not change `PreauthConnectionStream`'s existing terminal
+diagnostic behavior after Connect-Initial. It does not accept a
+user identity, mutate an MCS domain, join a channel, decrypt
+additional PDUs, send replies or create a server listener.
+Those transitions require a separately verified authentication
+and OS session authority, which remains unimplemented.

@@ -478,3 +478,27 @@ owner-local post-change build, actual output to a TLS
 socket, CredSSP/NLA and independently authorized OS session,
 MCS Erect/Attach/Join lifecycle, external Microsoft clients
 or desktop acceptance. This is not an authenticated server.
+
+## Pure MCS Channel Connection Request decoding (2026-10-14; pending CI)
+
+**Owner-local baseline:** at `ddfc2d372285c397c52dca0197d30bf1c61c338e`,
+the owner's Linux Debug command reused `~/rdp-server/build/`
+and confirmed **34/34 CTests PASS**, including the offline
+MCS response wire/negative tests. The earlier implementation
+`e25cd3a05f46b7eaa2a259eb2da8ddb3b7459a87` had Linux,
+Windows and documentation-policy PASS in
+[CI 38586253181](https://github.com/k1moradi/RDP-server/actions/runs/38586253181).
+These are prior-code results, not proof of this change.
+
+**New scope:** pure, bounded T.125 Channel Connection request
+parser for ErectDomain/AttachUser/ChannelJoin. Reuse existing
+TPKT/X.224 parser and MCS fixture executable; add three CTests
+from Microsoft wire examples with truncated/invalid negative
+cases; expected **37 registered CTests**. No MCS channel state,
+live response emission, OS admission, independent identity
+or credential acceptance was implemented.
+**NOT RUN:** exact-head Linux/GCC, macOS/Clang and Windows/MSVC
+Debug/Release full CTests, downstream consumer and packages,
+owner-local updated build, external clients, CredSSP/NLA and
+desktop access. **Next gate:** verify hosted CI and then
+implement authoritative authentication-owned MCS lifecycle.

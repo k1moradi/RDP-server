@@ -646,57 +646,57 @@ acceptance evidence; no synthetic completion claims.
   Kerberos/GSS+TLS public-key binding,
   then independently checked OS policy and
   single-owner live X.224/MCS transitions.
-  **Active server TLS certificate identity pin and live binding
-  validation (2026-10-14; new CI NOT RUN):** MS-CSSP
-  [2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
+  **Verified active server TLS certificate identity pin and
+  real TLS binding (2026-10-14; CI PASS):** Microsoft
+  [MS-CSSP 2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
   and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)
-  bind the CredSSP SPNEGO transcript to the selected server TLS
-  certificate's SubjectPublicKey and a 32-byte client nonce.
-  The existing single `TsRequestFrameReader` must pin both the
-  established server `SSL*` AND a SHA-256 identity of its
-  selected DER certificate at its FIRST actual TLS read.
-  Check the selected certificate on each subsequent read,
-  completed-frame handoff and read after release: even a
-  swapped certificate within the SAME SSL object must
-  invalidate the frame before GSS receives a borrowed token.
-  Centralize valid finished server-role TLS >=1.2 and selected
-  cipher/certificate checks in the existing
-  `credssp_tls_certificate` module. Wipe pinned digest on
-  terminal close; release clears frame but retains TLS/cert
-  pin. The portable library performs no OS authorization.
-  Three new existing-executable all-platform behavior CTests:
-  positive actual OpenSSL handshake selected SubjectPublicKey
-  v5/v6 nonce/direction hashes against independent reference;
-  wrong live TLS cert, wrong nonce/direction, malformed length
-  and unfinished/client-role TLS denials; and a same-SSL
-  server-certificate replacement before/within DER frames
-  with no post-mutation GSS transport provenance.
-  Expected Linux **67** from 64 and macOS/Windows **60**
-  from 57 in both Debug and Release.
-  **PASS prior exact main:** `1bfbc3452078ed1a4676551953e325366981e587`,
-  [CI 38618001913](https://github.com/k1moradi/RDP-server/actions/runs/38618001913):
-  Linux 64/64, macOS and Windows 57/57, SDK and policy.
-  **NOT RUN:** new CI, owner's local build, actual positive
-  GSS/Kerberos with keytab/tickets, real GSS unwrap/wrap,
-  authorized OS session, external Microsoft RDP client/desktop.
-  **Next:** controlled positive keytab + ticket GSS exchange
-  bound to the same selected certificate, OS account policy
-  before any MCS/desktop admission.
-  **Initial CI FAIL / cross-version OpenSSL fixture fix
-  (2026-10-14):** implementation
+  bind the client/server proof to the selected TLS
+  certificate SubjectPublicKey, 32-byte nonce and
+  distinct direction labels. The existing one
+  `TsRequestFrameReader` now pins the selected
+  server X.509 SHA-256 fingerprint as well as
+  `SSL*` on its FIRST real TLS read. It checks
+  both before later TLS chunks, after frame
+  completion and after release: even a different
+  selected certificate on the SAME SSL pointer
+  revokes handoff and closes/wipes the frame.
+  The existing `credssp_tls_certificate`
+  module owns finished TLS >=1.2 server-role/
+  cipher/cert checks and active certificate
+  SubjectPublicKey hashing, without GSS or
+  OS session authority. Three new portable
+  CTests use real in-memory OpenSSL TLS, comparing
+  both direction-specific live-certificate hashes
+  with independent SubjectPublicKey calculations;
+  reject other certs, nonces, reflected/mutated
+  hashes and invalid TLS roles; and reject
+  completed/partial DER after same-SSL cert
+  replacement while accepting unchanged identity.
+  **Initial FAIL:** implementation
   `d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`,
-  [CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326)
-  failed at Linux Debug COMPILATION of the new certificate
-  mutation test: OpenSSL 4-compatible `SSL_get_certificate`
-  returns `const X509*`, whereas `SSL_use_certificate`
-  takes `X509*`. This was a test-fixture constness
-  mismatch, not a passing runtime pinning test.
-  Correct by `X509_dup` into the already used
-  `CertificatePointer` RAII type, install the
-  mutable test-only duplicate and confirm its selected
-  SHA-256 fingerprint equals the alternate live TLS
-  certificate. Preserve all hash and mid-frame
-  rejection assertions. **Corrected CI NOT RUN yet.**
+  [CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326):
+  new test compile failed due to OpenSSL 4-compatible
+  `const X509*` source passed to `SSL_use_certificate`.
+  **PASS:** correction
+  `340ce518d0e84ea94a4d24c295f8fa88e74ccf6d`
+  duplicates the test-only certificate with
+  `X509_dup` into existing RAII `CertificatePointer`
+  and retains all assertions.
+  [CI 38619544190](https://github.com/k1moradi/RDP-server/actions/runs/38619544190):
+  Linux/GCC **67/67** and macOS/Clang,
+  Windows/MSVC **60/60** CTests, BOTH Debug
+  and Release; three new cases, installed
+  SDK consumers, ZIP/SHA256 uploads,
+  documentation-policy PASS. Prior Linux
+  Release fixture warning remains nonfatal.
+  **NOT RUN:** owner-local new build, positive
+  actual Kerberos/GSS service keytab/tickets,
+  true GSS unwrap/wrap TLS public-key proof,
+  independent OS account authorization,
+  Microsoft client or real desktop.
+  **Next:** positive controlled Kerberos/GSS
+  and TLS binding, then independent OS policy
+  before admitting real MCS/desktop.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

@@ -971,75 +971,89 @@ then independently audited OS
 authorization before live RDP
 channel, graphics or desktop.
 
-## Pending same-SSL selected certificate pinning and live TLS binding (2026-10-14)
+## Verified selected server TLS certificate pinning (2026-10-14)
 
-**Prior exact verified main:** `1bfbc3452078ed1a4676551953e325366981e587`,
+**Previous green head:** `1bfbc3452078ed1a4676551953e325366981e587`,
 [CI 38618001913](https://github.com/k1moradi/RDP-server/actions/runs/38618001913)
-Linux/GCC **64/64**, macOS/Clang/Windows/MSVC **57/57**
-in both Debug and Release; SDK downstream consumer,
-three ZIP/checksum uploads and documentation policy PASS.
+Linux/GCC 64/64, macOS/Windows 57/57
+CTests in both Debug and Release, all SDK/
+policy and packaging gates PASS.
 
-**New implementation and tests (CI NOT RUN):**
+**Initial implementation:**
+`d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`.
 `src/server/security/credssp_tls_certificate.{h,cpp}`
-adds one SHA-256 fingerprint of the actual
-selected established server TLS DER certificate;
+adds a SHA-256 fingerprint of the selected
+established server X.509 certificate and
+centralizes TLS >=1.2 server-role/cipher/
+certificate checks for binding computations.
 `src/server/security/credssp_tsrequest.{h,cpp}`
-pins this fingerprint alongside the same `SSL*`
-on the first TLS read and rechecks it before all
-subsequent reads or completed-frame GSS handoffs.
-A changed certificate on the SAME SSL handle
-terminally invalidates the reader and the borrowed
-GSS frame identity; release preserves the pin,
-close securely wipes it. Shared certificate selection
-requires negotiated TLS >=1.2 with active server
-cipher, not client role or unhandshaken SSL.
-Three distinct all-platform CTests are added to the
-existing OpenSSL memory-BIO test and registered in
-`tests/CMakeLists.txt`:
+pins the selected certificate fingerprint
+alongside the original SSL handle from the
+first completed server TLS read and rechecks
+it before subsequent TLS reads, even after
+`releaseFrame`, and again before releasing
+completed frame SSL provenance to GSSAPI.
+Any changed selected certificate on the
+SAME SSL handle is terminal; close wipes
+frame and fingerprint. One owner, no
+additional connection or GSS controller.
+`tests/test_owned_preauth_session.cpp`
+adds three independent, behavior-named
+CTests, registered in `tests/CMakeLists.txt`,
+with real TLS handshakes, live certificate
+hash oracles and same-SSL selected-certificate
+replacement after complete or partial frame.
+Roadmap, architecture, coding/testing
+standards and this ledger co-changed.
+
+**Initial CI FAIL:**
+[Actions 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326)
+Linux/GCC Debug test compilation failed
+on `SSL_get_certificate` returning
+`const X509*` versus
+`SSL_use_certificate` expecting `X509*`.
+The production objects compiled but
+tests had NOT passed.
+**Corrected commit:**
+`340ce518d0e84ea94a4d24c295f8fa88e74ccf6d`:
+use `X509_dup` into the existing mutable
+RAII `CertificatePointer` on both full-frame
+and partial-frame certificate-swap tests;
+assert matching selected live fingerprints.
+No assertions disabled or skipped.
+
+**PASS:** [Actions 38619544190](https://github.com/k1moradi/RDP-server/actions/runs/38619544190)
+all FOUR required jobs SUCCESS:
+Linux/GCC **67/67**, macOS/Clang and
+Windows/MSVC **60/60** CTests EACH in
+Debug AND Release. All THREE new tests
 `security.credssp-active-tls-binding-positive`,
 `security.credssp-active-tls-binding-rejections`,
-`transport.credssp-tls-certificate-pinning`.
-Expect Linux **67**, macOS/Windows **60** full
-Debug/Release CTests. Same-commit updates to
-roadmap, architecture, coding/testing standards
-and this validation ledger. CI uses the sole job
-`build/` for Debug:
+`transport.credssp-tls-certificate-pinning`
+PASS on all systems. Installed SDK
+downstream consumer configure/link/execute,
+CPack ZIP/SHA-256, all three artifact uploads,
+documentation policy PASS. CI used one
+checkout-local `build/` per job:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
--DBUILD_TESTING=ON` plus
-`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON` only Linux,
+-DBUILD_TESTING=ON` (+ Linux-only
+`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`),
 `cmake --build build --config Debug --parallel 2`,
 `ctest --test-dir build --build-config Debug
---output-on-failure`, then same-root Release
-reconfigure/build/CTest, SDK consumer, package,
-SHA256 and upload.
-**NOT RUN:** new implementation CI,
-owner-local updated build, actual successful
-Kerberos and mutual GSS with service keytab,
-gss_unwrap/GSS-wrap public-key proof,
-OS authorization or Windows App desktop.
-**Next:** genuine controlled opt-in positive
-Kerberos/GSS and selected-TLS proof;
-independently authorized account policy
-before real MCS/session admission.
-
-### Initial selected TLS certificate test compilation failure (2026-10-14)
-
-**Initial code** `d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`,
-[CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326).
-**FAIL:** Linux/GCC Debug compile of the new
-same-SSL certificate substitution test:
-`SSL_get_certificate` returned `const X509*`;
-`SSL_use_certificate` requires `X509*`.
-The production certificate hash and framer objects
-compiled, but this test fixture did not. This is
-NOT verified positive TLS binding yet.
-**Correction:** duplicate the alternate self-signed
-ephemeral X509 into the existing
-`CertificatePointer` using `X509_dup`,
-then use its mutable owned pointer with
-`SSL_use_certificate` and compare
-actual live selected fingerprints across fixtures.
-Apply the same RAII duplication to partial-frame
-substitution. All other test assertions remain.
-The corrected CI **NOT RUN** at edit time;
-no claim of Kerberos/GSS/OS authorization.
+--output-on-failure`; then reconfigure
+same root Release/build/CTest, stage install,
+SDK downstream consumer, CPack and checksum.
+Existing nonfatal Ubuntu Release compiler
+warning in test fixture remains. No release
+tag/prerelease publication.
+**NOT RUN:** owner's local updated build,
+actual successful Kerberos/GSS keytab
+and client tickets, authenticated real
+GSS unwrap/wrap of the pinned TLS
+certificate hash, separately authorized
+OS account or live Microsoft/FreeRDP
+client and desktop.
+**Next:** opt-in controlled real positive
+GSS/Kerberos + TLS certificate binding,
+then independent OS policy before
+live MCS/session and desktop admission.

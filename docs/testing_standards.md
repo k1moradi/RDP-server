@@ -777,51 +777,59 @@ or interactive desktop. The
 preexisting nonfatal Ubuntu Release
 test warning at line 589 remains.
 
-## Real-TLS selected-certificate binding checks (2026-10-14; CI NOT RUN)
+## Verified real-TLS selected certificate binding and pinning tests (2026-10-14)
 
-Add three dedicated named CTests to the EXISTING
-`test_owned_preauth_session` executable and reuse
-the current ephemeral X.509 EC key and actual
-OpenSSL in-memory TLS handshake. No extra cert
-test controller or executable is permitted.
-`security.credssp-active-tls-binding-positive`
-compares the v5/v6 Client-to-Server and Server-to-Client
-hashes computed against the live selected TLS
-SubjectPublicKey BIT STRING to the independent
-`computeCredSspBindingHash` reference with two
-different 32-byte client nonces; selected SHA-256
-fingerprint is nonzero. It is positive TLS math,
-NOT successful GSS confidentiality or OS admission.
+Three NEW named CTests in the same existing
+`test_owned_preauth_session` executable and
+ephemeral EC X.509 OpenSSL memory-BIO TLS
+fixture exercise the actual selected TLS
+certificate, rather than fabricated X509/GSS
+identities. `security.credssp-active-tls-binding-positive`
+compares both v5/v6 direction-specific
+32-byte nonce hash results against
+`computeCredSspBindingHash` independently
+using the active selected X509
+SubjectPublicKey BIT STRING, and confirms
+the certificate SHA-256 fingerprint.
 `security.credssp-active-tls-binding-rejections`
-checks unrelated live TLS certificates, reflection,
-every nonce/hash mutation, null/client-role/
-pre-handshake TLS, short/long nonce/hash and
-zeroed output on failure. `transport.credssp-tls-certificate-pinning`
-tests the ORIGINAL SSL pointer with a replaced
-local selected X509 after a complete DER frame and
-during an incomplete frame: the provenance pointer
-must disappear, reads must invalidate and securely
-close; unchanged certificate across frame release
-must remain usable. Expected +3 portable CTests:
-Linux 67, macOS and Windows 60 per Debug and Release.
-The full new CI and owner's local build are NOT RUN;
-real positive keytab/GSS pubKeyAuth remain BLOCKED
-without controlled credentials.
+rejects different live server certificates,
+every nonce/hash mutation, reflected
+server-to-client hash, null/client-role or
+unfinished SSL, malformed nonce/hash lengths,
+and checks cleared output on failure.
+`transport.credssp-tls-certificate-pinning`
+modifies the selected X509 ON THE SAME SSL
+after a completed DER frame and during
+a partial frame. The TLS provenance must
+disappear, reads must reject and wipe
+the existing reader; a stable certificate
+must remain valid after repeat frame
+release. There is no GSS-success assertion
+or OS login authorization.
 
-### Test-only OpenSSL X509 ownership across versions (2026-10-14)
+**Initial CI FAIL:** initial
+`d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`,
+[CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326):
+test compile attempted to give an OpenSSL 4
+`const X509*` to `SSL_use_certificate`
+which expects a mutable test-owned `X509*`.
+**Corrected implementation:** exact
+`340ce518d0e84ea94a4d24c295f8fa88e74ccf6d`,
+uses `X509_dup` and existing test-owned
+`CertificatePointer` with equivalent
+selected SHA-256 fingerprint assertion.
+No negative security assertions removed.
 
-Initial implementation `d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`
-[CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326)
-failed Linux Debug compile at `SSL_use_certificate`:
-the `SSL_get_certificate` result must be treated
-as `const X509*` on newer OpenSSL headers, while
-`SSL_use_certificate` requires `X509*`.
-Never use a const-removing cast in this test.
-Use the EXISTING test fixture's X509 RAII
-`CertificatePointer` with `X509_dup` to obtain
-a modifiable test-owned certificate, and assert
-that the mutated SSL selected certificate
-SHA-256 fingerprint equals the alternate source
-before expecting provenance rejection.
-Do not remove or weaken tests. Corrected CI
-**NOT RUN** pending full Debug/Release validation.
+**PASS:** [Actions 38619544190](https://github.com/k1moradi/RDP-server/actions/runs/38619544190):
+Linux/GCC **67/67**, macOS/Clang and
+Windows/MSVC **60/60** CTests, each
+Debug+Release, all 3 new groups PASS,
+SDK downstream consumer, ZIP/SHA256 package
+uploads and documentation-policy PASS.
+The preexisting unrelated Linux Release
+test compiler warning remains nonfatal.
+**NOT RUN:** owner's local new build,
+actual positive keytab/Kerberos ticket
+and confidential GSS TLS pubKeyAuth,
+independently authorized OS session,
+real Microsoft client or desktop.

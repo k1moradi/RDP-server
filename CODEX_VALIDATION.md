@@ -90,13 +90,11 @@ green. This is a tested **offline preauthentication ordering rule**,
 not a listening socket, real TLS handshake, CredSSP, user authentication
 or OS session access; those categories remain NOT RUN.
 
-## Bounded decrypted MCS/GCC intake (pending exact-head CI)
+## Verified bounded decrypted MCS/GCC intake (2026-10-14)
 
 New reusable `PreauthConnectionStream::consumeDecryptedMcsConnectInitial`
 uses one fixed buffer for the initial plaintext and the subsequent
 decrypted MCS/GCC envelope. Existing `transport.preauth-session`
 gains every-split, truncation, coalesced-packet, invalid header,
 malformed BER, wrong-state and replay tests against production code.
-**Validation: NOT RUN** until exact-head Ubuntu/GCC, macOS/Clang,
-Windows/MSVC and documentation-policy CI complete. Host networking,
-TLS certificates, CredSSP and OS session admission remain NOT RUN.
+**PASS:** [Actions run 38541509607](https://github.com/k1moradi/RDP-server/actions/runs/38541509607) at `49c6006d47476184f7448028cd332e377ec9bd0b` completed Linux/GCC, macOS/Clang, Windows/MSVC CMake builds and full CTests, plus documentation-policy. **NOT RUN:** owner's local `~/rdp-server/build/`, host networking, real TLS certificates, CredSSP/NLA, external RDP clients and OS admission. **Next:** authenticated TLS provider and MCS response lifecycle.

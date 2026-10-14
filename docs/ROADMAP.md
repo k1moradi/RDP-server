@@ -594,6 +594,21 @@ acceptance evidence; no synthetic completion claims.
   provider-selected GSS replies and controlled positive
   Kerberos/TLS proof, then independently authorized
   OS account admission before live MCS.
+  **Initial CI FAIL / corrective fixture (2026-10-14):**
+  implementation `915cd2bfac59d7e775b458b7deed3d94db17ad93`,
+  [CI 38614500856](https://github.com/k1moradi/RDP-server/actions/runs/38614500856),
+  compiled new TLS writer and passed new reply-wire and
+  rejection tests on macOS, but
+  `transport.credssp-tls-reply-backpressure` failed
+  in test setup: OpenSSL `BIO_set_write_buf_size`
+  refused resizing a *previously paired* BIO after
+  handshake. This is a fixture contract violation,
+  not verified backpressure. **Fix pending CI:** give
+  `TlsHandshakeFixture` an optional creation-time
+  server BIO capacity and use 2048 bytes when first
+  creating the pair to exercise a real WANT_WRITE
+  with the unchanged long 8192-byte reply.
+  Do not weaken WANT_WRITE or byte-exact assertions.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

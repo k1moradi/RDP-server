@@ -717,3 +717,20 @@ for each Debug and Release configuration.
 **NOT RUN:** new-code CI, owner-local build,
 positive keytab/Kerberos and TLS pubKeyAuth,
 OS admission or external clients.
+
+### BIO-pair constrained-write fixture correction (2026-10-14)
+
+The first real cross-platform run on implementation
+`915cd2bfac59d7e775b458b7deed3d94db17ad93`,
+[CI 38614500856](https://github.com/k1moradi/RDP-server/actions/runs/38614500856),
+failed `transport.credssp-tls-reply-backpressure`
+at its fixture assumption, not at a server writer
+protocol assertion: `BIO_set_write_buf_size` does
+not resize an already paired memory BIO with this
+OpenSSL configuration. Preserve the actual
+WANT_WRITE/backpressure assertion; construct the
+BIO pair with a 2048-byte server write buffer
+via `BIO_new_bio_pair` before the real TLS
+handshake. Reuse the original fixture/certificate
+helper and leave every prior CTest intact.
+Corrective run **NOT RUN** until validated.

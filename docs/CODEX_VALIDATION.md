@@ -868,3 +868,22 @@ Kerberos/GSS context and protected response
 wire integration on the same TLS identity,
 then independent OS account authorization
 before MCS and activation.
+
+### Initial TLS writer CI failing fixture; correction pending (2026-10-14)
+
+**Implementation:** `915cd2bfac59d7e775b458b7deed3d94db17ad93`,
+[CI 38614500856](https://github.com/k1moradi/RDP-server/actions/runs/38614500856).
+**FAIL:** macOS Debug `transport.credssp-tls-reply-backpressure`
+asserted `BIO_set_write_buf_size(...,512)==1` after
+handshake. OpenSSL does not accept resizing that already
+connected memory BIO. Reply-wire and reply-rejection
+tests passed; the actual backpressure assertion was not
+reached. This is not positive TLS writer backpressure
+validation. **Correction:** update only existing
+`TlsHandshakeFixture` to configure an optional
+server BIO write capacity at `BIO_new_bio_pair`
+creation, then exercise 2048-byte capacity
+with the unchanged 8192-byte long server reply,
+retaining every assertion on WANT_WRITE, output
+length and exact client TLS plaintext. Corrected
+full CI and owner-local tests **NOT RUN**.

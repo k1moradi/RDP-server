@@ -90,7 +90,8 @@ struct TlsHandshakeFixture final
     SslPointer client{nullptr, SSL_free};
 
     explicit TlsHandshakeFixture(bool completeImmediately = true,
-                                 bool useMemoryBio = true)
+                                 bool useMemoryBio = true,
+                                 std::size_t serverBioCapacity = 0)
     {
         assert(serverContext && clientContext);
         assert(SSL_CTX_set_min_proto_version(serverContext.get(),
@@ -130,7 +131,8 @@ struct TlsHandshakeFixture final
         {
             BIO *serverBio = nullptr;
             BIO *clientBio = nullptr;
-            assert(BIO_new_bio_pair(&serverBio, 0, &clientBio, 0) == 1);
+            assert(BIO_new_bio_pair(&serverBio, serverBioCapacity,
+                                    &clientBio, 0) == 1);
             // OpenSSL assumes ownership of both ends for memory-only
             // regressions. Native socket tests attach their own BIOs.
             SSL_set_bio(server.get(), serverBio, serverBio);
@@ -1581,10 +1583,11 @@ void testTlsCredSspReplyWire()
 
 void testTlsCredSspReplyBackpressure()
 {
-    // Shrink the existing OpenSSL memory BIO AFTER the completed TLS
-    // handshake to force WANT_WRITE while sending one long DER envelope.
-    TlsHandshakeFixture tls;
-    assert(BIO_set_write_buf_size(SSL_get_wbio(tls.server.get()), 512) == 1);
+    // Establish the BIO pair with bounded capacity BEFORE pairing; OpenSSL
+    // forbids resizing an already-paired BIO (even after the handshake).
+    // 2048 bytes is enough for this test handshake flight but smaller
+    // than the protected long DER record, forcing real WANT_WRITE.
+    TlsHandshakeFixture tls{true, true, 2048};
     TsRequestTlsReplyWriter writer;
     const std::vector<std::uint8_t> token(8192, 0x3a);
     const auto expected = encodeCredSspServerTsRequest(

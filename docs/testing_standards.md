@@ -556,7 +556,7 @@ including all three incremental DER-framing cases.
 **NOT RUN:** owner-local new build, live TLS NLA,
 Kerberos authentication or OS desktop authorization.
 
-## Offline CredSSP server DER reply validation (2026-10-14; NOT RUN)
+## Verified offline CredSSP server DER reply validation (2026-10-14)
 
 Reuse the existing `test_owned_credssp_tsrequest` binary and
 register two behavior-named CTests:
@@ -567,9 +567,13 @@ NegoData and protected-binding reply bytes, checks v5, DER
 length thresholds and exact parser/framer roundtrips.
 The latter rejects invalid versions, empty payload, unknown
 reply variants and a provider token over 8192 bytes.
-Expected overall registration: **48 CTests** (prior 46).
-**PASS:** previous baseline `f3f2d727334a254f7970c5eefe3c91a25d82c41e`
-records a 46-test cross-platform pass. **NOT RUN:** new
-implementation CI, owner-local build, real GSS, TLS binding,
-OS authorization and external clients. Wire serialization alone
-does not grant an authenticated session. 
+**PASS:** implementation `46e77ed65afdd9526ee1c63d39724668670cf047`,
+[Actions run 38596955778](https://github.com/k1moradi/RDP-server/actions/runs/38596955778)
+completed both Debug and Release **48/48 CTests** on
+Linux/GCC, macOS/Clang, Windows/MSVC, plus the
+documentation-policy gate, staged SDK consumer smoke tests
+and all three platform ZIP/SHA-256 uploads. The prior
+baseline had 46 CTests.
+**NOT RUN:** owner-local updated build, real GSS, TLS binding,
+OS authorization or external clients. Wire serialization
+alone does not grant an authenticated session.

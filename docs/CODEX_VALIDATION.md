@@ -599,7 +599,7 @@ response emission, external client and desktop access.
 **Next:** a trusted authenticated CredSSP/SPNEGO and OS
 authorization provider within the sole preauth owner.
 
-## Offline CredSSP server TSRequest reply serializer (2026-10-14; NOT RUN)
+## Verified offline CredSSP server TSRequest reply serializer (2026-10-14)
 
 **Prior verified head:** `f3f2d727334a254f7970c5eefe3c91a25d82c41e`,
 [CI 38592588562](https://github.com/k1moradi/RDP-server/actions/runs/38592588562)
@@ -615,9 +615,25 @@ canonical bounded DER frame or no output; it owns no
 authentication authority. The same CredSSP test executable
 adds exact-wire, long-length, framing, empty/oversize,
 unsupported-version/field regressions. Expected 48 named
-CTests. **NOT RUN:** implementation-commit tests and cross-platform CI,
-owner-local build, genuine SPNEGO/GSS, TLS key binding,
-OS account authorization or Microsoft desktop connection.
-**Next:** a verified authenticated security provider and
-independent OS-authorized single session owner; do not send
-positive responses from offline serialization.
+CTests. **PASS:** exact code/test implementation `46e77ed65afdd9526ee1c63d39724668670cf047`,
+[CI run 38596955778](https://github.com/k1moradi/RDP-server/actions/runs/38596955778) passed documentation-policy
+and Linux/GCC, macOS/Clang, Windows/MSVC full Debug/Release
+**48/48 CTests** each. SDK install, consumer configure/link/
+execute, ZIP/checksum and artifact upload passed for all three
+platforms; prerelease publication was SKIPPED because this
+is not a protocol version tag. CI commands included:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build --build-config Debug --output-on-failure`,
+then reconfiguration with `-DCMAKE_BUILD_TYPE=Release`,
+the same build root and corresponding Release build/CTest.
+An unrelated Ubuntu Release preauthentication test source
+logged a pre-existing `-Wstringop-overflow` warning at
+`tests/test_owned_preauth_session.cpp:582`; it did not
+fail the compilation or tests.
+**NOT RUN:** owner-local build, genuine SPNEGO/GSS,
+TLS key binding, OS account authorization or Microsoft
+desktop connection. **Next:** a verified authenticated
+security provider and independent OS-authorized single
+session owner; do not send positive responses from offline
+serialization.

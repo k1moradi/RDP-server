@@ -432,8 +432,8 @@ acceptance evidence; no synthetic completion claims.
   CredSSP/SPNEGO provider and verified OS authorization in
   the sole connection owner; never treat a syntactically
   valid token as an authentication capability.
-  **New bounded server-reply serialization (2026-10-14; validation
-  pending):** within the same `credssp_tsrequest` module, an
+  **Verified bounded server-reply serialization (2026-10-14;
+  48 CTests PASS):** within the same `credssp_tsrequest` module, an
   offline, allocation-bounded, canonical DER encoder produces
   one MS-CSSP TSRequest server `negoTokens` response OR an
   already-GSS-protected `pubKeyAuth` response for versions
@@ -441,13 +441,15 @@ acceptance evidence; no synthetic completion claims.
   assertion or OS identity authority is added. Two additional
   existing-executable behavior CTests exercise literal DER wire
   oracles, lengths, parsing/framing and rejection bounds (expected
-  **48 CTests**). **PASS:** prior baseline SHA
-  `f3f2d727334a254f7970c5eefe3c91a25d82c41e`
-  reports 46 CTests across CI. **NOT RUN:** validation on
-  this implementation commit, owner's local build, GSS/TLS
-  binding and live-session tests. **Next:** connect to a
-  trusted GSS provider and independent OS authorization before
-  allowing any reply on a socket.
+  **48 CTests**). **PASS:** exact implementation `46e77ed65afdd9526ee1c63d39724668670cf047`,
+  [Actions run 38596955778](https://github.com/k1moradi/RDP-server/actions/runs/38596955778): 48/48 Debug and Release
+  CTests on Linux/GCC, macOS/Clang and Windows/MSVC, SDK
+  installed downstream consumer, all three ZIP/checksum
+  uploads and documentation-policy gate. No prerelease tag.
+  **NOT RUN:** owner's local build, real GSS/Kerberos,
+  TLS public-key binding, OS admission or desktop.
+  **Next:** connect to a trusted GSS provider and independent
+  OS authorization before allowing any reply on a socket.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

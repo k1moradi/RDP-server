@@ -411,3 +411,20 @@ Debug/Release 39 named CTests, documentation-policy and
 installed SDK consumer/package gates. This does not prove
 any identity, host admission, channel allocation or
 actual RDP client acceptance.
+
+## Strict bounded CredSSP DER framing ownership (2026-10-14)
+
+MS-CSSP 2.2.1 specifies DER TSRequest messages on TLS;
+use the existing parser rather than another DER validator.
+The first-party `TsRequestFrameReader` is a *framer*,
+not a duplicate session authority. Read exactly tag and
+length (DER short, 0x81 or 0x82 canonical lengths), reject
+indefinite/fragmented/nonminimal/oversized forms before
+buffer allocation, and never consume bytes of a coalesced
+following TSRequest. Hold sensitive, opaque token bytes
+in at most the existing 16 KiB fixed array; borrow views
+only until explicit release and cleanse on every cancel
+or discard. A complete frame must not be overwritten by
+unexpected new input, even when the next input is itself
+syntactically valid. No change to NLA flags or authentication
+admission may be justified by framing correctness alone.

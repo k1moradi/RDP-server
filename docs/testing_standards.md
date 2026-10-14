@@ -522,3 +522,24 @@ Both new independent confirmation-wire cases passed; Ubuntu
 logs explicitly show **39/39 PASS** in Debug and Release.
 This is protocol syntax verification, NOT authenticated session
 admission or real client interoperability.
+
+## Incremental TLS-decrypted CredSSP TSRequest DER framing (CI NOT RUN)
+
+Keep the existing `test_owned_credssp_tsrequest.cpp` executable
+and register its previous five behavior groups separately,
+plus three NEW tests in the canonical `tests/CMakeLists.txt`:
+`security.credssp-stream-fragments` checks every split and
+single-byte callbacks against the existing complete DER
+parser and borrowed lifetime; `security.credssp-stream-coalesced`
+checks byte-exact no-read-ahead, explicit release, DER 0x81,
+0x82 and near-limit 16 KiB examples; and
+`security.credssp-stream-rejections` checks wrong tag,
+indefinite/nonminimal lengths, declared oversize,
+semantic-invalid complete DER, interrupted/closed framing
+and illegal replay of an unreleased frame. All five former
+groups remain callable individually, giving expected
+**46 CTests** (39 prior registered, 3 newly implemented
+and 4 extra registrations for existing groups). Ensure
+default no-argument invocation still executes all eight
+groups. Do not use synthetic SPNEGO tokens as evidence of
+Kerberos credentials, TLS binding or desktop admission.

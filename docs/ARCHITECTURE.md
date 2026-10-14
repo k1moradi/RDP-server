@@ -254,3 +254,27 @@ preauthentication stream still closes after the Connect-Initial
 diagnostic; an actual OS authentication/authorization provider
 and one authoritative MCS owner remain essential before any
 success packet may be transmitted.
+
+### Bounded decrypted CredSSP TSRequest framing (2026-10-14)
+
+The existing first-party CredSSP DER parser gains
+`TsRequestFrameReader`, a fixed-capacity framing helper,
+**not** an RDP session, GSS mechanism, login controller or
+TLS event loop. Following the MS-CSSP 2.2.1 TSRequest DER
+SEQUENCE length, it takes at most one complete decrypted
+TSRequest per call and counts exactly how many bytes of the
+supplied plaintext were consumed. It handles callbacks split
+at any header or payload boundary without swallowing the
+next coalesced frame. It validates canonical short/long DER
+lengths before accepting the body, enforces the existing
+16 KiB ceiling and invokes `parseCredSspTsRequest` at
+completion. The borrowed full-frame view exists only until
+explicit `releaseFrame`, terminal rejection, close or
+destruction, which zeroes the stored ciphertext.
+
+This component does not change the diagnostic's
+`PROTOCOL_SSL` security selection; no CredSSP packets are
+accepted over a live connection and no session is admitted.
+Future GSS authentication must consume this DER synchronously,
+verify binding and independently validate OS account/console
+authorization before an MCS state transition can occur.

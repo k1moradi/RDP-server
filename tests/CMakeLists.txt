@@ -61,6 +61,23 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("transport.${case_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
+    elseif(test_target STREQUAL "test_owned_credssp_tsrequest")
+        # Reuse the existing one binary: five previous semantic
+        # groups and three new streaming/boundary behaviors.
+        foreach(case_name IN ITEMS
+                credssp-der-basic
+                credssp-der-opaque
+                credssp-der-rejections
+                credssp-der-bounds
+                credssp-der-mutations
+                credssp-stream-fragments
+                credssp-stream-coalesced
+                credssp-stream-rejections)
+            add_test(NAME "security.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("security.${case_name}" PROPERTIES
+                LABELS "protocol;security")
+        endforeach()
     else()
         add_test(NAME "${suite}.${behavior}" COMMAND "${test_target}")
         set_tests_properties("${suite}.${behavior}" PROPERTIES

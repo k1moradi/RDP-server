@@ -70,4 +70,59 @@ struct TsRequestResult
 [[nodiscard]] TsRequestResult parseCredSspTsRequest(
     std::span<const std::uint8_t> der) noexcept;
 
+// Stream-only DER framing across arbitrarily split TLS plaintext.  This
+// decoder does not drive TLS or keep SPNEGO/GSS state and is NOT an
+// authentication/session authority. A complete DER view stays borrowed
+// only until releaseFrame()/close()/destruction; a future trusted GSS
+// provider must synchronously consume it before releasing the frame.
+enum class TsRequestFrameStatus : std::uint8_t
+{
+    NeedMore,
+    Complete,
+    Invalid,
+    Closed,
+};
+
+struct TsRequestFrameResult
+{
+    std::size_t bytesConsumed{};
+    TsRequestFrameStatus status{TsRequestFrameStatus::NeedMore};
+    TsRequestError error{TsRequestError::None};
+};
+
+class TsRequestFrameReader final
+{
+public:
+    TsRequestFrameReader() noexcept = default;
+    TsRequestFrameReader(const TsRequestFrameReader &) = delete;
+    TsRequestFrameReader &operator=(const TsRequestFrameReader &) = delete;
+    ~TsRequestFrameReader() { close(); }
+
+    // Consume at most ONE DER SEQUENCE, preserving trailing/coalesced
+    // plaintext for the caller. An untrusted malformed frame is terminal.
+    [[nodiscard]] TsRequestFrameResult consume(
+        std::span<const std::uint8_t> plaintext) noexcept;
+    // Exact next receive target: the uncompleted tag/length header, then
+    // the remaining DER content. Zero after Complete/Invalid/Closed.
+    [[nodiscard]] std::size_t bytesNeeded() const noexcept;
+    [[nodiscard]] std::span<const std::uint8_t> completeDer() const noexcept;
+    [[nodiscard]] TsRequestFrameStatus status() const noexcept
+    {
+        return status_;
+    }
+    // Only after a synchronous GSS/DER handoff; wipes all buffered bytes.
+    // This permits receiving the next CredSSP message but authorizes nothing.
+    [[nodiscard]] bool releaseFrame() noexcept;
+    void close() noexcept;
+
+private:
+    void clear() noexcept;
+    [[nodiscard]] TsRequestFrameResult reject(
+        std::size_t consumed, TsRequestError error) noexcept;
+    std::array<std::uint8_t, kMaximumCredSspRequestBytes> buffer_{};
+    std::size_t buffered_{};
+    std::size_t expected_{};
+    TsRequestFrameStatus status_{TsRequestFrameStatus::NeedMore};
+};
+
 } // namespace rdp_server::server::security

@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <vector>
 
 using namespace rdp_server::server::security;
@@ -241,6 +242,154 @@ void testOversizeAndTokenLimit()
     assert(!response && response.value.tokenCount == 0);
 }
 
+
+void testStreamAllFragmentBoundaries()
+{
+    const auto fixture = initialRequest();
+    for (std::size_t split = 0; split <= fixture.size(); ++split)
+    {
+        TsRequestFrameReader reader;
+        assert(reader.bytesNeeded() == 2);
+        const auto first = reader.consume(std::span(fixture).first(split));
+        assert(first.bytesConsumed == split);
+        if (split < fixture.size())
+        {
+            assert(first.status == TsRequestFrameStatus::NeedMore);
+            assert(reader.completeDer().empty());
+            assert(reader.bytesNeeded() > 0);
+            const auto second = reader.consume(
+                std::span(fixture).subspan(split));
+            assert(second.bytesConsumed == fixture.size() - split);
+            assert(second.status == TsRequestFrameStatus::Complete);
+        }
+        else
+            assert(first.status == TsRequestFrameStatus::Complete);
+        const auto frame = reader.completeDer();
+        assert(frame.size() == fixture.size());
+        assert(std::equal(frame.begin(), frame.end(), fixture.begin()));
+        const auto parsed = parseCredSspTsRequest(frame);
+        assert(parsed && parsed.value.initialNegoTokenOnly());
+        assert(parsed.value.tokenCount == 1);
+        assert(parsed.value.tokens[0].data() >= frame.data());
+        assert(reader.bytesNeeded() == 0);
+        assert(reader.releaseFrame());
+        assert(reader.completeDer().empty());
+        assert(reader.bytesNeeded() == 2);
+    }
+
+    // Exactly one byte per TLS callback, including initial DER header.
+    TsRequestFrameReader reader;
+    for (std::size_t i = 0; i < fixture.size(); ++i)
+    {
+        const auto event = reader.consume(std::span(fixture).subspan(i, 1));
+        assert(event.bytesConsumed == 1);
+        assert(event.status == (i + 1 == fixture.size()
+                 ? TsRequestFrameStatus::Complete
+                 : TsRequestFrameStatus::NeedMore));
+    }
+    assert(reader.completeDer().size() == fixture.size());
+}
+
+void testStreamCoalescedAndLongDer()
+{
+    const auto fixture = initialRequest();
+    const auto paired = append(fixture, fixture);
+    TsRequestFrameReader reader;
+    const auto first = reader.consume(paired);
+    assert(first.status == TsRequestFrameStatus::Complete);
+    assert(first.bytesConsumed == fixture.size());
+    assert(reader.completeDer().size() == fixture.size());
+    assert(reader.releaseFrame());
+    const auto second = reader.consume(std::span(paired).subspan(
+        first.bytesConsumed));
+    assert(second.status == TsRequestFrameStatus::Complete);
+    assert(second.bytesConsumed == fixture.size());
+    assert(reader.releaseFrame());
+
+    // The outer header must use canonical 0x81 then 0x82 DER lengths.
+    const auto medium = makeRequest(append(
+        version(6), octetContext(0xa2, Bytes(200, 0x41))));
+    const auto longForm = makeRequest(append(
+        version(6), octetContext(0xa2, Bytes(512, 0x52))));
+    const auto nearLimit = makeRequest(append(
+        version(6), octetContext(0xa2, Bytes(16000, 0x7e))));
+    assert(medium[0] == 0x30 && medium[1] == 0x81);
+    assert(longForm[0] == 0x30 && longForm[1] == 0x82);
+    assert(nearLimit.size() <= kMaximumCredSspRequestBytes);
+    assert(nearLimit[1] == 0x82);
+    for (const auto &input : {medium, longForm, nearLimit})
+    {
+        assert(parseCredSspTsRequest(input));
+        TsRequestFrameReader framed;
+        std::size_t position = 0;
+        while (position < input.size())
+        {
+            const auto bytes = (std::min)(std::size_t{37},
+                                          input.size() - position);
+            const auto update = framed.consume(
+                std::span(input).subspan(position, bytes));
+            assert(update.bytesConsumed == bytes);
+            position += update.bytesConsumed;
+            assert(update.status == (position == input.size()
+                 ? TsRequestFrameStatus::Complete
+                 : TsRequestFrameStatus::NeedMore));
+        }
+        const auto message = framed.completeDer();
+        assert(message.size() == input.size());
+        assert(std::equal(message.begin(), message.end(), input.begin()));
+        assert(framed.releaseFrame());
+        assert(framed.completeDer().empty());
+    }
+}
+
+void testStreamDerFailuresAndCancellation()
+{
+    // Invalid tag, indefinite length, unknown long form,
+    // nonminimal DER lengths, over-limit content, semantic invalidity.
+    const std::array<Bytes, 8> malformed{{
+        Bytes{0x31, 0x00},
+        Bytes{0x30, 0x80},
+        Bytes{0x30, 0x83, 0x00, 0x01, 0x00},
+        Bytes{0x30, 0x81, 0x7f},
+        Bytes{0x30, 0x82, 0x00, 0xff},
+        Bytes{0x30, 0x82, 0x00, 0x80},
+        Bytes{0x30, 0x82, 0x40, 0x01},
+        Bytes{0x30, 0x03, 0xa0, 0x01, 0x00},
+    }};
+    for (const auto &invalid : malformed)
+    {
+        TsRequestFrameReader reader;
+        const auto outcome = reader.consume(invalid);
+        assert(outcome.status == TsRequestFrameStatus::Invalid);
+        assert(outcome.error != TsRequestError::None);
+        assert(outcome.bytesConsumed <= invalid.size());
+        assert(reader.completeDer().empty());
+        assert(reader.bytesNeeded() == 0);
+        assert(!reader.releaseFrame());
+        assert(reader.consume(initialRequest()).status ==
+               TsRequestFrameStatus::Closed);
+    }
+
+    const auto fixture = initialRequest();
+    TsRequestFrameReader reader;
+    const auto incomplete = reader.consume(std::span(fixture).first(5));
+    assert(incomplete.status == TsRequestFrameStatus::NeedMore);
+    assert(incomplete.bytesConsumed == 5);
+    assert(reader.completeDer().empty());
+    assert(!reader.releaseFrame());
+    reader.close(); // EOF/timeout/peer cancellation before full DER.
+    assert(reader.bytesNeeded() == 0);
+    assert(reader.consume(fixture).status == TsRequestFrameStatus::Closed);
+
+    TsRequestFrameReader replay;
+    assert(replay.consume(fixture).status == TsRequestFrameStatus::Complete);
+    // A second TSRequest cannot overwrite a completed, borrowed frame.
+    const auto violation = replay.consume(fixture);
+    assert(violation.status == TsRequestFrameStatus::Invalid);
+    assert(violation.bytesConsumed == 0);
+    assert(replay.completeDer().empty());
+    assert(replay.consume(fixture).status == TsRequestFrameStatus::Closed);
+}
 void testAllByteMutationsRemainBounded()
 {
     const auto fixture = initialRequest();
@@ -270,11 +419,39 @@ void testAllByteMutationsRemainBounded()
 
 } // namespace
 
-int main()
+struct CredSspTestCase
 {
-    testBasicCredSspDer();
-    testCredentialsStayOpaque();
-    testRejectMalformedFields();
-    testOversizeAndTokenLimit();
-    testAllByteMutationsRemainBounded();
+    std::string_view name;
+    void (*run)();
+};
+constexpr std::array<CredSspTestCase, 8> kCredSspTests{{
+    {"credssp-der-basic", &testBasicCredSspDer},
+    {"credssp-der-opaque", &testCredentialsStayOpaque},
+    {"credssp-der-rejections", &testRejectMalformedFields},
+    {"credssp-der-bounds", &testOversizeAndTokenLimit},
+    {"credssp-der-mutations", &testAllByteMutationsRemainBounded},
+    {"credssp-stream-fragments", &testStreamAllFragmentBoundaries},
+    {"credssp-stream-coalesced", &testStreamCoalescedAndLongDer},
+    {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},
+}};
+
+int main(int argc, char **argv)
+{
+    if (argc == 1)
+    {
+        for (const auto &test : kCredSspTests)
+            test.run();
+        return 0;
+    }
+    if (argc != 2)
+        return 2;
+    for (const auto &test : kCredSspTests)
+    {
+        if (std::string_view(argv[1]) == test.name)
+        {
+            test.run();
+            return 0;
+        }
+    }
+    return 2;
 }

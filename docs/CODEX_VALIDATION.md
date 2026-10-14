@@ -563,3 +563,33 @@ acceptance, licensing/share activation or desktop.
 **Next:** real CredSSP/NLA and OS authorization in the
 single existing connection owner, then enforce MCS reply
 ordering and live transport admission.
+
+## First-party CredSSP TSRequest incremental framing (2026-10-14; CI NOT RUN)
+
+**Prior evidence:** main commit
+`7ffe0609fe25b15e07f1c49755a4b37b3b7a41b9`
+passed Linux/GCC, macOS/Clang, Windows/MSVC,
+documentation-policy, Debug/Release 39 CTests,
+downstream SDK consumer and all three packages in
+[CI 38590674716](https://github.com/k1moradi/RDP-server/actions/runs/38590674716).
+The owner reports all tests passed on that prior code,
+without attaching a new CTest log. Not verification of this
+implementation.
+
+**New implementation:** bounded `TsRequestFrameReader` in
+the existing `credssp_tsrequest` translation unit; exact
+DER frame intake across TLS plaintext fragments with
+canonical length checks, complete-frame non-replay,
+borrowed frame handoff and `OPENSSL_cleanse` on release,
+close or destructor. Tests reuse the existing CredSSP
+executable; three new named behaviors plus separate
+registration of five existing groups. Expected CTest total
+**46**. **NOT RUN:** new exact-head GCC/Clang/MSVC
+Debug/Release CI, SDK packaging, owner's local build,
+real GSS/SPNEGO handshake, TLS public-key binding,
+credential verification, OS session authorization,
+NLA security selection, MCS response emission,
+external client and desktop access.
+**Next:** cross-platform CI; then a trusted authenticated
+CredSSP/SPNEGO and OS authorization provider, integrated
+with the sole preauthentication owner.

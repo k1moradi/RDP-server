@@ -394,6 +394,34 @@ acceptance evidence; no synthetic completion claims.
   enforce MCS ordering, allocations and reply transmission.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
+  **CredSSP TSRequest decrypted-message framing increment (2026-10-14,
+  expected 46 CTests; exact-head CI NOT RUN):** extend the existing
+  first-party `credssp_tsrequest.{h,cpp}` with a fixed 16 KiB
+  `TsRequestFrameReader`, preserving DER SEQUENCE/length boundaries
+  across fragmented TLS application bytes, rejecting nonminimal,
+  indefinite, oversized and unsupported DER lengths *before*
+  large buffering, and leaving coalesced following-message bytes
+  unconsumed. Completed bytes and SPNEGO/credential fields remain
+  borrowed until explicit `releaseFrame()`; cancellation,
+  malformed input and destruction wipe owned ciphertext via
+  OpenSSL cleanse and terminate invalid frames. A second frame
+  cannot overwrite an unreleased first frame. Three new
+  behavior groups test every split, coalesced messages, DER
+  0x81/0x82 lengths (including large bounded frames), invalid
+  headers, EOF/cancellation and replay. Register the five
+  prior CredSSP behavior groups separately without creating
+  another executable (39 old registered CTests -> 46 expected).
+  **This is syntax-only:** no SPNEGO acceptor, Kerberos/NTLM
+  user authentication, version-5/6 TLS public-key binding,
+  nonce validation, credentials decryption, OS account/session
+  authorization, NLA X.224 negotiation or MCS admission is enabled.
+  The existing diagnostic still selects only PROTOCOL_SSL and
+  closes after MCS intake. **NOT RUN:** new exact-head CI,
+  owner's local updated build, external RDP clients or desktop.
+  **Next:** connect this bounded DER handoff to a real native
+  CredSSP/SPNEGO provider and verified OS authorization in the
+  sole connection owner; never treat a syntactically valid token
+  as an authentication capability.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

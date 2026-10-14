@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "credssp_tsrequest.h"
 
+#include <algorithm>
+#include <openssl/crypto.h>
+
 namespace rdp_server::server::security
 {
 namespace
@@ -253,6 +256,140 @@ TsRequestResult parseCredSspTsRequest(
         return failure(TsRequestError::InvalidFields);
     }
     return {info, TsRequestError::None};
+}
+
+
+void TsRequestFrameReader::clear() noexcept
+{
+    if (buffered_ != 0)
+    {
+        // Even opaque GSS/authInfo tokens may be sensitive: wipe their
+        // owned ciphertext before the next exchange or destruction.
+        OPENSSL_cleanse(buffer_.data(), buffered_);
+    }
+    buffered_ = 0;
+    expected_ = 0;
+}
+
+void TsRequestFrameReader::close() noexcept
+{
+    clear();
+    status_ = TsRequestFrameStatus::Closed;
+}
+
+TsRequestFrameResult TsRequestFrameReader::reject(
+    std::size_t consumed, TsRequestError error) noexcept
+{
+    close();
+    return {consumed, TsRequestFrameStatus::Invalid, error};
+}
+
+std::size_t TsRequestFrameReader::bytesNeeded() const noexcept
+{
+    if (status_ != TsRequestFrameStatus::NeedMore)
+        return 0;
+    if (expected_ != 0)
+        return expected_ - buffered_;
+    if (buffered_ < 2)
+        return 2 - buffered_;
+    const auto lengthByte = buffer_[1];
+    const std::size_t header = lengthByte < 128 ? 2 :
+                               lengthByte == 0x81 ? 3 : 4;
+    return header - buffered_;
+}
+
+std::span<const std::uint8_t>
+TsRequestFrameReader::completeDer() const noexcept
+{
+    if (status_ != TsRequestFrameStatus::Complete)
+        return {};
+    return std::span(buffer_).first(buffered_);
+}
+
+bool TsRequestFrameReader::releaseFrame() noexcept
+{
+    if (status_ != TsRequestFrameStatus::Complete)
+        return false;
+    clear();
+    status_ = TsRequestFrameStatus::NeedMore;
+    return true;
+}
+
+TsRequestFrameResult TsRequestFrameReader::consume(
+    std::span<const std::uint8_t> plaintext) noexcept
+{
+    if (status_ == TsRequestFrameStatus::Closed)
+        return {0, TsRequestFrameStatus::Closed, TsRequestError::None};
+    if (status_ != TsRequestFrameStatus::NeedMore)
+        return reject(0, TsRequestError::InvalidFields);
+
+    std::size_t consumed = 0;
+    for (;;)
+    {
+        if (expected_ == 0 && buffered_ >= 2)
+        {
+            if (buffer_[0] != 0x30)
+                return reject(consumed, TsRequestError::InvalidDer);
+            const std::uint8_t first = buffer_[1];
+            // 0x80 is indefinite BER (forbidden in DER); 0x83..ff
+            // are unsupported/noncanonical or fragmented lengths.
+            if (first >= 0x80 && first != 0x81 && first != 0x82)
+                return reject(consumed, TsRequestError::InvalidDer);
+            const std::size_t header = first < 128 ? 2 :
+                                       first == 0x81 ? 3 : 4;
+            if (buffered_ == header)
+            {
+                std::size_t payload = 0;
+                if (first < 128)
+                    payload = first;
+                else if (first == 0x81)
+                {
+                    payload = buffer_[2];
+                    if (payload < 128)
+                        return reject(consumed, TsRequestError::InvalidDer);
+                }
+                else
+                {
+                    payload = (static_cast<std::size_t>(buffer_[2]) << 8U) |
+                              buffer_[3];
+                    if (buffer_[2] == 0 || payload < 256)
+                        return reject(consumed, TsRequestError::InvalidDer);
+                }
+                if (payload > buffer_.size() - header)
+                    return reject(consumed, TsRequestError::InvalidDer);
+                expected_ = payload + header;
+            }
+        }
+
+        if (expected_ != 0 && buffered_ == expected_)
+        {
+            const auto parsed = parseCredSspTsRequest(
+                std::span(buffer_).first(buffered_));
+            if (!parsed)
+                return reject(consumed, parsed.error);
+            status_ = TsRequestFrameStatus::Complete;
+            return {consumed, TsRequestFrameStatus::Complete,
+                    TsRequestError::None};
+        }
+
+        if (consumed == plaintext.size())
+            return {consumed, TsRequestFrameStatus::NeedMore,
+                    TsRequestError::None};
+
+        // Validate tag before accepting its length; never buffer
+        // arbitrary peer bytes after a wrong DER SEQUENCE tag.
+        if (buffered_ == 1 && buffer_[0] != 0x30)
+            return reject(consumed, TsRequestError::InvalidDer);
+
+        const auto count = (std::min)(bytesNeeded(),
+                                      plaintext.size() - consumed);
+        if (count == 0 || count > buffer_.size() - buffered_)
+            return reject(consumed, TsRequestError::InvalidDer);
+        std::copy_n(plaintext.data() + consumed, count,
+                    buffer_.data() + buffered_);
+        buffered_ += count;
+        consumed += count;
+    }
 }
 
 } // namespace rdp_server::server::security

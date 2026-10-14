@@ -395,7 +395,7 @@ acceptance evidence; no synthetic completion claims.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
   **CredSSP TSRequest decrypted-message framing increment (2026-10-14,
-  expected 46 CTests; exact-head CI NOT RUN):** extend the existing
+  46 CTests; exact-head CI PASS):** extend the existing
   first-party `credssp_tsrequest.{h,cpp}` with a fixed 16 KiB
   `TsRequestFrameReader`, preserving DER SEQUENCE/length boundaries
   across fragmented TLS application bytes, rejecting nonminimal,
@@ -416,12 +416,22 @@ acceptance evidence; no synthetic completion claims.
   nonce validation, credentials decryption, OS account/session
   authorization, NLA X.224 negotiation or MCS admission is enabled.
   The existing diagnostic still selects only PROTOCOL_SSL and
-  closes after MCS intake. **NOT RUN:** new exact-head CI,
-  owner's local updated build, external RDP clients or desktop.
-  **Next:** connect this bounded DER handoff to a real native
-  CredSSP/SPNEGO provider and verified OS authorization in the
-  sole connection owner; never treat a syntactically valid token
-  as an authentication capability.
+  closes after MCS intake.
+  **PASS:** implementation
+  `c7f0463a3e11c8bd9fb6e8dfb404c3f1057d40cd`,
+  [CI run 38592588562](https://github.com/k1moradi/RDP-server/actions/runs/38592588562)
+  on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy:
+  Debug/Release full CTests, installed downstream SDK consumer
+  and all three ZIP/checksum package artifacts. Ubuntu logs
+  explicitly show **46/46 CTests PASS** in each build mode.
+  **NOT RUN:** owner's local build of updated code,
+  live CredSSP TSRequest TLS exchange, GSS/SPNEGO and
+  independently authenticated OS session, external client
+  or desktop acceptance.
+  **Next:** connect this bounded DER handoff to a real
+  CredSSP/SPNEGO provider and verified OS authorization in
+  the sole connection owner; never treat a syntactically
+  valid token as an authentication capability.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

@@ -428,3 +428,11 @@ or discard. A complete frame must not be overwritten by
 unexpected new input, even when the next input is itself
 syntactically valid. No change to NLA flags or authentication
 admission may be justified by framing correctness alone.
+
+**Cross-platform validation:** incremental CredSSP DER framing
+at `c7f0463a3e11c8bd9fb6e8dfb404c3f1057d40cd`
+passed [CI run 38592588562](https://github.com/k1moradi/RDP-server/actions/runs/38592588562)
+on Linux/GCC, macOS/Clang and Windows/MSVC,
+including Debug/Release 46 CTests and installed SDK/package
+gates. This is DER framing acceptance only; it does not
+authenticate identity or authorize OS/RDP session access.

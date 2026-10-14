@@ -523,7 +523,7 @@ logs explicitly show **39/39 PASS** in Debug and Release.
 This is protocol syntax verification, NOT authenticated session
 admission or real client interoperability.
 
-## Incremental TLS-decrypted CredSSP TSRequest DER framing (CI NOT RUN)
+## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 
 Keep the existing `test_owned_credssp_tsrequest.cpp` executable
 and register its previous five behavior groups separately,
@@ -543,3 +543,15 @@ and 4 extra registrations for existing groups). Ensure
 default no-argument invocation still executes all eight
 groups. Do not use synthetic SPNEGO tokens as evidence of
 Kerberos credentials, TLS binding or desktop admission.
+
+**PASS:** exact implementation
+`c7f0463a3e11c8bd9fb6e8dfb404c3f1057d40cd`,
+[CI run 38592588562](https://github.com/k1moradi/RDP-server/actions/runs/38592588562)
+passed Linux/GCC, macOS/Clang, Windows/MSVC and
+documentation-policy; Debug/Release full CTests,
+staged SDK installation, external compiled/linked/ran
+consumer, and three platform ZIP/SHA-256 package uploads.
+Ubuntu explicitly reports **46/46 PASS** in Debug and Release,
+including all three incremental DER-framing cases.
+**NOT RUN:** owner-local new build, live TLS NLA,
+Kerberos authentication or OS desktop authorization.

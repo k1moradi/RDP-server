@@ -584,12 +584,17 @@ borrowed frame handoff and `OPENSSL_cleanse` on release,
 close or destructor. Tests reuse the existing CredSSP
 executable; three new named behaviors plus separate
 registration of five existing groups. Expected CTest total
-**46**. **NOT RUN:** new exact-head GCC/Clang/MSVC
-Debug/Release CI, SDK packaging, owner's local build,
-real GSS/SPNEGO handshake, TLS public-key binding,
-credential verification, OS session authorization,
-NLA security selection, MCS response emission,
-external client and desktop access.
-**Next:** cross-platform CI; then a trusted authenticated
-CredSSP/SPNEGO and OS authorization provider, integrated
-with the sole preauthentication owner.
+**46**. **PASS:** exact implementation
+`c7f0463a3e11c8bd9fb6e8dfb404c3f1057d40cd`,
+[Actions run 38592588562](https://github.com/k1moradi/RDP-server/actions/runs/38592588562):
+Linux/GCC, macOS/Clang, Windows/MSVC and
+documentation-policy, both Debug/Release full CTests,
+installed downstream SDK consumer and three ZIP/SHA-256
+packages. Ubuntu explicitly logged **46/46 CTests PASS**
+in both configurations. No release tag or service activation.
+**NOT RUN:** owner's local updated build, real GSS/SPNEGO
+handshake, TLS public-key binding, credential verification,
+OS session authorization, NLA security selection, MCS
+response emission, external client and desktop access.
+**Next:** a trusted authenticated CredSSP/SPNEGO and OS
+authorization provider within the sole preauth owner.

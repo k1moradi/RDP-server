@@ -168,3 +168,19 @@ state, separate controller, socket listener or private protocol.
 passed GCC/Linux, Clang/macOS, MSVC/Windows, documentation-policy,
 all Debug/Release CTests, SDK consumer and packaging checks. This
 does not yet establish live network service or OS user admission.
+
+## Borrowed platform socket transport boundary (2026-10-14)
+
+Keep OS socket system headers inside the thin
+`nonblocking_tcp_adapter.cpp` implementation. The portable interface
+reports progress, would-block, EOF and hard failure explicitly;
+byte counts larger than the exact span offered are invalid. A
+preauth TCP read MUST request only the next needed TPKT header/body
+bytes (4 then length-4, at most 260 total) to avoid accidentally
+consuming a coalesced TLS ClientHello before the security reply
+is fully sent. A send MUST use only the owner's pending reply
+suffix and acknowledge exactly bytes written. On Windows the socket
+owner initializes Winsock, on BSD/macOS protects against SIGPIPE,
+and everywhere configures nonblocking mode, event readiness, lifecycle
+and close. The portable static library does not open a listener or
+authorize OS access.

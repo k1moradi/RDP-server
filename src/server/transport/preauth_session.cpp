@@ -169,6 +169,17 @@ bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
     return true;
 }
 
+std::size_t PreauthConnectionStream::connectionRequestBytesNeeded()
+    const noexcept
+{
+    if (stage() != PreauthStage::AwaitConnectionRequest)
+    {
+        return 0;
+    }
+    return bufferedBytes_ < 4 ? 4 - bufferedBytes_ :
+           expectedBytes_ - bufferedBytes_;
+}
+
 ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
     std::span<const std::uint8_t> receivedBytes) noexcept
 {

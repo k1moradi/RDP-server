@@ -250,3 +250,18 @@ on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
 Debug/Release CTests, installed SDK consumer and all platform
 ZIP/checksum gates passed. Ubuntu logged **21/21 PASS** twice.
 Live network, external clients, NLA and OS admission are NOT RUN.
+
+## Nonblocking TCP preauthentication adapter (CI pending)
+
+The existing `test_owned_preauth_session` executable adds two
+independent behavior-named CTests: `transport.tcp-adapter-fragments`
+and `transport.tcp-adapter-backpressure`. A scripted socket interface
+simulates exact partial recv/send progress, would-block, every split
+of the 19-byte Connection Request, one-byte reads/writes,
+coalesced ClientHello preservation, rejected negotiation Failure
+output, malformed TPKT, EOF/hard read/write failures, invalid
+overreported byte counts and terminal connection closure.
+The native Winsock and POSIX adapters are cross-compiled but not
+connected to an active OS TCP listener by this regression.
+Expected CTest total **23**, previously 21; authentication, actual
+network peers, TLS network pump and desktop remain NOT RUN.

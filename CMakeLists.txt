@@ -48,6 +48,7 @@ add_library(rdp-server-protocol STATIC
     src/server/transport/gcc_conference_create.cpp
     src/server/transport/security_negotiation.cpp
     src/server/transport/preauth_session.cpp
+    src/server/transport/nonblocking_tcp_adapter.cpp
     src/server/security/base64_codec.cpp
     src/server/security/credssp_tsrequest.cpp
     src/server/security/credssp_credentials.cpp
@@ -69,6 +70,11 @@ target_include_directories(rdp-server-protocol PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/rdp-server/server>")
 target_link_libraries(rdp-server-protocol PUBLIC
     OpenSSL::Crypto OpenSSL::SSL)
+# Native nonblocking TCP is a thin platform adapter. The portable RDP
+# connection owner and its protocol/authorization semantics stay shared.
+if(WIN32)
+    target_link_libraries(rdp-server-protocol PUBLIC ws2_32)
+endif()
 if(MSVC)
     target_compile_options(rdp-server-protocol PRIVATE /W4)
 else()

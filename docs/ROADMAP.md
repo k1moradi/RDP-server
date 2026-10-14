@@ -160,6 +160,19 @@ acceptance evidence; no synthetic completion claims.
   configurations. **NOT RUN:** owner-local new build, real TCP listener,
   external clients, NLA, OS admission, desktop interaction.
   **Next:** nonblocking network adapter and authenticated RDP session.
+  **Native nonblocking TCP adapter increment (CI pending):**
+  `PreauthTcpAdapter` wraps the existing sole preauth owner and drives
+  exact-prefix 4-byte TPKT/declared request `recv`, followed by the
+  byte-accurate pending X.224 Confirm/Failure `send`. A thin native
+  socket adapter maps Linux/macOS/BSD and Windows recv/send errors to
+  nonblocking outcomes. No extra encrypted TLS records can be read
+  prematurely, even if coalesced on TCP. Scripted event-loop regressions
+  exercise all 20 CR split positions, one-byte reads/writes, would-block,
+  corrupted headers, EOF, short output, overreported counts, complete
+  NEG_FAILURE and cancellation. **Expected 23 CTests; CI NOT RUN.**
+  This is NOT an activated listener, full TLS network pump,
+  CredSSP/NLA or authenticated desktop. Next: trusted TLS socket
+  lifecycle + authentication and MCS Connect-Response.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

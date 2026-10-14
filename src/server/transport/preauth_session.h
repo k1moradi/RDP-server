@@ -118,6 +118,11 @@ public:
     [[nodiscard]] ConnectionIntakeResult consumeConnectionRequest(
         std::span<const std::uint8_t> receivedBytes) noexcept;
 
+    // Exact next TCP receive size for the initial CR's TPKT header/body.
+    // Enables adapters to avoid reading ahead into TLS data at all.
+    // Zero means no plaintext Connection Request should be read.
+    [[nodiscard]] std::size_t connectionRequestBytesNeeded() const noexcept;
+
     // The sole connection owner stores the exact 19-byte X.224 response.
     // Send ONLY the pending suffix and acknowledge the byte count actually
     // accepted by the socket. Zero means would-block; hard errors call close().

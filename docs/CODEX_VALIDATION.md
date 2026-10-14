@@ -269,3 +269,21 @@ Ubuntu's Debug and Release CTests each logged **21/21 PASS**.
 MCS Connect-Response, external clients, OS/desktop authorization.
 **First remaining boundary:** native nonblocking socket adapter
 and authenticated RDP session lifecycle.
+
+## Portable preauth TCP adapter (pending exact-head CI)
+
+New `src/server/transport/nonblocking_tcp_adapter.{h,cpp}`
+provides `NativeTcpIo` borrowed nonblocking Winsock/POSIX
+socket calls, and `PreauthTcpAdapter` which drives the sole
+existing `PreauthConnectionStream` state machine with exact
+first-request prefix reads and bounded X.224 reply writes.
+The existing native test binary registers two independent
+behavior CTests for fragments/backpressure and rejected failure
+output; expected CTest count increases from **21 to 23**.
+
+**NOT RUN:** exact-head GitHub Linux/GCC, macOS/Clang, Windows/MSVC
+Debug/Release CI, owner's post-change local build, actual network
+listener/socket runtime, TLS network handshake, CredSSP/NLA,
+MCS responses, OS admission or real RDP client.
+**Next gate:** all hosted CTests, documentation-policy, installed
+SDK consumer and CPack ZIP on the exact implementation commit.

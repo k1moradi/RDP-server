@@ -125,3 +125,18 @@ response to drain, then closes; on `RDP_NEG_RSP` it permits TLS
 only after every byte has been acknowledged. Hard socket failures
 abort the stream. This is a portable I/O boundary, not an
 active network listener, TLS credential verifier or OS admission.
+
+### Nonblocking native X.224 socket boundary (2026-10-14)
+
+`PreauthTcpAdapter` contains one preauthentication owner and a
+borrowed `TcpNonblockingIo` adapter. The platform-native
+`NativeTcpIo` delegates to recv/send (Winsock or POSIX) without
+binding, listening, owning a socket or activating any service.
+The caller must create an already-connected nonblocking socket,
+drive readable/writable readiness on a single event loop,
+and configure SIGPIPE handling where required. The adapter reads
+exactly the missing TPKT header/body bytes, leaving any early TLS
+ClientHello record in the native TCP buffer. It drains the existing
+19-byte RDP_NEG_RSP/RDP_NEG_FAILURE on writability, then signals
+ready-for-TLS or terminal close. It cannot establish a TLS session,
+authenticate an OS identity or construct an MCS domain.

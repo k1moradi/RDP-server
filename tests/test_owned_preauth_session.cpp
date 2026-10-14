@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "transport/preauth_session.h"
+#include "transport/nonblocking_tcp_adapter.h"
 #include "transport/tpkt_x224.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <fstream>
@@ -767,6 +769,190 @@ void testConnectionRequestLengthRejectionAndClose()
 
 } // namespace
 
+
+class ScriptedTcp final : public TcpNonblockingIo
+{
+public:
+    std::vector<std::uint8_t> inbound{};
+    std::vector<std::uint8_t> outbound{};
+    std::size_t readOffset{};
+    std::size_t readLimit{260};
+    std::size_t writeLimit{19};
+    std::size_t largestRead{};
+    bool blockRead{};
+    bool blockWrite{};
+    bool eofRead{};
+    bool failRead{};
+    bool failWrite{};
+    bool overreportRead{};
+    bool overreportWrite{};
+    bool zeroProgressRead{};
+    bool zeroProgressWrite{};
+
+    [[nodiscard]] TcpIoResult receive(
+        std::span<std::uint8_t> destination) noexcept override
+    {
+        largestRead = (std::max)(largestRead, destination.size());
+        if (overreportRead)
+            return {TcpIoOutcome::Progress, destination.size() + 1};
+        if (failRead) return {TcpIoOutcome::Failure, 0};
+        if (eofRead) return {TcpIoOutcome::EndOfStream, 0};
+        if (zeroProgressRead) return {TcpIoOutcome::Progress, 0};
+        if (blockRead) return {TcpIoOutcome::WouldBlock, 0};
+        const std::size_t available = inbound.size() - readOffset;
+        const auto count = (std::min)(
+            (std::min)(destination.size(), readLimit), available);
+        if (!count) return {TcpIoOutcome::WouldBlock, 0};
+        std::copy_n(inbound.begin() + readOffset, count, destination.begin());
+        readOffset += count;
+        return {TcpIoOutcome::Progress, count};
+    }
+
+    [[nodiscard]] TcpIoResult send(
+        std::span<const std::uint8_t> source) noexcept override
+    {
+        if (overreportWrite)
+            return {TcpIoOutcome::Progress, source.size() + 1};
+        if (failWrite) return {TcpIoOutcome::Failure, 0};
+        if (zeroProgressWrite) return {TcpIoOutcome::Progress, 0};
+        if (blockWrite) return {TcpIoOutcome::WouldBlock, 0};
+        const auto count = (std::min)(source.size(), writeLimit);
+        if (!count) return {TcpIoOutcome::WouldBlock, 0};
+        outbound.insert(outbound.end(), source.begin(), source.begin() + count);
+        return {TcpIoOutcome::Progress, count};
+    }
+};
+
+void testTcpAdapterFragmentedIo()
+{
+    const auto req = validRequestWire();
+    for (std::size_t split = 0; split <= req.size(); ++split)
+    {
+        ScriptedTcp tcp;
+        tcp.inbound.assign(req.begin(), req.begin() + split);
+        tcp.readLimit = 1;
+        tcp.writeLimit = 1;
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onWritable() == TcpPreauthEvent::NeedRead);
+        assert(adapter.onReadable() ==
+               (split == req.size() ? TcpPreauthEvent::NeedWrite
+                                    : TcpPreauthEvent::NeedRead));
+        assert(tcp.readOffset == split);
+        tcp.inbound.insert(tcp.inbound.end(),
+                           req.begin() + split, req.end());
+        // Simulate a TCP segment that also contains the first TLS
+        // ClientHello bytes. Neither native recv nor the parser may
+        // consume them as an X.224 Connection Request.
+        constexpr std::array<std::uint8_t, 5> tlsPrefix{
+            0x16, 0x03, 0x03, 0, 0x05};
+        tcp.inbound.insert(tcp.inbound.end(), tlsPrefix.begin(),
+                           tlsPrefix.end());
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(tcp.readOffset == req.size());
+        assert(tcp.largestRead <= 15);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(tcp.readOffset == req.size());
+
+        tcp.blockWrite = true;
+        assert(adapter.onWritable() == TcpPreauthEvent::NeedWrite);
+        assert(tcp.outbound.empty());
+        tcp.blockWrite = false;
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.onReadable() == TcpPreauthEvent::ReadyForTls);
+        assert(tcp.outbound.size() == 19);
+        const auto expected = negotiateDiagnosticTls(validRequest()).packet;
+        assert(std::equal(tcp.outbound.begin(), tcp.outbound.end(),
+                          expected.begin()));
+        assert(tcp.inbound.size() - tcp.readOffset == tlsPrefix.size());
+        assert(std::equal(tcp.inbound.begin() + tcp.readOffset,
+                          tcp.inbound.end(), tlsPrefix.begin()));
+        assert(adapter.connection().onTlsHandshake(
+            completedTls().server.get()));
+        adapter.close();
+        assert(adapter.onReadable() == TcpPreauthEvent::Closed);
+    }
+}
+
+void testTcpAdapterFailureAndBackpressure()
+{
+    const auto request = validRequestWire();
+
+    // The exact same native output path carries NEG_FAILURE to completion,
+    // with no possibility of starting TLS on rejected security.
+    {
+        auto unsupported = request;
+        unsupported[15] = 0;
+        ScriptedTcp tcp;
+        tcp.inbound.assign(unsupported.begin(), unsupported.end());
+        tcp.readLimit = 2;
+        tcp.writeLimit = 2;
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+        assert(adapter.onWritable() == TcpPreauthEvent::Closed);
+        const auto expected = negotiateDiagnosticTls(
+            parseConnectionRequest(unsupported)).packet;
+        assert(tcp.outbound.size() == 19);
+        assert(std::equal(tcp.outbound.begin(), tcp.outbound.end(),
+                          expected.begin()));
+        assert(adapter.onWritable() == TcpPreauthEvent::Closed);
+    }
+
+    // Incomplete I/O, EOF and poisoned callback results fail closed.
+    for (int fault = 0; fault < 4; ++fault)
+    {
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter(tcp);
+        if (fault == 0) tcp.eofRead = true;
+        if (fault == 1) tcp.failRead = true;
+        if (fault == 2) tcp.overreportRead = true;
+        if (fault == 3) tcp.zeroProgressRead = true;
+        assert(adapter.onReadable() == TcpPreauthEvent::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+        assert(tcp.outbound.empty());
+    }
+    for (int fault = 0; fault < 3; ++fault)
+    {
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        if (fault == 0) tcp.failWrite = true;
+        if (fault == 1) tcp.overreportWrite = true;
+        if (fault == 2) tcp.zeroProgressWrite = true;
+        assert(adapter.onWritable() == TcpPreauthEvent::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+        assert(adapter.connection().pendingConnectionReply().empty());
+    }
+    {
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        tcp.blockRead = true;
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedRead);
+        assert(tcp.readOffset == 0);
+        tcp.blockRead = false;
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        tcp.writeLimit = 3;
+        tcp.blockWrite = true;
+        assert(adapter.onWritable() == TcpPreauthEvent::NeedWrite);
+        assert(tcp.outbound.empty());
+        tcp.blockWrite = false;
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(tcp.outbound.size() == 19);
+    }
+    {
+        ScriptedTcp tcp;
+        auto malformed = request;
+        malformed[0] = 4;
+        tcp.inbound.assign(malformed.begin(), malformed.end());
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::Invalid);
+        assert(tcp.readOffset == 4);
+        assert(tcp.outbound.empty());
+    }
+}
 void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
@@ -836,12 +1022,14 @@ struct PreauthTestCase
 // Keep one executable/fixture implementation but expose independent
 // behavior-named CTest cases to make regressions visible in CTest output.
 // Running without an argument still executes the complete native suite.
-constexpr std::array<PreauthTestCase, 11> kPreauthTestCases{{
+constexpr std::array<PreauthTestCase, 13> kPreauthTestCases{{
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
     {"x224-confirm-write-order", &testConnectionReplyMustBeSentBeforeTls},
     {"x224-confirm-partial-writes", &testPartialConnectionReplyWrites},
+    {"tcp-adapter-fragments", &testTcpAdapterFragmentedIo},
+    {"tcp-adapter-backpressure", &testTcpAdapterFailureAndBackpressure},
     {"tls-handshake-gate", &testRealTlsTransportGate},
     {"x224-length-and-close", &testConnectionRequestLengthRejectionAndClose},
     {"mcs-decrypted-fragments", &testIncrementalDecryptedMcsIntake},

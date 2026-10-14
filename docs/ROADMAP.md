@@ -262,6 +262,26 @@ acceptance evidence; no synthetic completion claims.
   MCS Connect-Response, OS authorization and desktop.
   **Next:** authenticated session policy and the standards-compliant
   MCS server response.
+  **Next protocol increment — T.125 MCS domain negotiation
+  (pending exact-head CI):** the first-party
+  `mergeMcsDomainParameters` implements Microsoft's
+  [MS-RDPBCGR 3.3.5.3.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/7617f746-95c9-4a6e-808d-e2f642471e86)
+  eight-field target/minimum/maximum negotiation. The BER parser now
+  allows min/max protocol versions other than 2 if they can negotiate
+  version 2; the existing preauth diagnostic requires a successful
+  merge, otherwise closes without MCS admission. Two NEW domain
+  behavior tests cover the published Microsoft client fixture,
+  each required fallback, unsupported version and all rejection
+  branches. The four existing Connect-Initial test groups are
+  individually registered without duplicating the executable:
+  expected CTest total **32** (previously 27; two new behaviors,
+  three additional registrations of existing behaviors).
+  **NOT RUN:** exact-head CI, owner's local build of this change,
+  independently authenticated NLA/OS identity, MCS Connect-Response,
+  external RDP client and desktop access.
+  **Next:** build and validate a bounded server MCS Connect-Response
+  with authentic GCC server settings, then enforce authenticated
+  session ownership before emitting it.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

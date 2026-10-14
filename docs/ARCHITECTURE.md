@@ -176,3 +176,19 @@ to 127.0.0.1 port 0, accepts one peer and closes the listener
 before TLS; no installed daemon or persistent listening service.
 Credential verification, OS identity and MCS server response remain
 unimplemented.
+
+### T.125 Connect-Initial domain parameter negotiation (2026-10-14)
+
+The existing MCS/GCC parser and **same** preauthentication diagnostic
+now apply the eight-field `MergeDomainParameters` rules from
+[MS-RDPBCGR 3.3.5.3.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/7617f746-95c9-4a6e-808d-e2f642471e86)
+after a complete decrypted Connect-Initial and before treating
+the envelope as validated. Channel/user counts, token IDs,
+priorities, throughput, height, max PDU size and protocol version
+are merged from client target/min/max sets; the result is a
+**value only** and neither allocates channels nor creates
+an MCS domain. BER decoding accepts syntactically valid minimum
+and maximum protocol-version integers, while negotiation still
+requires effective version 2. On merge failure the existing
+preauth owner closes as before. No Connect-Response, CredSSP
+account identity, OS authorization or desktop is produced.

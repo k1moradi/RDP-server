@@ -586,6 +586,21 @@ void testRejectedDecryptedMcsBoundaries()
         assert(connection.stage() == PreauthStage::Closed);
     }
 
+    // A BER-valid client domain proposal which cannot negotiate
+    // RDP's protocolVersion 2 must fail closed after the full TPKT.
+    auto unsupportedDomain = reference;
+    unsupportedDomain[47] = 3;
+    unsupportedDomain[74] = 3;
+    unsupportedDomain[104] = 3;
+    assert(parseMcsConnectInitial(unsupportedDomain));
+    PreauthConnectionStream invalidDomain;
+    advanceToMcs(invalidDomain);
+    const auto invalidMerge =
+        invalidDomain.consumeDecryptedMcsConnectInitial(unsupportedDomain);
+    assert(invalidMerge.bytesConsumed == reference.size());
+    assert(invalidMerge.status == McsIntakeStatus::Invalid);
+    assert(invalidDomain.stage() == PreauthStage::Closed);
+
     auto hostileBer = reference;
     hostileBer[7] = 0; // Not BER APPLICATION 101 (0x7F 0x65).
     PreauthConnectionStream badBer;

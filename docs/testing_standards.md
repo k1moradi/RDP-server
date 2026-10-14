@@ -376,3 +376,23 @@ callback errors or spin in production code.
 [Actions run 38579350917](https://github.com/k1moradi/RDP-server/actions/runs/38579350917)
 at `7ce64737ccef439af2f0cfd383208181cc0e9513`.
 The owner's new local run and real external clients remain NOT RUN.
+
+## MCS Connect-Initial domain negotiation (CI pending)
+
+Reuse `tests/test_owned_mcs_connect_initial.cpp` and the existing
+Microsoft 416-byte fixture; no new test binary or runtime
+connection controller. Test the eight-field
+`mergeMcsDomainParameters` against the documented 34/3/65528
+domain result, target/min/max fallback paths, protocolVersion
+2 bracketed by non-2 min/max BER values, and each of eight
+failure branches with zeroed result. Also feed an otherwise
+valid Connect-Initial with mutually incompatible protocol
+versions into the existing preauthentication diagnostic and
+assert terminal invalid framing/close.
+Register the four existing envelope behaviors individually
+and two new domain behaviors as six CTests in the canonical
+test registry: expected total **32** vs 27 (two new
+behaviors, four existing now registered separately instead
+of one group). Preserve no-argument execution of all six tests.
+An offline domain merge is not an MCS Connect-Response, an
+authenticated server or live-client acceptance.

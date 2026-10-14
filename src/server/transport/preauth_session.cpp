@@ -47,7 +47,7 @@ bool PreauthSession::onEncryptedMcsConnectInitial(
         return false;
     }
     const auto parsed = parseMcsConnectInitial(packet);
-    if (!parsed)
+    if (!parsed || !mergeMcsDomainParameters(parsed.value))
     {
         return false;
     }

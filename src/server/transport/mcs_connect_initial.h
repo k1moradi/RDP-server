@@ -37,6 +37,22 @@ struct McsConnectInitial
     std::span<const std::uint8_t> gccUserData{};
 };
 
+// T.125/MS-RDPBCGR 3.3.5.3.3 domain negotiation runs only after a
+// complete Connect-Initial has been parsed. No domain is allocated here.
+struct McsDomainMergeResult
+{
+    McsDomainParameters value{};
+    bool accepted{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return accepted;
+    }
+};
+
+[[nodiscard]] McsDomainMergeResult mergeMcsDomainParameters(
+    const McsConnectInitial &requested) noexcept;
+
 struct McsParseResult
 {
     McsConnectInitial value{};

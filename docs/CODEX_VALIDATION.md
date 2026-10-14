@@ -428,3 +428,27 @@ OS desktop authorization or graphics.
 **Next:** authenticated RDP session sequencing and real server-side
 MCS response, without confusing local transport security with OS
 authorization.
+
+## MCS domain parameter merge (2026-10-14; pending exact-head CI)
+
+User-provided owner-local Linux Debug build and CTest on
+`03d72824e87c5f6e608e1d27ff2711bb8a88b1e0`:
+**PASS 27/27** with the sole persistent
+`~/rdp-server/build/`. This evidence predates the new change.
+
+The implementation extends the maintained MCS Connect-Initial
+parser with Microsoft MS-RDPBCGR 3.3.5.3.3/T.125 domain
+parameter merge. It returns a value only, never admits an OS
+session, allocates channels or sends a response. The existing
+preauth owner now rejects a BER-valid MCS Connect-Initial if
+its requested domain cannot negotiate version 2 or any
+required domain minimum. Four existing MCS test behavior
+groups are reported separately, with two new groups for
+negotiation and malformed values; expected **32 CTests**.
+
+**NOT RUN:** CI on exact new implementation SHA,
+owner-local updated build, authenticated CredSSP/NLA/OS
+identity, MCS Connect-Response, external Microsoft clients
+and desktop access. First next wire boundary: bounded
+standards-compliant server MCS Connect-Response and GCC
+Conference Create Response, gated by secure authorization.

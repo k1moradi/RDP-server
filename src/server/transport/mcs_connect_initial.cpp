@@ -109,8 +109,10 @@ struct BerReader
             return false;
         }
     }
-    // MCS protocol version 2 is the RDP implementation's only target.
-    return integers.exhausted() && parameters.values[7] == 2;
+    // Minimum/maximum protocolVersion may bracket 2, even when
+    // individual parameter sets do not equal 2. Enforce the
+    // negotiated result in mergeMcsDomainParameters(), not here.
+    return integers.exhausted();
 }
 
 } // namespace
@@ -193,6 +195,71 @@ McsParseResult parseMcsConnectInitial(
         result.value = {};
         return result;
     }
+    return result;
+}
+
+McsDomainMergeResult mergeMcsDomainParameters(
+    const McsConnectInitial &requested) noexcept
+{
+    // MS-RDPBCGR 3.3.5.3.3, MergeDomainParameters. Use no untrusted
+    // parameter to allocate buffers, register channels or admit users.
+    const auto &target = requested.target.values;
+    const auto &minimum = requested.minimum.values;
+    const auto &maximum = requested.maximum.values;
+    McsDomainMergeResult result{};
+    auto &out = result.value.values;
+
+    // maxChannelIds
+    if (target[0] >= 4)
+        out[0] = target[0];
+    else if (maximum[0] >= 4)
+        out[0] = 4;
+    else
+        return {};
+
+    // maxUserIds
+    if (target[1] >= 3)
+        out[1] = target[1];
+    else if (maximum[1] >= 3)
+        out[1] = 3;
+    else
+        return {};
+
+    out[2] = target[2]; // maxTokenIds
+
+    // numPriorities (RDP uses one).
+    if (minimum[3] > 1)
+        return {};
+    out[3] = 1;
+
+    out[4] = target[4]; // minThroughput
+
+    // maxHeight (RDP uses one).
+    if (target[5] != 1 && minimum[5] > 1)
+        return {};
+    out[5] = 1;
+
+    // maxMCSPDUsize
+    if (target[6] >= 124)
+    {
+        if (target[6] <= 65528)
+            out[6] = target[6];
+        else if (minimum[6] >= 124 && minimum[6] <= 65528)
+            out[6] = 65528;
+        else
+            return {};
+    }
+    else if (maximum[6] >= 124)
+        out[6] = maximum[6];
+    else
+        return {};
+
+    // protocolVersion: only version 2 is supported, either requested
+    // directly or bracketed by client's minimum and maximum.
+    if (target[7] != 2 && (minimum[7] > 2 || maximum[7] < 2))
+        return {};
+    out[7] = 2;
+    result.accepted = true;
     return result;
 }
 

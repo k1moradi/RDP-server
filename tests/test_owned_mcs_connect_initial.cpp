@@ -13,6 +13,7 @@
 #include <sstream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace rdp_server::server::transport;
@@ -121,6 +122,105 @@ void testBerLengthsAndType()
     assert(!parseMcsConnectInitial(packet));
 }
 
+
+void testMicrosoftDomainNegotiation()
+{
+    const auto packet = publishedFixture();
+    const auto parsed = parseMcsConnectInitial(packet);
+    assert(parsed);
+    const auto result = mergeMcsDomainParameters(parsed.value);
+    assert(result);
+    // Published client target: 34 channels, 2 users, 65535 MCS PDU.
+    // MS-RDPBCGR requires at least 3 users and clamps PDU to 65528
+    // when the client's minimum permits it.
+    const std::array<std::uint32_t, 8> expected{
+        34, 3, 0, 1, 0, 1, 65528, 2};
+    assert(result.value.values == expected);
+
+    // Successful fallback to target/min/max rules, without allocating
+    // or registering any domain/channel from the merged 32-bit values.
+    McsConnectInitial client{};
+    client.target.values = {3, 2, 9, 7, 17, 2, 123, 3};
+    client.minimum.values = {0, 0, 0, 1, 0, 1, 124, 1};
+    client.maximum.values = {4, 3, 0, 1, 0, 1, 1056, 4};
+    const auto fallback = mergeMcsDomainParameters(client);
+    assert(fallback);
+    const std::array<std::uint32_t, 8> fallbackExpected{
+        4, 3, 9, 1, 17, 1, 1056, 2};
+    assert(fallback.value.values == fallbackExpected);
+
+    // A valid BER Connect-Initial can carry min/max protocol versions
+    // other than 2, provided the final negotiated version is 2.
+    auto varied = packet;
+    varied[47] = 3;  // target protocolVersion
+    varied[74] = 1;  // minimum protocolVersion
+    varied[104] = 3; // maximum protocolVersion
+    const auto parsedVaried = parseMcsConnectInitial(varied);
+    assert(parsedVaried);
+    assert(mergeMcsDomainParameters(parsedVaried.value));
+    assert(mergeMcsDomainParameters(parsedVaried.value).value.values[7] == 2);
+}
+
+void testMcsDomainNegotiationRejections()
+{
+    McsConnectInitial valid{};
+    valid.target.values = {34, 3, 0, 1, 0, 1, 65528, 2};
+    valid.minimum.values = {1, 1, 0, 1, 0, 1, 124, 1};
+    valid.maximum.values = {34, 3, 0, 1, 0, 1, 65528, 3};
+    assert(mergeMcsDomainParameters(valid));
+
+    // Every normative failure branch rejects with an empty result,
+    // never a partially initialized domain configuration.
+    auto mustReject = [&](const McsConnectInitial &invalid)
+    {
+        const auto rejected = mergeMcsDomainParameters(invalid);
+        assert(!rejected);
+        assert((rejected.value.values ==
+                std::array<std::uint32_t, 8>{}));
+    };
+    auto v = valid;
+    v.target.values[0] = 3;
+    v.maximum.values[0] = 3;
+    mustReject(v);
+    v = valid;
+    v.target.values[1] = 2;
+    v.maximum.values[1] = 2;
+    mustReject(v);
+    v = valid;
+    v.minimum.values[3] = 2;
+    mustReject(v);
+    v = valid;
+    v.target.values[5] = 2;
+    v.minimum.values[5] = 2;
+    mustReject(v);
+    v = valid;
+    v.target.values[6] = 65529;
+    v.minimum.values[6] = 123;
+    mustReject(v);
+    v = valid;
+    v.target.values[6] = 123;
+    v.maximum.values[6] = 123;
+    mustReject(v);
+    v = valid;
+    v.target.values[7] = 3;
+    v.minimum.values[7] = 3;
+    mustReject(v);
+    v = valid;
+    v.target.values[7] = 3;
+    v.maximum.values[7] = 1;
+    mustReject(v);
+
+    // Out-of-target versions are syntactically BER-valid but must not
+    // become an accepted RDP version after domain negotiation.
+    auto packet = publishedFixture();
+    packet[47] = 3;
+    packet[74] = 3;
+    packet[104] = 3;
+    const auto parsed = parseMcsConnectInitial(packet);
+    assert(parsed);
+    mustReject(parsed.value);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -139,10 +239,40 @@ void testInputMutationsRemainBounded()
 
 } // namespace
 
-int main()
+struct McsTestCase
 {
-    testRealMicrosoftConnectionEnvelope();
-    testInvalidOuterTransport();
-    testBerLengthsAndType();
-    testInputMutationsRemainBounded();
+    std::string_view name;
+    void (*run)();
+};
+
+// No new executable or fixture owner; expose independent behaviors in
+// the canonical CTest registry. Unknown case names must not pass.
+constexpr std::array<McsTestCase, 6> kMcsTestCases{{
+    {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
+    {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
+    {"mcs-envelope-ber-errors", &testBerLengthsAndType},
+    {"mcs-envelope-mutations", &testInputMutationsRemainBounded},
+    {"mcs-domain-merge", &testMicrosoftDomainNegotiation},
+    {"mcs-domain-rejections", &testMcsDomainNegotiationRejections},
+}};
+
+int main(int argc, char **argv)
+{
+    if (argc == 1)
+    {
+        for (const auto &test : kMcsTestCases)
+            test.run();
+        return 0;
+    }
+    if (argc != 2)
+        return 2;
+    for (const auto &test : kMcsTestCases)
+    {
+        if (std::string_view{argv[1]} == test.name)
+        {
+            test.run();
+            return 0;
+        }
+    }
+    return 2;
 }

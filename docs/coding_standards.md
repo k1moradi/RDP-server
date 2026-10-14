@@ -261,3 +261,20 @@ Debug/Release 27 registered CTests and SDK consumer/package gates.
 Short-lived native TCP loopback traffic and encrypted OpenSSL
 records were exercised; user authorization and real external
 RDP client interoperability are NOT RUN.
+
+## MS-RDPBCGR/T.125 MCS domain merge (2026-10-14)
+
+For Connect-Initial processing, follow Microsoft's published
+[MergeDomainParameters algorithm](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/7617f746-95c9-4a6e-808d-e2f642471e86)
+rather than assuming the target set can be copied to the server
+response. Apply the precise minimums (four channels, three users,
+one priority and one domain hierarchy level), bounds on
+maxMCSPDUsize, and effective protocolVersion 2. The minimum and
+maximum protocolVersion BER fields are individually legal without
+being 2; reject when their range cannot negotiate 2. Reject any
+merge failure **before** channel/domain allocation or a response;
+return an empty value so callers cannot reuse partial negotiation
+state. A successful merge does not authenticate credentials or
+authorize an OS session. Never allocate according to client
+advertised 32-bit quantities without a later independent budget
+and real-user admission gate.

@@ -13,7 +13,22 @@ function(add_rdp_test source_file suite behavior)
     else()
         target_compile_options("${test_target}" PRIVATE -UNDEBUG)
     endif()
-    if(test_target STREQUAL "test_owned_preauth_session")
+    if(test_target STREQUAL "test_owned_mcs_connect_initial")
+        # Split four existing envelope behavior groups, plus two new
+        # T.125 domain-negotiation groups, from the SAME executable.
+        foreach(case_name IN ITEMS
+                mcs-envelope-microsoft
+                mcs-envelope-tpkt-errors
+                mcs-envelope-ber-errors
+                mcs-envelope-mutations
+                mcs-domain-merge
+                mcs-domain-rejections)
+            add_test(NAME "transport.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("transport.${case_name}" PROPERTIES
+                LABELS "protocol;transport")
+        endforeach()
+    elseif(test_target STREQUAL "test_owned_preauth_session")
         # Seventeen behavior groups from ONE existing executable: no duplicate
         # compilation, executables, state controllers or fixture sources.
         foreach(case_name IN ITEMS

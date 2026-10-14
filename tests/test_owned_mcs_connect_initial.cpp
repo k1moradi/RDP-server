@@ -351,7 +351,7 @@ void testMcsErectDomainRequest()
     // Aligned PER unconstrained INTEGERs can use 1..4 octets; do not
     // invent a rule limiting valid ErectDomain values to zero.
     constexpr std::array<std::uint8_t, 8> wider{
-        0x04, 0x02, 0x01, 0x00, 0x04, 0x01, 0x02, 0x03};
+        0x04, 0x02, 0x01, 0x00, 0x03, 0x01, 0x02, 0x03};
     const auto expanded = parseMcsChannelRequest(frameDomainPdu(wider));
     assert(expanded);
     assert(expanded.request.subHeight == 256);

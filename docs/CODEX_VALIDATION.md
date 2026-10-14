@@ -502,3 +502,18 @@ Debug/Release full CTests, downstream consumer and packages,
 owner-local updated build, external clients, CredSSP/NLA and
 desktop access. **Next gate:** verify hosted CI and then
 implement authoritative authentication-owned MCS lifecycle.
+
+## First MCS Erect-domain fixture failure (2026-10-14)
+
+**FAIL:** initial implementation
+`d5bc7d3b03906890da483dd1a480677a4fbaf73b`,
+[Actions run 38588334504](https://github.com/k1moradi/RDP-server/actions/runs/38588334504),
+Ubuntu Debug `transport.mcs-erect-request` asserted a valid
+expanded Erect-domain example. Its subInterval PER length
+determinant was incorrectly 4 for three following octets,
+so the production decoder correctly rejected it.
+Other 36 CTests PASS on Ubuntu. Fix only the test vector to
+encode length 3 for 0x010203; no production code changes,
+no weakened input bounds or removed assertions.
+**NOT RUN:** corrected exact-head CI, owner-local new tests,
+external RDP clients and authenticated domain/OS admission.

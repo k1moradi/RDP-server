@@ -337,11 +337,19 @@ acceptance evidence; no synthetic completion claims.
   `transport.mcs-erect-request`,
   `transport.mcs-attach-request`,
   `transport.mcs-channel-join-request`.
-  **NOT RUN:** exact-head Debug/Release CI, owner-local post-change
-  build, TLS-verified MCS phase admission, CredSSP/NLA, live replies
-  or OS authorization. **Next:** independent authenticated session
-  gate, then server-owned MCS Attach/ChannelJoin confirms and live
-  channel lifecycle, respecting the existing single session owner.
+  **Initial FAIL:** implementation `d5bc7d3b03906890da483dd1a480677a4fbaf73b`
+  [CI run 38588334504](https://github.com/k1moradi/RDP-server/actions/runs/38588334504)
+  failed Ubuntu Debug `transport.mcs-erect-request` at the
+  *test-only* extended PER integer example: its octet length
+  determinant claimed 4 bytes but the fixture provided 3.
+  Other 36 CTests passed. The production parser correctly
+  rejected the inconsistent packet. The test vector has been
+  corrected from 0x04 to 0x03 without changing the decoder.
+  **NOT RUN:** corrected exact-head Debug/Release CI, owner-local
+  post-change build, TLS-verified MCS phase admission, CredSSP/NLA,
+  live replies or OS authorization. **Next:** verify corrected CI,
+  then independent authenticated session gate and server-owned
+  MCS Attach/ChannelJoin confirms within one session owner.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

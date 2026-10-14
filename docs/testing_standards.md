@@ -474,3 +474,14 @@ The previous 34 CTests remain; expected **37 CTests**.
 Live phase ordering, authorization, send/confirm responses,
 client interoperability and authenticated OS session
 admission remain **NOT RUN**.
+
+**First CI regression (2026-10-14):** the new wide-field Erect
+example in `testMcsErectDomainRequest` mistakenly encoded
+`0x04` as the byte length of a three-byte subInterval.
+The strict PER decoder correctly rejected it. Ubuntu's
+[run 38588334504](https://github.com/k1moradi/RDP-server/actions/runs/38588334504)
+failed `transport.mcs-erect-request`, with 36 other
+CTest commands PASS in Debug. Correct the fixture determinant
+to `0x03`; preserve the assertion that the resulting value
+is 0x010203 and leave production parsing unchanged.
+Post-fix CI: NOT RUN until recorded.

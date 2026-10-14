@@ -184,3 +184,12 @@ owner initializes Winsock, on BSD/macOS protects against SIGPIPE,
 and everywhere configures nonblocking mode, event readiness, lifecycle
 and close. The portable static library does not open a listener or
 authorize OS access.
+
+**Verified cross-platform:** implementation SHA
+`dd3a806f97b13e6db18affd689c6321bfa009813`,
+[Actions run 38563789698](https://github.com/k1moradi/RDP-server/actions/runs/38563789698)
+passed the Debug/Release portable protocol suite, downstream SDK
+consumer and packaging gates on Linux/GCC, macOS/Clang and Windows/MSVC,
+plus documentation-policy. Native socket syscalls were compiled but
+actual connected native socket traffic is not covered by this test;
+do not infer live server or user authentication.

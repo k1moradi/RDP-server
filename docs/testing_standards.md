@@ -251,7 +251,7 @@ Debug/Release CTests, installed SDK consumer and all platform
 ZIP/checksum gates passed. Ubuntu logged **21/21 PASS** twice.
 Live network, external clients, NLA and OS admission are NOT RUN.
 
-## Nonblocking TCP preauthentication adapter (CI pending)
+## Verified nonblocking TCP preauthentication adapter (2026-10-14)
 
 The existing `test_owned_preauth_session` executable adds two
 independent behavior-named CTests: `transport.tcp-adapter-fragments`
@@ -265,3 +265,12 @@ The native Winsock and POSIX adapters are cross-compiled but not
 connected to an active OS TCP listener by this regression.
 Expected CTest total **23**, previously 21; authentication, actual
 network peers, TLS network pump and desktop remain NOT RUN.
+
+**PASS:** code commit `dd3a806f97b13e6db18affd689c6321bfa009813`,
+[GitHub Actions run 38563789698](https://github.com/k1moradi/RDP-server/actions/runs/38563789698)
+passed Ubuntu/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+Debug/Release full CTests, staged SDK install, downstream consumer
+and all three ZIP/hash uploads. Ubuntu logs confirm
+**23/23 passing** in both builds. The native OS recv/send
+implementation compiles on all three platforms; scripted
+TCP I/O, not connected live sockets, drives the new tests.

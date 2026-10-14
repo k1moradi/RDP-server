@@ -160,7 +160,7 @@ acceptance evidence; no synthetic completion claims.
   configurations. **NOT RUN:** owner-local new build, real TCP listener,
   external clients, NLA, OS admission, desktop interaction.
   **Next:** nonblocking network adapter and authenticated RDP session.
-  **Native nonblocking TCP adapter increment (CI pending):**
+  **Verified native TCP adapter increment `dd3a806f97b13e6db18affd689c6321bfa009813`:**
   `PreauthTcpAdapter` wraps the existing sole preauth owner and drives
   exact-prefix 4-byte TPKT/declared request `recv`, followed by the
   byte-accurate pending X.224 Confirm/Failure `send`. A thin native
@@ -169,10 +169,17 @@ acceptance evidence; no synthetic completion claims.
   prematurely, even if coalesced on TCP. Scripted event-loop regressions
   exercise all 20 CR split positions, one-byte reads/writes, would-block,
   corrupted headers, EOF, short output, overreported counts, complete
-  NEG_FAILURE and cancellation. **Expected 23 CTests; CI NOT RUN.**
-  This is NOT an activated listener, full TLS network pump,
-  CredSSP/NLA or authenticated desktop. Next: trusted TLS socket
-  lifecycle + authentication and MCS Connect-Response.
+  NEG_FAILURE and cancellation.
+  **PASS:** [Actions run 38563789698](https://github.com/k1moradi/RDP-server/actions/runs/38563789698)
+  passed Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy,
+  all Debug/Release CTests, SDK installation, downstream consumer
+  and three ZIP/SHA-256 artifacts. Ubuntu explicitly reports
+  **23/23 PASS** in Debug and Release.
+  **NOT RUN:** owner-local new build, actual connected native
+  socket runtime, listening server, live TLS network handshake,
+  CredSSP/NLA, MCS Connect-Response and authenticated desktop.
+  **Next:** secure live TLS socket I/O lifecycle + authentication
+  and standards-compliant MCS server response.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

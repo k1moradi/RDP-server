@@ -270,7 +270,7 @@ MCS Connect-Response, external clients, OS/desktop authorization.
 **First remaining boundary:** native nonblocking socket adapter
 and authenticated RDP session lifecycle.
 
-## Portable preauth TCP adapter (pending exact-head CI)
+## Verified portable preauth TCP adapter (2026-10-14)
 
 New `src/server/transport/nonblocking_tcp_adapter.{h,cpp}`
 provides `NativeTcpIo` borrowed nonblocking Winsock/POSIX
@@ -281,9 +281,15 @@ The existing native test binary registers two independent
 behavior CTests for fragments/backpressure and rejected failure
 output; expected CTest count increases from **21 to 23**.
 
-**NOT RUN:** exact-head GitHub Linux/GCC, macOS/Clang, Windows/MSVC
-Debug/Release CI, owner's post-change local build, actual network
-listener/socket runtime, TLS network handshake, CredSSP/NLA,
-MCS responses, OS admission or real RDP client.
-**Next gate:** all hosted CTests, documentation-policy, installed
-SDK consumer and CPack ZIP on the exact implementation commit.
+**PASS:** implementation `dd3a806f97b13e6db18affd689c6321bfa009813`,
+[Actions run 38563789698](https://github.com/k1moradi/RDP-server/actions/runs/38563789698)
+completed Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy,
+both Debug/Release full CTests, installed SDK downstream consumer,
+and three platform package ZIPs/checksums. Ubuntu explicitly logged
+**23/23 CTests PASS** for both build modes.
+**NOT RUN:** owner's local build on this new exact code,
+connected live native socket runtime, listening TCP RDP server,
+live TLS network handshake, CredSSP/NLA, MCS responses,
+real clients or independently authorized desktop admission.
+**Next gate:** actual TLS-over-socket lifecycle with bounded
+cancellation and then authenticated connection semantics.

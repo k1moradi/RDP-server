@@ -167,6 +167,15 @@ public:
     {
         return status_;
     }
+    // Borrowed TLS identity, available ONLY for a complete frame read
+    // directly from the established server SSL. Null for manual inputs,
+    // partial frames, released frames and closed readers. This is proof
+    // of transport provenance, never of user/GSS authentication.
+    [[nodiscard]] const SSL *completedFrameServerTls() const noexcept
+    {
+        return status_ == TsRequestFrameStatus::Complete
+                   ? boundServerTls_ : nullptr;
+    }
     // Only after a synchronous GSS/DER handoff; wipes all buffered bytes.
     // This permits receiving the next CredSSP message but authorizes nothing.
     [[nodiscard]] bool releaseFrame() noexcept;

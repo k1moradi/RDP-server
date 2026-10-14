@@ -113,11 +113,13 @@ public:
     [[nodiscard]] SpnegoStep acceptInitialRequest(
         const TsRequestResult &request) noexcept;
 
-    // Consume exactly one complete CredSSP DER frame synchronously.
-    // The frame is wiped before returning; there is no borrowed GSS token
-    // after this call. Only v5/v6 initial/continuation negoToken shapes
-    // are allowed. A rejected or prematurely handed-off frame is terminal.
-    // This is Linux provider evidence ONLY, not RDP/OS authorization.
+    // Consume exactly one TLS-derived CredSSP DER frame synchronously.
+    // Pin the SSL identity and version on the first request. Reject all
+    // synthetic/manual buffers, SSL substitution, version changes or
+    // premature handoffs; the frame is wiped before returning. The caller
+    // keeps the SSL alive while this acceptor is active and cannot
+    // substitute an independent TLS connection at the public-key gate.
+    // This does NOT grant GSS or OS authorization.
     [[nodiscard]] SpnegoStep acceptFramedNegoRequest(
         TsRequestFrameReader &reader) noexcept;
 
@@ -160,6 +162,9 @@ private:
     [[nodiscard]] bool keepAuthenticatedPrincipal(gss_name_t name) noexcept;
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
+    // Borrowed from the one TLS-bound framing owner, never owning SSL.
+    const SSL *negotiatedServerTls_{};
+    std::uint32_t negotiatedVersion_{};
     gss_cred_id_t credentials_{GSS_C_NO_CREDENTIAL};
     gss_ctx_id_t context_{GSS_C_NO_CONTEXT};
     std::string principal_{};

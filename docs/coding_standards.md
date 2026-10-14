@@ -485,3 +485,23 @@ the failed OpenSSL operation. Explicitly erase transient
 decrypted stack bytes after copying into the sole owned DER
 buffer. TLS provenance alone does not authorize NLA/GSS,
 independent OS identity, or desktop.
+
+## TLS provenance and version pinning for CredSSP GSSAPI (2026-10-14)
+
+MS-CSSP 2.2.1 and 3.1.5 put all SPNEGO tokens and the
+pubKeyAuth proof on the *same* TLS-encrypted CredSSP
+exchange. A syntactically valid DER view is not evidence
+it arrived over the selected TLS session. Carry a borrowed
+completed-frame server SSL identity from the already-owned
+framer into the existing Linux GSS acceptor and pin
+it together with the supported 5/6 CredSSP version.
+Reject a mixed parser/TLS handoff, changed SSL pointer,
+changed version or pre-initial provider phase without
+trying to use GSS credentials. Clear borrowed identity
+on terminal rejection; guard protected-binding unwrap
+with matching SSL and version before comparing the
+selected TLS certificate's hash. No standalone account
+capability, stored plaintext, extra controller or generic
+SSPI emulation is created. Keep positive Kerberos,
+combined final negotiation/binding, credentials and
+independent OS authorization open until tested.

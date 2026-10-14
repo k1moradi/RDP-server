@@ -330,3 +330,21 @@ Manual plaintext injection into a TLS-bound reader, or attaching
 an SSL stream to a partially manually filled reader, is terminal.
 This does not enable CredSSP selection, GSS identity, protected
 bindings or OS admission; the current diagnostic still closes.
+
+### CredSSP-to-GSS TLS transcript ownership (2026-10-14)
+
+The single existing `TsRequestFrameReader` owns the TLS
+provenance of its currently complete DER frame. A borrowed
+`SSL*` can be observed only when that exact frame came
+from completed server TLS, never from parser-only DER or a
+partially received or released frame. The Linux GSS
+acceptor pins that pointer and v5/v6 version on its first
+framed negotiation request; subsequent frames cannot
+switch certificate/TLS connection or version. The protected
+binding handler demands the *same pointer and version*
+before GSS unwrap and TLS certificate hash comparison.
+Rejection clears the borrowed association; no second
+buffer, session owner, or token cache is introduced.
+The portable SDK remains independent of GSSAPI; no real
+Kerberos authentication, OS session admission or live RDP
+listener is enabled.

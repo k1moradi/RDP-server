@@ -499,6 +499,35 @@ acceptance evidence; no synthetic completion claims.
   authenticated GSS binding to the selected TLS
   certificate and independent OS authorization before
   any MCS response or remote desktop admission.
+  **TLS-owned GSS provider provenance increment (2026-10-14;
+  new CI NOT RUN):** MS-CSSP 2.2.1/3.1.5 requires SPNEGO
+  and the encrypted public-key proof on the same established
+  TLS session. The single `TsRequestFrameReader` exposes a
+  borrowed server SSL identity ONLY for a complete frame
+  read from that SSL; direct DER injection, pending frames
+  and released frames expose none. The existing Linux
+  `GssapiSpnegoAcceptor` accepts only such TLS-backed
+  frames, pins one SSL identity and version 5/6 across
+  the GSS rounds and rejects substitution/downgrade.
+  `processProtectedBinding` now also requires the exact
+  pinned SSL and negotiated CredSSP version before any
+  GSS unwrap. Terminal reject clears both borrowed
+  identities. This is a strict admission *precondition*,
+  not a claim that a GSS mechanism was authenticated.
+  New automated regressions reuse the existing OpenSSL
+  memory-BIO fixture: one portable positive/negative
+  transport-provenance CTest and one Linux-only linked
+  MIT GSS rejection CTest. Expected **52** CTests
+  on macOS/Windows, **55** on Linux (prior 51/53).
+  **PASS:** prior main `82193719abd23e87abfcaa6a0932a11ca499d15a`,
+  [CI 38607454966](https://github.com/k1moradi/RDP-server/actions/runs/38607454966).
+  **NOT RUN:** new-code CI, real keytab and Kerberos
+  ticket, positive GSS context, SSL binding exchange,
+  OS authorization, Microsoft RDP client or desktop.
+  **Next:** verify a controlled real GSS/Kerberos exchange
+  and the combined final client token/binding message
+  required by MS-CSSP 3.1.5, then authorize OS identity
+  before any positive MCS or desktop admission.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

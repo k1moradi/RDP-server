@@ -173,6 +173,8 @@ void GssapiSpnegoAcceptor::reject() noexcept
         credentials_ = GSS_C_NO_CREDENTIAL;
     }
     principal_.clear();
+    negotiatedServerTls_ = nullptr;
+    negotiatedVersion_ = 0;
     stage_ = SpnegoStage::Failed;
 }
 
@@ -292,24 +294,34 @@ SpnegoStep GssapiSpnegoAcceptor::acceptInitialRequest(
 SpnegoStep GssapiSpnegoAcceptor::acceptFramedNegoRequest(
     TsRequestFrameReader &reader) noexcept
 {
-    if (reader.status() != TsRequestFrameStatus::Complete)
+    const SSL *sourceTls = reader.completedFrameServerTls();
+    // The TLS framer, not caller-supplied DER or a second SSL handle,
+    // determines which server TLS connection supplies every GSS token.
+    if (sourceTls == nullptr ||
+        (negotiatedServerTls_ != nullptr &&
+         negotiatedServerTls_ != sourceTls))
     {
-        // An incomplete, closed or invalid frame is never a GSS token.
         reader.close();
         reject();
         return {};
     }
 
-    // The frame reader owns the bytes, and this parser/GSS handoff
-    // borrows them ONLY while this synchronous call is executing.
     const auto parsed = parseCredSspTsRequest(reader.completeDer());
     if (!parsed || (parsed.value.version != 5 &&
-                    parsed.value.version != 6))
+                    parsed.value.version != 6) ||
+        (negotiatedVersion_ != 0 &&
+         negotiatedVersion_ != parsed.value.version) ||
+        (negotiatedServerTls_ == nullptr &&
+         stage_ != SpnegoStage::AwaitInitialToken))
     {
         reader.close();
         reject();
         return {};
     }
+    // The source pointer and version are retained across released DER
+    // frames, but no token bytes or password data survive the handoff.
+    negotiatedServerTls_ = sourceTls;
+    negotiatedVersion_ = parsed.value.version;
     auto step = acceptInitialRequest(parsed);
     if (!reader.releaseFrame())
     {

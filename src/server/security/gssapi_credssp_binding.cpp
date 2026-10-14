@@ -44,6 +44,9 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processProtectedBinding(
     if (stage_ != SpnegoStage::MechanismVerified ||
         context_ == GSS_C_NO_CONTEXT ||
         activeServerTls == nullptr ||
+        negotiatedServerTls_ == nullptr ||
+        activeServerTls != negotiatedServerTls_ ||
+        negotiatedVersion_ != request.value.version ||
         SSL_is_server(activeServerTls) != 1 ||
         SSL_is_init_finished(activeServerTls) != 1 ||
         !permittedBindingRequest(request))

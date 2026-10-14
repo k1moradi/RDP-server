@@ -3,6 +3,9 @@
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/tpkt_x224.h"
 #include "security/credssp_tsrequest.h"
+#ifdef RDP_TEST_LINUX_GSSAPI
+#include "security/gssapi_spnego_acceptor.h"
+#endif
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -1645,6 +1648,110 @@ void testTlsCredSspRejections()
     }
 }
 
+
+void testTlsCredSspProvenance()
+{
+    // Syntactically complete bytes fed without OpenSSL are not
+    // authenticated TLS evidence and must never be accepted by GSS.
+    TsRequestFrameReader manual;
+    assert(manual.consume(kTestCredSspDer).status ==
+           TsRequestFrameStatus::Complete);
+    assert(manual.completedFrameServerTls() == nullptr);
+    assert(manual.releaseFrame());
+    assert(manual.completedFrameServerTls() == nullptr);
+
+    TlsHandshakeFixture tls;
+    TsRequestFrameReader reader;
+    assert(reader.completedFrameServerTls() == nullptr);
+    assert(reader.readOneTlsStep(tls.server.get()).status ==
+           TsRequestTlsReadStatus::NeedRead);
+    assert(reader.completedFrameServerTls() == nullptr);
+    writeTlsClientApplicationData(
+        tls.client.get(), std::span(kTestCredSspDer).first(8));
+    assert(drainCredSspFromTls(reader, tls.server.get(),
+                              TsRequestTlsReadStatus::NeedRead) == 8);
+    assert(reader.completedFrameServerTls() == nullptr);
+    writeTlsClientApplicationData(
+        tls.client.get(), std::span(kTestCredSspDer).subspan(8));
+    assert(drainCredSspFromTls(reader, tls.server.get(),
+                              TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size() - 8);
+    assert(reader.completedFrameServerTls() == tls.server.get());
+    assert(reader.completedFrameServerTls() != tls.client.get());
+    assert(reader.releaseFrame());
+    assert(reader.completedFrameServerTls() == nullptr);
+
+    // A second DER frame on the same SSL yields the same borrowed
+    // transport identity. No second auth/session owner is created.
+    writeTlsClientApplicationData(tls.client.get(), kTestCredSspDer);
+    assert(drainCredSspFromTls(reader, tls.server.get(),
+                              TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size());
+    assert(reader.completedFrameServerTls() == tls.server.get());
+    reader.close();
+    assert(reader.completedFrameServerTls() == nullptr);
+    assert(reader.completeDer().empty());
+}
+
+#ifdef RDP_TEST_LINUX_GSSAPI
+void testGssapiTlsBoundHandoffDenials()
+{
+    // An authentic TLS record does not make a fabricated SPNEGO token
+    // or a missing explicit service keytab into a Kerberos identity.
+    for (const std::uint8_t version : {std::uint8_t{5},
+                                       std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        auto request = kTestCredSspDer;
+        request[6] = version;
+        writeTlsClientApplicationData(tls.client.get(), request);
+        assert(drainCredSspFromTls(reader, tls.server.get(),
+                                  TsRequestTlsReadStatus::Complete) ==
+               request.size());
+        assert(reader.completedFrameServerTls() == tls.server.get());
+        GssapiSpnegoAcceptor provider;
+        const auto result = provider.acceptFramedNegoRequest(reader);
+        assert(result.status == SpnegoStatus::Rejected);
+        assert(result.outputToken.empty());
+        assert(provider.stage() == SpnegoStage::Failed);
+        assert(provider.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completedFrameServerTls() == nullptr);
+    }
+    // Manual DER has no TLS provenance, even when syntactically valid
+    // and the caller can supply an independently completed SSL object.
+    TlsHandshakeFixture unrelated;
+    TsRequestFrameReader synthetic;
+    assert(synthetic.consume(kTestCredSspDer).status ==
+           TsRequestFrameStatus::Complete);
+    assert(synthetic.completedFrameServerTls() == nullptr);
+    GssapiSpnegoAcceptor provider;
+    const auto result = provider.acceptFramedNegoRequest(synthetic);
+    assert(result.status == SpnegoStatus::Rejected);
+    assert(provider.stage() == SpnegoStage::Failed);
+    assert(synthetic.status() == TsRequestFrameStatus::Closed);
+    assert(synthetic.completedFrameServerTls() == nullptr);
+
+    // The public-key binding API must never treat a matched-looking
+    // opaque DER blob as an authenticated TLS-bound GSS context.
+    constexpr std::array<std::uint8_t, 48> binding{{
+        0x30, 0x2e, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa3, 0x03, 0x04, 0x01, 0x55,
+        0xa5, 0x22, 0x04, 0x20,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42}};
+    GssapiSpnegoAcceptor unbound;
+    const auto wrapped = unbound.processProtectedBinding(
+        unrelated.server.get(), binding);
+    assert(!wrapped.ready && wrapped.encryptedServerBinding.empty());
+    assert(unbound.stage() == SpnegoStage::Failed);
+    assert(unbound.verifiedPrincipal().empty());
+}
+#endif
+
 void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
@@ -1714,7 +1821,7 @@ struct PreauthTestCase
 // Keep one executable/fixture implementation but expose independent
 // behavior-named CTest cases to make regressions visible in CTest output.
 // Running without an argument still executes the complete native suite.
-constexpr std::array<PreauthTestCase, 20> kPreauthTestCases{{
+constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
@@ -1735,7 +1842,11 @@ constexpr std::array<PreauthTestCase, 20> kPreauthTestCases{{
     {"credssp-tls-fragments", &testTlsCredSspFragmentation},
     {"credssp-tls-coalesced", &testTlsCredSspCoalescingAndIdentity},
     {"credssp-tls-rejections", &testTlsCredSspRejections},
-}};
+    {"credssp-tls-provenance", &testTlsCredSspProvenance},
+#ifdef RDP_TEST_LINUX_GSSAPI
+    {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
+#endif
+});
 
 int main(int argc, char **argv)
 {

@@ -58,7 +58,8 @@ function(add_rdp_test source_file suite behavior)
                 mcs-tls-record-rejections
                 credssp-tls-fragments
                 credssp-tls-coalesced
-                credssp-tls-rejections)
+                credssp-tls-rejections
+                credssp-tls-provenance)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES
@@ -104,6 +105,18 @@ add_rdp_test(test_owned_security_negotiation.cpp transport security-negotiation)
 add_rdp_test(test_owned_mcs_connect_initial.cpp transport mcs-connect-initial)
 add_rdp_test(test_owned_gcc_conference_create.cpp transport gcc-conference-create)
 add_rdp_test(test_owned_preauth_session.cpp transport preauth-session)
+if(TARGET rdp-server-linux-gssapi)
+    # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
+    # in-memory TLS fixture; no duplicate certificate/test implementation.
+    target_link_libraries(test_owned_preauth_session PRIVATE
+        rdp-server-linux-gssapi)
+    target_compile_definitions(test_owned_preauth_session PRIVATE
+        RDP_TEST_LINUX_GSSAPI=1)
+    add_test(NAME security.gssapi-tls-ownership
+        COMMAND test_owned_preauth_session gssapi-tls-ownership)
+    set_tests_properties(security.gssapi-tls-ownership PROPERTIES
+        LABELS "security;linux-provider")
+endif()
 add_rdp_test(test_owned_remote_transfer.cpp clipboard remote-transfer)
 add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)
 add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)

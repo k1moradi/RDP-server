@@ -719,3 +719,34 @@ binding, independent OS identity authority, or
 external Microsoft RDP desktop acceptance.
 **Next:** authenticated real GSS/TLS binding and
 OS session policy, not a synthetic admission.
+
+## Pending GSS TLS provenance and version pinning (2026-10-14)
+
+**Prior exact-head PASS:** `82193719abd23e87abfcaa6a0932a11ca499d15a`,
+[CI 38607454966](https://github.com/k1moradi/RDP-server/actions/runs/38607454966):
+Linux 53/53 and macOS/Windows 51/51 full Debug/Release
+CTests, documentation-policy, SDK installed consumer,
+three ZIP/checksum uploads.
+
+**New implementation (CI NOT RUN):**
+`src/server/security/credssp_tsrequest.h` complete-frame
+SSL provenance accessor; Linux-only
+`gssapi_spnego_acceptor.{h,cpp}` single TLS identity
+and v5/v6 version pin; `gssapi_credssp_binding.cpp`
+checks that pinned TLS and version before GSS unwrap.
+Two *new*, independently registered
+`test_owned_preauth_session.cpp` CTest groups
+exercise actual in-memory TLS provenance and a
+real linked MIT GSSAPI provider with no credentials.
+Existing `tests/CMakeLists.txt` enables the
+Linux-only suite without duplicating the certificate
+fixture. Expected Ubuntu 55 versus macOS/Windows 52.
+CMake/CTest on CI uses one checkout-local `build/`,
+same Debug/Release compile, full CTests, SDK consumer,
+CPack ZIP/checksums and documentation-policy as before.
+**NOT RUN:** this implementation's CI, owner-local
+tests, positive Kerberos, GSS TLS binding, independent
+OS authorization, Microsoft client or desktop.
+**Next:** controlled real Kerberos success and
+MS-CSSP final negoToken+pubKeyAuth interoperability
+without granting OS admission from synthetic fixtures.

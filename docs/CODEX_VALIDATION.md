@@ -720,33 +720,50 @@ external Microsoft RDP desktop acceptance.
 **Next:** authenticated real GSS/TLS binding and
 OS session policy, not a synthetic admission.
 
-## Pending GSS TLS provenance and version pinning (2026-10-14)
+## Verified GSS TLS provenance and version pinning (2026-10-14)
 
-**Prior exact-head PASS:** `82193719abd23e87abfcaa6a0932a11ca499d15a`,
+**Previous green head:** `82193719abd23e87abfcaa6a0932a11ca499d15a`,
 [CI 38607454966](https://github.com/k1moradi/RDP-server/actions/runs/38607454966):
-Linux 53/53 and macOS/Windows 51/51 full Debug/Release
-CTests, documentation-policy, SDK installed consumer,
-three ZIP/checksum uploads.
+Linux 53/53 and macOS/Windows 51/51 Debug/Release
+CTests plus portable SDK consumer, package uploads
+and documentation gate.
 
-**New implementation (CI NOT RUN):**
-`src/server/security/credssp_tsrequest.h` complete-frame
-SSL provenance accessor; Linux-only
-`gssapi_spnego_acceptor.{h,cpp}` single TLS identity
-and v5/v6 version pin; `gssapi_credssp_binding.cpp`
-checks that pinned TLS and version before GSS unwrap.
-Two *new*, independently registered
-`test_owned_preauth_session.cpp` CTest groups
-exercise actual in-memory TLS provenance and a
-real linked MIT GSSAPI provider with no credentials.
-Existing `tests/CMakeLists.txt` enables the
-Linux-only suite without duplicating the certificate
-fixture. Expected Ubuntu 55 versus macOS/Windows 52.
-CMake/CTest on CI uses one checkout-local `build/`,
-same Debug/Release compile, full CTests, SDK consumer,
-CPack ZIP/checksums and documentation-policy as before.
-**NOT RUN:** this implementation's CI, owner-local
-tests, positive Kerberos, GSS TLS binding, independent
-OS authorization, Microsoft client or desktop.
-**Next:** controlled real Kerberos success and
-MS-CSSP final negoToken+pubKeyAuth interoperability
-without granting OS admission from synthetic fixtures.
+**New implementation:** `6e11b25224e1a5e6c3f45778436afc3950a3e866` changes
+`src/server/security/credssp_tsrequest.h`,
+`src/server/security/gssapi_spnego_acceptor.{h,cpp}`,
+`src/server/security/gssapi_credssp_binding.cpp`,
+`tests/test_owned_preauth_session.cpp` and
+`tests/CMakeLists.txt`, together with authoritative
+roadmap, architecture, coding/testing standards and
+this ledger. Carries real server-TLS completed-frame
+provenance from the single framer to the actual Linux
+MIT GSSAPI acceptor, pins SSL and version 5/6
+across SPNEGO tokens, and refuses protected GSS
+pubKeyAuth without that same SSL/version.
+**PASS:** [CI 38609620612](https://github.com/k1moradi/RDP-server/actions/runs/38609620612)
+completed SUCCESS: Linux/GCC **55/55**, macOS/Clang
+and Windows/MSVC **52/52** CTests in both Debug
+and Release, including both new `transport.credssp-tls-provenance`
+and Linux-only `security.gssapi-tls-ownership`.
+All 4 jobs passed: 3 platforms and documentation-policy;
+staged installed SDK consumer, ZIP and SHA-256 artifact
+uploads each succeeded, prerelease publisher SKIPPED
+(no tag). CI commands:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`
+with `-DRDP_SERVER_TEST_LINUX_GSSAPI=ON` on Linux
+(OFF for macOS/Windows), `cmake --build build --config
+Debug --parallel 2`, `ctest --test-dir build
+--build-config Debug --output-on-failure`, then
+reconfigure and re-use the same `build/` root in
+Release and rerun builds, CTests, SDK installation,
+consumer, CPack packaging and checksum upload.
+A pre-existing nonfatal Ubuntu Release test compiler
+warning at `tests/test_owned_preauth_session.cpp:587`
+remains open. **NOT RUN:** owner's local updated
+build, real Kerberos ticket/keytab and successful
+GSS session, TLS public-key binding, OS account
+authorization, Windows App/FreeRDP or desktop.
+**Next:** authenticated positive GSS/TLS transcript,
+combined final client negoTokens/pubKeyAuth
+interoperability and independently verified OS
+identity before a live MCS or desktop.

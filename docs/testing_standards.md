@@ -626,24 +626,30 @@ ZIP/checksum uploads and documentation policy PASS.
 public-key binding, independently authorized OS session,
 Microsoft client or interactive desktop. No release tag.
 
-## New TLS/GSS frame provenance tests (2026-10-14; CI NOT RUN)
+## Verified new TLS/GSS provenance tests (2026-10-14)
 
-Use the already-compiled `test_owned_preauth_session`
-OpenSSL server/client memory-BIO TLS fixture rather than
-inventing another certificate or a fake authenticated
-GSS context. New `transport.credssp-tls-provenance`
-on all three platforms covers manual DER with NO TLS
-evidence, fragment-incomplete TLS with NO complete-frame
-identity, correct borrowed SSL on completion,
-release/reuse and close invalidation. The Linux-only
-`security.gssapi-tls-ownership` links the *real*
-MIT GSSAPI library to that same TLS fixture and
-rejects v5/v6 fabricated negotiation tokens and manual
-DER without a service keytab; a public-key proof without
-a verified GSS context stays rejected. Preserve every
-prior behavior-named test and all assertions. Expected
-counts: **55** Linux and **52** macOS/Windows per
-Debug/Release mode. These rejection suites cannot
-prove valid Kerberos, GSS wrap/unwrap, OS admission or
-client compatibility. **NOT RUN:** this commit's CI
-and owner's checkout build until measured.
+All new C++ code received new, behavior-named regression
+coverage without a second TLS certificate fixture. The
+preexisting `test_owned_preauth_session` OpenSSL memory-BIO
+fixture drives `transport.credssp-tls-provenance` on
+all platforms: manual DER has no TLS source, partial
+frames have no completed source, the complete frame
+carries exactly the live server SSL, and release/close
+clears its exposed provenance. The same binary links
+the real optional MIT GSSAPI provider on Linux and
+registers `security.gssapi-tls-ownership`: both
+v5 and v6 fabricated GSS tokens transported over
+real TLS, caller-injected DER, and unverified protected
+binding fail without credentials, outputs or admission.
+**PASS:** exact implementation `6e11b25224e1a5e6c3f45778436afc3950a3e866`,
+[Actions 38609620612](https://github.com/k1moradi/RDP-server/actions/runs/38609620612)
+on Linux/GCC **55/55**, macOS/Clang and Windows/MSVC
+**52/52** Debug and Release CTests, installed SDK
+consumer, CPack ZIP/SHA-256 artifact uploads for all
+three systems and documentation-policy. The earlier
+Ubuntu Release `-Wstringop-overflow` warning in
+`tests/test_owned_preauth_session.cpp:587` is
+preexisting and nonfatal. **NOT RUN:** owner's
+local build, positive GSS Kerberos credential/keytab,
+TLS pubKeyAuth, OS admission or real clients. Synthetic
+negative evidence is not desktop authorization.

@@ -1057,3 +1057,48 @@ client and desktop.
 GSS/Kerberos + TLS certificate binding,
 then independent OS policy before
 live MCS/session and desktop admission.
+
+## Pending Linux GSS binding-only TLS frame provenance (2026-10-14)
+
+**Previously verified exact main:**
+`2d08e9662ed1a597a81b9e3424770cdc5fe0b335`,
+[CI 38619989509](https://github.com/k1moradi/RDP-server/actions/runs/38619989509):
+Linux/GCC Debug+Release 67/67,
+macOS/Clang and Windows/MSVC Debug+Release
+60/60, SDK consumer, ZIP/SHA256 package
+uploads and documentation policy PASS.
+
+**New implementation (CI NOT RUN):**
+`src/server/security/gssapi_spnego_acceptor.h`
+and `src/server/security/gssapi_credssp_binding.cpp`
+retire the caller-injected raw-DER binding
+API by making it permanently deny-only.
+`processFramedProtectedBinding(reader)`
+requires actual completed TLS-derived DER
+plus unchanged active selected TLS X.509
+identity/version before invoking the REAL
+GSS unwrap/nonce/client certificate
+verification and protected server GSS wrap.
+`processFramedProtectedBindingAndQueueReply`
+shares one existing guarded binding queue
+with the combined-final handler, requiring
+an idle writer and exactly the same server
+SSL and GSS stage. Two new Linux-only
+CTest behavior groups registered in the
+existing OpenSSL fixture and
+`tests/CMakeLists.txt`: binding-only
+reader fail-closed/replay/raw/manual denials
+and idle/pending/forged outgoing reply
+denials. Expected 69 Linux, 60 portable,
+both Debug and Release. No new provider
+test suite, resource owner or default
+service activation.
+**NOT RUN:** new CI, owner's local
+single-build-root test, positive actual
+Kerberos with explicit service keytab
+and independent tickets, successful
+GSS/TLS pubKeyAuth, OS admission,
+client acceptance or real desktop.
+**Next:** controlled positive Kerberos
+GSS/TLS proof and independent OS account
+policy BEFORE any real MCS response.

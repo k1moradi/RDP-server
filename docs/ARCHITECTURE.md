@@ -447,3 +447,39 @@ that one DER frame, retaining the transcript identity
 for the next request. The fingerprint proves transport
 continuity, NOT genuine Kerberos, client OS identity,
 account admission or executable desktop availability.
+
+### TLS-owned CredSSP pubKeyAuth binding-only handoff (2026-10-14)
+
+Microsoft MS-CSSP 2.2.1/3.1.5 carries
+all client pubKeyAuth ciphertext inside the
+same established TLS transcript as SPNEGO.
+Previously the optional Linux GSS acceptor's
+`processProtectedBinding(SSL*, rawDer)`
+could receive caller-injected DER without
+proving that those bytes originated from
+that SSL stream, notwithstanding its
+required verified GSS context. That entry
+point is now permanently deny-only.
+The existing `TsRequestFrameReader` is the
+single TLS provenance + DER lifetime owner
+for BOTH the combined-final and binding-only
+forms. `processFramedProtectedBinding`
+requires its completed server TLS pointer
+(and verified selected X509 fingerprint),
+the accepted original TLS and v5/v6 version,
+exact binding-only DER fields, and the
+real Kerberos-secured GSS context before
+calling shared confidential GSS unwrap,
+active nonce/public-key comparison and
+GSS wrap. On success it wipes/releases
+the single received DER frame, retaining
+the original TLS pin for the next frame.
+The new framed reply queue reuses the
+existing `queueFramedProtectedReply`
+and `TsRequestTlsReplyWriter` rather than
+creating another connection state owner.
+All failures terminally close and cleanse
+frame, writer and GSS context. No evidence
+of positive authenticated Kerberos,
+OS session authorization, actual RDP
+MCS admission or usable desktop is implied.

@@ -40,8 +40,49 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processProtectedBinding(
     const SSL *activeServerTls,
     std::span<const std::uint8_t> protectedRequestDer) noexcept
 {
-    return processVerifiedBinding(
-        activeServerTls, parseCredSspTsRequest(protectedRequestDer), false);
+    // Caller-supplied DER has no authenticated TLS read provenance. Do not
+    // allow any provider state, even a genuine GSS context, to turn it into
+    // a successful binding response. The old API is terminal/deny-only.
+    (void)activeServerTls;
+    (void)protectedRequestDer;
+    reject();
+    return {};
+}
+
+CredSspProtectedReply GssapiSpnegoAcceptor::processFramedProtectedBinding(
+    TsRequestFrameReader &reader) noexcept
+{
+    // The reader is the SINGLE TLS provenance and DER lifetime owner.
+    // completedFrameServerTls() also checks the pinned selected X.509
+    // fingerprint; a caller cannot inject or swap a TLS identity.
+    const SSL *sourceTls = reader.completedFrameServerTls();
+    if (sourceTls == nullptr || negotiatedServerTls_ == nullptr ||
+        sourceTls != negotiatedServerTls_)
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+    const auto parsed = parseCredSspTsRequest(reader.completeDer());
+    if (!parsed || !permittedBindingRequest(parsed, false) ||
+        negotiatedVersion_ != parsed.value.version)
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+
+    // No transient plaintext is exported; processVerifiedBinding performs
+    // real confidential GSS unwrap, active TLS cert/nonce comparison and
+    // server GSS wrap before we erase the ONE framed DER input.
+    auto result = processVerifiedBinding(sourceTls, parsed, false);
+    if (!result.ready || !reader.releaseFrame())
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+    return result;
 }
 
 CredSspProtectedReply GssapiSpnegoAcceptor::processFinalFramedNegoAndBinding(
@@ -95,6 +136,20 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processFinalFramedNegoAndBinding(
 bool GssapiSpnegoAcceptor::processFinalFramedNegoAndQueueBindingReply(
     TsRequestFrameReader &reader, TsRequestTlsReplyWriter &writer) noexcept
 {
+    return queueFramedProtectedReply(reader, writer, true);
+}
+
+bool GssapiSpnegoAcceptor::processFramedProtectedBindingAndQueueReply(
+    TsRequestFrameReader &reader, TsRequestTlsReplyWriter &writer) noexcept
+{
+    return queueFramedProtectedReply(reader, writer, false);
+}
+
+bool GssapiSpnegoAcceptor::queueFramedProtectedReply(
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer,
+    bool combinedFinal) noexcept
+{
     const SSL *sourceTls = reader.completedFrameServerTls();
     if (sourceTls == nullptr ||
         writer.status() != TsRequestTlsWriteStatus::Idle)
@@ -105,7 +160,9 @@ bool GssapiSpnegoAcceptor::processFinalFramedNegoAndQueueBindingReply(
         return false;
     }
 
-    auto result = processFinalFramedNegoAndBinding(reader);
+    auto result = combinedFinal
+        ? processFinalFramedNegoAndBinding(reader)
+        : processFramedProtectedBinding(reader);
     const bool validBinding =
         result.ready &&
         stage_ == SpnegoStage::ServerBindingPrepared &&
@@ -116,8 +173,8 @@ bool GssapiSpnegoAcceptor::processFinalFramedNegoAndQueueBindingReply(
     bool queued = false;
     if (validBinding)
     {
-        // A real confidential gss_wrap output, only after successful
-        // same-frame GSS completion and active-TLS certificate proof.
+        // The only reply source is this exact GSS context's confidential
+        // gss_wrap result, after same-TLS client binding verification.
         queued = writer.queueReply(
             const_cast<SSL *>(sourceTls),
             static_cast<std::uint8_t>(negotiatedVersion_),

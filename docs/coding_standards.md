@@ -608,3 +608,34 @@ terminal close. No GSS token, binding hash or
 certificate fingerprint is a user-authorization
 capability. Test with actual OpenSSL selected
 certificates, never a fabricated OS identity.
+
+## Frame-proven GSS pubKeyAuth only (2026-10-14)
+
+The optional Linux MIT GSS binding implementation
+must never accept a caller-provided
+`std::span<DER>` paired with a seemingly valid
+`SSL*` as proof of TLS record provenance.
+Keep the legacy public method only as
+deny-only for callers that might still
+compile against it. The one trusted
+`TsRequestFrameReader` must supply
+`completedFrameServerTls()` and a
+borrowed, bounded DER span until the
+synchronous real GSS unwrap, selected
+cert/nonce check and server GSS wrap end.
+For the binding-only form require NO
+negoTokens, EXACTLY encrypted pubKeyAuth
+and a 32-byte nonce, no authInfo/errorCode,
+matched negotiated 5/6 version, verified
+GSS context and unchanged active TLS
+certificate. For the combined final
+message preserve its independent strict
+shape and GSS completion requirement.
+Reuse a single checked reply queue
+implementation for both variants;
+reject non-idle writers and erase
+transient GSS-protected provider output
+after snapshotting bytes into the
+existing canonical TLS writer. Never
+promote these components to OS or
+MCS authorization authority.

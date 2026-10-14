@@ -134,17 +134,31 @@ public:
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer) noexcept;
 
-    // Once SPNEGO/Kerberos completes, require a DER TSRequest holding
-    // EXACTLY a v5/v6 pubKeyAuth + 32-byte clientNonce (no authInfo).
-    // gss_unwrap MUST verify integrity and confidentiality *before* any
-    // comparison with the active TLS selected certificate. The server hash
-    // MUST then be sealed with gss_wrap(conf_req_flag=1). One-shot: success
-    // enters ServerBindingPrepared; all failures permanently reject.
-    //
-    // Neither state grants a user account, MCS domain or desktop access.
+    // Historical caller-supplied DER binding entry point. Intentionally
+    // deny-only: a matching SSL* argument does NOT prove that these bytes
+    // were actually read over that TLS connection. Retained solely so old
+    // callers fail closed rather than silently using a bypass.
+    // Prefer processFramedProtectedBinding for all binding-only messages.
     [[nodiscard]] CredSspProtectedReply processProtectedBinding(
         const SSL *activeServerTls,
         std::span<const std::uint8_t> protectedRequestDer) noexcept;
+
+    // Binding-only (no negoTokens) MS-CSSP 2.2.1 request. Requires a
+    // COMPLETE TSRequest frame genuinely read from the original TLS
+    // server connection and unchanged selected certificate, following a
+    // real GSS MechanismVerified step with the pinned v5/v6 version.
+    // The same borrowed frame is synchronously GSS-unwrapped, compared
+    // with the active certificate/nonce and wiped on success; failed
+    // GSS/context/pinning/DER checks terminate reader and provider.
+    // This proves TLS framing, never OS identity authorization.
+    [[nodiscard]] CredSspProtectedReply processFramedProtectedBinding(
+        TsRequestFrameReader &reader) noexcept;
+
+    // Equivalent provider-sourced reply queue, never a direct socket
+    // write. Requires idle writer and same proven server TLS identity.
+    [[nodiscard]] bool processFramedProtectedBindingAndQueueReply(
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer) noexcept;
 
     // MS-CSSP 3.1.5 final client message: exactly one last negoToken,
     // encrypted pubKeyAuth and a 32-byte nonce in the SAME TLS-derived
@@ -194,6 +208,10 @@ private:
     [[nodiscard]] CredSspProtectedReply processVerifiedBinding(
         const SSL *activeServerTls,
         const TsRequestResult &request,
+        bool combinedFinal) noexcept;
+    [[nodiscard]] bool queueFramedProtectedReply(
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer,
         bool combinedFinal) noexcept;
     void deleteContext() noexcept;
     [[nodiscard]] bool keepAuthenticatedPrincipal(gss_name_t name) noexcept;

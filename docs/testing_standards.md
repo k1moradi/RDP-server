@@ -833,3 +833,34 @@ actual positive keytab/Kerberos ticket
 and confidential GSS TLS pubKeyAuth,
 independently authorized OS session,
 real Microsoft client or desktop.
+
+## Linux binding-only TLS provenance cases (2026-10-14; CI NOT RUN)
+
+Register TWO new names inside the preexisting
+Linux MIT-GSS-linked `test_owned_preauth_session`
+executable using its real completed
+OpenSSL server/client memory-BIO handshake.
+`security.gssapi-framed-binding-only-denials`
+sends exact binding-only v5/v6 DER over
+actual TLS, confirms correct provenance,
+then rejects without real configured
+GSS/Kerberos identity; verifies wiped
+frame/context, replay refusal, legacy
+raw caller DER always denies, and manual
+or incomplete frames have no TLS provenance.
+`security.gssapi-framed-binding-reply-order`
+asserts the framed binding queue cannot
+produce a server TLS reply without
+verified provider, cannot overwrite an
+outstanding canonical server reply,
+and terminates reader, writer and
+GSS owner together; manually injected
+complete DER is also denied.
+Existing DER/nonce/ciphertext and
+combined-final cases remain intact.
+Expected Linux 69 Debug and Release
+CTests, macOS/Windows 60 unchanged.
+**NOT RUN:** new CI, owner local build,
+positive live Kerberos keytab/ticket
+with GSS unwrap/wrap/TLS binding,
+OS authorization and desktop.

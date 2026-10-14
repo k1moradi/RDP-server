@@ -134,7 +134,9 @@ if(TARGET rdp-server-linux-gssapi)
             gssapi-final-combined-denials
             gssapi-negotiation-reply-gates
             gssapi-binding-reply-gates
-            gssapi-reply-order-denials)
+            gssapi-reply-order-denials
+            gssapi-framed-binding-only-denials
+            gssapi-framed-binding-reply-order)
         add_test(NAME "security.${case_name}"
             COMMAND test_owned_preauth_session "${case_name}")
         set_tests_properties("security.${case_name}" PROPERTIES

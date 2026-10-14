@@ -2121,6 +2121,15 @@ void testTlsCredSspProvenance()
 
 #ifdef RDP_TEST_LINUX_GSSAPI
 
+// Binding-only DER shape; intentionally NOT a real GSS-protected hash.
+constexpr std::array<std::uint8_t, 48> kTestBindingOnlyDer{{
+    0x30, 0x2e, 0xa0, 0x03, 0x02, 0x01, 0x06,
+    0xa3, 0x03, 0x04, 0x01, 0x55,
+    0xa5, 0x22, 0x04, 0x20,
+    0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+    0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+    0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+    0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42}};
 
 void receiveOneCredSspTlsFrame(
     TsRequestFrameReader &reader, SSL *server, std::size_t expected)
@@ -2371,6 +2380,110 @@ void testGssapiCombinedFinalBindingDenied()
     assert(premature.stage() == SpnegoStage::Failed);
 }
 
+void testGssapiFramedBindingOnlyDenials()
+{
+    for (const std::uint8_t version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        auto der = kTestBindingOnlyDer;
+        der[6] = version;
+        assert(isCredSspPublicKeyAuthRequest(der));
+        TsRequestFrameReader reader;
+        writeTlsClientApplicationData(tls.client.get(), der);
+        receiveOneCredSspTlsFrame(reader, tls.server.get(), der.size());
+        const auto parsed = parseCredSspTsRequest(reader.completeDer());
+        assert(parsed && parsed.value.version == version &&
+               parsed.value.hasPubKeyAuth && parsed.value.hasClientNonce &&
+               parsed.value.tokenCount == 0);
+        GssapiSpnegoAcceptor acceptor;
+        const auto result = acceptor.processFramedProtectedBinding(reader);
+        assert(!result.ready && result.encryptedServerBinding.empty());
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(acceptor.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+        assert(reader.completedFrameServerTls() == nullptr);
+        TsRequestFrameReader replay;
+        writeTlsClientApplicationData(tls.client.get(), der);
+        receiveOneCredSspTlsFrame(replay, tls.server.get(), der.size());
+        assert(!acceptor.processFramedProtectedBinding(replay).ready);
+        assert(replay.status() == TsRequestFrameStatus::Closed);
+    }
+    // The historical caller-injected API is terminal even if handed an
+    // otherwise valid finished server SSL handle.
+    TlsHandshakeFixture tls;
+    GssapiSpnegoAcceptor raw;
+    assert(!raw.processProtectedBinding(tls.server.get(),
+                                        kTestBindingOnlyDer).ready);
+    assert(raw.stage() == SpnegoStage::Failed);
+    GssapiSpnegoAcceptor synthetic;
+    TsRequestFrameReader manual;
+    assert(manual.consume(kTestBindingOnlyDer).status ==
+           TsRequestFrameStatus::Complete);
+    assert(manual.completedFrameServerTls() == nullptr);
+    assert(!synthetic.processFramedProtectedBinding(manual).ready);
+    assert(manual.status() == TsRequestFrameStatus::Closed);
+    GssapiSpnegoAcceptor incompleteProvider;
+    TsRequestFrameReader incomplete;
+    assert(incomplete.consume(
+        std::span(kTestBindingOnlyDer).first(10)).status ==
+        TsRequestFrameStatus::NeedMore);
+    assert(!incompleteProvider.processFramedProtectedBinding(incomplete).ready);
+    assert(incomplete.status() == TsRequestFrameStatus::Closed);
+}
+
+void testGssapiFramedBindingReplyOrder()
+{
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        auto der = kTestBindingOnlyDer;
+        der[6] = version;
+        writeTlsClientApplicationData(tls.client.get(), der);
+        receiveOneCredSspTlsFrame(reader, tls.server.get(), der.size());
+        GssapiSpnegoAcceptor acceptor;
+        assert(!acceptor.processFramedProtectedBindingAndQueueReply(
+            reader, writer));
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(writer.bytesRemaining() == 0);
+        assertNoGssReplyDelivered(tls.client.get());
+    }
+    // Even a pending offline-canonical server reply is dropped on a
+    // binding-order error. Neither old bytes nor fake proof are sent.
+    TlsHandshakeFixture tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    constexpr std::array<std::uint8_t, 1> opaque{0x5a};
+    assert(writer.queueReply(
+        tls.server.get(), 6, CredSspServerReplyField::NegoToken, opaque));
+    writeTlsClientApplicationData(tls.client.get(), kTestBindingOnlyDer);
+    receiveOneCredSspTlsFrame(
+        reader, tls.server.get(), kTestBindingOnlyDer.size());
+    GssapiSpnegoAcceptor provider;
+    assert(!provider.processFramedProtectedBindingAndQueueReply(
+        reader, writer));
+    assert(provider.stage() == SpnegoStage::Failed);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    assert(writer.bytesRemaining() == 0);
+    assertNoGssReplyDelivered(tls.client.get());
+
+    TsRequestFrameReader synthetic;
+    assert(synthetic.consume(kTestBindingOnlyDer).status ==
+           TsRequestFrameStatus::Complete);
+    TsRequestTlsReplyWriter syntheticWriter;
+    GssapiSpnegoAcceptor syntheticProvider;
+    assert(!syntheticProvider.processFramedProtectedBindingAndQueueReply(
+        synthetic, syntheticWriter));
+    assert(synthetic.status() == TsRequestFrameStatus::Closed);
+    assert(syntheticWriter.status() == TsRequestTlsWriteStatus::Closed);
+    assert(syntheticProvider.stage() == SpnegoStage::Failed);
+}
+
 void testGssapiTlsBoundHandoffDenials()
 {
     // An authentic TLS record does not make a fabricated SPNEGO token
@@ -2412,14 +2525,7 @@ void testGssapiTlsBoundHandoffDenials()
 
     // The public-key binding API must never treat a matched-looking
     // opaque DER blob as an authenticated TLS-bound GSS context.
-    constexpr std::array<std::uint8_t, 48> binding{{
-        0x30, 0x2e, 0xa0, 0x03, 0x02, 0x01, 0x06,
-        0xa3, 0x03, 0x04, 0x01, 0x55,
-        0xa5, 0x22, 0x04, 0x20,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42}};
+    const auto &binding = kTestBindingOnlyDer;
     GssapiSpnegoAcceptor unbound;
     const auto wrapped = unbound.processProtectedBinding(
         unrelated.server.get(), binding);
@@ -2532,6 +2638,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"gssapi-negotiation-reply-gates", &testGssapiNegotiationReplyHandoffDenied},
     {"gssapi-binding-reply-gates", &testGssapiBindingReplyHandoffDenied},
     {"gssapi-reply-order-denials", &testGssapiReplyOrderAndPendingDenials},
+    {"gssapi-framed-binding-only-denials", &testGssapiFramedBindingOnlyDenials},
+    {"gssapi-framed-binding-reply-order", &testGssapiFramedBindingReplyOrder},
 #endif
 });
 

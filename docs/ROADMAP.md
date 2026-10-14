@@ -24,9 +24,11 @@ server session. The library has no shipping daemon/installer.
    Confirm Active, share data, transport lifecycle and disconnect
 3. **Virtual channels:** CLIPRDR/RDPSND/DRDYNVC channel routing,
    fragmentation/reassembly, concurrent lifecycle and error semantics
-4. **Graphics:** standards-compliant desktop update path, RDPGFX and negotiated
-   H.264/RemoteFX/bitmap codecs; independent frame coherence and RDP client
-   acknowledgement/backpressure
+4. **Graphics (H.264 first):** deliver a negotiated RDPGFX AVC420-only
+   desktop update path with damage-aware capture, persistent reference frames,
+   bounded latest-frame scheduling, client acknowledgments/backpressure and
+   correct surface/resize lifecycle. No ClearCodec, Planar or RemoteFX encoder
+   is a prerequisite for the first usable Microsoft-client server
 5. **Platform adapters:** Linux (X11/Wayland as separately negotiated backends),
    macOS, Windows and other platforms for capture, input, cursor, session and
    identity with the same protocol-independent C++ core
@@ -34,10 +36,13 @@ server session. The library has no shipping daemon/installer.
    generation correctness and X11/OS clipboard ownership; require a trusted
    macOS screenshot paste into Firefox with a genuine non-null
    `ClipboardEvent.clipboardData.items[].getAsFile()` of type `image/png`
-7. **Performance, packaging and release:** benchmark against real Windows
-   App and FreeRDP clients on multiple OSes, exercise slow/fast links,
-   instrument latency, and ship a standalone installable RDP server only
-   once all gates pass
+7. **Performance, packaging and release:** establish a real-client H.264-only
+   baseline first with current Microsoft Windows App (Windows/macOS) and
+   Windows 11 Remote Desktop Connection; FreeRDP remains a useful additional
+   diagnostic client. Only after a usable server is verified, benchmark
+   ClearCodec on representative graphical desktop workflows. Exercise
+   slow/fast links and ship a standalone installable server only once
+   all required authentication, usability and reliability gates pass
 
 ## Acceptance policy
 
@@ -49,6 +54,12 @@ server session. The library has no shipping daemon/installer.
   request from the owner.
 - Preserve attributions and third-party licenses for upstream-inspired code,
   but do not depend on an xrdp daemon, patched chansrv or VNC runtime.
+- Target **practical interoperability with current Microsoft RDP clients**,
+  not an official Microsoft certification claim. The first graphics milestone
+  deliberately supports only negotiated H.264 for encoded bitmaps; it does
+  not claim full MS-RDPEGFX implementation conformance, which specifies
+  ClearCodec support. Reject sessions lacking compatible AVC capabilities
+  cleanly instead of sending an unnegotiated format or claiming success.
 
 ## Living TODO — authoritative project checklist
 
@@ -223,6 +234,22 @@ acceptance evidence; no synthetic completion claims.
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
+- [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:
+  implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
+  changed-region encoding, reference-frame correctness, frame ACK flow control,
+  resizing and reconnects together with authorized desktop capture/input.
+  Reuse existing first-party C++23 dirty-tile/fingerprint/NV12 scheduling;
+  permit native RDPGFX fills, copies and cache reuse (not additional codecs).
+  Defer ClearCodec, Planar and RemoteFX compression entirely; AVC444/v2 is a
+  later H.264-only option **only if client negotiation or text fidelity requires
+  it**. Never advertise an unsupported mode or silently fall back when AVC420
+  is unavailable. **Status: NOT RUN / not a working RDP server.**
+- [ ] Confirm H.264 capability negotiation and a genuinely interactive,
+  authenticated desktop with current Windows App on Windows/macOS and
+  Windows 11 Remote Desktop Connection. Record actual versions, advertised
+  capability sets and failures (including AVC disabled/missing), then verify
+  text/input, scrolling, menus, images, clipboard, display resize, frame
+  ordering and reconnect. **Status: NOT RUN; no real-client acceptance yet.**
 
 ### P1 — Real client features and performance
 
@@ -235,6 +262,40 @@ acceptance evidence; no synthetic completion claims.
   clipboard and input adapters; test real Microsoft/FreeRDP clients.
 - [ ] Measure native server CPU/RAM, bandwidth, graphics and clipboard
   p50/p95/p99; only then claim performance improvements.
+- [ ] **H.264-only interactive desktop baseline first.** Under the existing
+  [benchmark standards](benchmark.md), exercise terminal typing/scrolling,
+  code editing with syntax highlighting, text-heavy browser scrolling,
+  file-manager navigation, menus/dialogs, and mixed text/images/video.
+  These are **text-dominant graphical desktop workloads**, not a terminal-only
+  protocol or an assumption that pixels have a known content type. Record
+  p50/p95/p99 input-to-visible-update latency where measurable; distinguish
+  RDPGFX frame ACK from actual presentation. Also record capture/encode/queue
+  timings, CPU on older scalar/dual-core hardware, client decode cost,
+  network bytes, RSS/allocations, text fidelity and frame drops at fixed
+  resolution, load and network conditions. **Status: NOT RUN.**
+- [ ] **Only after H.264 usability is verified, evaluate ClearCodec** as an
+  optional optimization, not a prerequisite. Research and test existing
+  [IronRDP ClearCodecEncoder](https://docs.rs/ironrdp-graphics/0.9.0/ironrdp_graphics/clearcodec/struct.ClearCodecEncoder.html)
+  (Rust, MIT OR Apache-2.0; implemented residual/RLE and small glyph cache,
+  but **not** full bands/V-Bar encoding), and the
+  [FreeRDP ClearCodec code](https://github.com/FreeRDP/FreeRDP/blob/master/libfreerdp/codec/clear.c)
+  (decoder/reference; `clear_compress()` is unimplemented as of this review).
+  First benchmark the candidate offline against the **same dirty rectangles**
+  and H.264 settings; assess missing encoder features, output validity,
+  client interoperability and licensing before choosing a reusable reference
+  or writing a native C++23 encoder. Avoid a Rust runtime dependency in the
+  production protocol library. A residual-only prototype does **not** measure
+  the full ClearCodec V-Bar cache benefit. **Status: RESEARCH ONLY;
+  encode/decode benchmarks and real-client tests NOT RUN.**
+- [ ] **ClearCodec go/no-go after measured comparison.** If an interoperable
+  implementation provides repeatable improvements in text-dominant GUI
+  p95/p99 latency, total CPU/bandwidth or exact text fidelity **without
+  unacceptable regressions** in mixed content, memory, security or frame
+  correctness, consider an opt-in ClearCodec path and mixed-codec RDPGFX
+  synchronization with H.264. Otherwise retain H.264-only graphics and do
+  not add a codec for speculative benefit. Preserve the first-party C++23
+  architecture and collect reproducible real-Microsoft-client evidence.
+  **Status: NOT RUN; decision deferred.**
 
 ### P0 — Standards and repeatable automation
 

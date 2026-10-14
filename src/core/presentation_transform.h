@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#pragma once
+
+#include <cstdint>
+
+#include "geometry.h"
+#include "rectangle.h"
+
+struct PresentationPoint
+{
+    std::int32_t x{};
+    std::int32_t y{};
+
+    friend bool operator==(const PresentationPoint &,
+                           const PresentationPoint &) = default;
+};
+
+enum class RectangleMapResult
+{
+    Invalid,
+    Empty,
+    Mapped,
+};
+
+class PresentationTransform final
+{
+public:
+    [[nodiscard]] bool configure(PixelSize source,
+                                  PixelSize presentation) noexcept;
+    [[nodiscard]] bool configure(PixelSize source, PixelSize presentation,
+                                  Rectangle viewport) noexcept;
+
+    [[nodiscard]] bool valid() const noexcept;
+
+    [[nodiscard]] PixelSize sourceGeometry() const noexcept;
+    [[nodiscard]] PixelSize presentationGeometry() const noexcept;
+    [[nodiscard]] Rectangle viewport() const noexcept;
+
+    [[nodiscard]] RectangleMapResult mapSourceRectangle(
+        Rectangle sourceRectangle,
+        Rectangle &presentationRectangle) const noexcept;
+
+    [[nodiscard]] bool mapPresentationPoint(
+        std::int32_t presentationX, std::int32_t presentationY,
+        PresentationPoint &sourcePoint) const noexcept;
+
+    [[nodiscard]] bool mapSourcePoint(
+        std::int32_t sourceX, std::int32_t sourceY,
+        PresentationPoint &presentationPoint) const noexcept;
+
+private:
+    PixelSize sourceGeometry_{};
+    PixelSize presentationGeometry_{};
+    Rectangle viewport_{};
+    std::uint64_t sourceWidthReciprocal_{};
+    std::uint64_t sourceHeightReciprocal_{};
+    std::uint64_t viewportWidthReciprocal_{};
+    std::uint64_t viewportHeightReciprocal_{};
+    bool identity_{false};
+};

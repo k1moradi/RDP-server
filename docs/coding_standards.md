@@ -227,3 +227,11 @@ mandatory before the first TLS operation. Provider cancellation
 clears the SSL pointer and buffers; neither cryptographic
 transport completion nor a temporary self-signed test
 certificate authorizes a real user or OS session.
+
+**Verified cross-platform:** the one-owner nonblocking TLS
+handshake API at `fcd05f8e903a459ca85f13807bd35f7091f3fd70`
+passed [Actions run 38566584099](https://github.com/k1moradi/RDP-server/actions/runs/38566584099)
+on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy,
+with **25** Debug/Release CTests and per-OS package verification.
+Keep certificate trust, live sockets and identity authorization
+independent of this in-memory protocol handshake evidence.

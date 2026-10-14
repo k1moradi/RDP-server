@@ -194,8 +194,8 @@ acceptance evidence; no synthetic completion claims.
   the corrected fixture's OpenSSL 4 runtime/compiler gate remains
   **NOT RUN**. **Next:** verify OpenSSL 4 explicitly, complete
   actual live TLS/socket I/O, authentication and MCS response.
-  **Nonblocking TLS handshake increment (pending CI, 25 expected
-  CTests):** the sole `PreauthConnectionStream` now drives one
+  **Verified nonblocking TLS handshake increment at
+  `fcd05f8e903a459ca85f13807bd35f7091f3fd70` (25 CTests):** the sole `PreauthConnectionStream` now drives one
   `SSL_do_handshake` attempt per readiness event, returns OpenSSL
   WANT_READ/WANT_WRITE distinctly, and binds the borrowed SSL pointer
   through retries. Complete X.224 Confirm output and server-role SSL
@@ -207,8 +207,18 @@ acceptance evidence; no synthetic completion claims.
   in-memory TLS handshake progress through MCS and negative/replay
   gates. **NOT RUN:** exact-head CI, owner-local build, real connected
   socket TLS I/O, NLA/identity authentication, MCS Connect-Response
-  and OS desktop admission. **Next:** bind TLS to an actual
-  connected native socket and verify event-loop I/O and cancellation.
+  and OS desktop admission.
+  **PASS:** [Actions run 38566584099](https://github.com/k1moradi/RDP-server/actions/runs/38566584099)
+  on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy:
+  both Debug/Release CTests, staged SDK installation, downstream
+  consumer and three platform ZIP/SHA-256 artifacts. Ubuntu logs
+  show **25/25 PASS** in Debug and Release.
+  **NOT RUN:** owner's local post-change build, connected native
+  TLS socket, independent credential/CredSSP/OS authorization,
+  MCS Connect-Response or external RDP client/desktop.
+  **Next:** drive the same TLS handshake over real connected
+  nonblocking sockets in a safe loopback test, then authenticated
+  RDP session establishment.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

@@ -320,7 +320,7 @@ NLA, MCS Connect-Response and independently authorized OS desktop.
 **Next functional boundary:** live socket TLS provider lifecycle
 and authenticated session sequencing, then MCS response.
 
-## Nonblocking OpenSSL handshake through sole connection owner (CI pending)
+## Verified nonblocking OpenSSL handshake through sole connection owner (2026-10-14)
 
 At parent `357add02b32eec5593b8a078d8ec56a4f7a6291e`,
 the owner-reported local Linux Debug build and
@@ -340,9 +340,17 @@ CTests use a real in-memory TLS BIO pair, one then decrypts
 the Microsoft 416-byte MCS/GCC packet. Expected total:
 **25 registered CTests**.
 
-**NOT RUN:** exact-head CI Linux/GCC/macOS/Clang/Windows/MSVC
-Debug/Release, SDK consumer and packaging, post-change
-owner-local build, actual connected native socket TLS
-transport, CredSSP/NLA, MCS response and OS authorization.
-**Next gate:** hosted CI; then a real loopback native TLS
-connection without activating a server service.
+**PASS:** exact code commit
+`fcd05f8e903a459ca85f13807bd35f7091f3fd70`,
+[Actions run 38566584099](https://github.com/k1moradi/RDP-server/actions/runs/38566584099):
+Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy
+succeeded. Ubuntu explicitly logged **25/25 PASS** in Debug and
+Release; all three OSes passed the full CTests, staged install,
+downstream consumer and CPack ZIP/checksums. No release tag,
+server activation or machine changes took place.
+**NOT RUN:** owner's updated local build, real connected TCP
+TLS session, external RDP clients, CredSSP/NLA identity,
+OS desktop admission and MCS server response.
+**Next:** safe loopback native TLS I/O/regression; full secure
+connection and authenticated RDP session remain open.
+

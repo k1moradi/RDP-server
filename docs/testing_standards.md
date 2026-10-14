@@ -298,7 +298,7 @@ post-fix test specifically linked against OpenSSL 4 remains
 **NOT RUN**. Preserve explicit version evidence rather than
 calling an API change verified across both versions.
 
-## Nonblocking OpenSSL server TLS handshake owner (CI pending)
+## Verified nonblocking OpenSSL server TLS handshake owner (2026-10-14)
 
 Two behavior-named CTests in the **existing** preauth binary,
 `transport.tls-nonblocking-handshake` and
@@ -316,3 +316,14 @@ CTests**, up from 23 for two independent behaviors. These
 tests use a synthetic in-memory certificate and do not
 validate certificate trust, socket runtime, CredSSP,
 desktop authorization or external RDP clients.
+
+**PASS:** exact implementation
+`fcd05f8e903a459ca85f13807bd35f7091f3fd70`
+in [CI run 38566584099](https://github.com/k1moradi/RDP-server/actions/runs/38566584099):
+Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy,
+both Debug/Release **25/25 CTests**, staged SDK install,
+downstream compiled/linked/running consumer and all three CPack
+ZIP/checksum uploads. The TLS event-loop handshake is verified
+against an in-memory BIO peer, not a native TCP socket or real
+RDP client. An explicit OpenSSL 4.x post-fix runner is still
+NOT RUN; see the compatibility gate above.

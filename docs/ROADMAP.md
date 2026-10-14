@@ -697,54 +697,51 @@ acceptance evidence; no synthetic completion claims.
   **Next:** positive controlled Kerberos/GSS
   and TLS binding, then independent OS policy
   before admitting real MCS/desktop.
-  **Linux TLS-framed CredSSP binding-only admission boundary
-  (2026-10-14; new CI NOT RUN):** per
+  **Verified TLS-framed GSS binding-only provenance boundary
+  (2026-10-14; CI PASS):** Microsoft
   [MS-CSSP 2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
-  and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),
-  a GSS-protected client `pubKeyAuth` response
-  cannot be authenticated from raw caller-supplied
-  DER plus a matching-looking `SSL*`. The older
-  Linux `GssapiSpnegoAcceptor::processProtectedBinding`
-  takes arbitrary DER and therefore is now
-  permanently DENY-ONLY. Add the one
-  `processFramedProtectedBinding(TsRequestFrameReader&)`
-  that requires a COMPLETE authentic TLS-derived
-  frame with the ORIGINAL pinned SSL, unchanged
-  selected X.509 certificate, same v5/v6
-  negotiation version, exact binding-only
-  field shape and an actual verified Kerberos
-  GSS context. Only confidential GSS unwrap,
-  client nonce/cert hash comparison and
-  real GSS wrap can produce the reply. The
-  existing `TsRequestTlsReplyWriter` is used
-  only from an idle state by the new
-  `processFramedProtectedBindingAndQueueReply`;
-  share the existing combined-final queue
-  helper, reject and cleanse all three
-  owners on failure. Add **two Linux-only**
-  existing-fixture behavior CTests for real
-  TLS v5/v6 negative frames, manual/partial
-  DER, legacy raw-API denial, replay,
-  pending-writer conflict and zero TLS reply
-  delivery. Expected Linux **69** vs 67,
-  portable macOS/Windows **60** unchanged.
-  This is a fail-closed protocol boundary,
-  NOT genuine positive Kerberos, successful
-  protected binding, OS admission or desktop.
-  **PASS previous main:** `2d08e9662ed1a597a81b9e3424770cdc5fe0b335`,
-  [CI 38619989509](https://github.com/k1moradi/RDP-server/actions/runs/38619989509)
-  Linux 67/67, macOS/Windows 60/60
-  in Debug/Release, SDK/packages/policy green.
-  **NOT RUN:** new implementation CI,
-  locally installed tickets/service keytab,
-  positive authenticated GSS/TLS proof,
-  independently authorized OS session,
-  Windows App client or live desktop.
-  **Next:** controlled genuine positive
-  Kerberos with explicit service keytab
-  and client ticket, verify end-to-end
-  GSS/TLS proof, then independent OS
-  account authorization before MCS.
+  and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)
+  require real SPNEGO and encrypted public-key
+  proof inside the original established TLS
+  transcript. The Linux acceptor's historical
+  `processProtectedBinding(SSL*, rawDer)` is
+  now permanently deny-only: raw caller-supplied
+  bytes, even with an SSL pointer and an
+  otherwise authenticated provider, never
+  prove TLS record provenance.
+  `processFramedProtectedBinding(reader)`
+  requires exactly one complete TLS-derived
+  v5/v6 binding-only DER frame, unchanged
+  pinned SSL/selected X.509 certificate and
+  negotiation version, with successful REAL
+  GSS context and confidential unwrap before
+  nonce/hash comparison and protected server
+  response. The existing combined-final and
+  new binding-only queue methods now share
+  one guarded idle-writer handoff; terminal
+  failure closes reader, provider and writer.
+  **PASS:** implementation
+  `340b25d2352314003053ec19d467b75d578c9dbf`,
+  [CI 38623829568](https://github.com/k1moradi/RDP-server/actions/runs/38623829568):
+  Linux/GCC **69/69** and macOS/Clang,
+  Windows/MSVC **60/60** CTests in BOTH
+  Debug and Release; TWO new Linux real
+  TLS/GSS-linked denial and outgoing-order
+  CTests passed, along with all previous
+  regression groups, staged SDK/consumer,
+  ZIP/SHA-256 uploads and documentation
+  policy. The previously existing Linux
+  Release test fixture warning remains
+  nonfatal. These tests are **negative-only**
+  for GSS authentication. No positive ticket,
+  keytab, GSS unwrap success, independently
+  authorized OS account, Windows App client
+  or real desktop was run.
+  **Next:** opt-in controlled genuine positive
+  Kerberos/GSS exchange with explicit test
+  keytab/client ticket and active TLS binding,
+  then independent OS authorization before
+  any live MCS/desktop admission.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

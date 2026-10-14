@@ -834,33 +834,44 @@ and confidential GSS TLS pubKeyAuth,
 independently authorized OS session,
 real Microsoft client or desktop.
 
-## Linux binding-only TLS provenance cases (2026-10-14; CI NOT RUN)
+## Verified Linux TLS-framed GSS binding-only regressions (2026-10-14)
 
-Register TWO new names inside the preexisting
-Linux MIT-GSS-linked `test_owned_preauth_session`
-executable using its real completed
-OpenSSL server/client memory-BIO handshake.
+Two new Linux-only real OpenSSL memory-BIO
+TLS and linked MIT GSSAPI behavior CTests
+reuse the existing `test_owned_preauth_session`
+executable:
 `security.gssapi-framed-binding-only-denials`
-sends exact binding-only v5/v6 DER over
-actual TLS, confirms correct provenance,
-then rejects without real configured
-GSS/Kerberos identity; verifies wiped
-frame/context, replay refusal, legacy
-raw caller DER always denies, and manual
-or incomplete frames have no TLS provenance.
+delivers a syntactically valid binding-only
+v5/v6 DER message through TLS, confirms
+the pinned SSL provenance, then requires
+denial without a real verified GSS context.
+Legacy raw caller DER, manually consumed
+DER, incomplete DER and replay fail
+terminally, wiping buffered ciphertext.
 `security.gssapi-framed-binding-reply-order`
-asserts the framed binding queue cannot
-produce a server TLS reply without
-verified provider, cannot overwrite an
-outstanding canonical server reply,
-and terminates reader, writer and
-GSS owner together; manually injected
-complete DER is also denied.
-Existing DER/nonce/ciphertext and
-combined-final cases remain intact.
-Expected Linux 69 Debug and Release
-CTests, macOS/Windows 60 unchanged.
-**NOT RUN:** new CI, owner local build,
-positive live Kerberos keytab/ticket
-with GSS unwrap/wrap/TLS binding,
-OS authorization and desktop.
+checks that neither unverified TLS binding
+nor a preexisting unflushed server reply
+can produce a server application record,
+and GSS, framed TLS reader and guarded
+reply writer all close on rejection.
+The combined-final client token+binding
+positive syntax and negative GSS tests,
+plus all previous portable SDK suites
+remain unchanged.
+
+**PASS:** exact implementation
+`340b25d2352314003053ec19d467b75d578c9dbf`,
+[Actions 38623829568](https://github.com/k1moradi/RDP-server/actions/runs/38623829568),
+Linux/GCC **69/69** and macOS/Clang,
+Windows/MSVC **60/60** full CTests in BOTH
+Debug and Release; both new Linux
+security tests passed. Installed SDK
+consumer, all 3 ZIP/SHA-256 artifact
+uploads and documentation policy PASS.
+Prior unrelated nonfatal Ubuntu Release
+test warning near `test_owned_preauth_session.cpp:590`
+remains. **NOT RUN:** owner's local build,
+real positive Kerberos with ticket/keytab,
+successful GSS-protected public-key proof,
+independently authorized OS identity,
+external client or interactive desktop.

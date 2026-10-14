@@ -1058,47 +1058,80 @@ GSS/Kerberos + TLS certificate binding,
 then independent OS policy before
 live MCS/session and desktop admission.
 
-## Pending Linux GSS binding-only TLS frame provenance (2026-10-14)
+## Verified Linux GSS binding-only TLS-frame provenance (2026-10-14)
 
-**Previously verified exact main:**
+**Previous exact green main:**
 `2d08e9662ed1a597a81b9e3424770cdc5fe0b335`,
-[CI 38619989509](https://github.com/k1moradi/RDP-server/actions/runs/38619989509):
-Linux/GCC Debug+Release 67/67,
-macOS/Clang and Windows/MSVC Debug+Release
-60/60, SDK consumer, ZIP/SHA256 package
-uploads and documentation policy PASS.
+[CI 38619989509](https://github.com/k1moradi/RDP-server/actions/runs/38619989509)
+Linux 67/67 and macOS/Windows 60/60 CTests,
+Debug+Release and SDK/policy/packages PASS.
 
-**New implementation (CI NOT RUN):**
-`src/server/security/gssapi_spnego_acceptor.h`
-and `src/server/security/gssapi_credssp_binding.cpp`
-retire the caller-injected raw-DER binding
-API by making it permanently deny-only.
-`processFramedProtectedBinding(reader)`
-requires actual completed TLS-derived DER
-plus unchanged active selected TLS X.509
-identity/version before invoking the REAL
-GSS unwrap/nonce/client certificate
-verification and protected server GSS wrap.
+**Implementation:**
+`340b25d2352314003053ec19d467b75d578c9dbf`
+changes `src/server/security/gssapi_spnego_acceptor.h`
+and `src/server/security/gssapi_credssp_binding.cpp`.
+The historical direct
+`processProtectedBinding(SSL*, rawDer)`
+has NO positive path because caller DER
+lacks SSL/TLS record provenance. New
+`processFramedProtectedBinding` borrows the
+completed strict binding-only DER from the
+single `TsRequestFrameReader`, checks its
+verified original SSL and selected X.509
+certificate/version, requires actual
+GSS `MechanismVerified` before confidential
+GSS unwrap/client nonce hash comparison
+and GSS wrap, then releases/wipes the
+original frame. The new
 `processFramedProtectedBindingAndQueueReply`
-shares one existing guarded binding queue
-with the combined-final handler, requiring
-an idle writer and exactly the same server
-SSL and GSS stage. Two new Linux-only
-CTest behavior groups registered in the
-existing OpenSSL fixture and
-`tests/CMakeLists.txt`: binding-only
-reader fail-closed/replay/raw/manual denials
-and idle/pending/forged outgoing reply
-denials. Expected 69 Linux, 60 portable,
-both Debug and Release. No new provider
-test suite, resource owner or default
-service activation.
-**NOT RUN:** new CI, owner's local
-single-build-root test, positive actual
-Kerberos with explicit service keytab
-and independent tickets, successful
-GSS/TLS pubKeyAuth, OS admission,
-client acceptance or real desktop.
-**Next:** controlled positive Kerberos
-GSS/TLS proof and independent OS account
-policy BEFORE any real MCS response.
+shares the existing guarded queue
+with the strict combined-final method,
+never overwrites pending writer output
+and always cleanses protected GSS tokens
+or closes all three owners on failure.
+Two independent Linux real OpenSSL
+memory-BIO CTests added in the existing
+`tests/test_owned_preauth_session.cpp`
+and `tests/CMakeLists.txt`; relevant
+roadmap, architecture, coding/testing
+standards and this ledger co-changed.
+No standalone executable, default service
+or second GSS state machine was added.
+
+**PASS:** [Actions 38623829568](https://github.com/k1moradi/RDP-server/actions/runs/38623829568)
+all four required jobs SUCCESS:
+Linux/GCC full **69/69** CTests in Debug
+and Release, including both new
+`security.gssapi-framed-binding-only-denials`
+and `security.gssapi-framed-binding-reply-order`;
+macOS/Clang and Windows/MSVC each
+**60/60** CTests, BOTH Debug and Release.
+Three SDK installed downstream consumers,
+CPack ZIP/SHA-256 checksum artifacts
+and all package uploads and documentation
+policy PASS. Per-job CI used only
+checkout-local `build/`: configure Debug
+with Linux `-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`
+(portable OFF), compile Debug and
+`ctest --test-dir build --build-config Debug
+--output-on-failure`, reconfigure the
+same root for Release, compile/CTest,
+staged install/consumer/CPack/sha256/upload.
+Preexisting nonfatal Ubuntu Release
+`-Wstringop-overflow` in TLS test fixture
+at `tests/test_owned_preauth_session.cpp:590`
+remains unrelated.
+**NOT RUN:** user's local persistent
+`~/rdp-server/build/`, controlled
+real positive keytab/client tickets
+and GSS/TLS certificate-bound proof,
+independent OS account/session policy,
+Windows App or other external RDP
+client or desktop. Authentication
+refusal tests never authorize access.
+**Next:** verified genuine positive
+Kerberos/SPNEGO, GSS unwrap/wrap and
+active TLS binding with explicit
+test-only credentials, then separate
+OS authorization before MCS replies
+or remote desktop admission.

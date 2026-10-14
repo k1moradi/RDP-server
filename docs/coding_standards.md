@@ -193,3 +193,14 @@ consumer and packaging gates on Linux/GCC, macOS/Clang and Windows/MSVC,
 plus documentation-policy. Native socket syscalls were compiled but
 actual connected native socket traffic is not covered by this test;
 do not infer live server or user authentication.
+
+## Synthetic certificate ownership on OpenSSL 3 and 4
+
+Do not assume `X509_get_subject_name` yields writable storage:
+OpenSSL 4.0.3 returns a const name. The native TLS test fixture
+should own a separate mutable name via RAII `X509_NAME_new` and
+install it through `X509_set_subject_name` and
+`X509_set_issuer_name`, then sign. Do not use `const_cast`,
+weaken assertions, silently pin OpenSSL to hide a compiler
+error, or confuse test self-signed certificates with
+trusted production credential management.

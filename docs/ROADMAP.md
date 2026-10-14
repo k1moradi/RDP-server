@@ -178,8 +178,15 @@ acceptance evidence; no synthetic completion claims.
   **NOT RUN:** owner-local new build, actual connected native
   socket runtime, listening server, live TLS network handshake,
   CredSSP/NLA, MCS Connect-Response and authenticated desktop.
-  **Next:** secure live TLS socket I/O lifecycle + authentication
-  and standards-compliant MCS server response.
+  **CI compatibility note:** the documentation-evidence rerun
+  [38564061700](https://github.com/k1moradi/RDP-server/actions/runs/38564061700)
+  encountered a macOS Debug compile **FAIL** with OpenSSL 4.0.3:
+  `X509_get_subject_name` now returns `const X509_NAME*`,
+  invalidating the synthetic certificate fixture's mutable cast.
+  A follow-up constructs its own `X509_NAME` and assigns it
+  through `X509_set_subject_name` to support OpenSSL 3 and 4.
+  **Next:** cross-platform exact-head CI, then secure live TLS
+  socket I/O, authentication and MCS Connect-Response.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

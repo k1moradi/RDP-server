@@ -274,3 +274,16 @@ and all three ZIP/hash uploads. Ubuntu logs confirm
 **23/23 passing** in both builds. The native OS recv/send
 implementation compiles on all three platforms; scripted
 TCP I/O, not connected live sockets, drives the new tests.
+
+## OpenSSL 4 X.509 fixture compatibility (2026-10-14; CI pending)
+
+[Actions run 38564061700](https://github.com/k1moradi/RDP-server/actions/runs/38564061700)
+failed macOS/Clang Debug compile because Homebrew's FindOpenSSL
+selected OpenSSL **4.0.3**; `X509_get_subject_name` supplies a
+`const X509_NAME*` in this release, and mutating it is forbidden.
+The offline TLS fixture now uses its own RAII `X509_NAME_new()`,
+`X509_NAME_add_entry_by_txt()`, then
+`X509_set_subject_name()` and `X509_set_issuer_name()` to
+construct the self-signed ephemeral certificate. This avoids
+casting away `const` and is compatible with OpenSSL 3 and 4.
+The test still does not establish live certificate trust.

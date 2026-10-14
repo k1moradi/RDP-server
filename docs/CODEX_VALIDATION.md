@@ -293,3 +293,19 @@ live TLS network handshake, CredSSP/NLA, MCS responses,
 real clients or independently authorized desktop admission.
 **Next gate:** actual TLS-over-socket lifecycle with bounded
 cancellation and then authenticated connection semantics.
+
+## OpenSSL 4 fixture compile failure (2026-10-14)
+
+**FAIL:** evidence-only commit `4578a4549b9a04638206264a0c5ac752ef5e844b`,
+[run 38564061700](https://github.com/k1moradi/RDP-server/actions/runs/38564061700)
+macOS Compile Debug, first failing call: the prior in-memory TLS
+fixture assigned OpenSSL 4's `const X509_NAME*` return from
+`X509_get_subject_name` to a mutable `X509_NAME*`. The
+actual native TCP adapter implementation had independently passed
+[run 38563789698](https://github.com/k1moradi/RDP-server/actions/runs/38563789698)
+on all three OSes and 23/23 Debug/Release tests on Ubuntu.
+The fix creates a temporary RAII `X509_NAME` and sets both
+certificate subject and issuer using OpenSSL APIs; no
+`const_cast` or reduced test assertion. **NOT RUN:**
+cross-platform post-fix CI until recorded. **NOT RUN:**
+owner-local new tests, connected socket, real client or OS admission.

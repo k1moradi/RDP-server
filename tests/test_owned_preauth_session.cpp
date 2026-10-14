@@ -60,6 +60,7 @@ using ContextPointer = std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)>;
 using SslPointer = std::unique_ptr<SSL, decltype(&SSL_free)>;
 using KeyPointer = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using CertificatePointer = std::unique_ptr<X509, decltype(&X509_free)>;
+using X509NamePointer = std::unique_ptr<X509_NAME, decltype(&X509_NAME_free)>;
 
 struct TlsHandshakeFixture final
 {
@@ -85,13 +86,17 @@ struct TlsHandshakeFixture final
         assert(X509_gmtime_adj(X509_getm_notBefore(cert.get()), -60));
         assert(X509_gmtime_adj(X509_getm_notAfter(cert.get()), 3600));
         assert(X509_set_pubkey(cert.get(), key.get()) == 1);
-        X509_NAME *name = X509_get_subject_name(cert.get());
+        // OpenSSL 4 returns const X509_NAME* from X509_get_subject_name.
+        // Build an independent mutable X.509 name before installing it
+        // in the certificate; this works with OpenSSL 3 and OpenSSL 4.
+        const X509NamePointer name{X509_NAME_new(), X509_NAME_free};
         assert(name);
         assert(X509_NAME_add_entry_by_txt(
-            name, "CN", MBSTRING_ASC,
+            name.get(), "CN", MBSTRING_ASC,
             reinterpret_cast<const unsigned char *>("rdp-test-only"),
             -1, -1, 0) == 1);
-        assert(X509_set_issuer_name(cert.get(), name) == 1);
+        assert(X509_set_subject_name(cert.get(), name.get()) == 1);
+        assert(X509_set_issuer_name(cert.get(), name.get()) == 1);
         assert(X509_sign(cert.get(), key.get(), EVP_sha256()) > 0);
         assert(SSL_CTX_use_certificate(serverContext.get(), cert.get()) == 1);
         assert(SSL_CTX_use_PrivateKey(serverContext.get(), key.get()) == 1);

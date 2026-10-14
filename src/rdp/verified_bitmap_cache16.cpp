@@ -29,9 +29,12 @@ tileView(FramebufferView capture, Rectangle tile,
     if (x > capture.widthPixels || y > capture.heightPixels ||
         tile.widthPixels > capture.widthPixels - x ||
         tile.heightPixels > capture.heightPixels - y ||
-        static_cast<std::size_t>(x) >
-            std::numeric_limits<std::size_t>::max() / 4U ||
-        tile.widthPixels > std::numeric_limits<std::size_t>::max() / 4U)
+        static_cast<std::uint64_t>(x) >
+            static_cast<std::uint64_t>(
+                std::numeric_limits<std::size_t>::max() / 4U) ||
+        static_cast<std::uint64_t>(tile.widthPixels) >
+            static_cast<std::uint64_t>(
+                std::numeric_limits<std::size_t>::max() / 4U))
     {
         return false;
     }

@@ -82,6 +82,10 @@ In the existing `PreauthConnectionStream`, the connection reply
 completion gate now precedes the preauthentication TLS transition.
 Tests were added to the existing `transport.preauth-session` CTest:
 premature TLS, write failure, duplicate reply completion, early
-completion report and accepted one-shot completion. Status at commit
-creation: **NOT RUN**, pending GitHub Actions exact-head verification.
-No listening socket, real TLS provider or OS session access.
+completion report and accepted one-shot completion. **PASS:** [Actions run 38537586258](https://github.com/k1moradi/RDP-server/actions/runs/38537586258)
+completed successfully for exact commit
+`18262c0e4bf9bc4ecec4c2d56b069d4fc723b1f1`, with
+Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy jobs
+green. This is a tested **offline preauthentication ordering rule**,
+not a listening socket, real TLS handshake, CredSSP, user authentication
+or OS session access; those categories remain NOT RUN.

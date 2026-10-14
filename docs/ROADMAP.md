@@ -83,11 +83,14 @@ acceptance evidence; no synthetic completion claims.
   The *overall* milestone stays **open**: a real TCP listener, TLS provider,
   authenticated session, MCS response and external-client handshake
   remain **NOT RUN / unimplemented**.
-  **New ordering gate in this commit:** the same preauth owner refuses a
-  TLS transition until it receives exactly one successful completion
-  acknowledgment for the full X.224 reply; premature, partial-failure
-  and duplicate completions close the diagnostic. Exact-head CTests
-  are pending CI; no real socket or TLS provider has been tested.
+  **Additional partial increment `18262c0e4bf9bc4ecec4c2d56b069d4fc723b1f1`:**
+  the existing preauth owner requires exactly one completed X.224
+  reply write before accepting a TLS transition. Premature TLS,
+  failed/partial and repeated acknowledgments fail closed.
+  **PASS:** [Actions run 38537586258](https://github.com/k1moradi/RDP-server/actions/runs/38537586258)
+  on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
+  The overall listener/TLS/authentication milestone is still open;
+  **no real socket, TLS provider or external client was tested**.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

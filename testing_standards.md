@@ -91,7 +91,7 @@ unsupported security and terminal replay/close behavior.
 No TCP listener, TLS server, session admission or external client
 was exercised; these acceptance categories remain NOT RUN.
 
-## X.224 response-ordering regression (pending exact-head CI)
+## Verified X.224 response-ordering regression (2026-10-14)
 
 The existing `transport.preauth-session` suite also tests that a TLS
 completion signal before the Connection Confirm has been fully sent is
@@ -99,3 +99,9 @@ rejected, as are failed/partial and duplicate send acknowledgments.
 It verifies exactly one completed Confirm allows progression to the
 existing *synthetic* TLS stage, but **not** real TLS negotiation or
 authenticated desktop access.
+
+**Exact-head PASS:** commit `18262c0e4bf9bc4ecec4c2d56b069d4fc723b1f1`,
+[Actions run 38537586258](https://github.com/k1moradi/RDP-server/actions/runs/38537586258)
+passed GCC/Linux, Clang/macOS, MSVC/Windows and the documentation gate.
+This confirms the new response-write completion checks within the
+synthetic C++23 transport tests; it does not validate a TLS provider.

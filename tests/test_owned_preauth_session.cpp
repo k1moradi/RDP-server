@@ -2,6 +2,7 @@
 #include "transport/preauth_session.h"
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/tpkt_x224.h"
+#include "security/credssp_tsrequest.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -41,6 +42,7 @@
 #endif
 
 using namespace rdp_server::server::transport;
+using namespace rdp_server::server::security;
 
 namespace
 {
@@ -1467,6 +1469,182 @@ void testNativeLoopbackCloseAndFailure()
     }
 }
 
+// An independent complete MS-CSSP DER envelope. The contained token is
+// intentionally NOT a valid GSS authenticator: only TLS + DER are tested.
+constexpr std::array<std::uint8_t, 21> kTestCredSspDer{
+    0x30, 0x13, 0xa0, 0x03, 0x02, 0x01, 0x06,
+    0xa1, 0x0c, 0x30, 0x0a, 0x30, 0x08,
+    0xa0, 0x06, 0x04, 0x04, 0x60, 0x82, 0x01, 0x00};
+
+// Read as many already-available TLS plaintext segments as required for
+// exactly one DER envelope; 1 SSL_read_ex per production method invocation.
+std::size_t drainCredSspFromTls(
+    TsRequestFrameReader &reader, SSL *serverTls,
+    TsRequestTlsReadStatus finalStatus)
+{
+    std::size_t total = 0;
+    for (std::size_t step = 0; step < kTestCredSspDer.size() + 8; ++step)
+    {
+        const auto result = reader.readOneTlsStep(serverTls);
+        total += result.plaintextBytesRead;
+        assert(result.error == TsRequestError::None);
+        if (result.status == finalStatus)
+        {
+            assert(finalStatus != TsRequestTlsReadStatus::NeedRead ||
+                   result.plaintextBytesRead == 0);
+            return total;
+        }
+        assert(result.status == TsRequestTlsReadStatus::Progress);
+        assert(result.plaintextBytesRead > 0);
+    }
+    assert(false && "TLS frame intake did not reach its expected boundary");
+    return total;
+}
+
+void testTlsCredSspFragmentation()
+{
+    for (std::size_t split = 1; split < kTestCredSspDer.size(); ++split)
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        // An empty read on a completed server SSL is nonfatal.
+        assert(reader.readOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsReadStatus::NeedRead);
+        writeTlsClientApplicationData(
+            tls.client.get(), std::span(kTestCredSspDer).first(split));
+        assert(drainCredSspFromTls(
+            reader, tls.server.get(), TsRequestTlsReadStatus::NeedRead) ==
+            split);
+        assert(reader.status() == TsRequestFrameStatus::NeedMore);
+        assert(reader.completeDer().empty());
+
+        writeTlsClientApplicationData(
+            tls.client.get(), std::span(kTestCredSspDer).subspan(split));
+        assert(drainCredSspFromTls(
+            reader, tls.server.get(), TsRequestTlsReadStatus::Complete) ==
+            kTestCredSspDer.size() - split);
+        assert(std::equal(reader.completeDer().begin(),
+                          reader.completeDer().end(),
+                          kTestCredSspDer.begin(), kTestCredSspDer.end()));
+        const auto parsed = parseCredSspTsRequest(reader.completeDer());
+        assert(parsed && parsed.value.version == 6);
+        assert(parsed.value.tokenCount == 1 && !parsed.value.hasAuthInfo);
+        assert(reader.releaseFrame());
+        assert(reader.completeDer().empty());
+        assert(reader.status() == TsRequestFrameStatus::NeedMore);
+    }
+}
+
+void testTlsCredSspCoalescingAndIdentity()
+{
+    TlsHandshakeFixture tls;
+    TsRequestFrameReader reader;
+    std::array<std::uint8_t, kTestCredSspDer.size() * 2> combined{};
+    std::copy(kTestCredSspDer.begin(), kTestCredSspDer.end(),
+              combined.begin());
+    std::copy(kTestCredSspDer.begin(), kTestCredSspDer.end(),
+              combined.begin() + kTestCredSspDer.size());
+    writeTlsClientApplicationData(tls.client.get(), combined);
+    assert(drainCredSspFromTls(
+        reader, tls.server.get(), TsRequestTlsReadStatus::Complete) ==
+        kTestCredSspDer.size());
+    const auto first = reader.completeDer();
+    assert(std::equal(first.begin(), first.end(),
+                      kTestCredSspDer.begin(), kTestCredSspDer.end()));
+    // No socket read after Complete, including when the next frame was
+    // coalesced into the same TLS record.
+    const auto stillComplete = reader.readOneTlsStep(tls.server.get());
+    assert(stillComplete.status == TsRequestTlsReadStatus::Complete &&
+           stillComplete.plaintextBytesRead == 0);
+    assert(reader.releaseFrame());
+    assert(drainCredSspFromTls(
+        reader, tls.server.get(), TsRequestTlsReadStatus::Complete) ==
+        kTestCredSspDer.size());
+    assert(reader.releaseFrame());
+    assert(reader.completeDer().empty());
+
+    // Mixing caller-crafted plaintext into this TLS-owned stream would
+    // bypass the server TLS identity requirement: reject it terminally.
+    assert(reader.consume(kTestCredSspDer).status ==
+           TsRequestFrameStatus::Invalid);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(reader.readOneTlsStep(tls.server.get()).status ==
+           TsRequestTlsReadStatus::Closed);
+}
+
+void testTlsCredSspRejections()
+{
+    {
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(nullptr).status ==
+               TsRequestTlsReadStatus::Invalid);
+        assert(reader.completeDer().empty());
+        assert(reader.readOneTlsStep(nullptr).status ==
+               TsRequestTlsReadStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(tls.client.get()).status ==
+               TsRequestTlsReadStatus::Invalid);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture tls{false};
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsReadStatus::Invalid);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TlsHandshakeFixture substitute;
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsReadStatus::NeedRead);
+        assert(reader.readOneTlsStep(substitute.server.get()).status ==
+               TsRequestTlsReadStatus::Invalid);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+    }
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        // Opposite direction of mixed-source rejection: a manually
+        // buffered DER header cannot later be blessed by real TLS.
+        assert(reader.consume(std::span(kTestCredSspDer).first(1)).status ==
+               TsRequestFrameStatus::NeedMore);
+        assert(reader.readOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsReadStatus::Invalid);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        constexpr std::array<std::uint8_t, 4> invalidDer{
+            0x31, 0x02, 0xa0, 0x00};
+        writeTlsClientApplicationData(tls.client.get(), invalidDer);
+        const auto invalid = reader.readOneTlsStep(tls.server.get());
+        assert(invalid.status == TsRequestTlsReadStatus::Invalid);
+        assert(invalid.plaintextBytesRead == 2);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+    }
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        writeTlsClientApplicationData(
+            tls.client.get(), std::span(kTestCredSspDer).first(5));
+        assert(drainCredSspFromTls(
+            reader, tls.server.get(), TsRequestTlsReadStatus::NeedRead) ==
+            5);
+        assert(SSL_shutdown(tls.client.get()) >= 0);
+        assert(reader.readOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsReadStatus::Invalid);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+    }
+}
+
 void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
@@ -1536,7 +1714,7 @@ struct PreauthTestCase
 // Keep one executable/fixture implementation but expose independent
 // behavior-named CTest cases to make regressions visible in CTest output.
 // Running without an argument still executes the complete native suite.
-constexpr std::array<PreauthTestCase, 17> kPreauthTestCases{{
+constexpr std::array<PreauthTestCase, 20> kPreauthTestCases{{
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
@@ -1554,6 +1732,9 @@ constexpr std::array<PreauthTestCase, 17> kPreauthTestCases{{
     {"mcs-decrypted-rejections", &testRejectedDecryptedMcsBoundaries},
     {"mcs-tls-record-fragments", &testActualTlsApplicationDataIntake},
     {"mcs-tls-record-rejections", &testTlsRecordFailClosedBoundaries},
+    {"credssp-tls-fragments", &testTlsCredSspFragmentation},
+    {"credssp-tls-coalesced", &testTlsCredSspCoalescingAndIdentity},
+    {"credssp-tls-rejections", &testTlsCredSspRejections},
 }};
 
 int main(int argc, char **argv)

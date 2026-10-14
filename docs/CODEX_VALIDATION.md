@@ -671,3 +671,29 @@ authorization or Microsoft desktop.
 **Next:** a controlled positive GSS/TLS certificate-bound
 provider integration, with independently verified OS
 session admission kept closed until explicit evidence.
+
+## Pending native TLS -> CredSSP DER intake (2026-10-14; NOT RUN)
+
+**Prior verified base:** `c753b7d205647374c14e24be52b9f9f22fa8efcc`,
+[CI 38604244975](https://github.com/k1moradi/RDP-server/actions/runs/38604244975)
+passed Linux/GCC 50/50 CTests, macOS/Clang and
+Windows/MSVC 48/48 in both configurations, policy,
+installed consumer, three packages/checksums.
+
+**Proposed new code:** single-step finished-server-TLS
+`SSL_read_ex` handoff into existing bounded DER frame reader.
+One SSL identity per object, exact next-byte budget,
+Progress/WANT_READ/WANT_WRITE distinction, strict
+release-before-next-frame, fail-closed source mixing,
+malformed records, EOF and buffer wiping. Three new
+behavior-named OpenSSL in-memory TLS CTests in the
+existing regression executable are registered (expected
+Linux 53; macOS/Windows 51). Modified code/tests:
+`src/server/security/credssp_tsrequest.{h,cpp}`,
+`tests/test_owned_preauth_session.cpp`,
+`tests/CMakeLists.txt`. Documentation co-changed
+in the same commit. **NOT RUN:** new CI and owner's
+updated build, authenticated CredSSP/GSS/TLS-binding,
+OS admission, real clients or desktop.
+**Next:** first trust-verified GSS/TLS binding,
+then independently verified OS session authorization.

@@ -374,6 +374,7 @@ void TsRequestFrameReader::clear() noexcept
 void TsRequestFrameReader::close() noexcept
 {
     clear();
+    boundServerTls_ = nullptr;
     status_ = TsRequestFrameStatus::Closed;
 }
 
@@ -416,6 +417,107 @@ bool TsRequestFrameReader::releaseFrame() noexcept
 }
 
 TsRequestFrameResult TsRequestFrameReader::consume(
+    std::span<const std::uint8_t> plaintext) noexcept
+{
+    // Raw plaintext may not be injected into a live TLS-bound reader.
+    if (boundServerTls_ != nullptr)
+        return reject(0, TsRequestError::InvalidFields);
+    return consumePlaintext(plaintext);
+}
+
+TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
+    SSL *serverTls) noexcept
+{
+    if (status_ == TsRequestFrameStatus::Closed)
+        return {0, TsRequestTlsReadStatus::Closed, TsRequestError::None};
+
+    if (serverTls == nullptr ||
+        (boundServerTls_ != nullptr && boundServerTls_ != serverTls) ||
+        SSL_is_server(serverTls) != 1 ||
+        SSL_is_init_finished(serverTls) != 1 ||
+        SSL_version(serverTls) < TLS1_2_VERSION ||
+        SSL_get_current_cipher(serverTls) == nullptr ||
+        SSL_get_certificate(serverTls) == nullptr)
+    {
+        close();
+        return {0, TsRequestTlsReadStatus::Invalid,
+                TsRequestError::InvalidFields};
+    }
+    if (status_ == TsRequestFrameStatus::Complete)
+    {
+        // A manually supplied Complete frame must never acquire TLS
+        // provenance after the fact. No second TLS read before release.
+        if (boundServerTls_ == nullptr)
+        {
+            close();
+            return {0, TsRequestTlsReadStatus::Invalid,
+                    TsRequestError::InvalidFields};
+        }
+        return {0, TsRequestTlsReadStatus::Complete, TsRequestError::None};
+    }
+
+    // A partial frame injected through the direct plaintext parser cannot
+    // later acquire TLS provenance. TLS ownership starts with an empty frame.
+    if (boundServerTls_ == nullptr && buffered_ != 0)
+    {
+        close();
+        return {0, TsRequestTlsReadStatus::Invalid,
+                TsRequestError::InvalidFields};
+    }
+    boundServerTls_ = serverTls;
+    std::array<std::uint8_t, 512> plaintext{};
+    const std::size_t length =
+        (std::min)(plaintext.size(), bytesNeeded());
+    if (length == 0)
+    {
+        close();
+        return {0, TsRequestTlsReadStatus::Invalid,
+                TsRequestError::InvalidFields};
+    }
+
+    std::size_t obtained = 0;
+    const int ok = SSL_read_ex(serverTls, plaintext.data(), length, &obtained);
+    if (ok != 1)
+    {
+        // Consult OpenSSL immediately, without disturbing the error queue.
+        const int error = SSL_get_error(serverTls, ok);
+        if (error == SSL_ERROR_WANT_READ)
+            return {0, TsRequestTlsReadStatus::NeedRead,
+                    TsRequestError::None};
+        if (error == SSL_ERROR_WANT_WRITE)
+            return {0, TsRequestTlsReadStatus::NeedWrite,
+                    TsRequestError::None};
+        // close_notify, truncated TLS, alerts and fatal provider failures.
+        close();
+        return {0, TsRequestTlsReadStatus::Invalid,
+                TsRequestError::InvalidFields};
+    }
+    if (obtained == 0 || obtained > length)
+    {
+        close();
+        return {0, TsRequestTlsReadStatus::Invalid,
+                TsRequestError::InvalidFields};
+    }
+
+    // SSL can internally buffer a coalesced record. The request passed to
+    // SSL_read_ex is exactly the next required DER prefix/body size so the
+    // following TSRequest remains unread until releaseFrame().
+    const auto framed = consumePlaintext(
+        std::span(plaintext).first(obtained));
+    OPENSSL_cleanse(plaintext.data(), obtained);
+    if (framed.bytesConsumed != obtained ||
+        framed.status == TsRequestFrameStatus::Invalid)
+    {
+        return {obtained, TsRequestTlsReadStatus::Invalid, framed.error};
+    }
+    return {obtained,
+            framed.status == TsRequestFrameStatus::Complete
+                ? TsRequestTlsReadStatus::Complete
+                : TsRequestTlsReadStatus::Progress,
+            TsRequestError::None};
+}
+
+TsRequestFrameResult TsRequestFrameReader::consumePlaintext(
     std::span<const std::uint8_t> plaintext) noexcept
 {
     if (status_ == TsRequestFrameStatus::Closed)

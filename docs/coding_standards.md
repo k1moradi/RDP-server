@@ -466,3 +466,22 @@ without copying the inbound token, and erase/close on failure.
 Keep OpenSSL TLS binding, delegated credentials and OS desktop
 admission as independent, unverified gates; GSS syntax tests,
 an absent-keytab failure or green builds never grant rights.
+
+## TLS-bound CredSSP streaming and ownership (2026-10-14)
+
+Reuse the first-party `TsRequestFrameReader` for both synthetic
+DER fixtures and decrypted real TLS bytes. When reading TLS,
+pin the same established server-role `SSL*` throughout all
+frames, reject attempts to alternate SSL identities or inject
+raw plaintext, and securely clear buffers at every terminal
+failure. Keep a 512-byte stack chunk and read only up to
+`bytesNeeded()` to avoid consuming the next coalesced frame.
+If `SSL_read_ex` produced bytes without completing the
+frame, return `Progress` to permit a follow-on call even
+when no new socket readiness event occurs. Only on
+`SSL_ERROR_WANT_READ` or `SSL_ERROR_WANT_WRITE` should
+the event loop wait. Call `SSL_get_error` immediately after
+the failed OpenSSL operation. Explicitly erase transient
+decrypted stack bytes after copying into the sole owned DER
+buffer. TLS provenance alone does not authorize NLA/GSS,
+independent OS identity, or desktop.

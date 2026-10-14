@@ -601,3 +601,24 @@ OS admission or listener is implemented.
 **NOT RUN:** owner-local build, live keytab/ticket,
 TLS channel binding, independently authenticated desktop
 or external-client acceptance.
+
+## New CredSSP TLS-read tests required (2026-10-14; NOT RUN)
+
+Any new production TLS/framing code requires new regressions,
+not merely an existing passing CTest total. This increment
+adds three independently named CTests to the existing
+`test_owned_preauth_session` test executable (reusing
+its native in-memory OpenSSL server/client handshake fixture):
+`transport.credssp-tls-fragments` covers each 1..20
+two-record split with exact decrypted byte counts;
+`transport.credssp-tls-coalesced` verifies two DER
+frames in one TLS record, no read past the first frame,
+explicit release, second-frame readiness and no raw
+plaintext injection; `transport.credssp-tls-rejections`
+requires terminal cleanup for null/client/unhandshaken/
+substituted SSL, partial manual input, wrong DER tag and
+TLS close_notify before frame completion.
+Expected totals: Linux **53**, macOS and Windows **51**,
+each in Debug and Release, plus installed consumer/policy.
+**NOT RUN:** new commit build/tests and owner-local tests,
+real GSS identity/TLS key binding/OS admission and desktop.

@@ -55,7 +55,10 @@ function(add_rdp_test source_file suite behavior)
                 mcs-decrypted-fragments
                 mcs-decrypted-rejections
                 mcs-tls-record-fragments
-                mcs-tls-record-rejections)
+                mcs-tls-record-rejections
+                credssp-tls-fragments
+                credssp-tls-coalesced
+                credssp-tls-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

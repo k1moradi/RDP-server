@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <openssl/ssl.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -109,6 +111,28 @@ struct TsRequestFrameResult
     TsRequestError error{TsRequestError::None};
 };
 
+// One decrypted TLS application-data read per nonblocking event-loop step.
+// byte count reflects plaintext actually removed from SSL, not TCP bytes.
+// This syntax/framing gate NEVER creates a trusted CredSSP/GSS identity.
+enum class TsRequestTlsReadStatus : std::uint8_t
+{
+    // Consumed plaintext, still has an incomplete DER frame. Reinvoke
+    // without waiting for socket readiness: SSL may have buffered more.
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Complete,
+    Invalid,
+    Closed,
+};
+
+struct TsRequestTlsReadResult
+{
+    std::size_t plaintextBytesRead{};
+    TsRequestTlsReadStatus status{TsRequestTlsReadStatus::NeedRead};
+    TsRequestError error{TsRequestError::None};
+};
+
 class TsRequestFrameReader final
 {
 public:
@@ -121,6 +145,20 @@ public:
     // plaintext for the caller. An untrusted malformed frame is terminal.
     [[nodiscard]] TsRequestFrameResult consume(
         std::span<const std::uint8_t> plaintext) noexcept;
+
+    // Read at most ONE bounded SSL_read_ex chunk, never crossing one DER
+    // TSRequest boundary. Requires completed server-role TLS >= 1.2 with
+    // cipher and selected certificate. The first SSL identity is pinned
+    // until close; changing it, mixing manual consume(), EOF, or malformed
+    // DER irreversibly closes and wipes the reader. On NeedRead/NeedWrite
+    // the event loop must wait for transport readiness, not spin.
+    // On Progress, immediately invoke again: decrypted bytes may already
+    // be buffered inside the SSL object without socket-readability events.
+    // SSL/socket/BIO remain caller-owned and MUST outlive this reader.
+    // There is no GSS, TLS binding proof, or OS session authorization.
+    [[nodiscard]] TsRequestTlsReadResult readOneTlsStep(
+        SSL *serverTls) noexcept;
+
     // Exact next receive target: the uncompleted tag/length header, then
     // the remaining DER content. Zero after Complete/Invalid/Closed.
     [[nodiscard]] std::size_t bytesNeeded() const noexcept;
@@ -136,12 +174,15 @@ public:
 
 private:
     void clear() noexcept;
+    [[nodiscard]] TsRequestFrameResult consumePlaintext(
+        std::span<const std::uint8_t> plaintext) noexcept;
     [[nodiscard]] TsRequestFrameResult reject(
         std::size_t consumed, TsRequestError error) noexcept;
     std::array<std::uint8_t, kMaximumCredSspRequestBytes> buffer_{};
     std::size_t buffered_{};
     std::size_t expected_{};
     TsRequestFrameStatus status_{TsRequestFrameStatus::NeedMore};
+    const SSL *boundServerTls_{};
 };
 
 } // namespace rdp_server::server::security

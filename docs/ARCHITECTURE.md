@@ -311,3 +311,22 @@ This development gate is deliberately rejection-focused
 without a real Kerberos keytab, TLS binding or OS-authorized
 session. It grants no admission capability and does not
 modify the existing PROTOCOL_SSL diagnostic transport.
+
+### CredSSP decrypted-TLS frame boundary (2026-10-14)
+
+`TsRequestFrameReader` now optionally owns the per-connection
+TLS read association: `readOneTlsStep(SSL*)` accepts ONLY a
+finished server-role OpenSSL session using TLS 1.2+ and a selected
+server certificate/cipher, and pins the SSL pointer across frames.
+It issues exactly one capped `SSL_read_ex` call per invocation,
+reading at most the next TSRequest DER bytes-needed boundary.
+`Progress` means OpenSSL may already have additional decrypted
+bytes and the connection owner should call again without waiting
+for kernel socket readiness. `NeedRead`/`NeedWrite` require
+readiness; a complete DER frame blocks all future reads until
+explicit secure `releaseFrame()`. No secondary buffer or new
+RDP connection/session owner is introduced.
+Manual plaintext injection into a TLS-bound reader, or attaching
+an SSL stream to a partially manually filled reader, is terminal.
+This does not enable CredSSP selection, GSS identity, protected
+bindings or OS admission; the current diagnostic still closes.

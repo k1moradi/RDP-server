@@ -473,6 +473,33 @@ acceptance evidence; no synthetic completion claims.
   configured provider credentials and TLS certificate binding,
   then implement independently authorized OS session admission
   before permitting live MCS responses.
+  **Bounded actual-TLS CredSSP frame intake increment (2026-10-14;
+  new CI NOT RUN yet):** reuse the existing 16 KiB
+  `TsRequestFrameReader` as the sole DER buffer owner. Add a
+  one-`SSL_read_ex`-per-invocation method pinning one finished
+  SERVER-side TLS identity, certificate/cipher/TLS >= 1.2,
+  returning Progress when OpenSSL may retain decrypted bytes,
+  NeedRead/NeedWrite for nonblocking readiness, and Complete
+  strictly at a canonical TSRequest frame boundary. The
+  next coalesced DER frame must remain unread until the
+  current frame is explicitly released; SSL substitution,
+  manual/TLS source mixing, invalid DER and EOF close/wipe
+  permanently. Scrub stack plaintext after copying.
+  This is transport-only: it does NOT change the existing
+  PROTOCOL_SSL diagnostic, transmit TSRequest replies,
+  prove GSS identity or admit users. New tests are mandatory:
+  three behavior-named groups in the existing OpenSSL
+  memory-BIO regression executable exercise all fragment
+  splits, coalesced DER frames, EOF/invalid TLS and
+  mixed-source/replay rejection (53 expected Linux CTests,
+  51 macOS/Windows). **PASS:** previous head
+  `c753b7d205647374c14e24be52b9f9f22fa8efcc`,
+  [CI 38604244975](https://github.com/k1moradi/RDP-server/actions/runs/38604244975):
+  Linux 50/50 and macOS/Windows 48/48 Debug/Release.
+  **NOT RUN:** new-code CI, owner-local build, Kerberos,
+  TLS channel binding, OS admission or desktop.
+  **Next:** real trusted GSS/TLS key-binding and OS authorization
+  before allowing a live MCS response.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

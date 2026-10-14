@@ -2,7 +2,6 @@
 #include "remote_transfer.h"
 
 #include "clipboard/clipboard_protocol.h"
-#include "ms-rdpeclip.h" // Owned, attributed xrdp v0.10.6.1 definition source
 
 #include <algorithm>
 #include <array>
@@ -10,18 +9,7 @@
 
 namespace rdp_server::server::clipboard
 {
-// The native source-owned state machine must not drift from upstream's
-// published CLIPRDR constants during the legacy chansrv migration.
-static_assert(rdp_server::clipboard::kMonitorReady == CB_MONITOR_READY);
-static_assert(rdp_server::clipboard::kFormatList == CB_FORMAT_LIST);
-static_assert(rdp_server::clipboard::kFormatDataRequest ==
-              CB_FORMAT_DATA_REQUEST);
-static_assert(rdp_server::clipboard::kFormatDataResponse ==
-              CB_FORMAT_DATA_RESPONSE);
-static_assert(rdp_server::clipboard::kResponseOk == CB_RESPONSE_OK);
-static_assert(rdp_server::clipboard::kResponseFail == CB_RESPONSE_FAIL);
-static_assert(rdp_server::clipboard::kUseLongFormatNames ==
-              CB_USE_LONG_FORMAT_NAMES);
+// CLIPRDR wire constants are defined by our C++23 protocol header.
 namespace
 {
 constexpr std::uint16_t kAllowedResponseFlags =

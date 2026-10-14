@@ -18,7 +18,7 @@ inline constexpr std::size_t kMaximumBase64EncodedBytes =
     ((kMaximumBase64DecodedBytes + 2) / 3) * 4;
 
 // Transactional operations: no output is retained on failure. C++23 caller
-// owns buffers; the upstream-derived C implementation never holds pointers.
+// owns buffers; no upstream C implementation or runtime dependency is used.
 [[nodiscard]] bool encodeBase64(
     std::span<const std::uint8_t> source, std::string &output) noexcept;
 

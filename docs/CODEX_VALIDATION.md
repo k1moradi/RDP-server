@@ -250,7 +250,7 @@ SDK ZIP/sha256 artifacts. Ubuntu's CTest logs explicitly show
 external RDP clients, real TCP listener, CredSSP/NLA,
 OS authorization or desktop acceptance.
 
-## Partial X.224 output accounting (pending exact-head CI)
+## Verified partial X.224 output accounting (2026-10-14)
 
 Removed the Boolean send-completion escape hatch from
 `PreauthConnectionStream`. The existing owner tracks each
@@ -260,7 +260,12 @@ the last Confirm byte, or allows the Failure response to
 drain before terminal close. The new named CTest validates
 all split boundaries, bytewise writes, would-block, duplicate,
 overrun, premature TLS, explicit failure and rejection output.
-**Expected:** 21 CTests, up from 20 for a distinct tested
-transport behavior. **NOT RUN:** new exact-head hosted CI,
-local owner checkout, network listener, CredSSP/NLA,
-MCS Connect-Response, external RDP clients and OS admission.
+**PASS:** code commit `98f6fdc60d513d47a87a78fadf1aa6be387da28b`,
+[GitHub Actions run 38561127854](https://github.com/k1moradi/RDP-server/actions/runs/38561127854)
+passed Linux/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+Debug/Release CTests, downstream SDK consumer and three packages.
+Ubuntu's Debug and Release CTests each logged **21/21 PASS**.
+**NOT RUN:** owner-local new build, active TCP listener, CredSSP/NLA,
+MCS Connect-Response, external clients, OS/desktop authorization.
+**First remaining boundary:** native nonblocking socket adapter
+and authenticated RDP session lifecycle.

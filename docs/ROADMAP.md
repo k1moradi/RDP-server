@@ -143,7 +143,7 @@ acceptance evidence; no synthetic completion claims.
   TCP TLS listener, OS identity admission and desktop interaction.
   **Next:** nonblocking socket adapter and authenticated session policy,
   without equating a TLS handshake with user authentication.
-  **New partial-send protocol increment (pending CI):**
+  **Verified partial-send protocol increment at `98f6fdc60d513d47a87a78fadf1aa6be387da28b`:**
   `PreauthConnectionStream` now owns the 19-byte X.224
   Confirm/Failure response and tracks byte-accurate nonblocking
   write progress. Zero-byte output is retryable; overrun, premature
@@ -153,9 +153,13 @@ acceptance evidence; no synthetic completion claims.
   covering all 20 split boundaries, bytewise writes, cancellation,
   malformed accounting and both negotiation outcomes. Expected
   CTest total: **21**, up from 20 for a substantive new behavior.
-  **NOT RUN:** exact-head CI, user local build, real network listener,
-  external client, CredSSP/OS authorization. **Next:** portable
-  nonblocking transport adapter and real authenticated session.
+  **PASS:** [CI run 38561127854](https://github.com/k1moradi/RDP-server/actions/runs/38561127854)
+  for Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy;
+  all Debug/Release CTests, installed SDK consumer, ZIP and SHA-256
+  artifacts. Ubuntu logs explicitly show **21/21 PASS** in both
+  configurations. **NOT RUN:** owner-local new build, real TCP listener,
+  external clients, NLA, OS admission, desktop interaction.
+  **Next:** nonblocking network adapter and authenticated RDP session.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

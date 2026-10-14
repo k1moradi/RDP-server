@@ -230,7 +230,7 @@ Ubuntu's full Debug and Release CTest logs each report **20/20 PASS**;
 all three platform SDK install/consumer and ZIP checks passed. No
 owner-local post-change run, external client or OS admission was tested.
 
-## Exact X.224 partial-write regressions (2026-10-14; CI pending)
+## Verified exact X.224 partial-write regressions (2026-10-14)
 
 The existing `test_owned_preauth_session` executable registers
 a new independent `transport.x224-confirm-partial-writes`
@@ -243,3 +243,10 @@ The preexisting 20 CTests remain, making **21 registered
 cases** with the same binary/fixture ownership. This measures
 real additional wire-output behavior, not extra fake coverage
 or successful network authentication.
+
+**PASS:** code commit `98f6fdc60d513d47a87a78fadf1aa6be387da28b`,
+[Actions run 38561127854](https://github.com/k1moradi/RDP-server/actions/runs/38561127854)
+on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
+Debug/Release CTests, installed SDK consumer and all platform
+ZIP/checksum gates passed. Ubuntu logged **21/21 PASS** twice.
+Live network, external clients, NLA and OS admission are NOT RUN.

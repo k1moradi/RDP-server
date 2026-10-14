@@ -162,3 +162,9 @@ over-count, replay, invalid state and hard I/O failure close
 without TLS admission. The rejected-security path may drain
 the error PDU while remaining terminal. No duplicated send
 state, separate controller, socket listener or private protocol.
+
+**Verified:** implementation commit `98f6fdc60d513d47a87a78fadf1aa6be387da28b`,
+[Actions run 38561127854](https://github.com/k1moradi/RDP-server/actions/runs/38561127854)
+passed GCC/Linux, Clang/macOS, MSVC/Windows, documentation-policy,
+all Debug/Release CTests, SDK consumer and packaging checks. This
+does not yet establish live network service or OS user admission.

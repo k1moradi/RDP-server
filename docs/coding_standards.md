@@ -401,3 +401,13 @@ allocation list. The future authenticated domain controller
 must perform an independently audited admission before using
 any positive response on a socket. Synthetic tests and
 caller-provided lists are not identity evidence.
+
+**Cross-platform evidence:** offline Attach User Confirm and
+Channel Join Confirm encoders at
+`4eb3bff4f9fc15cb72da1b8e994ec89e7e9a96db`
+passed [CI 38590263498](https://github.com/k1moradi/RDP-server/actions/runs/38590263498)
+on GCC/Linux, Clang/macOS and MSVC/Windows, with
+Debug/Release 39 named CTests, documentation-policy and
+installed SDK consumer/package gates. This does not prove
+any identity, host admission, channel allocation or
+actual RDP client acceptance.

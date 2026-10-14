@@ -531,7 +531,7 @@ or sends an MCS channel response. **NOT RUN:** owner-local
 new CTests, external Microsoft clients, credential/session
 authorization and graphics.
 
-## Offline T.125 Attach/Channel response wire encoders (2026-10-14; CI NOT RUN)
+## Verified offline T.125 Attach/Channel response wire encoders (2026-10-14)
 
 **User-provided prior evidence:** `3135d66e557ecc8144fba02a8a69b5054b62ede9`
 at the single `~/rdp-server/build/` Debug configuration
@@ -548,10 +548,18 @@ Test exact Microsoft 11- and 15-byte positive example
 packets and negative allocation/UserId checks in two
 additional CTest cases (expected **39**). The returned
 buffer is not an authenticated session or permission to
-transmit. **NOT RUN:** new exact-head cross-platform CI,
-owner-local rebuild, identity verification, independent
-OS authorization, live SSL writes, real client connection,
-licensing/share activation or desktop.
-**Next gate:** three-platform CI and a separately proven
-real CredSSP/NLA + OS authorization integration before
-wire admission or response emission.
+transmit. **PASS:** exact implementation
+`4eb3bff4f9fc15cb72da1b8e994ec89e7e9a96db`,
+[Actions run 38590263498](https://github.com/k1moradi/RDP-server/actions/runs/38590263498):
+Linux/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+full Debug/Release CTests (Ubuntu **39/39 PASS** in each),
+staged installed SDK downstream consumer and all three
+platform package ZIP/checksum uploads. Prerelease publishing
+was SKIPPED; no release tag.
+**NOT RUN:** owner's local rebuild at this commit,
+CredSSP/NLA identity verification, independently authorized
+OS session, live encrypted MCS responses, external client
+acceptance, licensing/share activation or desktop.
+**Next:** real CredSSP/NLA and OS authorization in the
+single existing connection owner, then enforce MCS reply
+ordering and live transport admission.

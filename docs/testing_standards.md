@@ -493,7 +493,7 @@ all three ZIP/checksum uploads. Ubuntu logs explicitly
 confirm **37/37 passing** in both configurations.
 Owner-local corrected tests and authenticated runtime remain NOT RUN.
 
-## Offline MCS server confirmation wire tests (CI NOT RUN)
+## Verified offline MCS server confirmation wire tests (2026-10-14)
 
 Add two separate behavior-named CTests to the existing
 `test_owned_mcs_connect_initial` binary and shared
@@ -511,3 +511,14 @@ nonsensical auxiliary fields. Confirm these server-directed
 packets remain invalid as *client* requests in the existing
 parser. Full expected CTests: **39**, previously 37. No
 positive test grants OS authorization or sends TLS data.
+
+**PASS:** implementation commit
+`4eb3bff4f9fc15cb72da1b8e994ec89e7e9a96db` in
+[Actions run 38590263498](https://github.com/k1moradi/RDP-server/actions/runs/38590263498)
+completed Linux/GCC, macOS/Clang, Windows/MSVC,
+documentation-policy, Debug/Release **39 CTests**, installed
+downstream SDK consumer and three ZIP/checksum uploads.
+Both new independent confirmation-wire cases passed; Ubuntu
+logs explicitly show **39/39 PASS** in Debug and Release.
+This is protocol syntax verification, NOT authenticated session
+admission or real client interoperability.

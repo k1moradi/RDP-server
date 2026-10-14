@@ -361,7 +361,7 @@ acceptance evidence; no synthetic completion claims.
   **Next:** independent authenticated session authority and
   its single-owner MCS Attach/ChannelJoin lifecycle.
   **Offline Attach User and Channel Join confirmation encoding
-  (2026-10-14; exact-head CI NOT RUN, expected 39 CTests):**
+  (2026-10-14; 39 CTests verified):**
   the existing portable `mcs_channel_connection.{h,cpp}` now
   constructs complete bounded TPKT/X.224/T.125 aligned-PER
   `rt-successful` Server Attach User Confirm and Channel Join Confirm
@@ -379,8 +379,15 @@ acceptance evidence; no synthetic completion claims.
   request kind and invalid identifiers. The library **does NOT**
   use these encoders to send packets; the supplied channel list
   does not prove OS identity, credential approval or MCS admission.
-  **NOT RUN:** new exact-head hosted CI, owner's updated local
-  build, real authenticated authority, encrypted reply emission,
+  **PASS:** implementation
+  `4eb3bff4f9fc15cb72da1b8e994ec89e7e9a96db`,
+  [Actions run 38590263498](https://github.com/k1moradi/RDP-server/actions/runs/38590263498)
+  passed Linux/GCC, macOS/Clang, Windows/MSVC and
+  documentation-policy, full Debug/Release CTests, installed SDK
+  consumer and three ZIP/SHA-256 artifacts. Ubuntu logs confirmed
+  **39/39 CTests PASS** in Debug and Release.
+  **NOT RUN:** owner's updated local build, real CredSSP/NLA
+  and OS-authorized session, encrypted live reply emission,
   external Microsoft clients and OS desktop.
   **Next:** implement a genuine CredSSP/NLA and independent OS
   identity authority, then let the sole server connection owner

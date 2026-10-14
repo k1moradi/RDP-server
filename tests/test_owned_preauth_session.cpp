@@ -12,6 +12,7 @@
 #include <memory>
 
 #include <openssl/evp.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <sstream>
 #include <string>

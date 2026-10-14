@@ -165,3 +165,17 @@ Windows/MSVC, documentation-policy, Debug/Release, downstream
 consumer and SDK packaging. **NOT RUN:** local owner checkout,
 actual TCP listener, certificate enrollment, CredSSP/NLA,
 OS identity authorization and external RDP clients.
+
+## TLS boundary Windows compatibility failure (2026-10-14)
+
+**Initial FAIL:** commit `a25b5186398e4a5619baea2998a61596fa7b2887`
+[Actions run 38551275680](https://github.com/k1moradi/RDP-server/actions/runs/38551275680)
+reported MSVC C2589/C2059 in
+`src/server/transport/preauth_session.cpp` at `std::min`,
+due to platform macro leakage from an OpenSSL header.
+macOS and documentation-policy PASS. Corrected the public
+include to `openssl/types.h`, included `ssl.h` only in
+translation units using OpenSSL, and protected the two
+`std::min` expressions with parenthesized function names.
+**Next:** cross-platform Debug/Release full CTests, downstream
+SDK consumer and ZIP packages on the corrected exact head.

@@ -109,6 +109,13 @@ acceptance evidence; no synthetic completion claims.
   wrong-role, pre-handshake, null, early and replay transitions.
   This does **not** implement socket TLS I/O, trusted OS session
   authorization, CredSSP/NLA or MCS Connect-Response.
+  **First CI result:** macOS and documentation-policy PASS,
+  Windows Compile Debug FAIL at `a25b5186398e4a5619baea2998a61596fa7b2887`
+  ([Actions run 38551275680](https://github.com/k1moradi/RDP-server/actions/runs/38551275680))
+  because OpenSSL's platform includes exposed a `min` macro
+  affecting the existing `std::min(...)` intake calls.
+  The follow-up fixes OpenSSL header isolation and call syntax.
+  **Next gate:** complete exact-head cross-platform CI.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

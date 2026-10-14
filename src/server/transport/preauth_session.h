@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <span>
 
-#include <openssl/ssl.h>
+#include <openssl/types.h>
 
 namespace rdp_server::server::transport
 {

@@ -115,3 +115,14 @@ advancing to the diagnostic MCS parser. Only a *borrowed* `SSL*`
 is accepted; lifetime, encrypted network I/O, certificate provisioning
 and cancellation remain caller-owned. A TLS handshake alone does not
 authenticate OS accounts or approve an RDP desktop session.
+
+## OpenSSL / Windows C++ header hygiene (2026-10-14)
+
+Including OpenSSL's full `ssl.h` in a public portable C++ header
+can transitively introduce platform macros such as `min` on MSVC.
+Use only `openssl/types.h` in a public header when borrowing
+`SSL*`, and include `openssl/ssl.h` privately in implementation
+and actual TLS tests. Where a Windows compatibility macro can still
+interfere, write `(std::min)(...)` to call the standard function
+without macro expansion. The failure was at the compiled native
+transport boundary; maintain `/W4` and do not skip Windows CI.

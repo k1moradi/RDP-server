@@ -2,6 +2,8 @@
 #include "preauth_session.h"
 #include "gcc_conference_create.h"
 
+#include <openssl/ssl.h>
+
 #include <algorithm>
 
 namespace rdp_server::server::transport
@@ -133,7 +135,7 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
     {
         const std::size_t remaining = receivedBytes.size() - bytesConsumed;
         const std::size_t needed = targetBytes - bufferedBytes_;
-        const std::size_t copyLength = std::min(remaining, needed);
+        const std::size_t copyLength = (std::min)(remaining, needed);
         const auto nextBytes = receivedBytes.subspan(bytesConsumed, copyLength);
         std::copy(nextBytes.begin(), nextBytes.end(),
                   intakeBuffer_.begin() + bufferedBytes_);
@@ -208,7 +210,7 @@ McsIntakeResult PreauthConnectionStream::consumeDecryptedMcsConnectInitial(
     {
         const std::size_t available = decryptedBytes.size() - bytesConsumed;
         const std::size_t toCopy =
-            std::min(available, targetBytes - bufferedBytes_);
+            (std::min)(available, targetBytes - bufferedBytes_);
         const auto chunk = decryptedBytes.subspan(bytesConsumed, toCopy);
         std::copy(chunk.begin(), chunk.end(),
                   intakeBuffer_.begin() + bufferedBytes_);

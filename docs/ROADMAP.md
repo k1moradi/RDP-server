@@ -682,6 +682,21 @@ acceptance evidence; no synthetic completion claims.
   **Next:** controlled positive keytab + ticket GSS exchange
   bound to the same selected certificate, OS account policy
   before any MCS/desktop admission.
+  **Initial CI FAIL / cross-version OpenSSL fixture fix
+  (2026-10-14):** implementation
+  `d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`,
+  [CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326)
+  failed at Linux Debug COMPILATION of the new certificate
+  mutation test: OpenSSL 4-compatible `SSL_get_certificate`
+  returns `const X509*`, whereas `SSL_use_certificate`
+  takes `X509*`. This was a test-fixture constness
+  mismatch, not a passing runtime pinning test.
+  Correct by `X509_dup` into the already used
+  `CertificatePointer` RAII type, install the
+  mutable test-only duplicate and confirm its selected
+  SHA-256 fingerprint equals the alternate live TLS
+  certificate. Preserve all hash and mid-frame
+  rejection assertions. **Corrected CI NOT RUN yet.**
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

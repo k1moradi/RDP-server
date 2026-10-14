@@ -807,3 +807,21 @@ Linux 67, macOS and Windows 60 per Debug and Release.
 The full new CI and owner's local build are NOT RUN;
 real positive keytab/GSS pubKeyAuth remain BLOCKED
 without controlled credentials.
+
+### Test-only OpenSSL X509 ownership across versions (2026-10-14)
+
+Initial implementation `d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`
+[CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326)
+failed Linux Debug compile at `SSL_use_certificate`:
+the `SSL_get_certificate` result must be treated
+as `const X509*` on newer OpenSSL headers, while
+`SSL_use_certificate` requires `X509*`.
+Never use a const-removing cast in this test.
+Use the EXISTING test fixture's X509 RAII
+`CertificatePointer` with `X509_dup` to obtain
+a modifiable test-owned certificate, and assert
+that the mutated SSL selected certificate
+SHA-256 fingerprint equals the alternate source
+before expecting provenance rejection.
+Do not remove or weaken tests. Corrected CI
+**NOT RUN** pending full Debug/Release validation.

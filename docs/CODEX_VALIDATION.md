@@ -1021,3 +1021,25 @@ OS authorization or Windows App desktop.
 Kerberos/GSS and selected-TLS proof;
 independently authorized account policy
 before real MCS/session admission.
+
+### Initial selected TLS certificate test compilation failure (2026-10-14)
+
+**Initial code** `d0583c92eb6b6a3517d5e96ea5fd8adc07ee413d`,
+[CI 38619291326](https://github.com/k1moradi/RDP-server/actions/runs/38619291326).
+**FAIL:** Linux/GCC Debug compile of the new
+same-SSL certificate substitution test:
+`SSL_get_certificate` returned `const X509*`;
+`SSL_use_certificate` requires `X509*`.
+The production certificate hash and framer objects
+compiled, but this test fixture did not. This is
+NOT verified positive TLS binding yet.
+**Correction:** duplicate the alternate self-signed
+ephemeral X509 into the existing
+`CertificatePointer` using `X509_dup`,
+then use its mutable owned pointer with
+`SSL_use_certificate` and compare
+actual live selected fingerprints across fixtures.
+Apply the same RAII duplication to partial-frame
+substitution. All other test assertions remain.
+The corrected CI **NOT RUN** at edit time;
+no claim of Kerberos/GSS/OS authorization.

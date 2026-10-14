@@ -1680,10 +1680,20 @@ void testTlsCredSspCertificatePinning()
                               TsRequestTlsReadStatus::Complete) ==
            kTestCredSspDer.size());
     assert(reader.completedFrameServerTls() == tls.server.get());
-    const X509 *replacement = SSL_get_certificate(other.server.get());
+    // OpenSSL 4 returns const X509*; SSL_use_certificate requires
+    // mutable certificate ownership. Duplicate the test-only X509
+    // without casting away const or weakening the selected-cert check.
+    const CertificatePointer replacement{
+        X509_dup(SSL_get_certificate(other.server.get())), X509_free};
     assert(replacement);
-    assert(SSL_use_certificate(tls.server.get(), replacement) == 1);
-    assert(SSL_get_certificate(tls.server.get()) == replacement);
+    assert(SSL_use_certificate(tls.server.get(), replacement.get()) == 1);
+    CredSspTlsCertificateFingerprint newFingerprint{};
+    CredSspTlsCertificateFingerprint expectedFingerprint{};
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        tls.server.get(), newFingerprint));
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        other.server.get(), expectedFingerprint));
+    assert(newFingerprint == expectedFingerprint);
     assert(reader.completedFrameServerTls() == nullptr);
     const auto refused = reader.readOneTlsStep(tls.server.get());
     assert(refused.status == TsRequestTlsReadStatus::Invalid);
@@ -1703,9 +1713,11 @@ void testTlsCredSspCertificatePinning()
     assert(first.status == TsRequestTlsReadStatus::Progress);
     assert(first.plaintextBytesRead == 2);
     assert(partial.completedFrameServerTls() == nullptr);
+    const CertificatePointer alternate{
+        X509_dup(SSL_get_certificate(otherCert.server.get())), X509_free};
+    assert(alternate);
     assert(SSL_use_certificate(
-        partialTls.server.get(),
-        SSL_get_certificate(otherCert.server.get())) == 1);
+        partialTls.server.get(), alternate.get()) == 1);
     writeTlsClientApplicationData(
         partialTls.client.get(), std::span(kTestCredSspDer).subspan(2));
     const auto second = partial.readOneTlsStep(partialTls.server.get());

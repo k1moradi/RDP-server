@@ -128,3 +128,16 @@ live server/socket/service, real TLS/NLA, OS authorization, and
 external RDP desktop acceptance. The next delivery gate is
 a reviewed version tag to test the prerelease publish step;
 the next functional gate is an authenticated native RDP server.
+
+## Documentation relocation and CMake script-mode policy (2026-10-14)
+
+Root docs were moved to `docs/` at commit
+`e3e6a7576f530280a1095f8e15f058d7da07f52d`. All 47
+internal documentation hyperlinks were rebased; root entrypoints
+were preserved. **FAIL:** [Actions run 38544805819](https://github.com/k1moradi/RDP-server/actions/runs/38544805819)
+failed `project.policy` on Ubuntu during Debug CTest because
+`cmake -P` did not enable CMP0057 for `if(IN_LIST)`.
+Ten native protocol suites passed on Ubuntu. Changed the root-layout
+policy guard to `list(FIND)` in this follow-up implementation.
+**NOT RUN:** full CI on corrected commit until triggered;
+real RDP server/host access remains NOT RUN.

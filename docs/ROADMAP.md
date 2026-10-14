@@ -145,7 +145,12 @@ acceptance evidence; no synthetic completion claims.
 - [ ] Consolidate all non-entrypoint Markdown documentation under `docs/`,
   keeping `README.md`, agent-discovery files, `LICENSE` and `NOTICE` at
   the root; update cross-links, CMake package attribution paths and
-  project-policy CTest. **Pending exact-head CI verification.**
+  project-policy CTest. **Initial CI FAIL:** [run 38544805819](https://github.com/k1moradi/RDP-server/actions/runs/38544805819)
+  exposed a `cmake -P` CMP0057 `IN_LIST` policy dependency in the
+  new root layout guard; all 10 protocol CTests passed. The policy
+  check now uses version-independent `list(FIND)`.
+  **Next:** exact-head full Debug/Release CI and SDK install/packaging
+  verification.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
 

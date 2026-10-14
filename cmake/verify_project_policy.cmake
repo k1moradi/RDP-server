@@ -13,8 +13,11 @@ set(documents
 set(root_entrypoints AGENTS.md README.md CODEX.md agent.md CLAUDE.md)
 file(GLOB root_markdown RELATIVE "${RDP_SERVER_SOURCE_ROOT}"
     "${RDP_SERVER_SOURCE_ROOT}/*.md")
+# This runs via cmake -P, which does not inherit the top-level
+# cmake_minimum_required() policy version; list(FIND) is policy-independent.
 foreach(document IN LISTS root_markdown)
-    if(NOT document IN_LIST root_entrypoints)
+    list(FIND root_entrypoints "${document}" entrypoint_index)
+    if(entrypoint_index EQUAL -1)
         message(FATAL_ERROR
             "Move non-entrypoint root documentation to docs/: ${document}")
     endif()

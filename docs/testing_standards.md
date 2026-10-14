@@ -143,3 +143,13 @@ SHA-256 manifest on each of Linux/GCC, macOS/Clang and Windows/MSVC;
 documentation-policy PASS. These are **offline packaging and link
 checks** only. GitHub Release publication is NOT RUN pending an
 explicit version tag; authenticated RDP host deployment is unavailable.
+
+## Portable CMake script-mode checks (2026-10-14)
+
+CTest executes the project-policy verifier with `cmake -P`.
+Standalone CMake script mode does not necessarily inherit the
+configuring project's minimum policy version: `if(IN_LIST)` without
+CMP0057 NEW can reject valid syntax. Use policy-independent
+`list(FIND ... index)` for set membership in these scripts, or
+explicitly declare the script's required minimum CMake version.
+Preserve the root layout assertions and check all hosted toolchains.

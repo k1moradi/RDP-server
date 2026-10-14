@@ -825,65 +825,73 @@ OS identity, external Windows App/FreeRDP or desktop.
 TLS pubKeyAuth and independent OS policy before
 enabling live MCS domain response emission.
 
-## Pending CredSSP nonblocking TLS server reply transport (2026-10-14)
+## Verified nonblocking CredSSP server TLS reply transport (2026-10-14)
 
-**Prior known green head:** `a3f841a572aa861cbaa1ff890b228598e612fccc`,
-[CI 38612678888](https://github.com/k1moradi/RDP-server/actions/runs/38612678888).
-Linux/GCC 58/58 and macOS/Clang, Windows/MSVC
-54/54 CTests passed in both Debug and Release;
-downstream SDK consumer, 3 ZIP/SHA256 uploads,
-documentation-policy PASS.
+**Previous green head:** `a3f841a572aa861cbaa1ff890b228598e612fccc`,
+[CI 38612678888](https://github.com/k1moradi/RDP-server/actions/runs/38612678888):
+Linux/GCC 58/58 and macOS/Windows 54/54
+full Debug/Release CTests and all SDK/policy/
+packaging gates PASS.
 
-**New code/tests (CI NOT RUN):** extend
-`src/server/security/credssp_tsrequest.{h,cpp}`
-with a single bounded nonblocking
-`TsRequestTlsReplyWriter`. Use existing exact
-canonical reply encoder, one pinned finished
-server TLS identity, stable DER bytes across
-`SSL_write_ex` backpressure, and terminal
-zeroization/overlap rejection. Add three
-independent named CTests using existing OpenSSL
-BIO handshake fixture in
-`tests/test_owned_preauth_session.cpp`
-and registry `tests/CMakeLists.txt`;
-update roadmap, architecture, coding/testing
-standards and this verification ledger together.
-Expected Linux 61 CTests and macOS/Windows 57
-per Debug/Release configuration.
-CI commands in its sole checkout-local `build/`:
+**Initial code implementation:**
+`915cd2bfac59d7e775b458b7deed3d94db17ad93`.
+Added one bounded `TsRequestTlsReplyWriter`
+to `src/server/security/credssp_tsrequest.{h,cpp}`,
+alongside 3 new behavior-named CTests in
+`tests/test_owned_preauth_session.cpp`,
+`tests/CMakeLists.txt`, with roadmap,
+architecture, coding/testing standards and
+this validation ledger co-changed.
+Single TLS-bound owned canonical server DER
+response, stable buffer across `SSL_write_ex`
+WANT_READ/WANT_WRITE, no duplicate frames,
+and explicit wipe-on-release/fail/close.
+
+**Initial CI FAIL:** [CI 38614500856](https://github.com/k1moradi/RDP-server/actions/runs/38614500856).
+The test fixture's attempt to resize an already
+connected BIO pair with `BIO_set_write_buf_size`
+after the TLS handshake failed on macOS Debug.
+No claim of passing backpressure was made.
+**Corrective commit:**
+`afa7d737b4ee32c0f0e72bbedd32e6cb9066afd6`,
+constructs the same OpenSSL memory-BIO pair
+with optional 2048-byte server write capacity
+BEFORE real TLS handshake and keeps all test
+assertions.
+
+**PASS:** [CI 38614808824](https://github.com/k1moradi/RDP-server/actions/runs/38614808824)
+completed successfully for all four jobs:
+Linux/GCC **61/61** and macOS/Clang,
+Windows/MSVC **57/57** CTests in BOTH Debug
+and Release, including ALL three new
+`transport.credssp-tls-reply-wire`,
+`transport.credssp-tls-reply-backpressure`
+and `transport.credssp-tls-reply-rejections`.
+The Linux-only real GSS provider rejection
+cases remain green. Installed SDK consumer,
+three ZIP/SHA256 artifact uploads and
+documentation policy passed. Commands within
+the sole CI `build/` root:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
--DBUILD_TESTING=ON` with
-`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON` on Linux
-(OFF elsewhere), `cmake --build build
+-DBUILD_TESTING=ON` (Linux: 
+`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`, OFF
+for macOS/Windows), `cmake --build build
 --config Debug --parallel 2`,
 `ctest --test-dir build --build-config Debug
---output-on-failure`, then reconfigure
-same root Release/build/test, SDK consumer,
-CPack, checksum and artifact upload.
-**NOT RUN:** this implementation CI,
-owner-local build, positive GSS credentials,
-successful TLS pubKeyAuth, OS authorization
-or Microsoft RDP desktop. **Next:** real
-Kerberos/GSS context and protected response
-wire integration on the same TLS identity,
-then independent OS account authorization
-before MCS and activation.
-
-### Initial TLS writer CI failing fixture; correction pending (2026-10-14)
-
-**Implementation:** `915cd2bfac59d7e775b458b7deed3d94db17ad93`,
-[CI 38614500856](https://github.com/k1moradi/RDP-server/actions/runs/38614500856).
-**FAIL:** macOS Debug `transport.credssp-tls-reply-backpressure`
-asserted `BIO_set_write_buf_size(...,512)==1` after
-handshake. OpenSSL does not accept resizing that already
-connected memory BIO. Reply-wire and reply-rejection
-tests passed; the actual backpressure assertion was not
-reached. This is not positive TLS writer backpressure
-validation. **Correction:** update only existing
-`TlsHandshakeFixture` to configure an optional
-server BIO write capacity at `BIO_new_bio_pair`
-creation, then exercise 2048-byte capacity
-with the unchanged 8192-byte long server reply,
-retaining every assertion on WANT_WRITE, output
-length and exact client TLS plaintext. Corrected
-full CI and owner-local tests **NOT RUN**.
+--output-on-failure`; reconfigure same root
+in Release, build/CTest, staged install,
+downstream CMake consumer, CPack ZIP,
+SHA-256 digest and artifact upload.
+A preexisting nonfatal Ubuntu Release warning
+`-Wstringop-overflow` remains at
+`tests/test_owned_preauth_session.cpp:589`.
+Prerelease publication SKIPPED (no version tag).
+**NOT RUN:** owner-local updated build,
+valid GSS Kerberos keytab/tickets and a real
+successful provider-selected TLS pubKeyAuth
+exchange, independently authorized OS account,
+Windows App/FreeRDP or desktop.
+**Next:** controlled real GSS/TLS positive
+authentication and independent OS session
+policy BEFORE any real MCS channel/domain
+reply or remote desktop admission.

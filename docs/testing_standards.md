@@ -690,47 +690,45 @@ reported unrelated Ubuntu Release warning at
 `tests/test_owned_preauth_session.cpp:587`
 remains nonfatal.
 
-## New CredSSP server TLS write regressions (2026-10-14; CI NOT RUN)
+## Verified CredSSP TLS reply wire and backpressure regressions (2026-10-14)
 
-Re-use the existing `test_owned_preauth_session`
-real in-memory OpenSSL server/client handshake,
-rather than introducing duplicate test certificates
-or a synthetic GSS context. Register three NEW
-behavior-named CTests in the same executable:
-`transport.credssp-tls-reply-wire` compares exact
-client-decrypted bytes against the canonical DER
-encoder for server negoToken/binding responses,
-including 1, 127, 128, 256 and 8192-byte
-provider payloads, tests owned-output lifetime,
-one-shot completion and release/reuse.
-`transport.credssp-tls-reply-backpressure` uses
-a constrained BIO pair to exercise a real OpenSSL
-WANT_WRITE and stable retry semantics with an
-8192-byte payload, checking byte-exact delivery
-and no duplication. `transport.credssp-tls-reply-rejections`
-rejects null/client-role/unhandshaken SSL, invalid
-version/field/payload length, SSL substitution
-and replacing an outstanding reply, with terminal
-wiping and no resend. Keep all previous cases.
-Expected totals Linux 61 and macOS/Windows 57
-for each Debug and Release configuration.
-**NOT RUN:** new-code CI, owner-local build,
-positive keytab/Kerberos and TLS pubKeyAuth,
-OS admission or external clients.
+Reused the existing `test_owned_preauth_session`
+real in-memory OpenSSL TLS fixture and executable.
+Three new named CTests pass:
+`transport.credssp-tls-reply-wire` tests
+canonical v6 negoToken/binding replies with
+payload lengths 1/127/128/256/8192, exact
+client-decrypted DER bytes, owned provider-output
+snapshot, completion idempotence and safe reuse;
+`transport.credssp-tls-reply-backpressure`
+forces real WANT_WRITE via a 2048-byte BIO created
+BEFORE pairing/handshake while sending an
+8192-byte opaque output, and verifies stable
+SSL retries, exact once-only plaintext delivery
+and total byte accounting;
+`transport.credssp-tls-reply-rejections`
+covers null, unhandshaken and client-role SSL,
+unsupported versions, empty/oversized payload,
+TLS substitution, duplicate pending reply and
+terminal close. No CTest or assertion was removed.
 
-### BIO-pair constrained-write fixture correction (2026-10-14)
-
-The first real cross-platform run on implementation
+**Initial FAIL:** implementation
 `915cd2bfac59d7e775b458b7deed3d94db17ad93`,
 [CI 38614500856](https://github.com/k1moradi/RDP-server/actions/runs/38614500856),
-failed `transport.credssp-tls-reply-backpressure`
-at its fixture assumption, not at a server writer
-protocol assertion: `BIO_set_write_buf_size` does
-not resize an already paired memory BIO with this
-OpenSSL configuration. Preserve the actual
-WANT_WRITE/backpressure assertion; construct the
-BIO pair with a 2048-byte server write buffer
-via `BIO_new_bio_pair` before the real TLS
-handshake. Reuse the original fixture/certificate
-helper and leave every prior CTest intact.
-Corrective run **NOT RUN** until validated.
+attempted to resize an existing BIO pair after
+TLS handshake; macOS (and Linux) Debug fixture
+setup failed before WANT_WRITE. **PASS:** corrected
+fixture at `afa7d737b4ee32c0f0e72bbedd32e6cb9066afd6`,
+[CI 38614808824](https://github.com/k1moradi/RDP-server/actions/runs/38614808824):
+Linux/GCC **61/61**, macOS/Clang and Windows/MSVC
+**57/57** CTests each Debug and Release,
+including all three new test groups on all
+systems. Downstream SDK install/consumer,
+ZIP/SHA-256 package uploads and documentation
+policy PASS. Preexisting unrelated Ubuntu
+Release test source `-Wstringop-overflow` warning
+at `tests/test_owned_preauth_session.cpp:589`
+is nonfatal.
+**NOT RUN:** owner-local build, positive GSS
+Kerberos, TLS binding, independently authorized
+OS session or Windows App interactive desktop.

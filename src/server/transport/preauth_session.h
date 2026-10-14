@@ -73,9 +73,26 @@ struct ConnectionIntakeResult
     SecurityReply reply{};
 };
 
-// Single owner of the initial request buffer and existing preauth state.
+// MS-RDPBCGR 2.2.1.3: decrypted TPKT/X.224 Data TPDU encapsulating
+// an MCS Connect Initial with GCC Conference Create Request.
+enum class McsIntakeStatus : std::uint8_t
+{
+    NeedMore,
+    EnvelopeValidated,
+    Invalid,
+    Closed,
+};
+
+struct McsIntakeResult
+{
+    // Exact prefix consumed. Trailing plaintext is *not* admitted here.
+    std::size_t bytesConsumed{};
+    McsIntakeStatus status{McsIntakeStatus::NeedMore};
+};
+
+// Single owner of the initial plaintext and post-TLS diagnostic buffers.
 // Not thread-safe: invoke every method on the connection's event loop.
-// Holds at most kMaximumConnectionRequestBytes; never retains borrowed input.
+// Reuses one fixed, bounded storage for both connection setup envelopes.
 // A completed or rejected request cannot be replayed on this object.
 class PreauthConnectionStream final
 {
@@ -98,21 +115,21 @@ public:
     // NOT proof of credential authentication or OS session authorization.
     [[nodiscard]] bool onTlsHandshake(bool completed) noexcept;
 
-    // One already-decrypted complete MCS envelope. Remains diagnostic;
-    // the existing preauth state machine closes after examining it.
-    [[nodiscard]] bool onEncryptedMcsConnectInitial(
-        std::span<const std::uint8_t> packet) noexcept
-    {
-        return session_.onEncryptedMcsConnectInitial(packet);
-    }
+    // Feed bytes returned by a TLS provider *after* a successful TLS
+    // transition. Decrypted fragments may split/coalesce TPKTs.
+    // Validate the entire first MCS/GCC envelope and close the diagnostic.
+    // No authentication, MCS response, channel or desktop is created.
+    [[nodiscard]] McsIntakeResult consumeDecryptedMcsConnectInitial(
+        std::span<const std::uint8_t> decryptedBytes) noexcept;
 
     void close() noexcept;
 
 private:
-    void clearRequestBuffer() noexcept;
+    void clearIntakeBuffer() noexcept;
 
     PreauthSession session_{};
-    std::array<std::uint8_t, kMaximumConnectionRequestBytes> requestBuffer_{};
+    // The first X.224 CR uses <=260 bytes of this same MCS-sized buffer.
+    std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> intakeBuffer_{};
     std::size_t bufferedBytes_{};
     std::size_t expectedBytes_{};
     // True only after exactly one completed X.224 Confirm write.

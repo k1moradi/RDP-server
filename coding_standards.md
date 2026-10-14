@@ -89,3 +89,15 @@ the full response was written; partial send, false completion and
 duplicate acknowledgment fail closed. A caller-provided bool is still
 only an internal test signal and does **not** establish real TLS,
 CredSSP or session authorization.
+
+## TLS-record independent MCS framing (2026-10-14)
+
+The decrypted stream from a TLS provider has **no RDP TPKT message
+boundaries**. Feed it to the existing single-owner preauth stream
+rather than assuming one TLS read equals one Basic Settings Exchange
+PDU. MS-RDPBCGR 2.2.1.3 encodes the initial MCS/GCC request inside
+a 4-byte TPKT plus a 3-byte X.224 Data TPDU. Validate TPKT
+version/reserved/length (bounded to 8,192 bytes), then X.224 before
+buffering BER; consume only the first envelope. Reuse the preauth
+storage and zero its occupied bytes after close. No parser evidence
+alone implies authenticated session admission.

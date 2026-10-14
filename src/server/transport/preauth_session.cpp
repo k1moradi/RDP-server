@@ -56,18 +56,19 @@ bool PreauthSession::onEncryptedMcsConnectInitial(
 }
 
 
-void PreauthConnectionStream::clearRequestBuffer() noexcept
+void PreauthConnectionStream::clearIntakeBuffer() noexcept
 {
     // The unauthenticated request may contain routing identifiers/cookies.
     // Clear the fixed buffer after completing or abandoning the request.
-    std::fill(requestBuffer_.begin(), requestBuffer_.end(), 0);
+    // Only the occupied prefix can contain peer-controlled bytes.
+    std::fill(intakeBuffer_.begin(), intakeBuffer_.begin() + bufferedBytes_, 0);
     bufferedBytes_ = 0;
     expectedBytes_ = 0;
 }
 
 void PreauthConnectionStream::close() noexcept
 {
-    clearRequestBuffer();
+    clearIntakeBuffer();
     connectionReplySent_ = false;
     session_.close();
 }
@@ -113,7 +114,7 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
         const std::size_t copyLength = std::min(remaining, needed);
         const auto nextBytes = receivedBytes.subspan(bytesConsumed, copyLength);
         std::copy(nextBytes.begin(), nextBytes.end(),
-                  requestBuffer_.begin() + bufferedBytes_);
+                  intakeBuffer_.begin() + bufferedBytes_);
         bufferedBytes_ += copyLength;
         bytesConsumed += copyLength;
     };
@@ -129,7 +130,7 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
         // Validated before buffering the rest: no peer-controlled
         // 16-bit TPKT length can allocate an unbounded receive buffer.
         const auto expected = connectionRequestLength(
-            std::span(requestBuffer_).first(4));
+            std::span(intakeBuffer_).first(4));
         if (!expected)
         {
             close();
@@ -145,7 +146,7 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
     }
 
     const auto parsed = parseConnectionRequest(
-        std::span(requestBuffer_).first(expectedBytes_));
+        std::span(intakeBuffer_).first(expectedBytes_));
     if (!parsed)
     {
         // Malformed protocol traffic is dropped, not negotiated.
@@ -154,7 +155,7 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
     }
 
     const auto reply = session_.onConnectionRequest(parsed);
-    clearRequestBuffer();
+    clearIntakeBuffer();
     if (reply.decision != SecurityDecision::Tls)
     {
         // Send the existing standards-defined negotiation failure
@@ -164,6 +165,85 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
     // Remaining bytes in this receive belong to TLS; do not consume them
     // as plaintext TPKT or make a session admission decision.
     return {bytesConsumed, ConnectionIntakeStatus::ReplyThenTls, reply};
+}
+
+McsIntakeResult PreauthConnectionStream::consumeDecryptedMcsConnectInitial(
+    std::span<const std::uint8_t> decryptedBytes) noexcept
+{
+    if (stage() == PreauthStage::Closed)
+    {
+        return {0, McsIntakeStatus::Closed};
+    }
+    if (stage() != PreauthStage::AwaitMcsConnectInitial)
+    {
+        // Decrypted MCS bytes must never arrive during X.224 or TLS setup.
+        close();
+        return {0, McsIntakeStatus::Invalid};
+    }
+
+    std::size_t bytesConsumed = 0;
+    const auto consumeUntil = [&](std::size_t targetBytes)
+    {
+        const std::size_t available = decryptedBytes.size() - bytesConsumed;
+        const std::size_t toCopy =
+            std::min(available, targetBytes - bufferedBytes_);
+        const auto chunk = decryptedBytes.subspan(bytesConsumed, toCopy);
+        std::copy(chunk.begin(), chunk.end(),
+                  intakeBuffer_.begin() + bufferedBytes_);
+        bufferedBytes_ += toCopy;
+        bytesConsumed += toCopy;
+    };
+
+    if (bufferedBytes_ < 4)
+    {
+        consumeUntil(4);
+        if (bufferedBytes_ < 4)
+        {
+            return {bytesConsumed, McsIntakeStatus::NeedMore};
+        }
+        // TPKT is big-endian; validate the declared length BEFORE buffering
+        // the rest, even if the TLS provider returns thousands of bytes.
+        const std::size_t length =
+            (static_cast<std::size_t>(intakeBuffer_[2]) << 8U) |
+            intakeBuffer_[3];
+        if (intakeBuffer_[0] != 3 || intakeBuffer_[1] != 0 ||
+            length < 8 || length > kMaximumInitialMcsTpktBytes)
+        {
+            close();
+            return {bytesConsumed, McsIntakeStatus::Invalid};
+        }
+        expectedBytes_ = length;
+    }
+
+    // Validate the three-byte X.224 Data TPDU before copying the MCS BER.
+    if (bufferedBytes_ < 7)
+    {
+        consumeUntil(7);
+        if (bufferedBytes_ < 7)
+        {
+            return {bytesConsumed, McsIntakeStatus::NeedMore};
+        }
+        if (intakeBuffer_[4] != 2 || intakeBuffer_[5] != 0xf0 ||
+            intakeBuffer_[6] != 0x80)
+        {
+            close();
+            return {bytesConsumed, McsIntakeStatus::Invalid};
+        }
+    }
+
+    consumeUntil(expectedBytes_);
+    if (bufferedBytes_ < expectedBytes_)
+    {
+        return {bytesConsumed, McsIntakeStatus::NeedMore};
+    }
+
+    // The existing MCS/GCC validators borrow input only during this call.
+    // This diagnostic NEVER emits an MCS response or admits a session.
+    const bool valid = session_.onEncryptedMcsConnectInitial(
+        std::span(intakeBuffer_).first(expectedBytes_));
+    close();
+    return {bytesConsumed, valid ? McsIntakeStatus::EnvelopeValidated
+                                 : McsIntakeStatus::Invalid};
 }
 
 } // namespace rdp_server::server::transport

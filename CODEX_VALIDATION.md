@@ -89,3 +89,14 @@ Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy jobs
 green. This is a tested **offline preauthentication ordering rule**,
 not a listening socket, real TLS handshake, CredSSP, user authentication
 or OS session access; those categories remain NOT RUN.
+
+## Bounded decrypted MCS/GCC intake (pending exact-head CI)
+
+New reusable `PreauthConnectionStream::consumeDecryptedMcsConnectInitial`
+uses one fixed buffer for the initial plaintext and the subsequent
+decrypted MCS/GCC envelope. Existing `transport.preauth-session`
+gains every-split, truncation, coalesced-packet, invalid header,
+malformed BER, wrong-state and replay tests against production code.
+**Validation: NOT RUN** until exact-head Ubuntu/GCC, macOS/Clang,
+Windows/MSVC and documentation-policy CI complete. Host networking,
+TLS certificates, CredSSP and OS session admission remain NOT RUN.

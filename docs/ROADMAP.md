@@ -92,6 +92,14 @@ acceptance evidence; no synthetic completion claims.
   on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
   The overall listener/TLS/authentication milestone is still open;
   **no real socket, TLS provider or external client was tested**.
+  **Current increment (validation pending):** reuses the same preauth
+  buffer to reassemble exactly one decrypted RFC 1006/X.224 Data TPDU
+  carrying a BER MCS Connect Initial and GCC Conference Create Request.
+  The native test exercises every split/truncation point, coalesced
+  next-PDU bytes, invalid TPKT length/X.224 type, BER errors and
+  replay/close. This is NOT a real TLS or admitted RDP session.
+  **Next boundary:** real TLS provider plus authenticated session
+  policy and complete MCS response handling.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

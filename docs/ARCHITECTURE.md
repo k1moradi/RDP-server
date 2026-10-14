@@ -63,3 +63,15 @@ an adapter must report a **single successful full X.224 response
 write** before the diagnostic TLS transition is permitted. Failed,
 premature or duplicate completion closes it. This guards the future
 transport adapter contract but does not implement that adapter.
+
+### Incremental decrypted Basic Settings Exchange intake
+
+The **same** `PreauthConnectionStream` now reuses one fixed-size
+8,192-byte buffer for the initial CR (at most 260 bytes) and for
+decrypted MCS Connect Initial after the diagnostic TLS transition.
+The TPKT length is checked before accumulating the body and the
+X.224 Data TPDU is checked before buffering BER. The parser receives
+exactly one complete bounded frame; extra decrypted bytes remain
+unconsumed. After validating or rejecting its GCC content, the
+diagnostic closes. The API neither negotiates genuine TLS/NLA nor
+emits an MCS response or authorizes an OS session.

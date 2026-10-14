@@ -105,3 +105,14 @@ authenticated desktop access.
 passed GCC/Linux, Clang/macOS, MSVC/Windows and the documentation gate.
 This confirms the new response-write completion checks within the
 synthetic C++23 transport tests; it does not validate a TLS provider.
+
+## Incremental MCS stream regression (pending CI)
+
+The consolidated `transport.preauth-session` CTest additionally
+covers all 416 ways to split the Microsoft MCS/GCC example fixture,
+single-byte delivery, every truncated prefix followed by close,
+multiple TPKTs in one decrypted read, invalid version/reserved byte,
+short/over-limit length, malformed X.224 type/EOT, corrupted BER and
+out-of-order/replayed decrypted input. The diagnostic always closes
+after the initial envelope and registers no channels; no real TLS
+provider or client was executed.

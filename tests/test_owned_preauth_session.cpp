@@ -47,22 +47,35 @@ namespace
     return bytes;
 }
 
-[[nodiscard]] ConnectionParseResult validRequest()
+[[nodiscard]] constexpr std::array<std::uint8_t, 19>
+validRequestWire() noexcept
 {
-    const std::array<std::uint8_t, 19> packet{
+    return {
         3, 0, 0, 19, 14, 0xe0, 0, 0, 0, 0, 0,
         1, 0, 8, 0, 1, 0, 0, 0,
     };
-    return parseConnectionRequest(packet);
+}
+
+[[nodiscard]] ConnectionParseResult validRequest()
+{
+    return parseConnectionRequest(validRequestWire());
+}
+
+void advanceToMcs(PreauthConnectionStream &connection)
+{
+    const auto request = connection.consumeConnectionRequest(
+        validRequestWire());
+    assert(request.bytesConsumed == validRequestWire().size());
+    assert(request.status == ConnectionIntakeStatus::ReplyThenTls);
+    assert(connection.onConnectionReplySent(true));
+    assert(connection.onTlsHandshake(true));
+    assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
 }
 
 
 void testFragmentedConnectionRequestIntake()
 {
-    const std::array<std::uint8_t, 19> request{
-        3, 0, 0, 19, 14, 0xe0, 0, 0, 0, 0, 0,
-        1, 0, 8, 0, 1, 0, 0, 0,
-    };
+    const auto request = validRequestWire();
     for (std::size_t split = 0; split < request.size(); ++split)
     {
         PreauthConnectionStream connection;
@@ -103,10 +116,7 @@ void testFragmentedConnectionRequestIntake()
 
 void testConnectionRequestByteBoundaryAndFailure()
 {
-    const std::array<std::uint8_t, 19> request{
-        3, 0, 0, 19, 14, 0xe0, 0, 0, 0, 0, 0,
-        1, 0, 8, 0, 1, 0, 0, 0,
-    };
+    const auto request = validRequestWire();
     // A receive can already contain TLS data. Never consume beyond the
     // first complete X.224 request before the Security Reply is sent.
     std::vector<std::uint8_t> coalesced(request.begin(), request.end());
@@ -145,10 +155,7 @@ void testConnectionRequestByteBoundaryAndFailure()
 
 void testConnectionReplyMustBeSentBeforeTls()
 {
-    const std::array<std::uint8_t, 19> request{
-        3, 0, 0, 19, 14, 0xe0, 0, 0, 0, 0, 0,
-        1, 0, 8, 0, 1, 0, 0, 0,
-    };
+    const auto request = validRequestWire();
 
     PreauthConnectionStream prematureTls;
     assert(prematureTls.consumeConnectionRequest(request).status ==
@@ -182,6 +189,125 @@ void testConnectionReplyMustBeSentBeforeTls()
     // The same TLS transition is not reusable.
     assert(!successfulTls.onTlsHandshake(true));
     assert(successfulTls.stage() == PreauthStage::Closed);
+}
+
+void testIncrementalDecryptedMcsIntake()
+{
+    const auto frame = validMcsPacket();
+
+    // Every split, including zero-length first input, must reassemble
+    // exactly one BER MCS Connect Initial / GCC Conference Create PDU.
+    for (std::size_t split = 0; split < frame.size(); ++split)
+    {
+        PreauthConnectionStream connection;
+        advanceToMcs(connection);
+        const auto first = connection.consumeDecryptedMcsConnectInitial(
+            std::span(frame).first(split));
+        assert(first.bytesConsumed == split);
+        assert(first.status == McsIntakeStatus::NeedMore);
+        assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
+
+        const auto last = connection.consumeDecryptedMcsConnectInitial(
+            std::span(frame).subspan(split));
+        assert(last.bytesConsumed == frame.size() - split);
+        assert(last.status == McsIntakeStatus::EnvelopeValidated);
+        assert(connection.stage() == PreauthStage::Closed);
+        const auto replay = connection.consumeDecryptedMcsConnectInitial(frame);
+        assert(replay.bytesConsumed == 0);
+        assert(replay.status == McsIntakeStatus::Closed);
+    }
+
+    PreauthConnectionStream bytewise;
+    advanceToMcs(bytewise);
+    for (std::size_t index = 0; index < frame.size(); ++index)
+    {
+        const auto consumed = bytewise.consumeDecryptedMcsConnectInitial(
+            std::span(frame).subspan(index, 1));
+        assert(consumed.bytesConsumed == 1);
+        assert(consumed.status ==
+               (index + 1 == frame.size()
+                    ? McsIntakeStatus::EnvelopeValidated
+                    : McsIntakeStatus::NeedMore));
+    }
+
+    // One TLS read may contain a later TPKT: return only the bytes
+    // belonging to the first, validated envelope, never admit the rest.
+    auto combined = frame;
+    combined.insert(combined.end(), {3, 0, 0, 8, 2, 0xf0, 0x80, 0});
+    PreauthConnectionStream coalesced;
+    advanceToMcs(coalesced);
+    const auto result = coalesced.consumeDecryptedMcsConnectInitial(combined);
+    assert(result.status == McsIntakeStatus::EnvelopeValidated);
+    assert(result.bytesConsumed == frame.size());
+    assert(coalesced.stage() == PreauthStage::Closed);
+}
+
+void testRejectedDecryptedMcsBoundaries()
+{
+    const auto reference = validMcsPacket();
+
+    // No decrypted data can be fed before a completed X.224 reply and
+    // a synthetic successful TLS transition. No credentials are accepted.
+    PreauthConnectionStream premature;
+    const auto early = premature.consumeDecryptedMcsConnectInitial(reference);
+    assert(early.bytesConsumed == 0);
+    assert(early.status == McsIntakeStatus::Invalid);
+    assert(premature.stage() == PreauthStage::Closed);
+
+    for (const auto invalidHeader : {
+             std::array<std::uint8_t, 4>{4, 0, 1, 0xa0},
+             std::array<std::uint8_t, 4>{3, 1, 1, 0xa0},
+             std::array<std::uint8_t, 4>{3, 0, 0, 7},
+             std::array<std::uint8_t, 4>{3, 0, 0x20, 1},
+             std::array<std::uint8_t, 4>{3, 0, 0xff, 0xff},
+         })
+    {
+        PreauthConnectionStream connection;
+        advanceToMcs(connection);
+        auto hostile = reference;
+        std::copy(invalidHeader.begin(), invalidHeader.end(), hostile.begin());
+        const auto result = connection.consumeDecryptedMcsConnectInitial(hostile);
+        assert(result.bytesConsumed == 4); // Reject before payload buffering.
+        assert(result.status == McsIntakeStatus::Invalid);
+        assert(connection.stage() == PreauthStage::Closed);
+    }
+
+    for (std::size_t index = 4; index < 7; ++index)
+    {
+        PreauthConnectionStream connection;
+        advanceToMcs(connection);
+        auto hostile = reference;
+        hostile[index] ^= 0x01;
+        const auto result = connection.consumeDecryptedMcsConnectInitial(hostile);
+        assert(result.bytesConsumed == 7); // Reject before BER buffering.
+        assert(result.status == McsIntakeStatus::Invalid);
+        assert(connection.stage() == PreauthStage::Closed);
+    }
+
+    auto hostileBer = reference;
+    hostileBer[7] = 0; // Not BER APPLICATION 101 (0x7F 0x65).
+    PreauthConnectionStream badBer;
+    advanceToMcs(badBer);
+    const auto malformed = badBer.consumeDecryptedMcsConnectInitial(hostileBer);
+    assert(malformed.bytesConsumed == reference.size());
+    assert(malformed.status == McsIntakeStatus::Invalid);
+    assert(badBer.stage() == PreauthStage::Closed);
+
+    // A decrypted frame truncated at any position cannot validate until
+    // its advertised TPKT length has arrived. Disconnect discards it.
+    for (std::size_t cut = 0; cut < reference.size(); ++cut)
+    {
+        PreauthConnectionStream truncated;
+        advanceToMcs(truncated);
+        const auto partial = truncated.consumeDecryptedMcsConnectInitial(
+            std::span(reference).first(cut));
+        assert(partial.bytesConsumed == cut);
+        assert(partial.status == McsIntakeStatus::NeedMore);
+        truncated.close();
+        assert(truncated.stage() == PreauthStage::Closed);
+        assert(truncated.consumeDecryptedMcsConnectInitial(reference).status ==
+               McsIntakeStatus::Closed);
+    }
 }
 
 void testConnectionRequestLengthRejectionAndClose()
@@ -282,4 +408,6 @@ int main()
     testConnectionRequestByteBoundaryAndFailure();
     testConnectionReplyMustBeSentBeforeTls();
     testConnectionRequestLengthRejectionAndClose();
+    testIncrementalDecryptedMcsIntake();
+    testRejectedDecryptedMcsBoundaries();
 }

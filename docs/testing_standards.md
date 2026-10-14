@@ -328,7 +328,7 @@ against an in-memory BIO peer, not a native TCP socket or real
 RDP client. An explicit OpenSSL 4.x post-fix runner is still
 NOT RUN; see the compatibility gate above.
 
-## Real native TCP loopback TLS/MCS transport (CI pending)
+## Verified real native TCP loopback TLS/MCS transport (2026-10-14)
 
 The existing `test_owned_preauth_session` CTest registry adds two
 independently named behaviors without duplicating the executable:
@@ -345,8 +345,16 @@ the envelope without OS admission. The second verifies real
 native EOF during a truncated Connection Request and a complete
 protocol Negotiation Failure over connected sockets, with no TLS.
 All socket resources are RAII/closed. Expected full CTest
-registration: **27**, formerly 25. **NOT RUN** until CI;
-no external client, credential trust, desktop or daemon.
+registration: **27**, formerly 25. **PASS:** after the test-only readiness fix at
+`7ce64737ccef439af2f0cfd383208181cc0e9513`,
+[Actions run 38579350917](https://github.com/k1moradi/RDP-server/actions/runs/38579350917)
+passed Linux/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+Debug/Release **27 CTests** on all OSes, staged SDK installation,
+downstream consumer and platform package/checksum uploads.
+Ubuntu's full CTest logs explicitly show **27/27 PASS** in both
+build modes, including both native socket cases.
+External RDP clients, credential verification, OS desktop admission
+and service deployment are NOT RUN.
 
 ## Deterministic loopback event readiness (2026-10-14)
 

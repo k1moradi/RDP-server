@@ -394,3 +394,37 @@ short sleeps with unchanged exact packet, EOF and protocol
 acceptance assertions; no production behavior is altered.
 **NOT RUN:** post-fix CI on the corrected commit, new
 owner-local tests and any external RDP client or desktop.
+
+## Verified nonblocking native OpenSSL/TCP loopback bridge (2026-10-14)
+
+**First FAIL:** code commit `c53a591c8d5b6dbb4cd63f742bddb2c3eeb2ede8`,
+[run 38578878083](https://github.com/k1moradi/RDP-server/actions/runs/38578878083)
+passed Linux/GCC, Windows/MSVC and documentation-policy but failed
+two macOS Debug native-loopback CTests. The test driver incorrectly
+assumed a nonblocking recv or FIN would be visible immediately
+after its peer's send/close. There was no proved production transport
+bug. Fixed only the test harness: bounded waits for the expected
+readability and TCP EOF outcomes, preserving exact-packet and
+fail-closed assertions.
+
+**PASS:** corrected exact code commit
+`7ce64737ccef439af2f0cfd383208181cc0e9513`,
+[Actions run 38579350917](https://github.com/k1moradi/RDP-server/actions/runs/38579350917)
+completed Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy;
+both Debug/Release full CTests, staged SDK install, downstream consumer,
+and three ZIP/checksum package artifacts. Ubuntu logs explicitly
+show **27/27 CTests PASS** in both configurations, including
+`transport.tcp-native-loopback-tls` and
+`transport.tcp-native-loopback-close`.
+
+The verified boundary is real **local-only connected TCP** X.224
+negotiation, an OpenSSL server handshake across those native sockets
+and decrypted MCS/GCC example intake. The test's ephemeral
+127.0.0.1 listener was closed before TLS; it did not activate any
+persistent service. **NOT RUN:** owner's build after this new change,
+external RDP client admission, production certificate enrollment/trust,
+CredSSP/NLA identity, MCS Connect-Response, licensing,
+OS desktop authorization or graphics.
+**Next:** authenticated RDP session sequencing and real server-side
+MCS response, without confusing local transport security with OS
+authorization.

@@ -230,8 +230,9 @@ acceptance evidence; no synthetic completion claims.
   **Next:** drive the same TLS handshake over real connected
   nonblocking sockets in a safe loopback test, then authenticated
   RDP session establishment.
-  **Native nonblocking loopback/TLS increment (pending CI; expected
-  27 CTests):** a first-party OpenSSL custom BIO now borrows the
+  **Verified native nonblocking loopback/TLS increment
+  `7ce64737ccef439af2f0cfd383208181cc0e9513`
+  (27 CTests):** a first-party OpenSSL custom BIO now borrows the
   existing `TcpNonblockingIo` and translates partial send/recv,
   would-block, EOF and I/O failure to OpenSSL readiness semantics
   without narrowing 64-bit Windows SOCKET handles. The existing

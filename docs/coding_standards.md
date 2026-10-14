@@ -252,3 +252,12 @@ spin-polling inside production TLS callbacks; one handshake
 operation is driven per event-loop readiness event. Test-only
 port-zero IPv4 loopback connections must be short-lived, bound
 to 127.0.0.1 only and must never authorize an OS desktop session.
+
+**Verified native BIO loopback boundary:** the implementation
+`7ce64737ccef439af2f0cfd383208181cc0e9513` passed
+[CI run 38579350917](https://github.com/k1moradi/RDP-server/actions/runs/38579350917)
+on GCC/Linux, Clang/macOS and MSVC/Windows, including
+Debug/Release 27 registered CTests and SDK consumer/package gates.
+Short-lived native TCP loopback traffic and encrypted OpenSSL
+records were exercised; user authorization and real external
+RDP client interoperability are NOT RUN.

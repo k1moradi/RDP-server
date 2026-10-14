@@ -1,0 +1,353 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "x11_display_connection.h"
+
+#include <cstdlib>
+#include <fcntl.h>
+#include <string>
+#include <unistd.h>
+
+#include <xcb/randr.h>
+
+namespace
+{
+
+int
+duplicate_wait_file_descriptor(int fileDescriptor) noexcept
+{
+#ifdef F_DUPFD_CLOEXEC
+    const int duplicate = fcntl(fileDescriptor, F_DUPFD_CLOEXEC, 1);
+    if (duplicate >= 0)
+    {
+        return duplicate;
+    }
+#endif
+    const int fallbackDuplicate = fcntl(fileDescriptor, F_DUPFD, 1);
+    if (fallbackDuplicate < 0)
+    {
+        return -1;
+    }
+
+    const int descriptorFlags = fcntl(fallbackDuplicate, F_GETFD);
+    if (descriptorFlags < 0 ||
+        fcntl(fallbackDuplicate, F_SETFD, descriptorFlags | FD_CLOEXEC) < 0)
+    {
+        ::close(fallbackDuplicate);
+        return -1;
+    }
+    return fallbackDuplicate;
+}
+
+constexpr int kMaxXrdpWaitFileDescriptor = 0xffff;
+
+ConnectionStatus
+dispatch_events(xcb_connection_t *connection, X11EventSink &eventSink,
+                bool readFromSocket, std::size_t eventBudget,
+                std::size_t &eventsDispatched, bool &failed,
+                std::uint8_t randrFirstEvent, xcb_window_t rootWindow,
+                PixelSize &sourceGeometry) noexcept
+{
+    xcb_generic_event_t *event = nullptr;
+    while (eventsDispatched < eventBudget &&
+           (event = readFromSocket ? xcb_poll_for_event(connection)
+                                   : xcb_poll_for_queued_event(connection)) !=
+               nullptr)
+    {
+        if (event->response_type == 0)
+        {
+            // A queued protocol error is not a typed event. Treat it as a
+            // transport failure rather than passing it to a subsystem sink.
+            std::free(event);
+            failed = true;
+            return ConnectionStatus::Failed;
+        }
+        eventSink.handle(*event);
+        const std::uint8_t responseType = event->response_type & 0x7f;
+        if (randrFirstEvent != 0 &&
+            responseType == static_cast<std::uint8_t>(
+                                randrFirstEvent +
+                                XCB_RANDR_SCREEN_CHANGE_NOTIFY))
+        {
+            const auto &screenChange =
+                reinterpret_cast<const xcb_randr_screen_change_notify_event_t &>(
+                    *event);
+            if (screenChange.root == rootWindow && screenChange.width != 0 &&
+                screenChange.height != 0)
+            {
+                sourceGeometry = {screenChange.width, screenChange.height};
+            }
+        }
+        std::free(event);
+        ++eventsDispatched;
+    }
+    return ConnectionStatus::Ok;
+}
+
+} // namespace
+
+X11DisplayConnection::X11DisplayConnection(std::string_view displayName) noexcept
+{
+    std::string ownedDisplayName;
+    try
+    {
+        if (!displayName.empty())
+        {
+            ownedDisplayName.assign(displayName.data(), displayName.size());
+        }
+    }
+    catch (...)
+    {
+        failed_ = true;
+        return;
+    }
+
+    const char *requestedDisplay =
+        displayName.empty() ? nullptr : ownedDisplayName.c_str();
+    int requestedScreen = -1;
+    connection_ = xcb_connect(requestedDisplay, &requestedScreen);
+    if (connection_ == nullptr || xcb_connection_has_error(connection_) != 0)
+    {
+        failed_ = true;
+        close();
+        return;
+    }
+    screenNumber_ = requestedScreen;
+
+    const xcb_setup_t *setup = xcb_get_setup(connection_);
+    if (setup == nullptr || screenNumber_ < 0)
+    {
+        failed_ = true;
+        close();
+        return;
+    }
+
+    xcb_screen_iterator_t screens = xcb_setup_roots_iterator(setup);
+    for (int index = 0; index < screenNumber_ && screens.rem > 0; ++index)
+    {
+        xcb_screen_next(&screens);
+    }
+    if (screens.rem <= 0 || screens.data == nullptr)
+    {
+        failed_ = true;
+        close();
+        return;
+    }
+
+    const xcb_screen_t *screen = screens.data;
+    rootWindow_ = screen->root;
+    rootVisual_ = screen->root_visual;
+    rootDepth_ = screen->root_depth;
+    sourceGeometry_.widthPixels = screen->width_in_pixels;
+    sourceGeometry_.heightPixels = screen->height_in_pixels;
+    if (rootWindow_ == XCB_WINDOW_NONE || rootVisual_ == XCB_NONE ||
+        rootDepth_ == 0 || sourceGeometry_.widthPixels == 0 ||
+        sourceGeometry_.heightPixels == 0)
+    {
+        failed_ = true;
+        close();
+        return;
+    }
+
+    const xcb_query_extension_reply_t *randrExtension =
+        xcb_get_extension_data(connection_, &xcb_randr_id);
+    if (randrExtension != nullptr && randrExtension->present)
+    {
+        const xcb_void_cookie_t selectCookie = xcb_randr_select_input_checked(
+            connection_, rootWindow_, XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE);
+        xcb_generic_error_t *selectError =
+            xcb_request_check(connection_, selectCookie);
+        if (selectError == nullptr)
+        {
+            randrFirstEvent_ = randrExtension->first_event;
+        }
+        std::free(selectError);
+    }
+
+    connectionFileDescriptor_ = xcb_get_file_descriptor(connection_);
+    if (connectionFileDescriptor_ < 0)
+    {
+        failed_ = true;
+        close();
+        return;
+    }
+
+    waitFileDescriptor_ = connectionFileDescriptor_;
+    if (waitFileDescriptor_ == 0)
+    {
+        waitFileDescriptor_ =
+            duplicate_wait_file_descriptor(connectionFileDescriptor_);
+        if (waitFileDescriptor_ < 0)
+        {
+            failed_ = true;
+            close();
+            return;
+        }
+        waitObjectUsesDuplicate_ = true;
+    }
+
+    if (waitFileDescriptor_ > kMaxXrdpWaitFileDescriptor)
+    {
+        failed_ = true;
+        close();
+        return;
+    }
+
+    waitObject_ = g_create_wait_obj_from_socket(waitFileDescriptor_, 0);
+    if (waitObject_ == NULL_WAIT_OBJ)
+    {
+        failed_ = true;
+        close();
+        return;
+    }
+}
+
+X11DisplayConnection::~X11DisplayConnection() noexcept
+{
+    close();
+}
+
+void
+X11DisplayConnection::close() noexcept
+{
+    if (waitObject_ != NULL_WAIT_OBJ)
+    {
+        g_delete_wait_obj_from_socket(waitObject_);
+        waitObject_ = NULL_WAIT_OBJ;
+    }
+
+    if (waitObjectUsesDuplicate_ && waitFileDescriptor_ >= 0)
+    {
+        ::close(waitFileDescriptor_);
+    }
+    waitFileDescriptor_ = -1;
+    waitObjectUsesDuplicate_ = false;
+
+    if (connection_ != nullptr)
+    {
+        xcb_disconnect(connection_);
+        connection_ = nullptr;
+    }
+    connectionFileDescriptor_ = -1;
+    screenNumber_ = -1;
+    rootWindow_ = XCB_WINDOW_NONE;
+    rootVisual_ = XCB_NONE;
+    rootDepth_ = 0;
+    randrFirstEvent_ = 0;
+    sourceGeometry_ = {};
+}
+
+bool
+X11DisplayConnection::valid() const noexcept
+{
+    return !failed_ && connection_ != nullptr &&
+           xcb_connection_has_error(connection_) == 0 &&
+           connectionFileDescriptor_ >= 0 &&
+           waitObject_ != NULL_WAIT_OBJ && screenNumber_ >= 0 &&
+           rootWindow_ != XCB_WINDOW_NONE &&
+           rootVisual_ != XCB_NONE && rootDepth_ != 0 &&
+           sourceGeometry_.widthPixels > 0 &&
+           sourceGeometry_.heightPixels > 0;
+}
+
+bool
+X11DisplayConnection::randrAvailable() const noexcept
+{
+    return valid() && randrFirstEvent_ != 0;
+}
+
+xcb_connection_t *
+X11DisplayConnection::nativeConnection() const noexcept
+{
+    return connection_;
+}
+
+PixelSize
+X11DisplayConnection::sourceGeometry() const noexcept
+{
+    return sourceGeometry_;
+}
+
+int
+X11DisplayConnection::screenNumber() const noexcept
+{
+    return screenNumber_;
+}
+
+xcb_window_t
+X11DisplayConnection::rootWindow() const noexcept
+{
+    return rootWindow_;
+}
+
+xcb_visualid_t
+X11DisplayConnection::rootVisual() const noexcept
+{
+    return rootVisual_;
+}
+
+std::uint8_t
+X11DisplayConnection::rootDepth() const noexcept
+{
+    return rootDepth_;
+}
+
+tbus
+X11DisplayConnection::waitObject() const noexcept
+{
+    return waitObject_;
+}
+
+int
+X11DisplayConnection::fileDescriptor() const noexcept
+{
+    return connectionFileDescriptor_;
+}
+
+ConnectionStatus
+X11DisplayConnection::processEvents(X11EventSink &eventSink,
+                                    std::size_t eventBudget,
+                                    bool *budgetExhausted) noexcept
+{
+    if (budgetExhausted != nullptr)
+    {
+        *budgetExhausted = false;
+    }
+    if (!valid())
+    {
+        return ConnectionStatus::Failed;
+    }
+
+    if (eventBudget == 0)
+    {
+        eventBudget = 1;
+    }
+
+    std::size_t eventsDispatched = 0;
+    if (dispatch_events(connection_, eventSink, false, eventBudget,
+                        eventsDispatched, failed_, randrFirstEvent_,
+                        rootWindow_, sourceGeometry_) ==
+        ConnectionStatus::Failed)
+    {
+        return ConnectionStatus::Failed;
+    }
+
+    if (eventsDispatched < eventBudget && g_is_wait_obj_set(waitObject_) &&
+        dispatch_events(connection_, eventSink, true, eventBudget,
+                        eventsDispatched, failed_, randrFirstEvent_,
+                        rootWindow_, sourceGeometry_) ==
+            ConnectionStatus::Failed)
+    {
+        return ConnectionStatus::Failed;
+    }
+
+    if (xcb_connection_has_error(connection_) != 0)
+    {
+        failed_ = true;
+        return ConnectionStatus::Failed;
+    }
+    if (budgetExhausted != nullptr)
+    {
+        *budgetExhausted = eventsDispatched >= eventBudget;
+    }
+    return ConnectionStatus::Ok;
+}

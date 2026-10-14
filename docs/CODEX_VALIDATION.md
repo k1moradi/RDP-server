@@ -638,27 +638,36 @@ security provider and independent OS-authorized single
 session owner; do not send positive responses from offline
 serialization.
 
-## Linux GSSAPI provider compilation and bounded DER handoff (2026-10-14; NOT RUN)
+## Verified Linux GSSAPI provider compile and framed DER handoff (2026-10-14)
 
-**Prior verified baseline:** `35698b939bb2d26a66ca80ba237a55dc70e2da54`
-passed 48/48 CTests on Linux/GCC, macOS/Clang,
-Windows/MSVC in both Debug and Release; SDK consumer,
-packages and policy passed in
+**Previous baseline:** `35698b939bb2d26a66ca80ba237a55dc70e2da54`
+passed 48/48 CTests on three platforms in
 [CI 38597459891](https://github.com/k1moradi/RDP-server/actions/runs/38597459891).
-**New change:** optional Linux-only GSSAPI library target
-builds the previously staged real MIT GSS acceptor, binding
-and deny-only delegated credentials implementation. The
-same acceptor now synchronously consumes a completed
-`TsRequestFrameReader` before securely releasing/closing
-its DER buffer. Two new Ubuntu-only CTests verify actual
-GSS cred-store rejection with an absent explicit keytab,
-invalid service/path, failed context reuse and invalid/
-premature/downgraded DER frames; no real keytab or ticket
-is read. Expected Ubuntu 50 CTests, macOS/Windows 48.
-The portable SDK has no new runtime dependency.
-**NOT RUN:** tests for this new implementation, owner-local
-build, real configured Kerberos/GSS provider exchange,
-TLS certificate binding, OS authorization, external
-Microsoft RDP client or desktop. First future gate is
-trusted real GSS/TLS binding followed by independent OS
-identity authorization before any live MCS admission.
+
+**Implementation:** `36989cebcc6a69b51d1c3f3d5d1f2660417a9865`
+adds the Linux-only real MIT GSSAPI build/test target
+and synchronous completed v5/v6 CredSSP DER frame handoff,
+with terminal rejection and wipe on all invalid/unsupported
+steps. No credentials, positive Kerberos handshake, or
+admission authority is introduced.
+**PASS:** [CI 38603782133](https://github.com/k1moradi/RDP-server/actions/runs/38603782133)
+with Linux/GCC Debug/Release **50/50** CTests, macOS/Clang
+and Windows/MSVC Debug/Release **48/48** each; verified
+both native GSSAPI named suites on Linux, documentation
+co-change, staged SDK install, downstream consumer and
+all three ZIP/SHA-256 uploads. In the one CI `build/`:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+-DRDP_SERVER_TEST_LINUX_GSSAPI=ON` (Linux; OFF elsewhere),
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build --build-config Debug --output-on-failure`;
+reconfigure the same root for Release, build and retest.
+Ubuntu's unrelated, previously reported
+`tests/test_owned_preauth_session.cpp:582`
+Release compiler warning remains nonfatal.
+**NOT RUN:** owner-local updated build, configured real
+Kerberos keytab/tickets, positive GSS mutual/authenticated
+exchange, SSL certificate binding, independent OS user
+authorization or Microsoft desktop.
+**Next:** a controlled positive GSS/TLS certificate-bound
+provider integration, with independently verified OS
+session admission kept closed until explicit evidence.

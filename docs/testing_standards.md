@@ -578,24 +578,26 @@ baseline had 46 CTests.
 OS authorization or external clients. Wire serialization
 alone does not grant an authenticated session.
 
-## Optional Linux GSSAPI provider negative gates (2026-10-14; NOT RUN)
+## Verified Linux GSSAPI provider negative gates (2026-10-14)
 
-Linux CI explicitly installs `libkrb5-dev` and sets
-`RDP_SERVER_TEST_LINUX_GSSAPI=ON` when configuring the
-same `build/` root. Two behavior-named CTests in one
-`test_linux_gssapi_spnego` executable use the compiled
-MIT GSSAPI provider (no fake acceptor):
-`security.gssapi-configuration-rejections` requires that
-a nonexistent absolute keytab fail, invalid service and
-relative keytab be rejected and no context be resumed;
-`security.gssapi-framed-handoff` exercises a valid DER
-envelope but unconfigured GSS, premature partial input,
-unsupported v4, and malformed DER, requiring terminal
-denial and frame cleanup without authentication.
-The expected Linux total is **50** versus **48** on
-macOS and Windows. No credentials, keytab, desktop or
-network listener are created, and no positive GSS/Kerberos
-handshake is claimed. **NOT RUN:** new commit CI and
-owner-local tests. CI must prove full Debug/Release,
-SDK consumer/ZIP checks and documentation-policy on
-all three operating systems.
+Linux CI installs `libkrb5-dev` and sets
+`RDP_SERVER_TEST_LINUX_GSSAPI=ON` in the same `build/` root.
+The Linux-only `test_linux_gssapi_spnego` executable registers
+`security.gssapi-configuration-rejections` and
+`security.gssapi-framed-handoff`. It links the actual
+MIT GSSAPI acceptor, binding and deny-only credentials
+sources, not a mock authentication provider. The first
+test rejects an absent explicit absolute keytab, invalid
+service identity, relative keytab, and context reuse;
+the second tests rejected unconfigured, partial, v4 and
+malformed DER frames with terminal cleanup.
+**PASS:** implementation `36989cebcc6a69b51d1c3f3d5d1f2660417a9865`,
+[CI run 38603782133](https://github.com/k1moradi/RDP-server/actions/runs/38603782133)
+completed **50/50** Linux/GCC CTests and **48/48**
+macOS/Clang, Windows/MSVC CTests in Debug and Release.
+SDK consumer, ZIP/checksums and documentation-policy
+passed across all platforms. No positive GSS login,
+OS admission or listener is implemented.
+**NOT RUN:** owner-local build, live keytab/ticket,
+TLS channel binding, independently authenticated desktop
+or external-client acceptance.

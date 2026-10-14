@@ -450,31 +450,29 @@ acceptance evidence; no synthetic completion claims.
   TLS public-key binding, OS admission or desktop.
   **Next:** connect to a trusted GSS provider and independent
   OS authorization before allowing any reply on a socket.
-  **Linux GSSAPI framed-token provider increment (2026-10-14;
-  CI NOT RUN on this change):** compile the already-staged first-party
-  MIT GSSAPI SPNEGO, public-key binding and protected-credential
-  rejection translation units behind an explicit, Linux-only
-  `RDP_SERVER_TEST_LINUX_GSSAPI` validation flag, without adding a
-  Kerberos dependency to the portable SDK. The same provider class
-  gains one synchronous `acceptFramedNegoRequest` handoff from the
-  existing 16 KiB `TsRequestFrameReader`; require a complete
-  v5/v6 DER `negoTokens` frame, synchronously present borrowed
-  bytes to the real GSS acceptor, then wipe/release the frame.
-  Premature, downgraded, malformed and GSS-rejected inputs
-  close the frame and permanently fail the acceptor.
-  No default/implicit keytab; CI tries a deliberately absent
-  absolute keytab and MUST reject. Two Linux-only, named
-  tests exercise the actual linked provider and rejection
-  paths. **Expected:** Linux 50 CTests; macOS and Windows
-  retain 48. **PASS:** previous 48-test cross-platform
-  baseline `35698b939bb2d26a66ca80ba237a55dc70e2da54`;
-  **NOT RUN:** CI for this implementation, owner-local build,
-  real keytab/Kerberos ticket, authenticated GSS exchange,
-  TLS public-key binding, OS admission or Microsoft desktop.
-  **Next:** independently verify a real configured keytab
-  and completed GSS/TLS binding with authorized test
-  credentials and controlled session admission; no RDP
-  network admission from a synthetic provider fixture.
+  **Verified Linux GSSAPI framed-token provider increment
+  (2026-10-14; CI PASS):** compile the already-staged first-party
+  MIT GSSAPI SPNEGO, public-key binding and deny-only credential
+  sources behind explicit Linux-only `RDP_SERVER_TEST_LINUX_GSSAPI`.
+  The existing GSS acceptor accepts a completed v5/v6 frame from
+  `TsRequestFrameReader` synchronously, borrows only within
+  the provider call and wipes the frame on return. Early,
+  downgraded, malformed or GSS-rejected frames terminate both
+  owners; an absent explicit keytab must never fall back to
+  host credentials. The portable SDK has no mandatory GSSAPI
+  dependency or newly enabled authentication path.
+  **PASS:** implementation `36989cebcc6a69b51d1c3f3d5d1f2660417a9865`,
+  [CI 38603782133](https://github.com/k1moradi/RDP-server/actions/runs/38603782133):
+  Linux/GCC **50/50**, macOS/Clang and Windows/MSVC **48/48**
+  CTests in both Debug and Release, SDK downstream consumer,
+  three ZIP/checksum packages and documentation-policy. The two
+  new Linux-only native GSS rejection suites passed.
+  **NOT RUN:** owner-local updated build, live keytab/Kerberos
+  credentials, positive GSS/TLS binding, OS admission, external
+  client or desktop. **Next:** independently verify real
+  configured provider credentials and TLS certificate binding,
+  then implement independently authorized OS session admission
+  before permitting live MCS responses.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

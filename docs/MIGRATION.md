@@ -1,5 +1,48 @@
 # Migration provenance and scope
 
+## Full-project recovery pending
+
+**The complete former `xrdp-console` repository was NOT moved.** The
+original GitHub repository has been deleted; the new repository has only
+the 125 selectively migrated C++23 files and limited protocol tests.
+
+If the original `~/xrdp-console` Git checkout still exists on the dedicated
+development PC, the checked-in [full-history importer](../scripts/import-full-project.sh)
+copies **all files tracked in its historical `main`**, preserves the current
+standalone C++23 build, and creates a single two-parent commit joining both
+repositories' real Git histories. It pushes to **the existing `main`**:
+no new branches and no force push.
+
+```bash
+cd ~
+git clone https://github.com/k1moradi/RDP-server.git
+cd RDP-server
+bash scripts/import-full-project.sh /home/keivan/xrdp-console
+```
+
+If `~/RDP-server` already exists, use `git -C ~/RDP-server pull --ff-only`
+instead of cloning, then execute the importer there. It requires a clean
+current new-repository checkout. It never activates a daemon, touches the
+clipboard, makes backups, or alters the old working tree.
+
+The importer verifies the original tracked-file inventory and requires that
+the remote `main` has not moved since the local checkout. Its merge commit
+preserves both parents. It imports the old project’s Linux runtime, patched
+xrdp files and test infrastructure **as archival migration source**, while
+keeping the active default CMake build independent of xrdp and VNC. Such
+files are present but are not part of the new active C++23 protocol archive.
+
+If the old checkout has been lost, GitHub permits restoration of eligible
+deleted repositories within 90 days: Settings → Repositories → Deleted
+repositories → Restore. Only the account owner can perform that web action.
+Once restored, the original source and history can be imported. The
+source is not currently recoverable by this assistant's GitHub connector
+while the deleted repository returns 404.
+
+**This is not yet confirmation that the full import has executed.** The
+original local checkout remains outside the assistant's tool access.
+
+
 ## New project home
 
 [`k1moradi/RDP-server`](https://github.com/k1moradi/RDP-server)

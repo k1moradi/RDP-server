@@ -1,5 +1,15 @@
 # RDP-server
 
+> **Migration recovery (14 October 2026):** The previous repository
+> `k1moradi/xrdp-console` has been deleted. This new repository **does not yet
+> contain the complete historical project tree or Git history**; the earlier
+> migration mistakenly copied only a selected C++23 subset. The original
+> development PC's `~/xrdp-console` Git checkout can supply the missing
+> material. See [the full-source importer](scripts/import-full-project.sh)
+> and [recovery instructions](docs/MIGRATION.md). Do not mistake the green
+> C++23 library build for a completed project migration.
+
+
 **Open-source C++23 implementation of the Remote Desktop Protocol (RDP) server.**
 
 > **RDP protocol first. Fast native C++23 implementation. No workarounds when a standards-compliant RDP mechanism already solves the problem.**

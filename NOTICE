@@ -1,0 +1,11 @@
+RDP-server
+
+Copyright (C) 2026 Keivan Moradi.
+
+First-party open-source C++23 Remote Desktop Protocol server foundation,
+distributed under GPL-3.0-or-later. This source is being migrated from the
+historical xrdp-console research project. Imported code retains its original
+authorship/licensing; the older upstream-derived C runtime and patched xrdp
+daemon are not part of this project's standalone C++23 build.
+
+The source archive does not currently provide a complete desktop server.

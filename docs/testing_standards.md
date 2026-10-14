@@ -207,7 +207,7 @@ header and TLS close_notify during a truncated envelope. All
 Debug/Release CTests and SDK install/consumer/package gates passed.
 Live sockets, CredSSP/NLA and OS admission were NOT RUN.
 
-## Granular behavior-named CTest reporting (2026-10-14; CI pending)
+## Verified granular behavior-named CTest reporting (2026-10-14)
 
 `ctest` counts registered test commands, **not assertions or loops**.
 Previously `transport.preauth-session` was one registered test even
@@ -221,3 +221,11 @@ name exits nonzero. Expected CTest registration:
 **20 tests** (nine other native test executables, ten preauth
 behavior cases and one project-policy test). This count measures
 reporting granularity, not server protocol coverage or authorization.
+
+**Verified:** exact code commit
+`1e11327f2b74ff7e676fbb3bb7200491718a779f`,
+[Actions run 38559221423](https://github.com/k1moradi/RDP-server/actions/runs/38559221423)
+passed Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
+Ubuntu's full Debug and Release CTest logs each report **20/20 PASS**;
+all three platform SDK install/consumer and ZIP checks passed. No
+owner-local post-change run, external client or OS admission was tested.

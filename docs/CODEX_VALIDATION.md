@@ -226,7 +226,7 @@ MCS Connect-Response and desktop access.
 **First remaining boundary:** real I/O adapter and OS-independent
 authenticated RDP session policy.
 
-## CTest behavior reporting transparency (2026-10-14; pending CI)
+## Verified CTest behavior reporting transparency (2026-10-14)
 
 User reported a successful owner-local Debug CMake build and CTest at
 `28b0d2b53949236eff4e483c2ca9706c25d93895`: **11/11 PASS**.
@@ -239,7 +239,13 @@ Now one binary accepts a documented behavior selector (or no argument
 to run all groups), and the existing CMake test registry names
 ten independent preauth behavior cases. Expected registered total:
 20 (formerly 11), with unchanged protocol implementation and retained
-assertions. The exact-head Linux/macOS/Windows Debug/Release CTests,
-downstream consumer and package steps remain **NOT RUN** pending CI.
-A visible count increase is NOT external-client, CredSSP/NLA,
+assertions. **PASS:** implementation commit
+`1e11327f2b74ff7e676fbb3bb7200491718a779f`,
+[Actions run 38559221423](https://github.com/k1moradi/RDP-server/actions/runs/38559221423):
+Linux/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+Debug/Release CTests, installed downstream package consumer and
+SDK ZIP/sha256 artifacts. Ubuntu's CTest logs explicitly show
+**20/20 tests passed** for each Debug and Release run.
+**NOT RUN:** owner's local CTest after this registration change,
+external RDP clients, real TCP listener, CredSSP/NLA,
 OS authorization or desktop acceptance.

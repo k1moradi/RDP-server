@@ -202,7 +202,7 @@ acceptance evidence; no synthetic completion claims.
   **NOT RUN:** owner-local builds, real clients and service deployment.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
-  **CTest reporting increment (CI pending):** Register the existing
+  **Verified CTest reporting increment at `1e11327f2b74ff7e676fbb3bb7200491718a779f`:** Register the existing
   preauth test executable as ten independent behavior-named CTests
   (initial state, request fragmentation/outcomes, reply ordering,
   real TLS handshake, malformed X.224, decrypted MCS fragmentation
@@ -210,8 +210,14 @@ acceptance evidence; no synthetic completion claims.
   Keep one shared binary and all preexisting assertions. This changes
   the displayed CTest total from **11 to 20**; it does not mean nine
   newly invented protocol features or that the server can accept users.
-  **Next gate:** exact-head Linux/GCC, macOS/Clang, Windows/MSVC,
-  Debug/Release and SDK packaging CI; owner's local 20-case run NOT RUN.
+  **PASS:** [Actions run 38559221423](https://github.com/k1moradi/RDP-server/actions/runs/38559221423):
+  Ubuntu/GCC, macOS/Clang, Windows/MSVC and documentation-policy
+  succeeded, including Debug/Release full CTests, installed
+  downstream consumer, ZIP and SHA-256 artifacts. Ubuntu logs
+  explicitly confirmed **20/20 passed** in each configuration.
+  **NOT RUN:** owner's local CTest after this change, external RDP
+  client, authenticated session or desktop. Next development boundary:
+  actual nonblocking TLS socket adapter and CredSSP/NLA admission.
 
 
 Each implementation updates the relevant item with exact SHA, test

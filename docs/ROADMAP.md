@@ -49,3 +49,55 @@ server session. The library has no shipping daemon/installer.
   request from the owner.
 - Preserve attributions and third-party licenses for upstream-inspired code,
   but do not depend on an xrdp daemon, patched chansrv or VNC runtime.
+
+## Living TODO — authoritative project checklist
+
+This is the **single current TODO list**, required context on **every
+prompt**. Update the *same* item when implementation, blocker or evidence
+changes; don't create another milestone list. Apply [VISION](../VISION.md)
+and the four mandatory [coding](../coding_standards.md),
+[testing](../testing_standards.md), [build](../compile.md) and
+[benchmark](../benchmark.md) standards. Checkboxes require measured
+acceptance evidence; no synthetic completion claims.
+
+### P0 — Preserve work and implement a native RDP server
+
+- [x] Independently compile/test C++23 static protocol foundation;
+  historical Actions run 38516048776 succeeded at 77c94c75b467.
+  This **is not** a working RDP desktop server.
+- [ ] Import all remaining former implementation progress (historical
+  source, clipboard experiments, unique development-tip edits and tracked
+  local work) from the owner's local checkout per
+  [migration instructions](MIGRATION.md). Verify no source loss;
+  the old Git history is **not** an import objective.
+- [ ] Implement bounded X.224/TPKT/MCS/GCC network listener and complete
+  standards-compliant server connection state machine with external-client
+  handshake and malformed-packet evidence.
+- [ ] Implement TLS, CredSSP/NLA and independently verified OS session
+  authorization, including security downgrade and failure tests.
+- [ ] Implement licensing, capabilities/share activation, virtual-channel
+  routing, graphics delivery, keyboard/pointer and correct lifecycle.
+
+### P1 — Real client features and performance
+
+- [ ] Unify CLIPRDR Unicode, PNG/DIB, file streaming, transfer generations
+  and local OS clipboard ownership under one C++23 session authority.
+  Never require FUSE or `~/thinclient_drives` by default.
+- [ ] Verify macOS screenshot through RDP into Firefox produces a genuine
+  synchronous PNG File, not merely successful generic X11 transfer.
+- [ ] Integrate isolated Linux/X11/Wayland, Windows and macOS desktop,
+  clipboard and input adapters; test real Microsoft/FreeRDP clients.
+- [ ] Measure native server CPU/RAM, bandwidth, graphics and clipboard
+  p50/p95/p99; only then claim performance improvements.
+
+### P0 — Standards and repeatable automation
+
+- [ ] Verify successful cross-platform Actions for mandatory policy files,
+  semantic reusable CTest suites, build-root guard and Markdown co-change
+  gate. Until CI finishes, this gate remains **NOT RUN**.
+- [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
+  client acceptance suites as native runtime code becomes available.
+
+Each implementation updates the relevant item with exact SHA, test
+PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
+Put detailed lessons into the appropriate domain standard, not new files.

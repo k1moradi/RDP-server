@@ -46,11 +46,11 @@ packaged xrdp services**. A C++23 compiler, CMake 3.22+ and OpenSSL development
 libraries are required.
 
 ```bash
-git clone https://github.com/k1moradi/RDP-server.git
-cd RDP-server
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
-cmake --build build --parallel 2
-ctest --test-dir build --output-on-failure
+git clone https://github.com/k1moradi/RDP-server.git "$HOME/rdp-server" # skip if already cloned
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" \
+  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ```
 
 The output is `rdp-server-protocol`, a **static library**, not an installable
@@ -69,6 +69,22 @@ The original project contained many more Linux deployment scripts, binary
 graphics fixtures, patched xrdp C files and experimental tests. They were
 **not** blindly copied into this standalone C++23 repository. No new
 development branches were created during migration.
+
+## Required project documents and living TODO
+
+**Every agent must read [AGENTS.md](AGENTS.md) on every prompt.**
+[Project vision](VISION.md) and the [live roadmap/TODO](docs/ROADMAP.md)
+guide every change. The four mandatory canonical engineering documents
+are [coding standards](coding_standards.md),
+[testing standards](testing_standards.md),
+[compilation](compile.md), and [benchmarking](benchmark.md).
+See [validation evidence](CODEX_VALIDATION.md). All new learned policies
+belong in the relevant existing standard; don't fragment them.
+
+After every implementation, update the existing TODO and affected
+documentation in the **same commit**. Maintain **one reused local
+`~/rdp-server/build/`**; hosted CI has one ephemeral checkout-local
+`build/` per job.
 
 ## Architectural rules
 

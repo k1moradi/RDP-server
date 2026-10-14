@@ -30,7 +30,7 @@ CI and documentation-policy gate. Do not mask failures.
   was successful with ten original portable protocol tests.
 - Later semantic registry/build-policy changes require **fresh CI**;
   record new results only after confirmation.
-- Full former project source/history import remains incomplete.
+- Full former project source and unique implementation progress import remains incomplete; historical Git ancestry is not the goal.
   A green protocol static library is **not** a functional desktop server.
 
 ## Per-task evidence

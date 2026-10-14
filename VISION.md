@@ -33,7 +33,7 @@ systems, using a portable RDP core and replaceable OS integrations.
 A subset of first-party C++23 files is migrated and a portable static
 protocol library passes historical cross-platform tests. It is **not**
 an authenticated or installable standalone RDP server. The **complete
-historical source tree and Git history import remains pending**; see
+former source and implementation progress import remains pending**; see
 [docs/MIGRATION.md](docs/MIGRATION.md). Do not mistake green protocol
 unit tests for client acceptance, real desktop admission or performance.
 

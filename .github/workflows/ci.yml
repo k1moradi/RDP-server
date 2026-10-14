@@ -46,3 +46,16 @@ jobs:
         run: cmake --build build --parallel 2
       - name: Run protocol unit tests
         run: ctest --test-dir build --build-config Debug --output-on-failure
+
+  documentation-policy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"

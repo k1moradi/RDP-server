@@ -4,6 +4,12 @@ project(RDP_server VERSION 0.1.0
     DESCRIPTION "Portable standards-first C++23 Remote Desktop Protocol server"
     LANGUAGES CXX)
 include(CTest)
+
+# The only build root is <checkout>/build; local checkout: ~/rdp-server.
+# Each ephemeral CI job uses one checkout-local build root.
+if(NOT CMAKE_BINARY_DIR STREQUAL "${PROJECT_SOURCE_DIR}/build")
+    message(FATAL_ERROR "Reuse only ${PROJECT_SOURCE_DIR}/build; local path: ~/rdp-server/build")
+endif()
 include(GNUInstallDirs)
 option(RDP_SERVER_BUILD_TESTING "Build protocol regression tests" ON)
 set(CMAKE_CXX_STANDARD 23)
@@ -43,31 +49,7 @@ else()
 endif()
 
 if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
-    set(_rdp_tests
-        test_owned_rdp_x224
-        test_owned_security_negotiation
-        test_owned_mcs_connect_initial
-        test_owned_gcc_conference_create
-        test_owned_preauth_session
-        test_owned_remote_transfer
-        test_clipboard_protocol
-        test_owned_credssp_binding
-        test_owned_credssp_tsrequest
-        test_base64_codec)
-    foreach(name IN LISTS _rdp_tests)
-        add_executable(${name} "tests/${name}.cpp")
-        target_link_libraries(${name} PRIVATE rdp-server-protocol)
-        if(name MATCHES "mcs_connect_initial|gcc_conference_create|preauth_session")
-            target_compile_definitions(${name} PRIVATE
-                "OWNED_MCS_FIXTURE_PATH=\"${CMAKE_SOURCE_DIR}/tests/fixtures/ms_rdpbcgr_4_1_3_mcs_connect_initial.hex\"")
-        endif()
-        if(MSVC)
-            target_compile_options(${name} PRIVATE /UNDEBUG)
-        else()
-            target_compile_options(${name} PRIVATE -UNDEBUG)
-        endif()
-        add_test(NAME ${name} COMMAND ${name})
-    endforeach()
+    add_subdirectory(tests)
 endif()
 
 install(TARGETS rdp-server-protocol ARCHIVE

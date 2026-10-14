@@ -1,5 +1,15 @@
 # CODEX.md — RDP-server agent contract
 
+**Canonical mandatory policy: [AGENTS.md](AGENTS.md).** Read it on every
+prompt along with [VISION.md](VISION.md), the living TODO in
+[docs/ROADMAP.md](docs/ROADMAP.md), [coding_standards.md](coding_standards.md),
+[testing_standards.md](testing_standards.md), [compile.md](compile.md),
+[benchmark.md](benchmark.md) and [CODEX_VALIDATION.md](CODEX_VALIDATION.md).
+One reused local build: `~/rdp-server/build/`. Use consolidated semantic
+CTest modules. Each implementation must update the same TODO and pertinent
+canonical docs **in the same commit**, with accurate tests and limitations.
+
+
 **No new branches without an explicit request from the repository owner.**
 This prohibits all agents, including Codex, from invoking branch creation
 (`git switch -c`, `git branch`, `git checkout -b`,

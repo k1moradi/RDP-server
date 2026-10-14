@@ -66,6 +66,12 @@ X.224 parser and preauthentication session, with bounded first-packet
 reassembly and exact consumed-byte accounting. The reused
 `transport.preauth-session` CTest was extended with fragment,
 coalescing, malformed-length, TLS-dispatch and terminal-close negatives.
-**PASS/FAIL: NOT RUN until the new exact-head cross-platform CI completes.**
-Real TCP listeners, TLS/credential validation, desktop admission and
-external RDP clients remain **NOT RUN**; no production activation.
+**PASS:** [exact-head GitHub Actions run 38536987879](https://github.com/k1moradi/RDP-server/actions/runs/38536987879),
+commit `988938a90f8adbae4e07714ac636af3eb0640011`, passed
+Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy CTests.
+This verifies the existing compiled preauth protocol suite and the
+new bounded-fragment intake negative cases. The first **unimplemented**
+boundary is a network listener coupled to a real TLS provider and
+authenticated post-negotiation session. Real TLS/credential validation,
+desktop admission and external RDP clients remain **NOT RUN**;
+no production activation.

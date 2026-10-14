@@ -73,12 +73,16 @@ acceptance evidence; no synthetic completion claims.
 - [ ] Implement bounded X.224/TPKT/MCS/GCC network listener and complete
   standards-compliant server connection state machine with external-client
   handshake and malformed-packet evidence.
-  **Increment in this commit:** first plaintext X.224 Connection Request
-  now supports bounded incremental TCP-chunk intake, TLS/close response
-  routing, and exact consumed-byte accounting in the existing preauth
-  owner. Test status: pending cross-platform CI; actual TCP listener,
-  TLS provider, authentication, MCS responses and external-client
-  connection remain **NOT RUN / incomplete**.
+  **Completed partial increment at `988938a90f8adbae4e07714ac636af3eb0640011`:**
+  bounded incremental plaintext Connection Request intake, exact TCP
+  consumed-byte accounting, correct negotiation response/terminal failure,
+  all request split points and malformed-length negative tests.
+  **PASS:** [Actions run 38536987879](https://github.com/k1moradi/RDP-server/actions/runs/38536987879)
+  on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy;
+  registered protocol and policy CTests passed.
+  The *overall* milestone stays **open**: a real TCP listener, TLS provider,
+  authenticated session, MCS response and external-client handshake
+  remain **NOT RUN / unimplemented**.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

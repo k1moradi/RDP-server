@@ -78,3 +78,15 @@ X.224 type, unsupported security, close and replay rejection. This is
 an offline stream-intake test only; no listening socket, real TLS peer,
 CredSSP, authenticated desktop or external client is included.
 Cross-platform CI results must be recorded in the validation ledger.
+
+## Verified incremental X.224 stream-intake coverage (2026-10-14)
+
+Commit `988938a90f8adbae4e07714ac636af3eb0640011` passed
+[Actions run 38536987879](https://github.com/k1moradi/RDP-server/actions/runs/38536987879)
+on Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy.
+The existing `transport.preauth-session` test now exercises every
+split point of a complete X.224 request, byte-at-a-time delivery,
+coalesced trailing TLS bytes, size/version/type rejection,
+unsupported security and terminal replay/close behavior.
+No TCP listener, TLS server, session admission or external client
+was exercised; these acceptance categories remain NOT RUN.

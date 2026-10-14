@@ -278,3 +278,16 @@ accepted over a live connection and no session is admitted.
 Future GSS authentication must consume this DER synchronously,
 verify binding and independently validate OS account/console
 authorization before an MCS state transition can occur.
+
+### Offline CredSSP server TSRequest DER serializer (2026-10-14)
+
+The existing portable CredSSP parser/framer also exports a bounded,
+single-reply DER serializer for MS-CSSP 2.2.1 `negoTokens` and
+already-encrypted `pubKeyAuth` (versions 5/6 only). It writes one
+minimal definite-length SEQUENCE and validates size before any
+one-shot vector allocation; empty or over-limit provider output
+fails without bytes. The payload is opaque and remains the provider's
+responsibility; this library cannot determine Kerberos success,
+encrypt its own public-key hash, authorize OS identity, send a
+TLS record or transition to MCS. Test vectors are synthetic and
+no authentication grant exists.

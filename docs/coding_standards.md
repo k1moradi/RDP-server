@@ -436,3 +436,17 @@ on Linux/GCC, macOS/Clang and Windows/MSVC,
 including Debug/Release 46 CTests and installed SDK/package
 gates. This is DER framing acceptance only; it does not
 authenticate identity or authorize OS/RDP session access.
+
+## Canonical offline CredSSP server response DER (2026-10-14)
+
+MS-CSSP 2.2.1 requires a server TSRequest to contain only the
+relevant response field for its current handshake phase. Encode
+`negoTokens` with exactly one nested NegoDataItem or `pubKeyAuth`
+as an opaque OCTET STRING; do not combine them, introduce
+`authInfo`, or serialize a client nonce for server replies.
+Use canonical short/0x81/0x82 definite lengths and a single
+bounded output reservation with a verified final size.
+Restrict the current helper to project-supported versions 5/6
+and 8192-byte opaque provider outputs. DER serialization must
+never be treated as GSS wrap, principal verification or
+permission to advance TLS, MCS or a console session.

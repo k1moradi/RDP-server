@@ -72,7 +72,9 @@ function(add_rdp_test source_file suite behavior)
                 credssp-der-mutations
                 credssp-stream-fragments
                 credssp-stream-coalesced
-                credssp-stream-rejections)
+                credssp-stream-rejections
+                credssp-server-reply-wire
+                credssp-server-reply-rejections)
             add_test(NAME "security.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("security.${case_name}" PROPERTIES

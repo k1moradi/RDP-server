@@ -432,6 +432,22 @@ acceptance evidence; no synthetic completion claims.
   CredSSP/SPNEGO provider and verified OS authorization in
   the sole connection owner; never treat a syntactically
   valid token as an authentication capability.
+  **New bounded server-reply serialization (2026-10-14; validation
+  pending):** within the same `credssp_tsrequest` module, an
+  offline, allocation-bounded, canonical DER encoder produces
+  one MS-CSSP TSRequest server `negoTokens` response OR an
+  already-GSS-protected `pubKeyAuth` response for versions
+  5/6. No credential or nonce output, TLS send, SPNEGO trust
+  assertion or OS identity authority is added. Two additional
+  existing-executable behavior CTests exercise literal DER wire
+  oracles, lengths, parsing/framing and rejection bounds (expected
+  **48 CTests**). **PASS:** prior baseline SHA
+  `f3f2d727334a254f7970c5eefe3c91a25d82c41e`
+  reports 46 CTests across CI. **NOT RUN:** validation on
+  this implementation commit, owner's local build, GSS/TLS
+  binding and live-session tests. **Next:** connect to a
+  trusted GSS provider and independent OS authorization before
+  allowing any reply on a socket.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

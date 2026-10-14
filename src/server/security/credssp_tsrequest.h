@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 namespace rdp_server::server::security
 {
@@ -69,6 +70,24 @@ struct TsRequestResult
 // On failure returns no token views or client-controlled metadata.
 [[nodiscard]] TsRequestResult parseCredSspTsRequest(
     std::span<const std::uint8_t> der) noexcept;
+
+// Offline DER serialization for the two server-to-client TSRequest reply
+// shapes in MS-CSSP 2.2.1/3.1.5. Caller-supplied bytes are opaque outputs
+// of a future trusted SPNEGO/GSS provider; this function does NOT verify
+// Kerberos, encrypt a public-key binding, authorize credentials, or send TLS
+// data. Version 5/6 only; empty/oversized tokens and bad modes fail closed.
+enum class CredSspServerReplyField : std::uint8_t
+{
+    NegoToken,
+    EncryptedServerBinding,
+};
+
+// Returns exactly one canonical DER SEQUENCE or an empty vector on error.
+// Bound to the same 16 KiB request framing limit and 8192-byte token cap.
+[[nodiscard]] std::vector<std::uint8_t> encodeCredSspServerTsRequest(
+    std::uint8_t version,
+    CredSspServerReplyField field,
+    std::span<const std::uint8_t> opaquePayload) noexcept;
 
 // Stream-only DER framing across arbitrarily split TLS plaintext.  This
 // decoder does not drive TLS or keep SPNEGO/GSS state and is NOT an

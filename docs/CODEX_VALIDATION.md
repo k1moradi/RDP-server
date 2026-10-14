@@ -598,3 +598,26 @@ OS session authorization, NLA security selection, MCS
 response emission, external client and desktop access.
 **Next:** a trusted authenticated CredSSP/SPNEGO and OS
 authorization provider within the sole preauth owner.
+
+## Offline CredSSP server TSRequest reply serializer (2026-10-14; NOT RUN)
+
+**Prior verified head:** `f3f2d727334a254f7970c5eefe3c91a25d82c41e`,
+[CI 38592588562](https://github.com/k1moradi/RDP-server/actions/runs/38592588562)
+passed Linux/GCC, macOS/Clang, Windows/MSVC, documentation policy,
+46/46 Debug/Release CTests and SDK consumer/package gates for
+the prior TSRequest framing implementation.
+
+**New increment:** one `encodeCredSspServerTsRequest` entry point
+in existing portable CredSSP module, accepting an opaque
+GSS provider output for one of two distinct MS-CSSP server
+response types, versions 5/6 only. It returns a complete
+canonical bounded DER frame or no output; it owns no
+authentication authority. The same CredSSP test executable
+adds exact-wire, long-length, framing, empty/oversize,
+unsupported-version/field regressions. Expected 48 named
+CTests. **NOT RUN:** implementation-commit tests and cross-platform CI,
+owner-local build, genuine SPNEGO/GSS, TLS key binding,
+OS account authorization or Microsoft desktop connection.
+**Next:** a verified authenticated security provider and
+independent OS-authorized single session owner; do not send
+positive responses from offline serialization.

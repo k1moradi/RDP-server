@@ -259,6 +259,106 @@ TsRequestResult parseCredSspTsRequest(
 }
 
 
+namespace
+{
+
+// DER uses definite minimal length octets, not BER indefinite lengths.
+[[nodiscard]] constexpr std::size_t derLengthOctets(
+    std::size_t payloadSize) noexcept
+{
+    return payloadSize < 128 ? 1 : payloadSize < 256 ? 2 : 3;
+}
+
+[[nodiscard]] constexpr std::size_t derFieldSize(
+    std::size_t payloadSize) noexcept
+{
+    return 1 + derLengthOctets(payloadSize) + payloadSize;
+}
+
+void appendDerHeader(std::vector<std::uint8_t> &output,
+                     std::uint8_t tag,
+                     std::size_t payloadSize)
+{
+    output.push_back(tag);
+    if (payloadSize < 128)
+    {
+        output.push_back(static_cast<std::uint8_t>(payloadSize));
+    }
+    else if (payloadSize < 256)
+    {
+        output.push_back(0x81);
+        output.push_back(static_cast<std::uint8_t>(payloadSize));
+    }
+    else
+    {
+        output.push_back(0x82);
+        output.push_back(static_cast<std::uint8_t>(payloadSize >> 8U));
+        output.push_back(static_cast<std::uint8_t>(payloadSize));
+    }
+}
+
+} // namespace
+
+std::vector<std::uint8_t> encodeCredSspServerTsRequest(
+    std::uint8_t version,
+    CredSspServerReplyField field,
+    std::span<const std::uint8_t> opaquePayload) noexcept
+{
+    // A serializer has no evidence of the authenticated GSS context.
+    // Restrict it to one permitted reply field and never encode authInfo.
+    if ((version != 5 && version != 6) ||
+        (field != CredSspServerReplyField::NegoToken &&
+         field != CredSspServerReplyField::EncryptedServerBinding) ||
+        opaquePayload.empty() ||
+        opaquePayload.size() > kMaximumCredSspTokenBytes)
+    {
+        return {};
+    }
+
+    const std::size_t octetFieldSize = derFieldSize(opaquePayload.size());
+    const bool isNegoToken = field == CredSspServerReplyField::NegoToken;
+    // negoTokens: [1] SEQUENCE OF SEQUENCE { [0] OCTET STRING }.
+    // pubKeyAuth: [3] OCTET STRING. Never mix these two server phases.
+    const std::size_t outerFieldContentSize = isNegoToken
+        ? derFieldSize(derFieldSize(derFieldSize(octetFieldSize)))
+        : octetFieldSize;
+    const std::size_t fieldsSize = 5 + derFieldSize(outerFieldContentSize);
+    const std::size_t encodedSize = derFieldSize(fieldsSize);
+    if (encodedSize > kMaximumCredSspRequestBytes)
+    {
+        return {};
+    }
+
+    try
+    {
+        std::vector<std::uint8_t> output;
+        output.reserve(encodedSize); // One bounded allocation, no reallocations.
+        appendDerHeader(output, 0x30, fieldsSize);
+        output.insert(output.end(), {0xa0, 0x03, 0x02, 0x01, version});
+        appendDerHeader(output, isNegoToken ? 0xa1 : 0xa3,
+                        outerFieldContentSize);
+        if (isNegoToken)
+        {
+            const std::size_t itemSize = derFieldSize(derFieldSize(octetFieldSize));
+            appendDerHeader(output, 0x30, itemSize);
+            appendDerHeader(output, 0x30, derFieldSize(octetFieldSize));
+            appendDerHeader(output, 0xa0, octetFieldSize);
+        }
+        appendDerHeader(output, 0x04, opaquePayload.size());
+        output.insert(output.end(), opaquePayload.begin(), opaquePayload.end());
+        // Ensure no incomplete or overlong reply can escape this builder.
+        if (output.size() != encodedSize)
+        {
+            return {};
+        }
+        return output;
+    }
+    catch (...)
+    {
+        return {};
+    }
+}
+
 void TsRequestFrameReader::clear() noexcept
 {
     if (buffered_ != 0)

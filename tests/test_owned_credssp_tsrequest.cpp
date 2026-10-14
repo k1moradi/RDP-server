@@ -390,6 +390,102 @@ void testStreamDerFailuresAndCancellation()
     assert(replay.completeDer().empty());
     assert(replay.consume(fixture).status == TsRequestFrameStatus::Closed);
 }
+
+void testServerReplyWire()
+{
+    // Two independently authored MS-CSSP 2.2.1 DER oracles, not
+    // actual GSS/Kerberos exchanges or authenticated TLS outputs.
+    constexpr std::array<std::uint8_t, 4> token{0x60, 0x82, 0x01, 0x00};
+    const Bytes expectedNego{
+        0x30, 0x13, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa1, 0x0c, 0x30, 0x0a, 0x30, 0x08,
+        0xa0, 0x06, 0x04, 0x04, 0x60, 0x82, 0x01, 0x00};
+    const auto nego = encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::NegoToken, token);
+    assert(nego == expectedNego);
+    const auto parsedNego = parseCredSspTsRequest(nego);
+    assert(parsedNego && parsedNego.value.tokenCount == 1);
+    assert(std::equal(parsedNego.value.tokens[0].begin(),
+                      parsedNego.value.tokens[0].end(), token.begin()));
+
+    constexpr std::array<std::uint8_t, 4> encryptedBinding{
+        0xde, 0xad, 0xbe, 0xef};
+    const Bytes expectedBinding{
+        0x30, 0x0d, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa3, 0x06, 0x04, 0x04, 0xde, 0xad, 0xbe, 0xef};
+    const auto binding = encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::EncryptedServerBinding,
+        encryptedBinding);
+    assert(binding == expectedBinding);
+    const auto parsedBinding = parseCredSspTsRequest(binding);
+    assert(parsedBinding && parsedBinding.value.hasPubKeyAuth);
+    assert(parsedBinding.value.tokenCount == 0 &&
+           !parsedBinding.value.hasAuthInfo &&
+           !parsedBinding.value.hasClientNonce);
+    assert(std::equal(parsedBinding.value.encryptedPubKeyAuth.begin(),
+                      parsedBinding.value.encryptedPubKeyAuth.end(),
+                      encryptedBinding.begin()));
+
+    // Version 5 is the other permitted binding protocol version.
+    const auto v5 = encodeCredSspServerTsRequest(
+        5, CredSspServerReplyField::EncryptedServerBinding,
+        encryptedBinding);
+    assert(v5.size() == binding.size() && v5[6] == 5);
+    assert(parseCredSspTsRequest(v5));
+
+    // Test canonical short/0x81/0x82 DER lengths around boundaries.
+    for (const std::size_t payloadLength :
+         {std::size_t{1}, std::size_t{110}, std::size_t{128},
+          std::size_t{256}, kMaximumCredSspTokenBytes})
+    {
+        const Bytes opaque(payloadLength, 0x5a);
+        for (const auto field : {CredSspServerReplyField::NegoToken,
+                                 CredSspServerReplyField::EncryptedServerBinding})
+        {
+            const auto encoded = encodeCredSspServerTsRequest(6, field, opaque);
+            assert(!encoded.empty() &&
+                   encoded.size() <= kMaximumCredSspRequestBytes);
+            const auto parsed = parseCredSspTsRequest(encoded);
+            assert(parsed);
+            const auto borrowed = field == CredSspServerReplyField::NegoToken
+                ? parsed.value.tokens[0] : parsed.value.encryptedPubKeyAuth;
+            assert(borrowed.size() == payloadLength);
+            assert(std::equal(borrowed.begin(), borrowed.end(), opaque.begin()));
+            TsRequestFrameReader reader;
+            const auto result = reader.consume(encoded);
+            assert(result.status == TsRequestFrameStatus::Complete);
+            assert(result.bytesConsumed == encoded.size());
+            assert(reader.completeDer().size() == encoded.size());
+            assert(reader.releaseFrame());
+        }
+    }
+}
+
+void testServerReplyRejections()
+{
+    constexpr std::array<std::uint8_t, 2> opaque{0x11, 0x22};
+    for (const std::uint8_t unsupportedVersion :
+         {std::uint8_t{0}, std::uint8_t{2}, std::uint8_t{4},
+          std::uint8_t{7}, std::uint8_t{255}})
+    {
+        assert(encodeCredSspServerTsRequest(
+            unsupportedVersion, CredSspServerReplyField::NegoToken,
+            opaque).empty());
+    }
+    assert(encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::NegoToken, {}).empty());
+    assert(encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::EncryptedServerBinding, {}).empty());
+    assert(encodeCredSspServerTsRequest(
+        6, static_cast<CredSspServerReplyField>(255), opaque).empty());
+    const Bytes oversized(kMaximumCredSspTokenBytes + 1, 0xb1);
+    for (const auto field : {CredSspServerReplyField::NegoToken,
+                             CredSspServerReplyField::EncryptedServerBinding})
+    {
+        assert(encodeCredSspServerTsRequest(6, field, oversized).empty());
+    }
+}
+
 void testAllByteMutationsRemainBounded()
 {
     const auto fixture = initialRequest();
@@ -424,7 +520,7 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 8> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 10> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
@@ -433,6 +529,8 @@ constexpr std::array<CredSspTestCase, 8> kCredSspTests{{
     {"credssp-stream-fragments", &testStreamAllFragmentBoundaries},
     {"credssp-stream-coalesced", &testStreamCoalescedAndLongDer},
     {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},
+    {"credssp-server-reply-wire", &testServerReplyWire},
+    {"credssp-server-reply-rejections", &testServerReplyRejections},
 }};
 
 int main(int argc, char **argv)

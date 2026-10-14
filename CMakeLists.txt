@@ -58,9 +58,15 @@ add_library(rdp-server-protocol STATIC
     src/core/generation_tile_map.cpp
     src/rdp/verified_bitmap_cache16.cpp)
 target_compile_features(rdp-server-protocol PUBLIC cxx_std_23)
+# These are the same public include prefixes in both the checkout and
+# the installed protocol SDK; experimental OS adapters are not linked.
+add_library(RDPServer::protocol ALIAS rdp-server-protocol)
+set_target_properties(rdp-server-protocol PROPERTIES EXPORT_NAME protocol)
 target_include_directories(rdp-server-protocol PUBLIC
-    "${PROJECT_SOURCE_DIR}/src"
-    "${PROJECT_SOURCE_DIR}/src/server")
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/server>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/rdp-server>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/rdp-server/server>")
 target_link_libraries(rdp-server-protocol PUBLIC
     OpenSSL::Crypto OpenSSL::SSL)
 if(MSVC)
@@ -74,8 +80,47 @@ if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
-install(TARGETS rdp-server-protocol ARCHIVE
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+# Installable protocol SDK, not a service or an installable RDP daemon.
+# Preserve the existing include tree to avoid breaking first-party APIs.
+include(CMakePackageConfigHelpers)
+set(rdp_package_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/RDPServerProtocol")
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/cmake/RDPServerProtocolConfig.cmake.in"
+    "${PROJECT_BINARY_DIR}/RDPServerProtocolConfig.cmake"
+    INSTALL_DESTINATION "${rdp_package_cmake_dir}")
+write_basic_package_version_file(
+    "${PROJECT_BINARY_DIR}/RDPServerProtocolConfigVersion.cmake"
+    VERSION "${PROJECT_VERSION}"
+    COMPATIBILITY SameMajorVersion)
+
+install(TARGETS rdp-server-protocol EXPORT RDPServerProtocolTargets
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     FILES_MATCHING PATTERN "*.h")
+install(EXPORT RDPServerProtocolTargets
+    FILE RDPServerProtocolTargets.cmake
+    NAMESPACE RDPServer::
+    DESTINATION "${rdp_package_cmake_dir}")
+install(FILES
+    "${PROJECT_BINARY_DIR}/RDPServerProtocolConfig.cmake"
+    "${PROJECT_BINARY_DIR}/RDPServerProtocolConfigVersion.cmake"
+    DESTINATION "${rdp_package_cmake_dir}")
+install(FILES
+    "${PROJECT_SOURCE_DIR}/LICENSE"
+    "${PROJECT_SOURCE_DIR}/NOTICE"
+    "${PROJECT_SOURCE_DIR}/THIRD_PARTY.md"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/rdp-server")
+
+# Cross-platform ZIP packages are SDK artifacts only; they do not contain
+# a desktop server, daemon, service unit, account admission or installer.
+set(CPACK_GENERATOR ZIP)
+set(CPACK_PACKAGE_NAME "rdp-server-protocol")
+set(CPACK_PACKAGE_VENDOR "RDP-server")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+    "Development-only C++23 RDP protocol library; NOT a working RDP server")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_FILE_NAME
+    "rdp-server-protocol-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
+include(CPack)
 # A server executable will only be shipped after real-client acceptance.

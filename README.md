@@ -131,3 +131,31 @@ the same thing as a runtime dependency.
 No new branches may be created by assistants or automated agents unless the
 repository owner explicitly requests them. Develop on the existing
 `main` branch until otherwise instructed.
+
+## Automated compilation, testing and protocol SDK delivery
+
+Every push to `main`, pull request, or manual GitHub Actions dispatch
+compiles and runs the consolidated C++23 protocol CTests on
+**Linux/GCC, macOS/Clang and Windows/MSVC**. Each runner uses a
+single checkout-local `build/` directory: Debug builds/tests,
+reconfigured Release builds/tests, then a staged install and a
+separate **downstream CMake consumer smoke test** nested under
+`build/consumer/`. The CI produces an OS-specific ZIP containing
+the static protocol library, headers, CMake package exports,
+license/attribution files and SHA-256 checksums. Packages are attached
+to the workflow as GitHub Actions artifacts (30-day retention).
+
+**Automatic deployment of available artifacts:** pushing an authorized
+version tag `protocol-v0.1.0` (matching `project(... VERSION 0.1.0)`
+and pointing to a commit already on `main`) runs all checks and,
+only if all succeed, publishes the three tested ZIPs and their
+checksums to a **GitHub prerelease**. A version bump and matching
+`protocol-vX.Y.Z` tag are required for subsequent publications.
+This does **not** install, start, deploy or expose an RDP server,
+which is still unimplemented. No GitHub repository branch is created.
+
+Downstream CMake users can unpack the appropriate ZIP and configure
+with `-DCMAKE_PREFIX_PATH=<unpacked-package-root>`, then use
+`find_package(RDPServerProtocol CONFIG REQUIRED)` and link
+`RDPServer::protocol`; OpenSSL development libraries are required.
+The package is a developer SDK, not a desktop service.

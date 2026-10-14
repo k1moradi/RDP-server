@@ -118,3 +118,17 @@ after the initial envelope and registers no channels; no real TLS
 provider or client was executed.
 
 **PASS:** `49c6006d47476184f7448028cd332e377ec9bd0b`, [Actions run 38541509607](https://github.com/k1moradi/RDP-server/actions/runs/38541509607), CMake configure/build/full CTest on Ubuntu/GCC, macOS/Clang and Windows/MSVC plus documentation-policy. Owner-local build and external clients **NOT RUN**.
+
+## Automated SDK installation and consumer acceptance (2026-10-14)
+
+The same consolidated CI compiles/tests Debug and Release for all three
+operating systems. For Release it stages installation in the current
+build root and configures a small **separately built downstream consumer**
+under `build/consumer`. That consumer must find the installed package
+with `find_package(RDPServerProtocol CONFIG REQUIRED)`, link
+`RDPServer::protocol` and execute a real X.224 parser call.
+This tests relocatable CMake metadata and linkage, NOT a TCP listener.
+CPack ZIP archives and SHA-256 manifests are delivered only after all
+runner-local gates succeed; tagged prerelease publication waits for
+all OS jobs and documentation checks. A protocol library archive
+is never a substitute for real-client, NLA or desktop acceptance.

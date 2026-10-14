@@ -129,6 +129,12 @@ acceptance evidence; no synthetic completion claims.
   jobs all succeeded. This proves the **CI's isolated checkout
   exception** and offline protocol/policy gates only; the owner's
   persistent `~/rdp-server/build/` and real clients were NOT RUN.
+- [ ] Automate Debug/Release C++23 builds and all offline protocol tests,
+  staged library SDK installation, downstream consumer verification,
+  SHA-256 package generation and prerelease publication for reviewed
+  version tags. **Implementation committed; cross-platform CI is pending.**
+  This is SDK artifact delivery, **NOT** deployment of an RDP daemon
+  or real client/desktop acceptance.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
 

@@ -79,3 +79,34 @@ in both local and CI configurations. GitHub Actions
 passed Linux, macOS and Windows with the explicit hosted-CI workspace
 exception. No claim is made about directly executing a build on the
 owner's local machine.
+
+## Automated compilation, tests and artifact delivery (2026-10-14)
+
+The existing `.github/workflows/ci.yml` owns one unified pipeline for
+`main` pushes, pull requests, manual dispatches and protocol release
+tags. Each Linux/macOS/Windows runner uses only its checkout-local
+`build/` root, compiles/tests Debug, reconfigures **the same root**
+for Release, compiles/tests again, and stages an SDK install in
+`build/stage`. The downstream consumer uses `build/consumer` and
+loads the installed `RDPServer::protocol` CMake export. CPack generates
+a ZIP in `build/`, SHA-256 checksums, and uploads both to the CI run.
+
+For an ordinary local dry run, reuse **only** `~/rdp-server/build/`:
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Release --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Release --output-on-failure
+cmake --install "$HOME/rdp-server/build" --config Release --prefix "$HOME/rdp-server/build/stage"
+cmake -S "$HOME/rdp-server/tests/consumer" -B "$HOME/rdp-server/build/consumer" -DCMAKE_PREFIX_PATH="$HOME/rdp-server/build/stage" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$HOME/rdp-server/build/consumer" --config Release --parallel 2
+ctest --test-dir "$HOME/rdp-server/build/consumer" -C Release --output-on-failure
+cmake --build "$HOME/rdp-server/build" --config Release --target package
+```
+
+Auto-publishing on `protocol-vX.Y.Z` tags is **prerelease delivery of
+a development static library**, with no service activation or runtime
+installation. The tag must match `PROJECT_VERSION` and point to a
+commit reachable from `main`; tests on all 3 OSes and the documentation
+gate must pass first. Do not describe this as RDP-server deployment
+until a real authenticated server and OS adapters have been accepted.

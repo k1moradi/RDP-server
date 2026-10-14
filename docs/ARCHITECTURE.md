@@ -75,3 +75,14 @@ exactly one complete bounded frame; extra decrypted bytes remain
 unconsumed. After validating or rejecting its GCC content, the
 diagnostic closes. The API neither negotiates genuine TLS/NLA nor
 emits an MCS response or authorizes an OS session.
+
+### Build/install/release boundary
+
+The protocol static library has an installable CMake target
+`RDPServer::protocol`, an OpenSSL-aware package config, and
+cross-platform CPack ZIP archives. GitHub Actions builds both
+configurations and checks a separate downstream consumer before
+uploading CI artifacts. An authorized matching version tag can
+publish a GitHub **protocol SDK prerelease**. This is an artifact
+delivery mechanism only: it does not introduce an RDP listener,
+service installation, authentication or desktop deployment.

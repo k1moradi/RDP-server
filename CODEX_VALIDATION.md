@@ -98,3 +98,19 @@ decrypted MCS/GCC envelope. Existing `transport.preauth-session`
 gains every-split, truncation, coalesced-packet, invalid header,
 malformed BER, wrong-state and replay tests against production code.
 **PASS:** [Actions run 38541509607](https://github.com/k1moradi/RDP-server/actions/runs/38541509607) at `49c6006d47476184f7448028cd332e377ec9bd0b` completed Linux/GCC, macOS/Clang, Windows/MSVC CMake builds and full CTests, plus documentation-policy. **NOT RUN:** owner's local `~/rdp-server/build/`, host networking, real TLS certificates, CredSSP/NLA, external RDP clients and OS admission. **Next:** authenticated TLS provider and MCS response lifecycle.
+
+## CI/CD protocol SDK automation (pending exact-head CI)
+
+The unified `.github/workflows/ci.yml` now runs Debug and Release
+builds/full CTests on Linux/GCC, macOS/Clang and Windows/MSVC, followed
+by one staged install per runner, a nested downstream CMake consumer
+configure/compile/CTest, CPack ZIP creation and artifact SHA-256
+publication. A matching `protocol-vX.Y.Z` tag reachable from
+`main` publishes a GitHub **prerelease** only after all platform
+and documentation-policy jobs have succeeded. The new consumer tests
+that the installed `RDPServer::protocol` target is usable.
+
+**Validation: NOT RUN** until exact-head CI completes, especially
+Windows install/export and CPack behavior. No git tag was pushed;
+release publication itself has **NOT RUN**, and no service, socket,
+authenticated RDP desktop or remote host was deployed.

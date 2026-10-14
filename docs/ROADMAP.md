@@ -33,10 +33,14 @@ server session. The library has no shipping daemon/installer.
 5. **Platform adapters:** Linux (X11/Wayland as separately negotiated backends),
    macOS, Windows and other platforms for capture, input, cursor, session and
    identity with the same protocol-independent C++ core
-6. **End-to-end clipboard:** negotiate Unicode, PNG and DIB; validate
-   generation correctness and X11/OS clipboard ownership; require a trusted
-   macOS screenshot paste into Firefox with a genuine non-null
-   `ClipboardEvent.clipboardData.items[].getAsFile()` of type `image/png`
+6. **End-to-end clipboard:** implement MS-RDPECLIP/CLIPRDR for Unicode text,
+   PNG/DIB/DIBV5 screenshots and on-demand copied-file streaming. Prefetch
+   bounded text/compressed images after client advertisement, await readiness
+   without blocking session/desktop event loops, and respect X11/Wayland/OS
+   clipboard ownership. RDPDR drive redirection is separate and optional;
+   file clipboard must not require FUSE or whole-file caching. Accept with
+   real Microsoft clients, including a trusted macOS screenshot paste into
+   Firefox yielding a non-null synchronous `image/png` File.
 7. **Performance, packaging and release:** establish a real-client H.264-only
    baseline first with current Microsoft Windows App (Windows/macOS) and
    Windows 11 Remote Desktop Connection; FreeRDP remains a useful additional
@@ -344,11 +348,71 @@ acceptance evidence; no synthetic completion claims.
 
 ### P1 — Real client features and performance
 
-- [ ] Unify CLIPRDR Unicode, PNG/DIB, file streaming, transfer generations
-  and local OS clipboard ownership under one C++23 session authority.
-  Never require FUSE or `~/thinclient_drives` by default.
-- [ ] Verify macOS screenshot through RDP into Firefox produces a genuine
-  synchronous PNG File, not merely successful generic X11 transfer.
+- [ ] **One native CLIPRDR clipboard session owner** (MS-RDPECLIP): reuse
+  `src/server/clipboard/remote_transfer.*`, existing first-party PDU/PNG/DIB
+  helpers and tests. Implement channel/capability negotiation, long/short
+  named format mapping, Format List acknowledgment, Unicode text, PNG and
+  DIBV5/DIB requests/responses, bounded reassembly and cancellation.
+  Ordinary Format Data Responses have **no request ID**: permit only one
+  outstanding format-data request, associate it with the advertised generation,
+  drain obsolete replies, and fail closed on irrecoverably ambiguous timeout.
+  File-content replies have separate `streamId` correlation. Do not create
+  competing session controllers or depend on xrdp/FreeRDP at runtime.
+  **Status: NOT RUN; native channel/desktop integration not implemented.**
+- [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
+  after a *legitimate client Format List* for generation N, prioritize
+  `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),
+  falling back to `CF_DIBV5`/`CF_DIB` when PNG is unavailable. Serialize
+  prefetch over the one-at-a-time format-data channel without starving an
+  actual paste. Maintain advertised/requested/receiving/ready/failed state;
+  cache only verified, size-limited UTF-8 text and compressed image bytes
+  for the current generation. Decode/convert on demand with checked image
+  dimensions and bounded worker resources; avoid unconditional expanded
+  bitmap copies. Never publish incomplete, corrupt or superseded content.
+  Client OS focus/privacy policy may delay or suppress an announcement:
+  do not poll, infer unseen copies or bypass the client's policy.
+  **Status: NOT RUN; screenshot/text prefetch and conversion unimplemented.**
+- [ ] **Nonblocking clipboard paste readiness**: register a pending OS paste
+  request and deadline; process RDP/desktop events while remote transfer or
+  image conversion completes, then satisfy the *same* request or reject on
+  timeout, disconnect, clipboard replacement or owner loss. Do not call
+  `sleep_for` or wait on a condition variable in the event loop. Support
+  X11 asynchronous SelectionRequest/SelectionNotify and INCR for large data;
+  use native asynchronous data offers on Wayland/macOS/Windows adapters.
+  Never return a success or an empty image before required bytes are ready.
+  **Status: NOT RUN.**
+- [ ] **OS clipboard ownership without competition**: one native adapter per
+  OS; on X11 use the `CLIPBOARD` selection (not `PRIMARY`), XFixes owner-change
+  events, timestamps, TARGETS and selection-clear rules. Claim ownership on
+  a genuine new remote offer, ignore own changes, suppress echo loops with
+  source/generation, and yield when a local app or clipboard manager (for
+  example Qlipper) becomes owner. Do not repeatedly reclaim selection from
+  a timer or mistake a manager's reoffer for fresh remote content. Test
+  ownership handoff, INCR, local copies and races with disconnect/reconnect.
+  **Status: NOT RUN.**
+- [ ] **Native clipboard file streaming, never whole-file prefetch**:
+  negotiate `CB_STREAM_FILECLIP_ENABLED`, `FileGroupDescriptorW` and
+  FileContents size/range requests; use `streamId` per file-content request,
+  check 64-bit sizes, offsets, bounds and filenames, and support
+  `CB_LOCK_CLIPDATA`/`CB_UNLOCK_CLIPDATA` when negotiated. Retain bounded
+  metadata and chunk buffers, not entire file bodies; cancel and release
+  locks cleanly. CLIPRDR copies files; RDPDR is optional drive redirection.
+  For Linux file managers, independently validate a usable destination
+  integration (URI/file-descriptor/portal or another native adapter) since
+  RDP file streaming alone does not make remote files locally openable.
+  Do not require FUSE or `~/thinclient_drives` by default.
+  **Status: NOT RUN.**
+- [ ] **Real Microsoft-client clipboard acceptance**: macOS screenshot
+  taken while Windows App is unfocused, delayed Format List after refocus,
+  then remote paste on Linux/X11 into Firefox. Inspect the *synchronous*
+  paste event: `clipboardData.items[].getAsFile()` must be non-null with
+  MIME `image/png` and the correct screenshot bytes. Exercise immediate
+  paste before prefetch completes, repeated paste, local text/image copy
+  in both directions, Qlipper competition, PNG/DIB fallback, large INCR
+  payloads, file-copy interoperability and clipboard changes mid-transfer.
+  An X11 PNG read alone is NOT proof of Firefox file-item acceptance.
+  Record client version and capabilities; live host experiments require
+  separate authorization. **Status: NOT RUN.**
 - [ ] Integrate isolated Linux/X11/Wayland, Windows and macOS desktop,
   clipboard and input adapters; test real Microsoft/FreeRDP clients.
 - [ ] Measure native server CPU/RAM, bandwidth, graphics and clipboard

@@ -65,6 +65,63 @@ a non-null synchronous image `File`. CLIPRDR file streaming is distinct
 from RDPDR drive browsing; neither protocol intrinsically requires FUSE.
 Record new facts here and update the same existing TODO.
 
+## Native clipboard implementation rules (2026-10-14; design, NOT RUN)
+
+Use [MS-RDPECLIP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/8bb14d95-fcfa-45e9-b822-f97b129ff208)
+(CLIPRDR) for text, image format data and copied-file streams.
+[MS-RDPEFS](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/)
+(RDPDR) is separate optional redirected-file-system access, not the
+prerequisite for clipboard file paste. Preserve one first-party portable
+clipboard session owner and OS-specific adapters; extend the existing
+`RemoteTransfer` generation/format-request coordinator rather than duplicating
+it. No xrdp/FreeRDP runtime, FUSE mount or file-cache daemon is required.
+
+- **Announcement is not data:** a client's Format List is only an offer.
+  Client focus or OS clipboard privacy rules may delay an offer (observed
+  with Windows App on macOS); the server must not assume an unadvertised copy
+  exists or bypass client permission. For each advertised generation retain
+  separate offered/requested/receiving/ready/failed state. Registered formats
+  such as `PNG` and `FileGroupDescriptorW` map by *name*, not globally
+  stable numeric IDs. The ordinary Format Data Response has no request ID:
+  serialize requests; drain old-generation replies before advancing; if a
+  timeout makes matching ambiguous, fail closed/reset the channel instead of
+  assigning stale data to a new generation.
+- **Prefetch policy:** after a legitimate offer, boundedly prefetch
+  `CF_UNICODETEXT` and preferably PNG for images; if needed, request
+  `CF_DIBV5` or `CF_DIB` and convert using checked dimensions. Prioritize
+  an actual paste over speculative requests. Store only validated,
+  compressed image content (and limited text) per current generation;
+  lazily decode/convert to consumer formats and cap decoded pixel memory,
+  CPU time and queued work. Never serve partial/stale payloads. Prefetch
+  may move clipboard contents before paste: expose an explicit session
+  clipboard-sharing policy and avoid secret-bearing logs.
+- **Waiting must make progress:** X11 `SelectionRequest`/INCR, CLIPRDR
+  channel I/O and worker completion are asynchronous. Retain each waiting
+  paste request with a deadline; advance unrelated desktop/session events
+  while fetching/converting, then complete it or report failure.
+  `std::this_thread::sleep_for` or blocking condition-variable waits on the
+  event thread can deadlock the very transfer being awaited. A dedicated
+  worker may wait on a condition variable with cancellation and timeout.
+- **Selection ownership:** on X11 monitor `CLIPBOARD` with XFixes,
+  selection timestamps and owner identity; do not seize `PRIMARY`.
+  Publish an actual remote generation once and relinquish to local
+  applications or clipboard managers without timer-driven reclaiming.
+  Ignore self-origin changes, suppress loops using origin/generation
+  and handle owner loss while an INCR transfer is in flight. Wayland,
+  macOS and Windows use their own native data-offer/clipboard APIs.
+- **File transfers:** CLIPRDR `FileGroupDescriptorW` metadata and
+  `CB_FILECONTENTS_REQUEST/RESPONSE` ranges use a distinct `streamId`;
+  validate indices, 64-bit sizes/offsets, path traversal, cancellation
+  and chunk limits. Negotiate file locks where supported; release on
+  completion/disconnect. Cache metadata and bounded buffers only, not
+  whole files. A desktop file manager may still require a usable local
+  file URI, file descriptor or portal adapter; do not claim wire-level
+  streaming alone solves that OS integration.
+- **Browser criterion:** a successful X11 `image/png` selection read
+  is not proof of a Firefox `DataTransferItem` file. Require actual
+  synchronous `paste` event inspection with non-null
+  `getAsFile()`, MIME `image/png` and matching screenshot contents.
+
 ## TCP intake implementation decision (2026-10-14)
 
 RFC 1006 treats TCP as a byte stream, **not** as a sequence of complete

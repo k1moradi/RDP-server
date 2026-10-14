@@ -53,6 +53,46 @@ Label every gate **PASS/FAIL/BLOCKED/NOT RUN**, with commit SHA,
 exact command/environment, first failing boundary and next TODO.
 A green static-library test never proves a complete RDP server.
 
+## Clipboard verification gates (planned; NOT RUN)
+
+Extend the existing behavior-named CLIPRDR/PNG/DIB tests instead of adding
+an independent clipboard test runner. Offline tests must cover:
+
+- Capabilities and named-format mappings (`PNG`, `FileGroupDescriptorW`,
+  Unicode text, DIBV5/DIB), valid and malformed format lists, responses,
+  fragmented channel PDUs, overflow, limits and unsupported formats.
+- One outstanding ordinary Format Data Request, fresh/new generations,
+  delayed/stale replies, reoffers, timeout ambiguity, disconnect, retry,
+  cancellation, and memory ownership. An old response must never satisfy a
+  new-generation paste; `streamId` applies to file contents, not to
+  ordinary Format Data Responses.
+- PNG signature/chunk/CRC and decompressed-size limits, invalid DIB layouts,
+  compressed PNG retention, lazy DIB/PNG conversion and bounded memory.
+  Image decoding and conversion must not block the session event thread.
+- Asynchronous readiness for text and images: paste-before-prefetch,
+  completion, timeout, bad input, clipboard replacement, owner loss,
+  concurrent local copy, INCR boundaries and cancellation without deadlock.
+- X11 selection owner-change ordering, timestamps, self-echo suppression,
+  Qlipper-like selection reownership, `PRIMARY` isolation, loop prevention
+  and no timer-driven CLIPBOARD reclaim.
+- File descriptor lists and streamed file size/range requests with distinct
+  stream IDs, non-sequential chunks, >4 GiB metadata, path traversal, lock/
+  unlock and disconnect, bounded transfer buffers and **no whole-file cache**.
+
+Real-client acceptance (separately authorized) must test Windows App
+on macOS and Windows 11, local-to-remote and remote-to-local text, PNG/DIB
+screenshots and file copy/paste. Include the observed macOS case where a
+screenshot taken while Windows App is unfocused is not announced until
+refocus; record the actual timing rather than assuming a protocol guarantee.
+For the Linux/X11 Firefox paste, inspect the synchronous event:
+`clipboardData.items[]` must include a file item whose `getAsFile()`
+is non-null, type `image/png`, with the expected image. Generic `xclip`,
+X11 selection or CLIPRDR unit success is **not** acceptance. Also test a
+paste requested before transfer/conversion finishes, Qlipper competition,
+large INCR, file-manager destination integration, lock/cancel, slow links,
+and clipboard changes during transfer. Distinguish `PASS` from
+`BLOCKED/NOT RUN` with client versions, environment and exact SHA.
+
 ```sh
 cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure

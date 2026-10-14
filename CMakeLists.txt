@@ -45,6 +45,7 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto SSL)
 add_library(rdp-server-protocol STATIC
     src/server/transport/tpkt_x224.cpp
     src/server/transport/mcs_connect_initial.cpp
+    src/server/transport/mcs_connect_response.cpp
     src/server/transport/gcc_conference_create.cpp
     src/server/transport/security_negotiation.cpp
     src/server/transport/preauth_session.cpp

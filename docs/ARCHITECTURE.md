@@ -192,3 +192,27 @@ and maximum protocol-version integers, while negotiation still
 requires effective version 2. On merge failure the existing
 preauth owner closes as before. No Connect-Response, CredSSP
 account identity, OS authorization or desktop is produced.
+
+### Offline MCS Connect-Response/GCC serializer (2026-10-14)
+
+After a checked MCS Connect-Initial, the portable first-party
+`encodeMcsConnectResponse` independently revalidates the client's
+GCC settings and T.125 merged DomainParameters, then builds
+a complete bounded wire PDU: RFC 1006 TPKT, Class 0 X.224 Data,
+BER APPLICATION 102 Connect-Response with success result and
+calledConnectId 0, followed by a T.124 GCC ConferenceCreateResponse
+with the H.221 server key `McDn`. The response holds the server
+Core block (RDP 5 compatible version, offered SSL), Network block
+(I/O channel 1003 and explicitly supplied, nonduplicated channel IDs
+with the correct odd-channel pad) and Enhanced Security block
+(encryption method and level zero, no legacy RC4 key or certificate).
+All BER/PER lengths are derived from the actual payload, and
+failure produces an empty packet. The published Microsoft example
+[MS-RDPBCGR 4.1.4](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/d23f7725-876c-48d4-9e41-8288896a19d3)
+provides the independent wire oracle for the common layout.
+
+**Crucial authority boundary:** this is an OFFLINE encoder, not a
+preauthentication state transition and not permission to send
+rt-successful on a live connection. The existing owner still
+closes after diagnostic MCS intake. No TLS record emission,
+CredSSP, OS session or MCS domain/channel lifecycle was enabled.

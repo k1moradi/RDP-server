@@ -276,12 +276,41 @@ acceptance evidence; no synthetic completion claims.
   individually registered without duplicating the executable:
   expected CTest total **32** (previously 27; two new behaviors,
   three additional registrations of existing behaviors).
-  **NOT RUN:** exact-head CI, owner's local build of this change,
-  independently authenticated NLA/OS identity, MCS Connect-Response,
-  external RDP client and desktop access.
-  **Next:** build and validate a bounded server MCS Connect-Response
-  with authentic GCC server settings, then enforce authenticated
-  session ownership before emitting it.
+  **PASS:** implementation `865c56c548526f4514207a4af1b192f3b3637c9a`
+  in [CI 38582674975](https://github.com/k1moradi/RDP-server/actions/runs/38582674975):
+  Linux/GCC, macOS/Clang, Windows/MSVC, documentation-policy,
+  Debug/Release 32 CTests, installed downstream consumer and SDK
+  ZIP/checksum gates. Owner-provided Linux Debug build and
+  **32/32 CTest PASS** at the same code commit in the reused
+  `~/rdp-server/build/` directory.
+  **NOT RUN:** real external RDP client, CredSSP/NLA, authenticated
+  OS admission or MCS Connect-Response emission.
+  **Offline MCS Connect-Response encoder increment (CI pending;
+  expected 34 CTests):** first-party
+  `encodeMcsConnectResponse` constructs a bounded TPKT/X.224 Data TPDU,
+  T.125 BER Connect-Response (APPLICATION 102), and T.124 GCC
+  Conference Create Response with H.221 `McDn`. It emits
+  `SC_CORE`, `SC_NET` with caller-provided, validated channel IDs,
+  and `SC_SECURITY` with Enhanced TLS security values (0, 0)
+  rather than a legacy RC4 certificate/random. DomainParameters
+  come from the existing checked `mergeMcsDomainParameters` result.
+  The encoder validates the actual client GCC settings, checks
+  nodeID range 1001..65536, channel cardinality and uniqueness,
+  requires the currently supported SSL offer (1), uses minimal BER
+  and nonfragmented PER lengths, and returns no bytes on failure.
+  **Offline only:** it does NOT send to a peer, register a domain,
+  authorize credentials, or allocate a desktop or channel session.
+  New `transport.mcs-response-wire` compares the whole 108-byte
+  TLS-only response to an independently assembled oracle derived
+  from [MS-RDPBCGR 4.1.4](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/d23f7725-876c-48d4-9e41-8288896a19d3);
+  `transport.mcs-response-rejections` covers malformed or
+  contradictory inputs and BER integer sign padding.
+  **NOT RUN:** hosted exact-head CI, owner-local new build,
+  production GCC/MCS response sending, authenticated CredSSP/NLA
+  policy, MCS attach/channel joins and OS desktop.
+  **Next:** bind response emission to a genuinely authenticated
+  connection authority; then implement MCS Erect/Attach/Join lifecycle
+  and integrate external-client validation.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

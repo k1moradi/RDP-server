@@ -396,3 +396,23 @@ behaviors, four existing now registered separately instead
 of one group). Preserve no-argument execution of all six tests.
 An offline domain merge is not an MCS Connect-Response, an
 authenticated server or live-client acceptance.
+
+## Standalone response-wire encoder, not admission (CI pending)
+
+Keep the existing `tests/test_owned_mcs_connect_initial.cpp`
+binary and the centralized `tests/CMakeLists.txt` registry.
+Add `transport.mcs-response-wire` with a complete independent
+**108-byte** Enhanced TLS Connect-Response/GCC golden packet
+based on Microsoft [4.1.4](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/d23f7725-876c-48d4-9e41-8288896a19d3):
+exact TPKT/BER/PER lengths, McDn and SC_CORE/NET/SECURITY,
+including three channel assignments and odd padding.
+Also exercise upper-bound T.124 nodeID and BER sign padding
+for a 32-bit domain parameter.
+`transport.mcs-response-rejections` must reject illegal node IDs,
+unsupported security protocols, missing/mismatched/duplicate or
+reserved channels, an unmergeable domain and missing GCC
+client data, returning no serialized bytes.
+Expected full CTest registration **34**, up from 32.
+The older parser suites remain active; no code path may
+send a response or claim credential/OS admission from these
+offline tests.

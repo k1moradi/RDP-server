@@ -2,7 +2,9 @@
 // Byte-for-byte MCS Connect-Initial example from Microsoft MS-RDPBCGR 4.1.3:
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/2610fcc7-3df4-4166-85bb-2c7ae21f6151
 #include "transport/mcs_connect_initial.h"
+#include "transport/mcs_connect_response.h"
 
+#include <algorithm>
 #include <array>
 #ifdef NDEBUG
 #undef NDEBUG
@@ -221,6 +223,104 @@ void testMcsDomainNegotiationRejections()
     mustReject(parsed.value);
 }
 
+
+void testMcsResponseWire()
+{
+    // Independent golden packet from MS-RDPBCGR 4.1.4: same GCC/MCS
+    // envelope, but legal Enhanced TLS SC_SECURITY (zero/no RC4 cert).
+    const auto fixture = publishedFixture();
+    const auto parsed = parseMcsConnectInitial(fixture);
+    assert(parsed);
+    constexpr std::array<std::uint16_t, 3> ids{1004, 1005, 1006};
+    const auto encoded = encodeMcsConnectResponse(parsed.value, ids, 31219, 1);
+    assert(encoded);
+    constexpr std::array<std::uint8_t, 108> golden{
+        0x03, 0x00, 0x00, 0x6c, 0x02, 0xf0, 0x80,
+        0x7f, 0x66, 0x62,
+        0x0a, 0x01, 0x00, 0x02, 0x01, 0x00,
+        0x30, 0x1a,
+        0x02, 0x01, 0x22, 0x02, 0x01, 0x03,
+        0x02, 0x01, 0x00, 0x02, 0x01, 0x01,
+        0x02, 0x01, 0x00, 0x02, 0x01, 0x01,
+        0x02, 0x03, 0x00, 0xff, 0xf8, 0x02, 0x01, 0x02,
+        0x04, 0x3e,
+        0x00, 0x05, 0x00, 0x14, 0x7c, 0x00, 0x01, 0x2a,
+        0x14, 0x76, 0x0a, 0x01, 0x01, 0x00, 0x01, 0xc0,
+        0x00, 'M', 'c', 'D', 'n', 0x28,
+        0x01, 0x0c, 0x0c, 0x00,
+        0x04, 0x00, 0x08, 0x00,
+        0x01, 0x00, 0x00, 0x00,
+        0x03, 0x0c, 0x10, 0x00,
+        0xeb, 0x03, 0x03, 0x00,
+        0xec, 0x03, 0xed, 0x03, 0xee, 0x03, 0x00, 0x00,
+        0x02, 0x0c, 0x0c, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+    };
+    assert(encoded.length == golden.size());
+    assert(std::equal(encoded.bytes().begin(), encoded.bytes().end(),
+                      golden.begin()));
+    std::span<const std::uint8_t> mcsPayload;
+    assert(parseDataTpdu(encoded.bytes(), mcsPayload));
+    assert(mcsPayload[0] == 0x7f && mcsPayload[1] == 0x66);
+
+    const auto upperNode =
+        encodeMcsConnectResponse(parsed.value, ids, 65536, 1);
+    assert(upperNode);
+    assert(upperNode.bytes()[55] == 0xfc);
+    assert(upperNode.bytes()[56] == 0x17);
+
+    // Positive BER integer >= 2^31 MUST include a leading sign octet.
+    auto modified = parsed.value;
+    modified.target.values[2] = 0x80000000U;
+    const auto highToken =
+        encodeMcsConnectResponse(modified, ids, 31219, 1);
+    assert(highToken);
+    constexpr std::array<std::uint8_t, 7> encodedToken{
+        0x02, 0x05, 0x00, 0x80, 0x00, 0x00, 0x00};
+    assert(std::search(highToken.bytes().begin(), highToken.bytes().end(),
+                       encodedToken.begin(), encodedToken.end()) !=
+           highToken.bytes().end());
+    assert(parseDataTpdu(highToken.bytes(), mcsPayload));
+}
+
+void testMcsResponseRejectInvalidInputs()
+{
+    const auto fixture = publishedFixture();
+    const auto parsed = parseMcsConnectInitial(fixture);
+    assert(parsed);
+    constexpr std::array<std::uint16_t, 3> ids{1004, 1005, 1006};
+    const auto reject = [](const McsConnectResponse &r)
+    {
+        assert(!r);
+        assert(r.length == 0 && r.bytes().empty());
+    };
+    reject(encodeMcsConnectResponse(parsed.value, ids, 1000, 1));
+    reject(encodeMcsConnectResponse(parsed.value, ids, 65537, 1));
+    reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 0));
+    reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 2));
+    reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 3));
+    reject(encodeMcsConnectResponse(parsed.value,
+                                    std::span(ids).first(2), 31219, 1));
+    constexpr std::array<std::uint16_t, 3> duplicate{1004, 1004, 1006};
+    constexpr std::array<std::uint16_t, 3> reserved{1003, 1005, 1006};
+    reject(encodeMcsConnectResponse(parsed.value, duplicate, 31219, 1));
+    reject(encodeMcsConnectResponse(parsed.value, reserved, 31219, 1));
+
+    McsConnectInitial bad = parsed.value;
+    bad.minimum.values[3] = 2; // unsupported priority count
+    reject(encodeMcsConnectResponse(bad, ids, 31219, 1));
+    bad = parsed.value;
+    bad.target.values[7] = 3;
+    bad.minimum.values[7] = 3;
+    reject(encodeMcsConnectResponse(bad, ids, 31219, 1));
+    bad = parsed.value;
+    bad.gccUserData = {}; // invalid GCC
+    reject(encodeMcsConnectResponse(bad, ids, 31219, 1));
+    bad = parsed.value;
+    bad.target.values[0] = 4; // cannot represent 3 channels + 3 IDs
+    reject(encodeMcsConnectResponse(bad, ids, 31219, 1));
+}
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -247,13 +347,15 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 6> kMcsTestCases{{
+constexpr std::array<McsTestCase, 8> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
     {"mcs-envelope-mutations", &testInputMutationsRemainBounded},
     {"mcs-domain-merge", &testMicrosoftDomainNegotiation},
     {"mcs-domain-rejections", &testMcsDomainNegotiationRejections},
+    {"mcs-response-wire", &testMcsResponseWire},
+    {"mcs-response-rejections", &testMcsResponseRejectInvalidInputs},
 }};
 
 int main(int argc, char **argv)

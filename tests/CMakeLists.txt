@@ -22,7 +22,9 @@ function(add_rdp_test source_file suite behavior)
                 mcs-envelope-ber-errors
                 mcs-envelope-mutations
                 mcs-domain-merge
-                mcs-domain-rejections)
+                mcs-domain-rejections
+                mcs-response-wire
+                mcs-response-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

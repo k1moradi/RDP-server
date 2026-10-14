@@ -278,3 +278,23 @@ state. A successful merge does not authenticate credentials or
 authorize an OS session. Never allocate according to client
 advertised 32-bit quantities without a later independent budget
 and real-user admission gate.
+
+## T.125 BER / T.124 PER Connect-Response encoding (2026-10-14)
+
+Use the canonical wire formats from
+[MS-RDPBCGR 2.2.1.4](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/927de44c-7fe8-4206-a14f-e5517dc24b1c)
+and its annotated 4.1.4 example: APPLICATION 102 `7F 66`,
+BER ENUMERATED success `0A 01 00`, zero calledConnectId,
+merged eight-field DomainParameters encoded as minimal
+nonnegative BER INTEGERs (include sign-protecting zero octet),
+and an OCTET STRING holding GCC ConferenceCreateResponse.
+Use bounded nonfragmented PER length, legal GCC nodeID
+1001..65536 offset and H.221 key `McDn`.
+Only Enhanced TLS is currently supported; `SC_SECURITY`
+encryption method/level must both be zero with NO legacy
+server random or RC4 proprietary server certificate.
+`SC_NET` channel IDs must match client-requested count,
+be nonduplicated, and obey the merged channel limit; odd
+counts need two padding bytes. The serializer must not
+own channels, admit users, send to a live peer, or reuse
+a partial packet after rejection.

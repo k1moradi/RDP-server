@@ -452,3 +452,29 @@ identity, MCS Connect-Response, external Microsoft clients
 and desktop access. First next wire boundary: bounded
 standards-compliant server MCS Connect-Response and GCC
 Conference Create Response, gated by secure authorization.
+
+## Offline MCS Connect-Response encoder (2026-10-14; CI pending)
+
+**Owner-local evidence:** at
+`865c56c548526f4514207a4af1b192f3b3637c9a`,
+the user's reused `~/rdp-server/build/` Debug compile and
+`ctest --test-dir build -C Debug --output-on-failure`
+completed **32/32 PASS**. The same implementation completed
+cross-platform Debug/Release and SDK gates in
+[CI 38582674975](https://github.com/k1moradi/RDP-server/actions/runs/38582674975):
+Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy
+all PASS. That is prior-code evidence, not evidence for this encoder.
+
+**New implementation:** a bounded offline encoder of the
+MS-RDPBCGR 2.2.1.4 TPKT/X.224, BER MCS Connect-Response and
+PER GCC Conference Create Response containing `McDn`,
+`SC_CORE`, `SC_NET` and Enhanced TLS `SC_SECURITY`. It
+requires a checked merged domain and GCC client data plus
+caller-provided nonduplicated channel IDs. Tests include
+a full independently specified 108-byte example and
+rejection paths. Expected CTest registration **34**.
+**NOT RUN:** exact-head cross-platform Debug/Release CI,
+owner-local post-change build, actual output to a TLS
+socket, CredSSP/NLA and independently authorized OS session,
+MCS Erect/Attach/Join lifecycle, external Microsoft clients
+or desktop acceptance. This is not an authenticated server.

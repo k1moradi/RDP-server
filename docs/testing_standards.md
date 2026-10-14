@@ -194,3 +194,15 @@ premature transitions, orderly TLS close and terminal replay.
 This is only a test of authenticated *record integrity* within TLS,
 not CredSSP credentials, certificate enrollment, a TCP server, or
 independent OS desktop authorization.
+
+**Verified encrypted-record regression (2026-10-14):**
+commit `a226f15827e9da48ad7a91b7cfa53528c3498802`,
+[Actions run 38557465241](https://github.com/k1moradi/RDP-server/actions/runs/38557465241)
+passed on Linux/GCC, macOS/Clang and Windows/MSVC, plus the
+documentation-policy job. The same `transport.preauth-session`
+CTest exercises all 416 fragment splits as real TLS application
+records, WANT_READ retry, exactly bounded TPKT consumption,
+coalesced follow-up packet retention, swapped TLS handles, invalid
+header and TLS close_notify during a truncated envelope. All
+Debug/Release CTests and SDK install/consumer/package gates passed.
+Live sockets, CredSSP/NLA and OS admission were NOT RUN.

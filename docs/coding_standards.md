@@ -141,3 +141,9 @@ progress, not a busy loop. Missing SSL, wrong role/identity, EOF and
 malformed framing always fail closed. The caller owns the TLS
 provider, BIO/socket lifetime, encrypted network pump and cancellation;
 no ownership of SSL or authenticated OS identity is transferred.
+
+**Verified on hosted systems:** the borrowed-SSL read path and bounded
+TPKT-preserving algorithm at `a226f15827e9da48ad7a91b7cfa53528c3498802`
+passed [Actions run 38557465241](https://github.com/k1moradi/RDP-server/actions/runs/38557465241)
+on Ubuntu, macOS and Windows. Keep network I/O cancellation and
+user authorization separate from validated TLS record decoding.

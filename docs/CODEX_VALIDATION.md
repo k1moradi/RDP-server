@@ -201,7 +201,7 @@ CredSSP/NLA, real external RDP client, OS admission or desktop.
 The user-reported 11/11 local CTests preceded this TLS change;
 local tests of the new exact commit remain **NOT RUN**.
 
-## OpenSSL application-record MCS intake (CI pending)
+## Verified OpenSSL application-record MCS intake (2026-10-14)
 
 Added `PreauthConnectionStream::consumeMcsConnectInitialFromTls`
 to read from the exact completed OpenSSL server connection and
@@ -214,7 +214,14 @@ wrong/foreign SSL handles and malformed TPKT. The server
 still does not listen on a socket, authorize users, emit MCS
 responses or deliver a desktop.
 
-**NOT RUN:** exact-head GitHub Actions until compilation,
-Debug/Release CTests and SDK packaging report results.
-**NOT RUN:** user's local build for this commit, external client,
-actual TCP transport, NLA/OS authorization and desktop access.
+**PASS:** exact code commit
+`a226f15827e9da48ad7a91b7cfa53528c3498802`,
+[GitHub Actions run 38557465241](https://github.com/k1moradi/RDP-server/actions/runs/38557465241)
+completed Ubuntu/GCC, macOS/Clang, Windows/MSVC and
+documentation-policy, the Debug/Release CTests, staged installation,
+downstream SDK consumer, and three ZIP/checksum package uploads.
+**NOT RUN:** user's local build on this new commit, external RDP
+clients, nonblocking TCP socket, CredSSP/NLA identity/authorization,
+MCS Connect-Response and desktop access.
+**First remaining boundary:** real I/O adapter and OS-independent
+authenticated RDP session policy.

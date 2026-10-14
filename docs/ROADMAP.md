@@ -126,7 +126,7 @@ acceptance evidence; no synthetic completion claims.
   build of this new commit. **Next:** integrate an authenticated
   TLS transport/session lifecycle without permitting OS admission
   before CredSSP/identity authorization.
-  **New TLS application-record increment (CI pending):** the existing
+  **Verified TLS application-record increment `a226f15827e9da48ad7a91b7cfa53528c3498802`:** the existing
   preauth stream now associates the completed OpenSSL server `SSL*`
   with the connection and uses `SSL_read_ex` to decrypt and parse
   precisely one bounded MCS/GCC TPKT. WANT_READ/WANT_WRITE do not
@@ -134,8 +134,15 @@ acceptance evidence; no synthetic completion claims.
   and replay fail closed. The memory-BIO test drives actual encrypted
   TLS application records at every split boundary, coalesced trailing
   PDU, invalid header and early close. Neither a socket listener
-  nor CredSSP/OS admission is implemented. **Next:** exact-head CI,
-  then a socket adapter and authenticated session progression.
+  nor CredSSP/OS admission is implemented.
+  **PASS:** [Actions run 38557465241](https://github.com/k1moradi/RDP-server/actions/runs/38557465241),
+  Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy; all
+  Debug/Release protocol and project-policy CTests, staged SDK install,
+  downstream consumer and platform ZIP/checksum uploads passed.
+  **NOT RUN:** user's local build of this exact head, external client,
+  TCP TLS listener, OS identity admission and desktop interaction.
+  **Next:** nonblocking socket adapter and authenticated session policy,
+  without equating a TLS handshake with user authentication.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

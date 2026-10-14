@@ -206,3 +206,18 @@ coalesced follow-up packet retention, swapped TLS handles, invalid
 header and TLS close_notify during a truncated envelope. All
 Debug/Release CTests and SDK install/consumer/package gates passed.
 Live sockets, CredSSP/NLA and OS admission were NOT RUN.
+
+## Granular behavior-named CTest reporting (2026-10-14; CI pending)
+
+`ctest` counts registered test commands, **not assertions or loops**.
+Previously `transport.preauth-session` was one registered test even
+though its native executable ran ten behavior groups (including all
+416 Microsoft fixture TLS split points), so the visible total
+remained 11. Register those groups individually via **one existing
+test executable**, one CMake test registry and distinct command-line
+case arguments. Preserve every existing assertion and keep direct
+no-argument execution as the complete suite. A mistyped/unknown case
+name exits nonzero. Expected CTest registration:
+**20 tests** (nine other native test executables, ten preauth
+behavior cases and one project-policy test). This count measures
+reporting granularity, not server protocol coverage or authorization.

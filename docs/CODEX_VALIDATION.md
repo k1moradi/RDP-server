@@ -225,3 +225,21 @@ clients, nonblocking TCP socket, CredSSP/NLA identity/authorization,
 MCS Connect-Response and desktop access.
 **First remaining boundary:** real I/O adapter and OS-independent
 authenticated RDP session policy.
+
+## CTest behavior reporting transparency (2026-10-14; pending CI)
+
+User reported a successful owner-local Debug CMake build and CTest at
+`28b0d2b53949236eff4e483c2ca9706c25d93895`: **11/11 PASS**.
+This is user-provided evidence for that local checkout, not evidence
+for a later commit. The consolidated preauth executable still ran
+new encrypted TLS tests but appeared as one CTest, lasting roughly
+1.67 seconds in the provided output.
+
+Now one binary accepts a documented behavior selector (or no argument
+to run all groups), and the existing CMake test registry names
+ten independent preauth behavior cases. Expected registered total:
+20 (formerly 11), with unchanged protocol implementation and retained
+assertions. The exact-head Linux/macOS/Windows Debug/Release CTests,
+downstream consumer and package steps remain **NOT RUN** pending CI.
+A visible count increase is NOT external-client, CredSSP/NLA,
+OS authorization or desktop acceptance.

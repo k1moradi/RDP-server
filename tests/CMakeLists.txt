@@ -13,9 +13,30 @@ function(add_rdp_test source_file suite behavior)
     else()
         target_compile_options("${test_target}" PRIVATE -UNDEBUG)
     endif()
-    add_test(NAME "${suite}.${behavior}" COMMAND "${test_target}")
-    set_tests_properties("${suite}.${behavior}" PROPERTIES
-        LABELS "protocol;${suite}")
+    if(test_target STREQUAL "test_owned_preauth_session")
+        # Ten behavior groups from ONE existing executable: no duplicate
+        # compilation, executables, state controllers or fixture sources.
+        foreach(case_name IN ITEMS
+                preauth-session-lifecycle
+                x224-request-fragments
+                x224-request-outcomes
+                x224-confirm-write-order
+                tls-handshake-gate
+                x224-length-and-close
+                mcs-decrypted-fragments
+                mcs-decrypted-rejections
+                mcs-tls-record-fragments
+                mcs-tls-record-rejections)
+            add_test(NAME "transport.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("transport.${case_name}" PROPERTIES
+                LABELS "protocol;transport")
+        endforeach()
+    else()
+        add_test(NAME "${suite}.${behavior}" COMMAND "${test_target}")
+        set_tests_properties("${suite}.${behavior}" PROPERTIES
+            LABELS "protocol;${suite}")
+    endif()
 endfunction()
 
 add_rdp_test(test_owned_rdp_x224.cpp transport x224)

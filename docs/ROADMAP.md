@@ -202,6 +202,17 @@ acceptance evidence; no synthetic completion claims.
   **NOT RUN:** owner-local builds, real clients and service deployment.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
+  **CTest reporting increment (CI pending):** Register the existing
+  preauth test executable as ten independent behavior-named CTests
+  (initial state, request fragmentation/outcomes, reply ordering,
+  real TLS handshake, malformed X.224, decrypted MCS fragmentation
+  and rejection, encrypted TLS record fragmentation and rejection).
+  Keep one shared binary and all preexisting assertions. This changes
+  the displayed CTest total from **11 to 20**; it does not mean nine
+  newly invented protocol features or that the server can accept users.
+  **Next gate:** exact-head Linux/GCC, macOS/Clang, Windows/MSVC,
+  Debug/Release and SDK packaging CI; owner's local 20-case run NOT RUN.
+
 
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.

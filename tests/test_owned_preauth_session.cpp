@@ -16,6 +16,7 @@
 #include <openssl/x509.h>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifndef OWNED_MCS_FIXTURE_PATH
@@ -652,7 +653,7 @@ void testConnectionRequestLengthRejectionAndClose()
 
 } // namespace
 
-int main()
+void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
     const auto request = validRequest();
@@ -710,13 +711,53 @@ int main()
     explicitClose.close();
     assert(!explicitClose.onTlsHandshake(true));
 
-    testFragmentedConnectionRequestIntake();
-    testConnectionRequestByteBoundaryAndFailure();
-    testConnectionReplyMustBeSentBeforeTls();
-    testRealTlsTransportGate();
-    testConnectionRequestLengthRejectionAndClose();
-    testIncrementalDecryptedMcsIntake();
-    testRejectedDecryptedMcsBoundaries();
-    testActualTlsApplicationDataIntake();
-    testTlsRecordFailClosedBoundaries();
+}
+
+struct PreauthTestCase
+{
+    std::string_view name;
+    void (*run)();
+};
+
+// Keep one executable/fixture implementation but expose independent
+// behavior-named CTest cases to make regressions visible in CTest output.
+// Running without an argument still executes the complete native suite.
+constexpr std::array<PreauthTestCase, 10> kPreauthTestCases{{
+    {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
+    {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
+    {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
+    {"x224-confirm-write-order", &testConnectionReplyMustBeSentBeforeTls},
+    {"tls-handshake-gate", &testRealTlsTransportGate},
+    {"x224-length-and-close", &testConnectionRequestLengthRejectionAndClose},
+    {"mcs-decrypted-fragments", &testIncrementalDecryptedMcsIntake},
+    {"mcs-decrypted-rejections", &testRejectedDecryptedMcsBoundaries},
+    {"mcs-tls-record-fragments", &testActualTlsApplicationDataIntake},
+    {"mcs-tls-record-rejections", &testTlsRecordFailClosedBoundaries},
+}};
+
+int main(int argc, char **argv)
+{
+    if (argc == 1)
+    {
+        for (const auto &test : kPreauthTestCases)
+        {
+            test.run();
+        }
+        return 0;
+    }
+    if (argc != 2)
+    {
+        return 2;
+    }
+    const std::string_view selected{argv[1]};
+    for (const auto &test : kPreauthTestCases)
+    {
+        if (selected == test.name)
+        {
+            test.run();
+            return 0;
+        }
+    }
+    // Unknown/mistyped case names MUST fail, not report false-green CI.
+    return 2;
 }

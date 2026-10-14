@@ -80,6 +80,14 @@ public:
 
     [[nodiscard]] TcpPreauthEvent onReadable() noexcept;
     [[nodiscard]] TcpPreauthEvent onWritable() noexcept;
+    // After ReadyForTls, the owner must attach the same configured SSL
+    // to the connected nonblocking socket/BIO and drive the appropriate
+    // readiness callback. No second state machine or listener is added.
+    [[nodiscard]] TlsHandshakeStatus onTlsIoReady(
+        SSL *serverTls) noexcept
+    {
+        return connection_.advanceTlsHandshake(serverTls);
+    }
     [[nodiscard]] PreauthConnectionStream &connection() noexcept
     {
         return connection_;

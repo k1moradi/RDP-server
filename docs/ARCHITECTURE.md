@@ -140,3 +140,20 @@ ClientHello record in the native TCP buffer. It drains the existing
 19-byte RDP_NEG_RSP/RDP_NEG_FAILURE on writability, then signals
 ready-for-TLS or terminal close. It cannot establish a TLS session,
 authenticate an OS identity or construct an MCS domain.
+
+### One-owner nonblocking OpenSSL handshake progression (2026-10-14)
+
+Once X.224 Confirm has been fully sent, the existing
+`PreauthConnectionStream` can drive one server-side
+`SSL_do_handshake` per event-loop readiness callback.
+WANT_READ and WANT_WRITE return independently; the stream
+binds the borrowed SSL identity on the first attempt and
+refuses swapping it during a partially complete handshake.
+A successful provider handshake passes the existing TLS 1.2+,
+certificate, cipher and server-role gate; the SAME SSL then
+decrypts the initial bounded MCS/GCC PDU. Fatal TLS errors and
+cancellation close the sole preauth owner. `PreauthTcpAdapter`
+forwards this readiness call without a second state machine.
+The socket/BIO still belongs to the caller; no socket listener,
+certificate enrollment, CredSSP, MCS response or OS admission
+is added in this increment.

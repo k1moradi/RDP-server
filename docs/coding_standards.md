@@ -211,3 +211,19 @@ passed Linux, macOS and Windows Debug/Release tests and SDK gates.
 The successful macOS runner selected OpenSSL 3.6.4, so OpenSSL
 4 compile compatibility after the RAII fixture change remains
 unverified until an explicit 4.x compile is recorded.
+
+## Nonblocking TLS readiness and borrowed SSL identity (2026-10-14)
+
+Keep server-side TLS handshake progression on the **same**
+`PreauthConnectionStream` that tracks X.224 Confirm output and
+will parse the first MCS/GCC frame. `SSL_do_handshake` must be
+invoked **once per ready event**, and its `SSL_get_error` checked
+immediately on a failed result. WANT_READ and WANT_WRITE are
+retryable without inventing a timer or spinning. The first
+server SSL pointer is borrowed until success/cancellation,
+so another OpenSSL handle cannot take over a partially
+started handshake. Full reply-write acknowledgement remains
+mandatory before the first TLS operation. Provider cancellation
+clears the SSL pointer and buffers; neither cryptographic
+transport completion nor a temporary self-signed test
+certificate authorizes a real user or OS session.

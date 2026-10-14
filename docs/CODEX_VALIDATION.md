@@ -319,3 +319,30 @@ actual native connected socket, real RDP clients, TLS-over-socket,
 NLA, MCS Connect-Response and independently authorized OS desktop.
 **Next functional boundary:** live socket TLS provider lifecycle
 and authenticated session sequencing, then MCS response.
+
+## Nonblocking OpenSSL handshake through sole connection owner (CI pending)
+
+At parent `357add02b32eec5593b8a078d8ec56a4f7a6291e`,
+the owner-reported local Linux Debug build and
+`ctest --test-dir build -C Debug --output-on-failure`
+completed **23/23 PASS**, including native TCP adapter tests.
+This is supplied user-local evidence for that checkout, not
+local execution of the new implementation.
+
+This implementation adds `PreauthConnectionStream::advanceTlsHandshake`
+and forwards it from `PreauthTcpAdapter::onTlsIoReady`.
+It uses OpenSSL's server `SSL_do_handshake` once per event,
+handles WANT_READ/WRITE without spinning, pins the original
+borrowed SSL pointer, rejects wrong role, premature calls,
+provider failure or replay, and advances only after the
+existing completed-server-TLS evidence gate. Two new behavior
+CTests use a real in-memory TLS BIO pair, one then decrypts
+the Microsoft 416-byte MCS/GCC packet. Expected total:
+**25 registered CTests**.
+
+**NOT RUN:** exact-head CI Linux/GCC/macOS/Clang/Windows/MSVC
+Debug/Release, SDK consumer and packaging, post-change
+owner-local build, actual connected native socket TLS
+transport, CredSSP/NLA, MCS response and OS authorization.
+**Next gate:** hosted CI; then a real loopback native TLS
+connection without activating a server service.

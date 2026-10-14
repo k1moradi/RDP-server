@@ -194,6 +194,21 @@ acceptance evidence; no synthetic completion claims.
   the corrected fixture's OpenSSL 4 runtime/compiler gate remains
   **NOT RUN**. **Next:** verify OpenSSL 4 explicitly, complete
   actual live TLS/socket I/O, authentication and MCS response.
+  **Nonblocking TLS handshake increment (pending CI, 25 expected
+  CTests):** the sole `PreauthConnectionStream` now drives one
+  `SSL_do_handshake` attempt per readiness event, returns OpenSSL
+  WANT_READ/WANT_WRITE distinctly, and binds the borrowed SSL pointer
+  through retries. Complete X.224 Confirm output and server-role SSL
+  are mandatory. Provider errors, null/client-role/wrong-pointer
+  handles and cancellation fail closed; successful handshake reuses
+  the same SSL for bounded encrypted MCS/GCC intake. The existing
+  event-driven TCP adapter forwards `onTlsIoReady`, without
+  installing a server listener. Two named test groups cover real
+  in-memory TLS handshake progress through MCS and negative/replay
+  gates. **NOT RUN:** exact-head CI, owner-local build, real connected
+  socket TLS I/O, NLA/identity authentication, MCS Connect-Response
+  and OS desktop admission. **Next:** bind TLS to an actual
+  connected native socket and verify event-loop I/O and cancellation.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

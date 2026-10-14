@@ -86,6 +86,17 @@ enum class ConnectionReplyWriteStatus : std::uint8_t
     Closed,
 };
 
+// OpenSSL on an externally owned nonblocking transport: the caller must
+// wait for the corresponding socket read/write readiness before retrying.
+enum class TlsHandshakeStatus : std::uint8_t
+{
+    NeedRead,
+    NeedWrite,
+    Established,
+    Invalid,
+    Closed,
+};
+
 // MS-RDPBCGR 2.2.1.3: decrypted TPKT/X.224 Data TPDU encapsulating
 // an MCS Connect Initial with GCC Conference Create Request.
 enum class McsIntakeStatus : std::uint8_t
@@ -139,6 +150,16 @@ public:
     // The caller owns socket/BIO I/O, encrypted data, and TLS cancellation.
     [[nodiscard]] bool onTlsHandshake(const SSL *serverTls) noexcept;
 
+    // Attempt exactly ONE OpenSSL server handshake step after all X.224
+    // Confirm bytes have actually been sent. WANT_READ/WRITE retain the
+    // borrowed SSL identity for subsequent readiness callbacks. Fatal
+    // provider errors, changed SSL identity and premature calls fail closed.
+    // On Established the SAME live SSL is bound to subsequent MCS intake.
+    // Caller configures SSL server role, certificate, BIO/nonblocking socket,
+    // readiness, peer trust policy and owns SSL/socket lifetime.
+    [[nodiscard]] TlsHandshakeStatus advanceTlsHandshake(
+        SSL *serverTls) noexcept;
+
     // Feed bytes returned by a TLS provider *after* a successful TLS
     // transition. Decrypted fragments may split/coalesce TPKTs.
     // Validate the entire first MCS/GCC envelope and close the diagnostic.
@@ -175,6 +196,8 @@ private:
     // Borrowed identity only: the caller must keep this SSL alive until
     // the diagnostic closes. No TLS or OS session ownership is duplicated.
     const SSL *activeServerTls_{};
+    // Borrowed handshake identity; no second TLS or RDP state controller.
+    const SSL *handshakingServerTls_{};
 };
 
 } // namespace rdp_server::server::transport

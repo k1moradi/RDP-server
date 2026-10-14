@@ -297,3 +297,22 @@ The macOS passing runner used OpenSSL **3.6.4**, not 4.0.3; a
 post-fix test specifically linked against OpenSSL 4 remains
 **NOT RUN**. Preserve explicit version evidence rather than
 calling an API change verified across both versions.
+
+## Nonblocking OpenSSL server TLS handshake owner (CI pending)
+
+Two behavior-named CTests in the **existing** preauth binary,
+`transport.tls-nonblocking-handshake` and
+`transport.tls-nonblocking-failures`, exercise a real
+in-memory OpenSSL client/server TLS handshake via BIO pair
+driven by the new one-owner event-loop handshake method.
+Assert WANT_READ before ClientHello, further nonblocking
+progress, eventual completed server-role TLS, and use of the
+same SSL for the bounded 416-byte MCS/GCC envelope.
+Negative gates: premature TLS before the X.224 response
+is sent, null/client-role handle, foreign server-handle swap
+after WANT_READ, explicit cancellation/replay, and
+unusable socketless SSL. Expected **25 total registered
+CTests**, up from 23 for two independent behaviors. These
+tests use a synthetic in-memory certificate and do not
+validate certificate trust, socket runtime, CredSSP,
+desktop authorization or external RDP clients.

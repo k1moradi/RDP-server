@@ -14,7 +14,7 @@ function(add_rdp_test source_file suite behavior)
         target_compile_options("${test_target}" PRIVATE -UNDEBUG)
     endif()
     if(test_target STREQUAL "test_owned_preauth_session")
-        # Thirteen behavior groups from ONE existing executable: no duplicate
+        # Fifteen behavior groups from ONE existing executable: no duplicate
         # compilation, executables, state controllers or fixture sources.
         foreach(case_name IN ITEMS
                 preauth-session-lifecycle
@@ -24,6 +24,8 @@ function(add_rdp_test source_file suite behavior)
                 x224-confirm-partial-writes
                 tcp-adapter-fragments
                 tcp-adapter-backpressure
+                tls-nonblocking-handshake
+                tls-nonblocking-failures
                 tls-handshake-gate
                 x224-length-and-close
                 mcs-decrypted-fragments

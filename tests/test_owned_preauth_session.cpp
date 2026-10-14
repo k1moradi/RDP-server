@@ -69,7 +69,7 @@ struct TlsHandshakeFixture final
     SslPointer server{nullptr, SSL_free};
     SslPointer client{nullptr, SSL_free};
 
-    TlsHandshakeFixture()
+    explicit TlsHandshakeFixture(bool completeImmediately = true)
     {
         assert(serverContext && clientContext);
         assert(SSL_CTX_set_min_proto_version(serverContext.get(),
@@ -115,8 +115,16 @@ struct TlsHandshakeFixture final
         SSL_set_accept_state(server.get());
         SSL_set_connect_state(client.get());
 
-        // Non-blocking in-memory transport: OpenSSL owns all TLS records.
-        // No sockets, listeners, file credentials or external services.
+        if (completeImmediately)
+        {
+            completeHandshake();
+        }
+    }
+
+    void completeHandshake()
+    {
+        // Nonblocking in-memory BIO transport. Tests of production
+        // advanceTlsHandshake call it separately on each readiness event.
         for (int pass = 0; pass < 64; ++pass)
         {
             const int clientResult = SSL_do_handshake(client.get());
@@ -958,6 +966,142 @@ void testTcpAdapterFailureAndBackpressure()
         assert(tcp.outbound.empty());
     }
 }
+
+void testNonblockingTlsHandshakeProgress()
+{
+    TlsHandshakeFixture tls{false};
+    ScriptedTcp tcp;
+    const auto request = validRequestWire();
+    tcp.inbound.assign(request.begin(), request.end());
+    PreauthTcpAdapter adapter(tcp);
+    assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+    assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+    assert(adapter.connection().stage() == PreauthStage::AwaitTls);
+    assert(SSL_is_init_finished(tls.server.get()) == 0);
+
+    // The initial server step has no ClientHello yet and must ask for
+    // readiness without modifying the X.224/TLS session stage.
+    assert(adapter.onTlsIoReady(tls.server.get()) ==
+           TlsHandshakeStatus::NeedRead);
+    assert(adapter.connection().stage() == PreauthStage::AwaitTls);
+    assert(SSL_is_init_finished(tls.server.get()) == 0);
+
+    bool established = false;
+    for (int attempt = 0; attempt < 64; ++attempt)
+    {
+        const int clientResult = SSL_do_handshake(tls.client.get());
+        if (clientResult != 1)
+        {
+            const int error = SSL_get_error(tls.client.get(), clientResult);
+            assert(error == SSL_ERROR_WANT_READ ||
+                   error == SSL_ERROR_WANT_WRITE);
+        }
+        const auto state = adapter.onTlsIoReady(tls.server.get());
+        assert(state == TlsHandshakeStatus::NeedRead ||
+               state == TlsHandshakeStatus::NeedWrite ||
+               state == TlsHandshakeStatus::Established);
+        if (state == TlsHandshakeStatus::Established)
+        {
+            established = true;
+            break;
+        }
+        assert(adapter.connection().stage() == PreauthStage::AwaitTls);
+    }
+    assert(established);
+    assert(SSL_is_init_finished(tls.server.get()) == 1);
+    assert(adapter.connection().stage() == PreauthStage::AwaitMcsConnectInitial);
+
+    // The same handshaken provider must decrypt the first MCS/GCC PDU.
+    const auto frame = validMcsPacket();
+    writeTlsClientApplicationData(tls.client.get(), frame);
+    const auto intake =
+        adapter.connection().consumeMcsConnectInitialFromTls(tls.server.get());
+    assert(intake.status == McsIntakeStatus::EnvelopeValidated);
+    assert(intake.bytesConsumed == frame.size());
+    assert(adapter.connection().stage() == PreauthStage::Closed);
+    assert(adapter.onTlsIoReady(tls.server.get()) ==
+           TlsHandshakeStatus::Closed);
+}
+
+void testNonblockingTlsHandshakeFailures()
+{
+    const auto request = validRequestWire();
+    // TLS may never start while X.224 Confirm output remains unsent.
+    {
+        TlsHandshakeFixture tls{false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onTlsIoReady(tls.server.get()) ==
+               TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+        assert(adapter.connection().pendingConnectionReply().empty());
+    }
+    // Wrong TLS role and null provider fail closed even after Confirm.
+    for (int choice = 0; choice < 2; ++choice)
+    {
+        TlsHandshakeFixture tls{false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.onTlsIoReady(choice == 0 ? nullptr : tls.client.get())
+               == TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+    // The first WANT_READ binds the EXACT SSL pointer. A different
+    // server-role SSL is not permitted to replace the initial provider.
+    {
+        TlsHandshakeFixture tls{false};
+        TlsHandshakeFixture other{false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.onTlsIoReady(tls.server.get()) ==
+               TlsHandshakeStatus::NeedRead);
+        assert(adapter.onTlsIoReady(other.server.get()) ==
+               TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+    // An unfinished handshake is not evidence of user or MCS admission;
+    // explicit transport cancellation must be terminal and replay-safe.
+    {
+        TlsHandshakeFixture tls{false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.onTlsIoReady(tls.server.get()) ==
+               TlsHandshakeStatus::NeedRead);
+        adapter.close();
+        assert(adapter.onTlsIoReady(tls.server.get()) ==
+               TlsHandshakeStatus::Closed);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+    // Configured accept-side SSL without BIO/socket cannot handshake.
+    {
+        const ContextPointer context{SSL_CTX_new(TLS_server_method()),
+                                     SSL_CTX_free};
+        assert(context);
+        const SslPointer disconnected{SSL_new(context.get()), SSL_free};
+        assert(disconnected);
+        SSL_set_accept_state(disconnected.get());
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter(tcp);
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.onTlsIoReady(disconnected.get()) ==
+               TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+}
+
 void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
@@ -1027,7 +1171,7 @@ struct PreauthTestCase
 // Keep one executable/fixture implementation but expose independent
 // behavior-named CTest cases to make regressions visible in CTest output.
 // Running without an argument still executes the complete native suite.
-constexpr std::array<PreauthTestCase, 13> kPreauthTestCases{{
+constexpr std::array<PreauthTestCase, 15> kPreauthTestCases{{
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
@@ -1035,6 +1179,8 @@ constexpr std::array<PreauthTestCase, 13> kPreauthTestCases{{
     {"x224-confirm-partial-writes", &testPartialConnectionReplyWrites},
     {"tcp-adapter-fragments", &testTcpAdapterFragmentedIo},
     {"tcp-adapter-backpressure", &testTcpAdapterFailureAndBackpressure},
+    {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
+    {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tls-handshake-gate", &testRealTlsTransportGate},
     {"x224-length-and-close", &testConnectionRequestLengthRejectionAndClose},
     {"mcs-decrypted-fragments", &testIncrementalDecryptedMcsIntake},

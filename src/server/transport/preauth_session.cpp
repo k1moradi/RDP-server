@@ -76,6 +76,7 @@ void PreauthConnectionStream::close() noexcept
     replyBytesWritten_ = 0;
     replyPending_ = false;
     activeServerTls_ = nullptr;
+    handshakingServerTls_ = nullptr;
     session_.close();
 }
 
@@ -137,7 +138,9 @@ PreauthConnectionStream::onConnectionReplyBytesWritten(
 
 bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
 {
-    if (stage() != PreauthStage::AwaitTls || !connectionReplySent_)
+    if (stage() != PreauthStage::AwaitTls || !connectionReplySent_ ||
+        (handshakingServerTls_ != nullptr &&
+         handshakingServerTls_ != serverTls))
     {
         close();
         return false;
@@ -166,7 +169,53 @@ bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
         return false;
     }
     activeServerTls_ = serverTls;
+    handshakingServerTls_ = nullptr;
     return true;
+}
+
+TlsHandshakeStatus PreauthConnectionStream::advanceTlsHandshake(
+    SSL *serverTls) noexcept
+{
+    if (stage() == PreauthStage::Closed)
+    {
+        return TlsHandshakeStatus::Closed;
+    }
+    if (stage() != PreauthStage::AwaitTls ||
+        !connectionReplySent_ || serverTls == nullptr ||
+        SSL_is_server(serverTls) != 1 ||
+        (handshakingServerTls_ != nullptr &&
+         handshakingServerTls_ != serverTls))
+    {
+        close();
+        return TlsHandshakeStatus::Invalid;
+    }
+
+    // One provider operation per event-loop callback. Do not read raw
+    // socket bytes here or spin on a nonblocking WANT_READ/WANT_WRITE.
+    handshakingServerTls_ = serverTls;
+    const int completed = SSL_do_handshake(serverTls);
+    if (completed != 1)
+    {
+        // SSL_get_error must be called immediately, without touching the
+        // thread's OpenSSL error queue after SSL_do_handshake.
+        const int error = SSL_get_error(serverTls, completed);
+        if (error == SSL_ERROR_WANT_READ)
+        {
+            return TlsHandshakeStatus::NeedRead;
+        }
+        if (error == SSL_ERROR_WANT_WRITE)
+        {
+            return TlsHandshakeStatus::NeedWrite;
+        }
+        close(); // TLS alerts/EOF/provider errors never authorize MCS.
+        return TlsHandshakeStatus::Invalid;
+    }
+
+    // Reuse the existing server-role, cipher, TLS-version and certificate
+    // gate; only the same completed SSL can become the MCS record source.
+    return onTlsHandshake(serverTls)
+               ? TlsHandshakeStatus::Established
+               : TlsHandshakeStatus::Invalid;
 }
 
 std::size_t PreauthConnectionStream::connectionRequestBytesNeeded()

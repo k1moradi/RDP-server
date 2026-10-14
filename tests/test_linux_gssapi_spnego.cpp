@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "security/gssapi_spnego_acceptor.h"
+
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
+using namespace rdp_server::server::security;
+
+namespace
+{
+
+constexpr std::array<std::uint8_t, 21> kInitialTsRequest{
+    0x30, 0x13, 0xa0, 0x03, 0x02, 0x01, 0x06,
+    0xa1, 0x0c, 0x30, 0x0a, 0x30, 0x08,
+    0xa0, 0x06, 0x04, 0x04, 0x60, 0x82, 0x01, 0x00};
+
+void testConfigurationRejections()
+{
+    GssapiSpnegoAcceptor missingKeytab;
+    assert(missingKeytab.stage() == SpnegoStage::Unconfigured);
+    // No environment/default keytab is allowed; this path is deliberately
+    // nonexistent. Exercise the real MIT GSS acquire-cred-from provider.
+    assert(!missingKeytab.configure(
+        "TERMSRV/rdp.example.test@EXAMPLE.TEST",
+        "FILE:/__rdp_server_gssapi_ci_nonexistent__/missing.keytab"));
+    assert(missingKeytab.stage() == SpnegoStage::Failed);
+    assert(missingKeytab.verifiedPrincipal().empty());
+    const auto diagnostics = missingKeytab.configurationDiagnostics();
+    assert(diagnostics.stage == GssConfigurationFailure::ImportService ||
+           diagnostics.stage == GssConfigurationFailure::AcquireCredentials);
+    // A failed provider instance cannot be reconfigured or resurrected.
+    assert(!missingKeytab.configure(
+        "TERMSRV/rdp.example.test@EXAMPLE.TEST",
+        "FILE:/__rdp_server_gssapi_ci_nonexistent__/missing.keytab"));
+
+    GssapiSpnegoAcceptor noService;
+    assert(!noService.configure(
+        "host/rdp.example.test@EXAMPLE.TEST",
+        "FILE:/__rdp_server_gssapi_ci_nonexistent__/missing.keytab"));
+    assert(noService.stage() == SpnegoStage::Failed);
+    assert(noService.configurationDiagnostics().stage ==
+           GssConfigurationFailure::InvalidOptions);
+
+    GssapiSpnegoAcceptor relativeKeytab;
+    assert(!relativeKeytab.configure(
+        "TERMSRV/rdp.example.test@EXAMPLE.TEST",
+        "FILE:relative.keytab"));
+    assert(relativeKeytab.stage() == SpnegoStage::Failed);
+
+    // Initial SPNEGO tag and OID validation is syntax only; the provider
+    // still must authenticate an actual GSS token after configuration.
+    constexpr std::array<std::uint8_t, 11> spnegoToken{
+        0x60, 0x09, 0x06, 0x06, 0x2b, 0x06,
+        0x01, 0x05, 0x05, 0x02, 0xa0};
+    assert(isInitialSpnegoToken(spnegoToken));
+    auto wrongOid = spnegoToken;
+    wrongOid[7] ^= 0x01U;
+    assert(!isInitialSpnegoToken(wrongOid));
+    assert(!isInitialSpnegoToken({}));
+
+    // The protected binding request recognizer is NOT a trust check and
+    // cannot grant user or console authorization.
+    std::array<std::uint8_t, 48> protectedBinding{
+        0x30, 0x2e, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa3, 0x03, 0x04, 0x01, 0x55,
+        0xa5, 0x22, 0x04, 0x20};
+    for (std::size_t offset = 16; offset < protectedBinding.size(); ++offset)
+    {
+        protectedBinding[offset] = 0x42;
+    }
+    assert(isCredSspPublicKeyAuthRequest(protectedBinding));
+    protectedBinding[6] = 4; // v4 cannot use v5/v6 public-key nonce binding.
+    assert(!isCredSspPublicKeyAuthRequest(protectedBinding));
+    protectedBinding[6] = 6;
+    protectedBinding[15] = 31; // malformed nonce size.
+    assert(!isCredSspPublicKeyAuthRequest(protectedBinding));
+}
+
+void testFramedGssHandoffFailClosed()
+{
+    // No configured credentials and no GSS security context. Even a valid
+    // DER TSRequest cannot authenticate a user or trigger a reply.
+    GssapiSpnegoAcceptor unconfigured;
+    TsRequestFrameReader reader;
+    const auto framed = reader.consume(kInitialTsRequest);
+    assert(framed.status == TsRequestFrameStatus::Complete);
+    assert(framed.bytesConsumed == kInitialTsRequest.size());
+    const auto result = unconfigured.acceptFramedNegoRequest(reader);
+    assert(result.status == SpnegoStatus::Rejected);
+    assert(result.outputToken.empty());
+    assert(unconfigured.stage() == SpnegoStage::Failed);
+    assert(unconfigured.verifiedPrincipal().empty());
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(reader.completeDer().empty());
+    assert(reader.bytesNeeded() == 0);
+
+    GssapiSpnegoAcceptor premature;
+    TsRequestFrameReader incomplete;
+    assert(incomplete.consume(
+        std::span(kInitialTsRequest).first(4)).status ==
+        TsRequestFrameStatus::NeedMore);
+    assert(premature.acceptFramedNegoRequest(incomplete).status ==
+           SpnegoStatus::Rejected);
+    assert(incomplete.status() == TsRequestFrameStatus::Closed);
+    assert(premature.stage() == SpnegoStage::Failed);
+
+    GssapiSpnegoAcceptor unsupportedVersion;
+    TsRequestFrameReader oldVersion;
+    auto downgraded = kInitialTsRequest;
+    downgraded[6] = 4;
+    assert(oldVersion.consume(downgraded).status ==
+           TsRequestFrameStatus::Complete);
+    assert(unsupportedVersion.acceptFramedNegoRequest(oldVersion).status ==
+           SpnegoStatus::Rejected);
+    assert(unsupportedVersion.stage() == SpnegoStage::Failed);
+    assert(oldVersion.completeDer().empty());
+    assert(oldVersion.status() == TsRequestFrameStatus::Closed);
+
+    GssapiSpnegoAcceptor malformed;
+    TsRequestFrameReader rejectedFrame;
+    const std::array<std::uint8_t, 2> wrongTag{0x31, 0x00};
+    assert(rejectedFrame.consume(wrongTag).status ==
+           TsRequestFrameStatus::Invalid);
+    assert(malformed.acceptFramedNegoRequest(rejectedFrame).status ==
+           SpnegoStatus::Rejected);
+    assert(malformed.stage() == SpnegoStage::Failed);
+}
+
+} // namespace
+
+int main(int argc, char **argv)
+{
+    const auto invoke = [](std::string_view name) -> int
+    {
+        if (name == "gssapi-configuration-rejections")
+        {
+            testConfigurationRejections();
+            return 0;
+        }
+        if (name == "gssapi-framed-handoff")
+        {
+            testFramedGssHandoffFailClosed();
+            return 0;
+        }
+        return 2;
+    };
+    if (argc == 2)
+    {
+        return invoke(argv[1]);
+    }
+    if (argc != 1)
+    {
+        return 2;
+    }
+    testConfigurationRejections();
+    testFramedGssHandoffFailClosed();
+    return 0;
+}

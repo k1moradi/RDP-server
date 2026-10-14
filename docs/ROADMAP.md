@@ -450,6 +450,31 @@ acceptance evidence; no synthetic completion claims.
   TLS public-key binding, OS admission or desktop.
   **Next:** connect to a trusted GSS provider and independent
   OS authorization before allowing any reply on a socket.
+  **Linux GSSAPI framed-token provider increment (2026-10-14;
+  CI NOT RUN on this change):** compile the already-staged first-party
+  MIT GSSAPI SPNEGO, public-key binding and protected-credential
+  rejection translation units behind an explicit, Linux-only
+  `RDP_SERVER_TEST_LINUX_GSSAPI` validation flag, without adding a
+  Kerberos dependency to the portable SDK. The same provider class
+  gains one synchronous `acceptFramedNegoRequest` handoff from the
+  existing 16 KiB `TsRequestFrameReader`; require a complete
+  v5/v6 DER `negoTokens` frame, synchronously present borrowed
+  bytes to the real GSS acceptor, then wipe/release the frame.
+  Premature, downgraded, malformed and GSS-rejected inputs
+  close the frame and permanently fail the acceptor.
+  No default/implicit keytab; CI tries a deliberately absent
+  absolute keytab and MUST reject. Two Linux-only, named
+  tests exercise the actual linked provider and rejection
+  paths. **Expected:** Linux 50 CTests; macOS and Windows
+  retain 48. **PASS:** previous 48-test cross-platform
+  baseline `35698b939bb2d26a66ca80ba237a55dc70e2da54`;
+  **NOT RUN:** CI for this implementation, owner-local build,
+  real keytab/Kerberos ticket, authenticated GSS exchange,
+  TLS public-key binding, OS admission or Microsoft desktop.
+  **Next:** independently verify a real configured keytab
+  and completed GSS/TLS binding with authorized test
+  credentials and controlled session admission; no RDP
+  network admission from a synthetic provider fixture.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

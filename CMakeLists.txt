@@ -34,6 +34,10 @@ if(NOT "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
 endif()
 include(GNUInstallDirs)
 option(RDP_SERVER_BUILD_TESTING "Build protocol regression tests" ON)
+# Explicit Linux-only developer gate; no GSS dependency in the portable
+# protocol SDK, macOS/Windows builds or default downstream consumers.
+option(RDP_SERVER_TEST_LINUX_GSSAPI
+       "Compile/test the first-party Linux GSSAPI provider (no admission)" OFF)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -82,6 +86,32 @@ if(MSVC)
 else()
     target_compile_options(rdp-server-protocol PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+if(RDP_SERVER_TEST_LINUX_GSSAPI)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
+       NOT BUILD_TESTING OR NOT RDP_SERVER_BUILD_TESTING)
+        message(FATAL_ERROR "Linux GSSAPI validation requires Linux with tests enabled")
+    endif()
+    find_path(RDP_SERVER_GSSAPI_INCLUDE_DIR NAMES gssapi/gssapi.h REQUIRED)
+    find_library(RDP_SERVER_GSSAPI_LIBRARY NAMES gssapi_krb5 REQUIRED)
+    add_library(rdp-server-linux-gssapi STATIC
+        src/server/security/gssapi_spnego_acceptor.cpp
+        src/server/security/gssapi_credssp_binding.cpp
+        src/server/security/gssapi_credssp_credentials.cpp)
+    target_compile_features(rdp-server-linux-gssapi PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-linux-gssapi PRIVATE
+        "${RDP_SERVER_GSSAPI_INCLUDE_DIR}")
+    target_link_libraries(rdp-server-linux-gssapi PUBLIC
+        rdp-server-protocol "${RDP_SERVER_GSSAPI_LIBRARY}")
+    if(MSVC)
+        target_compile_options(rdp-server-linux-gssapi PRIVATE /W4)
+    else()
+        target_compile_options(rdp-server-linux-gssapi PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    # Not installed or exported; requires an actual Linux Kerberos provider
+    # and independently authorized OS admission in a future service.
 endif()
 
 if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)

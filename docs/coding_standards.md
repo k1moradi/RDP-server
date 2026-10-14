@@ -450,3 +450,19 @@ Restrict the current helper to project-supported versions 5/6
 and 8192-byte opaque provider outputs. DER serialization must
 never be treated as GSS wrap, principal verification or
 permission to advance TLS, MCS or a console session.
+
+## Optional native Linux GSSAPI provider boundary (2026-10-14)
+
+Keep the portable C++23 static SDK free of mandatory Kerberos
+dependencies. The Linux-only, opt-in test target may link
+MIT GSSAPI implementation files, but must never be installed
+as a functioning RDP server or implicitly load a host keytab.
+Only explicit TERMSRV/host@REALM and absolute FILE:/ keytab
+configuration is permitted by the existing GSS acceptor.
+Pass a complete v5/v6 `TsRequestFrameReader` into
+`GssapiSpnegoAcceptor::acceptFramedNegoRequest` synchronously;
+parse/borrow once, invoke the existing real GSS-API provider
+without copying the inbound token, and erase/close on failure.
+Keep OpenSSL TLS binding, delegated credentials and OS desktop
+admission as independent, unverified gates; GSS syntax tests,
+an absent-keytab failure or green builds never grant rights.

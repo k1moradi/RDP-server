@@ -577,3 +577,25 @@ baseline had 46 CTests.
 **NOT RUN:** owner-local updated build, real GSS, TLS binding,
 OS authorization or external clients. Wire serialization
 alone does not grant an authenticated session.
+
+## Optional Linux GSSAPI provider negative gates (2026-10-14; NOT RUN)
+
+Linux CI explicitly installs `libkrb5-dev` and sets
+`RDP_SERVER_TEST_LINUX_GSSAPI=ON` when configuring the
+same `build/` root. Two behavior-named CTests in one
+`test_linux_gssapi_spnego` executable use the compiled
+MIT GSSAPI provider (no fake acceptor):
+`security.gssapi-configuration-rejections` requires that
+a nonexistent absolute keytab fail, invalid service and
+relative keytab be rejected and no context be resumed;
+`security.gssapi-framed-handoff` exercises a valid DER
+envelope but unconfigured GSS, premature partial input,
+unsupported v4, and malformed DER, requiring terminal
+denial and frame cleanup without authentication.
+The expected Linux total is **50** versus **48** on
+macOS and Windows. No credentials, keytab, desktop or
+network listener are created, and no positive GSS/Kerberos
+handshake is claimed. **NOT RUN:** new commit CI and
+owner-local tests. CI must prove full Debug/Release,
+SDK consumer/ZIP checks and documentation-policy on
+all three operating systems.

@@ -36,6 +36,11 @@ jobs:
           }
           if (-not $found) { throw 'OpenSSL headers are unavailable on the Windows runner' }
           Add-Content -Path $env:GITHUB_ENV -Value "OPENSSL_ROOT_DIR=$found"
+      - name: Install Linux GSSAPI development headers
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libkrb5-dev
       - name: Configure Debug protocol and tests
         shell: bash
         run: |
@@ -43,7 +48,12 @@ jobs:
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
           fi
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+          linux_gssapi_tests=OFF
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            linux_gssapi_tests=ON
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_TEST_LINUX_GSSAPI="$linux_gssapi_tests"
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
       - name: Run Debug protocol and project-policy tests

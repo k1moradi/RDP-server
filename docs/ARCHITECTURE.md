@@ -291,3 +291,23 @@ responsibility; this library cannot determine Kerberos success,
 encrypt its own public-key hash, authorize OS identity, send a
 TLS record or transition to MCS. Test vectors are synthetic and
 no authentication grant exists.
+
+### Linux GSSAPI provider compilation and framed-token handoff (2026-10-14)
+
+The optional `rdp-server-linux-gssapi` build target links the
+first-party GSS SPNEGO acceptor, protected-binding and
+deny-only credentials source to the platform GSSAPI library.
+It is NOT part of the installed portable protocol SDK or
+a service; it is compiled only with the explicit Linux
+validation flag. The existing per-connection GSS acceptor
+synchronously consumes a completed `TsRequestFrameReader`
+frame through `acceptFramedNegoRequest`. The provider
+receives borrowed tokens only before `releaseFrame` wipes
+the fixed DER storage. Unsupported CredSSP versions, early
+incomplete handoff, invalid frames or provider rejection
+permanently fail the GSS state and close the framer.
+
+This development gate is deliberately rejection-focused
+without a real Kerberos keytab, TLS binding or OS-authorized
+session. It grants no admission capability and does not
+modify the existing PROTOCOL_SSL diagnostic transport.

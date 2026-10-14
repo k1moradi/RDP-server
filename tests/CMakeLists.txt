@@ -61,6 +61,15 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("transport.${case_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
+    elseif(test_target STREQUAL "test_linux_gssapi_spnego")
+        foreach(case_name IN ITEMS
+                gssapi-configuration-rejections
+                gssapi-framed-handoff)
+            add_test(NAME "security.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("security.${case_name}" PROPERTIES
+                LABELS "security;linux-provider")
+        endforeach()
     elseif(test_target STREQUAL "test_owned_credssp_tsrequest")
         # Reuse the existing one binary: five previous semantic
         # groups and three new streaming/boundary behaviors.
@@ -97,6 +106,11 @@ add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)
 add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)
 add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)
 add_rdp_test(test_base64_codec.cpp security base64-codec)
+if(TARGET rdp-server-linux-gssapi)
+    add_rdp_test(test_linux_gssapi_spnego.cpp security linux-gssapi)
+    target_link_libraries(test_linux_gssapi_spnego PRIVATE
+        rdp-server-linux-gssapi)
+endif()
 
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"

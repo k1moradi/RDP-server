@@ -113,6 +113,14 @@ public:
     [[nodiscard]] SpnegoStep acceptInitialRequest(
         const TsRequestResult &request) noexcept;
 
+    // Consume exactly one complete CredSSP DER frame synchronously.
+    // The frame is wiped before returning; there is no borrowed GSS token
+    // after this call. Only v5/v6 initial/continuation negoToken shapes
+    // are allowed. A rejected or prematurely handed-off frame is terminal.
+    // This is Linux provider evidence ONLY, not RDP/OS authorization.
+    [[nodiscard]] SpnegoStep acceptFramedNegoRequest(
+        TsRequestFrameReader &reader) noexcept;
+
     // Once SPNEGO/Kerberos completes, require a DER TSRequest holding
     // EXACTLY a v5/v6 pubKeyAuth + 32-byte clientNonce (no authInfo).
     // gss_unwrap MUST verify integrity and confidentiality *before* any

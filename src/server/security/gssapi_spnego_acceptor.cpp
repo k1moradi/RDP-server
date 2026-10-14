@@ -289,6 +289,42 @@ SpnegoStep GssapiSpnegoAcceptor::acceptInitialRequest(
     return accept(request.value.tokens[0]);
 }
 
+SpnegoStep GssapiSpnegoAcceptor::acceptFramedNegoRequest(
+    TsRequestFrameReader &reader) noexcept
+{
+    if (reader.status() != TsRequestFrameStatus::Complete)
+    {
+        // An incomplete, closed or invalid frame is never a GSS token.
+        reader.close();
+        reject();
+        return {};
+    }
+
+    // The frame reader owns the bytes, and this parser/GSS handoff
+    // borrows them ONLY while this synchronous call is executing.
+    const auto parsed = parseCredSspTsRequest(reader.completeDer());
+    if (!parsed || (parsed.value.version != 5 &&
+                    parsed.value.version != 6))
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+    auto step = acceptInitialRequest(parsed);
+    if (!reader.releaseFrame())
+    {
+        reader.close();
+        reject();
+        return {};
+    }
+    if (step.status == SpnegoStatus::Rejected)
+    {
+        // Never retry credentials on a failed context using a new frame.
+        reader.close();
+    }
+    return step;
+}
+
 SpnegoStep GssapiSpnegoAcceptor::accept(
     std::span<const std::uint8_t> token) noexcept
 {

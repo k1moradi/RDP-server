@@ -637,3 +637,28 @@ desktop connection. **Next:** a verified authenticated
 security provider and independent OS-authorized single
 session owner; do not send positive responses from offline
 serialization.
+
+## Linux GSSAPI provider compilation and bounded DER handoff (2026-10-14; NOT RUN)
+
+**Prior verified baseline:** `35698b939bb2d26a66ca80ba237a55dc70e2da54`
+passed 48/48 CTests on Linux/GCC, macOS/Clang,
+Windows/MSVC in both Debug and Release; SDK consumer,
+packages and policy passed in
+[CI 38597459891](https://github.com/k1moradi/RDP-server/actions/runs/38597459891).
+**New change:** optional Linux-only GSSAPI library target
+builds the previously staged real MIT GSS acceptor, binding
+and deny-only delegated credentials implementation. The
+same acceptor now synchronously consumes a completed
+`TsRequestFrameReader` before securely releasing/closing
+its DER buffer. Two new Ubuntu-only CTests verify actual
+GSS cred-store rejection with an absent explicit keytab,
+invalid service/path, failed context reuse and invalid/
+premature/downgraded DER frames; no real keytab or ticket
+is read. Expected Ubuntu 50 CTests, macOS/Windows 48.
+The portable SDK has no new runtime dependency.
+**NOT RUN:** tests for this new implementation, owner-local
+build, real configured Kerberos/GSS provider exchange,
+TLS certificate binding, OS authorization, external
+Microsoft RDP client or desktop. First future gate is
+trusted real GSS/TLS binding followed by independent OS
+identity authorization before any live MCS admission.

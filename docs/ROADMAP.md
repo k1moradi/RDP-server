@@ -92,9 +92,13 @@ acceptance evidence; no synthetic completion claims.
 
 ### P0 — Standards and repeatable automation
 
-- [ ] Verify successful cross-platform Actions for mandatory policy files,
-  semantic reusable CTest suites, build-root guard and Markdown co-change
-  gate. Until CI finishes, this gate remains **NOT RUN**.
+- [x] Cross-platform Actions
+  [run 38535115706](https://github.com/k1moradi/RDP-server/actions/runs/38535115706)
+  passed at `3196a764ffbe24482ad131ad6949f1c2c23d44d9`:
+  Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy jobs.
+  Ten semantic protocol CTests and one project-policy CTest are
+  registered and passed through the CI jobs. This is **offline library
+  and policy validation only**, not authenticated desktop acceptance.
 - [ ] Expand reusable sanitizer, parser-fuzz, security-negative and real
   client acceptance suites as native runtime code becomes available.
 

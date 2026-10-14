@@ -56,3 +56,12 @@ not an independently usable RDP listener. Investigate build failures;
 do not hide warnings, skip assertions or create a second build root.
 Every implementation commit updates existing documentation/TODO and
 runs [testing](testing_standards.md) gates.
+
+## Verified build convention (2026-10-14)
+
+At `3196a764ffbe24482ad131ad6949f1c2c23d44d9`, the checkout-local
+single-build-root CMake configuration, build and CTest succeeded on all
+three CI systems in [run 38535115706](https://github.com/k1moradi/RDP-server/actions/runs/38535115706).
+This verifies CI checkout-local layout; it does **not** attest to the
+existence of a persistent `~/rdp-server/build/` on the owner's machine
+or to a production RDP daemon.

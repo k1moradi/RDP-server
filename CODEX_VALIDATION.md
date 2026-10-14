@@ -28,8 +28,14 @@ CI and documentation-policy gate. Do not mask failures.
   `77c94c75b467f25c3911912ff4a24690894768c8`:
   [GitHub Actions run 38516048776](https://github.com/k1moradi/RDP-server/actions/runs/38516048776)
   was successful with ten original portable protocol tests.
-- Later semantic registry/build-policy changes require **fresh CI**;
-  record new results only after confirmation.
+- The semantic test registry, single build-root guard and documentation
+  co-change check passed at
+  `3196a764ffbe24482ad131ad6949f1c2c23d44d9` in
+  [GitHub Actions run 38535115706](https://github.com/k1moradi/RDP-server/actions/runs/38535115706):
+  Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy jobs.
+  CMake now registers ten semantic native protocol tests plus one
+  project-policy test. These are **offline library tests**, not
+  end-to-end desktop or OS admission acceptance.
 - Full former project source and unique implementation progress import remains incomplete; historical Git ancestry is not the goal.
   A green protocol static library is **not** a functional desktop server.
 

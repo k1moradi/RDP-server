@@ -58,3 +58,12 @@ cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ctest --test-dir "$HOME/rdp-server/build" -C Debug -L security --output-on-failure
 ```
+
+## Verified policy and cross-platform CI baseline (2026-10-14)
+
+[GitHub Actions run 38535115706](https://github.com/k1moradi/RDP-server/actions/runs/38535115706)
+passed Linux/GCC, macOS/Clang, Windows/MSVC and the documentation-policy
+job at commit `3196a764ffbe24482ad131ad6949f1c2c23d44d9`.
+CMake registers ten behavior-named C++23 protocol tests and a project
+policy check. Do not infer external-client functionality, real session
+authorization or desktop/clipboard usability from these tests.

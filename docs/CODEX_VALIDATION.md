@@ -768,37 +768,59 @@ combined final client negoTokens/pubKeyAuth
 interoperability and independently verified OS
 identity before a live MCS or desktop.
 
-## Pending combined final SPNEGO + TLS pubKeyAuth (2026-10-14)
+## Verified combined final SPNEGO + TLS pubKeyAuth (2026-10-14)
 
-**Previous verified main:** `5a17ed4bd38a4af818f2541c2d1f858f5765d92c`,
-[CI 38610037109](https://github.com/k1moradi/RDP-server/actions/runs/38610037109):
-Linux/GCC 55/55, macOS/Clang and Windows/MSVC
-52/52 Debug and Release CTests and SDK/policy/package
-pipeline PASS.
+**Prior main:** `5a17ed4bd38a4af818f2541c2d1f858f5765d92c`,
+[CI 38610037109](https://github.com/k1moradi/RDP-server/actions/runs/38610037109)
+passed Linux/GCC 55/55 and macOS/Windows 52/52
+Debug/Release CTests, policy, installed SDK consumers
+and three ZIP/checksum packages.
 
-**New code/test increment (CI NOT RUN yet):**
-`src/server/security/credssp_tsrequest.h` adds
-final combined v5/v6 frame shape validation.
-`src/server/security/gssapi_spnego_acceptor.h` and
-`src/server/security/gssapi_credssp_binding.cpp`
-add a one-shot TLS-pinned final token->GSS completion->
-confidential client binding check->server binding
-GSS wrap handoff using the SAME borrowed/securely
-released DER frame. Reject bad ordering, missing GSS
-context, leftover untransmitted GSS output token,
-TLS/version mismatch, bad GSS unwrap, and never
-grant OS session admission. Three new CTests in
+**Exact implementation:**
+`ad848646391eb7f2dce5c8e2a6238212e7f4e5ae`.
+Changed `src/server/security/credssp_tsrequest.h`,
+`src/server/security/gssapi_spnego_acceptor.h`,
+`src/server/security/gssapi_credssp_binding.cpp`,
 `tests/test_owned_credssp_tsrequest.cpp`,
-`tests/test_owned_preauth_session.cpp`, registered
-in `tests/CMakeLists.txt`. Expected Linux 58,
-macOS/Windows 54, across Debug/Release.
-Co-change roadmap, architecture, coding/testing
-standards, this validation ledger. Build and tests
-use only the CI checkout-local `build/` with GSSAPI
-enabled on Linux, disabled elsewhere.
-**NOT RUN:** new-code CI and owner-local build,
-positive real Kerberos or keytab, actual client
-hash GSS unwrap, OS admission and Windows App
-interactive desktop. **Next:** verify a controlled
-positive real GSS/TLS handshake and OS authorization,
-then advance to correctly gated RDP MCS server replies.
+`tests/test_owned_preauth_session.cpp`,
+`tests/CMakeLists.txt`, plus canonical roadmap,
+architecture, coding/testing standards and validation.
+The MS-CSSP 3.1.5 combined final v5/v6 client request
+now requires exactly one GSS token, encrypted pubKeyAuth
+and a 32-byte nonce in one TLS-derived frame. A
+continuing and pinned SSL/GSS context must finish
+GSS security verification and unwrap/compare the
+client binding, wrap the server binding, and wipe/release
+the same frame. Outstanding GSS reply tokens, bad
+field shapes, wrong order or failed provider remain
+terminal, never yielding desktop authorization.
+
+**PASS:** [Actions run 38612269453](https://github.com/k1moradi/RDP-server/actions/runs/38612269453),
+all four jobs SUCCESS, with Linux/GCC Debug and
+Release **58/58**, macOS/Clang and Windows/MSVC Debug
+and Release **54/54** CTests. Linux's real GSSAPI
+`security.gssapi-final-combined-denials` and
+portable `security.credssp-final-negotiation-binding`
+and `security.credssp-final-binding-rejections`
+passed in BOTH configurations. The staged SDK
+installation, downstream consumer configure/link/
+execute, CPack ZIP/SHA-256 and artifact upload each
+passed on all three OSes; documentation policy passed.
+In CI's sole checkout-local `build/`: 
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON` (Linux additionally
+`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`, OFF elsewhere),
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build --build-config Debug
+--output-on-failure`, same-root Release reconfigure,
+build and CTest, SDK/consumer/CPack/upload.
+Existing Linux Release `-Wstringop-overflow` warning
+at `tests/test_owned_preauth_session.cpp:587`
+persists but is nonfatal.
+**NOT RUN:** owner's local new checkout build,
+real keytab/tickets, positive Kerberos mechanism
+and TLS binding verification, independently authorized
+OS identity, external Windows App/FreeRDP or desktop.
+**Next:** verify real successful GSS/Kerberos + active
+TLS pubKeyAuth and independent OS policy before
+enabling live MCS domain response emission.

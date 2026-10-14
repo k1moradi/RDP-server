@@ -654,23 +654,38 @@ local build, positive GSS Kerberos credential/keytab,
 TLS pubKeyAuth, OS admission or real clients. Synthetic
 negative evidence is not desktop authorization.
 
-## Final combined CredSSP handshake regression plan (2026-10-14; NOT RUN)
+## Verified final combined CredSSP handshake tests (2026-10-14)
 
-New behavior requires new CTests: reuse the existing
+Three additional CTest groups were registered WITHOUT
+removing any existing group. Reuse the existing
 `test_owned_credssp_tsrequest` executable for
 `security.credssp-final-negotiation-binding`
-(v5 and v6, borrowed token/nonce/ciphertext views,
-single-byte-fragment framing, near-limit rejection)
-and `security.credssp-final-binding-rejections`
-(missing token/binding/nonce, authInfo, errorCode,
-wrong nonce sizes, downgraded v2/v4, oversize
-ciphertext, multiple tokens and non-DER mutations).
-Reuse `test_owned_preauth_session` for the Linux-only
-`security.gssapi-final-combined-denials` with genuine
-in-memory TLS, real MIT GSSAPI linked, fabricated
-v5/v6 final frames, terminal denial, replay denial
-and synthetic/partial frame rejection. Do not use
-synthetic GSS output as proof of successful Kerberos.
-Expected CTests: Linux **58**, macOS/Windows **54**
-in Debug and Release. New-code CI, owner's local
-build and real Kerberos/desktop acceptance **NOT RUN**.
+(positive v5/v6 canonical DER, borrowed token/nonce/
+ciphertext, every byte-fragment boundary, oversized
+request rejection) and
+`security.credssp-final-binding-rejections`
+(missing fields, credential/error mixing, nonce
+sizes, v2/v4 downgrade, multiple tokens,
+oversize pubKeyAuth and malformed DER).
+Reuse the existing `test_owned_preauth_session`
+memory-BIO TLS fixture for Linux-only
+`security.gssapi-final-combined-denials`
+with the *real* linked MIT GSSAPI provider,
+fabricated final v5/v6 frames over completed TLS,
+terminal denial, replay denial and manual/partial
+frame rejection. The tests do NOT simulate a
+successful authenticated GSS context.
+**PASS:** implementation
+`ad848646391eb7f2dce5c8e2a6238212e7f4e5ae`,
+[Actions 38612269453](https://github.com/k1moradi/RDP-server/actions/runs/38612269453):
+Linux **58/58**, macOS/Windows **54/54** CTests,
+both Debug and Release; the three new cases passed.
+All three OS SDK downstream consumers, ZIP/checksum
+artifact uploads and documentation-policy PASS.
+**NOT RUN:** owner's updated local build, real
+Kerberos tickets/keytab, successful GSS pubKeyAuth
+exchange, independently authorized OS sessions,
+Microsoft client or live desktop. The previously
+reported unrelated Ubuntu Release warning at
+`tests/test_owned_preauth_session.cpp:587`
+remains nonfatal.

@@ -126,3 +126,18 @@ and actual TLS tests. Where a Windows compatibility macro can still
 interfere, write `(std::min)(...)` to call the standard function
 without macro expansion. The failure was at the compiled native
 transport boundary; maintain `/W4` and do not skip Windows CI.
+
+## First decrypted TLS application-record bridge (2026-10-14)
+
+MS-RDPBCGR sections 5.4.2.1 and 3.3.5.3.2 place the MCS Connect
+Initial in the established TLS channel. The existing preauth stream
+now holds a borrowed pointer **identity** to the previously verified
+server-side SSL session, preventing a caller from substituting an
+unrelated TLS object on the new read path. Limit `SSL_read_ex` to
+the next TPKT boundary; OpenSSL may internally decrypt coalesced TLS
+application records, but the parser MUST NOT consume later RDP
+PDUs. A retryable WANT_READ/WANT_WRITE requires transport event-loop
+progress, not a busy loop. Missing SSL, wrong role/identity, EOF and
+malformed framing always fail closed. The caller owns the TLS
+provider, BIO/socket lifetime, encrypted network pump and cancellation;
+no ownership of SSL or authenticated OS identity is transferred.

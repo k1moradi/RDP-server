@@ -98,3 +98,17 @@ socket adapter must retain the live SSL object and handle all
 encrypted I/O, send acknowledgments, shutdown and cancellation.
 No network listener, CredSSP/OS identity, real desktop or
 MCS Connect-Response is created by this offline increment.
+
+### Bounded TLS application-data intake (2026-10-14)
+
+After the complete X.224 Confirm write and a verified live server TLS
+handshake, the existing preauth owner retains only the **identity of a
+borrowed SSL** handle, cleared on terminal close. The new
+`consumeMcsConnectInitialFromTls` reads at most 8,192 bytes through
+OpenSSL `SSL_read_ex`, requesting only the remainder of the
+4-byte TPKT header, 3-byte X.224 Data TPDU, or declared MCS frame
+at a time. OpenSSL retains coalesced plaintext for a later consumer;
+the diagnostic does not accept that extra packet. WANT_READ/WRITE are
+retryable; close_notify, provider errors, wrong SSL identity and
+invalid framing terminate. No extra session state authority,
+network listener, MCS response or OS admission exists.

@@ -72,6 +72,7 @@ void PreauthConnectionStream::close() noexcept
 {
     clearIntakeBuffer();
     connectionReplySent_ = false;
+    activeServerTls_ = nullptr;
     session_.close();
 }
 
@@ -117,6 +118,7 @@ bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
         close();
         return false;
     }
+    activeServerTls_ = serverTls;
     return true;
 }
 
@@ -268,6 +270,77 @@ McsIntakeResult PreauthConnectionStream::consumeDecryptedMcsConnectInitial(
     close();
     return {bytesConsumed, valid ? McsIntakeStatus::EnvelopeValidated
                                  : McsIntakeStatus::Invalid};
+}
+
+McsIntakeResult PreauthConnectionStream::consumeMcsConnectInitialFromTls(
+    SSL *serverTls) noexcept
+{
+    if (stage() == PreauthStage::Closed)
+    {
+        return {0, McsIntakeStatus::Closed};
+    }
+    // A completed TLS handshake on some OTHER SSL object is not evidence
+    // for this connection. The caller owns the active nonblocking SSL/BIO.
+    if (stage() != PreauthStage::AwaitMcsConnectInitial ||
+        serverTls == nullptr || serverTls != activeServerTls_)
+    {
+        close();
+        return {0, McsIntakeStatus::Invalid};
+    }
+
+    // Read no further than the NEXT validated TPKT boundary. OpenSSL may
+    // decrypt an entire TLS record internally, but subsequent RDP PDUs
+    // must remain unread in that SSL instance.
+    std::array<std::uint8_t, 512> plaintext{};
+    std::size_t consumed = 0;
+    while (stage() == PreauthStage::AwaitMcsConnectInitial &&
+           consumed < kMaximumInitialMcsTpktBytes)
+    {
+        const std::size_t target =
+            bufferedBytes_ < 4 ? 4 :
+            bufferedBytes_ < 7 ? 7 : expectedBytes_;
+        const std::size_t toRead = (std::min)(
+            plaintext.size(), target - bufferedBytes_);
+        if (toRead == 0)
+        {
+            close();
+            return {consumed, McsIntakeStatus::Invalid};
+        }
+
+        std::size_t obtained = 0;
+        const int ok = SSL_read_ex(serverTls, plaintext.data(), toRead,
+                                   &obtained);
+        if (ok != 1)
+        {
+            // SSL_get_error must immediately follow the failed call, on
+            // the same thread and with OpenSSL's error queue untouched.
+            const int error = SSL_get_error(serverTls, ok);
+            if (error == SSL_ERROR_WANT_READ ||
+                error == SSL_ERROR_WANT_WRITE)
+            {
+                return {consumed, McsIntakeStatus::NeedMore};
+            }
+            // close_notify before the full envelope, an unclean EOF,
+            // TLS authentication failure or a provider error: fail closed.
+            close();
+            return {consumed, McsIntakeStatus::Invalid};
+        }
+        if (obtained == 0 || obtained > toRead)
+        {
+            close();
+            return {consumed, McsIntakeStatus::Invalid};
+        }
+        const auto intake = consumeDecryptedMcsConnectInitial(
+            std::span(plaintext).first(obtained));
+        consumed += intake.bytesConsumed;
+        if (intake.bytesConsumed != obtained ||
+            intake.status != McsIntakeStatus::NeedMore)
+        {
+            return {consumed, intake.status};
+        }
+    }
+    close(); // No unbounded looping on malformed encrypted input.
+    return {consumed, McsIntakeStatus::Invalid};
 }
 
 } // namespace rdp_server::server::transport

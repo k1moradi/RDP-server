@@ -462,6 +462,160 @@ void testRejectedDecryptedMcsBoundaries()
     }
 }
 
+
+void writeTlsClientApplicationData(SSL *client,
+                                   std::span<const std::uint8_t> data)
+{
+    std::size_t offset = 0;
+    while (offset < data.size())
+    {
+        std::size_t sent = 0;
+        const int ok = SSL_write_ex(client, data.data() + offset,
+                                    data.size() - offset, &sent);
+        assert(ok == 1);
+        assert(sent > 0 && sent <= data.size() - offset);
+        offset += sent;
+    }
+}
+
+void advanceToTlsMcs(PreauthConnectionStream &connection, SSL *server)
+{
+    const auto response = connection.consumeConnectionRequest(validRequestWire());
+    assert(response.status == ConnectionIntakeStatus::ReplyThenTls);
+    assert(connection.onConnectionReplySent(true));
+    assert(connection.onTlsHandshake(server));
+    assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
+}
+
+void testActualTlsApplicationDataIntake()
+{
+    const auto packet = validMcsPacket();
+    // Each split uses a separate completed OpenSSL TLS session; fragments
+    // are actual TLS encrypted records, not direct parser input.
+    for (std::size_t split = 0; split < packet.size(); ++split)
+    {
+        TlsHandshakeFixture tls;
+        PreauthConnectionStream connection;
+        advanceToTlsMcs(connection, tls.server.get());
+        assert(connection.consumeMcsConnectInitialFromTls(tls.server.get())
+                   .status == McsIntakeStatus::NeedMore);
+        if (split != 0)
+        {
+            writeTlsClientApplicationData(
+                tls.client.get(), std::span(packet).first(split));
+            const auto first =
+                connection.consumeMcsConnectInitialFromTls(tls.server.get());
+            assert(first.bytesConsumed == split);
+            assert(first.status == McsIntakeStatus::NeedMore);
+        }
+        writeTlsClientApplicationData(
+            tls.client.get(), std::span(packet).subspan(split));
+        const auto last =
+            connection.consumeMcsConnectInitialFromTls(tls.server.get());
+        assert(last.bytesConsumed == packet.size() - split);
+        assert(last.status == McsIntakeStatus::EnvelopeValidated);
+        assert(connection.stage() == PreauthStage::Closed);
+        assert(connection.consumeMcsConnectInitialFromTls(tls.server.get())
+                   .status == McsIntakeStatus::Closed);
+    }
+
+    // One TLS application record containing more than one RDP TPKT must
+    // not cause the second packet to be consumed or admitted.
+    TlsHandshakeFixture tls;
+    PreauthConnectionStream connection;
+    advanceToTlsMcs(connection, tls.server.get());
+    auto coalesced = packet;
+    constexpr std::array<std::uint8_t, 8> next{
+        3, 0, 0, 8, 2, 0xf0, 0x80, 0};
+    coalesced.insert(coalesced.end(), next.begin(), next.end());
+    writeTlsClientApplicationData(tls.client.get(), coalesced);
+    const auto first = connection.consumeMcsConnectInitialFromTls(tls.server.get());
+    assert(first.bytesConsumed == packet.size());
+    assert(first.status == McsIntakeStatus::EnvelopeValidated);
+    std::array<std::uint8_t, 8> remaining{};
+    std::size_t read = 0;
+    assert(SSL_read_ex(tls.server.get(), remaining.data(),
+                       remaining.size(), &read) == 1);
+    assert(read == next.size());
+    assert(remaining == next);
+}
+
+void testTlsRecordFailClosedBoundaries()
+{
+    const auto packet = validMcsPacket();
+    {
+        TlsHandshakeFixture tls;
+        PreauthConnectionStream premature;
+        assert(premature.consumeMcsConnectInitialFromTls(tls.server.get())
+                   .status == McsIntakeStatus::Invalid);
+        assert(premature.stage() == PreauthStage::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        PreauthConnectionStream connection;
+        advanceToTlsMcs(connection, tls.server.get());
+        assert(connection.consumeMcsConnectInitialFromTls(nullptr).status ==
+               McsIntakeStatus::Invalid);
+        assert(connection.stage() == PreauthStage::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        PreauthConnectionStream connection;
+        advanceToTlsMcs(connection, tls.server.get());
+        assert(connection.consumeMcsConnectInitialFromTls(tls.client.get())
+                   .status == McsIntakeStatus::Invalid);
+        assert(connection.stage() == PreauthStage::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TlsHandshakeFixture alternate;
+        PreauthConnectionStream connection;
+        advanceToTlsMcs(connection, tls.server.get());
+        assert(connection.consumeMcsConnectInitialFromTls(
+                   alternate.server.get()).status == McsIntakeStatus::Invalid);
+        assert(connection.stage() == PreauthStage::Closed);
+    }
+    // Reject malformed first four decrypted TPKT bytes without reading
+    // the appended MCS/BER data out of this TLS session.
+    {
+        TlsHandshakeFixture tls;
+        PreauthConnectionStream connection;
+        advanceToTlsMcs(connection, tls.server.get());
+        auto damaged = packet;
+        damaged[0] = 4;
+        writeTlsClientApplicationData(tls.client.get(), damaged);
+        const auto result =
+            connection.consumeMcsConnectInitialFromTls(tls.server.get());
+        assert(result.status == McsIntakeStatus::Invalid);
+        assert(result.bytesConsumed == 4);
+        assert(connection.stage() == PreauthStage::Closed);
+        std::array<std::uint8_t, 4> unread{};
+        std::size_t read = 0;
+        assert(SSL_read_ex(tls.server.get(), unread.data(),
+                           unread.size(), &read) == 1);
+        assert(read == unread.size());
+        assert(unread[0] == packet[4]);
+    }
+    // TLS orderly EOF before the complete initial packet is fatal for
+    // this diagnostic; the stream must never return a valid envelope.
+    {
+        TlsHandshakeFixture tls;
+        PreauthConnectionStream connection;
+        advanceToTlsMcs(connection, tls.server.get());
+        writeTlsClientApplicationData(
+            tls.client.get(), std::span(packet).first(17));
+        const auto partial =
+            connection.consumeMcsConnectInitialFromTls(tls.server.get());
+        assert(partial.status == McsIntakeStatus::NeedMore);
+        assert(partial.bytesConsumed == 17);
+        assert(SSL_shutdown(tls.client.get()) >= 0);
+        const auto closed =
+            connection.consumeMcsConnectInitialFromTls(tls.server.get());
+        assert(closed.status == McsIntakeStatus::Invalid);
+        assert(connection.stage() == PreauthStage::Closed);
+    }
+}
+
 void testConnectionRequestLengthRejectionAndClose()
 {
     const std::array<std::array<std::uint8_t, 4>, 4> invalidHeaders{{
@@ -563,4 +717,6 @@ int main()
     testConnectionRequestLengthRejectionAndClose();
     testIncrementalDecryptedMcsIntake();
     testRejectedDecryptedMcsBoundaries();
+    testActualTlsApplicationDataIntake();
+    testTlsRecordFailClosedBoundaries();
 }

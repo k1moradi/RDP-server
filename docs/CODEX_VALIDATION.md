@@ -200,3 +200,21 @@ It does **not** verify live socket TLS I/O, user authentication,
 CredSSP/NLA, real external RDP client, OS admission or desktop.
 The user-reported 11/11 local CTests preceded this TLS change;
 local tests of the new exact commit remain **NOT RUN**.
+
+## OpenSSL application-record MCS intake (CI pending)
+
+Added `PreauthConnectionStream::consumeMcsConnectInitialFromTls`
+to read from the exact completed OpenSSL server connection and
+feed its decrypted bytes into the existing bounded 8,192-byte
+TPKT/X.224/MCS/GCC state machine. The existing
+`transport.preauth-session` suite sends encrypted OpenSSL
+application records through memory BIOs and tests every
+Microsoft example split, coalescing, TLS EOF, early errors,
+wrong/foreign SSL handles and malformed TPKT. The server
+still does not listen on a socket, authorize users, emit MCS
+responses or deliver a desktop.
+
+**NOT RUN:** exact-head GitHub Actions until compilation,
+Debug/Release CTests and SDK packaging report results.
+**NOT RUN:** user's local build for this commit, external client,
+actual TCP transport, NLA/OS authorization and desktop access.

@@ -126,6 +126,16 @@ acceptance evidence; no synthetic completion claims.
   build of this new commit. **Next:** integrate an authenticated
   TLS transport/session lifecycle without permitting OS admission
   before CredSSP/identity authorization.
+  **New TLS application-record increment (CI pending):** the existing
+  preauth stream now associates the completed OpenSSL server `SSL*`
+  with the connection and uses `SSL_read_ex` to decrypt and parse
+  precisely one bounded MCS/GCC TPKT. WANT_READ/WANT_WRITE do not
+  close the connection; EOF, malformed data, swapped SSL handles
+  and replay fail closed. The memory-BIO test drives actual encrypted
+  TLS application records at every split boundary, coalesced trailing
+  PDU, invalid header and early close. Neither a socket listener
+  nor CredSSP/OS admission is implemented. **Next:** exact-head CI,
+  then a socket adapter and authenticated session progression.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

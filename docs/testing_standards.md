@@ -179,3 +179,18 @@ passed all Debug and Release protocol and policy CTests, nested
 downstream install/consumer CTest, and CPack SDK packaging on
 Linux/GCC, macOS/Clang, Windows/MSVC, as well as documentation-policy.
 No live network client, OS admission or external server was tested.
+
+## In-memory encrypted TLS record intake (CI pending)
+
+Extend existing `transport.preauth-session`, not the test executable
+registry. Use an ephemeral self-signed test certificate and an OpenSSL
+memory BIO pair, send actual encrypted application records over
+`SSL_write_ex`, and exercise `SSL_read_ex` on the server side for
+every split position of the Microsoft 416-byte MCS/GCC fixture.
+Assert WANT_READ retry, precise consumed plaintext bytes,
+coalesced next-PDU preservation, malformed header rejected after
+exactly four decrypted bytes, wrong/foreign SSL handle rejection,
+premature transitions, orderly TLS close and terminal replay.
+This is only a test of authenticated *record integrity* within TLS,
+not CredSSP credentials, certificate enrollment, a TCP server, or
+independent OS desktop authorization.

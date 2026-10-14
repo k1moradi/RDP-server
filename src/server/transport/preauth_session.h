@@ -126,6 +126,17 @@ public:
     [[nodiscard]] McsIntakeResult consumeDecryptedMcsConnectInitial(
         std::span<const std::uint8_t> decryptedBytes) noexcept;
 
+    // Read the first MCS/GCC envelope directly from the same completed
+    // OpenSSL server connection passed to onTlsHandshake(). The caller
+    // owns SSL and its nonblocking BIO; never invoke concurrently with
+    // another SSL_read/SSL_write on the same object. A WANT_READ/WRITE
+    // leaves the diagnostic waiting for transport progress. Each call
+    // reads at most one bounded TPKT, never a coalesced following PDU.
+    // bytesConsumed means decrypted APPLICATION bytes, NOT TLS wire bytes.
+    // Successful envelope validation still closes WITHOUT OS admission.
+    [[nodiscard]] McsIntakeResult consumeMcsConnectInitialFromTls(
+        SSL *serverTls) noexcept;
+
     void close() noexcept;
 
 private:
@@ -138,6 +149,9 @@ private:
     std::size_t expectedBytes_{};
     // True only after exactly one completed X.224 Confirm write.
     bool connectionReplySent_{};
+    // Borrowed identity only: the caller must keep this SSL alive until
+    // the diagnostic closes. No TLS or OS session ownership is duplicated.
+    const SSL *activeServerTls_{};
 };
 
 } // namespace rdp_server::server::transport

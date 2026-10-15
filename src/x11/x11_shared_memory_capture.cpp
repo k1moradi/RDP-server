@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "x11_shared_memory_capture.h"
+#include "x11_capture_layout.h"
 
 #include <bit>
 #include <cstdlib>
@@ -232,27 +233,11 @@ X11SharedMemoryCapture::failureReason() const noexcept
 FramebufferView
 X11SharedMemoryCapture::capture(Rectangle rectangle) noexcept
 {
-    if (!valid() || rectangle.widthPixels == 0 ||
-        rectangle.heightPixels == 0 || rectangle.x < 0 || rectangle.y < 0 ||
-        static_cast<std::uint64_t>(rectangle.x) + rectangle.widthPixels >
-            bounds_.widthPixels ||
-        static_cast<std::uint64_t>(rectangle.y) + rectangle.heightPixels >
-            bounds_.heightPixels ||
-        rectangle.x > std::numeric_limits<std::int16_t>::max() ||
-        rectangle.y > std::numeric_limits<std::int16_t>::max() ||
-        rectangle.widthPixels > std::numeric_limits<std::uint16_t>::max() ||
-        rectangle.heightPixels > std::numeric_limits<std::uint16_t>::max())
+    const auto layout = validatedX11CaptureLayout(
+        rectangle, bounds_, sharedMemoryBytes_);
+    if (!valid() || !layout)
     {
-        fail("XShm capture rectangle is outside the supported geometry");
-        return {};
-    }
-
-    const std::size_t captureBytes =
-        static_cast<std::size_t>(rectangle.widthPixels) *
-        rectangle.heightPixels * kBytesPerPixel;
-    if (captureBytes > sharedMemoryBytes_)
-    {
-        fail("XShm capture rectangle exceeds the shared-memory arena");
+        fail("XShm capture rectangle or arena is outside supported limits");
         return {};
     }
 
@@ -274,7 +259,7 @@ X11SharedMemoryCapture::capture(Rectangle rectangle) noexcept
     }
 
     const bool formatMatches = reply->depth == depth_ && reply->visual == visual_ &&
-                               reply->size >= captureBytes;
+                               layout->matchesReplySize(reply->size);
     std::free(reply);
     if (!formatMatches)
     {
@@ -284,10 +269,10 @@ X11SharedMemoryCapture::capture(Rectangle rectangle) noexcept
 
     return {
         std::span<const std::byte>(
-            static_cast<const std::byte *>(sharedMemory_), captureBytes),
+            static_cast<const std::byte *>(sharedMemory_), layout->bufferBytes),
         rectangle.widthPixels,
         rectangle.heightPixels,
-        static_cast<std::size_t>(rectangle.widthPixels) * kBytesPerPixel,
+        layout->strideBytes,
     };
 }
 

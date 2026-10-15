@@ -1880,6 +1880,23 @@ actually run; another parser CTest alone is not a complete session.
   input and cursor, after Gate A authorization. Complete negotiated
   RDPGFX AVC420 delivery and robust resize/frame ACK/reconnect before
   adding clipboard, other OS backends or optional codecs.
+  **R5 XShm capture-layout bounds increment (based on main
+  `d9a46e5cb871b8a81d8a6d057d0f60b568957f45`; exact implementation CI pending):**
+  Validate XCB signed-16 coordinates, nonzero unsigned-16 rectangle and
+  display dimensions, on-screen geometry, packed 32-bit BGRX stride,
+  size_t/uint32 byte limits and shared-memory capacity before GetImage.
+  Reject mismatched short/oversized reply byte counts without publishing
+  an invalid borrowed FramebufferView; preserve existing arena ownership.
+  Linux-only dedicated CTest: `x11.capture-layout-bounds`; headless
+  positive/negative and near-4-GiB geometry assertions (no allocation).
+  **PASS:** isolated R5 fixture 2/2; GCC 14 and Clang 17 strict-warning
+  C++23 capture tests; GCC ASan/UBSan capture test. These results are not
+  full-project CI or authorized desktop acceptance.
+  **NOT RUN:** complete project CTest, native XCB source compile (missing
+  xcb/shm.h), owner Linux/Windows CLANG64/macOS27, benchmarks and live
+  Microsoft-client desktop. Current container cannot clone GitHub.
+  **Next R5:** native XCB capture compilation/lifecycle CTest followed by
+  R2/R3-authorized backend ownership and R4 frame consumer. M3 stays open.
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

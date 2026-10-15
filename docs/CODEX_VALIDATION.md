@@ -2807,3 +2807,33 @@ real authorized desktop and benchmarks at authoring time.
 **Next:** inspect the exact correction-SHA CI jobs; then integrate bounded
 DXGI frame lifetime/acquire/release under R2/R3 authorization and R4
 frame ownership with failure/cancellation behavior test.
+
+## R5 XShm capture geometry and reply bounds (direct-main implementation)
+
+**Base main:** `d9a46e5cb871b8a81d8a6d057d0f60b568957f45`, exact-SHA CI pending publication.
+**Source:** `src/x11/x11_capture_layout.h` and
+`src/x11/x11_shared_memory_capture.cpp`; dedicated CTest:
+`tests/test_x11_capture_layout.cpp` registered conditionally for Linux
+in `tests/CMakeLists.txt`. `docs/ROADMAP.md` updated in same commit.
+The production capture path validates XCB geometry, pixel stride,
+uint32/size_t reply limits and shared-memory arena capacity and rejects
+short/oversized image replies before publishing a borrowed framebuffer.
+No new session owner or live X11 capture is enabled by this guard.
+
+**PASS (isolated headless R5 fixture, NOT canonical repository):**
+`cmake --build /home/oai/rdp-server/build --config Debug --parallel 2`
+and `ctest --test-dir /home/oai/rdp-server/build -C Debug
+--output-on-failure`: **2/2 PASS** (capture and cursor). Clang 17 C++23
+`-O2 -Wall -Wextra -Wpedantic -Werror -UNDEBUG` standalone
+capture compile/run: **PASS**. GCC 14 C++23 capture ASan+UBSan:
+**PASS**. Pure geometry checks include exact/truncated/oversized reply,
+negative/offscreen coordinates, short arena, uint16/uint32 overflow and
+near-4-GiB no-allocation positive case. Borrowed buffer view checked.
+
+**NOT RUN/BLOCKED:** full repo CMake/CTest (GitHub clone DNS failure),
+native XCB source compilation (xcb/shm.h missing), exact-SHA CI,
+owner Linux/X11/Windows MSYS2 CLANG64/macOS27, authorized session,
+Microsoft-client desktop and performance benchmark.
+**Next:** verify full-project CTest and CI on published SHA and compile
+native Linux/XCB target with deterministic lifecycle tests; bind to
+R2/R3 OS admission and R4 graphics consumer only afterward.

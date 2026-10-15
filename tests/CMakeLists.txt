@@ -301,6 +301,12 @@ if(TARGET rdp-server-windows-desktop)
         PROPERTIES LABELS "windows;capture;offline")
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_rdp_test(test_x11_capture_layout.cpp x11 capture-layout-bounds)
+    set_tests_properties(x11.capture-layout-bounds PROPERTIES
+        LABELS "x11;linux-adapter")
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

@@ -541,6 +541,40 @@ session-specific shareID, the *contents* and required
 sets, active TLS-bound GSS, independent OS policy and
 ordering before any real activation or input.
 
+## Fail-closed server finalization serialization (2026-10-15)
+
+MS-RDPBCGR 2.2.1.14.1, 2.2.1.15.1, 2.2.1.19,
+2.2.1.20 and 2.2.1.21 govern server-side
+Synchronize, Control Cooperate and Control Granted.
+Implement these fixed-size uncompressed Share Control
+and Share Data packets in the SAME existing C++23
+`mcs_channel_connection` owner. Reuse one private,
+allocation-free writer for the common 18-byte Share
+Control/Data header with pduSource=1002, protocol
+version/type=0x0017, caller shareID, explicit
+uncompressedLength, canonical zero pad and compression
+flags. Synchronize is 22 bytes, stream 0, type2 0x1f,
+messageType=1 and an uninterpreted LE16 targetUser.
+Microsoft's uninitialized Server Synchronize targetUser
+example forbids assuming that a valid value proves
+assigned membership. Control is 26 bytes, stream 2,
+type2 0x14, valid server actions ONLY Cooperate (4)
+and Granted Control (2). Cooperate requires zero
+assignedClientUserId and writes grant/control IDs 0/0;
+Granted requires 1001..65535, writes that user ID
+and server channel 1002. Reject Request Control, Detach,
+out-of-range user IDs, unknown actions, and short output
+capacities BEFORE touching any output octet. Preserve
+caller output suffix and perform no heap allocation.
+
+Never interpret a valid emitted Granted Control packet
+as an OS permission, MCS join result, successful GSS/TLS
+authentication, licensing result or share activation.
+Real message ordering, TLS output and resource access
+belong only to a future separately authorized session
+owner. These offline writers do not form an independent
+state machine or encryption layer.
+
 ## Pure finalization PDU syntax is NOT an activation controller (2026-10-15)
 
 MS-RDPBCGR 2.2.1.14.1 and 2.2.1.15.1 define small,

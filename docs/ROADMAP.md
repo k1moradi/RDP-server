@@ -1112,6 +1112,40 @@ acceptance evidence; no synthetic completion claims.
   isolated owner-authorized Kerberos/TLS proof
   and separate OS session admission before ANY
   live capability negotiation or Demand Active send.
+  **Partial OFFLINE server finalization output (2026-10-15;
+  CI NOT RUN at authoring):** reuse existing first-party
+  C++23 Share Data/Control owner to serialize the 22-byte
+  server Synchronize and 26-byte server Control Cooperate
+  and Granted packets. One common private fixed header
+  writer sets source 1002, Share Data type/stream,
+  uncompressed lengths and canonical zero padding.
+  Synchronize preserves raw targetUser, including the
+  historically uninitialized Microsoft example, rather
+  than trusting it as a joined MCS channel. Control
+  prohibits client-only Request/Detach actions, requires
+  zero ID for Cooperate and an assigned 1001..65535 user
+  channel for Granted, with server controlId 1002.
+  Preflight all output sizes and action/ID rules before
+  any bytes change, and preserve suffix/no allocation.
+  Two new behavior-named test groups compare byte-exact
+  Microsoft-derived canonical oracles, round-trip the
+  existing independent decoders, exercise boundary IDs
+  and all insufficient output buffers/invalid actions.
+  Expected **87 portable / 97 Linux GSS** CTests
+  (previous 85/95). Parent main
+  `f48332e4465b6915e1683e5ed4f3aae767d3c777`
+  passed [CI 38717067457](https://github.com/k1moradi/RDP-server/actions/runs/38717067457);
+  owner reports **85/85** local PASS on the parent.
+  **NOT RUN:** this implementation's exact-head CI,
+  owner-local new-code tests, real opt-in GSS
+  Kerberos/TLS binding, independently approved OS
+  session, joined channels, licensing, live network,
+  share activation, graphics or user input.
+  **Next:** exact-head cross-platform CI and owner-local
+  validation, followed by explicitly authorized isolated
+  Kerberos/TLS positive acceptance and independent OS
+  authorization before finalization can be dispatched
+  from a single live session owner.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

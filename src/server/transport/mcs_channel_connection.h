@@ -397,4 +397,31 @@ struct RdpActivePduParseResult
     std::span<const std::uint8_t> capabilitySets,
     std::span<std::uint8_t> output) noexcept;
 
+// OFFLINE MS-RDPBCGR 2.2.1.19 / 2.2.1.20 / 2.2.1.21
+// server finalization Share Control + Share Data PDU writers.
+// Exactly one plaintext, uncompressed PDU into caller-owned storage:
+// no MCS wrapping, TLS, active sharing, control grant or OS admission.
+// Both use fixed server pduSource=1002 and canonical ignored pad=0.
+// The Synchronize targetUser field is deliberately uninterpreted,
+// since historical Microsoft Server examples contain an uninitialized
+// value. Only the authenticated session owner can check target/channel
+// identity before any packet is sent.
+[[nodiscard]] std::optional<std::size_t> encodeRdpServerSynchronizePdu(
+    std::uint32_t shareId,
+    std::uint16_t targetUser,
+    std::span<std::uint8_t> output) noexcept;
+
+// Server Control only: Cooperate requires assignedClientUserId=0
+// and emits grantId/controlId=0; Granted Control requires an assigned
+// client user-channel ID 1001..65535, emits that as grantId and the
+// normative MCS server channel 1002 as controlId. Request Control and
+// Detach are not server emissions and are rejected atomically.
+// A valid encoded Granted Control message DOES NOT grant authority;
+// that check belongs solely to a future authenticated session owner.
+[[nodiscard]] std::optional<std::size_t> encodeRdpServerControlPdu(
+    std::uint32_t shareId,
+    RdpControlAction action,
+    std::uint32_t assignedClientUserId,
+    std::span<std::uint8_t> output) noexcept;
+
 } // namespace rdp_server::server::transport

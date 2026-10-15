@@ -1538,6 +1538,59 @@ regressions; controlled real Kerberos/TLS binding
 and independently approved OS account/session
 before any live capability exchange or activation.
 
+## Pending server finalization Synchronize/Control writers (2026-10-15)
+
+**Previous exact main:** `f48332e4465b6915e1683e5ed4f3aae767d3c777`,
+[CI 38717067457](https://github.com/k1moradi/RDP-server/actions/runs/38717067457)
+completed SUCCESS: Linux/GCC **95/95**, macOS/Clang
+and Windows/MSVC **85/85** full Debug/Release CTests,
+SDK installed downstream consumer, ZIP/SHA256
+packages and documentation policy. Owner reports
+local **85/85** on that prior commit. These results
+do not cover the new finalization writers.
+
+**Implementation:** the one existing
+`src/server/transport/mcs_channel_connection.{h,cpp}`
+owner gains `encodeRdpServerSynchronizePdu` and
+`encodeRdpServerControlPdu` using one common
+private fixed Share Control/Data header helper:
+normative pduSource=1002, no compression, zero
+ignored pad, exact size 22 or 26. Synchronize
+preserves any raw 16-bit targetUser, including
+Microsoft's historically uninitialized sample.
+Only the two server Control actions are accepted:
+Cooperate requires zero assigned client ID,
+Granted requires 1001..65535 user ID and writes
+server controlId 1002. No caller-supplied GSS
+identity is accepted as a channel grant. Both
+functions check output/action bounds before
+mutating the destination, do not allocate or
+send TLS and never advance the session lifecycle.
+
+Two behavior-named CTests
+`transport.share-server-finalization-encode-wire`
+and `transport.share-server-finalization-encode-rejections`
+reuse the original MCS test binary and the single
+CTest registry. Expected **87** portable and
+**97** Linux GSS-enabled full CTests. The sole
+ROADMAP, architecture and mandatory coding/testing
+standards are updated in the SAME implementation
+commit.
+
+**NOT RUN at authoring:** new exact-head CI,
+owner-local new-code build/CTest, controlled genuine
+GSS/Kerberos service keytab + client tickets,
+actual TLS pubKeyAuth, independent OS authorization,
+licensed/activated share, real RDP clients,
+graphics, clipboard or console. Owner-local commands:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next:** exact-head all-OS Debug/Release CI and
+owner-local CTest; then isolated authorized
+real Kerberos/TLS plus independent OS policy
+before any live client/desktop admission.
+
 ## Verified offline T.128 finalization Synchronize/Control decoder (2026-10-15)
 
 **Previous main:** `1c4dc32ef2bb3d1bc86aeffa1bcc7d10f57ab8ed`,

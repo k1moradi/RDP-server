@@ -1913,6 +1913,161 @@ void testRdpDemandActiveEncodeRejections()
     assert(aliases == beforeCaps);
 }
 
+void testRdpServerFinalizationEncodeWire()
+{
+    // Microsoft Server Synchronize (MS-RDPBCGR 4.1.19), with the
+    // independently documented fixed 18+4-byte layout, canonical
+    // ignored pad=0 and an explicit caller-supplied targetUser.
+    constexpr std::array<std::uint8_t, 22> goldenSync{
+        0x16, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x00,
+        0x16, 0x00, 0x1f, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0xef, 0x03};
+    std::array<std::uint8_t, 30> sync{};
+    sync.fill(0xa5);
+    const auto syncSize =
+        encodeRdpServerSynchronizePdu(0x000103eaU, 1007U, sync);
+    assert(syncSize && *syncSize == goldenSync.size());
+    assert(std::equal(sync.begin(), sync.begin() + *syncSize,
+                      goldenSync.begin()));
+    assert(std::all_of(sync.begin() + *syncSize, sync.end(),
+                       [](std::uint8_t v) { return v == 0xa5; }));
+    const auto parsedSync = parseRdpSynchronizePdu(
+        std::span(sync).first(*syncSize));
+    assert(parsedSync && parsedSync.value.pduSource == 1002);
+    assert(parsedSync.value.shareId == 0x000103eaU);
+    assert(parsedSync.value.targetUser == 1007U);
+
+    // Microsoft Server Control (Cooperate / Granted Control),
+    // MS-RDPBCGR 4.1.20-21, with ignored pad1 canonicalized
+    // to zero. Syntax must never imply the grant occurred.
+    constexpr std::array<std::uint8_t, 26> goldenCooperate{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x02,
+        0x1a, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    constexpr std::array<std::uint8_t, 26> goldenGranted{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x02,
+        0x1a, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0xef, 0x03, 0xea, 0x03, 0x00, 0x00};
+    std::array<std::uint8_t, 30> control{};
+    control.fill(0xbb);
+    const auto cooperateSize = encodeRdpServerControlPdu(
+        0x000103eaU, RdpControlAction::Cooperate, 0U, control);
+    assert(cooperateSize && *cooperateSize == goldenCooperate.size());
+    assert(std::equal(control.begin(), control.begin() + *cooperateSize,
+                      goldenCooperate.begin()));
+    assert(control[*cooperateSize] == 0xbb &&
+           control[*cooperateSize + 1U] == 0xbb);
+    const auto coop = parseRdpControlPdu(
+        std::span(control).first(*cooperateSize));
+    assert(coop && coop.value.action == RdpControlAction::Cooperate);
+    assert(coop.value.pduSource == 1002);
+    assert(coop.value.shareId == 0x000103eaU);
+    assert(coop.value.grantId == 0 && coop.value.controlId == 0);
+
+    control.fill(0xcc);
+    const auto grantedSize = encodeRdpServerControlPdu(
+        0x000103eaU, RdpControlAction::GrantedControl, 1007U, control);
+    assert(grantedSize && *grantedSize == goldenGranted.size());
+    assert(std::equal(control.begin(), control.begin() + *grantedSize,
+                      goldenGranted.begin()));
+    assert(control[*grantedSize] == 0xcc);
+    const auto granted = parseRdpControlPdu(
+        std::span(control).first(*grantedSize));
+    assert(granted && granted.value.action ==
+           RdpControlAction::GrantedControl);
+    assert(granted.value.grantId == 1007);
+    assert(granted.value.controlId == 1002);
+
+    // The historical Microsoft Server Synchronize example has an
+    // uninitialized targetUser. Preserve every raw LE16 value rather
+    // than misidentifying syntax decoding as channel authorization.
+    for (const auto id : {std::uint16_t{0}, std::uint16_t{1001},
+                          std::uint16_t{0x4463}, std::uint16_t{65535}})
+    {
+        std::array<std::uint8_t, 22> packet{};
+        const auto n = encodeRdpServerSynchronizePdu(
+            0xfedcba98U, id, packet);
+        assert(n && *n == packet.size());
+        const auto parsed = parseRdpSynchronizePdu(packet);
+        assert(parsed && parsed.value.targetUser == id);
+        assert(parsed.value.shareId == 0xfedcba98U);
+        assert(packet[20] == static_cast<std::uint8_t>(id));
+        assert(packet[21] == static_cast<std::uint8_t>(id >> 8U));
+    }
+
+    for (const auto id : {1001U, 1007U, 65535U})
+    {
+        std::array<std::uint8_t, 26> packet{};
+        const auto n = encodeRdpServerControlPdu(
+            0xffffffffU, RdpControlAction::GrantedControl, id, packet);
+        assert(n && *n == packet.size());
+        const auto parsed = parseRdpControlPdu(packet);
+        assert(parsed && parsed.value.grantId == id);
+        assert(parsed.value.controlId == 1002);
+        assert(parsed.value.shareId == 0xffffffffU);
+    }
+}
+
+void testRdpServerFinalizationEncodeRejections()
+{
+    // Every incomplete destination must remain entirely unchanged.
+    std::array<std::uint8_t, 32> packet{};
+    for (std::size_t capacity = 0; capacity < 22U; ++capacity)
+    {
+        packet.fill(0xdd);
+        assert(!encodeRdpServerSynchronizePdu(
+            42U, 1002U, std::span(packet).first(capacity)));
+        assert(std::all_of(packet.begin(), packet.end(),
+                           [](std::uint8_t v) { return v == 0xdd; }));
+    }
+    for (std::size_t capacity = 0; capacity < 26U; ++capacity)
+    {
+        packet.fill(0xdd);
+        assert(!encodeRdpServerControlPdu(
+            42U, RdpControlAction::Cooperate, 0U,
+            std::span(packet).first(capacity)));
+        assert(std::all_of(packet.begin(), packet.end(),
+                           [](std::uint8_t v) { return v == 0xdd; }));
+    }
+
+    const auto rejectAtomic = [&](RdpControlAction action,
+                                  std::uint32_t assignedId)
+    {
+        packet.fill(0xef);
+        assert(!encodeRdpServerControlPdu(42U, action, assignedId,
+                                          packet));
+        assert(std::all_of(packet.begin(), packet.end(),
+                           [](std::uint8_t v) { return v == 0xef; }));
+    };
+    // Client-only actions are never server-side emissions.
+    rejectAtomic(RdpControlAction::RequestControl, 0U);
+    rejectAtomic(RdpControlAction::Detach, 0U);
+    rejectAtomic(static_cast<RdpControlAction>(0), 1007U);
+    rejectAtomic(static_cast<RdpControlAction>(5), 1007U);
+    rejectAtomic(static_cast<RdpControlAction>(65535), 1007U);
+
+    // Cooperate must have zero grant/control IDs; Granted must
+    // encode an assigned 16-bit MCS client user channel only.
+    for (const auto nonzero : {1U, 1001U, 1007U, 65535U, 65536U})
+        rejectAtomic(RdpControlAction::Cooperate, nonzero);
+    for (const auto invalid : {0U, 1U, 1000U, 65536U, 0xffffffffU})
+        rejectAtomic(RdpControlAction::GrantedControl, invalid);
+
+    // Minimal valid buffers still leave no opportunity for silent
+    // overrun or hidden second Share Data record.
+    std::array<std::uint8_t, 22> sync{};
+    assert(encodeRdpServerSynchronizePdu(0U, 0U, sync) == sync.size());
+    assert(parseRdpSynchronizePdu(sync));
+    std::array<std::uint8_t, 26> control{};
+    assert(encodeRdpServerControlPdu(
+        0U, RdpControlAction::Cooperate, 0U, control) ==
+           control.size());
+    assert(parseRdpControlPdu(control));
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -1939,7 +2094,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 31> kMcsTestCases{{
+constexpr std::array<McsTestCase, 33> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -1971,6 +2126,8 @@ constexpr std::array<McsTestCase, 31> kMcsTestCases{{
     {"share-active-capabilities-rejections", &testRdpActivePduRejections},
     {"share-demand-active-encode-wire", &testRdpDemandActiveEncodeWire},
     {"share-demand-active-encode-rejections", &testRdpDemandActiveEncodeRejections},
+    {"share-server-finalization-encode-wire", &testRdpServerFinalizationEncodeWire},
+    {"share-server-finalization-encode-rejections", &testRdpServerFinalizationEncodeRejections},
 }};
 
 int main(int argc, char **argv)

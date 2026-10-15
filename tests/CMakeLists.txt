@@ -47,7 +47,9 @@ function(add_rdp_test source_file suite behavior)
                 share-active-capabilities-wire
                 share-active-capabilities-rejections
                 share-demand-active-encode-wire
-                share-demand-active-encode-rejections)
+                share-demand-active-encode-rejections
+                share-server-finalization-encode-wire
+                share-server-finalization-encode-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

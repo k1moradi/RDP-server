@@ -715,4 +715,94 @@ std::optional<std::size_t> encodeRdpDemandActivePdu(
     return size;
 }
 
+namespace
+{
+void writeLe16(std::span<std::uint8_t> bytes,
+               std::size_t offset,
+               std::uint16_t value) noexcept
+{
+    bytes[offset] = static_cast<std::uint8_t>(value);
+    bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+}
+
+void writeLe32(std::span<std::uint8_t> bytes,
+               std::size_t offset,
+               std::uint32_t value) noexcept
+{
+    writeLe16(bytes, offset, static_cast<std::uint16_t>(value));
+    writeLe16(bytes, offset + 2U,
+              static_cast<std::uint16_t>(value >> 16U));
+}
+
+// Called ONLY after the public writer checks the entire capacity
+// and any semantic parameter restrictions. Does not allocate.
+void writeServerShareDataHeader(std::span<std::uint8_t> bytes,
+                                std::uint16_t packetSize,
+                                std::uint32_t shareId,
+                                std::uint8_t pduType2,
+                                std::uint8_t streamId) noexcept
+{
+    writeLe16(bytes, 0U, packetSize);
+    writeLe16(bytes, 2U, 0x0017U); // T.128 version 1, Data PDU.
+    writeLe16(bytes, 4U, 1002U);   // Server MCS channel.
+    writeLe32(bytes, 6U, shareId);
+    bytes[10] = 0;                 // pad1, receiver ignores.
+    bytes[11] = streamId;
+    writeLe16(bytes, 12U, packetSize); // Uncompressed length.
+    bytes[14] = pduType2;
+    bytes[15] = 0;                 // No MPPC compression.
+    writeLe16(bytes, 16U, 0U);     // No compressed bytes.
+}
+} // namespace
+
+std::optional<std::size_t> encodeRdpServerSynchronizePdu(
+    std::uint32_t shareId,
+    std::uint16_t targetUser,
+    std::span<std::uint8_t> output) noexcept
+{
+    // MS-RDPBCGR 2.2.1.14.1 and 2.2.1.19: 18-byte
+    // Share Control/Data header + 4-byte Synchronize body.
+    constexpr std::size_t size = 22U;
+    if (output.size() < size)
+        return std::nullopt;
+    const auto bytes = output.first(size);
+    // Microsoft's Server Synchronize can use STREAM_UNDEFINED=0;
+    // the existing Share Data parser explicitly recognizes this.
+    writeServerShareDataHeader(bytes, 22U, shareId, 0x1fU, 0U);
+    writeLe16(bytes, 18U, 1U); // SYNCMSGTYPE_SYNC
+    writeLe16(bytes, 20U, targetUser);
+    return size;
+}
+
+std::optional<std::size_t> encodeRdpServerControlPdu(
+    std::uint32_t shareId,
+    RdpControlAction action,
+    std::uint32_t assignedClientUserId,
+    std::span<std::uint8_t> output) noexcept
+{
+    // MS-RDPBCGR 2.2.1.15.1, 2.2.1.20, 2.2.1.21:
+    // server only sends Cooperate/Granted during finalization.
+    // Neither action is a valid authorization signal by itself.
+    const bool cooperate = action == RdpControlAction::Cooperate;
+    const bool granted = action == RdpControlAction::GrantedControl;
+    if ((!cooperate && !granted) ||
+        (cooperate && assignedClientUserId != 0U) ||
+        (granted &&
+         (assignedClientUserId < 1001U ||
+          assignedClientUserId > 65535U)))
+        return std::nullopt;
+
+    constexpr std::size_t size = 26U;
+    if (output.size() < size)
+        return std::nullopt;
+    const auto bytes = output.first(size);
+    writeServerShareDataHeader(bytes, 26U, shareId, 0x14U, 2U);
+    writeLe16(bytes, 18U, static_cast<std::uint16_t>(action));
+    writeLe16(bytes, 20U,
+              cooperate ? 0U
+                        : static_cast<std::uint16_t>(assignedClientUserId));
+    writeLe32(bytes, 22U, cooperate ? 0U : 1002U);
+    return size;
+}
+
 } // namespace rdp_server::server::transport

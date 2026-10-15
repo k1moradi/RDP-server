@@ -753,6 +753,38 @@ live user input and desktop. Capability envelopes
 are syntax, never channel membership or a
 substitute for the real security gates.
 
+## Offline server Synchronize and Control output tests (CI NOT RUN, 2026-10-15)
+
+Reuse the original `tests/test_owned_mcs_connect_initial.cpp`
+executable and the ONLY `tests/CMakeLists.txt` CTest
+registry; add exactly two portable test groups:
+`transport.share-server-finalization-encode-wire`
+compares independent canonical-padded 22-byte server
+Synchronize and 26-byte Cooperate/Granted Control
+oracle packets from MS-RDPBCGR 4.1.19-4.1.21,
+checks shareID, pduSource, stream 0/2, type2, action,
+grant/control IDs, suffix preservation and roundtrip
+through the existing Synchronize/Control decoders.
+Test edge-case targetUser including the Microsoft
+uninitialized 0x4463 example as *untrusted raw syntax*,
+and valid client assigned IDs 1001/1007/65535.
+`transport.share-server-finalization-encode-rejections`
+checks EVERY insufficient destination capacity,
+Request Control/Detach/unknown action exclusions,
+Cooperate with nonzero client ID, Granted with
+invalid 0/1000/65536/out-of-range client ID and
+exact destination no-write atomicity on failure.
+The canonical zero pad is a new writer decision; it
+does not weaken the decoder's acceptance of ignored
+nonzero pad fields. No real session, account or network.
+
+Expected portable CTests **87** (was 85) and
+Linux GSS-enabled **97** (was 95). Corrected code
+exact-head CI and owner-local CTest are NOT RUN at
+authoring. SDK/OS tests and real Kerberos/TLS,
+licensed share activation, actual client and
+desktop remain independent acceptance gates.
+
 ## Verified offline T.128 Synchronize/Control finalization tests (CI PASS, 2026-10-15)
 
 Use the existing `tests/test_owned_mcs_connect_initial.cpp`

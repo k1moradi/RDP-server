@@ -401,6 +401,46 @@ independent OS session policy, prior Demand Active shareID,
 required capability types/contents, and transcript ordering
 BEFORE any share activation or input acceptance.
 
+### Offline server Synchronize / Control finalization writers (2026-10-15)
+
+The same `mcs_channel_connection` translation unit now writes
+one complete plaintext Share Control + Share Data packet directly
+into a caller-owned span, with no intermediate buffers, MCS
+SendDataIndication, TLS or desktop activation. Following
+[MS-RDPBCGR 2.2.1.14.1](https://learn.microsoft.com/fr-ch/openspecs/windows_protocols/ms-rdpbcgr/3fb4c95e-ad2d-43d1-a46f-5bd49418da49),
+`encodeRdpServerSynchronizePdu` emits 22 bytes: pduSource
+1002, version/type 0x0017, caller shareID, uncompressed stream
+0, type2 0x1f, SYNCMSGTYPE_SYNC=1 and caller-provided LE16
+targetUser. This is intentional: Microsoft's Server Synchronize
+packet example has a historically uninitialized targetUser,
+so the offline encoder treats it as raw syntax, NOT channel
+admission.
+
+Per [MS-RDPBCGR 2.2.1.15.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/0448f397-aa11-455d-81b1-f1265085239d),
+`encodeRdpServerControlPdu` emits a fixed 26-byte uncompressed
+Share Data packet with stream=2, type2=0x14, and exactly
+two server-side action forms: Cooperate action=4 requires
+assignedClientUserId=0 and emits grantId/controlId 0/0;
+Granted Control action=2 requires a client user-channel ID
+1001..65535, emits grantId=that ID and controlId=1002.
+Client-only Request Control and Detach, unknown actions,
+invalid user-channel IDs and insufficient caller capacity
+are rejected BEFORE any output mutation. Both packets
+write ignored padding as zero, provide exact packet lengths,
+and preserve the untouched output suffix.
+
+All fixed Share Control/Data metadata is written by one
+private helper to avoid different framing between the two
+server-side writers; the existing independent decoders
+round-trip the results. **Neither a successful serializer
+nor an encoded Granted Control action grants any rights.**
+Only a future authenticated CredSSP/Kerberos TLS owner with
+independent OS session policy, joined MCS channels, a
+licensed/activated share, exact message direction and
+ordering may actually send such finalization records.
+No live socket, TLS writer, graphics, input or console
+access is introduced.
+
 ### Offline RDP connection-finalization Control and Synchronize PDUs (2026-10-15)
 
 The original `mcs_channel_connection` module now reuses its checked

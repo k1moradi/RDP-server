@@ -711,7 +711,7 @@ was nonzero and ignored. Corrected oracle PASS.
 Kerberos/TLS, independent OS admission, licensing,
 capability negotiation, desktop or client.
 
-## Offline activation transcript-correlation regressions (CI NOT RUN, 2026-10-15)
+## Verified activation transcript-correlation regressions (CI PASS, 2026-10-15)
 
 Add exactly two portable behavioral CTests to the original
 `tests/test_owned_mcs_connect_initial.cpp` executable
@@ -731,12 +731,20 @@ and invalid client IDs 0/1000/65536/UINT32_MAX.
 No TLS, OS, socket, console, policy or live session
 is activated by either positive syntax result.
 
-Expected full portable suite **89** (prior 87);
-Linux GSS-enabled **99** (prior 97). The new code
-CI and owner-local build/CTest are NOT RUN at
-authoring. Genuine positive Kerberos/pubKeyAuth
-and independent OS session authorization remain
-the separate non-synthetic acceptance gates.
+Verified portable suite **89** (prior 87),
+Linux GSS-enabled **99** (prior 97).
+**PASS:** exact implementation
+`d83549d489be2b8e49855429693d2c5d4b1a0a71`,
+[CI 38719691636](https://github.com/k1moradi/RDP-server/actions/runs/38719691636):
+Linux/GCC **99/99**, macOS/Clang and Windows/MSVC
+**89/89** full Debug/Release CTests. Both new
+correlation/denial cases, installed SDK consumer,
+ZIP/SHA256 uploads and documentation policy PASS.
+**NOT RUN:** owner-local new-head CTest,
+positive Kerberos/TLS/pubKeyAuth, independent
+OS authorization, live capability negotiation,
+licensing and desktop. Matching syntax is never
+a security credential or activation evidence.
 
 ## Verified Demand/Confirm Active capability-envelope tests (CI PASS, 2026-10-15)
 

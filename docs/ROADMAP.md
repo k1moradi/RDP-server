@@ -1154,7 +1154,7 @@ acceptance evidence; no synthetic completion claims.
   authorization before finalization can be dispatched
   from a single live session owner.
   **Partial OFFLINE Demand/Confirm Active transcript correlation
-  (2026-10-15; CI NOT RUN at authoring):** the existing
+  (2026-10-15; CI PASS):** the existing
   first-party C++23 MCS/Share module now correlates one
   complete server Demand and one complete client Confirm
   after reusing the canonical exact-length Active parser.
@@ -1173,12 +1173,21 @@ acceptance evidence; no synthetic completion claims.
   Baseline main `0e508cfad519d7f9f9f7cb0dd5e54b1c0118e465`
   passed [CI 38718555326](https://github.com/k1moradi/RDP-server/actions/runs/38718555326);
   owner reports **87/87 local PASS** on that head.
-  **NOT RUN:** new exact-head CI/local rebuild, real
-  Kerberos/TLS pubKeyAuth with isolated tickets/keytab,
-  independently audited OS authorization, licensed
-  capability negotiation, activated share or desktop.
-  **Next:** exact-head Linux/macOS/Windows CI, then
-  controlled real GSS/TLS and independent OS identity
+  **PASS:** exact implementation `d83549d489be2b8e49855429693d2c5d4b1a0a71`,
+  [Actions 38719691636](https://github.com/k1moradi/RDP-server/actions/runs/38719691636):
+  Linux/GCC **99/99**, macOS/Clang and Windows/MSVC
+  **89/89** full CTests in EACH Debug and Release,
+  including both new Active-correlation cases;
+  docs policy, installed SDK consumer and all
+  three ZIP/SHA256 artifacts PASS. Untagged
+  prerelease publication SKIPPED.
+  **NOT RUN:** owner-local new-head build/CTest,
+  real Kerberos/TLS pubKeyAuth with isolated
+  tickets/keytab, independently audited OS
+  authorization, licensed capability negotiation,
+  activated share or desktop.
+  **Next:** owner-local single-build-root CTest,
+  then controlled real GSS/TLS and independent OS identity
   before a single authenticated owner may enforce
   activation order and dispatch any channel traffic.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel

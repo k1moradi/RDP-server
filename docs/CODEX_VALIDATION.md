@@ -1483,7 +1483,7 @@ then isolated authorized GSS/TLS evidence and
 independent OS authorization before live
 capability negotiation/desktop transmission.
 
-## Pending offline Demand/Confirm Active correlation (2026-10-15)
+## Verified offline Demand/Confirm Active correlation (2026-10-15)
 
 **Previous exact main:** `0e508cfad519d7f9f9f7cb0dd5e54b1c0118e465`,
 [CI 38718555326](https://github.com/k1moradi/RDP-server/actions/runs/38718555326)
@@ -1515,19 +1515,25 @@ Expected **89 portable / 99 Linux GSS** total.
 Same implementation commit updates sole ROADMAP
 and architecture, coding and testing standards.
 
-**NOT RUN at authoring:** exact new Linux/macOS/
-Windows Debug/Release CI, owner-local compile/CTest,
-real Kerberos/TLS protected binding and delegated
-credentials, independent OS authorization, actual
-licensed share activation, Windows/macOS client,
-graphics, input or desktop.
+**PASS:** exact implementation
+`d83549d489be2b8e49855429693d2c5d4b1a0a71`,
+[Actions 38719691636](https://github.com/k1moradi/RDP-server/actions/runs/38719691636):
+Linux/GCC **99/99**, macOS/Clang and Windows/MSVC
+**89/89** CTests BOTH Debug and Release, including
+both new correlation cases; installed SDK consumer,
+ZIP/SHA256 packages and docs-policy PASS.
+Prerelease publishing SKIPPED without a tag.
+**NOT RUN:** owner-local new-head compile/CTest,
+real Kerberos/TLS protected binding, credentials,
+independent OS authorization, licensed share,
+Microsoft clients, graphics, input and desktop.
 Owner's one reused build root:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`;
 `cmake --build build --config Debug --parallel 2`;
 `ctest --test-dir build -C Debug --output-on-failure`.
-**Next gate:** exact-head cross-platform CI;
-genuine isolated Kerberos/TLS + OS identity
-before any live activation.
+**Next gate:** owner-local single-root CTest,
+then genuinely isolated Kerberos/TLS + independently
+authorized OS identity before any live activation.
 
 ## Verified Demand/Confirm Active capability envelope intake (2026-10-15)
 

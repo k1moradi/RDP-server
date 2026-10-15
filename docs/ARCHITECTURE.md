@@ -949,7 +949,7 @@ then reject the session separately.
 No new GSS, OS admission, service,
 or RDP client acceptance is implied.
 
-## Offline client/server finalization PDU correlation (2026-10-15; CI NOT RUN)
+## Offline client/server finalization PDU correlation (2026-10-15; CI PASS)
 
 Per MS-RDPBCGR 2.2.1.14–2.2.1.21, a pure, borrow-only
 `RdpFinalizationTranscript` compares complete decrypted
@@ -963,3 +963,15 @@ The named fields do not establish arrival order or peer
 provenance; the future single authenticated session owner
 must enforce the actual dependencies, Kerberos/CredSSP/TLS,
 independent OS admission and licensing before activation.
+
+**Exact implementation CI PASS (2026-10-15):**
+`27996f24e5fbb497c0bee37756d34551d1a47e47`,
+[Actions 38735353873](https://github.com/k1moradi/RDP-server/actions/runs/38735353873).
+Linux/GCC **101/101** CTests and macOS/Clang,
+Windows/MSVC **91/91** CTests in BOTH Debug and Release,
+including the new finalization correlation/denial cases.
+SDK consumer/install, ZIP/SHA256 uploads and documentation
+policy also PASS; prerelease publishing SKIPPED (no tag).
+Owner-local compile, real GSS/TLS positive Kerberos binding,
+independent OS authorization and client/desktop remain
+**NOT RUN**.

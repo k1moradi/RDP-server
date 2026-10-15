@@ -2068,7 +2068,7 @@ and `ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure`.
 without granting OS session access. Verified offline CI does
 not authorize an MCS session or desktop.
 
-## Pending offline finalization transcript cross-check (2026-10-15)
+## Verified offline finalization transcript cross-check (2026-10-15)
 
 **Baseline main:** `7777cc92a35cb94193eea4980285dd8153c49648`.
 **Previous verified implementation:** `d83549d489be2b8e49855429693d2c5d4b1a0a71`,
@@ -2106,3 +2106,21 @@ ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 
 Then obtain explicitly authorized isolated real GSS/TLS
 and independent OS authorization before any live finalization.
+
+**PASS:** exact implementation
+`27996f24e5fbb497c0bee37756d34551d1a47e47`,
+[Actions 38735353873](https://github.com/k1moradi/RDP-server/actions/runs/38735353873):
+Linux/GCC **101/101**, macOS/Clang and Windows/MSVC
+**91/91** CTests in BOTH Debug and Release, including
+`transport.share-finalization-exchange-correlation` and
+`transport.share-finalization-exchange-denials` on each OS.
+Documentation-policy, installed SDK downstream consumer,
+ZIP/SHA256 archive/checksum uploads PASS. Untagged release
+job SKIPPED. The earlier "NOT RUN at authoring" status
+correctly describes the initial pre-CI checkpoint.
+**NOT RUN:** owner-local current-head build/CTest, real
+Kerberos/TLS public-key proof and tickets, independently
+authorized OS admission, actual ordered MCS/TLS
+finalization, licensing, Windows/macOS client or desktop.
+**Next:** owner-local single-root Debug CTest, then
+separately authorized GSS/TLS and OS-admission gates.

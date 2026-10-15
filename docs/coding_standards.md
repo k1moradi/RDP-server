@@ -1055,7 +1055,7 @@ or lead to MCS. No automatic provider
 error mapping until the true NLA
 failure/connection state is implemented.
 
-## Offline finalization role check (2026-10-15; CI NOT RUN)
+## Offline finalization role check (2026-10-15; CI PASS)
 
 MS-RDPBCGR 2.2.1.14–2.2.1.21 permits a pure finalization
 cross-check using existing exact-length Share Data parsers.
@@ -1068,3 +1068,15 @@ is opaque in the published example, not reliable identity.
 The caller alone enforces actual wire order, per-message
 sender provenance, MCS joins and independent OS admission.
 All spans borrow complete input buffers for the call only.
+
+**Exact implementation CI PASS (2026-10-15):**
+`27996f24e5fbb497c0bee37756d34551d1a47e47`,
+[Actions 38735353873](https://github.com/k1moradi/RDP-server/actions/runs/38735353873).
+Linux/GCC **101/101** CTests and macOS/Clang,
+Windows/MSVC **91/91** CTests in BOTH Debug and Release,
+including the new finalization correlation/denial cases.
+SDK consumer/install, ZIP/SHA256 uploads and documentation
+policy also PASS; prerelease publishing SKIPPED (no tag).
+Owner-local compile, real GSS/TLS positive Kerberos binding,
+independent OS authorization and client/desktop remain
+**NOT RUN**.

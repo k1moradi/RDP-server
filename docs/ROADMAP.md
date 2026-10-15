@@ -1191,8 +1191,8 @@ acceptance evidence; no synthetic completion claims.
   before a single authenticated owner may enforce
   activation order and dispatch any channel traffic.
 
-  **Partial OFFLINE finalization transcript correlation (2026-10-15;
-  exact-head CI NOT RUN at authoring):** The original first-party
+  **Verified partial OFFLINE finalization transcript correlation (2026-10-15;
+  exact-head CI PASS):** The original first-party
   Share Data parsers now support zero-allocation
   `correlateRdpFinalizationExchange` for six complete PDUs:
   client Synchronize/Cooperate/Request and server
@@ -1217,12 +1217,19 @@ acceptance evidence; no synthetic completion claims.
   [CI 38719691636](https://github.com/k1moradi/RDP-server/actions/runs/38719691636)
   PASS on Linux, macOS, Windows and docs/SDK; owner reports
   **89/89 local PASS** on previous code, without full logs/SHA.
-  **NOT RUN:** new-head CI or owner-local build/CTest,
+  **PASS:** exact implementation `27996f24e5fbb497c0bee37756d34551d1a47e47`,
+  [Actions 38735353873](https://github.com/k1moradi/RDP-server/actions/runs/38735353873):
+  Linux/GCC **101/101** and macOS/Clang, Windows/MSVC
+  **91/91** registered CTests in EACH Debug and Release.
+  Both new behavior suites, documentation-policy, SDK
+  installed downstream consumer and ZIP/SHA256 packaging
+  and uploads PASS; untagged prerelease SKIPPED.
+  **NOT RUN:** owner-local updated build/CTest,
   real Kerberos/TLS binding, independently authorized OS user,
   live ordered encrypted finalization, licensed share,
-  Microsoft client or desktop. **Next:** run exact-head
-  Debug/Release matrix, then controlled real GSS/TLS and
-  separate OS authorization before any live PDU dispatch.
+  Microsoft client or desktop. **Next:** owner-local single-root CTest, then
+  controlled real GSS/TLS and independent OS admission
+  before any live PDU dispatch.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

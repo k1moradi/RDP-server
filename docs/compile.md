@@ -24,6 +24,20 @@ GitHub-hosted CI cannot persist the owner's home checkout across jobs,
 so **each isolated job** uses exactly one ephemeral
 `<checkout>/build` and does not commit its output.
 
+## Linux-only first-party XCB connection dependencies (R5)
+
+If pkg-config finds both `xcb` and `xcb-randr`, the default Linux
+CMake build compiles `rdp-server-x11-connection` and registers
+`x11.display-event-budget-and-readiness`. Debian/Ubuntu provide the
+native headers and linkage via `libxcb1-dev` and
+`libxcb-randr0-dev`; the existing Linux CI job installs both.
+The ordinary owner CMake/CTest one-liner is unchanged. If those
+optional native development packages are missing, configure logs
+that the native target and its CTest are not compiled/run; do NOT
+report native PASS from headless helper checks. Windows/macOS and
+the portable protocol library never require XCB. No display server,
+credentials or live desktop are required for the native fixture.
+
 ## Owner's required daily test from the latest GitHub main
 
 Agents commit production code, its dedicated, registered behavior-named

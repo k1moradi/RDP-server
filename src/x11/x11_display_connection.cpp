@@ -3,84 +3,66 @@
 #include "x11_display_connection.h"
 
 #include <cstdlib>
-#include <fcntl.h>
 #include <string>
-#include <unistd.h>
 
 #include <xcb/randr.h>
 
 namespace
 {
 
-int
-duplicate_wait_file_descriptor(int fileDescriptor) noexcept
+struct XcbPollContext
 {
-#ifdef F_DUPFD_CLOEXEC
-    const int duplicate = fcntl(fileDescriptor, F_DUPFD_CLOEXEC, 1);
-    if (duplicate >= 0)
+    X11DisplayConnection *owner;
+    bool socketReadable;
+};
+
+xcb_generic_event_t *
+poll_xcb_event(void *context) noexcept
+{
+    const auto &state = *static_cast<XcbPollContext *>(context);
+    // Recheck after each callback: a sink may cancel/disconnect the owner.
+    xcb_connection_t *connection = state.owner->nativeConnection();
+    if (connection == nullptr)
     {
-        return duplicate;
-    }
-#endif
-    const int fallbackDuplicate = fcntl(fileDescriptor, F_DUPFD, 1);
-    if (fallbackDuplicate < 0)
-    {
-        return -1;
+        return nullptr;
     }
 
-    const int descriptorFlags = fcntl(fallbackDuplicate, F_GETFD);
-    if (descriptorFlags < 0 ||
-        fcntl(fallbackDuplicate, F_SETFD, descriptorFlags | FD_CLOEXEC) < 0)
+    // First drain XCB's already buffered events without reading the socket.
+    if (xcb_generic_event_t *event = xcb_poll_for_queued_event(connection))
     {
-        ::close(fallbackDuplicate);
-        return -1;
+        return event;
     }
-    return fallbackDuplicate;
+    // Polling the socket is nonblocking, but only legal after readiness.
+    return state.socketReadable ? xcb_poll_for_event(connection) : nullptr;
 }
 
-constexpr int kMaxXrdpWaitFileDescriptor = 0xffff;
-
-ConnectionStatus
-dispatch_events(xcb_connection_t *connection, X11EventSink &eventSink,
-                bool readFromSocket, std::size_t eventBudget,
-                std::size_t &eventsDispatched, bool &failed,
-                std::uint8_t randrFirstEvent, xcb_window_t rootWindow,
-                PixelSize &sourceGeometry) noexcept
+struct RandrObservation
 {
-    xcb_generic_event_t *event = nullptr;
-    while (eventsDispatched < eventBudget &&
-           (event = readFromSocket ? xcb_poll_for_event(connection)
-                                   : xcb_poll_for_queued_event(connection)) !=
-               nullptr)
+    X11DisplayConnection *owner;
+    std::uint8_t firstEvent;
+    xcb_window_t rootWindow;
+    PixelSize *geometry;
+};
+
+void
+observe_randr(const xcb_generic_event_t &event, void *context) noexcept
+{
+    const auto &state = *static_cast<RandrObservation *>(context);
+    if (!state.owner->valid() || state.firstEvent == 0 ||
+        (event.response_type & 0x7f) !=
+            static_cast<std::uint8_t>(
+                state.firstEvent + XCB_RANDR_SCREEN_CHANGE_NOTIFY))
     {
-        if (event->response_type == 0)
-        {
-            // A queued protocol error is not a typed event. Treat it as a
-            // transport failure rather than passing it to a subsystem sink.
-            std::free(event);
-            failed = true;
-            return ConnectionStatus::Failed;
-        }
-        eventSink.handle(*event);
-        const std::uint8_t responseType = event->response_type & 0x7f;
-        if (randrFirstEvent != 0 &&
-            responseType == static_cast<std::uint8_t>(
-                                randrFirstEvent +
-                                XCB_RANDR_SCREEN_CHANGE_NOTIFY))
-        {
-            const auto &screenChange =
-                reinterpret_cast<const xcb_randr_screen_change_notify_event_t &>(
-                    *event);
-            if (screenChange.root == rootWindow && screenChange.width != 0 &&
-                screenChange.height != 0)
-            {
-                sourceGeometry = {screenChange.width, screenChange.height};
-            }
-        }
-        std::free(event);
-        ++eventsDispatched;
+        return;
     }
-    return ConnectionStatus::Ok;
+    const auto &resize =
+        reinterpret_cast<const xcb_randr_screen_change_notify_event_t &>(
+            event);
+    if (resize.root == state.rootWindow &&
+        resize.width != 0 && resize.height != 0)
+    {
+        *state.geometry = {resize.width, resize.height};
+    }
 }
 
 } // namespace
@@ -171,34 +153,7 @@ X11DisplayConnection::X11DisplayConnection(std::string_view displayName) noexcep
         return;
     }
 
-    waitFileDescriptor_ = connectionFileDescriptor_;
-    if (waitFileDescriptor_ == 0)
-    {
-        waitFileDescriptor_ =
-            duplicate_wait_file_descriptor(connectionFileDescriptor_);
-        if (waitFileDescriptor_ < 0)
-        {
-            failed_ = true;
-            close();
-            return;
-        }
-        waitObjectUsesDuplicate_ = true;
-    }
 
-    if (waitFileDescriptor_ > kMaxXrdpWaitFileDescriptor)
-    {
-        failed_ = true;
-        close();
-        return;
-    }
-
-    waitObject_ = g_create_wait_obj_from_socket(waitFileDescriptor_, 0);
-    if (waitObject_ == NULL_WAIT_OBJ)
-    {
-        failed_ = true;
-        close();
-        return;
-    }
 }
 
 X11DisplayConnection::~X11DisplayConnection() noexcept
@@ -209,25 +164,14 @@ X11DisplayConnection::~X11DisplayConnection() noexcept
 void
 X11DisplayConnection::close() noexcept
 {
-    if (waitObject_ != NULL_WAIT_OBJ)
-    {
-        g_delete_wait_obj_from_socket(waitObject_);
-        waitObject_ = NULL_WAIT_OBJ;
-    }
-
-    if (waitObjectUsesDuplicate_ && waitFileDescriptor_ >= 0)
-    {
-        ::close(waitFileDescriptor_);
-    }
-    waitFileDescriptor_ = -1;
-    waitObjectUsesDuplicate_ = false;
-
+    // XCB alone owns and closes the socket. Never duplicate/close its fd.
+    connectionFileDescriptor_ = -1;
     if (connection_ != nullptr)
     {
         xcb_disconnect(connection_);
         connection_ = nullptr;
     }
-    connectionFileDescriptor_ = -1;
+    failed_ = true;
     screenNumber_ = -1;
     rootWindow_ = XCB_WINDOW_NONE;
     rootVisual_ = XCB_NONE;
@@ -241,8 +185,7 @@ X11DisplayConnection::valid() const noexcept
 {
     return !failed_ && connection_ != nullptr &&
            xcb_connection_has_error(connection_) == 0 &&
-           connectionFileDescriptor_ >= 0 &&
-           waitObject_ != NULL_WAIT_OBJ && screenNumber_ >= 0 &&
+           connectionFileDescriptor_ >= 0 && screenNumber_ >= 0 &&
            rootWindow_ != XCB_WINDOW_NONE &&
            rootVisual_ != XCB_NONE && rootDepth_ != 0 &&
            sourceGeometry_.widthPixels > 0 &&
@@ -258,96 +201,81 @@ X11DisplayConnection::randrAvailable() const noexcept
 xcb_connection_t *
 X11DisplayConnection::nativeConnection() const noexcept
 {
-    return connection_;
+    return valid() ? connection_ : nullptr;
 }
 
 PixelSize
 X11DisplayConnection::sourceGeometry() const noexcept
 {
-    return sourceGeometry_;
+    return valid() ? sourceGeometry_ : PixelSize{};
 }
 
 int
 X11DisplayConnection::screenNumber() const noexcept
 {
-    return screenNumber_;
+    return valid() ? screenNumber_ : -1;
 }
 
 xcb_window_t
 X11DisplayConnection::rootWindow() const noexcept
 {
-    return rootWindow_;
+    return valid() ? rootWindow_ : XCB_WINDOW_NONE;
 }
 
 xcb_visualid_t
 X11DisplayConnection::rootVisual() const noexcept
 {
-    return rootVisual_;
+    return valid() ? rootVisual_ : XCB_NONE;
 }
 
 std::uint8_t
 X11DisplayConnection::rootDepth() const noexcept
 {
-    return rootDepth_;
-}
-
-tbus
-X11DisplayConnection::waitObject() const noexcept
-{
-    return waitObject_;
+    return valid() ? rootDepth_ : 0;
 }
 
 int
 X11DisplayConnection::fileDescriptor() const noexcept
 {
-    return connectionFileDescriptor_;
+    return valid() ? connectionFileDescriptor_ : -1;
+}
+
+void
+X11DisplayConnection::disconnect() noexcept
+{
+    close();
 }
 
 ConnectionStatus
 X11DisplayConnection::processEvents(X11EventSink &eventSink,
                                     std::size_t eventBudget,
-                                    bool *budgetExhausted) noexcept
+                                    bool *workMayRemain,
+                                    bool socketReadable) noexcept
 {
-    if (budgetExhausted != nullptr)
+    if (workMayRemain != nullptr)
     {
-        *budgetExhausted = false;
+        *workMayRemain = false;
     }
     if (!valid())
     {
+        disconnect();
         return ConnectionStatus::Failed;
     }
 
-    if (eventBudget == 0)
+    XcbPollContext poll{this, socketReadable};
+    RandrObservation randr{this, randrFirstEvent_, rootWindow_,
+                           &sourceGeometry_};
+    const auto result = processX11EventBatch(
+        eventSink, poll_xcb_event, &poll, eventBudget,
+        observe_randr, &randr);
+    if (result.status == ConnectionStatus::Failed || !valid())
     {
-        eventBudget = 1;
-    }
-
-    std::size_t eventsDispatched = 0;
-    if (dispatch_events(connection_, eventSink, false, eventBudget,
-                        eventsDispatched, failed_, randrFirstEvent_,
-                        rootWindow_, sourceGeometry_) ==
-        ConnectionStatus::Failed)
-    {
+        disconnect();
         return ConnectionStatus::Failed;
     }
-
-    if (eventsDispatched < eventBudget && g_is_wait_obj_set(waitObject_) &&
-        dispatch_events(connection_, eventSink, true, eventBudget,
-                        eventsDispatched, failed_, randrFirstEvent_,
-                        rootWindow_, sourceGeometry_) ==
-            ConnectionStatus::Failed)
+    if (workMayRemain != nullptr)
     {
-        return ConnectionStatus::Failed;
-    }
-
-    if (xcb_connection_has_error(connection_) != 0)
-    {
-        failed_ = true;
-        return ConnectionStatus::Failed;
-    }
-    if (budgetExhausted != nullptr)
-    {
-        *budgetExhausted = eventsDispatched >= eventBudget;
+        *workMayRemain = result.workMayRemain;
     }
     return ConnectionStatus::Ok;
 }

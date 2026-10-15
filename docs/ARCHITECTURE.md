@@ -35,6 +35,32 @@ target nor this test authorizes an OS session or delivers R4 frames.
 Other imported algorithms not
 listed in CMake are under porting review and are not silently shipped.
 
+### R5 native XCB connection readiness and ownership
+
+The existing `src/x11/x11_display_connection.{h,cpp}` is the only XCB
+connection owner. It obtains its borrowed file descriptor via
+`xcb_get_file_descriptor`; R10's eventual event loop owns polling, not
+the socket, and must never close/duplicate that borrowed descriptor.
+On the owning XCB thread it calls
+`processEvents(sink, budget, workMayRemain, socketReadable)` after
+readiness and to drain already queued events. It polls the XCB socket
+only when externally reported readable; an exhausted event budget
+signals that more buffered work MAY remain (another service iteration
+is needed even without a new edge). Event callbacks only borrow event
+memory until return. XCB protocol errors and connection failures
+invalidate native access; `disconnect()` is idempotent and clears
+descriptor, root/window/depth, screen number and geometry. RandR
+screen-change root notifications update native geometry.
+
+`rdp-server-x11-connection` is a separate Linux-only first-party target
+requiring XCB and XCB/RandR development packages. It is not exported,
+installed, or linked into the portable protocol SDK; `src/x11`
+headers are excluded from the portable SDK installation. Ordinary
+CTest runs use synthetic XCB events and invalid display syntax without
+a desktop. The native connection alone grants no authenticated R2/R3
+OS session permission and must not trigger protected capture or input.
+R4 remains the sole frame scheduler.
+
 ### Windows monitor layout adapter (R6; not session-integrated)
 
 The native adapter spells the existing portable `struct ::Rectangle` as

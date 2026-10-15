@@ -2167,6 +2167,24 @@ actually run; another parser CTest alone is not a complete session.
   performance benchmarks. **Next R5:** compile and test actual native
   XCB cursor lifecycle with controlled replies; integrate only after
   R2/R3 admission and R4 graphics routing. M3 stays NOT RUN.
+  **R5 first-party XCB event readiness (based on main
+  `5c885088775bcbb74b3a9083bd165b4fd17d8bf7`; exact-SHA CI pending):** replace xrdp config, os_calls
+  and tbus wait-object dependencies in `X11DisplayConnection` with
+  XCB-owned borrowed descriptor, external readable-socket indication,
+  bounded queued events, continuation hint, RandR root resize handling
+  and deterministic disconnection (no socket dup/close). On Linux the
+  ordinary CMake build compiles the real native XCB/RandR source when
+  pkg-config finds xcb and xcb-randr; hosted Linux CI installs headers.
+  New dedicated native Linux CTest `x11.display-event-budget-and-readiness`
+  exercises the production event-drain, injected synthetic events and
+  invalid-display teardown without a real X server. **PASS:** isolated
+  strict GCC 14/Clang 17 C++23 dispatch fixture and GCC ASan+UBSan.
+  **NOT RUN locally:** actual RandR translation unit (missing dev
+  xcb/randr.h), canonical full CTest (no clone), owner Linux/X11,
+  Windows CLANG64/Clang23, macOS 27, benchmarks and authorized desktop.
+  **Next R5:** native capture/cursor/damage resource lifecycle, then
+  R2/R3-authorized desktop operation feeding R4 frame consumer.
+  M3 remains NOT RUN.
   **R5 Linux XCB-SHM native compile increment (2026-10-15;
   base `aa15209c67d74814cac8c859997e623cd096691c`, exact-SHA CI pending):**
   Add separate, noninstalled `rdp-server-linux-xshm` native Linux

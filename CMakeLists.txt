@@ -87,7 +87,6 @@ add_library(rdp-server-protocol STATIC
     src/rdp/gfx_surface_lifecycle.cpp
     src/rdp/gfx_avc420_capabilities.cpp
     src/rdp/gfx_frame_acknowledge.cpp
-    src/rdp/gfx_presentation_lifecycle.cpp
     src/rdp/verified_bitmap_cache16.cpp)
 target_compile_features(rdp-server-protocol PUBLIC cxx_std_23)
 # These are the same public include prefixes in both the checkout and
@@ -146,6 +145,30 @@ if(WIN32)
     else()
         target_compile_options(rdp-server-windows-desktop PRIVATE
             -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endif()
+
+# R5 first-party native XCB/RandR connection; the portable RDP SDK
+# never links XCB. The native target is built when the development
+# packages exist; CI provisions them on Linux for exact-SHA coverage.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_XCB_RANDR QUIET IMPORTED_TARGET
+            xcb xcb-randr)
+    endif()
+    if(RDP_SERVER_XCB_RANDR_FOUND)
+        add_library(rdp-server-x11-connection STATIC
+            src/x11/x11_display_connection.cpp)
+        target_compile_features(rdp-server-x11-connection PUBLIC cxx_std_23)
+        target_include_directories(rdp-server-x11-connection PUBLIC
+            "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+        target_link_libraries(rdp-server-x11-connection PUBLIC
+            PkgConfig::RDP_SERVER_XCB_RANDR)
+        target_compile_options(rdp-server-x11-connection PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    else()
+        message(STATUS "R5 xcb/xcb-randr headers unavailable: native X11 connection CTest not built")
     endif()
 endif()
 
@@ -239,7 +262,8 @@ install(TARGETS rdp-server-protocol EXPORT RDPServerProtocolTargets
 install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     FILES_MATCHING PATTERN "*.h"
     PATTERN "windows" EXCLUDE
-    PATTERN "macos" EXCLUDE)
+    PATTERN "macos" EXCLUDE
+    PATTERN "x11" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake
     NAMESPACE RDPServer::

@@ -3652,3 +3652,44 @@ real Microsoft client graphics and performance.
 **Next:** R3 must provide real admitted graphics-channel
 generation and exact outbound completion callbacks; then
 wire to R4 frame scheduler/encoder. Gate B/M3–M5 OPEN.
+
+## R5 first-party XCB descriptor/event readiness (2026-10-15)
+
+**Baseline main:** `5c885088775bcbb74b3a9083bd165b4fd17d8bf7`; exact implementation SHA/CI pending when
+authored. Atomic source/test/CMake/CI/docs files: existing
+`src/x11/x11_display_connection.{h,cpp}`, new
+`src/x11/x11_event_dispatch.h` and `tests/test_x11_display_events.cpp`,
+top-level `CMakeLists.txt`, `tests/CMakeLists.txt`,
+`.github/workflows/ci.yml`, `docs/ROADMAP.md`,
+`docs/ARCHITECTURE.md`, `docs/compile.md` and this ledger.
+
+The native X11 connection removes legacy xrdp `config_ac.h`,
+`os_calls.h`, tbus wait objects and any socket duplication/close.
+XCB remains the sole socket owner, exposes a borrowed fd and explicit
+ready-to-read dispatch. Nonblocking queued events, bounded budgets,
+the may-have-more hint, typed RandR root resize notification handling,
+fatal XCB error denial and idempotent descriptor/geometry invalidation
+reuse one event owner. No new input, capture or RDP session is activated.
+The native Linux static target (xcb + xcb-randr) is neither linked to
+nor exported from the portable SDK; SDK no longer installs X11 headers.
+Ubuntu CI installs XCB/RandR development packages.
+The new Linux-only CTest `x11.display-event-budget-and-readiness`
+uses the same production event-drain and, when built natively, exercises
+the real connection's invalid-display failure and repeated teardown.
+
+**PASS (isolated headless authoring fixture only):**
+GCC 14 / Clang 17 strict C++23 compile and execute of the actual
+`processX11EventBatch` production helper with synthetic XCB events;
+GCC AddressSanitizer+UBSan same fixture PASS.
+Earlier isolated R5 CTest fixture 3/3 PASS; this previous fixture
+does NOT represent the new native CTest or a full repository build.
+
+**BLOCKED/NOT RUN locally:** full repository configure/build/CTest
+(container cannot clone github.com), actual native RandR translation
+unit compile (`xcb/randr.h` and -dev linker symlink unavailable),
+owner Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS 27,
+authorized Microsoft-client RDP session, desktop input/capture,
+and performance measurements.
+**Next:** inspect exact-SHA Actions Linux Debug/Release native
+compile/CTest and Windows/macOS regression; then native XShm/cursor/
+damage lifetime integration with R2/R3 authorization and R4 consumption.

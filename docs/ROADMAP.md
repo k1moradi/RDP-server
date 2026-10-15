@@ -1787,7 +1787,7 @@ actually run; another parser CTest alone is not a complete session.
   **Next:** compose the existing R1 writer and genuine R2 OS-authorized
   TLS/CredSSP decision into one admission-gated R3 MCS domain dispatcher.
   **Gate A/M2 is NOT accepted** from this bookkeeping or synthetic tests.
-  **R3 outbound joined-channel envelope (2026-10-15; CI NOT RUN):**
+  **R3 outbound joined-channel envelope (2026-10-15; partial CI PASS):**
   The same post-attach join gate now wraps the existing T.125 server
   SendDataIndication encoder to refuse unjoined, queued, partially joined
   or closed channel IDs without output modification. Existing checked
@@ -1796,6 +1796,18 @@ actually run; another parser CTest alone is not a complete session.
   denials. Full project CTest and exact-SHA Actions NOT RUN at authoring.
   Membership is NOT R2 OS admission, TLS security, licensing, capability
   negotiation or data dispatch. R3 Gate A/M2 remains open.
+  **R3 exact-SHA hosted verification (2026-10-15):**
+  [Actions 38796333656](https://github.com/k1moradi/RDP-server/actions/runs/38796333656)
+  built this implementation SHA: Linux/GCC **161/161** and
+  macOS/Clang **150/150** full CTests PASS in Debug and Release,
+  including both new R3 cases; docs policy and downstream SDK PASS.
+  Windows/MSVC compiled and both new R3 CTests PASS, but full Debug
+  was **157/158 FAIL** at unrelated R10
+  `runtime.validates-configuration-comments-crlf` (expected exit 0,
+  observed 3); Windows Release **NOT RUN** because Debug failed.
+  Tracked in [R10 CI bug #10](https://github.com/k1moradi/RDP-server/issues/10).
+  Owner MSYS2 CLANG64/Clang23, macOS27 and Linux/X11 exact-SHA
+  independent tests and real OS-authorized RDP remain **NOT RUN**.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

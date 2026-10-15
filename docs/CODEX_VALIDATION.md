@@ -2694,6 +2694,22 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 joined outbound SendDataIndication gate (2026-10-15)
 
+**Exact-SHA hosted CI (2026-10-15):** implementation
+[`54e107bef8670c8ae3b739c442a3e6147a9b1069`](https://github.com/k1moradi/RDP-server/commit/54e107bef8670c8ae3b739c442a3e6147a9b1069),
+[Actions 38796333656](https://github.com/k1moradi/RDP-server/actions/runs/38796333656).
+Linux/GCC **161/161**, macOS/Clang **150/150** full CTests PASS
+in BOTH Debug and Release; both new R3 tests PASS on Linux,
+macOS AND Windows, documentation policy and SDK consumer PASS.
+Windows/MSVC Debug **157/158 FAIL**, specifically R10-owned
+`runtime.validates-configuration-comments-crlf` at
+`tests/check_runtime_entrypoint.cmake:118` (expected 0,
+observed 3). Windows Release NOT RUN; full workflow FAIL.
+R10 correction tracked in [issue #10](https://github.com/k1moradi/RDP-server/issues/10).
+This is not R3 CTest failure or proof of full integration;
+owner three-platform same-SHA, R2 genuine admission and live RDP
+remain NOT RUN.
+
+
 The existing `McsChannelJoinWriteGate` now checks fully completed
 channel membership before calling the existing production MCS server
 SendDataIndication encoder. It grants no R2 authentication, OS admission,

@@ -671,3 +671,31 @@ SSL write cannot be recalled.
 Do not confuse transport continuity
 with GSS provider authentication,
 OS authorization or session admission.
+
+## Cross-reader GSS transcript certificate identity (2026-10-14)
+
+Even correct individual `TsRequestFrameReader`
+certificate pinning is insufficient if application
+code constructs a new reader per CredSSP round.
+The existing Linux GSS acceptor MUST pin its own
+selected server DER X.509 SHA-256 identity at
+the first TLS-derived token, compare it
+constant-time at all later same-SSL GSS/
+pubKeyAuth/frame/writer handoffs, and cleanse
+the pin during terminal `reject()`.
+Neither the public raw-DER legacy deny-only
+API nor a fresh reader may bypass this policy.
+Do not elevate a verified Kerberos SPNEGO
+context to authorization: the OS adapter
+must still independently approve a session.
+
+The opt-in real provider probe must use ONLY an
+explicit `TERMSRV/host@REALM` service principal,
+explicit `FILE:/` keytab and separately specified
+`FILE:/` initiator credential cache. It must NOT
+load a host default keytab/cache, fabricate
+provider success, spin up an implicit KDC,
+start an RDP listener or accept an OS account.
+Use existing native GSS and OpenSSL TLS fixture
+and one current connection owner; never log
+or commit credentials.

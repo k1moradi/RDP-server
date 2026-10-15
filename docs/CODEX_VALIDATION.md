@@ -1218,3 +1218,69 @@ tests never grant admission.
 positive Kerberos/GSS TLS proof
 and independent OS authorization
 before MCS, graphics or desktop.
+
+## Pending GSS transcript-wide X509 certificate pin and opt-in positive probe (2026-10-14)
+
+**Verified prior main:** `973561cefc37f9c4d9195276da2ce84862eae4ae`,
+[CI 38674782887](https://github.com/k1moradi/RDP-server/actions/runs/38674782887):
+Linux/GCC 72/72, macOS/Clang/Windows/MSVC
+63/63 full Debug+Release CTests, SDK
+consumer, ZIP/SHA256 uploads and policy PASS.
+
+**New implementation; CI NOT RUN at authoring:**
+`src/server/security/gssapi_spnego_acceptor.{h,cpp}`
+now pins the FIRST TLS-selected server
+certificate SHA-256 independently of the
+reader and writer while retaining the
+existing SSL pointer/version and verified
+GSS provider context. `reject()`
+cleanses this fingerprint. The existing
+`src/server/security/gssapi_credssp_binding.cpp`
+checks that pin across both MS-CSSP final
+forms and protected GSS proof/queue. A
+fresh `TsRequestFrameReader` on the same
+SSL handle cannot forget the original
+GSS certificate identity. Every mismatch
+remains terminal, not an OS authorization.
+
+An explicit Linux-only
+`RDP_SERVER_TEST_REAL_KERBEROS=ON`
+CMake gate adds one **optional** security
+CTest in the existing
+`tests/test_owned_preauth_session.cpp`,
+using an externally prepared service
+principal and FILE: keytab plus FILE:
+client ticket cache, no defaults, no KDC
+bootstrap or activation. The probe
+performs real MIT GSS initiation and
+production acceptance over OpenSSL TLS,
+confidential GSS v5/v6 binding-only
+client/server public-key proof, plus
+new-reader same-SSL certificate mutation
+denial. This is an internal binding-only
+diagnostic, NOT normative Microsoft
+combined-final last-client-token
+interoperability or session admission.
+Opt-in CMake enforces mandatory environment
+variables. Default CI has no credentials
+and does NOT register/run this probe.
+Standard CTests remain expected Linux
+72, macOS and Windows 63 in BOTH configs.
+CI commands remain the existing
+single checkout-local `build/`
+Debug and Release CMake/CTest,
+downstream consumer, ZIP/SHA256 and
+documentation-policy gates. The optional
+probe must not be conflated with an
+actual successful positive GSS test:
+**NOT RUN:** provisioned positive
+keytab/client ticket and successful
+GSS/TLS proof, local owner's build,
+independently authorized OS user,
+Windows App or interactive desktop.
+**Next:** arrange an explicitly authorized
+isolated test keytab and client ticket
+then run the opt-in positive probe;
+verify combined-final wire behavior
+and independent OS authorization
+before MCS/desktop.

@@ -930,3 +930,48 @@ positive real Kerberos tickets/keytab
 and confirmed GSS/TLS public-key proof,
 OS authorization, external RDP client
 or interactive desktop.
+
+## Opt-in genuine Linux Kerberos/GSS and reader-swap probe (2026-10-14; NOT RUN)
+
+Build with `RDP_SERVER_TEST_LINUX_GSSAPI=ON`
+and separately `RDP_SERVER_TEST_REAL_KERBEROS=ON`
+ONLY when an authorized isolated MIT Kerberos realm
+has already provisioned all THREE shell environment
+values `RDP_TEST_KRB5_SERVICE=TERMSRV/host@REALM`,
+`RDP_TEST_KRB5_KEYTAB=FILE:/absolute/path`,
+`RDP_TEST_KRB5_CCACHE=FILE:/absolute/path`.
+CMake FATAL_ERRORs for opt-in without Linux/provider
+or any missing/malformed external setting.
+No local service, KDC, realm, ticket or password
+is automatically obtained or started by the
+project. The optional behavior-named CTest
+`security.gssapi-real-kerberos-tls-mechanism`
+uses an actual MIT GSS initiator credential
+acquired from the explicit cache and production
+service acceptor from its explicit keytab;
+exchanges opaque GSS SPNEGO tokens via the
+existing real OpenSSL in-memory TLS fixture
+at CredSSP versions 5 and 6, and ensures
+the verified mechanism alone never admits
+an OS account. The same test contains a
+separate diagnostic GSS-confidential
+binding-only request/reply + server hash
+verification and rejects an otherwise
+genuine authenticated transcript when a
+NEW frame reader sees a substituted
+X.509 on the SAME SSL handle. It is NOT
+a complete normative combined-final
+last-token MS-CSSP exchange; those
+flows and actual clients remain unverified.
+
+The optional case is NOT registered for
+normal CI, which has no tickets or service
+keytab. Existing portable and Linux
+CTests remain unchanged (Linux 72,
+macOS/Windows 63). **NOT RUN:** positive
+Kerberos probe, real-keytab/ccache
+provisioning, Windows App, OS user
+authorization and desktop. Do not
+mislabel compilation of this test
+as successful mutual Kerberos or
+authenticated account access.

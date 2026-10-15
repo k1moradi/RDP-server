@@ -56,8 +56,8 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processFramedProtectedBinding(
     // completedFrameServerTls() also checks the pinned selected X.509
     // fingerprint; a caller cannot inject or swap a TLS identity.
     const SSL *sourceTls = reader.completedFrameServerTls();
-    if (sourceTls == nullptr || negotiatedServerTls_ == nullptr ||
-        sourceTls != negotiatedServerTls_)
+    if (sourceTls == nullptr ||
+        !matchesNegotiatedCertificate(sourceTls))
     {
         reader.close();
         reject();
@@ -92,7 +92,8 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processFinalFramedNegoAndBinding(
     const auto parsed = parseCredSspTsRequest(reader.completeDer());
     if (stage_ != SpnegoStage::ContinueNeeded ||
         negotiatedServerTls_ == nullptr ||
-        sourceTls == nullptr || sourceTls != negotiatedServerTls_ ||
+        sourceTls == nullptr ||
+        !matchesNegotiatedCertificate(sourceTls) ||
         negotiatedVersion_ != parsed.value.version ||
         !parsed || !parsed.value.finalNegoAndBindingOnly())
     {
@@ -166,7 +167,7 @@ bool GssapiSpnegoAcceptor::queueFramedProtectedReply(
     const bool validBinding =
         result.ready &&
         stage_ == SpnegoStage::ServerBindingPrepared &&
-        negotiatedServerTls_ == sourceTls &&
+        matchesNegotiatedCertificate(sourceTls) &&
         (negotiatedVersion_ == 5 || negotiatedVersion_ == 6) &&
         !result.encryptedServerBinding.empty();
 
@@ -208,7 +209,7 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processVerifiedBinding(
         context_ == GSS_C_NO_CONTEXT ||
         activeServerTls == nullptr ||
         negotiatedServerTls_ == nullptr ||
-        activeServerTls != negotiatedServerTls_ ||
+        !matchesNegotiatedCertificate(activeServerTls) ||
         negotiatedVersion_ != request.value.version ||
         SSL_is_server(activeServerTls) != 1 ||
         SSL_is_init_finished(activeServerTls) != 1 ||

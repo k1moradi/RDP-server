@@ -517,3 +517,38 @@ transport boundary does not create
 authenticated GSS identity,
 independent OS permission or an
 RDP server connection controller.
+
+### GSS acceptor transcript-wide X.509 identity (2026-10-14)
+
+The optional Linux real MIT GSS provider is part of the same
+TLS/CredSSP transcript but is NOT a second session controller.
+Its original pinned `SSL*` and MS-CSSP version are now
+accompanied by one independently pinned SHA-256 fingerprint
+of the FIRST selected TLS server DER X.509 certificate.
+That pin is checked with `CRYPTO_memcmp` on every
+subsequent SPNEGO request, protected binding-only or
+combined-final proof, before confidential GSS proof
+verification, and before queuing a server TLS response.
+Recreating the `TsRequestFrameReader` on an unchanged
+SSL pointer cannot evade the GSS acceptor's old
+certificate identity; terminal reject releases MIT
+GSS context and explicit acceptor credential, erases
+principal, and cleanses the digest.
+
+An optional Linux-only external-credential test exercises a real
+`gss_init_sec_context` initiator using an EXPLICIT
+`gss_acquire_cred_from` FILE: credential cache, and the
+existing production `GssapiSpnegoAcceptor` using its
+independently specified service FILE: keytab.
+The real mechanism steps travel inside completed
+in-memory OpenSSL TLS application records and canonical
+TSRequest DER. Once both sides truly complete, the
+test checks confidentially wrapped client-to-server
+and server-to-client v5/v6 binding-only public-key
+proofs, and a same-SSL certificate replacement
+between TWO distinct TLS frame readers. The
+binding-only path tests the existing provider seam,
+not the REQUIRED combined-last-token MS-CSSP
+interoperability with Microsoft Windows App.
+No daemon, KDC, OS user admission or desktop
+is activated by the test option.

@@ -797,6 +797,52 @@ acceptance evidence; no synthetic completion claims.
   and active TLS certificate binding,
   then independently audited OS policy
   before any MCS/session admission.
+  **Linux GSSAPI transcript certificate ownership + external-credential
+  opt-in positive acceptance probe (2026-10-14; NEW CI NOT RUN):**
+  The original `GssapiSpnegoAcceptor` previously retained only the
+  server `SSL*` pointer and CredSSP 5/6 version across client messages.
+  A caller that discarded the one `TsRequestFrameReader` and created
+  another for the SAME SSL handle could unintentionally lose the
+  certificate selected at the first SPNEGO step. The acceptor now pins
+  its own SHA-256 identity of the FIRST TLS-selected DER X.509,
+  independently of the incoming reader and outbound writer, and
+  rechecks it at each continuing GSS token, binding-only or combined
+  final request, provider proof, and response queue handoff. A swapped
+  certificate closes the real GSS context, rejects the frame and
+  wipes the acceptor fingerprint and any authenticated principal;
+  no OS session authorization is introduced.
+
+  A separately gated Linux-only `RDP_SERVER_TEST_REAL_KERBEROS`
+  option adds ONE non-default test case to the ORIGINAL
+  `test_owned_preauth_session` executable. Configuration demands
+  an explicit `TERMSRV/host@REALM` principal and external
+  `FILE:/...` service keytab and client credential cache
+  (all supplied via `RDP_TEST_KRB5_SERVICE`,
+  `RDP_TEST_KRB5_KEYTAB` and `RDP_TEST_KRB5_CCACHE`);
+  no default host cache/keytab, inline secrets, service activation,
+  KDC bootstrap or CI credential is used. It executes real MIT
+  `gss_init_sec_context` / `gss_accept_sec_context` and TLS
+  application-record transfers, GSS confidentiality-protected
+  binding-only v5/v6 proof and client validation, and a new
+  reader + SAME-SSL selected-certificate-swap denial. The
+  binding-only test is a diagnostic provider gate, NOT a
+  successful Microsoft MS-CSSP combined last-client-token
+  exchange; no OS authorization or MCS/desktop admission.
+
+  **PASS prior exact main** `973561cefc37f9c4d9195276da2ce84862eae4ae`,
+  [CI 38674782887](https://github.com/k1moradi/RDP-server/actions/runs/38674782887):
+  Linux/GCC 72/72, macOS/Clang and Windows/MSVC 63/63 in
+  Debug+Release, SDK package/consumers and policy PASS.
+  **NOT RUN:** new implementation CI; real positive probe without
+  an explicitly provisioned ticket cache/keytab; user's local build,
+  complete combined-final Microsoft client acceptance, independent
+  OS account authorization, live listener or desktop.
+  Expected **unchanged standard CI** Linux 72, macOS/Windows 63;
+  with opt-in real credentials, Linux adds one CTest to 73.
+  **Next:** run the external-credential positive GSS test with
+  authorized isolated keytab/cache, close any MS-CSSP combined-final
+  interoperability gap it reveals, and implement separate
+  OS session authorization before enabling real MCS.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

@@ -215,10 +215,16 @@ private:
         bool combinedFinal) noexcept;
     void deleteContext() noexcept;
     [[nodiscard]] bool keepAuthenticatedPrincipal(gss_name_t name) noexcept;
+    // A caller may replace the frame reader while retaining the SAME SSL*.
+    // Pin the selected server X.509 independently for this GSS transcript.
+    [[nodiscard]] bool matchesNegotiatedCertificate(
+        const SSL *serverTls) const noexcept;
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
     // Borrowed from the one TLS-bound framing owner, never owning SSL.
     const SSL *negotiatedServerTls_{};
+    CredSspTlsCertificateFingerprint negotiatedCertificate_{};
+    bool hasNegotiatedCertificate_{};
     std::uint32_t negotiatedVersion_{};
     gss_cred_id_t credentials_{GSS_C_NO_CREDENTIAL};
     gss_ctx_id_t context_{GSS_C_NO_CONTEXT};

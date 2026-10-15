@@ -176,8 +176,28 @@ void GssapiSpnegoAcceptor::reject() noexcept
     }
     principal_.clear();
     negotiatedServerTls_ = nullptr;
+    OPENSSL_cleanse(negotiatedCertificate_.data(),
+                    negotiatedCertificate_.size());
+    hasNegotiatedCertificate_ = false;
     negotiatedVersion_ = 0;
     stage_ = SpnegoStage::Failed;
+}
+
+bool GssapiSpnegoAcceptor::matchesNegotiatedCertificate(
+    const SSL *serverTls) const noexcept
+{
+    if (serverTls == nullptr || serverTls != negotiatedServerTls_ ||
+        !hasNegotiatedCertificate_)
+        return false;
+
+    CredSspTlsCertificateFingerprint selected{};
+    if (!fingerprintActiveCredSspServerTlsCertificate(serverTls, selected))
+        return false;
+    const bool unchanged =
+        CRYPTO_memcmp(selected.data(), negotiatedCertificate_.data(),
+                      selected.size()) == 0;
+    OPENSSL_cleanse(selected.data(), selected.size());
+    return unchanged;
 }
 
 bool GssapiSpnegoAcceptor::configure(
@@ -301,7 +321,7 @@ SpnegoStep GssapiSpnegoAcceptor::acceptFramedNegoRequest(
     // determines which server TLS connection supplies every GSS token.
     if (sourceTls == nullptr ||
         (negotiatedServerTls_ != nullptr &&
-         negotiatedServerTls_ != sourceTls))
+         !matchesNegotiatedCertificate(sourceTls)))
     {
         reader.close();
         reject();
@@ -320,8 +340,22 @@ SpnegoStep GssapiSpnegoAcceptor::acceptFramedNegoRequest(
         reject();
         return {};
     }
-    // The source pointer and version are retained across released DER
-    // frames, but no token bytes or password data survive the handoff.
+    // The GSS acceptor independently pins the same TLS selected cert
+    // from the FIRST verified frame. A fresh reader per message must not
+    // erase that transcript identity on an unchanged SSL pointer.
+    if (negotiatedServerTls_ == nullptr)
+    {
+        CredSspTlsCertificateFingerprint selected{};
+        if (!fingerprintActiveCredSspServerTlsCertificate(sourceTls, selected))
+        {
+            reader.close();
+            reject();
+            return {};
+        }
+        negotiatedCertificate_ = selected;
+        hasNegotiatedCertificate_ = true;
+        OPENSSL_cleanse(selected.data(), selected.size());
+    }
     negotiatedServerTls_ = sourceTls;
     negotiatedVersion_ = parsed.value.version;
     auto step = acceptInitialRequest(parsed);

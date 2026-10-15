@@ -6,6 +6,9 @@
 #include "security/credssp_tls_certificate.h"
 #ifdef RDP_TEST_LINUX_GSSAPI
 #include "security/gssapi_spnego_acceptor.h"
+#include <gssapi/gssapi_ext.h>
+#include <gssapi/gssapi_krb5.h>
+#include <cstdlib>
 #endif
 
 #ifdef NDEBUG
@@ -18,6 +21,7 @@
 #include <fstream>
 #include <memory>
 
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -2279,6 +2283,122 @@ void testTlsCredSspProvenance()
 
 #ifdef RDP_TEST_LINUX_GSSAPI
 
+// The explicitly OPT-IN Kerberos probe uses only an externally provisioned
+// FILE: client cache and a separately supplied service keytab. Never query
+// host login, a default cache, or an automatically selected service name.
+struct TestKerberosInitiator final
+{
+    gss_name_t target{GSS_C_NO_NAME};
+    gss_cred_id_t credential{GSS_C_NO_CREDENTIAL};
+    gss_ctx_id_t context{GSS_C_NO_CONTEXT};
+
+    TestKerberosInitiator(std::string_view service, std::string_view cache)
+    {
+        assert(service.starts_with("TERMSRV/") && service.find('@') !=
+               service.npos);
+        assert(cache.starts_with("FILE:/"));
+        OM_uint32 minor = 0;
+        gss_buffer_desc name{service.size(),
+                             const_cast<char *>(service.data())};
+        assert(gss_import_name(&minor, &name, GSS_KRB5_NT_PRINCIPAL_NAME,
+                               &target) == GSS_S_COMPLETE);
+        const std::string explicitCache{cache};
+        gss_key_value_element_desc element{
+            "ccache", explicitCache.c_str()};
+        gss_key_value_set_desc store{1, &element};
+        assert(gss_acquire_cred_from(
+            &minor, GSS_C_NO_NAME, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+            GSS_C_INITIATE, &store, &credential, nullptr, nullptr) ==
+            GSS_S_COMPLETE);
+        assert(credential != GSS_C_NO_CREDENTIAL);
+    }
+    TestKerberosInitiator(const TestKerberosInitiator &) = delete;
+    TestKerberosInitiator &operator=(const TestKerberosInitiator &) = delete;
+    ~TestKerberosInitiator()
+    {
+        OM_uint32 minor = 0;
+        if (context != GSS_C_NO_CONTEXT)
+            (void)gss_delete_sec_context(&minor, &context, GSS_C_NO_BUFFER);
+        if (credential != GSS_C_NO_CREDENTIAL)
+            (void)gss_release_cred(&minor, &credential);
+        if (target != GSS_C_NO_NAME)
+            (void)gss_release_name(&minor, &target);
+    }
+    [[nodiscard]] OM_uint32 next(
+        std::span<const std::uint8_t> serverToken,
+        std::vector<std::uint8_t> &clientToken)
+    {
+        static std::array<std::uint8_t, 6> oidData{
+            0x2b, 0x06, 0x01, 0x05, 0x05, 0x02};
+        static gss_OID_desc spnego{oidData.size(), oidData.data()};
+        gss_buffer_desc incoming{serverToken.size(),
+                                 const_cast<std::uint8_t *>(serverToken.data())};
+        gss_buffer_desc outgoing = GSS_C_EMPTY_BUFFER;
+        OM_uint32 minor = 0;
+        OM_uint32 flags = 0;
+        constexpr OM_uint32 requested = GSS_C_MUTUAL_FLAG | GSS_C_INTEG_FLAG |
+            GSS_C_CONF_FLAG | GSS_C_REPLAY_FLAG | GSS_C_SEQUENCE_FLAG;
+        const auto major = gss_init_sec_context(
+            &minor, credential, &context, target, &spnego,
+            requested, GSS_C_INDEFINITE, GSS_C_NO_CHANNEL_BINDINGS,
+            serverToken.empty() ? GSS_C_NO_BUFFER : &incoming,
+            nullptr, &outgoing, &flags, nullptr);
+        assert(major == GSS_S_CONTINUE_NEEDED || major == GSS_S_COMPLETE);
+        assert(outgoing.length <= kMaximumSpnegoInputBytes);
+        clientToken.clear();
+        if (outgoing.length != 0)
+        {
+            assert(outgoing.value);
+            const auto *bytes =
+                static_cast<const std::uint8_t *>(outgoing.value);
+            clientToken.assign(bytes, bytes + outgoing.length);
+        }
+        (void)gss_release_buffer(&minor, &outgoing);
+        if (major == GSS_S_COMPLETE)
+            assert((flags & requested) == requested);
+        return major;
+    }
+
+    [[nodiscard]] std::vector<std::uint8_t> seal(
+        std::span<const std::uint8_t> cleartext) const
+    {
+        assert(context != GSS_C_NO_CONTEXT);
+        gss_buffer_desc input{
+            cleartext.size(), const_cast<std::uint8_t *>(cleartext.data())};
+        gss_buffer_desc output = GSS_C_EMPTY_BUFFER;
+        OM_uint32 minor = 0;
+        int confidential = 0;
+        assert(gss_wrap(&minor, context, 1, GSS_C_QOP_DEFAULT, &input,
+                        &confidential, &output) == GSS_S_COMPLETE);
+        assert(confidential != 0 && output.value != nullptr);
+        assert(output.length > 0 && output.length <= kMaximumSpnegoInputBytes);
+        const auto *bytes =
+            static_cast<const std::uint8_t *>(output.value);
+        std::vector<std::uint8_t> ciphertext(bytes, bytes + output.length);
+        (void)gss_release_buffer(&minor, &output);
+        return ciphertext;
+    }
+
+    void verifyProtectedServerProof(
+        std::span<const std::uint8_t> ciphertext,
+        std::span<const std::uint8_t> expected) const
+    {
+        gss_buffer_desc input{
+            ciphertext.size(), const_cast<std::uint8_t *>(ciphertext.data())};
+        gss_buffer_desc output = GSS_C_EMPTY_BUFFER;
+        OM_uint32 minor = 0;
+        int confidential = 0;
+        assert(gss_unwrap(&minor, context, &input, &output,
+                          &confidential, nullptr) == GSS_S_COMPLETE);
+        assert(confidential != 0 && output.value != nullptr);
+        assert(output.length == expected.size());
+        assert(CRYPTO_memcmp(output.value, expected.data(),
+                             expected.size()) == 0);
+        OPENSSL_cleanse(output.value, output.length);
+        (void)gss_release_buffer(&minor, &output);
+    }
+};
+
 // Binding-only DER shape; intentionally NOT a real GSS-protected hash.
 constexpr std::array<std::uint8_t, 48> kTestBindingOnlyDer{{
     0x30, 0x2e, 0xa0, 0x03, 0x02, 0x01, 0x06,
@@ -2536,6 +2656,222 @@ void testGssapiCombinedFinalBindingDenied()
     assert(!premature.processFinalFramedNegoAndBinding(partial).ready);
     assert(partial.status() == TsRequestFrameStatus::Closed);
     assert(premature.stage() == SpnegoStage::Failed);
+}
+
+// Test-only DER framing of the externally authenticated GSS wrap result.
+// The production TSRequest parser checks the resulting exact field shape.
+std::vector<std::uint8_t> wrapKerberosTestDer(
+    std::uint8_t tag, std::span<const std::uint8_t> body)
+{
+    assert(body.size() <= kMaximumCredSspRequestBytes);
+    std::vector<std::uint8_t> output;
+    output.reserve(body.size() + 4);
+    output.push_back(tag);
+    if (body.size() < 128)
+        output.push_back(static_cast<std::uint8_t>(body.size()));
+    else if (body.size() <= 255)
+    {
+        output.push_back(0x81);
+        output.push_back(static_cast<std::uint8_t>(body.size()));
+    }
+    else
+    {
+        output.push_back(0x82);
+        output.push_back(static_cast<std::uint8_t>(body.size() >> 8));
+        output.push_back(static_cast<std::uint8_t>(body.size()));
+    }
+    output.insert(output.end(), body.begin(), body.end());
+    return output;
+}
+
+std::vector<std::uint8_t> realKerberosBindingOnlyDer(
+    std::uint8_t version,
+    std::span<const std::uint8_t> encrypted,
+    std::span<const std::uint8_t> nonce)
+{
+    assert((version == 5 || version == 6) && nonce.size() == 32);
+    const std::array<std::uint8_t, 3> versionDer{0x02, 0x01, version};
+    std::vector<std::uint8_t> body =
+        wrapKerberosTestDer(0xa0, versionDer);
+    const auto pubKey = wrapKerberosTestDer(
+        0xa3, wrapKerberosTestDer(0x04, encrypted));
+    body.insert(body.end(), pubKey.begin(), pubKey.end());
+    const auto nonceField = wrapKerberosTestDer(
+        0xa5, wrapKerberosTestDer(0x04, nonce));
+    body.insert(body.end(), nonceField.begin(), nonceField.end());
+    const auto frame = wrapKerberosTestDer(0x30, body);
+    const auto parsed = parseCredSspTsRequest(frame);
+    assert(parsed && parsed.value.version == version);
+    assert(parsed.value.hasPubKeyAuth && parsed.value.hasClientNonce &&
+           parsed.value.tokenCount == 0 && !parsed.value.hasAuthInfo);
+    return frame;
+}
+
+// Opt-in ONLY. Every GSS token below comes from MIT's actual initiator
+// using a caller-designated FILE: cache and explicit service keytab. The
+// provider and peer each use a real in-memory TLS application-data stream.
+// A clean SPNEGO mechanism is not OS session authorization or MS-CSSP
+// client acceptance; no user credentials, MCS, or desktop are enabled.
+void testRealKerberosSpnegoOverTls()
+{
+    const char *serviceName = std::getenv("RDP_TEST_KRB5_SERVICE");
+    const char *serviceKeytab = std::getenv("RDP_TEST_KRB5_KEYTAB");
+    const char *clientCache = std::getenv("RDP_TEST_KRB5_CCACHE");
+    assert(serviceName && serviceKeytab && clientCache);
+    const std::string_view service{serviceName};
+    const std::string_view keytab{serviceKeytab};
+    const std::string_view cache{clientCache};
+    assert(service.starts_with("TERMSRV/") && service.find('@') !=
+           service.npos);
+    assert(keytab.starts_with("FILE:/") && cache.starts_with("FILE:/"));
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+      for (const bool substituteSelectedCert : {false, true})
+      {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        GssapiSpnegoAcceptor server;
+        assert(server.configure(service, keytab));
+        TestKerberosInitiator client{service, cache};
+
+        std::vector<std::uint8_t> nextClientToken;
+        OM_uint32 clientStatus = client.next({}, nextClientToken);
+        assert(!nextClientToken.empty());
+        assert(isInitialSpnegoToken(nextClientToken));
+        bool verified = false;
+        for (std::size_t round = 0; round < kMaximumSpnegoRoundTrips;
+             ++round)
+        {
+            const auto clientDer = encodeCredSspServerTsRequest(
+                version, CredSspServerReplyField::NegoToken,
+                nextClientToken);
+            assert(!clientDer.empty());
+            writeTlsClientApplicationData(tls.client.get(), clientDer);
+            receiveOneCredSspTlsFrame(
+                reader, tls.server.get(), clientDer.size());
+            auto accepted = server.acceptFramedNegoRequest(reader);
+            assert(accepted.status != SpnegoStatus::Rejected);
+            assert(reader.status() == TsRequestFrameStatus::NeedMore);
+            if (!accepted.outputToken.empty())
+            {
+                // Only opaque REAL provider GSS output crosses this TLS.
+                assert(writer.queueReply(
+                    tls.server.get(), version,
+                    CredSspServerReplyField::NegoToken,
+                    accepted.outputToken));
+                assert(writer.writeOneTlsStep(tls.server.get()).status ==
+                       TsRequestTlsWriteStatus::Complete);
+                std::array<std::uint8_t, kMaximumCredSspRequestBytes> bytes{};
+                std::size_t count = 0;
+                assert(SSL_read_ex(tls.client.get(), bytes.data(),
+                                   bytes.size(), &count) == 1);
+                const auto decoded = parseCredSspTsRequest(
+                    std::span(bytes).first(count));
+                assert(decoded && decoded.value.initialNegoTokenOnly());
+                assert(decoded.value.version == version);
+                clientStatus = client.next(
+                    decoded.value.tokens[0], nextClientToken);
+                assert(writer.releaseReply());
+                OPENSSL_cleanse(bytes.data(), count);
+            }
+            else
+            {
+                nextClientToken.clear();
+            }
+            if (!accepted.outputToken.empty())
+            {
+                OPENSSL_cleanse(accepted.outputToken.data(),
+                                accepted.outputToken.size());
+            }
+            if (accepted.status == SpnegoStatus::MechanismVerified)
+            {
+                assert(clientStatus == GSS_S_COMPLETE);
+                assert(nextClientToken.empty());
+                assert(server.stage() == SpnegoStage::MechanismVerified);
+                assert(!server.verifiedPrincipal().empty());
+                verified = true;
+                break;
+            }
+            assert(accepted.status == SpnegoStatus::Continue);
+            assert(!nextClientToken.empty());
+        }
+        assert(verified);
+        // This is the binding-only GSS provider diagnostic, not the
+        // complete MS-CSSP combined-last-token Windows client flow.
+        std::array<std::uint8_t, 32> nonce{};
+        for (std::size_t i = 0; i < nonce.size(); ++i)
+            nonce[i] = static_cast<std::uint8_t>(version + i);
+        CredSspHash clientHash{};
+        CredSspHash serverHash{};
+        assert(computeCredSspBindingForActiveServerTls(
+            tls.server.get(), CredSspBindingDirection::ClientToServer,
+            nonce, clientHash));
+        assert(computeCredSspBindingForActiveServerTls(
+            tls.server.get(), CredSspBindingDirection::ServerToClient,
+            nonce, serverHash));
+        auto ciphertext = client.seal(clientHash);
+        OPENSSL_cleanse(clientHash.data(), clientHash.size());
+        const auto binding = realKerberosBindingOnlyDer(
+            version, ciphertext, nonce);
+        OPENSSL_cleanse(ciphertext.data(), ciphertext.size());
+
+        // Deliberately create a SECOND reader: it has no knowledge of the
+        // certificate pinned when the genuine Kerberos tokens arrived.
+        // The GSS acceptor itself must reject a same-SSL certificate swap.
+        TsRequestFrameReader nextReader;
+        if (substituteSelectedCert)
+        {
+            TlsHandshakeFixture other;
+            const CertificatePointer replacement{
+                X509_dup(SSL_get_certificate(other.server.get())), X509_free};
+            assert(replacement);
+            assert(SSL_use_certificate(
+                tls.server.get(), replacement.get()) == 1);
+        }
+        writeTlsClientApplicationData(tls.client.get(), binding);
+        receiveOneCredSspTlsFrame(
+            nextReader, tls.server.get(), binding.size());
+        if (substituteSelectedCert)
+        {
+            const auto denied = server.processFramedProtectedBinding(
+                nextReader);
+            assert(!denied.ready && denied.encryptedServerBinding.empty());
+            assert(nextReader.status() == TsRequestFrameStatus::Closed);
+            assert(server.stage() == SpnegoStage::Failed);
+        }
+        else
+        {
+            assert(server.processFramedProtectedBindingAndQueueReply(
+                nextReader, writer));
+            assert(server.stage() == SpnegoStage::ServerBindingPrepared);
+            assert(writer.writeOneTlsStep(tls.server.get()).status ==
+                   TsRequestTlsWriteStatus::Complete);
+            std::array<std::uint8_t, kMaximumCredSspRequestBytes> bytes{};
+            std::size_t count = 0;
+            assert(SSL_read_ex(tls.client.get(), bytes.data(),
+                               bytes.size(), &count) == 1);
+            const auto result = parseCredSspTsRequest(
+                std::span(bytes).first(count));
+            assert(result && result.value.version == version);
+            assert(result.value.hasPubKeyAuth &&
+                   result.value.tokenCount == 0);
+            client.verifyProtectedServerProof(
+                result.value.encryptedPubKeyAuth, serverHash);
+            OPENSSL_cleanse(bytes.data(), count);
+            assert(writer.releaseReply());
+        }
+        OPENSSL_cleanse(serverHash.data(), serverHash.size());
+        // Even genuine MIT Kerberos with an intact TLS-binding proof
+        // never authorizes a desktop, credentials or MCS in this SDK.
+        reader.close();
+        nextReader.close();
+        writer.close();
+        server.reject();
+        assert(server.stage() == SpnegoStage::Failed);
+        assert(server.verifiedPrincipal().empty());
+      }
+    }
 }
 
 void testGssapiFramedBindingOnlyDenials()
@@ -2801,6 +3137,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"gssapi-reply-order-denials", &testGssapiReplyOrderAndPendingDenials},
     {"gssapi-framed-binding-only-denials", &testGssapiFramedBindingOnlyDenials},
     {"gssapi-framed-binding-reply-order", &testGssapiFramedBindingReplyOrder},
+#ifdef RDP_TEST_REAL_KERBEROS
+    {"gssapi-real-kerberos-tls-mechanism", &testRealKerberosSpnegoOverTls},
+#endif
 #endif
 });
 

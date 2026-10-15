@@ -38,6 +38,27 @@ option(RDP_SERVER_BUILD_TESTING "Build protocol regression tests" ON)
 # protocol SDK, macOS/Windows builds or default downstream consumers.
 option(RDP_SERVER_TEST_LINUX_GSSAPI
        "Compile/test the first-party Linux GSSAPI provider (no admission)" OFF)
+option(RDP_SERVER_TEST_REAL_KERBEROS
+       "Opt-in REAL external FILE: keytab+ticket SPNEGO validation (no OS admission)" OFF)
+if(RDP_SERVER_TEST_REAL_KERBEROS)
+    if(NOT RDP_SERVER_TEST_LINUX_GSSAPI OR
+       NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
+       NOT BUILD_TESTING)
+        message(FATAL_ERROR "Real Kerberos probe requires Linux GSSAPI test mode")
+    endif()
+    foreach(required_var IN ITEMS RDP_TEST_KRB5_SERVICE
+                                  RDP_TEST_KRB5_KEYTAB
+                                  RDP_TEST_KRB5_CCACHE)
+        if(NOT DEFINED ENV{${required_var}} OR "$ENV{${required_var}}" STREQUAL "")
+            message(FATAL_ERROR "Real Kerberos probe requires explicit ${required_var}")
+        endif()
+    endforeach()
+    if(NOT "$ENV{RDP_TEST_KRB5_SERVICE}" MATCHES "^TERMSRV/.+@.+$" OR
+       NOT "$ENV{RDP_TEST_KRB5_KEYTAB}" MATCHES "^FILE:/.+" OR
+       NOT "$ENV{RDP_TEST_KRB5_CCACHE}" MATCHES "^FILE:/.+")
+        message(FATAL_ERROR "Real Kerberos probe requires explicit TERMSRV/...@REALM and FILE:/ keytab/cache")
+    endif()
+endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

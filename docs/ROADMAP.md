@@ -85,6 +85,32 @@ documentation atomically using non-force, expected-HEAD update.
 Exact-SHA CI and owner results are NOT RUN at authoring.
 **Next:** full Debug/Release CTests and SDK/package regression,
 then independent same-SHA owner acceptance.
+**R10 POSIX configuration-descriptor validation (2026-10-15; exact-SHA CI NOT RUN at authoring):**
+The existing non-installable, fail-closed `rdp-server --check-config FILE`
+now opens POSIX configuration paths with `O_NOFOLLOW | O_NONBLOCK |
+O_CLOEXEC`, then checks the same open descriptor with `fstat` before
+reading. Reject symlink final components, directories, FIFOs/other
+nonregular objects and group/world-writable config files; descriptor
+ownership passes to `fdopen`/RAII, with explicit close if `fdopen`
+fails. The file remains limited to 4,096 bytes and every startup
+attempt still refuses service activation. Five new **POSIX-only**
+dedicated runtime CTests cover private regular-file acceptance and
+symlink, FIFO, group-writable and directory rejection. Existing 25
+runtime CTests are preserved. Synthetic fixture cleanup is safe across
+repeat CTest runs. **PASS (isolated local only):** GCC 14.2 strict
+C++23 focused CTest 30/30, repeat 30/30; Clang 17 ASan/UBSan focused
+CTest 30/30 with leak detection. **NOT RUN:** full repository CMake/
+CTest (no full local Git checkout; GitHub DNS unavailable), Windows/
+macOS exact-code CI at authoring, owner's three-platform one-root
+command, TLS private-key ACL/permission checks, actual R2 authorization,
+R3 live session, external Microsoft client and desktop. On Windows,
+existing syntax-only `fopen` remains in use; Windows native ACL/reparse
+point hardening is still required. Parent main is resolved by the atomic
+commit; milestone acceptance M1–M6 remains open. **Next:** exact-SHA
+CI and owner baseline, then Windows-native safe config-file opening
+and independent certificate/key permission checks, without starting
+a service.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

@@ -300,6 +300,21 @@ publish a GitHub **protocol SDK prerelease**. This is an artifact
 delivery mechanism only: it does not introduce an RDP listener,
 service installation, authentication or desktop deployment.
 
+### R10 POSIX configuration-descriptor guard (2026-10-15)
+
+The non-installable `rdp-server --check-config` syntax checker now
+opens POSIX configuration files through `open(O_NOFOLLOW | O_NONBLOCK |
+O_CLOEXEC)`; the same opened handle must pass `fstat` as a regular
+file without group/world write permissions. `fdopen` transfers
+descriptor ownership to RAII-managed `FILE`; its failed conversion
+closes the descriptor. This prevents blocking on synthetic FIFOs and
+disallows final-component symlink substitution without a separate
+pathname-stat race. Parent-directory links and platform file ACLs are
+not yet independently accepted. Windows retains its existing
+syntax-only file handling until native handle/reparse/ACL checks are
+implemented. No credentials/certificates, listener, OS session,
+clipboard or desktop are read/activated.
+
 ### R10 native process and offline configuration boundary
 
 The **non-installable** `rdp-server` C++23 executable links the existing

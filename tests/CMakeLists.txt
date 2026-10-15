@@ -381,7 +381,18 @@ foreach(runtime_case IN ITEMS
         rejects-configuration-identical-tls-paths
         rejects-configuration-missing-file
         rejects-config-option-smuggling
+        validates-configuration-owner-only
+        rejects-configuration-symlink
+        rejects-configuration-fifo
+        rejects-configuration-group-writable
+        rejects-configuration-directory
         )
+    # POSIX descriptor-identity/permissions tests are not applicable to
+    # Windows native file handles; retain the original Windows CTests.
+    if(NOT UNIX AND runtime_case MATCHES
+       "^(validates-configuration-owner-only|rejects-configuration-(symlink|fifo|group-writable|directory))$")
+        continue()
+    endif()
     add_test(NAME "runtime.${runtime_case}"
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
@@ -391,6 +402,9 @@ foreach(runtime_case IN ITEMS
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
     set_tests_properties("runtime.${runtime_case}" PROPERTIES
         LABELS "runtime;offline")
+    if(runtime_case STREQUAL "rejects-configuration-fifo")
+        set_tests_properties("runtime.${runtime_case}" PROPERTIES TIMEOUT 10)
+    endif()
 endforeach()
 # The native cursor conversion is compiled into the isolated headless
 # test without adding XCB dependencies to the portable protocol archive.

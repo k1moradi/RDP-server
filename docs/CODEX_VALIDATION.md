@@ -3693,3 +3693,45 @@ and performance measurements.
 **Next:** inspect exact-SHA Actions Linux Debug/Release native
 compile/CTest and Windows/macOS regression; then native XShm/cursor/
 damage lifetime integration with R2/R3 authorization and R4 consumption.
+
+## R10 POSIX configuration-descriptor hardening (2026-10-15)
+
+**Implementation baseline:** current `main` (exact parent recorded in
+the containing GitHub commit). R10 modifies
+`src/server/runtime/main.cpp`, `tests/check_runtime_entrypoint.cmake`,
+the existing `tests/CMakeLists.txt` registry, and the canonical R10
+ROADMAP/ARCHITECTURE/compile/validation documentation in one increment.
+
+**New five dedicated behavior-named POSIX CTests:**
+`runtime.validates-configuration-owner-only`,
+`runtime.rejects-configuration-symlink`,
+`runtime.rejects-configuration-fifo`,
+`runtime.rejects-configuration-group-writable`, and
+`runtime.rejects-configuration-directory`.
+They exercise the production `--check-config` entry point and verify
+existing generic fail-only output and exit codes. The original 25
+runtime tests remain registered and unchanged in behavior; Windows
+does not register POSIX-only tests. No live credentials, certificate
+keys, native desktop, input, clipboard or service is accessed.
+
+**PASS — focused local Linux isolated harness:** GCC 14.2 strict
+C++23 compile (`-Wall -Wextra -Wpedantic -Werror`), full 30/30 focused
+CTest, repeat 30/30; Clang 17 with `-O1 -g
+-fsanitize=address,undefined -fno-omit-frame-pointer
+-D_GLIBCXX_ASSERTIONS`, 30/30 focused CTest,
+`ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1`.
+Executed the modified production `main.cpp` with actual
+`tests/check_runtime_entrypoint.cmake` (isolated harness lives
+within `~/rdp-server/build/r10-posix-file-policy`). This is **not**
+the full official repository CTest because no local Git checkout is
+available and direct GitHub clone DNS fails.
+
+**NOT RUN at authoring:** full repo CMake/CTest, exact-SHA GitHub Actions,
+owner Linux/X11, Windows MSYS2 CLANG64 Clang 23 and macOS 27 checks,
+native Windows config-file ACL/reparse-point validation, actual
+certificate/private-key permissions, authenticated RDP session and
+human desktop. **Security boundary:** POSIX config-file identity and
+mode bits only; an accepted `--check-config` never permits startup.
+**Next:** exact-commit hosted Debug/Release CI and owner normal CTest,
+then Windows-native file-handle checks and real TLS key permissions;
+M1–M6 remain unaccepted.

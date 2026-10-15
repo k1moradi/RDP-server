@@ -86,15 +86,47 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         if(NOT WIN32)
             string(REPLACE "\n" "\r\n" config_text "${config_text}")
         endif()
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-owner-only")
+        # A private regular file must remain valid on POSIX hosts.
+    elseif(RDP_RUNTIME_TEST_CASE MATCHES "^rejects-configuration-(symlink|fifo|group-writable|directory)$")
+        # Substitute a synthetic local file-system object after writing the
+        # ordinary configuration, without accessing any user's credentials.
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-missing-file")
         # Do not write a fixture in this case.
     elseif(NOT RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-syntax")
         message(FATAL_ERROR "Unknown configuration test case")
     endif()
-    if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-missing-file")
+    # Fixture paths are unique to each case; remove only the files/directories
+    # created by this script so repeat CTest runs cannot block on stale FIFOs.
+    if(IS_DIRECTORY "${config_file}")
+        file(REMOVE_RECURSE "${config_file}")
+    else()
         file(REMOVE "${config_file}")
+    endif()
+    if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-missing-file")
+        # This case deliberately leaves the generated fixture absent.
     else()
         file(WRITE "${config_file}" "${config_text}")
+        if(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-owner-only")
+            file(CHMOD "${config_file}" PERMISSIONS OWNER_READ OWNER_WRITE)
+        elseif(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-group-writable")
+            file(CHMOD "${config_file}" PERMISSIONS OWNER_READ OWNER_WRITE GROUP_WRITE)
+        elseif(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-symlink")
+            set(target_file "${config_file}.target")
+            file(WRITE "${target_file}" "${config_text}")
+            file(REMOVE "${config_file}")
+            file(CREATE_LINK "${target_file}" "${config_file}" SYMBOLIC)
+        elseif(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-fifo")
+            file(REMOVE "${config_file}")
+            execute_process(COMMAND mkfifo "${config_file}"
+                RESULT_VARIABLE fifo_create_result)
+            if(NOT fifo_create_result STREQUAL "0")
+                message(FATAL_ERROR "Cannot create synthetic FIFO")
+            endif()
+        elseif(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-directory")
+            file(REMOVE "${config_file}")
+            file(MAKE_DIRECTORY "${config_file}")
+        endif()
         if(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-comments-crlf")
             # Ordinary CMake file(READ) normalizes CRLF to LF. HEX reads
             # verify actual fixture bytes without that transformation.

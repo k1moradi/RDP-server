@@ -170,3 +170,18 @@ listener or server. The 25 `runtime.*` CTests execute without live
 credentials, desktop access or socket binds. The SDK install/export
 and CPack ZIP must remain protocol-only. Full project CI and local
 same-main checkout validation remain NOT RUN at authoring.
+
+## R10 offline POSIX configuration-file policy (2026-10-15)
+
+The existing `rdp-server --check-config FILE` remains a syntax-only
+diagnostic that never opens a listener. On POSIX platforms the config
+file must be a regular file, not a final-component symlink, FIFO or
+directory, and it cannot be group/world writable. A privately owned
+file can be prepared with `chmod 600 /path/to/config`. Normal CTests
+use generated synthetic files under the existing `build/runtime-fixtures`
+directory. Windows currently validates syntax without native ACL/
+reparse-point acceptance; do not use these checks as a substitute for
+TLS certificate/private-key provisioning or OS authorization.
+Five extra `runtime.*` CTests run only on POSIX and exercise the
+actual runtime executable. The owner's established one-line
+configure/build/CTest command is unchanged.

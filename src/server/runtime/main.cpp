@@ -7,6 +7,12 @@
 #include <memory>
 #include <string_view>
 
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #ifndef RDP_SERVER_VERSION
 #error "The build system must provide the RDP server version"
 #endif
@@ -158,10 +164,36 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
             (void)std::fclose(file);
         }
     };
+    // On POSIX, open the *actual* file without following its final symlink.
+    // Nonblocking open makes FIFOs/devices fail safely rather than hanging
+    // the offline checker. The FILE stream exclusively owns this descriptor
+    // after fdopen succeeds; otherwise close it on the failure path.
+#if !defined(_WIN32)
+    const int configurationDescriptor =
+        ::open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
+    if (configurationDescriptor < 0) {
+        return false;
+    }
+    std::unique_ptr<std::FILE, FileCloser> file{
+        ::fdopen(configurationDescriptor, "rb")};
+    if (!file) {
+        (void)::close(configurationDescriptor);
+        return false;
+    }
+    struct stat openedFileStatus {};
+    if (::fstat(configurationDescriptor, &openedFileStatus) != 0 ||
+        !S_ISREG(openedFileStatus.st_mode) ||
+        (openedFileStatus.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+        return false;
+    }
+#else
+    // Windows file identity/reparse-point and ACL policy are a separate
+    // native adapter gate; syntax checking never activates the server.
     std::unique_ptr<std::FILE, FileCloser> file{std::fopen(path, "rb")};
     if (!file) {
         return false;
     }
+#endif
     std::array<char, kMaximumConfigurationBytes + 1> bytes{};
     const std::size_t bytesRead =
         std::fread(bytes.data(), sizeof(char), bytes.size(), file.get());

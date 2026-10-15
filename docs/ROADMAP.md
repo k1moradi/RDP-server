@@ -797,52 +797,66 @@ acceptance evidence; no synthetic completion claims.
   and active TLS certificate binding,
   then independently audited OS policy
   before any MCS/session admission.
-  **Linux GSSAPI transcript certificate ownership + external-credential
-  opt-in positive acceptance probe (2026-10-14; NEW CI NOT RUN):**
-  The original `GssapiSpnegoAcceptor` previously retained only the
-  server `SSL*` pointer and CredSSP 5/6 version across client messages.
-  A caller that discarded the one `TsRequestFrameReader` and created
-  another for the SAME SSL handle could unintentionally lose the
-  certificate selected at the first SPNEGO step. The acceptor now pins
-  its own SHA-256 identity of the FIRST TLS-selected DER X.509,
-  independently of the incoming reader and outbound writer, and
-  rechecks it at each continuing GSS token, binding-only or combined
-  final request, provider proof, and response queue handoff. A swapped
-  certificate closes the real GSS context, rejects the frame and
-  wipes the acceptor fingerprint and any authenticated principal;
-  no OS session authorization is introduced.
+  **Verified Linux GSS acceptor transcript-wide TLS certificate pin,
+  with unrun opt-in genuine Kerberos probe (2026-10-14):** per
+  [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)
+  and [RFC 4178](https://www.rfc-editor.org/rfc/rfc4178.html),
+  the existing Linux MIT GSS provider now pins the first
+  selected server TLS X.509 DER SHA-256 fingerprint inside
+  the acceptor itself, IN ADDITION to its original SSL*
+  and CredSSP v5/v6 version. Every later TLS-framed
+  SPNEGO request, binding-only or combined-final proof,
+  confidential GSS hash check and queued server
+  binding response rechecks the exact selected certificate,
+  even if the caller replaces the frame reader between
+  rounds on the SAME SSL*. Terminal reject cleanses
+  the fingerprint and authenticated principal and
+  closes the GSS context and explicit credentials.
+  No new session controller or OS account authority.
 
-  A separately gated Linux-only `RDP_SERVER_TEST_REAL_KERBEROS`
-  option adds ONE non-default test case to the ORIGINAL
-  `test_owned_preauth_session` executable. Configuration demands
-  an explicit `TERMSRV/host@REALM` principal and external
-  `FILE:/...` service keytab and client credential cache
-  (all supplied via `RDP_TEST_KRB5_SERVICE`,
-  `RDP_TEST_KRB5_KEYTAB` and `RDP_TEST_KRB5_CCACHE`);
-  no default host cache/keytab, inline secrets, service activation,
-  KDC bootstrap or CI credential is used. It executes real MIT
-  `gss_init_sec_context` / `gss_accept_sec_context` and TLS
-  application-record transfers, GSS confidentiality-protected
-  binding-only v5/v6 proof and client validation, and a new
-  reader + SAME-SSL selected-certificate-swap denial. The
-  binding-only test is a diagnostic provider gate, NOT a
-  successful Microsoft MS-CSSP combined last-client-token
-  exchange; no OS authorization or MCS/desktop admission.
+  One separately gated Linux-only acceptance probe
+  is compiled into the original TLS fixture and
+  registered ONLY under `RDP_SERVER_TEST_REAL_KERBEROS=ON`
+  with an explicitly supplied `TERMSRV/host@REALM`,
+  `FILE:/` service keytab and separate `FILE:/`
+  client ticket cache. It invokes real MIT
+  GSS initiator/acceptor through TLS application
+  records, GSS-confidential v5/v6 binding-only
+  verification, and a new-reader, SAME-SSL
+  X.509 swap rejection. No KDC or desktop is started;
+  no default host keytab/cache or client credential
+  contents are imported into the project.
+  Binding-only proof is an internal diagnostic,
+  NOT normative combined-last-token MS-CSSP
+  interoperability or independently authorized
+  account/session acceptance.
 
-  **PASS prior exact main** `973561cefc37f9c4d9195276da2ce84862eae4ae`,
-  [CI 38674782887](https://github.com/k1moradi/RDP-server/actions/runs/38674782887):
-  Linux/GCC 72/72, macOS/Clang and Windows/MSVC 63/63 in
-  Debug+Release, SDK package/consumers and policy PASS.
-  **NOT RUN:** new implementation CI; real positive probe without
-  an explicitly provisioned ticket cache/keytab; user's local build,
-  complete combined-final Microsoft client acceptance, independent
-  OS account authorization, live listener or desktop.
-  Expected **unchanged standard CI** Linux 72, macOS/Windows 63;
-  with opt-in real credentials, Linux adds one CTest to 73.
-  **Next:** run the external-credential positive GSS test with
-  authorized isolated keytab/cache, close any MS-CSSP combined-final
-  interoperability gap it reveals, and implement separate
-  OS session authorization before enabling real MCS.
+  **PASS:** implementation
+  `1f6740452f27332303ded71d4f5f23bb599b9726`,
+  [CI 38678010820](https://github.com/k1moradi/RDP-server/actions/runs/38678010820):
+  Linux/GCC **72/72** and macOS/Clang,
+  Windows/MSVC **63/63** standard CTests,
+  EACH Debug and Release, three installed SDK
+  downstream consumers, ZIP/SHA256 package
+  uploads and documentation-policy PASS.
+  The Linux test executable compiles the new
+  GSS probe code, but the opt-in case was
+  NOT registered or executed with CI credentials.
+  Existing Ubuntu Release nonfatal
+  `-Wstringop-overflow` at TLS fixture
+  line 594 remains.
+  **NOT RUN:** actual positive keytab/client
+  ticket authenticated GSS handshake,
+  GSS-confidential pubKeyAuth probe,
+  real Microsoft combined-final client,
+  owner's local build, independent OS
+  authorization, live RDP server or desktop.
+  **Next:** with explicit authority and
+  isolated real ticket/keytab, RUN the
+  opt-in positive provider/TLS-binding probe
+  and close any MS-CSSP combined-last-token
+  interoperability gaps before independent
+  OS session admission.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

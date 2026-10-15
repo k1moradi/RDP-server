@@ -931,47 +931,52 @@ and confirmed GSS/TLS public-key proof,
 OS authorization, external RDP client
 or interactive desktop.
 
-## Opt-in genuine Linux Kerberos/GSS and reader-swap probe (2026-10-14; NOT RUN)
+## Verified optional Linux real GSS probe compilation (2026-10-14)
 
-Build with `RDP_SERVER_TEST_LINUX_GSSAPI=ON`
-and separately `RDP_SERVER_TEST_REAL_KERBEROS=ON`
-ONLY when an authorized isolated MIT Kerberos realm
-has already provisioned all THREE shell environment
-values `RDP_TEST_KRB5_SERVICE=TERMSRV/host@REALM`,
-`RDP_TEST_KRB5_KEYTAB=FILE:/absolute/path`,
-`RDP_TEST_KRB5_CCACHE=FILE:/absolute/path`.
-CMake FATAL_ERRORs for opt-in without Linux/provider
-or any missing/malformed external setting.
-No local service, KDC, realm, ticket or password
-is automatically obtained or started by the
-project. The optional behavior-named CTest
+The original Linux MIT GSS linked
+`test_owned_preauth_session` executable
+now COMPILES an opt-in
 `security.gssapi-real-kerberos-tls-mechanism`
-uses an actual MIT GSS initiator credential
-acquired from the explicit cache and production
-service acceptor from its explicit keytab;
-exchanges opaque GSS SPNEGO tokens via the
-existing real OpenSSL in-memory TLS fixture
-at CredSSP versions 5 and 6, and ensures
-the verified mechanism alone never admits
-an OS account. The same test contains a
-separate diagnostic GSS-confidential
-binding-only request/reply + server hash
-verification and rejects an otherwise
-genuine authenticated transcript when a
-NEW frame reader sees a substituted
-X.509 on the SAME SSL handle. It is NOT
-a complete normative combined-final
-last-token MS-CSSP exchange; those
-flows and actual clients remain unverified.
+test using `gss_acquire_cred_from` with
+an explicitly specified external FILE:
+client cache and the production acceptor's
+independent `FILE:` service keytab.
+Only with
+`RDP_SERVER_TEST_LINUX_GSSAPI=ON` AND
+`RDP_SERVER_TEST_REAL_KERBEROS=ON`
+on Linux does CMake register this CTest;
+configuration fails for missing
+`RDP_TEST_KRB5_SERVICE=TERMSRV/host@REALM`,
+`RDP_TEST_KRB5_KEYTAB=FILE:/absolute/path`,
+or `RDP_TEST_KRB5_CCACHE=FILE:/absolute/path`.
+No daemon, KDC or test ticket is created
+by the repository. Only an explicitly
+authorized external isolated test
+realm may provision these values.
+The test uses real MIT GSS
+`gss_init_sec_context` and the original
+provider `gss_accept_sec_context`
+on OpenSSL TLS for versions 5 and 6,
+then a REAL GSS-confidential
+binding-only TLS client/server proof,
+and rejects a genuine context if a
+new TLS frame reader sees a swapped
+certificate on the same SSL object.
+This is a diagnostic binding-only
+provider test, not a real Microsoft
+combined-final client/OS acceptance test.
 
-The optional case is NOT registered for
-normal CI, which has no tickets or service
-keytab. Existing portable and Linux
-CTests remain unchanged (Linux 72,
-macOS/Windows 63). **NOT RUN:** positive
-Kerberos probe, real-keytab/ccache
-provisioning, Windows App, OS user
-authorization and desktop. Do not
-mislabel compilation of this test
-as successful mutual Kerberos or
-authenticated account access.
+**PASS:** implementation
+`1f6740452f27332303ded71d4f5f23bb599b9726`,
+[Actions 38678010820](https://github.com/k1moradi/RDP-server/actions/runs/38678010820):
+normal Linux 72/72 and macOS/Windows
+63/63 full CTests, BOTH Debug and Release,
+installed SDK consumer/ZIP+SHA256/policy.
+The optional code COMPILED with MIT GSSAPI
+on Linux, but **NOT RUN:** the positive
+case itself (no external keytab/cache
+provisioned), controlled GSS positive
+binding, OS session authorization,
+Microsoft Windows App or actual desktop.
+The existing unrelated Ubuntu Release
+fixture warning remains nonfatal.

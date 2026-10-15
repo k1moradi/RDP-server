@@ -1219,68 +1219,98 @@ positive Kerberos/GSS TLS proof
 and independent OS authorization
 before MCS, graphics or desktop.
 
-## Pending GSS transcript-wide X509 certificate pin and opt-in positive probe (2026-10-14)
+## Verified GSS acceptor certificate pin and opt-in real Kerberos probe build (2026-10-14)
 
-**Verified prior main:** `973561cefc37f9c4d9195276da2ce84862eae4ae`,
-[CI 38674782887](https://github.com/k1moradi/RDP-server/actions/runs/38674782887):
-Linux/GCC 72/72, macOS/Clang/Windows/MSVC
-63/63 full Debug+Release CTests, SDK
-consumer, ZIP/SHA256 uploads and policy PASS.
+**Prior verified main:**
+`973561cefc37f9c4d9195276da2ce84862eae4ae`,
+[CI 38674782887](https://github.com/k1moradi/RDP-server/actions/runs/38674782887)
+Linux/GCC 72/72, macOS/Clang and Windows/MSVC
+63/63 standard CTests in both Debug and
+Release, SDK/packages/policy PASS.
 
-**New implementation; CI NOT RUN at authoring:**
+**Implementation:**
+`1f6740452f27332303ded71d4f5f23bb599b9726`
+changes the existing optional Linux
 `src/server/security/gssapi_spnego_acceptor.{h,cpp}`
-now pins the FIRST TLS-selected server
-certificate SHA-256 independently of the
-reader and writer while retaining the
-existing SSL pointer/version and verified
-GSS provider context. `reject()`
-cleanses this fingerprint. The existing
-`src/server/security/gssapi_credssp_binding.cpp`
-checks that pin across both MS-CSSP final
-forms and protected GSS proof/queue. A
-fresh `TsRequestFrameReader` on the same
-SSL handle cannot forget the original
-GSS certificate identity. Every mismatch
-remains terminal, not an OS authorization.
-
-An explicit Linux-only
+and `gssapi_credssp_binding.cpp`
+to retain the first TLS-selected X.509
+SHA-256 fingerprint IN the GSS acceptor
+rather than trusting `SSL*` pointer
+plus whatever new per-frame reader the
+caller constructs. Constant-time recheck
+gates later GSS tokens, binding-only
+and combined-final public-key proofs
+and outgoing provider-bound reply
+handoffs. Terminal reject cleanses
+digest/principal and releases the
+GSS context/explicit creds.
+`CMakeLists.txt` and `tests/CMakeLists.txt`
+introduce opt-in
 `RDP_SERVER_TEST_REAL_KERBEROS=ON`
-CMake gate adds one **optional** security
-CTest in the existing
-`tests/test_owned_preauth_session.cpp`,
-using an externally prepared service
-principal and FILE: keytab plus FILE:
-client ticket cache, no defaults, no KDC
-bootstrap or activation. The probe
-performs real MIT GSS initiation and
-production acceptance over OpenSSL TLS,
-confidential GSS v5/v6 binding-only
-client/server public-key proof, plus
-new-reader same-SSL certificate mutation
-denial. This is an internal binding-only
-diagnostic, NOT normative Microsoft
-combined-final last-client-token
-interoperability or session admission.
-Opt-in CMake enforces mandatory environment
-variables. Default CI has no credentials
-and does NOT register/run this probe.
-Standard CTests remain expected Linux
-72, macOS and Windows 63 in BOTH configs.
-CI commands remain the existing
-single checkout-local `build/`
-Debug and Release CMake/CTest,
-downstream consumer, ZIP/SHA256 and
-documentation-policy gates. The optional
-probe must not be conflated with an
-actual successful positive GSS test:
-**NOT RUN:** provisioned positive
-keytab/client ticket and successful
-GSS/TLS proof, local owner's build,
-independently authorized OS user,
-Windows App or interactive desktop.
-**Next:** arrange an explicitly authorized
-isolated test keytab and client ticket
-then run the opt-in positive probe;
-verify combined-final wire behavior
-and independent OS authorization
-before MCS/desktop.
+on Linux with mandatory explicit
+`RDP_TEST_KRB5_SERVICE`,
+`RDP_TEST_KRB5_KEYTAB` and
+`RDP_TEST_KRB5_CCACHE` environment
+values; NO host defaults, automatic
+KDC, service activation or live
+RDP listener. A non-default case
+in the existing
+`tests/test_owned_preauth_session.cpp`
+compiles REAL MIT GSS client and
+server exchanges through the
+original OpenSSL TLS fixture,
+confidential binding-only proof
+and a fresh-reader/same-SSL
+certificate substitution denial.
+The binding-only diagnostic cannot
+claim normative combined-final
+MS-CSSP interoperability.
+Same-commit roadmap/architecture,
+coding/testing standards and
+this validation ledger updated.
+
+**PASS:** exact [Actions 38678010820](https://github.com/k1moradi/RDP-server/actions/runs/38678010820)
+at implementation SHA above; all
+four required jobs SUCCESS. Linux/GCC
+**72/72**, macOS/Clang and
+Windows/MSVC **63/63** CTests, EACH
+Debug and Release, documentation
+policy, three staged installed
+SDK consumers and all three
+CPack ZIP/SHA256 package uploads.
+CI uses checkout-local `build/`:
+`cmake -S . -B build
+-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`
+plus Linux-only
+`-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`,
+build/CTest Debug; reconfigure SAME
+root Release, build/CTest Release;
+install/stage SDK, downstream
+CMake consumer, CPack and checksums.
+The optional real Kerberos probe
+is COMPILED by Linux/GCC but NOT
+registered/run in normal CI.
+Prior nonfatal Ubuntu Release
+test `-Wstringop-overflow` around
+`tests/test_owned_preauth_session.cpp:594`
+persists. No protocol prerelease tag.
+
+**NOT RUN:** positive Kerberos/GSS
+test with explicit separately
+authorized service keytab and real
+client ticket cache; confidential
+GSS proof in that opt-in test,
+normative last-token combined
+MS-CSSP exchange with Microsoft
+client, owner's local build,
+independently approved OS
+account/session or real desktop.
+Do not call compilation positive
+Kerberos acceptance.
+**Next:** provision an isolated
+external KDC/keytab/ticket ONLY
+with explicit authorization,
+execute opt-in test, verify combined
+final SPNEGO/pubKeyAuth behavior,
+then implement independent OS
+session policy before MCS/desktop.

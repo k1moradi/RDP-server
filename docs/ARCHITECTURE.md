@@ -975,3 +975,21 @@ policy also PASS; prerelease publishing SKIPPED (no tag).
 Owner-local compile, real GSS/TLS positive Kerberos binding,
 independent OS authorization and client/desktop remain
 **NOT RUN**.
+
+## TLS-selected-certificate continuity from preauth to MCS (2026-10-15)
+
+The sole `PreauthConnectionStream` binds one completed server
+`SSL*` after all X.224 Confirm bytes are sent. It now also
+pins the selected local X.509 SHA-256 via the existing
+`fingerprintActiveCredSspServerTlsCertificate` helper,
+rather than using a borrowed pointer as complete identity.
+A later MCS TLS read, including a resumed WANT_READ/WRITE
+or partially buffered RFC1006 TPKT, rejects a different
+certificate selected on the SAME SSL object before it reads
+additional plaintext. `close()` wipes the pin. No new
+crypto provider or session controller; borrowed SSL/BIO
+remain externally owned and event-loop-affine. Pinning does
+NOT establish TLS CA trust, GSS/CredSSP authentication,
+the MCS sender, OS authorization or a usable desktop.
+Real positive Kerberos and independent OS admission remain
+mandatory for any production MCS reply.

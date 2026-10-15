@@ -80,6 +80,8 @@ function(add_rdp_test source_file suite behavior)
                 mcs-decrypted-rejections
                 mcs-tls-record-fragments
                 mcs-tls-record-rejections
+                mcs-tls-selected-certificate-continuity
+                mcs-tls-selected-certificate-substitution
                 credssp-tls-fragments
                 credssp-tls-coalesced
                 credssp-tls-rejections

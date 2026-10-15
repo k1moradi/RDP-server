@@ -1080,3 +1080,19 @@ policy also PASS; prerelease publishing SKIPPED (no tag).
 Owner-local compile, real GSS/TLS positive Kerberos binding,
 independent OS authorization and client/desktop remain
 **NOT RUN**.
+
+## OpenSSL X.509 continuity through MCS diagnostics (2026-10-15)
+
+MS-RDPBCGR 5.4 and MS-CSSP 3.1.5 require TLS before the
+CredSSP authentication/binding flow. The selected certificate
+is security-relevant input, not interchangeable merely because
+`SSL*` is unchanged. Reuse the existing selected-certificate
+SHA-256 routine and compare its bytes with `CRYPTO_memcmp`
+before each direct `SSL_read_ex` MCS callback. Do NOT include
+OpenSSL's broad ssl.h transitively in portable public headers.
+The sole connection owner stores a fixed 32-byte pin, wipes it
+on close, and never owns the SSL/BIO or introduces a second
+session or identity authority. Certificate continuity does
+not authenticate a user or admit an OS account; only a future
+trusted GSS and separately authorized OS path may do that.
+Plaintext synthetic MCS intake has no live transport provenance.

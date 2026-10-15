@@ -664,6 +664,96 @@ void advanceToTlsMcs(PreauthConnectionStream &connection, SSL *server)
     assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
 }
 
+// Reuse the existing same-SSL selected-certificate substitution helper
+// defined with the CredSSP TLS reply fixtures below.
+void substituteCredSspReplyCertificate(SSL *destination, const SSL *source);
+
+
+void testMcsTlsSelectedCertificateContinuity()
+{
+    // The selected server certificate must remain pinned across a
+    // nonblocking WANT_READ, partial encrypted MCS frame, and completion.
+    TlsHandshakeFixture tls;
+    PreauthConnectionStream connection;
+    advanceToTlsMcs(connection, tls.server.get());
+    const auto idle = connection.consumeMcsConnectInitialFromTls(
+        tls.server.get());
+    assert(idle.bytesConsumed == 0);
+    assert(idle.status == McsIntakeStatus::NeedMore);
+
+    const auto packet = validMcsPacket();
+    constexpr std::size_t firstFragmentBytes = 17;
+    writeTlsClientApplicationData(
+        tls.client.get(), std::span(packet).first(firstFragmentBytes));
+    const auto partial = connection.consumeMcsConnectInitialFromTls(
+        tls.server.get());
+    assert(partial.bytesConsumed == firstFragmentBytes);
+    assert(partial.status == McsIntakeStatus::NeedMore);
+    assert(connection.stage() == PreauthStage::AwaitMcsConnectInitial);
+    writeTlsClientApplicationData(
+        tls.client.get(), std::span(packet).subspan(firstFragmentBytes));
+    const auto complete = connection.consumeMcsConnectInitialFromTls(
+        tls.server.get());
+    assert(complete.bytesConsumed == packet.size() - firstFragmentBytes);
+    assert(complete.status == McsIntakeStatus::EnvelopeValidated);
+    assert(connection.stage() == PreauthStage::Closed);
+}
+
+void testMcsTlsSelectedCertificateSubstitution()
+{
+    // Swap the selected X.509 in place on the SAME completed SSL*.
+    // One case changes it before the first MCS read, the other after
+    // a real decrypted partial TPKT (and subsequent readiness event).
+    const auto packet = validMcsPacket();
+    for (const bool afterPartialRead : {false, true})
+    {
+        TlsHandshakeFixture tls;
+        TlsHandshakeFixture otherCertificate;
+        PreauthConnectionStream connection;
+        advanceToTlsMcs(connection, tls.server.get());
+
+        CredSspTlsCertificateFingerprint previousFingerprint{};
+        CredSspTlsCertificateFingerprint replacementFingerprint{};
+        assert(fingerprintActiveCredSspServerTlsCertificate(
+            tls.server.get(), previousFingerprint));
+        assert(fingerprintActiveCredSspServerTlsCertificate(
+            otherCertificate.server.get(), replacementFingerprint));
+        assert(previousFingerprint != replacementFingerprint);
+
+        constexpr std::size_t fragmentBytes = 17;
+        writeTlsClientApplicationData(
+            tls.client.get(), std::span(packet).first(fragmentBytes));
+        if (afterPartialRead)
+        {
+            const auto partial = connection.consumeMcsConnectInitialFromTls(
+                tls.server.get());
+            assert(partial.bytesConsumed == fragmentBytes);
+            assert(partial.status == McsIntakeStatus::NeedMore);
+        }
+        substituteCredSspReplyCertificate(
+            tls.server.get(), otherCertificate.server.get());
+        const auto refused = connection.consumeMcsConnectInitialFromTls(
+            tls.server.get());
+        assert(refused.bytesConsumed == 0);
+        assert(refused.status == McsIntakeStatus::Invalid);
+        assert(connection.stage() == PreauthStage::Closed);
+        assert(connection.consumeMcsConnectInitialFromTls(tls.server.get())
+                   .status == McsIntakeStatus::Closed);
+
+        if (!afterPartialRead)
+        {
+            // No bytes from a substituted-certificate TLS source were
+            // consumed before rejecting the MCS frame.
+            std::array<std::uint8_t, 4> unread{};
+            std::size_t obtained = 0;
+            assert(SSL_read_ex(tls.server.get(), unread.data(),
+                               unread.size(), &obtained) == 1);
+            assert(obtained == unread.size());
+            assert(std::equal(unread.begin(), unread.end(), packet.begin()));
+        }
+    }
+}
+
 void testActualTlsApplicationDataIntake()
 {
     const auto packet = validMcsPacket();
@@ -3380,6 +3470,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"mcs-decrypted-rejections", &testRejectedDecryptedMcsBoundaries},
     {"mcs-tls-record-fragments", &testActualTlsApplicationDataIntake},
     {"mcs-tls-record-rejections", &testTlsRecordFailClosedBoundaries},
+    {"mcs-tls-selected-certificate-continuity", &testMcsTlsSelectedCertificateContinuity},
+    {"mcs-tls-selected-certificate-substitution", &testMcsTlsSelectedCertificateSubstitution},
     {"credssp-tls-fragments", &testTlsCredSspFragmentation},
     {"credssp-tls-coalesced", &testTlsCredSspCoalescingAndIdentity},
     {"credssp-tls-rejections", &testTlsCredSspRejections},

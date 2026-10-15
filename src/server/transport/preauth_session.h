@@ -168,6 +168,10 @@ public:
         std::span<const std::uint8_t> decryptedBytes) noexcept;
 
     // Read the first MCS/GCC envelope directly from the same completed
+    // TLS session AND selected certificate as the X.224->TLS transition.
+    // The certificate SHA-256 is checked before every later SSL_read_ex
+    // callback, including after WANT_READ/WRITE and partial TPKT data.
+    // A certificate changed in-place on the same SSL* fails closed.
     // OpenSSL server connection passed to onTlsHandshake(). The caller
     // owns SSL and its nonblocking BIO; never invoke concurrently with
     // another SSL_read/SSL_write on the same object. A WANT_READ/WRITE
@@ -198,6 +202,12 @@ private:
     const SSL *activeServerTls_{};
     // Borrowed handshake identity; no second TLS or RDP state controller.
     const SSL *handshakingServerTls_{};
+    // Pin the SHA-256 fingerprint of the selected completed TLS server
+    // certificate for subsequent MCS reads. SSL* identity alone can
+    // survive SSL_use_certificate() reconfiguration on the same object.
+    // This never proves peer credentials, CA trust or OS authorization.
+    std::array<std::uint8_t, 32> selectedTlsCertificateFingerprint_{};
+    bool selectedTlsCertificatePinned_{};
 };
 
 } // namespace rdp_server::server::transport

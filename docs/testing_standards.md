@@ -1497,3 +1497,23 @@ policy also PASS; prerelease publishing SKIPPED (no tag).
 Owner-local compile, real GSS/TLS positive Kerberos binding,
 independent OS authorization and client/desktop remain
 **NOT RUN**.
+
+## Preauth TLS selected-certificate continuity tests (2026-10-15)
+
+Add two behavior-named portable CTests to the original
+`test_owned_preauth_session` executable:
+`transport.mcs-tls-selected-certificate-continuity` and
+`transport.mcs-tls-selected-certificate-substitution`.
+Use the existing genuinely completed local-only OpenSSL
+server/client memory BIO pair, already-checked 416-byte
+Microsoft MCS/GCC fixture and selected-X.509 replacement
+fixture (no live external listener). Verify successful
+WANT_READ -> partial TPKT -> completed frame without
+replacement, and zero newly consumed bytes with terminal
+close when the SAME SSL pointer's certificate changes
+either before the first MCS read or between callbacks.
+Do not invent a successful authenticated identity.
+Expected default 93 portable CTests, Linux GSS-enabled
+103, up from the verified 91/101. Cross-platform new-head
+CI and owner-local single build-root tests are NOT RUN
+at authoring; preserve all existing assertions and tests.

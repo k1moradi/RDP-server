@@ -1230,6 +1230,42 @@ acceptance evidence; no synthetic completion claims.
   Microsoft client or desktop. **Next:** owner-local single-root CTest, then
   controlled real GSS/TLS and independent OS admission
   before any live PDU dispatch.
+
+  **Partial TLS-selected-certificate continuity gate (2026-10-15;
+  new-head CI NOT RUN at authoring):** The existing
+  `PreauthConnectionStream` now pins the SHA-256 digest
+  of the selected completed OpenSSL server X.509 certificate
+  when the X.224 Confirm-to-TLS handshake is accepted,
+  using the already maintained first-party CredSSP TLS
+  certificate helper. Before every later direct TLS MCS/GCC
+  receive callback, reject a changed certificate EVEN when
+  the borrowed `SSL*` remains the same; do not read any more
+  decrypted MCS bytes. Close/reset the pin and buffered state
+  on all terminal paths. TLS provider/socket ownership and
+  event-loop confinement remain unchanged. Direct synthetic
+  plaintext parser methods remain diagnostics, not trusted
+  TLS/authenticated admission. Reuse the existing real
+  OpenSSL memory-BIO fixture to test WANT_READ, partial
+  TPKT continuation, complete 416-byte Microsoft frame,
+  and an in-place certificate substitution both before
+  first read and after a partial TLS frame. Two additional
+  behavior-named portable CTests: expected **93 portable /
+  103 Linux GSS** (prior 91/101). The parent
+  `6d5148a615e22d82d263437be8547a131cfe036e`
+  retains the previous implementation
+  `27996f24e5fbb497c0bee37756d34551d1a47e47`
+  with [CI 38735353873](https://github.com/k1moradi/RDP-server/actions/runs/38735353873)
+  PASS (91 portable, 101 Linux GSS in Debug/Release).
+  Owner reports 91/91 local tests PASS on previous code,
+  without a matching log or exact local SHA. **NOT RUN:**
+  new-head CI, owner-local compile/CTest, externally
+  provisioned real GSS/Kerberos TLS public-key binding,
+  independent OS admission, authenticated MCS session,
+  Microsoft client, licensed share or desktop. This is
+  defense in depth ONLY; a fingerprint is not authentication.
+  **Next:** exact-head Linux/macOS/Windows CI, then
+  owner-local one-build-root CTest and separately
+  authorized real Kerberos/TLS and OS session evidence.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

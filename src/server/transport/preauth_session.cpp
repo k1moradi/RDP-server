@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "preauth_session.h"
 #include "gcc_conference_create.h"
+#include "security/credssp_tls_certificate.h"
 
 #include <openssl/ssl.h>
+#include <openssl/crypto.h>
 
 #include <algorithm>
 
@@ -77,6 +79,10 @@ void PreauthConnectionStream::close() noexcept
     replyPending_ = false;
     activeServerTls_ = nullptr;
     handshakingServerTls_ = nullptr;
+    // Keep the pin strictly scoped to this connection diagnostic.
+    OPENSSL_cleanse(selectedTlsCertificateFingerprint_.data(),
+                    selectedTlsCertificateFingerprint_.size());
+    selectedTlsCertificatePinned_ = false;
     session_.close();
 }
 
@@ -158,7 +164,13 @@ bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
         SSL_version(serverTls) >= TLS1_2_VERSION &&
         SSL_get_current_cipher(serverTls) != nullptr &&
         SSL_get_certificate(serverTls) != nullptr;
-    if (!established)
+    // Reuse the CredSSP-selected-certificate SHA-256 primitive rather
+    // than treating the (possibly reconfigured) SSL* as identity.
+    // No OS/GSS admission is derived from the certificate fingerprint.
+    security::CredSspTlsCertificateFingerprint selectedCertificate{};
+    if (!established ||
+        !security::fingerprintActiveCredSspServerTlsCertificate(
+            serverTls, selectedCertificate))
     {
         close();
         return false;
@@ -170,6 +182,8 @@ bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
     }
     activeServerTls_ = serverTls;
     handshakingServerTls_ = nullptr;
+    selectedTlsCertificateFingerprint_ = selectedCertificate;
+    selectedTlsCertificatePinned_ = true;
     return true;
 }
 
@@ -393,6 +407,22 @@ McsIntakeResult PreauthConnectionStream::consumeMcsConnectInitialFromTls(
     // for this connection. The caller owns the active nonblocking SSL/BIO.
     if (stage() != PreauthStage::AwaitMcsConnectInitial ||
         serverTls == nullptr || serverTls != activeServerTls_)
+    {
+        close();
+        return {0, McsIntakeStatus::Invalid};
+    }
+
+    // An unchanged SSL pointer is NOT enough: the locally selected
+    // certificate can be replaced after handshake completion, including
+    // between TLS readiness events with partially buffered MCS data.
+    // Reject before consuming any more plaintext from that SSL object.
+    security::CredSspTlsCertificateFingerprint currentCertificate{};
+    if (!selectedTlsCertificatePinned_ ||
+        !security::fingerprintActiveCredSspServerTlsCertificate(
+            serverTls, currentCertificate) ||
+        CRYPTO_memcmp(currentCertificate.data(),
+                      selectedTlsCertificateFingerprint_.data(),
+                      currentCertificate.size()) != 0)
     {
         close();
         return {0, McsIntakeStatus::Invalid};

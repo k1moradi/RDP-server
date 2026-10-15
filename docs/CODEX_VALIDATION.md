@@ -2124,3 +2124,47 @@ authorized OS admission, actual ordered MCS/TLS
 finalization, licensing, Windows/macOS client or desktop.
 **Next:** owner-local single-root Debug CTest, then
 separately authorized GSS/TLS and OS-admission gates.
+
+## Pending TLS certificate continuity at the MCS intake boundary (2026-10-15)
+
+**Prior known main:** `6d5148a615e22d82d263437be8547a131cfe036e`.
+Previous code implementation
+`27996f24e5fbb497c0bee37756d34551d1a47e47`
+passed [Actions 38735353873](https://github.com/k1moradi/RDP-server/actions/runs/38735353873):
+Linux/GCC 101/101 and macOS/Clang, Windows/MSVC 91/91
+full CTests each in Debug/Release, docs-policy, staged
+SDK consumer and all three ZIP/SHA256 uploads. Owner
+reports 91/91 local PASS on previous code, not proof
+of these new edits.
+
+**New offline/security transport increment:** reuse the
+existing first-party CredSSP SHA-256 selected-certificate
+fingerprint helper from the sole `PreauthConnectionStream`;
+pin the completed server's X.509 on the valid X.224->TLS
+transition, and refuse a changed selected certificate on
+the SAME SSL object before each direct MCS `SSL_read_ex`
+event. The fixed 32-byte pin is wiped upon close.
+The borrowed OpenSSL/BIO lifetime remains caller-owned;
+no standalone listener, GSS principal, Kerberos tickets,
+OS account authority or connected desktop is added.
+Two new behavior CTests in the same preauth fixture
+test continuity and in-place substituted certificate
+before any read or after a partial 416-byte TLS frame.
+Expected **93 portable / 103 Linux GSS** tests.
+The code/test and relevant canonical standards/TODO
+are staged in the same implementation commit.
+
+**NOT RUN at authoring:** exact new-head Linux/macOS/Windows
+Debug/Release CTests, SDK/policy, owner-local compilation,
+positive externally provisioned Kerberos/TLS public-key
+proof, independent OS admission, external Microsoft RDP
+client, authenticated MCS or desktop.
+**Next:** cross-platform exact-head CI and owner-local
+one reused build-root, then a separately authorized
+genuine GSS/TLS+OS authorization exercise. Owner command:
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
+```

@@ -14,40 +14,83 @@ CredSSP/DER and CLIPRDR helpers, verified graphics algorithms and portable
 testable core. It does **not** yet operate a complete authenticated RDP
 server session. The library has no shipping daemon/installer.
 
-## Delivery order
+## Delivery order — prioritize the first supervised human test
 
-1. **Wire interoperability:** bounded TPKT/X.224, security negotiation,
-   MCS/GCC, TLS, CredSSP/NLA credential and channel binding; state-machine
-   fuzzing against hostile and truncated PDUs
-2. **Authenticated session:** implement complete server-side MCS attach,
-   channel join, licensing semantics, capability exchange, Demand Active,
-   Confirm Active, share data, transport lifecycle and disconnect
-3. **Virtual channels:** CLIPRDR/RDPSND/DRDYNVC channel routing,
-   fragmentation/reassembly, concurrent lifecycle and error semantics
-4. **Graphics (H.264 first, x264 software encoder):** deliver a negotiated
-   RDPGFX AVC420-only desktop update path with damage-aware capture, persistent
-   reference frames, bounded latest-frame scheduling, client ACK/backpressure
-   and correct surface/resize lifecycle. Use a statically linked x264 software
-   encoder behind a minimal C++23 RAII adapter, without FFmpeg. ClearCodec,
-   Planar and RemoteFX are not prerequisites for the first usable server.
-5. **Platform adapters:** Linux (X11/Wayland as separately negotiated backends),
-   macOS, Windows and other platforms for capture, input, cursor, session and
-   identity with the same protocol-independent C++ core
-6. **End-to-end clipboard:** implement MS-RDPECLIP/CLIPRDR for Unicode text,
-   PNG/DIB/DIBV5 screenshots and on-demand copied-file streaming. Prefetch
-   bounded text/compressed images after client advertisement, await readiness
-   without blocking session/desktop event loops, and respect X11/Wayland/OS
-   clipboard ownership. RDPDR drive redirection is separate and optional;
-   file clipboard must not require FUSE or whole-file caching. Accept with
-   real Microsoft clients, including a trusted macOS screenshot paste into
-   Firefox yielding a non-null synchronous `image/png` File.
-7. **Performance, packaging and release:** establish a real-client H.264-only
-   baseline first with current Microsoft Windows App (Windows/macOS) and
-   Windows 11 Remote Desktop Connection; FreeRDP remains a useful additional
-   diagnostic client. Only after a usable server is verified, benchmark
-   ClearCodec on representative graphical desktop workflows. Exercise
-   slow/fast links and ship a standalone installable server only once
-   all required authentication, usability and reliability gates pass
+The near-term objective is **one genuinely authenticated, interactive
+Linux/X11 desktop session with a current Microsoft RDP client**, not
+another collection of disconnected parsers. Integrate the existing C++23
+protocol/security modules into one native session owner before expanding
+offline message coverage without a demonstrated integration need. Keep
+the shared RDP core OS-independent; Linux/X11 is the first *adapter*,
+not a Linux-only protocol fork. Do not require xrdp, VNC or another daemon.
+
+1. **Gate A — real-client authentication and share activation (P0).**
+   Wire a bounded TCP listener, complete X.224/TLS, correctly negotiated
+   CredSSP/NLA and live server MCS/GCC response/attach/channel joins,
+   licensing semantics, Demand/Confirm Active, share-data finalization
+   and orderly disconnect into **one connection/session state machine**.
+   Admit no RDP channel, desktop, input or clipboard data until the active
+   TLS identity/credential binding AND independent OS account/console
+   authorization are positively verified. Exercise authentic, explicitly
+   provisioned Kerberos/GSS credentials on an isolated host; synthetic
+   tokens and negative-only GSS tests never authorize users.
+   **Acceptance:** a current Microsoft Windows App or Windows 11 Remote
+   Desktop Connection client completes a real authenticated RDP session
+   through share activation, with correct certificate/identity binding,
+   authorized channel membership, rejection of invalid identities,
+   downgrades, malformed traffic and premature/duplicate transitions.
+   A successfully parsed packet or TLS handshake alone is not a PASS.
+2. **Gate B — minimal visible and controllable desktop (P0).**
+   Build a first-party C++23 server executable using the same authorized
+   session owner and a replaceable Linux/X11 capture, cursor and
+   keyboard/pointer adapter. Route negotiated DRDYNVC/RDPGFX, implement
+   AVC420-only H.264 through a license-reviewed statically linked x264
+   encoder with RAII ownership, validated strides and frame lifetimes,
+   damage-aware scheduling, frame ACK/backpressure, resize and cleanup.
+   Reject clients without compatible negotiated AVC capabilities; do
+   not silently fall back to an unimplemented codec. **Acceptance:**
+   the authenticated Microsoft client renders the actual X11 desktop
+   and a human can move the pointer, type into a terminal, scroll,
+   operate menus, resize and disconnect/reconnect without stale frames,
+   stuck input or resource leaks. Clipboard, file transfer, Wayland and
+   additional codecs are **not** prerequisites for this first pass.
+3. **Gate C — separately authorized first human trial (P0).**
+   Before any live test, obtain explicit host/session authorization.
+   Start on an isolated test host with one permitted user, a private
+   endpoint (loopback or controlled test LAN), non-production
+   certificate/credentials and no public port exposure. Record server
+   SHA, OS/session/display details, client product/version, negotiated
+   TLS/NLA/capabilities, exact commands, per-stage PASS/FAIL/NOT RUN and
+   first failing protocol boundary. Exercise login, display, pointer,
+   keyboard, terminal typing/scrolling, menus, resize, disconnect and
+   reconnect. Test invalid credentials and unsupported AVC negotiation;
+   never log passwords, tickets or clipboard contents. A TLS-only
+   diagnostic or automated mock client is **not** a human trial.
+4. **Gate D — private beta, then deployable server (P0 hardening).**
+   Only after Gate C passes, exercise concurrent connection admission,
+   timeouts, cancellation, reconnect, malformed/fuzzed packets,
+   ASan/UBSan where supported, leak/race checks, slow/fast links, long
+   sessions and p50/p95/p99 visible-update latency. Confirm authenticated
+   service startup/shutdown, secure bind/configuration defaults, clean
+   upgrades/rollback, OS-specific packaging and reproducible artifacts.
+   Require an independently verified safety and usability checklist
+   before any broader network exposure or production deployment.
+5. **Gate E — feature and platform expansion (P1).**
+   Integrate real CLIPRDR virtual-channel ownership, Unicode text,
+   PNG/DIB/DIBV5 screenshots and bounded on-demand file streaming;
+   verify macOS screenshot -> Linux Firefox synchronous `image/png`
+   `File` and clipboard races with Microsoft clients. Add Wayland,
+   macOS, Windows and other OS adapters without modifying the portable
+   protocol contract. Benchmark H.264 on actual GUI workflows before
+   deciding whether ClearCodec or AVC444 offers measured value; defer
+   Planar/RemoteFX and unrelated codec work.
+
+Gate A may be accepted as an **authenticated protocol interoperability
+checkpoint** without graphics; only Gate B/C constitute a usable human
+desktop trial. Gate D is required for deployment. Each gate remains
+**NOT RUN / unaccepted** until the corresponding existing P0/P1 TODO
+item below records actual evidence; green cross-platform static-library
+CTest and SDK ZIP publishing cannot satisfy these gates.
 
 ## Acceptance policy
 
@@ -76,6 +119,13 @@ and the four mandatory [coding](coding_standards.md),
 [benchmark](benchmark.md) standards. Checkboxes require measured
 acceptance evidence; no synthetic completion claims.
 
+**Execution priority (2026-10-15):** finish the existing unchecked P0
+listener, real identity/OS admission, share-activation and interactive
+H.264/client-acceptance items **as one vertical slice**, in that order.
+Do not count additional isolated PDU parsers as session integration or
+open a parallel milestone checklist. Keep prior per-commit regression
+evidence intact and add first real-client transcripts only when run.
+
 ### P0 — Preserve work and implement a native RDP server
 
 - [x] Independently compile/test C++23 static protocol foundation;
@@ -90,6 +140,12 @@ acceptance evidence; no synthetic completion claims.
 - [ ] Implement bounded X.224/TPKT/MCS/GCC network listener and complete
   standards-compliant server connection state machine with external-client
   handshake and malformed-packet evidence.
+  **Gate A integration acceptance (NOT RUN):** bind the existing
+  preauthentication parser and TLS transport to a real first-party
+  listener and one connection owner. Prove a current Microsoft client
+  receives correct live MCS/GCC responses and advances through the
+  authenticated channel/share lifecycle; the loopback TLS intake
+  diagnostic by itself remains insufficient.
   **Completed partial increment at `988938a90f8adbae4e07714ac636af3eb0640011`:**
   bounded incremental plaintext Connection Request intake, exact TCP
   consumed-byte accounting, correct negotiation response/terminal failure,
@@ -394,6 +450,13 @@ acceptance evidence; no synthetic completion claims.
   enforce MCS ordering, allocations and reply transmission.
 - [ ] Implement TLS, CredSSP/NLA and independently verified OS session
   authorization, including security downgrade and failure tests.
+  **Gate A security acceptance (NOT RUN):** positive real Kerberos/GSS
+  with the active TLS certificate/public-key binding plus separate OS
+  user/console authorization on an explicitly approved isolated test
+  host. Gate all channel/session output on both authorizations; cover
+  invalid accounts, altered certificates, downgrade, expiry, denial,
+  cleanup and replay. Fail closed rather than bypassing NLA or
+  accepting synthetic credentials as proof of admission.
   **CredSSP TSRequest decrypted-message framing increment (2026-10-14,
   46 CTests; exact-head CI PASS):** extend the existing
   first-party `credssp_tsrequest.{h,cpp}` with a fixed 16 KiB
@@ -1382,6 +1445,12 @@ acceptance evidence; no synthetic completion claims.
   identity before any live graphics or MCS traffic.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
+  **Gate A session acceptance (NOT RUN):** integrate existing offline
+  serializers/parsers into one live, authenticated MCS attach/join,
+  licensing, capabilities, Demand/Confirm Active, finalization and
+  disconnect path with outbound TLS write completion, membership
+  checks and bounded cancellation. Record a real Microsoft-client
+  post-auth share activation before treating this as functional.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored
@@ -1538,6 +1607,11 @@ acceptance evidence; no synthetic completion claims.
   independent OS session admission, and only afterward
   single-owner Share Control/Share Data lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:
+  **Gate B minimum vertical slice (NOT RUN):** ship the first tested
+  native server executable with Linux/X11 capture, pointer/keyboard
+  input and cursor, after Gate A authorization. Complete negotiated
+  RDPGFX AVC420 delivery and robust resize/frame ACK/reconnect before
+  adding clipboard, other OS backends or optional codecs.
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.
@@ -1563,8 +1637,22 @@ acceptance evidence; no synthetic completion claims.
   capability sets and failures (including AVC disabled/missing), then verify
   text/input, scrolling, menus, images, clipboard, display resize, frame
   ordering and reconnect. **Status: NOT RUN; no real-client acceptance yet.**
+  **Gate C first human acceptance (NOT RUN):** with explicit permission,
+  a human must authenticate using a real Microsoft client, see the
+  Linux/X11 desktop, move the pointer, type and scroll in a terminal,
+  open menus, resize and reconnect without stale updates. Record exact
+  client/version, server SHA, negotiation/first failure and separate
+  negative tests for invalid credentials and missing AVC. Clipboard,
+  screenshot, file transfer and additional OS acceptance remain under
+  existing P1 items, not blockers to this first desktop trial.
 
 ### P1 — Real client features and performance
+
+**Post-first-human-test expansion:** preserve these TODO items and their
+full real-client acceptance criteria. Do not block Gates B/C on
+clipboard, file transfer, Wayland/macOS/Windows server adapters or
+unmeasured codec optimization. The stronger functionality remains
+required for the relevant later release scope.
 
 - [ ] **One native CLIPRDR clipboard session owner** (MS-RDPECLIP): reuse
   `src/server/clipboard/remote_transfer.*`, existing first-party PDU/PNG/DIB
@@ -1681,6 +1769,13 @@ acceptance evidence; no synthetic completion claims.
   **Status: NOT RUN; decision deferred.**
 
 ### P0 — Standards and repeatable automation
+
+**Deployment hardening gate (NOT RUN):** after an authorized human
+desktop trial, record supported sanitizer/fuzzer coverage, concurrent
+connections, long-session/leak/race/timeout testing, real-client
+latency/CPU/RAM/bandwidth, private-network binding, certificate/account
+configuration, service packaging, upgrade and rollback evidence.
+Protocol SDK ZIPs are developer packages, not server deployment.
 
 - [x] The canonical agent policy, four mandatory domain standards,
   behavior-named CTest suites, documentation co-change checker and

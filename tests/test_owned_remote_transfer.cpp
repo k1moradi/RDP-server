@@ -596,6 +596,106 @@ void testFormatListResponseNativeAcceptance()
         shortFormatPdu(payload, true), false, true, acknowledgment));
     assert(acknowledgment == failureWire);
 }
+// MS-RDPECLIP 2.2.2.1: capabilities are optional, bounded, and
+// informational version must never override the negotiated feature flags.
+void testCapabilitiesNegotiationAndFormatListGating()
+{
+    using namespace rdp_server::clipboard;
+    const auto makeCapabilities = [](std::span<const std::uint8_t> payload,
+                                     std::uint16_t flags = 0) {
+        std::vector<std::uint8_t> result;
+        assert(encodePdu(kClipCaps, flags, payload, result));
+        return result;
+    };
+    // Published Microsoft example (section 4.1.3): version 2 and flags 0x0e.
+    const std::array<std::uint8_t, 16> example{
+        1, 0, 0, 0, 1, 0, 12, 0, 2, 0, 0, 0, 0x0e, 0, 0, 0};
+    const auto exampleWire = makeCapabilities(example);
+    RemoteTransfer transfer;
+    std::array<std::uint8_t, 8> acknowledgment{};
+    assert(transfer.negotiatedGeneralFlags() == 0);
+    assert(transfer.receiveCapabilitiesPdu(exampleWire, 0x02));
+    assert(transfer.negotiatedGeneralFlags() == 0x02);
+    std::vector<std::uint8_t> longPayload;
+    appendLongFormat(longPayload, 0xc001, "PNG");
+    assert(transfer.receiveNegotiatedFormatListWithResponse(
+        longFormatPdu(longPayload), true, acknowledgment));
+    assert(acknowledgment[2] == 1);
+    assert(transfer.namedFormatId("PNG") == 0xc001);
+    assert(!transfer.receiveCapabilitiesPdu(exampleWire, 0x02));
+    assert(!transfer.synchronized());
+    transfer.resetAfterDisconnect();
+    assert(transfer.negotiatedGeneralFlags() == 0);
+    assert(!transfer.advertises(0xc001));
+
+    // No capabilities means the mandatory short-format fallback.
+    std::vector<std::uint8_t> shortPayload;
+    appendShortFormat(shortPayload, 0xc002, "PNG", true);
+    const auto shortWire = shortFormatPdu(shortPayload, true);
+    assert(transfer.receiveNegotiatedFormatListWithResponse(
+        shortWire, true, acknowledgment));
+    assert(transfer.namedFormatId("PNG") == 0xc002);
+    transfer.resetAfterDisconnect();
+    assert(transfer.receiveCapabilitiesPdu(exampleWire, 0));
+    assert(transfer.negotiatedGeneralFlags() == 0);
+    assert(transfer.receiveNegotiatedFormatListWithResponse(
+        shortWire, true, acknowledgment));
+    transfer.resetAfterDisconnect();
+    const std::array<std::uint8_t, 4> emptyPayload{0, 0, 0xff, 0xff};
+    assert(transfer.receiveCapabilitiesPdu(makeCapabilities(emptyPayload), 0x3e));
+    assert(transfer.negotiatedGeneralFlags() == 0);
+    transfer.resetAfterDisconnect();
+
+    // Unknown bounded sets are safely skipped; future version is informational.
+    std::vector<std::uint8_t> extended(example.begin(), example.end());
+    extended[0] = 2;
+    extended[8] = 0x7f;
+    extended[12] = 0xce; // Unknown flags, but only 0x0e is jointly supported.
+    extended.insert(extended.end(), {0xaa, 0, 6, 0, 0x12, 0x34});
+    assert(transfer.receiveCapabilitiesPdu(makeCapabilities(extended), 0x3e));
+    assert(transfer.negotiatedGeneralFlags() == 0x0e);
+    transfer.resetAfterDisconnect();
+
+    const auto reject = [&](std::vector<std::uint8_t> candidate) {
+        RemoteTransfer invalid;
+        assert(!invalid.receiveCapabilitiesPdu(candidate, 0x3e));
+        assert(!invalid.synchronized());
+        assert(invalid.negotiatedGeneralFlags() == 0);
+        assert(!invalid.receiveNegotiatedFormatListWithResponse(
+            shortWire, true, acknowledgment));
+        invalid.resetAfterDisconnect();
+        assert(invalid.receiveCapabilitiesPdu(exampleWire, 0x02));
+        assert(invalid.negotiatedGeneralFlags() == 0x02);
+    };
+    reject(makeCapabilities(example, 1)); // Header flags.
+    auto truncated = exampleWire;
+    truncated.pop_back();
+    reject(truncated);
+    auto malformed = example;
+    malformed[0] = 0xff; malformed[1] = 0xff; // Excessive set count.
+    reject(makeCapabilities(malformed));
+    malformed = example;
+    malformed[6] = 0; malformed[7] = 0; // Zero-length set.
+    reject(makeCapabilities(malformed));
+    malformed = example;
+    malformed[6] = 11; // Incorrect General length.
+    reject(makeCapabilities(malformed));
+    malformed = example;
+    malformed[6] = 13; // Length exceeds remaining input.
+    reject(makeCapabilities(malformed));
+    malformed = example;
+    malformed[0] = 2; // Second set missing.
+    reject(makeCapabilities(malformed));
+    std::vector<std::uint8_t> duplicate(example.begin(), example.end());
+    duplicate[0] = 2;
+    duplicate.insert(duplicate.end(), example.begin() + 4, example.end());
+    reject(makeCapabilities(duplicate)); // Duplicate General capability.
+    duplicate.assign(example.begin(), example.end());
+    duplicate.push_back(0); // Unadvertised tail.
+    reject(makeCapabilities(duplicate));
+    reject(makeCapabilities({})); // Missing count and padding.
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -603,6 +703,11 @@ int main(int argumentCount, char **arguments)
     if (argumentCount == 2)
     {
         const std::string_view caseName{arguments[1]};
+        if (caseName == "capabilities-negotiation-format-gating")
+        {
+            testCapabilitiesNegotiationAndFormatListGating();
+            return 0;
+        }
         if (caseName == "long-format-list-generation")
         {
             testLongFormatListGeneration();

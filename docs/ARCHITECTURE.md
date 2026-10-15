@@ -137,9 +137,16 @@ A declined native offer invalidates advertised IDs and retains the retired
 outstanding request only for stale-response draining. R3 must establish
 both peers' General Capability flags and authorized CLIPRDR channel
 admission before invoking this offline parser or transmitting a response.
-The caller owns native offer completion, outbound queueing, and channel
-reassembly. No additional clipboard controller, OS API dependency or
-live clipboard access is introduced by this increment.
+The coordinator also receives a complete optional `CB_CLIP_CAPS` once
+per authorized channel, tracks at most 16 length-bounded capability sets
+and the intersection of the peer's general flags with the caller-supplied
+server-advertised flags. Absent General capabilities select the default
+zero flags; version is informational, unknown bounded extension sets are
+skipped. The new negotiated-format-list intake uses this state rather
+than a caller-selected name mode. Disconnect clears capabilities and
+offers. The caller owns native offer completion, outbound queueing, and
+channel reassembly. No additional clipboard controller, OS API dependency
+or live clipboard access is introduced by this increment.
 
 ### Independence test
 

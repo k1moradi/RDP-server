@@ -20,6 +20,9 @@ constexpr std::size_t kMaximumFormatNameCodeUnits = 256;
 constexpr std::size_t kShortFormatEntryBytes = 36;
 constexpr std::size_t kShortFormatNameBytes = 32;
 constexpr std::uint16_t kAsciiNamesFlag = 0x0004;
+constexpr std::uint16_t kGeneralCapabilityType = 1;
+constexpr std::size_t kGeneralCapabilityBytes = 12;
+constexpr std::size_t kCapabilityHeaderBytes = 4;
 
 [[nodiscard]] std::uint16_t read16(std::span<const std::uint8_t> bytes,
                                    std::size_t offset) noexcept
@@ -364,6 +367,88 @@ bool RemoteTransfer::receiveFormatListWithResponse(
     return true;
 }
 
+bool RemoteTransfer::receiveCapabilitiesPdu(
+    std::span<const std::uint8_t> completePdu,
+    std::uint32_t localGeneralFlags) noexcept
+{
+    using namespace rdp_server::clipboard;
+    PduView pdu{};
+    if (poisoned_ || capabilitiesReceived_ || generation_ != 0 ||
+        !decodePdu(completePdu, pdu) || pdu.type != kClipCaps ||
+        pdu.flags != 0 || pdu.payload.size() < kCapabilityHeaderBytes)
+    {
+        poisoned_ = true;
+        return false;
+    }
+
+    const std::size_t capabilityCount = read16(pdu.payload, 0);
+    if (capabilityCount > kMaximumCapabilitySets)
+    {
+        poisoned_ = true;
+        return false;
+    }
+
+    // CB_CLIP_CAPS pad1 is ignored as required by MS-RDPECLIP 2.2.2.1.
+    std::size_t offset = kCapabilityHeaderBytes;
+    std::uint32_t peerGeneralFlags = 0;
+    bool receivedGeneral = false;
+    for (std::size_t index = 0; index < capabilityCount; ++index)
+    {
+        if (pdu.payload.size() - offset < kCapabilityHeaderBytes)
+        {
+            poisoned_ = true;
+            return false;
+        }
+        const std::uint16_t type = read16(pdu.payload, offset);
+        const std::size_t length = read16(pdu.payload, offset + 2U);
+        if (length < kCapabilityHeaderBytes ||
+            length > pdu.payload.size() - offset)
+        {
+            poisoned_ = true;
+            return false;
+        }
+        if (type == kGeneralCapabilityType)
+        {
+            if (receivedGeneral || length != kGeneralCapabilityBytes)
+            {
+                poisoned_ = true;
+                return false;
+            }
+            // version is informational; only mutually offered flags gate use.
+            peerGeneralFlags = read32(pdu.payload, offset + 8U);
+            receivedGeneral = true;
+        }
+        // Opaque, length-checked extension sets do not grant any features.
+        offset += length;
+    }
+    if (offset != pdu.payload.size())
+    {
+        poisoned_ = true;
+        return false;
+    }
+
+    negotiatedGeneralFlags_ = peerGeneralFlags & localGeneralFlags &
+                              kSupportedGeneralFlags;
+    capabilitiesReceived_ = true;
+    return true;
+}
+
+std::uint32_t RemoteTransfer::negotiatedGeneralFlags() const noexcept
+{
+    return poisoned_ ? 0U : negotiatedGeneralFlags_;
+}
+
+bool RemoteTransfer::receiveNegotiatedFormatListWithResponse(
+    std::span<const std::uint8_t> completePdu,
+    bool nativeOfferAccepted,
+    std::array<std::uint8_t, 8> &response) noexcept
+{
+    return receiveFormatListWithResponse(
+        completePdu, (negotiatedGeneralFlags() &
+                       rdp_server::clipboard::kUseLongFormatNames) != 0,
+        nativeOfferAccepted, response);
+}
+
 std::uint32_t RemoteTransfer::namedFormatId(std::string_view name) const noexcept
 {
     if (poisoned_ || generation_ == 0)
@@ -449,6 +534,8 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     pngFormatId_ = 0;
     fileGroupDescriptorFormatId_ = 0;
     generation_ = 0;
+    negotiatedGeneralFlags_ = 0;
+    capabilitiesReceived_ = false;
     pending_ = {};
     pendingValid_ = false;
     poisoned_ = false;

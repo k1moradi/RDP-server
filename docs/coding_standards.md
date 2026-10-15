@@ -65,6 +65,17 @@ a non-null synchronous image `File`. CLIPRDR file streaming is distinct
 from RDPDR drive browsing; neither protocol intrinsically requires FUSE.
 Record new facts here and update the same existing TODO.
 
+## R8 capability-boundary lesson (2026-10-15; focused harness PASS)
+
+MS-RDPECLIP 2.2.2.1 says Clipboard Capabilities is optional. Missing
+General sets select zero flags (short-format names); General capability
+`version` is informational and MUST NOT gate features. Parse bounded
+sets, skip unknown length-valid types, reject duplicate/malformed known
+sets, and enable features only when both endpoints explicitly advertise
+the corresponding generalFlags. This state belongs in the one clipboard
+generation owner and is reset on channel disconnect. R3 retains the
+actual authorized channel and locally advertised capability authority.
+
 ## Native clipboard implementation rules (2026-10-14; design, NOT RUN)
 
 Use [MS-RDPECLIP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/8bb14d95-fcfa-45e9-b822-f97b129ff208)

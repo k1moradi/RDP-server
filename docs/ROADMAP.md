@@ -2138,9 +2138,22 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   `clipboard.format-list-response-native-acceptance`. GCC 14.2,
   Clang 17 and GCC ASan+UBSan isolated fixture checks PASS; full repo
   CTest, CI, owner platforms and live clipboard NOT RUN at authoring.
-  R3 admission/channel capability negotiation and R5/R6/R7 native
-  clipboard adapters remain outstanding. **Next:** validate negotiated
-  CLIPRDR capabilities in this same coordinator with its own CTest.
+  **R8 capability negotiation (2026-10-15):** the same `RemoteTransfer`
+  now parses optional bounded `CB_CLIP_CAPS`: at most 16 sets, a single
+  exact 12-byte General set, checked lengths, unknown-set skip, mandatory
+  short-name fallback when flags are absent, and fail-closed malformed or
+  repeated advertisements. General version is informational; negotiated
+  flags are the intersection of the peer flags and R3-supplied actual
+  server-advertised flags. The new format-list entry point derives long
+  versus short names from those flags, preserving native-offer acknowledgment
+  and stale-generation isolation. Dedicated
+  `clipboard.capabilities-negotiation-format-gating` CTest covers Microsoft's
+  capability example, fallback, unknown versions/flags/sets, bounds,
+  duplicates and disconnect. Focused GCC/Clang/ASan tests PASS; exact-SHA
+  CI and owner three-platform suite NOT RUN at authoring.
+  **Still outstanding:** R3 admitted CLIPRDR channel/send and R5/R6/R7
+  native clipboard adapters. **Next:** test the authorized R3-to-R8
+  channel handoff with real capability forwarding and cancellation.
 - [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
   after a *legitimate client Format List* for generation N, prioritize
   `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),

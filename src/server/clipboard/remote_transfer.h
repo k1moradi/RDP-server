@@ -20,6 +20,9 @@ class RemoteTransfer final
 {
 public:
     static constexpr std::size_t kMaximumFormats = 64;
+    static constexpr std::size_t kMaximumCapabilitySets = 16;
+    // MS-RDPECLIP generalFlags: capability version is informational only.
+    static constexpr std::uint32_t kSupportedGeneralFlags = 0x0000003eU;
 
     enum class ResponseStatus : std::uint8_t
     {
@@ -71,6 +74,23 @@ public:
         bool negotiatedLongFormatNames, bool nativeOfferAccepted,
         std::array<std::uint8_t, 8> &response) noexcept;
 
+    // Called on the session event loop after R3 admits the CLIPRDR channel.
+    // The caller supplies the server's actually advertised generalFlags.
+    // Missing capabilities imply zero flags; duplicates/malformed sets
+    // poison this channel until resetAfterDisconnect().
+    [[nodiscard]] bool receiveCapabilitiesPdu(
+        std::span<const std::uint8_t> completePdu,
+        std::uint32_t localGeneralFlags) noexcept;
+
+    [[nodiscard]] std::uint32_t negotiatedGeneralFlags() const noexcept;
+
+    // Select long/short names using jointly supported capabilities, not a
+    // caller-supplied format mode. Native acceptance must precede CB_OK.
+    [[nodiscard]] bool receiveNegotiatedFormatListWithResponse(
+        std::span<const std::uint8_t> completePdu,
+        bool nativeOfferAccepted,
+        std::array<std::uint8_t, 8> &response) noexcept;
+
     // Known registered format names are resolved from this generation's offer.
     [[nodiscard]] std::uint32_t namedFormatId(std::string_view name) const noexcept;
 
@@ -108,6 +128,8 @@ private:
     std::uint32_t pngFormatId_{};
     std::uint32_t fileGroupDescriptorFormatId_{};
     std::uint64_t generation_{};
+    std::uint32_t negotiatedGeneralFlags_{};
+    bool capabilitiesReceived_{};
     PendingRequest pending_{};
     bool pendingValid_{};
     bool poisoned_{};

@@ -208,7 +208,8 @@ function(add_rdp_test source_file suite behavior)
         foreach(case_name IN ITEMS
                 long-format-list-generation
                 short-format-list-negotiation
-                format-list-response-native-acceptance)
+                format-list-response-native-acceptance
+                capabilities-negotiation-format-gating)
             add_test(NAME "clipboard.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("clipboard.${case_name}" PROPERTIES

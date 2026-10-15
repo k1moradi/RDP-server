@@ -49,6 +49,38 @@ and negotiated capabilities, then R5/R6/R7 native clipboard adapters.
 **Next:** consume CLIPRDR General Capability Set on the existing
 coordinator with fail-closed version/flag tests and channel gating.
 
+## R8 CLIPRDR General Capability negotiation (2026-10-15; CI pending)
+
+**Implemented:** extend the sole portable `RemoteTransfer` owner to parse
+optional MS-RDPECLIP `CB_CLIP_CAPS`, limiting capability set count to 16,
+checking exact 12-byte General sets, bounded unknown sets, duplicates,
+lengths, flags, and stale/repeated capability messages. Absent capabilities
+assume zero general flags. Feature decisions use mutually advertised
+generalFlags, never the informational version. The new
+`receiveNegotiatedFormatListWithResponse` path selects name layout from
+negotiated state and preserves stale-generation request isolation.
+
+**Files:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/coding_standards.md`, `docs/CODEX_VALIDATION.md`.
+**New dedicated CTest:** `clipboard.capabilities-negotiation-format-gating`,
+covering Microsoft's published CLIP_CAPS example, missing/unknown sets,
+default short names, flags and informational versions, malformed lengths,
+duplicate general sets, disconnect reset and failure quarantine.
+**PASS (focused Linux harness):** GCC 14 strict C++23 Debug, Clang 17
+strict C++23 Debug, GCC optimized Release, and GCC ASan+UBSan with leak
+detection; previous format-list and existing transfer cases PASS. These
+used the production coordinator with a local extract of existing PDU
+encode/decode behavior, not a complete repository CTest.
+**NOT RUN at authoring:** exact-commit CI/full CTest, owner Linux/X11,
+Windows MSYS2 CLANG64 Clang23 and macOS27 platforms, native or real-client
+clipboard, Firefox PNG File and performance.
+**Dependencies:** R3 authorized CLIPRDR channel and negotiation/send
+lifecycle; R5/R6/R7 native clipboard adapters.
+**Next:** connect the same coordinator to R3 authorized-channel routing
+with explicit cancellation and an integration CTest.
+
 ## Local validation (one reused build root)
 
 ```sh

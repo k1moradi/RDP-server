@@ -253,6 +253,11 @@ add_test(NAME clipboard.remote-transfer-framing-rejections
 set_tests_properties(clipboard.remote-transfer-framing-rejections PROPERTIES
     LABELS "protocol;clipboard;security")
 add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)
+# R9 bounded fragmentation, ownership and reset regression; reuse test binary.
+add_test(NAME clipboard.chunk-reassembly-reset-bounds
+    COMMAND test_clipboard_protocol chunk-reassembly-reset-bounds)
+set_tests_properties(clipboard.chunk-reassembly-reset-bounds PROPERTIES
+    LABELS "protocol;clipboard;security")
 add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)
 add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)
 add_rdp_test(test_base64_codec.cpp security base64-codec)

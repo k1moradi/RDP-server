@@ -7,9 +7,12 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace
@@ -287,10 +290,127 @@ void test_dib_pixel_payload_validation()
     assert(!wrapDibAsBmp(embeddedPng, bmp));
 }
 
+
+// Different TCP/virtual-channel fragment boundaries must reassemble the same
+// wire bytes, and the completed buffer must remain owned by the caller after
+// the coordinator is reset or reused. Malformed fragments must not carry
+// partial bytes into the next message.
+void test_chunk_reassembly_reset_and_bounds()
+{
+    using namespace rdp_server::clipboard;
+    std::array<std::uint8_t, 257> wireBytes{};
+    for (std::size_t byteIndex = 0; byteIndex < wireBytes.size(); ++byteIndex)
+    {
+        wireBytes[byteIndex] = static_cast<std::uint8_t>(byteIndex);
+    }
+    const std::vector<std::uint8_t> expected(
+        wireBytes.begin(), wireBytes.end());
+    std::vector<std::uint8_t> complete;
+
+    for (std::size_t firstChunkSize = 1;
+         firstChunkSize < wireBytes.size(); ++firstChunkSize)
+    {
+        ChunkReassembler reassembler;
+        complete.assign(1, 0xff);
+        assert(reassembler.append(wireBytes.data(), firstChunkSize,
+                                  wireBytes.size(), true, false, complete));
+        assert(complete.empty());
+        assert(reassembler.append(wireBytes.data() + firstChunkSize,
+                                  wireBytes.size() - firstChunkSize,
+                                  wireBytes.size(), false, true, complete));
+        assert(complete == expected);
+        reassembler.reset();
+        assert(complete == expected); // The caller owns the moved result.
+        assert(reassembler.append(wireBytes.data(), wireBytes.size(),
+                                  wireBytes.size(), true, true, complete));
+        assert(complete == expected);
+    }
+
+    ChunkReassembler reassembler;
+    const auto checkCleanRecovery = [&]() {
+        assert(reassembler.append(wireBytes.data(), wireBytes.size(),
+                                  wireBytes.size(), true, true, complete));
+        assert(complete == expected);
+    };
+
+    // Never accept an unannounced continuation, even if it ends a packet.
+    complete.assign(3, 0xee);
+    assert(!reassembler.append(wireBytes.data(), 1, wireBytes.size(),
+                               false, true, complete));
+    assert(complete.empty());
+    checkCleanRecovery();
+
+    // An early LAST, changed declared length, overrun or duplicate FIRST
+    // invalidates the partial transfer. A later clean FIRST may recover.
+    assert(reassembler.append(wireBytes.data(), 1, wireBytes.size(),
+                              true, false, complete));
+    assert(!reassembler.append(wireBytes.data() + 1, 1,
+                               wireBytes.size(), false, true, complete));
+    assert(complete.empty());
+    checkCleanRecovery();
+
+    assert(reassembler.append(wireBytes.data(), 1, wireBytes.size(),
+                              true, false, complete));
+    assert(!reassembler.append(wireBytes.data() + 1, 1,
+                               wireBytes.size() - 1, false, false, complete));
+    assert(complete.empty());
+    checkCleanRecovery();
+
+    assert(reassembler.append(wireBytes.data(), 1, wireBytes.size(),
+                              true, false, complete));
+    assert(!reassembler.append(wireBytes.data(), wireBytes.size(),
+                               wireBytes.size(), false, true, complete));
+    assert(complete.empty());
+    checkCleanRecovery();
+
+    assert(reassembler.append(wireBytes.data(), 1, wireBytes.size(),
+                              true, false, complete));
+    assert(!reassembler.append(wireBytes.data(), 1, wireBytes.size(),
+                               true, false, complete));
+    assert(complete.empty());
+    checkCleanRecovery();
+
+    // Upper limits and invalid pointers reject before reserving or reading
+    // peer-controlled memory. A rejection does not preserve partial output.
+    assert(!reassembler.append(wireBytes.data(), 1, kMaximumPduBytes + 1,
+                               true, true, complete));
+    assert(complete.empty());
+    assert(!reassembler.append(nullptr, 1, wireBytes.size(),
+                               true, true, complete));
+    assert(complete.empty());
+    assert(!reassembler.append(wireBytes.data(), 1, 0,
+                               true, true, complete));
+    assert(complete.empty());
+    checkCleanRecovery();
+
+    // Single-byte fragments, including a final one-byte chunk, stay bounded.
+    for (std::size_t byteIndex = 0; byteIndex < wireBytes.size(); ++byteIndex)
+    {
+        assert(reassembler.append(wireBytes.data() + byteIndex, 1,
+                                  wireBytes.size(), byteIndex == 0,
+                                  byteIndex + 1 == wireBytes.size(), complete));
+        if (byteIndex + 1 != wireBytes.size())
+        {
+            assert(complete.empty());
+        }
+    }
+    assert(complete == expected);
+}
+
 } // namespace
 
-int main()
+int main(int argumentCount, char **arguments)
 {
+    if (argumentCount == 2 &&
+        std::string_view(arguments[1]) == "chunk-reassembly-reset-bounds")
+    {
+        test_chunk_reassembly_reset_and_bounds();
+        return 0;
+    }
+    if (argumentCount != 1)
+    {
+        return 2; // Unknown test case names must not silently pass.
+    }
     test_pdu_round_trip();
     test_chunk_reassembly();
     test_unicode_and_line_endings();

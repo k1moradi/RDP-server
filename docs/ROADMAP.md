@@ -2346,6 +2346,30 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   **NOT RUN**. Next R9: separate bounded CLIPRDR chunk/recovery test,
   then R3/R8 authorized channel integration.
 
+  **R9 CLIPRDR chunk reassembly reset/bounds regression (2026-10-15):**
+  Added default-enabled `clipboard.chunk-reassembly-reset-bounds`,
+  independently dispatched in the existing `test_clipboard_protocol`
+  executable against first-party `ChunkReassembler::append/reset`.
+  Covers all 256 split offsets of a 257-byte synthetic message,
+  byte-at-a-time delivery, caller-owned completed output after reset
+  and reuse; rejects premature LAST, changed advertised total,
+  overrun, duplicate FIRST, continuation without FIRST, null data
+  with nonzero length, zero and 8 MiB+1 advertised totals; then
+  accepts a clean new first fragment without stale data.
+  Existing `clipboard.protocol` assertions run unchanged.
+  **Integration parent main:** `54e107bef8670c8ae3b739c442a3e6147a9b1069`. **PASS isolated:** GCC
+  14.2 C++23 Debug/Release, Clang 17 ASan/UBSan plus leak detector on
+  first-party `clipboard_protocol.h` and byte-identical production
+  reassembler methods under `~/rdp-server/build/`. A deliberately
+  removed early-LAST size check caused expected assertion exit 134.
+  **NOT RUN at authoring:** complete source CMake/official CTest (Git
+  clone DNS unavailable in this environment), exact-SHA hosted Actions
+  and the owner's Linux/X11, MSYS2 CLANG64/Clang23 and macOS27
+  checkpoint; real OS clipboard, Microsoft client and desktop.
+  **Next:** verify the exact committed SHA's hosted CTests, obtain
+  owner's unchanged one-root platform reports, then test
+  authorization/disconnect propagation from R3 to R8.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

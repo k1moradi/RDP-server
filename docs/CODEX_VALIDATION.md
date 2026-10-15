@@ -2921,3 +2921,37 @@ GitHub-clonable checkout), new-SHA hosted CI and owner Linux/X11,
 Windows MSYS2 CLANG64 Clang23, macOS27. **Next:** bounded event
 readiness scheduler, R2-authenticated admission and R3 MCS session.
 Publish atomically to existing main using non-force expected HEAD.
+
+## R9 CLIPRDR chunk-reassembly/reset/bounds regression (2026-10-15)
+
+**Road and parent main:** R9 quality/security, `54e107bef8670c8ae3b739c442a3e6147a9b1069`. The
+production `src/clipboard/clipboard_protocol.cpp` and public header
+remain unchanged. Modified files: `tests/test_clipboard_protocol.cpp`,
+`tests/CMakeLists.txt`, `docs/ROADMAP.md`,
+`docs/CODEX_VALIDATION.md`. New dedicated, ordinary
+`clipboard.chunk-reassembly-reset-bounds` CTest runs the actual
+production `ChunkReassembler::append/reset` through the existing
+test executable. `clipboard.protocol` continues to run all seven
+previous test functions. Cases: 256 two-chunk fragmentation cuts
+of a 257-byte synthetic message; one-byte fragments; caller-owned
+completed bytes after reset/reuse; unsolicited continuation;
+premature LAST, changed total, too-large continuation, duplicate
+FIRST, invalid pointer/length, zero advertised size and maximum+1;
+all malformed cases reject cleanly before allowing new valid data.
+
+**PASS isolated, NOT project CTest:** Existing
+`~/rdp-server/build/r9-chunk-verification` harness with the
+production public header and byte-identical `ChunkReassembler`
+method bodies: GCC 14.2 `-std=c++23` Debug and Release with
+`-Wall -Wextra -Wpedantic -Werror`; Clang 17 ASan+UBSan and
+leak detection. Original reassembler passes; mutation that removes
+the early-LAST total check fails at the intended assertion (exit
+134). No live RDP session/clipboard operation was performed.
+**NOT RUN at authoring:** direct full checkout CMake/CTest due
+GitHub hostname DNS unavailability on this runner; exact-SHA
+hosted CI, owner's unchanged Linux/X11, Windows MSYS2 CLANG64
+Clang 23 and macOS27 compile/CTest, live authorized client and
+desktop/clipboard. Follow-up exact-commit Actions evidence
+must be recorded only after it completes. **Next:** obtain
+exact-SHA hosted CI/owner logs, then test R3→R8 authorized
+channel routing and disconnect cancellation when integrated.

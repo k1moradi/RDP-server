@@ -1408,7 +1408,7 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
-## Pending offline T.128 Share Control Header decoding (2026-10-15)
+## Verified offline T.128 Share Control Header decoding (2026-10-15)
 
 **Prior verified base:** main
 `424a35a8ceeb2a32fc553f334cfdcdfeebf5e2a6`,
@@ -1439,12 +1439,17 @@ Same atomic implementation commit updates the
 single living ROADMAP TODO and architecture, coding,
 testing and validation docs.
 
-**NOT RUN at authoring:** exact-new-HEAD Linux/macOS/
-Windows Debug/Release CI, owner-local incremental build/
-CTest, SDK consumers, sanitizers, actual TLS security
-header handling, genuine GSS and OS authorization,
-Share Data inner parsing, licensing, real-client
-activation, desktop and clipboard.
+**PASS:** implementation `77fd1be92c0f4dcff60962d645a39af9b23c96de`,
+[Actions 38705203733](https://github.com/k1moradi/RDP-server/actions/runs/38705203733):
+Linux/GCC **84/84**, macOS/Clang and Windows/MSVC
+**75/75** CTests in each Debug and Release, including both
+new Share Control test groups. Documentation policy,
+staged SDK downstream consumer and ZIP/SHA256 packages PASS.
+Prerelease publication SKIPPED because no tag was created.
+**NOT RUN:** owner's new local build/CTest, sanitizers,
+actual TLS security-header stripping, genuine GSS,
+OS admission, nested Share Data, licensing, external
+clients, desktop and clipboard.
 Use the single `~/rdp-server/build/`:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build build --config Debug --parallel 2`,

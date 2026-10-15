@@ -617,7 +617,7 @@ ZIP/SHA-256 package uploads and documentation-policy PASS.
 The owner-local new build, real TLS send, GSS/OS admission
 and external clients are NOT RUN.
 
-## Offline RDP Share Control Header regression tests (2026-10-15, CI NOT RUN)
+## Verified offline RDP Share Control Header regression tests (2026-10-15, CI PASS)
 
 Reuse `tests/test_owned_mcs_connect_initial.cpp` and the original
 CTest registry, adding exactly TWO portable behavior-named groups:
@@ -635,13 +635,18 @@ and coalesced data, wrong 12-bit protocol versions, all unknown
 type values, and that `totalLength=0x8000` is ignored WITHOUT
 returning a payload view, not dispatched or allocated.
 
-Portable full suite expected **75** (prior 73), optional Linux
-GSS-enabled suite expected **84** (prior 82). No new executable,
-build root, security adapter or session controller. Exact new
-code CI and owner-local compilation NOT RUN at authoring.
-Synthetic protocol syntax does NOT verify security-header
-stripping, real client licensing/share activation, GSS/OS
-authorization, desktop graphics or input.
+Portable full suite **75** (prior 73), Linux GSS-enabled
+suite **84** (prior 82). No new executable, build root,
+security adapter or session controller.
+**PASS:** implementation `77fd1be92c0f4dcff60962d645a39af9b23c96de`,
+[Actions run 38705203733](https://github.com/k1moradi/RDP-server/actions/runs/38705203733):
+Linux/GCC **84/84**, macOS/Clang and Windows/MSVC
+**75/75** CTests in EACH Debug and Release, including
+both new Share Control cases. Staged SDK consumer,
+three ZIP/SHA256 uploads and docs-policy PASS.
+**NOT RUN:** owner's local new compile, real security-header
+stripping, real-client licensing/share activation,
+GSS/OS authorization, desktop graphics or input.
 
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 

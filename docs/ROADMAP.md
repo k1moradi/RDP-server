@@ -1033,8 +1033,8 @@ acceptance evidence; no synthetic completion claims.
   true GSS/Kerberos/TLS identity and separate OS policy
   before wiring any SendData indication into the one
   authorized session owner.
-  **Partial offline Share Control Header decoder (2026-10-15;
-  CI NOT RUN at authoring):** extend the original C++23
+  **Verified partial offline Share Control Header decoder (2026-10-15;
+  CI PASS):** extend the original C++23
   MCS module with a strict, zero-copy T.128
   `TS_SHARECONTROLHEADER` decoder per MS-RDPBCGR
   2.2.8.1.1.1.1. It checks six-byte LE framing,
@@ -1049,11 +1049,19 @@ acceptance evidence; no synthetic completion claims.
   `424a35a8ceeb2a32fc553f334cfdcdfeebf5e2a6`
   passed [Actions 38701851845](https://github.com/k1moradi/RDP-server/actions/runs/38701851845);
   owner reports **73/73 local PASS** on that prior code.
-  **NOT RUN:** current incremental CI, owner-local new
-  compile, real Share Control/Share Data dispatch, stripping
-  optional security headers, licensing, MCS authorization,
+  **PASS:** implementation `77fd1be92c0f4dcff60962d645a39af9b23c96de`,
+  [Actions 38705203733](https://github.com/k1moradi/RDP-server/actions/runs/38705203733):
+  Linux/GCC **84/84**, macOS/Clang and Windows/MSVC
+  **75/75** full CTests in BOTH Debug and Release;
+  new Share Control cases, documentation-policy,
+  installed SDK consumer and all three ZIP/SHA256
+  artifacts PASS. Prerelease publishing SKIPPED
+  without a version tag.
+  **NOT RUN:** owner-local new compile, actual Share
+  Control/Share Data dispatch, optional security-header
+  handling, licensing, independent MCS/OS authorization,
   external Windows App or desktop session.
-  **Next:** exact-new-HEAD CI, then genuine authorized GSS
+  **Next:** genuine authorized GSS
   with active TLS proof, independent OS session policy,
   and the sole authenticated owner for licensing/share
   activation and nested PDU processing.

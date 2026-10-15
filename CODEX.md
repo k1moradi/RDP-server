@@ -10,11 +10,16 @@ CTest modules. Each implementation must update the same TODO and pertinent
 canonical docs **in the same commit**, with accurate tests and limitations.
 
 
-**No new branches without an explicit request from the repository owner.**
-This prohibits all agents, including Codex, from invoking branch creation
-(`git switch -c`, `git branch`, `git checkout -b`,
-`git worktree add -b`, GitHub branch-create endpoints, or automation).
-Work on the existing `main` branch or in a detached worktree for tests.
+**MAIN ONLY — creating any Git branch is prohibited, without exceptions
+under the current project policy.** All development, tests, documentation
+and implementation commits target the existing `main` branch. Do not use
+`git switch -c`, `git branch <name>`, `git checkout -b`,
+branch-backed worktrees, GitHub branch-create endpoints or branch-creating
+automation. Do not create development commits on detached HEAD. Ten agents
+may implement independently, but commits to `main` must be serialized
+through a verified publication slot with a non-force, fast-forward update;
+otherwise report BLOCKED. Never publish during the owner's same-SHA
+three-platform validation freeze. See [AGENTS.md](AGENTS.md).
 
 ## Mission
 

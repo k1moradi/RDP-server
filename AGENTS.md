@@ -63,10 +63,24 @@ restricted to one `<checkout>/build` root.
 
 ## Git, security and delivery discipline
 
-Work on existing `main`. **Never create a new branch** (including
-branch-backed worktrees) absent the owner's explicit request. Protect
-other work: no blind hard resets, force push, full restore/clean or unsafe
-concurrent edits. Check HEAD and worktree before changes and push.
+**All development, fixes, tests, documentation and commits MUST take place
+on the existing `main` branch. Creating ANY other Git branch is prohibited
+for everyone**, including temporary, feature, hotfix, release, experimental
+and agent-specific branches, local or remote. Do not create branches through
+Git commands, worktrees, GitHub APIs, pull-request automation or other tools.
+Do not commit development work on detached HEAD or publish it to a side
+branch. Release tags may reference verified commits already on `main`;
+tags do not authorize branch creation.
+
+**Parallel agents are single-writer at publication:** only one agent may
+update `main` at a time through a verifiable integration slot. Re-read
+remote HEAD and affected files immediately before publishing; use a
+non-force, fast-forward update that rejects an unexpected HEAD. During
+the owner's exact-SHA three-platform validation freeze, no agent may
+publish to `main`. If exclusive publication cannot be verified, report
+BLOCKED rather than inventing a lock or creating a branch. No blind hard
+resets, force pushes, full restores/cleans or unsafe concurrent edits.
+Check HEAD and worktree before committing and publishing.
 No live desktop/clipboard testing, server activation, service restart,
 reboot or production modification without explicit authorization.
 Synthetic security tests do not permit authenticated OS admission.

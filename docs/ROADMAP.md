@@ -94,13 +94,21 @@ not prerequisites for the defined three-platform release.
 
 ### Agent integration and the owner's independent platform test
 
-**GitHub main-only coordination (until the owner explicitly changes
-policy):** Ten agents can work on disjoint module contracts and
+**GitHub main-only coordination — mandatory hard prohibition:**
+**All development and commits occur on existing `main`; creating ANY
+additional Git branch (local, remote, temporary, feature, hotfix,
+release, experimental, agent-specific, or branch-backed worktree) is
+prohibited for everyone, including automation, without exceptions under
+the current policy.** No branch may be used as a fallback when agents
+collide. Ten agents can work on disjoint module contracts and
 independently prepare source/CTest/documentation changes, but **only one
 agent may publish a mutating commit to `main` at a time**. The R10
 integration coordinator sequences promotions and checks the latest HEAD;
 workers re-read current files/SHAs before publication, never overwrite
-another road's edits, never force-push/reset or invent branches. A
+another road's edits, never force-push/reset or invent branches. Only a
+verified single-writer publication slot authorizes a non-force
+fast-forward update of the current `main` HEAD; if no such slot exists
+or HEAD changes unexpectedly, report BLOCKED. A
 promoted implementation increment must atomically include changed
 production code, dedicated registered CTest(s), and the affected
 existing roadmap TODO/validation notes **in the same commit** as required
@@ -163,8 +171,13 @@ CTest authorship, GitHub merge conflict resolution or road integration.
 - Native protocol integration, TLS/NLA security, external clients, graphics,
   input, clipboard, session admission, OS backends and real desktop access
   are **not yet accepted**; never infer them from a green unit test.
-- No new Git branches may be created by assistants/agents without an explicit
-  request from the owner.
+- **All development and commits must target existing `main`. Creating
+  any new Git branch is prohibited for everyone, including agents,
+  contributors and automation.** No feature, hotfix, release, temporary,
+  local/remote or branch-backed worktree branches; no exceptions under the
+  current project policy. Publish to `main` only with a verified
+  single-writer slot and non-force fast-forward update; never during
+  the owner's exact-SHA platform-validation freeze.
 - Preserve attributions and third-party licenses for upstream-inspired code,
   but do not depend on an xrdp daemon, patched chansrv or VNC runtime.
 - Target **practical interoperability with current Microsoft RDP clients**,

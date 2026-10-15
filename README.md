@@ -132,11 +132,18 @@ code must preserve its original notices and compatible licensing; see
 traces historical upstream-derived work transparently; code origin is not
 the same thing as a runtime dependency.
 
-## Branch policy
+## Branch policy — main only
 
-No new branches may be created by assistants or automated agents unless the
-repository owner explicitly requests them. Develop on the existing
-`main` branch until otherwise instructed.
+**All project development and commits must occur on the existing `main`
+branch. Creating any additional local or remote Git branch is prohibited**
+for contributors, assistants, agents and automation, without exceptions
+under the current policy. No feature, hotfix, release, temporary,
+experimental or branch-backed worktree branches. Ten agents may develop
+independently, but publishing to `main` is serialized through an actual
+single-writer integration slot; do not overwrite another agent's changes.
+Do not push during an exact-SHA three-platform testing freeze. Release
+tags may point to verified commits on `main`; tags are not branches.
+See [AGENTS.md](AGENTS.md) and the [roadmap](docs/ROADMAP.md).
 
 ## Automated compilation, testing and protocol SDK delivery
 

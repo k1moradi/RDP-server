@@ -986,8 +986,8 @@ acceptance evidence; no synthetic completion claims.
   **Next:**
   continue explicit authenticated GSS/OS admission gates
   separately; no external-client/desktop acceptance claimed.
-  **Partial OFFLINE connection-finalization fixed PDU decoding (2026-10-15;
-  CI NOT RUN at authoring):** after the existing canonical
+  **Verified partial OFFLINE connection-finalization fixed PDU decoding (2026-10-15;
+  CI PASS):** after the existing canonical
   complete Share Control + uncompressed Share Data parsing,
   the first-party C++23 MCS module recognizes a strict
   22-byte `TS_SYNCHRONIZE_PDU` (type2 0x1f,
@@ -1010,12 +1010,20 @@ acceptance evidence; no synthetic completion claims.
   Parent `1c4dc32ef2bb3d1bc86aeffa1bcc7d10f57ab8ed`
   passed [CI 38711285093](https://github.com/k1moradi/RDP-server/actions/runs/38711285093);
   owner confirms **77/77** locally on that parent.
-  **NOT RUN:** implementation exact-head CI,
-  new owner-local build/CTest, real credential-backed
-  Kerberos/GSS/TLS, OS session admission, actual
+  **PASS:** implementation `c14f47bcd63faaa37761b87ffab06388c1e1bfe7`,
+  [CI run 38712823857](https://github.com/k1moradi/RDP-server/actions/runs/38712823857):
+  Linux/GCC **91/91**, macOS/Clang and Windows/MSVC
+  **81/81** full CTests in BOTH Debug and Release,
+  including all four new Sync/Control behaviors;
+  documentation policy, staged installed CMake SDK
+  consumer and three ZIP/SHA256 package uploads
+  PASS. Prerelease publication SKIPPED (no tag).
+  **NOT RUN:** owner-local exact-code build/CTest,
+  real credential-backed Kerberos/GSS/TLS,
+  independently authorized OS session, actual
   Share Activation, channel state, external clients,
   DVC/H.264 graphics or usable desktop.
-  **Next:** exact-commit cross-platform CI; obtain
+  **Next:** obtain
   explicitly authorized isolated Kerberos test keytab
   and client ticket cache, prove full GSS/TLS binding,
   add independent OS authorization, and only then

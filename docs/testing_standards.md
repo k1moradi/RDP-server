@@ -667,7 +667,7 @@ configured Kerberos provider failure/TLS reply, positive
 GSS/TLS authentication, OS admission, real RDP client,
 service activation or desktop acceptance.
 
-## Offline T.128 Synchronize/Control finalization tests (CI NOT RUN, 2026-10-15)
+## Verified offline T.128 Synchronize/Control finalization tests (CI PASS, 2026-10-15)
 
 Use the existing `tests/test_owned_mcs_connect_initial.cpp`
 single executable, Microsoft fixture style and the canonical
@@ -694,13 +694,22 @@ wrong nested type, bad stream/version and ignored FlowPDU.
 No new executable, build root, security adapter,
 channel scheduler, socket/TLS or desktop owner.
 
-Expected portable suite **81** CTests (previous 77)
-and Linux GSSAPI **91** (previous 87); default CI and
-owner-local new build/CTest are NOT RUN at authoring.
-Independent authenticated Kerberos/TLS and OS account
-session, real Share Activation/client interoperability,
-DVC/RDPGFX and input remain separate acceptance gates.
-Only pure fixed-length wire syntax is asserted.
+Verified portable suite **81** CTests (previous 77)
+and Linux GSSAPI **91** (previous 87).
+**PASS:** implementation `c14f47bcd63faaa37761b87ffab06388c1e1bfe7`,
+[Actions 38712823857](https://github.com/k1moradi/RDP-server/actions/runs/38712823857):
+Linux/GCC **91/91**, macOS/Clang and Windows/MSVC
+**81/81** full CTests in EACH Debug and Release,
+including all four new finalization wire/rejections
+suites. Project docs-policy, SDK installed consumer,
+and ZIP/SHA256 packages PASS. Untagged prerelease
+publish SKIPPED.
+**NOT RUN:** owner-local new code build/CTest,
+independently authenticated Kerberos/TLS/OS session,
+Share Activation, client interoperability,
+DVC/RDPGFX or input. Only fixed-length header
+syntax is proven; an arbitrary Granted Control
+enum never admits a user.
 
 ## Verified offline T.128 Share Data Header tests (CI PASS, 2026-10-15)
 

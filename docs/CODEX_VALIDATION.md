@@ -1408,7 +1408,7 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
-## Pending offline T.128 finalization Synchronize/Control decoder (2026-10-15)
+## Verified offline T.128 finalization Synchronize/Control decoder (2026-10-15)
 
 **Previous main:** `1c4dc32ef2bb3d1bc86aeffa1bcc7d10f57ab8ed`,
 [CI 38711285093](https://github.com/k1moradi/RDP-server/actions/runs/38711285093)
@@ -1449,20 +1449,28 @@ Expected **81 portable / 91 Linux GSS** full CTests.
 ROADMAP, architecture, coding/testing standards
 are updated in this SAME implementation commit.
 
-**NOT RUN at authoring:** implementation CI
-Debug/Release across Linux/macOS/Windows, new
-owner-local build/CTest, controlled real GSS
-keytab/ticket, full CredSSP TLS pubKeyAuth,
-OS account/session authority, licensed share,
-external RDP client, input or graphics.
+**PASS:** implementation `c14f47bcd63faaa37761b87ffab06388c1e1bfe7`,
+[Actions 38712823857](https://github.com/k1moradi/RDP-server/actions/runs/38712823857):
+Linux/GCC **91/91**, macOS/Clang and Windows/MSVC
+**81/81** full CTests in Debug AND Release.
+All four Sync/Control finalization behavior suites,
+project documentation-policy, installed SDK
+consumer and ZIP/SHA256 artifacts PASS.
+Prerelease publishing SKIPPED because no
+release tag was created.
+**NOT RUN:** owner-local new-head build/CTest,
+isolated controlled GSS/Kerberos keytab and tickets,
+full CredSSP TLS pubKeyAuth, OS session policy,
+licensed share activation, external RDP client,
+input, graphics or desktop.
 Reuse owner's ONE build directory:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build build --config Debug --parallel 2`,
 `ctest --test-dir build -C Debug --output-on-failure`.
-**Next gate:** exact-HEAD CI and owner-local
-regressions, then explicitly authorized real
-GSS/TLS plus independent OS session gate
-before live finalization dispatch.
+**Next gate:** owner-local single-build-root
+regressions, followed by explicitly authorized
+genuine Kerberos/TLS and independent OS account/
+session policy before ANY live finalization dispatch.
 
 ## Verified default GSS fail-closed v6 error queue contract (2026-10-15)
 

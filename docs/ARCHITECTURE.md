@@ -1270,6 +1270,14 @@ data routing. The sole R3 controller must enforce those separately and
 bound the upstream TPKT intake. No second writer, session owner or
 live desktop service is introduced.
 
+**R3 outbound joined-channel MCS envelope:** The existing Channel Join
+gate also offers `encodeJoinedSendDataIndication`, a membership-only
+wrapper around the first-party server-to-client T.125 encoder.
+It refuses queued, partially joined, foreign or disconnected channels,
+preserving output on failure. The single future session owner must still
+independently authorize R2 TLS identity/OS access, license, phase and
+negotiated channel permissions before any TLS write.
+
 ## R1 accepted TCP-to-TLS lifetime boundary (2026-10-15)
 
 `OwnedPreauthTcpConnection` nonmovably owns exactly one accepted socket,

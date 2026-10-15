@@ -1771,6 +1771,15 @@ actually run; another parser CTest alone is not a complete session.
   **Next:** compose the existing R1 writer and genuine R2 OS-authorized
   TLS/CredSSP decision into one admission-gated R3 MCS domain dispatcher.
   **Gate A/M2 is NOT accepted** from this bookkeeping or synthetic tests.
+  **R3 outbound joined-channel envelope (2026-10-15; CI NOT RUN):**
+  The same post-attach join gate now wraps the existing T.125 server
+  SendDataIndication encoder to refuse unjoined, queued, partially joined
+  or closed channel IDs without output modification. Existing checked
+  PER size, priority, segmentation and buffer/overlap rules are reused.
+  Two new central MCS CTests check byte-exact output and fail-closed
+  denials. Full project CTest and exact-SHA Actions NOT RUN at authoring.
+  Membership is NOT R2 OS admission, TLS security, licensing, capability
+  negotiation or data dispatch. R3 Gate A/M2 remains open.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

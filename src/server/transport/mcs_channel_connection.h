@@ -366,6 +366,14 @@ public:
                channelJoinConfirmed(request.channelId);
     }
 
+    // Membership-only outbound envelope construction. The eventual R3
+    // owner MUST separately verify TLS-bound R2 admission, OS permission,
+    // license, negotiated channel role and session stage before emission.
+    [[nodiscard]] std::optional<std::size_t> encodeJoinedSendDataIndication(
+        std::uint16_t channelId, std::uint8_t dataPriority,
+        std::uint8_t segmentation, std::span<const std::uint8_t> userData,
+        std::span<std::uint8_t> output) const noexcept;
+
     // TLS error, authentication revocation, protocol violation, timeout,
     // disconnect and reconnect all require a fresh session-owned gate.
     void close() noexcept
@@ -455,6 +463,21 @@ encodeMcsDisconnectProviderUltimatum(McsDisconnectReason reason) noexcept;
     std::uint8_t segmentation,
     std::span<const std::uint8_t> userData,
     std::span<std::uint8_t> output) noexcept;
+
+// Use the existing checked offline encoder, but never construct outbound
+// data on an unjoined channel. This does not transmit or authorize traffic.
+inline std::optional<std::size_t>
+McsChannelJoinWriteGate::encodeJoinedSendDataIndication(
+    std::uint16_t channelId, std::uint8_t dataPriority,
+    std::uint8_t segmentation, std::span<const std::uint8_t> userData,
+    std::span<std::uint8_t> output) const noexcept
+{
+    if (!channelJoinConfirmed(channelId))
+        return std::nullopt;
+    return encodeMcsSendDataIndication(
+        assignedUserId_, channelId, dataPriority, segmentation,
+        userData, output);
+}
 
 // MS-RDPBCGR 2.2.8.1.1.1.1, TS_SHARECONTROLHEADER.
 // The caller must ALREADY have isolated one complete, unencrypted,

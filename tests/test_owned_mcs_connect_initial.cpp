@@ -3132,6 +3132,96 @@ void testMcsJoinStalePartialWriteSlices()
            McsJoinWriteOutcome::Rejected);
 }
 
+void testMcsJoinedSendIndicationWire()
+{
+    // MS-RDPBCGR 2.2.6.1: server SendDataIndication, MCS choice 26.
+    constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
+    constexpr std::array<std::uint8_t, 2> payload{0xde, 0xad};
+    constexpr std::array<std::uint8_t, 16> golden{
+        0x03, 0x00, 0x00, 0x10, 0x02, 0xf0, 0x80, 0x68,
+        0x00, 0x06, 0x03, 0xeb, 0x70, 0x02, 0xde, 0xad};
+    std::array<std::uint8_t, 24> output{};
+    output.fill(0xa5);
+    McsChannelJoinWriteGate gate;
+    assert(!gate.encodeJoinedSendDataIndication(1003, 1, 3, payload, output));
+    assert(gate.configure(1007, channels));
+    assert(!gate.encodeJoinedSendDataIndication(1003, 1, 3, payload, output));
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(),
+               gate.pendingWriteSliceSequence(), 14) == McsJoinWriteOutcome::Pending);
+    assert(!gate.encodeJoinedSendDataIndication(1003, 1, 3, payload, output));
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(),
+               gate.pendingWriteSliceSequence(), 1) == McsJoinWriteOutcome::Confirmed);
+    const auto result =
+        gate.encodeJoinedSendDataIndication(1003, 1, 3, payload, output);
+    assert(result && *result == golden.size());
+    assert(std::equal(golden.begin(), golden.end(), output.begin()));
+    for (std::size_t i = *result; i < output.size(); ++i)
+        assert(output[i] == 0xa5);
+
+    join.channelId = 1005;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(!gate.encodeJoinedSendDataIndication(1005, 1, 3, payload, output));
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(),
+               gate.pendingWriteSliceSequence(), 15) == McsJoinWriteOutcome::Confirmed);
+    const auto second =
+        gate.encodeJoinedSendDataIndication(1005, 1, 3, payload, output);
+    assert(second && *second == golden.size());
+    assert(output[10] == 0x03 && output[11] == 0xed);
+    gate.close();
+    assert(!gate.encodeJoinedSendDataIndication(1003, 1, 3, payload, output));
+    assert(!gate.encodeJoinedSendDataIndication(1005, 1, 3, payload, output));
+}
+
+void testMcsJoinedSendIndicationDenials()
+{
+    constexpr std::array<std::uint16_t, 2> channels{1007, 1003};
+    constexpr std::array<std::uint8_t, 2> payload{0xa5, 0x5a};
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, channels));
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(),
+               gate.pendingWriteSliceSequence(), 15) == McsJoinWriteOutcome::Confirmed);
+    std::array<std::uint8_t, 20> output{};
+    const auto deny = [&](std::uint16_t channelId,
+                          std::uint8_t priority,
+                          std::uint8_t segmentation,
+                          std::span<const std::uint8_t> data,
+                          std::span<std::uint8_t> destination)
+    {
+        output.fill(0x6c);
+        assert(!gate.encodeJoinedSendDataIndication(
+            channelId, priority, segmentation, data, destination));
+        assert(std::all_of(output.begin(), output.end(),
+                           [](std::uint8_t byte) { return byte == 0x6c; }));
+    };
+    deny(0, 1, 3, payload, output);
+    deny(1007, 1, 3, payload, output);
+    deny(1004, 1, 3, payload, output);
+    deny(1003, 4, 3, payload, output);
+    deny(1003, 1, 4, payload, output);
+    deny(1003, 1, 3, payload, std::span(output).first(15));
+    std::array<std::uint8_t, 16384> oversized{};
+    deny(1003, 1, 3, oversized, output);
+    assert(gate.channelJoinConfirmed(1003));
+    const auto valid =
+        gate.encodeJoinedSendDataIndication(1003, 1, 3, payload, output);
+    assert(valid && *valid == 16);
+    gate.close();
+    output.fill(0x6c);
+    assert(!gate.encodeJoinedSendDataIndication(1003, 1, 3, payload, output));
+    assert(std::all_of(output.begin(), output.end(),
+                       [](std::uint8_t byte) { return byte == 0x6c; }));
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -3158,7 +3248,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 49> kMcsTestCases{{
+constexpr std::array<McsTestCase, 51> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3180,6 +3270,8 @@ constexpr std::array<McsTestCase, 49> kMcsTestCases{{
     {"mcs-send-data-joined-denials", &testMcsJoinedSendDataDenials},
     {"mcs-join-stale-write-receipts", &testMcsJoinStaleWriteReceipts},
     {"mcs-join-stale-partial-write-slices", &testMcsJoinStalePartialWriteSlices},
+    {"mcs-send-indication-joined-wire", &testMcsJoinedSendIndicationWire},
+    {"mcs-send-indication-joined-denials", &testMcsJoinedSendIndicationDenials},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

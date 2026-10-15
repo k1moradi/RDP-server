@@ -38,6 +38,8 @@ function(add_rdp_test source_file suite behavior)
                 mcs-send-data-joined-denials
                 mcs-join-stale-write-receipts
                 mcs-join-stale-partial-write-slices
+                mcs-send-indication-joined-wire
+                mcs-send-indication-joined-denials
                 mcs-disconnect-wire
                 mcs-disconnect-rejections
                 mcs-send-data-wire

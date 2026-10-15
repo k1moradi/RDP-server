@@ -2692,6 +2692,22 @@ any branch, live desktop access or input injection.
 **Next:** native frame acquisition/release with deterministic cancellation
 tests after R2/R3 session and R4 frame lifetime agreement.
 
+## R3 joined outbound SendDataIndication gate (2026-10-15)
+
+The existing `McsChannelJoinWriteGate` now checks fully completed
+channel membership before calling the existing production MCS server
+SendDataIndication encoder. It grants no R2 authentication, OS admission,
+licensed or negotiated channel routing. New central behavior-named CTests:
+`transport.mcs-send-indication-joined-wire` (byte-exact valid envelope,
+partial join and closed denial) and
+`transport.mcs-send-indication-joined-denials` (unjoined/unknown IDs,
+invalid PER priority/segmentation, short/oversized buffer, no mutation,
+closure and preservation of prior membership). Old CTests retained.
+**NOT RUN at authoring:** full project build/CTest, implementation
+SHA hosted CI, independent owner three-platform CTests and real client.
+Next: sole R3 domain-phase dispatcher with real R1 completion and
+verified R2 TLS/CredSSP/OS admission. M2/Gate A remains open.
+
 ## R3 bounded MCS Join delivery and stale-write protection (2026-10-15)
 
 **Baseline reviewed:** current `main` immediately before this implementation

@@ -179,6 +179,31 @@ OpenSSL. Its build must not discover or compile upstream xrdp or VNC.
 The protocol static archive must not open a listening socket or claim
 to be a complete server.
 
+### R7 internal macOS frame and geometry boundary (2026-10-15)
+
+`rdp-server-macos-capture` is a macOS-only, noninstalled C++23 static
+adapter linked against CoreVideo and CoreGraphics, separate from
+`RDPServer::protocol`. CoreVideo's C API requires no Objective-C++ here.
+Its move-only `LockedBgraPixelBuffer` retains and read-locks an explicit
+borrowed BGRA pixel buffer, validates physical dimensions, padded stride and
+bounded size, and exposes pixel-only read rows; destruction/move replacement
+unlock and release the native object exactly once. Ownership and locked
+span lifetime remain with the capture adapter, not R4's graphics scheduler.
+
+`DesktopDisplayGeometry` holds at most 16 explicitly normalized displays.
+It maps logical points to physical pixels, and RDP virtual pixels back
+to display-local logical points, rejecting gaps, stale configuration
+generations, overlapping rectangles, malformed scaling and overflow.
+No CoreGraphics coordinate-space convention is assumed: a future native
+display sampler must normalize inputs explicitly. Neither the geometry
+snapshot nor the CoreGraphics `CGPreflightScreenCaptureAccess` read-only
+status grants R2 OS admission. Preflight is re-evaluated, cannot request
+screen permission, and does not guarantee ScreenCaptureKit stream access.
+Ordinary native CTests construct synthetic pixel buffers; no test creates a
+desktop capture stream, performs native input or prompts for TCC consent.
+Live graphics, cursor, input and independent OS session binding are still
+unimplemented and must respect the R2/R3/R4/R8 ownership boundaries.
+
 ### Implementation principles
 
 - Portable wire parsers reject malformed lengths/flags and ambiguous states.

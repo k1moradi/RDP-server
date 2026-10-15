@@ -416,6 +416,53 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PROPERTIES LABELS "x11;linux-adapter")
 endif()
 
+# R7 standard CTests are synthetic and permission-safe on every OS.
+# The Apple cases retain CoreVideo buffers only; no live ScreenCaptureKit
+# stream, real TCC query or keyboard/mouse event is exercised here.
+add_executable(test_macos_capture_pixel_buffer
+    test_macos_capture_pixel_buffer.cpp)
+target_include_directories(test_macos_capture_pixel_buffer PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
+if(APPLE)
+    target_link_libraries(test_macos_capture_pixel_buffer PRIVATE
+        rdp-server-macos-capture)
+else()
+    target_sources(test_macos_capture_pixel_buffer PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/capture_pixel_layout.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/desktop_display_geometry.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/screen_capture_preflight.cpp")
+endif()
+if(MSVC)
+    target_compile_options(test_macos_capture_pixel_buffer PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_macos_capture_pixel_buffer PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+add_test(NAME macos.capture-bgra-layout-bounds
+    COMMAND test_macos_capture_pixel_buffer layout)
+add_test(NAME macos.capture-permission-preflight-revocation
+    COMMAND test_macos_capture_pixel_buffer permission-preflight)
+set_tests_properties(
+    macos.capture-bgra-layout-bounds
+    macos.capture-permission-preflight-revocation
+    PROPERTIES LABELS "macos;capture;offline")
+foreach(case_name IN ITEMS
+        retina-points multi-display-invalid reconfiguration
+        virtual-input-coordinates)
+    add_test(NAME "macos.desktop-${case_name}"
+        COMMAND test_macos_capture_pixel_buffer "${case_name}")
+    set_tests_properties("macos.desktop-${case_name}"
+        PROPERTIES LABELS "macos;geometry;offline")
+endforeach()
+if(APPLE)
+    foreach(case_name IN ITEMS ownership native-denials native-move-replacement)
+        add_test(NAME "macos.capture-bgra-buffer-${case_name}"
+            COMMAND test_macos_capture_pixel_buffer "${case_name}")
+        set_tests_properties("macos.capture-bgra-buffer-${case_name}"
+            PROPERTIES LABELS "macos;capture;offline")
+    endforeach()
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

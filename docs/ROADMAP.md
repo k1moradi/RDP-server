@@ -49,7 +49,7 @@ per tiny behavior.
 | **R4 Graphics** | Static license-reviewed x264 C++23 RAII integration; negotiated RDPGFX AVC420, DVC framing, surfaces, ACK/backpressure, dirty-region frames, resize and reconnect. | Consume abstract captured-frame/cursor data from R5–R7 and channel access from R3; own the **one** frame schedule. |
 | **R5 Linux/X11 adapter** | X11 capture, pointer/keyboard/cursor, display/session lifecycle and OS authorization adapter; deterministic native tests. | Implement portable frame/input/identity interfaces; first authorized desktop-acceptance target (M3). |
 | **R6 Windows adapter** | Native Windows desktop capture, pointer/keyboard/cursor, identity/session policy and lifecycle; validate in **MSYS2 CLANG64, Clang 23**. | Implement the **same** interfaces as R5, not a second RDP engine; develop now, human acceptance at M4. |
-| **R7 macOS adapter** | Native macOS capture, input, cursor, permissions, identity/session and lifecycle for **macOS 27**. | Implement the **same** interfaces as R5; develop now, human acceptance at M5. |
+| **R7 macOS adapter** | Native macOS capture, input, cursor, permissions, identity/session and lifecycle for **macOS 27**. Initial internal CoreVideo/Retina/TCC-preflight adapter compiled with dedicated offline CTests; full macOS 27 verification and live capture remain NOT RUN. | Implement the **same** interfaces as R5; develop now, human acceptance at M5. |
 | **R8 Clipboard/files** | One native CLIPRDR lifecycle; text, PNG/DIB/DIBV5, generation-safe X11/Windows/macOS ownership and bounded on-demand file transfer. | Use R3's virtual-channel router and OS clipboard adapters; not a blocker for first visible Linux desktop, but required for declared full-feature release. |
 | **R9 Quality/interoperability** | Independently authored dedicated CTests for new integration boundaries, fuzz/sanitizer negatives, CI triage, Microsoft-client matrix, performance/reliability regression and verification receipts. | Validate every road; maintain **one test registry** and integrate cross-road fixtures rather than duplicate behavior owners. |
 | **R10 Runtime/release** | Standalone first-party server executable, secure startup/configuration, packaging, service/termination, installation, upgrades, rollback, release evidence and commit integration coordination. | Consume R1–R9 verified interfaces; SDK ZIPs alone never count as deployable server artifacts. |
@@ -2338,6 +2338,254 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   separate authorization. **Status: NOT RUN.**
 - [ ] Integrate isolated Linux/X11/Wayland, Windows and macOS desktop,
   clipboard and input adapters; test real Microsoft/FreeRDP clients.
+  **R7 M1 increment (2026-10-15):** New, noninstalled macOS-only
+  `rdp-server-macos-capture` CoreVideo BGRA read-lock owner and CoreGraphics
+  read-only screen-permission preflight; portable, fixed-capacity physical/
+  logical display mapping (Retina fractional scales, negative origins,
+  monitor gaps, RDP virtual pointer coordinates and display generations).
+  No authorization, screen permission request, capture stream, input
+  injection, H.264 encoder or clipboard controller is created.
+  Dedicated offline CTests: `macos.capture-bgra-layout-bounds`,
+  `macos.capture-permission-preflight-revocation`,
+  `macos.desktop-retina-points`,
+  `macos.desktop-multi-display-invalid`,
+  `macos.desktop-reconfiguration`,
+  `macos.desktop-virtual-input-coordinates` (portable) and Apple-only
+  `macos.capture-bgra-buffer-ownership`,
+  `macos.capture-bgra-buffer-native-denials`,
+  `macos.capture-bgra-buffer-native-move-replacement`.
+  Isolated Linux CMake/CTest **9/9 PASS** including synthetic CoreVideo
+  simulation; Clang 17 ASan/UBSan portable **6/6 PASS** and GCC 14.2
+  -O2 portable **6/6 PASS**. These are not canonical repository or Apple
+  SDK tests. **NOT RUN:** full exact-commit CI at authoring, owner macOS 27,
+  MSYS2 CLANG64 23 and Linux exact-SHA tests, permission-dependent live
+  desktop, RDP client acceptance and performance. **Next:** native
+  CoreGraphics geometry sampler and authorized per-user ScreenCaptureKit
+  lifecycle only after R2/R3/R4 interface convergence. M1/M5 remain open.
+  **R6 exact-SHA hosted CI verification:** implementation commit
+  `bd56f3a8ebcf4fa72d3419fb417d5a01f1678961`,
+  [Actions 38797799194](https://github.com/k1moradi/RDP-server/actions/runs/38797799194):
+  Linux Ubuntu Debug/Release CTest **170/170 PASS** each,
+  Windows MSVC Debug/Release **168/168 PASS** each, macOS
+  Debug/Release **158/158 PASS** each; documentation-policy,
+  SDK install/consumer and packaging also PASS. **NOT RUN:**
+  owner Windows MSYS2 CLANG64 Clang 23, owner Linux/X11/macOS 27,
+  native live DXGI and Microsoft-client desktop acceptance.
+  **R6 DXGI acquired-frame RAII (2026-10-15, authored on parent
+  `853e572dafdeab18161afa3926db2f29d2ec3a34`):** `src/windows/windows_dxgi_frame_owner.{h,cpp}`
+  owns one native `IDXGIOutputDuplication::AcquireNextFrame` lease,
+  releases the COM `IDXGIResource` then calls `ReleaseFrame` exactly
+  once on normal completion, cancellation or destruction. Timeout
+  remains retryable, bounded to at most 100 ms per poll; access loss,
+  release failure and inconsistent native callbacks close the owner
+  until a newly authorized duplication/session is constructed. One
+  borrowed resource is never reused after release. The native
+  duplication pointer is caller-owned and must outlive the frame
+  owner. Dedicated conditional CTests, in the existing R6 binary:
+  `windows.capture-dxgi-frame-lease-lifecycle` and
+  `windows.capture-dxgi-frame-lease-rejections`. **PASS:** Linux
+  Clang 17 and GCC 14.2 strict C++23 10/10 R6 case selectors;
+  Clang ASan/UBSan 10/10; sparse-only staging CTest 10/10
+  (`ctest --test-dir build -C Debug --output-on-failure`).
+  **NOT RUN:** complete project CMake/CTest from a synchronized
+  checkout (GitHub DNS unavailable here), Windows native SDK
+  MSYS2 CLANG64 Clang 23, owner's platform trio, real DXGI desktop,
+  R2/R3 session admission and R4 asynchronous graphics consumption.
+  Hosted CI result must be checked at the resulting commit SHA.
+  **Next:** bind acquired frame resource to a session-authorized D3D11
+  staging-map owner and validate row pitch/cleanup without live capture.
+  **R6 WinGDI type-name correction (2026-10-15):** At published
+  `467bf6bcf4624399e4e24667d214afd738b359d6`, Windows/MSVC
+  Debug CI build FAIL at `windows_desktop_geometry.cpp:33`: WinGDI's
+  function named `Rectangle` hid the portable C++ type after inclusion
+  of `windows.h`. R6 now binds the core `struct ::Rectangle` through
+  `PortableRectangle` in its Windows namespace and adds
+  `windows.geometry-gdi-rectangle-name-resolution` to the existing
+  Windows-only CTest executable. **PASS:** Clang 17 and GCC 14.2 C++23
+  strict warnings 8/8 direct cases, Clang ASan/UBSan 8/8; synthetic
+  WinGDI-function-first header inclusion 1/1. **NOT RUN:** native
+  Windows/MSYS2 CLANG64 Clang 23, owner workstation CTest and human
+  desktop; GitHub Actions for the correction pending at publication.
+  Next: validated DXGI acquire/release after R2/R3 and R4 contract.
+  **R6 direct-main integration (2026-10-15; parent `455b8b631957d2f3f9631393f2a3833e19c2c07a`):**
+  7/7 fixture selectors PASS under Clang 17 and GCC 14.2 C++23
+  warnings-as-errors; Clang ASan/UBSan 7/7 PASS; sparse CTest
+  7/7 PASS. Full repository/Windows CLANG64 CTests remain NOT RUN.
+  Native session admission and real desktop acceptance NOT RUN.
+  **R6 Windows monitor geometry increment (2026-10-15; integrated on main; native validation pending):**
+  `src/windows/windows_desktop_geometry.{h,cpp}` provides read-only
+  `EnumDisplayMonitors`/`GetMonitorInfoW` sampling into owned, bounded
+  portable `Rectangle` layouts plus signed-native/unsigned-desktop
+  coordinate translation that rejects monitor gaps. Canonical ordering
+  makes equivalent monitor enumerations equal for resize detection. The adapter
+  remains separate from the protocol archive and cannot grant OS/RDP
+  admission. New conditional CTests:
+  `windows.geometry-negative-origin-and-monitor-gaps` and
+  `windows.geometry-invalid-layout-rejections`, and
+  `windows.geometry-order-stable-reconfiguration` (fixture-only).
+  **PASS (sparse staging, 2026-10-15):** Linux Clang 17/GCC 14.2
+  C++23 `-Wall -Wextra -Wpedantic -Werror` each compiled/executed all
+  three fixture behaviors; Clang ASan+UBSan also PASS 3/3 under the
+  sole `~/rdp-server/build/` directory. A sparse staging-only
+  CTest registry PASS 3/3; synthetic Win32 callback stub also PASS.
+  **NOT RUN:** actual Windows/MSYS2 CLANG64 Clang 23 compile,
+  dedicated Windows CTest registration, full project CTest, Windows
+  capture/input/identity integration, and human desktop acceptance.
+  **NOT RUN:** full repository CTest and native Win32 SDK compilation;
+  sparse fixture success does not establish M1/M4 acceptance.
+  **R6 DXGI BGRA mapped-view validation (2026-10-15; integrated on main; native validation pending):**
+  `src/windows/windows_bgra_frame.{h,cpp}` extends the same Windows-only
+  adapter target with a borrowing, zero-copy conversion of a validated
+  top-down BGRA8 mapped frame into existing `FramebufferView`. The helper
+  requires four bytes per pixel, sufficient mapped row pitch and complete
+  backing storage, and caps one frame at 512 MiB. It preserves the previous
+  output on failure and does not acquire a live DXGI image. Added dedicated
+  Windows CTests `windows.geometry-capture-bgra-stride-and-pixel-order` and
+  `windows.geometry-capture-bgra-invalid-frame-denials`, reusing the same
+  existing R6 fixture executable and single CTest registry.
+  **PASS (sparse staging, 2026-10-15):** focused source/test compilation
+  and all **5/5** fixtures with Clang 17 and GCC 14.2 C++23, strict
+  warnings-as-errors; Clang ASan+UBSan **5/5**. Sparse staging-only
+  `ctest --test-dir build -C Debug --output-on-failure` **5/5 PASS**;
+  its new-case `-R '^windows\.geometry-capture-'` **2/2 PASS**.
+  **NOT RUN:** native
+  Windows toolchain, real desktop capture, full repository CTest and
+  R2/R3/R4 authorized end-to-end integration. No Windows user session,
+  input or graphics is activated by the helper.
+  **R6 DXGI damage metadata normalization (2026-10-15; integrated on main;
+  native validation pending):** `src/windows/windows_dxgi_damage.{h,cpp}` emits bounded
+  portable `Rectangle` spans from per-output Desktop Duplication move and
+  dirty descriptors, in normative move-destination-before-dirty order.
+  Validates non-stretched move source and destination bounds, exclusive
+  edges, nonempty pixels, 1024-rectangle cap, 32-bit geometry and output
+  capacity before committing; malformed late metadata leaves the prior
+  output/count intact. Empty pointer-only frames emit zero rectangles.
+  The helper neither accumulates damage nor owns an R4 graphics lifecycle.
+  **Dedicated CTests:** `windows.capture-dxgi-move-before-dirty` and
+  `windows.capture-dxgi-metadata-rejections` (Windows registration, same
+  R6 fixture executable). **PASS (sparse offline fixture, Linux):** Clang
+  17, GCC 14.2 and Clang ASan/UBSan compiled and executed **7/7** R6
+  selectors; sparse local `ctest --test-dir build -C Debug
+  --output-on-failure` **7/7 PASS** and focused
+  `ctest --test-dir build -C Debug -R '^windows\.capture-dxgi-'
+  --output-on-failure` **2/2 PASS**. Full canonical checkout/CTest,
+  Windows Clang 23, native SDK and real capture NOT RUN.
+  **NOT RUN:** native Windows toolchain and full repository CTest;
+  no desktop or injected input was used. Next: native
+  DXGI frame acquisition/release/cancellation with R2/R3-approved session
+  and R4 borrowed/owned frame lifetime contract, tested offline first.
+  **R6 exact-SHA hosted CI verification:** implementation commit
+  `bd56f3a8ebcf4fa72d3419fb417d5a01f1678961`,
+  [Actions 38797799194](https://github.com/k1moradi/RDP-server/actions/runs/38797799194):
+  Linux Ubuntu Debug/Release CTest **170/170 PASS** each,
+  Windows MSVC Debug/Release **168/168 PASS** each, macOS
+  Debug/Release **158/158 PASS** each; documentation-policy,
+  SDK install/consumer and packaging also PASS. **NOT RUN:**
+  owner Windows MSYS2 CLANG64 Clang 23, owner Linux/X11/macOS 27,
+  native live DXGI and Microsoft-client desktop acceptance.
+  **R6 DXGI acquired-frame RAII (2026-10-15, authored on parent
+  `853e572dafdeab18161afa3926db2f29d2ec3a34`):** `src/windows/windows_dxgi_frame_owner.{h,cpp}`
+  owns one native `IDXGIOutputDuplication::AcquireNextFrame` lease,
+  releases the COM `IDXGIResource` then calls `ReleaseFrame` exactly
+  once on normal completion, cancellation or destruction. Timeout
+  remains retryable, bounded to at most 100 ms per poll; access loss,
+  release failure and inconsistent native callbacks close the owner
+  until a newly authorized duplication/session is constructed. One
+  borrowed resource is never reused after release. The native
+  duplication pointer is caller-owned and must outlive the frame
+  owner. Dedicated conditional CTests, in the existing R6 binary:
+  `windows.capture-dxgi-frame-lease-lifecycle` and
+  `windows.capture-dxgi-frame-lease-rejections`. **PASS:** Linux
+  Clang 17 and GCC 14.2 strict C++23 10/10 R6 case selectors;
+  Clang ASan/UBSan 10/10; sparse-only staging CTest 10/10
+  (`ctest --test-dir build -C Debug --output-on-failure`).
+  **NOT RUN:** complete project CMake/CTest from a synchronized
+  checkout (GitHub DNS unavailable here), Windows native SDK
+  MSYS2 CLANG64 Clang 23, owner's platform trio, real DXGI desktop,
+  R2/R3 session admission and R4 asynchronous graphics consumption.
+  Hosted CI result must be checked at the resulting commit SHA.
+  **Next:** bind acquired frame resource to a session-authorized D3D11
+  staging-map owner and validate row pitch/cleanup without live capture.
+  **R6 WinGDI type-name correction (2026-10-15):** At published
+  `467bf6bcf4624399e4e24667d214afd738b359d6`, Windows/MSVC
+  Debug CI build FAIL at `windows_desktop_geometry.cpp:33`: WinGDI's
+  function named `Rectangle` hid the portable C++ type after inclusion
+  of `windows.h`. R6 now binds the core `struct ::Rectangle` through
+  `PortableRectangle` in its Windows namespace and adds
+  `windows.geometry-gdi-rectangle-name-resolution` to the existing
+  Windows-only CTest executable. **PASS:** Clang 17 and GCC 14.2 C++23
+  strict warnings 8/8 direct cases, Clang ASan/UBSan 8/8; synthetic
+  WinGDI-function-first header inclusion 1/1. **NOT RUN:** native
+  Windows/MSYS2 CLANG64 Clang 23, owner workstation CTest and human
+  desktop; GitHub Actions for the correction pending at publication.
+  Next: validated DXGI acquire/release after R2/R3 and R4 contract.
+  **R6 direct-main integration (2026-10-15; parent `455b8b631957d2f3f9631393f2a3833e19c2c07a`):**
+  7/7 fixture selectors PASS under Clang 17 and GCC 14.2 C++23
+  warnings-as-errors; Clang ASan/UBSan 7/7 PASS; sparse CTest
+  7/7 PASS. Full repository/Windows CLANG64 CTests remain NOT RUN.
+  Native session admission and real desktop acceptance NOT RUN.
+  **R6 Windows monitor geometry increment (2026-10-15; integrated on main; native validation pending):**
+  `src/windows/windows_desktop_geometry.{h,cpp}` provides read-only
+  `EnumDisplayMonitors`/`GetMonitorInfoW` sampling into owned, bounded
+  portable `Rectangle` layouts plus signed-native/unsigned-desktop
+  coordinate translation that rejects monitor gaps. Canonical ordering
+  makes equivalent monitor enumerations equal for resize detection. The adapter
+  remains separate from the protocol archive and cannot grant OS/RDP
+  admission. New conditional CTests:
+  `windows.geometry-negative-origin-and-monitor-gaps` and
+  `windows.geometry-invalid-layout-rejections`, and
+  `windows.geometry-order-stable-reconfiguration` (fixture-only).
+  **PASS (sparse staging, 2026-10-15):** Linux Clang 17/GCC 14.2
+  C++23 `-Wall -Wextra -Wpedantic -Werror` each compiled/executed all
+  three fixture behaviors; Clang ASan+UBSan also PASS 3/3 under the
+  sole `~/rdp-server/build/` directory. A sparse staging-only
+  CTest registry PASS 3/3; synthetic Win32 callback stub also PASS.
+  **NOT RUN:** actual Windows/MSYS2 CLANG64 Clang 23 compile,
+  dedicated Windows CTest registration, full project CTest, Windows
+  capture/input/identity integration, and human desktop acceptance.
+  **NOT RUN:** full repository CTest and native Win32 SDK compilation;
+  sparse fixture success does not establish M1/M4 acceptance.
+  **R6 DXGI BGRA mapped-view validation (2026-10-15; integrated on main; native validation pending):**
+  `src/windows/windows_bgra_frame.{h,cpp}` extends the same Windows-only
+  adapter target with a borrowing, zero-copy conversion of a validated
+  top-down BGRA8 mapped frame into existing `FramebufferView`. The helper
+  requires four bytes per pixel, sufficient mapped row pitch and complete
+  backing storage, and caps one frame at 512 MiB. It preserves the previous
+  output on failure and does not acquire a live DXGI image. Added dedicated
+  Windows CTests `windows.geometry-capture-bgra-stride-and-pixel-order` and
+  `windows.geometry-capture-bgra-invalid-frame-denials`, reusing the same
+  existing R6 fixture executable and single CTest registry.
+  **PASS (sparse staging, 2026-10-15):** focused source/test compilation
+  and all **5/5** fixtures with Clang 17 and GCC 14.2 C++23, strict
+  warnings-as-errors; Clang ASan+UBSan **5/5**. Sparse staging-only
+  `ctest --test-dir build -C Debug --output-on-failure` **5/5 PASS**;
+  its new-case `-R '^windows\.geometry-capture-'` **2/2 PASS**.
+  **NOT RUN:** native
+  Windows toolchain, real desktop capture, full repository CTest and
+  R2/R3/R4 authorized end-to-end integration. No Windows user session,
+  input or graphics is activated by the helper.
+  **R6 DXGI damage metadata normalization (2026-10-15; integrated on main;
+  native validation pending):** `src/windows/windows_dxgi_damage.{h,cpp}` emits bounded
+  portable `Rectangle` spans from per-output Desktop Duplication move and
+  dirty descriptors, in normative move-destination-before-dirty order.
+  Validates non-stretched move source and destination bounds, exclusive
+  edges, nonempty pixels, 1024-rectangle cap, 32-bit geometry and output
+  capacity before committing; malformed late metadata leaves the prior
+  output/count intact. Empty pointer-only frames emit zero rectangles.
+  The helper neither accumulates damage nor owns an R4 graphics lifecycle.
+  **Dedicated CTests:** `windows.capture-dxgi-move-before-dirty` and
+  `windows.capture-dxgi-metadata-rejections` (Windows registration, same
+  R6 fixture executable). **PASS (sparse offline fixture, Linux):** Clang
+  17, GCC 14.2 and Clang ASan/UBSan compiled and executed **7/7** R6
+  selectors; sparse local `ctest --test-dir build -C Debug
+  --output-on-failure` **7/7 PASS** and focused
+  `ctest --test-dir build -C Debug -R '^windows\.capture-dxgi-'
+  --output-on-failure` **2/2 PASS**. Full canonical checkout/CTest,
+  Windows Clang 23, native SDK and real capture NOT RUN.
+  **NOT RUN:** native Windows toolchain and full repository CTest;
+  no desktop or injected input was used. Next: native
+  DXGI frame acquisition/release/cancellation with R2/R3-approved session
+  and R4 borrowed/owned frame lifetime contract, tested offline first.
   **R6 exact-SHA hosted CI verification:** implementation commit
   `bd56f3a8ebcf4fa72d3419fb417d5a01f1678961`,
   [Actions 38797799194](https://github.com/k1moradi/RDP-server/actions/runs/38797799194):

@@ -195,6 +195,27 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     # and independently authorized OS admission in a future service.
 endif()
 
+# R7 native capture ingestion only: retain CoreVideo buffers and preflight
+# Screen Recording permission without activating a capture stream or service.
+# No Apple frameworks are linked into the portable protocol library.
+if(APPLE)
+    find_library(RDP_SERVER_COREVIDEO_FRAMEWORK CoreVideo REQUIRED)
+    find_library(RDP_SERVER_COREGRAPHICS_FRAMEWORK CoreGraphics REQUIRED)
+    add_library(rdp-server-macos-capture STATIC
+        src/platform/macos/capture_pixel_layout.cpp
+        src/platform/macos/capture_pixel_buffer.cpp
+        src/platform/macos/desktop_display_geometry.cpp
+        src/platform/macos/screen_capture_preflight.cpp)
+    target_compile_features(rdp-server-macos-capture PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-macos-capture PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(rdp-server-macos-capture PUBLIC
+        "${RDP_SERVER_COREVIDEO_FRAMEWORK}"
+        "${RDP_SERVER_COREGRAPHICS_FRAMEWORK}")
+    target_compile_options(rdp-server-macos-capture PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
     add_subdirectory(tests)
 endif()
@@ -216,7 +237,8 @@ install(TARGETS rdp-server-protocol EXPORT RDPServerProtocolTargets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     FILES_MATCHING PATTERN "*.h"
-    PATTERN "windows" EXCLUDE)
+    PATTERN "windows" EXCLUDE
+    PATTERN "macos" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake
     NAMESPACE RDPServer::

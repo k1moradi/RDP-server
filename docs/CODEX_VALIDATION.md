@@ -3408,3 +3408,51 @@ desktop and performance. **Next:** verify GitHub Actions
 exact-SHA native Linux build plus CTest, test controlled native
 success/reply lifecycle without display access, and subsequently
 integrate R2/R3 authorization with the R4 consumer; M3 open.
+
+## R7 macOS CoreVideo/Retina/TCC preflight implementation (2026-10-15)
+
+**Source baseline:** `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`. Noninstalled `rdp-server-macos-capture`
+on Apple only; native CoreVideo retained/read-locked 32BGRA buffer view with
+bounded stride/layout, pixel-only rows, move/release RAII; a portable
+16-display logical-point/physical-pixel geometry snapshot with generation
+and gap rejection, and read-only CoreGraphics capture-permission preflight.
+No ScreenCaptureKit stream, remote login, OS admission, injection or native
+clipboard access. No user privacy settings were changed.
+
+**Files:** `CMakeLists.txt`, `tests/CMakeLists.txt`,
+`src/platform/macos/capture_pixel_layout.{h,cpp}`,
+`src/platform/macos/capture_pixel_buffer.{h,cpp}`,
+`src/platform/macos/desktop_display_geometry.{h,cpp}`,
+`src/platform/macos/screen_capture_preflight.{h,cpp}`,
+`tests/test_macos_capture_pixel_buffer.cpp`, `docs/ROADMAP.md`,
+`docs/ARCHITECTURE.md`, and this ledger.
+**New CTests:** `macos.capture-bgra-layout-bounds`,
+`macos.capture-permission-preflight-revocation`,
+`macos.desktop-retina-points`, `macos.desktop-multi-display-invalid`,
+`macos.desktop-reconfiguration`,
+`macos.desktop-virtual-input-coordinates` (all OS);
+`macos.capture-bgra-buffer-ownership`,
+`macos.capture-bgra-buffer-native-denials`,
+`macos.capture-bgra-buffer-native-move-replacement` (Apple-only).
+
+**PASS, isolated Linux R7 fixture only** (NOT the complete repository):
+`cmake -S ~/rdp-server -B ~/rdp-server/build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build ~/rdp-server/build --parallel 2`,
+`ctest --test-dir ~/rdp-server/build -C Debug --output-on-failure`
+=> **9/9** (six portable cases plus three synthetic fake-CoreVideo cases).
+Also GCC 14.2 strict C++23 `-O2 -Werror -D_GLIBCXX_ASSERTIONS`:
+six portable cases PASS; Clang 17 strict C++23 ASan/UBSan: six portable
+cases PASS. All simulated and fixture evidence is explicitly not a native
+Apple CoreVideo SDK validation.
+
+**NOT RUN at implementation authoring:** complete main checkout/full CTest;
+GitHub Actions on this newly produced commit; owner's macOS 27 SDK/Apple
+Clang, Linux/X11 or MSYS2 CLANG64 Clang23 exact-SHA test triplet; real
+TCC permission changes, ScreenCaptureKit streams, authenticated RDP
+Microsoft-client graphics/input/reconnect, and benchmarks.
+**First missing integration boundary:** R2/R3 independently authorized
+per-user interactive macOS desktop/session capability and R4 portable
+frame/stride/damage/lifetime contract. **Next R7 step:** native display
+sampling/normalization and deterministic change notifications, with a new
+dedicated CTest; do not activate a service or infer authorization from
+CGPreflightScreenCaptureAccess.

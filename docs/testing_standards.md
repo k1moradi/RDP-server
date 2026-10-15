@@ -1517,3 +1517,20 @@ Expected default 93 portable CTests, Linux GSS-enabled
 103, up from the verified 91/101. Cross-platform new-head
 CI and owner-local single build-root tests are NOT RUN
 at authoring; preserve all existing assertions and tests.
+
+## New test helper namespace visibility regression (2026-10-15)
+
+**FAIL:** `5b1c9790b772923a4a4437d4f4bef4ec7f404d88`,
+[CI 38738637457](https://github.com/k1moradi/RDP-server/actions/runs/38738637457)
+failed Linux/macOS/Windows Debug test compilation:
+a forward declaration in an anonymous namespace accidentally
+created a different `substituteCredSspReplyCertificate` from
+the existing file-scope definition, making existing tests
+ambiguous. No production source failure or runtime failure
+was proved; Release and full CTest were NOT RUN.
+
+**Correction pending new CI:** place the new tests after the
+existing helper's definition, preserving one function, all
+original test assertions, and the two new regression groups.
+Do not move or rename the shared helper, weaken warnings,
+or hide CTests. Expected 93 portable / 103 Linux GSS.

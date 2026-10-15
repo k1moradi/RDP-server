@@ -2168,3 +2168,30 @@ cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug
 cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ```
+
+## Corrected certificate-continuity test visibility (2026-10-15; CI pending)
+
+**First FAIL:** implementation
+`5b1c9790b772923a4a4437d4f4bef4ec7f404d88`,
+[Actions 38738637457](https://github.com/k1moradi/RDP-server/actions/runs/38738637457).
+Debug compilation FAILED on Linux/GCC, macOS/Clang and
+Windows/MSVC, before any CTests/SDK gate. The first error
+was an ambiguous call to
+`substituteCredSspReplyCertificate` in the existing
+`tests/test_owned_preauth_session.cpp` TLS-reply test.
+The newly inserted declaration was local to an unnamed
+namespace while the established helper definition was
+at file scope. This was a test-only scope error, not
+evidence of a production TLS/transport issue.
+
+**Correction:** relocate only the new continuity/substitution
+test bodies below the existing file-scope helper, remove
+the competing forward declaration, and retain every
+original behavior and negative assertion. The unchanged
+production change pins and wipes the selected TLS X.509
+fingerprint before MCS intake; expected 93 portable /
+103 Linux GSS CTests. New exact-head Debug/Release/SDK
+CI and owner-local builds remain **NOT RUN at authoring**.
+**Next:** full cross-platform CI then owner-local single
+`~/rdp-server/build/` followed by externally authorized
+real Kerberos/TLS and independent OS session evidence.

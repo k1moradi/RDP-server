@@ -1263,9 +1263,24 @@ acceptance evidence; no synthetic completion claims.
   independent OS admission, authenticated MCS session,
   Microsoft client, licensed share or desktop. This is
   defense in depth ONLY; a fingerprint is not authentication.
-  **Next:** exact-head Linux/macOS/Windows CI, then
-  owner-local one-build-root CTest and separately
-  authorized real Kerberos/TLS and OS session evidence.
+  **First exact-head CI FAIL:** implementation
+  `5b1c9790b772923a4a4437d4f4bef4ec7f404d88`,
+  [Actions 38738637457](https://github.com/k1moradi/RDP-server/actions/runs/38738637457)
+  failed Debug compilation on Linux, macOS and Windows:
+  a new test-only forward declaration in an anonymous
+  namespace did not refer to the existing file-scope
+  `substituteCredSspReplyCertificate`, creating
+  ambiguous function calls. The first error is
+  `tests/test_owned_preauth_session.cpp` in the
+  existing TLS reply tests; no production compile
+  error was identified. Release/CTest/SDK NOT RUN.
+  **Correction pending CI:** move the two new test
+  bodies after the existing file-scope helper and
+  remove the competing declaration. No production
+  code, acceptance assertion or protocol behavior
+  changed. **Next:** re-run exact-head Linux/macOS/
+  Windows Debug/Release CI; then owner-local CTest
+  and separately authorized Kerberos/TLS and OS proof.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

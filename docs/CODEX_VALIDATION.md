@@ -3211,3 +3211,23 @@ Microsoft-client interactive desktop, and performance measurement.
 GitHub Actions exact-SHA results to be verified after publication.
 **Next gate:** D3D11 owned staging/map/unmap RAII with synthetic native
 failure tests once R2/R3 session and R4 frame-lifetime contracts converge.
+
+## R6 Windows frame-lease exact-commit GitHub Actions (2026-10-15)
+
+**Implementation commit:** `bd56f3a8ebcf4fa72d3419fb417d5a01f1678961`,
+[run 38797799194](https://github.com/k1moradi/RDP-server/actions/runs/38797799194)
+completed **SUCCESS** (examined workflow jobs and CTest summaries).
+**PASS:** Ubuntu Linux Debug and Release **170/170 CTests** per
+configuration; Windows GitHub-hosted MSVC Debug and Release
+**168/168** (including two new
+`windows.capture-dxgi-frame-lease-*` cases), macOS Debug and Release
+**158/158**. Downstream SDK consumer **1/1 PASS** per platform,
+documentation-policy and protocol ZIP packaging/pass digest upload
+also PASS; prerelease publishing SKIPPED (no version tag).
+**NOT RUN:** owner-local Linux/X11, Windows MSYS2 CLANG64 Clang 23
+and macOS 27 checks on one owner-nominated SHA; real authenticated
+OS session, native Desktop Duplication acquisition, Microsoft client
+graphics/input, and performance. This is an offline SDK/library
+verification, not M4 human-desktop acceptance.
+**Next R6:** session-authorized D3D11 staging-copy/map lifetime with
+bounded frame geometry, failed-map cleanup and dedicated CTests.

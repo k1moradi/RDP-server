@@ -2236,6 +2236,15 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   separate authorization. **Status: NOT RUN.**
 - [ ] Integrate isolated Linux/X11/Wayland, Windows and macOS desktop,
   clipboard and input adapters; test real Microsoft/FreeRDP clients.
+  **R6 exact-SHA hosted CI verification:** implementation commit
+  `bd56f3a8ebcf4fa72d3419fb417d5a01f1678961`,
+  [Actions 38797799194](https://github.com/k1moradi/RDP-server/actions/runs/38797799194):
+  Linux Ubuntu Debug/Release CTest **170/170 PASS** each,
+  Windows MSVC Debug/Release **168/168 PASS** each, macOS
+  Debug/Release **158/158 PASS** each; documentation-policy,
+  SDK install/consumer and packaging also PASS. **NOT RUN:**
+  owner Windows MSYS2 CLANG64 Clang 23, owner Linux/X11/macOS 27,
+  native live DXGI and Microsoft-client desktop acceptance.
   **R6 DXGI acquired-frame RAII (2026-10-15, authored on parent
   `853e572dafdeab18161afa3926db2f29d2ec3a34`):** `src/windows/windows_dxgi_frame_owner.{h,cpp}`
   owns one native `IDXGIOutputDuplication::AcquireNextFrame` lease,

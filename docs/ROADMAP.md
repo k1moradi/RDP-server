@@ -443,6 +443,25 @@ actually run; another parser CTest alone is not a complete session.
   **NOT RUN** at authoring. Owner Windows CLANG64/macOS27 tests
   **NOT RUN**. No production behavior, privilege or admission change.
 
+  **R1 exact-SHA readiness/reply/expiration CI receipt (2026-10-15)**:
+  [production increment `209ebb6fa714b4bba61478539976719506b9b96d`](https://github.com/k1moradi/RDP-server/commit/209ebb6fa714b4bba61478539976719506b9b96d),
+  [reply-priority production repair `0dfc33871c8b140e07e9028d7c4fc4cb12e83fb0`](https://github.com/k1moradi/RDP-server/commit/0dfc33871c8b140e07e9028d7c4fc4cb12e83fb0),
+  and [bounded nonblocking fixture repair `9f3bcd369d0544c2f85aaf0964b31f912aba7bf5`](https://github.com/k1moradi/RDP-server/commit/9f3bcd369d0544c2f85aaf0964b31f912aba7bf5).
+  [Exact final R1 CTest run 38799804260](https://github.com/k1moradi/RDP-server/actions/runs/38799804260):
+  **PASS** Linux/GCC **183/183 Debug and 183/183 Release**,
+  Windows/MSVC **180/180 Debug and 180/180 Release**, three R1
+  readiness/reply/deadline dedicated cases on both platforms in both
+  configurations, documentation-policy and installed SDK consumers.
+  **BLOCKED/FAIL** macOS AppleClang Debug CTest not reached:
+  unrelated R7 `test_macos_capture_pixel_buffer` link has missing
+  `_kCFAllocatorDefault` (CoreFoundation), reported at
+  [R7 Issue #7](https://github.com/k1moradi/RDP-server/issues/7).
+  macOS Debug CTest and Release build/CTest **NOT RUN** for this SHA.
+  Owner Linux/X11, Windows CLANG64 Clang23 and macOS27 exact-SHA
+  checks **NOT RUN**; R2 admission/R3 session/client desktop gates
+  **NOT ACCEPTED**. Next R1: bounded actual readiness polling/listener
+  budget integration with R10 under authenticated R2/R3 interfaces.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

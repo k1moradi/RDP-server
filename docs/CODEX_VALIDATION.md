@@ -3549,3 +3549,30 @@ portable RDP protocol library do not gain an additional dependency.
 macOS 27 / Linux X11 / MSYS2 CLANG64 Clang23 exact-SHA results,
 live R2/R3-authorized RDP desktop/input, permission dialogs and benchmarks.
 **Next:** validate corrected exact-SHA Debug/Release CI and owner test trio.
+
+## R1 readiness / X.224 reply priority / deadline exact-SHA CI (2026-10-15)
+
+**Production commits:** [209ebb6fa714b4bba61478539976719506b9b96d](https://github.com/k1moradi/RDP-server/commit/209ebb6fa714b4bba61478539976719506b9b96d) and [0dfc33871c8b140e07e9028d7c4fc4cb12e83fb0](https://github.com/k1moradi/RDP-server/commit/0dfc33871c8b140e07e9028d7c4fc4cb12e83fb0).
+**Nonblocking test-fixture correction:** [9f3bcd369d0544c2f85aaf0964b31f912aba7bf5](https://github.com/k1moradi/RDP-server/commit/9f3bcd369d0544c2f85aaf0964b31f912aba7bf5);
+[exact commit hosted Actions 38799804260](https://github.com/k1moradi/RDP-server/actions/runs/38799804260).
+**PASS:** Linux/GCC full **183/183 Debug + 183/183 Release**;
+Windows/MSVC full **180/180 Debug + 180/180 Release**; new
+`transport.tcp-owned-readiness-dispatch`,
+`transport.tcp-owned-reply-interest-priority` and
+`transport.tcp-owned-deadline-cancellation` all PASS on Linux and
+Windows both build types; documentation-policy and downstream installed
+SDK consumer CTests PASS.
+**FAIL / BLOCKED:** macOS arm64/AppleClang CI Debug build stops
+during linking unrelated R7 `test_macos_capture_pixel_buffer`:
+undefined symbol `_kCFAllocatorDefault` from native CoreFoundation
+test fixture; `clang++` link exit 1. Reported in [R7 Issue
+#7](https://github.com/k1moradi/RDP-server/issues/7) (comment 6201309589).
+macOS Debug CTest and Release build/CTest **NOT RUN** on exact R1
+SHA due this earlier build failure; no R1 test was reached on macOS.
+**Owner-local** Linux/X11, Windows MSYS2 CLANG64 Clang23 and macOS27
+terminal checks **NOT RUN**; real Microsoft RDP client, authenticated
+CredSSP/GSS, independent OS admission, MCS share activation and desktop
+acceptance **NOT RUN**. No TLS completion is an admission decision.
+**Next R1 gate:** transport-owner readiness against an R10 bounded
+listener/poller and explicit R2/R3 authenticated handoff, preserving
+one state authority and cancel-before-SSL/socket teardown.

@@ -424,6 +424,52 @@ struct RdpGeneralCapabilityParseResult
 [[nodiscard]] RdpGeneralCapabilityParseResult parseRdpGeneralCapabilityFromActive(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
 
+// OFFLINE MS-RDPBCGR 2.2.7.1.2 Bitmap Capability Set, exactly 28
+// bytes. Reuse the same complete Demand/Confirm Active validator and
+// counted TS_CAPS_SET envelopes. Require exactly ONE bitmap set and
+// the spec's required compression and multiple-rectangle support,
+// valid desktop dimensions and 0/1 desktopResizeFlag.
+// Ignored receive-depth fields, highColorFlags and both pads remain
+// ignored; unknown drawingFlags bits remain raw advertisements.
+// This is NOT a negotiated graphics mode, codec, OS authorization,
+// connected desktop or authenticated/ordered MCS session.
+enum class RdpBitmapCapabilityError : std::uint8_t
+{
+    None,
+    InvalidActivePdu,
+    Missing,
+    Duplicate,
+    InvalidLayout,
+    InvalidDesktopSize,
+    InvalidResizeFlag,
+    MissingRequiredSupport,
+};
+
+struct RdpBitmapCapability
+{
+    std::uint16_t preferredBitsPerPixel{}; // Raw desired/session depth.
+    std::uint16_t desktopWidth{};          // Raw advertised dimensions.
+    std::uint16_t desktopHeight{};
+    bool desktopResizeSupported{};
+    std::uint8_t drawingFlags{}; // Not negotiated or enabled by parsing.
+};
+
+struct RdpBitmapCapabilityParseResult
+{
+    RdpBitmapCapability value{};
+    RdpBitmapCapabilityError error{RdpBitmapCapabilityError::InvalidActivePdu};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpBitmapCapabilityError::None;
+    }
+};
+
+// No allocation, views retained, screen-buffer sizing or TLS emission.
+// Bounds come solely from parseRdpActivePdu and its shared validator;
+// a returned rectangle size MUST NOT be used to allocate a desktop.
+[[nodiscard]] RdpBitmapCapabilityParseResult parseRdpBitmapCapabilityFromActive(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
 // OFFLINE server-side MS-RDPBCGR 2.2.1.13.1.1 Demand Active writer.
 // Emits a single exact-length Share Control PDU (NOT TLS/MCS framing).
 // Source and capability buffers must NOT intersect the output region

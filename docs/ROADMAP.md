@@ -1333,6 +1333,45 @@ acceptance evidence; no synthetic completion claims.
   **Next:** owner single-root full CTest, then separately
   authorized real GSS/TLS and OS session identity before
   ANY live capability dispatch.
+
+  **Partial OFFLINE Bitmap Capability Set parsing (2026-10-15;
+  exact-head CI NOT RUN at authoring):** Reuse the same existing
+  MS-RDPBCGR 2.2.1.13.1.1 Demand/Confirm Active exact-PDU parser
+  and counted TS_CAPS_SET envelopes to extract precisely one
+  28-byte MS-RDPBCGR 2.2.7.1.2 Bitmap Capability Set
+  (CAPSTYPE_BITMAP=2). Reject missing, duplicate, wrong-size,
+  zero desktop dimension, invalid desktopResizeFlag (not 0/1),
+  absent mandatory bitmap compression support (MUST=1)
+  and absent multiple-rectangle support (MUST=1).
+  Do not interpret pad2octets/pad2octetsB, legacy
+  1/4/8-bpp receive flags or highColorFlags; preserve raw
+  drawingFlags and preferredBitsPerPixel without selecting
+  a graphics path. The helper is allocation-free and
+  retains no source views, surface buffers or session state.
+  Reuse the existing MCS native test binary and CTest registry
+  for two new behavior suites exercising Microsoft's independent
+  28-byte server Bitmap oracle, round-trip server writer, client
+  Confirm, unknown sibling/pad/drawing flags, truncation/trailers,
+  missing/duplicate/incorrect sizes, zero dimensions, resize
+  and required-support failures. Expected **97 portable /
+  107 Linux GSS** CTests (previous 95/105).
+  Parent main `39480cb88de6b80277b9c2621ca8ddb41651dfee`
+  follows confirmed implementation
+  `3625b0daadef1f470bc0b23b3b2aff9106750a6a`:
+  [CI 38742975505](https://github.com/k1moradi/RDP-server/actions/runs/38742975505)
+  Linux **105/105**, macOS and Windows **95/95**
+  Debug/Release PASS, SDK and docs-policy PASS. The owner
+  reports **95/95 local PASS** on preceding code, without
+  a matching complete log/local SHA. **NOT RUN:** new-head
+  cross-platform CI or owner-local compile/CTest; real
+  Kerberos/CredSSP/TLS binding, MCS sender provenance,
+  independent OS session admission, licensed capability
+  negotiation, desktop/graphics and external RDP client.
+  Even mandatory Bitmap support advertised in one packet
+  does NOT grant desktop authority or H.264/bitmap dispatch.
+  **Next:** new SHA exact-head Linux/macOS/Windows matrix,
+  owner-local one-root full CTest, then separately
+  authorized real GSS/TLS + OS identity acceptance.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

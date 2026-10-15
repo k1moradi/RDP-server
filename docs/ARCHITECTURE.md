@@ -1023,3 +1023,23 @@ PASS; no version tag, so prerelease SKIPPED.
 **NOT RUN:** owner-local new-head build, genuine GSS/TLS
 positive proof, independent OS authority, Microsoft
 client or graphics/desktop.
+
+## Offline Bitmap Capability extraction (2026-10-15; CI NOT RUN)
+
+MS-RDPBCGR 2.2.7.1.2 defines a 28-byte Bitmap
+Capability Set in both client Confirm and server
+Demand Active. The existing complete Share Control
+Active decoder provides exact framing and validated
+capability-set envelopes. The new allocation-free
+`parseRdpBitmapCapabilityFromActive` walks those
+already-bounded envelopes for exactly one type 2
+and reads its advertised depth, dimensions, resize
+and drawing flags. It requires nonzero dimensions,
+0/1 resize and the two mandatory bitmapCompression
+and multipleRectangleSupport flags equal to 1.
+Legacy receive1/4/8 bit fields, highColorFlags and
+both pad2octets fields are ignored per specification.
+Unknown drawing bits and sibling capability types
+are tolerated, not enabled. No framebuffer allocation,
+channel/session owner, TLS binding, licensing, graphics,
+OS approval or real-client admission is introduced.

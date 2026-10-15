@@ -2278,3 +2278,46 @@ actual negotiated capabilities/licensing, Windows/macOS
 RDP client, H.264 graphics or desktop. **Next:** owner's
 single-root full CTest, separately authorized real GSS/TLS
 and OS admission before sending any live RDP application data.
+
+## Pending Bitmap Capability Set extraction (2026-10-15)
+
+**Previous main:** `39480cb88de6b80277b9c2621ca8ddb41651dfee`.
+**Previous verified code:** `3625b0daadef1f470bc0b23b3b2aff9106750a6a`,
+[Actions 38742975505](https://github.com/k1moradi/RDP-server/actions/runs/38742975505)
+PASS: Linux/GCC **105/105**, macOS/Clang and
+Windows/MSVC **95/95** full CTests in EACH Debug and
+Release; installed SDK consumer, ZIP/SHA256 artifacts
+and documentation policy. Owner reports **95/95**
+local previous-code PASS, without matching full
+terminal log or local exact SHA.
+
+**New code:** a pure zero-allocation Bitmap Capability
+decoder for one complete Demand/Confirm Active PDU
+in the existing `mcs_channel_connection` first-party
+module. Reuses the sole exact-length Active parser,
+validates a single 28-byte Bitmap set, mandatory
+compression/multiple-rectangle support, nonzero
+dimensions and desktop resize Boolean. Legacy receive
+depth fields, padding and highColorFlags ignored,
+unknown drawing bits preserved, unknown siblings
+opaque. No session/cache, graphics dispatch, framebuffer
+allocation or authenticated desktop authority.
+Two new behavior-named CTests reuse the MCS test
+executable and canonical CTest registry; expected
+**97 portable / 107 Linux GSS**. Code, tests and
+canonical roadmap/architecture/coding/testing/validation
+are included in one implementation tree.
+
+**NOT RUN at authoring:** exact new-head CI, owner-local
+single-root build/CTest, real positive CredSSP/Kerberos
+public-key binding over TLS, independent OS authorization,
+licensed activation, H.264 graphics, Microsoft client
+or desktop. **Next:** exact-head cross-platform Debug
+and Release CI, then owner-local single existing root
+and isolated authorized Kerberos/TLS+OS identity.
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
+```

@@ -698,6 +698,60 @@ RdpGeneralCapabilityParseResult parseRdpGeneralCapabilityFromActive(
     return {value, RdpGeneralCapabilityError::None};
 }
 
+RdpBitmapCapabilityParseResult parseRdpBitmapCapabilityFromActive(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    // Exact complete PDU and every nested capability-set envelope
+    // have already been validated by the one authoritative parser.
+    const auto active = parseRdpActivePdu(completeSharePdu);
+    if (!active)
+        return {{}, RdpBitmapCapabilityError::InvalidActivePdu};
+
+    constexpr std::uint16_t kBitmapType = 2U;
+    constexpr std::size_t kBitmapBytes = 28U;
+    const auto capabilities = active.value.capabilitySets;
+    std::span<const std::uint8_t> bitmap;
+    std::size_t position = 0;
+    for (std::size_t index = 0; index < active.value.capabilityCount; ++index)
+    {
+        const std::size_t length = readLe16At(capabilities, position + 2U);
+        if (readLe16At(capabilities, position) == kBitmapType)
+        {
+            if (!bitmap.empty())
+                return {{}, RdpBitmapCapabilityError::Duplicate};
+            if (length != kBitmapBytes)
+                return {{}, RdpBitmapCapabilityError::InvalidLayout};
+            bitmap = capabilities.subspan(position, length);
+        }
+        position += length;
+    }
+    if (bitmap.empty())
+        return {{}, RdpBitmapCapabilityError::Missing};
+
+    const auto width = readLe16At(bitmap, 12U);
+    const auto height = readLe16At(bitmap, 14U);
+    if (width == 0U || height == 0U)
+        return {{}, RdpBitmapCapabilityError::InvalidDesktopSize};
+    const auto resize = readLe16At(bitmap, 18U);
+    if (resize > 1U)
+        return {{}, RdpBitmapCapabilityError::InvalidResizeFlag};
+
+    // MS-RDPBCGR requires BOTH flags to be TRUE for a connection.
+    // Ignored 1/4/8 bpp receive flags, padding and highColorFlags
+    // must not be mistaken for mandatory feature negotiations.
+    if (readLe16At(bitmap, 20U) != 1U ||
+        readLe16At(bitmap, 24U) != 1U)
+        return {{}, RdpBitmapCapabilityError::MissingRequiredSupport};
+
+    RdpBitmapCapability value{};
+    value.preferredBitsPerPixel = readLe16At(bitmap, 4U);
+    value.desktopWidth = width;
+    value.desktopHeight = height;
+    value.desktopResizeSupported = resize == 1U;
+    value.drawingFlags = bitmap[23U];
+    return {value, RdpBitmapCapabilityError::None};
+}
+
 std::optional<std::size_t> encodeRdpDemandActivePdu(
     std::uint32_t shareId,
     std::uint32_t sessionId,

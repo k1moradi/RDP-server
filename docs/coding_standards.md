@@ -1126,3 +1126,20 @@ PASS; no version tag, so prerelease SKIPPED.
 **NOT RUN:** owner-local new-head build, genuine GSS/TLS
 positive proof, independent OS authority, Microsoft
 client or graphics/desktop.
+
+## Strict Bitmap capability without inferred authority (2026-10-15)
+
+MS-RDPBCGR 2.2.7.1.2 requires bitmapCompressionFlag
+and multipleRectangleSupport to equal one for a
+connection to proceed. Parse their LE16 values only
+AFTER the existing exact Active/capability envelope
+gate; require a single 28-byte Bitmap set, nonzero
+desktop dimensions and valid Boolean resize flag.
+Treat preferred color depth and drawing flags as raw
+advertisements, not negotiated/OS-authorized output
+settings. Ignore padding, legacy 1/4/8-bpp client
+receive fields and highColorFlags, even if nonzero,
+rather than rejecting valid Microsoft peers.
+Do not use the advertised dimensions as a memory
+allocation size. Preserve unknown siblings, make
+no state copies and add no second session owner.

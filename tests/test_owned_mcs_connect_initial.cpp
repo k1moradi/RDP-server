@@ -1551,6 +1551,162 @@ constexpr std::array<std::uint8_t, 24> kMicrosoftGeneralCapability{{
     return capabilitySets;
 }
 
+// MS-RDPBCGR 4.1.15 server Demand Active published Bitmap
+// Capability Set (28 bytes). This is a wire oracle, not a live
+// server/session; no framebuffer allocation follows the dimensions.
+constexpr std::array<std::uint8_t, 28> kMicrosoftBitmapCapability{{
+    0x02, 0x00, 0x1c, 0x00, 0x18, 0x00, 0x01, 0x00,
+    0x01, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x04,
+    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00
+}};
+
+void testRdpBitmapCapabilityWire()
+{
+    constexpr std::array<std::uint8_t, 4> descriptor{{'R', 'D', 'P', 0}};
+    std::array<std::uint8_t, 54> demand{};
+    assert(encodeRdpDemandActivePdu(
+        0x000103eaU, 0x11223344U, descriptor, 1U,
+        kMicrosoftBitmapCapability, demand) == demand.size());
+    const auto parsed = parseRdpBitmapCapabilityFromActive(demand);
+    assert(parsed && parsed.error == RdpBitmapCapabilityError::None);
+    assert(parsed.value.preferredBitsPerPixel == 24U);
+    assert(parsed.value.desktopWidth == 1280U);
+    assert(parsed.value.desktopHeight == 1024U);
+    assert(parsed.value.desktopResizeSupported);
+    assert(parsed.value.drawingFlags == 0U);
+
+    // Confirm Active is assembled independently, with exact 6-byte
+    // Share Control, 10-byte body prefix and 4-byte caps count/pad.
+    constexpr std::array<std::uint8_t, 24> confirmPrefix{{
+        0x34, 0x00, 0x13, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0xea, 0x03,
+        0x04, 0x00, 0x20, 0x00, 'R', 'D', 'P', 0,
+        0x01, 0x00, 0x00, 0x00
+    }};
+    std::array<std::uint8_t, 52> confirm{};
+    std::copy(confirmPrefix.begin(), confirmPrefix.end(), confirm.begin());
+    std::copy(kMicrosoftBitmapCapability.begin(),
+              kMicrosoftBitmapCapability.end(),
+              confirm.begin() + confirmPrefix.size());
+    assert(parseRdpActivePdu(confirm));
+    const auto client = parseRdpBitmapCapabilityFromActive(confirm);
+    assert(client && client.value.desktopWidth == 1280U);
+    assert(client.value.desktopHeight == 1024U);
+
+    // Preserve ignored fields and unknown drawing advertisements.
+    auto compatible = demand;
+    compatible[22U + 6U] = 0xff;  // receive1BitPerPixel ignored.
+    compatible[22U + 8U] = 0xfe;  // receive4BitsPerPixel ignored.
+    compatible[22U + 10U] = 0xfd; // receive8BitsPerPixel ignored.
+    compatible[22U + 16U] = 0xaa; // pad2octets ignored.
+    compatible[22U + 17U] = 0xbb;
+    compatible[22U + 22U] = 0xff; // highColorFlags ignored.
+    compatible[22U + 23U] = 0x81; // unknown drawing flags preserved.
+    compatible[22U + 26U] = 0xcc; // pad2octetsB ignored.
+    compatible[22U + 27U] = 0xdd;
+    const auto accepted = parseRdpBitmapCapabilityFromActive(compatible);
+    assert(accepted && accepted.value.drawingFlags == 0x81U);
+
+    // An unimplemented sibling capability must remain opaque.
+    std::array<std::uint8_t, 36> sets{};
+    std::copy(kMicrosoftBitmapCapability.begin(),
+              kMicrosoftBitmapCapability.end(), sets.begin());
+    constexpr std::array<std::uint8_t, 8> unknown{{
+        0xfe, 0x7f, 0x08, 0x00, 0x01, 0x02, 0x03, 0x04
+    }};
+    std::copy(unknown.begin(), unknown.end(), sets.begin() + 28);
+    std::array<std::uint8_t, 62> withUnknown{};
+    assert(encodeRdpDemandActivePdu(
+        0x000103eaU, 0x11223344U, descriptor, 2U,
+        sets, withUnknown) == withUnknown.size());
+    const auto sibling = parseRdpBitmapCapabilityFromActive(withUnknown);
+    assert(sibling && sibling.value.desktopWidth == 1280U);
+}
+
+void testRdpBitmapCapabilityRejections()
+{
+    constexpr auto invalid = RdpBitmapCapabilityError::InvalidActivePdu;
+    constexpr auto missing = RdpBitmapCapabilityError::Missing;
+    constexpr auto layout = RdpBitmapCapabilityError::InvalidLayout;
+    constexpr auto size = RdpBitmapCapabilityError::InvalidDesktopSize;
+    constexpr auto resize = RdpBitmapCapabilityError::InvalidResizeFlag;
+    constexpr auto required = RdpBitmapCapabilityError::MissingRequiredSupport;
+    constexpr auto duplicate = RdpBitmapCapabilityError::Duplicate;
+    assert(parseRdpBitmapCapabilityFromActive(kOfflineDemandActive).error ==
+           missing);
+    assert(parseRdpBitmapCapabilityFromActive(kOfflineConfirmActive).error ==
+           missing);
+
+    // A generic envelope remains legal even if Bitmap is the wrong
+    // size. Specialized validation rejects it without altering outer.
+    auto shortBitmap = kOfflineDemandActive;
+    shortBitmap[22U] = 2U; // Change Share type to Bitmap (length=8).
+    assert(parseRdpActivePdu(shortBitmap));
+    assert(parseRdpBitmapCapabilityFromActive(shortBitmap).error == layout);
+
+    constexpr std::array<std::uint8_t, 4> descriptor{{'R', 'D', 'P', 0}};
+    const auto encode = [&](std::span<const std::uint8_t> sets,
+                            std::uint16_t count,
+                            std::span<std::uint8_t> output)
+    {
+        return encodeRdpDemandActivePdu(
+            0x000103eaU, 0x11223344U, descriptor, count, sets, output);
+    };
+    std::array<std::uint8_t, 54> demand{};
+    assert(encode(kMicrosoftBitmapCapability, 1U, demand) == demand.size());
+    for (std::size_t n = 0; n < demand.size(); ++n)
+    {
+        assert(parseRdpBitmapCapabilityFromActive(
+                   std::span(demand).first(n)).error == invalid);
+    }
+    auto appended = std::vector<std::uint8_t>(demand.begin(), demand.end());
+    appended.push_back(0);
+    assert(parseRdpBitmapCapabilityFromActive(appended).error == invalid);
+
+    auto mutation = demand;
+    mutation[22U + 12U] = 0;
+    mutation[22U + 13U] = 0;
+    assert(parseRdpBitmapCapabilityFromActive(mutation).error == size);
+    mutation = demand;
+    mutation[22U + 14U] = 0;
+    mutation[22U + 15U] = 0;
+    assert(parseRdpBitmapCapabilityFromActive(mutation).error == size);
+    mutation = demand;
+    mutation[22U + 18U] = 2;
+    assert(parseRdpBitmapCapabilityFromActive(mutation).error == resize);
+    mutation = demand;
+    mutation[22U + 19U] = 1;
+    assert(parseRdpBitmapCapabilityFromActive(mutation).error == resize);
+
+    for (const std::size_t offset : {20U, 24U})
+    {
+        for (const std::uint8_t invalidFlag : {std::uint8_t{0}, std::uint8_t{2}})
+        {
+            mutation = demand;
+            mutation[22U + offset] = invalidFlag;
+            assert(parseRdpBitmapCapabilityFromActive(mutation).error ==
+                   required);
+        }
+    }
+
+    std::array<std::uint8_t, 56> duplicates{};
+    std::copy(kMicrosoftBitmapCapability.begin(),
+              kMicrosoftBitmapCapability.end(), duplicates.begin());
+    std::copy(kMicrosoftBitmapCapability.begin(),
+              kMicrosoftBitmapCapability.end(), duplicates.begin() + 28);
+    std::array<std::uint8_t, 82> duplicateDemand{};
+    assert(encode(duplicates, 2U, duplicateDemand) ==
+           duplicateDemand.size());
+    assert(parseRdpActivePdu(duplicateDemand));
+    assert(parseRdpBitmapCapabilityFromActive(duplicateDemand).error ==
+           duplicate);
+
+    // No live screen, TLS certificate or GSS/OS identity can be inferred
+    // from a complete and syntactically consistent Bitmap capability.
+    assert(parseRdpActivePdu(demand));
+}
+
 void testRdpGeneralCapabilityWire()
 {
     const auto capabilitySets = generalWithShareCapability();
@@ -2513,7 +2669,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 39> kMcsTestCases{{
+constexpr std::array<McsTestCase, 41> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -2545,6 +2701,8 @@ constexpr std::array<McsTestCase, 39> kMcsTestCases{{
     {"share-active-capabilities-rejections", &testRdpActivePduRejections},
     {"share-general-capability-wire", &testRdpGeneralCapabilityWire},
     {"share-general-capability-rejections", &testRdpGeneralCapabilityRejections},
+    {"share-bitmap-capability-wire", &testRdpBitmapCapabilityWire},
+    {"share-bitmap-capability-rejections", &testRdpBitmapCapabilityRejections},
     {"share-demand-active-encode-wire", &testRdpDemandActiveEncodeWire},
     {"share-demand-active-encode-rejections", &testRdpDemandActiveEncodeRejections},
     {"share-server-finalization-encode-wire", &testRdpServerFinalizationEncodeWire},

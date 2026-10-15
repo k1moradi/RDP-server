@@ -1578,3 +1578,25 @@ PASS; no version tag, so prerelease SKIPPED.
 **NOT RUN:** owner-local new-head build, genuine GSS/TLS
 positive proof, independent OS authority, Microsoft
 client or graphics/desktop.
+
+## Offline Bitmap Capability Set regression suite (2026-10-15)
+
+Use the existing `test_owned_mcs_connect_initial`
+binary with two new behavioral CTests:
+`transport.share-bitmap-capability-wire` and
+`transport.share-bitmap-capability-rejections`.
+Fixture is Microsoft's published 28-byte Bitmap
+Capability Set from the Server Demand Active example,
+not an independently authenticated captured client.
+Test full server Demand encoder/decoder and independent
+client Confirm PDU, normal and unknown sibling sets,
+ignored nonzero padding and legacy receive flags,
+unrecognized drawing flags, every truncated prefix,
+trailing bytes, duplicate/absent/wrong-length Bitmap
+envelopes, zero dimensions, invalid 0/1 resize,
+required compression and multiple rectangle fields.
+Expected **97 portable / 107 Linux GSS-enabled**
+CTests up from verified 95/105; do not weaken any
+existing parser or test assertion. New-head CI and
+owner local build/CTest NOT RUN at authoring.
+Neither result activates a share or graphics.

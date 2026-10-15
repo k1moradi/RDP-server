@@ -14,86 +14,151 @@ CredSSP/DER and CLIPRDR helpers, verified graphics algorithms and portable
 testable core. It does **not** yet operate a complete authenticated RDP
 server session. The library has no shipping daemon/installer.
 
-## Delivery order — prioritize the first supervised human test
+## Parallel delivery plan — 10 agent roads, 6 convergence milestones
 
-The near-term objective is **one genuinely authenticated, interactive
-Linux/X11 desktop session with a current Microsoft RDP client**, not
-another collection of disconnected parsers. Integrate the existing C++23
-protocol/security modules into one native session owner before expanding
-offline message coverage without a demonstrated integration need. Keep
-the shared RDP core OS-independent; Linux/X11 is the first *adapter*,
-not a Linux-only protocol fork. Do not require xrdp, VNC or another daemon.
+**Parallel implementation, synchronized acceptance.** Ten GPT-6-High
+engineering agents/workstreams may design and implement independent code
+in parallel, but they contribute to **one portable C++23 RDP server** with
+one authoritative connection/session owner. The human project owner is
+**not** an eleventh engineering road: the owner runs the agreed build +
+CTest one-liner independently on Linux/X11, Windows MSYS2 CLANG64 with
+Clang 23, and macOS 27, and reports results. Platform development and
+automated testing run **in parallel from the beginning**; *human desktop
+acceptance* runs in order Linux/X11 -> Windows -> macOS. This order does
+not delay Windows/macOS implementation or portable test coverage.
 
-1. **Gate A — real-client authentication and share activation (P0).**
-   Wire a bounded TCP listener, complete X.224/TLS, correctly negotiated
-   CredSSP/NLA and live server MCS/GCC response/attach/channel joins,
-   licensing semantics, Demand/Confirm Active, share-data finalization
-   and orderly disconnect into **one connection/session state machine**.
-   Admit no RDP channel, desktop, input or clipboard data until the active
-   TLS identity/credential binding AND independent OS account/console
-   authorization are positively verified. Exercise authentic, explicitly
-   provisioned Kerberos/GSS credentials on an isolated host; synthetic
-   tokens and negative-only GSS tests never authorize users.
-   **Acceptance:** a current Microsoft Windows App or Windows 11 Remote
-   Desktop Connection client completes a real authenticated RDP session
-   through share activation, with correct certificate/identity binding,
-   authorized channel membership, rejection of invalid identities,
-   downgrades, malformed traffic and premature/duplicate transitions.
-   A successfully parsed packet or TLS handshake alone is not a PASS.
-2. **Gate B — minimal visible and controllable desktop (P0).**
-   Build a first-party C++23 server executable using the same authorized
-   session owner and a replaceable Linux/X11 capture, cursor and
-   keyboard/pointer adapter. Route negotiated DRDYNVC/RDPGFX, implement
-   AVC420-only H.264 through a license-reviewed statically linked x264
-   encoder with RAII ownership, validated strides and frame lifetimes,
-   damage-aware scheduling, frame ACK/backpressure, resize and cleanup.
-   Reject clients without compatible negotiated AVC capabilities; do
-   not silently fall back to an unimplemented codec. **Acceptance:**
-   the authenticated Microsoft client renders the actual X11 desktop
-   and a human can move the pointer, type into a terminal, scroll,
-   operate menus, resize and disconnect/reconnect without stale frames,
-   stuck input or resource leaks. Clipboard, file transfer, Wayland and
-   additional codecs are **not** prerequisites for this first pass.
-3. **Gate C — separately authorized first human trial (P0).**
-   Before any live test, obtain explicit host/session authorization.
-   Start on an isolated test host with one permitted user, a private
-   endpoint (loopback or controlled test LAN), non-production
-   certificate/credentials and no public port exposure. Record server
-   SHA, OS/session/display details, client product/version, negotiated
-   TLS/NLA/capabilities, exact commands, per-stage PASS/FAIL/NOT RUN and
-   first failing protocol boundary. Exercise login, display, pointer,
-   keyboard, terminal typing/scrolling, menus, resize, disconnect and
-   reconnect. Test invalid credentials and unsupported AVC negotiation;
-   never log passwords, tickets or clipboard contents. A TLS-only
-   diagnostic or automated mock client is **not** a human trial.
-4. **Gate D — private beta, then deployable server (P0 hardening).**
-   Only after Gate C passes, exercise concurrent connection admission,
-   timeouts, cancellation, reconnect, malformed/fuzzed packets,
-   ASan/UBSan where supported, leak/race checks, slow/fast links, long
-   sessions and p50/p95/p99 visible-update latency. Confirm authenticated
-   service startup/shutdown, secure bind/configuration defaults, clean
-   upgrades/rollback, OS-specific packaging and reproducible artifacts.
-   Require an independently verified safety and usability checklist
-   before any broader network exposure or production deployment.
-5. **Gate E — feature and platform expansion (P1).**
-   Integrate real CLIPRDR virtual-channel ownership, Unicode text,
-   PNG/DIB/DIBV5 screenshots and bounded on-demand file streaming;
-   verify macOS screenshot -> Linux Firefox synchronous `image/png`
-   `File` and clipboard races with Microsoft clients. Add Wayland,
-   macOS, Windows and other OS adapters without modifying the portable
-   protocol contract. Benchmark H.264 on actual GUI workflows before
-   deciding whether ClearCodec or AVC444 offers measured value; defer
-   Planar/RemoteFX and unrelated codec work.
+### Ten independent engineering workstreams (R1–R10)
 
-Gate A may be accepted as an **authenticated protocol interoperability
-checkpoint** without graphics; only Gate B/C constitute a usable human
-desktop trial. Gate D is required for deployment. Each gate remains
-**NOT RUN / unaccepted** until the corresponding existing P0/P1 TODO
-item below records actual evidence; green cross-platform static-library
-CTest and SDK ZIP publishing cannot satisfy these gates.
+Each row owns a bounded implementation area and its **own new, dedicated
+behavior-named CTest case(s)** registered in the existing single
+`tests/CMakeLists.txt` registry, normally reusing existing test
+executables and fixtures. A test must execute the changed production
+behavior, with meaningful positive, negative, bounds and teardown
+assertions where applicable. Building the static library or passing
+someone else's previous tests is **not** evidence for new code. Platform
+specific tests may be registered conditionally; report them NOT RUN on
+other platforms, never silently call a skip a PASS. Do not create
+parallel test registries, duplicate state controllers or one executable
+per tiny behavior.
+
+| Road | Agent-owned scope and first deliverable | Interface/dependency to converge |
+| --- | --- | --- |
+| **R1 Transport** | Bounded native TCP accept/read/write, pinned OpenSSL TLS socket, nonblocking partial-I/O, cancellation and disconnect; test live loopback lifecycle/failures without unauthorized admission. | Supply immutable active TLS/peer identity and reliable bounded I/O to R2/R3. |
+| **R2 Identity/security** | Real, opt-in Kerberos/GSS CredSSP/NLA positive path, active TLS binding, independent native OS identity/session authorization and fail-closed denials. | Provide a verified admission decision to R3; request OS-policy adapter facts from R5/R6/R7 without granting sessions by synthetic tokens. |
+| **R3 RDP session/router** | **Sole** authoritative server session state, MCS/GCC attach/join, licensing, capabilities, Demand/Confirm Active, finalization and virtual-channel routing. | Consume R1 I/O + R2 admission; export bounded authorized graphics/input/clipboard channel contracts to R4/R8 and OS adapter lifecycle to R5–R7. |
+| **R4 Graphics** | Static license-reviewed x264 C++23 RAII integration; negotiated RDPGFX AVC420, DVC framing, surfaces, ACK/backpressure, dirty-region frames, resize and reconnect. | Consume abstract captured-frame/cursor data from R5–R7 and channel access from R3; own the **one** frame schedule. |
+| **R5 Linux/X11 adapter** | X11 capture, pointer/keyboard/cursor, display/session lifecycle and OS authorization adapter; deterministic native tests. | Implement portable frame/input/identity interfaces; first authorized desktop-acceptance target (M3). |
+| **R6 Windows adapter** | Native Windows desktop capture, pointer/keyboard/cursor, identity/session policy and lifecycle; validate in **MSYS2 CLANG64, Clang 23**. | Implement the **same** interfaces as R5, not a second RDP engine; develop now, human acceptance at M4. |
+| **R7 macOS adapter** | Native macOS capture, input, cursor, permissions, identity/session and lifecycle for **macOS 27**. | Implement the **same** interfaces as R5; develop now, human acceptance at M5. |
+| **R8 Clipboard/files** | One native CLIPRDR lifecycle; text, PNG/DIB/DIBV5, generation-safe X11/Windows/macOS ownership and bounded on-demand file transfer. | Use R3's virtual-channel router and OS clipboard adapters; not a blocker for first visible Linux desktop, but required for declared full-feature release. |
+| **R9 Quality/interoperability** | Independently authored dedicated CTests for new integration boundaries, fuzz/sanitizer negatives, CI triage, Microsoft-client matrix, performance/reliability regression and verification receipts. | Validate every road; maintain **one test registry** and integrate cross-road fixtures rather than duplicate behavior owners. |
+| **R10 Runtime/release** | Standalone first-party server executable, secure startup/configuration, packaging, service/termination, installation, upgrades, rollback, release evidence and commit integration coordination. | Consume R1–R9 verified interfaces; SDK ZIPs alone never count as deployable server artifacts. |
+
+**Ownership discipline:** R3 alone owns the session and channel lifecycle;
+R4 alone owns graphics scheduling; R8 alone owns clipboard generation;
+R1 owns encrypted socket I/O; R2 owns admission decisions. R5/R6/R7
+implement native OS adapters behind the same portable contracts.
+Road-specific development may be offline and fixture-driven before
+upstream dependencies exist, but an offline PASS cannot promote a live
+end-to-end dependency to ACCEPTED. All cross-road API changes must have
+an agreed owner and a minimal consumer-facing test.
+
+### Six mandatory convergence milestones (M1–M6)
+
+These are **integration checkpoints, not ten independent product
+releases**. Existing detailed P0/P1 checkboxes and historical evidence
+below remain the sole living implementation TODO; the roads specify
+ownership and convergence, not a second checklist. For each milestone
+record the exact same tested SHA, real environment, new CTest names,
+PASS/FAIL/BLOCKED/NOT RUN and first failed boundary. Never claim a
+Microsoft-client or live-OS acceptance from offline fixtures.
+
+| Milestone | Required roads at convergence | Objective acceptance / exit criterion |
+| --- | --- | --- |
+| **M1 — Portable contracts and CI baseline** | R1–R10 contracts; R9 verification | All new code has its dedicated registered CTest; shared C++23 core + implemented native adapter test targets compile where supported. Same integration SHA has Linux, Windows CLANG64/Clang 23 and macOS 27 Debug/CTest owner results; existing GCC/MSVC/macOS Actions remain additional, **not substitute** coverage. Open external-client gates remain NOT RUN. |
+| **M2 — Authenticated RDP activation** | R1 + R2 + R3 + R9 | A current real Microsoft client completes authorized TLS/NLA, OS identity admission, live MCS/channel joins, licensing/share activation and clean disconnect on the first isolated Linux test target. Reject bad identities/certs, downgrade, premature messages and unauthorized channels. No desktop claim yet. Windows/macOS code and CTests continue simultaneously. |
+| **M3 — Linux/X11 human desktop** | M2 + R4 + R5 + R9 + minimal R10 launcher | Separately authorized human connects with a Microsoft client and sees real X11 desktop; mouse, keyboard, terminal typing/scrolling, menus, AVC420 surface updates, resize and disconnect/reconnect work. Unsupported AVC fails cleanly. R6/R7 do not wait for M3 to start coding or CTests. |
+| **M4 — Windows human desktop** | Accepted shared core + R4 + R6 + R9 + R10 test launcher | Real authorized Microsoft-client interaction with the **Windows server** built/tested using MSYS2 CLANG64/Clang 23: identity/session, visible desktop, input, resize, reconnect and negative cases. Keep Linux regression coverage green. |
+| **M5 — macOS human desktop and feature beta** | Accepted shared core + R4 + R7 + R8 + R9 | Real authorized Microsoft-client interaction with the **macOS 27 server**: identity, screen permissions/capture, input, resize/reconnect and negative cases; integrate and accept release-scope CLIPRDR text/image/file semantics on **each applicable OS** before calling feature beta complete. Linux/Windows automated regression stays green. |
+| **M6 — Cross-platform production release** | R1–R10 accepted; R9 security + R10 operations signoff | Same release candidate passes all three specified platform CTest runs, each supported platform's human desktop/declared clipboard scope, realistic load/reconnect/soak, fuzz and supported sanitizers, security negatives, installation/upgrade/rollback, resource and performance budgets. Deploy only after explicit approval; no claim of all-platform readiness from SDK ZIPs or one OS's result. |
+
+**Mapping of older acceptance terminology:** existing P0 annotations
+labeled *Gate A* feed M2; *Gate B* feeds M3–M5; *Gate C* feeds the
+human desktop acceptance in M3–M5; *Gate D* feeds M6; earlier
+*Gate E* expansion is covered by R8 and M5/M6 as applicable. These
+labels are historical references, **not additional milestones**.
+Linux/X11 is merely the first human trial; Windows and macOS OS-server
+implementation, dedicated CTests and toolchain validation begin now.
+Codec expansion, Wayland and further OS support remain separately scoped,
+not prerequisites for the defined three-platform release.
+
+### Agent integration and the owner's independent platform test
+
+**GitHub main-only coordination (until the owner explicitly changes
+policy):** Ten agents can work on disjoint module contracts and
+independently prepare source/CTest/documentation changes, but **only one
+agent may publish a mutating commit to `main` at a time**. The R10
+integration coordinator sequences promotions and checks the latest HEAD;
+workers re-read current files/SHAs before publication, never overwrite
+another road's edits, never force-push/reset or invent branches. A
+promoted implementation increment must atomically include changed
+production code, dedicated registered CTest(s), and the affected
+existing roadmap TODO/validation notes **in the same commit** as required
+by [AGENTS.md](../AGENTS.md). R9 reviews evidence. When agents cannot
+publish a safe, atomic, conflict-free multi-file commit, mark the task
+BLOCKED and hand its proposed change to the coordinator; do not split
+required co-changes across misleading intermediate commits. A single
+shared `tests/CMakeLists.txt` and `docs/ROADMAP.md` means ten
+simultaneous direct-to-main writers are **not** safe. Isolate agent
+working environments and preserve the mandated sole build root per
+checkout; the owner's three platform machines each have their own
+`~/rdp-server/build/`.
+
+**Dedicated test contract:** every source/header/runtime/build behavior
+change is paired with at least one **new distinct behavior-named CTest**
+registered in the central registry, normally as a case of an existing
+executable. Cover new functionality with positive and fail-closed
+cases, and preserve all prior registered cases. Documentation-only
+planning edits do not assert execution or require a new production-code
+CTest. GitHub Actions compiles/tests every published integration; report
+the actual jobs and exact SHA, not an assumed pass. The owner's terminal
+runs are separate authoritative environment evidence; agents must not
+record them as PASS until the owner reports the results.
+
+**Three-platform test checkpoint:** when R10 nominates an integration
+SHA for the owner's terminal runs, **pause new commits to `main`**
+until all three results for that exact SHA are collected or an explicit
+abort is reported. Otherwise the owner's `git pull` commands can test
+different revisions, invalidating one cross-platform gate. The owner
+runs this unchanged one-liner **independently in each platform's
+appropriate shell/toolchain environment**, on a clean checkout:
+
+```sh
+cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure
+```
+
+Report OS/environment (Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27), `git rev-parse HEAD`, CMake-selected compiler, CTest
+passed/failed/skipped counts and the first error/output, or PASS.
+Clang 23 must actually be selected in the MSYS2 CLANG64 environment;
+the one-liner itself does **not** force a particular compiler on an
+already configured build cache. Never silently delete/reconfigure a
+different build root or reinterpret a platform-specific skipped test
+as passing. CI and owner terminal CTests can validate portable code;
+**real client login, desktop, clipboard and host operations still need
+separate, explicit authorization and live acceptance evidence**.
+The owner is a tester and decision-maker, **not** responsible for coding,
+CTest authorship, GitHub merge conflict resolution or road integration.
 
 ## Acceptance policy
 
+- Every production-code increment has at least one **new dedicated,
+  behavior-named CTest** exercising the changed functionality and
+  registered in the **one** existing `tests/CMakeLists.txt` registry.
+  Reuse shared executables/fixtures; preserve previous tests. Tests for
+  OS-specific code run on the applicable native platform and report
+  NOT RUN elsewhere. Owner reports from the same exact integration SHA
+  are needed for the three-platform test checkpoint.
 - Offline CTest and static library compilation are foundation gates.
 - Native protocol integration, TLS/NLA security, external clients, graphics,
   input, clipboard, session admission, OS backends and real desktop access
@@ -119,12 +184,17 @@ and the four mandatory [coding](coding_standards.md),
 [benchmark](benchmark.md) standards. Checkboxes require measured
 acceptance evidence; no synthetic completion claims.
 
-**Execution priority (2026-10-15):** finish the existing unchecked P0
-listener, real identity/OS admission, share-activation and interactive
-H.264/client-acceptance items **as one vertical slice**, in that order.
-Do not count additional isolated PDU parsers as session integration or
-open a parallel milestone checklist. Keep prior per-commit regression
-evidence intact and add first real-client transcripts only when run.
+**Execution priority (2026-10-15; parallelized):** maintain the existing
+P0/P1 implementation checkboxes as **one authoritative TODO**, but
+assign their implementation to R1–R10 above. A/B/C protocol
+dependencies converge at M2 while R4/R5/R6/R7/R8 develop and register
+their dedicated CTests concurrently. Linux/X11, Windows MSYS2 CLANG64
+(Clang 23) and macOS 27 all receive parallel development/automated
+verification; their separately authorized *human* acceptance is staged
+at M3/M4/M5. Road R10 serializes main commits and freezes nominated
+test SHAs while the owner runs three terminal checks. Keep prior
+per-commit evidence intact and add real-client transcripts only when
+actually run; another parser CTest alone is not a complete session.
 
 ### P0 — Preserve work and implement a native RDP server
 
@@ -1698,11 +1768,14 @@ evidence intact and add first real-client transcripts only when run.
 
 ### P1 — Real client features and performance
 
-**Post-first-human-test expansion:** preserve these TODO items and their
-full real-client acceptance criteria. Do not block Gates B/C on
-clipboard, file transfer, Wayland/macOS/Windows server adapters or
-unmeasured codec optimization. The stronger functionality remains
-required for the relevant later release scope.
+**Parallel development; staged feature acceptance:** R6/R7 Windows and
+macOS server adapters start immediately, not after Linux testing.
+R8 CLIPRDR/file work starts independently and converges for the
+declared full-feature beta at M5. Preserve these TODO items and their
+real-client acceptance criteria, but do not block the first Linux/X11
+interactive desktop (M3) on clipboard, file transfer, Wayland or
+optional codecs. Human acceptance remains Linux, then Windows, then
+macOS; all platform Debug/CTest work proceeds in parallel.
 
 - [ ] **One native CLIPRDR clipboard session owner** (MS-RDPECLIP): reuse
   `src/server/clipboard/remote_transfer.*`, existing first-party PDU/PNG/DIB

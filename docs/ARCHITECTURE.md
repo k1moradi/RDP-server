@@ -1327,3 +1327,18 @@ close the diagnostic, free SSL/BIO and then close the socket, retaining
 the caller-owned listener. It reuses the current protocol stages and
 cannot grant authentication, authorize a desktop or emit an MCS reply.
 An external event loop supplies readiness and timeout decisions.
+
+### R1 bounded readiness and connection deadline (2026-10-15)
+
+The same `OwnedPreauthTcpConnection` now advertises `Read`, `Write`,
+`ConfigureTls` or `Closed` from the existing preauthentication stage,
+unsent X.224 Confirm bytes and OpenSSL's WANT direction. An event loop
+supplies readiness bits to `onSocketReady`, which executes at most one
+existing bounded callback only when the correct bit is present.
+`ConfigureTls` cannot read TLS bytes without the caller transferring
+a configured server SSL. `cancelIfExpired` takes caller-owned monotonic
+clock instants, frees borrowed BIO/SSL before socket closure, and makes
+subsequent callbacks inert; R10 retains polling, deadline policy and
+listener configuration. `establishedTls` is a short-lived read-only
+borrow after an actual TLS handshake for future R2 inspection, NOT a
+verified client identity, authenticated OS session or R3 admission.

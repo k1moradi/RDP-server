@@ -338,6 +338,86 @@ TcpAcceptResult acceptNonblockingTcpConnection(
 }
 
 
+
+TcpConnectionIoInterest OwnedPreauthTcpConnection::ioInterest() const noexcept
+{
+    if (!active()) return TcpConnectionIoInterest::Closed;
+
+    switch (stage())
+    {
+    case PreauthStage::AwaitConnectionRequest:
+        return adapter_.connection().pendingConnectionReply().empty()
+                   ? TcpConnectionIoInterest::Read
+                   : TcpConnectionIoInterest::Write;
+    case PreauthStage::AwaitTls:
+        if (!serverTls_) return TcpConnectionIoInterest::ConfigureTls;
+        return SSL_want_write(serverTls_.get())
+                   ? TcpConnectionIoInterest::Write
+                   : TcpConnectionIoInterest::Read;
+    case PreauthStage::AwaitMcsConnectInitial:
+        if (!serverTls_) return TcpConnectionIoInterest::Closed;
+        // SSL_read_ex can exceptionally WANT_WRITE during TLS record
+        // processing; honor the actual provider direction, not a guess.
+        return SSL_want_write(serverTls_.get())
+                   ? TcpConnectionIoInterest::Write
+                   : TcpConnectionIoInterest::Read;
+    case PreauthStage::Closed:
+        return TcpConnectionIoInterest::Closed;
+    }
+    return TcpConnectionIoInterest::Closed;
+}
+
+TcpConnectionIoInterest OwnedPreauthTcpConnection::onSocketReady(
+    bool readable, bool writable) noexcept
+{
+    const auto requested = ioInterest();
+    if (requested == TcpConnectionIoInterest::Closed ||
+        requested == TcpConnectionIoInterest::ConfigureTls ||
+        (requested == TcpConnectionIoInterest::Read && !readable) ||
+        (requested == TcpConnectionIoInterest::Write && !writable))
+        return requested;
+
+    // Exactly ONE existing bounded callback per event. The underlying
+    // protocol stage remains the sole authority for the next step.
+    switch (stage())
+    {
+    case PreauthStage::AwaitConnectionRequest:
+        if (requested == TcpConnectionIoInterest::Read)
+            (void)onReadable();
+        else
+            (void)onWritable();
+        break;
+    case PreauthStage::AwaitTls:
+        (void)onTlsIoReady();
+        break;
+    case PreauthStage::AwaitMcsConnectInitial:
+        (void)onMcsIoReady();
+        break;
+    case PreauthStage::Closed:
+        cancel();
+        break;
+    }
+    return ioInterest();
+}
+
+bool OwnedPreauthTcpConnection::cancelIfExpired(
+    std::chrono::steady_clock::time_point now,
+    std::chrono::steady_clock::time_point deadline) noexcept
+{
+    if (!active() || now < deadline) return false;
+    cancel();
+    return true;
+}
+
+const SSL *OwnedPreauthTcpConnection::establishedTls() const noexcept
+{
+    return active() && serverTls_ &&
+                   stage() == PreauthStage::AwaitMcsConnectInitial &&
+                   SSL_is_init_finished(serverTls_.get()) == 1
+               ? serverTls_.get()
+               : nullptr;
+}
+
 OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
     OwnedNativeTcpSocket acceptedSocket) noexcept
     : socket_(std::move(acceptedSocket)),

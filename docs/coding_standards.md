@@ -1260,3 +1260,14 @@ On cancellation, EOF, fatal TLS or terminal MCS diagnostic, clear
 preauthentication, destroy SSL/BIO and THEN close the native accepted
 socket. Never invoke readiness after close. The listener is borrowed
 and remains independent of the accepted socket lifetime.
+
+## R1 readiness contract and monotonic deadlines (2026-10-15)
+
+Do not introduce a second phase enum/cache when existing preauth reply
+bytes and `SSL_want_write` identify the required readiness direction.
+Gate native callbacks on the matching supplied bit, and advance at
+most one of the existing bounded X.224/TLS/MCS callbacks per event.
+An external `steady_clock` time point and policy deadline trigger
+idempotent cancellation; do not allocate timers or read the wall clock
+from the transport owner. A read-only completed SSL borrow must not
+outlive its owner or substitute for R2 authenticated identity.

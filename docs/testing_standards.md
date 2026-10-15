@@ -1717,3 +1717,16 @@ TLS, first encrypted MCS/GCC diagnostic and terminal closure. The
 second tests missing socket, partial X.224, cancellation after server
 SSL attachment but before ClientHello, inert callbacks and listener
 preservation. No external client, live authorization or desktop.
+
+## R1 interest-gated readiness and expiration CTests (2026-10-15)
+
+New dedicated portable CTests `transport.tcp-owned-readiness-dispatch`
+and `transport.tcp-owned-deadline-cancellation` reuse the sole preauth
+fixture/executable. The first drives a real accepted loopback socket,
+fragmented X.224 request, wrong-direction events, exact Confirm, one
+server SSL/BIO and TLS handshake, encrypted MCS termination, negative
+failure reply and closed callbacks. The second supplies deterministic
+monotonic timestamps for a partially received X.224 request and an
+attached-but-incomplete TLS handshake, validating cleanup and listener
+preservation without waiting on a real timer. A green offline case
+does not assert R2 credentials, R3 channel admission or desktop access.

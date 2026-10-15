@@ -3,6 +3,7 @@
 
 #include "preauth_session.h"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -219,6 +220,20 @@ private:
     BIO *attachedTcpBio_{};
 };
 
+
+ // Readiness desired by the one existing transport owner. No OS poller,
+ // second phase controller or implicit timer is created here.
+ // ConfigureTls means the full X.224 reply was sent; the event-loop
+ // caller must supply an already configured server-role SSL before
+ // scheduling network I/O for TLS.
+ enum class TcpConnectionIoInterest : std::uint8_t
+ {
+     Read,
+     Write,
+     ConfigureTls,
+     Closed,
+ };
+
  // R1: one event-loop-affine owner of an accepted socket, preauth and SSL.
  // Never move: the attached SSL/BIO borrows the embedded NativeTcpIo.
  // There is no additional protocol/session state machine or listener here.
@@ -254,6 +269,25 @@ private:
      [[nodiscard]] bool attachServerTls(ServerTls serverTls) noexcept;
      [[nodiscard]] TlsHandshakeStatus onTlsIoReady() noexcept;
      [[nodiscard]] McsIntakeResult onMcsIoReady() noexcept;
+
+     // Derived from the existing preauth phase and SSL_want state, not a
+     // second state machine. The caller polls for precisely this interest.
+     [[nodiscard]] TcpConnectionIoInterest ioInterest() const noexcept;
+     // Process at most ONE bounded existing preauth/TLS/MCS callback.
+     // Wrong-direction, empty or stale readiness never touches the socket.
+     [[nodiscard]] TcpConnectionIoInterest onSocketReady(
+         bool readable, bool writable) noexcept;
+     // The caller owns its clock/timer and deadline policy. An expired
+     // deadline closes SSL/BIO before the accepted socket; repeated
+     // expiry has no effect. Time points must use steady_clock.
+     [[nodiscard]] bool cancelIfExpired(
+         std::chrono::steady_clock::time_point now,
+         std::chrono::steady_clock::time_point deadline) noexcept;
+     // Short-lived, read-only handoff for R2 certificate/peer inspection.
+     // Non-null ONLY after actual TLS establishment; caller may not cache
+     // this borrow across cancellation or advance SSL outside R1.
+     // TLS establishment itself is NOT user identity or OS authorization.
+     [[nodiscard]] const SSL *establishedTls() const noexcept;
      // Terminal, idempotent cancellation: free SSL/BIO before socket close.
      void cancel() noexcept;
 

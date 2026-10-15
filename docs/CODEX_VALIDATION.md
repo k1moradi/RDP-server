@@ -3231,3 +3231,29 @@ graphics/input, and performance. This is an offline SDK/library
 verification, not M4 human-desktop acceptance.
 **Next R6:** session-authorized D3D11 staging-copy/map lifetime with
 bounded frame geometry, failed-map cleanup and dedicated CTests.
+
+## R1 bounded readiness-interest and deadline dispatch (2026-10-15)
+
+**Road:** R1 native TCP/TLS, P0 Gate A prerequisite.
+**Integration parent:** `db62ec72f84c5b83adbedd72a2606b4db9470ec7`.
+**Production:** add stage/SSL-WANT-derived `TcpConnectionIoInterest`,
+one-event `OwnedPreauthTcpConnection::onSocketReady`, deterministic
+external monotonic `cancelIfExpired` and read-only
+`establishedTls` borrow. No second state controller or listener.
+**Dedicated new portable CTests:**
+`transport.tcp-owned-readiness-dispatch` (real loopback partial X.224,
+exact Confirm and rejection, TLS BIO/handshake, MCS diagnostic close,
+wrong/stale event denial) and
+`transport.tcp-owned-deadline-cancellation` (deterministic clock,
+partial read, attached SSL/BIO, idempotent close/listener preservation).
+Reuse `tests/test_owned_preauth_session.cpp` and central CMake registry.
+**Previous evidence PASS:** R1 owner CTests at
+`50a53e6d1ab07ab787c0ef5e62c91e068ba3ffcb` hosted
+Linux GCC 159/159 Debug+Release, macOS Clang 148/148 Debug+Release,
+and both R1 cases on Windows MSVC Debug; full Windows CTest FAIL
+on unrelated R10 `runtime.validates-configuration-comments-crlf`
+(Issue #9). **NEW tests NOT RUN at authoring:** worker lacks clone
+(https://github.com host DNS unresolved), exact-SHA hosted CI,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27.
+**Next:** validate exact code in Linux/Windows/macOS Actions and keep
+M2 R2 authentication, R3 session and human real-client gates NOT RUN.

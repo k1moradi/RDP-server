@@ -377,6 +377,38 @@ actually run; another parser CTest alone is not a complete session.
   Next R1 boundary: bounded readiness scheduling and deterministic timeout
   release around the owned native TCP/TLS connection.
 
+
+  **R1 bounded readiness dispatch and monotonic cancellation increment
+  (2026-10-15; parent `db62ec72f84c5b83adbedd72a2606b4db9470ec7`; exact new-code CI pending):**
+  Extend the EXISTING nonmoving `OwnedPreauthTcpConnection` with
+  `ioInterest()` and `onSocketReady(readable,writable)` that derive the
+  next read/write event from its one `PreauthConnectionStream` stage,
+  pending X.224 response and active OpenSSL `SSL_want_write` (including
+  post-handshake MCS reads). Dispatch at most ONE previously bounded
+  native preauth, TLS or diagnostic-MCS callback per matching event,
+  and ignore empty, wrong-direction, pre-TLS and stale events without
+  opening a socket or spinning. A caller-provided steady-clock
+  `cancelIfExpired(now,deadline)` releases SSL/BIO before native socket;
+  a short-lived `const SSL*` borrow is available only after actual TLS
+  establishment, NOT an authenticated identity decision.
+  New dedicated behavior CTests
+  `transport.tcp-owned-readiness-dispatch` and
+  `transport.tcp-owned-deadline-cancellation` reuse the existing test
+  executable and native 127.0.0.1:0 loopback; exercise split plaintext,
+  no premature TLS, full Confirm/failure-response delivery, real TLS
+  and encrypted MCS, wrong/stale readiness, deterministic deadline
+  expiration and listener preservation. No new poller, protocol state
+  authority, listener manager, TLS credential policy, R2 admission or
+  R3 session. **NOT RUN at authorship:** new code CMake/full CTest,
+  new exact-commit GitHub Actions and owner's Linux/X11, Windows
+  CLANG64 Clang23 or macOS27 toolchains (clone DNS unavailable in
+  worker). Previous R1 integration Linux GCC/macOS Clang suites and
+  Windows R1-specific cases PASS at `50a53e6d1ab07ab787c0ef5e62c91e068ba3ffcb`.
+  The current Windows full CTest still reports a separate R10 CRLF
+  configuration test FAIL (Issue #9). Next R1: hand readiness and a
+  bounded listener accept budget to R10's already authorized runtime
+  without bypassing the R2/R3 security gates.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

@@ -699,3 +699,34 @@ start an RDP listener or accept an OS account.
 Use existing native GSS and OpenSSL TLS fixture
 and one current connection owner; never log
 or commit credentials.
+
+## Canonical and terminal CredSSP error replies (2026-10-14)
+
+Per MS-CSSP 2.2.1/3.1.5, only v6 is
+supported by the new server fail-only
+serializer; the legacy 3/4 error cases
+remain unsupported rather than silently
+pretending v5 has errorCode semantics.
+Represent negative NTSTATUS as exactly
+four DER signed INTEGER octets. Permit
+ONLY fixed `STATUS_LOGON_FAILURE` and
+`STATUS_NOT_SUPPORTED`, not positive
+success or provider-specific minor error
+leaks. Never mix [4] with negoTokens,
+pubKeyAuth, authInfo or nonce.
+The original `TsRequestTlsReplyWriter`
+must own BOTH success and failure
+replies via the same PRIVATE encoded
+queue, preserving pending-record
+exclusivity, SSL identity, SHA256
+selected-certificate continuity, exact
+nonblocking write/retry ownership and
+secure wipe even when a rejected
+candidate reply was already encoded.
+A fully delivered failure response
+MUST terminate its writer at release;
+neither failed nor completed failures
+may be used as authenticated identity
+or lead to MCS. No automatic provider
+error mapping until the true NLA
+failure/connection state is implemented.

@@ -552,3 +552,39 @@ not the REQUIRED combined-last-token MS-CSSP
 interoperability with Microsoft Windows App.
 No daemon, KDC, OS user admission or desktop
 is activated by the test option.
+
+### Version-6 CredSSP failure reply transport boundary (2026-10-14)
+
+Microsoft MS-CSSP 2.2.1 and 3.1.5 support a
+server `TSRequest.errorCode` on a failed
+SPNEGO negotiation at versions 3, 4 and 6.
+The existing library currently accepts
+only v5/v6 server-reply wire shapes, so
+it adds an EXPLICIT, v6-only canonical
+15-byte DER failure serializer with
+two unsuccessful NTSTATUS codes:
+`STATUS_LOGON_FAILURE=0xC000006D`
+and `STATUS_NOT_SUPPORTED=0xC00000BB`.
+ASN.1 INTEGER must retain its signed
+32-bit four-byte representation and
+the only populated fields are [0]
+version and [4] errorCode. No token,
+nonce, credentials or pubKeyAuth is
+included. The same single
+`TsRequestTlsReplyWriter` now exposes
+`queueFailureReply`; both its success-
+shaped and fail-only serializer pass
+through ONE private guarded queue and
+the existing stable OpenSSL retry buffer
+and pinned TLS selected certificate.
+Only a fully written failure can be
+released, after which the writer is
+terminally closed; callers cannot queue
+a later success. The primitive deliberately
+does not auto-generate failure from
+a GSS exception: the future session
+orchestration must select the correct
+stage and sanitized NTSTATUS explicitly,
+then reject the session separately.
+No new GSS, OS admission, service,
+or RDP client acceptance is implied.

@@ -980,3 +980,49 @@ binding, OS session authorization,
 Microsoft Windows App or actual desktop.
 The existing unrelated Ubuntu Release
 fixture warning remains nonfatal.
+
+## Version-6 CredSSP failure DER and TLS delivery (2026-10-14; CI NOT RUN)
+
+Register FOUR new behavior cases in
+the ORIGINAL CTest registry
+`tests/CMakeLists.txt`, reusing existing
+`test_owned_credssp_tsrequest` and
+`test_owned_preauth_session` sources.
+`security.credssp-server-failure-wire`
+compares independently hand-authored
+15-byte DER oracles for signed
+0xC000006D and 0xC00000BB, validates
+existing TSRequest parser/framer
+reads exactly errorCode and never
+infers user authentication.
+`security.credssp-server-failure-rejections`
+rejects versions 0/2/3/4/5/7/255,
+unknown statuses, invalid DER signed
+integer width, and unrecognized
+normal server reply fields.
+`transport.credssp-tls-failure-reply-wire`
+sends both actual v6 failure records
+over the existing completed OpenSSL
+server/client memory-BIO TLS and
+validates the received exact ciphertext-
+protected plaintext, error-only
+field shape and writer terminal
+state; it also checks a prior
+negotiation response may be released
+before a failure on the same TLS
+certificate fingerprint.
+`transport.credssp-tls-failure-reply-rejections`
+asserts null/unfinished/client SSL,
+v5 or malformed failure, pending
+write conflict and SAME-SSL selected
+X509 substitution all fail without
+leaking another TLS record. Expected
+full Linux **76**, macOS/Windows
+**67** CTests per Debug and Release.
+No separate test executable,
+second sender or default GSS
+auth context. **NOT RUN:** new CI,
+opt-in genuine Kerberos, confirmed
+confidential GSS/TLS binding,
+real Microsoft client/OS session
+authorization or interactive desktop.

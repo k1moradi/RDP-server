@@ -857,6 +857,67 @@ acceptance evidence; no synthetic completion claims.
   and close any MS-CSSP combined-last-token
   interoperability gaps before independent
   OS session admission.
+  **Version-6 CredSSP server failure TSRequest transport
+  (2026-10-14; NEW CI NOT RUN):** Microsoft
+  [MS-CSSP 2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
+  and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)
+  specify an optional, server-generated
+  `TSRequest.errorCode` on SPNEGO failure
+  (versions 3/4/6), encoded as an ASN.1
+  signed 32-bit NTSTATUS INTEGER. Previously
+  the portable serializer and one
+  `TsRequestTlsReplyWriter` could output
+  only provider `negoTokens` and encrypted
+  `pubKeyAuth`. They now also support
+  ONLY version **6** failure responses
+  carrying a fixed `STATUS_LOGON_FAILURE`
+  (0xC000006D) or `STATUS_NOT_SUPPORTED`
+  (0xC00000BB); other versions, unknown
+  codes, mixed field shapes, success and
+  untrusted provider diagnostic data
+  cannot be serialized as success.
+  A single canonical 15-byte DER response
+  has exactly version [0] and errorCode
+  [4], never tokens, credentials, nonce
+  or public-key proof. The same existing
+  TLS writer provides stable nonblocking
+  SSL_write_ex retry, identity and selected
+  certificate pin, a single outstanding
+  response and sensitive-byte wipe.
+  After a fully transmitted failure is
+  explicitly released the writer closes
+  permanently, preventing a follow-on
+  success-shaped reply. It does NOT
+  silently convert GSS errors, queue
+  failure from the production acceptor,
+  authorize an OS identity, or run
+  a real Microsoft client session.
+  Four NEW behavior-named portable CTests,
+  TWO offline DER plus TWO real OpenSSL TLS,
+  cover both exact signed NTSTATUS oracles,
+  parser framing, malformed widths/versions,
+  pending-reply conflict, wrong TLS role/
+  unfinished handshake, same-SSL certificate
+  mutation and terminal post-failure state.
+  Expected Linux/GCC **76** and macOS/Clang,
+  Windows/MSVC **67** in both Debug/Release.
+  **PASS previous main:**
+  `c0aa5a2032da910c08ef982f5421dcc89166526e`,
+  [CI 38678271447](https://github.com/k1moradi/RDP-server/actions/runs/38678271447),
+  Linux 72/72 and macOS/Windows 63/63
+  Debug+Release, SDK/policy/package PASS.
+  **NOT RUN:** new implementation CI,
+  opt-in genuine Kerberos keytab/ticket
+  and successful TLS pubKeyAuth, real
+  SPNEGO error dispatch from a verified
+  provider, independently approved
+  OS account, external client or desktop.
+  **Next:** explicitly provision and run
+  the controlled positive Kerberos/GSS
+  test; wire policy-approved failure
+  into real provider stage transitions,
+  then independent OS admission before
+  any live MCS/desktop replies.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

@@ -359,6 +359,30 @@ std::vector<std::uint8_t> encodeCredSspServerTsRequest(
     }
 }
 
+std::vector<std::uint8_t> encodeCredSspServerFailureTsRequest(
+    std::uint8_t version, CredSspServerFailure failure) noexcept
+{
+    // MS-CSSP 2.2.1: errorCode represents a signed 32-bit NTSTATUS
+    // INTEGER. Do not emit a positive/success code, shorten 0xC000...,
+    // or include clientNonce, SPNEGO tokens, or any credential field.
+    if (version != 6 ||
+        (failure != CredSspServerFailure::LogonFailure &&
+         failure != CredSspServerFailure::NotSupported))
+        return {};
+
+    const std::uint8_t lowByte =
+        failure == CredSspServerFailure::LogonFailure ? 0x6d : 0xbb;
+    try
+    {
+        return {0x30, 0x0d, 0xa0, 0x03, 0x02, 0x01, 0x06,
+                0xa4, 0x06, 0x02, 0x04, 0xc0, 0x00, 0x00, lowByte};
+    }
+    catch (...)
+    {
+        return {};
+    }
+}
+
 void TsRequestFrameReader::clear() noexcept
 {
     if (buffered_ != 0)
@@ -659,6 +683,7 @@ void TsRequestTlsReplyWriter::close() noexcept
     boundServerTls_ = nullptr;
     OPENSSL_cleanse(pinnedCertificate_.data(), pinnedCertificate_.size());
     certificatePinned_ = false;
+    failureQueued_ = false;
     status_ = TsRequestTlsWriteStatus::Closed;
 }
 
@@ -666,41 +691,59 @@ bool TsRequestTlsReplyWriter::queueReply(
     SSL *serverTls, std::uint8_t version, CredSspServerReplyField field,
     std::span<const std::uint8_t> providerOutput) noexcept
 {
+    return queueEncoded(
+        serverTls, encodeCredSspServerTsRequest(version, field, providerOutput),
+        false);
+}
+
+bool TsRequestTlsReplyWriter::queueFailureReply(
+    SSL *serverTls, std::uint8_t version,
+    CredSspServerFailure failure) noexcept
+{
+    return queueEncoded(
+        serverTls, encodeCredSspServerFailureTsRequest(version, failure),
+        true);
+}
+
+bool TsRequestTlsReplyWriter::queueEncoded(
+    SSL *serverTls, std::vector<std::uint8_t> encoded,
+    bool isFailure) noexcept
+{
+    // This method is PRIVATE: callers cannot inject arbitrary DER.
+    // Both canonical serializers share the single TLS identity and
+    // pending-reply owner. Erase even discarded encoded GSS tokens.
+    auto discard = [&encoded]() noexcept {
+        if (!encoded.empty())
+            OPENSSL_cleanse(encoded.data(), encoded.size());
+    };
     if (status_ == TsRequestTlsWriteStatus::Closed)
+    {
+        discard();
         return false;
+    }
     if (status_ != TsRequestTlsWriteStatus::Idle ||
         (boundServerTls_ != nullptr && boundServerTls_ != serverTls))
     {
+        discard();
         close();
         return false;
     }
 
-    // The same SSL pointer may receive new configured credentials. Require
-    // the exact selected DER certificate pinned by the first outgoing
-    // reply, including after releaseReply(), before queuing another record.
     CredSspTlsCertificateFingerprint current{};
-    const bool validCertificate = matchesPinnedCertificate(
-        serverTls, current);
-    if (!validCertificate)
-    {
-        OPENSSL_cleanse(current.data(), current.size());
-        close();
-        return false;
-    }
-
-    // Only the canonical bounded DER encoder may form outgoing bytes.
-    auto encoded = encodeCredSspServerTsRequest(
-        version, field, providerOutput);
-    if (encoded.empty() ||
+    const bool validCertificate =
+        matchesPinnedCertificate(serverTls, current);
+    if (!validCertificate || encoded.empty() ||
         encoded.size() > kMaximumCredSspRequestBytes)
     {
+        discard();
         OPENSSL_cleanse(current.data(), current.size());
         close();
         return false;
     }
-    frame_.swap(encoded); // Stable OpenSSL retry pointer, no second copy.
+    frame_.swap(encoded); // Stable OpenSSL retry pointer, no extra copy.
     offset_ = 0;
     boundServerTls_ = serverTls;
+    failureQueued_ = isFailure;
     if (!certificatePinned_)
     {
         pinnedCertificate_ = current;
@@ -785,6 +828,13 @@ bool TsRequestTlsReplyWriter::releaseReply() noexcept
     {
         close();
         return false;
+    }
+    if (failureQueued_)
+    {
+        // MS-CSSP: a client receiving errorCode MUST terminate.
+        // A local writer must also refuse any success reply after error.
+        close();
+        return true;
     }
     clear();
     // Keep the original SSL and certificate fingerprint across the next

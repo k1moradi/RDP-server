@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace rdp_server::server::security;
@@ -461,6 +462,78 @@ void testServerReplyWire()
     }
 }
 
+void testServerFailureReplyWire()
+{
+    // Independent MS-CSSP 2.2.1 DER oracles for version 6: a signed
+    // 32-bit NTSTATUS INTEGER has exactly four bytes, including bit 31.
+    constexpr std::array<std::uint8_t, 15> logonFailure{
+        0x30, 0x0d, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa4, 0x06, 0x02, 0x04, 0xc0, 0x00, 0x00, 0x6d};
+    constexpr std::array<std::uint8_t, 15> notSupported{
+        0x30, 0x0d, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa4, 0x06, 0x02, 0x04, 0xc0, 0x00, 0x00, 0xbb};
+    for (auto [status, oracle] : {
+        std::pair{CredSspServerFailure::LogonFailure, logonFailure},
+        std::pair{CredSspServerFailure::NotSupported, notSupported}})
+    {
+        const auto bytes = encodeCredSspServerFailureTsRequest(6, status);
+        assert(bytes == std::vector<std::uint8_t>(
+            oracle.begin(), oracle.end()));
+        const auto parsed = parseCredSspTsRequest(bytes);
+        assert(parsed && parsed.value.version == 6);
+        assert(parsed.value.hasErrorCode);
+        assert(!parsed.value.hasAuthInfo &&
+               !parsed.value.hasPubKeyAuth &&
+               !parsed.value.hasClientNonce &&
+               parsed.value.tokenCount == 0);
+        assert(!parsed.value.initialNegoTokenOnly() &&
+               !parsed.value.finalNegoAndBindingOnly());
+        TsRequestFrameReader reader;
+        const auto received = reader.consume(bytes);
+        assert(received.status == TsRequestFrameStatus::Complete);
+        assert(received.bytesConsumed == bytes.size());
+        assert(reader.completeDer().size() == oracle.size());
+        assert(reader.releaseFrame());
+    }
+}
+
+void testServerFailureReplyRejections()
+{
+    for (const auto version :
+        {std::uint8_t{0}, std::uint8_t{2}, std::uint8_t{3},
+         std::uint8_t{4}, std::uint8_t{5}, std::uint8_t{7},
+         std::uint8_t{255}})
+    {
+        // This milestone supports ONLY version 6 NTSTATUS error
+        // responses; do not silently pretend v5 or v3/v4 is supported.
+        assert(encodeCredSspServerFailureTsRequest(
+            version, CredSspServerFailure::LogonFailure).empty());
+        assert(encodeCredSspServerFailureTsRequest(
+            version, CredSspServerFailure::NotSupported).empty());
+    }
+    assert(encodeCredSspServerFailureTsRequest(
+        6, static_cast<CredSspServerFailure>(255)).empty());
+
+    // No success status, no alternative INTEGER width/sign, no mixed
+    // security fields and no provider token can be emitted by this API.
+    const auto failure = encodeCredSspServerFailureTsRequest(
+        6, CredSspServerFailure::LogonFailure);
+    assert(failure.size() == 15);
+    auto zeroStatus = failure;
+    zeroStatus[11] = 0;
+    zeroStatus[14] = 0; // malformed for the selected failure policy
+    assert(zeroStatus != failure);
+    auto nonminimal = failure;
+    nonminimal[1] = 0x0e;
+    nonminimal[8] = 0x07;
+    nonminimal[10] = 0x05;
+    nonminimal.insert(nonminimal.begin() + 11, 0xff);
+    assert(!parseCredSspTsRequest(nonminimal));
+    constexpr std::array<std::uint8_t, 1> injected{0x55};
+    assert(encodeCredSspServerTsRequest(
+        6, static_cast<CredSspServerReplyField>(254), injected).empty());
+}
+
 void testServerReplyRejections()
 {
     constexpr std::array<std::uint8_t, 2> opaque{0x11, 0x22};
@@ -632,7 +705,7 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 12> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 14> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
@@ -643,6 +716,8 @@ constexpr std::array<CredSspTestCase, 12> kCredSspTests{{
     {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},
     {"credssp-server-reply-wire", &testServerReplyWire},
     {"credssp-server-reply-rejections", &testServerReplyRejections},
+    {"credssp-server-failure-wire", &testServerFailureReplyWire},
+    {"credssp-server-failure-rejections", &testServerFailureReplyRejections},
     {"credssp-final-negotiation-binding", &testFinalNegotiationBindingShape},
     {"credssp-final-binding-rejections", &testFinalNegotiationBindingRejections},
 }};

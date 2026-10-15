@@ -107,6 +107,23 @@ enum class CredSspServerReplyField : std::uint8_t
     CredSspServerReplyField field,
     std::span<const std::uint8_t> opaquePayload) noexcept;
 
+// MS-CSSP 2.2.1/3.1.5: when SPNEGO fails on version 6, the server
+// SHOULD return a TSRequest with ONLY version and [4] errorCode.
+// Limit disclosure to fixed unsuccessful NTSTATUS values. Version 5
+// MUST NOT use this path (specifically negotiated 3, 4 and 6 carry
+// SPNEGO errorCode semantics). Does not map provider minor codes,
+// create authentication or permit sending encrypted credentials.
+enum class CredSspServerFailure : std::uint8_t
+{
+    LogonFailure,  // STATUS_LOGON_FAILURE   0xC000006D
+    NotSupported,  // STATUS_NOT_SUPPORTED   0xC00000BB
+};
+
+// Pure canonical DER: 15 bytes, one version [0] and signed 32-bit
+// failure [4]; never a success NTSTATUS or a mixed reply.
+[[nodiscard]] std::vector<std::uint8_t> encodeCredSspServerFailureTsRequest(
+    std::uint8_t version, CredSspServerFailure failure) noexcept;
+
 // Stream-only DER framing across arbitrarily split TLS plaintext.  This
 // decoder does not drive TLS or keep SPNEGO/GSS state and is NOT an
 // authentication/session authority. A complete DER view stays borrowed
@@ -253,6 +270,16 @@ public:
         SSL *serverTls, std::uint8_t version, CredSspServerReplyField field,
         std::span<const std::uint8_t> providerOutput) noexcept;
 
+    // Explicit server-side version-6 SPNEGO failure, never an authority
+    // to authenticate/continue. Uses identical pinned TLS and one-buffer
+    // retry semantics; a FULLY sent failure terminates this writer on
+    // release instead of permitting subsequent success-shaped responses.
+    // The caller must decide whether an error record is appropriate
+    // *before* calling; no GSS exception is silently translated here.
+    [[nodiscard]] bool queueFailureReply(
+        SSL *serverTls, std::uint8_t version,
+        CredSspServerFailure failure) noexcept;
+
     // Exactly one SSL_write_ex per invocation. Progress means a partial
     // OpenSSL write was completed and can be advanced immediately;
     // NeedRead/NeedWrite require the indicated readiness event.
@@ -281,6 +308,9 @@ public:
 
 private:
     void clear() noexcept;
+    [[nodiscard]] bool queueEncoded(
+        SSL *serverTls, std::vector<std::uint8_t> encoded,
+        bool isFailure) noexcept;
     // Uses the same canonical selected-certificate test as the
     // inbound TLS reader. A long-lived pointer is insufficient to
     // identify the certificate if it is replaced within that SSL.
@@ -293,6 +323,7 @@ private:
     SSL *boundServerTls_{};
     CredSspTlsCertificateFingerprint pinnedCertificate_{};
     bool certificatePinned_{};
+    bool failureQueued_{};
     TsRequestTlsWriteStatus status_{TsRequestTlsWriteStatus::Idle};
 };
 

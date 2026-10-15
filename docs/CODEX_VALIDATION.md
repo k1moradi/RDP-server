@@ -1314,3 +1314,76 @@ execute opt-in test, verify combined
 final SPNEGO/pubKeyAuth behavior,
 then implement independent OS
 session policy before MCS/desktop.
+
+## Pending v6 CredSSP server failure TSRequest serialization (2026-10-14)
+
+**Prior exact green main:**
+`c0aa5a2032da910c08ef982f5421dcc89166526e`,
+[CI 38678271447](https://github.com/k1moradi/RDP-server/actions/runs/38678271447):
+Linux 72/72 and macOS/Windows 63/63
+full Debug+Release CTests, installed
+SDK consumer, ZIP/SHA256 packages
+and documentation policy PASS.
+
+**Implementation (NEW CI NOT RUN):**
+`src/server/security/credssp_tsrequest.{h,cpp}`
+adds v6-only `encodeCredSspServerFailureTsRequest`
+for canonical DER version [0] plus
+negative signed NTSTATUS [4], restricted
+to sanitized `STATUS_LOGON_FAILURE` or
+`STATUS_NOT_SUPPORTED`. The SAME
+original `TsRequestTlsReplyWriter`
+supports `queueFailureReply` through
+one common private `queueEncoded`
+shared with existing SPNEGO tokens and
+confidential pubKeyAuth replies. It
+retains pending-record exclusivity,
+stable nonblocking OpenSSL buffer,
+same SSL/X509 selected-certificate
+fingerprint, constant-time checks,
+and wipes rejected DER. A delivered
+failure explicitly released closes
+the writer, never allowing follow-up
+negotiation success. This is a
+canonical message/writer primitive:
+the GSS provider does not yet
+automatically dispatch NTSTATUS
+on protocol rejection, and neither
+proof nor OS authorization is
+claimed. Four new portable CTests
+in existing `tests/test_owned_credssp_tsrequest.cpp`,
+`tests/test_owned_preauth_session.cpp`
+and `tests/CMakeLists.txt` check
+fixed v6 DER and malformed cases,
+real in-memory TLS wire records,
+old reply release ordering, writer
+permanent closure, wrong SSL role,
+unhandshaken TLS, pending replies
+and same-SSL swapped cert.
+Expected Linux 76/76, macOS and
+Windows 67/67 both configurations;
+all original suites retained.
+
+CI command contract: configure Debug
+in checkout-local `build/`
+with `-DBUILD_TESTING=ON`,
+Linux `-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`;
+compile and `ctest --test-dir build
+--build-config Debug --output-on-failure`,
+reconfigure SAME root Release,
+compile/CTest; SDK staged install,
+downstream consumer, ZIP/SHA256
+and documentation-policy checks.
+**NOT RUN:** new CI, owner local
+persistent build, opt-in positive
+keytab/client-ticket test, active
+GSS pubKeyAuth proof, real SPNEGO
+failure dispatch, independently
+authorized OS account, external
+Microsoft RDP client or desktop.
+**Next:** authorized isolated
+Kerberos GSS/TLS positive test,
+then provider-originated failure
+response with explicit stage,
+and independent OS authorization
+before admitting MCS/desktop.

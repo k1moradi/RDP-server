@@ -2020,6 +2020,148 @@ void testTlsCredSspReplyCertBackpressure()
     // intentionally not counted as a new successful TLS write here.
 }
 
+void testTlsCredSspFailureReplyWire()
+{
+    // MS-CSSP 2.2.1: version 6 errorCode is a negative signed NTSTATUS.
+    // Real completed TLS, canonical DER, no fabricated provider identity.
+    for (auto failure : {CredSspServerFailure::LogonFailure,
+                         CredSspServerFailure::NotSupported})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestTlsReplyWriter writer;
+        const auto expected = encodeCredSspServerFailureTsRequest(6, failure);
+        assert(expected.size() == 15);
+        assert(writer.queueFailureReply(tls.server.get(), 6, failure));
+        assert(writer.status() == TsRequestTlsWriteStatus::NeedWrite);
+        assert(writer.bytesRemaining() == expected.size());
+        assert(!writer.releaseReply());
+        const auto wrote = writer.writeOneTlsStep(tls.server.get());
+        assert(wrote.status == TsRequestTlsWriteStatus::Complete);
+        assert(wrote.plaintextBytesWritten == expected.size());
+        assert(writer.writeOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsWriteStatus::Complete);
+        std::array<std::uint8_t, 64> plaintext{};
+        std::size_t length = 0;
+        assert(SSL_read_ex(tls.client.get(), plaintext.data(),
+                           plaintext.size(), &length) == 1);
+        assert(length == expected.size());
+        assert(std::equal(expected.begin(), expected.end(),
+                          plaintext.begin()));
+        const auto parsed = parseCredSspTsRequest(
+            std::span(plaintext).first(length));
+        assert(parsed && parsed.value.version == 6);
+        assert(parsed.value.hasErrorCode);
+        assert(!parsed.value.hasAuthInfo && !parsed.value.hasPubKeyAuth &&
+               !parsed.value.hasClientNonce && parsed.value.tokenCount == 0);
+        assert(!parsed.value.initialNegoTokenOnly());
+        assert(!parsed.value.finalNegoAndBindingOnly());
+        // Once the error is transmitted and released the writer MUST
+        // terminate; client and server never continue after errorCode.
+        assert(writer.releaseReply());
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(writer.bytesRemaining() == 0);
+        constexpr std::array<std::uint8_t, 1> token{0x42};
+        assert(!writer.queueReply(
+            tls.server.get(), 6, CredSspServerReplyField::NegoToken,
+            token));
+        assert(!writer.queueFailureReply(tls.server.get(), 6, failure));
+    }
+
+    // A regular negotiation response can be completed/released first,
+    // then a failure queued on the SAME TLS fingerprint, but not after.
+    TlsHandshakeFixture tls;
+    TsRequestTlsReplyWriter writer;
+    constexpr std::array<std::uint8_t, 2> negotiation{0x10, 0x20};
+    assert(writer.queueReply(
+        tls.server.get(), 6, CredSspServerReplyField::NegoToken,
+        negotiation));
+    assert(writer.writeOneTlsStep(tls.server.get()).status ==
+           TsRequestTlsWriteStatus::Complete);
+    std::array<std::uint8_t, 64> discard{};
+    std::size_t read = 0;
+    assert(SSL_read_ex(tls.client.get(), discard.data(),
+                       discard.size(), &read) == 1);
+    assert(read != 0);
+    assert(writer.releaseReply());
+    assert(writer.queueFailureReply(
+        tls.server.get(), 6, CredSspServerFailure::LogonFailure));
+    assert(writer.writeOneTlsStep(tls.server.get()).status ==
+           TsRequestTlsWriteStatus::Complete);
+    assert(writer.releaseReply());
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+}
+
+void testTlsCredSspFailureReplyRejections()
+{
+    constexpr auto failure = CredSspServerFailure::LogonFailure;
+    constexpr std::array<std::uint8_t, 1> token{0x7a};
+    {
+        TsRequestTlsReplyWriter nullWriter;
+        assert(!nullWriter.queueFailureReply(nullptr, 6, failure));
+        assert(nullWriter.status() == TsRequestTlsWriteStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        for (auto version : {std::uint8_t{0}, std::uint8_t{4},
+                             std::uint8_t{5}, std::uint8_t{7}})
+        {
+            TsRequestTlsReplyWriter writer;
+            assert(!writer.queueFailureReply(
+                tls.server.get(), version, failure));
+            assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        }
+        TsRequestTlsReplyWriter invalid;
+        assert(!invalid.queueFailureReply(
+            tls.server.get(), 6,
+            static_cast<CredSspServerFailure>(255)));
+        assert(invalid.status() == TsRequestTlsWriteStatus::Closed);
+        TsRequestTlsReplyWriter clientRole;
+        assert(!clientRole.queueFailureReply(
+            tls.client.get(), 6, failure));
+        assert(clientRole.status() == TsRequestTlsWriteStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture unfinished{false};
+        TsRequestTlsReplyWriter writer;
+        assert(!writer.queueFailureReply(
+            unfinished.server.get(), 6, failure));
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TsRequestTlsReplyWriter pending;
+        assert(pending.queueReply(
+            tls.server.get(), 6,
+            CredSspServerReplyField::NegoToken, token));
+        assert(!pending.queueFailureReply(
+            tls.server.get(), 6, failure));
+        assert(pending.status() == TsRequestTlsWriteStatus::Closed);
+        assert(pending.bytesRemaining() == 0);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TlsHandshakeFixture replacement;
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueFailureReply(
+            tls.server.get(), 6, failure));
+        substituteCredSspReplyCertificate(
+            tls.server.get(), replacement.server.get());
+        const auto rejected = writer.writeOneTlsStep(tls.server.get());
+        assert(rejected.status == TsRequestTlsWriteStatus::Invalid);
+        assert(rejected.plaintextBytesWritten == 0);
+        assert(writer.bytesRemaining() == 0);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        std::array<std::uint8_t, 64> plaintext{};
+        std::size_t length = 0;
+        const int got = SSL_read_ex(
+            tls.client.get(), plaintext.data(), plaintext.size(), &length);
+        assert(got != 1);
+        assert(SSL_get_error(tls.client.get(), got) ==
+               SSL_ERROR_WANT_READ);
+        assert(length == 0);
+    }
+}
+
 void testTlsCredSspReplyRejections()
 {
     {
@@ -3129,6 +3271,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-reply-cert-pending", &testTlsCredSspReplyCertPending},
     {"credssp-tls-reply-cert-completion", &testTlsCredSspReplyCertCompletionAndReuse},
     {"credssp-tls-reply-cert-backpressure", &testTlsCredSspReplyCertBackpressure},
+    {"credssp-tls-failure-reply-wire", &testTlsCredSspFailureReplyWire},
+    {"credssp-tls-failure-reply-rejections", &testTlsCredSspFailureReplyRejections},
 #ifdef RDP_TEST_LINUX_GSSAPI
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
     {"gssapi-final-combined-denials", &testGssapiCombinedFinalBindingDenied},

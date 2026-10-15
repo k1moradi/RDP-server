@@ -825,8 +825,6 @@ void testMcsJoinedClipboardResponseTeardown()
 
 } // namespace
 
-int main(int argumentCount} // namespace
-
 int main(int argumentCount, char **arguments)
 {
     if (argumentCount == 2)

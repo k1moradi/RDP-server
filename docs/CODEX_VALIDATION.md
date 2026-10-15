@@ -3314,3 +3314,18 @@ real licensed Microsoft client and actual R2→R3→R8 admission.
 **Next:** exact-SHA hosted CI and owner one-root CTest; once the
 single authorized R3 dispatch interface lands, replace fixture-only
 membership acceptance with a production ingress-routing CTest.
+
+## R9 cross-road CTest source syntax correction (2026-10-15)
+
+**First failing SHA:** `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`,
+[Actions 38798730112](https://github.com/k1moradi/RDP-server/actions/runs/38798730112).
+**FAIL:** GCC Debug compile at
+`tests/test_owned_remote_transfer.cpp:828`, because the test insertion
+left `int main(int argumentCount} // namespace` ahead of the existing
+correct `main` declaration. No new CTest executed at that SHA.
+**Correction parent main:** `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`. Remove only the duplicate
+broken declaration prefix; retain existing named CTest, old default
+suite and all R3/R8 assertions. **NOT RUN at authoring:** exact correction
+SHA CI, owner's Linux/X11, MSYS2 CLANG64/Clang23, macOS27 and live
+R2/R3-authorized clipboard integration. **Next:** inspect the exact
+correction SHA's GCC/Clang/MSVC Debug/Release CI before asserting PASS.

@@ -2613,6 +2613,18 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   owner Linux/X11, CLANG64/Clang23 and macOS27, then test actual
   R3 admitted channel routing when R2/R3 integration exists.
 
+  **R9 CI syntax correction (2026-10-15):**
+  First implementation SHA `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`
+  failed hosted Linux/GCC **Compile Debug** because an R9 source
+  insertion duplicated the `int main(int argumentCount` prefix at
+  `tests/test_owned_remote_transfer.cpp:828`. No CTests on that SHA
+  completed; do not credit the integration regression with a PASS.
+  Restored the single original main declaration without changing
+  existing assertions, the dedicated new CTest or production logic.
+  **Parent main:** `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`. Exact correction-SHA hosted CI
+  required before any R9 cross-boundary PASS claim; owner three-platform
+  and real R3/R8 authorization remain NOT RUN.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

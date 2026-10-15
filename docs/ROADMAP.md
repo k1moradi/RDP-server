@@ -921,6 +921,17 @@ actually run; another parser CTest alone is not a complete session.
   binding and certificate-change denial. **NOT RUN at authoring:**
   patched CTests, new-head CI, opt-in Kerberos, independent OS
   authorization and R3 admission. The console gate remains deny-only.
+  **Hosted exact-R2 code CI and repaired cross-platform acceptance:**
+  implementation `ec8291eb68069182d86034768618e67bb8ea3c73`
+  PASS Linux/GCC 184/184 and Windows/MSVC 180/180 CTests in Debug
+  and Release. The initial macOS native R7 linker failure was repaired
+  on a later main commit. Inclusion SHA
+  `19512d5fdbc0568fbd6c3333b32c770d76c6f8b4`
+  [Actions 38800199864](https://github.com/k1moradi/RDP-server/actions/runs/38800199864)
+  PASS Linux 184/184, Windows 180/180, macOS 173/173 full CTests in
+  BOTH configurations, including the new R2 Linux GSS gate CTest.
+  **NOT RUN:** owner local three-platform command, opt-in Kerberos
+  credentials, independently authorized OS session or human desktop.
   **CredSSP TSRequest decrypted-message framing increment (2026-10-14,
   46 CTests; exact-head CI PASS):** extend the existing
   first-party `credssp_tsrequest.{h,cpp}` with a fixed 16 KiB

@@ -3804,3 +3804,21 @@ OS account admission, ScreenCaptureKit frames, Microsoft-client input
 and desktop reconnect, performance benchmarks.
 **Next:** native macOS display geometry sampling with a new behavior
 CTest; then authorized R2/R3/R4 capture/lifetime integration.
+
+## Exact-commit R2 GSS identity CTest follow-up (2026-10-15)
+
+**R2 implementation:** `ec8291eb68069182d86034768618e67bb8ea3c73`;
+[Actions 38799994954](https://github.com/k1moradi/RDP-server/actions/runs/38799994954)
+Linux GCC Debug and Release 184/184 each, including distinct
+`security.gssapi-principal-tls-proof-gate` PASS; Windows MSVC Debug
+and Release 180/180 each PASS; macOS CI FAIL before CTest only at
+R7 native pixel-buffer CoreFoundation link (`_kCFAllocatorDefault`).
+**Cross-platform repair and follow-up PASS:** inclusion SHA
+`19512d5fdbc0568fbd6c3333b32c770d76c6f8b4`,
+[Actions 38800199864](https://github.com/k1moradi/RDP-server/actions/runs/38800199864):
+Linux 184/184, Windows 180/180 and macOS 173/173 in Debug and
+Release, documentation-policy and SDK consumer PASS.
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS27 exact-SHA terminal CTests, positive credentialed Kerberos
+and separate native OS admission or Microsoft-client desktop.
+The console gate remains deny-only and R2 Gate A is open.

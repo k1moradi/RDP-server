@@ -1600,3 +1600,18 @@ CTests up from verified 95/105; do not weaken any
 existing parser or test assertion. New-head CI and
 owner local build/CTest NOT RUN at authoring.
 Neither result activates a share or graphics.
+
+**Exact implementation CI PASS (2026-10-15):**
+`89ffef98b4f27ad2947b4629c9eefa49b64152a7`,
+[GitHub Actions 38746309146](https://github.com/k1moradi/RDP-server/actions/runs/38746309146).
+Linux/GCC **107/107** and macOS/Clang,
+Windows/MSVC **97/97** full CTests each in BOTH
+Debug and Release. New
+`transport.share-bitmap-capability-wire`
+and `transport.share-bitmap-capability-rejections`
+PASSED on each system; documentation-policy,
+installed SDK consumer, ZIP/SHA256 packaging/upload
+PASSED. Untagged prerelease SKIPPED.
+**NOT RUN:** owner-local single-build-root compile,
+real GSS/Kerberos/TLS binding, independently approved
+OS session, licensed capabilities, graphics or desktop.

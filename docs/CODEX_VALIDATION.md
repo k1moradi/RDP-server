@@ -2279,7 +2279,7 @@ RDP client, H.264 graphics or desktop. **Next:** owner's
 single-root full CTest, separately authorized real GSS/TLS
 and OS admission before sending any live RDP application data.
 
-## Pending Bitmap Capability Set extraction (2026-10-15)
+## Verified Bitmap Capability Set extraction (2026-10-15)
 
 **Previous main:** `39480cb88de6b80277b9c2621ca8ddb41651dfee`.
 **Previous verified code:** `3625b0daadef1f470bc0b23b3b2aff9106750a6a`,
@@ -2321,3 +2321,26 @@ cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug
 cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ```
+
+**PASS:** exact implementation
+`89ffef98b4f27ad2947b4629c9eefa49b64152a7`,
+[GitHub Actions 38746309146](https://github.com/k1moradi/RDP-server/actions/runs/38746309146):
+Linux/GCC **107/107**, macOS/Clang and Windows/MSVC
+**97/97** CTests EACH in Debug and Release.
+`transport.share-bitmap-capability-wire` and
+`transport.share-bitmap-capability-rejections`
+PASSED in all six runs; project policy, installed SDK
+consumer, ZIP/SHA256 packaging and uploaded artifacts
+PASSED. Prerelease publication SKIPPED (no version tag).
+The earlier NOT RUN-at-authoring checkpoint was
+accurate when code was first committed, but exact-code
+hosted cross-platform CI is now verified.
+**NOT RUN:** owner-local current code compile/CTest,
+genuine Kerberos/TLS pubKeyAuth and external tickets,
+independent OS user/session approval, licensed/negotiated
+bitmap or H.264 graphics, external Microsoft RDP client,
+interactive desktop or clipboard.
+**Next gate:** owner-local single existing
+`~/rdp-server/build/` full CTest, then independently
+approved isolated GSS/TLS and OS-admission evidence
+before attaching any live MCS session or graphics.

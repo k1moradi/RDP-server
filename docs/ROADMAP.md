@@ -1334,8 +1334,8 @@ acceptance evidence; no synthetic completion claims.
   authorized real GSS/TLS and OS session identity before
   ANY live capability dispatch.
 
-  **Partial OFFLINE Bitmap Capability Set parsing (2026-10-15;
-  exact-head CI NOT RUN at authoring):** Reuse the same existing
+  **Verified partial OFFLINE Bitmap Capability Set parsing (2026-10-15;
+  exact-head CI PASS):** Reuse the same existing
   MS-RDPBCGR 2.2.1.13.1.1 Demand/Confirm Active exact-PDU parser
   and counted TS_CAPS_SET envelopes to extract precisely one
   28-byte MS-RDPBCGR 2.2.7.1.2 Bitmap Capability Set
@@ -1362,16 +1362,24 @@ acceptance evidence; no synthetic completion claims.
   Linux **105/105**, macOS and Windows **95/95**
   Debug/Release PASS, SDK and docs-policy PASS. The owner
   reports **95/95 local PASS** on preceding code, without
-  a matching complete log/local SHA. **NOT RUN:** new-head
-  cross-platform CI or owner-local compile/CTest; real
+  a matching complete log/local SHA.
+  **PASS:** exact implementation
+  `89ffef98b4f27ad2947b4629c9eefa49b64152a7`,
+  [Actions 38746309146](https://github.com/k1moradi/RDP-server/actions/runs/38746309146):
+  Linux/GCC **107/107**, macOS/Clang and Windows/MSVC
+  **97/97** CTests in EACH Debug and Release;
+  both new Bitmap wire/rejections cases, installed SDK
+  consumer, ZIP/SHA256 packaging/uploads and docs-policy PASS.
+  Prerelease SKIPPED (no version tag).
+  **NOT RUN:** owner-local current-head compile/CTest; real
   Kerberos/CredSSP/TLS binding, MCS sender provenance,
-  independent OS session admission, licensed capability
-  negotiation, desktop/graphics and external RDP client.
-  Even mandatory Bitmap support advertised in one packet
-  does NOT grant desktop authority or H.264/bitmap dispatch.
-  **Next:** new SHA exact-head Linux/macOS/Windows matrix,
-  owner-local one-root full CTest, then separately
-  authorized real GSS/TLS + OS identity acceptance.
+  independent OS session admission, licensed capabilities,
+  desktop/graphics and external RDP client.
+  Even mandatory Bitmap support in one packet does NOT
+  grant authority or bitmap/H.264 dispatch.
+  **Next:** owner-local one-root full CTest, then
+  independently authorized genuine GSS/TLS and OS
+  identity before any live graphics or MCS traffic.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

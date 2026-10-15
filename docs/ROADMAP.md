@@ -922,7 +922,7 @@ acceptance evidence; no synthetic completion claims.
   promoting it to authentication
   success; independent OS admission
   before real MCS or desktop.
-  **Additional bounded DER intake hardening (CI NOT RUN):**
+  **Verified bounded DER intake hardening (CI PASS):**
   reorder the existing CredSSP first-tag check before the
   end-of-input NeedMore return so a single wrong tag byte
   immediately closes the frame owner; a valid single 0x30
@@ -930,14 +930,20 @@ acceptance evidence; no synthetic completion claims.
   `security.credssp-stream-rejections` CTest exhausts
   all 255 invalid first tags, exact consumption, irreversible
   close and the valid-prefix control. Based on prior main
-  `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`; GitHub CI and local builds for
-  this incremental change are **NOT RUN** at authoring time.
-  **Next:** run CI Debug/Release on Linux/macOS/Windows;
+  `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`.
+  **PASS:** implementation `36926462d34726f355279367a2ba2f27e93d2095`,
+  [CI 38684306429](https://github.com/k1moradi/RDP-server/actions/runs/38684306429)
+  Linux/GCC, macOS/Clang, Windows/MSVC full Debug/Release,
+  documentation-policy and SDK/package gates. The owner also
+  provided a single-build-root Linux Debug **67/67 PASS** log
+  on that exact commit. Real credentials, external clients and
+  desktop acceptance remain NOT RUN.
+  **Next:**
   continue explicit authenticated GSS/OS admission gates
   separately; no external-client/desktop acceptance claimed.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
-  **Partial offline MCS lifecycle boundary (CI NOT RUN):**
+  **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored
   inbound reason; the allocation-free server serializer emits
@@ -948,8 +954,14 @@ acceptance evidence; no synthetic completion claims.
   `36926462d34726f355279367a2ba2f27e93d2095`
   had owner's Linux Debug **67/67 PASS** and
   [CI 38684306429](https://github.com/k1moradi/RDP-server/actions/runs/38684306429)
-  PASS; new full CI is NOT RUN at authoring.
-  This is NOT an authenticated server or live teardown.
+  PASS. **PASS:** implementation `ed4b0c0a05981f573bc6b8369893f33d1e71549d`,
+  [CI 38685111404](https://github.com/k1moradi/RDP-server/actions/runs/38685111404):
+  Linux/GCC **78/78** and macOS/Clang, Windows/MSVC **69/69**
+  in EACH Debug and Release, including both new disconnect cases,
+  installed SDK consumers, three ZIP/SHA-256 archives and
+  documentation-policy. The prerelease publishing job was SKIPPED
+  (no version tag). Owner-local tests of this **new** commit are
+  NOT RUN. This is NOT an authenticated server or live teardown.
   **Next:** build the one authenticated session state machine
   with controlled GSS/Kerberos and independent OS admission;
   only then verify TLS-encrypted disconnect send completion

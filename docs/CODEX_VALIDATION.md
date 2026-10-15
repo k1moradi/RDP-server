@@ -1408,7 +1408,7 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
-## Pending offline MCS Disconnect Provider Ultimatum (2026-10-14)
+## Verified offline MCS Disconnect Provider Ultimatum (2026-10-14)
 
 **Prior main and owner-local PASS:** `36926462d34726f355279367a2ba2f27e93d2095`.
 The supplied Linux Debug command in the one reused
@@ -1431,11 +1431,18 @@ test total **69**, up from 67. Same implementation commit
 updates the one ROADMAP TODO and canonical architecture,
 coding/testing and validation standards.
 
-**NOT RUN:** owner-local new compilation and CTest,
-exact-new-HEAD CI Linux/GCC, macOS/Clang, Windows/MSVC
-Debug/Release, SDK consumers/packages, sanitizers,
-live Microsoft RDP client, actual TLS disconnect/close,
-genuine Kerberos, independent OS authorization and desktop.
+**PASS:** exact implementation
+`ed4b0c0a05981f573bc6b8369893f33d1e71549d`,
+[Actions 38685111404](https://github.com/k1moradi/RDP-server/actions/runs/38685111404):
+Linux/GCC **78/78** CTests, macOS/Clang and Windows/MSVC
+**69/69** CTests, EACH Debug and Release; both new disconnect
+cases pass everywhere. Documentation-policy, installed SDK
+consumer and ZIP/SHA-256 package uploads also PASS. The
+prerelease publication job was SKIPPED without a release tag.
+**NOT RUN:** owner's new local compile/CTest, sanitizers,
+live Microsoft RDP client, actual encrypted TLS disconnect
+and socket close, genuine Kerberos, independent OS
+account/session authorization or desktop.
 Use `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build build --config Debug --parallel 2`,
 `ctest --test-dir build -C Debug --output-on-failure`
@@ -1443,7 +1450,7 @@ within the owner's existing checkout/build directory.
 **Next gate:** full exact-head CI/owner-local tests, then
 authorized TLS/session lifecycle and GSS/OS admission.
 
-## Pending single-byte CredSSP DER fail-fast intake (2026-10-14)
+## Verified single-byte CredSSP DER fail-fast intake (2026-10-14)
 
 **Prior verified main:** `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`,
 [Actions 38683456755](https://github.com/k1moradi/RDP-server/actions/runs/38683456755)
@@ -1460,14 +1467,18 @@ fail-closed replay, and the valid first-tag control.
 Affected canonical roadmap, coding and testing docs are updated
 in this same implementation commit.
 
-**NOT RUN at authoring:** compilation and CTest locally
-(no GitHub checkout/build root available in this tool runtime),
-Debug/Release cross-platform GitHub Actions for this new SHA,
-sanitizers, Kerberos provider, Microsoft external client and
-desktop admission. The specified validation commands are
+**PASS:** implementation
+`36926462d34726f355279367a2ba2f27e93d2095`,
+[Actions 38684306429](https://github.com/k1moradi/RDP-server/actions/runs/38684306429)
+Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release,
+SDK, package, documentation-policy and all protocol tests.
+Owner-local `~/rdp-server/build/` Linux Debug build and
+**67/67** CTest PASS from the supplied full command/output.
+**NOT RUN:** sanitizers, positive Kerberos, Microsoft
+external client or desktop admission. The specified validation commands are
 `cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2`,
 and `ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure`.
-**Next gate:** confirm exact-head CI Debug/Release CTests,
-downstream SDK and project-policy jobs, then pursue controlled
-GSS failure/identity handling without granting OS session access.
+**Next gate:** pursue controlled GSS failure/identity handling
+without granting OS session access. Verified offline CI does
+not authorize an MCS session or desktop.

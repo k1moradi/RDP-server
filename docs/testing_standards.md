@@ -523,7 +523,7 @@ logs explicitly show **39/39 PASS** in Debug and Release.
 This is protocol syntax verification, NOT authenticated session
 admission or real client interoperability.
 
-## Offline MCS Disconnect Provider Ultimatum (new, CI NOT RUN)
+## Verified offline MCS Disconnect Provider Ultimatum (CI PASS)
 
 Use existing `tests/test_owned_mcs_connect_initial.cpp` and
 the single `tests/CMakeLists.txt` registry, with no new binary:
@@ -538,8 +538,14 @@ nonzero PER padding, invalid declared length and X.224.
 Expected portable CTest total **69** (67 before this change);
 Linux-only optional GSS builds add their existing cases.
 No live SSL write, socket close, privileged session, or real
-client proof. New CI Debug/Release and owner-local runs
-are NOT RUN at implementation authoring time.
+client proof. **PASS:** implementation
+`ed4b0c0a05981f573bc6b8369893f33d1e71549d`,
+[CI 38685111404](https://github.com/k1moradi/RDP-server/actions/runs/38685111404):
+Linux/GCC **78/78**, macOS/Clang and Windows/MSVC **69/69**,
+BOTH Debug and Release. Both new behavior cases, policy,
+installed SDK consumer, platform ZIP/SHA256 gates PASS.
+**NOT RUN:** owner's local build of the new commit,
+real TLS disconnect/close, authenticated client/desktop.
 
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 
@@ -574,14 +580,20 @@ including all three incremental DER-framing cases.
 **NOT RUN:** owner-local new build, live TLS NLA,
 Kerberos authentication or OS desktop authorization.
 
-**New fail-fast negative edge (CI NOT RUN, after `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`):**
+**Verified fail-fast negative edge (2026-10-14):**
 the same `security.credssp-stream-rejections` case exhaustively
 feeds each of the 255 non-SEQUENCE tag bytes as its entire first
 event and requires immediate Invalid/InvalidDer, exactly one consumed
 byte, erased data, terminal close and refused replay. A lone valid
 0x30 tag must remain NeedMore until the DER length arrives.
 No new test executable or CTest registration; acceptance remains
-offline parser-only until platform CI confirms this change.
+offline parser-only. **PASS:** implementation
+`36926462d34726f355279367a2ba2f27e93d2095`,
+[CI 38684306429](https://github.com/k1moradi/RDP-server/actions/runs/38684306429):
+full Linux/GCC, macOS/Clang and Windows/MSVC Debug/Release,
+SDK/package and documentation-policy gates. The owner supplied
+Linux Debug **67/67 PASS** on this exact commit in the one
+reused `~/rdp-server/build/`. This is not real-client authentication.
 
 ## Verified offline CredSSP server DER reply validation (2026-10-14)
 

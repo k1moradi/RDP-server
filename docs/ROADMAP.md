@@ -146,8 +146,8 @@ evidence intact and add first real-client transcripts only when run.
   receives correct live MCS/GCC responses and advances through the
   authenticated channel/share lifecycle; the loopback TLS intake
   diagnostic by itself remains insufficient.
-  **Partial Gate A single-owner TCP/TLS/MCS readiness integration
-  (2026-10-15; new-head CI NOT RUN at authoring):** In the
+  **Verified partial Gate A single-owner TCP/TLS/MCS readiness integration
+  (2026-10-15; exact-head CI PASS):** In the
   existing `PreauthTcpAdapter` alone, bind the completed
   X.224 Confirm's connected `TcpNonblockingIo` to exactly
   one attached server `SSL*` and its single shared
@@ -177,15 +177,25 @@ evidence intact and add first real-client transcripts only when run.
   Linux 107/107 and macOS/Windows 97/97 Debug/Release.
   Owner reports **97/97 local PASS** on the preceding code
   without a full log or local SHA.
-  **NOT RUN:** new-head CI, owner local new code test,
-  human/client authenticated Microsoft RDP negotiation,
-  real GSS/CredSSP protected identity and separately
-  authorized OS account/session, licensed live MCS
-  Connect-Response, H.264 or X11 desktop.
-  **Next:** exact-head CI and owner local CTest,
-  then provisioned opt-in real Kerberos/TLS + OS
-  authorization before allowing one live MCS response
-  or any postauth session transition.
+  **PASS:** implementation
+  `45f68c2c0fcaa163aaf242a99f5637726a023fe2`,
+  [Actions 38749371803](https://github.com/k1moradi/RDP-server/actions/runs/38749371803):
+  Linux/GCC **109/109**, macOS/Clang and Windows/MSVC
+  **99/99** CTests in BOTH Debug and Release,
+  including both new TCP/TLS/MCS ownership/order denials
+  and the real native socket loopback flow. Installed
+  SDK consumer, ZIP/SHA256 packaging/artifact uploads
+  and documentation-policy PASS. Prerelease SKIPPED
+  (no protocol version tag).
+  **NOT RUN:** owner-local new-code full CTest,
+  human Microsoft-client authenticated negotiation,
+  real GSS/CredSSP TLS public-key proof and independent
+  OS account/session admission, live MCS Connect-Response,
+  H.264 or X11 desktop.
+  **Next:** owner-local reused single-root CTest,
+  then explicitly authorized isolated Kerberos/TLS and
+  OS approval before any live MCS response or
+  postauth transition.
   **Completed partial increment at `988938a90f8adbae4e07714ac636af3eb0640011`:**
   bounded incremental plaintext Connection Request intake, exact TCP
   consumed-byte accounting, correct negotiation response/terminal failure,

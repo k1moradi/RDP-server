@@ -1177,3 +1177,17 @@ and non-owning; close the sole preauth diagnostic on
 invalid/replayed transitions. Legacy synthetic
 TLS fixtures stay available for tests but are not
 authenticated/OS-authorized session admission.
+
+**Exact implementation CI PASS (2026-10-15):**
+`45f68c2c0fcaa163aaf242a99f5637726a023fe2`,
+[Actions 38749371803](https://github.com/k1moradi/RDP-server/actions/runs/38749371803).
+Linux/GCC **109/109**, macOS/Clang and
+Windows/MSVC **99/99** full CTests each in BOTH
+Debug and Release, including the strict connected
+TLS ownership/MCS ordering denial cases and
+the actual native loopback transport. Documentation
+policy, installed SDK downstream consumers, ZIP/SHA256
+package uploads PASS. Prerelease SKIPPED (no tag).
+**NOT RUN:** owner-local exact-head CTest, real GSS/
+CredSSP/TLS binding, independent OS authority,
+live authenticated Microsoft RDP client and desktop.

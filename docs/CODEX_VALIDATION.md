@@ -2345,7 +2345,7 @@ interactive desktop or clipboard.
 approved isolated GSS/TLS and OS-admission evidence
 before attaching any live MCS session or graphics.
 
-## Pending Gate A connected TCP TLS/MCS provenance (2026-10-15)
+## Verified partial Gate A connected TCP TLS/MCS provenance (2026-10-15)
 
 **Baseline main:** `00c70a24568098b34bcd1485e8f82fd63d0bab9a`,
 which explicitly prioritizes the first real authenticated
@@ -2391,3 +2391,26 @@ cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug
 cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ```
+
+**PASS:** exact implementation
+`45f68c2c0fcaa163aaf242a99f5637726a023fe2`,
+[GitHub Actions 38749371803](https://github.com/k1moradi/RDP-server/actions/runs/38749371803).
+Linux/GCC **109/109** and macOS/Clang, Windows/MSVC
+**99/99** CTests EACH in Debug and Release.
+`transport.tcp-attached-tls-ownership-denials`,
+`transport.tcp-attached-mcs-order-denials` and the
+existing true socket `transport.tcp-native-loopback-tls`
+PASSED on all three OSes; full project policy,
+installed SDK consumer, ZIP/SHA256 and uploaded
+artifacts PASS. Prerelease SKIPPED without a version tag.
+The previous NOT RUN at authoring is historic
+pre-CI status only; new-head cross-platform CI is
+now verified. **NOT RUN:** owner-local updated
+one-root build, genuinely provisioned Kerberos
+and successful TLS pubKeyAuth, independent OS
+session rights, licensed MCS activation,
+interactive Microsoft client or H.264/X11 desktop.
+**Next:** run the owner's exact-head single-root full
+CTest, then explicitly authorized opt-in GSS/TLS and
+OS admission before any live authenticated protocol
+session or desktop.

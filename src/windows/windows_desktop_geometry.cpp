@@ -30,7 +30,7 @@ struct WideRectangle
 };
 
 [[nodiscard]] bool checkedMonitorBounds(
-    Rectangle rectangle, WideRectangle &bounds) noexcept
+    PortableRectangle rectangle, WideRectangle &bounds) noexcept
 {
     if (rectangle.widthPixels == 0 || rectangle.heightPixels == 0)
     {
@@ -79,7 +79,7 @@ struct WideRectangle
 #ifdef _WIN32
 struct MonitorEnumerator
 {
-    std::array<Rectangle, kMaximumWindowsDesktopMonitors> monitors{};
+    std::array<PortableRectangle, kMaximumWindowsDesktopMonitors> monitors{};
     std::size_t count{};
     bool failed{};
 };
@@ -126,7 +126,7 @@ BOOL CALLBACK enumerateMonitor(HMONITOR nativeMonitor, HDC, LPRECT,
 
 } // namespace
 
-bool makeWindowsDesktopLayout(std::span<const Rectangle> nativeMonitorBounds,
+bool makeWindowsDesktopLayout(std::span<const PortableRectangle> nativeMonitorBounds,
                               WindowsDesktopLayout &output) noexcept
 {
     if (nativeMonitorBounds.empty() ||
@@ -147,7 +147,7 @@ bool makeWindowsDesktopLayout(std::span<const Rectangle> nativeMonitorBounds,
 
     // Compute in 64 bits before narrowing. Win32 monitor coordinates can be
     // negative, and multi-monitor unions may be wider than a signed LONG.
-    for (const Rectangle rectangle : nativeMonitorBounds.subspan(1))
+    for (const PortableRectangle rectangle : nativeMonitorBounds.subspan(1))
     {
         WideRectangle current{};
         if (!checkedMonitorBounds(rectangle, current))
@@ -180,7 +180,7 @@ bool makeWindowsDesktopLayout(std::span<const Rectangle> nativeMonitorBounds,
     // avoids spurious display-resize events when enumeration is reordered.
     std::sort(candidate.monitors.begin(),
               candidate.monitors.begin() + candidate.monitorCount,
-              [](const Rectangle &left, const Rectangle &right) noexcept {
+              [](const PortableRectangle &left, const PortableRectangle &right) noexcept {
                   return std::tie(left.x, left.y, left.widthPixels,
                                   left.heightPixels) <
                          std::tie(right.x, right.y, right.widthPixels,
@@ -243,7 +243,7 @@ bool readWindowsDesktopLayout(WindowsDesktopLayout &output) noexcept
         return false;
     }
     return makeWindowsDesktopLayout(
-        std::span<const Rectangle>(enumerator.monitors.data(),
+        std::span<const PortableRectangle>(enumerator.monitors.data(),
                                    enumerator.count),
         output);
 #else

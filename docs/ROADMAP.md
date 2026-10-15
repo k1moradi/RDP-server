@@ -2042,6 +2042,19 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   separate authorization. **Status: NOT RUN.**
 - [ ] Integrate isolated Linux/X11/Wayland, Windows and macOS desktop,
   clipboard and input adapters; test real Microsoft/FreeRDP clients.
+  **R6 WinGDI type-name correction (2026-10-15):** At published
+  `467bf6bcf4624399e4e24667d214afd738b359d6`, Windows/MSVC
+  Debug CI build FAIL at `windows_desktop_geometry.cpp:33`: WinGDI's
+  function named `Rectangle` hid the portable C++ type after inclusion
+  of `windows.h`. R6 now binds the core `struct ::Rectangle` through
+  `PortableRectangle` in its Windows namespace and adds
+  `windows.geometry-gdi-rectangle-name-resolution` to the existing
+  Windows-only CTest executable. **PASS:** Clang 17 and GCC 14.2 C++23
+  strict warnings 8/8 direct cases, Clang ASan/UBSan 8/8; synthetic
+  WinGDI-function-first header inclusion 1/1. **NOT RUN:** native
+  Windows/MSYS2 CLANG64 Clang 23, owner workstation CTest and human
+  desktop; GitHub Actions for the correction pending at publication.
+  Next: validated DXGI acquire/release after R2/R3 and R4 contract.
   **R6 direct-main integration (2026-10-15; parent `455b8b631957d2f3f9631393f2a3833e19c2c07a`):**
   7/7 fixture selectors PASS under Clang 17 and GCC 14.2 C++23
   warnings-as-errors; Clang ASan/UBSan 7/7 PASS; sparse CTest

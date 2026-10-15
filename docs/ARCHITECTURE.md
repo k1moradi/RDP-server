@@ -31,6 +31,11 @@ listed in CMake are under porting review and are not silently shipped.
 
 ### Windows monitor layout adapter (R6; not session-integrated)
 
+The native adapter spells the existing portable `struct ::Rectangle` as
+`PortableRectangle` inside `rdp_server::windows`. This avoids WinGDI's
+unrelated global function `Rectangle` hiding the type when `windows.h`
+precedes adapter headers; no new rectangle representation is introduced.
+
 `src/windows/windows_desktop_geometry.{h,cpp}` is a separate Windows-only
 native adapter target, not part of the portable protocol library or its
 installed SDK. It samples the calling thread's Win32 monitor rectangles via

@@ -2780,3 +2780,30 @@ Microsoft-client visible desktop and graphics benchmarks are
 **Next gate:** inspect exact published SHA CI/full CTests, then
 integrate confirmation with the R3-authorized dynamic graphics channel
 and R4 surface lifecycle. Do not infer a live server from this test.
+
+## R6 WinGDI Rectangle collision correction (2026-10-15)
+
+**First CI failure:** `467bf6bcf4624399e4e24667d214afd738b359d6`,
+[Windows/MSVC CI Debug build](https://github.com/k1moradi/RDP-server/actions/runs/38794939277),
+`src/windows/windows_desktop_geometry.cpp:33`: MSVC C2146, C2923 etc.
+`windows.h` declares WinGDI function `Rectangle`, hiding the portable
+`struct Rectangle` in unqualified C++ lookup. Linux GCC/Clang did not
+include WinGDI and thus had previously passed offline R6 fixtures.
+**Correction:** `PortableRectangle = struct ::Rectangle` in the R6
+native namespace; geometry and DXGI headers/source use the alias.
+**New dedicated Windows-conditional CTest:**
+`windows.geometry-gdi-rectangle-name-resolution`, reusing the R6
+executable and a separate regression translation unit that includes
+`windows.h` before R6 headers (or declares an equivalent WinGDI
+function on Linux). Positive monitor/dirty rectangle interpretation and
+native name lookup both covered.
+**PASS:** `clang++` and `g++ -std=c++23 -Wall -Wextra -Wpedantic
+-Werror -UNDEBUG -Isrc` on the three production R6 units and two
+R6 test translation units; 8/8 direct cases each. Clang 17 ASan/UBSan
+with `-O1 -g -fno-omit-frame-pointer`: 8/8 PASS. Sparse source only;
+full canonical checkout CMake/CTest remains NOT RUN locally due Git DNS.
+**NOT RUN:** corrected Windows CI/Clang 23, owner platform trio,
+real authorized desktop and benchmarks at authoring time.
+**Next:** inspect the exact correction-SHA CI jobs; then integrate bounded
+DXGI frame lifetime/acquire/release under R2/R3 authorization and R4
+frame ownership with failure/cancellation behavior test.

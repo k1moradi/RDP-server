@@ -12,7 +12,7 @@ namespace
 
 [[nodiscard]] bool checkedRectangle(
     WindowsDxgiRectangle nativeRectangle, PixelSize bounds,
-    Rectangle &rectangle) noexcept
+    PortableRectangle &rectangle) noexcept
 {
     // RECT uses exclusive right/bottom. Reject malformed native metadata
     // rather than silently clipping, which could hide a stale DXGI surface.
@@ -38,7 +38,7 @@ bool normalizeWindowsDxgiDamage(
     PixelSize outputDimensions,
     std::span<const WindowsDxgiMoveRectangle> moveRectangles,
     std::span<const WindowsDxgiRectangle> dirtyRectangles,
-    std::span<Rectangle> destination,
+    std::span<PortableRectangle> destination,
     std::size_t &writtenCount) noexcept
 {
     // The shared Rectangle format uses signed 32-bit origins. Reject
@@ -65,11 +65,11 @@ bool normalizeWindowsDxgiDamage(
 
     // One finite stack buffer supports aliased input/output spans and avoids
     // partial published damage on a late malformed dirty or move rectangle.
-    std::array<Rectangle, kMaximumWindowsDxgiDamageRectangles> normalized{};
+    std::array<PortableRectangle, kMaximumWindowsDxgiDamageRectangles> normalized{};
     std::size_t nextIndex = 0;
     for (const WindowsDxgiMoveRectangle &move : moveRectangles)
     {
-        Rectangle destinationRectangle{};
+        PortableRectangle destinationRectangle{};
         if (!checkedRectangle(move.destination, outputDimensions,
                               destinationRectangle) ||
             move.source.x < 0 || move.source.y < 0 ||
@@ -84,7 +84,7 @@ bool normalizeWindowsDxgiDamage(
     }
     for (const WindowsDxgiRectangle dirty : dirtyRectangles)
     {
-        Rectangle rectangle{};
+        PortableRectangle rectangle{};
         if (!checkedRectangle(dirty, outputDimensions, rectangle))
         {
             return false;

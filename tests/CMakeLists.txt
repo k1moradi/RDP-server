@@ -264,7 +264,8 @@ endif()
 # or inject input during an ordinary Windows CTest run.
 if(TARGET rdp-server-windows-desktop)
     add_executable(test_windows_desktop_geometry
-        test_windows_desktop_geometry.cpp)
+        test_windows_desktop_geometry.cpp
+        windows_geometry_gdi_type_probe.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop)
     if(MSVC)
@@ -283,6 +284,11 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.geometry-${case_name}" PROPERTIES
             LABELS "windows;desktop-geometry;offline")
     endforeach()
+    # Regression for the WinGDI Rectangle function hiding our portable type.
+    add_test(NAME windows.geometry-gdi-rectangle-name-resolution
+        COMMAND test_windows_desktop_geometry win32-gdi-rectangle-name-resolution)
+    set_tests_properties(windows.geometry-gdi-rectangle-name-resolution
+        PROPERTIES LABELS "windows;desktop-geometry;offline")
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.
     add_test(NAME windows.capture-dxgi-move-before-dirty

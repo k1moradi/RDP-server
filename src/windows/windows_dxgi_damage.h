@@ -50,7 +50,7 @@ inline constexpr std::size_t kMaximumWindowsDxgiDamageRectangles = 1024;
     PixelSize outputDimensions,
     std::span<const WindowsDxgiMoveRectangle> moveRectangles,
     std::span<const WindowsDxgiRectangle> dirtyRectangles,
-    std::span<Rectangle> destination,
+    std::span<PortableRectangle> destination,
     std::size_t &writtenCount) noexcept;
 
 } // namespace rdp_server::windows

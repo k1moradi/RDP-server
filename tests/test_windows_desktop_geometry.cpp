@@ -10,6 +10,11 @@
 #include <span>
 #include <string_view>
 
+namespace rdp_server::windows
+{
+[[nodiscard]] bool windowsGdiRectangleTypeProbe() noexcept;
+}
+
 using namespace rdp_server::windows;
 
 namespace
@@ -352,6 +357,10 @@ int main(int argc, char **argv)
     else if (behavior == "dxgi-metadata-denials")
     {
         dxgiMetadataDenials();
+    }
+    else if (behavior == "win32-gdi-rectangle-name-resolution")
+    {
+        assert(windowsGdiRectangleTypeProbe());
     }
     else if (behavior == "invalid-layout-rejections")
     {

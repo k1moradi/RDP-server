@@ -12,6 +12,10 @@
 namespace rdp_server::windows
 {
 
+// WinGDI also exports a function named Rectangle. Bind the portable type
+// by elaborated type so including windows.h first cannot hide it.
+using PortableRectangle = struct ::Rectangle;
+
 inline constexpr std::size_t kMaximumWindowsDesktopMonitors = 16;
 
 struct WindowsDesktopPoint
@@ -37,8 +41,8 @@ struct WindowsNativePoint
 // The array is owned and bounded; no Win32 types cross the adapter boundary.
 struct WindowsDesktopLayout
 {
-    Rectangle virtualBounds{};
-    std::array<Rectangle, kMaximumWindowsDesktopMonitors> monitors{};
+    PortableRectangle virtualBounds{};
+    std::array<PortableRectangle, kMaximumWindowsDesktopMonitors> monitors{};
     std::size_t monitorCount{};
 
     // Canonical monitor order makes equality a stable topology-change test.
@@ -50,7 +54,7 @@ struct WindowsDesktopLayout
 // their bounding virtual desktop, and leaves output unchanged on failure. The display
 // snapshot is not an OS-access permission, and does not outlive layout changes.
 [[nodiscard]] bool makeWindowsDesktopLayout(
-    std::span<const Rectangle> nativeMonitorBounds,
+    std::span<const PortableRectangle> nativeMonitorBounds,
     WindowsDesktopLayout &output) noexcept;
 
 // Reject coordinates in gaps between monitors, including the bounding

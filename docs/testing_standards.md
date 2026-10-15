@@ -1468,3 +1468,20 @@ GSS positive keytab/client tickets,
 production GSS failure dispatch,
 external Microsoft RDP client,
 OS authorization or desktop.
+
+## Offline finalization six-PDU correlations (2026-10-15; CI NOT RUN)
+
+Reuse original `test_owned_mcs_connect_initial`, adding
+`transport.share-finalization-exchange-correlation` and
+`transport.share-finalization-exchange-denials`
+in the canonical tests/CMakeLists.txt. Expected 91 portable /
+101 Linux GSS-enabled CTests (prior verified 89/99).
+Microsoft 4.1.14-16 decrypted client PDUs and existing
+first-party server serializers form positive oracle inputs.
+Check each of six truncation boundaries, a trailing byte,
+role/source spoof, mismatched share ID, Control action,
+zero/assigned IDs and compressed-data rejection. Preserve
+raw Server Synchronize targetUser. No test proves the
+actual arrival ordering, authorized Kerberos/TLS, OS admission,
+licensing, share activation, graphics or running server.
+New-head CI and owner-local build are NOT RUN at authoring.

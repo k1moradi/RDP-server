@@ -2204,6 +2204,147 @@ void testRdpActiveExchangeDenials()
                demand, kOfflineConfirmActive, 1007U) == rejected);
 }
 
+
+void testRdpFinalizationExchangeCorrelation()
+{
+    // Microsoft MS-RDPBCGR 4.1.14-16 plaintext client examples.
+    constexpr std::array<std::uint8_t, 22> clientSync{
+        0x16, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x08, 0x00, 0x1f, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0xea, 0x03};
+    constexpr std::array<std::uint8_t, 26> clientCooperate{
+        0x1a, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x0c, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    auto clientRequest = clientCooperate;
+    clientRequest[18] = 1U;
+    constexpr std::uint32_t shareId = 0x000103eaU;
+    std::array<std::uint8_t, 22> serverSync{};
+    std::array<std::uint8_t, 26> serverCooperate{};
+    std::array<std::uint8_t, 26> serverGranted{};
+    assert(encodeRdpServerSynchronizePdu(
+        shareId, 0x4463U, serverSync) == serverSync.size());
+    assert(encodeRdpServerControlPdu(
+        shareId, RdpControlAction::Cooperate, 0U, serverCooperate) ==
+           serverCooperate.size());
+    assert(encodeRdpServerControlPdu(
+        shareId, RdpControlAction::GrantedControl, 1007U, serverGranted) ==
+           serverGranted.size());
+    const RdpFinalizationTranscript transcript{
+        clientSync, clientCooperate, clientRequest, serverSync,
+        serverCooperate, serverGranted};
+    constexpr auto consistent =
+        RdpFinalizationCorrelation::ConsistentSyntaxOnly;
+    assert(correlateRdpFinalizationExchange(
+               transcript, shareId, 1007U) == consistent);
+
+    // The documented Server Synchronize targetUser can be
+    // uninitialized and is never evidence of authenticated identity.
+    for (std::uint16_t target : {std::uint16_t{0}, std::uint16_t{1002},
+                                 std::uint16_t{1007}, std::uint16_t{65535}})
+    {
+        assert(encodeRdpServerSynchronizePdu(
+            shareId, target, serverSync) == serverSync.size());
+        assert(correlateRdpFinalizationExchange(
+                   transcript, shareId, 1007U) == consistent);
+    }
+}
+
+void testRdpFinalizationExchangeDenials()
+{
+    constexpr std::uint32_t shareId = 0x000103eaU;
+    std::array<std::uint8_t, 22> clientSync{
+        0x16, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x08, 0x00, 0x1f, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0xea, 0x03};
+    std::array<std::uint8_t, 26> clientCooperate{
+        0x1a, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x0c, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    auto clientRequest = clientCooperate;
+    clientRequest[18] = 1U;
+    std::array<std::uint8_t, 22> serverSync{};
+    std::array<std::uint8_t, 26> serverCooperate{};
+    std::array<std::uint8_t, 26> serverGranted{};
+    assert(encodeRdpServerSynchronizePdu(
+        shareId, 0U, serverSync) == serverSync.size());
+    assert(encodeRdpServerControlPdu(
+        shareId, RdpControlAction::Cooperate, 0U, serverCooperate) ==
+           serverCooperate.size());
+    assert(encodeRdpServerControlPdu(
+        shareId, RdpControlAction::GrantedControl, 1007U, serverGranted) ==
+           serverGranted.size());
+    const RdpFinalizationTranscript transcript{
+        clientSync, clientCooperate, clientRequest, serverSync,
+        serverCooperate, serverGranted};
+    const auto check = [&]() {
+        return correlateRdpFinalizationExchange(
+            transcript, shareId, 1007U);
+    };
+    constexpr auto denied = RdpFinalizationCorrelation::Rejected;
+    constexpr auto consistent =
+        RdpFinalizationCorrelation::ConsistentSyntaxOnly;
+    assert(check() == consistent);
+    for (const auto invalid : {0U, 1U, 1000U, 65536U, 0xffffffffU})
+        assert(correlateRdpFinalizationExchange(
+                   transcript, shareId, invalid) == denied);
+    assert(correlateRdpFinalizationExchange(
+               transcript, shareId ^ 1U, 1007U) == denied);
+
+    // Six independent whole-message boundaries, with exact length
+    // enforced by the existing underlying parsers.
+    for (std::size_t position = 0; position < 6U; ++position)
+    {
+        const std::array<std::span<const std::uint8_t>, 6> packets{
+            transcript.clientSynchronize, transcript.clientCooperate,
+            transcript.clientRequestControl, transcript.serverSynchronize,
+            transcript.serverCooperate, transcript.serverGrantedControl};
+        const auto packet = packets[position];
+        for (std::size_t bytes = 0; bytes < packet.size(); ++bytes)
+        {
+            auto incomplete = transcript;
+            const auto clipped = packet.first(bytes);
+            switch (position)
+            {
+            case 0: incomplete.clientSynchronize = clipped; break;
+            case 1: incomplete.clientCooperate = clipped; break;
+            case 2: incomplete.clientRequestControl = clipped; break;
+            case 3: incomplete.serverSynchronize = clipped; break;
+            case 4: incomplete.serverCooperate = clipped; break;
+            default: incomplete.serverGrantedControl = clipped; break;
+            }
+            assert(correlateRdpFinalizationExchange(
+                       incomplete, shareId, 1007U) == denied);
+        }
+    }
+    std::vector<std::uint8_t> extended(clientSync.begin(), clientSync.end());
+    extended.push_back(0);
+    auto trailing = transcript;
+    trailing.clientSynchronize = extended;
+    assert(correlateRdpFinalizationExchange(
+               trailing, shareId, 1007U) == denied);
+
+    // Restore each field before checking the next independent error.
+    clientSync[4] = 0xea; assert(check() == denied); clientSync[4] = 0xef;
+    clientSync[20] = 0xef; assert(check() == denied); clientSync[20] = 0xea;
+    clientCooperate[18] = 1; assert(check() == denied); clientCooperate[18] = 4;
+    clientCooperate[20] = 1; assert(check() == denied); clientCooperate[20] = 0;
+    clientRequest[24] = 1; assert(check() == denied); clientRequest[24] = 0;
+    clientRequest[18] = 3; assert(check() == denied); clientRequest[18] = 1;
+    serverSync[4] = 0xef; assert(check() == denied); serverSync[4] = 0xea;
+    serverCooperate[6] ^= 1; assert(check() == denied); serverCooperate[6] ^= 1;
+    serverCooperate[22] = 1; assert(check() == denied); serverCooperate[22] = 0;
+    serverGranted[18] = 4; assert(check() == denied); serverGranted[18] = 2;
+    serverGranted[20] ^= 1; assert(check() == denied); serverGranted[20] ^= 1;
+    serverGranted[22] ^= 1; assert(check() == denied); serverGranted[22] ^= 1;
+    serverGranted[15] = 0x20; assert(check() == denied); serverGranted[15] = 0;
+    assert(check() == consistent);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -2230,7 +2371,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 35> kMcsTestCases{{
+constexpr std::array<McsTestCase, 37> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -2266,6 +2407,8 @@ constexpr std::array<McsTestCase, 35> kMcsTestCases{{
     {"share-server-finalization-encode-rejections", &testRdpServerFinalizationEncodeRejections},
     {"share-active-exchange-correlation", &testRdpActiveExchangeCorrelation},
     {"share-active-exchange-denials", &testRdpActiveExchangeDenials},
+    {"share-finalization-exchange-correlation", &testRdpFinalizationExchangeCorrelation},
+    {"share-finalization-exchange-denials", &testRdpFinalizationExchangeDenials},
 }};
 
 int main(int argc, char **argv)

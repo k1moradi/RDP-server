@@ -948,3 +948,18 @@ stage and sanitized NTSTATUS explicitly,
 then reject the session separately.
 No new GSS, OS admission, service,
 or RDP client acceptance is implied.
+
+## Offline client/server finalization PDU correlation (2026-10-15; CI NOT RUN)
+
+Per MS-RDPBCGR 2.2.1.14–2.2.1.21, a pure, borrow-only
+`RdpFinalizationTranscript` compares complete decrypted
+Share Control PDUs for client Synchronize, Control Cooperate,
+Control Request and server Synchronize, Control Cooperate,
+Control Granted. It reuses one set of existing syntax decoders,
+compares externally provided share and MCS user IDs, and
+never sends packets or stores state. The uninitialized
+server Synchronize targetUser is NOT client identity.
+The named fields do not establish arrival order or peer
+provenance; the future single authenticated session owner
+must enforce the actual dependencies, Kerberos/CredSSP/TLS,
+independent OS admission and licensing before activation.

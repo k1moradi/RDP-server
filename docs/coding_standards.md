@@ -1054,3 +1054,17 @@ may be used as authenticated identity
 or lead to MCS. No automatic provider
 error mapping until the true NLA
 failure/connection state is implemented.
+
+## Offline finalization role check (2026-10-15; CI NOT RUN)
+
+MS-RDPBCGR 2.2.1.14–2.2.1.21 permits a pure finalization
+cross-check using existing exact-length Share Data parsers.
+It MUST NOT become a competing state machine, TLS sender
+or OS authorization source. Validate role-specific client
+channel, server source 1002, share ID, client action and
+zero Control IDs, server Cooperate zero IDs, and Granted
+user/server channel IDs. The server Synchronize targetUser
+is opaque in the published example, not reliable identity.
+The caller alone enforces actual wire order, per-message
+sender provenance, MCS joins and independent OS admission.
+All spans borrow complete input buffers for the call only.

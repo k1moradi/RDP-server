@@ -1190,6 +1190,39 @@ acceptance evidence; no synthetic completion claims.
   then controlled real GSS/TLS and independent OS identity
   before a single authenticated owner may enforce
   activation order and dispatch any channel traffic.
+
+  **Partial OFFLINE finalization transcript correlation (2026-10-15;
+  exact-head CI NOT RUN at authoring):** The original first-party
+  Share Data parsers now support zero-allocation
+  `correlateRdpFinalizationExchange` for six complete PDUs:
+  client Synchronize/Cooperate/Request and server
+  Synchronize/Cooperate/Granted. Each must match a caller-provided
+  expected share ID and role-specific 1002 server or assigned
+  1001..65535 client user source; client Request/Cooperate IDs
+  must be zero, server Cooperate IDs zero, and Granted must
+  address the expected client channel and server control channel.
+  The server Synchronize targetUser is deliberately opaque
+  because Microsoft examples include an uninitialized value.
+  The six named slots are **not evidence of temporal ordering,
+  actual MCS sender provenance, CredSSP/TLS identity, independent
+  OS permission, licensing, capability agreement or activation**.
+  No second state owner, listener or transport output is added.
+  Two behavior CTests cover Microsoft examples, independent
+  encoder outputs, all six truncation boundaries, extra bytes,
+  role spoofing, share mismatches, invalid actions/IDs and
+  unsupported compression. Expected **91 portable / 101
+  Linux GSS** CTests (prior verified 89/99). Baseline main
+  `7777cc92a35cb94193eea4980285dd8153c49648`,
+  prior implementation `d83549d489be2b8e49855429693d2c5d4b1a0a71`
+  [CI 38719691636](https://github.com/k1moradi/RDP-server/actions/runs/38719691636)
+  PASS on Linux, macOS, Windows and docs/SDK; owner reports
+  **89/89 local PASS** on previous code, without full logs/SHA.
+  **NOT RUN:** new-head CI or owner-local build/CTest,
+  real Kerberos/TLS binding, independently authorized OS user,
+  live ordered encrypted finalization, licensed share,
+  Microsoft client or desktop. **Next:** run exact-head
+  Debug/Release matrix, then controlled real GSS/TLS and
+  separate OS authorization before any live PDU dispatch.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

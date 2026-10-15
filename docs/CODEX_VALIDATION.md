@@ -2067,3 +2067,42 @@ and `ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure`.
 **Next gate:** pursue controlled GSS failure/identity handling
 without granting OS session access. Verified offline CI does
 not authorize an MCS session or desktop.
+
+## Pending offline finalization transcript cross-check (2026-10-15)
+
+**Baseline main:** `7777cc92a35cb94193eea4980285dd8153c49648`.
+**Previous verified implementation:** `d83549d489be2b8e49855429693d2c5d4b1a0a71`,
+[Actions 38719691636](https://github.com/k1moradi/RDP-server/actions/runs/38719691636)
+PASS: Linux/GCC 99/99, macOS/Clang and Windows/MSVC
+89/89 full CTests, Debug/Release; docs-policy and SDK
+consumer/install/archive gates passed. The owner reports
+89 local CTests PASS on previous code; no log or local SHA
+was attached. This evidence does NOT validate new code.
+
+The new zero-allocation pure `correlateRdpFinalizationExchange`
+compares six borrowed, complete finalization PDUs using
+existing strict Share Data decoders and native server encoders;
+no additional controller, socket handler, credential approval
+or OS/session admission. Two new behavior-named suites share
+the existing native test binary, expected 91 portable / 101
+Linux GSS. Code, native tests, canonical roadmap, architecture,
+coding/testing standards and this validation entry are staged
+together in one Git tree; the final new SHA is recorded in
+Git history after the atomic commit.
+
+**NOT RUN at authoring:** CI on the new SHA, owner-local
+build (the prescribed checkout is not mounted here),
+ASan/UBSan, real Kerberos/pubKeyAuth, authenticated MCS
+source, independent OS user rights, live ordered encrypted
+finalization, licensed share, Microsoft client or desktop.
+**First next gate:** exact-head cross-platform Debug/Release,
+SDK and documentation-policy CI. Owner's single-root run:
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
+```
+
+Then obtain explicitly authorized isolated real GSS/TLS
+and independent OS authorization before any live finalization.

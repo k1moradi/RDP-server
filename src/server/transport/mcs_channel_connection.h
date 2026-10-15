@@ -445,4 +445,37 @@ enum class RdpActiveExchangeCorrelation : std::uint8_t
     std::span<const std::uint8_t> clientConfirmSharePdu,
     std::uint32_t expectedClientUserId) noexcept;
 
+
+// Pure OFFLINE MS-RDPBCGR 2.2.1.14-2.2.1.21 finalization
+// comparison of six complete, decrypted Share Control PDUs.
+// The borrowed spans must remain live throughout the call.
+// Slots describe roles, NOT verified wire arrival ordering.
+// Actual TLS/MCS sender provenance, authorized identity, channel
+// membership, licensing, capability activation and event ordering
+// remain responsibilities of the future single session owner.
+struct RdpFinalizationTranscript
+{
+    std::span<const std::uint8_t> clientSynchronize{};
+    std::span<const std::uint8_t> clientCooperate{};
+    std::span<const std::uint8_t> clientRequestControl{};
+    std::span<const std::uint8_t> serverSynchronize{};
+    std::span<const std::uint8_t> serverCooperate{};
+    std::span<const std::uint8_t> serverGrantedControl{};
+};
+
+enum class RdpFinalizationCorrelation : std::uint8_t
+{
+    Rejected,
+    ConsistentSyntaxOnly,
+};
+
+// Reuse the authoritative exact-length Share Data parsers.
+// expectedClientUserId must be an independently assigned MCS channel
+// in 1001..65535; server channel is 1002. Even a consistent syntax
+// result MUST NOT be used to admit or activate a desktop.
+[[nodiscard]] RdpFinalizationCorrelation correlateRdpFinalizationExchange(
+    const RdpFinalizationTranscript &transcript,
+    std::uint32_t expectedShareId,
+    std::uint32_t expectedClientUserId) noexcept;
+
 } // namespace rdp_server::server::transport

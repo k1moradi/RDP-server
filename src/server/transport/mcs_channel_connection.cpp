@@ -837,4 +837,69 @@ RdpActiveExchangeCorrelation correlateRdpActiveExchange(
     return RdpActiveExchangeCorrelation::ConsistentSyntaxOnly;
 }
 
+
+RdpFinalizationCorrelation correlateRdpFinalizationExchange(
+    const RdpFinalizationTranscript &transcript,
+    std::uint32_t expectedShareId,
+    std::uint32_t expectedClientUserId) noexcept
+{
+    // Both Share Control source and Control grant identifiers are LE16.
+    // This check is only representability, not authenticated allocation.
+    constexpr auto rejected = RdpFinalizationCorrelation::Rejected;
+    if (expectedClientUserId < 1001U ||
+        expectedClientUserId > 65535U)
+        return rejected;
+
+    const auto clientSync =
+        parseRdpSynchronizePdu(transcript.clientSynchronize);
+    const auto clientCooperate =
+        parseRdpControlPdu(transcript.clientCooperate);
+    const auto clientRequest =
+        parseRdpControlPdu(transcript.clientRequestControl);
+    const auto serverSync =
+        parseRdpSynchronizePdu(transcript.serverSynchronize);
+    const auto serverCooperate =
+        parseRdpControlPdu(transcript.serverCooperate);
+    const auto serverGranted =
+        parseRdpControlPdu(transcript.serverGrantedControl);
+    if (!clientSync || !clientCooperate || !clientRequest ||
+        !serverSync || !serverCooperate || !serverGranted)
+        return rejected;
+
+    if (clientSync.value.pduSource != expectedClientUserId ||
+        clientSync.value.shareId != expectedShareId ||
+        clientSync.value.targetUser != 1002U ||
+        clientCooperate.value.pduSource != expectedClientUserId ||
+        clientCooperate.value.shareId != expectedShareId ||
+        clientCooperate.value.action != RdpControlAction::Cooperate ||
+        clientCooperate.value.grantId != 0U ||
+        clientCooperate.value.controlId != 0U ||
+        clientRequest.value.pduSource != expectedClientUserId ||
+        clientRequest.value.shareId != expectedShareId ||
+        clientRequest.value.action != RdpControlAction::RequestControl ||
+        clientRequest.value.grantId != 0U ||
+        clientRequest.value.controlId != 0U)
+        return rejected;
+
+    // Microsoft's server Synchronize example has an uninitialized
+    // targetUser; its raw value is NOT a channel membership proof.
+    if (serverSync.value.pduSource != 1002U ||
+        serverSync.value.shareId != expectedShareId ||
+        serverCooperate.value.pduSource != 1002U ||
+        serverCooperate.value.shareId != expectedShareId ||
+        serverCooperate.value.action != RdpControlAction::Cooperate ||
+        serverCooperate.value.grantId != 0U ||
+        serverCooperate.value.controlId != 0U ||
+        serverGranted.value.pduSource != 1002U ||
+        serverGranted.value.shareId != expectedShareId ||
+        serverGranted.value.action != RdpControlAction::GrantedControl ||
+        serverGranted.value.grantId != expectedClientUserId ||
+        serverGranted.value.controlId != 1002U)
+        return rejected;
+
+    // A borrowed packet comparison does not prove transport delivery
+    // order, TLS/NLA identity, OS permission, license or share activation.
+    return RdpFinalizationCorrelation::ConsistentSyntaxOnly;
+}
+
 } // namespace rdp_server::server::transport

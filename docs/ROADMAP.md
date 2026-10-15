@@ -2222,6 +2222,18 @@ actually run; another parser CTest alone is not a complete session.
   **Next R5:** native capture/cursor/damage resource lifecycle, then
   R2/R3-authorized desktop operation feeding R4 frame consumer.
   M3 remains NOT RUN.
+  **R5 native strict-compile correction (2026-10-15, base
+  `7dc34b69831a9122fda752434d5c9bfb8ee121ef`):** Linux hosted build on published R5 commit
+  `4d4d97ec78a63e963c1bed8d7fa6513141a4f9fa`
+  found GCC `-Werror=extra` for enum/integer conditional getter
+  fallbacks in `x11_display_connection.cpp`. Return explicitly
+  typed zero XCB identifiers and split a dedicated native-only
+  `x11.display-event-disconnect-cleanup` CTest from the existing
+  bounded event-budget case. Both cases run without an X server.
+  **FAIL:** initial exact-SHA native Linux Debug compilation;
+  **PASS:** isolated headless event helper GCC/Clang/ASan tests.
+  **NOT RUN:** corrected exact-SHA CI and native owner-local test
+  until the follow-up commit completes. M3 remains NOT RUN.
   **R5 Linux XCB-SHM native compile increment (2026-10-15;
   base `aa15209c67d74814cac8c859997e623cd096691c`, exact-SHA CI pending):**
   Add separate, noninstalled `rdp-server-linux-xshm` native Linux

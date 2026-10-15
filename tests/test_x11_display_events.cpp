@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <string_view>
 
 namespace
 {
@@ -65,8 +66,33 @@ void observe(const xcb_generic_event_t &event, void *context) noexcept
 }
 } // namespace
 
-int main()
+int main(int argc, char *argv[])
 {
+#if defined(RDP_TEST_NATIVE_X11_CONNECTION)
+    if (argc == 2 && std::string_view{argv[1]} == "disconnect-cleanup")
+    {
+        // Invalid syntax never connects to a desktop. Native descriptor
+        // access, event dispatch and repeated teardown all fail closed.
+        X11DisplayConnection disconnected(":not-a-display-number");
+        assert(!disconnected.valid());
+        assert(disconnected.fileDescriptor() == -1);
+        assert(disconnected.nativeConnection() == nullptr);
+        assert(disconnected.rootWindow() == XCB_WINDOW_NONE);
+        assert(disconnected.sourceGeometry() == PixelSize{});
+        Sink sink;
+        assert(disconnected.processEvents(sink, 3, nullptr, true) ==
+               ConnectionStatus::Failed);
+        disconnected.disconnect();
+        disconnected.disconnect();
+        assert(!disconnected.valid() && disconnected.fileDescriptor() == -1);
+        return 0;
+    }
+    assert(argc == 1);
+#else
+    (void)argc;
+    (void)argv;
+#endif
+
     EventQueue queue;
     Sink sink;
     Observer observer;
@@ -117,19 +143,5 @@ int main()
     assert(missingPoller.eventsDispatched == 0 && !missingPoller.workMayRemain);
     assert(!queue.failedAllocation && !failing.failedAllocation);
 
-#if defined(RDP_TEST_NATIVE_X11_CONNECTION)
-    // Invalid syntax cannot connect to a desktop. Cleanup must be idempotent.
-    X11DisplayConnection disconnected(":not-a-display-number");
-    assert(!disconnected.valid());
-    assert(disconnected.fileDescriptor() == -1);
-    assert(disconnected.nativeConnection() == nullptr);
-    assert(disconnected.rootWindow() == XCB_WINDOW_NONE);
-    assert(disconnected.sourceGeometry() == PixelSize{});
-    assert(disconnected.processEvents(sink, 3, nullptr, true) ==
-           ConnectionStatus::Failed);
-    disconnected.disconnect();
-    disconnected.disconnect();
-    assert(!disconnected.valid() && disconnected.fileDescriptor() == -1);
-#endif
     return 0;
 }

@@ -219,13 +219,13 @@ X11DisplayConnection::screenNumber() const noexcept
 xcb_window_t
 X11DisplayConnection::rootWindow() const noexcept
 {
-    return valid() ? rootWindow_ : XCB_WINDOW_NONE;
+    return valid() ? rootWindow_ : xcb_window_t{};
 }
 
 xcb_visualid_t
 X11DisplayConnection::rootVisual() const noexcept
 {
-    return valid() ? rootVisual_ : XCB_NONE;
+    return valid() ? rootVisual_ : xcb_visualid_t{};
 }
 
 std::uint8_t

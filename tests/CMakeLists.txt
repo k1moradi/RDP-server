@@ -500,8 +500,12 @@ if(TARGET rdp-server-x11-connection)
         rdp-server-x11-connection)
     target_compile_definitions(test_x11_display_events PRIVATE
         RDP_TEST_NATIVE_X11_CONNECTION=1)
-    set_tests_properties(x11.display-event-budget-and-readiness PROPERTIES
-        LABELS "x11;linux-adapter;native")
+    add_test(NAME x11.display-event-disconnect-cleanup
+        COMMAND test_x11_display_events disconnect-cleanup)
+    set_tests_properties(
+        x11.display-event-budget-and-readiness
+        x11.display-event-disconnect-cleanup
+        PROPERTIES LABELS "x11;linux-adapter;native")
 endif()
 
 add_test(NAME project.policy

@@ -3822,3 +3822,32 @@ Release, documentation-policy and SDK consumer PASS.
 macOS27 exact-SHA terminal CTests, positive credentialed Kerberos
 and separate native OS admission or Microsoft-client desktop.
 The console gate remains deny-only and R2 Gate A is open.
+
+## R5 native XCB strict compile and separate teardown CTest correction
+
+**Base main:** `7dc34b69831a9122fda752434d5c9bfb8ee121ef`. Initial R5 native implementation
+`4d4d97ec78a63e963c1bed8d7fa6513141a4f9fa`,
+[Actions 38800598423](https://github.com/k1moradi/RDP-server/actions/runs/38800598423):
+**FAIL** Ubuntu Debug compile at
+`src/x11/x11_display_connection.cpp:222`,
+`-Werror=extra` enumerated/non-enumerated ternary. The real
+`rdp-server-x11-connection` target was compiled by hosted Linux CI,
+exposing a previously untested native translation-unit defect.
+Fix both root-window and visual invalid getter values with
+explicitly typed zero XCB identifiers. New distinct dedicated
+`x11.display-event-disconnect-cleanup` Linux-native CTest selects
+a real invalid-display constructor/failed event dispatch/repeated
+cancellation path; existing
+`x11.display-event-budget-and-readiness` independently exercises
+bounded queued event draining and protocol error denial.
+Both use one native test executable and never require an X server.
+Update the existing test registry and roadmap in the same correction.
+
+**PASS:** locally the previously recorded GCC/Clang strict and
+GCC ASan/UBSan headless dispatch tests; **NOT RUN locally:** exact
+native RandR TU due missing `xcb/randr.h`; new test cases need
+the hosted CI/owner machine native dependencies. No new performance,
+desktop or authenticated RDP acceptance.
+**Next:** inspect exact-SHA hosted Debug/Release full CTests including
+both dedicated native R5 cases; resume native capture and cursor
+lifecycle only when compiled target is green.

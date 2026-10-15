@@ -2,6 +2,7 @@
 #pragma once
 
 #include "mcs_connect_initial.h"
+#include "mcs_channel_connection.h"
 #include "security_negotiation.h"
 
 #include <array>
@@ -44,9 +45,14 @@ public:
     [[nodiscard]] bool onEncryptedMcsConnectInitial(
         std::span<const std::uint8_t> packet) noexcept;
 
-    void close() noexcept { stage_ = PreauthStage::Closed; }
+    void close() noexcept
+    {
+        mcsSession_.close();
+        stage_ = PreauthStage::Closed;
+    }
 
 private:
+    McsSessionLifecycle mcsSession_{};
     PreauthStage stage_{PreauthStage::AwaitConnectionRequest};
 };
 

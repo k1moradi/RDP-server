@@ -1309,6 +1309,23 @@ data routing. The sole R3 controller must enforce those separately and
 bound the upstream TPKT intake. No second writer, session owner or
 live desktop service is introduced.
 
+**R3 first R1/R2 session integration boundary (deny-only):** The
+noncopyable `McsSessionLifecycle` owns the R3 Channel Join bookkeeping
+and receives the already-decrypted first MCS Connect-Initial from the
+existing R1 preauthentication diagnostic. It reuses the strict MCS
+parser, domain-parameter negotiation and GCC parser, then closes
+without emitting Connect Response because no R2-issued OS-authorized
+admission exists. It also denies any pre-admission Erect/Attach/Join or
+SendData and accepts peer Disconnect only for terminal teardown.
+Each instance is terminal on rejection, disconnection or malformed input.
+No fake principal, Boolean authentication flag, test-issued capability,
+live TLS writer or second session controller can advance the state.
+The R1 syntax-diagnostic Boolean remains true for a *validly decoded*
+Connect-Initial even though the R3 session is never admitted. R2 must
+supply genuine OS-authorized TLS-bound evidence before protected
+transitions can be implemented; offline tests cannot grant it.
+
+
 **R3 outbound joined-channel MCS envelope:** The existing Channel Join
 gate also offers `encodeJoinedSendDataIndication`, a membership-only
 wrapper around the first-party server-to-client T.125 encoder.

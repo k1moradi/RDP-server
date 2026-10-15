@@ -292,6 +292,39 @@ McsChannelConfirm encodeMcsChannelJoinConfirm(
     return result;
 }
 
+McsSessionIntake McsSessionLifecycle::onConnectInitial(
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ == McsSessionPhase::Closed)
+        return McsSessionIntake::Closed;
+
+    const auto parsed = parseMcsConnectInitial(completeTpkt);
+    const bool valid = parsed &&
+        static_cast<bool>(mergeMcsDomainParameters(parsed.value)) &&
+        static_cast<bool>(parseGccConferenceCreate(parsed.value.gccUserData));
+    // No R2 OS-authorized admission exists. Even valid negotiation cannot
+    // allocate a domain or preserve a borrowed GCC view for later use.
+    close();
+    return valid ? McsSessionIntake::ValidButNotAdmitted
+                 : McsSessionIntake::InvalidEnvelope;
+}
+
+McsSessionIntake McsSessionLifecycle::onDomainPdu(
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ == McsSessionPhase::Closed)
+        return McsSessionIntake::Closed;
+
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    close();
+    if (!parsed)
+        return McsSessionIntake::InvalidEnvelope;
+    if (parsed.request.kind ==
+        McsChannelRequestKind::DisconnectProviderUltimatum)
+        return McsSessionIntake::PeerDisconnected;
+    return McsSessionIntake::ValidButNotAdmitted;
+}
+
 std::optional<std::array<std::uint8_t, 9>>
 encodeMcsDisconnectProviderUltimatum(McsDisconnectReason reason) noexcept
 {

@@ -3222,6 +3222,89 @@ void testMcsJoinedSendIndicationDenials()
                        [](std::uint8_t byte) { return byte == 0x6c; }));
 }
 
+void testMcsSessionUnverifiedConnectDenials()
+{
+    // Real Microsoft Connect-Initial can be completely well-formed, but
+    // TLS framing, GCC and domain negotiation are not R2 OS admission.
+    const auto valid = publishedFixture();
+    McsSessionLifecycle session;
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(!session.channelJoinConfirmed(1003));
+    assert(session.pendingJoinConfirmation().empty());
+    assert(session.onConnectInitial(valid) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(!session.channelJoinConfirmed(1003));
+    assert(session.pendingJoinConfirmation().empty());
+    assert(session.onConnectInitial(valid) == McsSessionIntake::Closed);
+    session.close();
+    session.close();
+    assert(session.phase() == McsSessionPhase::Closed);
+
+    // Invalid framing is terminal and cannot be replaced with a later
+    // legitimate packet on the same session identity.
+    McsSessionLifecycle malformed;
+    assert(malformed.onConnectInitial(std::span(valid).first(7)) ==
+           McsSessionIntake::InvalidEnvelope);
+    assert(malformed.onConnectInitial(valid) == McsSessionIntake::Closed);
+    assert(malformed.pendingJoinConfirmation().empty());
+    McsSessionLifecycle reconnect;
+    assert(reconnect.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(!reconnect.channelJoinConfirmed(1003));
+    assert(reconnect.onConnectInitial(valid) ==
+           McsSessionIntake::ValidButNotAdmitted);
+}
+
+void testMcsSessionUnverifiedDomainOrdering()
+{
+    // These valid complete envelopes come from existing production parsers.
+    // No Erect/Attach/Join can advance before genuine R2 admission, even
+    // when no TLS error was observed by an upstream diagnostic.
+    constexpr std::array<std::uint8_t, 12> erect{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x04, 0x01, 0x00, 0x01, 0x00};
+    constexpr std::array<std::uint8_t, 8> attach{
+        0x03, 0x00, 0x00, 0x08, 0x02, 0xf0, 0x80, 0x28};
+    constexpr std::array<std::uint8_t, 12> join{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x06, 0x03, 0xeb};
+    constexpr std::array<std::uint8_t, 15> send{
+        0x03, 0x00, 0x00, 0x0f, 0x02, 0xf0, 0x80,
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x01, 0x51};
+    for (const auto request : {
+             std::span<const std::uint8_t>{erect},
+             std::span<const std::uint8_t>{attach},
+             std::span<const std::uint8_t>{join},
+             std::span<const std::uint8_t>{send}})
+    {
+        const auto parsed = parseMcsChannelRequest(request);
+        assert(parsed);
+        McsSessionLifecycle session;
+        assert(session.onDomainPdu(request) ==
+               McsSessionIntake::ValidButNotAdmitted);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(!session.channelJoinConfirmed(1003));
+        assert(session.pendingJoinConfirmation().empty());
+        assert(session.onDomainPdu(request) == McsSessionIntake::Closed);
+    }
+
+    // Before authorization a peer Disconnect is a clean terminal event;
+    // it cannot revive a previously closed session or permit a join.
+    constexpr std::array<std::uint8_t, 9> disconnect{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80, 0x21, 0x80};
+    McsSessionLifecycle peerClosed;
+    assert(peerClosed.onDomainPdu(disconnect) ==
+           McsSessionIntake::PeerDisconnected);
+    assert(peerClosed.onDomainPdu(join) == McsSessionIntake::Closed);
+
+    McsSessionLifecycle bad;
+    assert(bad.onDomainPdu(std::span(join).first(6)) ==
+           McsSessionIntake::InvalidEnvelope);
+    assert(bad.onDomainPdu(disconnect) == McsSessionIntake::Closed);
+    bad.close();
+    assert(bad.pendingJoinConfirmation().empty());
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -3248,7 +3331,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 51> kMcsTestCases{{
+constexpr std::array<McsTestCase, 53> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3272,6 +3355,8 @@ constexpr std::array<McsTestCase, 51> kMcsTestCases{{
     {"mcs-join-stale-partial-write-slices", &testMcsJoinStalePartialWriteSlices},
     {"mcs-send-indication-joined-wire", &testMcsJoinedSendIndicationWire},
     {"mcs-send-indication-joined-denials", &testMcsJoinedSendIndicationDenials},
+    {"mcs-session-unverified-connect", &testMcsSessionUnverifiedConnectDenials},
+    {"mcs-session-unverified-ordering", &testMcsSessionUnverifiedDomainOrdering},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

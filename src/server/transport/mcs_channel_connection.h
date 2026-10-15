@@ -429,6 +429,77 @@ private:
     bool closed_{};
 };
 
+// R3 is the sole eventual MCS session owner. The current R2 runtime has
+// NO independently OS-authorized, TLS-bound admission capability, so this
+// boundary is intentionally denial-only. No caller-supplied Boolean, user ID,
+// parsed packet, or candidate identity can unlock MCS Connect Response,
+// Erect/Attach/Join, licensing, data routing or outbound TLS writes.
+//
+// This object can be composed in the existing R1 preauth transport owner.
+// A valid first MCS envelope is recognized for diagnostic compatibility,
+// then all session state is irrevocably revoked. A second envelope, an
+// unexpected domain PDU or a late callback cannot revive this instance.
+// When R2 provides genuine unforgeable admission, extend THIS one owner
+// with the ordered post-auth phases; do not add another MCS controller.
+enum class McsSessionPhase : std::uint8_t
+{
+    AwaitVerifiedR2Admission,
+    Closed,
+};
+
+enum class McsSessionIntake : std::uint8_t
+{
+    ValidButNotAdmitted,
+    PeerDisconnected,
+    InvalidEnvelope,
+    Closed,
+};
+
+class McsSessionLifecycle final
+{
+public:
+    McsSessionLifecycle() noexcept = default;
+    McsSessionLifecycle(const McsSessionLifecycle &) = delete;
+    McsSessionLifecycle &operator=(const McsSessionLifecycle &) = delete;
+    McsSessionLifecycle(McsSessionLifecycle &&) = delete;
+    McsSessionLifecycle &operator=(McsSessionLifecycle &&) = delete;
+
+    [[nodiscard]] McsSessionPhase phase() const noexcept { return phase_; }
+
+    // Exactly one *already decrypted* complete MCS Connect-Initial TPKT,
+    // supplied by R1's bounded TLS intake. Validate the production parser,
+    // domain merge and GCC but NEVER produce a Connect Response or admission.
+    [[nodiscard]] McsSessionIntake onConnectInitial(
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Any Erect, Attach, Join or SendData PDU before verified R2 admission
+    // is a terminal protocol violation, regardless of valid wire syntax.
+    // A valid peer Disconnect is acknowledged only as local teardown.
+    [[nodiscard]] McsSessionIntake onDomainPdu(
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    [[nodiscard]] bool channelJoinConfirmed(
+        std::uint16_t channelId) const noexcept
+    {
+        return joins_.channelJoinConfirmed(channelId);
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    pendingJoinConfirmation() const noexcept
+    {
+        return joins_.pendingBytes();
+    }
+
+    void close() noexcept
+    {
+        joins_.close();
+        phase_ = McsSessionPhase::Closed;
+    }
+
+private:
+    McsChannelJoinWriteGate joins_{};
+    McsSessionPhase phase_{McsSessionPhase::AwaitVerifiedR2Admission};
+};
+
 // Per MS-RDPBCGR 3.1.5.1.1, servers send only these two reasons.
 enum class McsDisconnectReason : std::uint8_t
 {

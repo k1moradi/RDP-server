@@ -2780,6 +2780,31 @@ any branch, live desktop access or input injection.
 **Next:** native frame acquisition/release with deterministic cancellation
 tests after R2/R3 session and R4 frame lifetime agreement.
 
+## R3 admitted-session boundary remains deny-only (2026-10-15)
+
+**Implementation:** the first already-decrypted MCS Connect-Initial in
+R1's existing PreauthSession is now checked by R3's noncopyable
+`McsSessionLifecycle`. It owns the one join gate, reuses the first-party
+MCS/domain-merge/GCC parsers and closes after diagnostic validation.
+No R2-backed authorized session capability exists in the project, so
+MCS Connect Response, Erect/Attach/Join and channel traffic stay denied.
+Valid Disconnect is terminal-only. Preauth's prior syntax-only Boolean
+contract is preserved; true never means admission.
+
+**New production-linked central CTests:** `transport.mcs-session-unverified-connect`
+and `transport.mcs-session-unverified-ordering` in the existing
+`test_owned_mcs_connect_initial` executable. They cover a published
+Microsoft Connect-Initial, invalid envelopes, repeated callbacks,
+fresh instances, valid Erect/Attach/Join/SendData denied out of phase,
+peer Disconnect, no pending outbound data and revoked membership.
+**NOT RUN at authoring:** project full CTest, exact-SHA GitHub Actions,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27, genuine
+R2 GSS/CredSSP plus OS authorization, and real Microsoft-client desktop.
+Previous implementation test results remain recorded separately.
+**Next:** consume only a provider-owned, TLS-bound, independently
+OS-authorized R2 lease; implement the first post-admission ordered R3
+transition in THIS owner with the existing R1 writer. Gate A/M2 open.
+
 ## R3 joined outbound SendDataIndication gate (2026-10-15)
 
 **Exact-SHA hosted CI (2026-10-15):** implementation

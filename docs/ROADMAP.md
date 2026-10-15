@@ -1877,6 +1877,25 @@ actually run; another parser CTest alone is not a complete session.
   Tracked in [R10 CI bug #10](https://github.com/k1moradi/RDP-server/issues/10).
   Owner MSYS2 CLANG64/Clang23, macOS27 and Linux/X11 exact-SHA
   independent tests and real OS-authorized RDP remain **NOT RUN**.
+  **R3 R1-to-R2 MCS session denial boundary (2026-10-15; CI NOT RUN at authoring):**
+  R1's existing bounded first decrypted Connect-Initial diagnostic now
+  passes one complete packet through the R3-owned `McsSessionLifecycle`.
+  This noncopyable object embeds the sole bounded Channel Join gate and
+  checks the production MCS/GCC/domain parser; absent genuine R2
+  TLS-bound, independently OS-authorized evidence, it ALWAYS terminates
+  with no Connect Response, Attach Confirm, Channel Join, licensing or
+  SendData. Even a valid encrypted packet is **not** user admission.
+  Subsequent domain PDUs (Erect/Attach/Join/SendData) are explicitly
+  rejected before R2; a valid Disconnect closes without advancement.
+  Every malformed input and late re-entry is terminal, with no output or
+  inherited channel membership. Two new dedicated central CTests cover
+  first Connect-Initial denial and premature domain/teardown ordering.
+  **NOT RUN at authoring:** exact-SHA hosted CI, owner three-platform,
+  real GSS plus OS authorization, Microsoft-client and desktop.
+  **Next:** R2 must deliver an unforgeable, live, TLS-bound OS session
+  authorization interface; then R3 extends THIS owner with ordered
+  Connect Response/Erect/Attach/Join and outbound write completion.
+  Gate A/M2 remains open.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

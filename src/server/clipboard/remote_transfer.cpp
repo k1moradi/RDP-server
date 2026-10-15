@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <string_view>
 
 namespace rdp_server::server::clipboard
 {
@@ -15,6 +16,97 @@ namespace
 constexpr std::uint16_t kAllowedResponseFlags =
     rdp_server::clipboard::kResponseOk |
     rdp_server::clipboard::kResponseFail;
+constexpr std::size_t kMaximumFormatNameCodeUnits = 256;
+constexpr std::size_t kShortFormatEntryBytes = 36;
+constexpr std::size_t kShortFormatNameBytes = 32;
+constexpr std::uint16_t kAsciiNamesFlag = 0x0004;
+
+[[nodiscard]] std::uint16_t read16(std::span<const std::uint8_t> bytes,
+                                   std::size_t offset) noexcept
+{
+    return static_cast<std::uint16_t>(bytes[offset]) |
+           static_cast<std::uint16_t>(bytes[offset + 1]) << 8U;
+}
+
+[[nodiscard]] std::uint32_t read32(std::span<const std::uint8_t> bytes,
+                                   std::size_t offset) noexcept
+{
+    return static_cast<std::uint32_t>(bytes[offset]) |
+           static_cast<std::uint32_t>(bytes[offset + 1]) << 8U |
+           static_cast<std::uint32_t>(bytes[offset + 2]) << 16U |
+           static_cast<std::uint32_t>(bytes[offset + 3]) << 24U;
+}
+
+// Registered names used for image/file negotiation are ASCII, but on the
+// CLIPRDR wire they are encoded as UTF-16LE. Compare without allocating.
+[[nodiscard]] bool matchesUtf16Name(std::span<const std::uint8_t> bytes,
+                                    std::string_view name) noexcept
+{
+    if (bytes.size() != name.size() * 2U)
+    {
+        return false;
+    }
+    for (std::size_t index = 0; index < name.size(); ++index)
+    {
+        if (read16(bytes, index * 2U) !=
+            static_cast<std::uint8_t>(name[index]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Short names are padded with zeros; a 32-byte field without a terminator
+// is also valid because the sender may truncate a longer registered name.
+[[nodiscard]] bool validShortUnicodeName(
+    std::span<const std::uint8_t> bytes, std::size_t &nameBytes) noexcept
+{
+    bool pendingHighSurrogate = false;
+    nameBytes = bytes.size();
+    for (std::size_t offset = 0; offset < bytes.size(); offset += 2U)
+    {
+        const std::uint16_t codeUnit = read16(bytes, offset);
+        if (codeUnit == 0)
+        {
+            nameBytes = offset;
+            return !pendingHighSurrogate &&
+                   std::all_of(bytes.begin() + offset, bytes.end(),
+                               [](std::uint8_t byte) { return byte == 0; });
+        }
+        if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
+        {
+            if (pendingHighSurrogate)
+            {
+                return false;
+            }
+            pendingHighSurrogate = true;
+        }
+        else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
+        {
+            if (!pendingHighSurrogate)
+            {
+                return false;
+            }
+            pendingHighSurrogate = false;
+        }
+        else if (pendingHighSurrogate)
+        {
+            return false;
+        }
+    }
+    return !pendingHighSurrogate;
+}
+
+[[nodiscard]] bool matchesAsciiName(std::span<const std::uint8_t> bytes,
+                                    std::string_view name) noexcept
+{
+    return bytes.size() == name.size() &&
+           std::equal(bytes.begin(), bytes.end(), name.begin(),
+                      [](std::uint8_t byte, char character) {
+                          return byte == static_cast<std::uint8_t>(character);
+                      });
+}
 
 } // namespace
 
@@ -46,10 +138,243 @@ bool RemoteTransfer::receiveFormatList(
     std::copy(advertisedFormatIds.begin(), advertisedFormatIds.end(),
               advertisedFormats_.begin());
     advertisedCount_ = advertisedFormatIds.size();
+    pngFormatId_ = 0;
+    fileGroupDescriptorFormatId_ = 0;
     ++generation_;
     // pending_ deliberately survives a new format list: CLIPRDR wire
     // responses carry no request generation. A stale response must be drained.
     return true;
+}
+
+bool RemoteTransfer::receiveLongFormatListPdu(
+    std::span<const std::uint8_t> completePdu) noexcept
+{
+    using namespace rdp_server::clipboard;
+    PduView pdu{};
+    // CB_USE_LONG_FORMAT_NAMES is a general capability bit, NOT a PDU flag.
+    if (poisoned_ || !decodePdu(completePdu, pdu) ||
+        pdu.type != kFormatList || pdu.flags != 0)
+    {
+        poisoned_ = true;
+        return false;
+    }
+
+    std::array<std::uint32_t, kMaximumFormats> formatIds{};
+    std::size_t formatCount = 0;
+    std::size_t offset = 0;
+    std::uint32_t pngFormatId = 0;
+    std::uint32_t fileGroupDescriptorFormatId = 0;
+    while (offset < pdu.payload.size())
+    {
+        if (formatCount == formatIds.size() ||
+            pdu.payload.size() - offset < 6U)
+        {
+            poisoned_ = true;
+            return false;
+        }
+        const std::uint32_t formatId = read32(pdu.payload, offset);
+        offset += 4U;
+        const std::size_t nameStart = offset;
+        std::size_t codeUnitCount = 0;
+        bool pendingHighSurrogate = false;
+        bool terminated = false;
+        while (pdu.payload.size() - offset >= 2U)
+        {
+            const std::uint16_t codeUnit = read16(pdu.payload, offset);
+            offset += 2U;
+            if (codeUnit == 0)
+            {
+                if (pendingHighSurrogate)
+                {
+                    break;
+                }
+                terminated = true;
+                break;
+            }
+            if (++codeUnitCount > kMaximumFormatNameCodeUnits)
+            {
+                break;
+            }
+            if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
+            {
+                if (pendingHighSurrogate)
+                {
+                    break;
+                }
+                pendingHighSurrogate = true;
+            }
+            else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
+            {
+                if (!pendingHighSurrogate)
+                {
+                    break;
+                }
+                pendingHighSurrogate = false;
+            }
+            else if (pendingHighSurrogate)
+            {
+                break;
+            }
+        }
+        if (!terminated)
+        {
+            poisoned_ = true;
+            return false;
+        }
+        // The final two bytes are the null terminator, not part of the name.
+        const auto name = pdu.payload.subspan(nameStart, offset - nameStart - 2U);
+        if (matchesUtf16Name(name, "PNG"))
+        {
+            if (pngFormatId != 0)
+            {
+                poisoned_ = true;
+                return false;
+            }
+            pngFormatId = formatId;
+        }
+        else if (matchesUtf16Name(name, "FileGroupDescriptorW"))
+        {
+            if (fileGroupDescriptorFormatId != 0)
+            {
+                poisoned_ = true;
+                return false;
+            }
+            fileGroupDescriptorFormatId = formatId;
+        }
+        formatIds[formatCount++] = formatId;
+    }
+
+    if (!receiveFormatList(std::span<const std::uint32_t>(
+            formatIds.data(), formatCount)))
+    {
+        return false;
+    }
+    pngFormatId_ = pngFormatId;
+    fileGroupDescriptorFormatId_ = fileGroupDescriptorFormatId;
+    return true;
+}
+
+bool RemoteTransfer::receiveShortFormatListPdu(
+    std::span<const std::uint8_t> completePdu) noexcept
+{
+    using namespace rdp_server::clipboard;
+    PduView pdu{};
+    if (poisoned_ || !decodePdu(completePdu, pdu) ||
+        pdu.type != kFormatList ||
+        (pdu.flags != 0 && pdu.flags != kAsciiNamesFlag) ||
+        pdu.payload.size() % kShortFormatEntryBytes != 0 ||
+        pdu.payload.size() / kShortFormatEntryBytes > kMaximumFormats)
+    {
+        poisoned_ = true;
+        return false;
+    }
+
+    const bool asciiNames = pdu.flags == kAsciiNamesFlag;
+    std::array<std::uint32_t, kMaximumFormats> formatIds{};
+    const std::size_t formatCount = pdu.payload.size() / kShortFormatEntryBytes;
+    std::uint32_t pngFormatId = 0;
+    std::uint32_t fileGroupDescriptorFormatId = 0;
+    for (std::size_t index = 0; index < formatCount; ++index)
+    {
+        const std::size_t offset = index * kShortFormatEntryBytes;
+        const std::uint32_t formatId = read32(pdu.payload, offset);
+        const auto nameField = pdu.payload.subspan(
+            offset + sizeof(std::uint32_t), kShortFormatNameBytes);
+        std::size_t nameBytes = nameField.size();
+        if (asciiNames)
+        {
+            const auto terminator = std::find(nameField.begin(),
+                                              nameField.end(), 0);
+            nameBytes = static_cast<std::size_t>(terminator - nameField.begin());
+            // A null byte terminates the name; all padding must be zero.
+            if (!std::all_of(terminator, nameField.end(),
+                             [](std::uint8_t byte) { return byte == 0; }))
+            {
+                poisoned_ = true;
+                return false;
+            }
+        }
+        else if (!validShortUnicodeName(nameField, nameBytes))
+        {
+            poisoned_ = true;
+            return false;
+        }
+
+        const auto name = nameField.first(nameBytes);
+        const bool isPng = asciiNames ? matchesAsciiName(name, "PNG") :
+                                        matchesUtf16Name(name, "PNG");
+        const bool isFileGroup = asciiNames ?
+            matchesAsciiName(name, "FileGroupDescriptorW") :
+            matchesUtf16Name(name, "FileGroupDescriptorW");
+        if ((isPng && pngFormatId != 0) ||
+            (isFileGroup && fileGroupDescriptorFormatId != 0))
+        {
+            poisoned_ = true;
+            return false;
+        }
+        if (isPng)
+        {
+            pngFormatId = formatId;
+        }
+        if (isFileGroup)
+        {
+            fileGroupDescriptorFormatId = formatId;
+        }
+        formatIds[index] = formatId;
+    }
+
+    if (!receiveFormatList(std::span<const std::uint32_t>(
+            formatIds.data(), formatCount)))
+    {
+        return false;
+    }
+    pngFormatId_ = pngFormatId;
+    fileGroupDescriptorFormatId_ = fileGroupDescriptorFormatId;
+    return true;
+}
+
+bool RemoteTransfer::receiveFormatListWithResponse(
+    std::span<const std::uint8_t> completePdu,
+    bool negotiatedLongFormatNames, bool nativeOfferAccepted,
+    std::array<std::uint8_t, 8> &response) noexcept
+{
+    // MS-RDPECLIP 2.2.3.2: Format List Response has no payload and must
+    // carry exactly one response status flag. Construct the failure packet
+    // first, so even a malformed offer has a deterministic wire response.
+    response = {0x03U, 0x00U, 0x02U, 0x00U, 0, 0, 0, 0};
+    const bool parsed = negotiatedLongFormatNames ?
+        receiveLongFormatListPdu(completePdu) :
+        receiveShortFormatListPdu(completePdu);
+    if (!parsed)
+    {
+        return false;
+    }
+    if (!nativeOfferAccepted)
+    {
+        // A valid but unusable clipboard replacement still supersedes the
+        // old generation. Preserve its pending Format Data Request solely
+        // for stale-response draining; never publish its obsolete contents.
+        advertisedFormats_.fill(0);
+        advertisedCount_ = 0;
+        pngFormatId_ = 0;
+        fileGroupDescriptorFormatId_ = 0;
+        return false;
+    }
+    response[2] = 0x01U; // CB_RESPONSE_OK, rather than CB_RESPONSE_FAIL.
+    return true;
+}
+
+std::uint32_t RemoteTransfer::namedFormatId(std::string_view name) const noexcept
+{
+    if (poisoned_ || generation_ == 0)
+    {
+        return 0;
+    }
+    if (name == "PNG")
+    {
+        return pngFormatId_;
+    }
+    return name == "FileGroupDescriptorW" ? fileGroupDescriptorFormatId_ : 0;
 }
 
 bool RemoteTransfer::beginRequest(
@@ -121,6 +446,8 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
 {
     advertisedFormats_.fill(0);
     advertisedCount_ = 0;
+    pngFormatId_ = 0;
+    fileGroupDescriptorFormatId_ = 0;
     generation_ = 0;
     pending_ = {};
     pendingValid_ = false;

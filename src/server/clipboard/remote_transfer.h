@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace rdp_server::server::clipboard
@@ -43,6 +44,36 @@ public:
     [[nodiscard]] bool receiveFormatList(
         std::span<const std::uint32_t> advertisedFormatIds) noexcept;
 
+    // Consume a complete CB_FORMAT_LIST only after both peers negotiate
+    // CB_USE_LONG_FORMAT_NAMES. No borrowed names survive this call.
+    // Malformed wire input closes this coordinator until disconnect.
+    [[nodiscard]] bool receiveLongFormatListPdu(
+        std::span<const std::uint8_t> completePdu) noexcept;
+
+    // Consume the fallback fixed-width (36-byte/format) representation only
+    // when CB_USE_LONG_FORMAT_NAMES was not negotiated by both endpoints.
+    // CB_ASCII_NAMES selects 32 single-byte characters, otherwise 16 UTF-16LE
+    // code units. A full name field may be truncated without a terminator.
+    [[nodiscard]] bool receiveShortFormatListPdu(
+        std::span<const std::uint8_t> completePdu) noexcept;
+
+    // Process an authorized, complete Format List using the R3-negotiated
+    // name layout, then encode its eight-byte MS-RDPECLIP response. The
+    // native adapter must have accepted the new offer before the caller
+    // passes nativeOfferAccepted=true; if acceptance is asynchronous, defer
+    // this call until completion. A rejected offer advances the generation
+    // but advertises nothing, so old data cannot be requested accidentally.
+    // A failed parse poisons the session until actual disconnect. A negative
+    // reply must only be transmitted through R3's admitted CLIPRDR channel.
+    // The caller owns transport/send completion; this method does no I/O.
+    [[nodiscard]] bool receiveFormatListWithResponse(
+        std::span<const std::uint8_t> completePdu,
+        bool negotiatedLongFormatNames, bool nativeOfferAccepted,
+        std::array<std::uint8_t, 8> &response) noexcept;
+
+    // Known registered format names are resolved from this generation's offer.
+    [[nodiscard]] std::uint32_t namedFormatId(std::string_view name) const noexcept;
+
     // Encode a CLIPRDR Format Data Request only for the current generation.
     // On success, output owns a complete PDU; on rejection output is empty.
     // Call only after the previous request has completed or been retired.
@@ -74,6 +105,8 @@ private:
 
     std::array<std::uint32_t, kMaximumFormats> advertisedFormats_{};
     std::size_t advertisedCount_{};
+    std::uint32_t pngFormatId_{};
+    std::uint32_t fileGroupDescriptorFormatId_{};
     std::uint64_t generation_{};
     PendingRequest pending_{};
     bool pendingValid_{};

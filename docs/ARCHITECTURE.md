@@ -92,6 +92,22 @@ ordering, resize and disconnect/reconnect. A caller synchronizes
 access to any shared output buffer. Tested wire encoders do not
 constitute a live, authenticated desktop.
 
+### Portable CLIPRDR Format List boundary (R8; offline)
+
+The existing portable `RemoteTransfer` owner remains the sole clipboard
+generation and ambiguous Format Data Request coordinator. Long and short
+CLIPRDR Format List PDU intake checks bounded names, format IDs and wire
+framing, resolving registered `PNG` and `FileGroupDescriptorW` by name
+for the current generation without copying strings. Format List responses
+carry an exact eight-byte OK or FAIL status after native adapter acceptance.
+A declined native offer invalidates advertised IDs and retains the retired
+outstanding request only for stale-response draining. R3 must establish
+both peers' General Capability flags and authorized CLIPRDR channel
+admission before invoking this offline parser or transmitting a response.
+The caller owns native offer completion, outbound queueing, and channel
+reassembly. No additional clipboard controller, OS API dependency or
+live clipboard access is introduced by this increment.
+
 ### Independence test
 
 The top-level CMake project enables **CXX only**, targets C++23, and links

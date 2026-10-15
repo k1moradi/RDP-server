@@ -9,6 +9,46 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R8 portable CLIPRDR Format List wire intake (2026-10-15; CI pending)
+
+The same `RemoteTransfer` instance now owns incoming long and short Format
+List validation, generation-local registered `PNG`/`FileGroupDescriptorW`
+lookup and Format List Response acceptance. Long names are null-terminated
+UTF-16LE when `CB_USE_LONG_FORMAT_NAMES` is jointly negotiated; short
+names are 36-byte records with `CB_ASCII_NAMES` selecting ASCII versus
+UTF-16LE. Wire parsing is bounded to 64 formats and 256 UTF-16 code
+units per long name; duplicate identifiers or known names, bad header,
+surrogates, truncation and unsupported flags fail closed. A fixed
+eight-byte OK/FAIL response is generated after explicit native offer
+acceptance; failed adapter offers advance generation and clear advertised
+IDs while an old request's reply remains quarantined. Ordinary
+Format Data Responses have no matching wire request ID.
+
+**Files:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, this validation ledger.
+**New dedicated CTests:** `clipboard.long-format-list-generation`,
+`clipboard.short-format-list-negotiation`, and
+`clipboard.format-list-response-native-acceptance`; the existing
+`clipboard.remote-transfer` and R9's
+`clipboard.remote-transfer-framing-rejections` cases are preserved.
+**PASS (isolated Linux fixture harness):** GCC 14.2 and Clang 17
+`-std=c++23 -Wall -Wextra -Wpedantic -Werror -O0 -g` compiled the
+production `RemoteTransfer` translation unit against a local extract of
+the existing CLIPRDR PDU codec; three new cases and existing legacy
+cases passed under both compilers. GCC `-fsanitize=address,undefined`
+with leak detection passed all three new cases. Outputs remained in
+`~/rdp-server/build/`.
+**NOT RUN:** complete Git checkout CMake/CTest, GitHub CI for the final
+implementation SHA, owner-run Linux/X11, Windows MSYS2 CLANG64/Clang 23
+and macOS 27, live client, native clipboard or browser paste, performance.
+This isolated harness is not evidence for cross-platform production or
+end-to-end clipboard acceptance.
+**First missing boundary:** R3's authenticated admitted CLIPRDR channel
+and negotiated capabilities, then R5/R6/R7 native clipboard adapters.
+**Next:** consume CLIPRDR General Capability Set on the existing
+coordinator with fail-closed version/flag tests and channel gating.
+
 ## Local validation (one reused build root)
 
 ```sh

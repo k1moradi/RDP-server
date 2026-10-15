@@ -171,6 +171,20 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("graphics.${case_name}" PROPERTIES
                 LABELS "protocol;graphics")
         endforeach()
+    elseif(test_target STREQUAL "test_owned_remote_transfer")
+        # Preserve the default regression and register the three R8 cases.
+        add_test(NAME "clipboard.remote-transfer" COMMAND "${test_target}")
+        set_tests_properties("clipboard.remote-transfer" PROPERTIES
+            LABELS "protocol;clipboard")
+        foreach(case_name IN ITEMS
+                long-format-list-generation
+                short-format-list-negotiation
+                format-list-response-native-acceptance)
+            add_test(NAME "clipboard.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("clipboard.${case_name}" PROPERTIES
+                LABELS "protocol;clipboard")
+        endforeach()
     else()
         add_test(NAME "${suite}.${behavior}" COMMAND "${test_target}")
         set_tests_properties("${suite}.${behavior}" PROPERTIES

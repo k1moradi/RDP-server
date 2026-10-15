@@ -1951,7 +1951,23 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   drain obsolete replies, and fail closed on irrecoverably ambiguous timeout.
   File-content replies have separate `streamId` correlation. Do not create
   competing session controllers or depend on xrdp/FreeRDP at runtime.
-  **Status: NOT RUN; native channel/desktop integration not implemented.**
+  **Status: PARTIAL — R8 portable Format List wire intake added on
+  2026-10-15; native channel/desktop integration NOT RUN.** The existing
+  `RemoteTransfer` owner validates bounded long UTF-16LE or 36-byte short
+  ASCII/UTF-16LE Format Lists using R3-negotiated capabilities. Registered
+  `PNG` and `FileGroupDescriptorW` IDs are generation-scoped. Malformed
+  names/headers/duplicates fail closed; an exact eight-byte
+  `CB_FORMAT_LIST_RESPONSE` signals success only after explicit native
+  offer acceptance. Declined offers clear advertised IDs while retaining
+  stale-response quarantine. Dedicated CTests:
+  `clipboard.long-format-list-generation`,
+  `clipboard.short-format-list-negotiation`,
+  `clipboard.format-list-response-native-acceptance`. GCC 14.2,
+  Clang 17 and GCC ASan+UBSan isolated fixture checks PASS; full repo
+  CTest, CI, owner platforms and live clipboard NOT RUN at authoring.
+  R3 admission/channel capability negotiation and R5/R6/R7 native
+  clipboard adapters remain outstanding. **Next:** validate negotiated
+  CLIPRDR capabilities in this same coordinator with its own CTest.
 - [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
   after a *legitimate client Format List* for generation N, prioritize
   `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),

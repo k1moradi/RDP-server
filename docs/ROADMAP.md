@@ -989,8 +989,15 @@ acceptance evidence; no synthetic completion claims.
   was `transport.mcs-send-data-wire`. Follow-up keeps
   that frame alive through all view assertions without
   changing the production parser, and adds an offset check.
-  Corrected commit's CI and owner-local run are NOT RUN
-  at correction authoring.
+  **PASS:** correction
+  `72af29fddc2424fcc7f4edbd579e2b313ef25f48`,
+  [CI 38696503496](https://github.com/k1moradi/RDP-server/actions/runs/38696503496):
+  Linux/GCC **80/80**, macOS/Clang and Windows/MSVC
+  **71/71** CTests in BOTH Debug and Release; both new
+  SendData wire/negative cases, documentation-policy,
+  installed SDK consumer and three ZIP/SHA256 packages
+  PASS. Prerelease publication SKIPPED (no release tag).
+  Owner-local test of the corrected exact commit NOT RUN.
   This does not enable live TLS MCS intake, authorized channel
   membership, reassembly or desktop session admission.
   **Next:** run exact-head full CI; then controlled real

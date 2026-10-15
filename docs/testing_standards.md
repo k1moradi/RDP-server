@@ -577,9 +577,18 @@ leaving its borrowed `userData` view dangling. Production
 length/bounds parsing and the negative test both passed.
 Preserve the zero-copy contract; give the test an owned
 local `frame` that outlives all view assertions and also
-check the view offset. The corrected source's CI is NOT RUN
-at authoring. No new executable or test root; external
-client and authorized post-auth dispatch remain NOT RUN.
+check the view offset.
+
+**PASS:** corrected test lifetime at
+`72af29fddc2424fcc7f4edbd579e2b313ef25f48`,
+[CI run 38696503496](https://github.com/k1moradi/RDP-server/actions/runs/38696503496):
+Linux/GCC **80/80**, macOS/Clang and Windows/MSVC
+**71/71** full CTests in BOTH Debug and Release, including
+both new SendData cases, installed CMake SDK consumers,
+ZIP/SHA256 packages and documentation-policy PASS.
+No new executable or test root; owner-local corrected
+run, external client and authorized post-auth dispatch
+remain NOT RUN.
 
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 

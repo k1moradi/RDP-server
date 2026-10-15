@@ -1445,11 +1445,23 @@ at the end of the same statement. Fix test to hold the
 complete TPKT in a stack-scoped `const auto frame` until
 all view assertions are complete; assert the span's exact
 offset as a regression against future accidental copies.
-No production parser change. Windows CI results were not
-yet finalized when this correction was authored; the
-corrected commit's CI remains NOT RUN.
+No production parser change. Windows results for that first failed attempt were not
+finalized when the correction was authored.
 
-**NOT RUN at authoring:** owner-local new compile and CTest
+**Verified correction:** `72af29fddc2424fcc7f4edbd579e2b313ef25f48`,
+[Actions 38696503496](https://github.com/k1moradi/RDP-server/actions/runs/38696503496):
+Linux/GCC **80/80** CTests; macOS/Clang and Windows/MSVC
+**71/71** CTests, in BOTH Debug and Release. Both
+`transport.mcs-send-data-wire` and
+`transport.mcs-send-data-rejections` PASS across all
+three operating systems. Installed SDK consumer, ZIP/SHA256
+package upload and project documentation-policy PASS;
+prerelease publishing SKIPPED (no version tag).
+The only correction since initial implementation is to
+keep the test input packet alive through borrowed-view
+inspection; the production decoder is unchanged.
+
+**NOT RUN:** owner-local corrected compile and CTest
 (the owner machine is not mounted), new exact-head platform
 CI, SDK package/consumer tests, ASan/UBSan, real Kerberos,
 Microsoft RDP clients, channel authorization, licensing,

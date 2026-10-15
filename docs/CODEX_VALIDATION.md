@@ -135,6 +135,25 @@ Microsoft real-client desktop or deployment.
 **Milestones:** M1 open; M2–M6 not accepted.
 **Next gate:** exact-SHA Linux, Windows and macOS full CI,
 then authorized OS/session integration.
+## R10 Windows CRLF fixture correction (2026-10-15)
+
+**FAIL:** R10 implementation `a7234f40c4e2188b1170daf363136a6ac159c025`,
+[Actions 38796098450](https://github.com/k1moradi/RDP-server/actions/runs/38796098450):
+Linux/GCC and macOS/Clang jobs PASS; Windows/MSVC compiled Debug but
+full CTest finished 153/154 PASS, failing only
+`runtime.validates-configuration-comments-crlf` (expected 0, exit 3).
+Release and package gates on Windows were NOT RUN after the failure.
+**Corrected test-only increment:** normalize CR bytes in the synthetic
+configuration fixture before emitting CRLF; compare raw written bytes
+with `file(READ HEX)` and `string(HEX)` instead of CMake's newline-
+normalizing ordinary `file(READ)`. Preserve all 25 runtime CTests.
+**Local PASS:** Linux GCC 14.2 and Clang 17 focused CRLF test; offline
+Release CTest harness 25/25 PASS. No production code or server security
+policy changed. **Corrected full CI and owner platforms: NOT RUN at
+authoring.** Next gate: inspect the corrective commit's exact-SHA
+Linux, macOS and Windows full Debug/Release CI, SDK package regression,
+and the owner's independent testing.
+
 ## Verified strict local-path policy CI (2026-10-14)
 
 The stricter home-checkout and single-build-root guard in

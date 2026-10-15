@@ -85,6 +85,17 @@ documentation atomically using non-force, expected-HEAD update.
 Exact-SHA CI and owner results are NOT RUN at authoring.
 **Next:** full Debug/Release CTests and SDK/package regression,
 then independent same-SHA owner acceptance.
+**R10 Windows CRLF fixture regression (2026-10-15):** The first
+published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
+passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug
+failed `runtime.validates-configuration-comments-crlf` (test 137 of 154)
+with exit 3; the other 24 R10 runtime cases passed there. This follow-up
+normalizes existing CR bytes before generating CRLF and verifies the
+synthetic fixture's written bytes using `file(READ HEX)`. Isolated Linux
+focused CTest **25/25 PASS**; corrected exact-SHA Windows CI is
+**NOT RUN at authoring**. No production policy is relaxed, and M1–M6
+remain unaccepted. Next: full Debug/Release CI and owner one-root tests.
+
 **Ownership discipline:** R3 alone owns the session and channel lifecycle;
 R4 alone owns graphics scheduling; R8 alone owns clipboard generation;
 R1 owns encrypted socket I/O; R2 owns admission decisions. R5/R6/R7

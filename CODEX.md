@@ -16,10 +16,14 @@ and implementation commits target the existing `main` branch. Do not use
 `git switch -c`, `git branch <name>`, `git checkout -b`,
 branch-backed worktrees, GitHub branch-create endpoints or branch-creating
 automation. Do not create development commits on detached HEAD. Ten agents
-may implement independently, but commits to `main` must be serialized
-through a verified publication slot with a non-force, fast-forward update;
-otherwise report BLOCKED. Never publish during the owner's same-SHA
-three-platform validation freeze. See [AGENTS.md](AGENTS.md).
+must implement **and commit completed code+dedicated CTests+docs directly
+to GitHub `main`**, not merely prepare patches or wait for R10 approval.
+For concurrent updates, fetch the latest `main`, commit atomically on
+its current HEAD, and publish via non-force fast-forward with an expected
+HEAD check; if HEAD changed, reconcile and retry on the newer `main`.
+Report BLOCKED only for real technical conflicts or access failures.
+The owner's pull/build/full-CTest one-liner must test every applicable
+registered test. See [AGENTS.md](AGENTS.md).
 
 ## Mission
 

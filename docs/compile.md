@@ -24,6 +24,27 @@ GitHub-hosted CI cannot persist the owner's home checkout across jobs,
 so **each isolated job** uses exactly one ephemeral
 `<checkout>/build` and does not commit its output.
 
+## Owner's required daily test from the latest GitHub main
+
+Agents commit production code, its dedicated, registered behavior-named
+CTest(s) and updated documentation **directly to `main`**. The owner does
+not apply patches or merge branches. The following unchanged command must
+configure, build and run the full applicable CTest suite in the **one**
+persistent build root after fetching the latest `main`:
+
+```sh
+cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure
+```
+
+Run in the appropriate shell/toolchain environment on Linux/X11, Windows
+MSYS2 CLANG64 (Clang 23) and macOS 27. Check `git rev-parse HEAD`
+when comparing results and inspect CMake's effective compiler, because
+a reused build cache does not select a new compiler automatically. Tests
+requiring live desktop/input/clipboard, credentials or service activation
+must be separately opt-in: the normal full CTest cannot require them.
+Agents own build/test repairs via new direct-to-main commits; the owner
+only reports the output of the command.
+
 ## Linux/macOS (CMake 3.22+, C++23 compiler, OpenSSL)
 
 ```sh

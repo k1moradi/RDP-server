@@ -9,8 +9,11 @@ See [CODEX_VALIDATION.md](docs/CODEX_VALIDATION.md) for validation.
 
 All development and commits are on existing `main` only. **No Git branch
 creation by anyone, including agents, tools and automation; no exceptions
-under the current policy.** Serially publish to `main` through a verified
-single-writer slot; otherwise report BLOCKED.
+under the current policy.** Commit finished increments (implementation, dedicated CTests and docs)
+**directly to GitHub `main`**, not as patches or R10 handoffs. Use a
+non-force expected-HEAD update; rebase the proposed changes onto current
+`main` and retry if another agent publishes first. Only real technical
+blockers justify stopping before publication.
 Reuse **`~/rdp-server/build/`** for all local builds.
 Prefer consolidated C++23 modules, semantic reusable CTests,
 and minimal documentation fragmentation. Every implementation updates

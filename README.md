@@ -138,10 +138,16 @@ the same thing as a runtime dependency.
 branch. Creating any additional local or remote Git branch is prohibited**
 for contributors, assistants, agents and automation, without exceptions
 under the current policy. No feature, hotfix, release, temporary,
-experimental or branch-backed worktree branches. Ten agents may develop
-independently, but publishing to `main` is serialized through an actual
-single-writer integration slot; do not overwrite another agent's changes.
-Do not push during an exact-SHA three-platform testing freeze. Release
+experimental or branch-backed worktree branches. **Each development
+agent implements and publishes its finished code, dedicated CTests and
+documentation directly to GitHub `main`**; patch-only delivery or
+waiting for R10 publication approval is not the default. Parallel agents
+use an atomic, non-force update against the expected current HEAD. If
+another agent commits first, re-read/reconcile the changed files and
+retry without overwriting anyone else's work. The owner pulls `main`
+and runs the ordinary Debug build and full CTest on each platform.
+Same-SHA convergence evidence requires recording each tested SHA;
+ordinary agent commits are not held pending owner tests. Release
 tags may point to verified commits on `main`; tags are not branches.
 See [AGENTS.md](AGENTS.md) and the [roadmap](docs/ROADMAP.md).
 

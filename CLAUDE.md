@@ -10,8 +10,12 @@ and [CODEX_VALIDATION.md](docs/CODEX_VALIDATION.md).
 All development and commits MUST target existing `main`. **Creating
 other Git branches is prohibited for everyone, without exceptions under
 the current project policy**, including branch-backed worktrees and
-automation. Serialize direct-to-main commits through a verified
-single-writer slot; otherwise report BLOCKED.
+automation. Deliver real, complete code+dedicated CTest+documentation commits
+directly to GitHub `main`, not patches. Check current HEAD immediately
+before publication; use an atomic, non-force expected-HEAD update. If
+another agent commits first, reconcile and retry against the new `main`.
+R10 coordination is advisory, not permission required for publication.
+Report BLOCKED only when a genuine technical issue prevents safe commit.
 Use only the reused local **`~/rdp-server/build/`** build directory.
 Follow standards-first C++23, unified ownership, reusable behavior-named
 tests and truthful protocol/client gates. Update the single TODO and

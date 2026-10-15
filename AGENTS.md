@@ -72,15 +72,41 @@ Do not commit development work on detached HEAD or publish it to a side
 branch. Release tags may reference verified commits already on `main`;
 tags do not authorize branch creation.
 
-**Parallel agents are single-writer at publication:** only one agent may
-update `main` at a time through a verifiable integration slot. Re-read
-remote HEAD and affected files immediately before publishing; use a
-non-force, fast-forward update that rejects an unexpected HEAD. During
-the owner's exact-SHA three-platform validation freeze, no agent may
-publish to `main`. If exclusive publication cannot be verified, report
-BLOCKED rather than inventing a lock or creating a branch. No blind hard
-resets, force pushes, full restores/cleans or unsafe concurrent edits.
-Check HEAD and worktree before committing and publishing.
+**Direct-to-main delivery is mandatory, not patch-only work.** Each agent
+implements its assigned increment, registers at least one new dedicated
+behavior-named CTest for production-code changes in the shared test
+registry, updates the canonical TODO and affected documentation, and
+**publishes all changes together as one commit directly to GitHub `main`**.
+Do not stop after drafting patches, code snippets, proposed diffs or a
+handoff to R10 when commit access is available. R10 coordinates integration
+and may review commits, but is not a required approval or publication
+bottleneck.
+
+**Concurrent writers use optimistic, non-force fast-forward updates.**
+Immediately before committing/publishing, fetch current remote `main`
+HEAD and affected files. Construct an atomic code+CTest+docs commit on
+that HEAD and update `main` only if HEAD is still the expected SHA.
+If another agent commits first, fetch the newer `main`, reconcile your
+changes without discarding theirs, rerun affected checks when available,
+and retry the atomic direct-to-main commit. Never force-push, blind-reset,
+overwrite another agent's work, create a branch or silently publish stale
+files. Report BLOCKED only for a real unresolved conflict, missing write
+permission or other concrete technical blocker, with the attempted steps;
+do not treat absence of an R10 slot as a blocker.
+
+**The owner's exact command must work on freshly pulled `main`:**
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`.
+Every applicable new CTest must run under ordinary full CTest without
+requiring live desktop, clipboard, credentials, service modification or
+interactivity; native-only tests are conditionally registered. Agents
+are responsible for fixing introduced build/test failures, not the owner.
+The owner runs this command on Linux/X11, Windows MSYS2 CLANG64/Clang 23
+and macOS 27 and reports results. Record tested SHAs for each platform;
+when all three reports cover different SHAs, do not assert same-SHA
+milestone acceptance. Publication to `main` need not wait for the owner
+to run tests; do not claim platform PASS before receiving reports.
+No blind hard resets, force pushes, full restores/cleans or unsafe
+concurrent edits. Check HEAD and worktree before each publication.
 No live desktop/clipboard testing, server activation, service restart,
 reboot or production modification without explicit authorization.
 Synthetic security tests do not permit authenticated OS admission.

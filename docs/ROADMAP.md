@@ -94,33 +94,35 @@ not prerequisites for the defined three-platform release.
 
 ### Agent integration and the owner's independent platform test
 
-**GitHub main-only coordination — mandatory hard prohibition:**
-**All development and commits occur on existing `main`; creating ANY
-additional Git branch (local, remote, temporary, feature, hotfix,
-release, experimental, agent-specific, or branch-backed worktree) is
-prohibited for everyone, including automation, without exceptions under
-the current policy.** No branch may be used as a fallback when agents
-collide. Ten agents can work on disjoint module contracts and
-independently prepare source/CTest/documentation changes, but **only one
-agent may publish a mutating commit to `main` at a time**. The R10
-integration coordinator sequences promotions and checks the latest HEAD;
-workers re-read current files/SHAs before publication, never overwrite
-another road's edits, never force-push/reset or invent branches. Only a
-verified single-writer publication slot authorizes a non-force
-fast-forward update of the current `main` HEAD; if no such slot exists
-or HEAD changes unexpectedly, report BLOCKED. A
-promoted implementation increment must atomically include changed
-production code, dedicated registered CTest(s), and the affected
-existing roadmap TODO/validation notes **in the same commit** as required
-by [AGENTS.md](../AGENTS.md). R9 reviews evidence. When agents cannot
-publish a safe, atomic, conflict-free multi-file commit, mark the task
-BLOCKED and hand its proposed change to the coordinator; do not split
-required co-changes across misleading intermediate commits. A single
-shared `tests/CMakeLists.txt` and `docs/ROADMAP.md` means ten
-simultaneous direct-to-main writers are **not** safe. Isolate agent
-working environments and preserve the mandated sole build root per
-checkout; the owner's three platform machines each have their own
-`~/rdp-server/build/`.
+**GitHub main-only development — publish working code, not patches:**
+**All development and commits must occur on existing `main`; creating
+ANY other Git branch (local, remote, temporary, feature, hotfix, release,
+experimental, agent-specific or branch-backed worktree) is prohibited.**
+Each of R1–R10 is expected to **complete and directly commit its own
+implementation, newly registered dedicated CTest(s), and updated existing
+roadmap/documentation together to GitHub `main`**. No agent should
+conclude ordinary work by handing over a patch or asking R10 to push on
+its behalf. R10 handles cross-road integration and CI triage, not
+gatekeeping the publication of independent, safely prepared changes.
+
+**Concurrency control uses GitHub's current HEAD, not manual waiting
+for an exclusive publication slot.** Immediately before publishing,
+fetch `main` HEAD and the actual versions of affected source, CMake,
+test registry and roadmap files. Construct one complete atomic commit on
+the latest HEAD and publish it through a **non-force fast-forward update
+that checks the expected old HEAD SHA**. Only one concurrent update can
+succeed against a given expected HEAD. If another agent won the race,
+re-read `main`, reconcile/merge the intended changes into the newer
+files (especially `tests/CMakeLists.txt` and `docs/ROADMAP.md`),
+repeat relevant validation if available, and retry. Never force-update
+a ref, blind-reset, lose another road's edits, publish stale whole-file
+replacements, create a branch or split code/test/docs across separate
+misleading commits. Do not mark work complete until its direct-to-main
+commit SHA is verified. Report BLOCKED only for an actual non-resolvable
+conflict, lack of write permissions or comparable technical obstruction,
+and report exact evidence. The absence of an R10 publication slot is
+**not** such a blocker. Each isolated local checkout retains its one
+`build/` root; the owner's three computers each maintain their own.
 
 **Dedicated test contract:** every source/header/runtime/build behavior
 change is paired with at least one **new distinct behavior-named CTest**
@@ -133,30 +135,43 @@ the actual jobs and exact SHA, not an assumed pass. The owner's terminal
 runs are separate authoritative environment evidence; agents must not
 record them as PASS until the owner reports the results.
 
-**Three-platform test checkpoint:** when R10 nominates an integration
-SHA for the owner's terminal runs, **pause new commits to `main`**
-until all three results for that exact SHA are collected or an explicit
-abort is reported. Otherwise the owner's `git pull` commands can test
-different revisions, invalidating one cross-platform gate. The owner
-runs this unchanged one-liner **independently in each platform's
-appropriate shell/toolchain environment**, on a clean checkout:
+**Owner's normal platform test — direct from current `main`:**
+On each platform, the owner opens a terminal in the required compiler
+environment and runs the **exact unchanged one-liner** below after an
+agent's commit reaches GitHub. This is the required everyday
+development-feedback workflow; agents must publish testable code and
+registered dedicated CTests before asking for owner verification.
+No patch application, cherry-pick, manual integration, alternate branch,
+special test flags, additional build root or live service is required.
 
 ```sh
 cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure
 ```
 
-Report OS/environment (Linux/X11, Windows MSYS2 CLANG64/Clang 23,
-macOS 27), `git rev-parse HEAD`, CMake-selected compiler, CTest
-passed/failed/skipped counts and the first error/output, or PASS.
-Clang 23 must actually be selected in the MSYS2 CLANG64 environment;
-the one-liner itself does **not** force a particular compiler on an
-already configured build cache. Never silently delete/reconfigure a
-different build root or reinterpret a platform-specific skipped test
-as passing. CI and owner terminal CTests can validate portable code;
-**real client login, desktop, clipboard and host operations still need
-separate, explicit authorization and live acceptance evidence**.
-The owner is a tester and decision-maker, **not** responsible for coding,
-CTest authorship, GitHub merge conflict resolution or road integration.
+**Agents are responsible for making this command pass** on supported
+platforms, including adding their dedicated, deterministic and
+noninteractive CTests to the existing registry. Failures reported by
+the owner must be diagnosed and corrected with another direct-to-main
+code+CTest+docs commit. This procedure tests the locally checked-out
+`main` commit even if GitHub `main` advances subsequently. For a
+same-SHA three-platform milestone, record `git rev-parse HEAD` for each
+Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 test report;
+if the SHAs differ, repeat affected platform runs against a common
+nominated HEAD before declaring the convergence gate. Do **not**
+automatically block everyday development commits pending human reports
+or a coordinator-managed freeze. If the owner explicitly requests a
+temporary same-SHA checkpoint freeze, honor it while in effect.
+Report CMake-selected compiler and CTest counts, not assumed platform
+success; a cached Windows CMake configuration may select a compiler
+other than the expected Clang 23. Native-only tests are conditional, and
+skipped/unavailable tests are NOT RUN rather than PASS.
+
+The terminal one-liner authorizes ordinary compilation and noninteractive
+CTest only; genuine RDP client login, native desktop capture/input,
+real clipboard transfers and service modifications remain separately
+authorized acceptance tests. The owner is responsible only for running
+the three commands and reporting PASS/FAIL, not writing CTests, resolving
+agents' Git conflicts, applying patches or doing integration.
 
 ## Acceptance policy
 

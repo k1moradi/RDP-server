@@ -154,6 +154,15 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
+    elseif(test_target STREQUAL "test_gfx_surface_lifecycle")
+        foreach(case_name IN ITEMS
+                surface-lifecycle-wire
+                surface-lifecycle-rejections)
+            add_test(NAME "graphics.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("graphics.${case_name}" PROPERTIES
+                LABELS "protocol;graphics")
+        endforeach()
     else()
         add_test(NAME "${suite}.${behavior}" COMMAND "${test_target}")
         set_tests_properties("${suite}.${behavior}" PROPERTIES
@@ -205,6 +214,7 @@ add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)
 add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)
 add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)
 add_rdp_test(test_base64_codec.cpp security base64-codec)
+add_rdp_test(test_gfx_surface_lifecycle.cpp graphics surface-lifecycle)
 if(TARGET rdp-server-linux-gssapi)
     add_rdp_test(test_linux_gssapi_spnego.cpp security linux-gssapi)
     target_link_libraries(test_linux_gssapi_spnego PRIVATE

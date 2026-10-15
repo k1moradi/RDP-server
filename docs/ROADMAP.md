@@ -1869,6 +1869,22 @@ actually run; another parser CTest alone is not a complete session.
   later H.264-only option **only if client negotiation or text fidelity requires
   it**. Never advertise an unsupported mode or silently fall back when AVC420
   is unavailable. **Status: NOT RUN / not a working RDP server.**
+  **R4 surface lifecycle wire increment (2026-10-15, implemented):**
+  portable allocation-free CREATE_SURFACE, MAP_SURFACE_TO_OUTPUT and
+  DELETE_SURFACE encoders now implement MS-RDPEGFX 2.2.2.9/.10/.15.
+  XRGB8888 creation checks nonzero dimensions and 16-bit wire bounds;
+  each output buffer is validated before any byte is written.
+  Dedicated registered CTests `graphics.surface-lifecycle-wire` and
+  `graphics.surface-lifecycle-rejections` exercise exact golden
+  bytes, capacity/geometry rejections and atomic failure.
+  **PASS:** GCC 14.2 and Clang 17 strict C++23 ASan/UBSan,
+  2/2 behaviors per compiler; isolated staged CTest 2/2.
+  **NOT RUN:** full repository CTest, exact-commit Actions and
+  owner Linux/Windows CLANG64/macOS27 tests, R3 authorized DVC,
+  real-client desktop, x264 and graphics benchmarks.
+  **Next R4 gate:** connect the negotiated RDPGFX channel to
+  CREATE/MAP/DELETE ordering, resize and cleanup under the
+  existing single graphics owner; keep Gate B open.
 - [ ] Confirm H.264 capability negotiation and a genuinely interactive,
   authenticated desktop with current Windows App on Windows/macOS and
   Windows 11 Remote Desktop Connection. Record actual versions, advertised

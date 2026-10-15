@@ -2536,3 +2536,51 @@ First unresolved boundary: real listener/event loop feeding this
 accepted socket to sole TCP/TLS connection, then R2 admission/R3 session.
 Next R1: integrate owned accepted sockets and deterministic cancellation
 with one bounded event-loop/listener lifecycle after this increment.
+
+## R4 surface creation/mapping/teardown wire increment (2026-10-15)
+
+**Parent main before implementation:** `b633bb0554020ff6aba6811240b75fa25c4bd69a`.
+The single atomic change adds `gfx_surface_lifecycle.{h,cpp}` to
+the portable C++23 protocol archive and registers two dedicated CTests
+in the existing single `tests/CMakeLists.txt`:
+`graphics.surface-lifecycle-wire` and
+`graphics.surface-lifecycle-rejections`.
+MS-RDPEGFX 2.2.2.9/.10/.15 define CREATE_SURFACE (15 bytes),
+DELETE_SURFACE (10 bytes) and MAP_SURFACE_TO_OUTPUT (20 bytes).
+Both encoded header flags and the map reserved field are zero.
+Creation validates nonzero uint16 surface geometry before writing;
+insufficient output buffers leave caller bytes entirely unchanged.
+
+**PASS, isolated focused source+test:** GCC 14.2 and Clang 17, both
+behavior cases on each compiler, with
+`-std=c++23 -O1 -g -Wall -Wextra -Wpedantic -Werror -UNDEBUG
+-D_GLIBCXX_ASSERTIONS -fsanitize=address,undefined
+-fno-omit-frame-pointer`. Commands (using the one retained local
+build root and stage source that matches these committed files):
+
+```sh
+stage="$HOME/rdp-server/build/r4_surface_stage"
+for compiler in g++ clang++; do
+  "$compiler" -std=c++23 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+    -UNDEBUG -D_GLIBCXX_ASSERTIONS -fsanitize=address,undefined \
+    -fno-omit-frame-pointer -I"$stage/src" \
+    "$stage/src/rdp/gfx_surface_lifecycle.cpp" \
+    "$stage/tests/test_gfx_surface_lifecycle.cpp" \
+    -o "$stage/$compiler-test_gfx_surface_lifecycle"
+  for behavior in surface-lifecycle-wire surface-lifecycle-rejections; do
+    ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+      UBSAN_OPTIONS=halt_on_error=1 \
+      "$stage/$compiler-test_gfx_surface_lifecycle" "$behavior"
+  done
+done
+ctest --test-dir "$stage" --output-on-failure
+```
+Isolated CTest **PASS: 2/2**. These are focused tests, NOT full
+repository validation. A local complete checkout is unavailable
+(container outbound GitHub DNS failed), so the normal full
+`cmake --build` + `ctest` procedure is **NOT RUN**.
+The owner's Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27
+runs, real Microsoft-client/OS admission, R3 DVC integration, x264,
+H.264 desktop and benchmark tests are **NOT RUN**.
+**Next gate:** exact published SHA hosted CI/full CTest, then R3
+authorized graphics-channel lifecycle and cross-platform owner runs.

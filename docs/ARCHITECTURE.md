@@ -29,6 +29,19 @@ foundation APIs currently reside in `src/server/transport`,
 portable dependency of the protocol archive. Other imported algorithms not
 listed in CMake are under porting review and are not silently shipped.
 
+### R4 portable graphics surface wire boundary
+
+`rdp/gfx_surface_lifecycle.h` builds exact CREATE_SURFACE (15-byte),
+MAP_SURFACE_TO_OUTPUT (20-byte) and DELETE_SURFACE (10-byte) PDUs.
+The first H.264 path uses XRGB8888, checked nonzero 16-bit surface
+dimensions, caller-owned output spans, and failure without partial
+writes. The helpers are stateless and allocate no graphics objects:
+R3 must first authorize the dynamic graphics channel, while R4's one
+graphics owner manages capability negotiation, surface IDs, command
+ordering, resize and disconnect/reconnect. A caller synchronizes
+access to any shared output buffer. Tested wire encoders do not
+constitute a live, authenticated desktop.
+
 ### Independence test
 
 The top-level CMake project enables **CXX only**, targets C++23, and links

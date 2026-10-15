@@ -1729,6 +1729,184 @@ void testRdpActivePduRejections()
     }
 }
 
+void testRdpDemandActiveEncodeWire()
+{
+    // The independent specification-derived fixture is 38 bytes.
+    // The serializer must reproduce the complete Share Control PDU,
+    // not wrap it in TLS/MCS or activate a session.
+    const auto source = std::span(kOfflineDemandActive).subspan(14, 4);
+    const auto capabilities =
+        std::span(kOfflineDemandActive).subspan(22, 12);
+    std::array<std::uint8_t, 40> output{};
+    output.fill(0xa5);
+    const auto result = encodeRdpDemandActivePdu(
+        0x000103eaU, 0x11223344U, source, 2, capabilities, output);
+    assert(result && *result == kOfflineDemandActive.size());
+    assert(std::equal(output.begin(), output.begin() + *result,
+                      kOfflineDemandActive.begin()));
+    assert(output[*result] == 0xa5 && output[*result + 1U] == 0xa5);
+    const auto roundtrip = parseRdpActivePdu(
+        std::span(output).first(*result));
+    assert(roundtrip &&
+           roundtrip.value.kind == RdpShareControlKind::DemandActive);
+    assert(roundtrip.value.pduSource == 1002 &&
+           roundtrip.value.shareId == 0x000103eaU);
+    assert(roundtrip.value.capabilityCount == 2);
+    assert(roundtrip.value.sourceDescriptor.data() ==
+           output.data() + 14);
+    assert(roundtrip.value.capabilitySets.data() ==
+           output.data() + 22);
+    assert(roundtrip.value.sessionId == 0x11223344U);
+
+    // Legal empty capability list is envelope syntax ONLY. It
+    // does not make a useful server capability negotiation.
+    std::array<std::uint8_t, 25> empty{};
+    empty.fill(0xba);
+    const auto minimal = encodeRdpDemandActivePdu(
+        0U, 0U, {}, 0U, {}, empty);
+    assert(minimal && *minimal == 22);
+    assert(empty[0] == 22 && empty[1] == 0);
+    assert(empty[2] == 0x11 && empty[3] == 0);
+    assert(empty[4] == 0xea && empty[5] == 0x03);
+    assert(empty[12] == 4 && empty[13] == 0);
+    assert(empty[14] == 0 && empty[15] == 0);
+    assert(empty[16] == 0 && empty[17] == 0);
+    assert(empty[22] == 0xba);
+    const auto roundtripEmpty =
+        parseRdpActivePdu(std::span(empty).first(*minimal));
+    assert(roundtripEmpty && roundtripEmpty.value.capabilityCount == 0);
+    assert(roundtripEmpty.value.capabilitySets.empty());
+    assert(roundtripEmpty.value.sourceDescriptor.empty());
+
+    // 0x8000 must not be emitted: the existing receiving decoder
+    // interprets it as an ignored legacy FlowPDU. Adjacent lengths
+    // are structurally valid when backed by sufficient caller memory.
+    for (const auto len : {std::size_t{32745}, std::size_t{32747},
+                           std::size_t{65513}})
+    {
+        std::vector<std::uint8_t> descriptor(len, 0x4d);
+        std::vector<std::uint8_t> frame(len + 24, 0xa5);
+        const auto n = encodeRdpDemandActivePdu(
+            0x01020304U, 0xaabbccddU, descriptor, 0U, {}, frame);
+        assert(n && *n == len + 22U);
+        assert(frame[*n] == 0xa5 && frame[*n + 1U] == 0xa5);
+        assert(frame[0] == static_cast<std::uint8_t>(*n));
+        assert(frame[1] == static_cast<std::uint8_t>(*n >> 8U));
+        const auto parsed = parseRdpActivePdu(
+            std::span(frame).first(*n));
+        assert(parsed && parsed.value.sourceDescriptor.size() == len);
+        assert(parsed.value.capabilitySets.empty());
+        assert(parsed.value.shareId == 0x01020304U);
+        assert(parsed.value.sessionId == 0xaabbccddU);
+    }
+
+    // The encoder accepts unknown capability IDs as opaque
+    // envelopes but does not claim to negotiate their semantics.
+    auto custom = std::array<std::uint8_t, 12>{};
+    std::copy(capabilities.begin(), capabilities.end(), custom.begin());
+    custom[0] = 0xff;
+    custom[1] = 0x7f;
+    const auto foreign = encodeRdpDemandActivePdu(
+        5, 6, source, 2, custom, output);
+    assert(foreign && *foreign == 38);
+    const auto parsedForeign =
+        parseRdpActivePdu(std::span(output).first(*foreign));
+    assert(parsedForeign && parsedForeign.value.capabilityCount == 2);
+    assert(parsedForeign.value.capabilitySets[0] == 0xff);
+}
+
+void testRdpDemandActiveEncodeRejections()
+{
+    const auto source = std::span(kOfflineDemandActive).subspan(14, 4);
+    const auto caps = std::span(kOfflineDemandActive).subspan(22, 12);
+    const auto denied = [&source](std::uint16_t count,
+                                  std::span<const std::uint8_t> capset)
+    {
+        std::array<std::uint8_t, 40> dest{};
+        dest.fill(0xdd);
+        assert(!encodeRdpDemandActivePdu(
+            7, 8, source, count, capset, dest));
+        assert(std::all_of(dest.begin(), dest.end(),
+                           [](std::uint8_t byte) { return byte == 0xdd; }));
+    };
+    for (const auto count : {std::uint16_t{0}, std::uint16_t{1},
+                             std::uint16_t{3}, std::uint16_t{65535}})
+        denied(count, caps);
+    for (std::size_t len = 0; len < caps.size(); ++len)
+        denied(2U, caps.first(len));
+
+    // Short, zero, overflowing and trailing-nonconsumed capability
+    // envelope sizes all fail without modifying caller storage.
+    for (const auto bad : {std::uint16_t{0}, std::uint16_t{1},
+                           std::uint16_t{3}, std::uint16_t{9},
+                           std::uint16_t{0xffff}})
+    {
+        auto mutated = std::array<std::uint8_t, 12>{};
+        std::copy(caps.begin(), caps.end(), mutated.begin());
+        mutated[2] = static_cast<std::uint8_t>(bad);
+        mutated[3] = static_cast<std::uint8_t>(bad >> 8U);
+        denied(2, mutated);
+    }
+    auto badLast = std::array<std::uint8_t, 12>{};
+    std::copy(caps.begin(), caps.end(), badLast.begin());
+    badLast[10] = 0;
+    badLast[11] = 0;
+    denied(2, badLast);
+
+    // All insufficient destination capacities must fail atomically,
+    // including 0 bytes and one byte short of a complete packet.
+    std::array<std::uint8_t, 42> guarded{};
+    for (std::size_t capacity = 0; capacity < 38; ++capacity)
+    {
+        guarded.fill(0xcc);
+        assert(!encodeRdpDemandActivePdu(
+            7, 8, source, 2, caps,
+            std::span(guarded).first(capacity)));
+        assert(std::all_of(guarded.begin(), guarded.end(),
+                           [](std::uint8_t b) { return b == 0xcc; }));
+    }
+
+    // 22 + 32746 = 0x8000: reject the special FlowPDU marker
+    // even though it would otherwise fit in the 16-bit field.
+    std::vector<std::uint8_t> flowDescriptor(32746, 0x42);
+    std::vector<std::uint8_t> flowDest(32768, 0xee);
+    assert(!encodeRdpDemandActivePdu(
+        7, 8, flowDescriptor, 0, {}, flowDest));
+    assert(std::all_of(flowDest.begin(), flowDest.end(),
+                       [](std::uint8_t b) { return b == 0xee; }));
+
+    // Reject totalLength >65535 and sourceDescriptor LE16 overflow
+    // before writing. Large synthetic sources never allocate INSIDE
+    // production code.
+    std::vector<std::uint8_t> overMax(65514, 0x41);
+    std::vector<std::uint8_t> largeDest(65540, 0xee);
+    assert(!encodeRdpDemandActivePdu(
+        7, 8, overMax, 0, {}, largeDest));
+    std::vector<std::uint8_t> over16(65536, 0x41);
+    assert(!encodeRdpDemandActivePdu(
+        7, 8, over16, 0, {}, largeDest));
+    assert(std::all_of(largeDest.begin(), largeDest.end(),
+                       [](std::uint8_t b) { return b == 0xee; }));
+
+    // Fail when source or capability input aliases the written
+    // output region; otherwise the two independent copies could
+    // corrupt a yet-unread input buffer.
+    std::array<std::uint8_t, 50> aliases{};
+    aliases.fill(0x55);
+    std::copy(source.begin(), source.end(), aliases.begin() + 14);
+    const auto beforeSource = aliases;
+    assert(!encodeRdpDemandActivePdu(
+        7, 8, std::span(aliases).subspan(14, 4), 0, {},
+        aliases));
+    assert(aliases == beforeSource);
+    std::copy(caps.begin(), caps.end(), aliases.begin() + 22);
+    const auto beforeCaps = aliases;
+    assert(!encodeRdpDemandActivePdu(
+        7, 8, {}, 2, std::span(aliases).subspan(22, 12),
+        aliases));
+    assert(aliases == beforeCaps);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -1755,7 +1933,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 29> kMcsTestCases{{
+constexpr std::array<McsTestCase, 31> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -1785,6 +1963,8 @@ constexpr std::array<McsTestCase, 29> kMcsTestCases{{
     {"share-control-finalization-rejections", &testRdpControlFinalizationRejections},
     {"share-active-capabilities-wire", &testRdpActivePduWire},
     {"share-active-capabilities-rejections", &testRdpActivePduRejections},
+    {"share-demand-active-encode-wire", &testRdpDemandActiveEncodeWire},
+    {"share-demand-active-encode-rejections", &testRdpDemandActiveEncodeRejections},
 }};
 
 int main(int argc, char **argv)

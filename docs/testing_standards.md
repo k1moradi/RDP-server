@@ -667,6 +667,35 @@ configured Kerberos provider failure/TLS reply, positive
 GSS/TLS authentication, OS admission, real RDP client,
 service activation or desktop acceptance.
 
+## Offline server Demand Active serialization regressions (CI NOT RUN, 2026-10-15)
+
+Extend the existing `tests/test_owned_mcs_connect_initial.cpp`
+executable and the sole `tests/CMakeLists.txt` registry
+with TWO portable named CTests:
+`transport.share-demand-active-encode-wire` checks a
+byte-for-byte independent, specification-derived 38-byte
+Demand Active Share Control fixture, including pduSource
+1002, source descriptor, counted SHARE/FONT envelopes,
+sessionId and output suffix. Parse its result using the
+canonical decoder; test empty capability lists, unknown
+opaque capability IDs, and large valid 32767/32769/65535
+Share Control lengths. No fabricated packet is claimed
+as a real authenticated client capture.
+`transport.share-demand-active-encode-rejections`
+checks all short output capacities, count mismatch,
+truncated/bad-capability envelopes, declared size
+overflow, 16-bit source overflow, reserved 0x8000
+FlowPDU totalLength, and source/capability aliasing
+with the written output; every rejection must leave
+the entire caller destination unchanged. This is a
+pure serializer with no credential, OS, TLS or
+licensed capability activation.
+
+Expected portable **85** full CTests (prior 83),
+Linux GSSAPI **95** (prior 93). New exact-commit
+cross-platform Debug/Release CI and owner-local
+incremental CTest are **NOT RUN at authoring**.
+
 ## Verified Demand/Confirm Active capability-envelope tests (CI PASS, 2026-10-15)
 
 Reuse ONLY `tests/test_owned_mcs_connect_initial.cpp` and the

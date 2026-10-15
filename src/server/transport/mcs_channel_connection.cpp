@@ -6,6 +6,8 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <functional>
+#include <limits>
 #include <cstdint>
 #include <span>
 
@@ -34,6 +36,50 @@ namespace
         value = (value << 8U) | payload[offset++];
     output = value;
     return true;
+}
+[[nodiscard]] std::uint16_t readLe16At(
+    std::span<const std::uint8_t> bytes,
+    std::size_t offset) noexcept
+{
+    return static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(bytes[offset]) |
+        (static_cast<std::uint16_t>(bytes[offset + 1]) << 8U));
+}
+
+// Shared by the Demand/Confirm Active decoder and the Demand Active
+// writer. All caller lengths are checked BEFORE taking a subspan.
+[[nodiscard]] bool validCapabilitySetEnvelopes(
+    std::span<const std::uint8_t> capabilities,
+    std::uint16_t count) noexcept
+{
+    if (count > capabilities.size() / 4U)
+        return false;
+    std::size_t position = 0;
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        const std::size_t remaining = capabilities.size() - position;
+        if (remaining < 4U)
+            return false;
+        const std::size_t length = readLe16At(capabilities, position + 2U);
+        if (length < 4U || length > remaining)
+            return false;
+        position += length;
+    }
+    return position == capabilities.size();
+}
+
+// std::less provides a strict total ordering across pointers (unlike
+// relational operators on unrelated arrays). Empty views do not
+// overlap and are checked without pointer arithmetic on nullptr.
+[[nodiscard]] bool spansOverlap(
+    std::span<const std::uint8_t> source,
+    std::span<std::uint8_t> destination) noexcept
+{
+    if (source.empty() || destination.empty())
+        return false;
+    const std::less<const std::uint8_t *> less{};
+    return less(source.data(), destination.data() + destination.size()) &&
+           less(destination.data(), source.data() + source.size());
 }
 } // namespace
 
@@ -583,23 +629,10 @@ RdpActivePduParseResult parseRdpActivePdu(
     const auto capabilities =
         bytes.subspan(capabilityStart + 4U, combinedBytes - 4U);
     const std::size_t count = le16(bytes, capabilityStart);
-    // capSetType[2], lengthCapability[2] and opaque capData. Each
-    // length includes the four-byte envelope; unknown IDs remain
-    // opaque (a later negotiated capability owner handles semantics).
-    if (count > capabilities.size() / 4U)
-        return {{}, RdpActivePduError::InvalidCapabilitySet};
-    std::size_t position = 0;
-    for (std::size_t index = 0; index < count; ++index)
-    {
-        const std::size_t remaining = capabilities.size() - position;
-        if (remaining < 4U)
-            return {{}, RdpActivePduError::InvalidCapabilitySet};
-        const std::size_t length = le16(capabilities, position + 2U);
-        if (length < 4U || length > remaining)
-            return {{}, RdpActivePduError::InvalidCapabilitySet};
-        position += length;
-    }
-    if (position != capabilities.size())
+    // Validate exactly count envelopes. Shared with the server writer
+    // to avoid any parser/wire-generation acceptance divergence.
+    if (!validCapabilitySetEnvelopes(
+            capabilities, static_cast<std::uint16_t>(count)))
         return {{}, RdpActivePduError::InvalidCapabilitySet};
 
     RdpActivePdu value{};
@@ -612,6 +645,74 @@ RdpActivePduParseResult parseRdpActivePdu(
     value.sourceDescriptor = bytes.subspan(prefix, sourceBytes);
     value.capabilitySets = capabilities;
     return {value, RdpActivePduError::None};
+}
+
+std::optional<std::size_t> encodeRdpDemandActivePdu(
+    std::uint32_t shareId,
+    std::uint32_t sessionId,
+    std::span<const std::uint8_t> sourceDescriptor,
+    std::uint16_t capabilityCount,
+    std::span<const std::uint8_t> capabilitySets,
+    std::span<std::uint8_t> output) noexcept
+{
+    // MS-RDPBCGR 2.2.1.13.1.1 Demand Active fixed portions:
+    // Share Control 6, shareID/source/combined lengths 8,
+    // numberCapabilities/pad 4, sessionID 4.
+    constexpr std::size_t kFixedBytes = 22U;
+    constexpr std::size_t kMaxField =
+        std::numeric_limits<std::uint16_t>::max();
+    constexpr std::size_t kFlowPduLength = 0x8000U;
+    if (sourceDescriptor.size() > kMaxField ||
+        capabilitySets.size() > kMaxField - 4U ||
+        !validCapabilitySetEnvelopes(capabilitySets, capabilityCount))
+        return std::nullopt;
+
+    // A full Share Control totalLength MUST fit LE16 and MUST NOT be
+    // the reserved T.128 FlowPDU marker. Arithmetic is bounded by
+    // the individual 16-bit lengths above before any addition.
+    const std::size_t size =
+        kFixedBytes + sourceDescriptor.size() + capabilitySets.size();
+    if (size > kMaxField || size == kFlowPduLength ||
+        output.size() < size)
+        return std::nullopt;
+    const auto written = output.first(size);
+    if (spansOverlap(sourceDescriptor, written) ||
+        spansOverlap(capabilitySets, written))
+        return std::nullopt;
+
+    // All validation is complete. The two source spans remain live
+    // and disjoint from the touched output. No copies or allocations
+    // on the failure path; exactly one copy per input slice on success.
+    const auto write16 = [&written](std::size_t pos,
+                                   std::uint16_t value) noexcept
+    {
+        written[pos] = static_cast<std::uint8_t>(value);
+        written[pos + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    };
+    const auto write32 = [&write16](std::size_t pos,
+                                   std::uint32_t value) noexcept
+    {
+        write16(pos, static_cast<std::uint16_t>(value));
+        write16(pos + 2U, static_cast<std::uint16_t>(value >> 16U));
+    };
+
+    write16(0U, static_cast<std::uint16_t>(size));
+    write16(2U, 0x0011U); // TS_PROTOCOL_VERSION | DEMANDACTIVE
+    write16(4U, 1002U);   // MCS server channel (0x03ea)
+    write32(6U, shareId);
+    write16(10U, static_cast<std::uint16_t>(sourceDescriptor.size()));
+    write16(12U, static_cast<std::uint16_t>(capabilitySets.size() + 4U));
+    if (!sourceDescriptor.empty())
+        std::memcpy(written.data() + 14U,
+                    sourceDescriptor.data(), sourceDescriptor.size());
+    const std::size_t countOffset = 14U + sourceDescriptor.size();
+    write16(countOffset, capabilityCount);
+    write16(countOffset + 2U, 0U); // pad2Octets, ignored on read.
+    if (!capabilitySets.empty())
+        std::memcpy(written.data() + countOffset + 4U,
+                    capabilitySets.data(), capabilitySets.size());
+    write32(size - 4U, sessionId);
+    return size;
 }
 
 } // namespace rdp_server::server::transport

@@ -1066,6 +1066,36 @@ acceptance evidence; no synthetic completion claims.
   authorized genuine Kerberos and independent OS admission
   before binding a negotiated capability set into the
   sole authenticated session owner.
+  **Partial offline server Demand Active writer (2026-10-15;
+  CI NOT RUN at authoring):** complement the existing bounded
+  Demand/Confirm Active parser with one direct caller-buffer
+  Demand Active Share Control serializer. Write server
+  pduSource 1002, shareID, source descriptor, validated
+  counted capability envelopes, and trailing sessionId.
+  Reuse ONE validator for every nested TS_CAPS_SET on
+  both inbound and outbound paths. Reject overlong
+  lengths, malformed counts/envelopes, the reserved
+  0x8000 FlowPDU length, insufficient output and
+  input/output overlap BEFORE any mutation. No internal
+  allocation; preserve unused output bytes and treat
+  unknown capability IDs as opaque, not supported.
+  Two behavior-named CTests in the original fixture
+  verify exact 38-byte golden output, round-trip
+  decoding, 32767/32769/65535 byte boundaries and
+  fail-closed atomic rejection. Expected **85**
+  portable, **95** Linux GSS (prior 83/93).
+  Baseline `659e0b816e8055f4bec7c87bda2816d8a614b9af`
+  passed [CI 38715062876](https://github.com/k1moradi/RDP-server/actions/runs/38715062876);
+  owner reports **83/83 local PASS** on the parent.
+  **NOT RUN:** new exact-head CI/local rebuild,
+  authorized real Kerberos/TLS binding, independent
+  OS admission, actual negotiated capabilities,
+  share activation, licensing, MCS/TLS send,
+  external client, H.264 graphics or desktop.
+  **Next:** exact-commit cross-platform CI, then
+  isolated owner-authorized Kerberos/TLS proof
+  and separate OS session admission before ANY
+  live capability negotiation or Demand Active send.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

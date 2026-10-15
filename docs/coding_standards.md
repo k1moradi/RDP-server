@@ -478,6 +478,37 @@ unchanged. Only authenticated owner-supplied authorization,
 TLS provenance and joined MCS state may allow actual
 SSL transmission; this encoder never grants permission.
 
+## Server Demand Active writer: validate before mutation (2026-10-15)
+
+MS-RDPBCGR 2.2.1.13.1.1 and 3.3.5.3.13.1 require
+the outbound server Demand Active Share Control PDU
+with source pduSource=1002, type/version 0x0011,
+LE16 totalLength/sourceDescriptorLength/combinedCaps,
+caller-supplied shareID and sessionId, a counted
+sequence of TS_CAPS_SET, and no Share Data header.
+Reuse the original `mcs_channel_connection` module.
+Use the SAME first-party helper to validate all
+capabilitySetType/lengthCapability envelopes on
+both inbound and outbound paths: each envelope is
+at least four bytes; count and declared data sizes
+must consume exactly the concatenated input.
+
+Validate descriptor and combined lengths against
+LE16 maxima, full packet <=65535, reject
+`totalLength=0x8000` because that value means a
+must-ignore FlowPDU, check output capacity and
+input/output overlap BEFORE any destination mutation.
+The two independent opaque input spans must not
+overlap the destination region being written:
+reject rather than risk corrupting yet-unread bytes.
+Do not allocate internally; preserve unused suffix
+and leave output completely unchanged on rejection.
+Empty/unknown capabilities are accepted as framing
+only, NEVER as a negotiated or supported server
+graphics/clipboard/input feature. This offline
+encoder does not perform TLS or MCS writes and
+cannot bypass the genuine security/OS admission gate.
+
 ## Checked Demand/Confirm Active capability envelopes (2026-10-15)
 
 MS-RDPBCGR 2.2.1.13.1.1 (Demand Active) and 2.2.1.13.2.1

@@ -327,6 +327,45 @@ inner RDP/licensing/virtual-channel PDU and complete TLS
 encryption/transmission. The encoder itself performs no SSL
 I/O, session admission, OS operation, reassembly or graphics.
 
+### Offline server Demand Active Share Control serializer (2026-10-15)
+
+The original first-party `mcs_channel_connection` owner now
+also emits one full Demand Active *Share Control* PDU into a
+caller-owned contiguous span, per
+[MS-RDPBCGR 2.2.1.13.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/bd612af5-cb54-43a2-9646-438bc3ecf5db)
+and the send procedure
+[3.3.5.3.13.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/4aed639a-9ac3-411d-add9-c5253308aa85).
+It writes the exact LE16 totalLength, version/type 0x0011,
+normative server MCS pduSource 1002, caller shareID,
+source-descriptor length, combined capability length
+(count + pad + envelope bytes), the opaque descriptor,
+count and zero pad, validated capability envelopes, and
+terminal LE32 sessionId. It shares the single
+`validCapabilitySetEnvelopes` validator with the existing
+Demand/Confirm decoder, preventing divergent inbound and
+outbound length/count interpretation.
+
+The entire destination capacity, LE16 field limits,
+reserved legacy FlowPDU size 0x8000, and every
+capability-set header/length/count are checked BEFORE
+writing anything; failure leaves destination unchanged.
+Both input spans must be disjoint from the written output
+region; overlap is explicitly rejected to avoid corruption
+between two source copies. Success performs a direct
+contiguous copy of each source span, no heap allocation,
+and preserves the unused output suffix. Unknown capability
+types remain opaque: a syntactically valid emission is NOT
+a valid negotiated server capability set.
+
+This is an OFFLINE Share Control serializer, not a complete
+MCS SendDataIndication/TLS record. The future single owner
+must independently verify a genuine CredSSP/TLS-bound
+Kerberos principal, OS session permission, licensing,
+channel membership, capability set contents and
+activation order BEFORE writing it to an authenticated
+client. No live send, user input, graphics, OS session
+or share activation is enabled.
+
 ### Offline Demand/Confirm Active capability-envelope validation (2026-10-15)
 
 The original C++23 `mcs_channel_connection` parser now also

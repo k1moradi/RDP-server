@@ -1408,6 +1408,61 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending server Demand Active offline serialization (2026-10-15)
+
+**Prior verified base:** main
+`659e0b816e8055f4bec7c87bda2816d8a614b9af`,
+[CI 38715062876](https://github.com/k1moradi/RDP-server/actions/runs/38715062876)
+PASS: Linux/GCC **93/93**, macOS/Clang and
+Windows/MSVC **83/83** CTests Debug and Release,
+plus installed SDK consumer, ZIP/SHA256 artifacts
+and documentation policy. The owner confirms
+**83/83 local PASS** on that prior head. These
+tests do NOT validate this new serializer.
+
+**Code:** extend the one portable
+`src/server/transport/mcs_channel_connection.{h,cpp}`
+with `encodeRdpDemandActivePdu`, direct into
+caller-owned output. The 22-byte fixed Share
+Control header/body skeleton contains
+normative server pduSource 1002, version/type
+0x0011, caller shareID/sessionId, source
+descriptor length, combined capability length
+including count+padding, and an exact counted
+TS_CAPS_SET sequence. The parser and encoder
+now share one checked capability-envelope
+validator. Fail without mutation for invalid
+count/size/length, 0x8000 legacy FlowPDU,
+output shortage or overlapping source/output.
+Success copies only explicit input spans and
+preserves the output suffix. Does not validate
+cap semantics, TLS provenance or OS authority.
+
+**Tests:** same original MCS executable and
+`tests/CMakeLists.txt` add
+`transport.share-demand-active-encode-wire`
+and `transport.share-demand-active-encode-rejections`.
+Expected portable **85**, Linux GSSAPI **95**
+CTest cases. Architecture, ROADMAP and existing
+coding/testing standards are amended in the SAME
+implementation commit.
+
+**NOT RUN at authoring:** new full GitHub CI
+Debug/Release Linux/macOS/Windows, owner-local
+new-code build/CTest, real MIT keytab/ticket GSS
+positive TLS authentication, independently
+authorized OS session policy, real licensing,
+full share activation, MCS/TLS output and
+actual Windows/macOS RDP client/desktop.
+Reuse the owner's ONE existing build root:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`;
+`cmake --build build --config Debug --parallel 2`;
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next:** exact-head CI/owner local tests;
+then isolated authorized GSS/TLS evidence and
+independent OS authorization before live
+capability negotiation/desktop transmission.
+
 ## Verified Demand/Confirm Active capability envelope intake (2026-10-15)
 
 **Previous exact main:** `ea258bfcc4a8d8d759a9bc1a882c4f0121959296`,

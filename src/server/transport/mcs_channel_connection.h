@@ -377,4 +377,24 @@ struct RdpActivePduParseResult
 [[nodiscard]] RdpActivePduParseResult parseRdpActivePdu(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
 
+// OFFLINE server-side MS-RDPBCGR 2.2.1.13.1.1 Demand Active writer.
+// Emits a single exact-length Share Control PDU (NOT TLS/MCS framing).
+// Source and capability buffers must NOT intersect the output region
+// being written; overlapping inputs are rejected without any mutation.
+// Capability envelopes are validated with the SAME rules as the parser.
+// Source may be opaque and capability IDs unknown; successful encoding
+// never means the server selected a working license, graphics codec,
+// joined channel or authenticated/OS-authorized session.
+//
+// pduSource is the normative server MCS channel ID 1002, NOT a
+// caller-supplied principal. All field lengths and the special
+// FlowPDU length 0x8000 are checked before writes. No allocations.
+[[nodiscard]] std::optional<std::size_t> encodeRdpDemandActivePdu(
+    std::uint32_t shareId,
+    std::uint32_t sessionId,
+    std::span<const std::uint8_t> sourceDescriptor,
+    std::uint16_t capabilityCount,
+    std::span<const std::uint8_t> capabilitySets,
+    std::span<std::uint8_t> output) noexcept;
+
 } // namespace rdp_server::server::transport

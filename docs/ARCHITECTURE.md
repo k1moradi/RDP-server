@@ -66,6 +66,23 @@ No COM/DXGI object or Windows header enters portable protocol code.
 R2/R3 admission must be enforced by the future native capture owner;
 this helper itself neither accesses a desktop nor grants permission.
 
+### Windows DXGI acquired-frame ownership (R6; offline acceptance only)
+
+`WindowsDxgiFrameOwner` is the Windows-only single-lease RAII owner
+behind an `IDXGIOutputDuplication` callback seam. Its production
+callbacks call `AcquireNextFrame` and hold the returned `IDXGIResource`
+until exactly one ordered resource release + `ReleaseFrame`; the
+duplication interface is **borrowed** from the future R2/R3-authorized
+native capture/session owner. Duplicate acquisition is rejected;
+timeouts (bounded 100 ms polling) do not close the lease; access loss,
+invalid native returns and release failures terminate the owner and
+require a new independently authorized duplication. Cancellation
+and destruction release the outstanding frame once; callback reentry
+cannot acquire during release. The underlying frame resource is only
+borrowed by synchronous consumers while the lease exists, never
+scheduled or retained by R4. No active desktop, OS authorization,
+GPU staging texture, frame queue or new R4 scheduler is implemented.
+
 ### Windows DXGI dirty/move metadata boundary (R6; offline only)
 
 `windows_dxgi_damage` is a pure Windows-only per-output metadata bridge:

@@ -2,6 +2,7 @@
 #include "windows/windows_desktop_geometry.h"
 #include "windows/windows_bgra_frame.h"
 #include "windows/windows_dxgi_damage.h"
+#include "windows/windows_dxgi_frame_owner.h"
 
 #include <array>
 #include <cassert>
@@ -325,6 +326,157 @@ void invalidLayoutRejections()
     assert(!desktopToNativePoint(layout, {0, 0}));
 }
 
+struct FakeDxgiFrameSource
+{
+    WindowsDxgiAcquireResult nextAcquire{WindowsDxgiAcquireResult::acquired};
+    WindowsDxgiReleaseResult nextRelease{WindowsDxgiReleaseResult::released};
+    unsigned acquisitions{};
+    unsigned releases{};
+    std::uint32_t lastWait{};
+    std::byte token{};
+    bool returnNull{};
+    bool returnUnexpectedResource{};
+    WindowsDxgiFrameOwner *reentrantOwner{};
+    WindowsDxgiAcquireResult reentrantAcquire{WindowsDxgiAcquireResult::failed};
+
+    static WindowsDxgiAcquireResult acquire(
+        void *context, std::uint32_t timeoutMilliseconds,
+        void *&resource) noexcept
+    {
+        auto &source = *static_cast<FakeDxgiFrameSource *>(context);
+        ++source.acquisitions;
+        source.lastWait = timeoutMilliseconds;
+        if ((source.nextAcquire == WindowsDxgiAcquireResult::acquired &&
+             !source.returnNull) || source.returnUnexpectedResource)
+        {
+            resource = &source.token;
+        }
+        return source.nextAcquire;
+    }
+
+    static WindowsDxgiReleaseResult release(
+        void *context, void *resource) noexcept
+    {
+        auto &source = *static_cast<FakeDxgiFrameSource *>(context);
+        assert(resource == &source.token);
+        ++source.releases;
+        if (source.reentrantOwner != nullptr)
+        {
+            source.reentrantAcquire = source.reentrantOwner->acquireFrame(0);
+        }
+        return source.nextRelease;
+    }
+
+    [[nodiscard]] WindowsDxgiFrameCallbacks callbacks() noexcept
+    {
+        return {this, &FakeDxgiFrameSource::acquire,
+                &FakeDxgiFrameSource::release};
+    }
+};
+
+void dxgiFrameLeaseLifecycle()
+{
+    FakeDxgiFrameSource source{};
+    {
+        WindowsDxgiFrameOwner owner(source.callbacks());
+        assert(!owner.closed() && owner.resource() == nullptr);
+        source.nextAcquire = WindowsDxgiAcquireResult::timeout;
+        assert(owner.acquireFrame(5) == WindowsDxgiAcquireResult::timeout);
+        assert(!owner.closed() && owner.resource() == nullptr);
+        assert(source.acquisitions == 1 && source.lastWait == 5);
+
+        source.nextAcquire = WindowsDxgiAcquireResult::acquired;
+        assert(owner.acquireFrame(0) == WindowsDxgiAcquireResult::acquired);
+        assert(owner.resource() == &source.token && source.acquisitions == 2);
+        assert(owner.acquireFrame(0) == WindowsDxgiAcquireResult::busy);
+        assert(source.acquisitions == 2);
+        source.reentrantOwner = &owner;
+        assert(owner.releaseFrame() == WindowsDxgiReleaseResult::released);
+        assert(source.reentrantAcquire == WindowsDxgiAcquireResult::busy);
+        source.reentrantOwner = nullptr;
+        assert(source.releases == 1 && owner.resource() == nullptr);
+        assert(owner.releaseFrame() == WindowsDxgiReleaseResult::notHeld);
+        assert(!owner.closed());
+
+        assert(owner.acquireFrame(11) == WindowsDxgiAcquireResult::acquired);
+        assert(owner.resource() == &source.token && source.acquisitions == 3);
+        owner.cancel();
+        assert(source.releases == 2 && owner.closed());
+        assert(owner.resource() == nullptr);
+        assert(owner.acquireFrame(0) == WindowsDxgiAcquireResult::closed);
+        owner.cancel();
+        assert(source.releases == 2);
+    }
+    assert(source.releases == 2); // Destructor after cancel is idempotent.
+
+    FakeDxgiFrameSource destructorSource{};
+    {
+        WindowsDxgiFrameOwner owner(destructorSource.callbacks());
+        assert(owner.acquireFrame(0) == WindowsDxgiAcquireResult::acquired);
+        assert(destructorSource.releases == 0);
+    }
+    assert(destructorSource.releases == 1);
+}
+
+void dxgiFrameLeaseDenials()
+{
+    FakeDxgiFrameSource source{};
+    WindowsDxgiFrameOwner owner(source.callbacks());
+    assert(owner.acquireFrame(
+               kMaximumWindowsDxgiFrameWaitMilliseconds + 1) ==
+           WindowsDxgiAcquireResult::invalidWait);
+    assert(source.acquisitions == 0 && !owner.closed());
+    assert(owner.acquireFrame(kMaximumWindowsDxgiFrameWaitMilliseconds) ==
+           WindowsDxgiAcquireResult::acquired);
+    assert(source.lastWait == kMaximumWindowsDxgiFrameWaitMilliseconds);
+    source.nextRelease = WindowsDxgiReleaseResult::accessLost;
+    assert(owner.releaseFrame() == WindowsDxgiReleaseResult::accessLost);
+    assert(owner.closed() && owner.resource() == nullptr);
+    assert(owner.acquireFrame(0) == WindowsDxgiAcquireResult::closed);
+    assert(source.acquisitions == 1 && source.releases == 1);
+
+    FakeDxgiFrameSource lost{};
+    lost.nextAcquire = WindowsDxgiAcquireResult::accessLost;
+    WindowsDxgiFrameOwner lostOwner(lost.callbacks());
+    assert(lostOwner.acquireFrame(0) == WindowsDxgiAcquireResult::accessLost);
+    assert(lostOwner.closed() && lost.releases == 0);
+    assert(lostOwner.acquireFrame(0) == WindowsDxgiAcquireResult::closed);
+    assert(lost.acquisitions == 1);
+
+    FakeDxgiFrameSource failed{};
+    failed.nextAcquire = WindowsDxgiAcquireResult::failed;
+    WindowsDxgiFrameOwner failedOwner(failed.callbacks());
+    assert(failedOwner.acquireFrame(0) == WindowsDxgiAcquireResult::failed);
+    assert(failedOwner.closed() && failed.releases == 0);
+
+    FakeDxgiFrameSource inconsistent{};
+    inconsistent.nextAcquire = WindowsDxgiAcquireResult::timeout;
+    inconsistent.returnUnexpectedResource = true;
+    WindowsDxgiFrameOwner inconsistentOwner(inconsistent.callbacks());
+    assert(inconsistentOwner.acquireFrame(0) == WindowsDxgiAcquireResult::failed);
+    assert(inconsistentOwner.closed() && inconsistent.releases == 1);
+    assert(inconsistentOwner.resource() == nullptr);
+
+    FakeDxgiFrameSource missing{};
+    missing.returnNull = true;
+    WindowsDxgiFrameOwner missingOwner(missing.callbacks());
+    assert(missingOwner.acquireFrame(0) == WindowsDxgiAcquireResult::failed);
+    assert(missingOwner.closed() && missing.releases == 0);
+
+    FakeDxgiFrameSource releaseFailed{};
+    releaseFailed.nextRelease = WindowsDxgiReleaseResult::failed;
+    WindowsDxgiFrameOwner releaseFailedOwner(releaseFailed.callbacks());
+    assert(releaseFailedOwner.acquireFrame(0) ==
+           WindowsDxgiAcquireResult::acquired);
+    assert(releaseFailedOwner.releaseFrame() == WindowsDxgiReleaseResult::failed);
+    assert(releaseFailedOwner.closed() && releaseFailed.releases == 1);
+
+    WindowsDxgiFrameOwner invalid({});
+    assert(invalid.closed());
+    assert(invalid.acquireFrame(0) == WindowsDxgiAcquireResult::closed);
+    assert(invalid.releaseFrame() == WindowsDxgiReleaseResult::notHeld);
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -357,6 +509,14 @@ int main(int argc, char **argv)
     else if (behavior == "dxgi-metadata-denials")
     {
         dxgiMetadataDenials();
+    }
+    else if (behavior == "dxgi-frame-lease-lifecycle")
+    {
+        dxgiFrameLeaseLifecycle();
+    }
+    else if (behavior == "dxgi-frame-lease-rejections")
+    {
+        dxgiFrameLeaseDenials();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

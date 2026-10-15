@@ -2222,6 +2222,29 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   separate authorization. **Status: NOT RUN.**
 - [ ] Integrate isolated Linux/X11/Wayland, Windows and macOS desktop,
   clipboard and input adapters; test real Microsoft/FreeRDP clients.
+  **R6 DXGI acquired-frame RAII (2026-10-15, authored on parent
+  `853e572dafdeab18161afa3926db2f29d2ec3a34`):** `src/windows/windows_dxgi_frame_owner.{h,cpp}`
+  owns one native `IDXGIOutputDuplication::AcquireNextFrame` lease,
+  releases the COM `IDXGIResource` then calls `ReleaseFrame` exactly
+  once on normal completion, cancellation or destruction. Timeout
+  remains retryable, bounded to at most 100 ms per poll; access loss,
+  release failure and inconsistent native callbacks close the owner
+  until a newly authorized duplication/session is constructed. One
+  borrowed resource is never reused after release. The native
+  duplication pointer is caller-owned and must outlive the frame
+  owner. Dedicated conditional CTests, in the existing R6 binary:
+  `windows.capture-dxgi-frame-lease-lifecycle` and
+  `windows.capture-dxgi-frame-lease-rejections`. **PASS:** Linux
+  Clang 17 and GCC 14.2 strict C++23 10/10 R6 case selectors;
+  Clang ASan/UBSan 10/10; sparse-only staging CTest 10/10
+  (`ctest --test-dir build -C Debug --output-on-failure`).
+  **NOT RUN:** complete project CMake/CTest from a synchronized
+  checkout (GitHub DNS unavailable here), Windows native SDK
+  MSYS2 CLANG64 Clang 23, owner's platform trio, real DXGI desktop,
+  R2/R3 session admission and R4 asynchronous graphics consumption.
+  Hosted CI result must be checked at the resulting commit SHA.
+  **Next:** bind acquired frame resource to a session-authorized D3D11
+  staging-map owner and validate row pitch/cleanup without live capture.
   **R6 WinGDI type-name correction (2026-10-15):** At published
   `467bf6bcf4624399e4e24667d214afd738b359d6`, Windows/MSVC
   Debug CI build FAIL at `windows_desktop_geometry.cpp:33`: WinGDI's

@@ -3154,3 +3154,40 @@ Microsoft RDP client and host clipboard/desktop.
 **Next:** R10 corrects Windows-only offline config regression
 without weakening the CTest; run full Windows Debug/Release
 and monitor next exact commit before R9 integration acceptance.
+
+## R6 Windows DXGI one-frame RAII acquisition increment (2026-10-15)
+
+**Baseline `main` parent SHA:** `853e572dafdeab18161afa3926db2f29d2ec3a34`.
+**Changes:** `src/windows/windows_dxgi_frame_owner.{h,cpp}`,
+`CMakeLists.txt`, `tests/test_windows_desktop_geometry.cpp`,
+`tests/CMakeLists.txt`, and existing ROADMAP/ARCHITECTURE/this ledger
+(all in one atomic commit). The native callbacks wrap
+`IDXGIOutputDuplication::AcquireNextFrame` and `ReleaseFrame`; one
+frame COM resource is released before the duplication lease. All
+production callbacks are Windows only, and ordinary tests inject
+synthetic acquisition outcomes rather than accessing a real desktop.
+
+**Dedicated new Windows-only behavior CTests (reused R6 executable):**
+`windows.capture-dxgi-frame-lease-lifecycle` verifies normal acquire,
+single release, busy rejection, retryable timeout, reentrancy, cancel
+and destructor cleanup. `windows.capture-dxgi-frame-lease-rejections`
+covers capped waits, access loss, stale owner, failed release, invalid
+callbacks and unexpected resource cleanup.
+
+**PASS:** Linux Clang 17 `clang++ -std=c++23 -Wall -Wextra -Wpedantic
+-Werror -UNDEBUG -Isrc` with all four Windows helper production .cpp
+sources and the two existing R6 test .cpp sources: 10/10 selectors.
+Linux GCC 14.2 same switches: 10/10. Clang 17 `-O1 -g
+-fsanitize=address,undefined -fno-omit-frame-pointer` with
+`ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1`: 10/10.
+Sparse-only fixture `ctest --test-dir ~/rdp-server/build -C Debug
+--output-on-failure`: 10/10. This is not the canonical full repo CTest.
+
+**NOT RUN at authoring:** full repository CMake/CTest (Git clone
+github.com DNS unresolved), actual Windows MSYS2 CLANG64 Clang 23,
+owner Linux/X11 or macOS 27, R2/R3 authorized desktop session,
+native DXGI acquire against hardware, R4 frame/GPU copy, live licensed
+Microsoft-client interactive desktop, and performance measurement.
+GitHub Actions exact-SHA results to be verified after publication.
+**Next gate:** D3D11 owned staging/map/unmap RAII with synthetic native
+failure tests once R2/R3 session and R4 frame-lifetime contracts converge.

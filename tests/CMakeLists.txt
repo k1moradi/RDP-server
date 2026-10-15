@@ -314,6 +314,16 @@ if(TARGET rdp-server-windows-desktop)
         COMMAND test_windows_desktop_geometry win32-gdi-rectangle-name-resolution)
     set_tests_properties(windows.geometry-gdi-rectangle-name-resolution
         PROPERTIES LABELS "windows;desktop-geometry;offline")
+    # R6 native duplication frame-lease RAII: synthetic callbacks only, no
+    # AcquireNextFrame on an actual Windows desktop during ordinary tests.
+    foreach(case_name IN ITEMS
+            dxgi-frame-lease-lifecycle
+            dxgi-frame-lease-rejections)
+        add_test(NAME "windows.capture-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.capture-${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;offline")
+    endforeach()
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.
     add_test(NAME windows.capture-dxgi-move-before-dirty

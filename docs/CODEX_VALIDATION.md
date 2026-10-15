@@ -3024,3 +3024,38 @@ desktop and performance measurements.
 cursor translation unit and exercise resource teardown/failed reply
 handling with deterministic fixtures; bind to R2/R3 authorized session
 and R4 cursor consumer before M3 acceptance.
+
+## R4 frame ACK bounded-accounting increment (2026-10-15)
+
+**Parent `main`:** `1ef747cfd17c2e742020278b9f1731be2725ed10`. Implemented
+`src/rdp/gfx_frame_acknowledge.{h,cpp}` as one portable C++23
+protocol-library module and registered six new production-linked
+`graphics.frame-ack-*` cases in the existing CTest registry,
+alongside the relevant R4 TODO/architecture co-changes. This is
+a fixed 64-ID outstanding frame bookkeeper for the *one* R4
+graphics scheduler, not a second state owner. The caller must
+supply trusted, nonreused R3 DVC channel generations. Normative:
+MS-RDPEGFX 2.2.2.13, 3.2.1.2 and 3.2.5.13.
+
+**PASS — focused production-code verification:** GCC 14.2 and
+Clang 17 with `-std=c++23 -O1 -g -Wall -Wextra -Wpedantic -Werror
+-UNDEBUG -D_GLIBCXX_ASSERTIONS -fsanitize=address,undefined
+-fno-omit-frame-pointer`, the actual
+`gfx_frame_acknowledge.cpp` and `test_gfx_frame_acknowledge.cpp`,
+all six behaviors for each compiler, with ASan leak detection and
+UBSan halt-on-error. Isolated
+`ctest --test-dir "$HOME/rdp-server/build/r4_ack_stage"
+--output-on-failure`: **6/6 PASS**. This local CTest is
+**not** the entire project CTest.
+
+**NOT RUN at authoring:** full canonical repository CTest
+(no local Git checkout and outbound git DNS unavailable);
+exact-commit hosted Actions CI (inspect after publication);
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27;
+R3 authenticated graphics DVC, x264 frame transmission,
+real Microsoft client interactive desktop and benchmarks.
+
+**Next R4:** integrate this ACK state within the single
+scheduler after R3 authorized channel admission; verify
+backpressure and generation reset with a dedicated behavior
+CTest. Gate B/M3–M5 are not accepted.

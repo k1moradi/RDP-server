@@ -84,6 +84,21 @@ the native producer validates DXGI metadata byte lengths and releases
 the frame before changing the session. This increment owns no COM
 objects, authorization, queue, capture polling or graphics scheduler.
 
+### R4 graphics frame acknowledgement accounting
+
+`rdp/gfx_frame_acknowledge.h` parses a complete already-authorized
+20-byte RDPGFX FRAME_ACKNOWLEDGE command, without allocations, and
+exposes one fixed-size (64 frame IDs) ACK window to be **embedded in
+the single R4 graphics owner**. Only exact frame IDs are retired,
+including out-of-order acknowledgements; unmatched IDs retire none.
+The 0xFFFFFFFF suspend signal clears pending IDs and disables waiting;
+finite-depth replies resume. Queue depth is buffered client bytes
+(0 means unknown). The 64-ID bound is an internal resource policy.
+A nonreused generation supplied by R3 on the authorized channel
+rejects stale ACKs after resize/reconnect, and generation zero
+deactivates the owner on disconnect. R3 remains sole DVC router;
+this implementation does not itself send frames or admit sessions.
+
 ### R4 portable AVC420 capability-exchange boundary
 
 `rdp/gfx_avc420_capabilities.h` parses one complete, already-reassembled

@@ -2021,6 +2021,28 @@ actually run; another parser CTest alone is not a complete session.
   later H.264-only option **only if client negotiation or text fidelity requires
   it**. Never advertise an unsupported mode or silently fall back when AVC420
   is unavailable. **Status: NOT RUN / not a working RDP server.**
+  **R4 bounded frame ACK/window (2026-10-15, implemented):**
+  parse one reassembled MS-RDPEGFX FRAME_ACKNOWLEDGE command and
+  maintain at most 64 exact outstanding frame IDs in the R4 owner.
+  Out-of-order matches retire only that ID; duplicate/full-window
+  submissions fail closed. The 0xFFFFFFFF queue-depth sentinel
+  suspends ACK waiting and clears pending IDs; finite depths resume.
+  The R3-authorized channel owner must supply nonreused generations
+  to prevent late ACKs releasing frames after resize or reconnect;
+  zero generation deactivates the window on disconnect. The client
+  queue depth is buffered bytes, not a frame count. No second
+  scheduler or R3 dynamic-virtual-channel router was introduced.
+  Dedicated CTests: `graphics.frame-ack-wire`,
+  `graphics.frame-ack-suspension`, `graphics.frame-ack-rejections`,
+  `graphics.frame-ack-correlation`,
+  `graphics.frame-ack-bounded-backpressure`, and
+  `graphics.frame-ack-stale-generation`. **PASS:** GCC 14.2
+  and Clang 17 C++23 ASan/UBSan, all 6 cases each; isolated
+  CTest 6/6. **NOT RUN at authoring:** full project CTest,
+  owner Linux/Windows CLANG64/macOS27, exact-SHA CI, authorized
+  DVC or real Microsoft-client H.264 desktop. **Next R4:**
+  integrate this window into the one graphics owner after R3's
+  authorized DVC lifecycle and test resize/scheduling/backpressure.
   **R4 bounded AVC420 capability exchange (2026-10-15, implemented):**
   portable MS-RDPEGFX CAPS_ADVERTISE parsing and exact CAPS_CONFIRM
   serialization accept only advertised version 8.1 with its explicit

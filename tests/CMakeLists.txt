@@ -166,6 +166,20 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
+    elseif(test_target STREQUAL "test_gfx_frame_acknowledge")
+        # One production-backed graphics executable, six behavior CTests.
+        foreach(case_name IN ITEMS
+                frame-ack-wire
+                frame-ack-suspension
+                frame-ack-rejections
+                frame-ack-correlation
+                frame-ack-bounded-backpressure
+                frame-ack-stale-generation)
+            add_test(NAME "graphics.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("graphics.${case_name}" PROPERTIES
+                LABELS "protocol;graphics")
+        endforeach()
     elseif(test_target STREQUAL "test_gfx_avc420_capabilities")
         # Same production-linked executable, three independent wire behaviors.
         foreach(case_name IN ITEMS
@@ -263,6 +277,7 @@ add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)
 add_rdp_test(test_base64_codec.cpp security base64-codec)
 add_rdp_test(test_gfx_surface_lifecycle.cpp graphics surface-lifecycle)
 add_rdp_test(test_gfx_avc420_capabilities.cpp graphics avc420-capabilities)
+add_rdp_test(test_gfx_frame_acknowledge.cpp graphics frame-ack-wire)
 if(TARGET rdp-server-linux-gssapi)
     add_rdp_test(test_linux_gssapi_spnego.cpp security linux-gssapi)
     target_link_libraries(test_linux_gssapi_spnego PRIVATE

@@ -1435,11 +1435,20 @@ single registry. Expected portable **73** CTests,
 Linux GSSAPI **82**. Architecture, roadmap, coding
 and testing standards updated in SAME code commit.
 
-**NOT RUN at authoring:** new exact-head Debug/Release
-CI on Linux/macOS/Windows, new owner-local CTest,
-sanitizers, live TLS records, authorized GSS/Kerberos
-and OS admission, joined channel/session, desktop
-and Microsoft clients.
+**PASS:** exact implementation
+`8c9fabeb02fce7ede13abfb42631d3b7f35a4fc1`,
+[GitHub Actions 38701524465](https://github.com/k1moradi/RDP-server/actions/runs/38701524465):
+Linux/GCC **82/82**, macOS/Clang and Windows/MSVC
+**73/73** CTests in EACH Debug and Release; new
+`transport.mcs-send-indication-wire` and
+`transport.mcs-send-indication-rejections` PASS
+everywhere. Documentation-policy, staged installed SDK
+consumer execution and all three ZIP/SHA256 artifacts
+PASS. Prerelease publication SKIPPED (no release tag).
+**NOT RUN:** owner's new local CTest, sanitizers,
+live TLS output, authorized GSS/Kerberos and OS
+admission, joined MCS state, real desktop or
+Microsoft client.
 Owner's one build root commands:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build build --config Debug --parallel 2`,

@@ -607,9 +607,15 @@ userData 16384, and all shorter output capacities; every
 failure must leave caller memory unchanged. No socket or
 SSL writes, channel join, ticket, OS user or real client.
 Expected standard **73** (from 71), Linux GSSAPI **82**
-(from 80) CTests. Exact new-head CI and owner-local CTest
-are NOT RUN at authoring; include absolute SHA and PASS/FAIL
-only after verification.
+(from 80) CTests. **PASS:** implementation
+`8c9fabeb02fce7ede13abfb42631d3b7f35a4fc1`,
+[CI 38701524465](https://github.com/k1moradi/RDP-server/actions/runs/38701524465):
+Linux/GCC **82/82** and macOS/Clang, Windows/MSVC
+**73/73** CTests in BOTH Debug/Release; new tests
+pass on all three. SDK installed downstream consumers,
+ZIP/SHA-256 package uploads and documentation-policy PASS.
+The owner-local new build, real TLS send, GSS/OS admission
+and external clients are NOT RUN.
 
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 

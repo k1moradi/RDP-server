@@ -1019,9 +1019,16 @@ acceptance evidence; no synthetic completion claims.
   Baseline parent `cd50346be4df281b7fc207c5126072555a3eba63`
   passed [CI 38696744690](https://github.com/k1moradi/RDP-server/actions/runs/38696744690);
   owner reports local **71/71 PASS** on prior code.
-  **NOT RUN:** new-head CI/local tests, independent OS
-  admission, joined-channel enforcement, actual TLS sends,
-  real client, licensing, graphics or desktop.
+  **PASS:** implementation `8c9fabeb02fce7ede13abfb42631d3b7f35a4fc1`,
+  [Actions run 38701524465](https://github.com/k1moradi/RDP-server/actions/runs/38701524465):
+  Linux/GCC **82/82**, macOS/Clang and Windows/MSVC
+  **73/73** CTests in BOTH Debug and Release, including
+  both new cases; SDK install/downstream consumer,
+  ZIP+SHA256 uploads and documentation policy PASS.
+  Prerelease publishing SKIPPED (no release tag).
+  **NOT RUN:** owner's local build of this new commit,
+  independent OS admission, joined-channel enforcement,
+  actual TLS sends, real client, licensing, graphics or desktop.
   **Next:** exact-head cross-platform CI; then controlled
   true GSS/Kerberos/TLS identity and separate OS policy
   before wiring any SendData indication into the one

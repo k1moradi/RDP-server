@@ -742,53 +742,61 @@ acceptance evidence; no synthetic completion claims.
   keytab/client ticket and active TLS binding,
   then independent OS authorization before
   any live MCS/desktop admission.
-  **Server TLS reply certificate-continuity hardening
-  (2026-10-14; implementation CI NOT RUN):** per
-  Microsoft's [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),
-  every CredSSP server TSRequest reply remains tied
-  to the original selected TLS server certificate.
-  The existing `TsRequestTlsReplyWriter` already
-  pinned one SSL handle, but `queueReply`,
-  `writeOneTlsStep` (including nonblocking
-  WANT_READ/WANT_WRITE and idempotent Complete),
-  `releaseReply` and next-reply queue did not
-  verify that the selected X.509 certificate on
-  that SAME SSL handle remained unchanged.
-  Reuse the existing SHA-256 selected certificate
-  fingerprint primitive, pin its value on the
-  first queued response, compare in constant time
-  at every subsequent write, Complete check,
-  release and second queue; permanently close
-  and wipe pending DER and digest on mismatch.
-  Never make a second connection owner or copy
-  provider data beyond the original bounded DER
-  buffer. A queued OpenSSL partial write cannot
-  retroactively retract bytes already passed
-  to TLS; abort before ANY new write on mismatch.
-  Three NEW all-platform behavior CTests in
-  the original real TLS fixture cover pre-write
-  same-SSL certificate substitution with
-  zero plaintext delivered, mutation after
-  Complete/before release and after release
-  with unchanged-certificate positive reuse,
-  and actual constrained-memory-BIO WANT_WRITE
-  followed by a certificate change and no retry.
-  Expected Linux **72/72**, macOS/Windows
-  **63/63** CTests in both Debug and Release.
-  **PASS previous baseline:** exact main
-  `5777fa738fb94499356ba910643edd7f8a127026`,
-  [CI 38624268810](https://github.com/k1moradi/RDP-server/actions/runs/38624268810),
-  Linux 69/69, portable 60/60, SDK and policy.
-  **NOT RUN:** new CI, developer local build,
-  successful positive ticket/keytab Kerberos/GSS
-  with confidential selected-TLS proof,
-  independently authorized OS user/session,
-  external Microsoft client, actual desktop.
-  **Next:** controlled real positive MIT
-  Kerberos/GSS and selected certificate proof
-  under an explicitly authorized isolated
-  test environment, independent OS account
-  policy before MCS/desktop admission.
+  **Verified outgoing CredSSP TLS reply certificate continuity
+  (2026-10-14; CI PASS):** per Microsoft's
+  [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),
+  every canonical v5/v6 `TSRequest` reply must
+  remain tied to the actual server TLS-selected
+  X.509 public key. The existing
+  `TsRequestTlsReplyWriter` now pins one SHA-256
+  fingerprint of the selected finished server
+  certificate at its FIRST reply queue, in
+  addition to its one `SSL*` identity.
+  On EVERY subsequent SSL_write_ex readiness
+  retry, idempotent Complete, reply release
+  and next reply queue it rechecks the
+  selected certificate in constant time
+  with the existing first-party certificate
+  helper. A changed selected certificate
+  on the SAME SSL pointer fails terminally,
+  closes and wipes pending DER/fingerprint
+  BEFORE a new TLS write. Previously emitted
+  TLS ciphertext cannot be retroactively
+  recalled. No duplicate state controller
+  or output encoder was added.
+  Three NEW all-platform real TLS CTests
+  cover v5/v6 SPNEGO and pubKeyAuth replies
+  denied before write with zero delivered
+  plaintext after certificate replacement;
+  changed certificate after Complete,
+  before release and after release, with
+  unchanged positive multi-reply reuse;
+  and a real 2048-byte memory-BIO
+  SSL_ERROR_WANT_WRITE followed by same-SSL
+  certificate mutation and no retry.
+  **PASS:** implementation
+  `53184c7e4fdfb1c01f287933ff4ca0a6fdf63c0a`,
+  [CI 38674532102](https://github.com/k1moradi/RDP-server/actions/runs/38674532102):
+  Linux/GCC **72/72**, macOS/Clang
+  and Windows/MSVC **63/63** CTests
+  in BOTH Debug and Release; all three
+  new cases, documentation policy,
+  installed SDK downstream consumer
+  and all three ZIP/SHA256 package
+  uploads PASSED. Previous unrelated
+  nonfatal Ubuntu Release test fixture
+  `-Wstringop-overflow` remains.
+  **NOT RUN:** owner's local build,
+  positive real service-keytab/client-ticket
+  Kerberos/GSS and confidential
+  active-TLS pubKeyAuth, independently
+  authorized OS account/session,
+  Windows App or actual desktop.
+  **Next:** explicitly authorized
+  controlled genuine Kerberos/SPNEGO
+  and active TLS certificate binding,
+  then independently audited OS policy
+  before any MCS/session admission.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

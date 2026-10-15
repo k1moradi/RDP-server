@@ -1136,65 +1136,85 @@ test-only credentials, then separate
 OS authorization before MCS replies
 or remote desktop admission.
 
-## Pending outgoing CredSSP TLS certificate continuity (2026-10-14)
+## Verified outgoing CredSSP selected TLS certificate continuity (2026-10-14)
 
-**Previous exact verified main:**
-`5777fa738fb94499356ba910643edd7f8a127026`,
+**Prior exact known-green main:** `5777fa738fb94499356ba910643edd7f8a127026`,
 [CI 38624268810](https://github.com/k1moradi/RDP-server/actions/runs/38624268810):
-Linux/GCC 69/69, macOS/Clang and Windows/MSVC
-60/60 complete CTests in Debug+Release;
-all SDK downstream consumers, packaging
-ZIP/SHA256 uploads, documentation gate PASS.
+Linux/GCC 69/69, macOS/Clang,
+Windows/MSVC 60/60 full CTests,
+Debug and Release, SDK, ZIP/SHA-256
+artifacts and documentation policy PASS.
 
-**New implementation and tests (CI NOT RUN):**
-The existing first-party
+**New implementation:**
+`53184c7e4fdfb1c01f287933ff4ca0a6fdf63c0a`
+changes the ORIGINAL
 `src/server/security/credssp_tsrequest.{h,cpp}`
-`TsRequestTlsReplyWriter` uses the
-original `credssp_tls_certificate`
-fingerprint function to require
-unchanged selected, finished server
-TLS certificate AND SSL pointer,
-throughout initial queue, each
-nonblocking write/retry, idempotent
-Complete, explicit successful
-release, and next queued server
-reply. A mutation on the SAME SSL
-object fails before new TLS write,
-closes/wipes DER and fingerprint.
-No second state owner or provider
-success is added. Three dedicated
-portable CTests use real OpenSSL
-memory BIO TLS with cross-version
-safe RAII X509 duplication:
+`TsRequestTlsReplyWriter`, the existing
+`tests/test_owned_preauth_session.cpp`
+fixture and `tests/CMakeLists.txt`
+test registration, and updates
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/coding_standards.md`,
+`docs/testing_standards.md` and this
+validation ledger in the same commit.
+Outgoing CredSSP responses now pin
+the original finished TLS server SSL*
+and the selected DER X.509 SHA-256
+fingerprint from the FIRST queued
+canonical v5/v6 reply. The writer
+checks that certificate before
+EVERY TLS write/retry, idempotent
+Complete, successful release and
+next response queue, using existing
+`fingerprintActiveCredSspServerTlsCertificate`.
+A mismatch on the same SSL object
+closes and wipes pending DER and
+the certificate fingerprint, without
+a further SSL_write_ex. Already
+submitted TLS data cannot be retracted.
+No new authentication context,
+socket listener or OS session.
+
+**PASS:** [Actions 38674532102](https://github.com/k1moradi/RDP-server/actions/runs/38674532102)
+completed SUCCESS for documentation
+policy and all three protocol jobs:
+Linux/GCC **72/72** and macOS/Clang,
+Windows/MSVC **63/63** full CTests
+in BOTH Debug and Release. ALL THREE
+new tests
 `transport.credssp-tls-reply-cert-pending`,
 `transport.credssp-tls-reply-cert-completion`,
-`transport.credssp-tls-reply-cert-backpressure`.
-Expected Linux **72/72**,
-macOS/Windows **63/63** in BOTH
-Debug and Release; no assertions
-weakened. The known Linux Release
-fixture compiler warning may persist.
-Commands on CI's sole checkout-local
-`build/`: `cmake -S . -B build
+`transport.credssp-tls-reply-cert-backpressure`
+PASS on all platforms. SDK installation
+and downstream CMake consumer compile,
+link and execution, three CPack ZIP
+archives, three SHA256 checksum
+manifests and artifact uploads all PASS.
+CI commands: `cmake -S . -B build
 -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`
-(+ `-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`
-for Linux), `cmake --build build
---config Debug --parallel 2`,
-`ctest --test-dir build --build-config Debug
+(with Linux `-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`),
+`cmake --build build --config Debug
+--parallel 2`, `ctest --test-dir
+build --build-config Debug
 --output-on-failure`; same-root
-Release reconfigure/build/CTest,
-SDK install, downstream CMake
-consumer, CPack ZIP/checksums
-and artifacts.
-**NOT RUN:** new CI,
-the owner-local persistent
-`~/rdp-server/build`, controlled
-real successful Kerberos and
-active TLS binding, independently
-authorized OS session, Microsoft
-client or interactive desktop.
-**Next:** explicitly authorized
-controlled Kerberos/keytab
-and ticket positive test, then
-independent OS authorization
-before live MCS response/desktop.
+Release reconfigure/compile/CTest,
+SDK install, downstream consumer,
+CPack package/SHA256/upload.
+Previous nonfatal Ubuntu Release
+`-Wstringop-overflow` warning in
+TLS fixture around line 590
+remains. Prerelease SKIPPED (no tag).
+**NOT RUN:** owner's local
+`~/rdp-server/build`, genuine
+positive Kerberos/GSS service
+keytab and client tickets with
+real confidential selected-TLS
+public-key binding, independently
+authorized OS account/session,
+Microsoft RDP client or actual
+desktop. Negative TLS continuity
+tests never grant admission.
+**Next:** authorized opt-in isolated
+positive Kerberos/GSS TLS proof
+and independent OS authorization
+before MCS, graphics or desktop.

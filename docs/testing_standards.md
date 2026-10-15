@@ -876,47 +876,57 @@ successful GSS-protected public-key proof,
 independently authorized OS identity,
 external client or interactive desktop.
 
-## Outgoing server TLS certificate substitution (2026-10-14; CI NOT RUN)
+## Verified outgoing CredSSP TLS certificate substitution (2026-10-14)
 
-Add three all-platform behavior-named
-CTests to the ORIGINAL in-memory
-OpenSSL TLS handshake fixture in
-`tests/test_owned_preauth_session.cpp`:
+Three NEW all-platform behavior-named CTests
+in the existing `tests/test_owned_preauth_session.cpp`
+use real OpenSSL memory-BIO server and
+client handshakes. The same SSL object
+is reconfigured with a certificate
+duplicated via RAII `X509_dup` from
+an independent completed TLS fixture;
+assert that the replacement has
+the expected selected SHA-256 fingerprint.
 `transport.credssp-tls-reply-cert-pending`
-queues both server reply field types
-for v5 and v6, substitutes another
-live TLS certificate on the SAME
-server `SSL*` using `X509_dup` and
-checks selected fingerprint equality
-with the replacement, then requires
-terminal Invalid before a TLS write,
-secure erase and no client-readable
-application data.
+queues v5/v6 `negoTokens` or protected
+`pubKeyAuth` and requires failure,
+no plaintext transmitted, secure
+wipe and no reuse if selected X.509
+changes before the first write.
 `transport.credssp-tls-reply-cert-completion`
-checks mismatch after Complete
-(before release via both write
-and release paths), after a released
-reply before next queue, and positive
-multi-reply reuse with unchanged
-TLS selected certificate.
+requires terminal mismatch detection
+after Complete (both release and
+idempotent write paths) or following
+release before next queue, and checks
+unchanged-certificate multiple replies
+still succeed. It does NOT pretend
+an already sent TLS reply can be
+retracted after certificate change.
 `transport.credssp-tls-reply-cert-backpressure`
-uses the original 2048-byte server
-memory BIO capacity to induce real
-`SSL_ERROR_WANT_WRITE` on an
-8192-byte SPNEGO reply, then changes
-the selected certificate and checks
-the pending retry is never resent
-and the writer is terminally closed.
-Do not falsely assert previously
-buffered ciphertext can be recalled.
-Register separately in the same
-`tests/CMakeLists.txt`; expected
-Linux 72, macOS/Windows 63
-full CTests per Debug/Release.
-Preserve the former 69/60 tests
-and the positive multi-reply fixture.
-**NOT RUN:** new CI, developer's
-local build, genuine Kerberos
-tickets/service keytab, verified
-confidential pubKeyAuth, OS admission
-or external desktop client.
+creates the server BIO with 2048-byte
+capacity BEFORE pairing, forces REAL
+WANT_WRITE while sending an 8192-byte
+canonical server response, changes
+the certificate ON THE SAME SSL pointer,
+and checks no further TLS write retries
+and terminal cleanse. No assertions
+were disabled or weakened.
+
+**PASS:** implementation
+`53184c7e4fdfb1c01f287933ff4ca0a6fdf63c0a`,
+[Actions 38674532102](https://github.com/k1moradi/RDP-server/actions/runs/38674532102):
+Linux/GCC **72/72** CTests in BOTH
+Debug and Release, macOS/Clang and
+Windows/MSVC **63/63** each Debug
+and Release, all 3 new cases PASS.
+SDK installed downstream consumers,
+ZIP/SHA256 packaging and uploads,
+and documentation-policy PASS.
+Existing unrelated Ubuntu Release
+test warning at `tests/test_owned_preauth_session.cpp:590`
+remains nonfatal. No prerelease tag.
+**NOT RUN:** owner's local build,
+positive real Kerberos tickets/keytab
+and confirmed GSS/TLS public-key proof,
+OS authorization, external RDP client
+or interactive desktop.

@@ -2389,6 +2389,15 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   desktop, RDP client acceptance and performance. **Next:** native
   CoreGraphics geometry sampler and authorized per-user ScreenCaptureKit
   lifecycle only after R2/R3/R4 interface convergence. M1/M5 remain open.
+  **R7 exact-head macOS compile failure and fix (2026-10-15):**
+  Initial R7 commit `e13e473bf901524ff53c6e0e01b42dfef2ad041c`,
+  [Actions 38799661046](https://github.com/k1moradi/RDP-server/actions/runs/38799661046):
+  Ubuntu/GCC and documentation-policy PASS; macOS arm64 FAIL at Debug
+  linking the synthetic CoreVideo test due to missing
+  `_kCFAllocatorDefault`. Explicit CoreFoundation linkage is now limited
+  to the native TEST target. Production R7 and portable RDP library
+  linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
+  at authoring; M1/M5 acceptance remains open.
   **R6 exact-SHA hosted CI verification:** implementation commit
   `bd56f3a8ebcf4fa72d3419fb417d5a01f1678961`,
   [Actions 38797799194](https://github.com/k1moradi/RDP-server/actions/runs/38797799194):

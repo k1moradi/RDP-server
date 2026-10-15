@@ -425,8 +425,12 @@ add_executable(test_macos_capture_pixel_buffer
 target_include_directories(test_macos_capture_pixel_buffer PRIVATE
     "${PROJECT_SOURCE_DIR}/src")
 if(APPLE)
+    # The CoreVideo fixture directly references kCFAllocatorDefault.
+    # Keep CoreFoundation on this Apple-only TEST executable.
+    find_library(RDP_SERVER_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
     target_link_libraries(test_macos_capture_pixel_buffer PRIVATE
-        rdp-server-macos-capture)
+        rdp-server-macos-capture
+        "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}")
 else()
     target_sources(test_macos_capture_pixel_buffer PRIVATE
         "${PROJECT_SOURCE_DIR}/src/platform/macos/capture_pixel_layout.cpp"

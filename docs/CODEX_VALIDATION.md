@@ -3532,3 +3532,20 @@ CI, isolated real GSS positive credentials, native OS admission,
 Microsoft client or human desktop. **Next:** check exact-SHA hosted
 Debug/Release CTests, owner one-root results and authorized real
 Kerberos/TLS + independently authorized OS evidence before M2.
+
+## R7 Apple-only CoreFoundation test link correction (2026-10-15)
+
+Initial R7 code `e13e473bf901524ff53c6e0e01b42dfef2ad041c`,
+[Actions 38799661046](https://github.com/k1moradi/RDP-server/actions/runs/38799661046):
+Ubuntu/GCC and documentation-policy **PASS**. macOS arm64 Apple Clang
+**FAIL** during Debug synthetic CoreVideo test link:
+undefined `_kCFAllocatorDefault`. All R7 production source compiled
+successfully, but macOS CTests were **NOT RUN** at this SHA.
+**Fix:** `tests/CMakeLists.txt` links CoreFoundation explicitly on
+`test_macos_capture_pixel_buffer` for the `kCFAllocatorDefault` used in
+its synthetic fixture. The production CoreVideo/CoreGraphics target and
+portable RDP protocol library do not gain an additional dependency.
+**NOT RUN:** corrected implementation hosted CI at authoring, owner's
+macOS 27 / Linux X11 / MSYS2 CLANG64 Clang23 exact-SHA results,
+live R2/R3-authorized RDP desktop/input, permission dialogs and benchmarks.
+**Next:** validate corrected exact-SHA Debug/Release CI and owner test trio.

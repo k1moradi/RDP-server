@@ -667,7 +667,7 @@ configured Kerberos provider failure/TLS reply, positive
 GSS/TLS authentication, OS admission, real RDP client,
 service activation or desktop acceptance.
 
-## Offline server Demand Active serialization regressions (CI NOT RUN, 2026-10-15)
+## Verified server Demand Active serialization regressions (CI PASS, 2026-10-15)
 
 Extend the existing `tests/test_owned_mcs_connect_initial.cpp`
 executable and the sole `tests/CMakeLists.txt` registry
@@ -695,10 +695,21 @@ the entire caller destination unchanged. This is a
 pure serializer with no credential, OS, TLS or
 licensed capability activation.
 
-Expected portable **85** full CTests (prior 83),
-Linux GSSAPI **95** (prior 93). New exact-commit
-cross-platform Debug/Release CI and owner-local
-incremental CTest are **NOT RUN at authoring**.
+Verified portable **85** full CTests (prior 83),
+Linux GSSAPI **95** (prior 93).
+**PASS:** corrected commit `ec7261e059e699f23511f9d17d0a77762bf5d337`,
+[CI 38716746326](https://github.com/k1moradi/RDP-server/actions/runs/38716746326):
+Linux/GCC **95/95**, macOS/Clang and Windows/MSVC
+**85/85** CTests in each Debug/Release. Both
+new named tests, SDK installed consumer,
+ZIP/SHA256 artifacts and documentation policy PASS.
+Initial implementation CI 38716458988 FAILED
+only the golden-wire padding comparison; writer
+correctly emits zero, historical decoder input pad
+was nonzero and ignored. Corrected oracle PASS.
+**NOT RUN:** owner-local new-build CTest, live
+Kerberos/TLS, independent OS admission, licensing,
+capability negotiation, desktop or client.
 
 ## Verified Demand/Confirm Active capability-envelope tests (CI PASS, 2026-10-15)
 

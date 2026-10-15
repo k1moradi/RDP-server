@@ -1066,8 +1066,8 @@ acceptance evidence; no synthetic completion claims.
   authorized genuine Kerberos and independent OS admission
   before binding a negotiated capability set into the
   sole authenticated session owner.
-  **Partial offline server Demand Active writer (2026-10-15;
-  CI NOT RUN at authoring):** complement the existing bounded
+  **Verified offline server Demand Active writer (2026-10-15;
+  corrected CI PASS):** complement the existing bounded
   Demand/Confirm Active parser with one direct caller-buffer
   Demand Active Share Control serializer. Write server
   pduSource 1002, shareID, source descriptor, validated
@@ -1092,16 +1092,23 @@ acceptance evidence; no synthetic completion claims.
   correctly emits zero padding. The new rejection
   suite PASS; fix the golden to canonical zero pad
   without altering production semantics. Corrected
-  exact-head CI NOT RUN at authoring.
+  commit `ec7261e059e699f23511f9d17d0a77762bf5d337`
+  [CI 38716746326](https://github.com/k1moradi/RDP-server/actions/runs/38716746326)
+  **PASS**: Linux/GCC **95/95**, macOS/Clang and
+  Windows/MSVC **85/85** full CTests in EACH Debug
+  and Release, plus SDK installed downstream consumer,
+  ZIP/SHA256 artifacts and documentation-policy.
+  All new writer and rejection tests PASS; the
+  canonical-pad test oracle was the only change.
   Baseline `659e0b816e8055f4bec7c87bda2816d8a614b9af`
   passed [CI 38715062876](https://github.com/k1moradi/RDP-server/actions/runs/38715062876);
   owner reports **83/83 local PASS** on the parent.
-  **NOT RUN:** new exact-head CI/local rebuild,
+  **NOT RUN:** owner-local new-head build/CTest,
   authorized real Kerberos/TLS binding, independent
   OS admission, actual negotiated capabilities,
   share activation, licensing, MCS/TLS send,
   external client, H.264 graphics or desktop.
-  **Next:** exact-commit cross-platform CI, then
+  **Next:** owner-local full CTest, then
   isolated owner-authorized Kerberos/TLS proof
   and separate OS session admission before ANY
   live capability negotiation or Demand Active send.

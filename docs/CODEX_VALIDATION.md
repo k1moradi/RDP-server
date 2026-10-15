@@ -1408,7 +1408,7 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
-## Pending server Demand Active offline serialization (2026-10-15)
+## Verified offline server Demand Active serialization (2026-10-15)
 
 **Prior verified base:** main
 `659e0b816e8055f4bec7c87bda2816d8a614b9af`,
@@ -1457,11 +1457,19 @@ canonical pad is zero. The new negative suite PASSED.
 Correction changes ONLY the byte-exact expected oracle
 to zero those ignored pad bytes; the production writer
 must still emit zero and the parser still accept
-nonzero padding. Corrected CI NOT RUN at authoring.
+nonzero padding. **Corrected PASS:** commit
+`ec7261e059e699f23511f9d17d0a77762bf5d337`,
+[Actions 38716746326](https://github.com/k1moradi/RDP-server/actions/runs/38716746326):
+Linux/GCC **95/95** and macOS/Clang, Windows/MSVC
+**85/85** full CTests in BOTH Debug and Release,
+including the two new writer suites. Documentation
+policy, installed SDK consumer and all three
+ZIP/SHA256 packages PASS. Prerelease publish
+SKIPPED (not tagged). No production code was
+changed in the test-oracle correction.
 
-**NOT RUN at authoring:** new full GitHub CI
-Debug/Release Linux/macOS/Windows, owner-local
-new-code build/CTest, real MIT keytab/ticket GSS
+**NOT RUN:** owner-local corrected-code build/CTest,
+real MIT keytab/ticket GSS
 positive TLS authentication, independently
 authorized OS session policy, real licensing,
 full share activation, MCS/TLS output and

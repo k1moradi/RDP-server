@@ -54,6 +54,37 @@ per tiny behavior.
 | **R9 Quality/interoperability** | Independently authored dedicated CTests for new integration boundaries, fuzz/sanitizer negatives, CI triage, Microsoft-client matrix, performance/reliability regression and verification receipts. | Validate every road; maintain **one test registry** and integrate cross-road fixtures rather than duplicate behavior owners. |
 | **R10 Runtime/release** | Standalone first-party server executable, secure startup/configuration, packaging, service/termination, installation, upgrades, rollback, release evidence and commit integration coordination. | Consume R1–R9 verified interfaces; SDK ZIPs alone never count as deployable server artifacts. |
 
+**R10 secure offline runtime configuration boundary (2026-10-15;
+implementation pending exact-SHA CI):** The non-installable `rdp-server` executable
+links the existing portable protocol library. `--help` and `--version`
+remain informational. New `--check-config FILE` validates a *syntax-only*
+4,096-byte maximum configuration with required unique settings:
+`listen_address`, `listen_port`, `tls_certificate`, `tls_private_key`,
+`authentication`, `os_authorization`, and `max_connections`. The
+preliminary policy accepts only loopback, port 1–65535, absolute and
+different cert/key path strings, `authentication=required`,
+`os_authorization=required`, and 1–64 connections. Malformed, unknown,
+duplicate, missing, oversize, control-byte and unsafe values are
+rejected. Even syntactically accepted configuration **cannot start** a
+listener, authenticate a user or authorize a desktop. Real TLS key
+contents, permissions, Kerberos/OS policy, and runtime service gates
+have NOT been verified or implemented.
+
+**Local isolated PASS:** Linux GCC 14.2 and Clang 17 strict C++23 builds,
+25/25 direct CMake-script behavior checks each, then the same 25/25
+with each compiler under ASan+UBSan. A scratch offline harness using
+the *same CTest registration text* passed 25/25 tests in both Debug
+and Release (GCC 14.2); it does not link/build the whole repository.
+Files and executables stayed inside `~/rdp-server/build/`.
+No full repository CMake/CTest, owner
+three-platform checkpoints or CI ran for this pending patch; M1–M6
+remain unaccepted. Parent `main`:
+`2ee2d1371a98b237c68cee061eea13811278d8f6`.
+**Publication:** the containing main commit delivers code, tests and
+documentation atomically using non-force, expected-HEAD update.
+Exact-SHA CI and owner results are NOT RUN at authoring.
+**Next:** full Debug/Release CTests and SDK/package regression,
+then independent same-SHA owner acceptance.
 **Ownership discipline:** R3 alone owns the session and channel lifecycle;
 R4 alone owns graphics scheduling; R8 alone owns clipboard generation;
 R1 owns encrypted socket I/O; R2 owns admission decisions. R5/R6/R7

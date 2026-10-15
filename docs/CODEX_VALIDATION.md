@@ -87,6 +87,54 @@ results, first failing transition, safety/ownership constraints,
 updated documentation and next milestone. Never turn synthetic
 authentication fixtures into a claim of real OS session admission.
 
+## R10 offline runtime configuration validation (2026-10-15; CI pending)
+
+**Exact observed parent `main`:**
+`2ee2d1371a98b237c68cee061eea13811278d8f6`.
+**Publication:** the containing main commit atomically delivers code,
+CTests and updated documentation by non-force expected-HEAD update.
+CI remains NOT RUN at authoring; no branch or service activation
+was attempted.
+**Files:** `CMakeLists.txt`, `tests/CMakeLists.txt`,
+`src/server/runtime/main.cpp`, `tests/check_runtime_entrypoint.cmake`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/compile.md`,
+`docs/CODEX_VALIDATION.md`.
+**Behavior:** non-installed fail-closed native process; syntax-only
+`--check-config FILE`, 4,096-byte size cap, seven mandatory unique keys,
+local listener only, bounded ports/connections, absolute different TLS
+path values, mandatory authentication/OS authorization *declarations*.
+No crypto or OS session approval occurs on positive syntax.
+**PASS — isolated Linux GCC 14.2 / Clang 17:** each compiler compiled the
+production entry point with `-std=c++23 -O1 -g -Wall -Wextra -Wpedantic
+-Werror -Wconversion -Wsign-conversion`, then the executable passed
+**25/25** direct `cmake -DRDP_RUNTIME_EXECUTABLE=<binary>
+-DRDP_RUNTIME_VERSION=0.1.0 -DRDP_RUNTIME_TEST_CASE=<name>
+-DRDP_RUNTIME_FIXTURE_DIRECTORY=~/rdp-server/build/config-fixtures
+-P tests/check_runtime_entrypoint.cmake` runs. Recompiled with
+`-fno-omit-frame-pointer -fsanitize=address,undefined` and reran
+**25/25 with each compiler** using `ASAN_OPTIONS=detect_leaks=1
+UBSAN_OPTIONS=halt_on_error=1`. These are standalone CMake-script
+checks, **not** registered full repository CTests. The new checks
+cover valid and CRLF/comment formats plus failure for missing/disabled auth/OS
+policy, public binding, duplicate/unknown keys, bad port/limit,
+oversized file, comment control bytes, relative/traversal/same key path,
+missing file and option smuggling; existing seven fail-closed/CLI cases
+remain. All local outputs stayed in `~/rdp-server/build/`.
+**PASS — scratch isolated CTest registration:** a temporary harness
+inside `~/rdp-server/build/r10-offline-ctest-harness` mirrors the
+proposed 25 `runtime.*` registrations and compiles the same production
+entry point without the unavailable full protocol checkout: 25/25
+CTest PASS in Debug and again 25/25 PASS in Release (GCC 14.2).
+This is NOT the project's central registry executing in the full
+repository; no installed package or native adapter was built.
+**NOT RUN:** complete current-main configure/build/full registered
+CTest, Windows/MSVC, macOS/Clang, owner Windows CLANG64 Clang 23,
+macOS 27, Linux/X11 owner test, SDK consumer/ZIP CI for this change,
+real TLS cert verification, GSS/Kerberos, independent OS admission,
+Microsoft real-client desktop or deployment.
+**Milestones:** M1 open; M2–M6 not accepted.
+**Next gate:** exact-SHA Linux, Windows and macOS full CI,
+then authorized OS/session integration.
 ## Verified strict local-path policy CI (2026-10-14)
 
 The stricter home-checkout and single-build-root guard in

@@ -131,6 +131,20 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R10 process entry point: compile and test it, but do not install/package
+# an RDP service before authenticating and OS-authorizing live sessions.
+add_executable(rdp-server src/server/runtime/main.cpp)
+target_compile_features(rdp-server PRIVATE cxx_std_23)
+target_compile_definitions(rdp-server PRIVATE
+    "RDP_SERVER_VERSION=\"${PROJECT_VERSION}\"")
+target_link_libraries(rdp-server PRIVATE rdp-server-protocol)
+if(MSVC)
+    target_compile_options(rdp-server PRIVATE /W4)
+else()
+    target_compile_options(rdp-server PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 if(RDP_SERVER_TEST_LINUX_GSSAPI)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
        NOT BUILD_TESTING OR NOT RDP_SERVER_BUILD_TESTING)

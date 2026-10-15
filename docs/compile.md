@@ -142,3 +142,17 @@ runner's checkout-local `build/`; three distinct SDK ZIP artifacts
 and SHA-256 manifests uploaded. The tag-triggered GitHub prerelease
 job was SKIPPED (no tag). Direct local `~/rdp-server/build/` testing
 and production server installation are NOT RUN.
+
+## R10 runtime offline configuration syntax check (2026-10-15)
+
+The R10 offline increment adds a native `rdp-server`
+executable in the existing sole `build/` root. `rdp-server --help`
+and `rdp-server --version` are informational. Attempting to start the
+service fails with exit 2. `rdp-server --check-config FILE` performs
+**offline syntax-only** validation (exit 0 for accepted syntax, exit
+3 for invalid configuration). Accepted syntax does NOT verify real
+certificate contents or OS authorization, and does not activate a
+listener or server. The 25 `runtime.*` CTests execute without live
+credentials, desktop access or socket binds. The SDK install/export
+and CPack ZIP must remain protocol-only. Full project CI and local
+same-main checkout validation remain NOT RUN at authoring.

@@ -307,6 +307,45 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         LABELS "x11;linux-adapter")
 endif()
 
+# One R10 production executable, and one offline CMake-script checker,
+# without opening a listener, reading real credentials or installing a service.
+foreach(runtime_case IN ITEMS
+        rejects-unconfigured-startup
+        rejects-unrecognized-options
+        rejects-help-option-smuggling
+        rejects-version-option-smuggling
+        rejects-sensitive-argument-output
+        displays-help-without-startup
+        reports-version-without-startup
+        validates-configuration-syntax
+        validates-configuration-comments-crlf
+        rejects-configuration-public-listener
+        rejects-configuration-missing-auth
+        rejects-configuration-missing-os-policy
+        rejects-configuration-disabled-auth
+        rejects-configuration-disabled-os-policy
+        rejects-configuration-duplicate-field
+        rejects-configuration-invalid-port
+        rejects-configuration-invalid-limit
+        rejects-configuration-oversized-file
+        rejects-configuration-unknown-field
+        rejects-configuration-control-comment
+        rejects-configuration-relative-key
+        rejects-configuration-traversal-key
+        rejects-configuration-identical-tls-paths
+        rejects-configuration-missing-file
+        rejects-config-option-smuggling
+        )
+    add_test(NAME "runtime.${runtime_case}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
+            "-DRDP_RUNTIME_VERSION=${PROJECT_VERSION}"
+            "-DRDP_RUNTIME_TEST_CASE=${runtime_case}"
+            "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-fixtures"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
+    set_tests_properties("runtime.${runtime_case}" PROPERTIES
+        LABELS "runtime;offline")
+endforeach()
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

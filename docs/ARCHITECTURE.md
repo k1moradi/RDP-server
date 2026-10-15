@@ -184,6 +184,33 @@ publish a GitHub **protocol SDK prerelease**. This is an artifact
 delivery mechanism only: it does not introduce an RDP listener,
 service installation, authentication or desktop deployment.
 
+### R10 native process and offline configuration boundary
+
+The **non-installable** `rdp-server` C++23 executable links the existing
+first-party protocol library. It constructs no TCP listener, TLS context,
+session controller, worker thread, desktop adapter or service. `--help`
+and `--version` succeed as informational commands. Default startup,
+unknown flags and chained options always fail closed (exit 2), without
+echoing potentially sensitive arguments.
+
+An explicit `--check-config FILE` mode reads at most 4,097 bytes into
+one stack buffer, refusing files larger than 4,096 bytes. It validates
+seven unique required key/value settings using bounded `string_view`
+lookups, numeric limits, loopback address restriction, absolute distinct
+certificate/private-key path syntax and explicit required authentication
+and OS authorization flags. Control bytes, missing/duplicate/unknown keys,
+unbounded integers, public listeners and relative/traversal paths fail.
+The local file handle has RAII ownership, and parser views never escape
+the buffer lifetime. The CLI reports generic failures without printing
+contents or filenames. A *syntactically valid* configuration prints an
+explicit disclaimer that credentials, private key, OS authorization,
+provider availability and file permissions have **not** been checked;
+no service is started. Invalid configuration exits 3. No persistent
+configuration state or second session owner is introduced. The SDK
+install/export/CPack rules are unchanged.
+
+The real runtime must later couple verified R2 admission and R3 session
+authority to the R1 transport before any listener can be enabled.
 ### Real TLS handshake evidence boundary
 
 Before the one-owner preauth stream progresses from X.224 to decrypted

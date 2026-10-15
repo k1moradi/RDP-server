@@ -108,6 +108,20 @@ with `file(READ HEX)`. Local Linux Debug/Release isolated harness
 **25/25 PASS** each. Corrected Windows CI **NOT RUN at authoring**;
 M1–M6 remain open, no production runtime security change.
 
+**R10 exact-SHA cross-platform CI acceptance (2026-10-15):**
+Corrected runtime test commit `853e572dafdeab18161afa3926db2f29d2ec3a34` passed
+[Actions 38797522248](https://github.com/k1moradi/RDP-server/actions/runs/38797522248). Linux/GCC **170/170**,
+Windows/MSVC **166/166**, and macOS/Clang **158/158** registered
+CTests in EACH Debug and Release configuration. Downstream SDK
+consumer **1/1** on all three platforms; install, ZIP/SHA256
+packaging/artifact uploads and documentation-policy PASS. Protocol
+SDK prerelease publication SKIPPED (no version tag). Windows CRLF
+configuration fixture now passes in both configurations. This is
+HOSTED CI evidence only: owner Linux/X11, Windows MSYS2 CLANG64
+Clang 23 and macOS 27 independent CTests are NOT RUN; live RDP
+identity, desktop, service, installer and M1–M6 milestone acceptance
+remain OPEN. The executable remains non-installable and fail closed.
+
 **Ownership discipline:** R3 alone owns the session and channel lifecycle;
 R4 alone owns graphics scheduling; R8 alone owns clipboard generation;
 R1 owns encrypted socket I/O; R2 owns admission decisions. R5/R6/R7

@@ -203,6 +203,26 @@ Release. **NOT RUN at authoring:** corrected exact-SHA three-platform CI,
 owner Linux/X11, Windows CLANG64/Clang 23, macOS 27. Next: examine the
 new commit's full Debug/Release CI and SDK packaging, then owner CTest.
 
+## Verified R10 runtime configuration CI after Windows correction (2026-10-15)
+
+**PASS:** exact implementation/correction `853e572dafdeab18161afa3926db2f29d2ec3a34`,
+[GitHub Actions 38797522248](https://github.com/k1moradi/RDP-server/actions/runs/38797522248).
+Linux/GCC: **170/170** registered CTests in EACH Debug and Release;
+Windows/MSVC: **166/166** in EACH Debug and Release;
+macOS/Clang: **158/158** in EACH Debug and Release.
+The previously failing `runtime.validates-configuration-comments-crlf`
+passed on Windows in both configurations. On each OS the installed
+protocol SDK's downstream consumer CTest **1/1 PASS**, ZIP package,
+SHA-256 artifact generation/upload, and documentation policy PASS.
+The protocol prerelease job SKIPPED (no tag). R10's native executable
+is **not** installed or packaged as a working service; `--check-config`
+remains syntax-only, and every attempt to start a protected desktop
+fails closed. **NOT RUN:** the owner's Linux/X11, Windows CLANG64
+Clang 23 and macOS 27 one-liner, authorized Microsoft-client login,
+actual OS admission, desktop, service, upgrade/rollback, and production
+measurements. M1–M6 remain OPEN. Next R10 increment: secure certificate
+and configuration-file provisioning checks without listener activation.
+
 ## Verified strict local-path policy CI (2026-10-14)
 
 The stricter home-checkout and single-build-root guard in

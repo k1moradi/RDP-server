@@ -46,6 +46,8 @@ function(add_rdp_test source_file suite behavior)
                 share-control-finalization-rejections
                 share-active-capabilities-wire
                 share-active-capabilities-rejections
+                share-general-capability-wire
+                share-general-capability-rejections
                 share-demand-active-encode-wire
                 share-demand-active-encode-rejections
                 share-server-finalization-encode-wire

@@ -2217,3 +2217,45 @@ MCS, Windows/macOS RDP clients or desktop.
 full CTest, then genuine isolated positive Kerberos
 and separately approved OS admission before network
 session or application-level RDP responses.
+
+## Pending offline General Capability extraction (2026-10-15)
+
+**Previous main:** `911e4d3a4459f070588aadc6380d54cc2efda7f5`.
+**Previous implementation CI PASS:**
+`850a6e9b7f2bc0a25854d31e02d0ed25332989b3`,
+[Actions 38738957048](https://github.com/k1moradi/RDP-server/actions/runs/38738957048):
+Linux/GCC **103/103**, macOS/Clang and Windows/MSVC
+**93/93** CTests in BOTH Debug and Release,
+documentation-policy, installed downstream SDK consumer,
+ZIP/SHA256 archives and upload PASS. Owner reports
+**93/93 local PASS** on the preceding code, without
+a full log and exact local checkout SHA.
+
+**New code:** one zero-heap `parseRdpGeneralCapabilityFromActive`
+helper in existing MCS/Share source, after the shared
+outer exact-length Active PDU/envelope validator.
+Recognize MS-RDPBCGR 2.2.7.1.1 type 1, exactly 24 bytes;
+require 0x0200 protocol version, Boolean 0/1 support
+indicators, exactly one General set and no truncated
+or coalesced extra Share Control PDU. Ignore normative
+pad, preserve unknown raw extraFlags and sibling
+capabilities without accepting them as negotiated.
+Two new behavior-named portable CTests reuse the existing
+MCS executable; expected **95 portable / 105 Linux GSS**.
+Source/test/roadmap/architecture/coding/testing/validation
+are staged in ONE implementation Git tree.
+
+**NOT RUN at authoring:** exact new-head Linux/macOS/Windows
+Debug/Release/SDK/docs-policy, owner's one-root compilation,
+genuine isolated positive Kerberos/TLS protected binding,
+independent OS authorization, licensed live capability
+exchange, client H.264/graphics, Microsoft client or desktop.
+**Next:** exact-head cross-platform CI, owner local full
+CTest, then separately authorized real GSS/TLS/OS admission.
+Run only in the existing owner's checkout/root:
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
+```

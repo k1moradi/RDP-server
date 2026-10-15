@@ -1546,3 +1546,23 @@ documentation-policy PASS. An untagged release
 was SKIPPED. **NOT RUN:** owner-local current-head
 build, positive real Kerberos/TLS binding, OS
 authorization or external clients/desktop.
+
+## Offline General Capability Set parsing tests (2026-10-15)
+
+Add `transport.share-general-capability-wire` and
+`transport.share-general-capability-rejections` in the
+original `test_owned_mcs_connect_initial` binary and its
+sole CTest registry. Microsoft published 24-byte General
+capability and 8-byte Share capability form byte-exact
+fixtures. Validate both an encoded server Demand and
+independently assembled client Confirm; check raw extraFlags
+0x041d, OS/platform fields, ignored nonzero pad,
+unknown sibling/extra bits and read-only parser behavior.
+Reject all truncated/trailing complete-PDU sizes, missing
+General, type-1 wrong length, duplicate General, wrong
+0x0200 version and invalid Boolean support. Every
+synthetic test is OFFLINE syntax, not true client feature
+agreement. Expected 95 portable and 105 Linux GSS
+CTest registrations, compared with verified 93/103.
+Exact-head CI, owner local build, real Kerberos and
+desktop acceptance are NOT RUN at authoring.

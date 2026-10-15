@@ -377,6 +377,53 @@ struct RdpActivePduParseResult
 [[nodiscard]] RdpActivePduParseResult parseRdpActivePdu(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
 
+// OFFLINE General Capability Set intake, MS-RDPBCGR 2.2.7.1.1.
+// Parse exactly one *complete* Demand/Confirm Active Share Control PDU
+// with the existing strict outer/envelope validator, then locate ONE
+// 24-byte CAPSTYPE_GENERAL (1). Missing, repeated, malformed, invalid
+// protocol version and unsupported Boolean encodings fail separately.
+// Unknown sibling capability types are skipped without interpretation.
+// Ignored padding and other uninterpreted fields retain raw values.
+// No borrowed views are retained, no heap allocation or state mutation.
+// This does NOT prove TLS, OS/GSS identity, MCS sender, licensing,
+// capability agreement, fast-path support, graphics or share activation.
+enum class RdpGeneralCapabilityError : std::uint8_t
+{
+    None,
+    InvalidActivePdu,
+    Missing,
+    Duplicate,
+    InvalidLayout,
+    InvalidProtocolVersion,
+    InvalidBoolean,
+};
+
+struct RdpGeneralCapability
+{
+    std::uint16_t osMajorType{};
+    std::uint16_t osMinorType{};
+    std::uint16_t generalCompressionTypes{}; // Raw: ignored by receiver.
+    std::uint16_t extraFlags{}; // Advertisement, NOT negotiated support.
+    std::uint16_t updateCapabilityFlag{}; // Raw, not a permission.
+    std::uint16_t remoteUnshareFlag{};
+    std::uint16_t generalCompressionLevel{};
+    bool refreshRectSupported{};
+    bool suppressOutputSupported{};
+};
+
+struct RdpGeneralCapabilityParseResult
+{
+    RdpGeneralCapability value{};
+    RdpGeneralCapabilityError error{RdpGeneralCapabilityError::InvalidActivePdu};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpGeneralCapabilityError::None;
+    }
+};
+
+[[nodiscard]] RdpGeneralCapabilityParseResult parseRdpGeneralCapabilityFromActive(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
 // OFFLINE server-side MS-RDPBCGR 2.2.1.13.1.1 Demand Active writer.
 // Emits a single exact-length Share Control PDU (NOT TLS/MCS framing).
 // Source and capability buffers must NOT intersect the output region

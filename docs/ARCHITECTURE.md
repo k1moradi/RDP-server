@@ -993,3 +993,21 @@ NOT establish TLS CA trust, GSS/CredSSP authentication,
 the MCS sender, OS authorization or a usable desktop.
 Real positive Kerberos and independent OS admission remain
 mandatory for any production MCS reply.
+
+## Offline General Capability Set structure intake (2026-10-15)
+
+Per MS-RDPBCGR 2.2.7.1.1, a 24-byte
+`TS_GENERAL_CAPABILITYSET` includes capability type/length,
+OS major/minor IDs, protocol version 0x0200, ignored pad,
+compression metadata, extra flags and byte-sized refresh/
+suppress support. The single existing strict Active PDU
+parser first proves complete framing and count/envelope
+bounds. A new pure helper scans for exactly one General
+set and copies primitive fields only, with no new allocations
+or borrowed results. Unknown sibling capabilities and
+ignored pad values are NOT interpreted. A duplicate or
+malformed mandatory General set is rejected by this
+specialized helper, leaving generic envelope decoding
+unchanged. This extraction does not prove client MCS
+sender provenance, authenticate an account, select graphics,
+enable FASTPATH, authorize the console or activate the share.

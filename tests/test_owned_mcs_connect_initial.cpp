@@ -1529,6 +1529,148 @@ constexpr std::array<std::uint8_t, 36> kOfflineConfirmActive{{
     0x0e, 0x00, 0x04, 0x00
 }};
 
+// Normative Microsoft MS-RDPBCGR 4.1.15 server General Capability Set,
+// 24 bytes as published: V1 0x0200, extraFlags 0x041d. It is a
+// reference *capability*, not a captured authenticated session.
+constexpr std::array<std::uint8_t, 24> kMicrosoftGeneralCapability{{
+    0x01, 0x00, 0x18, 0x00, 0x01, 0x00, 0x03, 0x00,
+    0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x1d, 0x04,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01
+}};
+
+[[nodiscard]] std::array<std::uint8_t, 32> generalWithShareCapability()
+{
+    // The published Share Capability Set precedes General in the
+    // Microsoft Demand Active example. Preserve its ignored pad bytes.
+    std::array<std::uint8_t, 32> capabilitySets{{
+        0x09, 0x00, 0x08, 0x00, 0xea, 0x03, 0xdc, 0xe2
+    }};
+    std::copy(kMicrosoftGeneralCapability.begin(),
+              kMicrosoftGeneralCapability.end(),
+              capabilitySets.begin() + 8);
+    return capabilitySets;
+}
+
+void testRdpGeneralCapabilityWire()
+{
+    const auto capabilitySets = generalWithShareCapability();
+    constexpr std::array<std::uint8_t, 4> descriptor{{'R', 'D', 'P', 0}};
+    std::array<std::uint8_t, 58> demand{};
+    assert(encodeRdpDemandActivePdu(
+        0x000103eaU, 0x11223344U, descriptor, 2U,
+        capabilitySets, demand) == demand.size());
+    const auto result = parseRdpGeneralCapabilityFromActive(demand);
+    assert(result && result.error == RdpGeneralCapabilityError::None);
+    assert(result.value.osMajorType == 1U);
+    assert(result.value.osMinorType == 3U);
+    assert(result.value.generalCompressionTypes == 0U);
+    assert(result.value.extraFlags == 0x041dU);
+    assert(result.value.updateCapabilityFlag == 0U);
+    assert(result.value.remoteUnshareFlag == 0U);
+    assert(result.value.generalCompressionLevel == 0U);
+    assert(result.value.refreshRectSupported);
+    assert(result.value.suppressOutputSupported);
+
+    // Independent complete client Confirm Active header; this test
+    // intentionally checks syntax, not client capability negotiation.
+    constexpr std::array<std::uint8_t, 24> confirmPrefix{{
+        0x38, 0x00, 0x13, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0xea, 0x03,
+        0x04, 0x00, 0x24, 0x00, 'R', 'D', 'P', 0,
+        0x02, 0x00, 0x00, 0x00
+    }};
+    std::array<std::uint8_t, 56> confirm{};
+    std::copy(confirmPrefix.begin(), confirmPrefix.end(), confirm.begin());
+    std::copy(capabilitySets.begin(), capabilitySets.end(),
+              confirm.begin() + confirmPrefix.size());
+    assert(parseRdpActivePdu(confirm));
+    const auto clientResult = parseRdpGeneralCapabilityFromActive(confirm);
+    assert(clientResult && clientResult.value.extraFlags == 0x041dU);
+
+    // Ignored padding and unknown extraFlags must not be misread as
+    // authorizing an unsupported codec or rejected as envelope syntax.
+    auto future = demand;
+    future[22U] = 0xfe; // Unknown sibling capability.
+    future[23U] = 0x7f;
+    future[40U] = 0xa5; // General pad2OctetsA, ignored.
+    future[41U] = 0x5a;
+    future[45U] = 0x80; // Unknown extra flag bit, preserved.
+    const auto preserved = parseRdpGeneralCapabilityFromActive(future);
+    assert(preserved && preserved.value.extraFlags == 0x801dU);
+}
+
+void testRdpGeneralCapabilityRejections()
+{
+    constexpr auto invalidActive = RdpGeneralCapabilityError::InvalidActivePdu;
+    constexpr auto missing = RdpGeneralCapabilityError::Missing;
+    constexpr auto invalidLayout = RdpGeneralCapabilityError::InvalidLayout;
+    constexpr auto invalidVersion =
+        RdpGeneralCapabilityError::InvalidProtocolVersion;
+    constexpr auto invalidBoolean = RdpGeneralCapabilityError::InvalidBoolean;
+    constexpr auto duplicate = RdpGeneralCapabilityError::Duplicate;
+    assert(parseRdpGeneralCapabilityFromActive(kOfflineDemandActive).error ==
+           missing);
+    assert(parseRdpGeneralCapabilityFromActive(kOfflineConfirmActive).error ==
+           missing);
+
+    auto wrongLength = kOfflineDemandActive;
+    wrongLength[22] = 1U; // General envelope only 8, not 24 bytes.
+    assert(parseRdpActivePdu(wrongLength));
+    assert(parseRdpGeneralCapabilityFromActive(wrongLength).error ==
+           invalidLayout);
+
+    auto capabilitySets = generalWithShareCapability();
+    constexpr std::array<std::uint8_t, 4> descriptor{{'R', 'D', 'P', 0}};
+    std::array<std::uint8_t, 58> demand{};
+    const auto encode = [&](std::span<const std::uint8_t> sets,
+                            std::uint16_t count,
+                            std::span<std::uint8_t> target)
+    {
+        return encodeRdpDemandActivePdu(
+            0x000103eaU, 0x11223344U, descriptor, count, sets, target);
+    };
+    assert(encode(capabilitySets, 2U, demand) == demand.size());
+    for (std::size_t length = 0; length < demand.size(); ++length)
+    {
+        assert(parseRdpGeneralCapabilityFromActive(
+                   std::span(demand).first(length)).error == invalidActive);
+    }
+    auto extended = std::vector<std::uint8_t>(demand.begin(), demand.end());
+    extended.push_back(0);
+    assert(parseRdpGeneralCapabilityFromActive(extended).error ==
+           invalidActive);
+
+    auto mutation = demand;
+    mutation[38] = 0x01; // General protocolVersion low byte 0x0201.
+    assert(parseRdpActivePdu(mutation));
+    assert(parseRdpGeneralCapabilityFromActive(mutation).error ==
+           invalidVersion);
+
+    mutation = demand;
+    mutation[52] = 2; // refreshRectSupport must be Boolean.
+    assert(parseRdpGeneralCapabilityFromActive(mutation).error ==
+           invalidBoolean);
+    mutation = demand;
+    mutation[53] = 2; // suppressOutputSupport must be Boolean.
+    assert(parseRdpGeneralCapabilityFromActive(mutation).error ==
+           invalidBoolean);
+
+    std::array<std::uint8_t, 48> repeated{};
+    std::copy(kMicrosoftGeneralCapability.begin(),
+              kMicrosoftGeneralCapability.end(), repeated.begin());
+    std::copy(kMicrosoftGeneralCapability.begin(),
+              kMicrosoftGeneralCapability.end(), repeated.begin() + 24);
+    std::array<std::uint8_t, 74> repeatedDemand{};
+    assert(encode(repeated, 2U, repeatedDemand) == repeatedDemand.size());
+    assert(parseRdpActivePdu(repeatedDemand));
+    assert(parseRdpGeneralCapabilityFromActive(repeatedDemand).error ==
+           duplicate);
+
+    // The count/envelope parser remains generic; it does NOT suddenly
+    // require General from every artificial or partial capability list.
+    assert(parseRdpActivePdu(kOfflineDemandActive));
+}
+
 void testRdpActivePduWire()
 {
     const auto demand = parseRdpActivePdu(kOfflineDemandActive);
@@ -2371,7 +2513,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 37> kMcsTestCases{{
+constexpr std::array<McsTestCase, 39> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -2401,6 +2543,8 @@ constexpr std::array<McsTestCase, 37> kMcsTestCases{{
     {"share-control-finalization-rejections", &testRdpControlFinalizationRejections},
     {"share-active-capabilities-wire", &testRdpActivePduWire},
     {"share-active-capabilities-rejections", &testRdpActivePduRejections},
+    {"share-general-capability-wire", &testRdpGeneralCapabilityWire},
+    {"share-general-capability-rejections", &testRdpGeneralCapabilityRejections},
     {"share-demand-active-encode-wire", &testRdpDemandActiveEncodeWire},
     {"share-demand-active-encode-rejections", &testRdpDemandActiveEncodeRejections},
     {"share-server-finalization-encode-wire", &testRdpServerFinalizationEncodeWire},

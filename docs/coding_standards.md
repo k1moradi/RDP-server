@@ -1096,3 +1096,21 @@ session or identity authority. Certificate continuity does
 not authenticate a user or admit an OS account; only a future
 trusted GSS and separately authorized OS path may do that.
 Plaintext synthetic MCS intake has no live transport provenance.
+
+## General capability semantics without false negotiation (2026-10-15)
+
+For MS-RDPBCGR 2.2.7.1.1, use the existing exact-length,
+counted TS_CAPS_SET envelope parser before interpreting
+one fixed 24-byte General set. Keep a single zero-allocation
+scan using checked offsets, no duplicate capability cache,
+no pointer ownership, and no second activation controller.
+Treat the protocolVersion field as required 0x0200;
+reject duplicate General sets, undersized/oversized
+layouts and non-Boolean refresh/suppress bytes. Ignore
+pad2OctetsA even when nonzero. Preserve raw OS and
+extraFlags advertisement including unfamiliar future
+bits, and do not infer any graphics codec or authentication.
+Do not strengthen the common generic decoder to reject
+other capability lists: other unimplemented features
+remain opaque until independently negotiated after
+GSS/TLS and OS approval.

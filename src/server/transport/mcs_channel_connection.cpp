@@ -647,6 +647,57 @@ RdpActivePduParseResult parseRdpActivePdu(
     return {value, RdpActivePduError::None};
 }
 
+RdpGeneralCapabilityParseResult parseRdpGeneralCapabilityFromActive(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    // The existing parser verifies one entire Share Control PDU, the
+    // capability count and EVERY nested envelope before any byte access.
+    const auto active = parseRdpActivePdu(completeSharePdu);
+    if (!active)
+        return {{}, RdpGeneralCapabilityError::InvalidActivePdu};
+
+    constexpr std::uint16_t kGeneralType = 1U;
+    constexpr std::size_t kGeneralBytes = 24U;
+    constexpr std::uint16_t kProtocolVersion = 0x0200U;
+    const auto capabilities = active.value.capabilitySets;
+    std::size_t position = 0;
+    std::span<const std::uint8_t> generalBytes;
+    for (std::size_t index = 0; index < active.value.capabilityCount; ++index)
+    {
+        // Exact, bounded envelopes are established by parseRdpActivePdu.
+        const std::size_t length = readLe16At(capabilities, position + 2U);
+        if (readLe16At(capabilities, position) == kGeneralType)
+        {
+            if (!generalBytes.empty())
+                return {{}, RdpGeneralCapabilityError::Duplicate};
+            if (length != kGeneralBytes)
+                return {{}, RdpGeneralCapabilityError::InvalidLayout};
+            generalBytes = capabilities.subspan(position, length);
+        }
+        position += length;
+    }
+    if (generalBytes.empty())
+        return {{}, RdpGeneralCapabilityError::Missing};
+    if (readLe16At(generalBytes, 8U) != kProtocolVersion)
+        return {{}, RdpGeneralCapabilityError::InvalidProtocolVersion};
+    if (generalBytes[22U] > 1U || generalBytes[23U] > 1U)
+        return {{}, RdpGeneralCapabilityError::InvalidBoolean};
+
+    RdpGeneralCapability value{};
+    value.osMajorType = readLe16At(generalBytes, 4U);
+    value.osMinorType = readLe16At(generalBytes, 6U);
+    // pad2OctetsA at 10..11 MUST be ignored, not required to be zero.
+    value.generalCompressionTypes = readLe16At(generalBytes, 12U);
+    value.extraFlags = readLe16At(generalBytes, 14U);
+    value.updateCapabilityFlag = readLe16At(generalBytes, 16U);
+    value.remoteUnshareFlag = readLe16At(generalBytes, 18U);
+    value.generalCompressionLevel = readLe16At(generalBytes, 20U);
+    value.refreshRectSupported = generalBytes[22U] == 1U;
+    value.suppressOutputSupported = generalBytes[23U] == 1U;
+    // A valid announcement does not select graphics or admit any session.
+    return {value, RdpGeneralCapabilityError::None};
+}
+
 std::optional<std::size_t> encodeRdpDemandActivePdu(
     std::uint32_t shareId,
     std::uint32_t sessionId,

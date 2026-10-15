@@ -3885,3 +3885,32 @@ lifecycle only when compiled target is green.
 R6 integrates these mapped-frame lifetimes with R3-approved session
 ownership and R4's one graphics scheduler, with disconnect and
 display topology changes covered by new offline behavior CTests.
+
+## R10 POSIX configuration hardening — exact-SHA CI (2026-10-15)
+
+**Production SHA:** [`25e751b8b0c0e09905355c71e9abaf7bf20fc64c`](https://github.com/k1moradi/RDP-server/commit/25e751b8b0c0e09905355c71e9abaf7bf20fc64c);
+[GitHub Actions 38800655859](https://github.com/k1moradi/RDP-server/actions/runs/38800655859),
+overall **FAIL** with precise cross-road causes:
+- **PASS:** Windows/MSVC complete Debug and Release **180/180** CTests
+  per configuration, downstream SDK consumer **1/1**, ZIP/SHA256
+  packaging and artifacts, and documentation-policy job.
+- **PASS R10, FAIL other road:** macOS/Clang Debug **177/178** CTests;
+  all five new R10 POSIX config-descriptor cases PASS and existing
+  runtime cases PASS. Sole failure is R1-owned
+  `transport.tcp-owned-reply-interest-priority` assertion at
+  `tests/test_owned_preauth_session.cpp:2112`; [R1 issue #2](https://github.com/k1moradi/RDP-server/issues/2)
+  received the exact failure. macOS Release and packaging **NOT RUN**.
+- **FAIL:** Linux/GCC Debug build of R5-owned
+  `src/x11/x11_display_connection.cpp:222`, enum vs non-enum
+  expression with `-Werror=extra`; [R5 issue #4](https://github.com/k1moradi/RDP-server/issues/4)
+  received the exact error. Linux full CTest/Release/package **NOT RUN**.
+- **PASS (additional isolated only):** GCC 14.2 ASan+UBSan focused R10
+  30/30 CTests, with leak detection and UB halt-on-error inside the
+  reused local build root. No complete Git checkout in this environment.
+
+No Windows/MSYS2 CLANG64 Clang 23, owner macOS 27, or owner Linux/X11
+same-SHA checks were run here. No real NLA/OS admission, authenticated
+desktop, service packaging, or release acceptance. M1–M6 remain OPEN.
+**Next:** R1/R5 own their specific CI repairs on `main`; R10
+rechecks exact CI and proceeds to Windows-native secure config-file
+handling without enabling live server startup.

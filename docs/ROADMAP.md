@@ -111,6 +111,31 @@ CI and owner baseline, then Windows-native safe config-file opening
 and independent certificate/key permission checks, without starting
 a service.
 
+**R10 POSIX file-policy exact-commit CI result (2026-10-15):**
+Production commit `25e751b8b0c0e09905355c71e9abaf7bf20fc64c` is published on `main`.
+[GitHub Actions 38800655859](https://github.com/k1moradi/RDP-server/actions/runs/38800655859)
+**FAILED overall**, but **R10 runtime behavior PASS**: macOS/Clang
+five new `runtime.*configuration*` POSIX cases all PASS (30/30 R10
+cases), Windows/MSVC **180/180** total registered CTests in BOTH
+Debug and Release, plus downstream SDK consumer 1/1, ZIP/digest
+artifacts and documentation-policy PASS. Linux/GCC configure PASS,
+Debug build FAIL before CTest on R5-owned
+`src/x11/x11_display_connection.cpp:222` (enum/non-enum conditional,
+`-Werror=extra`), reported to
+[R5 issue #4](https://github.com/k1moradi/RDP-server/issues/4).
+macOS/Clang Debug **177/178** PASS; the sole failure is R1-owned
+`transport.tcp-owned-reply-interest-priority` at
+`tests/test_owned_preauth_session.cpp:2112`, reported to
+[R1 issue #2](https://github.com/k1moradi/RDP-server/issues/2).
+Linux full CTest, macOS Release and associated packaging NOT RUN;
+untagged prerelease SKIPPED. Local GCC 14.2 ASan/UBSan focused R10
+CTest additionally **30/30 PASS**, but remains an isolated harness.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 one-root
+CTest and real-client authorization/desktop remain NOT RUN.
+M1–M6 acceptance remains OPEN. **Next integration step:** R5/R1
+owners correct their failures and verify new exact-SHA CI; R10 follows
+with Windows native file-handle/ACL checks.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

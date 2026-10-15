@@ -1753,6 +1753,195 @@ void testNativeTcpAcceptOrderlyPeerDisconnect()
 }
 
 
+
+void testOwnedTcpConnectionTlsLifecycle()
+{
+    static_assert(!std::is_move_constructible_v<OwnedPreauthTcpConnection>);
+    static_assert(!std::is_copy_constructible_v<OwnedPreauthTcpConnection>);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    assert(owner.active());
+    assert(!accepted.connection.valid());
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    const auto request = validRequestWire();
+    nativeSendAll(clientIo, request);
+    TcpPreauthEvent status = TcpPreauthEvent::NeedRead;
+    for (int step = 0; step < 2048; ++step)
+    {
+        status = owner.onReadable();
+        if (status != TcpPreauthEvent::NeedRead) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(status == TcpPreauthEvent::NeedWrite);
+    assert(owner.onWritable() == TcpPreauthEvent::ReadyForTls);
+    assert(owner.stage() == PreauthStage::AwaitTls);
+    std::array<std::uint8_t, 19> confirm{};
+    nativeReadAll(clientIo, confirm);
+    assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
+
+    TlsHandshakeFixture tls{false, false};
+    OwnedPreauthTcpConnection::ServerTls server{
+        tls.server.release(), SSL_free};
+    assert(owner.attachServerTls(std::move(server)));
+    assert(!server);
+    assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    for (int pass = 0; pass < 16384; ++pass)
+    {
+        if (!clientEstablished)
+        {
+            const int success = SSL_do_handshake(tls.client.get());
+            if (success == 1)
+                clientEstablished = true;
+            else
+            {
+                const int error = SSL_get_error(tls.client.get(), success);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+        if (!serverEstablished)
+        {
+            const auto outcome = owner.onTlsIoReady();
+            assert(outcome == TlsHandshakeStatus::NeedRead ||
+                   outcome == TlsHandshakeStatus::NeedWrite ||
+                   outcome == TlsHandshakeStatus::Established);
+            serverEstablished = outcome == TlsHandshakeStatus::Established;
+        }
+        if (clientEstablished && serverEstablished) break;
+        std::this_thread::yield();
+    }
+    assert(clientEstablished && serverEstablished);
+    assert(owner.active());
+    assert(owner.stage() == PreauthStage::AwaitMcsConnectInitial);
+
+    const auto frame = validMcsPacket();
+    std::size_t written = 0;
+    for (int pass = 0; pass < 16384 && written < frame.size(); ++pass)
+    {
+        std::size_t count = 0;
+        const int success = SSL_write_ex(tls.client.get(),
+            frame.data() + written, frame.size() - written, &count);
+        if (success == 1)
+        {
+            assert(count > 0 && count <= frame.size() - written);
+            written += count;
+        }
+        else
+        {
+            const int error = SSL_get_error(tls.client.get(), success);
+            assert(error == SSL_ERROR_WANT_READ ||
+                   error == SSL_ERROR_WANT_WRITE);
+            std::this_thread::yield();
+        }
+    }
+    assert(written == frame.size());
+
+    McsIntakeResult response{};
+    std::size_t total = 0;
+    for (int pass = 0; pass < 16384; ++pass)
+    {
+        response = owner.onMcsIoReady();
+        total += response.bytesConsumed;
+        if (response.status != McsIntakeStatus::NeedMore) break;
+        std::this_thread::yield();
+    }
+    assert(response.status == McsIntakeStatus::EnvelopeValidated);
+    assert(total == frame.size());
+    assert(!owner.active());
+    assert(owner.stage() == PreauthStage::Closed);
+    assert(owner.onTlsIoReady() == TlsHandshakeStatus::Closed);
+    assert(owner.onMcsIoReady().status == McsIntakeStatus::Closed);
+    assert(pair.listener.value != kInvalidLocalSocket);
+    assert(acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value)).outcome ==
+        TcpAcceptOutcome::WouldBlock);
+    // Diagnostic validation is NOT R2 identity or R3 session admission.
+}
+
+void testOwnedTcpConnectionCancellation()
+{
+    OwnedPreauthTcpConnection empty{OwnedNativeTcpSocket{}};
+    assert(!empty.active());
+    assert(empty.onReadable() == TcpPreauthEvent::Closed);
+    assert(empty.onWritable() == TcpPreauthEvent::Closed);
+    assert(empty.onTlsIoReady() == TlsHandshakeStatus::Closed);
+    assert(empty.onMcsIoReady().status == McsIntakeStatus::Closed);
+    empty.cancel();
+    empty.cancel();
+
+    // Cancel during an incomplete plaintext X.224 Connection Request.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        const auto native = accepted.connection.nativeSocket();
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        const auto request = validRequestWire();
+        nativeSendAll(clientIo, std::span(request).first(3));
+        assert(owner.onReadable() == TcpPreauthEvent::NeedRead);
+        assert(owner.stage() == PreauthStage::AwaitConnectionRequest);
+        owner.cancel();
+        owner.cancel();
+        assert(!owner.active());
+        assert(owner.stage() == PreauthStage::Closed);
+        assert(owner.onReadable() == TcpPreauthEvent::Closed);
+        assert(owner.onWritable() == TcpPreauthEvent::Closed);
+#ifdef _WIN32
+        int error = 0;
+        int length = sizeof(error);
+        assert(::getsockopt(static_cast<SOCKET>(native), SOL_SOCKET,
+                            SO_ERROR, reinterpret_cast<char *>(&error),
+                            &length) == SOCKET_ERROR);
+        assert(WSAGetLastError() == WSAENOTSOCK);
+#else
+        errno = 0;
+        assert(::fcntl(static_cast<int>(native), F_GETFD) == -1);
+        assert(errno == EBADF);
+#endif
+        assert(pair.listener.value != kInvalidLocalSocket);
+    }
+
+    // Cancel after attaching SSL but before a ClientHello arrives.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        const auto request = validRequestWire();
+        nativeSendAll(clientIo, request);
+        TcpPreauthEvent status = TcpPreauthEvent::NeedRead;
+        for (int step = 0; step < 2048; ++step)
+        {
+            status = owner.onReadable();
+            if (status != TcpPreauthEvent::NeedRead) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(status == TcpPreauthEvent::NeedWrite);
+        assert(owner.onWritable() == TcpPreauthEvent::ReadyForTls);
+        TlsHandshakeFixture tls{false, false};
+        OwnedPreauthTcpConnection::ServerTls server{
+            tls.server.release(), SSL_free};
+        assert(owner.attachServerTls(std::move(server)));
+        assert(owner.onTlsIoReady() == TlsHandshakeStatus::NeedRead);
+        owner.cancel();
+        assert(!owner.active());
+        assert(owner.stage() == PreauthStage::Closed);
+        assert(owner.onTlsIoReady() == TlsHandshakeStatus::Closed);
+        assert(owner.onMcsIoReady().status == McsIntakeStatus::Closed);
+        assert(pair.listener.value != kInvalidLocalSocket);
+    }
+}
+
 void testNativeTcpChunkBounds()
 {
     // Real OS sockets, loopback only. The caller provides buffers much
@@ -3946,6 +4135,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-native-accept-ownership", &testNativeTcpAcceptOwnershipAndCancellation},
     {"tcp-native-accept-move-replacement", &testNativeTcpAcceptMoveReplacement},
     {"tcp-native-accept-orderly-eof", &testNativeTcpAcceptOrderlyPeerDisconnect},
+    {"tcp-owned-connection-tls-lifecycle", &testOwnedTcpConnectionTlsLifecycle},
+    {"tcp-owned-connection-cancellation", &testOwnedTcpConnectionCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},

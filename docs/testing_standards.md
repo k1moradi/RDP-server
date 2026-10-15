@@ -1706,3 +1706,14 @@ CTest covers queued bytes before peer FIN, explicit EOF, cancel and listener
 ownership separation. No external client, certificate enrollment, R2
 admission, or R3 activation is exercised. Expected registry on this code snapshot:
 104 portable / 114 Linux GSS.
+
+## R1 owned TCP/TLS readiness and cancellation (2026-10-15)
+
+Dedicated portable CTests `transport.tcp-owned-connection-tls-lifecycle`
+and `transport.tcp-owned-connection-cancellation` use the existing
+preauthentication executable and real loopback sockets. The first
+tests exact X.224 reply before TLS, pinned server SSL/BIO, completed
+TLS, first encrypted MCS/GCC diagnostic and terminal closure. The
+second tests missing socket, partial X.224, cancellation after server
+SSL attachment but before ClientHello, inert callbacks and listener
+preservation. No external client, live authorization or desktop.

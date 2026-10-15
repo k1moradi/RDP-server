@@ -1239,3 +1239,13 @@ reuse borrowed socket I/O after cancellation. Move assignment closes the
 previous descriptor exactly once; an aliased self-move preserves ownership.
 Peer FIN must deliver buffered bytes before explicit EOF, with the listener
 still borrowed and intact after local cancellation.
+
+## R1 attached native socket/TLS lifetime (2026-10-15)
+
+An active OpenSSL BIO borrows `NativeTcpIo`: keep the enclosing
+accepted-connection owner nonmoving. Transfer ownership of the
+already-configured server `SSL` only after full X.224 Confirm output.
+On cancellation, EOF, fatal TLS or terminal MCS diagnostic, clear
+preauthentication, destroy SSL/BIO and THEN close the native accepted
+socket. Never invoke readiness after close. The listener is borrowed
+and remains independent of the accepted socket lifetime.

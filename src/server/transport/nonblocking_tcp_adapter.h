@@ -6,8 +6,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <span>
 #include <utility>
+
+#include <openssl/ssl.h>
 
 namespace rdp_server::server::transport
 {
@@ -193,6 +196,10 @@ public:
     {
         return connection_;
     }
+    [[nodiscard]] const PreauthConnectionStream &connection() const noexcept
+    {
+        return connection_;
+    }
     void close() noexcept
     {
         attachedServerTls_ = nullptr;
@@ -211,5 +218,50 @@ private:
     SSL *attachedServerTls_{};
     BIO *attachedTcpBio_{};
 };
+
+ // R1: one event-loop-affine owner of an accepted socket, preauth and SSL.
+ // Never move: the attached SSL/BIO borrows the embedded NativeTcpIo.
+ // There is no additional protocol/session state machine or listener here.
+ class OwnedPreauthTcpConnection final
+ {
+ public:
+     using ServerTls = std::unique_ptr<SSL, decltype(&SSL_free)>;
+
+     explicit OwnedPreauthTcpConnection(
+         OwnedNativeTcpSocket acceptedSocket) noexcept;
+     OwnedPreauthTcpConnection(const OwnedPreauthTcpConnection &) = delete;
+     OwnedPreauthTcpConnection &operator=(const OwnedPreauthTcpConnection &) = delete;
+     OwnedPreauthTcpConnection(OwnedPreauthTcpConnection &&) = delete;
+     OwnedPreauthTcpConnection &operator=(OwnedPreauthTcpConnection &&) = delete;
+     ~OwnedPreauthTcpConnection() { cancel(); }
+
+     [[nodiscard]] bool active() const noexcept { return socket_.valid(); }
+     [[nodiscard]] std::uintptr_t nativeSocket() const noexcept
+     {
+         return socket_.nativeSocket();
+     }
+     [[nodiscard]] PreauthStage stage() const noexcept
+     {
+         return adapter_.connection().stage();
+     }
+
+     // Only for plaintext X.224 socket readiness. Subsequent TLS/MCS
+     // readiness must be dispatched to the corresponding methods.
+     [[nodiscard]] TcpPreauthEvent onReadable() noexcept;
+     [[nodiscard]] TcpPreauthEvent onWritable() noexcept;
+     // Takes unique SSL ownership even on error. Requires an already
+     // configured server SSL and the entire X.224 Confirm sent first.
+     [[nodiscard]] bool attachServerTls(ServerTls serverTls) noexcept;
+     [[nodiscard]] TlsHandshakeStatus onTlsIoReady() noexcept;
+     [[nodiscard]] McsIntakeResult onMcsIoReady() noexcept;
+     // Terminal, idempotent cancellation: free SSL/BIO before socket close.
+     void cancel() noexcept;
+
+ private:
+     OwnedNativeTcpSocket socket_{};
+     NativeTcpIo io_;
+     PreauthTcpAdapter adapter_;
+     ServerTls serverTls_{nullptr, SSL_free};
+ };
 
 } // namespace rdp_server::server::transport

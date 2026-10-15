@@ -337,6 +337,85 @@ TcpAcceptResult acceptNonblockingTcpConnection(
             OwnedNativeTcpSocket{static_cast<std::uintptr_t>(acceptedSocket)}};
 }
 
+
+OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
+    OwnedNativeTcpSocket acceptedSocket) noexcept
+    : socket_(std::move(acceptedSocket)),
+      io_(socket_.nativeSocket()),
+      adapter_(io_)
+{
+    if (!socket_.valid()) adapter_.close();
+}
+
+void OwnedPreauthTcpConnection::cancel() noexcept
+{
+    // The BIO borrows io_; free its SSL before closing the native socket.
+    adapter_.close();
+    serverTls_.reset();
+    socket_.close();
+}
+
+TcpPreauthEvent OwnedPreauthTcpConnection::onReadable() noexcept
+{
+    if (!active()) return TcpPreauthEvent::Closed;
+    const auto status = adapter_.onReadable();
+    if (status == TcpPreauthEvent::Closed ||
+        status == TcpPreauthEvent::Invalid)
+        cancel();
+    return status;
+}
+
+TcpPreauthEvent OwnedPreauthTcpConnection::onWritable() noexcept
+{
+    if (!active()) return TcpPreauthEvent::Closed;
+    const auto status = adapter_.onWritable();
+    if (status == TcpPreauthEvent::Closed ||
+        status == TcpPreauthEvent::Invalid)
+        cancel();
+    return status;
+}
+
+bool OwnedPreauthTcpConnection::attachServerTls(ServerTls serverTls) noexcept
+{
+    if (!active() || serverTls_ || !serverTls ||
+        !adapter_.attachTlsTransport(serverTls.get()))
+    {
+        cancel();
+        return false;
+    }
+    serverTls_ = std::move(serverTls);
+    return true;
+}
+
+TlsHandshakeStatus OwnedPreauthTcpConnection::onTlsIoReady() noexcept
+{
+    if (!active()) return TlsHandshakeStatus::Closed;
+    if (!serverTls_)
+    {
+        cancel();
+        return TlsHandshakeStatus::Invalid;
+    }
+    const auto result = adapter_.onAttachedTlsIoReady();
+    if (result == TlsHandshakeStatus::Invalid ||
+        result == TlsHandshakeStatus::Closed)
+        cancel();
+    return result;
+}
+
+McsIntakeResult OwnedPreauthTcpConnection::onMcsIoReady() noexcept
+{
+    if (!active()) return {0, McsIntakeStatus::Closed};
+    if (!serverTls_)
+    {
+        cancel();
+        return {0, McsIntakeStatus::Invalid};
+    }
+    const auto result = adapter_.onAttachedMcsIoReady();
+    if (result.status != McsIntakeStatus::NeedMore)
+        cancel();
+    return result;
+}
+
 TcpIoResult NativeTcpIo::receive(std::span<std::uint8_t> destination) noexcept
 {
     if (destination.empty())

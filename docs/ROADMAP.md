@@ -303,6 +303,27 @@ actually run; another parser CTest alone is not a complete session.
   production listener/event loop feeding this accept into the one
   owned TCP/TLS session, followed by R2/R3 authenticated activation.
 
+
+  **R1 accepted-socket TLS/BIO lifetime increment (2026-10-15;
+  integration parent `a7234f40c4e2188b1170daf363136a6ac159c025`; exact new-code CI pending):**
+  `OwnedPreauthTcpConnection` is one nonmoving, single-event-loop owner
+  of the accepted native socket, existing `NativeTcpIo` /
+  `PreauthTcpAdapter` and transferred server `SSL` and its borrowed BIO.
+  It forwards X.224/TLS/MCS diagnostic readiness to the existing
+  protocol stages; on cancellation, errors or diagnostic completion it
+  clears preauth, frees SSL/BIO and only then closes the accepted socket.
+  The listener is never owned. Two new registered CTests:
+  `transport.tcp-owned-connection-tls-lifecycle` drives native
+  loopback through X.224 Confirm, negotiated TLS and encrypted first
+  MCS/GCC intake; `transport.tcp-owned-connection-cancellation`
+  covers invalid handles, partial X.224, cancel before ClientHello,
+  idempotence and listener preservation. No new session state controller,
+  production listener, authentication or OS session access.
+  **NOT RUN at authoring:** dedicated/full repository CTest, hosted
+  new-code CI and owner's three platform toolchains; isolated previous
+  R1 socket accept/EOF sanitizer checks PASS. Next: bounded readiness
+  polling/cancellation and R2/R3 authorized lifecycle integration.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

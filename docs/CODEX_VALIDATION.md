@@ -2885,3 +2885,23 @@ Microsoft-client desktop and performance benchmark.
 **Next:** verify full-project CTest and CI on published SHA and compile
 native Linux/XCB target with deterministic lifecycle tests; bind to
 R2/R3 OS admission and R4 graphics consumer only afterward.
+
+## R1 one-owner TCP/TLS lifetime (2026-10-15)
+
+**Integration parent:** `a7234f40c4e2188b1170daf363136a6ac159c025`. **Changed files:** R1 native TCP
+header/implementation, existing preauth test fixture, one central CTest
+registry and affected ROADMAP, ARCHITECTURE, coding/testing standards
+and this ledger. Added nonmoving `OwnedPreauthTcpConnection` with
+unique server SSL/BIO ownership and fail-closed accepted-socket
+cancellation; no second protocol state machine or session admission.
+**Dedicated new CTests:** `transport.tcp-owned-connection-tls-lifecycle`
+and `transport.tcp-owned-connection-cancellation`.
+**PASS:** prior R1 accept/EOF standalone GCC/Clang strict warning
+ASan+UBSan on native Linux and simulated POSIX fallback; prior R1
+`b633bb0554020ff6aba6811240b75fa25c4bd69a` hosted macOS and
+Windows CI 104/104 in Debug/Release.
+**NOT RUN at authoring:** full new-code CMake/CTest (worker has no
+GitHub-clonable checkout), new-SHA hosted CI and owner Linux/X11,
+Windows MSYS2 CLANG64 Clang23, macOS27. **Next:** bounded event
+readiness scheduler, R2-authenticated admission and R3 MCS session.
+Publish atomically to existing main using non-force expected HEAD.

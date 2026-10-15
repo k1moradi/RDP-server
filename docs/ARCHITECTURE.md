@@ -1269,3 +1269,14 @@ OS session authorization, licensing, capability agreement or application
 data routing. The sole R3 controller must enforce those separately and
 bound the upstream TPKT intake. No second writer, session owner or
 live desktop service is introduced.
+
+## R1 accepted TCP-to-TLS lifetime boundary (2026-10-15)
+
+`OwnedPreauthTcpConnection` nonmovably owns exactly one accepted socket,
+the existing `NativeTcpIo` and `PreauthTcpAdapter`, and a unique
+server `SSL` attached only after the entire X.224 Confirm is sent.
+The custom BIO borrows the embedded I/O object. All cancellation paths
+close the diagnostic, free SSL/BIO and then close the socket, retaining
+the caller-owned listener. It reuses the current protocol stages and
+cannot grant authentication, authorize a desktop or emit an MCS reply.
+An external event loop supplies readiness and timeout decisions.

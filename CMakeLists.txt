@@ -85,6 +85,7 @@ add_library(rdp-server-protocol STATIC
     src/clipboard/clipboard_protocol.cpp
     src/core/generation_tile_map.cpp
     src/rdp/gfx_surface_lifecycle.cpp
+    src/rdp/gfx_avc420_capabilities.cpp
     src/rdp/verified_bitmap_cache16.cpp)
 target_compile_features(rdp-server-protocol PUBLIC cxx_std_23)
 # These are the same public include prefixes in both the checkout and

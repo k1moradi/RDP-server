@@ -162,6 +162,17 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
+    elseif(test_target STREQUAL "test_gfx_avc420_capabilities")
+        # Same production-linked executable, three independent wire behaviors.
+        foreach(case_name IN ITEMS
+                avc420-capabilities-selection
+                avc420-capabilities-rejections
+                avc420-capabilities-header-bounds)
+            add_test(NAME "graphics.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("graphics.${case_name}" PROPERTIES
+                LABELS "protocol;graphics")
+        endforeach()
     elseif(test_target STREQUAL "test_gfx_surface_lifecycle")
         foreach(case_name IN ITEMS
                 surface-lifecycle-wire
@@ -242,6 +253,7 @@ add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)
 add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)
 add_rdp_test(test_base64_codec.cpp security base64-codec)
 add_rdp_test(test_gfx_surface_lifecycle.cpp graphics surface-lifecycle)
+add_rdp_test(test_gfx_avc420_capabilities.cpp graphics avc420-capabilities)
 if(TARGET rdp-server-linux-gssapi)
     add_rdp_test(test_linux_gssapi_spnego.cpp security linux-gssapi)
     target_link_libraries(test_linux_gssapi_spnego PRIVATE

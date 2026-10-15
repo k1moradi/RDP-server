@@ -2746,3 +2746,37 @@ first-party offline tests, NOT live Microsoft-client interoperability.
 exact-SHA runs, real GSS OS authorization, host clipboard, and desktop.
 **Next:** add isolated chunk-reassembly reset/bounds dedicated CTest
 on latest `main` and cross-road authenticated channel integration.
+
+## R4 AVC420 capability exchange implementation (2026-10-15)
+
+**Parent `main`:** `5f3cd193417c4f30fb51929aecc30b48c129cff5`. The complete atomic change adds
+`src/rdp/gfx_avc420_capabilities.{h,cpp}` to the portable C++23 SDK,
+registers a production-linked executable in the one test registry and
+updates the living R4 TODO and architecture. The three dedicated CTests:
+`graphics.avc420-capabilities-selection`,
+`graphics.avc420-capabilities-rejections` and
+`graphics.avc420-capabilities-header-bounds` cover exact CAPSET 8.1
+negotiation/wire bytes, unsupported offers, truncation, malicious
+lengths, duplicate and overlapping CAPSET headers. MS-RDPEGFX
+2.2.1.5/6, 2.2.2.18/19 and 2.2.3.2 define the normative wire contract.
+
+**PASS:** GCC 14.2 and Clang 17 each compiled the production
+`gfx_avc420_capabilities.cpp` and production-linked test fixture with
+`-std=c++23 -O1 -g -Wall -Wextra -Wpedantic -Werror -UNDEBUG
+-D_GLIBCXX_ASSERTIONS -fsanitize=address,undefined
+-fno-omit-frame-pointer -Isrc`. All three behavior cases passed
+with `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1` and
+`UBSAN_OPTIONS=halt_on_error=1`, each compiler. An isolated staging
+`ctest --test-dir "$HOME/rdp-server/build/r4_avc420_stage"
+--output-on-failure` also **PASSED 3/3**; it is NOT the full
+project CTest. The full checkout is unavailable in this runtime, so
+the canonical full project configure/build/CTest is **NOT RUN at
+authoring**. Exact-published-SHA hosted CI is to be checked after
+publication. The owner's Linux/X11, Windows MSYS2 CLANG64 Clang23
+and macOS27 one-liners, R3 authorized DVC session, H.264 x264 path,
+Microsoft-client visible desktop and graphics benchmarks are
+**NOT RUN**.
+
+**Next gate:** inspect exact published SHA CI/full CTests, then
+integrate confirmation with the R3-authorized dynamic graphics channel
+and R4 surface lifecycle. Do not infer a live server from this test.

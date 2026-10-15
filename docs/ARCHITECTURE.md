@@ -79,6 +79,19 @@ the native producer validates DXGI metadata byte lengths and releases
 the frame before changing the session. This increment owns no COM
 objects, authorization, queue, capture polling or graphics scheduler.
 
+### R4 portable AVC420 capability-exchange boundary
+
+`rdp/gfx_avc420_capabilities.h` parses one complete, already-reassembled
+MS-RDPEGFX CAPS_ADVERTISE PDU and builds one 20-byte CAPS_CONFIRM for
+the explicitly advertised 8.1 AVC420 profile only. It checks the common
+graphics header, count, every variable-size capability set and exact
+PDU length without allocation. Unsupported or malformed offers produce
+no confirmation. R3 retains admission, dynamic-virtual-channel framing,
+send ownership and channel lifecycle. R4's single graphics owner must
+record successful confirmation and prevent surface/frame delivery before
+the confirmation is sent; this stateless helper is not a session,
+scheduler or negotiated transport by itself.
+
 ### R4 portable graphics surface wire boundary
 
 `rdp/gfx_surface_lifecycle.h` builds exact CREATE_SURFACE (15-byte),

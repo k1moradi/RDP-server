@@ -1899,6 +1899,24 @@ actually run; another parser CTest alone is not a complete session.
   later H.264-only option **only if client negotiation or text fidelity requires
   it**. Never advertise an unsupported mode or silently fall back when AVC420
   is unavailable. **Status: NOT RUN / not a working RDP server.**
+  **R4 bounded AVC420 capability exchange (2026-10-15, implemented):**
+  portable MS-RDPEGFX CAPS_ADVERTISE parsing and exact CAPS_CONFIRM
+  serialization accept only advertised version 8.1 with its explicit
+  AVC420_ENABLED flag. The parser checks every variable-length CAPSET
+  header and data length, rejects duplicates, malformed/trailing data,
+  unsupported flags and unknown-only offers. It neither opens a channel
+  nor enables a session or x264 encoder. The dedicated CTests
+  `graphics.avc420-capabilities-selection`,
+  `graphics.avc420-capabilities-rejections`, and
+  `graphics.avc420-capabilities-header-bounds` cover exact confirmation,
+  truncation, overflow, unsupported features and the successive-header
+  bounds regression. **PASS:** GCC 14.2 and Clang 17 strict C++23
+  ASan/UBSan (3/3 each); isolated staging CTest (3/3).
+  **NOT RUN at authoring:** full checkout CTest, exact-commit GitHub CI,
+  owner Linux/X11, Windows CLANG64/Clang23, macOS27, authorized R3 DVC,
+  real-client H.264 and performance. Gate B remains unaccepted.
+  **Next R4 gate:** bind the confirmed profile to R3's authorized DVC
+  lifecycle and surface creation, then validate client frame scheduling.
   **R4 surface lifecycle wire increment (2026-10-15, implemented):**
   portable allocation-free CREATE_SURFACE, MAP_SURFACE_TO_OUTPUT and
   DELETE_SURFACE encoders now implement MS-RDPEGFX 2.2.2.9/.10/.15.

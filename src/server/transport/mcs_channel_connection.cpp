@@ -325,4 +325,56 @@ std::optional<std::size_t> encodeMcsSendDataIndication(
     return packetBytes;
 }
 
+RdpShareControlParseResult parseRdpShareControlHeader(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    // MS-RDPBCGR 2.2.8.1.1.1.1: six-byte little-endian
+    // TS_SHARECONTROLHEADER with exact totalLength.
+    constexpr std::size_t headerBytes = 6;
+    if (completeSharePdu.size() < headerBytes)
+        return {};
+
+    const std::size_t totalLength =
+        static_cast<std::size_t>(completeSharePdu[0]) |
+        (static_cast<std::size_t>(completeSharePdu[1]) << 8U);
+    if (totalLength == 0x8000U)
+    {
+        // T.128 FlowPDU must be IGNORED rather than dispatched as
+        // ordinary share traffic. Do not expose its untrusted body.
+        return {{}, RdpShareControlError::FlowPduIgnored};
+    }
+    if (totalLength != completeSharePdu.size())
+        return {};
+
+    const std::uint16_t typeAndVersion =
+        static_cast<std::uint16_t>(completeSharePdu[2]) |
+        (static_cast<std::uint16_t>(completeSharePdu[3]) << 8U);
+    // 12-bit PDUVersion must be 1 (TS_PROTOCOL_VERSION = 0x10).
+    // Only the low four bits encode the normative PDU type.
+    if ((typeAndVersion & 0xfff0U) != 0x0010U)
+        return {{}, RdpShareControlError::InvalidType};
+
+    const auto kind =
+        static_cast<RdpShareControlKind>(typeAndVersion & 0x0fU);
+    switch (kind)
+    {
+    case RdpShareControlKind::DemandActive:
+    case RdpShareControlKind::ConfirmActive:
+    case RdpShareControlKind::DeactivateAll:
+    case RdpShareControlKind::Data:
+    case RdpShareControlKind::ServerRedirection:
+        break;
+    default:
+        return {{}, RdpShareControlError::InvalidType};
+    }
+
+    RdpShareControlHeader header{};
+    header.kind = kind;
+    header.pduSource =
+        static_cast<std::uint16_t>(completeSharePdu[4]) |
+        (static_cast<std::uint16_t>(completeSharePdu[5]) << 8U);
+    header.body = completeSharePdu.subspan(headerBytes);
+    return {header, RdpShareControlError::None};
+}
+
 } // namespace rdp_server::server::transport

@@ -149,4 +149,57 @@ encodeMcsDisconnectProviderUltimatum(McsDisconnectReason reason) noexcept;
     std::span<const std::uint8_t> userData,
     std::span<std::uint8_t> output) noexcept;
 
+// MS-RDPBCGR 2.2.8.1.1.1.1, TS_SHARECONTROLHEADER.
+// The caller must ALREADY have isolated one complete, unencrypted,
+// uncompressed Share Control PDU from the appropriate MCS channel,
+// handling any optional Security Header separately. An MCS userData
+// span is NOT automatically a Share Control PDU: it can be a license,
+// client-info, channel, or other security/application message.
+// Parsing this header grants no MCS channel or session authorization.
+enum class RdpShareControlKind : std::uint8_t
+{
+    None,
+    DemandActive = 1,
+    ConfirmActive = 3,
+    DeactivateAll = 6,
+    Data = 7,
+    ServerRedirection = 10,
+};
+
+enum class RdpShareControlError : std::uint8_t
+{
+    None,
+    InvalidLength,
+    InvalidType,
+    FlowPduIgnored,
+};
+
+struct RdpShareControlHeader
+{
+    RdpShareControlKind kind{RdpShareControlKind::None};
+    std::uint16_t pduSource{};
+    // Borrowed inner bytes after exactly six Share Control Header
+    // bytes; no Data/Active/Redirection payload validation here.
+    // Lifetime is bounded by the caller's unchanged input.
+    std::span<const std::uint8_t> body{};
+};
+
+struct RdpShareControlParseResult
+{
+    RdpShareControlHeader value{};
+    RdpShareControlError error{RdpShareControlError::InvalidLength};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpShareControlError::None;
+    }
+};
+
+// Exact-length little-endian TS_SHARECONTROLHEADER, protocol version 1,
+// five normative PDU types. If totalLength is 0x8000, return
+// FlowPduIgnored (not success) with no borrowed body, as Microsoft
+// requires. A malformed/truncated/coalesced input is never successful.
+// This function performs NO security, license, MCS or share admission.
+[[nodiscard]] RdpShareControlParseResult parseRdpShareControlHeader(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
 } // namespace rdp_server::server::transport

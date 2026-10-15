@@ -617,6 +617,32 @@ ZIP/SHA-256 package uploads and documentation-policy PASS.
 The owner-local new build, real TLS send, GSS/OS admission
 and external clients are NOT RUN.
 
+## Offline RDP Share Control Header regression tests (2026-10-15, CI NOT RUN)
+
+Reuse `tests/test_owned_mcs_connect_initial.cpp` and the original
+CTest registry, adding exactly TWO portable behavior-named groups:
+`transport.share-control-header-wire` compares the complete
+published Microsoft 26-byte Granted Control Share PDU oracle,
+checking its LE16 length, `0x0017` version/Data discriminator,
+source ID and the borrowed 20-byte payload location. It also
+checks all five normative Share Control PDU types with zero-byte
+test bodies (header-only checks do not validate semantic inner
+messages) and deliberate composition with the existing T.125
+SendDataRequest decoder while keeping backing TPKT alive.
+`transport.share-control-header-rejections` checks every
+truncated input, declared-length short/long mismatch, surplus
+and coalesced data, wrong 12-bit protocol versions, all unknown
+type values, and that `totalLength=0x8000` is ignored WITHOUT
+returning a payload view, not dispatched or allocated.
+
+Portable full suite expected **75** (prior 73), optional Linux
+GSS-enabled suite expected **84** (prior 82). No new executable,
+build root, security adapter or session controller. Exact new
+code CI and owner-local compilation NOT RUN at authoring.
+Synthetic protocol syntax does NOT verify security-header
+stripping, real client licensing/share activation, GSS/OS
+authorization, desktop graphics or input.
+
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 
 Keep the existing `test_owned_credssp_tsrequest.cpp` executable

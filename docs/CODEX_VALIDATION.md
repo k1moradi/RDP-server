@@ -1408,6 +1408,51 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending offline T.128 Share Control Header decoding (2026-10-15)
+
+**Prior verified base:** main
+`424a35a8ceeb2a32fc553f334cfdcdfeebf5e2a6`,
+[CI 38701851845](https://github.com/k1moradi/RDP-server/actions/runs/38701851845)
+completed successfully with Linux/GCC **82/82**,
+macOS/Clang and Windows/MSVC **73/73** CTests per
+Debug/Release, SDK consumers, ZIP artifacts and policy.
+Owner reports local **73/73** on that same earlier head.
+Those tests do not prove the new parser.
+
+**New scope:** existing portable
+`src/server/transport/mcs_channel_connection.{h,cpp}`
+adds `parseRdpShareControlHeader` to accept a previously
+isolated complete six-byte little-endian T.128
+TS_SHARECONTROLHEADER with declared-size equality, version
+1 and known PDU type. `totalLength=0x8000` returns
+`FlowPduIgnored` without a payload view, as MS-RDPBCGR
+2.2.8.1.1.1.1 requires. The result's borrowed body
+and source ID are *syntax*, not a session capability,
+security-header classifier or OS admission.
+Two tests in the existing
+`tests/test_owned_mcs_connect_initial.cpp` executable:
+`transport.share-control-header-wire` and
+`transport.share-control-header-rejections`. Single
+`tests/CMakeLists.txt` registry; expected **75**
+portable / **84** Linux GSS-enabled CTests.
+Same atomic implementation commit updates the
+single living ROADMAP TODO and architecture, coding,
+testing and validation docs.
+
+**NOT RUN at authoring:** exact-new-HEAD Linux/macOS/
+Windows Debug/Release CI, owner-local incremental build/
+CTest, SDK consumers, sanitizers, actual TLS security
+header handling, genuine GSS and OS authorization,
+Share Data inner parsing, licensing, real-client
+activation, desktop and clipboard.
+Use the single `~/rdp-server/build/`:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next gate:** exact-commit cross-platform CI; later
+real authenticated channel/security context and
+independent OS session authority before dispatch.
+
 ## Pending T.125 server Send Data Indication offline encoder (2026-10-15)
 
 **Previous exact-head baseline:** `cd50346be4df281b7fc207c5126072555a3eba63`,

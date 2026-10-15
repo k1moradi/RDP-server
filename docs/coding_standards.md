@@ -478,6 +478,30 @@ unchanged. Only authenticated owner-supplied authorization,
 TLS provenance and joined MCS state may allow actual
 SSL transmission; this encoder never grants permission.
 
+## Strict offline T.128 Share Control Header (2026-10-15)
+
+Follow [MS-RDPBCGR 2.2.8.1.1.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/73d01865-2eae-407f-9b2c-87e31daac471):
+the six bytes of `TS_SHARECONTROLHEADER` consist of LE16
+totalLength, LE16 pduType (12-bit protocol version and 4-bit
+type) and LE16 pduSource. The only five documented type values
+are 1, 3, 6, 7, and 10; `TS_PROTOCOL_VERSION` must be 1.
+Reject any incomplete, coalesced or size-inconsistent complete
+input. Distinguish `totalLength=0x8000` as a *must-ignore*
+T.128 FlowPDU, not as a request to allocate 32768 bytes and
+not as an application message. Do not hand out a borrowed
+body for ignored, malformed or unknown frames. Accept source
+ID as uninterpreted; a parsed header never proves a negotiated
+share, valid channel or account.
+
+The caller must already identify the Share Control PDU after
+MCS, optional Security Header, and any negotiated security/
+licensing routing. Never assume unclassified MCS userData is a
+Share Control PDU. No nested Share Data, compression, capability,
+RDPGFX, virtual channel, clipboard or user input interpretation
+belongs in this pure parser. Use one checked, borrowed `std::span`
+into the full original input, no buffer copies or allocations;
+the owning input must remain alive until all views are consumed.
+
 ## Strict bounded CredSSP DER framing ownership (2026-10-14)
 
 MS-CSSP 2.2.1 specifies DER TSRequest messages on TLS;

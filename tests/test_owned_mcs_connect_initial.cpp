@@ -981,6 +981,140 @@ void testMcsSendDataIndicationRejections()
     }
 }
 
+void testRdpShareControlHeaderWire()
+{
+    // Independent MS-RDPBCGR Server Control PDU (Granted Control)
+    // decrypted share bytes: 26 bytes, pduType=0x0017 (Data),
+    // pduSource=1002 and a 20-byte Share Data body.
+    constexpr std::array<std::uint8_t, 26> microsoftControl{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x12, 0x02,
+        0x1a, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0xef, 0x03, 0xea, 0x03, 0x00, 0x00};
+    const auto parsed = parseRdpShareControlHeader(microsoftControl);
+    assert(parsed && parsed.error == RdpShareControlError::None);
+    assert(parsed.value.kind == RdpShareControlKind::Data);
+    assert(parsed.value.pduSource == 1002);
+    assert(parsed.value.body.size() == 20);
+    assert(parsed.value.body.data() == microsoftControl.data() + 6);
+    assert(parsed.value.body[8] == 0x14); // Share Data pduType2=CONTROL
+    assert(parsed.value.body[12] == 0x02); // Granted Control action.
+
+    // T.128 permits all five header types. Accepting their six-byte
+    // header alone does NOT validate their required application bodies.
+    for (const auto [type, expected] :
+         {std::pair{0x01U, RdpShareControlKind::DemandActive},
+          std::pair{0x03U, RdpShareControlKind::ConfirmActive},
+          std::pair{0x06U, RdpShareControlKind::DeactivateAll},
+          std::pair{0x07U, RdpShareControlKind::Data},
+          std::pair{0x0aU, RdpShareControlKind::ServerRedirection}})
+    {
+        const std::array<std::uint8_t, 6> frame{
+            6, 0, static_cast<std::uint8_t>(0x10U | type), 0,
+            0xff, 0xff};
+        const auto result = parseRdpShareControlHeader(frame);
+        assert(result && result.value.kind == expected);
+        assert(result.value.pduSource == 65535);
+        assert(result.value.body.empty());
+    }
+
+    // Caller must strip any security header and isolate the Share
+    // PDU. This test supplies that isolation deliberately, without
+    // treating MCS syntax as evidence of a joined channel.
+    std::vector<std::uint8_t> mcs{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70,
+        static_cast<std::uint8_t>(microsoftControl.size())};
+    mcs.insert(mcs.end(), microsoftControl.begin(), microsoftControl.end());
+    const auto outer = frameDomainPdu(mcs);
+    const auto transport = parseMcsChannelRequest(outer);
+    assert(transport &&
+           transport.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(transport.request.userData.size() == microsoftControl.size());
+    const auto inner =
+        parseRdpShareControlHeader(transport.request.userData);
+    assert(inner && inner.value.kind == RdpShareControlKind::Data);
+    assert(inner.value.body.data() ==
+           outer.data() + 7 + 7 + 6);
+    assert(inner.value.body.size() == 20);
+}
+
+void testRdpShareControlHeaderRejections()
+{
+    constexpr std::array<std::uint8_t, 26> valid{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x12, 0x02,
+        0x1a, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0xef, 0x03, 0xea, 0x03, 0x00, 0x00};
+
+    const auto invalidLength = [](std::span<const std::uint8_t> bytes)
+    {
+        const auto outcome = parseRdpShareControlHeader(bytes);
+        assert(!outcome);
+        assert(outcome.error == RdpShareControlError::InvalidLength);
+        assert(outcome.value.kind == RdpShareControlKind::None);
+        assert(outcome.value.body.empty());
+    };
+    for (std::size_t length = 0; length < valid.size(); ++length)
+        invalidLength(std::span(valid).first(length));
+
+    auto surplus = std::vector<std::uint8_t>(valid.begin(), valid.end());
+    surplus.push_back(0x00);
+    invalidLength(surplus);
+    auto inconsistent = valid;
+    inconsistent[0] = 25;
+    invalidLength(inconsistent);
+    inconsistent = valid;
+    inconsistent[0] = 27;
+    invalidLength(inconsistent);
+    inconsistent = valid;
+    inconsistent[0] = 0;
+    invalidLength(inconsistent);
+    inconsistent = valid;
+    inconsistent[0] = 0xff;
+    inconsistent[1] = 0xff;
+    invalidLength(inconsistent);
+
+    const auto invalidType = [](std::uint16_t typeAndVersion)
+    {
+        std::array<std::uint8_t, 6> bytes{
+            6, 0, static_cast<std::uint8_t>(typeAndVersion),
+            static_cast<std::uint8_t>(typeAndVersion >> 8U), 0, 0};
+        const auto outcome = parseRdpShareControlHeader(bytes);
+        assert(!outcome);
+        assert(outcome.error == RdpShareControlError::InvalidType);
+        assert(outcome.value.body.empty());
+    };
+    for (std::uint16_t bad : {std::uint16_t{0x0007},
+                              std::uint16_t{0x0027},
+                              std::uint16_t{0x0117},
+                              std::uint16_t{0x0010},
+                              std::uint16_t{0x0012},
+                              std::uint16_t{0x0018},
+                              std::uint16_t{0x001f},
+                              std::uint16_t{0xffff}})
+        invalidType(bad);
+
+    // A totalLength of 0x8000 designates a T.128 FlowPDU and MUST
+    // be ignored, NOT treated as a 32768-byte allocation or a valid
+    // Share Control header. Never expose its opaque body.
+    auto flow = valid;
+    flow[0] = 0;
+    flow[1] = 0x80;
+    for (const auto bytes :
+         {std::span<const std::uint8_t>(flow),
+          std::span<const std::uint8_t>(flow).first(6)})
+    {
+        const auto ignored = parseRdpShareControlHeader(bytes);
+        assert(!ignored);
+        assert(ignored.error == RdpShareControlError::FlowPduIgnored);
+        assert(ignored.value.kind == RdpShareControlKind::None);
+        assert(ignored.value.body.empty());
+    }
+    // Even FlowPDU has no valid six-byte Share Control envelope when
+    // the input itself is incomplete.
+    invalidLength(std::span(flow).first(5));
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -1007,7 +1141,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 19> kMcsTestCases{{
+constexpr std::array<McsTestCase, 21> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -1027,6 +1161,8 @@ constexpr std::array<McsTestCase, 19> kMcsTestCases{{
     {"mcs-send-data-rejections", &testMcsSendDataRejections},
     {"mcs-send-indication-wire", &testMcsSendDataIndicationWire},
     {"mcs-send-indication-rejections", &testMcsSendDataIndicationRejections},
+    {"share-control-header-wire", &testRdpShareControlHeaderWire},
+    {"share-control-header-rejections", &testRdpShareControlHeaderRejections},
 }};
 
 int main(int argc, char **argv)

@@ -327,6 +327,34 @@ inner RDP/licensing/virtual-channel PDU and complete TLS
 encryption/transmission. The encoder itself performs no SSL
 I/O, session admission, OS operation, reassembly or graphics.
 
+### Offline RDP Share Control Header decoding (2026-10-15)
+
+The existing portable `mcs_channel_connection` translation unit now
+decodes an explicitly isolated six-byte T.128 `TS_SHARECONTROLHEADER`
+per [MS-RDPBCGR 2.2.8.1.1.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/73d01865-2eae-407f-9b2c-87e31daac471).
+Its little-endian `totalLength` must match the entire supplied Share
+Control PDU, its 12-bit protocol version must be `TS_PROTOCOL_VERSION`
+(1), and the low four bits must designate Demand Active (1),
+Confirm Active (3), Deactivate All (6), Data (7), or Server
+Redirection (10). The server must ignore `totalLength=0x8000`
+(T.128 FlowPDU); it is returned as a distinct ignored status
+without a body or ordinary PDU success.
+
+The decoded source ID is syntax only, not verified channel ownership.
+The remaining PDU bytes form a read-only `std::span` borrowed
+from the unchanged caller-owned complete Share PDU. No allocation,
+data copy, nested PDU processing, decompression, or TLS/socket I/O.
+The existing MCS parser can supply a borrowed `userData` span,
+but **not every MCS userData payload is a Share Control PDU**.
+The sole future authenticated owner must first validate MCS channel
+membership, actual security-header presence/meaning, licensing
+or client-info phases, segmentation/reassembly, and the Share
+Control message boundary before using this parser. In particular,
+this change does not admit share activation, client keyboard/input,
+graphics, OS accounts or remote desktop sessions. The published
+26-byte Microsoft Server Control example provides an independent
+header oracle; tests do not claim end-to-end server interoperability.
+
 ### Bounded decrypted CredSSP TSRequest framing (2026-10-14)
 
 The existing first-party CredSSP DER parser gains

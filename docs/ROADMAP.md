@@ -1033,6 +1033,30 @@ acceptance evidence; no synthetic completion claims.
   true GSS/Kerberos/TLS identity and separate OS policy
   before wiring any SendData indication into the one
   authorized session owner.
+  **Partial offline Share Control Header decoder (2026-10-15;
+  CI NOT RUN at authoring):** extend the original C++23
+  MCS module with a strict, zero-copy T.128
+  `TS_SHARECONTROLHEADER` decoder per MS-RDPBCGR
+  2.2.8.1.1.1.1. It checks six-byte LE framing,
+  complete declared length, version 1 and all five
+  documented PDU types, but no nested data message.
+  Recognize `totalLength=0x8000` as a MUST-IGNORE
+  FlowPDU without exposing body or accepting it as
+  activation. Reuse the existing test executable for
+  Microsoft 26-byte Control PDU and malformed/ignored
+  cases; expected **75** portable and **84** Linux
+  GSS-enabled CTests (73 and 82 prior). Baseline main
+  `424a35a8ceeb2a32fc553f334cfdcdfeebf5e2a6`
+  passed [Actions 38701851845](https://github.com/k1moradi/RDP-server/actions/runs/38701851845);
+  owner reports **73/73 local PASS** on that prior code.
+  **NOT RUN:** current incremental CI, owner-local new
+  compile, real Share Control/Share Data dispatch, stripping
+  optional security headers, licensing, MCS authorization,
+  external Windows App or desktop session.
+  **Next:** exact-new-HEAD CI, then genuine authorized GSS
+  with active TLS proof, independent OS session policy,
+  and the sole authenticated owner for licensing/share
+  activation and nested PDU processing.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,

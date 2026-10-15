@@ -866,6 +866,16 @@ actually run; another parser CTest alone is not a complete session.
   invalid accounts, altered certificates, downgrade, expiry, denial,
   cleanup and replay. Fail closed rather than bypassing NLA or
   accepting synthetic credentials as proof of admission.
+  **R2 provider/TLS identity handoff (2026-10-15; CI pending):**
+  `GssapiSpnegoAcceptor::verifiedPrincipal()` now requires genuine
+  GSS completion AND the selected TLS X.509-bound CredSSP v5/v6
+  public-key proof. It refuses a missing GSS context, early GSS-only
+  identity, or a later changed selected certificate. The dedicated
+  `security.gssapi-principal-tls-proof-gate` CTest exercises negative
+  real-TLS handoffs; opt-in genuine Kerberos tests cover successful
+  binding and certificate-change denial. **NOT RUN at authoring:**
+  patched CTests, new-head CI, opt-in Kerberos, independent OS
+  authorization and R3 admission. The console gate remains deny-only.
   **CredSSP TSRequest decrypted-message framing increment (2026-10-14,
   46 CTests; exact-head CI PASS):** extend the existing
   first-party `credssp_tsrequest.{h,cpp}` with a fixed 16 KiB

@@ -211,11 +211,19 @@ public:
     // contents or identity string is returned or written to a log.
     [[nodiscard]] GssConfigurationDiagnostics configurationDiagnostics()
         const noexcept { return configDiagnostics_; }
+    // Provider-derived GSS name, borrowed only after successful CredSSP
+    // public-key proof on the pinned ACTIVE TLS certificate. A completed
+    // Kerberos mechanism alone cannot supply an OS identity candidate.
+    // The caller must keep this acceptor and its borrowed SSL alive.
+    // This is still NOT OS authorization or an RDP admission capability.
     [[nodiscard]] std::string_view verifiedPrincipal() const noexcept
     {
-        return (stage_ == SpnegoStage::MechanismVerified ||
-                stage_ == SpnegoStage::ServerBindingPrepared)
-                   ? std::string_view(principal_) : std::string_view{};
+        if (stage_ != SpnegoStage::ServerBindingPrepared ||
+            context_ == GSS_C_NO_CONTEXT || principal_.empty() ||
+            (negotiatedVersion_ != 5 && negotiatedVersion_ != 6) ||
+            !matchesNegotiatedCertificate(negotiatedServerTls_))
+            return {};
+        return std::string_view(principal_);
     }
     void reject() noexcept;
 

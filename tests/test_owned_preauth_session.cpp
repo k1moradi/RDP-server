@@ -4007,7 +4007,8 @@ void testRealKerberosSpnegoOverTls()
                 assert(clientStatus == GSS_S_COMPLETE);
                 assert(nextClientToken.empty());
                 assert(server.stage() == SpnegoStage::MechanismVerified);
-                assert(!server.verifiedPrincipal().empty());
+                // GSS identity alone is not a TLS-bound console identity.
+                assert(server.verifiedPrincipal().empty());
                 verified = true;
                 break;
             }
@@ -4063,6 +4064,7 @@ void testRealKerberosSpnegoOverTls()
             assert(server.processFramedProtectedBindingAndQueueReply(
                 nextReader, writer));
             assert(server.stage() == SpnegoStage::ServerBindingPrepared);
+            assert(!server.verifiedPrincipal().empty());
             assert(writer.writeOneTlsStep(tls.server.get()).status ==
                    TsRequestTlsWriteStatus::Complete);
             std::array<std::uint8_t, kMaximumCredSspRequestBytes> bytes{};
@@ -4078,6 +4080,13 @@ void testRealKerberosSpnegoOverTls()
                 result.value.encryptedPubKeyAuth, serverHash);
             OPENSSL_cleanse(bytes.data(), count);
             assert(writer.releaseReply());
+            // The GSS proof stays valid internally, but a swapped
+            // selected X.509 invalidates its OS-facing principal borrow.
+            TlsHandshakeFixture replacement;
+            substituteCredSspReplyCertificate(
+                tls.server.get(), replacement.server.get());
+            assert(server.stage() == SpnegoStage::ServerBindingPrepared);
+            assert(server.verifiedPrincipal().empty());
         }
         OPENSSL_cleanse(serverHash.data(), serverHash.size());
         // Even genuine MIT Kerberos with an intact TLS-binding proof
@@ -4314,6 +4323,51 @@ void testGssapiTlsBoundHandoffDenials()
     assert(unbound.stage() == SpnegoStage::Failed);
     assert(unbound.verifiedPrincipal().empty());
 }
+
+void testGssapiPrincipalTlsProofGate()
+{
+    // The real TLS framing path cannot fabricate a provider-authenticated
+    // principal when no explicit GSS keytab/context was supplied.
+    for (const std::uint8_t version : {std::uint8_t{5},
+                                       std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        GssapiSpnegoAcceptor acceptor;
+        auto request = kTestCredSspDer;
+        request[6] = version;
+        assert(acceptor.verifiedPrincipal().empty());
+        writeTlsClientApplicationData(tls.client.get(), request);
+        assert(drainCredSspFromTls(
+            reader, tls.server.get(), TsRequestTlsReadStatus::Complete) ==
+               request.size());
+        assert(reader.completedFrameServerTls() == tls.server.get());
+        assert(acceptor.verifiedPrincipal().empty());
+        assert(acceptor.acceptFramedNegoRequest(reader).status ==
+               SpnegoStatus::Rejected);
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(acceptor.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+    }
+    // A fresh X.509 substituted on the same SSL* also fails before GSS.
+    TlsHandshakeFixture tls;
+    TlsHandshakeFixture differentCertificate;
+    TsRequestFrameReader reader;
+    GssapiSpnegoAcceptor acceptor;
+    writeTlsClientApplicationData(tls.client.get(), kTestCredSspDer);
+    assert(drainCredSspFromTls(
+        reader, tls.server.get(), TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size());
+    substituteCredSspReplyCertificate(
+        tls.server.get(), differentCertificate.server.get());
+    assert(reader.completedFrameServerTls() == nullptr);
+    assert(acceptor.verifiedPrincipal().empty());
+    assert(acceptor.acceptFramedNegoRequest(reader).status ==
+           SpnegoStatus::Rejected);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    assert(acceptor.verifiedPrincipal().empty());
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+}
 #endif
 
 void testPreauthSessionLifecycle()
@@ -4434,6 +4488,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-failure-reply-rejections", &testTlsCredSspFailureReplyRejections},
 #ifdef RDP_TEST_LINUX_GSSAPI
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
+    {"gssapi-principal-tls-proof-gate", &testGssapiPrincipalTlsProofGate},
     {"gssapi-final-combined-denials", &testGssapiCombinedFinalBindingDenied},
     {"gssapi-negotiation-reply-gates", &testGssapiNegotiationReplyHandoffDenied},
     {"gssapi-failure-reply-denials", &testGssapiFailureReplyWithoutCredentialsDenied},

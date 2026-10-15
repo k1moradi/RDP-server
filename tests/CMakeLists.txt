@@ -253,6 +253,7 @@ if(TARGET rdp-server-linux-gssapi)
     endif()
     foreach(case_name IN ITEMS
             gssapi-tls-ownership
+            gssapi-principal-tls-proof-gate
             gssapi-final-combined-denials
             gssapi-negotiation-reply-gates
             gssapi-failure-reply-denials

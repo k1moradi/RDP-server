@@ -3507,3 +3507,28 @@ the same helper against cross-platform fragmentation.
 **NOT RUN at authoring:** corrected full Debug+Release CTests,
 owner Linux/X11, MSYS2 CLANG64 Clang23, macOS27, real Microsoft client
 or authenticated OS session. No production-code change in this commit.
+
+
+## R2 provider-derived principal requires active TLS binding (2026-10-15)
+
+**Road R2; integration parent:** current main (the published SHA will be
+checked after the atomic expected-HEAD update).
+**Production:** `GssapiSpnegoAcceptor::verifiedPrincipal()` returns no
+principal at GSS mechanism-only completion, with no GSS context, or after
+the selected TLS X.509 changes. A genuine v5/v6 confidential GSS
+public-key binding on the current pinned server TLS is required.
+No native OS authorization or R3 session capability is introduced.
+
+**Dedicated Linux GSS CTest:** `security.gssapi-principal-tls-proof-gate`,
+real TLS memory-BIO input with unconfigured MIT GSSAPI, both CredSSP
+versions and certificate substitution. The existing opt-in REAL Kerberos
+test checks positive identity visibility only after the TLS binding
+proof and immediate revocation on a same-SSL certificate change.
+
+**PASS:** production and test source-level review / CTest registry.
+**NOT RUN at authoring:** one-root developer focused/full CTests (no
+mounted checkout; shell github.com DNS unavailable), exact published
+CI, isolated real GSS positive credentials, native OS admission,
+Microsoft client or human desktop. **Next:** check exact-SHA hosted
+Debug/Release CTests, owner one-root results and authorized real
+Kerberos/TLS + independently authorized OS evidence before M2.

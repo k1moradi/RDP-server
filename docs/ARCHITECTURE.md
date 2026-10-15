@@ -863,6 +863,27 @@ The portable SDK remains independent of GSSAPI; no real
 Kerberos authentication, OS session admission or live RDP
 listener is enabled.
 
+### Provider-derived Kerberos identity visibility gate (2026-10-15)
+
+The optional Linux `GssapiSpnegoAcceptor` owns the only authenticated
+GSS principal. Its `verifiedPrincipal()` borrow is now empty during
+`MechanismVerified`: real GSS completion alone is insufficient before
+the CredSSP v5/v6 GSS-protected public-key hash has been compared to
+the active pinned TLS server X.509. Only `ServerBindingPrepared` with
+an existing GSS context, a bounded provider name, a pinned TLS version
+and the currently unchanged certificate permits the borrowed principal.
+Replacing the certificate on the same `SSL*` invalidates this view
+without having to wait for a subsequent GSS request. Destroying or
+rejecting the provider clears its stored principal and TLS identity.
+
+This is the first provider-to-OS *identity visibility* prerequisite,
+not an OS admission capability: the Linux `ConsoleAdmissionGate` still
+terminally denies requests, `ConsoleOsEvidenceInspector` yields
+candidate observations only, and the R3 MCS/session owner has no
+admitted authenticated desktop. An audited native account/session
+authority, credential provenance and revocable admission decision
+remain necessary. Normal CTests never load default host keytabs.
+
 ### Combined final CredSSP SPNEGO and TLS binding (2026-10-14)
 
 Per [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),

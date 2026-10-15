@@ -1004,6 +1004,28 @@ acceptance evidence; no synthetic completion claims.
   Kerberos/GSS transcript, verified OS identity/session
   policy, and one owner for all post-auth channel states
   before delivering any client Send Data payload.
+  **Partial offline server SendDataIndication encoding (2026-10-15;
+  CI NOT RUN at authoring):** the existing first-party MCS
+  module can now serialize server-to-client T.125 DomainMCSPDU
+  choice 26 to a caller-owned contiguous buffer, with checked
+  UserId/channel, priority, segmentation and canonical
+  unfragmented PER payload length up to 16383 bytes.
+  The result is fixed-header plus one overlap-safe memory
+  move, no internal allocation; reject invalid parameters
+  or insufficient capacity without mutating output.
+  Two additional tests (73 portable / 82 Linux GSS-enabled
+  expected) cover byte-exact wire, length boundaries,
+  aliasing, bounds and fail-closed output.
+  Baseline parent `cd50346be4df281b7fc207c5126072555a3eba63`
+  passed [CI 38696744690](https://github.com/k1moradi/RDP-server/actions/runs/38696744690);
+  owner reports local **71/71 PASS** on prior code.
+  **NOT RUN:** new-head CI/local tests, independent OS
+  admission, joined-channel enforcement, actual TLS sends,
+  real client, licensing, graphics or desktop.
+  **Next:** exact-head cross-platform CI; then controlled
+  true GSS/Kerberos/TLS identity and separate OS policy
+  before wiring any SendData indication into the one
+  authorized session owner.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,

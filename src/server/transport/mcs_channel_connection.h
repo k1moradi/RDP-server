@@ -128,4 +128,25 @@ enum class McsDisconnectReason : std::uint8_t
 [[nodiscard]] std::optional<std::array<std::uint8_t, 9>>
 encodeMcsDisconnectProviderUltimatum(McsDisconnectReason reason) noexcept;
 
+// MS-RDPBCGR 2.2.6.1 / T.125 11.33: server-to-client Send Data
+// Indication (DomainMCSPDU choice 26). OFFLINE serializer: the one
+// authenticated MCS/session owner must independently authorize the
+// assigned UserId and joined channel before encrypting/sending bytes.
+// Values are T.125 2-bit priority and segmentation fields (0..3);
+// this function does not reassemble or govern fragmentation.
+//
+// Write one full RFC1006/X.224/PER packet to caller-owned contiguous
+// output; return its exact byte length or nullopt without modifying
+// output on failure. userData may overlap output: data is moved
+// safely BEFORE the header is installed. Unused output suffix remains
+// unchanged. Maximum userData is 16383 bytes (one unfragmented PER
+// determinant). No heap allocation, TLS write, or session admission.
+[[nodiscard]] std::optional<std::size_t> encodeMcsSendDataIndication(
+    std::uint32_t assignedUserId,
+    std::uint16_t channelId,
+    std::uint8_t dataPriority,
+    std::uint8_t segmentation,
+    std::span<const std::uint8_t> userData,
+    std::span<std::uint8_t> output) noexcept;
+
 } // namespace rdp_server::server::transport

@@ -1408,6 +1408,46 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending T.125 server Send Data Indication offline encoder (2026-10-15)
+
+**Previous exact-head baseline:** `cd50346be4df281b7fc207c5126072555a3eba63`,
+[Actions 38696744690](https://github.com/k1moradi/RDP-server/actions/runs/38696744690)
+PASS: Linux/GCC **80/80**, macOS/Clang and Windows/MSVC
+**71/71** Debug and Release CTests, SDK packages/consumer
+and documentation policy. The owner additionally reports
+local **71/71** PASS at the previous main. These do NOT
+constitute evidence for this increment.
+
+**Implementation:** the existing
+`src/server/transport/mcs_channel_connection.{h,cpp}`
+now emits bounded T.125 server SendDataIndication
+(choice 26, 0x68) into a caller-owned `std::span`,
+with no heap allocation or TLS I/O. Validates assigned
+UserId, channel nonzero, 2-bit priority/segmentation,
+7/14-bit PER length up to 16383 and full output capacity
+before changing any output. `std::memmove` handles
+input/output overlap before header stores. The existing
+`tests/test_owned_mcs_connect_initial.cpp` and
+`tests/CMakeLists.txt` add
+`transport.mcs-send-indication-wire` and
+`transport.mcs-send-indication-rejections` to the
+single registry. Expected portable **73** CTests,
+Linux GSSAPI **82**. Architecture, roadmap, coding
+and testing standards updated in SAME code commit.
+
+**NOT RUN at authoring:** new exact-head Debug/Release
+CI on Linux/macOS/Windows, new owner-local CTest,
+sanitizers, live TLS records, authorized GSS/Kerberos
+and OS admission, joined channel/session, desktop
+and Microsoft clients.
+Owner's one build root commands:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next:** exact-head CTests and SDK consumer/policy CI;
+then verified true GSS/TLS + separate OS identity gate
+before any live application data emission.
+
 ## Pending T.125 client Send Data Request syntax intake (2026-10-14)
 
 **Prior exact baseline:** main

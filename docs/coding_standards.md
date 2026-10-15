@@ -455,6 +455,29 @@ graphics or OS input. Only the future single authenticated
 session owner can verify transport, identity and channel rights
 before dispatch; the parser never performs admission.
 
+## Offline server MCS Send Data Indication (2026-10-15)
+
+MS-RDPBCGR 1.3.1.1 and 2.2.6.1 require server-to-client
+post-channel traffic to use T.125 `SendDataIndication`
+(DomainMCSPDU choice 26, 0x68), never the client's
+`SendDataRequest` choice 25 (0x64). Reuse the original
+`mcs_channel_connection` module for this encoder; do
+not create a parallel session controller. Emit one full
+TPKT/X.224/aligned-PER frame into caller-provided
+`std::span<std::uint8_t>`. Require valid UserId
+1001..65536, nonzero caller-supplied channel, two-bit
+priority and segmentation, and unfragmented PER userData
+at most 16383 bytes. Use one short determinant below 128
+and a two-octet determinant from 128; validate output
+capacity BEFORE writing any byte. The caller can pass
+input overlapping output: use a single `std::memmove`
+for the opaque payload BEFORE writing its header, so no
+source bytes are destroyed. Do not allocate or touch any
+output suffix. Failure must leave the entire destination
+unchanged. Only authenticated owner-supplied authorization,
+TLS provenance and joined MCS state may allow actual
+SSL transmission; this encoder never grants permission.
+
 ## Strict bounded CredSSP DER framing ownership (2026-10-14)
 
 MS-CSSP 2.2.1 specifies DER TSRequest messages on TLS;

@@ -590,6 +590,27 @@ No new executable or test root; owner-local corrected
 run, external client and authorized post-auth dispatch
 remain NOT RUN.
 
+## Offline server Send Data Indication encoding regressions (2026-10-15; CI NOT RUN)
+
+Add TWO portable CTests using the existing MCS fixture executable
+and canonical `tests/CMakeLists.txt`:
+`transport.mcs-send-indication-wire` checks independently
+specified exact 17-byte TPKT/X.224/0x68/PER frame for synthetic
+three-byte opaque content, payload limits 0/1/127/128/16383,
+header length determinant transitions, server-only direction,
+high UserId and channel offsets, all two-bit priority and
+segmentation combinations, output suffix preservation and
+overlapping source/output without copies.
+`transport.mcs-send-indication-rejections` checks every
+out-of-range user ID, channel zero, invalid two-bit values,
+userData 16384, and all shorter output capacities; every
+failure must leave caller memory unchanged. No socket or
+SSL writes, channel join, ticket, OS user or real client.
+Expected standard **73** (from 71), Linux GSSAPI **82**
+(from 80) CTests. Exact new-head CI and owner-local CTest
+are NOT RUN at authoring; include absolute SHA and PASS/FAIL
+only after verification.
+
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 
 Keep the existing `test_owned_credssp_tsrequest.cpp` executable

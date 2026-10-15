@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstring>
 #include <cstdint>
 #include <span>
 
@@ -262,6 +263,66 @@ encodeMcsDisconnectProviderUltimatum(McsDisconnectReason reason) noexcept
             ? static_cast<std::uint8_t>(0x21)
             : static_cast<std::uint8_t>(0x20),
         0x80};
+}
+
+std::optional<std::size_t> encodeMcsSendDataIndication(
+    std::uint32_t assignedUserId,
+    std::uint16_t channelId,
+    std::uint8_t dataPriority,
+    std::uint8_t segmentation,
+    std::span<const std::uint8_t> userData,
+    std::span<std::uint8_t> output) noexcept
+{
+    // T.125 11.33 / MS-RDPBCGR 2.2.6.1: server Send Data Indication
+    // is choice 26 (0x68), NOT the client Send Data Request (0x64).
+    // The caller owns both buffer and authenticated channel state.
+    constexpr std::size_t kShortHeaderBytes = 14;
+    constexpr std::size_t kLongHeaderBytes = 15;
+    constexpr std::size_t kLargestUnfragmentedPer = 16383;
+    if (!validMcsUser(assignedUserId) || channelId == 0 ||
+        dataPriority > 3 || segmentation > 3 ||
+        userData.size() > kLargestUnfragmentedPer)
+        return std::nullopt;
+
+    const bool longLength = userData.size() >= 128;
+    const std::size_t headerBytes =
+        longLength ? kLongHeaderBytes : kShortHeaderBytes;
+    const std::size_t packetBytes = headerBytes + userData.size();
+    if (output.size() < packetBytes)
+        return std::nullopt;
+
+    // Overlap-safe, allocation-free; copying the payload first is
+    // essential when the source aliases the destination header.
+    if (!userData.empty())
+        std::memmove(output.data() + headerBytes, userData.data(),
+                     userData.size());
+
+    const auto offset = assignedUserId - kFirstMcsUserId;
+    output[0] = 0x03;
+    output[1] = 0x00;
+    output[2] = highByte(static_cast<std::uint32_t>(packetBytes));
+    output[3] = lowByte(static_cast<std::uint32_t>(packetBytes));
+    output[4] = 0x02;
+    output[5] = 0xf0;
+    output[6] = 0x80;
+    output[7] = 0x68;
+    output[8] = highByte(offset);
+    output[9] = lowByte(offset);
+    output[10] = highByte(channelId);
+    output[11] = lowByte(channelId);
+    output[12] = static_cast<std::uint8_t>(
+        (dataPriority << 6U) | (segmentation << 4U));
+    if (longLength)
+    {
+        output[13] = static_cast<std::uint8_t>(
+            0x80U | (userData.size() >> 8U));
+        output[14] = static_cast<std::uint8_t>(userData.size());
+    }
+    else
+    {
+        output[13] = static_cast<std::uint8_t>(userData.size());
+    }
+    return packetBytes;
 }
 
 } // namespace rdp_server::server::transport

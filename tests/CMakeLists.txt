@@ -33,7 +33,9 @@ function(add_rdp_test source_file suite behavior)
                 mcs-disconnect-wire
                 mcs-disconnect-rejections
                 mcs-send-data-wire
-                mcs-send-data-rejections)
+                mcs-send-data-rejections
+                mcs-send-indication-wire
+                mcs-send-indication-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

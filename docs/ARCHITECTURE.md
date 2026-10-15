@@ -300,6 +300,33 @@ any live post-channel MCS traffic. A future authorized single session
 owner must independently validate the assigned user and joined channel
 before consuming the borrowed payload.
 
+### Offline server MCS Send Data Indication encoder (2026-10-15)
+
+The current first-party `mcs_channel_connection` module now writes
+T.125 server-to-client `SendDataIndication` (DomainMCSPDU choice 26,
+0x68), per
+[MS-RDPBCGR 1.3.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee)
+and
+[2.2.6.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/6c074267-1b32-4ceb-9496-2eb941a23e6b).
+A caller-owned `std::span<std::uint8_t>` receives one exact
+TPKT/X.224/aligned-PER server frame. The fixed fields are
+initiator UserId offset by 1001, channelId, dataPriority,
+segmentation, 7-bit or 14-bit PER userData length and
+caller-provided opaque bytes (up to 16383). All bounds,
+UserId range, nonzero channel, priority and segmentation
+are checked before ANY output mutation. Short length is
+chosen for 0..127 bytes, long length for 128..16383.
+The packet is written with one overlap-safe payload move
+followed by header stores, without internal heap allocation;
+unwritten output suffix is unchanged.
+
+This is an OFFLINE serializer, not an authorized server
+data path: the future single authenticated domain owner must
+prove the assigned user and joined channel, supply a valid
+inner RDP/licensing/virtual-channel PDU and complete TLS
+encryption/transmission. The encoder itself performs no SSL
+I/O, session admission, OS operation, reassembly or graphics.
+
 ### Bounded decrypted CredSSP TSRequest framing (2026-10-14)
 
 The existing first-party CredSSP DER parser gains

@@ -842,6 +842,145 @@ void testMcsSendDataRejections()
            McsChannelParseError::InvalidTransport);
 }
 
+void testMcsSendDataIndicationWire()
+{
+    // Independently specified T.125 SDin choice 26 envelope for
+    // user 1007, I/O channel 1003, priority 1, segmentation 3.
+    // Three opaque bytes are synthetic, NOT an authorized RDP PDU.
+    constexpr std::array<std::uint8_t, 17> golden{
+        0x03, 0x00, 0x00, 0x11, 0x02, 0xf0, 0x80,
+        0x68, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x03,
+        0xde, 0xad, 0xbe};
+    constexpr std::array<std::uint8_t, 3> payload{0xde, 0xad, 0xbe};
+    std::array<std::uint8_t, 20> output{};
+    output.fill(0xa5);
+    const auto written = encodeMcsSendDataIndication(
+        1007, 1003, 1, 3, payload, output);
+    assert(written && *written == golden.size());
+    assert(std::equal(output.begin(), output.begin() + *written,
+                      golden.begin()));
+    assert(std::all_of(output.begin() + *written, output.end(),
+                       [](std::uint8_t byte) { return byte == 0xa5; }));
+
+    std::span<const std::uint8_t> mcsPayload;
+    assert(parseDataTpdu(std::span(output).first(*written), mcsPayload));
+    assert(mcsPayload.size() == 10 && mcsPayload[0] == 0x68);
+    // The existing incoming parser rejects server-only SDin as a
+    // CLIENT Send Data Request; neither direction grants admission.
+    assert(parseMcsChannelRequest(std::span(output).first(*written)).error ==
+           McsChannelParseError::InvalidDomainPdu);
+
+    for (const auto size : {std::size_t{0}, std::size_t{1},
+                            std::size_t{127}, std::size_t{128},
+                            std::size_t{16383}})
+    {
+        const std::vector<std::uint8_t> data(size, 0x42);
+        const std::size_t headerSize = size >= 128 ? 15 : 14;
+        std::vector<std::uint8_t> encoded(headerSize + size + 2U, 0xa7);
+        const auto length = encodeMcsSendDataIndication(
+            1001, 1003, 1, 3, data, encoded);
+        assert(length && *length == headerSize + size);
+        assert(encoded[0] == 3 && encoded[1] == 0);
+        assert(encoded[2] == static_cast<std::uint8_t>(*length >> 8U));
+        assert(encoded[3] == static_cast<std::uint8_t>(*length));
+        assert(encoded[7] == 0x68 && encoded[8] == 0 &&
+               encoded[9] == 0 && encoded[10] == 0x03 &&
+               encoded[11] == 0xeb && encoded[12] == 0x70);
+        if (size >= 128)
+        {
+            assert(encoded[13] ==
+                   static_cast<std::uint8_t>(0x80U | (size >> 8U)));
+            assert(encoded[14] == static_cast<std::uint8_t>(size));
+        }
+        else
+        {
+            assert(encoded[13] == size);
+        }
+        assert(std::equal(data.begin(), data.end(),
+                          encoded.begin() + headerSize));
+        assert(encoded[*length] == 0xa7 && encoded[*length + 1] == 0xa7);
+        assert(parseDataTpdu(std::span(encoded).first(*length), mcsPayload));
+    }
+
+    for (unsigned int priority = 0; priority < 4; ++priority)
+    {
+        for (unsigned int segment = 0; segment < 4; ++segment)
+        {
+            std::array<std::uint8_t, 14> wire{};
+            const auto count = encodeMcsSendDataIndication(
+                65536, 65535,
+                static_cast<std::uint8_t>(priority),
+                static_cast<std::uint8_t>(segment),
+                {}, wire);
+            assert(count && *count == wire.size());
+            assert(wire[7] == 0x68 &&
+                   wire[8] == 0xfc && wire[9] == 0x17 &&
+                   wire[10] == 0xff && wire[11] == 0xff);
+            assert(wire[12] == ((priority << 6U) | (segment << 4U)));
+            assert(wire[13] == 0);
+        }
+    }
+
+    // userData aliasing the output header is explicitly supported:
+    // the encoder moves data first, then overwrites the header.
+    std::array<std::uint8_t, 32> alias{};
+    std::copy(payload.begin(), payload.end(), alias.begin());
+    const auto aliased = encodeMcsSendDataIndication(
+        1007, 1003, 1, 3, std::span(alias).first(payload.size()), alias);
+    assert(aliased && *aliased == golden.size());
+    assert(std::equal(alias.begin(), alias.begin() + *aliased,
+                      golden.begin()));
+}
+
+void testMcsSendDataIndicationRejections()
+{
+    constexpr std::array<std::uint8_t, 2> payload{0x41, 0x42};
+    const auto rejectWithoutWriting =
+        [&](std::uint32_t user, std::uint16_t channel,
+            std::uint8_t priority, std::uint8_t segment,
+            std::span<const std::uint8_t> data)
+    {
+        std::array<std::uint8_t, 24> output{};
+        output.fill(0xdd);
+        const auto result = encodeMcsSendDataIndication(
+            user, channel, priority, segment, data, output);
+        assert(!result);
+        assert(std::all_of(output.begin(), output.end(),
+                           [](std::uint8_t value) { return value == 0xdd; }));
+    };
+
+    for (std::uint32_t invalidUser :
+         {0U, 1U, 1000U, 65537U, 0xffffffffU})
+        rejectWithoutWriting(invalidUser, 1003, 1, 3, payload);
+    rejectWithoutWriting(1007, 0, 1, 3, payload);
+    for (std::uint8_t priority : {std::uint8_t{4}, std::uint8_t{255}})
+        rejectWithoutWriting(1007, 1003, priority, 3, payload);
+    for (std::uint8_t segment : {std::uint8_t{4}, std::uint8_t{255}})
+        rejectWithoutWriting(1007, 1003, 1, segment, payload);
+
+    std::vector<std::uint8_t> tooLarge(16384, 0x11);
+    rejectWithoutWriting(1007, 1003, 1, 3, tooLarge);
+
+    // Every insufficient capacity, including a header-only payload,
+    // must leave the entire caller buffer unchanged.
+    for (const auto data : {std::vector<std::uint8_t>{},
+                            std::vector<std::uint8_t>(127, 0x42),
+                            std::vector<std::uint8_t>(128, 0x42)})
+    {
+        const std::size_t needed = (data.size() >= 128 ? 15 : 14) +
+                                    data.size();
+        std::vector<std::uint8_t> destination(needed + 2U, 0xca);
+        for (std::size_t capacity = 0; capacity < needed; ++capacity)
+        {
+            assert(!encodeMcsSendDataIndication(
+                1007, 1003, 1, 3, data,
+                std::span(destination).first(capacity)));
+            assert(std::all_of(destination.begin(), destination.end(),
+                               [](std::uint8_t byte) { return byte == 0xca; }));
+        }
+    }
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -868,7 +1007,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 17> kMcsTestCases{{
+constexpr std::array<McsTestCase, 19> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -886,6 +1025,8 @@ constexpr std::array<McsTestCase, 17> kMcsTestCases{{
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},
     {"mcs-send-data-rejections", &testMcsSendDataRejections},
+    {"mcs-send-indication-wire", &testMcsSendDataIndicationWire},
+    {"mcs-send-indication-rejections", &testMcsSendDataIndicationRejections},
 }};
 
 int main(int argc, char **argv)

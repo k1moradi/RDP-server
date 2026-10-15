@@ -1408,7 +1408,7 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
-## Pending Demand/Confirm Active capability envelope intake (2026-10-15)
+## Verified Demand/Confirm Active capability envelope intake (2026-10-15)
 
 **Previous exact main:** `ea258bfcc4a8d8d759a9bc1a882c4f0121959296`,
 [CI 38713180113](https://github.com/k1moradi/RDP-server/actions/runs/38713180113)
@@ -1439,18 +1439,29 @@ expected **83** portable / **93** Linux GSS.
 Architecture, roadmap, coding and testing standards
 were updated in the SAME implementation commit.
 
-**NOT RUN at authoring:** exact new Linux/macOS/
-Windows Debug and Release CI, owner-local CTest,
-opt-in genuinely authenticated Kerberos/TLS proof,
-independent OS authorization, real capability
-negotiation and desktop/graphics.
+**PASS:** exact implementation `5125fcc68f7e3e9fdd496f8504a17a3a7a251953`,
+[Actions 38714673332](https://github.com/k1moradi/RDP-server/actions/runs/38714673332)
+Linux/GCC **93/93**, macOS/Clang and Windows/MSVC
+**83/83** CTests in each Debug AND Release.
+Both new Demand/Confirm capability-envelope
+regressions PASS across Linux, macOS and Windows.
+Documentation-policy, staged installed CMake
+SDK consumer and three ZIP/SHA256 artifact
+uploads PASS; prerelease publishing SKIPPED
+(no release tag).
+**NOT RUN:** owner-local new-code build/CTest,
+opt-in genuinely authenticated Kerberos/TLS
+keytab/tickets and binding, independent OS
+authorization, live capability negotiation,
+Share Active lifecycle, desktop graphics or input.
 Reuse owner's single existing build root:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build build --config Debug --parallel 2`,
 `ctest --test-dir build -C Debug --output-on-failure`.
-**Next gate:** exact-head all-OS CI, then
-independently authorized real Kerberos/TLS/OS
-session admission before live capability exchange.
+**Next gate:** owner-local single-build-root
+regressions; controlled real Kerberos/TLS binding
+and independently approved OS account/session
+before any live capability exchange or activation.
 
 ## Verified offline T.128 finalization Synchronize/Control decoder (2026-10-15)
 

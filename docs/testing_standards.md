@@ -667,7 +667,7 @@ configured Kerberos provider failure/TLS reply, positive
 GSS/TLS authentication, OS admission, real RDP client,
 service activation or desktop acceptance.
 
-## Offline Demand/Confirm Active capability-envelope tests (CI NOT RUN, 2026-10-15)
+## Verified Demand/Confirm Active capability-envelope tests (CI PASS, 2026-10-15)
 
 Reuse ONLY `tests/test_owned_mcs_connect_initial.cpp` and the
 original `tests/CMakeLists.txt` registry; add exactly two new
@@ -693,13 +693,21 @@ capability lengths below 4/oversize, and altered outer
 total lengths with malformed nested contents.
 No test disables validation to claim progress.
 
-Expected standard total **83** (previous 81),
+Verified standard total **83** (previous 81),
 Linux GSSAPI **93** (previous 91) CTests.
-At authoring new CI and owner-local CTest **NOT RUN**.
-The capability parser does not perform nested type-specific
-H.264 or activation processing, does not grant channel
-membership and cannot replace genuine positive CredSSP
-Kerberos/TLS + independent OS session policy.
+**PASS:** exact implementation `5125fcc68f7e3e9fdd496f8504a17a3a7a251953`,
+[CI 38714673332](https://github.com/k1moradi/RDP-server/actions/runs/38714673332):
+Linux/GCC **93/93**, macOS/Clang and Windows/MSVC
+**83/83** CTests in BOTH Debug/Release. Both new
+Demand/Confirm Active tests passed on all OSes.
+Documentation policy, installed SDK downstream
+consumer and ZIP/SHA256 package uploads PASS.
+**NOT RUN:** owner-local new-head CTest, real
+capability negotiation, Kerberos/TLS and OS
+session authorization, H.264, share activation,
+live user input and desktop. Capability envelopes
+are syntax, never channel membership or a
+substitute for the real security gates.
 
 ## Verified offline T.128 Synchronize/Control finalization tests (CI PASS, 2026-10-15)
 

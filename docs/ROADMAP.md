@@ -1029,7 +1029,7 @@ acceptance evidence; no synthetic completion claims.
   add independent OS authorization, and only then
   transition the one session owner through finalization.
   **Partial OFFLINE Demand/Confirm Active capability envelope
-  intake (2026-10-15; new CI NOT RUN at authoring):**
+  intake (2026-10-15; CI PASS):**
   Extend the first-party C++23 Share Control decoder with
   Demand Active / Confirm Active syntax per MS-RDPBCGR
   2.2.1.13.1.1, 2.2.1.13.2.1 and 2.2.1.13.1.1.1.
@@ -1042,7 +1042,7 @@ acceptance evidence; no synthetic completion claims.
   never copy or allocate, reject incomplete, surplus,
   invalid size and count fields before exposing views.
   Unknown capability IDs remain opaque; four-byte
-  FONT envelope mirrors a published Microsoft client
+  FONT envelope mirrors a published Microsoft server
   compatibility quirk but is not typed negotiation.
   Two behavior-named portable CTests are added to
   the original MCS registry. Expected **83** portable
@@ -1050,12 +1050,19 @@ acceptance evidence; no synthetic completion claims.
   Baseline main `ea258bfcc4a8d8d759a9bc1a882c4f0121959296`
   passed [CI 38713180113](https://github.com/k1moradi/RDP-server/actions/runs/38713180113),
   and owner reports **81/81** local PASS for prior head.
-  **NOT RUN at authoring:** new exact-head CI,
-  owner-local incremental build, GSS/Kerberos positive
-  keytab/TLS binding, independent OS session policy,
-  Share Active lifecycle, actual capability negotiation,
-  H.264, input or external clients.
-  **Next:** exact-head full CI, then isolated explicitly
+  **PASS:** implementation `5125fcc68f7e3e9fdd496f8504a17a3a7a251953`,
+  [Actions 38714673332](https://github.com/k1moradi/RDP-server/actions/runs/38714673332):
+  Linux/GCC **93/93**, macOS/Clang and Windows/MSVC
+  **83/83** full CTests in EACH Debug and Release;
+  both new Demand/Confirm capability tests, project
+  documentation-policy, SDK staged installed consumer,
+  and ZIP/SHA256 package artifacts PASS. Prerelease
+  publishing SKIPPED because this is not a tagged release.
+  **NOT RUN:** owner-local new-head CTest, genuinely
+  authorized Kerberos/TLS binding, independent OS
+  session policy, live Share Active lifecycle, capability
+  negotiation, H.264, input or external clients.
+  **Next:** isolated explicitly
   authorized genuine Kerberos and independent OS admission
   before binding a negotiated capability set into the
   sole authenticated session owner.

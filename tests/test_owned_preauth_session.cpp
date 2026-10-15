@@ -1014,6 +1014,137 @@ void testTcpAdapterFailureAndBackpressure()
     }
 }
 
+
+void testAttachedTcpTlsOwnershipDenials()
+{
+    const auto request = validRequestWire();
+
+    // A completed X.224 response by itself never permits the connected
+    // TLS callback without an explicitly attached server-role BIO.
+    {
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.onAttachedTlsIoReady() ==
+               TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+
+    // Explicitly attaching TLS before the X.224 Confirm is drained
+    // must terminate the owner without consuming a TLS ClientHello.
+    {
+        TlsHandshakeFixture tls{false, false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(!adapter.attachTlsTransport(tls.server.get()));
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+
+    // The exact same connected SSL/BIO identity is pinned for all
+    // readiness callbacks. A second attach must never replace it.
+    {
+        TlsHandshakeFixture tls{false, false};
+        TlsHandshakeFixture alternate{false, false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.attachTlsTransport(tls.server.get()));
+        assert(SSL_get_rbio(tls.server.get()) != nullptr);
+        assert(adapter.onTlsIoReady(alternate.server.get()) ==
+               TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+    {
+        TlsHandshakeFixture tls{false, false};
+        TlsHandshakeFixture alternate{false, false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.attachTlsTransport(tls.server.get()));
+        assert(!adapter.attachTlsTransport(alternate.server.get()));
+        assert(SSL_get_rbio(alternate.server.get()) == nullptr);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+
+    // Retargeting a borrowed BIO's data pointer on the same SSL
+    // must fail BEFORE any new encrypted socket read/write.
+    {
+        TlsHandshakeFixture tls{false, false};
+        ScriptedTcp tcp;
+        ScriptedTcp unrelatedTcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.attachTlsTransport(tls.server.get()));
+        BIO_set_data(SSL_get_rbio(tls.server.get()), &unrelatedTcp);
+        assert(adapter.onAttachedTlsIoReady() ==
+               TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+        assert(tcp.readOffset == request.size());
+        assert(unrelatedTcp.readOffset == 0);
+        assert(unrelatedTcp.outbound.empty());
+    }
+}
+
+void testAttachedTcpMcsOrderingDenials()
+{
+    const auto request = validRequestWire();
+
+    // The attached MCS intake may never run without a TLS transport or
+    // before that transport finishes its server-side handshake.
+    {
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.onAttachedMcsIoReady().status ==
+               McsIntakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+        assert(adapter.onAttachedMcsIoReady().status ==
+               McsIntakeStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture tls{false, false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.attachTlsTransport(tls.server.get()));
+        assert(adapter.onAttachedMcsIoReady().status ==
+               McsIntakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+
+    // An in-place BIO replacement cannot silently substitute a new
+    // socket, even if the caller supplies the same SSL pointer.
+    {
+        TlsHandshakeFixture tls{false, false};
+        ScriptedTcp tcp;
+        tcp.inbound.assign(request.begin(), request.end());
+        PreauthTcpAdapter adapter{tcp};
+        assert(adapter.onReadable() == TcpPreauthEvent::NeedWrite);
+        assert(adapter.onWritable() == TcpPreauthEvent::ReadyForTls);
+        assert(adapter.attachTlsTransport(tls.server.get()));
+        BIO *replacement = BIO_new(BIO_s_mem());
+        assert(replacement != nullptr);
+        SSL_set_bio(tls.server.get(), replacement, replacement);
+        assert(adapter.onAttachedTlsIoReady() ==
+               TlsHandshakeStatus::Invalid);
+        assert(adapter.connection().stage() == PreauthStage::Closed);
+    }
+}
+
 void testNonblockingTlsHandshakeProgress()
 {
     TlsHandshakeFixture tls{false};
@@ -1364,7 +1495,7 @@ void testNativeLoopbackTlsAndMcs()
         }
         if (!serverEstablished)
         {
-            const auto status = adapter.onTlsIoReady(tls.server.get());
+            const auto status = adapter.onAttachedTlsIoReady();
             assert(status == TlsHandshakeStatus::NeedRead ||
                    status == TlsHandshakeStatus::NeedWrite ||
                    status == TlsHandshakeStatus::Established);
@@ -1405,8 +1536,7 @@ void testNativeLoopbackTlsAndMcs()
     std::size_t totalDecrypted = 0;
     for (int pass = 0; pass < 16384; ++pass)
     {
-        result = adapter.connection().consumeMcsConnectInitialFromTls(
-            tls.server.get());
+        result = adapter.onAttachedMcsIoReady();
         totalDecrypted += result.bytesConsumed;
         if (result.status != McsIntakeStatus::NeedMore) break;
         std::this_thread::yield();
@@ -3459,6 +3589,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},
     {"tcp-native-loopback-close", &testNativeLoopbackCloseAndFailure},
+    {"tcp-attached-tls-ownership-denials", &testAttachedTcpTlsOwnershipDenials},
+    {"tcp-attached-mcs-order-denials", &testAttachedTcpMcsOrderingDenials},
     {"tls-handshake-gate", &testRealTlsTransportGate},
     {"x224-length-and-close", &testConnectionRequestLengthRejectionAndClose},
     {"mcs-decrypted-fragments", &testIncrementalDecryptedMcsIntake},

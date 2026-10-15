@@ -1058,3 +1058,24 @@ PASSED. Untagged prerelease SKIPPED.
 **NOT RUN:** owner-local single-build-root compile,
 real GSS/Kerberos/TLS binding, independently approved
 OS session, licensed capabilities, graphics or desktop.
+
+## Gate A borrowed TCP/TLS/MCS owner continuity (2026-10-15)
+
+The existing `PreauthTcpAdapter` has one borrowed
+`TcpNonblockingIo`, one `PreauthConnectionStream` and
+a real nonblocking X.224 Confirm path. A newly exposed
+`onAttachedTlsIoReady()` and `onAttachedMcsIoReady()`
+readiness pair now draws its SSL identity ONLY from
+one successful `attachTlsTransport`, with the shared
+custom OpenSSL BIO pointer and its borrowed TCP I/O
+identity rechecked before provider calls. The network
+loopback fixture covers real connected TCP, completed
+X.224 Confirm, OpenSSL handshake and exact first MCS
+record via this strict path. No new thread, session
+controller, listener, socket/SSL lifetime ownership,
+TLS certificate policy or direct desktop authorization
+is added. The historical argument-bearing method
+remains a memory-BIO diagnostic; after network attach
+it must also enforce the pinned TLS/BIO owner.
+Validated MCS envelope still TERMINATES the diagnostic;
+it is NOT an admitted authenticated MCS connection.

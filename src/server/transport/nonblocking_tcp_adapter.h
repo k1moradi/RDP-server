@@ -95,22 +95,42 @@ public:
     // connected TCP adapter for TLS network records. No socket ownership.
     [[nodiscard]] bool attachTlsTransport(SSL *serverTls) noexcept;
 
+    // Direct parameterized handshake is retained for existing synthetic
+    // BIO diagnostics. Once a network BIO has been attached, ONLY that
+    // SSL/BIO pair can progress, including through this legacy API.
     [[nodiscard]] TlsHandshakeStatus onTlsIoReady(
-        SSL *serverTls) noexcept
-    {
-        return connection_.advanceTlsHandshake(serverTls);
-    }
+        SSL *serverTls) noexcept;
+
+    // Strict connected-TCP integration callbacks for the event loop.
+    // SSL and its exact borrowed BIO are pinned by attachTlsTransport;
+    // callers CANNOT substitute another TLS object at readiness time.
+    // Requires all X.224 Confirm bytes to have been sent first.
+    // The MCS callback consumes at most one encrypted, exact-length
+    // packet via the SAME completed TLS and then closes this diagnostic.
+    // These APIs NEVER allow authenticated MCS/channel/OS admission.
+    [[nodiscard]] TlsHandshakeStatus onAttachedTlsIoReady() noexcept;
+    [[nodiscard]] McsIntakeResult onAttachedMcsIoReady() noexcept;
     [[nodiscard]] PreauthConnectionStream &connection() noexcept
     {
         return connection_;
     }
-    void close() noexcept { connection_.close(); }
+    void close() noexcept
+    {
+        attachedServerTls_ = nullptr;
+        attachedTcpBio_ = nullptr;
+        connection_.close();
+    }
 
 private:
     [[nodiscard]] TcpPreauthEvent idleStatus() const noexcept;
+    [[nodiscard]] bool matchesAttachedTlsTransport() const noexcept;
 
     TcpNonblockingIo &io_;
     PreauthConnectionStream connection_{};
+    // Borrowed by this one connection owner, never another SSL/BIO owner.
+    // Both must outlive this adapter and remain on its one event loop.
+    SSL *attachedServerTls_{};
+    BIO *attachedTcpBio_{};
 };
 
 } // namespace rdp_server::server::transport

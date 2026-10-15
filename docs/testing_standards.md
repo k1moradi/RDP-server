@@ -1615,3 +1615,24 @@ PASSED. Untagged prerelease SKIPPED.
 **NOT RUN:** owner-local single-build-root compile,
 real GSS/Kerberos/TLS binding, independently approved
 OS session, licensed capabilities, graphics or desktop.
+
+## Connected TCP/TLS/MCS owner regression cases (2026-10-15)
+
+Reuse `test_owned_preauth_session` and the only
+`tests/CMakeLists.txt` registry: add
+`transport.tcp-attached-tls-ownership-denials`
+and `transport.tcp-attached-mcs-order-denials`.
+Require attachment only AFTER X.224 Confirm is fully
+written, refuse absent/duplicate attachment, wrong
+`SSL*`, mutated BIO data pointer or replaced BIO
+and MCS intake before TLS establishment; failed
+instances remain terminal. Change the EXISTING
+`transport.tcp-native-loopback-tls` to drive
+`onAttachedTlsIoReady` and `onAttachedMcsIoReady`
+over real first-party native nonblocking sockets
+and OpenSSL TLS records. Assert consumed plaintext
+bytes == exact Microsoft 416-byte MCS/GCC frame.
+No fake GSS success, OS authorization or share admission.
+Expected **99 portable / 109 Linux GSS** CTests
+(previous verified 97/107). Owner-local new-root
+CTest and CI new SHA NOT RUN at authoring.

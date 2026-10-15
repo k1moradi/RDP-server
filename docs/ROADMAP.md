@@ -146,6 +146,46 @@ evidence intact and add first real-client transcripts only when run.
   receives correct live MCS/GCC responses and advances through the
   authenticated channel/share lifecycle; the loopback TLS intake
   diagnostic by itself remains insufficient.
+  **Partial Gate A single-owner TCP/TLS/MCS readiness integration
+  (2026-10-15; new-head CI NOT RUN at authoring):** In the
+  existing `PreauthTcpAdapter` alone, bind the completed
+  X.224 Confirm's connected `TcpNonblockingIo` to exactly
+  one attached server `SSL*` and its single shared
+  OpenSSL BIO. Expose `onAttachedTlsIoReady` and
+  `onAttachedMcsIoReady` so the event loop cannot supply
+  a replacement SSL pointer on subsequent callbacks.
+  The existing transport verifies the same borrowed BIO
+  pointer and its `TcpNonblockingIo` data, and rejects
+  a duplicated attach, changed BIO/socket target,
+  premature TLS/MCS callbacks and replay. Existing
+  synthetic memory-BIO `onTlsIoReady(SSL*)` remains
+  available for offline diagnostics only; once attached,
+  even that legacy callback routes through the strict
+  connection identity gate. No new network listener,
+  state controller, GSS identity, licensing or MCS reply.
+  The existing true native nonblocking loopback test
+  now drives BOTH handshake and bounded MCS/GCC intake
+  through this single pinned TCP owner. Two new
+  behavior CTests in the existing preauth executable
+  prove premature calls, duplicate/wrong SSL and
+  changed/retargeted BIO fail closed. Expected **99
+  portable / 109 Linux GSS** CTests (prior 97/107).
+  Baseline main `00c70a24568098b34bcd1485e8f82fd63d0bab9a`
+  is the roadmap's Gate A/C real-client priority commit.
+  Implementation `89ffef98b4f27ad2947b4629c9eefa49b64152a7`
+  passed [CI 38746309146](https://github.com/k1moradi/RDP-server/actions/runs/38746309146):
+  Linux 107/107 and macOS/Windows 97/97 Debug/Release.
+  Owner reports **97/97 local PASS** on the preceding code
+  without a full log or local SHA.
+  **NOT RUN:** new-head CI, owner local new code test,
+  human/client authenticated Microsoft RDP negotiation,
+  real GSS/CredSSP protected identity and separately
+  authorized OS account/session, licensed live MCS
+  Connect-Response, H.264 or X11 desktop.
+  **Next:** exact-head CI and owner local CTest,
+  then provisioned opt-in real Kerberos/TLS + OS
+  authorization before allowing one live MCS response
+  or any postauth session transition.
   **Completed partial increment at `988938a90f8adbae4e07714ac636af3eb0640011`:**
   bounded incremental plaintext Connection Request intake, exact TCP
   consumed-byte accounting, correct negotiation response/terminal failure,

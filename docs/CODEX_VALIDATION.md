@@ -2344,3 +2344,50 @@ interactive desktop or clipboard.
 `~/rdp-server/build/` full CTest, then independently
 approved isolated GSS/TLS and OS-admission evidence
 before attaching any live MCS session or graphics.
+
+## Pending Gate A connected TCP TLS/MCS provenance (2026-10-15)
+
+**Baseline main:** `00c70a24568098b34bcd1485e8f82fd63d0bab9a`,
+which explicitly prioritizes the first real authenticated
+Microsoft-client session in `docs/ROADMAP.md`.
+**Previous implementation PASS:** `89ffef98b4f27ad2947b4629c9eefa49b64152a7`,
+[CI 38746309146](https://github.com/k1moradi/RDP-server/actions/runs/38746309146):
+Linux/GCC **107/107**, macOS/Clang/Windows/MSVC
+**97/97** full CTests in EACH Debug and Release,
+SDK install/consumer, ZIP/SHA256 and documentation
+policy PASS. Owner reports **97/97** local tests
+on preceding code; full log/local SHA unavailable.
+
+**Change:** keep one sole `PreauthTcpAdapter` as the
+TCP/SSL/MCS handshake intake owner. Once the 19-byte
+X.224 reply is sent, `attachTlsTransport` binds ONE
+server `SSL*` to this very adapter's socket BIO.
+`onAttachedTlsIoReady()` and
+`onAttachedMcsIoReady()` do not permit a caller-
+supplied alternative TLS handle and recheck both
+BIO pointer and its borrowed `TcpNonblockingIo`
+before TLS handshake or MCS read. Duplicate/wrong
+SSL/BIO retargeting/old-stage events terminate.
+The original actual loopback socket test now uses
+these strict readiness callbacks; two extra
+behavior CTests deny out-of-order/changed provenance.
+Expected **99 portable / 109 Linux GSS** full CTests.
+Code, tests, living P0 Gate A TODO, architecture,
+coding/testing standards and validation are all
+present in one implementation Git tree.
+
+**NOT RUN at authoring:** exact-head all-platform CI,
+owner-local `~/rdp-server/build/` CTest,
+real opted-in isolated Kerberos/TLS pubKeyAuth,
+independent OS account/session admission, live
+Microsoft client, licensed MCS, H.264/X11 desktop.
+**Next:** exact commit CI then true authorized
+GSS/TLS and OS admission before a live MCS reply.
+No server executable, listening daemon, full
+session state machine or graphics is claimed.
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
+```

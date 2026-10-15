@@ -1158,3 +1158,22 @@ PASSED. Untagged prerelease SKIPPED.
 **NOT RUN:** owner-local single-build-root compile,
 real GSS/Kerberos/TLS binding, independently approved
 OS session, licensed capabilities, graphics or desktop.
+
+## Keep connected TCP/BIO provenance through MCS (2026-10-15)
+
+A borrowed `SSL*` or a completed handshake alone
+does not establish it is attached to the same TCP I/O
+that received X.224. Pin both the selected `SSL*`
+and its shared read/write BIO on a successful
+`attachTlsTransport`. Reject duplicate attach,
+swapped SSL, swapped BIO or `BIO_get_data` retargeting
+before any `SSL_do_handshake` or `SSL_read_ex`
+from the connection-oriented readiness callbacks.
+Never dereference a stored old BIO before confirming
+it is STILL the SSL's active read AND write BIO:
+`SSL_set_bio` may free the original. Keep all socket
+and SSL lifetimes borrowed, event-loop serialized
+and non-owning; close the sole preauth diagnostic on
+invalid/replayed transitions. Legacy synthetic
+TLS fixtures stay available for tests but are not
+authenticated/OS-authorized session admission.

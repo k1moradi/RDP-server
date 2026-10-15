@@ -78,6 +78,8 @@ function(add_rdp_test source_file suite behavior)
                 tls-nonblocking-failures
                 tcp-native-loopback-tls
                 tcp-native-loopback-close
+                tcp-attached-tls-ownership-denials
+                tcp-attached-mcs-order-denials
                 tls-handshake-gate
                 x224-length-and-close
                 mcs-decrypted-fragments

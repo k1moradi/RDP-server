@@ -155,16 +155,89 @@ bool attachNonblockingTcpBio(SSL *tls, TcpNonblockingIo &io) noexcept
 
 bool PreauthTcpAdapter::attachTlsTransport(SSL *serverTls) noexcept
 {
-    if (serverTls == nullptr ||
+    if (attachedServerTls_ != nullptr || serverTls == nullptr ||
         connection_.stage() != PreauthStage::AwaitTls ||
         !connection_.pendingConnectionReply().empty() ||
         SSL_is_server(serverTls) != 1 ||
         !attachNonblockingTcpBio(serverTls, io_))
     {
-        connection_.close();
+        close();
+        return false;
+    }
+    // Only this BIO, borrowing the SAME TCP I/O as X.224, is eligible
+    // for the subsequent connected TLS and MCS readiness callbacks.
+    attachedServerTls_ = serverTls;
+    attachedTcpBio_ = SSL_get_rbio(serverTls);
+    if (!matchesAttachedTlsTransport())
+    {
+        close();
         return false;
     }
     return true;
+}
+
+bool PreauthTcpAdapter::matchesAttachedTlsTransport() const noexcept
+{
+    // Check identities before dereferencing a potentially replaced BIO:
+    // SSL_set_bio may have freed the original BIO in the interim.
+    return attachedServerTls_ != nullptr &&
+           attachedTcpBio_ != nullptr &&
+           SSL_get_rbio(attachedServerTls_) == attachedTcpBio_ &&
+           SSL_get_wbio(attachedServerTls_) == attachedTcpBio_ &&
+           BIO_get_init(attachedTcpBio_) == 1 &&
+           BIO_get_data(attachedTcpBio_) == &io_;
+}
+
+TlsHandshakeStatus PreauthTcpAdapter::onAttachedTlsIoReady() noexcept
+{
+    if (connection_.stage() == PreauthStage::Closed)
+        return TlsHandshakeStatus::Closed;
+    if (connection_.stage() != PreauthStage::AwaitTls ||
+        !matchesAttachedTlsTransport())
+    {
+        close();
+        return TlsHandshakeStatus::Invalid;
+    }
+    const auto status = connection_.advanceTlsHandshake(attachedServerTls_);
+    if (status == TlsHandshakeStatus::Invalid ||
+        status == TlsHandshakeStatus::Closed)
+        close();
+    return status;
+}
+
+TlsHandshakeStatus PreauthTcpAdapter::onTlsIoReady(
+    SSL *serverTls) noexcept
+{
+    // Existing memory-BIO tests use the underlying diagnostic directly.
+    // Once attached to the native TCP adapter, identity substitution
+    // must not bypass the stricter connected-socket ownership checks.
+    if (attachedServerTls_ == nullptr)
+        return connection_.advanceTlsHandshake(serverTls);
+    if (serverTls != attachedServerTls_)
+    {
+        close();
+        return TlsHandshakeStatus::Invalid;
+    }
+    return onAttachedTlsIoReady();
+}
+
+McsIntakeResult PreauthTcpAdapter::onAttachedMcsIoReady() noexcept
+{
+    if (connection_.stage() == PreauthStage::Closed)
+        return {0, McsIntakeStatus::Closed};
+    if (connection_.stage() != PreauthStage::AwaitMcsConnectInitial ||
+        !matchesAttachedTlsTransport())
+    {
+        close();
+        return {0, McsIntakeStatus::Invalid};
+    }
+    const auto result =
+        connection_.consumeMcsConnectInitialFromTls(attachedServerTls_);
+    if (result.status == McsIntakeStatus::Invalid ||
+        result.status == McsIntakeStatus::Closed ||
+        result.status == McsIntakeStatus::EnvelopeValidated)
+        close();
+    return result;
 }
 
 TcpIoResult NativeTcpIo::receive(std::span<std::uint8_t> destination) noexcept

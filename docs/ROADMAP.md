@@ -2589,6 +2589,30 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   full Windows Debug+Release revalidation; then R9 R3→R8
   authorized-channel/teardown integration negatives.
 
+  **R9 offline MCS joined clipboard response/teardown contract (2026-10-15):**
+  Introduced `clipboard.mcs-joined-response-teardown` in the existing
+  `test_owned_remote_transfer` executable. Its synthetic complete
+  MS-RDPBCGR TPKT/X.224/MCS SendDataRequest contains a genuine
+  CLIPRDR Format Data Response processed by R8's production
+  `RemoteTransfer`, but ONLY after R3's production
+  `McsChannelJoinWriteGate` confirms completion of the last
+  JoinConfirm write. The test preserves a pending clipboard request
+  across pre-join denial, partial-write denial, wrong user/channel
+  IDs, invalid TPKT/PER framing, then checks exactly one successful
+  payload, close/reset invalidation and independent new-session
+  membership. No extra controller or fixture owner was created.
+  **Strict limit:** membership is necessary, NOT sufficient for R2
+  TLS/OS authorization, channel role, licensing, MCS fragmentation
+  or live RDP delivery; currently no authenticated R3→R8 router.
+  **Integration parent main:** `46ef1d2282c6c78b67e37b373be77c624bf529b7`. New test is C++23 portable,
+  noninteractive and runs in ordinary full CTest. **NOT RUN at
+  authoring:** full checkout local CMake/CTest (git clone DNS unavailable)
+  and exact-SHA CI/owner platform runs; prior R9 chunk test has hosted
+  Linux/macOS PASS but R10 Windows CRLF test remains independently
+  tracked. **Next:** evaluate exact published SHA hosted Actions,
+  owner Linux/X11, CLANG64/Clang23 and macOS27, then test actual
+  R3 admitted channel routing when R2/R3 integration exists.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

@@ -3282,3 +3282,35 @@ on unrelated R10 `runtime.validates-configuration-comments-crlf`
 owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27.
 **Next:** validate exact code in Linux/Windows/macOS Actions and keep
 M2 R2 authentication, R3 session and human real-client gates NOT RUN.
+
+## R9 R3→R8 joined-channel and clipboard teardown verification (2026-10-15)
+
+**Parent main:** `46ef1d2282c6c78b67e37b373be77c624bf529b7`. **Road:** R9 quality/interoperability,
+M1 portable contract and M2 security-precondition verification.
+**Modified:** `tests/test_owned_remote_transfer.cpp`,
+`tests/CMakeLists.txt`, `docs/ROADMAP.md`,
+`docs/CODEX_VALIDATION.md`. Production code unchanged.
+**New CTest:** `clipboard.mcs-joined-response-teardown`, reusing the
+original production-linked clipboard test binary, exercises
+`parseMcsChannelRequest`, `McsChannelJoinWriteGate` and
+`RemoteTransfer::receiveResponse/resetAfterDisconnect` together.
+Checks no clipboard delivery before join, after a partial JoinConfirm
+writer callback, on a mismatched user/channel or malformed TPKT;
+confirms data only after the final writer receipt; rejects queued
+old-session frames after gate close and R8 reset and checks that a
+fresh gate does not inherit old joined membership. Existing test
+names, fixtures and assertions remain in place.
+
+**No authenticated session claim:** the test's local guarded call
+models a *necessary* MCS membership check only. The production gate
+explicitly does not authorize transport, TLS, R2 identity, native
+OS permission, licensing, complete segmentation or R3 virtual-channel
+routing. In particular it does not create a second controller or
+implement a live RDP server. No live desktop/clipboard/credentials.
+**NOT RUN at authoring:** local complete-source configure/build/
+CTest (repository Git DNS unavailable), exact-commit hosted CI,
+owner Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS 27,
+real licensed Microsoft client and actual R2→R3→R8 admission.
+**Next:** exact-SHA hosted CI and owner one-root CTest; once the
+single authorized R3 dispatch interface lands, replace fixture-only
+membership acceptance with a production ingress-routing CTest.

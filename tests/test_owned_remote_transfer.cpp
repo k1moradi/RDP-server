@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "clipboard/clipboard_protocol.h"
+#include "transport/mcs_channel_connection.h"
 #include "clipboard/remote_transfer.h"
 
+#include <algorithm>
 #include <array>
 // Release builds set NDEBUG. Keep all correctness checks live under -O3.
 #ifdef NDEBUG
@@ -696,13 +698,145 @@ void testCapabilitiesNegotiationAndFormatListGating()
     reject(makeCapabilities({})); // Missing count and padding.
 }
 
+
+// Cross-road OFFLINE fixture: the joined-channel gate is a necessary
+// membership prerequisite, NOT R2 TLS/OS authorization or an R3 router.
+// Only a complete parsed MCS request from the confirmed channel can be
+// passed to the existing first-party CLIPRDR response coordinator.
+void testMcsJoinedClipboardResponseTeardown()
+{
+    using namespace rdp_server::server::transport;
+    const std::array<std::uint16_t, 1> allocatedChannels{1003};
+    constexpr std::array<std::uint8_t, 12> joinWire{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x06, 0x03, 0xeb};
+    const auto join = parseMcsChannelRequest(joinWire);
+    assert(join && join.request.kind == McsChannelRequestKind::ChannelJoin);
+
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, allocatedChannels));
+    assert(gate.beginJoin(join.request) == McsJoinStartOutcome::ReplyPending);
+    assert(!gate.channelJoinConfirmed(1003));
+
+    const std::array<std::uint32_t, 1> offers{13};
+    RemoteTransfer transfer;
+    std::vector<std::uint8_t> outboundRequest;
+    // Pre-seed an outstanding transfer to prove denial is due to MCS
+    // membership, not because R8 happens to lack an outstanding request.
+    assert(transfer.receiveFormatList(offers));
+    assert(transfer.beginRequest(13, outboundRequest));
+    const std::array<std::uint8_t, 3> payload{0x12, 0x34, 0x56};
+    const auto cliprdrResponse = responsePdu(
+        rdp_server::clipboard::kResponseOk, payload);
+
+    // Microsoft MS-RDPBCGR/T.125 SendDataRequest, client 1007 and
+    // channel 1003. The CLIPRDR PDU is a synthetic complete userData.
+    // The 7-bit length is sufficient for this bounded response.
+    assert(cliprdrResponse.size() < 128);
+    std::vector<std::uint8_t> frame{
+        0x03, 0x00, 0x00, 0x00, 0x02, 0xf0, 0x80,
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70,
+        static_cast<std::uint8_t>(cliprdrResponse.size())};
+    frame.insert(frame.end(), cliprdrResponse.begin(), cliprdrResponse.end());
+    assert(frame.size() <= 255);
+    frame[3] = static_cast<std::uint8_t>(frame.size());
+
+    const auto parsed = parseMcsChannelRequest(frame);
+    assert(parsed && parsed.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(parsed.request.userData.size() == cliprdrResponse.size());
+    assert(parsed.request.userData.data() == frame.data() + 14);
+    assert(!gate.matchesJoinedInboundSendData(parsed.request));
+
+    std::size_t deliveredCount = 0;
+    // Test-only caller discipline, not a new state owner or a production
+    // authorization implementation. R2 admission/stage checks remain required.
+    const auto deliverIfJoined = [&](std::span<const std::uint8_t> completeTpkt)
+    {
+        const auto candidate = parseMcsChannelRequest(completeTpkt);
+        if (!candidate || !gate.matchesJoinedInboundSendData(candidate.request))
+            return false;
+        const auto reply = transfer.receiveResponse(candidate.request.userData);
+        if (reply.status != RemoteTransfer::ResponseStatus::Received)
+            return false;
+        assert(reply.generation == 1 && reply.formatId == 13);
+        assert(reply.payload.size() == payload.size());
+        assert(std::equal(reply.payload.begin(), reply.payload.end(),
+                          payload.begin()));
+        ++deliveredCount;
+        return true;
+    };
+
+    // No clipboard state changes while join confirmation is pending.
+    assert(!deliverIfJoined(frame));
+    assert(transfer.hasOutstandingRequest());
+    const auto confirmation = gate.pendingBytes();
+    assert(!confirmation.empty());
+    const auto receipt = gate.pendingReplySequence();
+    const auto firstSlice = gate.pendingWriteSliceSequence();
+    assert(gate.onReplyBytesWritten(receipt, firstSlice, 1) ==
+           McsJoinWriteOutcome::Pending);
+    assert(!deliverIfJoined(frame)); // Partial writer progress is not joined.
+    const auto suffix = gate.pendingBytes();
+    assert(suffix.size() == confirmation.size() - 1);
+    assert(gate.onReplyBytesWritten(
+               receipt, gate.pendingWriteSliceSequence(), suffix.size()) ==
+           McsJoinWriteOutcome::Confirmed);
+    assert(gate.channelJoinConfirmed(1003));
+
+    // Validly parsed data on another channel or from another user still
+    // cannot be delivered to the R8 request, even after one join succeeds.
+    auto wrongChannel = frame;
+    wrongChannel[11] = 0xec; // Channel 1004, not joined.
+    assert(parseMcsChannelRequest(wrongChannel));
+    assert(!deliverIfJoined(wrongChannel));
+    auto wrongUser = frame;
+    wrongUser[9] = 0x07; // User 1008, not the attached 1007.
+    assert(parseMcsChannelRequest(wrongUser));
+    assert(!deliverIfJoined(wrongUser));
+    auto truncated = frame;
+    truncated.pop_back(); // TPKT/PER declared lengths are now inconsistent.
+    assert(!parseMcsChannelRequest(truncated));
+    assert(!deliverIfJoined(truncated));
+    assert(transfer.hasOutstandingRequest());
+    assert(deliveredCount == 0);
+
+    assert(deliverIfJoined(frame));
+    assert(deliveredCount == 1);
+    assert(!transfer.hasOutstandingRequest());
+
+    // The actual session owner must close BOTH single-session components.
+    // A queued pre-disconnect frame must not resurrect clipboard data.
+    assert(transfer.beginRequest(13, outboundRequest));
+    gate.close();
+    transfer.resetAfterDisconnect();
+    assert(!gate.channelJoinConfirmed(1003));
+    assert(gate.pendingBytes().empty());
+    assert(!deliverIfJoined(frame));
+    assert(!transfer.hasOutstandingRequest());
+    assert(!transfer.advertises(13));
+    assert(deliveredCount == 1);
+
+    // A fresh session has independent membership state: even identical
+    // on-wire user/channel IDs never imply a completed fresh join.
+    McsChannelJoinWriteGate nextSession;
+    assert(nextSession.configure(1007, allocatedChannels));
+    assert(!nextSession.matchesJoinedInboundSendData(parsed.request));
+}
+
 } // namespace
+
+int main(int argumentCount} // namespace
 
 int main(int argumentCount, char **arguments)
 {
     if (argumentCount == 2)
     {
         const std::string_view caseName{arguments[1]};
+        if (caseName == "mcs-joined-response-teardown")
+        {
+            testMcsJoinedClipboardResponseTeardown();
+            return 0;
+        }
         if (caseName == "capabilities-negotiation-format-gating")
         {
             testCapabilitiesNegotiationAndFormatListGating();

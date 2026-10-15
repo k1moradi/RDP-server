@@ -266,6 +266,11 @@ if(TARGET rdp-server-linux-gssapi)
     endforeach()
 endif()
 add_rdp_test(test_owned_remote_transfer.cpp clipboard remote-transfer)
+# Offline MCS-joined membership/teardown integration, not TLS/OS admission.
+add_test(NAME clipboard.mcs-joined-response-teardown
+    COMMAND test_owned_remote_transfer mcs-joined-response-teardown)
+set_tests_properties(clipboard.mcs-joined-response-teardown PROPERTIES
+    LABELS "protocol;clipboard;security;offline")
 # A separate fail-closed framing contract, dispatched by the same native test.
 add_test(NAME clipboard.remote-transfer-framing-rejections
     COMMAND test_owned_remote_transfer framing-rejections)

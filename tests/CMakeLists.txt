@@ -63,7 +63,10 @@ function(add_rdp_test source_file suite behavior)
                 credssp-tls-certificate-pinning
                 credssp-tls-reply-wire
                 credssp-tls-reply-backpressure
-                credssp-tls-reply-rejections)
+                credssp-tls-reply-rejections
+                credssp-tls-reply-cert-pending
+                credssp-tls-reply-cert-completion
+                credssp-tls-reply-cert-backpressure)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

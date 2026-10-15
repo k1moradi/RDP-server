@@ -1858,6 +1858,164 @@ void testTlsCredSspReplyBackpressure()
     assert(writer.releaseReply());
 }
 
+// Replace the configured selected server X.509 on the SAME completed SSL
+// connection. This deliberately simulates a certificate mutation without
+// inventing a GSS identity or opening a live RDP service.
+void substituteCredSspReplyCertificate(
+    SSL *destination, const SSL *source)
+{
+    assert(destination && source);
+    const CertificatePointer replacement{
+        X509_dup(SSL_get_certificate(source)), X509_free};
+    assert(replacement);
+    assert(SSL_use_certificate(destination, replacement.get()) == 1);
+    CredSspTlsCertificateFingerprint actual{};
+    CredSspTlsCertificateFingerprint expected{};
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        destination, actual));
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        source, expected));
+    assert(actual == expected);
+}
+
+void testTlsCredSspReplyCertPending()
+{
+    // Outgoing provider bytes are owned but must never be written after
+    // the same SSL object's selected certificate changes before writing.
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        for (const auto field : {CredSspServerReplyField::NegoToken,
+                                 CredSspServerReplyField::EncryptedServerBinding})
+        {
+            TlsHandshakeFixture tls;
+            TlsHandshakeFixture substituted;
+            TsRequestTlsReplyWriter writer;
+            const std::array<std::uint8_t, 3> payload{0x12, 0x34, 0x56};
+            assert(writer.queueReply(tls.server.get(), version, field, payload));
+            assert(writer.bytesRemaining() > payload.size());
+            substituteCredSspReplyCertificate(
+                tls.server.get(), substituted.server.get());
+            const auto rejected = writer.writeOneTlsStep(tls.server.get());
+            assert(rejected.status == TsRequestTlsWriteStatus::Invalid);
+            assert(rejected.plaintextBytesWritten == 0);
+            assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+            assert(writer.bytesRemaining() == 0);
+            assert(!writer.releaseReply());
+            assert(writer.writeOneTlsStep(tls.server.get()).status ==
+                   TsRequestTlsWriteStatus::Closed);
+            assert(!writer.queueReply(tls.server.get(), version, field, payload));
+            // No TLS write happened: this client must receive no reply.
+            std::array<std::uint8_t, 64> bytes{};
+            std::size_t count = 0;
+            const int received = SSL_read_ex(
+                tls.client.get(), bytes.data(), bytes.size(), &count);
+            assert(received != 1);
+            assert(SSL_get_error(tls.client.get(), received) ==
+                   SSL_ERROR_WANT_READ);
+            assert(count == 0);
+        }
+    }
+}
+
+void testTlsCredSspReplyCertCompletionAndReuse()
+{
+    const std::array<std::uint8_t, 2> token{0x41, 0x42};
+    // A reply that WAS correctly encrypted and submitted is not
+    // retractable; only future writer operations are forbidden after
+    // a certificate change. Test both Complete and released Idle states.
+    {
+        TlsHandshakeFixture tls;
+        TlsHandshakeFixture substituted;
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(tls.server.get(), 6,
+                                 CredSspServerReplyField::NegoToken, token));
+        assert(writer.writeOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsWriteStatus::Complete);
+        substituteCredSspReplyCertificate(
+            tls.server.get(), substituted.server.get());
+        assert(!writer.releaseReply());
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(writer.bytesRemaining() == 0);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TlsHandshakeFixture substituted;
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(tls.server.get(), 5,
+                                 CredSspServerReplyField::NegoToken, token));
+        assert(writer.writeOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsWriteStatus::Complete);
+        substituteCredSspReplyCertificate(
+            tls.server.get(), substituted.server.get());
+        assert(writer.writeOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsWriteStatus::Invalid);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    }
+    {
+        TlsHandshakeFixture tls;
+        TlsHandshakeFixture substituted;
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(tls.server.get(), 6,
+                                 CredSspServerReplyField::NegoToken, token));
+        assert(writer.writeOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsWriteStatus::Complete);
+        assert(writer.releaseReply());
+        assert(writer.status() == TsRequestTlsWriteStatus::Idle);
+        substituteCredSspReplyCertificate(
+            tls.server.get(), substituted.server.get());
+        assert(!writer.queueReply(
+            tls.server.get(), 6,
+            CredSspServerReplyField::EncryptedServerBinding, token));
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(writer.bytesRemaining() == 0);
+    }
+    // The existing positive multi-reply behavior is preserved for an
+    // unchanged certificate on the same TLS identity.
+    {
+        TlsHandshakeFixture tls;
+        TsRequestTlsReplyWriter writer;
+        for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+        {
+            assert(writer.queueReply(tls.server.get(), version,
+                                     CredSspServerReplyField::NegoToken, token));
+            assert(writer.writeOneTlsStep(tls.server.get()).status ==
+                   TsRequestTlsWriteStatus::Complete);
+            assert(writer.writeOneTlsStep(tls.server.get()).status ==
+                   TsRequestTlsWriteStatus::Complete);
+            assert(writer.releaseReply());
+            assert(writer.status() == TsRequestTlsWriteStatus::Idle);
+        }
+    }
+}
+
+void testTlsCredSspReplyCertBackpressure()
+{
+    // Constrained BIO forces an ACTUAL OpenSSL WANT_WRITE. The pending
+    // retry buffer must be wiped, never resubmitted after the original
+    // server's selected certificate is changed on the same SSL pointer.
+    TlsHandshakeFixture tls{true, true, 2048};
+    TlsHandshakeFixture substituted;
+    TsRequestTlsReplyWriter writer;
+    const std::vector<std::uint8_t> token(8192, 0x4a);
+    assert(writer.queueReply(
+        tls.server.get(), 6, CredSspServerReplyField::NegoToken, token));
+    const auto blocked = writer.writeOneTlsStep(tls.server.get());
+    assert(blocked.status == TsRequestTlsWriteStatus::NeedWrite);
+    assert(blocked.plaintextBytesWritten == 0);
+    const std::size_t remaining = writer.bytesRemaining();
+    assert(remaining > 8192);
+    substituteCredSspReplyCertificate(
+        tls.server.get(), substituted.server.get());
+    const auto rejected = writer.writeOneTlsStep(tls.server.get());
+    assert(rejected.status == TsRequestTlsWriteStatus::Invalid);
+    assert(rejected.plaintextBytesWritten == 0);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    assert(writer.bytesRemaining() == 0);
+    assert(!writer.releaseReply());
+    // Already-buffered SSL transport bytes cannot be recalled, and are
+    // intentionally not counted as a new successful TLS write here.
+}
+
 void testTlsCredSspReplyRejections()
 {
     {
@@ -2632,6 +2790,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-reply-wire", &testTlsCredSspReplyWire},
     {"credssp-tls-reply-backpressure", &testTlsCredSspReplyBackpressure},
     {"credssp-tls-reply-rejections", &testTlsCredSspReplyRejections},
+    {"credssp-tls-reply-cert-pending", &testTlsCredSspReplyCertPending},
+    {"credssp-tls-reply-cert-completion", &testTlsCredSspReplyCertCompletionAndReuse},
+    {"credssp-tls-reply-cert-backpressure", &testTlsCredSspReplyCertBackpressure},
 #ifdef RDP_TEST_LINUX_GSSAPI
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
     {"gssapi-final-combined-denials", &testGssapiCombinedFinalBindingDenied},

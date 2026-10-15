@@ -639,3 +639,35 @@ after snapshotting bytes into the
 existing canonical TLS writer. Never
 promote these components to OS or
 MCS authorization authority.
+
+## Outgoing CredSSP TLS selected-certificate continuity (2026-10-14)
+
+The nonblocking server `TsRequestTlsReplyWriter`
+must validate more than `SSL*` pointer
+equality: a selected server certificate
+may be reconfigured on the same SSL
+object between responses or between
+`SSL_write_ex` retries. Pin SHA-256
+of the actual selected DER X.509
+certificate on the first queued
+canonical TSRequest v5/v6 reply.
+Reuse the existing strict finished
+TLS >=1.2 server-role/cipher/certificate
+check and compare the pinned digest
+with `CRYPTO_memcmp` at each step,
+including Complete and release and
+the next queue after release.
+Keep the original digest across
+successful reply release and cleanse
+it on terminal close; cleanse the
+transient fingerprint on ALL return
+paths. Preserve the stable owned
+DER pointer and size across WANT.
+Reject a mismatch BEFORE any
+additional `SSL_write_ex`, wiping
+the pending reply and terminating
+the writer. A previous successful
+SSL write cannot be recalled.
+Do not confuse transport continuity
+with GSS provider authentication,
+OS authorization or session admission.

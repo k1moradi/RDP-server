@@ -256,7 +256,8 @@ public:
     // Exactly one SSL_write_ex per invocation. Progress means a partial
     // OpenSSL write was completed and can be advanced immediately;
     // NeedRead/NeedWrite require the indicated readiness event.
-    // Identical SSL* must be supplied throughout the entire lifetime.
+    // Identical SSL* AND selected X.509 certificate fingerprint must
+    // remain unchanged throughout the entire queued/retried reply.
     [[nodiscard]] TsRequestTlsWriteResult writeOneTlsStep(
         SSL *serverTls) noexcept;
 
@@ -272,17 +273,26 @@ public:
                    ? 0 : frame_.size() - offset_;
     }
     // Only a fully written response can be released. Wipes plaintext
-    // and allows the next reply on the SAME TLS identity.
+    // and allows the next reply on the SAME TLS/certificate identity.
+    // If the selected certificate changed after a completed write, fail
+    // terminally rather than releasing bytes for a different TLS identity.
     [[nodiscard]] bool releaseReply() noexcept;
     void close() noexcept;
 
 private:
     void clear() noexcept;
-    [[nodiscard]] static bool suitableTls(const SSL *serverTls) noexcept;
+    // Uses the same canonical selected-certificate test as the
+    // inbound TLS reader. A long-lived pointer is insufficient to
+    // identify the certificate if it is replaced within that SSL.
+    [[nodiscard]] bool matchesPinnedCertificate(
+        const SSL *serverTls,
+        CredSspTlsCertificateFingerprint &current) const noexcept;
 
     std::vector<std::uint8_t> frame_{};
     std::size_t offset_{};
     SSL *boundServerTls_{};
+    CredSspTlsCertificateFingerprint pinnedCertificate_{};
+    bool certificatePinned_{};
     TsRequestTlsWriteStatus status_{TsRequestTlsWriteStatus::Idle};
 };
 

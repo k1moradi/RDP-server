@@ -875,3 +875,48 @@ real positive Kerberos with ticket/keytab,
 successful GSS-protected public-key proof,
 independently authorized OS identity,
 external client or interactive desktop.
+
+## Outgoing server TLS certificate substitution (2026-10-14; CI NOT RUN)
+
+Add three all-platform behavior-named
+CTests to the ORIGINAL in-memory
+OpenSSL TLS handshake fixture in
+`tests/test_owned_preauth_session.cpp`:
+`transport.credssp-tls-reply-cert-pending`
+queues both server reply field types
+for v5 and v6, substitutes another
+live TLS certificate on the SAME
+server `SSL*` using `X509_dup` and
+checks selected fingerprint equality
+with the replacement, then requires
+terminal Invalid before a TLS write,
+secure erase and no client-readable
+application data.
+`transport.credssp-tls-reply-cert-completion`
+checks mismatch after Complete
+(before release via both write
+and release paths), after a released
+reply before next queue, and positive
+multi-reply reuse with unchanged
+TLS selected certificate.
+`transport.credssp-tls-reply-cert-backpressure`
+uses the original 2048-byte server
+memory BIO capacity to induce real
+`SSL_ERROR_WANT_WRITE` on an
+8192-byte SPNEGO reply, then changes
+the selected certificate and checks
+the pending retry is never resent
+and the writer is terminally closed.
+Do not falsely assert previously
+buffered ciphertext can be recalled.
+Register separately in the same
+`tests/CMakeLists.txt`; expected
+Linux 72, macOS/Windows 63
+full CTests per Debug/Release.
+Preserve the former 69/60 tests
+and the positive multi-reply fixture.
+**NOT RUN:** new CI, developer's
+local build, genuine Kerberos
+tickets/service keytab, verified
+confidential pubKeyAuth, OS admission
+or external desktop client.

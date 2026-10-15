@@ -483,3 +483,37 @@ frame, writer and GSS context. No evidence
 of positive authenticated Kerberos,
 OS session authorization, actual RDP
 MCS admission or usable desktop is implied.
+
+### CredSSP server TLS outgoing certificate continuity (2026-10-14)
+
+In addition to the existing inbound
+`TsRequestFrameReader` TLS certificate
+fingerprint pin, the same first-party
+`TsRequestTlsReplyWriter` now remembers a
+single SHA-256 fingerprint of the
+selected, finished server SSL X.509
+certificate when it queues its FIRST
+canonical v5/v6 TSRequest response.
+It validates the identical original
+`SSL*` and same selected certificate
+at every nonblocking `SSL_write_ex`
+attempt (including WANT retry and
+already Complete), at explicit
+`releaseReply`, and before accepting
+any subsequent reply on the same writer.
+It reuses the original
+`fingerprintActiveCredSspServerTlsCertificate`
+instead of maintaining a competing
+certificate selection implementation.
+Any changed or unhandshaken server
+certificate closes and cleanses the
+outgoing DER, TLS identity and digest
+terminally. Once TLS has accepted a
+write, ciphertext may already be on
+the wire; rejection cannot retroactively
+retract that record and does not count
+any future successful write. This
+transport boundary does not create
+authenticated GSS identity,
+independent OS permission or an
+RDP server connection controller.

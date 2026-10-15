@@ -1135,3 +1135,66 @@ active TLS binding with explicit
 test-only credentials, then separate
 OS authorization before MCS replies
 or remote desktop admission.
+
+## Pending outgoing CredSSP TLS certificate continuity (2026-10-14)
+
+**Previous exact verified main:**
+`5777fa738fb94499356ba910643edd7f8a127026`,
+[CI 38624268810](https://github.com/k1moradi/RDP-server/actions/runs/38624268810):
+Linux/GCC 69/69, macOS/Clang and Windows/MSVC
+60/60 complete CTests in Debug+Release;
+all SDK downstream consumers, packaging
+ZIP/SHA256 uploads, documentation gate PASS.
+
+**New implementation and tests (CI NOT RUN):**
+The existing first-party
+`src/server/security/credssp_tsrequest.{h,cpp}`
+`TsRequestTlsReplyWriter` uses the
+original `credssp_tls_certificate`
+fingerprint function to require
+unchanged selected, finished server
+TLS certificate AND SSL pointer,
+throughout initial queue, each
+nonblocking write/retry, idempotent
+Complete, explicit successful
+release, and next queued server
+reply. A mutation on the SAME SSL
+object fails before new TLS write,
+closes/wipes DER and fingerprint.
+No second state owner or provider
+success is added. Three dedicated
+portable CTests use real OpenSSL
+memory BIO TLS with cross-version
+safe RAII X509 duplication:
+`transport.credssp-tls-reply-cert-pending`,
+`transport.credssp-tls-reply-cert-completion`,
+`transport.credssp-tls-reply-cert-backpressure`.
+Expected Linux **72/72**,
+macOS/Windows **63/63** in BOTH
+Debug and Release; no assertions
+weakened. The known Linux Release
+fixture compiler warning may persist.
+Commands on CI's sole checkout-local
+`build/`: `cmake -S . -B build
+-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`
+(+ `-DRDP_SERVER_TEST_LINUX_GSSAPI=ON`
+for Linux), `cmake --build build
+--config Debug --parallel 2`,
+`ctest --test-dir build --build-config Debug
+--output-on-failure`; same-root
+Release reconfigure/build/CTest,
+SDK install, downstream CMake
+consumer, CPack ZIP/checksums
+and artifacts.
+**NOT RUN:** new CI,
+the owner-local persistent
+`~/rdp-server/build`, controlled
+real successful Kerberos and
+active TLS binding, independently
+authorized OS session, Microsoft
+client or interactive desktop.
+**Next:** explicitly authorized
+controlled Kerberos/keytab
+and ticket positive test, then
+independent OS authorization
+before live MCS response/desktop.

@@ -634,14 +634,15 @@ TsRequestFrameResult TsRequestFrameReader::consumePlaintext(
 }
 
 
-bool TsRequestTlsReplyWriter::suitableTls(const SSL *serverTls) noexcept
+bool TsRequestTlsReplyWriter::matchesPinnedCertificate(
+    const SSL *serverTls,
+    CredSspTlsCertificateFingerprint &current) const noexcept
 {
-    return serverTls != nullptr &&
-           SSL_is_server(serverTls) == 1 &&
-           SSL_is_init_finished(serverTls) == 1 &&
-           SSL_version(serverTls) >= TLS1_2_VERSION &&
-           SSL_get_current_cipher(serverTls) != nullptr &&
-           SSL_get_certificate(serverTls) != nullptr;
+    if (!fingerprintActiveCredSspServerTlsCertificate(serverTls, current))
+        return false;
+    return !certificatePinned_ ||
+           CRYPTO_memcmp(current.data(), pinnedCertificate_.data(),
+                         current.size()) == 0;
 }
 
 void TsRequestTlsReplyWriter::clear() noexcept
@@ -656,6 +657,8 @@ void TsRequestTlsReplyWriter::close() noexcept
 {
     clear();
     boundServerTls_ = nullptr;
+    OPENSSL_cleanse(pinnedCertificate_.data(), pinnedCertificate_.size());
+    certificatePinned_ = false;
     status_ = TsRequestTlsWriteStatus::Closed;
 }
 
@@ -666,26 +669,44 @@ bool TsRequestTlsReplyWriter::queueReply(
     if (status_ == TsRequestTlsWriteStatus::Closed)
         return false;
     if (status_ != TsRequestTlsWriteStatus::Idle ||
-        !suitableTls(serverTls) ||
         (boundServerTls_ != nullptr && boundServerTls_ != serverTls))
     {
         close();
         return false;
     }
 
-    // Use the existing bounded DER encoder: never accept arbitrary
-    // preframed input or an unauthorized server field combination.
+    // The same SSL pointer may receive new configured credentials. Require
+    // the exact selected DER certificate pinned by the first outgoing
+    // reply, including after releaseReply(), before queuing another record.
+    CredSspTlsCertificateFingerprint current{};
+    const bool validCertificate = matchesPinnedCertificate(
+        serverTls, current);
+    if (!validCertificate)
+    {
+        OPENSSL_cleanse(current.data(), current.size());
+        close();
+        return false;
+    }
+
+    // Only the canonical bounded DER encoder may form outgoing bytes.
     auto encoded = encodeCredSspServerTsRequest(
         version, field, providerOutput);
     if (encoded.empty() ||
         encoded.size() > kMaximumCredSspRequestBytes)
     {
+        OPENSSL_cleanse(current.data(), current.size());
         close();
         return false;
     }
-    frame_.swap(encoded); // Stable OpenSSL retry pointer, no additional copy.
+    frame_.swap(encoded); // Stable OpenSSL retry pointer, no second copy.
     offset_ = 0;
     boundServerTls_ = serverTls;
+    if (!certificatePinned_)
+    {
+        pinnedCertificate_ = current;
+        certificatePinned_ = true;
+    }
+    OPENSSL_cleanse(current.data(), current.size());
     status_ = TsRequestTlsWriteStatus::NeedWrite;
     return true;
 }
@@ -697,7 +718,14 @@ TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStep(
         return {0, TsRequestTlsWriteStatus::Closed};
     if (status_ == TsRequestTlsWriteStatus::Idle)
         return {0, TsRequestTlsWriteStatus::Idle};
-    if (!suitableTls(serverTls) || boundServerTls_ != serverTls)
+    // Recheck the selected TLS certificate even after Complete; do not
+    // report idempotent completion for another selected certificate.
+    CredSspTlsCertificateFingerprint current{};
+    const bool sameCertificate =
+        boundServerTls_ == serverTls && certificatePinned_ &&
+        matchesPinnedCertificate(serverTls, current);
+    OPENSSL_cleanse(current.data(), current.size());
+    if (!sameCertificate)
     {
         close();
         return {0, TsRequestTlsWriteStatus::Invalid};
@@ -748,7 +776,19 @@ bool TsRequestTlsReplyWriter::releaseReply() noexcept
 {
     if (status_ != TsRequestTlsWriteStatus::Complete)
         return false;
+    CredSspTlsCertificateFingerprint current{};
+    const bool sameCertificate =
+        certificatePinned_ &&
+        matchesPinnedCertificate(boundServerTls_, current);
+    OPENSSL_cleanse(current.data(), current.size());
+    if (!sameCertificate)
+    {
+        close();
+        return false;
+    }
     clear();
+    // Keep the original SSL and certificate fingerprint across the next
+    // provider response; a new certificate requires a NEW writer/handshake.
     status_ = TsRequestTlsWriteStatus::Idle;
     return true;
 }

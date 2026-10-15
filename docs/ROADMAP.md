@@ -742,6 +742,53 @@ acceptance evidence; no synthetic completion claims.
   keytab/client ticket and active TLS binding,
   then independent OS authorization before
   any live MCS/desktop admission.
+  **Server TLS reply certificate-continuity hardening
+  (2026-10-14; implementation CI NOT RUN):** per
+  Microsoft's [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),
+  every CredSSP server TSRequest reply remains tied
+  to the original selected TLS server certificate.
+  The existing `TsRequestTlsReplyWriter` already
+  pinned one SSL handle, but `queueReply`,
+  `writeOneTlsStep` (including nonblocking
+  WANT_READ/WANT_WRITE and idempotent Complete),
+  `releaseReply` and next-reply queue did not
+  verify that the selected X.509 certificate on
+  that SAME SSL handle remained unchanged.
+  Reuse the existing SHA-256 selected certificate
+  fingerprint primitive, pin its value on the
+  first queued response, compare in constant time
+  at every subsequent write, Complete check,
+  release and second queue; permanently close
+  and wipe pending DER and digest on mismatch.
+  Never make a second connection owner or copy
+  provider data beyond the original bounded DER
+  buffer. A queued OpenSSL partial write cannot
+  retroactively retract bytes already passed
+  to TLS; abort before ANY new write on mismatch.
+  Three NEW all-platform behavior CTests in
+  the original real TLS fixture cover pre-write
+  same-SSL certificate substitution with
+  zero plaintext delivered, mutation after
+  Complete/before release and after release
+  with unchanged-certificate positive reuse,
+  and actual constrained-memory-BIO WANT_WRITE
+  followed by a certificate change and no retry.
+  Expected Linux **72/72**, macOS/Windows
+  **63/63** CTests in both Debug and Release.
+  **PASS previous baseline:** exact main
+  `5777fa738fb94499356ba910643edd7f8a127026`,
+  [CI 38624268810](https://github.com/k1moradi/RDP-server/actions/runs/38624268810),
+  Linux 69/69, portable 60/60, SDK and policy.
+  **NOT RUN:** new CI, developer local build,
+  successful positive ticket/keytab Kerberos/GSS
+  with confidential selected-TLS proof,
+  independently authorized OS user/session,
+  external Microsoft client, actual desktop.
+  **Next:** controlled real positive MIT
+  Kerberos/GSS and selected certificate proof
+  under an explicitly authorized isolated
+  test environment, independent OS account
+  policy before MCS/desktop admission.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

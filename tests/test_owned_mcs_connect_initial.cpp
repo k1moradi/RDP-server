@@ -1742,8 +1742,14 @@ void testRdpDemandActiveEncodeWire()
     const auto result = encodeRdpDemandActivePdu(
         0x000103eaU, 0x11223344U, source, 2, capabilities, output);
     assert(result && *result == kOfflineDemandActive.size());
+    // The prior parser fixture intentionally uses ignored pad2Octets
+    // 0xf017. This writer emits canonical zero padding; compare
+    // against the same packet with ONLY those two pad bytes zeroed.
+    auto canonical = kOfflineDemandActive;
+    canonical[20] = 0;
+    canonical[21] = 0;
     assert(std::equal(output.begin(), output.begin() + *result,
-                      kOfflineDemandActive.begin()));
+                      canonical.begin()));
     assert(output[*result] == 0xa5 && output[*result + 1U] == 0xa5);
     const auto roundtrip = parseRdpActivePdu(
         std::span(output).first(*result));

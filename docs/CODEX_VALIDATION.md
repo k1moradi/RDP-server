@@ -1447,6 +1447,18 @@ CTest cases. Architecture, ROADMAP and existing
 coding/testing standards are amended in the SAME
 implementation commit.
 
+**Initial FAIL:** implementation
+`5c0a790ba317f592da21f457842ba6a39a6bd553`
+[Actions 38716458988](https://github.com/k1moradi/RDP-server/actions/runs/38716458988)
+failed the new `transport.share-demand-active-encode-wire`
+test because its historical parser-only fixture has
+nonzero, ignored `pad2Octets` whereas the writer's
+canonical pad is zero. The new negative suite PASSED.
+Correction changes ONLY the byte-exact expected oracle
+to zero those ignored pad bytes; the production writer
+must still emit zero and the parser still accept
+nonzero padding. Corrected CI NOT RUN at authoring.
+
 **NOT RUN at authoring:** new full GitHub CI
 Debug/Release Linux/macOS/Windows, owner-local
 new-code build/CTest, real MIT keytab/ticket GSS

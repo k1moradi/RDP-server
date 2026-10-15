@@ -1084,6 +1084,15 @@ acceptance evidence; no synthetic completion claims.
   decoding, 32767/32769/65535 byte boundaries and
   fail-closed atomic rejection. Expected **85**
   portable, **95** Linux GSS (prior 83/93).
+  **Initial CI failure:** implementation `5c0a790ba317f592da21f457842ba6a39a6bd553`,
+  [Actions 38716458988](https://github.com/k1moradi/RDP-server/actions/runs/38716458988)
+  failed `transport.share-demand-active-encode-wire`:
+  the old decoder golden has deliberately nonzero
+  ignored `pad2Octets`, while the server writer
+  correctly emits zero padding. The new rejection
+  suite PASS; fix the golden to canonical zero pad
+  without altering production semantics. Corrected
+  exact-head CI NOT RUN at authoring.
   Baseline `659e0b816e8055f4bec7c87bda2816d8a614b9af`
   passed [CI 38715062876](https://github.com/k1moradi/RDP-server/actions/runs/38715062876);
   owner reports **83/83 local PASS** on the parent.

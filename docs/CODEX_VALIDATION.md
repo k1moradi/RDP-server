@@ -2487,6 +2487,123 @@ activation, graphics/desktop or human test.
 R2/R3 integration with real authorized identity/OS
 admission before sending live MCS or desktop data.
 
+## R6 Windows monitor layout (integrated on main; 2026-10-15)
+
+**Base main observed:** `ff71184d92f0658c2b47cb0f14471c83dc3589fe`
+after the mandatory main-only policy change (no conflicting Windows files).
+**Prepared files:** `src/windows/windows_desktop_geometry.{h,cpp}`,
+`tests/test_windows_desktop_geometry.cpp`, top-level `CMakeLists.txt`,
+`tests/CMakeLists.txt`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md` and
+this validation record. Three R6 helper increments are now integrated atomically into main;
+that earlier staging evidence still applies only to the sparse fixture.
+**Tests added, Windows-only registry:**
+`windows.geometry-negative-origin-and-monitor-gaps`,
+`windows.geometry-invalid-layout-rejections`, and
+`windows.geometry-order-stable-reconfiguration`.
+**PASS (sparse staging, 2026-10-15):** Linux Clang 17 and GCC 14.2
+C++23 warning-clean compilation, all three direct behavior fixtures
+per compiler (3/3 each), all three Clang ASan+UBSan cases (3/3),
+and a sparse staging CTest registry (3/3). A fake Win32 API header
+and stubbed `EnumDisplayMonitors`/`GetMonitorInfoW` additionally
+compiled the native callback path and passed synthetic failure/retry
+checks; this is NOT Windows SDK or CLANG64 validation.
+The local commands were:
+`clang++ -std=c++23 -Wall -Wextra -Wpedantic -Werror -UNDEBUG -Isrc src/windows/windows_desktop_geometry.cpp tests/test_windows_desktop_geometry.cpp -o build/test_windows_desktop_geometry`,
+then invoke that executable with each of the three behavior selectors.
+Repeat using `g++` with the same C++23 warnings; the Clang sanitizer
+build uses `-fsanitize=address,undefined -fno-omit-frame-pointer -g`
+and runs all three selectors. `ctest --test-dir build -C Debug
+--output-on-failure` passed 3/3 **staging-only** manually registered
+cases; it is not the actual project CMake CTest registry. All outputs
+live under `~/rdp-server/build/`.
+**NOT RUN:** registered Windows CTests, Windows native API compilation,
+MSYS2 CLANG64/Clang 23, full repository CTests (repository cannot be
+cloned in this environment), Windows/MSVC GitHub Actions for this patch,
+owner Linux/X11/Windows/macOS tests, capture/latency benchmarks, real
+RDP session, input or desktop acceptance. No desktop was accessed.
+**NOT RUN:** complete checkout/full CTest due Git clone DNS;
+seven dedicated Windows-conditional CTests are included in the commit.
+**First missing boundary:** R2/R3 authorized interactive Windows session
+lifecycle and R4 frame/cursor ownership contract.
+**Next R6:** implement a bounded Win32 capture-frame adapter against the
+agreed shared R4 frame view, gated by real admission and lifecycle policy.
+
+## R6 Windows BGRA mapped frame view (integrated on main; 2026-10-15)
+
+**Base remote `main`:** `ff71184d92f0658c2b47cb0f14471c83dc3589fe`.
+**Implementation:** existing uncommitted R6 monitor-geometry patch plus
+`src/windows/windows_bgra_frame.{h,cpp}`, its Windows-only target source,
+and two new conditional tests reusing `test_windows_desktop_geometry.cpp`:
+`windows.geometry-capture-bgra-stride-and-pixel-order` and
+`windows.geometry-capture-bgra-invalid-frame-denials`.
+Pure test fixtures exercise native BGRA component order, 12-byte padded
+pitch for two-pixel rows, zero-copy borrowed ownership, tight pitch,
+truncated backing, invalid dimensions, 512 MiB cap, arithmetic bounds,
+and unchanged output on every rejection. No live image was captured.
+
+**PASS (sparse staging on Linux, not the full repository):**
+`clang++ -std=c++23 -Wall -Wextra -Wpedantic -Werror -UNDEBUG -Isrc
+ src/windows/windows_desktop_geometry.cpp src/windows/windows_bgra_frame.cpp
+ tests/test_windows_desktop_geometry.cpp -o build/windows-geometry-and-frame-clang`
+and the same `g++` command/output `build/windows-geometry-and-frame-gcc`;
+each executable ran all five selector behaviors: **5/5 PASS**.
+Sparse staging CTest with five named selector cases was generated only
+inside the sole `build/` root (not added as a repository registry):
+`ctest --test-dir build -C Debug --output-on-failure` **5/5 PASS**;
+`ctest --test-dir build -C Debug -R '^windows\.geometry-capture-'
+ --output-on-failure` **2/2 PASS**.
+The identical Clang fixture with
+`-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g`
+also completed **5/5 PASS**. Build outputs reused only
+`~/rdp-server/build/` in a sparse local source mirror because public
+GitHub clone/network access failed; this does not attest to full
+repository build/CTest.
+**NOT RUN:** native Win32 SDK/MSYS2 CLANG64 Clang23, Windows/MSVC,
+the published full CTest registry, owner platform convergence,
+live R2 admission, R3 session activation, R4 graphics, desktop and input.
+**NOT RUN:** native Windows/full CMake and owner platform checks;
+under the revised main-only policy R10 approval is not required.
+**Next:** independently authorized DXGI acquisition owner plus
+deterministic failure/release tests, after R2/R3/R4 contract agreement.
+
+## R6 DXGI move/dirty rectangle bridge (integrated on main; 2026-10-15)
+
+**Remote baseline:** `ff71184d92f0658c2b47cb0f14471c83dc3589fe`;
+prior unpublished Windows monitor/BGRA patches are included atomically.
+**Production increment:** `src/windows/windows_dxgi_damage.{h,cpp}`
+converts bounded Windows DXGI move-destination and dirty rectangles into
+the portable `Rectangle` view without a graphics scheduler or capture.
+Move source/destination, exclusive edge, 32-bit coordinate, bounded count
+and output-capacity checks happen before output mutation; pointer-only
+frames yield zero rectangles. Shared Win32/COM types do not enter R4.
+**New dedicated conditional CTests:**
+`windows.capture-dxgi-move-before-dirty` and
+`windows.capture-dxgi-metadata-rejections` reuse the same Windows-only
+`test_windows_desktop_geometry` fixture and central test registry.
+
+**PASS (sparse staging, NOT full repo):** in `~/rdp-server` with only the
+R6 source subset and sole build root `~/rdp-server/build`, compile
+`src/windows/windows_desktop_geometry.cpp`, `windows_bgra_frame.cpp`,
+`windows_dxgi_damage.cpp` and `tests/test_windows_desktop_geometry.cpp`
+with `-std=c++23 -Wall -Wextra -Wpedantic -Werror -UNDEBUG -Isrc` using
+Clang 17 and GCC 14.2, then execute all seven behavior selectors:
+**7/7 PASS** for each compiler. Clang with
+`-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer` and
+`ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1` also
+completed **7/7 PASS**. Dedicated new behavior selectors **2/2 PASS**.
+Sparse fixture-only `ctest --test-dir build -C Debug --output-on-failure`
+was **7/7 PASS**, with `-R '^windows\.capture-dxgi-'` **2/2 PASS**.
+The R6 fixture build does not run other repository tests and cannot
+substitute for canonical CMake/CTest or native Windows SDK compilation.
+**NOT RUN:** native MSYS2 CLANG64 Clang 23, MSVC, full repository CTest,
+owner Linux/Windows/macOS exact-SHA gates, DXGI frame acquisition,
+R2 admission, R3 activated input, R4 graphics, user desktop and perf.
+**NOT RUN:** full repo CTest and native SDK (Git clone DNS blocked);
+code is integrated by non-force GitHub expected-HEAD update without
+any branch, live desktop access or input injection.
+**Next:** native frame acquisition/release with deterministic cancellation
+tests after R2/R3 session and R4 frame lifetime agreement.
+
 ## R3 bounded MCS Join delivery and stale-write protection (2026-10-15)
 
 **Baseline reviewed:** current `main` immediately before this implementation
@@ -2546,3 +2663,20 @@ exact-commit CI, owner Linux, Windows MSYS2 CLANG64/Clang23 and macOS27
 tests, Microsoft client, real OS authorization or desktop/clipboard.
 **Next:** verify exact-commit CI, owner's unchanged single-root CTest, then
 separate fragmentation/reset and R3→R8 integration security regressions.
+
+## R6 direct-main integration receipt (2026-10-15)
+
+**Parent `main` SHA:** `455b8b631957d2f3f9631393f2a3833e19c2c07a`. All 12 affected paths, including
+six Windows adapter files, one reusable R6 behavior executable,
+central CMake/CTest registration, ROADMAP, ARCHITECTURE and this ledger
+are one atomic implementation increment.
+**PASS:** Linux Clang 17 and GCC 14.2 C++23 strict warnings
+`-std=c++23 -Wall -Wextra -Wpedantic -Werror -UNDEBUG -Isrc`
+compiled the three production `.cpp` files and R6 test fixture;
+7/7 direct behavior cases each. Clang ASan+UBSan 7/7 PASS.
+Sparse fixture `ctest --test-dir build -C Debug --output-on-failure`
+7/7 PASS inside `~/rdp-server/build` (not the canonical full CTest).
+**NOT RUN:** full project CMake/CTest, Windows CLANG64 Clang 23/MSVC,
+owner Linux/macOS, R2/R3 authorized session, DXGI acquisition, R4
+graphics, Microsoft-client desktop and benchmarks. Next: R2/R3-bound
+DXGI frame acquire/release/cancel RAII and deterministic failure CTest.

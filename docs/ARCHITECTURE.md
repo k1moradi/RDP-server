@@ -29,6 +29,56 @@ foundation APIs currently reside in `src/server/transport`,
 portable dependency of the protocol archive. Other imported algorithms not
 listed in CMake are under porting review and are not silently shipped.
 
+### Windows monitor layout adapter (R6; not session-integrated)
+
+`src/windows/windows_desktop_geometry.{h,cpp}` is a separate Windows-only
+native adapter target, not part of the portable protocol library or its
+installed SDK. It samples the calling thread's Win32 monitor rectangles via
+`EnumDisplayMonitors`/`GetMonitorInfoW`; the public header uses only the
+existing portable `Rectangle` contract. A fixed 16-monitor owned snapshot
+canonically sorts monitor rectangles to suppress false topology changes,
+computes a checked signed-origin virtual desktop and allows coordinate
+translation only inside actual monitor rectangles, not virtual gaps. A
+fresh snapshot is required after topology changes. Enumeration of the
+calling process's displays is not evidence of authenticated OS admission,
+desktop/window-station authorization, capture or input permission. The
+future R2/R3-controlled runtime must bind this snapshot to an independently
+authorized interactive Windows session before using it for capture/input.
+The R4 scheduler remains the sole owner of graphics lifecycle.
+
+### Windows DXGI BGRA mapped-view boundary (R6; offline only)
+
+The Windows-only `windows_bgra_frame` helper borrows pixels from an
+externally owned mapped DXGI surface and produces the existing portable
+`FramebufferView` without a copy. DXGI Desktop Duplication supplies
+top-down `DXGI_FORMAT_B8G8R8A8_UNORM`; the contract retains BGRA byte order
+and the native row pitch (which may exceed width * 4). It verifies the
+full pitched allocation (including final-row padding) and limits one view
+to 512 MiB before returning a bounded span. The consumer must finish
+using the view before the producer unmaps/releases the native frame;
+asynchronous R4 processing requires separately owned frame bytes.
+No COM/DXGI object or Windows header enters portable protocol code.
+R2/R3 admission must be enforced by the future native capture owner;
+this helper itself neither accesses a desktop nor grants permission.
+
+### Windows DXGI dirty/move metadata boundary (R6; offline only)
+
+`windows_dxgi_damage` is a pure Windows-only per-output metadata bridge:
+it validates native-equivalent `RECT` dirty regions and `POINT` source /
+`RECT` destination move regions, and publishes caller-owned `Rectangle`
+spans in **move destination, then dirty** order. Frame pixels already
+include the completed moves; R4 decides how to coalesce and transmit
+damage. An empty list (such as pointer-only updates) returns count zero;
+invalid counts, source/destination coordinates, short capacity and
+unrepresentable dimensions fail transactionally rather than clipping.
+The 1024-rectangle maximum is an intentional bounded handoff; capture
+must treat an overflow as a failed incremental update and request a
+full-frame recovery after validation rather than silently dropping pixels.
+Input metadata must come from the same acquired, R2/R3-authorized frame;
+the native producer validates DXGI metadata byte lengths and releases
+the frame before changing the session. This increment owns no COM
+objects, authorization, queue, capture polling or graphics scheduler.
+
 ### R4 portable graphics surface wire boundary
 
 `rdp/gfx_surface_lifecycle.h` builds exact CREATE_SURFACE (15-byte),

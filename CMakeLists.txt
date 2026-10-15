@@ -103,6 +103,26 @@ target_link_libraries(rdp-server-protocol PUBLIC
 if(WIN32)
     target_link_libraries(rdp-server-protocol PUBLIC ws2_32)
 endif()
+
+# R6 native monitor geometry is a separate, noninstalled Windows adapter:
+# it does not pull user32/Win32 headers into the portable protocol archive.
+if(WIN32)
+    add_library(rdp-server-windows-desktop STATIC
+        src/windows/windows_desktop_geometry.cpp
+        src/windows/windows_bgra_frame.cpp
+        src/windows/windows_dxgi_damage.cpp)
+    target_compile_features(rdp-server-windows-desktop PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-windows-desktop PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(rdp-server-windows-desktop PRIVATE user32)
+    if(MSVC)
+        target_compile_options(rdp-server-windows-desktop PRIVATE /W4)
+    else()
+        target_compile_options(rdp-server-windows-desktop PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endif()
+
 if(MSVC)
     target_compile_options(rdp-server-protocol PRIVATE /W4)
 else()
@@ -156,7 +176,8 @@ write_basic_package_version_file(
 install(TARGETS rdp-server-protocol EXPORT RDPServerProtocolTargets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
-    FILES_MATCHING PATTERN "*.h")
+    FILES_MATCHING PATTERN "*.h"
+    PATTERN "windows" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake
     NAMESPACE RDPServer::

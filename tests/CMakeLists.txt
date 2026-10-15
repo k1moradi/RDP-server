@@ -234,6 +234,41 @@ if(TARGET rdp-server-linux-gssapi)
         rdp-server-linux-gssapi)
 endif()
 
+# R6 fixture-only checks: do not enumerate a real desktop, capture pixels,
+# or inject input during an ordinary Windows CTest run.
+if(TARGET rdp-server-windows-desktop)
+    add_executable(test_windows_desktop_geometry
+        test_windows_desktop_geometry.cpp)
+    target_link_libraries(test_windows_desktop_geometry PRIVATE
+        rdp-server-windows-desktop)
+    if(MSVC)
+        target_compile_options(test_windows_desktop_geometry PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(test_windows_desktop_geometry PRIVATE -UNDEBUG)
+    endif()
+    foreach(case_name IN ITEMS
+            negative-origin-and-monitor-gaps
+            invalid-layout-rejections
+            order-stable-reconfiguration
+            capture-bgra-stride-and-pixel-order
+            capture-bgra-invalid-frame-denials)
+        add_test(NAME "windows.geometry-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.geometry-${case_name}" PROPERTIES
+            LABELS "windows;desktop-geometry;offline")
+    endforeach()
+    # R6 DXGI metadata converts native move/dirty descriptors only; tests
+    # never acquire an output or call live native input/capture APIs.
+    add_test(NAME windows.capture-dxgi-move-before-dirty
+        COMMAND test_windows_desktop_geometry dxgi-dirty-and-move-regions)
+    add_test(NAME windows.capture-dxgi-metadata-rejections
+        COMMAND test_windows_desktop_geometry dxgi-metadata-denials)
+    set_tests_properties(
+        windows.capture-dxgi-move-before-dirty
+        windows.capture-dxgi-metadata-rejections
+        PROPERTIES LABELS "windows;capture;offline")
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

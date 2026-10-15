@@ -389,6 +389,27 @@ SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply(
         return SpnegoStatus::Rejected;
     }
 
+    // A terminal CredSSP error is permitted only after an ACTUAL
+    // provider GSS rejection, never simply because framing failed.
+    // Snapshot the verified TLS version and selected certificate
+    // BEFORE the GSS owner destroys its credentials/pin on rejection.
+    // No caller-controlled DER or unconfigured host identity suffices.
+    const auto request = parseCredSspTsRequest(reader.completeDer());
+    CredSspTlsCertificateFingerprint before{};
+    const bool certificateAvailable =
+        fingerprintActiveCredSspServerTlsCertificate(sourceTls, before);
+    const bool failureEligible =
+        credentials_ != GSS_C_NO_CREDENTIAL &&
+        (stage_ == SpnegoStage::AwaitInitialToken ||
+         stage_ == SpnegoStage::ContinueNeeded) &&
+        request && request.value.version == 6 &&
+        request.value.initialNegoTokenOnly() &&
+        request.value.tokenCount == 1 &&
+        (negotiatedVersion_ == 0 || negotiatedVersion_ == 6) &&
+        (negotiatedServerTls_ == nullptr ||
+         matchesNegotiatedCertificate(sourceTls)) &&
+        certificateAvailable;
+
     auto result = acceptFramedNegoRequest(reader);
     const bool validContinuation =
         result.status == SpnegoStatus::Continue &&
@@ -414,6 +435,30 @@ SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply(
         OPENSSL_cleanse(result.outputToken.data(), result.outputToken.size());
         result.outputToken.clear();
     }
+    if (!queued && failureEligible && result.providerRejected)
+    {
+        // GSS has ALREADY released credentials, context, principal and
+        // TLS pin. Confirm that the selected certificate is still the
+        // original before using the existing single pending writer.
+        CredSspTlsCertificateFingerprint after{};
+        const bool sameCertificate =
+            fingerprintActiveCredSspServerTlsCertificate(sourceTls, after) &&
+            CRYPTO_memcmp(before.data(), after.data(), before.size()) == 0;
+        OPENSSL_cleanse(after.data(), after.size());
+        if (sameCertificate)
+        {
+            queued = writer.queueFailureReply(
+                const_cast<SSL *>(sourceTls), 6,
+                CredSspServerFailure::LogonFailure);
+            if (queued)
+            {
+                OPENSSL_cleanse(before.data(), before.size());
+                reader.close();
+                return SpnegoStatus::FailureQueued;
+            }
+        }
+    }
+    OPENSSL_cleanse(before.data(), before.size());
     if (!queued)
     {
         reader.close();
@@ -468,6 +513,12 @@ SpnegoStep GssapiSpnegoAcceptor::accept(
         (flags & required) == required &&
         (flags & GSS_C_DELEG_FLAG) == 0 &&
         keepAuthenticatedPrincipal(initiator);
+    // The token reached the REAL GSS backend and it failed or
+    // returned an unacceptable mechanism/security policy. This
+    // evidence is not inferred from parser or configuration denial.
+    const bool actualProviderRejection = !continuing && !secureContext;
+    const bool boundedProviderOutput =
+        outgoing.length <= kMaximumSpnegoOutputBytes;
 
     // Copy any output token *before* releasing GSS's buffer, with a
     // strict size cap. Never include any output on a rejected step.
@@ -502,8 +553,13 @@ SpnegoStep GssapiSpnegoAcceptor::accept(
     }
     if (!copied)
     {
+        // Oversized output/allocation failure is LOCAL, not proof of
+        // a GSS rejection eligible for a peer-visible error record.
+        const bool boundedProviderFailure =
+            actualProviderRejection && boundedProviderOutput;
         reject();
-        return {};
+        result.providerRejected = boundedProviderFailure;
+        return result;
     }
     if (secureContext)
     {
@@ -518,7 +574,8 @@ SpnegoStep GssapiSpnegoAcceptor::accept(
         return result;
     }
     reject();
-    return {};
+    result.providerRejected = actualProviderRejection;
+    return result;
 }
 
 } // namespace rdp_server::server::security

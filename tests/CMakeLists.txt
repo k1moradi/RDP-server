@@ -149,15 +149,20 @@ if(TARGET rdp-server-linux-gssapi)
     if(RDP_SERVER_TEST_REAL_KERBEROS)
         target_compile_definitions(test_owned_preauth_session PRIVATE
             RDP_TEST_REAL_KERBEROS=1)
-        add_test(NAME security.gssapi-real-kerberos-tls-mechanism
-            COMMAND test_owned_preauth_session "gssapi-real-kerberos-tls-mechanism")
-        set_tests_properties(security.gssapi-real-kerberos-tls-mechanism
-            PROPERTIES LABELS "security;linux-provider;opt-in-kerberos")
+        foreach(case_name IN ITEMS
+                gssapi-real-kerberos-tls-mechanism
+                gssapi-real-kerberos-tls-failure)
+            add_test(NAME "security.${case_name}"
+                COMMAND test_owned_preauth_session "${case_name}")
+            set_tests_properties("security.${case_name}"
+                PROPERTIES LABELS "security;linux-provider;opt-in-kerberos")
+        endforeach()
     endif()
     foreach(case_name IN ITEMS
             gssapi-tls-ownership
             gssapi-final-combined-denials
             gssapi-negotiation-reply-gates
+            gssapi-failure-reply-denials
             gssapi-binding-reply-gates
             gssapi-reply-order-denials
             gssapi-framed-binding-only-denials

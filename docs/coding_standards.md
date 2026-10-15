@@ -827,6 +827,43 @@ Use existing native GSS and OpenSSL TLS fixture
 and one current connection owner; never log
 or commit credentials.
 
+## GSS provider-only CredSSP v6 negative reply dispatch (2026-10-15)
+
+The existing first-party Linux MIT GSSAPI acceptor MAY queue
+a terminal version-6 `TSRequest.errorCode` under Microsoft
+MS-CSSP 2.2.1/3.1.5 ONLY after the configured, explicit-keytab
+`gss_accept_sec_context` actually rejects a client token or
+rejects its completed security/mechanism flags. Internal
+`SpnegoStep.providerRejected` is the evidence carrier, not an
+injected caller verdict or identity credential. A missing keytab,
+bad TLS provenance, wrong/premature version, malformed DER,
+invalid pre-GSS initial tag/OID, failed local memory copy
+or incomplete GSS continuation MUST remain silent terminal
+rejection. Do not disclose provider-specific major/minor codes
+or emit any success-shaped token on failure.
+
+Capture the active TLS `SSL*`, selected X509 fingerprint and
+valid version-6 nego-only DER BEFORE the accepted provider
+step; the existing fail-only GSS cleanup clears its own
+credential/context and TLS pin on rejection. Recheck the
+selected certificate before enqueuing the **fixed**
+`STATUS_LOGON_FAILURE` (0xC000006D) to the existing single
+`TsRequestTlsReplyWriter`; never introduce a parallel queue,
+record cache or SSL writer. A new `FailureQueued` outcome
+means the provider is already terminal and exactly one error
+reply is waiting for caller-driven TLS writes; it is NOT a
+successful SPNEGO result or OS authorization. Writer identity,
+pending state, retry pointer, secure wipe and terminal release
+remain unchanged. Do not interpret `FailureQueued` as license
+to advance to CredSSP authInfo, MCS, console or desktop.
+
+Opt-in genuine provider failure tests MUST use explicit
+TERMSRV service, caller-provided FILE:/ keytab and separate
+FILE:/ cache, and genuine TLS BIOs. They must not silently
+read the host login/keytab, fabricate provider rejection or
+claim successful Kerberos authentication from a negative
+wire result. Keep the opt-in test inactive in default CI.
+
 ## Canonical and terminal CredSSP error replies (2026-10-14)
 
 Per MS-CSSP 2.2.1/3.1.5, only v6 is

@@ -2585,6 +2585,59 @@ void assertNoGssReplyDelivered(SSL *client)
     assert(count == 0);
 }
 
+void testGssapiFailureReplyWithoutCredentialsDenied()
+{
+    // A real completed in-memory TLS exchange is NOT enough to
+    // authenticate GSS. An unconfigured acceptor must not convert a
+    // plausible v6 SPNEGO token into an errorCode or an identity.
+    constexpr std::array<std::uint8_t, 11> fakeInitialSpnego{
+        0x60, 0x09, 0x06, 0x06, 0x2b, 0x06,
+        0x01, 0x05, 0x05, 0x02, 0xa0};
+    assert(isInitialSpnegoToken(fakeInitialSpnego));
+    for (const std::uint8_t version :
+         {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        const auto framed = encodeCredSspServerTsRequest(
+            version, CredSspServerReplyField::NegoToken,
+            fakeInitialSpnego);
+        assert(!framed.empty());
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        writeTlsClientApplicationData(tls.client.get(), framed);
+        receiveOneCredSspTlsFrame(
+            reader, tls.server.get(), framed.size());
+        GssapiSpnegoAcceptor provider;
+        assert(provider.acceptFramedNegoAndQueueReply(reader, writer) ==
+               SpnegoStatus::Rejected);
+        assert(provider.stage() == SpnegoStage::Failed);
+        assert(provider.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assertNoGssReplyDelivered(tls.client.get());
+        // Fail-only status must NOT become a reconfiguration/retry path.
+        assert(provider.acceptFramedNegoAndQueueReply(reader, writer) ==
+               SpnegoStatus::Rejected);
+    }
+
+    // Manual DER is never TLS-derived, even when handed a valid-looking
+    // v6 token. A release/closed frame similarly cannot inject a failure.
+    constexpr std::array<std::uint8_t, 11> fake{
+        0x60, 0x09, 0x06, 0x06, 0x2b, 0x06,
+        0x01, 0x05, 0x05, 0x02, 0xa0};
+    auto version6 = encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::NegoToken, fake);
+    TsRequestFrameReader manual;
+    assert(manual.consume(version6).status == TsRequestFrameStatus::Complete);
+    TsRequestTlsReplyWriter writer;
+    GssapiSpnegoAcceptor provider;
+    assert(provider.acceptFramedNegoAndQueueReply(manual, writer) ==
+           SpnegoStatus::Rejected);
+    assert(provider.stage() == SpnegoStage::Failed);
+    assert(manual.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+}
+
 void testGssapiNegotiationReplyHandoffDenied()
 {
     for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
@@ -3016,6 +3069,75 @@ void testRealKerberosSpnegoOverTls()
     }
 }
 
+// Opt-in ONLY: requires an explicit externally provisioned Kerberos
+// service keytab. The SYNTACTICALLY valid but defective SPNEGO token
+// below must reach the real MIT GSS provider and fail; no default
+// host keytab, implicit KDC, authentication success or OS admission.
+void testRealKerberosProviderFailureReplyOverTls()
+{
+    const char *serviceName = std::getenv("RDP_TEST_KRB5_SERVICE");
+    const char *serviceKeytab = std::getenv("RDP_TEST_KRB5_KEYTAB");
+    const char *clientCache = std::getenv("RDP_TEST_KRB5_CCACHE");
+    assert(serviceName && serviceKeytab && clientCache);
+    const std::string_view service{serviceName};
+    const std::string_view keytab{serviceKeytab};
+    const std::string_view cache{clientCache};
+    assert(service.starts_with("TERMSRV/") &&
+           service.find('@') != service.npos);
+    assert(keytab.starts_with("FILE:/") && cache.starts_with("FILE:/"));
+    constexpr std::array<std::uint8_t, 11> malformedGssToken{
+        0x60, 0x09, 0x06, 0x06, 0x2b, 0x06,
+        0x01, 0x05, 0x05, 0x02, 0xa0};
+    assert(isInitialSpnegoToken(malformedGssToken));
+    constexpr std::array<std::uint8_t, 15> v6LogonFailure{
+        0x30, 0x0d, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa4, 0x06, 0x02, 0x04, 0xc0, 0x00, 0x00, 0x6d};
+
+    for (const std::uint8_t version :
+         {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        TlsHandshakeFixture tls;
+        GssapiSpnegoAcceptor server;
+        assert(server.configure(service, keytab));
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        const auto framed = encodeCredSspServerTsRequest(
+            version, CredSspServerReplyField::NegoToken, malformedGssToken);
+        assert(!framed.empty());
+        writeTlsClientApplicationData(tls.client.get(), framed);
+        receiveOneCredSspTlsFrame(reader, tls.server.get(), framed.size());
+        const auto outcome =
+            server.acceptFramedNegoAndQueueReply(reader, writer);
+        assert(server.stage() == SpnegoStage::Failed);
+        assert(server.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        if (version == 5)
+        {
+            assert(outcome == SpnegoStatus::Rejected);
+            assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+            assertNoGssReplyDelivered(tls.client.get());
+            continue;
+        }
+        assert(outcome == SpnegoStatus::FailureQueued);
+        assert(writer.status() == TsRequestTlsWriteStatus::NeedWrite);
+        assert(writer.bytesRemaining() == v6LogonFailure.size());
+        assert(writer.writeOneTlsStep(tls.server.get()).status ==
+               TsRequestTlsWriteStatus::Complete);
+        std::array<std::uint8_t, 32> received{};
+        std::size_t count = 0;
+        assert(SSL_read_ex(tls.client.get(), received.data(),
+                           received.size(), &count) == 1);
+        assert(count == v6LogonFailure.size());
+        assert(std::equal(received.begin(), received.begin() + count,
+                          v6LogonFailure.begin()));
+        OPENSSL_cleanse(received.data(), received.size());
+        assert(writer.releaseReply());
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(server.stage() == SpnegoStage::Failed);
+        assertNoGssReplyDelivered(tls.client.get());
+    }
+}
+
 void testGssapiFramedBindingOnlyDenials()
 {
     for (const std::uint8_t version : {std::uint8_t{5}, std::uint8_t{6}})
@@ -3277,12 +3399,14 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
     {"gssapi-final-combined-denials", &testGssapiCombinedFinalBindingDenied},
     {"gssapi-negotiation-reply-gates", &testGssapiNegotiationReplyHandoffDenied},
+    {"gssapi-failure-reply-denials", &testGssapiFailureReplyWithoutCredentialsDenied},
     {"gssapi-binding-reply-gates", &testGssapiBindingReplyHandoffDenied},
     {"gssapi-reply-order-denials", &testGssapiReplyOrderAndPendingDenials},
     {"gssapi-framed-binding-only-denials", &testGssapiFramedBindingOnlyDenials},
     {"gssapi-framed-binding-reply-order", &testGssapiFramedBindingReplyOrder},
 #ifdef RDP_TEST_REAL_KERBEROS
     {"gssapi-real-kerberos-tls-mechanism", &testRealKerberosSpnegoOverTls},
+    {"gssapi-real-kerberos-tls-failure", &testRealKerberosProviderFailureReplyOverTls},
 #endif
 #endif
 });

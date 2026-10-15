@@ -35,6 +35,10 @@ enum class SpnegoStatus : std::uint8_t
     Rejected,
     Continue,
     MechanismVerified,
+    // A real GSS provider rejected a version-6 TLS-bound token;
+    // the 15-byte terminal failure was QUEUED (not written). No
+    // authentication, session admission or further GSS retry.
+    FailureQueued,
 };
 
 enum class GssConfigurationFailure : std::uint8_t
@@ -59,6 +63,11 @@ struct SpnegoStep
     // Wire output from GSS; never sent unless the surrounding CredSSP
     // state machine has produced a matching TSRequest envelope.
     std::vector<std::uint8_t> outputToken{};
+    // Only the internal gss_accept_sec_context call can set this;
+    // malformed/caller-supplied DER, missing configured credentials,
+    // TLS identity mismatch and local buffer failures cannot trigger
+    // a server errorCode. No caller may use this to claim identity.
+    bool providerRejected{};
 };
 
 // An encrypted, integrity-protected GSS token containing the expected
@@ -129,7 +138,15 @@ public:
     // mandatory combined final client binding is rejected here.
     // The caller must drive the existing writer's SSL_write_ex readiness
     // loop and release the completed reply before accepting another token.
-    // Rejected results permanently close reader, writer and GSS context.
+    // Protocol/identity rejections permanently close all three objects.
+    // ONLY a real backend GSS rejection on a valid, pinned TLS
+    // version-6 negotiation frame may return FailureQueued: the
+    // provider is already terminal; the writer owns a canonical
+    // STATUS_LOGON_FAILURE TSRequest until the caller explicitly
+    // flushes/releases it. No auto-write or authenticated success.
+    // Version 5, missing keytab, wrong TLS/certificate, malformed DER,
+    // local errors and an unexpected complete SPNEGO exchange remain
+    // silent terminal rejection, without an error record.
     [[nodiscard]] SpnegoStatus acceptFramedNegoAndQueueReply(
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer) noexcept;

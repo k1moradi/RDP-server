@@ -857,6 +857,44 @@ acceptance evidence; no synthetic completion claims.
   and close any MS-CSSP combined-last-token
   interoperability gaps before independent
   OS session admission.
+  **Partial real-provider CredSSP v6 SPNEGO failure dispatch
+  (2026-10-15; CI NOT RUN at authoring):** the existing
+  Linux MIT GSS acceptor now marks a provider/policy
+  rejection only when the configured, explicit-keytab
+  `gss_accept_sec_context` was actually called on a
+  TLS-derived and valid SPNEGO negotiation request.
+  For version 6 ONLY, recheck the original SSL and
+  selected X509 SHA256 fingerprint after GSS terminal
+  cleanup; then enqueue fixed `STATUS_LOGON_FAILURE`
+  using the existing single 15-byte DER error encoder
+  and nonblocking `TsRequestTlsReplyWriter`.
+  `SpnegoStatus::FailureQueued` means error queued,
+  GSS credentials/principal already wiped, but NO
+  SSL record written or authenticated session.
+  Missing keytab, invalid DER/token, wrong/changed TLS,
+  version 5, failed local memory or pending writer
+  MUST silently terminate, not synthesize GSS denial.
+  Extend original preauth TLS fixture with one default
+  Linux GSS-only negative CTest, and a separately
+  registered opt-in genuine MIT rejection + TLS
+  15-byte error oracle (requires explicitly authorized
+  service keytab and ticket cache). Default CTest
+  counts: **77 portable / 87 Linux GSS** (prior 77/86);
+  opt-in positive credentials and failure delivery
+  still **NOT RUN** without owner authorization.
+  Baseline `ebc794738552f5411ebe4d2222000f8ae94183f2`,
+  [Actions 38708915869](https://github.com/k1moradi/RDP-server/actions/runs/38708915869)
+  PASS; owner reports **77/77** local on prior main.
+  **NOT RUN at authoring:** new implementation CI,
+  owner-local incremental compile/CTest, opt-in
+  real GSS/provider rejection, full Microsoft
+  combined-last-token, independent OS admission,
+  real RDP client or desktop.
+  **Next:** exact-head CI; owner explicitly provisions
+  isolated real Kerberos keytab and client tickets
+  before opt-in provider/TLS proof and independent
+  OS authorization, then the one live CredSSP owner
+  can govern a complete authenticated negotiation.
   **Verified version-6 CredSSP errorCode server reply transport
   (2026-10-14; CI PASS):** [MS-CSSP 2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
   and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)

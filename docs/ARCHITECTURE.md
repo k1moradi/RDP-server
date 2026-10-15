@@ -687,6 +687,46 @@ interoperability with Microsoft Windows App.
 No daemon, KDC, OS user admission or desktop
 is activated by the test option.
 
+### Explicit GSS provider-rejection to CredSSP v6 error queue (2026-10-15)
+
+The Linux MIT GSSAPI acceptor now distinguishes an actual
+`gss_accept_sec_context` provider/policy rejection from a local
+frame, version, provenance, keytab, allocation, or TLS pin
+failure. Per [MS-CSSP 2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685)
+and [3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),
+the server SHOULD provide a negative NTSTATUS when SPNEGO fails
+under supported error-code versions. This SDK supports **only v6**
+and emits a fixed `STATUS_LOGON_FAILURE` (0xC000006D) via the
+*existing* canonical 15-byte `TSRequest.errorCode` serializer
+and `TsRequestTlsReplyWriter`.
+
+The new `SpnegoStep.providerRejected` evidence is set only
+when the real configured MIT GSS backend has actually processed
+a candidate token and rejected its mechanism/security policy.
+`acceptFramedNegoAndQueueReply` records the complete v6 TLS-
+derived TSRequest, current selected X.509 fingerprint and
+continuity of the original SSL before handing it to GSS;
+on provider rejection, after provider credentials/context/
+principal have already been destroyed, it verifies the
+same fingerprint again and queues the canonical negative
+reply. It returns `SpnegoStatus::FailureQueued`: **queued, not
+written**, and emphatically **not authenticated**. The single
+connection owner must drive the existing nonblocking writer's
+SSL_write_ex/retry/release path before closing the TLS session.
+A completed terminal error does not allow success reply reuse.
+
+Absent explicit keytab credentials, fake caller-supplied DER,
+wrong version (v5), changed SSL/certificate, malformed tokens,
+failed local copies and pending/wrong writer states still cause
+SILENT terminal closure with no errorCode or GSS identity.
+The normal CI tests exercise those fail-closed paths, not a
+positive credential. The new separate opt-in real-GSS failure
+delivery probe requires caller-authorized dedicated keytab
+and ticket-cache configuration; it does NOT run in default CI.
+Neither the server nor the probe opens an RDP listener, admits
+an OS session, or sends desktop data. A genuine full Windows
+CredSSP combined-last-token acceptance remains NOT RUN.
+
 ### Version-6 CredSSP failure reply transport boundary (2026-10-14)
 
 Microsoft MS-CSSP 2.2.1 and 3.1.5 support a

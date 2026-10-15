@@ -617,6 +617,48 @@ ZIP/SHA-256 package uploads and documentation-policy PASS.
 The owner-local new build, real TLS send, GSS/OS admission
 and external clients are NOT RUN.
 
+## Linux GSS provider-rejection failure reply regression (2026-10-15, CI NOT RUN)
+
+Reuse the existing `test_owned_preauth_session.cpp` TLS
+handshake fixtures and single `tests/CMakeLists.txt` CTest
+registry, no new executables or test service. Add one
+default, **Linux GSSAPI-only** behavioral CTest
+`security.gssapi-failure-reply-denials`:
+for v5 and v6 send a valid-looking initial SPNEGO
+TSRequest over actual OpenSSL TLS BIOs, but omit
+the explicit GSS keytab. Both MUST fail silently,
+with wiped reader, CLOSED writer, failed provider,
+no bogus errorCode, and no TLS application reply;
+caller-constructed v6 DER also MUST be denied.
+Reinforce existing GSS negotiation, pending-writer,
+certificate substitution and replay tests without
+weakening the old assertion contracts.
+
+Add a second `security.gssapi-real-kerberos-tls-failure`
+CTest ONLY when
+`RDP_SERVER_TEST_REAL_KERBEROS=ON` and the exact,
+caller-provided `RDP_TEST_KRB5_SERVICE`,
+`RDP_TEST_KRB5_KEYTAB=FILE:/...` and
+`RDP_TEST_KRB5_CCACHE=FILE:/...` are configured.
+The real MIT provider must process and reject
+a syntactically valid but defective SPNEGO token:
+v6 queues exactly the independent 15-byte
+`STATUS_LOGON_FAILURE` oracle over pinned live
+TLS; the terminal write/release forbids reuse.
+v5 remains a silent close. Real credentials are
+never included in source, default builds or CI,
+and this opt-in result is NOT RUN without separate
+authorization and credential provisioning.
+
+Standard portable test total remains **77**;
+default Linux GSS-enabled becomes **87** (previous 86).
+When opt-in Kerberos is explicitly enabled, two
+additional private tests are registered rather than
+one. New code, default CI and owner-local tests
+NOT RUN at authoring. No real positive Kerberos/TLS
+binding, OS admission, RDP client, service activation
+or desktop acceptance is claimed.
+
 ## Verified offline T.128 Share Data Header tests (CI PASS, 2026-10-15)
 
 Reuse `tests/test_owned_mcs_connect_initial.cpp` and the single

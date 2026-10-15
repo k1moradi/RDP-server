@@ -40,7 +40,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libkrb5-dev
+          sudo apt-get install -y --no-install-recommends libkrb5-dev \
+            pkg-config libxcb1-dev libxcb-shm0-dev
       - name: Configure Debug protocol and tests
         shell: bash
         run: |

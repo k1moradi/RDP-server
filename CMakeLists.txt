@@ -106,6 +106,28 @@ if(WIN32)
     target_link_libraries(rdp-server-protocol PUBLIC ws2_32)
 endif()
 
+# First native XShm translation-unit target. Optional Linux XCB developer
+# packages keep the portable protocol library and owner one-liner working.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUILD_TESTING AND
+   RDP_SERVER_BUILD_TESTING)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_XCB_SHM QUIET IMPORTED_TARGET
+            xcb xcb-shm)
+    endif()
+    if(TARGET PkgConfig::RDP_SERVER_XCB_SHM)
+        add_library(rdp-server-linux-xshm STATIC
+            src/x11/x11_shared_memory_capture.cpp)
+        target_compile_features(rdp-server-linux-xshm PUBLIC cxx_std_23)
+        target_include_directories(rdp-server-linux-xshm PUBLIC
+            "${PROJECT_SOURCE_DIR}/src")
+        target_link_libraries(rdp-server-linux-xshm PUBLIC
+            PkgConfig::RDP_SERVER_XCB_SHM)
+        target_compile_options(rdp-server-linux-xshm PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endif()
+
 # R6 native monitor geometry is a separate, noninstalled Windows adapter:
 # it does not pull user32/Win32 headers into the portable protocol archive.
 if(WIN32)

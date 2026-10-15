@@ -3368,3 +3368,43 @@ registry. **NOT RUN at authoring:** corrected full CTest, exact repair
 commit CI, owner native Linux/X11, Windows MSYS2 CLANG64/Clang23 and
 macOS27 toolchains, actual client/OS authentication. Windows baseline
 R10 CRLF configuration test remains separately tracked in Issue #9.
+
+## R5 native Linux XCB-SHM capture compilation and failure boundary
+
+**Base main at authoring:** `aa15209c67d74814cac8c859997e623cd096691c`; exact new commit and hosted CI
+pending. A Linux-only optional `rdp-server-linux-xshm` static target
+compiles real `src/x11/x11_shared_memory_capture.cpp` with pkg-config
+`xcb`/`xcb-shm`, separate from the portable protocol SDK.
+`captureArenaPixels` is moved without algorithm changes into the
+existing dependency-free `src/x11/x11_capture_layout.h`, still used
+by the native header. Ubuntu CI installs `libxcb1-dev`,
+`libxcb-shm0-dev` and `pkg-config`; owner builds lacking those
+packages retain portable compilation and an arithmetic-only test.
+
+**Dedicated new Linux-only CTest:**
+`x11.capture-arena-and-connection-denials` checks zero-sized
+geometry/limits, minimum-one-full-row arena progress, display cap
+and large uint64 values. With the native XCB-SHM target built, it
+also obtains an already-failed connection from
+`xcb_connect_to_fd(-1, nullptr)`, checks the real native
+constructor rejects it before SHM allocation, native capture
+fails closed and destructor returns without contacting a display.
+No real X server, credential, desktop or input injection used.
+
+**PASS (isolated headless R5 fixture, not full repository):**
+`cmake -S ~/rdp-server -B ~/rdp-server/build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON`, `cmake --build ~/rdp-server/build
+--config Debug --parallel 2`, `ctest --test-dir
+~/rdp-server/build -C Debug --output-on-failure`:
+3/3 R5 CTests PASS. GCC14/Clang17 `-std=c++23 -O2
+-Wall -Wextra -Wpedantic -Werror -UNDEBUG` standalone
+compile/run PASS; GCC ASan+UBSan compile/run PASS.
+
+**NOT RUN/BLOCKED at authoring:** full canonical checkout
+(CI clone DNS blocked locally), XCB-SHM native translation-unit
+compile (xcb/shm.h missing locally), owner Linux/X11, Windows
+MSYS2 CLANG64 Clang23 and macOS27, real Microsoft-client
+desktop and performance. **Next:** verify GitHub Actions
+exact-SHA native Linux build plus CTest, test controlled native
+success/reply lifecycle without display access, and subsequently
+integrate R2/R3 authorization with the R4 consumer; M3 open.

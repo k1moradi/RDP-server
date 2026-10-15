@@ -401,6 +401,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         LABELS "x11;linux-adapter")
 endif()
 
+# Test arena sizing even without optional XCB-SHM development headers.
+# Where found, compile/link the native capture adapter and fail it closed.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_rdp_test(test_x11_native_capture.cpp x11
+        capture-arena-and-connection-denials)
+    if(TARGET rdp-server-linux-xshm)
+        target_link_libraries(test_x11_native_capture PRIVATE
+            rdp-server-linux-xshm)
+        target_compile_definitions(test_x11_native_capture PRIVATE
+            RDP_SERVER_HAVE_NATIVE_XSHM=1)
+    endif()
+    set_tests_properties(x11.capture-arena-and-connection-denials
+        PROPERTIES LABELS "x11;linux-adapter")
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

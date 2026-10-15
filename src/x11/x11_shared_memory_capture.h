@@ -6,32 +6,10 @@
 
 #include <xcb/shm.h>
 
+#include "x11_capture_layout.h"
 #include "../core/framebuffer_view.h"
 #include "../core/geometry.h"
 #include "../core/rectangle.h"
-
-[[nodiscard]] constexpr std::uint64_t
-captureArenaPixels(PixelSize bounds,
-                   std::uint64_t maximumCapturePixels) noexcept
-{
-    if (bounds.widthPixels == 0 || bounds.heightPixels == 0 ||
-        maximumCapturePixels == 0)
-    {
-        return 0;
-    }
-
-    const std::uint64_t framebufferPixels =
-        static_cast<std::uint64_t>(bounds.widthPixels) *
-        bounds.heightPixels;
-    const std::uint64_t minimumProgressPixels = bounds.widthPixels;
-    const std::uint64_t requestedPixels =
-        maximumCapturePixels > minimumProgressPixels
-            ? maximumCapturePixels
-            : minimumProgressPixels;
-
-    return framebufferPixels < requestedPixels ? framebufferPixels
-                                                : requestedPixels;
-}
 
 class X11SharedMemoryCapture final
 {

@@ -26,7 +26,13 @@ foundation APIs currently reside in `src/server/transport`,
 `src/server/security`, `src/server/clipboard`,
 `src/clipboard`, `src/core` and `src/rdp`.
 `src/x11` contains Linux/X11-specific adapter candidate code: it is not a
-portable dependency of the protocol archive. Other imported algorithms not
+portable dependency of the protocol archive. A separate noninstalled
+Linux `rdp-server-linux-xshm` target compiles the real native
+XShm capture adapter when pkg-config finds `xcb` and `xcb-shm`.
+Its headless CTest uses a deliberately invalid XCB fd to check
+fail-closed construction without contacting a desktop. Neither this
+target nor this test authorizes an OS session or delivers R4 frames.
+Other imported algorithms not
 listed in CMake are under porting review and are not silently shipped.
 
 ### Windows monitor layout adapter (R6; not session-integrated)

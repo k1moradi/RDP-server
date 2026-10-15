@@ -2121,6 +2121,26 @@ actually run; another parser CTest alone is not a complete session.
   performance benchmarks. **Next R5:** compile and test actual native
   XCB cursor lifecycle with controlled replies; integrate only after
   R2/R3 admission and R4 graphics routing. M3 stays NOT RUN.
+  **R5 Linux XCB-SHM native compile increment (2026-10-15;
+  base `aa15209c67d74814cac8c859997e623cd096691c`, exact-SHA CI pending):**
+  Add separate, noninstalled `rdp-server-linux-xshm` native Linux
+  target compiling the actual XShm capture translation unit where
+  pkg-config finds `xcb` and `xcb-shm` development headers. The
+  portable protocol archive does not link XCB. Move the unchanged
+  `captureArenaPixels` algorithm into the existing XCB-free layout
+  header so ordinary headless CTests can verify bounds without an
+  X server. New Linux-only `x11.capture-arena-and-connection-denials`
+  CTest checks zero dimensions, minimum row and capped arenas;
+  when XCB-SHM is available it also instantiates native capture
+  with an intentionally failed fd -1 connection and verifies
+  constructor/capture refusal and safe teardown. Ubuntu CI installs
+  developer packages for this compile/test without contacting DISPLAY.
+  **PASS:** isolated 3/3 R5 CTests, GCC 14 and Clang 17 strict C++23
+  arena test, GCC ASan/UBSan. **NOT RUN at authoring:** actual
+  xcb-shm native compile locally (headers unavailable), full repo
+  CTest, owner three-platform tests, live desktop, benchmarking.
+  **Next R5:** controlled native XShm response/resource lifecycle
+  and admitted R2/R3 backend frame access for R4. M3 not accepted.
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

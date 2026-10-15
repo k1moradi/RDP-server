@@ -1112,8 +1112,8 @@ acceptance evidence; no synthetic completion claims.
   isolated owner-authorized Kerberos/TLS proof
   and separate OS session admission before ANY
   live capability negotiation or Demand Active send.
-  **Partial OFFLINE server finalization output (2026-10-15;
-  CI NOT RUN at authoring):** reuse existing first-party
+  **Verified partial OFFLINE server finalization output (2026-10-15;
+  CI PASS):** reuse existing first-party
   C++23 Share Data/Control owner to serialize the 22-byte
   server Synchronize and 26-byte server Control Cooperate
   and Granted packets. One common private fixed header
@@ -1136,13 +1136,20 @@ acceptance evidence; no synthetic completion claims.
   `f48332e4465b6915e1683e5ed4f3aae767d3c777`
   passed [CI 38717067457](https://github.com/k1moradi/RDP-server/actions/runs/38717067457);
   owner reports **85/85** local PASS on the parent.
-  **NOT RUN:** this implementation's exact-head CI,
-  owner-local new-code tests, real opt-in GSS
-  Kerberos/TLS binding, independently approved OS
+  **PASS:** exact implementation `be87f4ba35289d881a161c0d03ac28c592f3a44f`,
+  [Actions 38718197674](https://github.com/k1moradi/RDP-server/actions/runs/38718197674):
+  Linux/GCC **97/97**, macOS/Clang and Windows/MSVC
+  **87/87** full CTests in EACH Debug and Release;
+  both new writer suites, installed SDK downstream
+  consumer, ZIP/SHA256 packages, and documentation
+  policy PASS. Prerelease publishing SKIPPED
+  because no version tag was created.
+  **NOT RUN:** owner-local new-code tests, real opt-in
+  GSS/Kerberos/TLS binding, independently approved OS
   session, joined channels, licensing, live network,
   share activation, graphics or user input.
-  **Next:** exact-head cross-platform CI and owner-local
-  validation, followed by explicitly authorized isolated
+  **Next:** owner-local single-build-root CTest,
+  followed by explicitly authorized isolated
   Kerberos/TLS positive acceptance and independent OS
   authorization before finalization can be dispatched
   from a single live session owner.

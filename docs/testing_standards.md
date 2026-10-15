@@ -753,7 +753,7 @@ live user input and desktop. Capability envelopes
 are syntax, never channel membership or a
 substitute for the real security gates.
 
-## Offline server Synchronize and Control output tests (CI NOT RUN, 2026-10-15)
+## Verified server Synchronize and Control output tests (CI PASS, 2026-10-15)
 
 Reuse the original `tests/test_owned_mcs_connect_initial.cpp`
 executable and the ONLY `tests/CMakeLists.txt` CTest
@@ -778,12 +778,20 @@ The canonical zero pad is a new writer decision; it
 does not weaken the decoder's acceptance of ignored
 nonzero pad fields. No real session, account or network.
 
-Expected portable CTests **87** (was 85) and
-Linux GSS-enabled **97** (was 95). Corrected code
-exact-head CI and owner-local CTest are NOT RUN at
-authoring. SDK/OS tests and real Kerberos/TLS,
-licensed share activation, actual client and
-desktop remain independent acceptance gates.
+Verified portable CTests **87** (was 85) and
+Linux GSS-enabled **97** (was 95).
+**PASS:** exact implementation `be87f4ba35289d881a161c0d03ac28c592f3a44f`,
+[Actions 38718197674](https://github.com/k1moradi/RDP-server/actions/runs/38718197674):
+Linux/GCC **97/97**, macOS/Clang and Windows/MSVC
+**87/87** full CTests in BOTH Debug and Release,
+including both new writer suites. SDK installed
+downstream consumer, ZIP/SHA256 artifact packages
+and documentation policy PASS.
+**NOT RUN:** owner's local CTest on this commit,
+genuine Kerberos/TLS or OS authorization, licensed
+share activation, external client or desktop.
+A syntactically valid Granted Control output is
+never a real authorization decision.
 
 ## Verified offline T.128 Synchronize/Control finalization tests (CI PASS, 2026-10-15)
 

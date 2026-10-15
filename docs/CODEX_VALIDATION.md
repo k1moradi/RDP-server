@@ -1538,7 +1538,7 @@ regressions; controlled real Kerberos/TLS binding
 and independently approved OS account/session
 before any live capability exchange or activation.
 
-## Pending server finalization Synchronize/Control writers (2026-10-15)
+## Verified offline server finalization Synchronize/Control writers (2026-10-15)
 
 **Previous exact main:** `f48332e4465b6915e1683e5ed4f3aae767d3c777`,
 [CI 38717067457](https://github.com/k1moradi/RDP-server/actions/runs/38717067457)
@@ -1577,19 +1577,26 @@ ROADMAP, architecture and mandatory coding/testing
 standards are updated in the SAME implementation
 commit.
 
-**NOT RUN at authoring:** new exact-head CI,
-owner-local new-code build/CTest, controlled genuine
-GSS/Kerberos service keytab + client tickets,
-actual TLS pubKeyAuth, independent OS authorization,
-licensed/activated share, real RDP clients,
-graphics, clipboard or console. Owner-local commands:
+**PASS:** exact implementation `be87f4ba35289d881a161c0d03ac28c592f3a44f`,
+[Actions 38718197674](https://github.com/k1moradi/RDP-server/actions/runs/38718197674)
+Linux/GCC **97/97**, macOS/Clang and Windows/MSVC
+**87/87** CTests in BOTH Debug and Release. Both
+new server finalization wire/negative behavior
+cases passed everywhere; installed SDK CMake
+consumer, ZIP/SHA256 artifacts and docs policy
+PASS. Prerelease publish SKIPPED (no release tag).
+**NOT RUN:** owner-local new-head build/CTest,
+controlled genuine GSS/Kerberos service keytab
+and client tickets, TLS pubKeyAuth, independent
+OS authorization, licensed/activated share,
+real RDP clients, graphics, clipboard or console. Owner-local commands:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build build --config Debug --parallel 2`,
 `ctest --test-dir build -C Debug --output-on-failure`.
-**Next:** exact-head all-OS Debug/Release CI and
-owner-local CTest; then isolated authorized
-real Kerberos/TLS plus independent OS policy
-before any live client/desktop admission.
+**Next:** owner-local single-build-root CTest;
+then independently authorized isolated real
+Kerberos/TLS with separate OS session policy
+before live finalization dispatch or desktop.
 
 ## Verified offline T.128 finalization Synchronize/Control decoder (2026-10-15)
 

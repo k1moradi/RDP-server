@@ -1274,13 +1274,22 @@ acceptance evidence; no synthetic completion claims.
   `tests/test_owned_preauth_session.cpp` in the
   existing TLS reply tests; no production compile
   error was identified. Release/CTest/SDK NOT RUN.
-  **Correction pending CI:** move the two new test
-  bodies after the existing file-scope helper and
-  remove the competing declaration. No production
-  code, acceptance assertion or protocol behavior
-  changed. **Next:** re-run exact-head Linux/macOS/
-  Windows Debug/Release CI; then owner-local CTest
-  and separately authorized Kerberos/TLS and OS proof.
+  **Correction verified:** test-only fix
+  `850a6e9b7f2bc0a25854d31e02d0ed25332989b3`,
+  [CI 38738957048](https://github.com/k1moradi/RDP-server/actions/runs/38738957048),
+  relocates the two new test bodies below the original
+  helper definition and removes the ambiguous prototype.
+  No production code or assertions were changed.
+  **PASS:** Linux/GCC **103/103**, macOS/Clang and
+  Windows/MSVC **93/93** CTests in EACH Debug and
+  Release, both new certificate tests, documentation
+  policy, staged SDK/downstream consumer, and ZIP/SHA256
+  packages/uploads. Release publishing SKIPPED (no tag).
+  **NOT RUN:** owner-local updated build/CTest, positive
+  genuine Kerberos/TLS public-key binding, independent
+  OS session authorization, external RDP client or desktop.
+  **Next:** owner-local one-root CTest, then separately
+  authorized real GSS/TLS and OS identity acceptance.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

@@ -1534,3 +1534,15 @@ existing helper's definition, preserving one function, all
 original test assertions, and the two new regression groups.
 Do not move or rename the shared helper, weaken warnings,
 or hide CTests. Expected 93 portable / 103 Linux GSS.
+
+**PASS:** corrected test-only commit
+`850a6e9b7f2bc0a25854d31e02d0ed25332989b3`,
+[Actions 38738957048](https://github.com/k1moradi/RDP-server/actions/runs/38738957048):
+Linux/GCC **103/103**, macOS/Clang and Windows/MSVC
+**93/93** full CTests, in BOTH Debug and Release.
+Both selected-certificate MCS tests passed everywhere;
+SDK installed consumers, ZIP/SHA256 packages and
+documentation-policy PASS. An untagged release
+was SKIPPED. **NOT RUN:** owner-local current-head
+build, positive real Kerberos/TLS binding, OS
+authorization or external clients/desktop.

@@ -2195,3 +2195,25 @@ CI and owner-local builds remain **NOT RUN at authoring**.
 **Next:** full cross-platform CI then owner-local single
 `~/rdp-server/build/` followed by externally authorized
 real Kerberos/TLS and independent OS session evidence.
+
+**PASS after test-only correction:** exact corrected
+`850a6e9b7f2bc0a25854d31e02d0ed25332989b3`,
+[Actions 38738957048](https://github.com/k1moradi/RDP-server/actions/runs/38738957048).
+Linux/GCC **103/103**, macOS/Clang and Windows/MSVC
+**93/93** CTests each in Debug and Release;
+`transport.mcs-tls-selected-certificate-continuity`
+and `transport.mcs-tls-selected-certificate-substitution`
+PASS on every platform. All Debug/Release compiles, SDK
+installed downstream consumer, ZIP/SHA256 uploads
+and project documentation-policy PASS.
+No production change was needed after the initial
+test helper visibility failure. Untagged prerelease
+job SKIPPED; no RDP service launched or installed.
+**NOT RUN:** owner-local corrected compile/CTest,
+externally authorized real GSS/Kerberos/TLS binding,
+independent OS session authorization, full authenticated
+MCS, Windows/macOS RDP clients or desktop.
+**Next:** owner's reused `~/rdp-server/build/`
+full CTest, then genuine isolated positive Kerberos
+and separately approved OS admission before network
+session or application-level RDP responses.

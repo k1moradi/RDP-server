@@ -96,6 +96,18 @@ focused CTest **25/25 PASS**; corrected exact-SHA Windows CI is
 **NOT RUN at authoring**. No production policy is relaxed, and M1–M6
 remain unaccepted. Next: full Debug/Release CI and owner one-root tests.
 
+**R10 follow-up Windows newline compatibility (2026-10-15):**
+The first correction `b90baa6d76d769fce18a216d055c081375cd9b89`
+passed Linux/GCC and macOS/Clang in
+[Actions 38797088304](https://github.com/k1moradi/RDP-server/actions/runs/38797088304),
+but Windows/MSVC Debug failed the same CRLF case with a raw fixture-byte
+mismatch (164/165 CTests passed). CMake `file(WRITE)` on that host
+converts LF to CRLF; this test-only correction supplies LF to Windows
+and explicit CRLF on POSIX, then verifies exact canonical CRLF bytes
+with `file(READ HEX)`. Local Linux Debug/Release isolated harness
+**25/25 PASS** each. Corrected Windows CI **NOT RUN at authoring**;
+M1–M6 remain open, no production runtime security change.
+
 **Ownership discipline:** R3 alone owns the session and channel lifecycle;
 R4 alone owns graphics scheduling; R8 alone owns clipboard generation;
 R1 owns encrypted socket I/O; R2 owns admission decisions. R5/R6/R7

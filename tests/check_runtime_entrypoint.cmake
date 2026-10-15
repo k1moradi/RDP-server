@@ -80,10 +80,12 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         string(REPLACE "${private_key_file}" "${certificate_file}" config_text "${config_text}")
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-comments-crlf")
         string(PREPEND config_text "  # Valid non-secret settings\n\n")
-        # CMake strings may already contain CRLF on some hosts. Remove
-        # existing carriage returns before emitting exactly one CRLF.
+        # On Windows, CMake file(WRITE) converts LF to CRLF; supplying
+        # CRLF explicitly would create CRCRLF. On POSIX write CRLF bytes.
         string(REPLACE "\r" "" config_text "${config_text}")
-        string(REPLACE "\n" "\r\n" config_text "${config_text}")
+        if(NOT WIN32)
+            string(REPLACE "\n" "\r\n" config_text "${config_text}")
+        endif()
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-missing-file")
         # Do not write a fixture in this case.
     elseif(NOT RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-syntax")
@@ -97,7 +99,11 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
             # Ordinary CMake file(READ) normalizes CRLF to LF. HEX reads
             # verify actual fixture bytes without that transformation.
             file(READ "${config_file}" written_config_hex HEX)
-            string(HEX "${config_text}" expected_config_hex)
+            set(expected_config_text "${config_text}")
+            if(WIN32)
+                string(REPLACE "\n" "\r\n" expected_config_text "${expected_config_text}")
+            endif()
+            string(HEX "${expected_config_text}" expected_config_hex)
             if(NOT written_config_hex STREQUAL expected_config_hex)
                 message(FATAL_ERROR "CRLF fixture bytes changed during write")
             endif()

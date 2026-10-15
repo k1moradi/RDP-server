@@ -186,6 +186,23 @@ authoring.** Next gate: inspect the corrective commit's exact-SHA
 Linux, macOS and Windows full Debug/Release CI, SDK package regression,
 and the owner's independent testing.
 
+## R10 second Windows CRLF compatibility correction (2026-10-15)
+
+**FAIL:** first correction `b90baa6d76d769fce18a216d055c081375cd9b89`,
+[Actions 38797088304](https://github.com/k1moradi/RDP-server/actions/runs/38797088304):
+Linux/GCC and macOS/Clang PASS; Windows/MSVC Debug 164/165 registered
+CTests PASS, only `runtime.validates-configuration-comments-crlf`
+failed, now at the raw-fixture HEX comparison. Release and packaging
+Windows gates NOT RUN following the failure.
+**Correction:** preserve the stringent production parser and exact-HEX
+fixture assertion, but account for CMake Windows `file(WRITE)` text
+conversion by passing LF and expecting CRLF output; on POSIX, write
+CRLF explicitly. No other CTests removed, and no runtime code changed.
+**Local PASS:** Linux isolated CTest harness 25/25 Debug and 25/25
+Release. **NOT RUN at authoring:** corrected exact-SHA three-platform CI,
+owner Linux/X11, Windows CLANG64/Clang 23, macOS 27. Next: examine the
+new commit's full Debug/Release CI and SDK packaging, then owner CTest.
+
 ## Verified strict local-path policy CI (2026-10-14)
 
 The stricter home-checkout and single-build-root guard in

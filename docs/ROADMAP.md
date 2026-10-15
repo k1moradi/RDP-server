@@ -1958,6 +1958,22 @@ actually run; another parser CTest alone is not a complete session.
   Microsoft-client desktop. Current container cannot clone GitHub.
   **Next R5:** native XCB capture compilation/lifecycle CTest followed by
   R2/R3-authorized backend ownership and R4 frame consumer. M3 stays open.
+  **R5 XFixes cursor reply-length safety (2026-10-15; implementation
+  based on `d7946e2e74bf9ca7cdce66f02080b37085812be6`; exact-head CI pending):**
+  `X11CursorTracker::refresh` checks XFixes GetCursorImage reply
+  `length` in 32-bit words against the cursor's width-by-height area
+  before reading its ARGB pixels. Invalid dimensions and hotspots also
+  fail closed; unsupported cursors retain the existing fallback.
+  New Linux-only CTest `x11.cursor-reply-length-bounds` checks exact,
+  truncated and padded reply lengths, hotspot/dimension rejection,
+  BGRX/mask conversion and unmodified output on short spans, without
+  an X server. **PASS:** isolated R5 headless CTest 2/2, strict GCC 14
+  and Clang 17 C++23 cursor builds, and GCC ASan+UBSan cursor test.
+  **NOT RUN:** native XCB tracker compile (xcb/xfixes.h unavailable),
+  full-project CTest, owner three-platform tests, human desktop and
+  performance benchmarks. **Next R5:** compile and test actual native
+  XCB cursor lifecycle with controlled replies; integrate only after
+  R2/R3 admission and R4 graphics routing. M3 stays NOT RUN.
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

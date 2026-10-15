@@ -355,6 +355,16 @@ foreach(runtime_case IN ITEMS
     set_tests_properties("runtime.${runtime_case}" PROPERTIES
         LABELS "runtime;offline")
 endforeach()
+# The native cursor conversion is compiled into the isolated headless
+# test without adding XCB dependencies to the portable protocol archive.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_rdp_test(test_x11_cursor_reply.cpp x11 cursor-reply-length-bounds)
+    target_sources(test_x11_cursor_reply PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/x11/cursor_image_conversion.cpp")
+    set_tests_properties(x11.cursor-reply-length-bounds PROPERTIES
+        LABELS "x11;linux-adapter")
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

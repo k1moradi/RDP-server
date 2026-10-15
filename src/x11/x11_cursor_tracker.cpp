@@ -174,8 +174,6 @@ X11CursorTracker::refresh() noexcept
 
     const std::uint64_t sourceArea =
         static_cast<std::uint64_t>(cursor->width) * cursor->height;
-    const int imageLength =
-        xcb_xfixes_get_cursor_image_cursor_image_length(cursor);
     const std::uint32_t width = cursor->width;
     const std::uint32_t height = cursor->height;
     const std::uint32_t xhot = cursor->xhot;
@@ -194,10 +192,15 @@ X11CursorTracker::refresh() noexcept
         return true;
     }
 
-    if (width == 0 || height == 0 || sourceArea == 0 || imageLength < 0 ||
+    // The XCB reply length counts 32-bit words, not bytes. Reject short
+    // payloads before forming a span into the reply's borrowed ARGB data.
+    const int imageLength =
+        xcb_xfixes_get_cursor_image_cursor_image_length(cursor);
+    if (!rdp_server::valid_xfixes_cursor_reply(
+            width, height, xhot, yhot, cursor->length) ||
+        imageLength < 0 ||
         sourceArea > std::numeric_limits<std::size_t>::max() / kBytesPerPixel ||
-        sourceArea > static_cast<std::uint64_t>(imageLength) ||
-        xhot >= width || yhot >= height)
+        sourceArea > static_cast<std::uint64_t>(imageLength))
     {
         std::free(cursorError);
         std::free(cursor);

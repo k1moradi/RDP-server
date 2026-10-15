@@ -2955,3 +2955,40 @@ desktop/clipboard. Follow-up exact-commit Actions evidence
 must be recorded only after it completes. **Next:** obtain
 exact-SHA hosted CI/owner logs, then test R3→R8 authorized
 channel routing and disconnect cancellation when integrated.
+
+## R5 XFixes cursor reply-length bounds — direct-main implementation
+
+**Baseline main:** `d7946e2e74bf9ca7cdce66f02080b37085812be6`; exact implementation SHA/CI pending at
+authoring. Files: `src/x11/cursor_image_conversion.h`,
+`src/x11/x11_cursor_tracker.cpp`, `tests/test_x11_cursor_reply.cpp`,
+`tests/CMakeLists.txt`, `docs/ROADMAP.md` and this ledger.
+
+**Change:** A single C++23 constexpr `valid_xfixes_cursor_reply` checks
+nonzero width/height, 32x32 maximum, hotspot within the shape, and
+the GetCursorImage reply's number of 32-bit payload words against
+width*height. The real `X11CursorTracker::refresh` calls the helper
+before making an ARGB span. The existing unsupported-cursor fallback,
+frame ownership and output conversion remain unchanged.
+Dedicated Linux-only `x11.cursor-reply-length-bounds` CTest exercises
+the same production helper, valid/truncated/padded replies, hotspot
+and geometry failures, actual `cursor_image_conversion.cpp`, BGRX
+bottom-up ordering, transparency and no writes on short spans.
+
+**PASS (headless isolated R5 fixture, not canonical full repository):**
+`cmake --build /home/oai/rdp-server/build --config Debug --parallel 2`
+and `ctest --test-dir /home/oai/rdp-server/build -C Debug -R
+'^x11\\.(capture-layout-bounds|cursor-reply-length-bounds)$'
+--output-on-failure`: **2/2 PASS**. Strict C++23 `-O2 -Wall -Wextra
+-Wpedantic -Werror -UNDEBUG` GCC 14 and Clang 17 cursor builds
+and standalone execution: **PASS**. GCC ASan+UBSan cursor build
+and standalone execution: **PASS**.
+
+**BLOCKED/NOT RUN:** complete project CMake/CTest (no full checkout in
+authoring environment due outbound GitHub DNS), native XCB tracker
+compile (xcb/xfixes.h absent), owner Windows CLANG64/macOS 27 and
+Linux/X11 exact-SHA independent validation, live Microsoft-client
+desktop and performance measurements.
+**Next:** verify exact-SHA CI once published; compile the native XCB
+cursor translation unit and exercise resource teardown/failed reply
+handling with deterministic fixtures; bind to R2/R3 authorized session
+and R4 cursor consumer before M3 acceptance.

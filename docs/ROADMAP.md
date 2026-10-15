@@ -1913,6 +1913,20 @@ actually run; another parser CTest alone is not a complete session.
   authorization interface; then R3 extends THIS owner with ordered
   Connect Response/Erect/Attach/Join and outbound write completion.
   Gate A/M2 remains open.
+  **R3 exact-SHA hosted CI follow-up (2026-10-15):**
+  [Actions 38798696991](https://github.com/k1moradi/RDP-server/actions/runs/38798696991)
+  compiled both R3 additions and their dedicated CTests PASS on
+  Linux/GCC and macOS/Clang Debug. Their full Debug suites FAIL
+  **172/174 Linux** and **160/162 macOS**, at the same two R1-owned
+  accepted TCP/TLS readiness/deadline CTests already failing at parent
+  `209ebb6fa714b4bba61478539976719506b9b96d`
+  [Actions 38798562218](https://github.com/k1moradi/RDP-server/actions/runs/38798562218).
+  [R1 bug #11](https://github.com/k1moradi/RDP-server/issues/11)
+  tracks those pre-existing assertions. Both Release phases are NOT RUN
+  because the Debug step fails; Windows was still running when this
+  receipt was prepared. Documentation-policy PASS.
+  This is a partial CI result, NOT an overall green commit, and M2
+  remains unaccepted pending actual R2-backed OS admission and owner CTests.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

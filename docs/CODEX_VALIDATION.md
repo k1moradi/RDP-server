@@ -2782,6 +2782,25 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 admitted-session boundary remains deny-only (2026-10-15)
 
+**Exact implementation CI follow-up (2026-10-15):**
+[`46ef1d2282c6c78b67e37b373be77c624bf529b7`](https://github.com/k1moradi/RDP-server/commit/46ef1d2282c6c78b67e37b373be77c624bf529b7),
+[Actions 38798696991](https://github.com/k1moradi/RDP-server/actions/runs/38798696991).
+Both new R3 MCS session CTests PASS on Linux/GCC and macOS/Clang
+Debug and compile with the production tree. Full Debug results:
+Linux **172/174 FAIL**, macOS **160/162 FAIL**; the two failing
+tests are R1 `tcp-owned-readiness-dispatch` and
+`tcp-owned-deadline-cancellation` (exact names in the CTest log),
+with `test_owned_preauth_session.cpp` assertions at lines 1967/2130.
+They were **already failing at the exact parent SHA**
+`209ebb6fa714b4bba61478539976719506b9b96d`,
+[Actions 38798562218](https://github.com/k1moradi/RDP-server/actions/runs/38798562218).
+[R1 regression #11](https://github.com/k1moradi/RDP-server/issues/11).
+These failures prevent Release phases. Windows CI was still in
+progress at receipt authoring; do not count Windows as PASS.
+Documentation policy PASS. No real R2 OS authorization or owner
+same-SHA three-platform result exists; M2 remains NOT ACCEPTED.
+
+
 **Implementation:** the first already-decrypted MCS Connect-Initial in
 R1's existing PreauthSession is now checked by R3's noncopyable
 `McsSessionLifecycle`. It owns the one join gate, reuses the first-party

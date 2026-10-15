@@ -3059,3 +3059,30 @@ real Microsoft client interactive desktop and benchmarks.
 scheduler after R3 authorized channel admission; verify
 backpressure and generation reset with a dedicated behavior
 CTest. Gate B/M3–M5 are not accepted.
+
+
+## R9 exact-SHA CLIPRDR chunk regression CI evidence (2026-10-15)
+
+**Implementation:** [`d7946e2e74bf9ca7cdce66f02080b37085812be6`](https://github.com/k1moradi/RDP-server/commit/d7946e2e74bf9ca7cdce66f02080b37085812be6);
+[hosted Actions run 38796420558](https://github.com/k1moradi/RDP-server/actions/runs/38796420558).
+**PASS:** Linux/GCC **162/162** registered CTests in both Debug and
+Release; macOS/Clang **151/151** in both configurations.
+`clipboard.chunk-reassembly-reset-bounds` specifically PASSed
+in each configuration on both systems. The documentation-policy,
+Debug/Release build and SDK package stages succeeded on Linux/macOS.
+**Windows/MSVC:** Debug compile PASS and **158/159 CTests PASS**,
+including the new R9 chunk/reset test, but the full CI job is
+**FAIL** at CTest `runtime.validates-configuration-comments-crlf`
+(#142), with `tests/check_runtime_entrypoint.cmake:118` reporting
+`Unexpected runtime exit status: 3` vs required 0. This is
+an independently reproduced **R10 runtime/config test boundary**
+on earlier SHAs ([issue #9](https://github.com/k1moradi/RDP-server/issues/9));
+no R9 production runtime files changed, and this is not a
+clipboard regression. Windows Release **NOT RUN** because
+Windows Debug full CTest stopped the workflow.
+**NOT RUN:** owner's exact-SHA Linux/X11, Windows MSYS2 CLANG64
+Clang 23, macOS27 full commands, authenticated OS session,
+Microsoft RDP client and host clipboard/desktop.
+**Next:** R10 corrects Windows-only offline config regression
+without weakening the CTest; run full Windows Debug/Release
+and monitor next exact commit before R9 integration acceptance.

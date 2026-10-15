@@ -2436,6 +2436,26 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   owner's unchanged one-root platform reports, then test
   authorization/disconnect propagation from R3 to R8.
 
+  **R9 exact-SHA CI receipt — clipboard fragments (2026-10-15):**
+  Implementation `d7946e2e74bf9ca7cdce66f02080b37085812be6`, [Actions 38796420558](https://github.com/k1moradi/RDP-server/actions/runs/38796420558).
+  **PASS** Linux/GCC **162/162** and macOS/Clang **151/151**
+  in EACH Debug and Release full CTest; documentation-policy PASS.
+  New `clipboard.chunk-reassembly-reset-bounds` CTest PASS
+  in both configurations, as did existing clipboard behavior tests.
+  Windows/MSVC Debug compile PASS, **158/159 Debug CTests PASS**,
+  including the new R9 regression, but full job **FAIL** at
+  `runtime.validates-configuration-comments-crlf`: R10's
+  `tests/check_runtime_entrypoint.cmake:118` observed offline
+  configuration check exit **3** versus expected **0**. This
+  R10-owned Windows failure was reproduced on earlier SHAs and
+  is tracked in [issue #9](https://github.com/k1moradi/RDP-server/issues/9).
+  Windows Release NOT RUN because Debug CTest stopped the CI job.
+  **NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64 Clang23
+  and macOS 27 on the same SHA, live OS admission/client/desktop.
+  **Next:** R10 fix of the offline Windows CRLF fixture/parser and
+  full Windows Debug+Release revalidation; then R9 R3→R8
+  authorized-channel/teardown integration negatives.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

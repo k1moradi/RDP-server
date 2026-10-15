@@ -1153,6 +1153,34 @@ acceptance evidence; no synthetic completion claims.
   Kerberos/TLS positive acceptance and independent OS
   authorization before finalization can be dispatched
   from a single live session owner.
+  **Partial OFFLINE Demand/Confirm Active transcript correlation
+  (2026-10-15; CI NOT RUN at authoring):** the existing
+  first-party C++23 MCS/Share module now correlates one
+  complete server Demand and one complete client Confirm
+  after reusing the canonical exact-length Active parser.
+  It checks server source 1002, the separately supplied
+  1001..65535 client user source (65536 cannot fit
+  Share Control pduSource), mandatory Confirm originator
+  1002 and matching shareIDs. Success explicitly means
+  `ConsistentSyntaxOnly`, NEVER that the client is the
+  authenticated MCS sender, its capabilities negotiated,
+  its OS account permitted, or the session activated.
+  Two behavior-named portable test groups exercise
+  fixture/serializer correlation, malformed transcripts,
+  mismatched share and assigned user IDs, and opaque
+  capability disagreement; expected **89 portable /
+  99 Linux GSS-enabled** full CTests (prior 87/97).
+  Baseline main `0e508cfad519d7f9f9f7cb0dd5e54b1c0118e465`
+  passed [CI 38718555326](https://github.com/k1moradi/RDP-server/actions/runs/38718555326);
+  owner reports **87/87 local PASS** on that head.
+  **NOT RUN:** new exact-head CI/local rebuild, real
+  Kerberos/TLS pubKeyAuth with isolated tickets/keytab,
+  independently audited OS authorization, licensed
+  capability negotiation, activated share or desktop.
+  **Next:** exact-head Linux/macOS/Windows CI, then
+  controlled real GSS/TLS and independent OS identity
+  before a single authenticated owner may enforce
+  activation order and dispatch any channel traffic.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

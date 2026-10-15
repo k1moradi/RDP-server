@@ -2068,6 +2068,142 @@ void testRdpServerFinalizationEncodeRejections()
     assert(parseRdpControlPdu(control));
 }
 
+void testRdpActiveExchangeCorrelation()
+{
+    // Both fixtures already independently pass the strict T.128
+    // Demand/Confirm Active parsers. Correlation here is NOT the
+    // separate GSS, MCS channel or OS authorization proof.
+    assert(correlateRdpActiveExchange(
+               kOfflineDemandActive, kOfflineConfirmActive, 1007U) ==
+           RdpActiveExchangeCorrelation::ConsistentSyntaxOnly);
+
+    // A freshly serialized Demand Active with canonical ignored pad
+    // must correlate with a syntactically valid client Confirm.
+    std::array<std::uint8_t, 38> demand{};
+    const auto source = std::span(kOfflineDemandActive).subspan(14, 4);
+    const auto caps = std::span(kOfflineDemandActive).subspan(22, 12);
+    const auto size = encodeRdpDemandActivePdu(
+        0x000103eaU, 0x11223344U, source, 2, caps, demand);
+    assert(size && *size == demand.size());
+    assert(correlateRdpActiveExchange(
+               demand, kOfflineConfirmActive, 1007U) ==
+           RdpActiveExchangeCorrelation::ConsistentSyntaxOnly);
+
+    // The server's sessionId is NOT an authentication token.
+    // Changing it does not alter the shared shareID correlation.
+    demand[34] = 0;
+    demand[35] = 0;
+    demand[36] = 0;
+    demand[37] = 0;
+    assert(correlateRdpActiveExchange(
+               demand, kOfflineConfirmActive, 1007U) ==
+           RdpActiveExchangeCorrelation::ConsistentSyntaxOnly);
+
+    // A new MCS user channel can be represented by the client's
+    // Share Control source when it matches an independently supplied
+    // expected ID. This does NOT actually assign or join the channel.
+    auto client = kOfflineConfirmActive;
+    client[4] = 0xff;
+    client[5] = 0xff;
+    assert(correlateRdpActiveExchange(
+               demand, client, 65535U) ==
+           RdpActiveExchangeCorrelation::ConsistentSyntaxOnly);
+
+    // Source-descriptor and capability bytes remain opaque. A
+    // syntactically correlated exchange may advertise disjoint,
+    // incompatible sets; the future owner MUST validate all
+    // mandatory capability values before any live activation.
+    client = kOfflineConfirmActive;
+    client[16] = 'X';
+    client[24] = 0xff;
+    client[25] = 0x7f;
+    assert(correlateRdpActiveExchange(
+               demand, client, 1007U) ==
+           RdpActiveExchangeCorrelation::ConsistentSyntaxOnly);
+}
+
+void testRdpActiveExchangeDenials()
+{
+    constexpr auto rejected = RdpActiveExchangeCorrelation::Rejected;
+    for (const auto id : {0U, 1U, 1000U, 65536U, 0xffffffffU})
+        assert(correlateRdpActiveExchange(
+                   kOfflineDemandActive, kOfflineConfirmActive, id) ==
+               rejected);
+
+    for (std::size_t i = 0; i < kOfflineDemandActive.size(); ++i)
+        assert(correlateRdpActiveExchange(
+                   std::span(kOfflineDemandActive).first(i),
+                   kOfflineConfirmActive, 1007U) == rejected);
+    for (std::size_t i = 0; i < kOfflineConfirmActive.size(); ++i)
+        assert(correlateRdpActiveExchange(
+                   kOfflineDemandActive,
+                   std::span(kOfflineConfirmActive).first(i),
+                   1007U) == rejected);
+
+    auto demandSurplus = std::vector<std::uint8_t>(
+        kOfflineDemandActive.begin(), kOfflineDemandActive.end());
+    demandSurplus.push_back(0);
+    assert(correlateRdpActiveExchange(
+               demandSurplus, kOfflineConfirmActive, 1007U) ==
+           rejected);
+    auto confirmSurplus = std::vector<std::uint8_t>(
+        kOfflineConfirmActive.begin(), kOfflineConfirmActive.end());
+    confirmSurplus.push_back(0);
+    assert(correlateRdpActiveExchange(
+               kOfflineDemandActive, confirmSurplus, 1007U) ==
+           rejected);
+
+    auto demand = kOfflineDemandActive;
+    auto confirm = kOfflineConfirmActive;
+    // Valid Share Control but the wrong role, or an unexpected
+    // source user channel, cannot be correlated as Demand->Confirm.
+    assert(correlateRdpActiveExchange(
+               kOfflineConfirmActive, kOfflineDemandActive, 1007U) ==
+           rejected);
+    demand[4] = 0xeb; // User channel, NOT normative server source 1002.
+    assert(correlateRdpActiveExchange(
+               demand, kOfflineConfirmActive, 1007U) ==
+           rejected);
+    confirm[4] = 0xea; // Claimed server as client.
+    assert(correlateRdpActiveExchange(
+               kOfflineDemandActive, confirm, 1007U) == rejected);
+    confirm = kOfflineConfirmActive;
+    confirm[5] = 0xff; // Different client user source.
+    assert(correlateRdpActiveExchange(
+               kOfflineDemandActive, confirm, 1007U) == rejected);
+
+    confirm = kOfflineConfirmActive;
+    confirm[6] ^= 0x01; // ShareID mismatch, though both valid PDUs.
+    assert(parseRdpActivePdu(confirm));
+    assert(correlateRdpActiveExchange(
+               kOfflineDemandActive, confirm, 1007U) == rejected);
+    confirm = kOfflineConfirmActive;
+    confirm[10] = 0xeb; // originatorID must identify server channel.
+    assert(correlateRdpActiveExchange(
+               kOfflineDemandActive, confirm, 1007U) == rejected);
+
+    demand = kOfflineDemandActive;
+    demand[2] = 0x13; // Confirm instead of Demand.
+    assert(correlateRdpActiveExchange(
+               demand, kOfflineConfirmActive, 1007U) == rejected);
+    demand = kOfflineDemandActive;
+    demand[12] = 0x03; // combinedCapabilities < count/pad.
+    assert(correlateRdpActiveExchange(
+               demand, kOfflineConfirmActive, 1007U) == rejected);
+    confirm = kOfflineConfirmActive;
+    confirm[26] = 0x00; // Capability envelope has zero length.
+    assert(correlateRdpActiveExchange(
+               kOfflineDemandActive, confirm, 1007U) == rejected);
+
+    // A legacy FlowPDU marker MUST be ignored by the shared
+    // Share Control validator; never mistaken for an active PDU.
+    demand = kOfflineDemandActive;
+    demand[0] = 0;
+    demand[1] = 0x80;
+    assert(correlateRdpActiveExchange(
+               demand, kOfflineConfirmActive, 1007U) == rejected);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -2094,7 +2230,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 33> kMcsTestCases{{
+constexpr std::array<McsTestCase, 35> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -2128,6 +2264,8 @@ constexpr std::array<McsTestCase, 33> kMcsTestCases{{
     {"share-demand-active-encode-rejections", &testRdpDemandActiveEncodeRejections},
     {"share-server-finalization-encode-wire", &testRdpServerFinalizationEncodeWire},
     {"share-server-finalization-encode-rejections", &testRdpServerFinalizationEncodeRejections},
+    {"share-active-exchange-correlation", &testRdpActiveExchangeCorrelation},
+    {"share-active-exchange-denials", &testRdpActiveExchangeDenials},
 }};
 
 int main(int argc, char **argv)

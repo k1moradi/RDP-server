@@ -366,6 +366,38 @@ activation order BEFORE writing it to an authenticated
 client. No live send, user input, graphics, OS session
 or share activation is enabled.
 
+### Offline Demand/Confirm Active transcript correlation (2026-10-15)
+
+The existing `mcs_channel_connection` module now performs
+*stateless*, allocation-free correlation of one isolated server
+Demand Active and one client Confirm Active Share Control PDU.
+Per [MS-RDPBCGR 2.2.1.13.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/4e9722c3-ad83-43f5-af5a-529f73d88b48),
+Confirm Active carries the server originatorID 0x03EA,
+while [2.2.1.13.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/bd612af5-cb54-43a2-9646-438bc3ecf5db)
+defines the server Demand layout and shareID. The new
+`correlateRdpActiveExchange` first uses the existing exact-
+length, counted-capability parsers, then requires Demand
+pduSource=1002, Confirm pduSource equal to the separately
+supplied expected client MCS user-channel ID (1001..65535),
+the mandatory Confirm originatorID=1002, and identical
+32-bit shareID on both messages. A client user ID of 65536
+cannot fit the Share Control 16-bit pduSource and is
+rejected rather than truncated.
+
+The sole positive result is intentionally named
+`ConsistentSyntaxOnly`, NOT an admission or activated
+share. Capabilities remain opaque; even disjoint capability
+sets or an untrusted descriptor can produce matching
+syntax. It does not establish actual MCS joins, client
+sender provenance, TLS/GSS authentication, independent OS
+account/session authorization, required negotiated
+capability contents, licensing, packet order, or permission
+to send an activation/finalization packet. No connection
+state, TLS writer, OS adapter or new lifecycle owner
+is created. Only a later genuine authenticated single
+session owner may use these correlated fields as inputs
+to independently authorized activation decisions.
+
 ### Offline Demand/Confirm Active capability-envelope validation (2026-10-15)
 
 The original C++23 `mcs_channel_connection` parser now also

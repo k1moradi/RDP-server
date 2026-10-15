@@ -424,4 +424,25 @@ struct RdpActivePduParseResult
     std::uint32_t assignedClientUserId,
     std::span<std::uint8_t> output) noexcept;
 
+// OFFLINE transcript-correlation check for the single Demand Active
+// server PDU followed by the client Confirm Active PDU. It reuses
+// parseRdpActivePdu and compares the exact share ID and the two
+// independently assigned MCS sender channels. The expected client
+// user ID MUST be supplied from separate authenticated MCS ownership;
+// this function does NOT establish that ownership or authenticate it.
+//
+// A successful result is ONLY a syntax correlation: it does NOT
+// verify capability contents, security headers, TLS/Kerberos identity,
+// licensing, OS session rights, receipt order, or activate a share.
+enum class RdpActiveExchangeCorrelation : std::uint8_t
+{
+    Rejected,
+    ConsistentSyntaxOnly,
+};
+
+[[nodiscard]] RdpActiveExchangeCorrelation correlateRdpActiveExchange(
+    std::span<const std::uint8_t> serverDemandSharePdu,
+    std::span<const std::uint8_t> clientConfirmSharePdu,
+    std::uint32_t expectedClientUserId) noexcept;
+
 } // namespace rdp_server::server::transport

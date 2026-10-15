@@ -711,6 +711,33 @@ was nonzero and ignored. Corrected oracle PASS.
 Kerberos/TLS, independent OS admission, licensing,
 capability negotiation, desktop or client.
 
+## Offline activation transcript-correlation regressions (CI NOT RUN, 2026-10-15)
+
+Add exactly two portable behavioral CTests to the original
+`tests/test_owned_mcs_connect_initial.cpp` executable
+and its ONE `tests/CMakeLists.txt` registry:
+`transport.share-active-exchange-correlation` checks
+server Demand/Confirm source and shareID matching,
+round-trip serialized Demand packet, untrusted sessionId,
+boundary client channel 65535 and the fact that
+opaque/disjoint capability contents are NOT capability
+agreement or session authorization.
+`transport.share-active-exchange-denials` rejects
+every byte-short prefix, coalesced/trailing bytes,
+swapped message roles, wrong server/client sources,
+bad Confirm originator, mismatched share IDs,
+malformed capability-set lengths, FlowPDU marker,
+and invalid client IDs 0/1000/65536/UINT32_MAX.
+No TLS, OS, socket, console, policy or live session
+is activated by either positive syntax result.
+
+Expected full portable suite **89** (prior 87);
+Linux GSS-enabled **99** (prior 97). The new code
+CI and owner-local build/CTest are NOT RUN at
+authoring. Genuine positive Kerberos/pubKeyAuth
+and independent OS session authorization remain
+the separate non-synthetic acceptance gates.
+
 ## Verified Demand/Confirm Active capability-envelope tests (CI PASS, 2026-10-15)
 
 Reuse ONLY `tests/test_owned_mcs_connect_initial.cpp` and the

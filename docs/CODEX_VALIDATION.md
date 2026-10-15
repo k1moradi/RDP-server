@@ -1483,6 +1483,52 @@ then isolated authorized GSS/TLS evidence and
 independent OS authorization before live
 capability negotiation/desktop transmission.
 
+## Pending offline Demand/Confirm Active correlation (2026-10-15)
+
+**Previous exact main:** `0e508cfad519d7f9f9f7cb0dd5e54b1c0118e465`,
+[CI 38718555326](https://github.com/k1moradi/RDP-server/actions/runs/38718555326)
+PASS Linux/GCC **97/97**, macOS/Clang and
+Windows/MSVC **87/87** Debug/Release CTests,
+installed SDK consumer, three ZIP/SHA256
+artifacts and documentation policy. Owner reports
+**87/87** locally on the prior head; this is
+NOT evidence for the current changes.
+
+**Increment:** add `correlateRdpActiveExchange`
+to the existing first-party
+`src/server/transport/mcs_channel_connection.{h,cpp}`.
+It reuses `parseRdpActivePdu` for both untrusted
+complete frames, checks server Demand pduSource
+1002, Confirm user pduSource equal to an externally
+provided 1001..65535 expected ID, mandatory
+Confirm originatorID=1002 and identical shareIDs.
+Reject unrepresentable 65536 T.125 user ID rather
+than truncate to a valid 16-bit Share Control ID.
+No allocations, new state controller, capability
+semantics, TLS I/O, GSS principal assertion or
+OS admission. Positive enum is explicitly
+`ConsistentSyntaxOnly` and NEVER session access.
+Two new `transport.share-active-exchange-correlation`
+and `transport.share-active-exchange-denials`
+CTest cases added to the original MCS fixture.
+Expected **89 portable / 99 Linux GSS** total.
+Same implementation commit updates sole ROADMAP
+and architecture, coding and testing standards.
+
+**NOT RUN at authoring:** exact new Linux/macOS/
+Windows Debug/Release CI, owner-local compile/CTest,
+real Kerberos/TLS protected binding and delegated
+credentials, independent OS authorization, actual
+licensed share activation, Windows/macOS client,
+graphics, input or desktop.
+Owner's one reused build root:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`;
+`cmake --build build --config Debug --parallel 2`;
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next gate:** exact-head cross-platform CI;
+genuine isolated Kerberos/TLS + OS identity
+before any live activation.
+
 ## Verified Demand/Confirm Active capability envelope intake (2026-10-15)
 
 **Previous exact main:** `ea258bfcc4a8d8d759a9bc1a882c4f0121959296`,

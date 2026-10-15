@@ -805,4 +805,36 @@ std::optional<std::size_t> encodeRdpServerControlPdu(
     return size;
 }
 
+RdpActiveExchangeCorrelation correlateRdpActiveExchange(
+    std::span<const std::uint8_t> serverDemandSharePdu,
+    std::span<const std::uint8_t> clientConfirmSharePdu,
+    std::uint32_t expectedClientUserId) noexcept
+{
+    // A 16-bit Share Control pduSource cannot represent 65536,
+    // even though the T.125 initiator domain can. Refuse an
+    // unrepresentable or unassigned user channel before parsing.
+    if (expectedClientUserId < 1001U ||
+        expectedClientUserId > 65535U)
+        return RdpActiveExchangeCorrelation::Rejected;
+
+    const auto demand = parseRdpActivePdu(serverDemandSharePdu);
+    if (!demand ||
+        demand.value.kind != RdpShareControlKind::DemandActive ||
+        demand.value.pduSource != 1002U)
+        return RdpActiveExchangeCorrelation::Rejected;
+
+    const auto confirm = parseRdpActivePdu(clientConfirmSharePdu);
+    if (!confirm ||
+        confirm.value.kind != RdpShareControlKind::ConfirmActive ||
+        confirm.value.pduSource != expectedClientUserId ||
+        confirm.value.originatorId != 1002U ||
+        confirm.value.shareId != demand.value.shareId)
+        return RdpActiveExchangeCorrelation::Rejected;
+
+    // Even a matching exchange says nothing about the meaning of
+    // either opaque capability list, client session identity,
+    // licenses, share lifecycle or actual sender provenance.
+    return RdpActiveExchangeCorrelation::ConsistentSyntaxOnly;
+}
+
 } // namespace rdp_server::server::transport

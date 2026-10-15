@@ -509,6 +509,35 @@ graphics/clipboard/input feature. This offline
 encoder does not perform TLS or MCS writes and
 cannot bypass the genuine security/OS admission gate.
 
+## Correlate activation transcript without granting authority (2026-10-15)
+
+For the T.128 Demand Active -> Confirm Active exchange,
+reuse the existing `parseRdpActivePdu` twice in the same
+first-party transport translation unit. Confirm must be
+type 3 with originatorID=0x03EA and sender pduSource
+equal to the separately assigned 16-bit client user ID.
+Demand must be type 1 with normative server
+pduSource=0x03EA; the 32-bit share IDs MUST match.
+Refuse user IDs below 1001 and beyond 65535 before
+any narrowing conversion; a T.125 65536 initiator
+cannot be represented by 16-bit Share Control source.
+The complete input boundaries, opaque capability counts
+and lengths remain the parser's responsibility. Do not
+introduce a second parser, activation controller, cache,
+heap allocation or TLS send. Return only
+`ConsistentSyntaxOnly` or `Rejected`, never a
+privileged, authenticated or session-admitted result.
+
+A successful syntax correlation MUST NOT authorize
+the OS account, prove client originator channel
+membership, compare negotiated capability contents,
+satisfy licensing, advance the live state machine,
+or grant desktop graphics/input. The assigned-client-
+user-ID argument is caller-supplied syntax, not
+independently verified MCS identity. Only one later
+genuinely Kerberos/TLS-bound, independently OS-approved
+session owner may enforce those separate decisions.
+
 ## Checked Demand/Confirm Active capability envelopes (2026-10-15)
 
 MS-RDPBCGR 2.2.1.13.1.1 (Demand Active) and 2.2.1.13.2.1

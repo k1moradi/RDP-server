@@ -216,6 +216,53 @@ actually run; another parser CTest alone is not a complete session.
   receives correct live MCS/GCC responses and advances through the
   authenticated channel/share lifecycle; the loopback TLS intake
   diagnostic by itself remains insufficient.
+
+  **R1 bounded TCP/BIO syscall integration increment
+  (2026-10-15; exact-head CI NOT RUN at authoring):** Reuse the
+  ONLY existing `NativeTcpIo` and custom OpenSSL
+  `TcpNonblockingIo` BIO, without adding a listener or
+  controller. Enforce an 18 KiB maximum **per native
+  recv/send and BIO callback** (RFC 5246 TLS 1.2
+  ciphertext maximum 2^14+2048; compatible with
+  RFC 8446 TLS 1.3 maximum 2^14+256). Return actual
+  short progress to OpenSSL, preserve WANT_READ/
+  WANT_WRITE retry flags on would-block only, reject
+  provider misreported lengths even if <= the caller's
+  originally larger buffer, and avoid Windows size_t-
+  to-int socket-length wrap/negative conversion. No
+  payload allocation or staging; the caller/event loop
+  retains all packet assembly and cancellation.
+  Two new dedicated portable CTests, registered under
+  the original preauth executable and single registry:
+  `transport.tcp-bio-chunk-bounds` exercises real
+  OpenSSL BIO read/write callbacks with overlength
+  spans, 18KiB/18KiB/tail progression, would-block,
+  spoofed overreported lengths and complete byte
+  parity; `transport.tcp-native-chunk-bounds`
+  exercises connected native loopback sockets on
+  Linux/macOS/Windows with checked bounded partial
+  send/read and complete byte parity.
+  Expected **101 portable / 111 Linux GSS** full
+  CTests, up from the independently reported 99/109.
+  Parent `7e9b2881f66cea2b0354242b4e7ae39cb89170bc`
+  is docs-only ten-workstream R1–R10 convergence
+  policy; prior actual transport code
+  `45f68c2c0fcaa163aaf242a99f5637726a023fe2`
+  passed [CI 38749371803](https://github.com/k1moradi/RDP-server/actions/runs/38749371803)
+  Linux **109/109** and macOS/Windows **99/99**
+  CTests in both Debug and Release. Owner reports
+  **99/99** local PASS on preceding code without
+  a matching local SHA or terminal log.
+  **NOT RUN:** exact new-head hosted CI, owner's
+  new-code single-build-root tests, Windows MSYS2
+  Clang 23/macOS 27 owner-target toolchains,
+  real Kerberos/CredSSP identity, OS admission,
+  licensing, live Microsoft-client MCS handshake,
+  H.264/X11 desktop or human test. This work
+  exercises R1 I/O only and CANNOT accept a user.
+  **Next:** exact-head cross-platform CI, owner
+  one-root CTest, then real authorized identity/OS
+  policy before enabling live session responses.
   **Verified partial Gate A single-owner TCP/TLS/MCS readiness integration
   (2026-10-15; exact-head CI PASS):** In the
   existing `PreauthTcpAdapter` alone, bind the completed

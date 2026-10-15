@@ -10,6 +10,12 @@
 namespace rdp_server::server::transport
 {
 
+// One native recv/send or borrowed OpenSSL BIO callback may transfer at
+// most one bounded 18 KiB chunk (TLS 1.2 ciphertext maximum payload;
+// TLS 1.3 is smaller). Larger caller buffers are processed incrementally
+// by their own event loop. No int narrowing on Windows and no allocation.
+inline constexpr std::size_t kMaximumTcpIoChunkBytes = 18U * 1024U;
+
 // One result from a caller-owned NONBLOCKING TCP descriptor. A Progress
 // result must have 1..buffer.size() bytes. Other outcomes must have zero.
 // No invented timeouts, packet boundaries or automatic OS authorization.

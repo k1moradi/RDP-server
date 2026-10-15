@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "nonblocking_tcp_adapter.h"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 
@@ -65,15 +66,16 @@ int tcpBioRead(BIO *bio, char *data, std::size_t size,
         return 0;
     auto *io = static_cast<TcpNonblockingIo *>(BIO_get_data(bio));
     if (io == nullptr) return 0;
+    const auto requested = (std::min)(size, kMaximumTcpIoChunkBytes);
     const auto result = io->receive(
-        {reinterpret_cast<std::uint8_t *>(data), size});
+        {reinterpret_cast<std::uint8_t *>(data), requested});
     if (result.outcome == TcpIoOutcome::WouldBlock && result.bytes == 0)
     {
         BIO_set_retry_read(bio);
         return 0;
     }
     if (result.outcome != TcpIoOutcome::Progress ||
-        result.bytes == 0 || result.bytes > size)
+        result.bytes == 0 || result.bytes > requested)
         return 0;
     *readBytes = result.bytes;
     return 1;
@@ -89,15 +91,16 @@ int tcpBioWrite(BIO *bio, const char *data, std::size_t size,
         return 0;
     auto *io = static_cast<TcpNonblockingIo *>(BIO_get_data(bio));
     if (io == nullptr) return 0;
+    const auto requested = (std::min)(size, kMaximumTcpIoChunkBytes);
     const auto result = io->send(
-        {reinterpret_cast<const std::uint8_t *>(data), size});
+        {reinterpret_cast<const std::uint8_t *>(data), requested});
     if (result.outcome == TcpIoOutcome::WouldBlock && result.bytes == 0)
     {
         BIO_set_retry_write(bio);
         return 0;
     }
     if (result.outcome != TcpIoOutcome::Progress ||
-        result.bytes == 0 || result.bytes > size)
+        result.bytes == 0 || result.bytes > requested)
         return 0;
     *writtenBytes = result.bytes;
     return 1;
@@ -246,14 +249,16 @@ TcpIoResult NativeTcpIo::receive(std::span<std::uint8_t> destination) noexcept
     {
         return {TcpIoOutcome::Failure, 0};
     }
+    const auto requested = (std::min)(
+        destination.size(), kMaximumTcpIoChunkBytes);
 #ifdef _WIN32
     const int result = ::recv(static_cast<SOCKET>(socket_),
                               reinterpret_cast<char *>(destination.data()),
-                              static_cast<int>(destination.size()), 0);
+                              static_cast<int>(requested), 0);
     if (result == SOCKET_ERROR) return nativeFailure();
 #else
     const auto result = ::recv(static_cast<int>(socket_),
-                               destination.data(), destination.size(), 0);
+                               destination.data(), requested, 0);
     if (result < 0) return nativeFailure();
 #endif
     return result == 0 ? TcpIoResult{TcpIoOutcome::EndOfStream, 0}
@@ -267,10 +272,12 @@ TcpIoResult NativeTcpIo::send(std::span<const std::uint8_t> source) noexcept
     {
         return {TcpIoOutcome::Failure, 0};
     }
+    const auto requested = (std::min)(
+        source.size(), kMaximumTcpIoChunkBytes);
 #ifdef _WIN32
     const int result = ::send(static_cast<SOCKET>(socket_),
                               reinterpret_cast<const char *>(source.data()),
-                              static_cast<int>(source.size()), 0);
+                              static_cast<int>(requested), 0);
     if (result == SOCKET_ERROR) return nativeFailure();
 #else
 #ifdef MSG_NOSIGNAL
@@ -279,7 +286,7 @@ TcpIoResult NativeTcpIo::send(std::span<const std::uint8_t> source) noexcept
     constexpr int flags = 0;
 #endif
     const auto result = ::send(static_cast<int>(socket_), source.data(),
-                               source.size(), flags);
+                               requested, flags);
     if (result < 0) return nativeFailure();
 #endif
     return result == 0 ? TcpIoResult{TcpIoOutcome::WouldBlock, 0}

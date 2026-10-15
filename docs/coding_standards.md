@@ -1191,3 +1191,24 @@ package uploads PASS. Prerelease SKIPPED (no tag).
 **NOT RUN:** owner-local exact-head CTest, real GSS/
 CredSSP/TLS binding, independent OS authority,
 live authenticated Microsoft RDP client and desktop.
+
+## R1 exact per-call TCP/BIO bounds (2026-10-15)
+
+One native nonblocking socket syscall or OpenSSL
+BIO callback MUST cap its requested span to the
+first 18 KiB before touching the OS or a borrowed
+`TcpNonblockingIo`. RFC 5246 6.2.3 bounds the
+TLS 1.2 ciphertext fragment to 2^14+2048 bytes;
+RFC 8446 5.2 bounds TLS 1.3 ciphertext to
+2^14+256 bytes. This is an I/O quantum, not a
+hard cap on the caller's total message: preserve
+correct short reads/writes and caller-managed
+retries without hidden accumulation, buffers or
+socket ownership. Compare a provider's returned
+byte count against the **capped** span, never just
+the original oversized caller span. Limit Winsock
+recv/send length before converting to `int`;
+do not silently narrow arbitrary `size_t`.
+Use `(std::min)` to avoid the Windows min macro.
+Do not interpret a successful TCP or TLS byte
+transfer as GSS/OS admission.

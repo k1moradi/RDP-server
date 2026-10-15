@@ -1650,3 +1650,28 @@ package uploads PASS. Prerelease SKIPPED (no tag).
 **NOT RUN:** owner-local exact-head CTest, real GSS/
 CredSSP/TLS binding, independent OS authority,
 live authenticated Microsoft RDP client and desktop.
+
+## R1 bounded real socket and borrowed BIO I/O regressions (2026-10-15)
+
+Add two dedicated cases in the EXISTING
+`test_owned_preauth_session` test executable
+and the single `tests/CMakeLists.txt` registry:
+`transport.tcp-bio-chunk-bounds` proves actual
+OpenSSL BIO read_ex/write_ex callback progress
+is limited to at most 18 KiB per invocation,
+preserves all bytes over two full chunks and a
+tail, handles WANT_READ/WRITE appropriately
+without accidental retry on fake >capped-length
+callback reports; `transport.tcp-native-chunk-bounds`
+uses real loopback TCP sockets with 2+ chunks,
+native would-block handling and entire-payload
+byte parity, asserting no send/receive exceeds
+the same maximum. Real Linux/macOS/Windows
+socket tests are diagnostics, NOT remote-client
+authorization or desktop acceptance.
+Expected 101 portable / 111 Linux GSS CTests
+from previous 99/109. New SHA CI and owner local
+new-code builds NOT RUN at authoring. Independently
+required MSYS2 CLANG64/Clang23 and macOS27 owner
+verification stays NOT RUN until corresponding
+actual platform logs are available.

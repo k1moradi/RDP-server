@@ -1093,3 +1093,21 @@ package uploads PASS. Prerelease SKIPPED (no tag).
 **NOT RUN:** owner-local exact-head CTest, real GSS/
 CredSSP/TLS binding, independent OS authority,
 live authenticated Microsoft RDP client and desktop.
+
+## R1 native socket and OpenSSL BIO chunk bound (2026-10-15)
+
+The same connected `NativeTcpIo` and borrowed BIO
+serving X.224 -> TLS -> diagnostic MCS now accept
+at most `kMaximumTcpIoChunkBytes = 18 KiB`
+for each `recv`/`send` or synchronous OpenSSL
+BIO read/write callback, while returning the actual
+short byte count and preserving nonblocking retry
+signals. This bounds event-loop work per call and
+prevents unchecked `size_t` -> `int` conversion
+in Windows Winsock calls. It does NOT buffer partial
+data, change TLS record semantics, allocate memory,
+add a second session/queue, launch a listener,
+authenticate CredSSP/GSS, authorize an OS account
+or emit MCS/graphics traffic. Higher-level SSL and
+the sole connection owner retain state across
+short I/O as before.

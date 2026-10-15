@@ -74,6 +74,8 @@ function(add_rdp_test source_file suite behavior)
                 x224-confirm-partial-writes
                 tcp-adapter-fragments
                 tcp-adapter-backpressure
+                tcp-bio-chunk-bounds
+                tcp-native-chunk-bounds
                 tls-nonblocking-handshake
                 tls-nonblocking-failures
                 tcp-native-loopback-tls

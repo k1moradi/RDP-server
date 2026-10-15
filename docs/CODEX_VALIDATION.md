@@ -2414,3 +2414,53 @@ interactive Microsoft client or H.264/X11 desktop.
 CTest, then explicitly authorized opt-in GSS/TLS and
 OS admission before any live authenticated protocol
 session or desktop.
+
+## Pending R1 bounded TCP and BIO I/O (2026-10-15)
+
+**Parent SHA:** `7e9b2881f66cea2b0354242b4e7ae39cb89170bc`,
+docs-only ten-road parallel development policy.
+**Previous tested production implementation:**
+`45f68c2c0fcaa163aaf242a99f5637726a023fe2`,
+[Actions 38749371803](https://github.com/k1moradi/RDP-server/actions/runs/38749371803)
+PASS Linux/GCC **109/109** and macOS/Clang,
+Windows/MSVC **99/99** full registered CTests
+in BOTH Debug and Release, SDK consumer/staged
+install, ZIP/SHA256 artifact uploads, policy.
+The owner reports **99/99 local PASS** of previous
+code without exact local SHA/terminal transcript.
+
+**New R1 I/O contribution:** cap all 4 production
+borrowed TCP BIO/native recv/send callbacks to
+18 KiB per invocation (`kMaximumTcpIoChunkBytes`).
+Retain single existing socket/SSL/connection
+owner, short I/O and would-block semantics,
+no allocation and no narrowing of untrusted
+oversize `size_t` input to Winsock `int`.
+Two dedicated behavioral CTests execute actual
+OpenSSL BIO read/write callbacks and real native
+connected loopback send/receive with oversized
+caller spans, strict short byte accounting,
+progress, retry and misreport denial. Expected
+**101 portable / 111 Linux GSS** CTests.
+Production code, tests, Gate A/R1 living roadmap,
+architecture and coding/testing lessons are staged
+in one implementation commit. New-head compiled
+CI and owner's reused checkout build: **NOT RUN
+at authoring**; exact implementation SHA recorded
+in follow-up after it is created.
+
+**NOT RUN:** owner-local one-root current-head CTest,
+owner's exact MSYS2 CLANG64 Clang23/macOS27 runs,
+positive real opt-in Kerberos/TLS protected binding,
+independently approved OS session, licensed live
+RDP protocol, Microsoft client or interactive
+desktop/graphics. **Next:** hosted full matrix
+on exact implementation SHA, owner reports
+one-root full CTest in his authorized environment,
+then R2/R3 authenticated session integration.
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
+```

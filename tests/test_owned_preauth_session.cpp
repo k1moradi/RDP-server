@@ -883,6 +883,73 @@ public:
     }
 };
 
+
+void testBorrowedTcpBioChunkBounds()
+{
+    // The TLS BIO callback must never pass an unchecked OpenSSL buffer
+    // size to TCP I/O. One callback performs at most one bounded read
+    // or write without accumulating data or retry-looping internally.
+    TlsHandshakeFixture tls{false, false};
+    ScriptedTcp tcp;
+    assert(attachNonblockingTcpBio(tls.server.get(), tcp));
+    BIO *bio = SSL_get_rbio(tls.server.get());
+    assert(bio != nullptr && bio == SSL_get_wbio(tls.server.get()));
+
+    constexpr std::size_t maxChunk = kMaximumTcpIoChunkBytes;
+    std::vector<std::uint8_t> payload(maxChunk * 2U + 19U);
+    for (std::size_t i = 0; i < payload.size(); ++i)
+        payload[i] = static_cast<std::uint8_t>(i & 0xffU);
+    std::vector<std::uint8_t> output(payload.size(), 0xffU);
+
+    std::size_t actual = 777U;
+    assert(BIO_read_ex(bio, output.data(), output.size(), &actual) == 0);
+    assert(actual == 0 && BIO_should_read(bio));
+    assert(tcp.largestRead == maxChunk);
+
+    tcp.inbound = payload;
+    tcp.readLimit = payload.size();
+    std::size_t offset = 0;
+    for (const auto expected : {maxChunk, maxChunk, std::size_t{19}})
+    {
+        actual = 777U;
+        assert(BIO_read_ex(
+            bio, output.data() + offset, output.size() - offset,
+            &actual) == 1);
+        assert(actual == expected && !BIO_should_retry(bio));
+        offset += actual;
+    }
+    assert(offset == payload.size());
+    assert(output == payload);
+    assert(tcp.largestRead == maxChunk);
+    tcp.overreportRead = true;
+    actual = 777U;
+    assert(BIO_read_ex(bio, output.data(), output.size(), &actual) == 0);
+    assert(actual == 0 && !BIO_should_retry(bio));
+    tcp.overreportRead = false;
+
+    tcp.writeLimit = payload.size();
+    offset = 0;
+    for (const auto expected : {maxChunk, maxChunk, std::size_t{19}})
+    {
+        actual = 777U;
+        assert(BIO_write_ex(
+            bio, payload.data() + offset, payload.size() - offset,
+            &actual) == 1);
+        assert(actual == expected && !BIO_should_retry(bio));
+        offset += actual;
+    }
+    assert(offset == payload.size() && tcp.outbound == payload);
+    tcp.blockWrite = true;
+    actual = 777U;
+    assert(BIO_write_ex(bio, payload.data(), payload.size(), &actual) == 0);
+    assert(actual == 0 && BIO_should_write(bio));
+    tcp.blockWrite = false;
+    tcp.overreportWrite = true;
+    actual = 777U;
+    assert(BIO_write_ex(bio, payload.data(), payload.size(), &actual) == 0);
+    assert(actual == 0 && !BIO_should_retry(bio));
+}
+
 void testTcpAdapterFragmentedIo()
 {
     const auto req = validRequestWire();
@@ -1450,6 +1517,62 @@ void waitForNativeRequest(PreauthTcpAdapter &adapter)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     assert(complete);
+}
+
+
+void testNativeTcpChunkBounds()
+{
+    // Real OS sockets, loopback only. The caller provides buffers much
+    // larger than an int-safe bounded syscall; verify every nonblocking
+    // native send/recv uses <= the shared per-callback limit and every
+    // byte is eventually delivered in the correct order.
+    LoopbackSocketPair pair;
+    NativeTcpIo sender{static_cast<std::uintptr_t>(pair.client.value)};
+    NativeTcpIo receiver{static_cast<std::uintptr_t>(pair.server.value)};
+    const std::size_t maxChunk = kMaximumTcpIoChunkBytes;
+    std::vector<std::uint8_t> payload(maxChunk * 2U + 37U);
+    std::vector<std::uint8_t> delivered(payload.size());
+    for (std::size_t i = 0; i < payload.size(); ++i)
+        payload[i] = static_cast<std::uint8_t>((i * 7U) & 0xffU);
+
+    assert(sender.send({}).outcome == TcpIoOutcome::Failure);
+    assert(receiver.receive({}).outcome == TcpIoOutcome::Failure);
+    std::size_t total = 0;
+    for (int iteration = 0; iteration < 16384 && total < payload.size();
+         ++iteration)
+    {
+        const auto sent = sender.send(std::span(payload).subspan(total));
+        if (sent.outcome == TcpIoOutcome::WouldBlock)
+        {
+            assert(sent.bytes == 0);
+            std::this_thread::yield();
+            continue;
+        }
+        assert(sent.outcome == TcpIoOutcome::Progress);
+        assert(sent.bytes > 0 && sent.bytes <= maxChunk);
+        std::size_t receivedForChunk = 0;
+        for (int readAttempt = 0;
+             readAttempt < 16384 && receivedForChunk < sent.bytes;
+             ++readAttempt)
+        {
+            const auto read = receiver.receive(
+                std::span(delivered).subspan(total + receivedForChunk));
+            if (read.outcome == TcpIoOutcome::WouldBlock)
+            {
+                assert(read.bytes == 0);
+                std::this_thread::yield();
+                continue;
+            }
+            assert(read.outcome == TcpIoOutcome::Progress);
+            assert(read.bytes > 0 && read.bytes <= maxChunk);
+            assert(read.bytes <= sent.bytes - receivedForChunk);
+            receivedForChunk += read.bytes;
+        }
+        assert(receivedForChunk == sent.bytes);
+        total += sent.bytes;
+    }
+    assert(total == payload.size());
+    assert(delivered == payload);
 }
 
 void testNativeLoopbackTlsAndMcs()
@@ -3585,6 +3708,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"x224-confirm-partial-writes", &testPartialConnectionReplyWrites},
     {"tcp-adapter-fragments", &testTcpAdapterFragmentedIo},
     {"tcp-adapter-backpressure", &testTcpAdapterFailureAndBackpressure},
+    {"tcp-bio-chunk-bounds", &testBorrowedTcpBioChunkBounds},
+    {"tcp-native-chunk-bounds", &testNativeTcpChunkBounds},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},

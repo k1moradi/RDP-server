@@ -2487,100 +2487,34 @@ activation, graphics/desktop or human test.
 R2/R3 integration with real authorized identity/OS
 admission before sending live MCS or desktop data.
 
-## R1 native nonblocking accept + move-only socket owner (2026-10-15)
+## R3 bounded MCS Join delivery and stale-write protection (2026-10-15)
 
-**Integration parent `main`:** `96dbdc660cc9814d086cfb3c7772850474b8f2fd`
-(main-only Git policy after the verified
-`8ce08611d5d7b093c9d69f4b7eee5d23cd096359` R1 chunk-bound code).
-**Production increment:** use the sole `NativeTcpIo` with a new
-one-shot accept that does not own or bind the listening socket. Returned
-accepted socket is move-only RAII, nonblocking, close-on-exec on POSIX
-/ non-inheritable on Windows, and SO_NOSIGPIPE on supporting POSIX.
-Failed setup releases the just-created descriptor. No server daemon,
-new protocol state owner or trust/admission transition.
+**Baseline reviewed:** current `main` immediately before this implementation
+commit; the exact published SHA is the parent of this implementation.
+Eight new behavior-named central CTests extend the existing MCS executable:
+`transport.mcs-join-write-completion`, `transport.mcs-join-write-denials`,
+`transport.mcs-join-duplicate-ignored`, `transport.mcs-join-batched-requests`,
+`transport.mcs-send-data-joined-membership`,
+`transport.mcs-send-data-joined-denials`,
+`transport.mcs-join-stale-write-receipts`,
+`transport.mcs-join-stale-partial-write-slices`.
 
-**New CTests:** `transport.tcp-native-accept-ownership`,
-`transport.tcp-native-accept-move-replacement`, and
-`transport.tcp-native-accept-orderly-eof` (existing
-`test_owned_preauth_session` binary). They exercise the production accept
-function over real loopback TCP, borrowed `NativeTcpIo`, invalid listener,
-would-block, exact X.224 Confirm, move, replacement-close, aliased self-move,
-moved-socket I/O, FIN-after-queued-bytes, EOF and idempotent close.
+**PASS (limited local evidence):** reused the sole
+`~/rdp-server/build` shadow harness, GCC 14.2 C++23 -Wall -Wextra
+-Wpedantic -Wconversion -Wsign-conversion -Werror, ASan/UBSan,
+`cmake -S ~/rdp-server -B ~/rdp-server/build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON && cmake --build ~/rdp-server/build --config Debug
+--parallel 2 && ctest --test-dir ~/rdp-server/build -C Debug
+--output-on-failure`: 8/8 PASS. Previous Clang 17 C++23 sanitizer
+stand-in runs: 8/8 PASS. The local checkout is a narrow fixture with
+reduced parsing/encoder logic, NOT the production repository.
 
-**Existing owner evidence:** 101/101 registered CTests PASS as reported
-in this conversation; platform and exact local commit SHA unspecified.
-This predates the new case and cannot verify it.
+**NOT RUN at authoring:** real repository Debug/full CTest and hosted
+CI at the new implementation SHA (check GitHub Actions after publish);
+owner Linux/X11, Windows MSYS2 CLANG64 Clang23 and macOS27 CTests;
+authenticated client, independent OS admission, licensed activation,
+graphics and desktop. Prior owner 101/101 is unrelated baseline evidence.
 
-**NOT RUN:** repository `cmake -S ~/rdp-server -B ~/rdp-server/build
--DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`, build and full
-`ctest --test-dir ~/rdp-server/build -C Debug --output-on-failure`;
-complete source checkout inaccessible. All three owner-local platform
-checks and exact-implementation GitHub Actions NOT RUN at authorship.
-**PASS (isolated Linux/POSIX smoke only):** GCC and Clang C++23
-`-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined`
-compiled and ran a loopback probe extracting the new accept/RAII
-function definitions verbatim from this patch (NativeTcpIo stubbed), plus the exact dedicated
-move-replacement and orderly-EOF test bodies. GCC 14.2 and Clang 17 ran with
-`-std=c++23 -Wall -Wextra -Wpedantic -Werror -O1 -g
--fno-omit-frame-pointer -fsanitize=address,undefined`, and
-`ASAN_OPTIONS=detect_leaks=1` (**PASS**, native Linux `accept4`).
-Both compilers reran the same test with `-U__linux__` (**PASS**, POSIX
-`fcntl` fallback simulated on Linux; not an actual macOS/BSD test).
-These checks do not compile the full production translation unit or
-run any of the three registered repository CTests.
-**Publication policy:** direct to the existing `main` under an atomic
-non-force expected-HEAD update, following the latest repository policy.
-No independent R10 slot is needed. The full CTest/CI results must be
-recorded against the published implementation SHA when available.
-First unresolved boundary: real listener/event loop feeding this
-accepted socket to sole TCP/TLS connection, then R2 admission/R3 session.
-Next R1: integrate owned accepted sockets and deterministic cancellation
-with one bounded event-loop/listener lifecycle after this increment.
-
-## R4 surface creation/mapping/teardown wire increment (2026-10-15)
-
-**Parent main before implementation:** `b633bb0554020ff6aba6811240b75fa25c4bd69a`.
-The single atomic change adds `gfx_surface_lifecycle.{h,cpp}` to
-the portable C++23 protocol archive and registers two dedicated CTests
-in the existing single `tests/CMakeLists.txt`:
-`graphics.surface-lifecycle-wire` and
-`graphics.surface-lifecycle-rejections`.
-MS-RDPEGFX 2.2.2.9/.10/.15 define CREATE_SURFACE (15 bytes),
-DELETE_SURFACE (10 bytes) and MAP_SURFACE_TO_OUTPUT (20 bytes).
-Both encoded header flags and the map reserved field are zero.
-Creation validates nonzero uint16 surface geometry before writing;
-insufficient output buffers leave caller bytes entirely unchanged.
-
-**PASS, isolated focused source+test:** GCC 14.2 and Clang 17, both
-behavior cases on each compiler, with
-`-std=c++23 -O1 -g -Wall -Wextra -Wpedantic -Werror -UNDEBUG
--D_GLIBCXX_ASSERTIONS -fsanitize=address,undefined
--fno-omit-frame-pointer`. Commands (using the one retained local
-build root and stage source that matches these committed files):
-
-```sh
-stage="$HOME/rdp-server/build/r4_surface_stage"
-for compiler in g++ clang++; do
-  "$compiler" -std=c++23 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-    -UNDEBUG -D_GLIBCXX_ASSERTIONS -fsanitize=address,undefined \
-    -fno-omit-frame-pointer -I"$stage/src" \
-    "$stage/src/rdp/gfx_surface_lifecycle.cpp" \
-    "$stage/tests/test_gfx_surface_lifecycle.cpp" \
-    -o "$stage/$compiler-test_gfx_surface_lifecycle"
-  for behavior in surface-lifecycle-wire surface-lifecycle-rejections; do
-    ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
-      UBSAN_OPTIONS=halt_on_error=1 \
-      "$stage/$compiler-test_gfx_surface_lifecycle" "$behavior"
-  done
-done
-ctest --test-dir "$stage" --output-on-failure
-```
-Isolated CTest **PASS: 2/2**. These are focused tests, NOT full
-repository validation. A local complete checkout is unavailable
-(container outbound GitHub DNS failed), so the normal full
-`cmake --build` + `ctest` procedure is **NOT RUN**.
-The owner's Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27
-runs, real Microsoft-client/OS admission, R3 DVC integration, x264,
-H.264 desktop and benchmark tests are **NOT RUN**.
-**Next gate:** exact published SHA hosted CI/full CTest, then R3
-authorized graphics-channel lifecycle and cross-platform owner runs.
+**Next:** owner R3 combines this bounded join gate with the sole R1
+outbound transport completion and a genuine R2 TLS-bound CredSSP/GSS
+plus OS authorization decision. M2/Gate A remain NOT ACCEPTED.

@@ -1689,6 +1689,29 @@ actually run; another parser CTest alone is not a complete session.
   disconnect path with outbound TLS write completion, membership
   checks and bounded cancellation. Record a real Microsoft-client
   post-auth share activation before treating this as functional.
+  **R3 Channel Join delivery gate (2026-10-15; implementation CI pending):**
+  In the existing MCS module, a single event-loop-affine, bounded component
+  tracks up to 33 assigned Channel Join Requests in arrival order, while
+  one existing outbound writer serializes each 15-byte confirmation.
+  Confirmation membership becomes true only after exact accepted-byte
+  completion. Duplicate pending/already-joined requests are ignored;
+  malformed/foreign joins, excess callbacks and cancellation fail closed.
+  Independent reply and partial-write slice receipts prevent stale callbacks
+  from advancing another reply or re-counting previously accepted bytes.
+  Joined inbound SendData membership requires the attached UserId and a
+  fully confirmed allocated channel; it grants no TLS, R2 identity/OS
+  authorization, license, capability, reassembly or application permission.
+  Eight NEW dedicated cases in the existing MCS executable and shared
+  CTest registry cover completion, denial, duplicates, batching, joined
+  SendData, stale replies and stale partial-write slices.
+  **PASS (limited):** local GCC 14.2 C++23 ASan/UBSan stand-in 8/8 and
+  Clang 17 C++23 ASan/UBSan 8/8, using a reduced parser/encoder fixture.
+  **NOT RUN before publication:** actual full repository CTest, new-SHA
+  CI, owner three-platform CTests, real R2 admission, Microsoft-client
+  activation or desktop. Hosted CI must validate the integrated commit.
+  **Next:** compose the existing R1 writer and genuine R2 OS-authorized
+  TLS/CredSSP decision into one admission-gated R3 MCS domain dispatcher.
+  **Gate A/M2 is NOT accepted** from this bookkeeping or synthetic tests.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

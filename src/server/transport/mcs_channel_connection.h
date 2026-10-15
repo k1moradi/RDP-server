@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "gcc_conference_create.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -113,6 +115,311 @@ struct McsChannelConfirm
     const McsChannelRequest &joinRequest,
     std::uint32_t assignedUserId,
     std::span<const std::uint16_t> assignedChannelIds) noexcept;
+
+// The sole future authenticated session owner can embed this bounded gate
+// after MCS Connect Response and Attach User completion. This component is
+// NOT an admission token, an authorization decision or an RDP session owner.
+// It tracks only which JOIN replies the caller's single outbound writer has
+// completely accepted; the caller must still check R2 admission, TLS identity,
+// protocol stage and channel permissions before routing ANY application data.
+// Serialized event-loop use only. A borrowed pendingBytes() span is invalidated
+// by every mutating call. The gate is non-copyable to prevent state forks.
+enum class McsJoinStartOutcome : std::uint8_t
+{
+    ReplyPending,
+    Buffered,
+    AlreadyJoined,
+    AlreadyPending,
+    Rejected,
+};
+
+enum class McsJoinWriteOutcome : std::uint8_t
+{
+    Pending,
+    Confirmed,
+    Rejected,
+};
+
+class McsChannelJoinWriteGate final
+{
+public:
+    McsChannelJoinWriteGate() noexcept = default;
+    McsChannelJoinWriteGate(const McsChannelJoinWriteGate &) = delete;
+    McsChannelJoinWriteGate &operator=(const McsChannelJoinWriteGate &) = delete;
+
+    // Caller-supplied IDs are a bounded configuration snapshot, NOT proof
+    // of negotiation, genuine authentication or OS session authorization.
+    // The sole authorized owner must configure exactly once after attachment.
+    [[nodiscard]] bool configure(
+        std::uint32_t assignedUserId,
+        std::span<const std::uint16_t> assignedChannels) noexcept
+    {
+        if (configured_ || closed_ || assignedUserId < 1001U ||
+            assignedUserId > 65536U || assignedChannels.empty() ||
+            assignedChannels.size() > assignedChannelIds_.size())
+        {
+            close();
+            return false;
+        }
+        for (std::size_t index = 0; index < assignedChannels.size(); ++index)
+        {
+            if (assignedChannels[index] == 0)
+            {
+                close();
+                return false;
+            }
+            for (std::size_t previous = 0; previous < index; ++previous)
+            {
+                if (assignedChannels[previous] == assignedChannels[index])
+                {
+                    close();
+                    return false;
+                }
+            }
+        }
+        assignedUserId_ = assignedUserId;
+        channelCount_ = assignedChannels.size();
+        for (std::size_t index = 0; index < channelCount_; ++index)
+            assignedChannelIds_[index] = assignedChannels[index];
+        configured_ = true;
+        return true;
+    }
+
+    // Call for validated post-attach requests in arrival order. Some
+    // Microsoft clients batch every ChannelJoinRequest before receiving
+    // the first confirmation. Queue only distinct, assigned channel IDs in
+    // this SAME bounded gate, never an unbounded borrowed input span.
+    // A single outbound writer still owns all actual TLS write progress.
+    [[nodiscard]] McsJoinStartOutcome beginJoin(const McsChannelRequest &request) noexcept
+    {
+        if (!configured_ || closed_ ||
+            request.kind != McsChannelRequestKind::ChannelJoin ||
+            request.initiator != assignedUserId_ ||
+            request.subHeight != 0 || request.subInterval != 0 ||
+            request.channelId == 0)
+        {
+            close();
+            return McsJoinStartOutcome::Rejected;
+        }
+        for (std::size_t index = 0; index < channelCount_; ++index)
+        {
+            if (assignedChannelIds_[index] != request.channelId)
+                continue;
+            // Already-joined channels never receive a second confirmation.
+            if (confirmedChannels_[index])
+                return McsJoinStartOutcome::AlreadyJoined;
+            if (pendingConfirm_.length != 0 && pendingAssignedIndex_ == index)
+                return McsJoinStartOutcome::AlreadyPending;
+            for (std::size_t queued = 0; queued < queuedCount_; ++queued)
+            {
+                if (queuedAssignedIndices_[queued] == index)
+                    return McsJoinStartOutcome::AlreadyPending;
+            }
+            const auto response = encodeMcsChannelJoinConfirm(
+                request, assignedUserId_,
+                std::span(assignedChannelIds_).first(channelCount_));
+            if (!response)
+                break;
+            if (pendingConfirm_.length == 0)
+            {
+                // Each complete reply owns one stable write receipt. A stale
+                // callback must never advance a different queued reply.
+                if (!advanceReplySequence() || !advanceWriteSliceSequence())
+                {
+                    close();
+                    return McsJoinStartOutcome::Rejected;
+                }
+                pendingConfirm_ = response;
+                pendingAssignedIndex_ = index;
+                return McsJoinStartOutcome::ReplyPending;
+            }
+            // Every allocated channel can appear at most once in the
+            // pending reply plus this queue. Saturation is terminal.
+            if (queuedCount_ == queuedAssignedIndices_.size())
+                break;
+            queuedAssignedIndices_[queuedCount_++] = index;
+            return McsJoinStartOutcome::Buffered;
+        }
+        close();
+        return McsJoinStartOutcome::Rejected;
+    }
+
+    // Only hand this suffix to the connection's existing writer.
+    [[nodiscard]] std::span<const std::uint8_t> pendingBytes() const noexcept
+    {
+        if (!configured_ || closed_ || pendingConfirm_.length == 0)
+            return {};
+        return pendingConfirm_.bytes().subspan(bytesWritten_);
+    }
+
+    // The writer must snapshot this nonzero receipt together with the
+    // borrowed byte suffix, not query it later from an asynchronous callback.
+    // A new queued reply always gets a different receipt. Zero means none.
+    [[nodiscard]] std::uint64_t pendingReplySequence() const noexcept
+    {
+        return configured_ && !closed_ && pendingConfirm_.length != 0
+                   ? replySequence_ : 0;
+    }
+
+    // A separate nonzero slice receipt binds ONE outstanding writer call.
+    // Partial progress advances it while keeping pendingReplySequence stable:
+    // the same confirmation can require several distinct socket writes.
+    // Snapshot both receipts with pendingBytes() at write submission time.
+    // A zero-byte backpressure callback does not consume the slice receipt.
+    [[nodiscard]] std::uint64_t pendingWriteSliceSequence() const noexcept
+    {
+        return configured_ && !closed_ && pendingConfirm_.length != 0
+                   ? writeSliceSequence_ : 0;
+    }
+
+    // Report ONLY bytes actually accepted by the exact outbound adapter.
+    // Zero means backpressure. Over-report, unsolicited/duplicate completion,
+    // or disconnected writer irrevocably close the gate and clear membership.
+    [[nodiscard]] McsJoinWriteOutcome onReplyBytesWritten(
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept
+    {
+        if (!configured_ || closed_ || pendingConfirm_.length == 0 ||
+            replySequence == 0 || replySequence != replySequence_ ||
+            writeSliceSequence == 0 || writeSliceSequence != writeSliceSequence_ ||
+            acceptedBytes > pendingConfirm_.length - bytesWritten_)
+        {
+            close();
+            return McsJoinWriteOutcome::Rejected;
+        }
+        bytesWritten_ += acceptedBytes;
+        if (bytesWritten_ != pendingConfirm_.length)
+        {
+            // Duplicate/late callbacks for the prior submitted suffix
+            // cannot consume a second part of this SAME confirmation.
+            if (acceptedBytes != 0 && !advanceWriteSliceSequence())
+            {
+                close();
+                return McsJoinWriteOutcome::Rejected;
+            }
+            return McsJoinWriteOutcome::Pending;
+        }
+        confirmedChannels_[pendingAssignedIndex_] = true;
+        pendingConfirm_ = {};
+        pendingAssignedIndex_ = 0;
+        bytesWritten_ = 0;
+        // Publish exactly one next immutable reply after the previous
+        // writer completion. Never interleave the two confirmation bytes.
+        if (queuedCount_ != 0)
+        {
+            const std::size_t nextIndex = queuedAssignedIndices_[0];
+            for (std::size_t index = 1; index < queuedCount_; ++index)
+                queuedAssignedIndices_[index - 1] = queuedAssignedIndices_[index];
+            queuedAssignedIndices_[--queuedCount_] = 0;
+            if (!advanceReplySequence() || !advanceWriteSliceSequence())
+            {
+                close();
+                return McsJoinWriteOutcome::Rejected;
+            }
+            McsChannelRequest nextRequest{};
+            nextRequest.kind = McsChannelRequestKind::ChannelJoin;
+            nextRequest.initiator = assignedUserId_;
+            nextRequest.channelId = assignedChannelIds_[nextIndex];
+            pendingConfirm_ = encodeMcsChannelJoinConfirm(
+                nextRequest, assignedUserId_,
+                std::span(assignedChannelIds_).first(channelCount_));
+            if (!pendingConfirm_)
+            {
+                close();
+                return McsJoinWriteOutcome::Rejected;
+            }
+            pendingAssignedIndex_ = nextIndex;
+        }
+        // Confirmed refers to the completed previous reply. A new
+        // pendingBytes() may already be ready for the sole writer.
+        return McsJoinWriteOutcome::Confirmed;
+    }
+
+    // Necessary bookkeeping only, NEVER sufficient for channel access.
+    [[nodiscard]] bool channelJoinConfirmed(std::uint16_t channelId) const noexcept
+    {
+        if (!configured_ || closed_)
+            return false;
+        for (std::size_t index = 0; index < channelCount_; ++index)
+        {
+            if (assignedChannelIds_[index] == channelId)
+                return confirmedChannels_[index];
+        }
+        return false;
+    }
+
+    // Membership-only check on an ALREADY parsed, complete client MCS
+    // SendDataRequest. This never retains borrowed userData, decrypts TLS,
+    // reassembles PER segmentation, licenses/activates a share, or permits
+    // OS/session data dispatch. The sole R3 session owner must enforce those
+    // independent gates even when this predicate returns true.
+    [[nodiscard]] bool matchesJoinedInboundSendData(
+        const McsChannelRequest &request) const noexcept
+    {
+        return configured_ && !closed_ &&
+               request.kind == McsChannelRequestKind::SendDataRequest &&
+               request.initiator == assignedUserId_ &&
+               request.channelId != 0 &&
+               request.subHeight == 0 && request.subInterval == 0 &&
+               request.dataPriority <= 3 && request.segmentation <= 3 &&
+               channelJoinConfirmed(request.channelId);
+    }
+
+    // TLS error, authentication revocation, protocol violation, timeout,
+    // disconnect and reconnect all require a fresh session-owned gate.
+    void close() noexcept
+    {
+        closed_ = true;
+        configured_ = false;
+        assignedUserId_ = 0;
+        channelCount_ = 0;
+        assignedChannelIds_.fill(0);
+        confirmedChannels_.fill(false);
+        queuedAssignedIndices_.fill(0);
+        queuedCount_ = 0;
+        pendingConfirm_ = {};
+        pendingAssignedIndex_ = 0;
+        bytesWritten_ = 0;
+    }
+
+private:
+    // No reply generation can alias an earlier completion in this gate.
+    // Overflow is terminal rather than reusing zero or a prior receipt.
+    [[nodiscard]] bool advanceReplySequence() noexcept
+    {
+        if (replySequence_ == UINT64_MAX)
+            return false;
+        ++replySequence_;
+        return true;
+    }
+
+    // Both counters remain monotonic for the lifetime of this gate, even
+    // through close(). Exhaustion is terminal (no token reuse).
+    [[nodiscard]] bool advanceWriteSliceSequence() noexcept
+    {
+        if (writeSliceSequence_ == UINT64_MAX)
+            return false;
+        ++writeSliceSequence_;
+        return true;
+    }
+
+    std::uint64_t writeSliceSequence_{};
+    std::uint64_t replySequence_{};
+    std::array<std::uint16_t, kMaximumStaticChannelCount + 2U>
+        assignedChannelIds_{};
+    std::array<bool, kMaximumStaticChannelCount + 2U> confirmedChannels_{};
+    std::array<std::size_t, kMaximumStaticChannelCount + 2U>
+        queuedAssignedIndices_{};
+    std::size_t queuedCount_{};
+    McsChannelConfirm pendingConfirm_{};
+    std::uint32_t assignedUserId_{};
+    std::size_t channelCount_{};
+    std::size_t pendingAssignedIndex_{};
+    std::size_t bytesWritten_{};
+    bool configured_{};
+    bool closed_{};
+};
 
 // Per MS-RDPBCGR 3.1.5.1.1, servers send only these two reasons.
 enum class McsDisconnectReason : std::uint8_t

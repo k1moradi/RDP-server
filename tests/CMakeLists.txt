@@ -30,6 +30,14 @@ function(add_rdp_test source_file suite behavior)
                 mcs-channel-join-request
                 mcs-attach-confirm-wire
                 mcs-channel-join-confirm
+                mcs-join-write-completion
+                mcs-join-write-denials
+                mcs-join-duplicate-ignored
+                mcs-join-batched-requests
+                mcs-send-data-joined-membership
+                mcs-send-data-joined-denials
+                mcs-join-stale-write-receipts
+                mcs-join-stale-partial-write-slices
                 mcs-disconnect-wire
                 mcs-disconnect-rejections
                 mcs-send-data-wire

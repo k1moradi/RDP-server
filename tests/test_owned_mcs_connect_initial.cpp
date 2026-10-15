@@ -2643,6 +2643,495 @@ void testRdpFinalizationExchangeDenials()
     assert(check() == consistent);
 }
 
+void testMcsJoinWriteCompletion()
+{
+    // MS-RDPBCGR 4.1.8.2.1: exact client ChannelJoinRequest for
+    // assigned user 1007 and I/O channel 1003.
+    constexpr std::array<std::uint8_t, 12> joinWire{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x06, 0x03, 0xeb};
+    constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
+    const auto parsed = parseMcsChannelRequest(joinWire);
+    assert(parsed && parsed.request.kind == McsChannelRequestKind::ChannelJoin);
+    McsChannelJoinWriteGate gate;
+    assert(!gate.channelJoinConfirmed(1003));
+    assert(gate.pendingBytes().empty());
+    assert(gate.configure(1007, channels));
+    assert(gate.beginJoin(parsed.request) == McsJoinStartOutcome::ReplyPending);
+    const auto exactResponse = encodeMcsChannelJoinConfirm(
+        parsed.request, 1007, channels);
+    assert(exactResponse);
+    assert(std::equal(gate.pendingBytes().begin(), gate.pendingBytes().end(),
+                      exactResponse.bytes().begin(), exactResponse.bytes().end()));
+    assert(!gate.channelJoinConfirmed(1003));
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 0) == McsJoinWriteOutcome::Pending);
+    for (std::size_t index = 0; index + 1 < exactResponse.length; ++index)
+    {
+        assert(gate.pendingBytes().size() == exactResponse.length - index);
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 1) == McsJoinWriteOutcome::Pending);
+        assert(!gate.channelJoinConfirmed(1003));
+    }
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 1) == McsJoinWriteOutcome::Confirmed);
+    assert(gate.channelJoinConfirmed(1003));
+    assert(!gate.channelJoinConfirmed(1007));
+    assert(!gate.channelJoinConfirmed(1005));
+    assert(gate.pendingBytes().empty());
+
+    // A subsequent, separately serialized join can then be confirmed.
+    auto userJoin = parsed.request;
+    userJoin.channelId = 1007;
+    assert(gate.beginJoin(userJoin) == McsJoinStartOutcome::ReplyPending);
+    const auto remainder = gate.pendingBytes().size();
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), remainder) ==
+           McsJoinWriteOutcome::Confirmed);
+    assert(gate.channelJoinConfirmed(1007));
+    gate.close();
+    assert(!gate.channelJoinConfirmed(1003));
+    assert(!gate.channelJoinConfirmed(1007));
+    assert(gate.pendingBytes().empty());
+}
+
+void testMcsJoinWriteDenials()
+{
+    constexpr std::array<std::uint16_t, 2> channels{1007, 1003};
+    constexpr std::array<std::uint16_t, 2> duplicate{1003, 1003};
+    constexpr std::array<std::uint16_t, 2> zero{1003, 0};
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    for (const auto invalid : {0U, 1000U, 65537U, 0xffffffffU})
+    {
+        McsChannelJoinWriteGate gate;
+        assert(!gate.configure(invalid, channels));
+        assert(!gate.configure(1007, channels)); // terminal denial
+    }
+    // The existing production MCS encoder accepts the final T.125 UserId
+    // 65536; the join-delivery guard must not disagree at that boundary.
+    {
+        McsChannelJoinWriteGate gate;
+        auto finalUserJoin = join;
+        finalUserJoin.initiator = 65536U;
+        assert(gate.configure(65536U, channels));
+        assert(gate.beginJoin(finalUserJoin) == McsJoinStartOutcome::ReplyPending);
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), gate.pendingBytes().size()) ==
+               McsJoinWriteOutcome::Confirmed);
+        assert(gate.channelJoinConfirmed(1003));
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(!gate.configure(1007, duplicate));
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::Rejected);
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(!gate.configure(1007, zero));
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.configure(1007, channels));
+        assert(!gate.configure(1007, channels)); // no identity replacement
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::Rejected);
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 0) == McsJoinWriteOutcome::Rejected);
+        assert(!gate.configure(1007, channels));
+    }
+    for (const auto invalidChannel : {0U, 1004U, 65535U})
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.configure(1007, channels));
+        auto bad = join;
+        bad.channelId = static_cast<std::uint16_t>(invalidChannel);
+        assert(gate.beginJoin(bad) == McsJoinStartOutcome::Rejected);
+        assert(!gate.channelJoinConfirmed(1003));
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.configure(1007, channels));
+        auto bad = join;
+        bad.initiator = 1008;
+        assert(gate.beginJoin(bad) == McsJoinStartOutcome::Rejected);
+        assert(!gate.configure(1007, channels));
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.configure(1007, channels));
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 4) == McsJoinWriteOutcome::Pending);
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::AlreadyPending);
+        assert(!gate.channelJoinConfirmed(1003));
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), gate.pendingBytes().size()) ==
+               McsJoinWriteOutcome::Confirmed);
+        assert(gate.channelJoinConfirmed(1003));
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.configure(1007, channels));
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), gate.pendingBytes().size() + 1) ==
+               McsJoinWriteOutcome::Rejected); // over-reported write
+        assert(!gate.channelJoinConfirmed(1003));
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.configure(1007, channels));
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), gate.pendingBytes().size()) ==
+               McsJoinWriteOutcome::Confirmed);
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::AlreadyJoined);
+        assert(gate.channelJoinConfirmed(1003));
+        assert(gate.pendingBytes().empty());
+    }
+    {
+        McsChannelJoinWriteGate gate;
+        assert(gate.configure(1007, channels));
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 2) == McsJoinWriteOutcome::Pending);
+        gate.close(); // disconnect cancels pending and prior membership
+        assert(gate.pendingBytes().empty());
+        assert(!gate.channelJoinConfirmed(1003));
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 0) == McsJoinWriteOutcome::Rejected);
+        assert(!gate.configure(1007, channels));
+    }
+}
+
+void testMcsJoinDuplicateIgnored()
+{
+    // MS-RDPBCGR 3.3.5.3.8: a fully joined channel must not be
+    // reconfirmed or cause the server to terminate an otherwise live domain.
+    constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, channels));
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), gate.pendingBytes().size()) ==
+           McsJoinWriteOutcome::Confirmed);
+    for (int repeated = 0; repeated < 3; ++repeated)
+    {
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::AlreadyJoined);
+        assert(gate.pendingBytes().empty());
+        assert(gate.channelJoinConfirmed(1003));
+    }
+    join.channelId = 1005;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(!gate.channelJoinConfirmed(1005));
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), gate.pendingBytes().size()) ==
+           McsJoinWriteOutcome::Confirmed);
+    assert(gate.channelJoinConfirmed(1003));
+    assert(gate.channelJoinConfirmed(1005));
+    gate.close();
+    assert(!gate.channelJoinConfirmed(1003));
+    assert(!gate.channelJoinConfirmed(1005));
+}
+
+void testMcsJoinBatchedRequests()
+{
+    // RDP 8.1/10.0/10.1 can batch user, I/O and all static-channel joins
+    // before the first confirmation. Bound the complete pending batch to
+    // one record per allocated channel; never retain borrowed packet spans.
+    std::array<std::uint16_t, kMaximumStaticChannelCount + 2U> channels{};
+    channels[0] = 1007;
+    for (std::size_t i = 1; i < channels.size(); ++i)
+        channels[i] = static_cast<std::uint16_t>(1200U + i);
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, channels));
+    McsChannelRequest request{};
+    request.kind = McsChannelRequestKind::ChannelJoin;
+    request.initiator = 1007;
+    for (std::size_t i = 0; i < channels.size(); ++i)
+    {
+        request.channelId = channels[i];
+        assert(gate.beginJoin(request) == (i == 0
+            ? McsJoinStartOutcome::ReplyPending
+            : McsJoinStartOutcome::Buffered));
+        assert(gate.beginJoin(request) == McsJoinStartOutcome::AlreadyPending);
+        assert(!gate.channelJoinConfirmed(channels[i]));
+    }
+    // A queued channel is not joined before its OWN confirmation bytes.
+    for (std::size_t i = 0; i < channels.size(); ++i)
+    {
+        request.channelId = channels[i];
+        const auto expected = encodeMcsChannelJoinConfirm(request, 1007, channels);
+        assert(expected);
+        const auto bytes = gate.pendingBytes();
+        assert(bytes.size() == expected.length);
+        assert(std::equal(bytes.begin(), bytes.end(),
+                          expected.bytes().begin(), expected.bytes().end()));
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 1) == McsJoinWriteOutcome::Pending);
+        assert(!gate.channelJoinConfirmed(channels[i]));
+        assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), expected.length - 1) ==
+               McsJoinWriteOutcome::Confirmed);
+        assert(gate.channelJoinConfirmed(channels[i]));
+        assert(gate.beginJoin(request) == McsJoinStartOutcome::AlreadyJoined);
+        if (i + 1 < channels.size())
+            assert(gate.pendingBytes().size() == expected.length);
+    }
+    assert(gate.pendingBytes().empty());
+    gate.close();
+    for (const auto id : channels)
+        assert(!gate.channelJoinConfirmed(id));
+
+    // Cancellation erases both a pending partial reply and every queued ID.
+    McsChannelJoinWriteGate cancelled;
+    assert(cancelled.configure(1007, channels));
+    request.channelId = channels[0];
+    assert(cancelled.beginJoin(request) == McsJoinStartOutcome::ReplyPending);
+    assert(cancelled.onReplyBytesWritten(cancelled.pendingReplySequence(), cancelled.pendingWriteSliceSequence(), 3) == McsJoinWriteOutcome::Pending);
+    request.channelId = channels[1];
+    assert(cancelled.beginJoin(request) == McsJoinStartOutcome::Buffered);
+    cancelled.close();
+    assert(cancelled.pendingBytes().empty());
+    assert(!cancelled.channelJoinConfirmed(channels[0]));
+    assert(!cancelled.channelJoinConfirmed(channels[1]));
+    assert(cancelled.onReplyBytesWritten(cancelled.pendingReplySequence(), cancelled.pendingWriteSliceSequence(), 0) == McsJoinWriteOutcome::Rejected);
+
+    // Foreign IDs are terminal even while a legitimate batch is waiting.
+    McsChannelJoinWriteGate denied;
+    assert(denied.configure(1007, channels));
+    request.channelId = channels[0];
+    assert(denied.beginJoin(request) == McsJoinStartOutcome::ReplyPending);
+    request.channelId = channels[1];
+    assert(denied.beginJoin(request) == McsJoinStartOutcome::Buffered);
+    request.channelId = 65535;
+    assert(denied.beginJoin(request) == McsJoinStartOutcome::Rejected);
+    assert(denied.pendingBytes().empty());
+    for (const auto id : channels)
+        assert(!denied.channelJoinConfirmed(id));
+
+    // 31 static + two base channels is the fixed maximum.
+    std::array<std::uint16_t, kMaximumStaticChannelCount + 3U> tooMany{};
+    for (std::size_t i = 0; i < tooMany.size(); ++i)
+        tooMany[i] = static_cast<std::uint16_t>(1300U + i);
+    McsChannelJoinWriteGate oversized;
+    assert(!oversized.configure(1007, tooMany));
+    assert(!oversized.configure(1007, channels));
+}
+
+void testMcsJoinedSendDataMembership()
+{
+    // Parse the genuine T.125 SendDataRequest envelope before consulting
+    // this offline join-membership gate. No TLS/OS admission is asserted.
+    constexpr std::array<std::uint8_t, 9> sendMcs{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x02, 0x55, 0xaa};
+    const auto frame = frameDomainPdu(sendMcs);
+    const auto parsed = parseMcsChannelRequest(frame);
+    assert(parsed);
+    assert(parsed.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(parsed.request.initiator == 1007);
+    assert(parsed.request.channelId == 1003);
+    assert(parsed.request.userData.size() == 2);
+    constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
+    McsChannelJoinWriteGate gate;
+    assert(!gate.matchesJoinedInboundSendData(parsed.request));
+    assert(gate.configure(1007, channels));
+    assert(!gate.matchesJoinedInboundSendData(parsed.request));
+
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 14) == McsJoinWriteOutcome::Pending);
+    assert(!gate.matchesJoinedInboundSendData(parsed.request));
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 1) == McsJoinWriteOutcome::Confirmed);
+    assert(gate.matchesJoinedInboundSendData(parsed.request));
+
+    auto unjoined = parsed.request;
+    unjoined.channelId = 1005;
+    assert(!gate.matchesJoinedInboundSendData(unjoined));
+    join.channelId = 1005;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(!gate.matchesJoinedInboundSendData(unjoined));
+    assert(gate.matchesJoinedInboundSendData(parsed.request));
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 15) == McsJoinWriteOutcome::Confirmed);
+    assert(gate.matchesJoinedInboundSendData(unjoined));
+    gate.close();
+    assert(!gate.matchesJoinedInboundSendData(parsed.request));
+    assert(!gate.matchesJoinedInboundSendData(unjoined));
+}
+
+void testMcsJoinedSendDataDenials()
+{
+    constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, channels));
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 15) == McsJoinWriteOutcome::Confirmed);
+    McsChannelRequest request{};
+    request.kind = McsChannelRequestKind::SendDataRequest;
+    request.initiator = 1007;
+    request.channelId = 1003;
+    assert(gate.matchesJoinedInboundSendData(request));
+    auto bad = request;
+    bad.kind = McsChannelRequestKind::ChannelJoin;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.initiator = 1008;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.channelId = 0;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.channelId = 999;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.channelId = 1005; // allocated, but not yet joined
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.subHeight = 1;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.subInterval = 1;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.dataPriority = 4;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    bad = request;
+    bad.segmentation = 4;
+    assert(!gate.matchesJoinedInboundSendData(bad));
+    // Denied probes cannot corrupt an independently completed join.
+    assert(gate.matchesJoinedInboundSendData(request));
+    gate.close();
+    assert(!gate.matchesJoinedInboundSendData(request));
+}
+
+void testMcsJoinStaleWriteReceipts()
+{
+    constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, channels));
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    const auto firstReceipt = gate.pendingReplySequence();
+    assert(firstReceipt != 0);
+    assert(gate.onReplyBytesWritten(firstReceipt, gate.pendingWriteSliceSequence(), 7) ==
+           McsJoinWriteOutcome::Pending);
+    assert(gate.pendingReplySequence() == firstReceipt);
+    join.channelId = 1005;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::Buffered);
+    assert(gate.onReplyBytesWritten(firstReceipt, gate.pendingWriteSliceSequence(), 8) ==
+           McsJoinWriteOutcome::Confirmed);
+    assert(gate.channelJoinConfirmed(1003));
+    assert(!gate.channelJoinConfirmed(1005));
+    const auto nextReceipt = gate.pendingReplySequence();
+    assert(nextReceipt != 0 && nextReceipt != firstReceipt);
+    assert(gate.pendingBytes().size() == 15);
+    // An earlier, duplicated write callback must not complete the next
+    // channel's response; close all joined and pending membership.
+    assert(gate.onReplyBytesWritten(firstReceipt, gate.pendingWriteSliceSequence(), 15) ==
+           McsJoinWriteOutcome::Rejected);
+    assert(gate.pendingReplySequence() == 0);
+    assert(gate.pendingBytes().empty());
+    assert(!gate.channelJoinConfirmed(1003));
+    assert(!gate.channelJoinConfirmed(1005));
+    assert(gate.onReplyBytesWritten(nextReceipt, gate.pendingWriteSliceSequence(), 1) ==
+           McsJoinWriteOutcome::Rejected);
+
+    McsChannelJoinWriteGate forged;
+    assert(forged.configure(1007, channels));
+    join.channelId = 1003;
+    assert(forged.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    const auto correct = forged.pendingReplySequence();
+    assert(correct != 0);
+    assert(forged.onReplyBytesWritten(0, forged.pendingWriteSliceSequence(), 0) ==
+           McsJoinWriteOutcome::Rejected);
+    assert(forged.pendingBytes().empty());
+
+    McsChannelJoinWriteGate future;
+    assert(future.configure(1007, channels));
+    assert(future.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    const auto current = future.pendingReplySequence();
+    assert(current != 0);
+    assert(future.onReplyBytesWritten(current + 1U, future.pendingWriteSliceSequence(), 1) ==
+           McsJoinWriteOutcome::Rejected);
+    assert(future.pendingReplySequence() == 0);
+
+    McsChannelJoinWriteGate cancelled;
+    assert(cancelled.configure(1007, channels));
+    assert(cancelled.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    const auto abandoned = cancelled.pendingReplySequence();
+    cancelled.close();
+    assert(cancelled.onReplyBytesWritten(abandoned, cancelled.pendingWriteSliceSequence(), 15) ==
+           McsJoinWriteOutcome::Rejected);
+}
+
+void testMcsJoinStalePartialWriteSlices()
+{
+    // A reply ID alone cannot distinguish two writes of the SAME
+    // 15-byte confirmation. Duplicate callbacks must not double-count.
+    constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, channels));
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    const auto reply = gate.pendingReplySequence();
+    const auto firstSlice = gate.pendingWriteSliceSequence();
+    assert(reply != 0 && firstSlice != 0);
+    assert(gate.pendingBytes().size() == 15);
+    assert(gate.onReplyBytesWritten(reply, firstSlice, 0) ==
+           McsJoinWriteOutcome::Pending);
+    assert(gate.pendingWriteSliceSequence() == firstSlice);
+    assert(gate.onReplyBytesWritten(reply, firstSlice, 4) ==
+           McsJoinWriteOutcome::Pending);
+    const auto secondSlice = gate.pendingWriteSliceSequence();
+    assert(secondSlice != 0 && secondSlice != firstSlice);
+    assert(gate.pendingReplySequence() == reply);
+    assert(gate.pendingBytes().size() == 11);
+    // Duplicated first callback must revoke, not consume four extra bytes.
+    assert(gate.onReplyBytesWritten(reply, firstSlice, 4) ==
+           McsJoinWriteOutcome::Rejected);
+    assert(gate.pendingBytes().empty());
+    assert(gate.pendingWriteSliceSequence() == 0);
+    assert(!gate.channelJoinConfirmed(1003));
+    assert(gate.onReplyBytesWritten(reply, secondSlice, 11) ==
+           McsJoinWriteOutcome::Rejected);
+
+    McsChannelJoinWriteGate progress;
+    assert(progress.configure(1007, channels));
+    assert(progress.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    const auto sameReply = progress.pendingReplySequence();
+    const auto partOne = progress.pendingWriteSliceSequence();
+    assert(progress.onReplyBytesWritten(sameReply, partOne, 14) ==
+           McsJoinWriteOutcome::Pending);
+    const auto partTwo = progress.pendingWriteSliceSequence();
+    assert(partTwo != partOne);
+    assert(progress.onReplyBytesWritten(sameReply, partTwo, 1) ==
+           McsJoinWriteOutcome::Confirmed);
+    assert(progress.channelJoinConfirmed(1003));
+
+    // A callback with no write-slice identity must terminally revoke.
+    McsChannelJoinWriteGate missing;
+    assert(missing.configure(1007, channels));
+    assert(missing.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(missing.onReplyBytesWritten(missing.pendingReplySequence(), 0, 1) ==
+           McsJoinWriteOutcome::Rejected);
+    assert(!missing.channelJoinConfirmed(1003));
+
+    // A future slice ID must also fail closed, never skip progress.
+    McsChannelJoinWriteGate futureSlice;
+    assert(futureSlice.configure(1007, channels));
+    assert(futureSlice.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(futureSlice.onReplyBytesWritten(
+               futureSlice.pendingReplySequence(),
+               futureSlice.pendingWriteSliceSequence() + 1U, 1) ==
+           McsJoinWriteOutcome::Rejected);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -2669,7 +3158,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 41> kMcsTestCases{{
+constexpr std::array<McsTestCase, 49> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -2683,6 +3172,14 @@ constexpr std::array<McsTestCase, 41> kMcsTestCases{{
     {"mcs-channel-join-request", &testMcsChannelJoinRequest},
     {"mcs-attach-confirm-wire", &testMcsAttachConfirmWire},
     {"mcs-channel-join-confirm", &testMcsChannelJoinConfirmWireAndRejections},
+    {"mcs-join-write-completion", &testMcsJoinWriteCompletion},
+    {"mcs-join-write-denials", &testMcsJoinWriteDenials},
+    {"mcs-join-duplicate-ignored", &testMcsJoinDuplicateIgnored},
+    {"mcs-join-batched-requests", &testMcsJoinBatchedRequests},
+    {"mcs-send-data-joined-membership", &testMcsJoinedSendDataMembership},
+    {"mcs-send-data-joined-denials", &testMcsJoinedSendDataDenials},
+    {"mcs-join-stale-write-receipts", &testMcsJoinStaleWriteReceipts},
+    {"mcs-join-stale-partial-write-slices", &testMcsJoinStalePartialWriteSlices},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

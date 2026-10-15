@@ -1943,6 +1943,24 @@ void testOwnedTcpConnectionCancellation()
 }
 
 
+
+[[nodiscard]] TcpConnectionIoInterest waitForOwnedTcpReply(
+    OwnedPreauthTcpConnection &owner)
+{
+    // A single nonblocking recv may contain only a fragment even after
+    // nativeSendAll returned. Retry only the READ direction under a
+    // bounded fixture deadline; the production owner remains one-step.
+    for (int attempt = 0; attempt < 2048; ++attempt)
+    {
+        const auto interest = owner.onSocketReady(true, false);
+        if (interest != TcpConnectionIoInterest::Read)
+            return interest;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(false && "X.224 input did not reach the expected reply boundary");
+    return owner.ioInterest();
+}
+
 void testOwnedTcpReadinessDispatch()
 {
     // Real ephemeral TCP listener; no OS session admission or service.
@@ -1964,7 +1982,7 @@ void testOwnedTcpReadinessDispatch()
     nativeSendAll(clientIo, std::span(request).first(3));
     assert(owner.onSocketReady(true, false) == Interest::Read);
     nativeSendAll(clientIo, std::span(request).subspan(3));
-    assert(owner.onSocketReady(true, false) == Interest::Write);
+    assert(waitForOwnedTcpReply(owner) == Interest::Write);
 
     // The Confirm cannot be emitted on a readable-only callback.
     assert(owner.onSocketReady(true, false) == Interest::Write);
@@ -2068,7 +2086,7 @@ void testOwnedTcpReadinessDispatch()
     auto malformed = validRequestWire();
     malformed[15] = 0;
     nativeSendAll(rejectedClient, malformed);
-    assert(rejected.onSocketReady(true, false) == Interest::Write);
+    assert(waitForOwnedTcpReply(rejected) == Interest::Write);
     assert(rejected.onSocketReady(true, false) == Interest::Write);
     assert(rejected.onSocketReady(false, true) == Interest::Closed);
     std::array<std::uint8_t, 19> failureReply{};
@@ -2099,7 +2117,7 @@ void testOwnedTcpPendingReplyInterestPriority()
         nativeSendAll(client, request);
 
         assert(owner.ioInterest() == Interest::Read);
-        assert(owner.onSocketReady(true, false) == Interest::Write);
+        assert(waitForOwnedTcpReply(owner) == Interest::Write);
         assert(owner.ioInterest() == Interest::Write);
         assert(owner.establishedTls() == nullptr);
         assert(owner.onSocketReady(true, false) == Interest::Write);
@@ -2167,7 +2185,7 @@ void testOwnedTcpDeadlineCancellation()
         NativeTcpIo client{static_cast<std::uintptr_t>(pair.client.value)};
         const auto request = validRequestWire();
         nativeSendAll(client, request);
-        assert(owner.onSocketReady(true, false) == Interest::Write);
+        assert(waitForOwnedTcpReply(owner) == Interest::Write);
         assert(owner.onSocketReady(false, true) == Interest::ConfigureTls);
         std::array<std::uint8_t, 19> confirm{};
         nativeReadAll(client, confirm);

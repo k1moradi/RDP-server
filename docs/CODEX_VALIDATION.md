@@ -3488,3 +3488,22 @@ Clang23, macOS27, actual TLS+R2 OS admission or
 Microsoft-client desktop/clipboard.
 **Next:** R1 full CI remediation, any remaining Windows
 CI triage, then real R3→R8 authorized ingress once available.
+
+## R1 cross-platform nonblocking test fixture correction (2026-10-15)
+
+**Parent `main`:** `3b22e8fa018d093339f4d1f5e7c44fe90ef7b4f3`; [Actions 38799213949](https://github.com/k1moradi/RDP-server/actions/runs/38799213949)
+with repaired pending-reply precedence. **PASS** Linux/GCC
+**176/176** in Debug and Release, all R1 tests and downstream consumer;
+Windows/MSVC Debug and Release jobs PASS; macOS/Clang Debug
+**164/164 PASS**. **FAIL** macOS/Clang Release only
+`transport.tcp-owned-deadline-cancellation` assertion at
+`tests/test_owned_preauth_session.cpp:2170`: server callback returned
+`Read` because TCP delivered a fragment of an otherwise valid X.224
+request. The production behavior was correct. The dedicated test
+fixture now uses a bounded 2048-step 1ms retry under nonblocking
+`Read` until the same production owner advertises `Write`, and
+retains byte/phase/closed-socket assertions. Other new R1 tests use
+the same helper against cross-platform fragmentation.
+**NOT RUN at authoring:** corrected full Debug+Release CTests,
+owner Linux/X11, MSYS2 CLANG64 Clang23, macOS27, real Microsoft client
+or authenticated OS session. No production-code change in this commit.

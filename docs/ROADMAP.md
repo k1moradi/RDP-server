@@ -426,6 +426,23 @@ actually run; another parser CTest alone is not a complete session.
   **NOT RUN** at authoring. This is a test-detected R1 production fix,
   not an authentication success. No second stage owner or event loop.
 
+  **R1 portable nonblocking readiness-fixture repair (2026-10-15;
+  parent `3b22e8fa018d093339f4d1f5e7c44fe90ef7b4f3`):** Exact repair-SHA [Actions
+  38799213949](https://github.com/k1moradi/RDP-server/actions/runs/38799213949)
+  verified **PASS Linux 176/176 Debug+Release** and
+  **PASS Windows full Debug+Release**, including all three new R1
+  behavior CTests. macOS Debug **164/164 PASS**; macOS Release
+  **163/164 FAIL** only
+  `transport.tcp-owned-deadline-cancellation`: its new test fixture
+  incorrectly assumed one nonblocking receive always collects a full
+  X.224 request immediately after the client's send. The actual
+  transport can validly return `Read` for partial bytes on any OS.
+  Repair test-only synchronization with a bounded 2,048-step retry,
+  never a production poller or relaxed protocol assertion; reuse this
+  helper in readiness/denial/deadline tests. Corrected exact-SHA CI
+  **NOT RUN** at authoring. Owner Windows CLANG64/macOS27 tests
+  **NOT RUN**. No production behavior, privilege or admission change.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

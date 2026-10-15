@@ -1265,6 +1265,10 @@ and remains independent of the accepted socket lifetime.
 
 Do not introduce a second phase enum/cache when existing preauth reply
 bytes and `SSL_want_write` identify the required readiness direction.
+A complete X.224 request can advance the diagnostic stage before the
+Confirm/failure suffix is written. Inspect pending reply bytes FIRST;
+select writable readiness and the existing reply writer ahead of TLS
+configuration or terminal close until its entire suffix is sent.
 Gate native callbacks on the matching supplied bit, and advance at
 most one of the existing bounded X.224/TLS/MCS callbacks per event.
 An external `steady_clock` time point and policy deadline trigger

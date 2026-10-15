@@ -1352,6 +1352,10 @@ The same `OwnedPreauthTcpConnection` now advertises `Read`, `Write`,
 unsent X.224 Confirm bytes and OpenSSL's WANT direction. An event loop
 supplies readiness bits to `onSocketReady`, which executes at most one
 existing bounded callback only when the correct bit is present.
+**Critical ordering:** X.224 Confirm/NEG_FAILURE bytes can remain queued
+after the parser advances to `AwaitTls` or closes. Writable interest
+and the original bounded reply-sender must take precedence over the
+resulting stage until the response is fully transmitted.
 `ConfigureTls` cannot read TLS bytes without the caller transferring
 a configured server SSL. `cancelIfExpired` takes caller-owned monotonic
 clock instants, frees borrowed BIO/SSL before socket closure, and makes

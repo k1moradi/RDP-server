@@ -1730,3 +1730,7 @@ monotonic timestamps for a partially received X.224 request and an
 attached-but-incomplete TLS handshake, validating cleanup and listener
 preservation without waiting on a real timer. A green offline case
 does not assert R2 credentials, R3 channel admission or desktop access.
+A further dedicated `transport.tcp-owned-reply-interest-priority`
+regression asserts that successful X.224 Confirm and rejected
+NEG_FAILURE remain scheduled for full bounded write *after* parsing
+has advanced the underlying stage, and never become premature TLS.

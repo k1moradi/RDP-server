@@ -409,6 +409,23 @@ actually run; another parser CTest alone is not a complete session.
   bounded listener accept budget to R10's already authorized runtime
   without bypassing the R2/R3 security gates.
 
+  **R1 direct-to-main readiness repair (2026-10-15; parent
+  `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`):** Initial new-code [Actions run
+  38798562218](https://github.com/k1moradi/RDP-server/actions/runs/38798562218)
+  exposed two R1 CTest failures on Linux: dispatcher picked
+  `ConfigureTls` after the Connection Request advanced to `AwaitTls`
+  but its 19-byte Confirm was still queued. The same precedence applies
+  to a permitted failure reply after rejection. Fix `ioInterest` and
+  `onSocketReady` to prioritize any pending X.224 reply suffix
+  regardless of diagnostic stage, then dispatch through the existing
+  bounded `onWritable` until fully sent before TLS or terminal close.
+  Add dedicated `transport.tcp-owned-reply-interest-priority` CTest
+  for both successful Confirm and rejected NEG_FAILURE, wrong-direction
+  wakeups, exact bytes and listener preservation. **FAIL** initial
+  new-code Linux focused/full CTest; corrected code exact-SHA CI
+  **NOT RUN** at authoring. This is a test-detected R1 production fix,
+  not an authentication success. No second stage owner or event loop.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

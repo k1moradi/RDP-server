@@ -2079,6 +2079,46 @@ void testOwnedTcpReadinessDispatch()
     assert(rejected.onSocketReady(true, true) == Interest::Closed);
 }
 
+
+void testOwnedTcpPendingReplyInterestPriority()
+{
+    // Parsing a complete request advances the diagnostic stage BEFORE
+    // its X.224 response is sent. Polling must still request Write,
+    // for both a successful Confirm and a fail-closed NEG_FAILURE.
+    using Interest = TcpConnectionIoInterest;
+    for (const bool valid : {true, false})
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo client{static_cast<std::uintptr_t>(pair.client.value)};
+        auto request = validRequestWire();
+        if (!valid) request[15] = 0;
+        nativeSendAll(client, request);
+
+        assert(owner.ioInterest() == Interest::Read);
+        assert(owner.onSocketReady(true, false) == Interest::Write);
+        assert(owner.ioInterest() == Interest::Write);
+        assert(owner.establishedTls() == nullptr);
+        assert(owner.onSocketReady(true, false) == Interest::Write);
+        const auto expected = negotiateDiagnosticTls(
+            parseConnectionRequest(request)).packet;
+        assert(owner.onSocketReady(false, true) ==
+               (valid ? Interest::ConfigureTls : Interest::Closed));
+        std::array<std::uint8_t, 19> response{};
+        nativeReadAll(client, response);
+        assert(response == expected);
+        assert(owner.onSocketReady(true, true) ==
+               (valid ? Interest::ConfigureTls : Interest::Closed));
+        assert(owner.establishedTls() == nullptr);
+        assert(pair.listener.value != kInvalidLocalSocket);
+        owner.cancel();
+        assert(!owner.active());
+    }
+}
+
 void testOwnedTcpDeadlineCancellation()
 {
     using Interest = TcpConnectionIoInterest;
@@ -4343,6 +4383,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-connection-tls-lifecycle", &testOwnedTcpConnectionTlsLifecycle},
     {"tcp-owned-connection-cancellation", &testOwnedTcpConnectionCancellation},
     {"tcp-owned-readiness-dispatch", &testOwnedTcpReadinessDispatch},
+    {"tcp-owned-reply-interest-priority", &testOwnedTcpPendingReplyInterestPriority},
     {"tcp-owned-deadline-cancellation", &testOwnedTcpDeadlineCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},

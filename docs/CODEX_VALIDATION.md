@@ -3329,3 +3329,23 @@ suite and all R3/R8 assertions. **NOT RUN at authoring:** exact correction
 SHA CI, owner's Linux/X11, MSYS2 CLANG64/Clang23, macOS27 and live
 R2/R3-authorized clipboard integration. **Next:** inspect the exact
 correction SHA's GCC/Clang/MSVC Debug/Release CI before asserting PASS.
+
+## R1 pending X.224 reply priority fix (2026-10-15)
+
+**Parent `main`:** `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`; initial R1 readiness commit
+`209ebb6fa714b4bba61478539976719506b9b96d` exact
+[Actions 38798562218](https://github.com/k1moradi/RDP-server/actions/runs/38798562218)
+reported new dedicated Linux transport CTests FAIL: the preauth
+stage already advanced to `AwaitTls` while the Confirm suffix still
+needed to be sent, so stage-first readiness incorrectly returned
+`ConfigureTls`. The repair selects pending X.224 reply bytes before
+consulting stage, dispatches write through the existing bounded
+`PreauthTcpAdapter`, and preserves rejection failure-response flush.
+**Dedicated new behavior CTest:**
+`transport.tcp-owned-reply-interest-priority` (real loopback success
+and failure responses, wrong-direction wakeup, exact 19-byte parity).
+**PASS:** source-inspected transition and CTest registered in central
+registry. **NOT RUN at authoring:** corrected full CTest, exact repair
+commit CI, owner native Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS27 toolchains, actual client/OS authentication. Windows baseline
+R10 CRLF configuration test remains separately tracked in Issue #9.

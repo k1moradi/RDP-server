@@ -94,6 +94,7 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-connection-tls-lifecycle
                 tcp-owned-connection-cancellation
                 tcp-owned-readiness-dispatch
+                tcp-owned-reply-interest-priority
                 tcp-owned-deadline-cancellation
                 tls-nonblocking-handshake
                 tls-nonblocking-failures

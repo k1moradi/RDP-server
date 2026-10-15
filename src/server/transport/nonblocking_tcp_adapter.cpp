@@ -343,12 +343,17 @@ TcpConnectionIoInterest OwnedPreauthTcpConnection::ioInterest() const noexcept
 {
     if (!active()) return TcpConnectionIoInterest::Closed;
 
+    // Connection Request parsing advances to AwaitTls (or rejects) BEFORE
+    // its X.224 Confirm/Failure has drained. Pending wire bytes take
+    // precedence over the protocol stage: only writable readiness may
+    // deliver them, and TLS configuration must not start early.
+    if (!adapter_.connection().pendingConnectionReply().empty())
+        return TcpConnectionIoInterest::Write;
+
     switch (stage())
     {
     case PreauthStage::AwaitConnectionRequest:
-        return adapter_.connection().pendingConnectionReply().empty()
-                   ? TcpConnectionIoInterest::Read
-                   : TcpConnectionIoInterest::Write;
+        return TcpConnectionIoInterest::Read;
     case PreauthStage::AwaitTls:
         if (!serverTls_) return TcpConnectionIoInterest::ConfigureTls;
         return SSL_want_write(serverTls_.get())
@@ -377,15 +382,20 @@ TcpConnectionIoInterest OwnedPreauthTcpConnection::onSocketReady(
         (requested == TcpConnectionIoInterest::Write && !writable))
         return requested;
 
-    // Exactly ONE existing bounded callback per event. The underlying
-    // protocol stage remains the sole authority for the next step.
+    // A protocol transition can occur before its Confirm/Failure is
+    // delivered. Drain pending reply bytes through the existing
+    // adapter regardless of whether the stage is AwaitTls or Closed.
+    if (!adapter_.connection().pendingConnectionReply().empty())
+    {
+        (void)onWritable();
+        return ioInterest();
+    }
+
+    // Exactly ONE existing bounded callback per matching event.
     switch (stage())
     {
     case PreauthStage::AwaitConnectionRequest:
-        if (requested == TcpConnectionIoInterest::Read)
-            (void)onReadable();
-        else
-            (void)onWritable();
+        (void)onReadable();
         break;
     case PreauthStage::AwaitTls:
         (void)onTlsIoReady();

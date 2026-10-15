@@ -3782,3 +3782,25 @@ results will be reported separately, not anticipated as PASS.
 **Next:** fully session-authorized native capture-to-R4 frame
 ownership integration with deterministic disconnect/topology
 change and cancellation test. M4 human acceptance remains NOT RUN.
+
+## R7 verified corrected CoreVideo/Retina CI (2026-10-15)
+
+**Production base:** `e13e473bf901524ff53c6e0e01b42dfef2ad041c`.
+**First failure:** [Actions 38799661046](https://github.com/k1moradi/RDP-server/actions/runs/38799661046)
+macOS arm64 Debug link undefined `_kCFAllocatorDefault` from the
+synthetic CoreVideo test; documentation-policy and Ubuntu/Windows jobs
+passed on that source SHA.
+**Fix:** `0b248c67f8c62ac31d2f94ff4c091bb527f10766` links
+CoreFoundation ONLY to the Apple native test target, without changing
+production R7 CoreVideo/CoreGraphics or portable protocol linkage.
+**PASS:** [Actions 38800167816](https://github.com/k1moradi/RDP-server/actions/runs/38800167816)
+completed Ubuntu/GCC **184/184**, macOS/Apple Clang **173/173**,
+Windows/MSVC **180/180** CTests EACH in both Debug and Release,
+including all nine offline R7 macOS CTests on the hosted Apple runner.
+Project policy, SDK staged install/downstream consumer and ZIP/checksum
+artifacts all passed. **NOT RUN:** owner macOS27 and MSYS2 CLANG64/
+Clang23 exact-SHA terminal runs, real permission requests, independent
+OS account admission, ScreenCaptureKit frames, Microsoft-client input
+and desktop reconnect, performance benchmarks.
+**Next:** native macOS display geometry sampling with a new behavior
+CTest; then authorized R2/R3/R4 capture/lifetime integration.

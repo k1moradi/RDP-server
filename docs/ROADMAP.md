@@ -2497,6 +2497,16 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 corrected exact-commit hosted CI PASS:** Code
+  `0b248c67f8c62ac31d2f94ff4c091bb527f10766`,
+  [Actions 38800167816](https://github.com/k1moradi/RDP-server/actions/runs/38800167816):
+  Ubuntu/GCC **184/184**, macOS/Apple Clang **173/173** and
+  Windows/MSVC **180/180** full registered CTests EACH in Debug and
+  Release. Nine Apple-only/portable R7 tests PASS on macOS, six portable
+  tests PASS on Linux/Windows. SDK downstream consumer, ZIP/SHA256 and
+  documentation-policy PASS. **NOT RUN:** owner's macOS27/CLANG64 Clang23
+  exact-SHA validation, approved live desktop/TCC, authenticated RDP
+  client and benchmark. M1/M5 remain open.
   **R6 exact-SHA hosted CI verification:** implementation commit
   `bd56f3a8ebcf4fa72d3419fb417d5a01f1678961`,
   [Actions 38797799194](https://github.com/k1moradi/RDP-server/actions/runs/38797799194):

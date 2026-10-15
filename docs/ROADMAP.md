@@ -1689,7 +1689,7 @@ actually run; another parser CTest alone is not a complete session.
   disconnect path with outbound TLS write completion, membership
   checks and bounded cancellation. Record a real Microsoft-client
   post-auth share activation before treating this as functional.
-  **R3 Channel Join delivery gate (2026-10-15; implementation CI pending):**
+  **R3 Channel Join delivery gate (2026-10-15; exact-SHA CI PASS):**
   In the existing MCS module, a single event-loop-affine, bounded component
   tracks up to 33 assigned Channel Join Requests in arrival order, while
   one existing outbound writer serializes each 15-byte confirmation.
@@ -1706,9 +1706,16 @@ actually run; another parser CTest alone is not a complete session.
   SendData, stale replies and stale partial-write slices.
   **PASS (limited):** local GCC 14.2 C++23 ASan/UBSan stand-in 8/8 and
   Clang 17 C++23 ASan/UBSan 8/8, using a reduced parser/encoder fixture.
-  **NOT RUN before publication:** actual full repository CTest, new-SHA
-  CI, owner three-platform CTests, real R2 admission, Microsoft-client
-  activation or desktop. Hosted CI must validate the integrated commit.
+  **PASS (exact implementation SHA):**
+  `469f49e5d4621017016a06095a17ca7cbfc10182`,
+  [Actions 38794591251](https://github.com/k1moradi/RDP-server/actions/runs/38794591251):
+  Linux/GCC **124/124** and macOS/Clang, Windows/MSVC **114/114**
+  full CTests in BOTH Debug and Release. All eight new R3 CTests,
+  documentation-policy, installed SDK consumer, ZIP packaging and
+  SHA256 artifact checks PASS. Prerelease SKIPPED (no version tag).
+  **NOT RUN:** owner exact-SHA Linux/X11, MSYS2 CLANG64/Clang23
+  and macOS27 CTests, real TLS/CredSSP/OS-admitted Microsoft-client
+  activation, licensed session or desktop.
   **Next:** compose the existing R1 writer and genuine R2 OS-authorized
   TLS/CredSSP decision into one admission-gated R3 MCS domain dispatcher.
   **Gate A/M2 is NOT accepted** from this bookkeeping or synthetic tests.

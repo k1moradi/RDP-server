@@ -2636,6 +2636,18 @@ graphics and desktop. Prior owner 101/101 is unrelated baseline evidence.
 outbound transport completion and a genuine R2 TLS-bound CredSSP/GSS
 plus OS authorization decision. M2/Gate A remain NOT ACCEPTED.
 
+**PASS (exact implementation CI):** commit
+[`469f49e5d4621017016a06095a17ca7cbfc10182`](https://github.com/k1moradi/RDP-server/commit/469f49e5d4621017016a06095a17ca7cbfc10182),
+[Actions 38794591251](https://github.com/k1moradi/RDP-server/actions/runs/38794591251)
+completed successfully. Linux/GCC **124/124**, macOS/Clang **114/114**
+and Windows/MSVC **114/114** CTests passed in **both Debug and Release**,
+including all eight new `transport.mcs-*` R3 cases.
+Documentation-policy, SDK install/consumer, packaging and SHA256 passed;
+untagged prerelease was skipped. **NOT RUN:** owner's independent
+Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 one-liner
+on this exact SHA, real Kerberos/CredSSP plus OS authorization,
+Microsoft-client session activation, graphics, clipboard or desktop.
+
 ## R9 CLIPRDR response-framing regression (2026-10-15)
 
 **Implementation parent main:** `469f49e5d4621017016a06095a17ca7cbfc10182`. Modified:

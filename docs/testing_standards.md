@@ -1689,3 +1689,20 @@ SKIPPED (no version tag). Owner-local current-head,
 MSYS2 CLANG64 Clang23, macOS27, real GSS/CredSSP
 and OS account authorization, Microsoft client and
 desktop remain **NOT RUN**.
+
+## R1 native accepted-socket ownership and EOF regressions (2026-10-15)
+
+The dedicated `transport.tcp-native-accept-ownership` CTest
+reuses the existing IPv4 loopback fixture and test executable. Verify a
+nonblocking accepted descriptor, non-inheritable flag on POSIX,
+would-block after draining all pending accepts, invalid listener
+denial, exact X.224 Confirm through existing `PreauthTcpAdapter`,
+move-only ownership and idempotent close. Platform-specific native
+settings are tested only where available. A second dedicated CTest,
+`transport.tcp-native-accept-move-replacement`, verifies replaced-handle
+closure, two unaffected listeners, alias self-move, use of the moved socket
+and idempotent close. The third `transport.tcp-native-accept-orderly-eof`
+CTest covers queued bytes before peer FIN, explicit EOF, cancel and listener
+ownership separation. No external client, certificate enrollment, R2
+admission, or R3 activation is exercised. Expected registry on this code snapshot:
+104 portable / 114 Linux GSS.

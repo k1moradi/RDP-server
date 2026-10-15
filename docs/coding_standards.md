@@ -1226,3 +1226,16 @@ SKIPPED (no version tag). Owner-local current-head,
 MSYS2 CLANG64 Clang23, macOS27, real GSS/CredSSP
 and OS account authorization, Microsoft client and
 desktop remain **NOT RUN**.
+
+## Accepted TCP handle ownership (R1, 2026-10-15)
+
+Separate the borrowed listening descriptor from move-only ownership of
+one accepted socket. Configure nonblocking and non-inheritable flags
+before returning it to the event loop. On Linux use atomic `accept4`
+flags where available; on macOS/BSD also disable socket SIGPIPE.
+Failure must close the newly accepted descriptor, never its listener.
+Free SSL/BIO/connection callbacks before socket close or move; never
+reuse borrowed socket I/O after cancellation. Move assignment closes the
+previous descriptor exactly once; an aliased self-move preserves ownership.
+Peer FIN must deliver buffered bytes before explicit EOF, with the listener
+still borrowed and intact after local cancellation.

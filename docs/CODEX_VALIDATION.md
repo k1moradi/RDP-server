@@ -2486,3 +2486,53 @@ activation, graphics/desktop or human test.
 **Next:** owner-local full one-root CTest and parallel
 R2/R3 integration with real authorized identity/OS
 admission before sending live MCS or desktop data.
+
+## R1 native nonblocking accept + move-only socket owner (2026-10-15)
+
+**Integration parent `main`:** `96dbdc660cc9814d086cfb3c7772850474b8f2fd`
+(main-only Git policy after the verified
+`8ce08611d5d7b093c9d69f4b7eee5d23cd096359` R1 chunk-bound code).
+**Production increment:** use the sole `NativeTcpIo` with a new
+one-shot accept that does not own or bind the listening socket. Returned
+accepted socket is move-only RAII, nonblocking, close-on-exec on POSIX
+/ non-inheritable on Windows, and SO_NOSIGPIPE on supporting POSIX.
+Failed setup releases the just-created descriptor. No server daemon,
+new protocol state owner or trust/admission transition.
+
+**New CTests:** `transport.tcp-native-accept-ownership`,
+`transport.tcp-native-accept-move-replacement`, and
+`transport.tcp-native-accept-orderly-eof` (existing
+`test_owned_preauth_session` binary). They exercise the production accept
+function over real loopback TCP, borrowed `NativeTcpIo`, invalid listener,
+would-block, exact X.224 Confirm, move, replacement-close, aliased self-move,
+moved-socket I/O, FIN-after-queued-bytes, EOF and idempotent close.
+
+**Existing owner evidence:** 101/101 registered CTests PASS as reported
+in this conversation; platform and exact local commit SHA unspecified.
+This predates the new case and cannot verify it.
+
+**NOT RUN:** repository `cmake -S ~/rdp-server -B ~/rdp-server/build
+-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`, build and full
+`ctest --test-dir ~/rdp-server/build -C Debug --output-on-failure`;
+complete source checkout inaccessible. All three owner-local platform
+checks and exact-implementation GitHub Actions NOT RUN at authorship.
+**PASS (isolated Linux/POSIX smoke only):** GCC and Clang C++23
+`-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined`
+compiled and ran a loopback probe extracting the new accept/RAII
+function definitions verbatim from this patch (NativeTcpIo stubbed), plus the exact dedicated
+move-replacement and orderly-EOF test bodies. GCC 14.2 and Clang 17 ran with
+`-std=c++23 -Wall -Wextra -Wpedantic -Werror -O1 -g
+-fno-omit-frame-pointer -fsanitize=address,undefined`, and
+`ASAN_OPTIONS=detect_leaks=1` (**PASS**, native Linux `accept4`).
+Both compilers reran the same test with `-U__linux__` (**PASS**, POSIX
+`fcntl` fallback simulated on Linux; not an actual macOS/BSD test).
+These checks do not compile the full production translation unit or
+run any of the three registered repository CTests.
+**Publication policy:** direct to the existing `main` under an atomic
+non-force expected-HEAD update, following the latest repository policy.
+No independent R10 slot is needed. The full CTest/CI results must be
+recorded against the published implementation SHA when available.
+First unresolved boundary: real listener/event loop feeding this
+accepted socket to sole TCP/TLS connection, then R2 admission/R3 session.
+Next R1: integrate owned accepted sockets and deterministic cancellation
+with one bounded event-loop/listener lifecycle after this increment.

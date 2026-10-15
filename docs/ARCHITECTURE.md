@@ -1125,3 +1125,17 @@ SKIPPED (no version tag). Owner-local current-head,
 MSYS2 CLANG64 Clang23, macOS27, real GSS/CredSSP
 and OS account authorization, Microsoft client and
 desktop remain **NOT RUN**.
+
+### Native accepted-connection ownership (R1, 2026-10-15)
+
+The existing native TCP module gains a single one-shot accept entry point.
+Its caller keeps the listening socket; each successful accept transfers
+exactly one connected descriptor into `OwnedNativeTcpSocket` (move-only
+RAII), usable by the existing borrowed `NativeTcpIo`. Socket flags are
+established before transfer, and all post-accept setup failures close the
+new descriptor. The event loop must finish SSL/BIO use and dispose of its
+one `PreauthTcpAdapter` before closing/moving the socket owner. No new
+connection/session state controller, daemon, port binding or OS user
+authorization is implied. Three dedicated accept/ownership/EOF CTests
+exercise the native socket boundary. Verification: isolated GCC/Clang C++23 ASan/UBSan loopback PASS;
+full repository CTest, Windows/macOS owner targets NOT RUN at authoring.

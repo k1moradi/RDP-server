@@ -17,7 +17,9 @@
 #include <cassert>
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cstdint>
+#include <limits>
 #include <fstream>
 #include <memory>
 
@@ -28,6 +30,8 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #include <thread>
 #include <chrono>
@@ -38,6 +42,7 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
 #else
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -1384,7 +1389,7 @@ public:
     LocalSocket client{};
     LocalSocket server{};
 
-    LoopbackSocketPair()
+    explicit LoopbackSocketPair(bool acceptInFixture = true)
     {
 #ifdef _WIN32
         assert(WSAStartup(MAKEWORD(2, 2), &wsa_) == 0);
@@ -1415,10 +1420,18 @@ public:
         assert(::connect(client.value,
                          reinterpret_cast<const sockaddr *>(&address),
                          sizeof(address)) == 0);
-        server.value = ::accept(listener.value, nullptr, nullptr);
-        assert(server.value != kInvalidLocalSocket);
-        listener.close(); // No open listener while exercising TLS.
-        makeNonblocking(server.value);
+        if (acceptInFixture)
+        {
+            server.value = ::accept(listener.value, nullptr, nullptr);
+            assert(server.value != kInvalidLocalSocket);
+            listener.close(); // No open listener while exercising TLS.
+            makeNonblocking(server.value);
+        }
+        else
+        {
+            // Let the production acceptor acquire and own this socket.
+            makeNonblocking(listener.value);
+        }
         makeNonblocking(client.value);
     }
 
@@ -1517,6 +1530,226 @@ void waitForNativeRequest(PreauthTcpAdapter &adapter)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     assert(complete);
+}
+
+void testNativeTcpAcceptOwnershipAndCancellation()
+{
+    // Real ephemeral loopback only; no persistent service and no OS
+    // admission. Only the newly accepted connection is transferred.
+    LoopbackSocketPair pair{false};
+    assert(pair.listener.value != kInvalidLocalSocket);
+    assert(pair.server.value == kInvalidLocalSocket);
+
+    const auto invalid = acceptNonblockingTcpConnection(
+        OwnedNativeTcpSocket::kInvalidSocket);
+    assert(invalid.outcome == TcpAcceptOutcome::Failure);
+    assert(!invalid.connection.valid());
+    const auto notListener = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.client.value));
+    assert(notListener.outcome == TcpAcceptOutcome::Failure);
+    assert(!notListener.connection.valid());
+#ifndef _WIN32
+    if constexpr (sizeof(std::uintptr_t) > sizeof(int))
+    {
+        const auto tooLarge = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(
+                (std::numeric_limits<int>::max)()) + 1U);
+        assert(tooLarge.outcome == TcpAcceptOutcome::Failure);
+        assert(!tooLarge.connection.valid());
+    }
+#endif
+
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    assert(accepted.connection.valid());
+    const auto acceptedHandle = accepted.connection.nativeSocket();
+    assert(acceptedHandle != OwnedNativeTcpSocket::kInvalidSocket);
+
+#ifdef _WIN32
+    DWORD handleFlags = HANDLE_FLAG_INHERIT;
+    assert(::GetHandleInformation(reinterpret_cast<HANDLE>(acceptedHandle),
+                                  &handleFlags) != 0);
+    assert((handleFlags & HANDLE_FLAG_INHERIT) == 0);
+#else
+    const int acceptedDescriptor = static_cast<int>(acceptedHandle);
+    const int socketFlags = ::fcntl(acceptedDescriptor, F_GETFL);
+    const int descriptorFlags = ::fcntl(acceptedDescriptor, F_GETFD);
+    assert(socketFlags >= 0 && (socketFlags & O_NONBLOCK) != 0);
+    assert(descriptorFlags >= 0 && (descriptorFlags & FD_CLOEXEC) != 0);
+#endif
+
+    const auto noSecondConnection = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(noSecondConnection.outcome == TcpAcceptOutcome::WouldBlock);
+    assert(!noSecondConnection.connection.valid());
+
+    NativeTcpIo acceptedIo{acceptedHandle};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    std::array<std::uint8_t, 19> response{};
+    assert(acceptedIo.receive(response).outcome == TcpIoOutcome::WouldBlock);
+
+    // Drive the PRODUCTION preauth owner with a real client CR, not just
+    // raw TCP bytes. It must produce the complete exact X.224 Confirm.
+    PreauthTcpAdapter connection{acceptedIo};
+    const auto request = validRequestWire();
+    nativeSendAll(clientIo, request);
+    waitForNativeRequest(connection);
+    assert(connection.onWritable() == TcpPreauthEvent::ReadyForTls);
+    nativeReadAll(clientIo, response);
+    assert(response == negotiateDiagnosticTls(validRequest()).packet);
+    connection.close();
+    assert(connection.connection().stage() == PreauthStage::Closed);
+
+    // Moving the owner cannot duplicate the descriptor or invalidate the
+    // borrowed native I/O. Closing it is terminal and idempotent.
+    OwnedNativeTcpSocket moved{};
+    moved = std::move(accepted.connection);
+    assert(!accepted.connection.valid());
+    assert(moved.valid() && moved.nativeSocket() == acceptedHandle);
+    moved.close();
+    assert(!moved.valid());
+    moved.close();
+    assert(!moved.valid());
+}
+
+void testNativeTcpAcceptMoveReplacement()
+{
+    static_assert(!std::is_copy_constructible_v<OwnedNativeTcpSocket>);
+    static_assert(!std::is_copy_assignable_v<OwnedNativeTcpSocket>);
+    static_assert(std::is_nothrow_move_constructible_v<OwnedNativeTcpSocket>);
+    static_assert(std::is_nothrow_move_assignable_v<OwnedNativeTcpSocket>);
+
+    // Both fixtures retain their caller-owned listener; replacement must
+    // close precisely the old accepted connection, not either listener.
+    LoopbackSocketPair first{false};
+    LoopbackSocketPair second{false};
+    auto firstAccepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(first.listener.value));
+    auto secondAccepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(second.listener.value));
+    assert(firstAccepted.outcome == TcpAcceptOutcome::Accepted);
+    assert(secondAccepted.outcome == TcpAcceptOutcome::Accepted);
+    assert(firstAccepted.connection.valid());
+    assert(secondAccepted.connection.valid());
+    const auto replacedHandle = firstAccepted.connection.nativeSocket();
+    const auto incomingHandle = secondAccepted.connection.nativeSocket();
+    assert(replacedHandle != incomingHandle);
+
+    OwnedNativeTcpSocket owner{std::move(firstAccepted.connection)};
+    OwnedNativeTcpSocket incoming{std::move(secondAccepted.connection)};
+    assert(!firstAccepted.connection.valid());
+    assert(!secondAccepted.connection.valid());
+
+    // An aliased self-move must leave the descriptor valid and owned.
+    auto &alias = owner;
+    owner = std::move(alias);
+    assert(owner.valid() && owner.nativeSocket() == replacedHandle);
+
+    // Move assignment must close the existing descriptor before adopting
+    // the incoming one, and must not touch either borrowed listener.
+    owner = std::move(incoming);
+    assert(owner.valid() && owner.nativeSocket() == incomingHandle);
+    assert(!incoming.valid());
+#ifdef _WIN32
+    int closedError = 0;
+    int errorLength = sizeof(closedError);
+    assert(::getsockopt(static_cast<SOCKET>(replacedHandle), SOL_SOCKET,
+                        SO_ERROR, reinterpret_cast<char *>(&closedError),
+                        &errorLength) == SOCKET_ERROR);
+    assert(WSAGetLastError() == WSAENOTSOCK);
+#else
+    errno = 0;
+    assert(::fcntl(static_cast<int>(replacedHandle), F_GETFD) == -1);
+    assert(errno == EBADF);
+#endif
+    assert(first.listener.value != kInvalidLocalSocket);
+    assert(second.listener.value != kInvalidLocalSocket);
+    assert(acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(first.listener.value)).outcome ==
+        TcpAcceptOutcome::WouldBlock);
+    assert(acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(second.listener.value)).outcome ==
+        TcpAcceptOutcome::WouldBlock);
+
+    NativeTcpIo ownedIo{owner.nativeSocket()};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(second.client.value)};
+    constexpr std::array<std::uint8_t, 8> payload{
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+    std::array<std::uint8_t, payload.size()> received{};
+    nativeSendAll(clientIo, payload);
+    nativeReadAll(ownedIo, received);
+    assert(received == payload);
+    owner.close();
+    owner.close();
+    assert(!owner.valid());
+}
+
+void testNativeTcpAcceptOrderlyPeerDisconnect()
+{
+    // A TCP FIN is not a TLS/authentication success. The native transport
+    // must deliver all already-queued bytes, then an explicit EOF, and the
+    // owner must be safe to cancel without affecting its borrowed listener.
+    LoopbackSocketPair pair{false};
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    assert(accepted.connection.valid());
+    const auto acceptedHandle = accepted.connection.nativeSocket();
+    NativeTcpIo serverIo{acceptedHandle};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+
+    constexpr std::array<std::uint8_t, 7> payload{
+        0x03, 0x00, 0x00, 0x07, 0x06, 0xe0, 0x00};
+    nativeSendAll(clientIo, payload);
+#ifdef _WIN32
+    assert(::shutdown(pair.client.value, SD_SEND) == 0);
+#else
+    assert(::shutdown(pair.client.value, SHUT_WR) == 0);
+#endif
+    std::array<std::uint8_t, payload.size()> delivered{};
+    nativeReadAll(serverIo, delivered);
+    assert(delivered == payload);
+
+    std::array<std::uint8_t, 1> eofByte{};
+    bool observedEof = false;
+    for (int attempt = 0; attempt < 2048; ++attempt)
+    {
+        const auto read = serverIo.receive(eofByte);
+        if (read.outcome == TcpIoOutcome::EndOfStream)
+        {
+            assert(read.bytes == 0);
+            observedEof = true;
+            break;
+        }
+        assert(read.outcome == TcpIoOutcome::WouldBlock);
+        assert(read.bytes == 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(observedEof);
+
+    // Cancellation closes only the owned accepted descriptor. No callback
+    // is invoked on its borrowed I/O after the owner has been destroyed.
+    accepted.connection.close();
+    accepted.connection.close();
+    assert(!accepted.connection.valid());
+#ifdef _WIN32
+    int unused = 0;
+    int length = sizeof(unused);
+    assert(::getsockopt(static_cast<SOCKET>(acceptedHandle), SOL_SOCKET,
+                        SO_ERROR, reinterpret_cast<char *>(&unused),
+                        &length) == SOCKET_ERROR);
+    assert(WSAGetLastError() == WSAENOTSOCK);
+#else
+    errno = 0;
+    assert(::fcntl(static_cast<int>(acceptedHandle), F_GETFD) == -1);
+    assert(errno == EBADF);
+#endif
+    assert(pair.listener.value != kInvalidLocalSocket);
+    const auto next = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(next.outcome == TcpAcceptOutcome::WouldBlock);
+    assert(!next.connection.valid());
 }
 
 
@@ -3710,6 +3943,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-adapter-backpressure", &testTcpAdapterFailureAndBackpressure},
     {"tcp-bio-chunk-bounds", &testBorrowedTcpBioChunkBounds},
     {"tcp-native-chunk-bounds", &testNativeTcpChunkBounds},
+    {"tcp-native-accept-ownership", &testNativeTcpAcceptOwnershipAndCancellation},
+    {"tcp-native-accept-move-replacement", &testNativeTcpAcceptMoveReplacement},
+    {"tcp-native-accept-orderly-eof", &testNativeTcpAcceptOrderlyPeerDisconnect},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},

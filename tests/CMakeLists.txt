@@ -76,6 +76,9 @@ function(add_rdp_test source_file suite behavior)
                 tcp-adapter-backpressure
                 tcp-bio-chunk-bounds
                 tcp-native-chunk-bounds
+                tcp-native-accept-ownership
+                tcp-native-accept-move-replacement
+                tcp-native-accept-orderly-eof
                 tls-nonblocking-handshake
                 tls-nonblocking-failures
                 tcp-native-loopback-tls

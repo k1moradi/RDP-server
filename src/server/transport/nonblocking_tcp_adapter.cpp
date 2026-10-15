@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <memory>
 
 #include <openssl/bio.h>
@@ -13,9 +14,12 @@
 #define NOMINMAX
 #endif
 #include <winsock2.h>
+#include <windows.h>
 #else
 #include <cerrno>
+#include <fcntl.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #endif
 
 namespace rdp_server::server::transport
@@ -241,6 +245,96 @@ McsIntakeResult PreauthTcpAdapter::onAttachedMcsIoReady() noexcept
         result.status == McsIntakeStatus::EnvelopeValidated)
         close();
     return result;
+}
+
+void OwnedNativeTcpSocket::close() noexcept
+{
+    if (!valid()) return;
+    const auto socketToClose =
+        std::exchange(socket_, kInvalidSocket);
+#ifdef _WIN32
+    ::closesocket(static_cast<SOCKET>(socketToClose));
+#else
+    ::close(static_cast<int>(socketToClose));
+#endif
+}
+
+TcpAcceptResult acceptNonblockingTcpConnection(
+    std::uintptr_t listenerSocket) noexcept
+{
+    if (listenerSocket == OwnedNativeTcpSocket::kInvalidSocket)
+        return {};
+
+#ifdef _WIN32
+    const SOCKET acceptedSocket = ::accept(
+        static_cast<SOCKET>(listenerSocket), nullptr, nullptr);
+    if (acceptedSocket == INVALID_SOCKET)
+    {
+        return {nativeFailure().outcome == TcpIoOutcome::WouldBlock
+                    ? TcpAcceptOutcome::WouldBlock
+                    : TcpAcceptOutcome::Failure, {}};
+    }
+
+    // A returned SOCKET belongs to this function until all setup succeeds.
+    // Do not expose a blocking or inheritable handle on partial failure.
+    u_long nonblocking = 1;
+    if (::ioctlsocket(acceptedSocket, FIONBIO, &nonblocking) != 0 ||
+        ::SetHandleInformation(reinterpret_cast<HANDLE>(acceptedSocket),
+                               HANDLE_FLAG_INHERIT, 0) == 0)
+    {
+        ::closesocket(acceptedSocket);
+        return {};
+    }
+#else
+    // Never truncate an untrusted uintptr_t into an unrelated POSIX fd.
+    if (listenerSocket > static_cast<std::uintptr_t>(
+            (std::numeric_limits<int>::max)()))
+        return {};
+
+#ifdef __linux__
+    // Atomic descriptor flags avoid an inheritable or blocking window
+    // during concurrent exec/fork or socket-readiness dispatch.
+    const int acceptedSocket = ::accept4(
+        static_cast<int>(listenerSocket), nullptr, nullptr,
+        SOCK_NONBLOCK | SOCK_CLOEXEC);
+#else
+    const int acceptedSocket = ::accept(
+        static_cast<int>(listenerSocket), nullptr, nullptr);
+#endif
+    if (acceptedSocket < 0)
+    {
+        return {nativeFailure().outcome == TcpIoOutcome::WouldBlock
+                    ? TcpAcceptOutcome::WouldBlock
+                    : TcpAcceptOutcome::Failure, {}};
+    }
+
+#ifndef __linux__
+    const int descriptorFlags = ::fcntl(acceptedSocket, F_GETFD, 0);
+    const int socketFlags = ::fcntl(acceptedSocket, F_GETFL, 0);
+    if (descriptorFlags < 0 || socketFlags < 0 ||
+        ::fcntl(acceptedSocket, F_SETFD, descriptorFlags | FD_CLOEXEC) < 0 ||
+        ::fcntl(acceptedSocket, F_SETFL, socketFlags | O_NONBLOCK) < 0)
+    {
+        ::close(acceptedSocket);
+        return {};
+    }
+#endif
+
+#ifdef SO_NOSIGPIPE
+    const int noSigpipe = 1;
+    if (::setsockopt(acceptedSocket, SOL_SOCKET, SO_NOSIGPIPE,
+                     &noSigpipe, sizeof(noSigpipe)) != 0)
+    {
+        ::close(acceptedSocket);
+        return {};
+    }
+#endif
+#endif
+
+    // This is ownership of a native connection only, NOT permission to
+    // authenticate, dispatch MCS messages or open an OS desktop session.
+    return {TcpAcceptOutcome::Accepted,
+            OwnedNativeTcpSocket{static_cast<std::uintptr_t>(acceptedSocket)}};
 }
 
 TcpIoResult NativeTcpIo::receive(std::span<std::uint8_t> destination) noexcept

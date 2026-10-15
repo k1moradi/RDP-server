@@ -5,7 +5,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
+#include <utility>
 
 namespace rdp_server::server::transport
 {
@@ -62,6 +64,77 @@ public:
 private:
     std::uintptr_t socket_{};
 };
+
+struct TcpAcceptResult;
+
+// The ONLY owner of an accepted native socket. The listener remains borrowed
+// by acceptNonblockingTcpConnection; closing/moving this value never closes
+// the listener or duplicates the accepted descriptor. Destroy SSL and its
+// borrowed BIO, then PreauthTcpAdapter/NativeTcpIo, BEFORE closing this owner.
+// Never move the owner while a callback is using its socket; all operations
+// are confined to the same event-loop thread. WSAStartup/WSACleanup remain
+// the platform runtime's responsibility on Windows.
+class OwnedNativeTcpSocket final
+{
+public:
+    static constexpr std::uintptr_t kInvalidSocket =
+        (std::numeric_limits<std::uintptr_t>::max)();
+
+    OwnedNativeTcpSocket() noexcept = default;
+    OwnedNativeTcpSocket(const OwnedNativeTcpSocket &) = delete;
+    OwnedNativeTcpSocket &operator=(const OwnedNativeTcpSocket &) = delete;
+    OwnedNativeTcpSocket(OwnedNativeTcpSocket &&other) noexcept
+        : socket_(std::exchange(other.socket_, kInvalidSocket)) {}
+    OwnedNativeTcpSocket &operator=(OwnedNativeTcpSocket &&other) noexcept
+    {
+        if (this != &other)
+        {
+            close();
+            socket_ = std::exchange(other.socket_, kInvalidSocket);
+        }
+        return *this;
+    }
+    ~OwnedNativeTcpSocket() { close(); }
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return socket_ != kInvalidSocket;
+    }
+    [[nodiscard]] std::uintptr_t nativeSocket() const noexcept
+    {
+        return socket_;
+    }
+    void close() noexcept;
+
+private:
+    explicit OwnedNativeTcpSocket(std::uintptr_t nativeSocket) noexcept
+        : socket_(nativeSocket) {}
+    friend TcpAcceptResult acceptNonblockingTcpConnection(
+        std::uintptr_t listenerSocket) noexcept;
+
+    std::uintptr_t socket_{kInvalidSocket};
+};
+
+enum class TcpAcceptOutcome : std::uint8_t
+{
+    Accepted,
+    WouldBlock,
+    Failure,
+};
+
+struct TcpAcceptResult
+{
+    TcpAcceptOutcome outcome{TcpAcceptOutcome::Failure};
+    OwnedNativeTcpSocket connection{};
+};
+
+// Accept ONE connection on a caller-owned, already-bound/listening,
+// NONBLOCKING socket. No hidden wait/retry, bind policy, daemon or session
+// admission. A successful result owns one NONBLOCKING, close-on-exec (POSIX)
+// / non-inheritable (Windows) connected socket, suitable for NativeTcpIo.
+// On macOS/BSD, configure SO_NOSIGPIPE before exposing the accepted socket.
+[[nodiscard]] TcpAcceptResult acceptNonblockingTcpConnection(
+    std::uintptr_t listenerSocket) noexcept;
 
 // Borrow an existing NONBLOCKING TCP transport for OpenSSL, using custom
 // BIO callbacks rather than converting a Windows SOCKET to a POSIX int.

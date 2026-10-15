@@ -245,6 +245,33 @@ actually run; another parser CTest alone is not a complete session.
   authenticated channel/share lifecycle; the loopback TLS intake
   diagnostic by itself remains insufficient.
 
+  **R1 native accepted-socket implementation (2026-10-15; new-code CI pending):**
+  Extend the ONLY existing native TCP adapter with a one-shot nonblocking
+  accept operation returning a move-only, RAII-owned connection handle;
+  the caller retains its listening socket. Linux uses atomic
+  `accept4(SOCK_NONBLOCK | SOCK_CLOEXEC)`; macOS/BSD apply checked
+  nonblocking/close-on-exec/SO_NOSIGPIPE configuration; Winsock applies
+  nonblocking and non-inheritable handle setup. Failed configuration
+  closes only the just-accepted socket. No new TLS/session controller,
+  daemon, bound/listening production port, admission, or MCS response.
+  Three dedicated CTests: `transport.tcp-native-accept-ownership`,
+  `transport.tcp-native-accept-move-replacement` and
+  `transport.tcp-native-accept-orderly-eof` reuse real loopback fixtures
+  for X.224 negotiation, invalid listeners, would-block, move replacement,
+  FIN after queued data, EOF, and idempotent cancellation without closing
+  the borrowed listener. Expected registry: 104 portable / 114 Linux GSS
+  (prior 101/111).
+  Owner separately reports 101/101 existing tests PASS; exact local SHA
+  and platform were not supplied, and this new CTest was not included.
+  Integration parent main: `96dbdc660cc9814d086cfb3c7772850474b8f2fd`.
+  **PASS:** isolated Linux GCC 14.2 / Clang 17 C++23 warning-clean,
+  ASan+UBSan accept/ownership/EOF smoke (native `accept4` and simulated
+  portable POSIX fallback). **NOT RUN:** full checkout build, registered
+  dedicated CTests, owner Windows CLANG64/macOS27 and new-code CI at
+  authoring time. Commit directly to `main` under optimistic HEAD check. First boundary remains a
+  production listener/event loop feeding this accept into the one
+  owned TCP/TLS session, followed by R2/R3 authenticated activation.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

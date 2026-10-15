@@ -1065,8 +1065,8 @@ acceptance evidence; no synthetic completion claims.
   with active TLS proof, independent OS session policy,
   and the sole authenticated owner for licensing/share
   activation and nested PDU processing.
-  **Partial offline T.128 Share Data Header decoding (2026-10-15;
-  CI NOT RUN at authoring):** reuse the existing MCS/Share
+  **Verified offline T.128 Share Data Header decoding (2026-10-15;
+  CI PASS):** reuse the existing MCS/Share
   Control module to decode the 12-byte Share Data Header only
   after an explicitly isolated, complete Data PDU. Accept the
   24 normative type2 values, stream priorities 1/2/4, and
@@ -1083,10 +1083,18 @@ acceptance evidence; no synthetic completion claims.
   Baseline `8aea09a101fe1394c6c60145fef42fa002514315`
   passed [CI 38705731398](https://github.com/k1moradi/RDP-server/actions/runs/38705731398);
   owner reports **75/75 local PASS** on that prior main.
-  **NOT RUN:** new commit CI/local validation, authenticated
-  OS/session, live TLS/ShareData routing, bulk decompression,
-  licensing, client activation, input or desktop.
-  **Next:** exact-head multi-OS CI, then authorized
+  **PASS:** exact implementation `9bc9e041419b4a932dc988a51f1f3e920ac82ba3`,
+  [CI 38708579033](https://github.com/k1moradi/RDP-server/actions/runs/38708579033):
+  Linux/GCC **86/86**, macOS/Clang and Windows/MSVC
+  **77/77** full CTests in EACH Debug and Release;
+  both new Share Data groups, project policy, staged
+  installed SDK consumer and three ZIP/SHA256 artifacts
+  PASS. Prerelease publication SKIPPED (no version tag).
+  **NOT RUN:** owner-local NEW compile/CTest, independently
+  authenticated OS/session, live TLS/ShareData routing,
+  negotiated decompression, licensing, client activation,
+  input or desktop.
+  **Next:** authorized
   opt-in genuine GSS/Kerberos + TLS certificate binding,
   independent OS session admission, and only afterward
   single-owner Share Control/Share Data lifecycle.

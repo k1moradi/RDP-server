@@ -1408,7 +1408,7 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
-## Pending T.128 Share Data Header syntax gate (2026-10-15)
+## Verified T.128 Share Data Header syntax gate (2026-10-15)
 
 **Prior verified baseline:** `8aea09a101fe1394c6c60145fef42fa002514315`,
 [Actions 38705731398](https://github.com/k1moradi/RDP-server/actions/runs/38705731398)
@@ -1439,18 +1439,25 @@ and `tests/CMakeLists.txt` registry. Expected totals:
 implementation commit, update the sole living ROADMAP,
 architecture, coding/testing standards and validation ledger.
 
-**NOT RUN at authoring:** exact-new-commit CI Debug/Release,
-local recompile/CTest on owner's existing root, sanitizer,
-real keytab/tickets, TLS live Share Data dispatch, decrypted
-security header, licensed/activated session, clipboard,
-graphics or Microsoft client proof.
+**PASS:** implementation `9bc9e041419b4a932dc988a51f1f3e920ac82ba3`,
+[Actions 38708579033](https://github.com/k1moradi/RDP-server/actions/runs/38708579033)
+Linux/GCC **86/86**, macOS/Clang and Windows/MSVC
+**77/77** CTests in BOTH Debug and Release. Both new
+Share Data wire/negative behavior tests passed everywhere;
+staged installed SDK consumer, packages and docs-policy
+PASS. Prerelease publish SKIPPED (no release tag).
+**NOT RUN:** owner's new local rebuild/CTest, sanitizer,
+actual GSS/keytab/tickets, TLS live Share Data dispatch,
+optional security headers, OS-authorized licensed/activated
+session, nested input, graphics, clipboard or actual
+Microsoft RDP client acceptance.
 Local owner's one reused build root:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`;
 `cmake --build build --config Debug --parallel 2`;
 `ctest --test-dir build -C Debug --output-on-failure`.
-**Next:** exact HEAD cross-platform CI plus owner-local
-tests, followed by genuine authorized GSS and independent
-OS session governance before dispatching Data PDUs.
+**Next:** owner-local validation on the single build root,
+then controlled genuine Kerberos/TLS and independent OS
+session authorization before live Share Data dispatch.
 
 ## Verified offline T.128 Share Control Header decoding (2026-10-15)
 

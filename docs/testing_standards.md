@@ -617,7 +617,7 @@ ZIP/SHA-256 package uploads and documentation-policy PASS.
 The owner-local new build, real TLS send, GSS/OS admission
 and external clients are NOT RUN.
 
-## Offline T.128 Share Data Header tests (CI NOT RUN, 2026-10-15)
+## Verified offline T.128 Share Data Header tests (CI PASS, 2026-10-15)
 
 Reuse `tests/test_owned_mcs_connect_initial.cpp` and the single
 `tests/CMakeLists.txt` registry; add exactly TWO behavior-named
@@ -637,13 +637,20 @@ unsupported type2 values, invalid streams, and every
 nonzero compression flag/type. A rejection must never
 expose a borrowed application payload.
 
-Expected full portable test count **77** (prior 75), optional
-Linux GSS-enabled **86** (prior 84). Code, new exact-head
-CI and owner-local compilation NOT RUN at authoring.
-This is ONLY header syntax; uncompressedLength and pad1
-compatibility are grounded in Microsoft's examples.
-Actual decompression, MCS authorization, nested input,
-licensing, genuine Kerberos and desktop acceptance NOT RUN.
+Full portable test count **77** (prior 75), Linux GSS
+enabled **86** (prior 84).
+**PASS:** implementation `9bc9e041419b4a932dc988a51f1f3e920ac82ba3`,
+[CI 38708579033](https://github.com/k1moradi/RDP-server/actions/runs/38708579033):
+Linux/GCC **86/86**, macOS/Clang and Windows/MSVC
+**77/77** full CTests in both Debug and Release;
+both new cases pass across three OSes. Documentation
+policy, SDK install/consumer and ZIP/SHA256 uploads PASS.
+**NOT RUN:** owner's new local build, sanitizer, actual
+decompression, MCS authorization, nested input,
+licensing, genuine Kerberos or desktop acceptance.
+All results are header syntax only; the buggy
+uncompressedLength and ignored pad1 reflect published
+Microsoft wire examples, not a trusted byte count.
 
 ## Verified offline RDP Share Control Header regression tests (2026-10-15, CI PASS)
 

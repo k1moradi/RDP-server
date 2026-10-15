@@ -202,4 +202,56 @@ struct RdpShareControlParseResult
 [[nodiscard]] RdpShareControlParseResult parseRdpShareControlHeader(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
 
+// MS-RDPBCGR 2.2.8.1.1.1.2 TS_SHAREDATAHEADER, ONLY for an
+// explicitly isolated, complete Share Control kind=Data packet.
+// The caller must already enforce TLS, license/security-header,
+// MCS channel/segmentation and independent OS session authority.
+// This is a pure syntax check, never an input/graphics admission.
+enum class RdpShareDataError : std::uint8_t
+{
+    None,
+    InvalidShareControl,
+    FlowPduIgnored,
+    NotDataPdu,
+    IncompleteHeader,
+    InvalidDataPduType,
+    InvalidStream,
+    UnsupportedCompression,
+};
+
+struct RdpShareDataHeader
+{
+    std::uint16_t pduSource{};
+    std::uint32_t shareId{};
+    std::uint8_t streamId{};
+    std::uint16_t reportedUncompressedLength{};
+    std::uint8_t pduType2{};
+    std::uint8_t compressedType{};
+    std::uint16_t compressedLength{};
+    // Borrowed, read-only body AFTER the 18-byte combined headers.
+    // Caller must retain the original complete input unchanged.
+    std::span<const std::uint8_t> body{};
+};
+
+struct RdpShareDataParseResult
+{
+    RdpShareDataHeader value{};
+    RdpShareDataError error{RdpShareDataError::InvalidShareControl};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpShareDataError::None;
+    }
+};
+
+// Read the existing Share Control parser's exact-length result before
+// decoding the 12 following bytes. Accept standard Data PDU type2
+// values and stream IDs 1/2/4, plus stream 0 ONLY for Synchronize
+// (documented Windows compatibility exception). Ignore pad1; retain
+// reportedUncompressedLength without using it as a trustworthy bound
+// because real client Font List packets may contain an uninitialized
+// value. Nonzero compressedType is UNSUPPORTED, not a plaintext body.
+// No decompression, nested message dispatch, or heap allocation.
+[[nodiscard]] RdpShareDataParseResult parseRdpShareDataHeader(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
 } // namespace rdp_server::server::transport

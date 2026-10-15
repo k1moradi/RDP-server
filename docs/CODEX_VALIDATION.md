@@ -1408,6 +1408,50 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending T.128 Share Data Header syntax gate (2026-10-15)
+
+**Prior verified baseline:** `8aea09a101fe1394c6c60145fef42fa002514315`,
+[Actions 38705731398](https://github.com/k1moradi/RDP-server/actions/runs/38705731398)
+PASS, with Linux/GCC **84/84** and macOS/Clang,
+Windows/MSVC **75/75** full Debug/Release CTests,
+installed SDK consumer/package and documentation policy.
+Owner reports **75/75 local** on that prior head. This
+is not evidence for the new Share Data code.
+
+**Implementation:** extend the original first-party
+`src/server/transport/mcs_channel_connection.{h,cpp}`
+with a bounded, zero-copy Share Data Header parser that
+REUSES the exact existing Share Control Header decoder.
+MS-RDPBCGR 2.2.8.1.1.1.2's shareID, ignored pad1,
+streamID, uncompressedLength, pduType2, compressedType
+and compressedLength fields are decoded as syntax only;
+24 normative type2 values; the stream 0/Synchronize
+compatibility exception; uninitialized Client Font List
+uncompressedLength never treated as a frame bound.
+Compressed frames remain explicitly unsupported, with
+no borrowed application payload; no TLS, MCS ownership,
+decompression, graphics, authentication or OS admission.
+Two CTests `transport.share-data-header-wire` and
+`transport.share-data-header-rejections` are added to
+the existing `test_owned_mcs_connect_initial.cpp` binary
+and `tests/CMakeLists.txt` registry. Expected totals:
+**77** portable / **86** Linux GSS-enabled. In the SAME
+implementation commit, update the sole living ROADMAP,
+architecture, coding/testing standards and validation ledger.
+
+**NOT RUN at authoring:** exact-new-commit CI Debug/Release,
+local recompile/CTest on owner's existing root, sanitizer,
+real keytab/tickets, TLS live Share Data dispatch, decrypted
+security header, licensed/activated session, clipboard,
+graphics or Microsoft client proof.
+Local owner's one reused build root:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`;
+`cmake --build build --config Debug --parallel 2`;
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next:** exact HEAD cross-platform CI plus owner-local
+tests, followed by genuine authorized GSS and independent
+OS session governance before dispatching Data PDUs.
+
 ## Verified offline T.128 Share Control Header decoding (2026-10-15)
 
 **Prior verified base:** main

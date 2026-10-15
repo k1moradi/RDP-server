@@ -37,7 +37,9 @@ function(add_rdp_test source_file suite behavior)
                 mcs-send-indication-wire
                 mcs-send-indication-rejections
                 share-control-header-wire
-                share-control-header-rejections)
+                share-control-header-rejections
+                share-data-header-wire
+                share-data-header-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

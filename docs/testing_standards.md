@@ -617,6 +617,34 @@ ZIP/SHA-256 package uploads and documentation-policy PASS.
 The owner-local new build, real TLS send, GSS/OS admission
 and external clients are NOT RUN.
 
+## Offline T.128 Share Data Header tests (CI NOT RUN, 2026-10-15)
+
+Reuse `tests/test_owned_mcs_connect_initial.cpp` and the single
+`tests/CMakeLists.txt` registry; add exactly TWO behavior-named
+portable CTests to the original MCS executable:
+`transport.share-data-header-wire` compares three
+independent Microsoft full-26-byte examples (server Granted
+Control, client Font List with the documented uninitialized
+0xda3b uncompressedLength, server Font Map with nonzero
+pad1), all 24 documented type2 values, the special stream-0
+Synchronize case, retained metadata and precise borrowed
+body offsets through a complete MCS/Share Control handoff.
+`transport.share-data-header-rejections` rejects every
+truncated prefix, short-but-valid Share Control enclosing
+an incomplete Data Header, coalesced extra byte, other
+Share Control kind, wrong protocol version, T.128 FlowPDU,
+unsupported type2 values, invalid streams, and every
+nonzero compression flag/type. A rejection must never
+expose a borrowed application payload.
+
+Expected full portable test count **77** (prior 75), optional
+Linux GSS-enabled **86** (prior 84). Code, new exact-head
+CI and owner-local compilation NOT RUN at authoring.
+This is ONLY header syntax; uncompressedLength and pad1
+compatibility are grounded in Microsoft's examples.
+Actual decompression, MCS authorization, nested input,
+licensing, genuine Kerberos and desktop acceptance NOT RUN.
+
 ## Verified offline RDP Share Control Header regression tests (2026-10-15, CI PASS)
 
 Reuse `tests/test_owned_mcs_connect_initial.cpp` and the original

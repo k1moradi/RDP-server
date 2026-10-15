@@ -377,4 +377,91 @@ RdpShareControlParseResult parseRdpShareControlHeader(
     return {header, RdpShareControlError::None};
 }
 
+RdpShareDataParseResult parseRdpShareDataHeader(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    // Reuse the one authoritative Share Control length/version/type
+    // check rather than accepting arbitrary MCS userData as a Data PDU.
+    const auto control = parseRdpShareControlHeader(completeSharePdu);
+    if (control.error == RdpShareControlError::FlowPduIgnored)
+        return {{}, RdpShareDataError::FlowPduIgnored};
+    if (!control)
+        return {};
+    if (control.value.kind != RdpShareControlKind::Data)
+        return {{}, RdpShareDataError::NotDataPdu};
+
+    constexpr std::size_t headerBytes = 12;
+    const auto bytes = control.value.body;
+    if (bytes.size() < headerBytes)
+        return {{}, RdpShareDataError::IncompleteHeader};
+
+    const std::uint8_t pduType2 = bytes[8];
+    // MS-RDPBCGR 2.2.8.1.1.1.2 defines these Data PDU types.
+    // Unknown types must not reach an application dispatcher.
+    switch (pduType2)
+    {
+    case 0x02: // UPDATE
+    case 0x14: // CONTROL
+    case 0x1b: // POINTER
+    case 0x1c: // INPUT
+    case 0x1f: // SYNCHRONIZE
+    case 0x21: // REFRESH_RECT
+    case 0x22: // PLAY_SOUND
+    case 0x23: // SUPPRESS_OUTPUT
+    case 0x24: // SHUTDOWN_REQUEST
+    case 0x25: // SHUTDOWN_DENIED
+    case 0x26: // SAVE_SESSION_INFO
+    case 0x27: // FONTLIST
+    case 0x28: // FONTMAP
+    case 0x29: // SET_KEYBOARD_INDICATORS
+    case 0x2b: // BITMAPCACHE_PERSISTENT_LIST
+    case 0x2c: // BITMAPCACHE_ERROR_PDU
+    case 0x2d: // SET_KEYBOARD_IME_STATUS
+    case 0x2e: // OFFSCRCACHE_ERROR_PDU
+    case 0x2f: // SET_ERROR_INFO_PDU
+    case 0x30: // DRAWNINEGRID_ERROR_PDU
+    case 0x31: // DRAWGDIPLUS_ERROR_PDU
+    case 0x32: // ARC_STATUS_PDU
+    case 0x36: // STATUS_INFO_PDU
+    case 0x37: // MONITOR_LAYOUT_PDU
+        break;
+    default:
+        return {{}, RdpShareDataError::InvalidDataPduType};
+    }
+
+    const std::uint8_t stream = bytes[5];
+    // STREAM_UNDEFINED is reserved except for the Windows
+    // Server Synchronize PDU compatibility exception.
+    if (stream != 1 && stream != 2 && stream != 4 &&
+        !(stream == 0 && pduType2 == 0x1f))
+        return {{}, RdpShareDataError::InvalidStream};
+
+    // A nonzero compressedType can require MPPC/RDP6 history state;
+    // never reinterpret such bytes as uncompressed application data.
+    if (bytes[9] != 0)
+        return {{}, RdpShareDataError::UnsupportedCompression};
+
+    RdpShareDataHeader header{};
+    header.pduSource = control.value.pduSource;
+    header.shareId = static_cast<std::uint32_t>(bytes[0]) |
+                     (static_cast<std::uint32_t>(bytes[1]) << 8U) |
+                     (static_cast<std::uint32_t>(bytes[2]) << 16U) |
+                     (static_cast<std::uint32_t>(bytes[3]) << 24U);
+    // bytes[4] pad1 MUST be ignored, including nonzero values.
+    header.streamId = stream;
+    header.reportedUncompressedLength =
+        static_cast<std::uint16_t>(bytes[6]) |
+        (static_cast<std::uint16_t>(bytes[7]) << 8U);
+    header.pduType2 = pduType2;
+    header.compressedType = bytes[9];
+    header.compressedLength = static_cast<std::uint16_t>(bytes[10]) |
+                              (static_cast<std::uint16_t>(bytes[11]) << 8U);
+    // A historical client may send uninitialized uncompressedLength
+    // (e.g. Font List). Preserve it as metadata, NOT an allocation
+    // count or proof of valid length. The enclosing control's
+    // totalLength is the validated boundary.
+    header.body = bytes.subspan(headerBytes);
+    return {header, RdpShareDataError::None};
+}
+
 } // namespace rdp_server::server::transport

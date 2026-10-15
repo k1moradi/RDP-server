@@ -1065,6 +1065,31 @@ acceptance evidence; no synthetic completion claims.
   with active TLS proof, independent OS session policy,
   and the sole authenticated owner for licensing/share
   activation and nested PDU processing.
+  **Partial offline T.128 Share Data Header decoding (2026-10-15;
+  CI NOT RUN at authoring):** reuse the existing MCS/Share
+  Control module to decode the 12-byte Share Data Header only
+  after an explicitly isolated, complete Data PDU. Accept the
+  24 normative type2 values, stream priorities 1/2/4, and
+  stream 0 ONLY with Synchronize for known server behavior;
+  ignore pad1; preserve uncompressedLength and compressedLength
+  as metadata, never allocation or trust boundaries.
+  Reject any compressedType != 0 pending real negotiated
+  decompression, or any truncated/unknown/FlowPDU input,
+  without exposing a borrowed application payload.
+  Two behavior-named regression tests reuse the original
+  MCS executable with 3 real Microsoft sample layouts;
+  **77** portable and **86** Linux GSS-enabled CTests
+  expected (75 and 84 prior).
+  Baseline `8aea09a101fe1394c6c60145fef42fa002514315`
+  passed [CI 38705731398](https://github.com/k1moradi/RDP-server/actions/runs/38705731398);
+  owner reports **75/75 local PASS** on that prior main.
+  **NOT RUN:** new commit CI/local validation, authenticated
+  OS/session, live TLS/ShareData routing, bulk decompression,
+  licensing, client activation, input or desktop.
+  **Next:** exact-head multi-OS CI, then authorized
+  opt-in genuine GSS/Kerberos + TLS certificate binding,
+  independent OS session admission, and only afterward
+  single-owner Share Control/Share Data lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,

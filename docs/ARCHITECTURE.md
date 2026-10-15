@@ -327,6 +327,40 @@ inner RDP/licensing/virtual-channel PDU and complete TLS
 encryption/transmission. The encoder itself performs no SSL
 I/O, session admission, OS operation, reassembly or graphics.
 
+### Offline uncompressed Share Data Header decoding (2026-10-15)
+
+The original first-party `mcs_channel_connection` module now exposes
+`parseRdpShareDataHeader`, layered on its *existing*, exact-length
+`parseRdpShareControlHeader`. Under
+[MS-RDPBCGR 2.2.8.1.1.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/4b5d4c0d-a657-41e9-9c69-d58632f46d31),
+a Data PDU contains a further 12-byte Share Data Header: LE32
+shareID; ignored pad1; streamID; LE16 uncompressedLength;
+pduType2; compressedType; and LE16 compressedLength.
+Only the 24 documented pduType2 values are recognized.
+STREAM_UNDEFINED (0) is permitted ONLY for Synchronize
+because the Microsoft specification identifies a known
+server compatibility exception; streams 1/2/4 are standard.
+
+Some real Client Font List packets carry uninitialized
+`uncompressedLength`. Keep it as reported metadata, NEVER
+allocate from it or equate it to the already-validated Share
+Control `totalLength`. Ignore pad1 even if nonzero. Keep
+`compressedLength` as reported metadata when uncompressed.
+Every nonzero `compressedType` is explicitly UNSUPPORTED:
+no compressed payload is exposed to downstream application
+processing until an authenticated owner has a correctly
+negotiated and bounded bulk decompressor/history.
+The returned body is an allocation-free, read-only borrowed
+`std::span` into caller-owned complete input, beginning
+after the full 18-byte Share Control + Share Data header.
+
+This is OFFLINE syntax, not an MCS/OS admission decision,
+security-header detector, capability negotiation, nested
+Share Control/INPUT/COLOR decoder, licensed session,
+graphics pipeline or live RDP server. Microsoft Control,
+Font List and Font Map examples provide independent wire
+oracles; real-client acceptance remains separately gated.
+
 ### Offline RDP Share Control Header decoding (2026-10-15)
 
 The existing portable `mcs_channel_connection` translation unit now

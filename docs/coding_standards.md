@@ -478,6 +478,39 @@ unchanged. Only authenticated owner-supplied authorization,
 TLS provenance and joined MCS state may allow actual
 SSL transmission; this encoder never grants permission.
 
+## Fail-closed T.128 Share Data Header decoding (2026-10-15)
+
+MS-RDPBCGR 2.2.8.1.1.1.2 describes 12 data-header octets
+following the canonical six-byte Share Control Header.
+Reuse the existing exact-length Share Control parser, then
+require kind=Data and at least 12 remaining header bytes
+before reading LE32 shareID, ignored pad1, streamId,
+LE16 reported uncompressedLength, type2, compression
+flags and LE16 compressedLength. Permit the 24 documented
+type2 values, streams 1/2/4 and stream 0 ONLY with
+SYNCHRONIZE type2 (0x1f). Unknown values fail closed
+with no borrowed body. Propagate FlowPDU ignored status,
+rather than converting an ignored packet to a Data PDU.
+
+The published Microsoft Client Font List sample contains
+an uninitialized uncompressedLength. Keep that field as
+metadata, NOT a length check or allocator. The enclosing
+Share Control totalLength is the real validated frame
+boundary. Likewise pad1 MUST be ignored (real packets
+contain nonzero bytes), and in uncompressed mode the
+compressedLength is metadata, never an allocation or
+payload boundary. Until authenticated decompression and
+history ownership exist, reject EVERY nonzero
+compressedType (including compressed, flushed and at-front
+flags). Never misroute compressed payload to an uncompressed
+Data PDU handler. Return a zero-copy borrowed span only
+for valid, explicitly isolated, uncompressed Data PDUs.
+
+Actual MCS, TLS, license, security header, active share,
+joined channel and independently authenticated OS identity
+are mandatory, separately verified future admission gates;
+none is inferred from pure Share Data syntax.
+
 ## Strict offline T.128 Share Control Header (2026-10-15)
 
 Follow [MS-RDPBCGR 2.2.8.1.1.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/73d01865-2eae-407f-9b2c-87e31daac471):

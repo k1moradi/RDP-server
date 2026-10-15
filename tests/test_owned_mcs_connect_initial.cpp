@@ -1115,6 +1115,178 @@ void testRdpShareControlHeaderRejections()
     invalidLength(std::span(flow).first(5));
 }
 
+void testRdpShareDataHeaderWire()
+{
+    // Exact Microsoft MS-RDPBCGR Server Control (Granted Control):
+    // full 26-byte Share PDU, not a fabricated authorization or input.
+    constexpr std::array<std::uint8_t, 26> grantedControl{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x12, 0x02,
+        0x1a, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0xef, 0x03, 0xea, 0x03, 0x00, 0x00};
+    const auto parsed = parseRdpShareDataHeader(grantedControl);
+    assert(parsed && parsed.error == RdpShareDataError::None);
+    assert(parsed.value.pduSource == 1002);
+    assert(parsed.value.shareId == 0x000103eaU);
+    assert(parsed.value.streamId == 2);
+    assert(parsed.value.reportedUncompressedLength == 26);
+    assert(parsed.value.pduType2 == 0x14);
+    assert(parsed.value.compressedType == 0);
+    assert(parsed.value.compressedLength == 0);
+    assert(parsed.value.body.size() == 8);
+    assert(parsed.value.body.data() == grantedControl.data() + 18);
+    assert(parsed.value.body[0] == 0x02); // Granted Control action.
+
+    // Microsoft Client Font List: a documented buggy client sends an
+    // uninitialized 0xda3b as uncompressedLength, not the 26-byte
+    // frame size. Never allocate from or reject based on that field.
+    constexpr std::array<std::uint8_t, 26> fontList{
+        0x1a, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x3b, 0xda, 0x27, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x32, 0x00};
+    const auto buggy = parseRdpShareDataHeader(fontList);
+    assert(buggy && buggy.value.pduSource == 1007);
+    assert(buggy.value.reportedUncompressedLength == 0xda3b);
+    assert(buggy.value.pduType2 == 0x27);
+    assert(buggy.value.streamId == 1);
+    assert(buggy.value.body.data() == fontList.data() + 18);
+    assert(buggy.value.body.size() == 8);
+
+    // Microsoft Server Font Map also proves pad1 is arbitrary
+    // (0x45) and STREAM_MED (2) is legal.
+    constexpr std::array<std::uint8_t, 26> fontMap{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x45, 0x02,
+        0x1a, 0x00, 0x28, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x04, 0x00};
+    const auto font = parseRdpShareDataHeader(fontMap);
+    assert(font && font.value.pduType2 == 0x28);
+    assert(font.value.streamId == 2);
+    assert(font.value.body.data() == fontMap.data() + 18);
+
+    // Every documented Data pduType2 is syntactically recognizable;
+    // payload interpretation remains a later authorized phase.
+    constexpr std::array<std::uint8_t, 24> types{
+        0x02, 0x14, 0x1b, 0x1c, 0x1f, 0x21, 0x22, 0x23,
+        0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2b, 0x2c,
+        0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x36, 0x37};
+    for (const auto type : types)
+    {
+        auto frame = grantedControl;
+        frame[14] = type;
+        const auto result = parseRdpShareDataHeader(frame);
+        assert(result && result.value.pduType2 == type);
+        assert(result.value.body.data() == frame.data() + 18);
+    }
+
+    // Windows Server Synchronize can use STREAM_UNDEFINED (0).
+    auto sync = grantedControl;
+    sync[11] = 0;
+    sync[14] = 0x1f;
+    const auto compat = parseRdpShareDataHeader(sync);
+    assert(compat && compat.value.streamId == 0);
+    assert(compat.value.pduType2 == 0x1f);
+
+    // In uncompressed mode, compressedLength is retained as metadata,
+    // never an allocation or body-size authority.
+    auto staleLength = grantedControl;
+    staleLength[16] = 0xff;
+    staleLength[17] = 0xff;
+    const auto stale = parseRdpShareDataHeader(staleLength);
+    assert(stale && stale.value.compressedLength == 65535);
+    assert(stale.value.body.size() == 8);
+
+    // Deliberate MCS -> Share Control -> Share Data handoff. The
+    // backing TPKT outlives all three borrowed data views.
+    std::vector<std::uint8_t> mcs{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70,
+        static_cast<std::uint8_t>(grantedControl.size())};
+    mcs.insert(mcs.end(), grantedControl.begin(), grantedControl.end());
+    const auto outer = frameDomainPdu(mcs);
+    const auto parsedMcs = parseMcsChannelRequest(outer);
+    assert(parsedMcs &&
+           parsedMcs.request.kind == McsChannelRequestKind::SendDataRequest);
+    const auto shared = parseRdpShareDataHeader(parsedMcs.request.userData);
+    assert(shared && shared.value.pduType2 == 0x14);
+    assert(shared.value.body.data() == outer.data() + 7 + 7 + 18);
+}
+
+void testRdpShareDataHeaderRejections()
+{
+    constexpr std::array<std::uint8_t, 26> valid{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x12, 0x02,
+        0x1a, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0xef, 0x03, 0xea, 0x03, 0x00, 0x00};
+    const auto denied = [](std::span<const std::uint8_t> frame,
+                           RdpShareDataError expected)
+    {
+        const auto result = parseRdpShareDataHeader(frame);
+        assert(!result && result.error == expected);
+        assert(result.value.body.empty());
+        assert(result.value.pduType2 == 0);
+    };
+
+    // Every byte-short prefix rejects before yielding a borrowed view.
+    for (std::size_t size = 0; size < valid.size(); ++size)
+        denied(std::span(valid).first(size),
+               RdpShareDataError::InvalidShareControl);
+    auto extra = std::vector<std::uint8_t>(valid.begin(), valid.end());
+    extra.push_back(0);
+    denied(extra, RdpShareDataError::InvalidShareControl);
+
+    // Syntactically valid outer Data headers still need all 12
+    // inner bytes. No speculative field access or borrowing.
+    for (std::size_t size = 6; size < 18; ++size)
+    {
+        auto prefix = std::vector<std::uint8_t>(
+            valid.begin(), valid.begin() + size);
+        prefix[0] = static_cast<std::uint8_t>(size);
+        denied(prefix, RdpShareDataError::IncompleteHeader);
+    }
+
+    auto frame = valid;
+    frame[2] = 0x16; // Deactivate All, not Share Data.
+    denied(frame, RdpShareDataError::NotDataPdu);
+    frame = valid;
+    frame[2] = 0x27; // Wrong protocol version.
+    denied(frame, RdpShareDataError::InvalidShareControl);
+    frame = valid;
+    frame[0] = 0;
+    frame[1] = 0x80; // T.128 FlowPDU must be ignored.
+    denied(frame, RdpShareDataError::FlowPduIgnored);
+
+    for (const std::uint8_t type :
+         {std::uint8_t{0}, std::uint8_t{1},
+          std::uint8_t{3}, std::uint8_t{0x1d},
+          std::uint8_t{0x2a}, std::uint8_t{0x33},
+          std::uint8_t{0x35}, std::uint8_t{0xff}})
+    {
+        frame = valid;
+        frame[14] = type;
+        denied(frame, RdpShareDataError::InvalidDataPduType);
+    }
+
+    for (const std::uint8_t stream :
+         {std::uint8_t{0}, std::uint8_t{3},
+          std::uint8_t{5}, std::uint8_t{255}})
+    {
+        frame = valid; // Control must never use STREAM_UNDEFINED.
+        frame[11] = stream;
+        denied(frame, RdpShareDataError::InvalidStream);
+    }
+    for (const std::uint8_t compressed :
+         {std::uint8_t{1}, std::uint8_t{2}, std::uint8_t{0x20},
+          std::uint8_t{0x40}, std::uint8_t{0x80},
+          std::uint8_t{0xff}})
+    {
+        frame = valid;
+        frame[15] = compressed;
+        denied(frame, RdpShareDataError::UnsupportedCompression);
+    }
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -1141,7 +1313,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 21> kMcsTestCases{{
+constexpr std::array<McsTestCase, 23> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -1163,6 +1335,8 @@ constexpr std::array<McsTestCase, 21> kMcsTestCases{{
     {"mcs-send-indication-rejections", &testMcsSendDataIndicationRejections},
     {"share-control-header-wire", &testRdpShareControlHeaderWire},
     {"share-control-header-rejections", &testRdpShareControlHeaderRejections},
+    {"share-data-header-wire", &testRdpShareDataHeaderWire},
+    {"share-data-header-rejections", &testRdpShareDataHeaderRejections},
 }};
 
 int main(int argc, char **argv)

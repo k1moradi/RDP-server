@@ -2924,6 +2924,31 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   required before any R9 cross-boundary PASS claim; owner three-platform
   and real R3/R8 authorization remain NOT RUN.
 
+  **R9 MCS→CLIPRDR cross-boundary exact-SHA CI (2026-10-15):**
+  Fix SHA `396c81513363d99bb1de60c46f9b2e4bf504c8cf`,
+  [Actions 38798952942](https://github.com/k1moradi/RDP-server/actions/runs/38798952942):
+  `clipboard.mcs-joined-response-teardown` **PASS** Linux/GCC
+  and macOS/Clang **Debug** compiled/native CTest, and project
+  documentation policy **PASS**. **FAIL** Linux full Debug
+  173/175, macOS full Debug 161/163, precisely two R1
+  `test_owned_preauth_session` assertions expecting
+  `onSocketReady(true, false) == Interest::Write` at lines
+  1967 and 2130. These failed at earlier R1/R3 parents
+  too, tracked in [issue #11](https://github.com/k1moradi/RDP-server/issues/11);
+  they are not new R9 clipboard failures. Linux/macOS
+  Release on this exact SHA **NOT RUN** because Debug
+  full-suite failure stopped their jobs. Windows/MSVC
+  compiled Debug but hosted Debug CTest **IN PROGRESS**
+  at receipt authoring, so no Windows test PASS claimed.
+  The initial R9 SHA `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`
+  had a self-introduced malformed `main` declaration (GCC
+  Compile Debug FAIL) and is superseded by the fix SHA.
+  **NOT RUN:** owner's specified Linux/X11, Windows
+  CLANG64/Clang23, macOS27 and live Microsoft client.
+  **Next R9:** after cross-road CI returns to green,
+  test authenticated R3-to-R8 routing and stale session
+  teardown using the real, once-available authorized router.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

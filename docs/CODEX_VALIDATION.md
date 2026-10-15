@@ -3456,3 +3456,35 @@ frame/stride/damage/lifetime contract. **Next R7 step:** native display
 sampling/normalization and deterministic change notifications, with a new
 dedicated CTest; do not activate a service or infer authorization from
 CGPreflightScreenCaptureAccess.
+
+
+## R9 offline MCS-joined clipboard teardown exact-SHA CI (2026-10-15)
+
+**Correction SHA:** [`396c81513363d99bb1de60c46f9b2e4bf504c8cf`](https://github.com/k1moradi/RDP-server/commit/396c81513363d99bb1de60c46f9b2e4bf504c8cf),
+[Actions 38798952942](https://github.com/k1moradi/RDP-server/actions/runs/38798952942).
+**PASS:** new `clipboard.mcs-joined-response-teardown` CTest
+in both Linux/GCC and macOS/Clang Debug (real production
+`parseMcsChannelRequest`, `McsChannelJoinWriteGate`,
+`RemoteTransfer::receiveResponse` linked by normal CMake);
+docs co-change policy PASS. **FAIL, not accepted:** full
+Linux Debug **173/175**, macOS Debug **161/163**; two
+identical R1 readiness/deadline assertions fail at
+`tests/test_owned_preauth_session.cpp:1967,2130`.
+These assertions failed at previous R1 parent SHA
+`209ebb6fa714b4bba61478539976719506b9b96d`
+and are in [R1 issue #11](https://github.com/k1moradi/RDP-server/issues/11).
+Linux/macOS Release on this exact SHA **NOT RUN**
+due to failing Debug. Windows/MSVC Debug compile PASS;
+CTest was still **IN PROGRESS** at evidence authoring
+and may not be claimed as passed. The original implementation
+SHA `d556c2f7ce93b5f46a52fce8ddfd2cf4b2e25eb4`
+had an R9 C++ syntax insertion error at `main`; fix
+`396c81513363d99bb1de60c46f9b2e4bf504c8cf` eliminated that error and got actual native
+CTest PASS on Linux/macOS. A later separate R1 transport
+fix was published by the R1 owner, but cannot retroactively
+change the tested earlier R9 SHA's full-suite FAIL.
+**NOT RUN:** owner's Linux/X11, Windows MSYS2 CLANG64
+Clang23, macOS27, actual TLS+R2 OS admission or
+Microsoft-client desktop/clipboard.
+**Next:** R1 full CI remediation, any remaining Windows
+CI triage, then real R3→R8 authorized ingress once available.

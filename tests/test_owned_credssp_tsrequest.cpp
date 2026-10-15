@@ -371,6 +371,33 @@ void testStreamDerFailuresAndCancellation()
                TsRequestFrameStatus::Closed);
     }
 
+    // The first invalid tag byte must reject on THAT callback, without
+    // awaiting another network/TLS record. Exercise all 255 invalid tags.
+    for (unsigned int tag = 0; tag <= 0xffU; ++tag)
+    {
+        if (tag == 0x30U)
+            continue;
+        TsRequestFrameReader invalidFirstByte;
+        const std::array<std::uint8_t, 1> byte{
+            static_cast<std::uint8_t>(tag)};
+        const auto outcome = invalidFirstByte.consume(byte);
+        assert(outcome.bytesConsumed == 1);
+        assert(outcome.status == TsRequestFrameStatus::Invalid);
+        assert(outcome.error == TsRequestError::InvalidDer);
+        assert(invalidFirstByte.completeDer().empty());
+        assert(invalidFirstByte.bytesNeeded() == 0);
+        assert(!invalidFirstByte.releaseFrame());
+        assert(invalidFirstByte.consume(initialRequest()).status ==
+               TsRequestFrameStatus::Closed);
+    }
+    // A valid one-byte SEQUENCE prefix must still await its DER length.
+    TsRequestFrameReader validFirstByte;
+    const std::array<std::uint8_t, 1> sequenceTag{0x30};
+    const auto incompleteHeader = validFirstByte.consume(sequenceTag);
+    assert(incompleteHeader.bytesConsumed == 1);
+    assert(incompleteHeader.status == TsRequestFrameStatus::NeedMore);
+    assert(validFirstByte.bytesNeeded() == 1);
+
     const auto fixture = initialRequest();
     TsRequestFrameReader reader;
     const auto incomplete = reader.consume(std::span(fixture).first(5));

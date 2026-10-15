@@ -426,7 +426,11 @@ in at most the existing 16 KiB fixed array; borrow views
 only until explicit release and cleanse on every cancel
 or discard. A complete frame must not be overwritten by
 unexpected new input, even when the next input is itself
-syntactically valid. No change to NLA flags or authentication
+syntactically valid. Reject an invalid first tag byte within the
+same receive step, *before* returning NeedMore on input exhaustion,
+even when it was the only byte received. This is a bounded
+fail-fast parser invariant, not an authorization change.
+No change to NLA flags or authentication
 admission may be justified by framing correctness alone.
 
 **Cross-platform validation:** incremental CredSSP DER framing

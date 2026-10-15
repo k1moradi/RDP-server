@@ -1407,3 +1407,32 @@ positive GSS proof test, then
 explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
+
+## Pending single-byte CredSSP DER fail-fast intake (2026-10-14)
+
+**Prior verified main:** `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`,
+[Actions 38683456755](https://github.com/k1moradi/RDP-server/actions/runs/38683456755)
+completed successfully. This incremental change uses that head as
+its parent; the new commit SHA is available in GitHub history
+after the atomic push.
+
+**Change:** `src/server/security/credssp_tsrequest.cpp` now
+checks the first DER tag *before* returning NeedMore at the end
+of an input event. `tests/test_owned_credssp_tsrequest.cpp`
+reuses `security.credssp-stream-rejections` to test all 255
+invalid single-byte initial tags, exact consumed count,
+fail-closed replay, and the valid first-tag control.
+Affected canonical roadmap, coding and testing docs are updated
+in this same implementation commit.
+
+**NOT RUN at authoring:** compilation and CTest locally
+(no GitHub checkout/build root available in this tool runtime),
+Debug/Release cross-platform GitHub Actions for this new SHA,
+sanitizers, Kerberos provider, Microsoft external client and
+desktop admission. The specified validation commands are
+`cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2`,
+and `ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure`.
+**Next gate:** confirm exact-head CI Debug/Release CTests,
+downstream SDK and project-policy jobs, then pursue controlled
+GSS failure/identity handling without granting OS session access.

@@ -556,6 +556,15 @@ including all three incremental DER-framing cases.
 **NOT RUN:** owner-local new build, live TLS NLA,
 Kerberos authentication or OS desktop authorization.
 
+**New fail-fast negative edge (CI NOT RUN, after `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`):**
+the same `security.credssp-stream-rejections` case exhaustively
+feeds each of the 255 non-SEQUENCE tag bytes as its entire first
+event and requires immediate Invalid/InvalidDer, exactly one consumed
+byte, erased data, terminal close and refused replay. A lone valid
+0x30 tag must remain NeedMore until the DER length arrives.
+No new test executable or CTest registration; acceptance remains
+offline parser-only until platform CI confirms this change.
+
 ## Verified offline CredSSP server DER reply validation (2026-10-14)
 
 Reuse the existing `test_owned_credssp_tsrequest` binary and

@@ -922,6 +922,19 @@ acceptance evidence; no synthetic completion claims.
   promoting it to authentication
   success; independent OS admission
   before real MCS or desktop.
+  **Additional bounded DER intake hardening (CI NOT RUN):**
+  reorder the existing CredSSP first-tag check before the
+  end-of-input NeedMore return so a single wrong tag byte
+  immediately closes the frame owner; a valid single 0x30
+  byte continues waiting for the length. The existing
+  `security.credssp-stream-rejections` CTest exhausts
+  all 255 invalid first tags, exact consumption, irreversible
+  close and the valid-prefix control. Based on prior main
+  `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`; GitHub CI and local builds for
+  this incremental change are **NOT RUN** at authoring time.
+  **Next:** run CI Debug/Release on Linux/macOS/Windows;
+  continue explicit authenticated GSS/OS admission gates
+  separately; no external-client/desktop acceptance claimed.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:

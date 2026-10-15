@@ -637,14 +637,15 @@ TsRequestFrameResult TsRequestFrameReader::consumePlaintext(
                     TsRequestError::None};
         }
 
+        // Validate the FIRST DER tag byte even when this event ends
+        // immediately after it. Never wait for a second peer byte to
+        // reject a non-SEQUENCE prefix or retain it across callbacks.
+        if (buffered_ == 1 && buffer_[0] != 0x30)
+            return reject(consumed, TsRequestError::InvalidDer);
+
         if (consumed == plaintext.size())
             return {consumed, TsRequestFrameStatus::NeedMore,
                     TsRequestError::None};
-
-        // Validate tag before accepting its length; never buffer
-        // arbitrary peer bytes after a wrong DER SEQUENCE tag.
-        if (buffered_ == 1 && buffer_[0] != 0x30)
-            return reject(consumed, TsRequestError::InvalidDer);
 
         const auto count = (std::min)(bytesNeeded(),
                                       plaintext.size() - consumed);

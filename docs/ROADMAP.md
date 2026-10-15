@@ -2208,6 +2208,19 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   **Next:** exact-SHA CI, canonical one-root owner CTest, then separate
   CLIPRDR fragmentation and R3→R8 authorization regression.
 
+  **Exact implementation CI PASS:** `455b8b631957d2f3f9631393f2a3833e19c2c07a`,
+  [Actions 38794861230](https://github.com/k1moradi/RDP-server/actions/runs/38794861230).
+  Linux/GCC **125/125**, macOS/Clang and Windows/MSVC **115/115**
+  full CTests in **each Debug and Release**. New
+  `clipboard.remote-transfer-framing-rejections` and previous
+  `clipboard.remote-transfer` both PASS across the hosted matrix.
+  The documentation-policy, SDK install/downstream consumer, ZIP
+  packaging and artifact upload jobs PASS. Hosted CI uses Windows/MSVC,
+  NOT MSYS2 CLANG64/Clang23; owner three-platform exact-SHA
+  terminal runs, authentication, Microsoft-client and desktop remain
+  **NOT RUN**. Next R9: separate bounded CLIPRDR chunk/recovery test,
+  then R3/R8 authorized channel integration.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

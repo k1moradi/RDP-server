@@ -2692,3 +2692,17 @@ Sparse fixture `ctest --test-dir build -C Debug --output-on-failure`
 owner Linux/macOS, R2/R3 authorized session, DXGI acquisition, R4
 graphics, Microsoft-client desktop and benchmarks. Next: R2/R3-bound
 DXGI frame acquire/release/cancel RAII and deterministic failure CTest.
+
+**Exact implementation CI PASS (2026-10-15):** `455b8b631957d2f3f9631393f2a3833e19c2c07a`,
+[Actions 38794861230](https://github.com/k1moradi/RDP-server/actions/runs/38794861230).
+Linux/GCC **125/125**, macOS/Clang and Windows/MSVC **115/115**
+registered full CTests each in **Debug and Release** (hosted logs).
+`clipboard.remote-transfer-framing-rejections` ran and PASSed in both
+configurations on all three hosted operating systems. Project policy,
+staged SDK installation, downstream single consumer CTest, ZIP package,
+SHA256 digest and package artifact upload PASS. This confirms compiled
+first-party offline tests, NOT live Microsoft-client interoperability.
+**NOT RUN:** owner's Linux/X11/Windows MSYS2 CLANG64 Clang23/macOS27
+exact-SHA runs, real GSS OS authorization, host clipboard, and desktop.
+**Next:** add isolated chunk-reassembly reset/bounds dedicated CTest
+on latest `main` and cross-road authenticated channel integration.

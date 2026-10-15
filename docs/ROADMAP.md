@@ -1290,8 +1290,8 @@ acceptance evidence; no synthetic completion claims.
   OS session authorization, external RDP client or desktop.
   **Next:** owner-local one-root CTest, then separately
   authorized real GSS/TLS and OS identity acceptance.
-  **Partial OFFLINE General Capability Set decoding (2026-10-15;
-  exact-head CI NOT RUN at authoring):** Extend the existing
+  **Verified partial OFFLINE General Capability Set decoding (2026-10-15;
+  exact-head CI PASS):** Extend the existing
   Demand/Confirm Active Share Control decoder with one independent
   allocation-free semantic extraction of the 24-byte
   MS-RDPBCGR 2.2.7.1.1 `TS_GENERAL_CAPABILITYSET`. First reuse
@@ -1317,14 +1317,22 @@ acceptance evidence; no synthetic completion claims.
   owner reports **93/93 local PASS** on preceding code
   (no exact local SHA/log supplied). Baseline main
   `911e4d3a4459f070588aadc6380d54cc2efda7f5`.
-  **NOT RUN:** exact new-head CI, owner-local new compile,
-  isolated genuine Kerberos/TLS, OS admission, licensed
-  capability *agreement*, graphics codec, Microsoft
-  client or desktop. The new parser makes NO claim that
-  extraFlags represent actual negotiation/permission.
-  **Next:** exact-head cross-platform CI, owner single-root
-  CTest, then independently authorized genuine GSS/TLS
-  and OS identity before ANY live capability dispatch.
+  **PASS:** implementation `3625b0daadef1f470bc0b23b3b2aff9106750a6a`,
+  [Actions 38742975505](https://github.com/k1moradi/RDP-server/actions/runs/38742975505):
+  Linux/GCC **105/105**, macOS/Clang and Windows/MSVC
+  **95/95** registered CTests in EACH Debug and Release.
+  Both new General capability wire/rejection cases passed
+  on all platforms. Documentation-policy, staged SDK
+  installation/downstream consumer, ZIP/SHA256 packages
+  and uploaded artifacts PASS. Prerelease SKIPPED (no tag).
+  **NOT RUN:** owner-local new compile/CTest,
+  isolated positive genuine Kerberos/TLS, independent OS
+  admission, licensed capability *agreement*, graphics codec,
+  Microsoft client or desktop. The new parser makes no
+  claim that extraFlags represent negotiation/permission.
+  **Next:** owner single-root full CTest, then separately
+  authorized real GSS/TLS and OS session identity before
+  ANY live capability dispatch.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

@@ -1566,3 +1566,15 @@ agreement. Expected 95 portable and 105 Linux GSS
 CTest registrations, compared with verified 93/103.
 Exact-head CI, owner local build, real Kerberos and
 desktop acceptance are NOT RUN at authoring.
+
+**Exact-head CI PASS (2026-10-15):**
+`3625b0daadef1f470bc0b23b3b2aff9106750a6a`,
+[Actions 38742975505](https://github.com/k1moradi/RDP-server/actions/runs/38742975505).
+Linux/GCC **105/105** and macOS/Clang, Windows/MSVC
+**95/95** CTests passed in BOTH Debug and Release,
+including both new General capability cases. Installed
+SDK consumer, ZIP/SHA256 package uploads and policy
+PASS; no version tag, so prerelease SKIPPED.
+**NOT RUN:** owner-local new-head build, genuine GSS/TLS
+positive proof, independent OS authority, Microsoft
+client or graphics/desktop.

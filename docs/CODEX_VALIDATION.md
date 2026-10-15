@@ -2218,7 +2218,7 @@ full CTest, then genuine isolated positive Kerberos
 and separately approved OS admission before network
 session or application-level RDP responses.
 
-## Pending offline General Capability extraction (2026-10-15)
+## Verified offline General Capability extraction (2026-10-15)
 
 **Previous main:** `911e4d3a4459f070588aadc6380d54cc2efda7f5`.
 **Previous implementation CI PASS:**
@@ -2259,3 +2259,22 @@ cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug
 cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ```
+
+**PASS:** exact implementation
+`3625b0daadef1f470bc0b23b3b2aff9106750a6a`,
+[GitHub Actions 38742975505](https://github.com/k1moradi/RDP-server/actions/runs/38742975505):
+Linux/GCC **105/105** and macOS/Clang, Windows/MSVC
+**95/95** full CTests, both Debug and Release. New tests
+`transport.share-general-capability-wire` and
+`transport.share-general-capability-rejections` PASS
+across all three operating systems. Documentation-policy,
+installed SDK consumer, packaging, ZIP and SHA256 artifacts
+PASS. Prerelease SKIPPED because no protocol version tag.
+The earlier "NOT RUN at authoring" note describes the
+pre-CI checkpoint and not the eventual cross-platform result.
+**NOT RUN:** owner-local updated build/CTest, opt-in real
+Kerberos/TLS binding, independent OS account authorization,
+actual negotiated capabilities/licensing, Windows/macOS
+RDP client, H.264 graphics or desktop. **Next:** owner's
+single-root full CTest, separately authorized real GSS/TLS
+and OS admission before sending any live RDP application data.

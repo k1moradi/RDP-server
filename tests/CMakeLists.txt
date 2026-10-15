@@ -218,6 +218,11 @@ if(TARGET rdp-server-linux-gssapi)
     endforeach()
 endif()
 add_rdp_test(test_owned_remote_transfer.cpp clipboard remote-transfer)
+# A separate fail-closed framing contract, dispatched by the same native test.
+add_test(NAME clipboard.remote-transfer-framing-rejections
+    COMMAND test_owned_remote_transfer framing-rejections)
+set_tests_properties(clipboard.remote-transfer-framing-rejections PROPERTIES
+    LABELS "protocol;clipboard;security")
 add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)
 add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)
 add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)

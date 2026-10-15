@@ -2518,3 +2518,31 @@ graphics and desktop. Prior owner 101/101 is unrelated baseline evidence.
 **Next:** owner R3 combines this bounded join gate with the sole R1
 outbound transport completion and a genuine R2 TLS-bound CredSSP/GSS
 plus OS authorization decision. M2/Gate A remain NOT ACCEPTED.
+
+## R9 CLIPRDR response-framing regression (2026-10-15)
+
+**Implementation parent main:** `469f49e5d4621017016a06095a17ca7cbfc10182`. Modified:
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/CODEX_VALIDATION.md`. No production change.
+**New CTest:** `clipboard.remote-transfer-framing-rejections` dispatches
+a distinct test function in the existing production-linked test binary,
+checking every strict response prefix, malformed declared length, invalid
+type/flags, unsolicited replay, permanent poison before disconnect/reset,
+and successful fresh request plus borrowed-payload lifetime assertion.
+The existing `clipboard.remote-transfer` continues to run its original
+assertions without duplicate registration.
+
+**PASS (isolated, not official CTest):** existing
+`~/rdp-server/build/r9-clipboard-verification` harness compiled byte-for-byte
+the production `RemoteTransfer` translation unit and production CLIPRDR
+wire-codec excerpt with GCC 14.2 C++23 Debug and Release, Clang 17
+ASan/UBSan plus leak detection; both original and added tests exit 0.
+The committed test file's blob SHA equals the isolated compiled source
+SHA `069f6f47bc7744d4bd524a347aebf616e361638a`.
+A deliberately removed PDU length guard triggered expected assertion 134.
+**NOT RUN at authoring:** canonical full project build, focused/full CTest
+(no local Git checkout because github.com DNS unavailable), hosted
+exact-commit CI, owner Linux, Windows MSYS2 CLANG64/Clang23 and macOS27
+tests, Microsoft client, real OS authorization or desktop/clipboard.
+**Next:** verify exact-commit CI, owner's unchanged single-root CTest, then
+separate fragmentation/reset and R3→R8 integration security regressions.

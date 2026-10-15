@@ -2115,6 +2115,25 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   actual nonblocking TLS socket adapter and CredSSP/NLA admission.
 
 
+  **R9 CLIPRDR Format Data Response fail-closed regression (2026-10-15):**
+  A new distinct default-enabled `clipboard.remote-transfer-framing-rejections`
+  CTest invokes the production `RemoteTransfer::receiveResponse` and CLIPRDR
+  wire decoder in the existing test executable. It rejects all truncated
+  response prefixes, malformed/hostile lengths, wrong types/flags, and
+  duplicate unsolicited replies; verifies poisoned state, no stale payload
+  exposure and fresh data only after an actual disconnect/reset. The
+  original `clipboard.remote-transfer` test remains unchanged.
+  **Implementation parent main:** `469f49e5d4621017016a06095a17ca7cbfc10182`.
+  **PASS (isolated only):** GCC 14.2 Debug and Release and Clang 17
+  ASan/UBSan with leak detection using byte-identical production
+  `RemoteTransfer` and first-party wire decoder excerpts.
+  Deliberately breaking the length check causes expected failure.
+  **NOT RUN:** full project build/official CTest (repository Git DNS
+  unavailable locally), exact-commit GitHub CI, owner's Linux/X11,
+  Windows CLANG64/Clang23 and macOS27 tests or Microsoft RDP client.
+  **Next:** exact-SHA CI, canonical one-root owner CTest, then separate
+  CLIPRDR fragmentation and R3→R8 authorization regression.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

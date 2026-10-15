@@ -326,4 +326,55 @@ struct RdpControlParseResult
 [[nodiscard]] RdpControlParseResult parseRdpControlPdu(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
 
+// MS-RDPBCGR 2.2.1.13.1.1 / 2.2.1.13.2.1, capability-exchange
+// TS_DEMAND_ACTIVE_PDU and TS_CONFIRM_ACTIVE_PDU. The caller MUST first
+// isolate exactly one decrypted, intact Share Control PDU from the
+// authenticated/authorized MCS session. Syntax alone never activates
+// the share, authorizes the OS identity or negotiates a codec.
+enum class RdpActivePduError : std::uint8_t
+{
+    None,
+    InvalidShareControl,
+    WrongPduType,
+    InvalidLayout,
+    InvalidOriginator,
+    InvalidCapabilitySet,
+};
+
+struct RdpActivePdu
+{
+    RdpShareControlKind kind{RdpShareControlKind::None};
+    std::uint16_t pduSource{};
+    std::uint32_t shareId{};
+    std::uint16_t originatorId{}; // Confirm Active only, MUST be 1002.
+    std::uint32_t sessionId{};    // Demand Active only, uninterpreted.
+    std::uint16_t capabilityCount{};
+    // Read-only views into caller's unchanged completeSharePdu.
+    // The original backing buffer MUST outlive both borrowed spans.
+    std::span<const std::uint8_t> sourceDescriptor{};
+    // Concatenated TS_CAPS_SET envelopes (LE16 type, LE16 length,
+    // then raw opaque bytes); each length includes its four-byte
+    // header. No capability type is trusted or semantically enabled.
+    std::span<const std::uint8_t> capabilitySets{};
+};
+
+struct RdpActivePduParseResult
+{
+    RdpActivePdu value{};
+    RdpActivePduError error{RdpActivePduError::InvalidShareControl};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpActivePduError::None;
+    }
+};
+
+// Validate exact Share Control size and version, mandatory Confirm
+// Active originatorId=1002, sourceDescriptor and combined-capability
+// byte counts, numberCapabilities and every nested capability's
+// minimum 4-byte length; require exact consumption and the final
+// 4-byte Demand Active sessionId. Unknown capability IDs and pad2Octets
+// remain opaque per Microsoft. No copy/heap, TLS write or activation.
+[[nodiscard]] RdpActivePduParseResult parseRdpActivePdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
 } // namespace rdp_server::server::transport

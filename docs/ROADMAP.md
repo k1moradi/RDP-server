@@ -1028,6 +1028,37 @@ acceptance evidence; no synthetic completion claims.
   and client ticket cache, prove full GSS/TLS binding,
   add independent OS authorization, and only then
   transition the one session owner through finalization.
+  **Partial OFFLINE Demand/Confirm Active capability envelope
+  intake (2026-10-15; new CI NOT RUN at authoring):**
+  Extend the first-party C++23 Share Control decoder with
+  Demand Active / Confirm Active syntax per MS-RDPBCGR
+  2.2.1.13.1.1, 2.2.1.13.2.1 and 2.2.1.13.1.1.1.
+  Validate mandatory Confirm originatorID=1002,
+  exact sourceDescriptor and combinedCapabilities
+  lengths, counted TS_CAPS_SET envelopes (LE16
+  size includes 4-byte type/length header), ignored
+  pads and the exact trailing Demand sessionId.
+  Borrow source/capability ranges from caller storage,
+  never copy or allocate, reject incomplete, surplus,
+  invalid size and count fields before exposing views.
+  Unknown capability IDs remain opaque; four-byte
+  FONT envelope mirrors a published Microsoft client
+  compatibility quirk but is not typed negotiation.
+  Two behavior-named portable CTests are added to
+  the original MCS registry. Expected **83** portable
+  and **93** Linux GSS-enabled (81/91 before).
+  Baseline main `ea258bfcc4a8d8d759a9bc1a882c4f0121959296`
+  passed [CI 38713180113](https://github.com/k1moradi/RDP-server/actions/runs/38713180113),
+  and owner reports **81/81** local PASS for prior head.
+  **NOT RUN at authoring:** new exact-head CI,
+  owner-local incremental build, GSS/Kerberos positive
+  keytab/TLS binding, independent OS session policy,
+  Share Active lifecycle, actual capability negotiation,
+  H.264, input or external clients.
+  **Next:** exact-head full CI, then isolated explicitly
+  authorized genuine Kerberos and independent OS admission
+  before binding a negotiated capability set into the
+  sole authenticated session owner.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

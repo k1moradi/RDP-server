@@ -667,6 +667,40 @@ configured Kerberos provider failure/TLS reply, positive
 GSS/TLS authentication, OS admission, real RDP client,
 service activation or desktop acceptance.
 
+## Offline Demand/Confirm Active capability-envelope tests (CI NOT RUN, 2026-10-15)
+
+Reuse ONLY `tests/test_owned_mcs_connect_initial.cpp` and the
+original `tests/CMakeLists.txt` registry; add exactly two new
+portable behavior cases:
+`transport.share-active-capabilities-wire` checks independent
+synthetic, specification-derived full Demand Active and Confirm
+Active Share Control PDUs. Verify LE32 shareID, LE16 Confirm
+originatorID=1002, exact source descriptor and capability
+borrowed pointers, N=2 envelopes (SHARE 8 bytes and FONT
+4 bytes), ignored nonzero pads, the Demand sessionID and
+unknown capability type preservation. The 4-byte FONT
+length mirrors a Microsoft Server Demand Active compatibility
+example but the synthetic PDU is NOT a complete captured
+Microsoft production trace. Test also exact empty-list
+envelopes and a complete client MCS SendDataRequest wrapping
+Confirm Active without manufacturing authorization.
+`transport.share-active-capabilities-rejections` checks
+ALL byte-short truncations, coalesced packet tails,
+wrong Share Control type/version, must-ignore FlowPDU,
+wrong Confirm originatorID, impossible source/combined
+sizes, missing Demand session ID, cap count mismatch,
+capability lengths below 4/oversize, and altered outer
+total lengths with malformed nested contents.
+No test disables validation to claim progress.
+
+Expected standard total **83** (previous 81),
+Linux GSSAPI **93** (previous 91) CTests.
+At authoring new CI and owner-local CTest **NOT RUN**.
+The capability parser does not perform nested type-specific
+H.264 or activation processing, does not grant channel
+membership and cannot replace genuine positive CredSSP
+Kerberos/TLS + independent OS session policy.
+
 ## Verified offline T.128 Synchronize/Control finalization tests (CI PASS, 2026-10-15)
 
 Use the existing `tests/test_owned_mcs_connect_initial.cpp`

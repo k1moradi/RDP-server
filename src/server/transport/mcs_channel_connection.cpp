@@ -526,4 +526,92 @@ RdpControlParseResult parseRdpControlPdu(
     return {value, RdpFinalizationError::None};
 }
 
+RdpActivePduParseResult parseRdpActivePdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    // Reuse the authoritative complete, exact-length Share Control
+    // header check. This does not prove TLS/session/channel provenance.
+    const auto control = parseRdpShareControlHeader(completeSharePdu);
+    if (!control)
+        return {};
+    const bool demand = control.value.kind ==
+                        RdpShareControlKind::DemandActive;
+    if (!demand && control.value.kind != RdpShareControlKind::ConfirmActive)
+        return {{}, RdpActivePduError::WrongPduType};
+
+    const auto bytes = control.value.body;
+    // Demand: shareID[4], sourceLen[2], combinedLen[2].
+    // Confirm: shareID[4], originatorID[2], sourceLen[2],
+    // combinedLen[2]. Both contain descriptor, count+pad,
+    // capability sets; Demand additionally has sessionID[4].
+    const std::size_t prefix = demand ? 8U : 10U;
+    const std::size_t sessionBytes = demand ? 4U : 0U;
+    if (bytes.size() < prefix + 4U + sessionBytes)
+        return {{}, RdpActivePduError::InvalidLayout};
+
+    const auto le16 = [](std::span<const std::uint8_t> data,
+                         std::size_t offset) noexcept -> std::uint16_t
+    {
+        return static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(data[offset]) |
+            (static_cast<std::uint16_t>(data[offset + 1]) << 8U));
+    };
+    const auto le32 = [&le16](std::span<const std::uint8_t> data,
+                              std::size_t offset) noexcept -> std::uint32_t
+    {
+        return static_cast<std::uint32_t>(le16(data, offset)) |
+               (static_cast<std::uint32_t>(
+                    le16(data, offset + 2)) << 16U);
+    };
+    const std::uint16_t originator =
+        demand ? 0U : le16(bytes, 4U);
+    // In Confirm Active the originatorID MUST be server channel 1002,
+    // not a client UserId. Still no authorization is implied.
+    if (!demand && originator != 1002U)
+        return {{}, RdpActivePduError::InvalidOriginator};
+
+    const std::size_t sourceBytes = le16(bytes, prefix - 4U);
+    const std::size_t combinedBytes = le16(bytes, prefix - 2U);
+    if (combinedBytes < 4U || sourceBytes > bytes.size() - prefix)
+        return {{}, RdpActivePduError::InvalidLayout};
+    const std::size_t capabilityStart = prefix + sourceBytes;
+    const std::size_t available = bytes.size() - capabilityStart;
+    if (combinedBytes > available ||
+        available - combinedBytes != sessionBytes)
+        return {{}, RdpActivePduError::InvalidLayout};
+
+    const auto capabilities =
+        bytes.subspan(capabilityStart + 4U, combinedBytes - 4U);
+    const std::size_t count = le16(bytes, capabilityStart);
+    // capSetType[2], lengthCapability[2] and opaque capData. Each
+    // length includes the four-byte envelope; unknown IDs remain
+    // opaque (a later negotiated capability owner handles semantics).
+    if (count > capabilities.size() / 4U)
+        return {{}, RdpActivePduError::InvalidCapabilitySet};
+    std::size_t position = 0;
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        const std::size_t remaining = capabilities.size() - position;
+        if (remaining < 4U)
+            return {{}, RdpActivePduError::InvalidCapabilitySet};
+        const std::size_t length = le16(capabilities, position + 2U);
+        if (length < 4U || length > remaining)
+            return {{}, RdpActivePduError::InvalidCapabilitySet};
+        position += length;
+    }
+    if (position != capabilities.size())
+        return {{}, RdpActivePduError::InvalidCapabilitySet};
+
+    RdpActivePdu value{};
+    value.kind = control.value.kind;
+    value.pduSource = control.value.pduSource;
+    value.shareId = le32(bytes, 0U);
+    value.originatorId = originator;
+    value.sessionId = demand ? le32(bytes, bytes.size() - 4U) : 0U;
+    value.capabilityCount = static_cast<std::uint16_t>(count);
+    value.sourceDescriptor = bytes.subspan(prefix, sourceBytes);
+    value.capabilitySets = capabilities;
+    return {value, RdpActivePduError::None};
+}
+
 } // namespace rdp_server::server::transport

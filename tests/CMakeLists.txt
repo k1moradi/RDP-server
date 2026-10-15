@@ -43,7 +43,9 @@ function(add_rdp_test source_file suite behavior)
                 share-sync-finalization-wire
                 share-sync-finalization-rejections
                 share-control-finalization-wire
-                share-control-finalization-rejections)
+                share-control-finalization-rejections
+                share-active-capabilities-wire
+                share-active-capabilities-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

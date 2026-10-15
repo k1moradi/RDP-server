@@ -327,6 +327,41 @@ inner RDP/licensing/virtual-channel PDU and complete TLS
 encryption/transmission. The encoder itself performs no SSL
 I/O, session admission, OS operation, reassembly or graphics.
 
+### Offline Demand/Confirm Active capability-envelope validation (2026-10-15)
+
+The original C++23 `mcs_channel_connection` parser now also
+recognizes the two capability-exchange Share Control PDUs:
+[MS-RDPBCGR 2.2.1.13.1.1 Demand Active](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/bd612af5-cb54-43a2-9646-438bc3ecf5db)
+and
+[2.2.1.13.2.1 Confirm Active](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/4e9722c3-ad83-43f5-af5a-529f73d88b48).
+It first reuses the one exact-size/version Share Control parser,
+then validates shareID, source descriptor length, combined
+capability-set length (including numberCapabilities and pad),
+and one bounded, fully consumed sequence of
+[TS_CAPS_SET envelopes](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/d705c3b6-a392-4b32-9610-391f6af62323).
+Each LE16 `lengthCapability` MUST be >=4 and fit completely
+within the combined region. The number of sets MUST equal
+`numberCapabilities`, without a dangling fragment or trailing
+octet. Demand Active additionally requires exactly one LE32
+sessionId after capabilities; Confirm Active instead requires
+LE16 originatorID=1002 (MCS server channel) before the source
+descriptor and has no sessionId. Pad2Octets is intentionally
+ignored. An unknown capability type remains opaque; the
+Microsoft Server Demand Active example has a nonconforming
+four-byte FONT set, which is accepted as *envelope syntax*
+without claiming functional font support.
+
+The API returns borrowed read-only `sourceDescriptor` and
+`capabilitySets` spans plus IDs/count; no heap, copy, session
+state transition, TLS I/O, admission or application negotiation.
+It does NOT validate nested capability semantics, H.264/AVC420,
+licensing, channel membership, OS identity, packet direction,
+sender trust, or MCS segmentation. The future single authenticated
+session owner must separately verify TLS-bound CredSSP,
+independent OS session policy, prior Demand Active shareID,
+required capability types/contents, and transcript ordering
+BEFORE any share activation or input acceptance.
+
 ### Offline RDP connection-finalization Control and Synchronize PDUs (2026-10-15)
 
 The original `mcs_channel_connection` module now reuses its checked

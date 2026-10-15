@@ -478,6 +478,38 @@ unchanged. Only authenticated owner-supplied authorization,
 TLS provenance and joined MCS state may allow actual
 SSL transmission; this encoder never grants permission.
 
+## Checked Demand/Confirm Active capability envelopes (2026-10-15)
+
+MS-RDPBCGR 2.2.1.13.1.1 (Demand Active) and 2.2.1.13.2.1
+(Confirm Active) use distinct fixed prefixes after the shared
+six-byte TS_SHARECONTROLHEADER. Demand has LE32 shareID,
+LE16 source length, LE16 combined-capabilities length,
+source bytes, LE16 count + ignored LE16 pad, N capability
+sets and exact terminal LE32 sessionId. Confirm adds an LE16
+originatorID=0x03EA after shareID but has no sessionId.
+The combined length INCLUDES count + pad, NOT sourceDescriptor.
+Every TS_CAPS_SET is at least 4 bytes, with LE16 type and
+LE16 lengthCapability INCLUDING those four bytes. Validate
+fixed prefix sizes, all source/combined/subcap boundaries
+using remaining-span subtraction, reject cap counts that
+cannot fit even four-byte headers, demand exact consumption,
+and never accept truncated or surplus bytes. Avoid heap
+allocation and return only caller-lifetime borrowed spans.
+
+Unknown TS_CAPS_SET types MAY be preserved as opaque
+envelopes; the published Microsoft Demand Active packet
+contains a four-byte FONT set that is malformed against
+its ideal typed schema but valid as a four-byte envelope.
+Do not pretend envelope recognition negotiates font,
+bitmap, AVC420 or any capability. Ignore pad2Octets.
+A valid Confirm originatorID=1002, sourceID or shareID
+is untrusted syntax, not MCS permission, authenticated
+identity, share admission or license acceptance. Only
+the single future owner may validate direction,
+session-specific shareID, the *contents* and required
+sets, active TLS-bound GSS, independent OS policy and
+ordering before any real activation or input.
+
 ## Pure finalization PDU syntax is NOT an activation controller (2026-10-15)
 
 MS-RDPBCGR 2.2.1.14.1 and 2.2.1.15.1 define small,

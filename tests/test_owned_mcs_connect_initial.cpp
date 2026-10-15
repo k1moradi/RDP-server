@@ -1508,6 +1508,227 @@ void testRdpControlFinalizationRejections()
     denied(mutation, RdpFinalizationError::InvalidShareData);
 }
 
+// MS-RDPBCGR 2.2.1.13.1.1 and 2.2.1.13.2.1 synthetic
+// complete Share Control PDUs with two independently defined
+// TS_CAPS_SET envelopes: SHARE length 8 and FONT length 4.
+// The latter is a real published server compatibility case,
+// but this is NOT claimed to be a captured 38-byte RDP session.
+constexpr std::array<std::uint8_t, 38> kOfflineDemandActive{{
+    0x26, 0x00, 0x11, 0x00, 0xea, 0x03,
+    0xea, 0x03, 0x01, 0x00, 0x04, 0x00, 0x10, 0x00,
+    0x52, 0x44, 0x50, 0x00, 0x02, 0x00, 0x17, 0xf0,
+    0x09, 0x00, 0x08, 0x00, 0xea, 0x03, 0xdc, 0xe2,
+    0x0e, 0x00, 0x04, 0x00, 0x44, 0x33, 0x22, 0x11
+}};
+constexpr std::array<std::uint8_t, 36> kOfflineConfirmActive{{
+    0x24, 0x00, 0x13, 0x00, 0xef, 0x03,
+    0xea, 0x03, 0x01, 0x00, 0xea, 0x03,
+    0x04, 0x00, 0x10, 0x00,
+    0x52, 0x44, 0x50, 0x00, 0x02, 0x00, 0x34, 0x12,
+    0x09, 0x00, 0x08, 0x00, 0xea, 0x03, 0xdc, 0xe2,
+    0x0e, 0x00, 0x04, 0x00
+}};
+
+void testRdpActivePduWire()
+{
+    const auto demand = parseRdpActivePdu(kOfflineDemandActive);
+    assert(demand && demand.value.kind ==
+           RdpShareControlKind::DemandActive);
+    assert(demand.value.pduSource == 1002);
+    assert(demand.value.shareId == 0x000103eaU);
+    assert(demand.value.sessionId == 0x11223344U);
+    assert(demand.value.originatorId == 0);
+    assert(demand.value.capabilityCount == 2);
+    assert(demand.value.sourceDescriptor.size() == 4);
+    assert(demand.value.sourceDescriptor.data() ==
+           kOfflineDemandActive.data() + 14);
+    assert(demand.value.sourceDescriptor[0] == 'R');
+    assert(demand.value.sourceDescriptor[3] == 0);
+    assert(demand.value.capabilitySets.size() == 12);
+    assert(demand.value.capabilitySets.data() ==
+           kOfflineDemandActive.data() + 22);
+    assert(demand.value.capabilitySets[0] == 9);
+    assert(demand.value.capabilitySets[2] == 8);
+    assert(demand.value.capabilitySets[8] == 14);
+    assert(demand.value.capabilitySets[10] == 4);
+
+    const auto confirm = parseRdpActivePdu(kOfflineConfirmActive);
+    assert(confirm && confirm.value.kind ==
+           RdpShareControlKind::ConfirmActive);
+    assert(confirm.value.pduSource == 1007);
+    assert(confirm.value.shareId == 0x000103eaU);
+    assert(confirm.value.originatorId == 1002);
+    assert(confirm.value.sessionId == 0);
+    assert(confirm.value.capabilityCount == 2);
+    assert(confirm.value.sourceDescriptor.data() ==
+           kOfflineConfirmActive.data() + 16);
+    assert(confirm.value.capabilitySets.data() ==
+           kOfflineConfirmActive.data() + 24);
+    assert(confirm.value.capabilitySets.size() == 12);
+
+    // Different pad2Octets and unknown capabilitySetType are legal
+    // envelope syntax, not automatically supported features.
+    auto differentPad = kOfflineConfirmActive;
+    differentPad[22] = 0xff;
+    differentPad[23] = 0xff;
+    differentPad[24] = 0xfe;
+    differentPad[25] = 0x7f;
+    assert(parseRdpActivePdu(differentPad));
+
+    // Zero capability sets are a syntactically exact count/length
+    // combination; no later capability negotiation can succeed
+    // merely because this offline parser accepted the envelope.
+    std::vector<std::uint8_t> demandNone(
+        kOfflineDemandActive.begin(),
+        kOfflineDemandActive.begin() + 22);
+    demandNone.insert(demandNone.end(),
+                      kOfflineDemandActive.begin() + 34,
+                      kOfflineDemandActive.end());
+    demandNone[0] = static_cast<std::uint8_t>(demandNone.size());
+    demandNone[12] = 4;
+    demandNone[18] = 0;
+    const auto emptyDemand = parseRdpActivePdu(demandNone);
+    assert(emptyDemand && emptyDemand.value.capabilityCount == 0);
+    assert(emptyDemand.value.capabilitySets.empty());
+    assert(emptyDemand.value.sessionId == 0x11223344U);
+
+    std::vector<std::uint8_t> confirmNone(
+        kOfflineConfirmActive.begin(),
+        kOfflineConfirmActive.begin() + 24);
+    confirmNone[0] = static_cast<std::uint8_t>(confirmNone.size());
+    confirmNone[14] = 4;
+    confirmNone[20] = 0;
+    const auto emptyConfirm = parseRdpActivePdu(confirmNone);
+    assert(emptyConfirm && emptyConfirm.value.capabilityCount == 0);
+    assert(emptyConfirm.value.capabilitySets.empty());
+
+    // Compose one complete TPKT/MCS client request with the confirmed
+    // Share Control PDU; preserve outer storage for borrowed views.
+    std::vector<std::uint8_t> mcs{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70,
+        static_cast<std::uint8_t>(kOfflineConfirmActive.size())};
+    mcs.insert(mcs.end(), kOfflineConfirmActive.begin(),
+               kOfflineConfirmActive.end());
+    const auto framed = frameDomainPdu(mcs);
+    const auto outer = parseMcsChannelRequest(framed);
+    assert(outer && outer.request.kind ==
+           McsChannelRequestKind::SendDataRequest);
+    const auto inner = parseRdpActivePdu(outer.request.userData);
+    assert(inner && inner.value.kind ==
+           RdpShareControlKind::ConfirmActive);
+    assert(inner.value.sourceDescriptor.data() == framed.data() + 14 + 16);
+    assert(inner.value.capabilitySets.data() == framed.data() + 14 + 24);
+}
+
+void testRdpActivePduRejections()
+{
+    const auto denied = [](std::span<const std::uint8_t> bytes,
+                           RdpActivePduError expected)
+    {
+        const auto parsed = parseRdpActivePdu(bytes);
+        assert(!parsed && parsed.error == expected);
+        assert(parsed.value.kind == RdpShareControlKind::None);
+        assert(parsed.value.capabilityCount == 0);
+        assert(parsed.value.sourceDescriptor.empty());
+        assert(parsed.value.capabilitySets.empty());
+    };
+
+    // Strict Share Control length means any truncation or coalesced
+    // bytes are denied BEFORE reading nested lengths.
+    for (std::size_t length = 0; length < kOfflineDemandActive.size();
+         ++length)
+        denied(std::span(kOfflineDemandActive).first(length),
+               RdpActivePduError::InvalidShareControl);
+    for (std::size_t length = 0; length < kOfflineConfirmActive.size();
+         ++length)
+        denied(std::span(kOfflineConfirmActive).first(length),
+               RdpActivePduError::InvalidShareControl);
+
+    auto surplus = std::vector<std::uint8_t>(
+        kOfflineDemandActive.begin(), kOfflineDemandActive.end());
+    surplus.push_back(0);
+    denied(surplus, RdpActivePduError::InvalidShareControl);
+
+    auto demand = kOfflineDemandActive;
+    demand[2] = 0x17; // Correct frame size but Share Data, not Active.
+    denied(demand, RdpActivePduError::WrongPduType);
+    demand = kOfflineDemandActive;
+    demand[2] = 0x21; // Invalid Share Control version.
+    denied(demand, RdpActivePduError::InvalidShareControl);
+    demand = kOfflineDemandActive;
+    demand[0] = 0;
+    demand[1] = 0x80; // Must-ignore T.128 FlowPDU.
+    denied(demand, RdpActivePduError::InvalidShareControl);
+
+    auto confirm = kOfflineConfirmActive;
+    confirm[10] = 0xeb; // Must be server channel 1002, not 1003.
+    denied(confirm, RdpActivePduError::InvalidOriginator);
+    confirm = kOfflineConfirmActive;
+    confirm[11] = 0;
+    denied(confirm, RdpActivePduError::InvalidOriginator);
+
+    // Declared lengths cannot cross the caller-owned packet boundary
+    // or leave even one unaccounted octet before/after capabilities.
+    demand = kOfflineDemandActive;
+    demand[10] = 0xff; demand[11] = 0xff;
+    denied(demand, RdpActivePduError::InvalidLayout);
+    demand = kOfflineDemandActive;
+    demand[12] = 3; // combinedCaps must include count + pad.
+    denied(demand, RdpActivePduError::InvalidLayout);
+    demand = kOfflineDemandActive;
+    demand[12] = 17;
+    denied(demand, RdpActivePduError::InvalidLayout);
+    demand = kOfflineDemandActive;
+    demand[12] = 15;
+    denied(demand, RdpActivePduError::InvalidLayout);
+    confirm = kOfflineConfirmActive;
+    confirm[12] = 0xff; confirm[13] = 0xff;
+    denied(confirm, RdpActivePduError::InvalidLayout);
+    confirm = kOfflineConfirmActive;
+    confirm[14] = 17;
+    denied(confirm, RdpActivePduError::InvalidLayout);
+
+    for (std::uint16_t count : {std::uint16_t{0},
+                                std::uint16_t{1},
+                                std::uint16_t{3},
+                                std::uint16_t{65535}})
+    {
+        demand = kOfflineDemandActive;
+        demand[18] = static_cast<std::uint8_t>(count);
+        demand[19] = static_cast<std::uint8_t>(count >> 8U);
+        denied(demand, RdpActivePduError::InvalidCapabilitySet);
+    }
+    for (std::uint16_t size : {std::uint16_t{0},
+                               std::uint16_t{1},
+                               std::uint16_t{3},
+                               std::uint16_t{9},
+                               std::uint16_t{65535}})
+    {
+        confirm = kOfflineConfirmActive;
+        confirm[26] = static_cast<std::uint8_t>(size);
+        confirm[27] = static_cast<std::uint8_t>(size >> 8U);
+        denied(confirm, RdpActivePduError::InvalidCapabilitySet);
+    }
+    confirm = kOfflineConfirmActive;
+    confirm[34] = 0; // FONT set length 0, invalid despite known ID.
+    denied(confirm, RdpActivePduError::InvalidCapabilitySet);
+
+    // Parent header remains valid after removing bytes, but the
+    // nested layout must still be rejected. No side effects.
+    for (std::size_t length = 6; length < kOfflineConfirmActive.size();
+         ++length)
+    {
+        std::vector<std::uint8_t> trimmed(
+            kOfflineConfirmActive.begin(),
+            kOfflineConfirmActive.begin() + length);
+        trimmed[0] = static_cast<std::uint8_t>(length);
+        const auto result = parseRdpActivePdu(trimmed);
+        assert(!result);
+        assert(result.value.sourceDescriptor.empty());
+        assert(result.value.capabilitySets.empty());
+    }
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -1534,7 +1755,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 27> kMcsTestCases{{
+constexpr std::array<McsTestCase, 29> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -1562,6 +1783,8 @@ constexpr std::array<McsTestCase, 27> kMcsTestCases{{
     {"share-sync-finalization-rejections", &testRdpSynchronizeFinalizationRejections},
     {"share-control-finalization-wire", &testRdpControlFinalizationWire},
     {"share-control-finalization-rejections", &testRdpControlFinalizationRejections},
+    {"share-active-capabilities-wire", &testRdpActivePduWire},
+    {"share-active-capabilities-rejections", &testRdpActivePduRejections},
 }};
 
 int main(int argc, char **argv)

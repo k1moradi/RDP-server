@@ -1408,6 +1408,50 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending Demand/Confirm Active capability envelope intake (2026-10-15)
+
+**Previous exact main:** `ea258bfcc4a8d8d759a9bc1a882c4f0121959296`,
+[CI 38713180113](https://github.com/k1moradi/RDP-server/actions/runs/38713180113)
+PASS Linux/GCC **91/91** and macOS/Clang,
+Windows/MSVC **81/81** full CTests each Debug
+and Release, installed SDK consumer, ZIP/SHA256
+packages and documentation policy. Owner reports
+**81/81** PASS locally on that prior head. This
+evidence does NOT include the new capability parser.
+
+**Increment:** `parseRdpActivePdu` reuses the
+original exact-boundary Share Control PDU owner
+and recognizes Demand Active and Confirm Active
+per MS-RDPBCGR 2.2.1.13.1.1 and 2.2.1.13.2.1.
+It rejects mismatched sourceDescriptor/combined
+lengths, malformed counted TS_CAPS_SET envelopes,
+bad Confirm originator, absent Demand session ID,
+extra/missing input and invalid outer packet.
+It preserves pads, unknown cap types and the
+published four-byte FONT envelope syntax, but
+NEVER validates cap data semantics or admits a
+session, authenticates an OS user, negotiates
+H.264 or activates the share. Two tests
+`transport.share-active-capabilities-wire` and
+`transport.share-active-capabilities-rejections`
+reuse the existing MCS executable and CTest list;
+expected **83** portable / **93** Linux GSS.
+Architecture, roadmap, coding and testing standards
+were updated in the SAME implementation commit.
+
+**NOT RUN at authoring:** exact new Linux/macOS/
+Windows Debug and Release CI, owner-local CTest,
+opt-in genuinely authenticated Kerberos/TLS proof,
+independent OS authorization, real capability
+negotiation and desktop/graphics.
+Reuse owner's single existing build root:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next gate:** exact-head all-OS CI, then
+independently authorized real Kerberos/TLS/OS
+session admission before live capability exchange.
+
 ## Verified offline T.128 finalization Synchronize/Control decoder (2026-10-15)
 
 **Previous main:** `1c4dc32ef2bb3d1bc86aeffa1bcc7d10f57ab8ed`,

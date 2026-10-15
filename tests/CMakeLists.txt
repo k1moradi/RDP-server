@@ -335,6 +335,15 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.capture-${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
     endforeach()
+    # R6 D3D11 staging frame/map RAII, injected callbacks only.
+    foreach(case_name IN ITEMS
+            d3d11-staging-bgra-map-lifetime
+            d3d11-staging-map-denials)
+        add_test(NAME "windows.capture-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.capture-${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;offline")
+    endforeach()
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.
     add_test(NAME windows.capture-dxgi-move-before-dirty

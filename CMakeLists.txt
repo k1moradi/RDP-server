@@ -135,7 +135,8 @@ if(WIN32)
         src/windows/windows_desktop_geometry.cpp
         src/windows/windows_bgra_frame.cpp
         src/windows/windows_dxgi_damage.cpp
-        src/windows/windows_dxgi_frame_owner.cpp)
+        src/windows/windows_dxgi_frame_owner.cpp
+        src/windows/windows_d3d11_staging_map.cpp)
     target_compile_features(rdp-server-windows-desktop PUBLIC cxx_std_23)
     target_include_directories(rdp-server-windows-desktop PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")

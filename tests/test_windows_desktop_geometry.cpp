@@ -3,6 +3,7 @@
 #include "windows/windows_bgra_frame.h"
 #include "windows/windows_dxgi_damage.h"
 #include "windows/windows_dxgi_frame_owner.h"
+#include "windows/windows_d3d11_staging_map.h"
 
 #include <array>
 #include <cassert>
@@ -477,6 +478,191 @@ void dxgiFrameLeaseDenials()
     assert(invalid.releaseFrame() == WindowsDxgiReleaseResult::notHeld);
 }
 
+struct FakeStagingBackend
+{
+    std::array<std::byte, 28> pixels{};
+    WindowsD3D11MapResult nextResult{WindowsD3D11MapResult::mapped};
+    PixelSize dimensions{2, 2};
+    std::size_t pitch{12};
+    std::size_t availableBytes{24};
+    unsigned maps{};
+    unsigned unmaps{};
+    std::byte nativeToken{};
+    bool giveHandleOnFailure{};
+    bool nullDataOnSuccess{};
+    bool missingHandleOnSuccess{};
+    bool callbackCancel{};
+    bool callbackReenter{};
+    bool viewClearedOnRelease{};
+    WindowsD3D11StagingMap *owner{};
+    WindowsD3D11MapResult reentrantResult{WindowsD3D11MapResult::failed};
+    WindowsD3D11MapResult mapReentrantResult{WindowsD3D11MapResult::failed};
+
+    static WindowsD3D11MapResult map(
+        void *context, void *resource, WindowsD3D11MappedData &output) noexcept
+    {
+        auto &backend = *static_cast<FakeStagingBackend *>(context);
+        assert(resource == &backend.nativeToken);
+        ++backend.maps;
+        if (backend.owner != nullptr && backend.callbackReenter)
+        {
+            backend.mapReentrantResult = backend.owner->mapFrame(resource);
+        }
+        if (backend.owner != nullptr && backend.callbackCancel)
+        {
+            backend.owner->cancel();
+        }
+        if (backend.nextResult == WindowsD3D11MapResult::mapped ||
+            backend.giveHandleOnFailure)
+        {
+            output.mappingHandle = backend.missingHandleOnSuccess
+                ? nullptr : &backend.nativeToken;
+            output.pixels = backend.nullDataOnSuccess
+                ? nullptr : backend.pixels.data();
+            output.availableBytes = backend.availableBytes;
+            output.dimensions = backend.dimensions;
+            output.rowPitchBytes = backend.pitch;
+        }
+        return backend.nextResult;
+    }
+
+    static void unmap(void *context, void *handle) noexcept
+    {
+        auto &backend = *static_cast<FakeStagingBackend *>(context);
+        assert(handle == &backend.nativeToken);
+        ++backend.unmaps;
+        if (backend.owner != nullptr)
+        {
+            backend.viewClearedOnRelease =
+                !backend.owner->mapped() && backend.owner->frame().pixels.empty();
+            backend.reentrantResult = backend.owner->mapFrame(&backend.nativeToken);
+        }
+    }
+
+    [[nodiscard]] WindowsD3D11StagingCallbacks callbacks() noexcept
+    {
+        return {this, &map, &unmap};
+    }
+};
+
+void d3d11StagingLifetime()
+{
+    FakeStagingBackend backend{};
+    backend.pixels[0] = std::byte{0x34};
+    backend.pixels[1] = std::byte{0x56};
+    backend.pixels[2] = std::byte{0x78};
+    backend.pixels[12] = std::byte{0x9a};
+    {
+        WindowsD3D11StagingMap owner(backend.callbacks());
+        assert(owner.mapFrame(nullptr) == WindowsD3D11MapResult::invalidFrame);
+        assert(backend.maps == 0 && !owner.closed());
+        assert(owner.mapFrame(&backend.nativeToken) == WindowsD3D11MapResult::mapped);
+        assert(owner.mapped() && !owner.closed());
+        const auto image = owner.frame();
+        assert(image.valid() && image.widthPixels == 2 && image.heightPixels == 2);
+        assert(image.strideBytes == 12 && image.pixels.size() == 24);
+        assert(image.pixels.data() == backend.pixels.data());
+        assert(image.pixels[0] == std::byte{0x34});
+        assert(image.pixels[2] == std::byte{0x78});
+        assert(image.pixels[12] == std::byte{0x9a});
+        assert(owner.mapFrame(&backend.nativeToken) == WindowsD3D11MapResult::busy);
+        assert(backend.maps == 1);
+        backend.owner = &owner;
+        owner.unmap();
+        assert(backend.viewClearedOnRelease);
+        assert(backend.reentrantResult == WindowsD3D11MapResult::busy);
+        assert(backend.unmaps == 1 && !owner.mapped());
+        assert(owner.frame().pixels.empty());
+        backend.owner = nullptr;
+        backend.nextResult = WindowsD3D11MapResult::notReady;
+        assert(owner.mapFrame(&backend.nativeToken) == WindowsD3D11MapResult::notReady);
+        assert(!owner.closed() && !owner.mapped() && backend.maps == 2);
+        backend.nextResult = WindowsD3D11MapResult::mapped;
+        assert(owner.mapFrame(&backend.nativeToken) == WindowsD3D11MapResult::mapped);
+        owner.cancel();
+        assert(owner.closed() && !owner.mapped());
+        assert(owner.frame().pixels.empty());
+        owner.cancel();
+        assert(backend.unmaps == 2);
+        assert(owner.mapFrame(&backend.nativeToken) == WindowsD3D11MapResult::closed);
+    }
+    assert(backend.unmaps == 2);
+
+    FakeStagingBackend destructorBackend{};
+    {
+        WindowsD3D11StagingMap owner(destructorBackend.callbacks());
+        assert(owner.mapFrame(&destructorBackend.nativeToken) ==
+               WindowsD3D11MapResult::mapped);
+    }
+    assert(destructorBackend.unmaps == 1);
+}
+
+void d3d11StagingFailures()
+{
+    FakeStagingBackend tooShort{};
+    tooShort.availableBytes = 23;
+    WindowsD3D11StagingMap shortOwner(tooShort.callbacks());
+    assert(shortOwner.mapFrame(&tooShort.nativeToken) ==
+           WindowsD3D11MapResult::invalidFrame);
+    assert(shortOwner.closed() && !shortOwner.mapped() &&
+           shortOwner.frame().pixels.empty() && tooShort.unmaps == 1);
+    assert(shortOwner.mapFrame(&tooShort.nativeToken) == WindowsD3D11MapResult::closed);
+
+    FakeStagingBackend badPitch{};
+    badPitch.pitch = 7;
+    WindowsD3D11StagingMap pitchOwner(badPitch.callbacks());
+    assert(pitchOwner.mapFrame(&badPitch.nativeToken) == WindowsD3D11MapResult::invalidFrame);
+    assert(badPitch.unmaps == 1 && pitchOwner.closed());
+
+    FakeStagingBackend tooLarge{};
+    tooLarge.dimensions = {std::numeric_limits<std::uint32_t>::max(), 1};
+    WindowsD3D11StagingMap largeOwner(tooLarge.callbacks());
+    assert(largeOwner.mapFrame(&tooLarge.nativeToken) == WindowsD3D11MapResult::invalidFrame);
+    assert(tooLarge.unmaps == 1);
+
+    FakeStagingBackend missingBytes{};
+    missingBytes.nullDataOnSuccess = true;
+    WindowsD3D11StagingMap missingBytesOwner(missingBytes.callbacks());
+    assert(missingBytesOwner.mapFrame(&missingBytes.nativeToken) == WindowsD3D11MapResult::failed);
+    assert(missingBytes.unmaps == 1 && missingBytesOwner.closed());
+
+    FakeStagingBackend missingHandle{};
+    missingHandle.missingHandleOnSuccess = true;
+    WindowsD3D11StagingMap missingHandleOwner(missingHandle.callbacks());
+    assert(missingHandleOwner.mapFrame(&missingHandle.nativeToken) == WindowsD3D11MapResult::failed);
+    assert(missingHandleOwner.closed());
+
+    FakeStagingBackend brokenNotReady{};
+    brokenNotReady.nextResult = WindowsD3D11MapResult::notReady;
+    brokenNotReady.giveHandleOnFailure = true;
+    WindowsD3D11StagingMap brokenOwner(brokenNotReady.callbacks());
+    assert(brokenOwner.mapFrame(&brokenNotReady.nativeToken) == WindowsD3D11MapResult::failed);
+    assert(brokenNotReady.unmaps == 1 && brokenOwner.closed());
+
+    FakeStagingBackend rejected{};
+    rejected.nextResult = WindowsD3D11MapResult::invalidFrame;
+    WindowsD3D11StagingMap rejectedOwner(rejected.callbacks());
+    assert(rejectedOwner.mapFrame(&rejected.nativeToken) == WindowsD3D11MapResult::failed);
+    assert(rejectedOwner.closed() && rejected.unmaps == 0);
+
+    FakeStagingBackend callbackCancellation{};
+    WindowsD3D11StagingMap cancellingOwner(callbackCancellation.callbacks());
+    callbackCancellation.owner = &cancellingOwner;
+    callbackCancellation.callbackCancel = true;
+    callbackCancellation.callbackReenter = true;
+    assert(cancellingOwner.mapFrame(&callbackCancellation.nativeToken) ==
+           WindowsD3D11MapResult::failed);
+    assert(callbackCancellation.mapReentrantResult == WindowsD3D11MapResult::busy);
+    assert(callbackCancellation.reentrantResult == WindowsD3D11MapResult::closed);
+    assert(callbackCancellation.unmaps == 1 && cancellingOwner.closed());
+    assert(!cancellingOwner.mapped() && cancellingOwner.frame().pixels.empty());
+
+    WindowsD3D11StagingMap missingCallbacks({});
+    assert(missingCallbacks.closed());
+    assert(missingCallbacks.mapFrame(&missingBytes.nativeToken) ==
+           WindowsD3D11MapResult::closed);
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -517,6 +703,14 @@ int main(int argc, char **argv)
     else if (behavior == "dxgi-frame-lease-rejections")
     {
         dxgiFrameLeaseDenials();
+    }
+    else if (behavior == "d3d11-staging-bgra-map-lifetime")
+    {
+        d3d11StagingLifetime();
+    }
+    else if (behavior == "d3d11-staging-map-denials")
+    {
+        d3d11StagingFailures();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

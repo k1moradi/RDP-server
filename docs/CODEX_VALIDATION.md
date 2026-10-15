@@ -3735,3 +3735,50 @@ mode bits only; an accepted `--check-config` never permits startup.
 **Next:** exact-commit hosted Debug/Release CI and owner normal CTest,
 then Windows-native file-handle checks and real TLS key permissions;
 M1–M6 remain unaccepted.
+
+## R6 native D3D11 staging frame/map ownership (2026-10-15)
+
+**Parent main SHA:** `19512d5fdbc0568fbd6c3333b32c770d76c6f8b4`. **Road:** R6 native Windows
+desktop adapter. The atomic code/test/docs increment adds
+`src/windows/windows_d3d11_staging_map.{h,cpp}` and updates
+`CMakeLists.txt`, `tests/CMakeLists.txt`,
+`tests/test_windows_desktop_geometry.cpp`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, and this ledger.
+Native code queries the acquired DXGI frame as `ID3D11Texture2D`,
+requires a single-subresource BGRA8 nonmultisample texture, copies
+to a CPU-read staging texture and maps with nonblocking D3D11
+Map. The fixed staging context unmaps/releases resources with
+the owning frame lifetime, not through an independent scheduler.
+On invalid geometry, driver failure, cancellation and reentrancy,
+the view is not published and owned mappings are cleaned up.
+The portably compiled fixture uses injected callbacks; it never
+captures a desktop, authenticates a user or injects OS input.
+
+**New registered Windows-only CTests:** `windows.capture-d3d11-staging-bgra-map-lifetime`
+(single borrowed pitch-preserving BGRA view, one unmap, reentrant
+busy rejection, retryable GPU-not-ready, cancellation/destructor);
+`windows.capture-d3d11-staging-map-denials` (invalid pitch,
+truncated bytes, huge dimensions, missing pointers or handles,
+malformed not-ready status, failure, cancellation during callback).
+
+**PASS, offline sparse staging only:**
+- Clang 17 C++23 `-Wall -Wextra -Wpedantic -Werror -UNDEBUG`,
+  five Windows helper production translation units + reused test:
+  12/12 selector cases.
+- GCC 14.2 same strict C++23 flags: 12/12 selector cases.
+- Clang 17 `-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer`,
+  `ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1`:
+  12/12 selector cases.
+- `ctest --test-dir ~/rdp-server/build -C Debug --output-on-failure`:
+  12/12 PASS **in the staging-only CTest registry**; focused
+  `-R '^windows\\.capture-d3d11-'`: 2/2 PASS.
+
+**NOT RUN at authoring:** complete GitHub checkout CMake/full
+CTest due blocked Git DNS, native Windows/MSYS2 CLANG64 Clang23,
+owner Linux/X11 and macOS 27 CTests, D3D11 GPU capture, authorized
+R2/R3 desktop session, R4 encoded-frame handoff, actual client
+graphics/input and benchmarks. GitHub Actions exact commit-SHA
+results will be reported separately, not anticipated as PASS.
+**Next:** fully session-authorized native capture-to-R4 frame
+ownership integration with deterministic disconnect/topology
+change and cancellation test. M4 human acceptance remains NOT RUN.

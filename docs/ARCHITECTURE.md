@@ -98,6 +98,31 @@ No COM/DXGI object or Windows header enters portable protocol code.
 R2/R3 admission must be enforced by the future native capture owner;
 this helper itself neither accesses a desktop nor grants permission.
 
+### Windows D3D11 staging map/copy lifetime (R6; fixture-only admission)
+
+`WindowsD3D11StagingMap` extends the existing BGRA pitch/bounds view
+and `WindowsDxgiFrameOwner` acquisition lease without creating a
+second frame scheduler. A caller-owned, authorized D3D11 device and
+immediate context provide an `IDXGIResource` already acquired from
+Desktop Duplication. Native callbacks query its BGRA8 texture,
+check dimension/array/mip/sample limits and 512 MiB cap, create
+a CPU-read `D3D11_USAGE_STAGING` texture, `CopyResource`, then
+`Map(D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT)`. A GPU-busy
+outcome leaves the staging map retryable; other invalid states
+invalidate the native owner. An owned mapping lives in one fixed
+native context, which unmaps before releasing its texture. The
+portable `FramebufferView` borrows mapped memory and is invalidated
+before unmap or cancel; the DXGI duplication-frame lease must be
+released only after unmapping. Callbacks are single-thread affine;
+reentrancy and cancellation during staging cannot publish pixels.
+Real device/context construction, session admission, asynchronous
+R4 owned-frame transfer, encoder queues, and desktop input remain
+outside this adapter. Windows COM/D3D11 headers stay out of the
+portable protocol SDK. Offline CTests never call a native GPU.
+Microsoft documents these mechanics in
+[CopyResource](https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-copyresource)
+and [Map](https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-map).
+
 ### Windows DXGI acquired-frame ownership (R6; offline acceptance only)
 
 `WindowsDxgiFrameOwner` is the Windows-only single-lease RAII owner

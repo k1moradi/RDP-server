@@ -2506,6 +2506,32 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   SDK install/consumer and packaging also PASS. **NOT RUN:**
   owner Windows MSYS2 CLANG64 Clang 23, owner Linux/X11/macOS 27,
   native live DXGI and Microsoft-client desktop acceptance.
+  **R6 D3D11 staging-copy/map RAII (2026-10-15; parent
+  `19512d5fdbc0568fbd6c3333b32c770d76c6f8b4`):** `src/windows/windows_d3d11_staging_map.{h,cpp}`
+  now consumes a borrowed `IDXGIResource` from the existing R6
+  frame owner, validates BGRA8 2D geometry, creates a CPU-readable
+  D3D11 staging texture, copies on the caller-supplied immediate
+  context, and maps with `D3D11_MAP_FLAG_DO_NOT_WAIT`. The fixed
+  native context owns mapping/unmapping and GPU COM resource release;
+  the reusable nonmoving state owner exposes the existing
+  `FramebufferView` only while its mapping is held. Nonready GPU
+  responses remain retryable; invalid pitch, short mapping, device
+  failure, cancellation during callbacks, duplicate/reentrant map
+  and teardown fail closed with exactly-once cleanup. R4 must copy
+  into owned frame memory before async handoff, and R3/R2 must
+  independently authorize the native session before any real use.
+  **New dedicated Windows CTests:** `windows.capture-d3d11-staging-bgra-map-lifetime`
+  and `windows.capture-d3d11-staging-map-denials`, same existing R6
+  executable and central registry. **PASS:** local sparse source
+  Clang 17 and GCC 14.2 strict C++23 12/12 selectors each,
+  Clang ASan/UBSan 12/12, local sparse staging CTest 12/12
+  and new cases 2/2. **NOT RUN at authoring:** full canonical
+  checkout CMake/CTest (GitHub Git DNS unavailable locally),
+  Windows MSYS2 CLANG64/Clang 23, native SDK/hardware frame,
+  owner Linux/X11/macOS 27, and Microsoft-client desktop
+  acceptance. CI at resulting SHA must be evaluated. Next: bind
+  a single R3-authorized native frame lifecycle to R4's one
+  graphics owner without admitting desktop input.
   **R6 DXGI acquired-frame RAII (2026-10-15, authored on parent
   `853e572dafdeab18161afa3926db2f29d2ec3a34`):** `src/windows/windows_dxgi_frame_owner.{h,cpp}`
   owns one native `IDXGIOutputDuplication::AcquireNextFrame` lease,

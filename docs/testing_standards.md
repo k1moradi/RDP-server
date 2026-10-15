@@ -565,8 +565,21 @@ promoted into authorized membership or application admission.
 
 Expected portable CTest count: **71** (previous 69).
 Linux GSS-enabled CTest count: **80** (previous 78).
-The new tests, platform builds and client behavior are NOT RUN
-at implementation authoring. No new executable or test root.
+**First exact-head CI FAIL:** implementation
+`c1f9e5458132c40b149e8ec5f0e6083addff8715`,
+[Actions run 38696231297](https://github.com/k1moradi/RDP-server/actions/runs/38696231297):
+Linux Debug **79/80** and macOS Debug **70/71** passed,
+with ONLY `transport.mcs-send-data-wire` failing at
+`test_owned_mcs_connect_initial.cpp:760`. In the test's
+16-case priority/segmentation loop, the `frameDomainPdu(mcs)`
+temporary vector was destroyed after the parser returned,
+leaving its borrowed `userData` view dangling. Production
+length/bounds parsing and the negative test both passed.
+Preserve the zero-copy contract; give the test an owned
+local `frame` that outlives all view assertions and also
+check the view offset. The corrected source's CI is NOT RUN
+at authoring. No new executable or test root; external
+client and authorized post-auth dispatch remain NOT RUN.
 
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 

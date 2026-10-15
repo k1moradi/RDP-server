@@ -751,12 +751,15 @@ void testMcsSendDataWire()
                 static_cast<std::uint8_t>(
                     (priority << 6U) | (segmentation << 4U)),
                 0x01, 0x33};
-            const auto result =
-                parseMcsChannelRequest(frameDomainPdu(mcs));
+            // Keep the whole TPKT alive while examining its borrowed
+            // userData span; parsing a temporary frame would dangle.
+            const auto frame = frameDomainPdu(mcs);
+            const auto result = parseMcsChannelRequest(frame);
             assert(result);
             assert(result.request.dataPriority == priority);
             assert(result.request.segmentation == segmentation);
             assert(result.request.userData.size() == 1);
+            assert(result.request.userData.data() == frame.data() + 14);
             assert(result.request.userData[0] == 0x33);
         }
     }

@@ -1431,6 +1431,24 @@ portable CTests (80 when the Linux GSS cases are enabled).
 The roadmap, architecture, coding and testing standards
 are updated in the same commit.
 
+**First CI result FAIL:** implementation
+`c1f9e5458132c40b149e8ec5f0e6083addff8715`,
+[Actions 38696231297](https://github.com/k1moradi/RDP-server/actions/runs/38696231297):
+Linux/GCC Debug **79/80**, macOS/Clang Debug **70/71**,
+both failed ONLY `transport.mcs-send-data-wire`, while
+the new negative test passed. First failure:
+`tests/test_owned_mcs_connect_initial.cpp:760` assertion
+on `result.request.userData[0]`. Root cause is a test-only
+lifetime violation: `parseMcsChannelRequest(frameDomainPdu(mcs))`
+returns a borrowed span into a temporary vector that dies
+at the end of the same statement. Fix test to hold the
+complete TPKT in a stack-scoped `const auto frame` until
+all view assertions are complete; assert the span's exact
+offset as a regression against future accidental copies.
+No production parser change. Windows CI results were not
+yet finalized when this correction was authored; the
+corrected commit's CI remains NOT RUN.
+
 **NOT RUN at authoring:** owner-local new compile and CTest
 (the owner machine is not mounted), new exact-head platform
 CI, SDK package/consumer tests, ASan/UBSan, real Kerberos,

@@ -979,7 +979,18 @@ acceptance evidence; no synthetic completion claims.
   `05f2708cc8b326983c406b643bee1d47e5e166d0`
   passed [CI 38685374294](https://github.com/k1moradi/RDP-server/actions/runs/38685374294)
   and the owner reports 69/69 local CTests PASS.
-  **New implementation CI and local runs: NOT RUN at authoring.**
+  **First CI FAIL** for implementation
+  `c1f9e5458132c40b149e8ec5f0e6083addff8715`:
+  [run 38696231297](https://github.com/k1moradi/RDP-server/actions/runs/38696231297)
+  found an invalid *test* lifetime: parsing a temporary
+  `frameDomainPdu` and reading its borrowed `userData`
+  after the vector was destroyed. Linux Debug **79/80**
+  and macOS Debug **70/71** passed; the sole failed case
+  was `transport.mcs-send-data-wire`. Follow-up keeps
+  that frame alive through all view assertions without
+  changing the production parser, and adds an offset check.
+  Corrected commit's CI and owner-local run are NOT RUN
+  at correction authoring.
   This does not enable live TLS MCS intake, authorized channel
   membership, reassembly or desktop session admission.
   **Next:** run exact-head full CI; then controlled real

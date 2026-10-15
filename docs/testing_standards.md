@@ -547,6 +547,27 @@ installed SDK consumer, platform ZIP/SHA256 gates PASS.
 **NOT RUN:** owner's local build of the new commit,
 real TLS disconnect/close, authenticated client/desktop.
 
+## Offline T.125 client Send Data Request tests (CI NOT RUN)
+
+Reuse `tests/test_owned_mcs_connect_initial.cpp` and the one
+`tests/CMakeLists.txt` registry for two behavior-named CTests:
+`transport.mcs-send-data-wire` checks the real Microsoft 4.1.16
+14-byte header and a SYNTHETIC opaque payload, the exact initiator/
+channel/priority/segmentation values, borrowed buffer location,
+all priority/segmentation combinations, long-form short length,
+and userData boundaries 0, 1, 127, 128, 16383 bytes.
+`transport.mcs-send-data-rejections` rejects every truncated
+TPKT prefix, inconsistent lengths, malformed PER choice and
+padding, incomplete long determinants, fragmented lengths,
+out-of-range initiator, invalid X.224 and trailing data.
+Test output is syntax only: even a valid channel ID is never
+promoted into authorized membership or application admission.
+
+Expected portable CTest count: **71** (previous 69).
+Linux GSS-enabled CTest count: **80** (previous 78).
+The new tests, platform builds and client behavior are NOT RUN
+at implementation authoring. No new executable or test root.
+
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 
 Keep the existing `test_owned_credssp_tsrequest.cpp` executable

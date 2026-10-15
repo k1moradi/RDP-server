@@ -966,6 +966,26 @@ acceptance evidence; no synthetic completion claims.
   with controlled GSS/Kerberos and independent OS admission;
   only then verify TLS-encrypted disconnect send completion
   followed by socket close.
+  **Partial offline client SendDataRequest framing (CI NOT RUN):**
+  the existing `mcs_channel_connection` parser recognizes T.125
+  client DomainMCSPDU choice 25 (0x64), initiator offset from
+  1001, channel, priority, segmentation and bounded 7-bit/14-bit
+  PER OCTET STRING length. It returns a borrowed caller-buffer
+  span without heap copies; malformed lengths, unsupported
+  PER fragmentation, invalid padding, bad TPKT and initiator
+  overflow fail closed. Two extra portable behavior CTests
+  reuse the original MCS executable (71 portable / 80 with
+  Linux GSSAPI expected). Baseline main
+  `05f2708cc8b326983c406b643bee1d47e5e166d0`
+  passed [CI 38685374294](https://github.com/k1moradi/RDP-server/actions/runs/38685374294)
+  and the owner reports 69/69 local CTests PASS.
+  **New implementation CI and local runs: NOT RUN at authoring.**
+  This does not enable live TLS MCS intake, authorized channel
+  membership, reassembly or desktop session admission.
+  **Next:** run exact-head full CI; then controlled real
+  Kerberos/GSS transcript, verified OS identity/session
+  policy, and one owner for all post-auth channel states
+  before delivering any client Send Data payload.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,

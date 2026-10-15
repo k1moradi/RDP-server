@@ -89,6 +89,60 @@ McsChannelParseResult parseMcsChannelRequest(
         return {request, McsChannelParseError::None};
     }
 
+    if (payload[0] == 0x64U)
+    {
+        // T.125 DomainMCSPDU choice 25: client SendDataRequest.
+        // Layout after choice: initiator[2], channelId[2],
+        // dataPriority[2 bits] | segmentation[2 bits] | pad[4 bits],
+        // aligned PER OCTET STRING length[1..2], then userData.
+        // No channel state or OS identity is inferred from syntax.
+        constexpr std::size_t fixedHeaderBytes = 6;
+        constexpr std::uint32_t firstUserId = 1001;
+        constexpr std::uint32_t lastUserId = 65536;
+        if (payload.size() <= fixedHeaderBytes ||
+            (payload[5] & 0x0fU) != 0)
+            return {{}, McsChannelParseError::InvalidDomainPdu};
+
+        const auto encodedInitiator =
+            (static_cast<std::uint32_t>(payload[1]) << 8U) | payload[2];
+        if (encodedInitiator > lastUserId - firstUserId)
+            return {{}, McsChannelParseError::InvalidPerValue};
+
+        // RFC 1006 bounds the entire TPKT; T.125 aligned PER
+        // supports short (7-bit) and long (14-bit) determinants here.
+        // An 0x80..0xbf long determinant is accepted even for a
+        // short value: actual Microsoft/FreeRDP clients emit it.
+        // 0xc0..0xff would require segmented PER fragments, not
+        // supported by this single-envelope syntax parser.
+        const std::uint8_t firstLength = payload[fixedHeaderBytes];
+        if ((firstLength & 0xc0U) == 0xc0U)
+            return {{}, McsChannelParseError::InvalidPerValue};
+        std::size_t dataOffset = fixedHeaderBytes + 1U;
+        std::size_t dataLength = firstLength;
+        if ((firstLength & 0x80U) != 0)
+        {
+            if (payload.size() == dataOffset)
+                return {{}, McsChannelParseError::InvalidPerValue};
+            dataLength =
+                (static_cast<std::size_t>(firstLength & 0x3fU) << 8U) |
+                payload[dataOffset++];
+        }
+        if (payload.size() - dataOffset != dataLength)
+            return {{}, McsChannelParseError::InvalidPerValue};
+
+        McsChannelRequest request{};
+        request.kind = McsChannelRequestKind::SendDataRequest;
+        request.initiator = encodedInitiator + firstUserId;
+        request.channelId = static_cast<std::uint16_t>(
+            (static_cast<std::uint16_t>(payload[3]) << 8U) | payload[4]);
+        request.dataPriority = static_cast<std::uint8_t>(
+            (payload[5] >> 6U) & 0x03U);
+        request.segmentation = static_cast<std::uint8_t>(
+            (payload[5] >> 4U) & 0x03U);
+        request.userData = payload.subspan(dataOffset, dataLength);
+        return {request, McsChannelParseError::None};
+    }
+
     if ((payload[0] & 0xfeU) == 0x20U)
     {
         // MS-RDPBCGR 2.2.2.3: choice 8, plus two-bit reason

@@ -1408,6 +1408,40 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending T.125 client Send Data Request syntax intake (2026-10-14)
+
+**Prior exact baseline:** main
+`05f2708cc8b326983c406b643bee1d47e5e166d0` passed
+[CI run 38685374294](https://github.com/k1moradi/RDP-server/actions/runs/38685374294);
+the owner reports **69/69** local CTests PASS for the earlier
+code. These results do NOT verify this increment.
+
+**New implementation:** existing
+`src/server/transport/mcs_channel_connection.{h,cpp}`
+parses T.125 SendDataRequest choice 25, validates complete
+TPKT/X.224 and PER fields, and provides a read-only borrowed
+userData view with no allocation. A valid syntactic packet does
+not establish a joined channel, decrypted provenance, user
+identity, OS desktop access, or any session admission.
+Two behavior cases are added to the existing
+`tests/test_owned_mcs_connect_initial.cpp` and
+`tests/CMakeLists.txt`: `transport.mcs-send-data-wire` and
+`transport.mcs-send-data-rejections`, with expected 71
+portable CTests (80 when the Linux GSS cases are enabled).
+The roadmap, architecture, coding and testing standards
+are updated in the same commit.
+
+**NOT RUN at authoring:** owner-local new compile and CTest
+(the owner machine is not mounted), new exact-head platform
+CI, SDK package/consumer tests, ASan/UBSan, real Kerberos,
+Microsoft RDP clients, channel authorization, licensing,
+graphics and desktop. To validate on the one reused owner
+build root: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next gate:** exact-head full CI and owner-local regressions,
+then independently authorized post-auth MCS lifecycle.
+
 ## Verified offline MCS Disconnect Provider Ultimatum (2026-10-14)
 
 **Prior main and owner-local PASS:** `36926462d34726f355279367a2ba2f27e93d2095`.

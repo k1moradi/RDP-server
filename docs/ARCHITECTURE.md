@@ -275,6 +275,31 @@ A future authenticated connection owner must send the entire PDU
 via its negotiated TLS/security transport and then close.
 Offline tests cannot establish live client disconnect semantics.
 
+### Offline T.125 client MCS Send Data Request (2026-10-14)
+
+The existing `mcs_channel_connection` module now parses T.125
+SendDataRequest (DomainMCSPDU choice 25) after exact TPKT/X.224
+envelope validation. As specified in MS-RDPBCGR 4.1.16,
+the request contains an initiator UserId offset from 1001,
+a 16-bit channel ID, two-bit priority and segmentation values,
+zero padding, and an aligned-PER OCTET STRING userData field.
+
+The decoder accepts 7-bit and 14-bit PER length encodings, including
+two-octet lengths for small payloads as emitted by real RDP stacks.
+Fragmented PER length determinants are rejected; userData is
+limited to 16383 bytes in a single complete TPKT. Returned userData
+is a borrowed read-only span into the caller-owned input: the caller
+must retain its backing bytes until synchronous use completes.
+No copies, heap allocations or competing connection controllers.
+
+The result is a syntax-only building block. It does NOT establish
+TLS provenance, authentication, joined channel membership, complete
+segmented application data, virtual channel routing or remote desktop
+admission. Existing preauthentication diagnostics still close before
+any live post-channel MCS traffic. A future authorized single session
+owner must independently validate the assigned user and joined channel
+before consuming the borrowed payload.
+
 ### Bounded decrypted CredSSP TSRequest framing (2026-10-14)
 
 The existing first-party CredSSP DER parser gains

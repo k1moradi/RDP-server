@@ -673,6 +673,172 @@ void testMcsDisconnectProviderRejections()
            McsChannelParseError::InvalidTransport);
 }
 
+void testMcsSendDataWire()
+{
+    // MS-RDPBCGR 4.1.16 published 14-byte SendDataRequest
+    // header (52-byte TPKT, 38-byte payload). The opaque data below
+    // is synthetic: only this framing header is a Microsoft wire oracle.
+    constexpr std::array<std::uint8_t, 14> microsoftHeader{
+        0x03, 0x00, 0x00, 0x34, 0x02, 0xf0, 0x80,
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x26};
+    std::vector<std::uint8_t> microsoftShape{
+        microsoftHeader.begin(), microsoftHeader.end()};
+    microsoftShape.insert(microsoftShape.end(), 38, 0x42);
+    const auto parsed = parseMcsChannelRequest(microsoftShape);
+    assert(parsed);
+    assert(parsed.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(parsed.request.initiator == 1007);
+    assert(parsed.request.channelId == 1003);
+    assert(parsed.request.dataPriority == 1);
+    assert(parsed.request.segmentation == 3);
+    assert(parsed.request.userData.size() == 38);
+    assert(parsed.request.userData.data() ==
+           microsoftShape.data() + microsoftHeader.size());
+    assert(std::all_of(parsed.request.userData.begin(),
+                       parsed.request.userData.end(),
+                       [](std::uint8_t value) { return value == 0x42; }));
+
+    // Support exactly one complete PER OCTET STRING (0..16383 bytes)
+    // with no heap copy inside the parser. Preserve valid 7-bit and
+    // 14-bit length forms at their wire boundaries.
+    for (const std::size_t payloadBytes :
+         {std::size_t{0}, std::size_t{1}, std::size_t{127},
+          std::size_t{128}, std::size_t{16383}})
+    {
+        std::vector<std::uint8_t> mcs{
+            0x64, 0x00, 0x06, 0x03, 0xeb, 0x70};
+        if (payloadBytes < 128)
+            mcs.push_back(static_cast<std::uint8_t>(payloadBytes));
+        else
+        {
+            mcs.push_back(static_cast<std::uint8_t>(
+                0x80U | (payloadBytes >> 8U)));
+            mcs.push_back(static_cast<std::uint8_t>(payloadBytes));
+        }
+        const auto payloadOffset = mcs.size();
+        mcs.insert(mcs.end(), payloadBytes, 0x51);
+        auto frame = frameDomainPdu(mcs);
+        const auto result = parseMcsChannelRequest(frame);
+        assert(result);
+        assert(result.request.kind == McsChannelRequestKind::SendDataRequest);
+        assert(result.request.userData.size() == payloadBytes);
+        assert(result.request.userData.data() ==
+               frame.data() + 7 + payloadOffset);
+        assert(std::all_of(result.request.userData.begin(),
+                           result.request.userData.end(),
+                           [](std::uint8_t value) { return value == 0x51; }));
+    }
+
+    // Actual peers may encode short lengths with TWO PER octets:
+    // do not insist on DER-like minimality in aligned BASIC-PER.
+    constexpr std::array<std::uint8_t, 9> longShort{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x80, 0x01, 0xa5};
+    const auto longShortFrame = frameDomainPdu(longShort);
+    const auto longShortResult = parseMcsChannelRequest(longShortFrame);
+    assert(longShortResult && longShortResult.request.userData.size() == 1);
+    assert(longShortResult.request.userData[0] == 0xa5);
+
+    // All four T.125 priority and segmentation two-bit values are
+    // decoded but do not mean that fragmented/low-priority data has
+    // been reassembled or admitted to a channel.
+    for (unsigned int priority = 0; priority < 4; ++priority)
+    {
+        for (unsigned int segmentation = 0; segmentation < 4;
+             ++segmentation)
+        {
+            std::array<std::uint8_t, 8> mcs{
+                0x64, 0x00, 0x06, 0x03, 0xeb,
+                static_cast<std::uint8_t>(
+                    (priority << 6U) | (segmentation << 4U)),
+                0x01, 0x33};
+            const auto result =
+                parseMcsChannelRequest(frameDomainPdu(mcs));
+            assert(result);
+            assert(result.request.dataPriority == priority);
+            assert(result.request.segmentation == segmentation);
+            assert(result.request.userData.size() == 1);
+            assert(result.request.userData[0] == 0x33);
+        }
+    }
+}
+
+void testMcsSendDataRejections()
+{
+    constexpr std::array<std::uint8_t, 10> baseline{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x03,
+        0x41, 0x42, 0x43};
+    const auto validFrame = frameDomainPdu(baseline);
+    assert(parseMcsChannelRequest(validFrame));
+
+    // A truncated TPKT must never expose a borrowed payload.
+    for (std::size_t length = 0; length < validFrame.size(); ++length)
+    {
+        const auto rejected = parseMcsChannelRequest(
+            std::span(validFrame).first(length));
+        assert(!rejected);
+        assert(rejected.request.userData.empty());
+    }
+
+    const auto invalidPer = [](std::span<const std::uint8_t> mcs)
+    {
+        const auto outcome = parseMcsChannelRequest(frameDomainPdu(mcs));
+        assert(!outcome);
+        assert(outcome.error == McsChannelParseError::InvalidPerValue);
+        assert(outcome.request.userData.empty());
+    };
+    const auto invalidChoice = [](std::span<const std::uint8_t> mcs)
+    {
+        const auto outcome = parseMcsChannelRequest(frameDomainPdu(mcs));
+        assert(!outcome);
+        assert(outcome.error == McsChannelParseError::InvalidDomainPdu);
+        assert(outcome.request.userData.empty());
+    };
+
+    // No implicit PER fragmentation, no missing 14-bit second length,
+    // and no length mismatch, wraparound or trailing bytes.
+    invalidPer(std::array<std::uint8_t, 7>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x80});
+    invalidPer(std::array<std::uint8_t, 8>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x80, 0x02});
+    invalidPer(std::array<std::uint8_t, 9>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x80, 0x00, 0xaa});
+    invalidPer(std::array<std::uint8_t, 9>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x03, 0x41, 0x42});
+    invalidPer(std::array<std::uint8_t, 8>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x02, 0x41});
+    invalidPer(std::array<std::uint8_t, 8>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0xc0, 0x00});
+    invalidPer(std::array<std::uint8_t, 8>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70, 0xff, 0xff});
+    invalidPer(std::array<std::uint8_t, 7>{
+        0x64, 0xff, 0xff, 0x03, 0xeb, 0x70, 0x00});
+
+    // No extra choice/extension bit or nonzero low PER padding.
+    invalidChoice(std::array<std::uint8_t, 7>{
+        0x65, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x00});
+    invalidChoice(std::array<std::uint8_t, 7>{
+        0x66, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x00});
+    invalidChoice(std::array<std::uint8_t, 7>{
+        0x68, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x00});
+    invalidChoice(std::array<std::uint8_t, 7>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x71, 0x00});
+    invalidChoice(std::array<std::uint8_t, 6>{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70});
+
+    auto corrupted = validFrame;
+    corrupted[3] = static_cast<std::uint8_t>(corrupted[3] + 1);
+    assert(parseMcsChannelRequest(corrupted).error ==
+           McsChannelParseError::InvalidTransport);
+    corrupted = validFrame;
+    corrupted[5] = 0xe0; // Not X.224 Data TPDU.
+    assert(parseMcsChannelRequest(corrupted).error ==
+           McsChannelParseError::InvalidTransport);
+    corrupted = validFrame;
+    corrupted.push_back(0); // Coalesced trailing TPKT is not consumed.
+    assert(parseMcsChannelRequest(corrupted).error ==
+           McsChannelParseError::InvalidTransport);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -699,7 +865,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 15> kMcsTestCases{{
+constexpr std::array<McsTestCase, 17> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -715,6 +881,8 @@ constexpr std::array<McsTestCase, 15> kMcsTestCases{{
     {"mcs-channel-join-confirm", &testMcsChannelJoinConfirmWireAndRejections},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
+    {"mcs-send-data-wire", &testMcsSendDataWire},
+    {"mcs-send-data-rejections", &testMcsSendDataRejections},
 }};
 
 int main(int argc, char **argv)

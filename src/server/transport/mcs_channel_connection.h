@@ -11,8 +11,8 @@ namespace rdp_server::server::transport
 {
 
 // Syntax-only, bounded T.125 DomainMCSPDU parsing for the RDP
-// Channel Connection and Disconnect Provider Ultimatum phases.
-// No user, channel or session is admitted, registered, attached or joined.
+// Channel Connection, Send Data Request and Disconnect Provider
+// Ultimatum phases. No user, channel or session is admitted or joined.
 // The authenticated owner alone can close its TLS connection.
 // MS-RDPBCGR 2.2.1.5, 2.2.1.6 and 2.2.1.8.
 enum class McsChannelRequestKind : std::uint8_t
@@ -22,6 +22,7 @@ enum class McsChannelRequestKind : std::uint8_t
     AttachUser,
     ChannelJoin,
     DisconnectProviderUltimatum,
+    SendDataRequest,
 };
 
 enum class McsChannelParseError : std::uint8_t
@@ -43,6 +44,15 @@ struct McsChannelRequest
     // requested channel, NOT a verified allocated channel.
     std::uint32_t initiator{};
     std::uint16_t channelId{};
+    // Only for SendDataRequest. T.125 aligned-PER two-bit DataPriority
+    // (0..3) and Segmentation flags (0..3); these are syntax, NOT
+    // proof of any negotiated/attached session or complete message.
+    std::uint8_t dataPriority{};
+    std::uint8_t segmentation{};
+    // Zero-copy borrowed view into the caller-owned COMPLETE TPKT.
+    // Valid only while its input backing bytes remain alive and unchanged;
+    // never retain across a TLS read, thread handoff, or buffer reuse.
+    std::span<const std::uint8_t> userData{};
 };
 
 struct McsChannelParseResult
@@ -59,6 +69,10 @@ struct McsChannelParseResult
 // A complete single TPKT is required. Validate its declared size,
 // X.224 Class 0 Data TPDU and all PER fields before returning a value.
 // Received disconnect reasons are ignored as MS-RDPBCGR requires.
+// SendDataRequest accepts 7-bit and 14-bit PER userData lengths,
+// including the commonly emitted two-octet length for short payloads;
+// fragmented PER lengths are unsupported and rejected. The complete
+// TPKT is bounded by RFC1006; the maximum single PER payload is 16383.
 // A syntactically recognized request does NOT establish channel state,
 // domain ownership or authorization, nor does it allow a response.
 [[nodiscard]] McsChannelParseResult parseMcsChannelRequest(

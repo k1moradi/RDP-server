@@ -428,6 +428,33 @@ the one future authenticated TLS owner may transmit the
 entire encrypted PDU and close after write completion.
 Offline wire correctness is not an RDP disconnect acceptance.
 
+## Bounded zero-copy MCS Send Data Request (2026-10-14)
+
+Keep T.125 client SendDataRequest in the existing
+`parseMcsChannelRequest`, reusing the canonical checked TPKT/X.224
+envelope validator. Per MS-RDPBCGR 4.1.16, choice 25 (0x64)
+has a PER initiator offset +1001, channelId, two-bit priority
+and segmentation, four zero padding bits, and userData carried
+as an aligned-PER OCTET STRING.
+
+Check bounds for every field before reading. Accept both short
+7-bit and long 14-bit PER length determinants (including long
+form for a short payload, for real-client interoperability);
+reject fragment determinants, inconsistent lengths, TPKT
+surplus, invalid padding and initiator overflow. A single
+PER userData field is at most 16383 bytes. Return a borrowed
+`std::span<const std::uint8_t>` without copying, with lifetime
+tied to the caller's unchanged complete packet. The owning TLS
+read buffer must not be reused while that view is consumed.
+No worker-thread handoff or cached span is safe without a
+separate, explicit owned snapshot and bounded lifecycle.
+
+These syntax fields do not indicate authentication, channel join,
+complete fragmented messages or eligibility for clipboard,
+graphics or OS input. Only the future single authenticated
+session owner can verify transport, identity and channel rights
+before dispatch; the parser never performs admission.
+
 ## Strict bounded CredSSP DER framing ownership (2026-10-14)
 
 MS-CSSP 2.2.1 specifies DER TSRequest messages on TLS;

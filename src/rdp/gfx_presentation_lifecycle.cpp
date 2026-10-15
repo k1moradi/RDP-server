@@ -1,0 +1,220 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "gfx_presentation_lifecycle.h"
+
+#include <algorithm>
+#include <limits>
+
+namespace rdp_server::rdp
+{
+
+bool GfxPresentationLifecycle::active(std::uint64_t generation) const noexcept
+{
+    return generation != 0 && generation_ == generation &&
+           stage_ != GfxPresentationStage::Inactive &&
+           stage_ != GfxPresentationStage::Rejected;
+}
+
+bool GfxPresentationLifecycle::open(std::uint64_t authorizedGeneration) noexcept
+{
+    if (authorizedGeneration == 0 || authorizedGeneration <= latestGeneration_)
+    {
+        return false;
+    }
+    disconnect();
+    latestGeneration_ = authorizedGeneration;
+    generation_ = authorizedGeneration;
+    acknowledgements_.reset(authorizedGeneration);
+    stage_ = GfxPresentationStage::AwaitCapabilities;
+    return true;
+}
+
+void GfxPresentationLifecycle::disconnect() noexcept
+{
+    stage_ = GfxPresentationStage::Inactive;
+    generation_ = 0;
+    pending_ = {};
+    surfaceId_ = 0;
+    geometry_ = {};
+    originX_ = 0;
+    originY_ = 0;
+    confirmation_.fill(std::byte{});
+    acknowledgements_.reset(0);
+    // lastSerial_ and latestGeneration_ persist across reconnects.
+}
+
+bool GfxPresentationLifecycle::acceptCapabilities(
+    std::uint64_t generation,
+    std::span<const std::byte> advertisement) noexcept
+{
+    if (!active(generation) ||
+        stage_ != GfxPresentationStage::AwaitCapabilities)
+    {
+        return false;
+    }
+    const auto negotiated = negotiateGfxAvc420(advertisement);
+    if (!negotiated.accepted() || negotiated.confirmationBytes != confirmation_.size())
+    {
+        stage_ = GfxPresentationStage::Rejected;
+        acknowledgements_.reset(0);
+        return false;
+    }
+    confirmation_ = negotiated.confirmation;
+    stage_ = GfxPresentationStage::ConfirmReady;
+    return true;
+}
+
+bool GfxPresentationLifecycle::configureSurface(
+    std::uint64_t generation, std::uint16_t surfaceId,
+    PixelSize geometry, std::uint32_t originX,
+    std::uint32_t originY) noexcept
+{
+    if (!active(generation) ||
+        stage_ != GfxPresentationStage::SurfaceUnconfigured ||
+        surfaceId == 0 || geometry.widthPixels == 0 ||
+        geometry.heightPixels == 0 || (geometry.widthPixels & 1U) != 0 ||
+        (geometry.heightPixels & 1U) != 0 ||
+        geometry.widthPixels > std::numeric_limits<std::uint16_t>::max() ||
+        geometry.heightPixels > std::numeric_limits<std::uint16_t>::max())
+    {
+        return false;
+    }
+    surfaceId_ = surfaceId;
+    geometry_ = geometry;
+    originX_ = originX;
+    originY_ = originY;
+    stage_ = GfxPresentationStage::CreateReady;
+    return true;
+}
+
+bool GfxPresentationLifecycle::prepareCommand(
+    std::uint64_t generation, std::span<std::byte> output,
+    GfxPresentationReceipt &receipt) noexcept
+{
+    if (!active(generation) || lastSerial_ ==
+            std::numeric_limits<std::uint64_t>::max())
+    {
+        return false;
+    }
+    GfxPresentationStage inFlight{};
+    GfxPresentationCommand command{};
+    std::size_t written{};
+    switch (stage_)
+    {
+    case GfxPresentationStage::ConfirmReady:
+        if (output.size() < confirmation_.size()) { return false; }
+        std::copy(confirmation_.begin(), confirmation_.end(), output.begin());
+        written = confirmation_.size();
+        inFlight = GfxPresentationStage::ConfirmInFlight;
+        command = GfxPresentationCommand::Confirm;
+        break;
+    case GfxPresentationStage::CreateReady:
+        written = buildGfxCreateSurfaceCommand({surfaceId_, geometry_}, output);
+        inFlight = GfxPresentationStage::CreateInFlight;
+        command = GfxPresentationCommand::Create;
+        break;
+    case GfxPresentationStage::MapReady:
+        written = buildGfxMapSurfaceToOutputCommand(
+            {surfaceId_, originX_, originY_}, output);
+        inFlight = GfxPresentationStage::MapInFlight;
+        command = GfxPresentationCommand::Map;
+        break;
+    case GfxPresentationStage::DeleteReady:
+        written = buildGfxDeleteSurfaceCommand(surfaceId_, output);
+        inFlight = GfxPresentationStage::DeleteInFlight;
+        command = GfxPresentationCommand::Delete;
+        break;
+    default:
+        return false;
+    }
+    if (written == 0) { return false; }
+    stage_ = inFlight;
+    pending_ = {generation_, ++lastSerial_, command, written};
+    receipt = pending_;
+    return true;
+}
+
+bool GfxPresentationLifecycle::completeCommand(
+    const GfxPresentationReceipt &receipt,
+    std::size_t deliveredBytes) noexcept
+{
+    if (!active(receipt.generation) || receipt != pending_ ||
+        deliveredBytes != pending_.bytes)
+    {
+        return false;
+    }
+    GfxPresentationStage next{};
+    switch (stage_)
+    {
+    case GfxPresentationStage::ConfirmInFlight:
+        if (receipt.command != GfxPresentationCommand::Confirm) { return false; }
+        next = GfxPresentationStage::SurfaceUnconfigured;
+        break;
+    case GfxPresentationStage::CreateInFlight:
+        if (receipt.command != GfxPresentationCommand::Create) { return false; }
+        next = GfxPresentationStage::MapReady;
+        break;
+    case GfxPresentationStage::MapInFlight:
+        if (receipt.command != GfxPresentationCommand::Map) { return false; }
+        next = GfxPresentationStage::Mapped;
+        break;
+    case GfxPresentationStage::DeleteInFlight:
+        if (receipt.command != GfxPresentationCommand::Delete) { return false; }
+        next = GfxPresentationStage::SurfaceUnconfigured;
+        surfaceId_ = 0;
+        geometry_ = {};
+        break;
+    default:
+        return false;
+    }
+    pending_ = {};
+    stage_ = next;
+    return true;
+}
+
+bool GfxPresentationLifecycle::requestSurfaceDelete(
+    std::uint64_t generation) noexcept
+{
+    if (!active(generation) || stage_ != GfxPresentationStage::Mapped)
+    {
+        return false;
+    }
+    acknowledgements_.reset(generation);
+    stage_ = GfxPresentationStage::DeleteReady;
+    return true;
+}
+
+bool GfxPresentationLifecycle::canSubmitFrame(
+    std::uint64_t generation) const noexcept
+{
+    return active(generation) && stage_ == GfxPresentationStage::Mapped &&
+           (!acknowledgements_.expectingAcknowledgements() ||
+            acknowledgements_.outstandingFrames() <
+                GfxFrameAckWindow::kMaximumPendingFrames);
+}
+
+bool GfxPresentationLifecycle::noteFrameDelivered(
+    std::uint64_t generation, std::uint32_t frameId) noexcept
+{
+    return canSubmitFrame(generation) &&
+           acknowledgements_.noteFrameSent(generation, frameId);
+}
+
+bool GfxPresentationLifecycle::onFrameAcknowledge(
+    std::uint64_t generation, std::span<const std::byte> pdu,
+    GfxFrameAckWindowResult &result) noexcept
+{
+    if (!active(generation) || stage_ != GfxPresentationStage::Mapped)
+    {
+        return false;
+    }
+    const auto response = acknowledgements_.onFrameAcknowledge(generation, pdu);
+    if (response == GfxFrameAckWindowResult::InvalidPdu ||
+        response == GfxFrameAckWindowResult::StaleGeneration)
+    {
+        return false;
+    }
+    result = response;
+    return true;
+}
+
+} // namespace rdp_server::rdp

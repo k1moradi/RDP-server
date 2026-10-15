@@ -107,6 +107,26 @@ the native producer validates DXGI metadata byte lengths and releases
 the frame before changing the session. This increment owns no COM
 objects, authorization, queue, capture polling or graphics scheduler.
 
+### R4 graphics presentation lifecycle and wire delivery receipts
+
+`rdp/gfx_presentation_lifecycle.{h,cpp}` is the R4-side
+sequencing contract combining the existing AVC420 CAPSET,
+CREATE/MAP/DELETE and `GfxFrameAckWindow` implementations.
+R3 alone must authorize/open the actual graphics DVC and own
+outbound bytes/fragmentation. The R4 `open()` method is
+**not** authentication or channel admission; its trusted
+generation must come from R3's real session owner.
+The R3 sender reports full-PDU delivery using unique receipts
+tied to command, generation and serial. Serialization alone
+never activates a client surface. Only completed CAPS_CONFIRM
+allows CREATE, completed CREATE allows MAP, and completed MAP
+allows frame delivery and acknowledgement. Exact outgoing frame
+completion triggers the existing ACK window; no second scheduler
+or frame store is introduced. DELETE completion gates surface ID
+reuse; disconnect and generation changes revoke old callbacks.
+Live graphics, H.264/x264 and real-client acceptance remain
+separate unimplemented integration gates.
+
 ### R4 graphics frame acknowledgement accounting
 
 `rdp/gfx_frame_acknowledge.h` parses a complete already-authorized
@@ -170,21 +190,6 @@ than a caller-selected name mode. Disconnect clears capabilities and
 offers. The caller owns native offer completion, outbound queueing, and
 channel reassembly. No additional clipboard controller, OS API dependency
 or live clipboard access is introduced by this increment.
-
-### R8 offline joined static-channel acknowledgment envelope
-
-After generating a Format List Response, the existing `RemoteTransfer`
-can wrap **only its latest** eight-byte OK/FAIL acknowledgment in a
-single `CHANNEL_PDU_HEADER` (uncompressed data length 8, FIRST|LAST).
-It passes the 16-byte channel payload to R3's existing
-`McsChannelJoinWriteGate::encodeJoinedSendDataIndication`, which denies
-unconfirmed, unknown or closed joins and serializes one T.125 server
-SendDataIndication without allocation. The caller still supplies an
-externally authorized and genuinely CLIPRDR-assigned channel ID, enforces
-TLS/NLA/OS and security-header requirements, and owns asynchronous
-write receipts, reassembly and cancellation. A joined MCS channel does
-**not** prove a client is OS-authorized. The envelope must never be
-transmitted based solely on this offline test.
 
 ### Independence test
 

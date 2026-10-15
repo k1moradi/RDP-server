@@ -3612,3 +3612,43 @@ acceptance **NOT RUN**. No TLS completion is an admission decision.
 **Next R1 gate:** transport-owner readiness against an R10 bounded
 listener/poller and explicit R2/R3 authenticated handoff, preserving
 one state authority and cancel-before-SSL/socket teardown.
+
+## R4 graphics presentation ordering (2026-10-15)
+
+**Base `main` SHA:** `a08efa368fc8cd44295ce6a386e9b0e032f99dc2`. Atomic 8-file R4 increment adds
+`src/rdp/gfx_presentation_lifecycle.{h,cpp}`, its dedicated
+`tests/test_gfx_presentation_lifecycle.cpp`, production
+`CMakeLists.txt`, central `tests/CMakeLists.txt` and
+ROADMAP/ARCHITECTURE/validation co-updates.
+This state object composes the existing AVC420, surface and
+`GfxFrameAckWindow` code, **not** a second scheduler or R3 router.
+
+**Dedicated CTests:** `graphics.channel-lifecycle-ordering`
+(exact full send receipts gate confirm/create/map/frames),
+`graphics.channel-lifecycle-denials` (untrusted timing,
+malformed unsupported caps and invalid geometry),
+`graphics.surface-resize-revocation` (delete/reuse,
+disconnect/reconnect, stale receipts and generations),
+`graphics.frame-publication-backpressure` (64 pending
+frame IDs, exact ACK, suspension/resumption).
+
+**PASS:** production source compiled with strict C++23
+GCC 14.2 and Clang 17 `-O1 -g -Wall -Wextra -Wpedantic
+-Werror -UNDEBUG -D_GLIBCXX_ASSERTIONS
+-fsanitize=address,undefined -fno-omit-frame-pointer`,
+including the actual AVC420, surface and frame-ACK .cpp
+files and dedicated new fixture; 4/4 cases each with
+ASan leak detection and UBSan halt-on-error.
+Isolated source-only CTest in
+`~/rdp-server/build/r4_presentation_stage/`: **4/4 PASS**,
+NOT the canonical full repository CTest.
+Git blob SHAs match local tested sources.
+
+**NOT RUN at authoring:** full project local CTest (no
+full Git checkout), exact-commit Actions, owner Linux/X11,
+Windows CLANG64 Clang23 and macOS27, authenticated R2
+OS admission, R3 authorized DVC, pinned static x264,
+real Microsoft client graphics and performance.
+**Next:** R3 must provide real admitted graphics-channel
+generation and exact outbound completion callbacks; then
+wire to R4 frame scheduler/encoder. Gate B/M3–M5 OPEN.

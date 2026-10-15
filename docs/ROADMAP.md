@@ -2206,6 +2206,29 @@ actually run; another parser CTest alone is not a complete session.
   later H.264-only option **only if client negotiation or text fidelity requires
   it**. Never advertise an unsupported mode or silently fall back when AVC420
   is unavailable. **Status: NOT RUN / not a working RDP server.**
+  **R4 single-owner graphics presentation ordering (2026-10-15):**
+  A new C++23 `GfxPresentationLifecycle` composes the existing
+  AVC420 CAPS_ADVERTISE/CONFIRM, CREATE/MAP/DELETE encoders and
+  64-entry ACK window. Only future R3-authenticated, admitted graphics
+  DVC callbacks may supply its trusted monotonic channel generation;
+  it does not authenticate or transmit graphics independently.
+  Full-send receipts with unique serial, command and generation
+  gates must match before subsequent commands are allowed:
+  CAPS_CONFIRM completion precedes CREATE, CREATE completion precedes
+  MAP, and MAP completion precedes frame/ACK admission. DELETE
+  completion precedes same-channel surface reuse. Invalid caps,
+  premature frames, stale completion callbacks and old-generation
+  ACKs are denied, disconnect cancels outstanding state.
+  Dedicated registered CTests: `graphics.channel-lifecycle-ordering`,
+  `graphics.channel-lifecycle-denials`,
+  `graphics.surface-resize-revocation`,
+  `graphics.frame-publication-backpressure`. **PASS:** GCC 14.2 and
+  Clang 17 strict C++23 ASan/UBSan 4/4 cases each; isolated CTest
+  4/4. **NOT RUN:** full repository local CTest, exact new commit
+  hosted CI, owner Linux/X11, Windows CLANG64 Clang23, macOS27,
+  authorized R3 DVC, real x264, client and benchmarks.
+  **Next R4:** actual authorized R3 DVC full-send callback then
+  integrate the existing H.264 frame owner/x264. Gate B NOT ACCEPTED.
   **R4 bounded frame ACK/window (2026-10-15, implemented):**
   parse one reassembled MS-RDPEGFX FRAME_ACKNOWLEDGE command and
   maintain at most 64 exact outstanding frame IDs in the R4 owner.

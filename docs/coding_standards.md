@@ -478,6 +478,40 @@ unchanged. Only authenticated owner-supplied authorization,
 TLS provenance and joined MCS state may allow actual
 SSL transmission; this encoder never grants permission.
 
+## Pure finalization PDU syntax is NOT an activation controller (2026-10-15)
+
+MS-RDPBCGR 2.2.1.14.1 and 2.2.1.15.1 define small,
+fixed-size T.128 finalization messages. Extend ONLY the
+first-party `mcs_channel_connection` Share Data parser,
+not a new state manager. `TS_SYNCHRONIZE_PDU` requires
+exactly four body octets, type2 SYNCHRONIZE 0x1f and
+little-endian messageType 1; its targetUser LE16 is
+untrusted channel metadata. `TS_CONTROL_PDU` requires
+exactly eight body octets, type2 CONTROL 0x14, and
+LE16 action 1=Request, 2=Granted, 3=Detach or
+4=Cooperate, followed by LE16 grantId and LE32
+controlId. Reject truncated, coalesced, malformed,
+wrong-type, unsupported compressed and invalid
+action/message-type packets before returning any
+success-shaped structure. Reuse existing nested
+Share Control/Share Data strict framing, compression
+denial and stream compatibility; no temporary
+buffer, heap allocation, or parallel dispatcher.
+
+This layer MUST NOT treat a syntactically valid
+GrantedControl action or a targetUser/grantId/controlId
+as proof of joined MCS ownership, actual sender
+direction, negotiated active share or OS control.
+Microsoft's Client Cooperate/Request Control requires
+zero grantId/controlId; Server Granted Control uses
+assigned UserId and the server channel, but those
+directional/session-specific requirements must be
+verified by the one authorized connection owner
+AFTER genuine CredSSP TLS binding, OS admission,
+security-header handling, licensing and capability
+negotiation. Do not synthesize a server Granted
+Control reply in a parser, emit TLS or admit input.
+
 ## Fail-closed T.128 Share Data Header decoding (2026-10-15)
 
 MS-RDPBCGR 2.2.8.1.1.1.2 describes 12 data-header octets

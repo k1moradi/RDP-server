@@ -667,6 +667,41 @@ configured Kerberos provider failure/TLS reply, positive
 GSS/TLS authentication, OS admission, real RDP client,
 service activation or desktop acceptance.
 
+## Offline T.128 Synchronize/Control finalization tests (CI NOT RUN, 2026-10-15)
+
+Use the existing `tests/test_owned_mcs_connect_initial.cpp`
+single executable, Microsoft fixture style and the canonical
+`tests/CMakeLists.txt` registry. Four new portable cases:
+`transport.share-sync-finalization-wire` validates the full
+Microsoft Client Synchronize decrypted 22-byte PDU,
+targetUser=1002, share and source IDs, STREAM_UNDEFINED
+compatibility, pad1 semantics and a complete MCS nested
+handoff with caller-owned backing lifetime.
+`transport.share-sync-finalization-rejections` covers
+all incomplete prefixes, coalesced/trailing bytes,
+wrong inner size/type, invalid messageType, compressed
+payload, invalid stream, T.128 FlowPDU and bad version.
+`transport.share-control-finalization-wire` validates
+Microsoft decrypted Client Cooperate, Request Control,
+Server Granted with exact raw IDs and actions, plus
+synthetic Detach syntax. It deliberately demonstrates
+that a client-shaped Granted action is only syntax,
+never permission to grant control.
+`transport.share-control-finalization-rejections`
+covers all prefix truncations, mismatched and excessive
+body sizes, unknown 16-bit actions, compressed payload,
+wrong nested type, bad stream/version and ignored FlowPDU.
+No new executable, build root, security adapter,
+channel scheduler, socket/TLS or desktop owner.
+
+Expected portable suite **81** CTests (previous 77)
+and Linux GSSAPI **91** (previous 87); default CI and
+owner-local new build/CTest are NOT RUN at authoring.
+Independent authenticated Kerberos/TLS and OS account
+session, real Share Activation/client interoperability,
+DVC/RDPGFX and input remain separate acceptance gates.
+Only pure fixed-length wire syntax is asserted.
+
 ## Verified offline T.128 Share Data Header tests (CI PASS, 2026-10-15)
 
 Reuse `tests/test_owned_mcs_connect_initial.cpp` and the single

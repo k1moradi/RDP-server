@@ -1287,6 +1287,227 @@ void testRdpShareDataHeaderRejections()
     }
 }
 
+void testRdpSynchronizeFinalizationWire()
+{
+    // MS-RDPBCGR 4.1.14 published decrypted client Synchronize
+    // (22 bytes). Caller has already performed security-header
+    // processing; this is not a received/authenticated session.
+    constexpr std::array<std::uint8_t, 22> microsoftSync{
+        0x16, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x08, 0x00, 0x1f, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0xea, 0x03};
+    const auto sync = parseRdpSynchronizePdu(microsoftSync);
+    assert(sync && sync.error == RdpFinalizationError::None);
+    assert(sync.value.pduSource == 1007);
+    assert(sync.value.shareId == 0x000103eaU);
+    assert(sync.value.targetUser == 1002);
+
+    // Documented Windows Server Synchronize may use stream 0 rather
+    // than the nominal 1. Do not disallow the compatibility exception.
+    auto streamZero = microsoftSync;
+    streamZero[11] = 0;
+    assert(parseRdpSynchronizePdu(streamZero));
+    streamZero[10] = 0xf7; // pad1 ignored, including nonzero octets.
+    assert(parseRdpSynchronizePdu(streamZero));
+
+    // The parser retains an uninterpreted channel ID. The future
+    // authenticated session owner must check assignment/membership.
+    streamZero[20] = 0;
+    streamZero[21] = 0;
+    assert(parseRdpSynchronizePdu(streamZero).value.targetUser == 0);
+
+    // Complete MCS SendDataRequest framing is not proof that the
+    // embedded Share Control/Sync packet is authorized.
+    std::vector<std::uint8_t> mcs{
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70,
+        static_cast<std::uint8_t>(microsoftSync.size())};
+    mcs.insert(mcs.end(), microsoftSync.begin(), microsoftSync.end());
+    const auto frame = frameDomainPdu(mcs);
+    const auto outer = parseMcsChannelRequest(frame);
+    assert(outer && outer.request.userData.size() == microsoftSync.size());
+    assert(outer.request.userData.data() == frame.data() + 14);
+    const auto nested = parseRdpSynchronizePdu(outer.request.userData);
+    assert(nested && nested.value.targetUser == 1002);
+}
+
+void testRdpSynchronizeFinalizationRejections()
+{
+    constexpr std::array<std::uint8_t, 22> valid{
+        0x16, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x08, 0x00, 0x1f, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0xea, 0x03};
+    const auto denied = [](std::span<const std::uint8_t> bytes,
+                           RdpFinalizationError expected)
+    {
+        const auto parsed = parseRdpSynchronizePdu(bytes);
+        assert(!parsed && parsed.error == expected);
+        assert(parsed.value.shareId == 0);
+        assert(parsed.value.targetUser == 0);
+    };
+    for (std::size_t len = 0; len < valid.size(); ++len)
+        denied(std::span(valid).first(len),
+               RdpFinalizationError::InvalidShareData);
+    auto coalesced = std::vector<std::uint8_t>(valid.begin(), valid.end());
+    coalesced.push_back(0xaa);
+    denied(coalesced, RdpFinalizationError::InvalidShareData);
+
+    auto mutation = valid;
+    mutation[0] = 21;
+    denied(std::span(mutation).first(21),
+           RdpFinalizationError::InvalidBodyLength);
+    mutation = valid;
+    mutation[0] = 23;
+    auto tooLong = std::vector<std::uint8_t>(mutation.begin(), mutation.end());
+    tooLong.push_back(0);
+    denied(tooLong, RdpFinalizationError::InvalidBodyLength);
+
+    mutation = valid;
+    mutation[14] = 0x14; // Share Data Control, not Synchronize.
+    denied(mutation, RdpFinalizationError::WrongDataPduType);
+    for (const std::uint16_t bad : {std::uint16_t{0},
+                                    std::uint16_t{2},
+                                    std::uint16_t{0x0101},
+                                    std::uint16_t{0xffff}})
+    {
+        mutation = valid;
+        mutation[18] = static_cast<std::uint8_t>(bad);
+        mutation[19] = static_cast<std::uint8_t>(bad >> 8U);
+        denied(mutation, RdpFinalizationError::InvalidValue);
+    }
+    mutation = valid;
+    mutation[15] = 0x20; // No decompression/session history available.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+    mutation = valid;
+    mutation[2] = 0x27; // Bad Share Control version.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+    mutation = valid;
+    mutation[0] = 0;
+    mutation[1] = 0x80; // T.128 FlowPDU is ignored by parent.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+    mutation = valid;
+    mutation[11] = 3; // Invalid stream ID.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+}
+
+void testRdpControlFinalizationWire()
+{
+    // MS-RDPBCGR 4.1.15, 4.1.16 and 4.1.18 full decrypted
+    // Control PDUs: Client Cooperate, Client Request and
+    // Server Granted, respectively. No actual control is granted.
+    constexpr std::array<std::uint8_t, 26> clientCooperate{
+        0x1a, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x0c, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    const auto cooperate = parseRdpControlPdu(clientCooperate);
+    assert(cooperate && cooperate.error == RdpFinalizationError::None);
+    assert(cooperate.value.pduSource == 1007);
+    assert(cooperate.value.shareId == 0x000103eaU);
+    assert(cooperate.value.action == RdpControlAction::Cooperate);
+    assert(cooperate.value.grantId == 0);
+    assert(cooperate.value.controlId == 0);
+
+    auto clientRequest = clientCooperate;
+    clientRequest[18] = 0x01;
+    const auto requested = parseRdpControlPdu(clientRequest);
+    assert(requested && requested.value.action ==
+           RdpControlAction::RequestControl);
+
+    constexpr std::array<std::uint8_t, 26> serverGranted{
+        0x1a, 0x00, 0x17, 0x00, 0xea, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x12, 0x02,
+        0x1a, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0xef, 0x03, 0xea, 0x03, 0x00, 0x00};
+    const auto granted = parseRdpControlPdu(serverGranted);
+    assert(granted && granted.value.pduSource == 1002);
+    assert(granted.value.action == RdpControlAction::GrantedControl);
+    assert(granted.value.grantId == 1007);
+    assert(granted.value.controlId == 1002);
+
+    auto detach = clientCooperate;
+    detach[18] = 0x03;
+    const auto parsedDetach = parseRdpControlPdu(detach);
+    assert(parsedDetach && parsedDetach.value.action ==
+           RdpControlAction::Detach);
+
+    // Decoding an action/ID is syntax, not permission. Even a
+    // client-shaped packet with forged GrantedControl remains
+    // syntactically decoded; real direction/state checks are
+    // REQUIRED before its action could be applied.
+    auto untrustedGrant = clientCooperate;
+    untrustedGrant[18] = 2;
+    untrustedGrant[20] = 0xff;
+    untrustedGrant[21] = 0xff;
+    const auto forged = parseRdpControlPdu(untrustedGrant);
+    assert(forged &&
+           forged.value.action == RdpControlAction::GrantedControl);
+    assert(forged.value.grantId == 65535);
+    assert(forged.value.controlId == 0);
+}
+
+void testRdpControlFinalizationRejections()
+{
+    constexpr std::array<std::uint8_t, 26> valid{
+        0x1a, 0x00, 0x17, 0x00, 0xef, 0x03,
+        0xea, 0x03, 0x01, 0x00, 0x00, 0x01,
+        0x0c, 0x00, 0x14, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    const auto denied = [](std::span<const std::uint8_t> bytes,
+                           RdpFinalizationError expected)
+    {
+        const auto parsed = parseRdpControlPdu(bytes);
+        assert(!parsed && parsed.error == expected);
+        assert(parsed.value.shareId == 0);
+        assert(parsed.value.grantId == 0);
+        assert(parsed.value.controlId == 0);
+    };
+    for (std::size_t len = 0; len < valid.size(); ++len)
+        denied(std::span(valid).first(len),
+               RdpFinalizationError::InvalidShareData);
+    auto coalesced = std::vector<std::uint8_t>(valid.begin(), valid.end());
+    coalesced.push_back(0x00);
+    denied(coalesced, RdpFinalizationError::InvalidShareData);
+
+    auto mutation = valid;
+    mutation[0] = 25;
+    denied(std::span(mutation).first(25),
+           RdpFinalizationError::InvalidBodyLength);
+    mutation = valid;
+    mutation[0] = 27;
+    auto tooLong = std::vector<std::uint8_t>(mutation.begin(), mutation.end());
+    tooLong.push_back(0);
+    denied(tooLong, RdpFinalizationError::InvalidBodyLength);
+
+    mutation = valid;
+    mutation[14] = 0x1f; // Not a Control Data PDU.
+    denied(mutation, RdpFinalizationError::WrongDataPduType);
+    for (const std::uint16_t invalid : {std::uint16_t{0},
+                                        std::uint16_t{5},
+                                        std::uint16_t{0x0104},
+                                        std::uint16_t{0xffff}})
+    {
+        mutation = valid;
+        mutation[18] = static_cast<std::uint8_t>(invalid);
+        mutation[19] = static_cast<std::uint8_t>(invalid >> 8U);
+        denied(mutation, RdpFinalizationError::InvalidValue);
+    }
+    mutation = valid;
+    mutation[15] = 0x20; // Compressed payload not allowed.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+    mutation = valid;
+    mutation[11] = 3; // Invalid stream ID.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+    mutation = valid;
+    mutation[2] = 0x27; // Bad protocol version.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+    mutation = valid;
+    mutation[0] = 0;
+    mutation[1] = 0x80; // Must-ignore T.128 FlowPDU.
+    denied(mutation, RdpFinalizationError::InvalidShareData);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -1313,7 +1534,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 23> kMcsTestCases{{
+constexpr std::array<McsTestCase, 27> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -1337,6 +1558,10 @@ constexpr std::array<McsTestCase, 23> kMcsTestCases{{
     {"share-control-header-rejections", &testRdpShareControlHeaderRejections},
     {"share-data-header-wire", &testRdpShareDataHeaderWire},
     {"share-data-header-rejections", &testRdpShareDataHeaderRejections},
+    {"share-sync-finalization-wire", &testRdpSynchronizeFinalizationWire},
+    {"share-sync-finalization-rejections", &testRdpSynchronizeFinalizationRejections},
+    {"share-control-finalization-wire", &testRdpControlFinalizationWire},
+    {"share-control-finalization-rejections", &testRdpControlFinalizationRejections},
 }};
 
 int main(int argc, char **argv)

@@ -464,4 +464,66 @@ RdpShareDataParseResult parseRdpShareDataHeader(
     return {header, RdpShareDataError::None};
 }
 
+RdpSynchronizeParseResult parseRdpSynchronizePdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    // Reuse both authoritative framing validators. A byte sequence
+    // from MCS is not inherently a decrypted Share Control PDU.
+    const auto data = parseRdpShareDataHeader(completeSharePdu);
+    if (!data)
+        return {};
+    if (data.value.pduType2 != 0x1fU)
+        return {{}, RdpFinalizationError::WrongDataPduType};
+    const auto body = data.value.body;
+    if (body.size() != 4U)
+        return {{}, RdpFinalizationError::InvalidBodyLength};
+    // MS-RDPBCGR 2.2.1.14.1: SYNCMSGTYPE_SYNC = 1, LE16.
+    if (body[0] != 1U || body[1] != 0U)
+        return {{}, RdpFinalizationError::InvalidValue};
+
+    RdpSynchronizePdu value{};
+    value.pduSource = data.value.pduSource;
+    value.shareId = data.value.shareId;
+    value.targetUser = static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(body[2]) |
+        (static_cast<std::uint16_t>(body[3]) << 8U));
+    // targetUser is not checked against any actual assigned channel;
+    // only the separately authenticated session owner can do so.
+    return {value, RdpFinalizationError::None};
+}
+
+RdpControlParseResult parseRdpControlPdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    const auto data = parseRdpShareDataHeader(completeSharePdu);
+    if (!data)
+        return {};
+    if (data.value.pduType2 != 0x14U)
+        return {{}, RdpFinalizationError::WrongDataPduType};
+    const auto body = data.value.body;
+    if (body.size() != 8U)
+        return {{}, RdpFinalizationError::InvalidBodyLength};
+
+    const std::uint16_t action = static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(body[0]) |
+        (static_cast<std::uint16_t>(body[1]) << 8U));
+    if (action < 1U || action > 4U)
+        return {{}, RdpFinalizationError::InvalidValue};
+
+    RdpControlPdu value{};
+    value.pduSource = data.value.pduSource;
+    value.shareId = data.value.shareId;
+    value.action = static_cast<RdpControlAction>(action);
+    value.grantId = static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(body[2]) |
+        (static_cast<std::uint16_t>(body[3]) << 8U));
+    value.controlId = static_cast<std::uint32_t>(body[4]) |
+                      (static_cast<std::uint32_t>(body[5]) << 8U) |
+                      (static_cast<std::uint32_t>(body[6]) << 16U) |
+                      (static_cast<std::uint32_t>(body[7]) << 24U);
+    // A valid enum and raw IDs do not prove grant, session owner,
+    // direction, MCS membership or active share negotiation.
+    return {value, RdpFinalizationError::None};
+}
+
 } // namespace rdp_server::server::transport

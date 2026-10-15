@@ -1408,6 +1408,62 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending offline T.128 finalization Synchronize/Control decoder (2026-10-15)
+
+**Previous main:** `1c4dc32ef2bb3d1bc86aeffa1bcc7d10f57ab8ed`,
+[CI 38711285093](https://github.com/k1moradi/RDP-server/actions/runs/38711285093)
+PASS: Linux/GCC **87/87**, macOS/Clang and
+Windows/MSVC **77/77** full CTests in BOTH Debug
+and Release, plus installed SDK consumers, ZIP
+SHA-256 artifacts and documentation-policy.
+The owner also reports **77/77** local PASS for
+the previous commit. These results DO NOT
+validate the incremental code below.
+
+**Change:** Extend existing first-party
+`src/server/transport/mcs_channel_connection.{h,cpp}`
+to decode standalone (already isolated/decrypted)
+Microsoft T.128 22-byte Synchronize (type2 0x1f,
+messageType=1, targetUser LE16) and 26-byte Control
+(type2 0x14, action Request/Granted/Detach/Cooperate,
+grantId LE16 and controlId LE32) on top of existing
+checked Share Control + Share Data framing.
+Rejected/malformed/wrong-size/unknown action/type/
+stream/version and unsupported compressed PDUs
+yield no activation or control state. Pure offline
+syntax, no new owner or data copy. Raw identifiers
+are untrusted, including a forged GrantedControl
+action in a client-shaped packet; only a future
+genuinely Kerberos/TLS-bound and independently
+OS-authorized session owner can apply direction,
+ordering and channel assignment.
+
+**Tests:** same
+`tests/test_owned_mcs_connect_initial.cpp` fixture
+and `tests/CMakeLists.txt` registry gain four
+portable behavior cases: `transport.share-sync-finalization-wire`,
+`transport.share-sync-finalization-rejections`,
+`transport.share-control-finalization-wire`,
+`transport.share-control-finalization-rejections`.
+Expected **81 portable / 91 Linux GSS** full CTests.
+ROADMAP, architecture, coding/testing standards
+are updated in this SAME implementation commit.
+
+**NOT RUN at authoring:** implementation CI
+Debug/Release across Linux/macOS/Windows, new
+owner-local build/CTest, controlled real GSS
+keytab/ticket, full CredSSP TLS pubKeyAuth,
+OS account/session authority, licensed share,
+external RDP client, input or graphics.
+Reuse owner's ONE build directory:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug --output-on-failure`.
+**Next gate:** exact-HEAD CI and owner-local
+regressions, then explicitly authorized real
+GSS/TLS plus independent OS session gate
+before live finalization dispatch.
+
 ## Verified default GSS fail-closed v6 error queue contract (2026-10-15)
 
 **Baseline exact main:** `ebc794738552f5411ebe4d2222000f8ae94183f2`,

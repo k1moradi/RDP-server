@@ -254,4 +254,76 @@ struct RdpShareDataParseResult
 [[nodiscard]] RdpShareDataParseResult parseRdpShareDataHeader(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
 
+// MS-RDPBCGR 2.2.1.14.1/2.2.1.15.1 connection finalization.
+// Only pure OFFLINE syntax: caller has already isolated one entire,
+// plaintext Share Control Data PDU after TLS/security/MCS routing.
+// These decoders do NOT advance activation, grant control, admit a
+// channel/OS user, transmit TLS, or parse a nested input PDU.
+enum class RdpFinalizationError : std::uint8_t
+{
+    None,
+    InvalidShareData,
+    WrongDataPduType,
+    InvalidBodyLength,
+    InvalidValue,
+};
+
+struct RdpSynchronizePdu
+{
+    std::uint16_t pduSource{};
+    std::uint32_t shareId{};
+    std::uint16_t targetUser{};
+};
+
+struct RdpSynchronizeParseResult
+{
+    RdpSynchronizePdu value{};
+    RdpFinalizationError error{RdpFinalizationError::InvalidShareData};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpFinalizationError::None;
+    }
+};
+
+// TS_SYNCHRONIZE_PDU: exactly 18+4 bytes, pduType2=0x1f,
+// little-endian messageType MUST be 1 and targetUser is the
+// untrusted MCS channel ID (not evidence of a joined channel).
+[[nodiscard]] RdpSynchronizeParseResult parseRdpSynchronizePdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
+enum class RdpControlAction : std::uint16_t
+{
+    RequestControl = 1,
+    GrantedControl = 2,
+    Detach = 3,
+    Cooperate = 4,
+};
+
+struct RdpControlPdu
+{
+    std::uint16_t pduSource{};
+    std::uint32_t shareId{};
+    RdpControlAction action{RdpControlAction::RequestControl};
+    std::uint16_t grantId{};
+    std::uint32_t controlId{};
+};
+
+struct RdpControlParseResult
+{
+    RdpControlPdu value{};
+    RdpFinalizationError error{RdpFinalizationError::InvalidShareData};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpFinalizationError::None;
+    }
+};
+
+// TS_CONTROL_PDU: exactly 18+8 bytes, pduType2=0x14,
+// action 1..4, little-endian grantId/controlId. Client Request/
+// Cooperate zero IDs and server Granted user/channel IDs are
+// DIRECTIONAL, session-owned requirements: preserve raw values,
+// never interpret an incoming GrantedControl as authority.
+[[nodiscard]] RdpControlParseResult parseRdpControlPdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
 } // namespace rdp_server::server::transport

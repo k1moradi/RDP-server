@@ -327,6 +327,46 @@ inner RDP/licensing/virtual-channel PDU and complete TLS
 encryption/transmission. The encoder itself performs no SSL
 I/O, session admission, OS operation, reassembly or graphics.
 
+### Offline RDP connection-finalization Control and Synchronize PDUs (2026-10-15)
+
+The original `mcs_channel_connection` module now reuses its checked
+Share Control and Share Data decoders to parse two *finalization*
+payloads. Per
+[MS-RDPBCGR 2.2.1.14.1](https://learn.microsoft.com/fr-ch/openspecs/windows_protocols/ms-rdpbcgr/3fb4c95e-ad2d-43d1-a46f-5bd49418da49),
+`TS_SYNCHRONIZE_PDU` is exactly 22 bytes including
+the 18-byte enclosing headers, type2 `0x1f`, little-endian
+`messageType=SYNCMSGTYPE_SYNC (1)` and an uninterpreted
+`targetUser` channel ID. Windows Server's documented
+`STREAM_UNDEFINED=0` exception remains supported by the
+underlying Share Data decoder. Per
+[MS-RDPBCGR 2.2.1.15.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/0448f397-aa11-455d-81b1-f1265085239d),
+`TS_CONTROL_PDU` has exactly 26 bytes including headers,
+type2 `0x14`, little-endian `action` 1..4 (Request,
+Granted, Detach, Cooperate), `grantId` LE16 and
+`controlId` LE32. Source/share IDs are carried from
+the checked enclosing frame. Wrong kind, total length,
+nested length, unknown action, invalid messageType,
+and unsupported compressed payload fail without
+exposing or applying any action. Pure C++23, no copies,
+allocations, state machine or extra decoder owner.
+
+Microsoft's decrypted Client Synchronize, Client
+Cooperate, Client Request and Server Granted Control
+fixtures are independently checked in the existing
+MCS behavior registry. The **real** finalization protocol
+imposes DIRECTIONAL rules that pure syntax cannot
+prove: Client Request/Cooperate have zero grant/control
+IDs, while Server Granted uses a previously assigned
+user-channel ID and server channel ID. The parser
+intentionally preserves raw IDs and actions, including
+a potentially forged client-side Granted enum, WITHOUT
+calling any state transition. Only one future *genuinely
+CredSSP/Kerberos TLS-bound and independently OS-authorized*
+session owner may validate direction, assigned channel,
+share ownership, ordering, licensing and capability
+negotiation before advancing or granting control.
+This still does not enable live TLS, input or desktop.
+
 ### Offline uncompressed Share Data Header decoding (2026-10-15)
 
 The original first-party `mcs_channel_connection` module now exposes

@@ -986,6 +986,40 @@ acceptance evidence; no synthetic completion claims.
   **Next:**
   continue explicit authenticated GSS/OS admission gates
   separately; no external-client/desktop acceptance claimed.
+  **Partial OFFLINE connection-finalization fixed PDU decoding (2026-10-15;
+  CI NOT RUN at authoring):** after the existing canonical
+  complete Share Control + uncompressed Share Data parsing,
+  the first-party C++23 MCS module recognizes a strict
+  22-byte `TS_SYNCHRONIZE_PDU` (type2 0x1f,
+  messageType 1, raw targetUser) and 26-byte
+  `TS_CONTROL_PDU` (type2 0x14, action
+  Request/Granted/Detach/Cooperate, raw grantId and
+  controlId). Reuse Microsoft decrypted Client Synchronize,
+  Cooperate, Request Control and Server Granted Control
+  wire examples. Reject malformed/truncated/extra bytes,
+  unknown actions, wrong type/stream/version and
+  compressed payloads. All are pure borrowed-input
+  syntax without heap work, side effects, channel
+  assignment or control activation. A forged
+  client-shaped Granted action remains syntax only;
+  an authenticated session owner must enforce direction,
+  ordering, licensed share and assigned channel.
+  Four behavior-named portable CTests added to the
+  existing MCS registry; expected **81** portable,
+  **91** Linux GSS-enabled (77/87 previously).
+  Parent `1c4dc32ef2bb3d1bc86aeffa1bcc7d10f57ab8ed`
+  passed [CI 38711285093](https://github.com/k1moradi/RDP-server/actions/runs/38711285093);
+  owner confirms **77/77** locally on that parent.
+  **NOT RUN:** implementation exact-head CI,
+  new owner-local build/CTest, real credential-backed
+  Kerberos/GSS/TLS, OS session admission, actual
+  Share Activation, channel state, external clients,
+  DVC/H.264 graphics or usable desktop.
+  **Next:** exact-commit cross-platform CI; obtain
+  explicitly authorized isolated Kerberos test keytab
+  and client ticket cache, prove full GSS/TLS binding,
+  add independent OS authorization, and only then
+  transition the one session owner through finalization.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**

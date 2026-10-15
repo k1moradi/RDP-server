@@ -981,48 +981,60 @@ Microsoft Windows App or actual desktop.
 The existing unrelated Ubuntu Release
 fixture warning remains nonfatal.
 
-## Version-6 CredSSP failure DER and TLS delivery (2026-10-14; CI NOT RUN)
+## Verified canonical v6 CredSSP failure DER/TLS replies (2026-10-14)
 
-Register FOUR new behavior cases in
-the ORIGINAL CTest registry
-`tests/CMakeLists.txt`, reusing existing
-`test_owned_credssp_tsrequest` and
-`test_owned_preauth_session` sources.
+FOUR portable behavior-named CTests
+reuse the original two test binaries
+and ONE `tests/CMakeLists.txt`
+registration, without new state
+controllers or fake authentication:
 `security.credssp-server-failure-wire`
-compares independently hand-authored
-15-byte DER oracles for signed
-0xC000006D and 0xC00000BB, validates
-existing TSRequest parser/framer
-reads exactly errorCode and never
-infers user authentication.
+checks independent canonical 15-byte
+MS-CSSP DER for negative signed
+32-bit NTSTATUS 0xC000006D and
+0xC00000BB, exactly [0] and [4],
+parse and frame roundtrip; never
+`authInfo`, `pubKeyAuth`,
+`negoTokens` or clientNonce.
 `security.credssp-server-failure-rejections`
-rejects versions 0/2/3/4/5/7/255,
-unknown statuses, invalid DER signed
-integer width, and unrecognized
-normal server reply fields.
+checks versions other than 6,
+unknown failure enums, nonminimal
+signed DER integers and invalid
+normal-reply field selection.
 `transport.credssp-tls-failure-reply-wire`
-sends both actual v6 failure records
-over the existing completed OpenSSL
-server/client memory-BIO TLS and
-validates the received exact ciphertext-
-protected plaintext, error-only
-field shape and writer terminal
-state; it also checks a prior
-negotiation response may be released
-before a failure on the same TLS
-certificate fingerprint.
+uses the original real TLS OpenSSL
+memory BIO fixture to deliver both
+error frames and to prove release
+permanently closes the writer.
+A previously released normal
+negotiation reply may be followed
+by a failure on the SAME SSL/cert,
+but not vice versa.
 `transport.credssp-tls-failure-reply-rejections`
-asserts null/unfinished/client SSL,
-v5 or malformed failure, pending
-write conflict and SAME-SSL selected
-X509 substitution all fail without
-leaking another TLS record. Expected
-full Linux **76**, macOS/Windows
-**67** CTests per Debug and Release.
-No separate test executable,
-second sender or default GSS
-auth context. **NOT RUN:** new CI,
-opt-in genuine Kerberos, confirmed
-confidential GSS/TLS binding,
-real Microsoft client/OS session
-authorization or interactive desktop.
+checks null/unhandshaken/client-role
+TLS, invalid versions/statuses,
+pending reply conflict and a
+different selected X.509 on the
+SAME SSL, with no plaintext
+delivered after that mutation.
+
+**PASS:** implementation
+`6925ac11a49b3d71a6ffa120b688ca95a0a088af`,
+[Actions 38683205424](https://github.com/k1moradi/RDP-server/actions/runs/38683205424):
+Linux/GCC **76/76** CTests, macOS/Clang
+and Windows/MSVC **67/67** CTests
+EACH Debug and Release; every new
+case passed on all three platforms.
+Installed downstream SDK consumer,
+three ZIP+SHA256 uploads and
+documentation-policy PASS. Existing
+nonfatal Ubuntu Release fixture
+warning at `tests/test_owned_preauth_session.cpp:594`
+persists. Prerelease publication
+SKIPPED because no release tag.
+**NOT RUN:** owner-local persistent
+build, controlled genuine Kerberos/
+GSS positive keytab/client tickets,
+production GSS failure dispatch,
+external Microsoft RDP client,
+OS authorization or desktop.

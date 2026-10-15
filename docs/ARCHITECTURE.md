@@ -1111,3 +1111,17 @@ authenticate CredSSP/GSS, authorize an OS account
 or emit MCS/graphics traffic. Higher-level SSL and
 the sole connection owner retain state across
 short I/O as before.
+
+**Exact-code acceptance (2026-10-15):**
+`8ce08611d5d7b093c9d69f4b7eee5d23cd096359`
+passed [GitHub Actions 38752789202](https://github.com/k1moradi/RDP-server/actions/runs/38752789202):
+Linux/GCC **111/111**, macOS/Clang and Windows/MSVC
+**101/101** registered CTests in EACH Debug and
+Release, including BIO and real loopback chunk-bound
+cases. Project documentation policy, installed
+SDK downstream consumer, ZIP/SHA256 artifacts
+and package uploads PASS. Prerelease publishing
+SKIPPED (no version tag). Owner-local current-head,
+MSYS2 CLANG64 Clang23, macOS27, real GSS/CredSSP
+and OS account authorization, Microsoft client and
+desktop remain **NOT RUN**.

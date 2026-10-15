@@ -217,8 +217,8 @@ actually run; another parser CTest alone is not a complete session.
   authenticated channel/share lifecycle; the loopback TLS intake
   diagnostic by itself remains insufficient.
 
-  **R1 bounded TCP/BIO syscall integration increment
-  (2026-10-15; exact-head CI NOT RUN at authoring):** Reuse the
+  **Verified R1 bounded TCP/BIO syscall integration increment
+  (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL
   `TcpNonblockingIo` BIO, without adding a listener or
   controller. Enforce an 18 KiB maximum **per native
@@ -260,9 +260,25 @@ actually run; another parser CTest alone is not a complete session.
   licensing, live Microsoft-client MCS handshake,
   H.264/X11 desktop or human test. This work
   exercises R1 I/O only and CANNOT accept a user.
-  **Next:** exact-head cross-platform CI, owner
-  one-root CTest, then real authorized identity/OS
-  policy before enabling live session responses.
+  **PASS:** exact implementation
+  `8ce08611d5d7b093c9d69f4b7eee5d23cd096359`,
+  [GitHub Actions 38752789202](https://github.com/k1moradi/RDP-server/actions/runs/38752789202):
+  Linux/GCC **111/111** and macOS/Clang,
+  Windows/MSVC **101/101** registered CTests in BOTH
+  Debug and Release, including both new R1 chunk
+  bounds cases; documentation-policy, installed
+  downstream SDK consumer, ZIP/SHA256 packaging and
+  artifact uploads PASS. Untagged prerelease SKIPPED.
+  Earlier NOT RUN-at-authoring status is now superseded
+  for hosted CI only. **NOT RUN:** owner-local current
+  SHA single-root CTest, MSYS2 CLANG64 Clang23 and
+  macOS27 owner environment, positive real CredSSP/
+  Kerberos+TLS binding, independent OS account/session
+  admission, real Microsoft RDP client and desktop.
+  **Next:** owner performs exact-head local CTest
+  with his one reused build root; R1/R2/R3 converge
+  only after externally authorized GSS/OS session
+  and actual client acceptance evidence.
   **Verified partial Gate A single-owner TCP/TLS/MCS readiness integration
   (2026-10-15; exact-head CI PASS):** In the
   existing `PreauthTcpAdapter` alone, bind the completed

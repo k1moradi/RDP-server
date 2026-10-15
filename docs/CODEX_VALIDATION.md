@@ -2464,3 +2464,25 @@ cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Debug
 cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ```
+
+**Exact implementation CI PASS:** 
+`8ce08611d5d7b093c9d69f4b7eee5d23cd096359`,
+[GitHub Actions 38752789202](https://github.com/k1moradi/RDP-server/actions/runs/38752789202).
+Linux/GCC **111/111** full registered CTests
+and macOS/Clang, Windows/MSVC **101/101** each in
+BOTH Debug and Release. `transport.tcp-bio-chunk-bounds`
+and `transport.tcp-native-chunk-bounds` PASS all OS
+and both configurations. SDK staged install, downstream
+consumer CTest, ZIP and SHA256 artifacts/uploads,
+and docs policy PASS. Untagged prerelease SKIPPED.
+The prior NOT RUN at authoring was an accurate checkpoint
+before this exact-SHA hosted CI. **NOT RUN:** owner's
+current-head build/CTest in `~/rdp-server/build/`,
+Windows MSYS2 CLANG64/Clang23 or macOS27 owner
+platform acceptance, real opt-in Kerberos/CredSSP
+public-key TLS binding, independent native OS account
+authorization, live licensed Microsoft-client RDP
+activation, graphics/desktop or human test.
+**Next:** owner-local full one-root CTest and parallel
+R2/R3 integration with real authorized identity/OS
+admission before sending live MCS or desktop data.

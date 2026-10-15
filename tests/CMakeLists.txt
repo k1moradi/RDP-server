@@ -29,7 +29,9 @@ function(add_rdp_test source_file suite behavior)
                 mcs-attach-request
                 mcs-channel-join-request
                 mcs-attach-confirm-wire
-                mcs-channel-join-confirm)
+                mcs-channel-join-confirm
+                mcs-disconnect-wire
+                mcs-disconnect-rejections)
             add_test(NAME "transport.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("transport.${case_name}" PROPERTIES

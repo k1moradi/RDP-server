@@ -578,6 +578,101 @@ void testMcsChannelJoinConfirmWireAndRejections()
     invalid.subHeight = 1; // contradictory request fields
     reject(encodeMcsChannelJoinConfirm(invalid, 1007, permitted));
 }
+void testMcsDisconnectProviderWire()
+{
+    // Independent MS-RDPBCGR 4.2.3 example: user-requested.
+    constexpr std::array<std::uint8_t, 9> userRequested{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80, 0x21, 0x80};
+    constexpr std::array<std::uint8_t, 9> providerInitiated{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80, 0x20, 0x80};
+    const auto user = encodeMcsDisconnectProviderUltimatum(
+        McsDisconnectReason::UserRequested);
+    const auto provider = encodeMcsDisconnectProviderUltimatum(
+        McsDisconnectReason::ProviderInitiated);
+    assert(user && *user == userRequested);
+    assert(provider && *provider == providerInitiated);
+
+    std::span<const std::uint8_t> payload;
+    assert(parseDataTpdu(*user, payload));
+    assert(payload.size() == 2 && payload[0] == 0x21 &&
+           payload[1] == 0x80);
+    assert(parseDataTpdu(*provider, payload));
+    assert(payload.size() == 2 && payload[0] == 0x20 &&
+           payload[1] == 0x80);
+    for (const auto &packet : {userRequested, providerInitiated})
+    {
+        const auto parsed = parseMcsChannelRequest(packet);
+        assert(parsed);
+        assert(parsed.request.kind ==
+               McsChannelRequestKind::DisconnectProviderUltimatum);
+        assert(parsed.request.initiator == 0 && parsed.request.channelId == 0);
+    }
+}
+
+void testMcsDisconnectProviderRejections()
+{
+    // Only reason 1 and 3 may be emitted; test every possible enum byte.
+    for (unsigned int rawReason = 0; rawReason < 256; ++rawReason)
+    {
+        const auto encoded = encodeMcsDisconnectProviderUltimatum(
+            static_cast<McsDisconnectReason>(rawReason));
+        assert(encoded.has_value() ==
+               (rawReason == 1 || rawReason == 3));
+    }
+
+    constexpr std::array<std::uint8_t, 9> baseline{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80, 0x21, 0x80};
+    // Receiving servers MUST ignore even reserved peer reason values.
+    for (const auto first : {0x20U, 0x21U})
+    {
+        for (const auto second : {0x00U, 0x80U})
+        {
+            auto received = baseline;
+            received[7] = static_cast<std::uint8_t>(first);
+            received[8] = static_cast<std::uint8_t>(second);
+            const auto parsed = parseMcsChannelRequest(received);
+            assert(parsed && parsed.request.kind ==
+                   McsChannelRequestKind::DisconnectProviderUltimatum);
+            assert(parsed.request.subHeight == 0 &&
+                   parsed.request.subInterval == 0);
+        }
+    }
+
+    // Never admit partial or coalesced TPKT records.
+    for (std::size_t size = 0; size < baseline.size(); ++size)
+        assert(!parseMcsChannelRequest(std::span(baseline).first(size)));
+    for (const auto invalidPayload :
+         {std::array<std::uint8_t, 2>{0x21, 0x01},
+          std::array<std::uint8_t, 2>{0x21, 0x7f},
+          std::array<std::uint8_t, 2>{0x22, 0x80},
+          std::array<std::uint8_t, 2>{0x23, 0x80},
+          std::array<std::uint8_t, 2>{0x28, 0x80}})
+    {
+        const auto parsed = parseMcsChannelRequest(
+            frameDomainPdu(invalidPayload));
+        assert(!parsed);
+        assert(parsed.error == McsChannelParseError::InvalidDomainPdu);
+        assert(parsed.request.kind == McsChannelRequestKind::None);
+    }
+    assert(!parseMcsChannelRequest(
+        frameDomainPdu(std::array<std::uint8_t, 1>{0x21})));
+    assert(!parseMcsChannelRequest(
+        frameDomainPdu(std::array<std::uint8_t, 3>{0x21, 0x80, 0x00})));
+
+    auto corrupt = baseline;
+    corrupt[3] = 10; // Inconsistent TPKT size.
+    assert(parseMcsChannelRequest(corrupt).error ==
+           McsChannelParseError::InvalidTransport);
+    corrupt = baseline;
+    corrupt[5] = 0xe0; // X.224 Connection Request, not Data.
+    assert(parseMcsChannelRequest(corrupt).error ==
+           McsChannelParseError::InvalidTransport);
+    corrupt = baseline;
+    corrupt[6] = 0x81; // Invalid X.224 EOT.
+    assert(parseMcsChannelRequest(corrupt).error ==
+           McsChannelParseError::InvalidTransport);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -604,7 +699,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 13> kMcsTestCases{{
+constexpr std::array<McsTestCase, 15> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -618,6 +713,8 @@ constexpr std::array<McsTestCase, 13> kMcsTestCases{{
     {"mcs-channel-join-request", &testMcsChannelJoinRequest},
     {"mcs-attach-confirm-wire", &testMcsAttachConfirmWire},
     {"mcs-channel-join-confirm", &testMcsChannelJoinConfirmWireAndRejections},
+    {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
+    {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
 }};
 
 int main(int argc, char **argv)

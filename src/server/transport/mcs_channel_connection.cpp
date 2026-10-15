@@ -89,6 +89,19 @@ McsChannelParseResult parseMcsChannelRequest(
         return {request, McsChannelParseError::None};
     }
 
+    if ((payload[0] & 0xfeU) == 0x20U)
+    {
+        // MS-RDPBCGR 2.2.2.3: choice 8, plus two-bit reason
+        // straddling the two final octets. Reject nonzero padding.
+        // MS-RDPBCGR 3.1.5.1.2: receiving servers MUST ignore
+        // the reason, including reserved values.
+        if (payload.size() != 2 || (payload[1] & 0x7fU) != 0)
+            return {{}, McsChannelParseError::InvalidDomainPdu};
+        McsChannelRequest request{};
+        request.kind = McsChannelRequestKind::DisconnectProviderUltimatum;
+        return {request, McsChannelParseError::None};
+    }
+
     // Unknown DomainMCSPDU types, T.125 extension bits/flags, and
     // response/opposite-direction types must not be accepted as requests.
     return {{}, McsChannelParseError::InvalidDomainPdu};
@@ -176,6 +189,25 @@ McsChannelConfirm encodeMcsChannelJoinConfirm(
                      lowByte(channel)};
     result.length = 15;
     return result;
+}
+
+std::optional<std::array<std::uint8_t, 9>>
+encodeMcsDisconnectProviderUltimatum(McsDisconnectReason reason) noexcept
+{
+    // Per MS-RDPBCGR 3.1.5.1.1 only provider-initiated (1)
+    // and user-requested (3) are legal for server transmission.
+    if (reason != McsDisconnectReason::ProviderInitiated &&
+        reason != McsDisconnectReason::UserRequested)
+        return std::nullopt;
+
+    // Nine exact TPKT/X.224/PER octets, no intermediate buffer.
+    // Provider (01) = 20 80; user (11) = 21 80.
+    return std::array<std::uint8_t, 9>{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80,
+        reason == McsDisconnectReason::UserRequested
+            ? static_cast<std::uint8_t>(0x21)
+            : static_cast<std::uint8_t>(0x20),
+        0x80};
 }
 
 } // namespace rdp_server::server::transport

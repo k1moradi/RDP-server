@@ -412,6 +412,22 @@ installed SDK consumer/package gates. This does not prove
 any identity, host admission, channel allocation or
 actual RDP client acceptance.
 
+## MCS disconnect PER encoding and lifecycle ownership (2026-10-14)
+
+Under [MS-RDPBCGR 2.2.2.3/4.2.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/19a238a5-0455-46f0-a96b-31320d9a70a1)
+the complete Disconnect Provider Ultimatum is nine
+TPKT/X.224/aligned-PER octets, and its two-bit reason
+straddles the final octets. The pure server encoder may
+emit only reasons 1 (provider initiated) or 3 (user requested);
+all invalid enum values return no packet. The receiving
+server must ignore all four two-bit reason values, while
+rejecting invalid TPKT lengths, choice/extension bits,
+and nonzero PER padding. No heap, second owner, new protocol
+transport, or session policy in this primitive. Only
+the one future authenticated TLS owner may transmit the
+entire encrypted PDU and close after write completion.
+Offline wire correctness is not an RDP disconnect acceptance.
+
 ## Strict bounded CredSSP DER framing ownership (2026-10-14)
 
 MS-CSSP 2.2.1 specifies DER TSRequest messages on TLS;

@@ -523,6 +523,24 @@ logs explicitly show **39/39 PASS** in Debug and Release.
 This is protocol syntax verification, NOT authenticated session
 admission or real client interoperability.
 
+## Offline MCS Disconnect Provider Ultimatum (new, CI NOT RUN)
+
+Use existing `tests/test_owned_mcs_connect_initial.cpp` and
+the single `tests/CMakeLists.txt` registry, with no new binary:
+`transport.mcs-disconnect-wire` compares exact nine-byte
+Microsoft user-requested and derived provider-initiated
+TPKT/X.224/PER packets and recognizes both inbound frames.
+`transport.mcs-disconnect-rejections` exhausts all 256
+encoder reason values (only 1 and 3 valid), confirms all
+four inbound reasons are parsed without being interpreted,
+and rejects every truncated TPKT, extra bytes, wrong choice,
+nonzero PER padding, invalid declared length and X.224.
+Expected portable CTest total **69** (67 before this change);
+Linux-only optional GSS builds add their existing cases.
+No live SSL write, socket close, privileged session, or real
+client proof. New CI Debug/Release and owner-local runs
+are NOT RUN at implementation authoring time.
+
 ## Verified incremental TLS-decrypted CredSSP TSRequest DER framing (2026-10-14)
 
 Keep the existing `test_owned_credssp_tsrequest.cpp` executable

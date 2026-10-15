@@ -1408,6 +1408,41 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
+## Pending offline MCS Disconnect Provider Ultimatum (2026-10-14)
+
+**Prior main and owner-local PASS:** `36926462d34726f355279367a2ba2f27e93d2095`.
+The supplied Linux Debug command in the one reused
+`~/rdp-server/build/` compiled successfully and CTest
+reported **67/67 PASS**, including the CredSSP single-byte
+tag rejection case. [GitHub Actions 38684306429](https://github.com/k1moradi/RDP-server/actions/runs/38684306429)
+also succeeded for that baseline. These results do
+not establish acceptance of the NEW increment.
+
+**Implementation:** `src/server/transport/mcs_channel_connection.{h,cpp}`
+gains a typed, fixed-array, zero-allocation nine-byte
+MCS Disconnect Provider Ultimatum encoder; incoming
+requests recognize properly framed disconnects without
+interpreting peer reasons. No authentication/authorization,
+socket/SSL output, new binary, independent controller or
+live session state is added. Two portable regression
+groups in the existing `tests/test_owned_mcs_connect_initial.cpp`
+are registered in `tests/CMakeLists.txt`: expected standard
+test total **69**, up from 67. Same implementation commit
+updates the one ROADMAP TODO and canonical architecture,
+coding/testing and validation standards.
+
+**NOT RUN:** owner-local new compilation and CTest,
+exact-new-HEAD CI Linux/GCC, macOS/Clang, Windows/MSVC
+Debug/Release, SDK consumers/packages, sanitizers,
+live Microsoft RDP client, actual TLS disconnect/close,
+genuine Kerberos, independent OS authorization and desktop.
+Use `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug --output-on-failure`
+within the owner's existing checkout/build directory.
+**Next gate:** full exact-head CI/owner-local tests, then
+authorized TLS/session lifecycle and GSS/OS admission.
+
 ## Pending single-byte CredSSP DER fail-fast intake (2026-10-14)
 
 **Prior verified main:** `1cce799dc1aa7a55e3cb343dd09823052a1c23a6`,

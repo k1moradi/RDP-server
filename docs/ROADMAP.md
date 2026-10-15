@@ -937,6 +937,23 @@ acceptance evidence; no synthetic completion claims.
   separately; no external-client/desktop acceptance claimed.
 - [ ] Implement licensing, capabilities/share activation, virtual-channel
   routing, graphics delivery, keyboard/pointer and correct lifecycle.
+  **Partial offline MCS lifecycle boundary (CI NOT RUN):**
+  the existing `mcs_channel_connection` parser now recognizes
+  strictly framed Disconnect Provider Ultimatum with ignored
+  inbound reason; the allocation-free server serializer emits
+  only provider-initiated (1) or user-requested (3) as required
+  by MS-RDPBCGR 2.2.2.3 / 3.1.5.1.1. Two additional portable
+  CTests exercise the published nine-byte example and exhaustive
+  invalid reason/truncation/transport cases. Baseline main
+  `36926462d34726f355279367a2ba2f27e93d2095`
+  had owner's Linux Debug **67/67 PASS** and
+  [CI 38684306429](https://github.com/k1moradi/RDP-server/actions/runs/38684306429)
+  PASS; new full CI is NOT RUN at authoring.
+  This is NOT an authenticated server or live teardown.
+  **Next:** build the one authenticated session state machine
+  with controlled GSS/Kerberos and independent OS admission;
+  only then verify TLS-encrypted disconnect send completion
+  followed by socket close.
 - [ ] Deliver the **first usable, H.264-only Microsoft-compatible RDP server**:
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,

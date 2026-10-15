@@ -255,6 +255,26 @@ diagnostic; an actual OS authentication/authorization provider
 and one authoritative MCS owner remain essential before any
 success packet may be transmitted.
 
+### Offline T.125 MCS Disconnect Provider Ultimatum (2026-10-14)
+
+The existing `mcs_channel_connection` module now provides an
+allocation-free, fixed-nine-byte TPKT/X.224/T.125 PER
+Disconnect Provider Ultimatum encoder matching
+[MS-RDPBCGR 4.2.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/19a238a5-0455-46f0-a96b-31320d9a70a1).
+Per [3.1.5.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/3efcb3f7-8fa5-488b-8388-bf4d32004b8c),
+only provider-initiated (1) and user-requested (3) can be
+serialized by the server. The existing bounded parser recognizes
+a complete Disconnect Provider Ultimatum and rejects invalid
+TPKT/X.224 and PER padding, but ignores even reserved inbound
+reasons as mandated by
+[3.1.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/f10e972d-7b77-4fa5-999f-08406fe86284).
+
+These pure helpers do not grant session/OS admission, encrypt,
+send data, close a transport, or duplicate lifecycle ownership.
+A future authenticated connection owner must send the entire PDU
+via its negotiated TLS/security transport and then close.
+Offline tests cannot establish live client disconnect semantics.
+
 ### Bounded decrypted CredSSP TSRequest framing (2026-10-14)
 
 The existing first-party CredSSP DER parser gains

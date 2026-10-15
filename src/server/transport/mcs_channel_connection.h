@@ -4,14 +4,16 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace rdp_server::server::transport
 {
 
 // Syntax-only, bounded T.125 DomainMCSPDU parsing for the RDP
-// Channel Connection phase. No user, channel or session is admitted,
-// registered, attached or joined by these pure parsing functions.
+// Channel Connection and Disconnect Provider Ultimatum phases.
+// No user, channel or session is admitted, registered, attached or joined.
+// The authenticated owner alone can close its TLS connection.
 // MS-RDPBCGR 2.2.1.5, 2.2.1.6 and 2.2.1.8.
 enum class McsChannelRequestKind : std::uint8_t
 {
@@ -19,6 +21,7 @@ enum class McsChannelRequestKind : std::uint8_t
     ErectDomain,
     AttachUser,
     ChannelJoin,
+    DisconnectProviderUltimatum,
 };
 
 enum class McsChannelParseError : std::uint8_t
@@ -55,6 +58,7 @@ struct McsChannelParseResult
 
 // A complete single TPKT is required. Validate its declared size,
 // X.224 Class 0 Data TPDU and all PER fields before returning a value.
+// Received disconnect reasons are ignored as MS-RDPBCGR requires.
 // A syntactically recognized request does NOT establish channel state,
 // domain ownership or authorization, nor does it allow a response.
 [[nodiscard]] McsChannelParseResult parseMcsChannelRequest(
@@ -95,5 +99,19 @@ struct McsChannelConfirm
     const McsChannelRequest &joinRequest,
     std::uint32_t assignedUserId,
     std::span<const std::uint16_t> assignedChannelIds) noexcept;
+
+// Per MS-RDPBCGR 3.1.5.1.1, servers send only these two reasons.
+enum class McsDisconnectReason : std::uint8_t
+{
+    ProviderInitiated = 1,
+    UserRequested = 3,
+};
+
+// Offline nine-byte TPKT/X.224/T.125 aligned-PER encoder.
+// No allocation, SSL write, session admission or socket close.
+// A future authenticated session owner must encrypt the whole packet,
+// finish sending, and only then close the connection.
+[[nodiscard]] std::optional<std::array<std::uint8_t, 9>>
+encodeMcsDisconnectProviderUltimatum(McsDisconnectReason reason) noexcept;
 
 } // namespace rdp_server::server::transport

@@ -214,7 +214,8 @@ function(add_rdp_test source_file suite behavior)
                 long-format-list-generation
                 short-format-list-negotiation
                 format-list-response-native-acceptance
-                capabilities-negotiation-format-gating)
+                capabilities-negotiation-format-gating
+                format-list-response-joined-mcs-envelope)
             add_test(NAME "clipboard.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("clipboard.${case_name}" PROPERTIES

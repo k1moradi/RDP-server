@@ -171,6 +171,21 @@ offers. The caller owns native offer completion, outbound queueing, and
 channel reassembly. No additional clipboard controller, OS API dependency
 or live clipboard access is introduced by this increment.
 
+### R8 offline joined static-channel acknowledgment envelope
+
+After generating a Format List Response, the existing `RemoteTransfer`
+can wrap **only its latest** eight-byte OK/FAIL acknowledgment in a
+single `CHANNEL_PDU_HEADER` (uncompressed data length 8, FIRST|LAST).
+It passes the 16-byte channel payload to R3's existing
+`McsChannelJoinWriteGate::encodeJoinedSendDataIndication`, which denies
+unconfirmed, unknown or closed joins and serializes one T.125 server
+SendDataIndication without allocation. The caller still supplies an
+externally authorized and genuinely CLIPRDR-assigned channel ID, enforces
+TLS/NLA/OS and security-header requirements, and owns asynchronous
+write receipts, reassembly and cancellation. A joined MCS channel does
+**not** prove a client is OS-authorized. The envelope must never be
+transmitted based solely on this offline test.
+
 ### Independence test
 
 The top-level CMake project enables **CXX only**, targets C++23, and links

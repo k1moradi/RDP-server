@@ -81,6 +81,42 @@ lifecycle; R5/R6/R7 native clipboard adapters.
 **Next:** connect the same coordinator to R3 authorized-channel routing
 with explicit cancellation and an integration CTest.
 
+## R8 joined-MCS Format List Response envelope (2026-10-15)
+
+**Increment:** the existing `RemoteTransfer` now packages its most
+recent generated eight-byte Format List Response with the standard
+`CHANNEL_PDU_HEADER` (8 bytes of data, FIRST|LAST = 0x3) and invokes
+R3's existing confirmed-join `encodeJoinedSendDataIndication` for
+the same static virtual channel. It does not own an MCS session,
+create a transport writer, assign a CLIPRDR channel ID, open TLS or
+authorize an OS desktop. Packet encoding is allocation-free with a
+fixed stack buffer and caller-owned output. Earlier responses are
+invalidated on clipboard reoffer and disconnect. A failed
+precondition leaves output untouched.
+
+**Files:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/coding_standards.md`, and this validation ledger.
+**Dedicated new CTest:**
+`clipboard.format-list-response-joined-mcs-envelope`. Exact
+30-byte uncompressed TPKT/X.224/MCS/CHANNEL_PDU_HEADER/CLIPRDR
+response; no joined channel/no written join confirmation,
+unknown channel, malformed response flags/length, insufficient
+output capacity, native adapter fail ACK, stale response and
+disconnect rejection with unmodified output.
+
+**At authoring:** local full checkout build/CTest NOT RUN
+(shell GitHub DNS unavailable; development runtime contains a partial
+C++ fixture, not an authoritative Git checkout). The actual shared
+production translation units and new CTest will run on GitHub-hosted
+Linux/GCC, macOS/Clang and Windows/MSVC in the exact commit CI.
+Owner Linux/X11, MSYS2 CLANG64 Clang23 and macOS27 full CTest,
+real authentication, clipboard, screenshot Firefox paste, and
+performance NOT RUN. Record exact-SHA hosted CI separately when
+it completes. **Next:** R3 authorized/static channel ID
+handoff and writer completion/cancellation; native R5/R6/R7 adapters.
+
 ## Local validation (one reused build root)
 
 ```sh

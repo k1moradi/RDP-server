@@ -4,9 +4,15 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
+
+namespace rdp_server::server::transport
+{
+class McsChannelJoinWriteGate;
+}
 
 namespace rdp_server::server::clipboard
 {
@@ -91,6 +97,22 @@ public:
         bool nativeOfferAccepted,
         std::array<std::uint8_t, 8> &response) noexcept;
 
+    // OFFLINE R3/R8 boundary: wrap the already-created 8-byte Format List
+    // Response in one uncompressed CHANNEL_PDU_HEADER (FIRST|LAST), then
+    // ask R3's joined-channel gate to encode the T.125 SendDataIndication.
+    // The caller must additionally authorize the authenticated RDP session,
+    // negotiated CLIPRDR channel ID, security-header rules, and one TLS writer.
+    // Successful serialization is NEVER permission to transmit.
+    // The supplied acknowledgment must match this owner's latest generated
+    // Format List response; disconnect/replacement revokes older replies.
+    // No output bytes change on error; no raw response span is retained.
+    [[nodiscard]] std::optional<std::size_t>
+    encodeJoinedFormatListResponse(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId,
+        std::span<const std::uint8_t> completeResponse,
+        std::span<std::uint8_t> output) const noexcept;
+
     // Known registered format names are resolved from this generation's offer.
     [[nodiscard]] std::uint32_t namedFormatId(std::string_view name) const noexcept;
 
@@ -123,6 +145,8 @@ private:
         std::uint32_t formatId{};
     };
 
+    std::array<std::uint8_t, 8> lastFormatListResponse_{};
+    bool lastFormatListResponseValid_{};
     std::array<std::uint32_t, kMaximumFormats> advertisedFormats_{};
     std::size_t advertisedCount_{};
     std::uint32_t pngFormatId_{};

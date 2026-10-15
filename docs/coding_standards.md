@@ -76,6 +76,19 @@ the corresponding generalFlags. This state belongs in the one clipboard
 generation owner and is reset on channel disconnect. R3 retains the
 actual authorized channel and locally advertised capability authority.
 
+## R8 static-channel envelope handoff (2026-10-15)
+
+MS-RDPBCGR 2.2.6.1.1 requires an eight-byte `CHANNEL_PDU_HEADER`
+before opaque static-channel clipboard data; the four-byte `length`
+excludes that header. One uncompressed clipboard acknowledgment is
+FIRST|LAST (0x3), not a bare CLIPRDR_HEADER sent directly as MCS
+userData. Reuse R3's MCS joined-channel encoder and preserve
+`RemoteTransfer` as sole clipboard generation owner. An MCS channel
+join confirmation, even when fully written, is necessary but **not
+sufficient** for authenticated, independently OS-authorized CLIPRDR
+routing. Keep ownership of TLS send progress and cancellation in
+R3's existing connection writer; never fabricate channel permission.
+
 ## Native clipboard implementation rules (2026-10-14; design, NOT RUN)
 
 Use [MS-RDPECLIP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/8bb14d95-fcfa-45e9-b822-f97b129ff208)

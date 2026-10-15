@@ -2325,9 +2325,22 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   capability example, fallback, unknown versions/flags/sets, bounds,
   duplicates and disconnect. Focused GCC/Clang/ASan tests PASS; exact-SHA
   CI and owner three-platform suite NOT RUN at authoring.
-  **Still outstanding:** R3 admitted CLIPRDR channel/send and R5/R6/R7
-  native clipboard adapters. **Next:** test the authorized R3-to-R8
-  channel handoff with real capability forwarding and cancellation.
+  **R8 joined-MCS acknowledgment envelope (2026-10-15):** added
+  `RemoteTransfer::encodeJoinedFormatListResponse` using R3's existing
+  `McsChannelJoinWriteGate::encodeJoinedSendDataIndication`. The
+  8-byte generated OK/FAIL response is enclosed in the 8-byte
+  `CHANNEL_PDU_HEADER` (length 8, FIRST|LAST) and the T.125 server
+  SendDataIndication only after the gate confirms that MCS channel join
+  was fully written. An old/forged response, malformed response header,
+  unknown/unjoined channel, insufficient output or disconnect fails
+  without output mutation. This offline bridge does **not** assert
+  NLA/OS admission, actually send TLS bytes, or grant a channel ID as
+  CLIPRDR. New dedicated `clipboard.format-list-response-joined-mcs-envelope`
+  CTest covers exact 30-byte framing, invalid responses and join state.
+  Full CI and owner OS tests: NOT RUN at authoring. **Next:** R3's sole
+  authenticated session owner must bind verified `cliprdr` channel IDs,
+  permissions, outbound writer completion/cancellation and inbound
+  reassembly to this existing R8 owner; R5/R6/R7 adapters remain required.
 - [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
   after a *legitimate client Format List* for generation N, prioritize
   `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),

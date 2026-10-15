@@ -2,6 +2,7 @@
 #include "remote_transfer.h"
 
 #include "clipboard/clipboard_protocol.h"
+#include "transport/mcs_channel_connection.h"
 
 #include <algorithm>
 #include <array>
@@ -116,6 +117,7 @@ constexpr std::size_t kCapabilityHeaderBytes = 4;
 bool RemoteTransfer::receiveFormatList(
     std::span<const std::uint32_t> advertisedFormatIds) noexcept
 {
+    lastFormatListResponseValid_ = false;
     if (poisoned_ || generation_ == std::numeric_limits<std::uint64_t>::max() ||
         advertisedFormatIds.size() > kMaximumFormats)
     {
@@ -348,6 +350,8 @@ bool RemoteTransfer::receiveFormatListWithResponse(
     const bool parsed = negotiatedLongFormatNames ?
         receiveLongFormatListPdu(completePdu) :
         receiveShortFormatListPdu(completePdu);
+    lastFormatListResponse_ = response;
+    lastFormatListResponseValid_ = true;
     if (!parsed)
     {
         return false;
@@ -364,6 +368,7 @@ bool RemoteTransfer::receiveFormatListWithResponse(
         return false;
     }
     response[2] = 0x01U; // CB_RESPONSE_OK, rather than CB_RESPONSE_FAIL.
+    lastFormatListResponse_ = response;
     return true;
 }
 
@@ -449,6 +454,47 @@ bool RemoteTransfer::receiveNegotiatedFormatListWithResponse(
         nativeOfferAccepted, response);
 }
 
+std::optional<std::size_t> RemoteTransfer::encodeJoinedFormatListResponse(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId,
+    std::span<const std::uint8_t> completeResponse,
+    std::span<std::uint8_t> output) const noexcept
+{
+    using namespace rdp_server::clipboard;
+    // MS-RDPECLIP 2.2.3.2: exactly one status and no response payload.
+    // Never allow untrusted bytes to masquerade as our outgoing acknowledgment.
+    if (!lastFormatListResponseValid_ ||
+        completeResponse.size() != lastFormatListResponse_.size() ||
+        !std::equal(completeResponse.begin(), completeResponse.end(),
+                    lastFormatListResponse_.begin()) ||
+        completeResponse[0] != static_cast<std::uint8_t>(kFormatListResponse) ||
+        completeResponse[1] != 0 ||
+        (completeResponse[2] != static_cast<std::uint8_t>(kResponseOk) &&
+         completeResponse[2] != static_cast<std::uint8_t>(kResponseFail)) ||
+        completeResponse[3] != 0 ||
+        !std::all_of(completeResponse.begin() + 4, completeResponse.end(),
+                     [](std::uint8_t byte) { return byte == 0; }))
+    {
+        return std::nullopt;
+    }
+
+    // MS-RDPBCGR 2.2.6.1.1: CHANNEL_PDU_HEADER length excludes itself.
+    // The eight-byte CLIPRDR PDU fits in one uncompressed static VC chunk.
+    constexpr std::size_t kChannelHeaderBytes = 8;
+    std::array<std::uint8_t, kChannelHeaderBytes + 8U> userData{};
+    userData[0] = 8; // Uncompressed clipboard payload length.
+    userData[4] = 0x03; // CHANNEL_FLAG_FIRST | CHANNEL_FLAG_LAST.
+    std::copy(completeResponse.begin(), completeResponse.end(),
+              userData.begin() + kChannelHeaderBytes);
+
+    // R3 requires confirmation of the actual MCS Channel Join before
+    // serialization. Priority 1 and complete segmentation 3 mirror R3's
+    // tested SendDataIndication wire contract. The caller still owns
+    // encryption/authorization and the one outbound write lifecycle.
+    return joinedChannels.encodeJoinedSendDataIndication(
+        channelId, 1, 3, userData, output);
+}
+
 std::uint32_t RemoteTransfer::namedFormatId(std::string_view name) const noexcept
 {
     if (poisoned_ || generation_ == 0)
@@ -529,6 +575,8 @@ void RemoteTransfer::abandonRequest() noexcept
 
 void RemoteTransfer::resetAfterDisconnect() noexcept
 {
+    lastFormatListResponse_.fill(0);
+    lastFormatListResponseValid_ = false;
     advertisedFormats_.fill(0);
     advertisedCount_ = 0;
     pngFormatId_ = 0;

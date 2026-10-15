@@ -2539,6 +2539,19 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   SDK install/consumer and packaging also PASS. **NOT RUN:**
   owner Windows MSYS2 CLANG64 Clang 23, owner Linux/X11/macOS 27,
   native live DXGI and Microsoft-client desktop acceptance.
+  **R6 D3D11 exact-commit CI evidence:** Implementation SHA
+  `ecce84689b2aa4801fc28348182d8e4183e6308e`,
+  [GitHub Actions 38800686222](https://github.com/k1moradi/RDP-server/actions/runs/38800686222)
+  overall **FAIL** on Ubuntu/GCC Debug Compile at
+  `src/x11/x11_display_connection.cpp:222` (R5 X11
+  `-Werror=extra`: conditional mixes enum/integer `XCB_WINDOW_NONE`);
+  R5 issue #4 notified, no R5 source modified by R6. R6
+  Windows/MSVC Debug and Release CTests **182/182 PASS** each,
+  including both new D3D11 cases; macOS Debug and Release
+  **178/178 PASS** each; documentation policy and Windows/macOS
+  downstream SDK consumers PASS. Ubuntu CTest was not executed
+  due to the unrelated build failure. Owner-local Windows
+  MSYS2 CLANG64/Clang 23 and live M4 remain NOT RUN.
   **R6 D3D11 staging-copy/map RAII (2026-10-15; parent
   `19512d5fdbc0568fbd6c3333b32c770d76c6f8b4`):** `src/windows/windows_d3d11_staging_map.{h,cpp}`
   now consumes a borrowed `IDXGIResource` from the existing R6

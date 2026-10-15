@@ -3851,3 +3851,37 @@ desktop or authenticated RDP acceptance.
 **Next:** inspect exact-SHA hosted Debug/Release full CTests including
 both dedicated native R5 cases; resume native capture and cursor
 lifecycle only when compiled target is green.
+
+## R6 D3D11 staging map hosted CI receipt (2026-10-15)
+
+**Exact source/test/docs commit:**
+`ecce84689b2aa4801fc28348182d8e4183e6308e`.
+[GitHub Actions run 38800686222](https://github.com/k1moradi/RDP-server/actions/runs/38800686222)
+**completed with overall FAIL**:
+- **PASS Windows GitHub-hosted MSVC:** Debug CTest **182/182**;
+  Release CTest **182/182**; new R6
+  `windows.capture-d3d11-staging-bgra-map-lifetime` and
+  `windows.capture-d3d11-staging-map-denials` passed in both;
+  native CMake compilation, SDK staging, downstream consumer and
+  packaging passed.
+- **PASS macOS hosted Clang:** Debug and Release CTest **178/178**
+  each, downstream SDK/packaging passed. Windows-only R6 tests were
+  not run on macOS.
+- **PASS** documentation policy.
+- **FAIL Ubuntu GCC Debug Compile:** unrelated concurrently
+  published R5 native X11 code
+  `src/x11/x11_display_connection.cpp:222`:
+  `-Werror=extra` rejects mixed enumerated/non-enumerated types
+  in `return valid() ? rootWindow_ : XCB_WINDOW_NONE;`.
+  No Ubuntu full CTest or Release was reached. The R5 owner was
+  notified through [Issue #4](https://github.com/k1moradi/RDP-server/issues/4);
+  R6 did not alter X11 code or claim Linux CTest success.
+- **NOT RUN:** owner's Linux/X11, Windows MSYS2 CLANG64 Clang23
+  and macOS 27 exact-SHA local checkpoints, real D3D11/IDXGI
+  hardware capture and human Microsoft-client desktop acceptance.
+  No native performance measurements.
+
+**Next:** R5 resolves its own unrelated Linux compile failure;
+R6 integrates these mapped-frame lifetimes with R3-approved session
+ownership and R4's one graphics scheduler, with disconnect and
+display topology changes covered by new offline behavior CTests.

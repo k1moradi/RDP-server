@@ -617,7 +617,7 @@ ZIP/SHA-256 package uploads and documentation-policy PASS.
 The owner-local new build, real TLS send, GSS/OS admission
 and external clients are NOT RUN.
 
-## Linux GSS provider-rejection failure reply regression (2026-10-15, CI NOT RUN)
+## Verified Linux GSS provider-rejection failure reply regression (2026-10-15, CI PASS)
 
 Reuse the existing `test_owned_preauth_session.cpp` TLS
 handshake fixtures and single `tests/CMakeLists.txt` CTest
@@ -651,13 +651,21 @@ and this opt-in result is NOT RUN without separate
 authorization and credential provisioning.
 
 Standard portable test total remains **77**;
-default Linux GSS-enabled becomes **87** (previous 86).
+default Linux GSS-enabled now **87** (previous 86).
 When opt-in Kerberos is explicitly enabled, two
 additional private tests are registered rather than
-one. New code, default CI and owner-local tests
-NOT RUN at authoring. No real positive Kerberos/TLS
-binding, OS admission, RDP client, service activation
-or desktop acceptance is claimed.
+one. **PASS:** exact implementation
+`b4c9f8eff73e701130cc8b92b6c1fda50aedcf11`,
+[Actions 38710937644](https://github.com/k1moradi/RDP-server/actions/runs/38710937644):
+Linux/GCC **87/87**, macOS/Clang and Windows/MSVC
+**77/77** full CTests in both Debug and Release.
+Default `security.gssapi-failure-reply-denials`
+passes on Linux in both configurations. SDK staged
+consumer, ZIP/SHA256 packages, documentation policy PASS.
+**NOT RUN:** owner-local new commit CTest, opt-in real
+configured Kerberos provider failure/TLS reply, positive
+GSS/TLS authentication, OS admission, real RDP client,
+service activation or desktop acceptance.
 
 ## Verified offline T.128 Share Data Header tests (CI PASS, 2026-10-15)
 

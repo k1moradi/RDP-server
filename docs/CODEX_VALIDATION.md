@@ -1408,7 +1408,7 @@ explicit terminal failure-message
 dispatch and separate OS session
 policy BEFORE issuing live MCS.
 
-## Pending GSS real-provider failure to CredSSP v6 error queue (2026-10-15)
+## Verified default GSS fail-closed v6 error queue contract (2026-10-15)
 
 **Baseline exact main:** `ebc794738552f5411ebe4d2222000f8ae94183f2`,
 [CI 38708915869](https://github.com/k1moradi/RDP-server/actions/runs/38708915869)
@@ -1449,18 +1449,29 @@ CI or without real credentials. Same-commit
 ROADMAP, architecture, coding and test standards.
 Expected default **77 portable / 87 Linux GSS** CTests.
 
-**NOT RUN at authoring:** new-head Linux/macOS/
-Windows CI, owner-local new compile/CTest, real
-Kerberos service provider/keytab, live Microsoft
-client, OS authorization, complete CredSSP
-combined-last-token acceptance, MCS or desktop.
+**PASS:** implementation `b4c9f8eff73e701130cc8b92b6c1fda50aedcf11`,
+[Actions 38710937644](https://github.com/k1moradi/RDP-server/actions/runs/38710937644)
+Linux/GCC **87/87**, macOS/Clang and Windows/MSVC
+**77/77** full CTests in Debug AND Release, including
+new Linux GSS missing-keytab/manual-DER negative
+reply gates. Documentation-policy, staged installed
+SDK consumer, all three ZIP/SHA256 artifact packages
+PASS. Publishing SKIPPED: no tagged prerelease.
+**NOT RUN:** owner-local new compile/CTest,
+configured real GSS provider rejection/errorCode
+success-path proof, genuine Kerberos service
+keytab/ticket, Microsoft client, OS authorization,
+complete CredSSP combined-last-token acceptance,
+MCS or desktop.
 Use owner's ONE persistent `~/rdp-server/build`:
 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
 `cmake --build build --config Debug --parallel 2`,
 `ctest --test-dir build -C Debug --output-on-failure`.
-**Next:** exact-head CI and owner-local verification,
-then separately authorized opt-in real provider
-failure/positive TLS proof and OS identity gate.
+**Next:** owner-local single-root CTest, then
+separately authorized isolated MIT Kerberos keytab,
+client cache and opt-in provider-failure/positive
+TLS proof before independently authorized OS
+identity and session gate.
 
 ## Verified T.128 Share Data Header syntax gate (2026-10-15)
 

@@ -858,7 +858,7 @@ acceptance evidence; no synthetic completion claims.
   interoperability gaps before independent
   OS session admission.
   **Partial real-provider CredSSP v6 SPNEGO failure dispatch
-  (2026-10-15; CI NOT RUN at authoring):** the existing
+  (2026-10-15; CI PASS):** the existing
   Linux MIT GSS acceptor now marks a provider/policy
   rejection only when the configured, explicit-keytab
   `gss_accept_sec_context` was actually called on a
@@ -885,12 +885,19 @@ acceptance evidence; no synthetic completion claims.
   Baseline `ebc794738552f5411ebe4d2222000f8ae94183f2`,
   [Actions 38708915869](https://github.com/k1moradi/RDP-server/actions/runs/38708915869)
   PASS; owner reports **77/77** local on prior main.
-  **NOT RUN at authoring:** new implementation CI,
-  owner-local incremental compile/CTest, opt-in
-  real GSS/provider rejection, full Microsoft
-  combined-last-token, independent OS admission,
-  real RDP client or desktop.
-  **Next:** exact-head CI; owner explicitly provisions
+  **PASS:** implementation `b4c9f8eff73e701130cc8b92b6c1fda50aedcf11`,
+  [Actions 38710937644](https://github.com/k1moradi/RDP-server/actions/runs/38710937644):
+  Linux/GCC **87/87**, macOS/Clang and Windows/MSVC
+  **77/77** full CTests in EACH Debug and Release,
+  including new Linux GSS fail-closed behavior;
+  installed SDK downstream consumer, ZIP/SHA256
+  artifacts and documentation policy PASS.
+  Prerelease publication SKIPPED (no release tag).
+  **NOT RUN:** owner-local incremental compile/CTest,
+  opt-in configured real GSS rejection/errorCode
+  delivery, full Microsoft combined-last-token,
+  OS admission, real RDP client or desktop.
+  **Next:** owner explicitly provisions
   isolated real Kerberos keytab and client tickets
   before opt-in provider/TLS proof and independent
   OS authorization, then the one live CredSSP owner

@@ -2922,6 +2922,22 @@ Windows MSYS2 CLANG64 Clang23, macOS27. **Next:** bounded event
 readiness scheduler, R2-authenticated admission and R3 MCS session.
 Publish atomically to existing main using non-force expected HEAD.
 
+**Exact-SHA post-publication CI receipt:** implementation
+[`50a53e6d1ab07ab787c0ef5e62c91e068ba3ffcb`](https://github.com/k1moradi/RDP-server/commit/50a53e6d1ab07ab787c0ef5e62c91e068ba3ffcb)
+ran [GitHub Actions 38796272916](https://github.com/k1moradi/RDP-server/actions/runs/38796272916).
+**PASS:** Linux/GCC **159/159 Debug and Release**, macOS/Clang
+**148/148 Debug and Release**; both new R1 CTests PASS on
+Windows/MSVC Debug as well as both Unix CI configurations;
+documentation-policy PASS. **FAIL:** Windows Debug whole suite
+**155/156**, `runtime.validates-configuration-comments-crlf`
+(#139), expected 0 but runtime returned 3 at
+`tests/check_runtime_entrypoint.cmake:118`. This is R10 runtime
+configuration code (not the R1 TLS owner) and is tracked by
+[Issue #9](https://github.com/k1moradi/RDP-server/issues/9).
+Windows Release **NOT RUN** because Debug failed, owner three-platform
+exact-SHA checks **NOT RUN**, real client and OS admission **NOT RUN**.
+The new R1 CTests do not authorize authenticated session operation.
+
 ## R9 CLIPRDR chunk-reassembly/reset/bounds regression (2026-10-15)
 
 **Road and parent main:** R9 quality/security, `54e107bef8670c8ae3b739c442a3e6147a9b1069`. The

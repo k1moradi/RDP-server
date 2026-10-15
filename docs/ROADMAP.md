@@ -324,6 +324,22 @@ actually run; another parser CTest alone is not a complete session.
   R1 socket accept/EOF sanitizer checks PASS. Next: bounded readiness
   polling/cancellation and R2/R3 authorized lifecycle integration.
 
+  **R1 published exact-SHA CI receipt (2026-10-15):**
+  [implementation `50a53e6d1ab07ab787c0ef5e62c91e068ba3ffcb`](https://github.com/k1moradi/RDP-server/commit/50a53e6d1ab07ab787c0ef5e62c91e068ba3ffcb)
+  and [Actions run 38796272916](https://github.com/k1moradi/RDP-server/actions/runs/38796272916).
+  **PASS:** both dedicated R1 CTests in hosted Linux/GCC Debug+Release
+  (**159/159** each), macOS/Clang Debug+Release (**148/148** each), and
+  Windows/MSVC Debug (**both R1 cases passed**). Documentation-policy PASS.
+  **FAIL:** hosted Windows full Debug CTest **155/156**; ONLY unrelated
+  R10 `runtime.validates-configuration-comments-crlf` returns exit
+  3 instead of 0, tracked in
+  [R10 Issue #9](https://github.com/k1moradi/RDP-server/issues/9).
+  Windows Release **NOT RUN** due to failing Debug. Owner Linux/X11,
+  Windows MSYS2 CLANG64/Clang23 and macOS27 exact-SHA tests **NOT RUN**;
+  R2 credential authorization and R3 authenticated activation NOT ACCEPTED.
+  Next R1 boundary: bounded readiness scheduling and deterministic timeout
+  release around the owned native TCP/TLS connection.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

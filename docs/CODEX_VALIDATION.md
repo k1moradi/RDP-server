@@ -3050,6 +3050,12 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 MCS Connect-Initial first failing boundary (2026-10-15)
 
+**Compilation placement correction:** the first implementation SHA placed
+new `McsSessionIntake` enumerators after the enum closing brace.
+The immediate follow-up moves them inside the enum, without altering
+existing numeric values or test expectations. First-SHA CI is not
+passing evidence; only later successful exact-SHA CI can validate this.
+
 **Production:** `McsSessionLifecycle::onConnectInitial` now returns
 `InvalidEnvelope` for BER/TPKT syntax failure,
 `InvalidDomainParameters` for a valid envelope with failed

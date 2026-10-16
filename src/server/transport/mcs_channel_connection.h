@@ -454,11 +454,11 @@ enum class McsSessionIntake : std::uint8_t
     InvalidEnvelope,
     OversizedEnvelope,
     Closed,
+    InvalidDomainParameters,
+    InvalidGccUserData,
 };
 
-class McsSessionLifecycle final    InvalidDomainParameters,
-    InvalidGccUserData,
-
+class McsSessionLifecycle final
 {
 public:
     McsSessionLifecycle() noexcept = default;

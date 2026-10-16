@@ -1,3 +1,40 @@
+## R2 first client licensing intake exact-SHA validation (2026-10-16)
+
+**Implementation:** `eeac4cbdc51ca9e424d2bea1dae22d6f6580569f`.  
+**Actions:** [38918108044](https://github.com/k1moradi/RDP-server/actions/runs/38918108044) — **SUCCESS**.
+
+The exact R2 authority-fence SHA is green across the hosted matrix. Linux/GCC
+passes **443/443 Debug** and **443/443 Release** CTests. macOS/Clang passes
+**370/370 Debug** and **370/370 Release**. Windows/MSVC passes focused native
+preflight **44/44** in both configurations and the full suite **399/399 Debug**
+plus **399/399 Release**. Documentation policy, staged install, downstream SDK
+consumer, package, digest and artifact upload all pass.
+
+R9 Clang ASan/UBSan is also **PASS**: clipboard **49/49**, R4 x264/BGRA
+**19/19**, bounded R1/R3 transport/CredSSP/licensing **35/35**, native R2/R3
+GSSAPI **27/27**, R10 Linux runtime CredSSP **4/4**, native R5 X11 **24/24**
+and bounded fuzzer **1/1**. The strengthened
+`security.gssapi-r3-client-licensing-route-contract` runs inside the native
+R2/R3 sanitizer group and passes.
+
+This evidence closes the credential-free R2 authorization review for the first
+client licensing response: licensing-shaped syntax, raw SSL pointers,
+principal strings, generation scalars and nullable lease substitutes cannot
+cross the private R2->R3 boundary. It does not prove client-license
+cryptography, a server licensing decision, positive final-CredSSP
+authorization, NSS/logind lease issuance, or Microsoft-client acceptance.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, genuine Kerberos/final-CredSSP + NSS/logind
+acceptance and Microsoft-client M2 remain **NOT RUN / OPEN**. **M2/M3 remain
+OPEN / NOT ACCEPTED.**
+
+**Next R2:** when R3 exposes a server licensing decision, challenge/issuance,
+or activation publication/completion boundary, require the same fresh concrete
+lease + exact R1 owner authorization immediately before state/write publication
+and again before asynchronous accepted-byte completion. Until such a production
+transition exists, do not add speculative authorization APIs.
+
 ## R1 R3 Server License Request slice compatibility (2026-10-16; exact-SHA CI pending)
 
 **Starting inspected shared main:** `eeac4cbdc51ca9e424d2bea1dae22d6f6580569f`.

@@ -1,3 +1,49 @@
+## R4 ACK-pending frame-ID preflight exact-SHA hosted CI (2026-10-16)
+
+**Source commit:** [`f5e19b8d997ba31501f856e68ec90e61c7c01535`](https://github.com/k1moradi/RDP-server/commit/f5e19b8d997ba31501f856e68ec90e61c7c01535).
+[Exact-SHA Actions 38897649670](https://github.com/k1moradi/RDP-server/actions/runs/38897649670)
+has **PASS** for all five mandatory build/test jobs (Linux/GCC,
+macOS/Clang, Windows/MSVC, R9 selected ASan/UBSan and documentation-policy).
+Protocol prerelease publication was **SKIPPED**; that is not a test failure.
+
+- **Linux/GCC:** full Debug **387/387 PASS**, Release **387/387 PASS**.
+  `graphics.x264-segmented-duplicate-id-reference-continuity` **PASS**
+  in both configurations (CTest #380). Installed SDK downstream
+  configure/link/consumer **PASS**.
+- **macOS/Clang:** full Debug **333/333 PASS**, Release **333/333 PASS**.
+  The new R4 test **PASS** in both configurations (CTest #326), and
+  SDK downstream consumer **PASS**.
+- **Windows/MSVC:** native R6 preflight Debug **37/37 PASS** and
+  Release **37/37 PASS**; full Debug **358/358 PASS**, Release
+  **358/358 PASS**. The new R4 test **PASS** in both configurations
+  (CTest #351), and SDK downstream consumer **PASS**.
+- **R9 selected sanitizer gate:** **PASS** for its configured suite;
+  converter-/x264-specific ASan/UBSan execution is **NOT RUN** unless
+  explicitly selected. **Documentation-policy:** **PASS**.
+- **Exact hosted full-test commands:** `cmake --build build --config
+  Debug --parallel 2` then `ctest --test-dir build --build-config
+  Debug --timeout 60 --output-on-failure`, followed by the same
+  Release commands; Windows additionally runs `-L windows` preflight
+  with `--timeout 20`. Each hosted job uses its single checkout-local
+  `build/` root.
+
+The dedicated new offline CTest uses genuine x264 and both NV12 and BGRA
+input paths: after one fully delivered initial IDR picture remains
+ACK-pending, a duplicate frame ID must be denied without altering ACK
+count or encoder reference history, and a fresh ID produces a P slice
+rather than an avoidable IDR. This confirms *offline* graphics
+publication invariants only, not admission or a rendered desktop.
+
+**Owner-local canonical build/full CTest:** **NOT RUN** in the
+connector-only environment (`~/rdp-server` unavailable). Linux/X11,
+Windows MSYS2 CLANG64/Clang23, macOS27, real authenticated R3 Graphics
+DVC/full-send integration, R5/R6/R7 native capture-driven rendering,
+Microsoft-client acceptance and graphics benchmarking **NOT RUN**.
+**Gate B / M3/M4/M5 remain OPEN.** Next R4 gate is actual admitted
+R3 graphics-channel authority and owner native-client validation;
+no independent scheduler or synthetic positive authorization should
+be introduced.
+
 ## R2 owner-driven CredSSP/GSS handshake boundary (2026-10-16; exact-SHA CI pending)
 
 Starting inspected shared `main`: `35df03319d0a1cf4ac667f1715e7408958b78d74`. R1 now has explicit

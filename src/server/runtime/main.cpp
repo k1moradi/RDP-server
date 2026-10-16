@@ -469,6 +469,17 @@ struct PkeyCloser {
     return true;
 }
 
+[[nodiscard]] bool hasCurrentCertificateValidity(const X509* certificate) noexcept {
+    if (certificate == nullptr) {
+        return false;
+    }
+    const int notBeforeComparison =
+        ::X509_cmp_current_time(::X509_get0_notBefore(certificate));
+    const int notAfterComparison =
+        ::X509_cmp_current_time(::X509_get0_notAfter(certificate));
+    return notBeforeComparison == -1 && notAfterComparison == 1;
+}
+
 [[nodiscard]] bool checkTlsCredentialContents(
     std::string_view certificatePath, std::string_view privateKeyPath) noexcept {
     TlsFileIdentity certificateIdentity{};
@@ -509,11 +520,12 @@ struct PkeyCloser {
         ::PEM_read_bio_PrivateKey(
             privateKeyBio.get(), nullptr, rejectPrivateKeyPassword, nullptr)};
     return certificate && privateKey &&
+           hasCurrentCertificateValidity(certificate.get()) &&
            ::X509_check_private_key(certificate.get(), privateKey.get()) == 1;
 }
 
-// Offline checks do not establish certificate trust, expiry, R2 admission,
-// an R3 session decision or permission to listen.
+// Offline checks do not establish certificate trust, hostname, revocation,
+// R2 admission, an R3 session decision or permission to listen.
 enum class ConfigurationCheckMode {
     Syntax,
     TlsMetadata,
@@ -614,8 +626,8 @@ enum class ConfigurationCheckMode {
 void printUsage() noexcept {
     std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE]\n"
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"
-               "--check-tls-credentials additionally parses PEM and matches the private key.\n"
-               "Trust, expiry, OS authorization and server startup are not verified.\n", stdout);
+               "--check-tls-credentials additionally verifies the current certificate validity window and private-key match.\n"
+               "Trust, hostname, revocation, OS authorization and server startup are not verified.\n", stdout);
 }
 } // namespace
 
@@ -639,8 +651,8 @@ int main(int argumentCount, char* argumentValues[]) noexcept {
                                                 ConfigurationCheckMode::TlsCredentials;
             if (checkConfigurationFile(argumentValues[2], mode)) {
                 if (mode == ConfigurationCheckMode::TlsCredentials) {
-                    std::fputs("rdp-server: TLS certificate and private key parsed and match; "
-                               "trust, expiry and OS authorization not verified; service remains disabled.\n",
+                    std::fputs("rdp-server: TLS certificate is currently valid and matches the private key; "
+                               "trust, hostname, revocation and OS authorization not verified; service remains disabled.\n",
                                stdout);
                 } else if (mode == ConfigurationCheckMode::TlsMetadata) {
                     std::fputs("rdp-server: TLS file metadata accepted; cryptographic contents "

@@ -314,13 +314,13 @@ and real TLS contents remain separately unverified.
 
 `rdp-server --check-tls-credentials FILE` runs the existing config
 syntax and TLS-file metadata checks, then parses the already-open
-certificate and private key as PEM and requires the key to match the
-certificate. It never prompts for a password; encrypted private keys
+certificate and private key as PEM. The certificate must be within its
+current `notBefore`/`notAfter` validity window and the key must match
+the certificate. It never prompts for a password; encrypted private keys
 are rejected. A passing result does not establish certificate trust,
-hostname, chain, revocation, validity dates, user authentication or
-permission to start the RDP service. Ordinary CTests use fixed
-test-only EC material under `build/runtime-fixtures`; no real
-credential is installed or read.
+hostname, chain, revocation, user authentication or permission to start
+the RDP service. Ordinary CTests use fixed test-only EC material under
+`build/runtime-fixtures`; no real credential is installed or read.
 
 ## Opt-in R9 Linux/Clang libFuzzer build
 

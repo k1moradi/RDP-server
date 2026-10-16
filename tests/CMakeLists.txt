@@ -593,6 +593,8 @@ foreach(runtime_case IN ITEMS
         rejects-tls-credentials-malformed-certificate
         rejects-tls-credentials-malformed-key
         rejects-tls-credentials-encrypted-key
+        rejects-tls-credentials-expired-certificate
+        rejects-tls-credentials-not-yet-valid-certificate
         rejects-tls-credentials-option-smuggling
         )
     # A real nested directory is valid; either parent symlink is rejected

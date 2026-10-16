@@ -69,15 +69,33 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
     string(JOIN "" config_text ${config_text})
     if(check_tls_credentials)
         set(valid_certificate [=[-----BEGIN CERTIFICATE-----
-MIIBkjCCATegAwIBAgIUWuuRJpgcrq2vX5lyIBLc5ce7i0gwCgYIKoZIzj0EAwIw
-HjEcMBoGA1UEAwwTcmRwLXNlcnZlci1yMTAtdGVzdDAeFw0yNjEwMTYwNjU0MDRa
-Fw0zNjEwMTMwNjU0MDRaMB4xHDAaBgNVBAMME3JkcC1zZXJ2ZXItcjEwLXRlc3Qw
-WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARHlTXWKfJwyoq97RvREwXY+oNRVA+F
-HgJYQIdBtjbv6sWLmmdwo6RPEqW1uVkqb8d1wwZ2HWkbjuRfauYQgOmDo1MwUTAd
-BgNVHQ4EFgQUtaVxIkarAzc4CC4Ul+SKp8thI9AwHwYDVR0jBBgwFoAUtaVxIkar
-Azc4CC4Ul+SKp8thI9AwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNJADBG
-AiEA8LIabrlyY1C2PQ++AmWKf0CHHNSpGkQvW+FxP1EFrF8CIQDcsbW7oN831QgX
-c/Ooo5Hees+Av4vHcPglHbYa3hOYnQ==
+MIIBRTCB7aADAgECAgESMAoGCCqGSM49BAMCMCMxITAfBgNVBAMMGHJkcC1zZXJ2
+ZXItcjEwLXRpbWUtdGVzdDAgFw0yMDAxMDEwMDAwMDBaGA8yMTIwMDEwMTAwMDAw
+MFowIzEhMB8GA1UEAwwYcmRwLXNlcnZlci1yMTAtdGltZS10ZXN0MFkwEwYHKoZI
+zj0CAQYIKoZIzj0DAQcDQgAER5U11inycMqKve0b0RMF2PqDUVQPhR4CWECHQbY2
+7+rFi5pncKOkTxKltblZKm/HdcMGdh1pG47kX2rmEIDpg6MQMA4wDAYDVR0TAQH/
+BAIwADAKBggqhkjOPQQDAgNHADBEAiBfHoR/od+48kUfNa1TnJvzMd5K55V4xs5f
+xEyf+2a6QwIgQuZ6iUBOIXPlG7GX932Ob4XuiIEQk8DK/LooextAsT8=
+-----END CERTIFICATE-----
+]=])
+        set(expired_certificate [=[-----BEGIN CERTIFICATE-----
+MIIBRDCB66ADAgECAgEQMAoGCCqGSM49BAMCMCMxITAfBgNVBAMMGHJkcC1zZXJ2
+ZXItcjEwLXRpbWUtdGVzdDAeFw0xMDAxMDEwMDAwMDBaFw0yMDAxMDEwMDAwMDBa
+MCMxITAfBgNVBAMMGHJkcC1zZXJ2ZXItcjEwLXRpbWUtdGVzdDBZMBMGByqGSM49
+AgEGCCqGSM49AwEHA0IABEeVNdYp8nDKir3tG9ETBdj6g1FUD4UeAlhAh0G2Nu/q
+xYuaZ3CjpE8SpbW5WSpvx3XDBnYdaRuO5F9q5hCA6YOjEDAOMAwGA1UdEwEB/wQC
+MAAwCgYIKoZIzj0EAwIDSAAwRQIhAIiqy4myNYnYX46VxwOrvow3/6TC3tOWpuAv
+gF7I7+vNAiBh3e1PZZ08TwF66SlQJFJF92tDlpHVskeBXGpeP5RIBA==
+-----END CERTIFICATE-----
+]=])
+        set(not_yet_valid_certificate [=[-----BEGIN CERTIFICATE-----
+MIIBRzCB76ADAgECAgERMAoGCCqGSM49BAMCMCMxITAfBgNVBAMMGHJkcC1zZXJ2
+ZXItcjEwLXRpbWUtdGVzdDAiGA8yMTIwMDEwMTAwMDAwMFoYDzIxMzAwMTAxMDAw
+MDAwWjAjMSEwHwYDVQQDDBhyZHAtc2VydmVyLXIxMC10aW1lLXRlc3QwWTATBgcq
+hkjOPQIBBggqhkjOPQMBBwNCAARHlTXWKfJwyoq97RvREwXY+oNRVA+FHgJYQIdB
+tjbv6sWLmmdwo6RPEqW1uVkqb8d1wwZ2HWkbjuRfauYQgOmDoxAwDjAMBgNVHRMB
+Af8EAjAAMAoGCCqGSM49BAMCA0cAMEQCIFeNWwLLZhjQDTzrfgc5+7uJyrAO/ik3
+G6OEMig3yNUnAiBnIZ1Y2Xc4Oe5QowWd00pOtE1Mq/34zc7rpmRBxLJmaw==
 -----END CERTIFICATE-----
 ]=])
         set(valid_private_key [=[-----BEGIN EC PRIVATE KEY-----
@@ -290,6 +308,10 @@ E0U+IoGqDg==
                 file(WRITE "${private_key_file}" "NOT_A_PEM_PRIVATE_KEY")
             elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-encrypted-key")
                 file(WRITE "${private_key_file}" "${encrypted_private_key}")
+            elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-expired-certificate")
+                file(WRITE "${certificate_file}" "${expired_certificate}")
+            elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-not-yet-valid-certificate")
+                file(WRITE "${certificate_file}" "${not_yet_valid_certificate}")
             elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-missing-certificate")
                 file(REMOVE "${certificate_file}")
             elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-missing-key")

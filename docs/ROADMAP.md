@@ -476,6 +476,27 @@ Microsoft-client desktop remain NOT RUN. M1–M6 OPEN.
 **Next R10:** certificate validity/trust policy and future live-loader
 handle continuity, still behind nonactivating offline checks.
 
+**R10 offline certificate validity-time gate (2026-10-16; exact-SHA CI NOT RUN at authoring):**
+The existing nonactivating `--check-tls-credentials` path now rejects
+a parsed certificate unless its `notBefore` and `notAfter` fields
+contain the current system time. Invalid time encodings fail closed
+through OpenSSL's certificate-time comparison. This check is performed
+on the same securely opened, bounded certificate bytes already used for
+PEM parsing; no path reopen, listener, TLS session or service activation
+is added. The fixed matching-pair fixture is extended through 2120 so
+the positive regression is not tied to the original 2036 certificate.
+Dedicated cross-platform CTests
+`runtime.rejects-tls-credentials-expired-certificate` and
+`runtime.rejects-tls-credentials-not-yet-valid-certificate` use
+certificates with the same matching private key, isolating the temporal
+denial from key mismatch. Local GCC 14.2/OpenSSL 3.5.5 strict C++23 API
+probe **PASS**: current+matching accepted; expired+matching and
+not-yet-valid+matching rejected. Full repository CTest and exact-SHA
+hosted CI are **NOT RUN at authoring**. Certificate chain trust,
+hostname and revocation, live-loader handle continuity, R2/R3
+authorization, listener/service startup and M1-M6 remain OPEN.
+Starting `main`: `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

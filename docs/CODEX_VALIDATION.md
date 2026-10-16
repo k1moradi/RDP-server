@@ -6412,6 +6412,35 @@ Windows MSYS2 CLANG64/Clang23 and macOS27 same-SHA validation is
 **NOT RUN**. Certificate trust chain, hostname, time validity and
 revocation remain outside this increment. M1–M6 remain OPEN.
 
+## R10 certificate validity-time gate implementation (2026-10-16)
+
+**Starting HEAD:** `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`.
+Its [Actions 38867045273](https://github.com/k1moradi/RDP-server/actions/runs/38867045273)
+is **PASS**: Linux/GCC 276/276, macOS/Clang 258/258 and Windows/MSVC
+276/276 full CTests in both Debug and Release. The owner-reported
+`runtime.validates-configuration-syntax` and
+`runtime.validates-configuration-comments-crlf` both explicitly PASS
+on all three hosted systems/configurations. The owner's Windows MSYS2
+CLANG64/Clang 23 environment remains **NOT RUN**.
+
+The new production check keeps the existing secure opened-file/PEM
+boundary and additionally requires the parsed X.509 certificate's
+current `notBefore`/`notAfter` validity window. OpenSSL comparison
+errors fail closed. The private-key match is still required, so neither
+an expired nor a not-yet-valid certificate can pass merely because it
+matches the configured key. New dedicated CTests are
+`runtime.rejects-tls-credentials-expired-certificate` and
+`runtime.rejects-tls-credentials-not-yet-valid-certificate`.
+A local Debian GCC 14.2/OpenSSL 3.5.5 strict C++23 API probe **PASS**:
+current+matching reports valid, while expired+matching and
+not-yet-valid+matching report invalid. Full repository CMake/CTest is
+**NOT RUN at authoring** because this worker cannot clone GitHub through
+its shell network path; exact-SHA hosted CI is required after publish.
+
+Security limits remain explicit: no trust chain, hostname or revocation
+verification, no live TLS loader, no R2/R3 admission, no listener/service
+activation and no real desktop. M1-M6 remain OPEN.
+
 
 ## R1 bounded post-handshake TLS application I/O (2026-10-15)
 

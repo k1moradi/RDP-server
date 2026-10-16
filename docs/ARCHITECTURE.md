@@ -788,12 +788,14 @@ the established syntax and native credential-file metadata/identity
 policy. It retains the opened certificate and private-key file
 objects, then parses PEM directly from those same handles with
 OpenSSL. The private key must be unencrypted and match the
-certificate public key through `X509_check_private_key`; the
-password callback is noninteractive and always rejects encrypted
-keys. This eliminates a path reopen between metadata validation
-and content parsing. It does not validate a trust chain, hostname,
-revocation, certificate validity dates, NLA, R2 admission, R3
-authority or permit server startup.
+certificate public key through `X509_check_private_key`. The
+certificate's `notBefore` and `notAfter` fields must also contain
+the current system time; malformed time encodings, expired
+certificates and not-yet-valid certificates fail closed. The password
+callback is noninteractive and always rejects encrypted keys. This
+eliminates a path reopen between metadata validation and content
+parsing. It does not validate a trust chain, hostname, revocation,
+NLA, R2 admission, R3 authority or permit server startup.
 
 ### R10 offline TLS file metadata preflight (2026-10-15)
 

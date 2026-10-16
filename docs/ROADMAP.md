@@ -1,3 +1,40 @@
+## R2 licensing service-credential non-authority exact-SHA validation (2026-10-16)
+
+**Implementation:** `f89482f395e095fb8fe5bcf6c9d9f71f7fc8513d`.  
+**Actions:** [38962858093](https://github.com/k1moradi/RDP-server/actions/runs/38962858093) — **SUCCESS**.
+
+The exact hardening SHA passes Linux/GCC **461/461 Debug** and **461/461
+Release**, macOS/Clang **387/387 Debug** and **387/387 Release**, and
+Windows/MSVC focused native preflight **46/46** in both configurations plus
+full CTest **416/416 Debug** and **416/416 Release**. Documentation policy,
+the independent R7 macOS sanitizer gate, installed SDK consumer and hosted
+package/artifact jobs pass.
+
+R9 Clang ASan/UBSan is **PASS**: clipboard **50/50**, R4 x264/BGRA **20/20**,
+bounded R1/R3 transport/CredSSP/licensing **52/52**, native R2/R3 GSSAPI
+**27/27**, R10 runtime CredSSP **5/5**, native R5 X11 **25/25**, and bounded
+fuzzer **1/1**. The existing
+`security.gssapi-r3-server-license-request-write-contract` and
+`security.gssapi-r3-client-licensing-route-contract` execute as tests 22 and
+23 of the native R2/R3 sanitizer group and both pass.
+
+This closes the credential-free R2 review of
+`RdpLicensingServiceCredential` as non-authority: a validated licensing
+certificate/private-key credential remains protocol cryptographic material and
+cannot replace the concrete move-only `LinuxConsoleAdmissionLease` or exact
+R1 owner. No production authorization API changed.
+
+Canonical owner-local `~/rdp-server/build/`, genuine
+Kerberos/final-CredSSP + NSS/logind positive admission, a real server licensing
+decision/CAL-HWID-MAC validation, Microsoft-client licensing/Share/desktop
+acceptance and M2/M3 remain **NOT RUN / OPEN**.
+
+**Next R2:** keep the production authorization API unchanged until R3 exposes
+a real server licensing decision, challenge/issuance, or activation
+publication/completion boundary. Then add the same fresh concrete lease + exact
+R1 owner reauthorization immediately before publication and again before any
+asynchronous accepted-byte completion.
+
 ## R1 orderly-EOF accept visibility exact-SHA hosted validation (2026-10-16; PASS)
 
 **Implementation:** `66220b8dbcb9a0a4247bcc508c1a07b92ba1d2ea`.  

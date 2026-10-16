@@ -508,6 +508,32 @@ privacy prompt, input permission or authenticated OS admission. Native
 CoreGraphics callback registration and actual StreamCaptureKit integration
 remain future authorized R7 work.
 
+### R7 Quartz reconfiguration revision fence (2026-10-16)
+
+`NativeDisplayReconfigurationWatch` is an optional, noncopyable native
+CoreGraphics callback registration for a future per-user authorized process.
+It registers via `CGDisplayRegisterReconfigurationCallback` and unregisters
+via the matching CoreGraphics API; ordinary CTests do neither. Callback
+`userInfo` is always null and touches **only process-lifetime atomics**,
+so an already executing callback during removal never dereferences a
+retired session/geometry object. Only one Quartz registration is permitted
+per process; registration failure releases its reservation, while removal
+failure retains it to avoid duplicate observers. Both start and stop retire
+previous revision tokens. The signal saturates to an invalid zero on
+uint64 exhaustion rather than reuse generations.
+
+The existing `NativeDisplayGeometryRefresh` now records a topology signal
+revision around each synchronous two-read sample and geometry conversion.
+A notification during sampling rejects publication; later begin/complete
+notifications cause `usable`, pointer conversion, and virtual-canvas
+queries to fail until a fresh refresh. The CoreGraphics callback NEVER
+calls into the mutable geometry owner; the future R2/R3 session owner must
+serialize start/stop/refresh and check generation immediately before
+native input/capture, including any later R4 scheduling. This is NOT an
+authorization capability, a ScreenCaptureKit stream, or a replacement for
+R3's sole session lifecycle. Consent prompts, input and frame capture
+remain disabled.
+
 ### Implementation principles
 
 - Portable wire parsers reject malformed lengths/flags and ambiguous states.

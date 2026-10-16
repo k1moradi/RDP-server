@@ -624,7 +624,8 @@ else()
         "${PROJECT_SOURCE_DIR}/src/platform/macos/screen_capture_preflight.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
-        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp")
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp")
 endif()
 if(MSVC)
     target_compile_options(test_macos_capture_pixel_buffer PRIVATE /W4 /UNDEBUG)
@@ -671,6 +672,15 @@ foreach(case_name IN ITEMS refresh invalidate failed-refresh)
     add_test(NAME "macos.desktop-geometry-epoch-${case_name}"
         COMMAND test_macos_capture_pixel_buffer "geometry-epoch-${case_name}")
     set_tests_properties("macos.desktop-geometry-epoch-${case_name}"
+        PROPERTIES LABELS "macos;geometry;offline")
+endforeach()
+# R7 CoreGraphics reconfiguration callback revision fence; ordinary tests
+# inject notifications and NEVER register the native callback or access TCC.
+foreach(case_name IN ITEMS
+        stale-denial during-read revision-sequence)
+    add_test(NAME "macos.desktop-native-reconfiguration-${case_name}"
+        COMMAND test_macos_capture_pixel_buffer "native-reconfiguration-${case_name}")
+    set_tests_properties("macos.desktop-native-reconfiguration-${case_name}"
         PROPERTIES LABELS "macos;geometry;offline")
 endforeach()
 if(APPLE)

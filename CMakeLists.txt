@@ -294,7 +294,8 @@ if(APPLE)
         src/platform/macos/screen_capture_preflight.cpp
         src/platform/macos/native_display_snapshot.cpp
         src/platform/macos/native_display_geometry.cpp
-        src/platform/macos/native_display_refresh.cpp)
+        src/platform/macos/native_display_refresh.cpp
+        src/platform/macos/native_display_reconfiguration.cpp)
     target_compile_features(rdp-server-macos-capture PUBLIC cxx_std_23)
     target_include_directories(rdp-server-macos-capture PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")

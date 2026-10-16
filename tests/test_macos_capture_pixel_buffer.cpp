@@ -3,6 +3,7 @@
 #include "platform/macos/desktop_display_geometry.h"
 #include "platform/macos/native_display_snapshot.h"
 #include "platform/macos/native_display_refresh.h"
+#include "platform/macos/native_display_reconfiguration.h"
 #include "platform/macos/native_display_geometry.h"
 #include "platform/macos/screen_capture_preflight.h"
 
@@ -738,6 +739,74 @@ void testNativeDisplayFailedRefreshClearsGeometry() {
     tracker.invalidate();
     assert(!tracker.usable(5));
 }
+
+[[nodiscard]] NativeDisplayReadStatus readSyntheticWithConcurrentChange(
+    void* const context, std::span<NativeDisplayObservation> destination,
+    std::size_t& count) noexcept {
+    const auto status = readSyntheticNativeDisplays(context, destination, count);
+    const auto& fixture = *static_cast<const NativeDisplayFixture*>(context);
+    if (fixture.calls == 2) {
+        // Simulates Quartz begin/end notification on another thread. The
+        // callback never needs to read the actual machine's display state.
+        rdp::macos::NativeDisplayReconfigurationWatch::recordTopologyChange();
+    }
+    return status;
+}
+
+void testNativeReconfigurationStaleDenial() {
+    using namespace rdp::macos;
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto epoch = geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(epoch && geometry.usable(*epoch));
+    const auto revision = NativeDisplayReconfigurationWatch::revision();
+    assert(revision != 0 && !NativeDisplayReconfigurationWatch::changedSince(revision));
+    assert(geometry.pixelAtLogicalPoint({10, 10}, *epoch));
+    NativeDisplayReconfigurationWatch::recordTopologyChange();
+    assert(NativeDisplayReconfigurationWatch::changedSince(revision));
+    assert(!geometry.usable(*epoch));
+    assert(!geometry.pixelAtLogicalPoint({10, 10}, *epoch));
+    assert(!geometry.logicalAtVirtualPixel(20, 20, *epoch));
+    assert(!geometry.virtualPixelSize(*epoch));
+    fixture = nativeDisplayFixture();
+    const auto fresh = geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(fresh && *fresh > *epoch && geometry.usable(*fresh));
+    assert(!geometry.usable(*epoch));
+}
+
+void testNativeReconfigurationDuringRead() {
+    using namespace rdp::macos;
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto midRead = geometry.refresh(&readSyntheticWithConcurrentChange, &fixture);
+    assert(!midRead && midRead.error() == NativeDisplayRefreshError::TopologyChanged);
+    assert(geometry.generation() == 1 && !geometry.usable(1));
+    assert(!geometry.pixelAtLogicalPoint({0, 0}, 1));
+    fixture = nativeDisplayFixture();
+    const auto clean = geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(clean && *clean == 2 && geometry.usable(*clean));
+    // Explicitly cancelling again must also reject the old revision.
+    geometry.invalidate();
+    assert(!geometry.usable(*clean));
+}
+
+void testNativeReconfigurationSignalRevision() {
+    using namespace rdp::macos;
+    static_assert(!std::is_copy_constructible_v<NativeDisplayReconfigurationWatch>);
+    static_assert(!std::is_move_constructible_v<NativeDisplayReconfigurationWatch>);
+    const auto revision = NativeDisplayReconfigurationWatch::revision();
+    assert(revision != 0);
+    assert(!NativeDisplayReconfigurationWatch::changedSince(revision));
+    assert(NativeDisplayReconfigurationWatch::changedSince(0));
+    NativeDisplayReconfigurationWatch::recordTopologyChange();
+    assert(NativeDisplayReconfigurationWatch::changedSince(revision));
+    const auto secondRevision = NativeDisplayReconfigurationWatch::revision();
+    assert(secondRevision != 0 && secondRevision != revision);
+    assert(!NativeDisplayReconfigurationWatch::changedSince(secondRevision));
+    NativeDisplayReconfigurationWatch::recordTopologyChange();
+    assert(NativeDisplayReconfigurationWatch::changedSince(secondRevision));
+}
+
 } // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -769,6 +838,12 @@ int main(const int argument_count, const char* const arguments[]) {
         testNativeDisplayTopologyInvalidation();
     } else if (test_case == "geometry-epoch-failed-refresh") {
         testNativeDisplayFailedRefreshClearsGeometry();
+    } else if (test_case == "native-reconfiguration-stale-denial") {
+        testNativeReconfigurationStaleDenial();
+    } else if (test_case == "native-reconfiguration-during-read") {
+        testNativeReconfigurationDuringRead();
+    } else if (test_case == "native-reconfiguration-revision-sequence") {
+        testNativeReconfigurationSignalRevision();
     } else if (test_case == "geometry-native-single-retina") {
         testNativeGeometrySingleRetina();
     } else if (test_case == "geometry-native-uniform-multi-display") {

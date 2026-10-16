@@ -5867,3 +5867,34 @@ live desktop are **NOT RUN**. R10 startup remains disabled,
 M1–M6 unaccepted. Next R10: path-component security review
 and opt-in cryptographic key/certificate validation,
 keeping syntax-only `--check-config` stable.
+
+## R7 native CoreGraphics topology revision signal (2026-10-16)
+
+**Source:** `src/platform/macos/native_display_reconfiguration.{h,cpp}`,
+`native_display_refresh.{h,cpp}`, reused
+`tests/test_macos_capture_pixel_buffer.cpp`, existing top-level and
+central tests CMake. Explicit native Quartz callback registration and paired
+removal are opt-in; callback only bumps a process-wide atomic revision,
+never captures, prompts, queries a display, mutates an R3 session or owns
+an R4 framebuffer. No userInfo pointer can dangle after watch destruction.
+`NativeDisplayGeometryRefresh` binds the revision before native/synthetic
+double-read, rejects mid-read notifications with `TopologyChanged`, and
+automatically denies stale geometry lookups after any later notification.
+**Dedicated CTests:** `macos.desktop-native-reconfiguration-stale-denial`,
+`macos.desktop-native-reconfiguration-during-read`,
+`macos.desktop-native-reconfiguration-revision-sequence` (all synthetic
+CoreGraphics events, existing executable and central registry).
+**Local PASS (sparse fixture, NOT full repository):** one-root GCC14.2
+`cmake -S ~/rdp-server -B ~/rdp-server/build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON`, `cmake --build ~/rdp-server/build --parallel 2`,
+`ctest --test-dir ~/rdp-server/build -C Debug --output-on-failure`: 8/8
+(focused new static native signal smoke 2/2, earlier fixture 6/6).
+Strict Clang17 C++23 ASan+UBSan new signal smoke 2/2 PASS; GCC14.2
+strict -O2 signal smoke 2/2 PASS. Actual integrated refresh behavior and
+Apple native framework linking **NOT RUN at authoring**, must be verified
+by exact-source CI. **NOT RUN:** owner macOS27/Linux X11/Windows
+MSYS2 CLANG64 Clang23 common-SHA CTest, display callback permissions,
+actual user TCC/ScreenCaptureKit, authenticated desktop, live RDP client,
+cursor/input and performance. **Next:** native callback registration in
+R2/R3-authorized user process, first-party ScreenCaptureKit lifetime and
+R4-consumer ownership, with deterministic teardown tests.

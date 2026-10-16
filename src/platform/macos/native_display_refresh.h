@@ -14,6 +14,7 @@ enum class NativeDisplayRefreshError : std::uint8_t {
     GenerationExhausted,
     DisplayUnavailable,
     GeometryUnsupported,
+    TopologyChanged,
 };
 
 // A synchronous R7 geometry epoch guard, NOT an RDP session, capture stream,
@@ -55,9 +56,11 @@ private:
     [[nodiscard]] bool advance() noexcept;
     [[nodiscard]] std::expected<std::uint64_t, NativeDisplayRefreshError>
     install(const std::expected<NativeDisplaySnapshot,
-                                NativeDisplaySnapshotError>& observed) noexcept;
+                                NativeDisplaySnapshotError>& observed,
+            std::uint64_t topologyRevision) noexcept;
 
     std::uint64_t generation_{};
+    std::uint64_t topologyRevision_{};
     std::optional<DesktopDisplayGeometry> active_{};
 };
 

@@ -3486,6 +3486,30 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   [issue #13](https://github.com/k1moradi/RDP-server/issues/13).
   **NOT RUN:** full repo hosted CTest on that exact SHA, owner macOS27,
   Windows CLANG64 Clang23, Linux/X11, live desktop and benchmarks.
+  **R7 Quartz display notifications (2026-10-16):**
+  Added explicit opt-in CoreGraphics `CGDisplayRegisterReconfigurationCallback`
+  and paired removal, with a process-lifetime atomic revision signal and
+  single-registration guard. Quartz's begin/end/topology callbacks only
+  increment the revision: no frame access, allocations, permission prompt,
+  or borrowed C++ callback object is touched. `NativeDisplayGeometryRefresh`
+  binds the revision before double-sample enumeration and refuses any
+  publish/coordinate lookup following a concurrent notification, including
+  a mid-refresh event. Removal invalidates old observations; a failed
+  removal leaves registration reserved rather than risk a second owner.
+  Three new dedicated offline CTests:
+  `macos.desktop-native-reconfiguration-stale-denial`,
+  `macos.desktop-native-reconfiguration-during-read`,
+  `macos.desktop-native-reconfiguration-revision-sequence`.
+  **PASS:** partial local Linux GCC14.2 CMake/CTest 8/8 (two focused
+  signal smoke cases and six previous fixture cases); Clang17 ASan/UBSan
+  signal smoke 2/2; GCC14.2 -O2 strict signal smoke 2/2. Full new
+  production refresh integration and native Quartz callback registration
+  require the exact-source GitHub CI and macOS owner validation.
+  **NOT RUN at authoring:** canonical full CTest, owner macOS27,
+  Windows CLANG64 Clang23, real user session, any TCC/capture, client
+  input or latency benchmarks. **Next:** connect this native signal to
+  R2/R3-authorized session lifetime and native capture cancellation;
+  R4 physical composition remains authoritative; M1/M5 OPEN.
   **R7 topology epoch invalidation (2026-10-16):**
   `NativeDisplayGeometryRefresh` extends existing CoreGraphics read-only
   discovery plus `DesktopDisplayGeometry` with an explicit, bounded

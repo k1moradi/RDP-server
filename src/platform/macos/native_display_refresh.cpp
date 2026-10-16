@@ -2,6 +2,7 @@
 #include "platform/macos/native_display_refresh.h"
 
 #include "platform/macos/native_display_geometry.h"
+#include "platform/macos/native_display_reconfiguration.h"
 
 #include <limits>
 #include <utility>
@@ -10,6 +11,7 @@ namespace rdp::macos {
 
 void NativeDisplayGeometryRefresh::invalidate() noexcept {
     active_.reset();
+    topologyRevision_ = 0;
     if (generation_ != std::numeric_limits<std::uint64_t>::max()) {
         ++generation_;
     }
@@ -26,7 +28,8 @@ bool NativeDisplayGeometryRefresh::advance() noexcept {
 
 std::expected<std::uint64_t, NativeDisplayRefreshError>
 NativeDisplayGeometryRefresh::install(
-    const std::expected<NativeDisplaySnapshot, NativeDisplaySnapshotError>& observed) noexcept {
+    const std::expected<NativeDisplaySnapshot, NativeDisplaySnapshotError>& observed,
+    const std::uint64_t topologyRevision) noexcept {
     if (!observed) {
         return std::unexpected(NativeDisplayRefreshError::DisplayUnavailable);
     }
@@ -34,7 +37,11 @@ NativeDisplayGeometryRefresh::install(
     if (!geometry) {
         return std::unexpected(NativeDisplayRefreshError::GeometryUnsupported);
     }
+    if (NativeDisplayReconfigurationWatch::changedSince(topologyRevision)) {
+        return std::unexpected(NativeDisplayRefreshError::TopologyChanged);
+    }
     active_.emplace(std::move(*geometry));
+    topologyRevision_ = topologyRevision;
     return generation_;
 }
 
@@ -44,7 +51,8 @@ NativeDisplayGeometryRefresh::refresh(const NativeDisplayReadFunction reader,
     if (!advance()) {
         return std::unexpected(NativeDisplayRefreshError::GenerationExhausted);
     }
-    return install(NativeDisplaySnapshot::read(reader, context, generation_));
+    const auto revision = NativeDisplayReconfigurationWatch::revision();
+    return install(NativeDisplaySnapshot::read(reader, context, generation_), revision);
 }
 
 #if defined(__APPLE__)
@@ -53,12 +61,14 @@ NativeDisplayGeometryRefresh::refreshNative() noexcept {
     if (!advance()) {
         return std::unexpected(NativeDisplayRefreshError::GenerationExhausted);
     }
-    return install(queryNativeDisplaySnapshot(generation_));
+    const auto revision = NativeDisplayReconfigurationWatch::revision();
+    return install(queryNativeDisplaySnapshot(generation_), revision);
 }
 #endif
 
 bool NativeDisplayGeometryRefresh::usable(const std::uint64_t generation) const noexcept {
-    return generation != 0 && generation == generation_ && active_.has_value();
+    return generation != 0 && generation == generation_ && active_.has_value() &&
+           !NativeDisplayReconfigurationWatch::changedSince(topologyRevision_);
 }
 
 std::optional<PixelSize> NativeDisplayGeometryRefresh::virtualPixelSize(

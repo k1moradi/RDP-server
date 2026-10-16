@@ -10336,3 +10336,43 @@ inspected after publication. Real authenticated R3 Graphics DVC/full-send
 integration, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27,
 native capture performance and Microsoft-client rendering remain
 **NOT RUN/BLOCKED**. Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R4 fixed-CFR x264 PTS exact-SHA hosted CI (2026-10-16)
+
+**Implementation:** `f032e4c434642dc788a56e48616e1e72d429935c`.
+**Actions:** `38903954802` — **SUCCESS**.
+
+- **Linux/GCC:** Debug **405/405 PASS**, Release **405/405 PASS**.
+  `graphics.x264-cfr-pts-passthrough` (#392),
+  restored `graphics.x264-segmented-malformed-nv12-reference-continuity`
+  (#396), and `graphics.x264-segmented-cfr-pts-reference-continuity`
+  (#399) pass in both configurations. Installed SDK consumer/package gates
+  also pass.
+- **macOS/Clang:** Debug **346/346 PASS**, Release **346/346 PASS**.
+  The same three R4 cases pass as #333, #337 and #340 in both configurations;
+  SDK consumer/package gates pass.
+- **Windows/MSVC:** native R6 preflight **39/39 PASS** in Debug and Release;
+  full Debug **371/371 PASS**, Release **371/371 PASS**. The three R4 cases
+  pass as #358, #362 and #365 in both configurations; SDK consumer/package
+  gates pass.
+- **R9 selected ASan/UBSan job:** **PASS** for its configured scope, but the
+  workflow target list still excludes `test_x264_avc420_encoder` and
+  `test_x264_avc420_segmented_frame_producer`; real x264/BGRA execution
+  under sanitizers remains **NOT RUN**, not PASS.
+- **Documentation policy:** **PASS**. Prerelease publication correctly
+  **SKIPPED** for an ordinary development commit.
+
+This exact-SHA matrix also proves the earlier R10-owned
+`runtime.linux-connection-credssp-owner-framing` failure is no longer a
+blocker for this R4 implementation: the complete Linux Debug/Release suites
+pass at `f032e4c...`. The fixed-CFR PTS decision remains unchanged: no
+monotonic timestamp gate, counter, clock or second scheduler is introduced;
+caller PTS is opaque pass-through metadata under the current x264 CFR/no-B
+configuration.
+
+**Still NOT RUN/BLOCKED:** owner `~/rdp-server/build` command on Linux/X11,
+Windows MSYS2 CLANG64/Clang 23 and macOS 27; real R4 x264/BGRA sanitizer
+execution; genuine authenticated R3 Graphics DVC/full-send integration;
+native capture performance; and Microsoft-client graphics rendering.
+Gate B and M3/M4/M5 remain **OPEN**.

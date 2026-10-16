@@ -2724,6 +2724,31 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   downstream SDK consumers PASS. Ubuntu CTest was not executed
   due to the unrelated build failure. Owner-local Windows
   MSYS2 CLANG64/Clang 23 and live M4 remain NOT RUN.
+  **R6 capture-cycle ordered ownership (2026-10-16; parent
+  `643d62ae3758ba17494767603141a98abc3dc7b6`):** The nonmoving Windows-only
+  `windows_dxgi_capture_cycle.{h,cpp}` composes the existing
+  `WindowsDxgiFrameOwner` and `WindowsD3D11StagingMap` without
+  introducing a second R4 graphics scheduler or making an R2/R3
+  authorization decision. It enforces one active mapped frame;
+  releases staging map **before** `IDXGIOutputDuplication::ReleaseFrame`;
+  releases an acquired frame on GPU-not-ready; rejects reentrant
+  acquisition; and revokes the cycle on cancellation, disconnect,
+  access loss or a changed validated monitor layout. Native callback
+  cancellation is deferred until the callback exits, so a mapped
+  view is never published after revocation. The view remains
+  borrowed and cannot be queued asynchronously by R4.
+  **Two dedicated Windows CTests in the existing R6 binary:**
+  `windows.capture-frame-ordered-lifetime` and
+  `windows.capture-frame-cancel-and-topology-rejections`.
+  **PASS (offline sparse fixture):** GCC 14.2 and Clang 17 C++23
+  `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror`
+  2/2 each, Clang ASan/UBSan 2/2, CMake staging CTest 2/2.
+  **NOT RUN at authoring:** full canonical CMake/CTest (GitHub
+  clone DNS unavailable locally), Windows MSYS2 CLANG64/Clang 23,
+  real authorized Desktop Duplication, owner's three platforms,
+  R4 graphics presentation and M4 Microsoft-client desktop acceptance.
+  **Next:** consume an R2/R3 authorization-bound native capture
+  lifecycle, then hand synchronous frame bytes to the sole R4 owner.
   **R6 D3D11 staging-copy/map RAII (2026-10-15; parent
   `19512d5fdbc0568fbd6c3333b32c770d76c6f8b4`):** `src/windows/windows_d3d11_staging_map.{h,cpp}`
   now consumes a borrowed `IDXGIResource` from the existing R6

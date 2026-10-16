@@ -98,6 +98,25 @@ No COM/DXGI object or Windows header enters portable protocol code.
 R2/R3 admission must be enforced by the future native capture owner;
 this helper itself neither accesses a desktop nor grants permission.
 
+### Windows DXGI capture-cycle ordered lifetime (R6; offline only)
+
+`WindowsDxgiCaptureCycle` only composes the existing duplication
+lease owner and D3D11 staging-map owner; it does not control R4
+scheduling or R2/R3 admission. Its inputs are borrowed callbacks
+created for an independently authorized Windows session, plus
+a validated desktop-layout snapshot. An explicit caller-sampled
+layout mismatch, disconnect/cancel, access loss or release failure
+revokes the cycle. Every frame completes its staging unmap before
+the duplication lease's `ReleaseFrame`. Reentrant cancellation
+is deferred until the in-progress acquire/map/unmap callback returns;
+the view cannot be observed when the owner is revoked. R4 must copy
+pixel bytes synchronously before enqueueing. No active Win32
+enumeration, input injection, graphics queue, or live desktop
+capture is performed by tests. DXGI requires releasing a frame
+before the next acquisition; access loss requires recreating
+duplication:
+https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_2/nf-dxgi1_2-idxgioutputduplication-releaseframe
+
 ### Windows D3D11 staging map/copy lifetime (R6; fixture-only admission)
 
 `WindowsD3D11StagingMap` extends the existing BGRA pitch/bounds view

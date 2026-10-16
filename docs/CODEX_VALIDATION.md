@@ -4153,3 +4153,44 @@ RDP session, clipboard/desktop or fuzzer infrastructure.
 No M1–M6 milestone is promoted by this synthetic security test.
 **Next:** R9 adds sanitizer/fuzzing receipts and verifies actual
 R3→R8 authorized channel routing when the sole session owner exists.
+
+## R6 ordered DXGI lease and D3D11 map integration (2026-10-16)
+
+**Parent main SHA:** `643d62ae3758ba17494767603141a98abc3dc7b6`. New production
+`windows_dxgi_capture_cycle.{h,cpp}` composes the R6 DXGI and
+D3D11 RAII helpers. New `windows_capture_cycle_cases.cpp`
+is linked into the **existing** R6 test executable and registered
+in the one `tests/CMakeLists.txt` registry. The same atomic
+commit updates `CMakeLists.txt`, `docs/ROADMAP.md`,
+`docs/ARCHITECTURE.md` and this validation record.
+
+**Dedicated conditional native Windows CTests:**
+`windows.capture-frame-ordered-lifetime` checks acquire/map
+and byte/stride borrow, unmap-before-release, bounded timeout,
+GPU-not-ready release, changed monitor layout and destructor.
+`windows.capture-frame-cancel-and-topology-rejections` checks
+bad wait, reentrant map/capture, access loss, invalid BGRA,
+failed release, cancellation in acquire/map/unmap callbacks
+and invalid initial layout.
+
+**PASS (sparse offline fixture, not complete project):**
+`cmake -S ~/rdp-server -B ~/rdp-server/build
+-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build ~/rdp-server/build --parallel 2`,
+`ctest --test-dir ~/rdp-server/build --output-on-failure`:
+**2/2**. Separately strict Linux GCC 14.2 / Clang 17
+`-std=c++23 -O1 -g -Wall -Wextra -Wpedantic
+-Wconversion -Wsign-conversion -Werror -UNDEBUG` 2/2 each.
+Clang 17 ASan/UBSan `-fsanitize=address,undefined
+-fno-omit-frame-pointer` 2/2. The sparse fixture used
+API-compatible copies of the existing two R6 owner
+implementations; full repo CMake/CTest remains NOT RUN locally
+because GitHub Git networking could not resolve the host.
+
+**NOT RUN:** owner Windows MSYS2 CLANG64/Clang 23,
+owner Linux/X11 and macOS 27 exact-SHA runs; real Desktop
+Duplication session, R4 frame encoding/presentation, external
+Microsoft client input/desktop, or benchmarks. Hosted exact-SHA
+GitHub Actions results require separate verification after
+publication. M4 remains open. **Next:** coordinate an explicitly
+R2/R3-authorized capture lifecycle and R4 frame ownership.

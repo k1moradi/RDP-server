@@ -324,7 +324,8 @@ endif()
 if(TARGET rdp-server-windows-desktop)
     add_executable(test_windows_desktop_geometry
         test_windows_desktop_geometry.cpp
-        windows_geometry_gdi_type_probe.cpp)
+        windows_geometry_gdi_type_probe.cpp
+        windows_capture_cycle_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop)
     if(MSVC)
@@ -367,6 +368,15 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.capture-${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
     endforeach()
+    # R6 capture-cycle ordering; synthetic callbacks, no desktop access.
+    add_test(NAME windows.capture-frame-ordered-lifetime
+        COMMAND test_windows_desktop_geometry capture-cycle-ordered-lifetime)
+    add_test(NAME windows.capture-frame-cancel-and-topology-rejections
+        COMMAND test_windows_desktop_geometry capture-cycle-cancel-and-topology-rejections)
+    set_tests_properties(
+        windows.capture-frame-ordered-lifetime
+        windows.capture-frame-cancel-and-topology-rejections
+        PROPERTIES LABELS "windows;desktop-capture;offline")
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.
     add_test(NAME windows.capture-dxgi-move-before-dirty

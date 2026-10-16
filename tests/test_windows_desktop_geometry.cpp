@@ -17,6 +17,10 @@ namespace rdp_server::windows
 [[nodiscard]] bool windowsGdiRectangleTypeProbe() noexcept;
 }
 
+// Behavior cases are in the same R6 CTest executable.
+void windowsCaptureCycleOrderedLifetime();
+void windowsCaptureCycleLifecycleDenials();
+
 using namespace rdp_server::windows;
 
 namespace
@@ -711,6 +715,14 @@ int main(int argc, char **argv)
     else if (behavior == "d3d11-staging-map-denials")
     {
         d3d11StagingFailures();
+    }
+    else if (behavior == "capture-cycle-ordered-lifetime")
+    {
+        windowsCaptureCycleOrderedLifetime();
+    }
+    else if (behavior == "capture-cycle-cancel-and-topology-rejections")
+    {
+        windowsCaptureCycleLifecycleDenials();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

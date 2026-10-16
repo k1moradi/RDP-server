@@ -1,3 +1,30 @@
+## R6 frame-owner callback lifecycle exact-SHA validation (2026-10-16)
+
+Production/frame-fixture descendant
+`1f6240c8d2a4e1a900edd133bfd0be94cd13b9ae`, Actions
+`38896793718`, validates the R6 acquire-callback reentry/cancellation guard,
+the field-wise fixture correction, and malformed-resource guarded cleanup.
+
+Windows/MSVC focused R6 preflight: **37/37 PASS Debug** and **37/37 PASS
+Release**. Both
+`windows.capture-dxgi-frame-lease-acquire-callback-revocation` and
+`windows.capture-dxgi-duplication-owner-same-adapter-ambiguity` passed in
+**0.01 s** in both configurations; the historical
+`windows.cursor-dxgi-shape-generation-denials` also remained **0.01 s**.
+The authoritative full Windows matrix then passed **351/351 Debug** and
+**351/351 Release**.
+
+Ubuntu/GCC passed **378/378 Debug** and **378/378 Release**. The R9 sanitizer
+job and documentation-policy both passed. The workflow's overall conclusion is
+still **FAIL** solely because macOS/Clang failed the unrelated R1
+`transport.credssp-r1-owned-framing` assertion; no R6 test failed.
+
+Canonical owner-local build/CTest and owner Windows MSYS2 CLANG64/Clang23 remain
+**NOT RUN** in this connector environment. The repository still lacks a
+concrete Windows R2/R3 native admission capability, so no runtime DXGI/Input
+binding is authorized. **Next R6 production gate remains owner CLANG64/Clang23
+plus genuine Windows R2/R3 authorization; M4 remains OPEN.**
+
 ## R9 Channel Join terminal replay fence + cross-road CI verification (2026-10-16; exact-SHA CI pending)
 
 **Initial inspected main:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`.

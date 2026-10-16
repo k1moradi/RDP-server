@@ -1,3 +1,24 @@
+## R6 frame-owner callback lifecycle hosted receipt (2026-10-16)
+
+**Exact SHA:** `1f6240c8d2a4e1a900edd133bfd0be94cd13b9ae`.
+**Actions:** `38896793718`.
+
+Windows/MSVC R6 preflight passed **37/37** in Debug and **37/37** in Release.
+The new frame-lease callback test and same-adapter duplication ambiguity test
+both passed in **0.01 s** in each configuration. Full Windows CTest subsequently
+passed **351/351 Debug** and **351/351 Release**, proving the production
+`WindowsDxgiFrameOwner` reentry/cancellation and malformed cleanup paths
+compile and execute under both hosted MSVC configurations.
+
+Ubuntu/GCC full CTest passed **378/378** in Debug and Release. R9 sanitizer and
+documentation-policy jobs passed. macOS/Clang failed one unrelated R1 test,
+`transport.credssp-r1-owned-framing`; therefore the workflow is overall red
+without an R6 failure.
+
+Owner-local `~/rdp-server/build`, Windows MSYS2 CLANG64/Clang23, live
+`AcquireNextFrame`/`ReleaseFrame`, genuine R2/R3 Windows admission and
+Microsoft-client M4 acceptance remain **NOT RUN/BLOCKED**.
+
 ## R9 Channel Join terminal replay authoring verification (2026-10-16)
 
 **Initial inspected main:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`.

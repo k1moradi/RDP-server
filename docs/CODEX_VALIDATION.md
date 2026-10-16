@@ -9645,3 +9645,34 @@ this new source is **PENDING hosted CI**. Ordinary CTest never invokes
 `startNative()`. Real fast-user-switch notification delivery, owner macOS 27,
 genuine R2/R3 authorized admission, live ScreenCaptureKit/Quartz input, R4
 integration, Microsoft-client acceptance and performance remain **NOT RUN**.
+
+
+## R7 macOS session-change watch exact-SHA hosted receipt (2026-10-16)
+
+R7 implementation is the net tree at
+`e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`; relative to pre-R7 parent
+`3d3d5c758e0e4216132f73e0cc2506ac45e87d75` it changes exactly the intended
+12 R7 source/test/CMake/documentation files. A transient sparse-tree publication
+at `0f974721035491e21c084f861f7daad37be6e521` was immediately corrected by
+the forward repair commit; no force push or history rewrite was used.
+
+Exact workflow Actions `38895679498`: documentation-policy **PASS**; R9
+ASan/UBSan/fuzzer security job **PASS**; Linux/GCC full **373/373 Debug and
+373/373 Release PASS**; Windows/MSVC full **346/346 Debug and 346/346 Release
+PASS**. All seven `macos.desktop-session-*` tests pass in both configurations
+on Linux and Windows. SDK stage/consumer/package steps pass on both platforms.
+
+macOS/AppleClang compiles and links the real ARC Objective-C++ NSWorkspace
+observer in both configurations. Debug full **321/321 PASS**. Release executes
+all seven R7 session tests successfully but finishes **320/321** because
+unrelated R1 test `transport.credssp-r1-owned-framing` aborts at
+`tests/test_owned_preauth_session.cpp:5708`; R7 source/test compile and
+behavior are not implicated. The macOS package steps are skipped only because
+the full Release CTest job stops after that R1 failure.
+
+Owner macOS 27 real fast-user-switch notification delivery, genuine R2/R3
+per-user macOS authorization, live ScreenCaptureKit/Quartz input, R4
+publication, Microsoft-client M5 acceptance and performance remain **NOT RUN**.
+R7's next production dependency is the concrete R2/R3 authorized per-user
+desktop binding; the new revision remains revocation-only and cannot mint
+capture/input authority.

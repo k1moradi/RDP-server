@@ -11,6 +11,11 @@
 #include <span>
 #include <vector>
 
+namespace rdp_server::server::transport
+{
+class OwnedPreauthTcpConnection;
+}
+
 namespace rdp_server::server::security
 {
 
@@ -179,6 +184,8 @@ public:
     [[nodiscard]] TsRequestFrameResult consume(
         std::span<const std::uint8_t> plaintext) noexcept;
 
+    // Direct-SSL compatibility path used by existing memory-BIO/provider
+    // tests. Production R1-owned sockets MUST use the owner overload below.
     // Read at most ONE bounded SSL_read_ex chunk, never crossing one DER
     // TSRequest boundary. Requires completed server-role TLS >= 1.2 with
     // cipher and selected certificate. The first SSL identity is pinned
@@ -191,6 +198,13 @@ public:
     // There is no GSS, TLS binding proof, or OS session authorization.
     [[nodiscard]] TsRequestTlsReadResult readOneTlsStep(
         SSL *serverTls) noexcept;
+
+    // Production R1-owned transport path. The framer may inspect the exact
+    // established SSL/certificate identity, but ONLY the R1 owner advances
+    // SSL/BIO application I/O. Once owner-bound, the reader cannot switch
+    // owners or downgrade to the raw SSL overload. The owner must outlive it.
+    [[nodiscard]] TsRequestTlsReadResult readOneTlsStep(
+        transport::OwnedPreauthTcpConnection &connection) noexcept;
 
     // Exact next receive target: the uncompleted tag/length header, then
     // the remaining DER content. Zero after Complete/Invalid/Closed.
@@ -218,11 +232,15 @@ private:
         std::span<const std::uint8_t> plaintext) noexcept;
     [[nodiscard]] TsRequestFrameResult reject(
         std::size_t consumed, TsRequestError error) noexcept;
+    [[nodiscard]] TsRequestTlsReadResult readOneTlsStepImpl(
+        SSL *directServerTls,
+        transport::OwnedPreauthTcpConnection *connection) noexcept;
     std::array<std::uint8_t, kMaximumCredSspRequestBytes> buffer_{};
     std::size_t buffered_{};
     std::size_t expected_{};
     TsRequestFrameStatus status_{TsRequestFrameStatus::NeedMore};
     const SSL *boundServerTls_{};
+    const transport::OwnedPreauthTcpConnection *boundOwner_{};
     // Borrowed TLS pointer alone is insufficient: SSL credentials may be
     // reconfigured/renegotiated without replacing the SSL object. Pin the
     // selected certificate's fingerprint from the FIRST read and verify it
@@ -271,6 +289,10 @@ public:
     [[nodiscard]] bool queueReply(
         SSL *serverTls, std::uint8_t version, CredSspServerReplyField field,
         std::span<const std::uint8_t> providerOutput) noexcept;
+    [[nodiscard]] bool queueReply(
+        const transport::OwnedPreauthTcpConnection &connection,
+        std::uint8_t version, CredSspServerReplyField field,
+        std::span<const std::uint8_t> providerOutput) noexcept;
 
     // Explicit server-side version-6 SPNEGO failure, never an authority
     // to authenticate/continue. Uses identical pinned TLS and one-buffer
@@ -281,7 +303,12 @@ public:
     [[nodiscard]] bool queueFailureReply(
         SSL *serverTls, std::uint8_t version,
         CredSspServerFailure failure) noexcept;
+    [[nodiscard]] bool queueFailureReply(
+        const transport::OwnedPreauthTcpConnection &connection,
+        std::uint8_t version, CredSspServerFailure failure) noexcept;
 
+    // Direct-SSL compatibility path for existing memory-BIO/provider tests.
+    // Production R1-owned sockets MUST use the owner overload below.
     // Exactly one SSL_write_ex per invocation. Progress means a partial
     // OpenSSL write was completed and can be advanced immediately;
     // NeedRead/NeedWrite require the indicated readiness event.
@@ -289,6 +316,12 @@ public:
     // remain unchanged throughout the entire queued/retried reply.
     [[nodiscard]] TsRequestTlsWriteResult writeOneTlsStep(
         SSL *serverTls) noexcept;
+
+    // Production R1-owned transport path. Queue ownership/certificate
+    // provenance is preserved, while actual write progress/WANT direction
+    // comes exclusively from this exact R1 connection owner.
+    [[nodiscard]] TsRequestTlsWriteResult writeOneTlsStep(
+        transport::OwnedPreauthTcpConnection &connection) noexcept;
 
     [[nodiscard]] TsRequestTlsWriteStatus status() const noexcept
     {
@@ -311,8 +344,12 @@ public:
 private:
     void clear() noexcept;
     [[nodiscard]] bool queueEncoded(
-        SSL *serverTls, std::vector<std::uint8_t> encoded,
-        bool isFailure) noexcept;
+        const SSL *serverTls, std::vector<std::uint8_t> encoded,
+        bool isFailure,
+        const transport::OwnedPreauthTcpConnection *connection) noexcept;
+    [[nodiscard]] TsRequestTlsWriteResult writeOneTlsStepImpl(
+        SSL *directServerTls,
+        transport::OwnedPreauthTcpConnection *connection) noexcept;
     // Uses the same canonical selected-certificate test as the
     // inbound TLS reader. A long-lived pointer is insufficient to
     // identify the certificate if it is replaced within that SSL.
@@ -322,10 +359,12 @@ private:
 
     std::vector<std::uint8_t> frame_{};
     std::size_t offset_{};
-    SSL *boundServerTls_{};
+    const SSL *boundServerTls_{};
+    const transport::OwnedPreauthTcpConnection *boundOwner_{};
     CredSspTlsCertificateFingerprint pinnedCertificate_{};
     bool certificatePinned_{};
     bool failureQueued_{};
+    bool directIoUsed_{};
     TsRequestTlsWriteStatus status_{TsRequestTlsWriteStatus::Idle};
 };
 

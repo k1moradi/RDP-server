@@ -4563,6 +4563,74 @@ std::size_t drainCredSspFromTls(
     return total;
 }
 
+std::size_t drainCredSspFromOwnedTls(
+    TsRequestFrameReader &reader,
+    OwnedPreauthTcpConnection &owner,
+    TsRequestTlsReadStatus finalStatus)
+{
+    using PollOutcome = TcpConnectionPollOutcome;
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    std::size_t total = 0;
+    for (std::size_t step = 0; step < kTestCredSspDer.size() + 16; ++step)
+    {
+        const auto result = reader.readOneTlsStep(owner);
+        total += result.plaintextBytesRead;
+        assert(result.error == TsRequestError::None);
+        if (result.status == finalStatus)
+            return total;
+        if (result.status == TsRequestTlsReadStatus::Progress)
+        {
+            assert(result.plaintextBytesRead > 0);
+            continue;
+        }
+        assert(result.status == TsRequestTlsReadStatus::NeedRead ||
+               result.status == TsRequestTlsReadStatus::NeedWrite);
+        const auto polled = owner.pollSocketOnce(
+            deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+    }
+    assert(false && "R1-owned CredSSP frame intake did not complete");
+    return total;
+}
+
+std::size_t drainCredSspReplyThroughOwnedTls(
+    TsRequestTlsReplyWriter &writer,
+    OwnedPreauthTcpConnection &owner,
+    bool &observedShortProgress)
+{
+    using PollOutcome = TcpConnectionPollOutcome;
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    std::size_t total = 0;
+    for (std::size_t step = 0; step < kMaximumCredSspRequestBytes + 16;
+         ++step)
+    {
+        const auto before = writer.bytesRemaining();
+        const auto result = writer.writeOneTlsStep(owner);
+        total += result.plaintextBytesWritten;
+        if (result.status == TsRequestTlsWriteStatus::Complete)
+            return total;
+        if (result.status == TsRequestTlsWriteStatus::Progress)
+        {
+            assert(result.plaintextBytesWritten > 0);
+            assert(result.plaintextBytesWritten <= before);
+            if (result.plaintextBytesWritten < before)
+                observedShortProgress = true;
+            continue;
+        }
+        assert(result.status == TsRequestTlsWriteStatus::NeedRead ||
+               result.status == TsRequestTlsWriteStatus::NeedWrite);
+        assert(result.plaintextBytesWritten == 0);
+        const auto polled = owner.pollSocketOnce(
+            deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+    }
+    assert(false && "R1-owned CredSSP reply did not complete");
+    return total;
+}
 
 
 void testLiveTlsCertificateBindingPositive()
@@ -5611,6 +5679,249 @@ void testTlsCredSspProvenance()
     reader.close();
     assert(reader.completedFrameServerTls() == nullptr);
     assert(reader.completeDer().empty());
+}
+
+
+void testOwnedTlsCredSspFraming()
+{
+    // Positive framing over the exact R1-owned SSL/BIO/socket.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        SSL *const selectedServer = tls.server.get();
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(owner).status ==
+               TsRequestTlsReadStatus::NeedRead);
+        assert(reader.completedFrameServerTls() == nullptr);
+
+        writeNativeTlsClientAll(
+            tls.client.get(), std::span(kTestCredSspDer).first(8));
+        assert(drainCredSspFromOwnedTls(
+            reader, owner, TsRequestTlsReadStatus::NeedRead) == 8);
+        assert(reader.completedFrameServerTls() == nullptr);
+
+        writeNativeTlsClientAll(
+            tls.client.get(), std::span(kTestCredSspDer).subspan(8));
+        assert(drainCredSspFromOwnedTls(
+            reader, owner, TsRequestTlsReadStatus::Complete) ==
+               kTestCredSspDer.size() - 8);
+        assert(reader.completedFrameServerTls() == selectedServer);
+        assert(reader.completedFrameServerTls() == owner.establishedTls());
+        assert(std::equal(reader.completeDer().begin(),
+                          reader.completeDer().end(),
+                          kTestCredSspDer.begin(), kTestCredSspDer.end()));
+        assert(reader.releaseFrame());
+        assert(reader.completedFrameServerTls() == nullptr);
+
+        // Once production framing is owner-bound, raw SSL I/O cannot take
+        // over even if the caller retained the same pointer.
+        assert(reader.readOneTlsStep(owner).status ==
+               TsRequestTlsReadStatus::NeedRead);
+        assert(reader.readOneTlsStep(selectedServer).status ==
+               TsRequestTlsReadStatus::Invalid);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(owner.active());
+        owner.cancel();
+    }
+
+    // A different established R1 owner cannot satisfy an in-progress frame.
+    {
+        LoopbackSocketPair leftPair{false};
+        LoopbackSocketPair rightPair{false};
+        auto leftAccepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(leftPair.listener.value));
+        auto rightAccepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(rightPair.listener.value));
+        assert(leftAccepted.outcome == TcpAcceptOutcome::Accepted);
+        assert(rightAccepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection left{std::move(leftAccepted.connection)};
+        OwnedPreauthTcpConnection right{std::move(rightAccepted.connection)};
+        NativeTcpIo leftClient{
+            static_cast<std::uintptr_t>(leftPair.client.value)};
+        NativeTcpIo rightClient{
+            static_cast<std::uintptr_t>(rightPair.client.value)};
+        TlsHandshakeFixture leftTls{false, false};
+        TlsHandshakeFixture rightTls{false, false};
+        establishOwnedApplicationTls(left, leftClient, leftTls);
+        establishOwnedApplicationTls(right, rightClient, rightTls);
+
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(left).status ==
+               TsRequestTlsReadStatus::NeedRead);
+        assert(reader.readOneTlsStep(right).status ==
+               TsRequestTlsReadStatus::Invalid);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(left.active());
+        assert(right.active());
+        left.cancel();
+        right.cancel();
+    }
+
+    // R1 cancellation invalidates the borrowed provenance before the reader
+    // touches the freed SSL/certificate.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(owner).status ==
+               TsRequestTlsReadStatus::NeedRead);
+        owner.cancel();
+        assert(reader.completedFrameServerTls() == nullptr);
+        assert(reader.readOneTlsStep(owner).status ==
+               TsRequestTlsReadStatus::Closed);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+    }
+}
+
+void testOwnedTlsCredSspReplyTransport()
+{
+    // Production reply bytes advance only through R1. Force OpenSSL's
+    // partial-write mode to expose bounded short progress.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        assert(SSL_set_max_send_fragment(tls.server.get(), 1024) == 1);
+        SSL *const selectedServer = tls.server.get();
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        std::vector<std::uint8_t> token(8192, 0x3a);
+        const auto expected = encodeCredSspServerTsRequest(
+            6, CredSspServerReplyField::NegoToken, token);
+        assert(!expected.empty());
+
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(
+            owner, 6, CredSspServerReplyField::NegoToken, token));
+        token[0] ^= 0xffU;
+        assert(writer.status() == TsRequestTlsWriteStatus::NeedWrite);
+
+        const auto first = writer.writeOneTlsStep(owner);
+        assert(first.status == TsRequestTlsWriteStatus::Progress);
+        assert(first.plaintextBytesWritten > 0);
+        assert(first.plaintextBytesWritten <= 1024U);
+        bool observedShortProgress =
+            first.plaintextBytesWritten < expected.size();
+        const auto remainder = drainCredSspReplyThroughOwnedTls(
+            writer, owner, observedShortProgress);
+        assert(first.plaintextBytesWritten + remainder == expected.size());
+        assert(observedShortProgress);
+
+        std::vector<std::uint8_t> received(expected.size());
+        readNativeTlsClientAll(
+            tls.client.get(), std::span<std::uint8_t>{received});
+        assert(received == expected);
+        assert(writer.releaseReply());
+        assert(writer.status() == TsRequestTlsWriteStatus::Idle);
+
+        // Existing GSS queueing performs no I/O. On a fresh writer, a
+        // raw-queued reply can therefore be adopted by the exact R1 owner
+        // on its FIRST write without allowing any direct SSL_write_ex.
+        constexpr std::array<std::uint8_t, 4> smallToken{
+            0x60, 0x82, 0x01, 0x00};
+        const auto secondExpected = encodeCredSspServerTsRequest(
+            6, CredSspServerReplyField::NegoToken, smallToken);
+        TsRequestTlsReplyWriter adoptedWriter;
+        assert(adoptedWriter.queueReply(
+            selectedServer, 6, CredSspServerReplyField::NegoToken,
+            smallToken));
+        bool secondShort = false;
+        assert(drainCredSspReplyThroughOwnedTls(
+                   adoptedWriter, owner, secondShort) ==
+               secondExpected.size());
+        std::vector<std::uint8_t> secondReceived(secondExpected.size());
+        readNativeTlsClientAll(
+            tls.client.get(), std::span<std::uint8_t>{secondReceived});
+        assert(secondReceived == secondExpected);
+
+        // Cancellation between complete write and release must fail safely
+        // without dereferencing the SSL that R1 just destroyed.
+        owner.cancel();
+        assert(!adoptedWriter.releaseReply());
+        assert(adoptedWriter.status() == TsRequestTlsWriteStatus::Closed);
+    }
+
+    // An owner-bound writer cannot be downgraded to direct SSL_write_ex.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        SSL *const selectedServer = tls.server.get();
+        establishOwnedApplicationTls(owner, clientIo, tls);
+        constexpr std::array<std::uint8_t, 4> token{
+            0x60, 0x82, 0x01, 0x00};
+
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(
+            owner, 6, CredSspServerReplyField::NegoToken, token));
+        assert(writer.writeOneTlsStep(selectedServer).status ==
+               TsRequestTlsWriteStatus::Invalid);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(owner.active());
+        owner.cancel();
+    }
+
+    // A queued reply is tied to one exact R1 owner even when two valid TLS
+    // connections happen to be simultaneously established.
+    {
+        LoopbackSocketPair leftPair{false};
+        LoopbackSocketPair rightPair{false};
+        auto leftAccepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(leftPair.listener.value));
+        auto rightAccepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(rightPair.listener.value));
+        assert(leftAccepted.outcome == TcpAcceptOutcome::Accepted);
+        assert(rightAccepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection left{std::move(leftAccepted.connection)};
+        OwnedPreauthTcpConnection right{std::move(rightAccepted.connection)};
+        NativeTcpIo leftClient{
+            static_cast<std::uintptr_t>(leftPair.client.value)};
+        NativeTcpIo rightClient{
+            static_cast<std::uintptr_t>(rightPair.client.value)};
+        TlsHandshakeFixture leftTls{false, false};
+        TlsHandshakeFixture rightTls{false, false};
+        establishOwnedApplicationTls(left, leftClient, leftTls);
+        establishOwnedApplicationTls(right, rightClient, rightTls);
+        constexpr std::array<std::uint8_t, 4> token{
+            0x60, 0x82, 0x01, 0x00};
+
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(
+            left, 6, CredSspServerReplyField::NegoToken, token));
+        assert(writer.writeOneTlsStep(right).status ==
+               TsRequestTlsWriteStatus::Invalid);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(left.active());
+        assert(right.active());
+        left.cancel();
+        right.cancel();
+    }
 }
 
 #ifdef RDP_TEST_LINUX_GSSAPI
@@ -6839,6 +7150,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-coalesced", &testTlsCredSspCoalescingAndIdentity},
     {"credssp-tls-rejections", &testTlsCredSspRejections},
     {"credssp-tls-provenance", &testTlsCredSspProvenance},
+    {"credssp-r1-owned-framing", &testOwnedTlsCredSspFraming},
+    {"credssp-r1-owned-reply", &testOwnedTlsCredSspReplyTransport},
     {"credssp-tls-certificate-pinning", &testTlsCredSspCertificatePinning},
     {"credssp-tls-release-certificate-denial", &testTlsCredSspReleaseCertificateContinuity},
     {"credssp-active-tls-binding-positive", &testLiveTlsCertificateBindingPositive},

@@ -1,3 +1,37 @@
+## R1 owner-backed CredSSP framing authoring (2026-10-16)
+
+**Starting reconciled main:** `5d07e0881f8494878d7b92ace5a3ef9da64c371e`.
+
+**Production:** `src/server/security/credssp_tsrequest.{h,cpp}` gains
+owner-aware frame-reader and reply-writer overloads. They preserve the
+existing DER/certificate/GSS contract while routing production plaintext only
+through R1 `OwnedPreauthTcpConnection`. Owner/SSL correlation is checked at
+frame completion and reply release; owner substitution, raw-I/O downgrade,
+post-cancel stale provenance and selected-certificate changes fail closed.
+Legacy direct-SSL overloads remain for existing memory-BIO/provider tests.
+
+**Dedicated CTests:** `transport.credssp-r1-owned-framing` and
+`transport.credssp-r1-owned-reply`, dispatched by the existing
+`test_owned_preauth_session` binary. Native loopback coverage includes
+initial WANT, split DER intake, exact completed TLS provenance, wrong-owner
+and raw-path denials, cancellation safety, forced partial writes, exact reply
+bytes and first-write adoption of a GSS-style raw queue.
+
+**Previous R1 exact-SHA receipt:** Actions `38883617565` for
+`b41269ed75628285767dc3a59d7bedacfc3dcc8b` completed overall **FAIL**
+without executing the new R1/R10 cases: all platform/sanitizer builds stopped
+on an unrelated R8 test-source assert macro compile error. Documentation
+policy passed. That blocker and its follow-up fixture-size correction are now
+on shared main, so the earlier cases remain **R1 NOT RUN**, not R1 failures.
+
+**Authoring environment:** no synchronized local checkout exists in this
+execution environment; no alternate build root/worktree was created.
+Checkout-local compile/CTest is therefore **NOT RUN**. Exact-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC, documentation-policy and ASan/UBSan
+evidence is required after publication. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, real Kerberos/native admission and Microsoft
+client validation remain **NOT RUN**.
+
 ## R5 exact descendant hosted receipt after lifecycle stabilization (2026-10-16)
 
 **Tested SHA:** `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`.

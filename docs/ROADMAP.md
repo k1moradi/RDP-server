@@ -1,3 +1,55 @@
+## R1-owned CredSSP framed application I/O seam (2026-10-16; exact-SHA CI pending)
+
+Starting reconciled shared `main`: `5d07e0881f8494878d7b92ace5a3ef9da64c371e`. This increment addresses
+cross-road issue #17 without adding a second TLS, authentication, or session
+owner. R2's existing `TsRequestFrameReader` and
+`TsRequestTlsReplyWriter` retain DER framing, selected-certificate pinning
+and GSS-facing semantics, while new production overloads consume the exact
+live R1 `OwnedPreauthTcpConnection`. TLS application plaintext is read and
+written only through `readTlsApplicationData()` /
+`writeTlsApplicationData()`; an owner-backed frame/reply never advances its
+borrowed SSL directly.
+
+The reader pins the exact established SSL plus the nonmoving R1 owner on its
+first owner-backed read. Owner substitution, switching to the raw-SSL read
+path, selected-certificate substitution, inactive transport, malformed DER
+and terminal R1 I/O fail closed. `completedFrameServerTls()` first checks
+that the owner still exposes the same established SSL before certificate
+revalidation, so R1 cancellation cannot leave a stale SSL dereference.
+
+The reply writer maps R1 Progress/NeedRead/NeedWrite/terminal results with no
+hidden retry and preserves stable queued bytes across WANT. Existing GSS
+queueing may still supply the established SSL to `queueReply` because
+queueing performs no TLS I/O; a fresh queued writer may be adopted by that
+exact R1 owner on its first write. Once owner-bound, raw
+`SSL_write_ex` progression is terminally denied. `releaseReply()` also
+rechecks the owner-to-SSL relation before touching certificate state.
+
+Dedicated production-backed loopback CTests are
+`transport.credssp-r1-owned-framing` and
+`transport.credssp-r1-owned-reply`. They cover initial WANT, split DER
+progress, exact TLS/certificate provenance, raw-path downgrade denial, owner
+substitution, R1 cancellation, forced 1 KiB short writes, exact
+client-visible DER, raw GSS-style queue adoption and cancellation between
+final write progress and release. They create no Kerberos success, native OS
+admission, R3 advancement or externally reachable listener.
+
+The prior R1/R10 test publication `b41269ed75628285767dc3a59d7bedacfc3dcc8b`
+ran as Actions `38883617565`: documentation-policy **PASS**, while all
+three protocol jobs and R9 sanitizer compilation were blocked before R1
+execution by the unrelated R8 assert-macro fixture error in
+`test_owned_remote_transfer.cpp`. Shared main has since fixed that compile
+blocker (`fa79a916fbdda240a8df9601858989ede5e4ca92`) and its follow-up
+FILEDESCRIPTORW fixture sizes
+(`2bdc77344862ee589ae3adbdbe167b4d5947bbc7`). No result from the blocked
+run is counted as R1 behavioral evidence.
+
+This closes the R1 transport half of issue #17. R2/R10 still need to drive
+their genuine CredSSP/GSS state machine through these owner-aware calls, and
+R1 still selects diagnostic `PROTOCOL_SSL`; genuine production
+`PROTOCOL_HYBRID` negotiation remains the next independent R1 dependency
+before positive M2 admission. M2 remains **NOT ACCEPTED**.
+
 ## R5 X11 lifecycle/input-boundary descendant hosted validation (2026-10-16)
 
 Validated descendant: `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`,

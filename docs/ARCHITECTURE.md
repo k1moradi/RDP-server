@@ -1,3 +1,31 @@
+### R1-owned CredSSP plaintext transport boundary (2026-10-16)
+
+CredSSP framing may inspect the same established server SSL for immutable
+role/version/cipher/certificate provenance, but production application I/O is
+owned exclusively by `OwnedPreauthTcpConnection`. The owner-aware
+`TsRequestFrameReader` and `TsRequestTlsReplyWriter` overloads therefore
+translate R1's bounded Progress/NeedRead/NeedWrite/terminal results rather
+than advancing OpenSSL directly.
+
+The reader pins two correlated borrows: the exact established SSL and, for
+the production path, the exact nonmoving R1 owner. A raw-SSL read cannot take
+over an owner-bound frame, a second owner cannot substitute even with a valid
+TLS session, and cancellation invalidates the owner-to-SSL relation before
+certificate revalidation. The owner object must outlive the framer, matching
+the existing event-loop lifetime rule.
+
+Reply queueing remains R2/GSS-owned and may identify the established SSL
+because queueing itself performs no provider I/O. A fresh raw-queued reply can
+be adopted by the exact R1 owner on its first write; after that adoption,
+direct `SSL_write_ex` progression is prohibited. Release rechecks the same
+owner before selected-certificate validation, preventing a stale SSL
+dereference after R1 cancellation.
+
+This boundary proves transport continuity only. R2 still owns DER/GSS/CredSSP
+semantics and native authorization, R3 remains the sole session state
+machine, and R10 owns the future event loop/listener. No framed byte or
+completed TLS handshake is an admission capability.
+
 ### R3 protected Channel Join receipts after Attach User (2026-10-16)
 
 The existing `McsSessionLifecycle`, not a second join owner, handles

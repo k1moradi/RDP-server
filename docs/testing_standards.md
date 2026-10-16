@@ -1,3 +1,18 @@
+## R1-owned CredSSP transport seam coverage (2026-10-16)
+
+Reuse the existing native loopback preauth executable for production CredSSP
+framing through R1's application-I/O methods. Cover an initial WANT, split DER
+progress, exact completed TLS provenance, different-owner denial, raw-SSL
+downgrade denial, cancellation before another read, forced short server
+writes, exact client-visible DER bytes, first-write adoption of a raw
+GSS-style queued reply and cancellation before reply release.
+
+These tests prove transport ownership and lifetime only. They must not
+fabricate Kerberos success, an OS admission lease, R3 session advancement or
+an externally reachable listener. If a full-suite build is blocked by another
+road before these cases execute, record the R1 cases as **NOT RUN** rather
+than inferring either PASS or FAIL.
+
 ## Runtime aggregate tests before listener activation
 
 Before a production listener exists, exercise a future connection aggregate

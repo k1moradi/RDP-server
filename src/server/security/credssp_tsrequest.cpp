@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "credssp_tsrequest.h"
+#include "transport/nonblocking_tcp_adapter.h"
 
 #include <algorithm>
 #include <openssl/crypto.h>
@@ -399,6 +400,7 @@ void TsRequestFrameReader::close() noexcept
 {
     clear();
     boundServerTls_ = nullptr;
+    boundOwner_ = nullptr;
     OPENSSL_cleanse(pinnedCertificate_.data(), pinnedCertificate_.size());
     certificatePinned_ = false;
     status_ = TsRequestFrameStatus::Closed;
@@ -429,6 +431,9 @@ const SSL *TsRequestFrameReader::completedFrameServerTls() const noexcept
 {
     if (status_ != TsRequestFrameStatus::Complete ||
         boundServerTls_ == nullptr || !certificatePinned_)
+        return nullptr;
+    if (boundOwner_ != nullptr &&
+        boundOwner_->establishedTls() != boundServerTls_)
         return nullptr;
     CredSspTlsCertificateFingerprint current{};
     if (!fingerprintActiveCredSspServerTlsCertificate(
@@ -478,10 +483,36 @@ TsRequestFrameResult TsRequestFrameReader::consume(
 TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
     SSL *serverTls) noexcept
 {
+    return readOneTlsStepImpl(serverTls, nullptr);
+}
+
+TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
+    transport::OwnedPreauthTcpConnection &connection) noexcept
+{
+    return readOneTlsStepImpl(nullptr, &connection);
+}
+
+TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStepImpl(
+    SSL *directServerTls,
+    transport::OwnedPreauthTcpConnection *connection) noexcept
+{
     if (status_ == TsRequestFrameStatus::Closed)
         return {0, TsRequestTlsReadStatus::Closed, TsRequestError::None};
 
-    if (serverTls == nullptr ||
+    if (connection != nullptr && !connection->active())
+    {
+        close();
+        return {0, TsRequestTlsReadStatus::Closed, TsRequestError::None};
+    }
+
+    const SSL *const serverTls =
+        connection != nullptr ? connection->establishedTls()
+                              : directServerTls;
+    const bool ownerMismatch =
+        (boundOwner_ != nullptr && boundOwner_ != connection) ||
+        (boundOwner_ == nullptr && boundServerTls_ != nullptr &&
+         connection != nullptr);
+    if (serverTls == nullptr || ownerMismatch ||
         (boundServerTls_ != nullptr && boundServerTls_ != serverTls) ||
         SSL_is_server(serverTls) != 1 ||
         SSL_is_init_finished(serverTls) != 1 ||
@@ -495,8 +526,6 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
     }
     if (status_ == TsRequestFrameStatus::Complete)
     {
-        // A manually supplied Complete frame must never acquire TLS
-        // provenance after the fact. No second TLS read before release.
         if (completedFrameServerTls() == nullptr)
         {
             close();
@@ -506,18 +535,13 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
         return {0, TsRequestTlsReadStatus::Complete, TsRequestError::None};
     }
 
-    // A partial frame injected through the direct plaintext parser cannot
-    // later acquire TLS provenance. TLS ownership starts with an empty frame.
     if (boundServerTls_ == nullptr && buffered_ != 0)
     {
         close();
         return {0, TsRequestTlsReadStatus::Invalid,
                 TsRequestError::InvalidFields};
     }
-    // An unchanged SSL* is NOT sufficient: the same object could have a
-    // different selected certificate after renegotiation/reconfiguration.
-    // Check it even for Complete frames and WANT retries before touching
-    // any further untrusted TLS plaintext.
+
     CredSspTlsCertificateFingerprint current{};
     if (!fingerprintActiveCredSspServerTlsCertificate(serverTls, current) ||
         (certificatePinned_ &&
@@ -535,7 +559,10 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
         certificatePinned_ = true;
     }
     OPENSSL_cleanse(current.data(), current.size());
+    if (boundServerTls_ == nullptr)
+        boundOwner_ = connection;
     boundServerTls_ = serverTls;
+
     std::array<std::uint8_t, 512> plaintext{};
     const std::size_t length =
         (std::min)(plaintext.size(), bytesNeeded());
@@ -547,22 +574,51 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
     }
 
     std::size_t obtained = 0;
-    const int ok = SSL_read_ex(serverTls, plaintext.data(), length, &obtained);
-    if (ok != 1)
+    if (connection != nullptr)
     {
-        // Consult OpenSSL immediately, without disturbing the error queue.
-        const int error = SSL_get_error(serverTls, ok);
-        if (error == SSL_ERROR_WANT_READ)
+        const auto result = connection->readTlsApplicationData(
+            std::span(plaintext).first(length));
+        switch (result.outcome)
+        {
+        case transport::TlsApplicationIoOutcome::Progress:
+            obtained = result.bytes;
+            break;
+        case transport::TlsApplicationIoOutcome::NeedRead:
             return {0, TsRequestTlsReadStatus::NeedRead,
                     TsRequestError::None};
-        if (error == SSL_ERROR_WANT_WRITE)
+        case transport::TlsApplicationIoOutcome::NeedWrite:
             return {0, TsRequestTlsReadStatus::NeedWrite,
                     TsRequestError::None};
-        // close_notify, truncated TLS, alerts and fatal provider failures.
-        close();
-        return {0, TsRequestTlsReadStatus::Invalid,
-                TsRequestError::InvalidFields};
+        case transport::TlsApplicationIoOutcome::TlsClosed:
+        case transport::TlsApplicationIoOutcome::TransportClosed:
+            close();
+            return {0, TsRequestTlsReadStatus::Closed, TsRequestError::None};
+        case transport::TlsApplicationIoOutcome::FatalTlsFailure:
+        case transport::TlsApplicationIoOutcome::Invalid:
+            close();
+            return {0, TsRequestTlsReadStatus::Invalid,
+                    TsRequestError::InvalidFields};
+        }
     }
+    else
+    {
+        const int ok = SSL_read_ex(
+            directServerTls, plaintext.data(), length, &obtained);
+        if (ok != 1)
+        {
+            const int error = SSL_get_error(directServerTls, ok);
+            if (error == SSL_ERROR_WANT_READ)
+                return {0, TsRequestTlsReadStatus::NeedRead,
+                        TsRequestError::None};
+            if (error == SSL_ERROR_WANT_WRITE)
+                return {0, TsRequestTlsReadStatus::NeedWrite,
+                        TsRequestError::None};
+            close();
+            return {0, TsRequestTlsReadStatus::Invalid,
+                    TsRequestError::InvalidFields};
+        }
+    }
+
     if (obtained == 0 || obtained > length)
     {
         close();
@@ -570,9 +626,6 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStep(
                 TsRequestError::InvalidFields};
     }
 
-    // SSL can internally buffer a coalesced record. The request passed to
-    // SSL_read_ex is exactly the next required DER prefix/body size so the
-    // following TSRequest remains unread until releaseFrame().
     const auto framed = consumePlaintext(
         std::span(plaintext).first(obtained));
     OPENSSL_cleanse(plaintext.data(), obtained);
@@ -690,9 +743,11 @@ void TsRequestTlsReplyWriter::close() noexcept
 {
     clear();
     boundServerTls_ = nullptr;
+    boundOwner_ = nullptr;
     OPENSSL_cleanse(pinnedCertificate_.data(), pinnedCertificate_.size());
     certificatePinned_ = false;
     failureQueued_ = false;
+    directIoUsed_ = false;
     status_ = TsRequestTlsWriteStatus::Closed;
 }
 
@@ -702,7 +757,18 @@ bool TsRequestTlsReplyWriter::queueReply(
 {
     return queueEncoded(
         serverTls, encodeCredSspServerTsRequest(version, field, providerOutput),
-        false);
+        false, nullptr);
+}
+
+bool TsRequestTlsReplyWriter::queueReply(
+    const transport::OwnedPreauthTcpConnection &connection,
+    std::uint8_t version, CredSspServerReplyField field,
+    std::span<const std::uint8_t> providerOutput) noexcept
+{
+    return queueEncoded(
+        connection.establishedTls(),
+        encodeCredSspServerTsRequest(version, field, providerOutput),
+        false, &connection);
 }
 
 bool TsRequestTlsReplyWriter::queueFailureReply(
@@ -711,16 +777,24 @@ bool TsRequestTlsReplyWriter::queueFailureReply(
 {
     return queueEncoded(
         serverTls, encodeCredSspServerFailureTsRequest(version, failure),
-        true);
+        true, nullptr);
+}
+
+bool TsRequestTlsReplyWriter::queueFailureReply(
+    const transport::OwnedPreauthTcpConnection &connection,
+    std::uint8_t version, CredSspServerFailure failure) noexcept
+{
+    return queueEncoded(
+        connection.establishedTls(),
+        encodeCredSspServerFailureTsRequest(version, failure),
+        true, &connection);
 }
 
 bool TsRequestTlsReplyWriter::queueEncoded(
-    SSL *serverTls, std::vector<std::uint8_t> encoded,
-    bool isFailure) noexcept
+    const SSL *serverTls, std::vector<std::uint8_t> encoded,
+    bool isFailure,
+    const transport::OwnedPreauthTcpConnection *connection) noexcept
 {
-    // This method is PRIVATE: callers cannot inject arbitrary DER.
-    // Both canonical serializers share the single TLS identity and
-    // pending-reply owner. Erase even discarded encoded GSS tokens.
     auto discard = [&encoded]() noexcept {
         if (!encoded.empty())
             OPENSSL_cleanse(encoded.data(), encoded.size());
@@ -730,7 +804,13 @@ bool TsRequestTlsReplyWriter::queueEncoded(
         discard();
         return false;
     }
-    if (status_ != TsRequestTlsWriteStatus::Idle ||
+
+    const bool ownerMismatch =
+        connection != nullptr &&
+        ((boundOwner_ != nullptr && boundOwner_ != connection) ||
+         directIoUsed_ ||
+         connection->establishedTls() != serverTls);
+    if (status_ != TsRequestTlsWriteStatus::Idle || ownerMismatch ||
         (boundServerTls_ != nullptr && boundServerTls_ != serverTls))
     {
         discard();
@@ -749,9 +829,11 @@ bool TsRequestTlsReplyWriter::queueEncoded(
         close();
         return false;
     }
-    frame_.swap(encoded); // Stable OpenSSL retry pointer, no extra copy.
+    frame_.swap(encoded);
     offset_ = 0;
     boundServerTls_ = serverTls;
+    if (connection != nullptr)
+        boundOwner_ = connection;
     failureQueued_ = isFailure;
     if (!certificatePinned_)
     {
@@ -766,15 +848,51 @@ bool TsRequestTlsReplyWriter::queueEncoded(
 TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStep(
     SSL *serverTls) noexcept
 {
+    return writeOneTlsStepImpl(serverTls, nullptr);
+}
+
+TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStep(
+    transport::OwnedPreauthTcpConnection &connection) noexcept
+{
+    return writeOneTlsStepImpl(nullptr, &connection);
+}
+
+TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStepImpl(
+    SSL *directServerTls,
+    transport::OwnedPreauthTcpConnection *connection) noexcept
+{
     if (status_ == TsRequestTlsWriteStatus::Closed)
         return {0, TsRequestTlsWriteStatus::Closed};
     if (status_ == TsRequestTlsWriteStatus::Idle)
         return {0, TsRequestTlsWriteStatus::Idle};
-    // Recheck the selected TLS certificate even after Complete; do not
-    // report idempotent completion for another selected certificate.
+
+    if (connection != nullptr && !connection->active())
+    {
+        close();
+        return {0, TsRequestTlsWriteStatus::Closed};
+    }
+
+    const SSL *const serverTls =
+        connection != nullptr ? connection->establishedTls()
+                              : directServerTls;
+    if (serverTls == nullptr || boundServerTls_ != serverTls ||
+        !certificatePinned_ ||
+        (boundOwner_ != nullptr && boundOwner_ != connection) ||
+        (connection == nullptr && boundOwner_ != nullptr) ||
+        (connection != nullptr && boundOwner_ == nullptr && directIoUsed_))
+    {
+        close();
+        return {0, TsRequestTlsWriteStatus::Invalid};
+    }
+
+    // Existing GSS queueing performs no SSL I/O, so a raw-queued reply may
+    // be adopted by this exact owner on the first write. No later downgrade
+    // to direct SSL_write_ex is permitted.
+    if (connection != nullptr && boundOwner_ == nullptr)
+        boundOwner_ = connection;
+
     CredSspTlsCertificateFingerprint current{};
     const bool sameCertificate =
-        boundServerTls_ == serverTls && certificatePinned_ &&
         matchesPinnedCertificate(serverTls, current);
     OPENSSL_cleanse(current.data(), current.size());
     if (!sameCertificate)
@@ -791,27 +909,56 @@ TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStep(
         close();
         return {0, TsRequestTlsWriteStatus::Invalid};
     }
+
     std::size_t written = 0;
-    const int ok = SSL_write_ex(serverTls, frame_.data() + offset_,
-                                remaining, &written);
-    if (ok != 1)
+    if (connection != nullptr)
     {
-        // OpenSSL's nonblocking retry MUST use the same buffer and size
-        // on WANT_READ/WANT_WRITE: never advance offsets in those cases.
-        const int error = SSL_get_error(serverTls, ok);
-        if (error == SSL_ERROR_WANT_READ)
+        const auto result = connection->writeTlsApplicationData(
+            std::span<const std::uint8_t>{frame_}.subspan(offset_));
+        switch (result.outcome)
         {
+        case transport::TlsApplicationIoOutcome::Progress:
+            written = result.bytes;
+            break;
+        case transport::TlsApplicationIoOutcome::NeedRead:
             status_ = TsRequestTlsWriteStatus::NeedRead;
             return {0, status_};
-        }
-        if (error == SSL_ERROR_WANT_WRITE)
-        {
+        case transport::TlsApplicationIoOutcome::NeedWrite:
             status_ = TsRequestTlsWriteStatus::NeedWrite;
             return {0, status_};
+        case transport::TlsApplicationIoOutcome::TlsClosed:
+        case transport::TlsApplicationIoOutcome::TransportClosed:
+            close();
+            return {0, TsRequestTlsWriteStatus::Closed};
+        case transport::TlsApplicationIoOutcome::FatalTlsFailure:
+        case transport::TlsApplicationIoOutcome::Invalid:
+            close();
+            return {0, TsRequestTlsWriteStatus::Invalid};
         }
-        close();
-        return {0, TsRequestTlsWriteStatus::Invalid};
     }
+    else
+    {
+        directIoUsed_ = true;
+        const int ok = SSL_write_ex(
+            directServerTls, frame_.data() + offset_, remaining, &written);
+        if (ok != 1)
+        {
+            const int error = SSL_get_error(directServerTls, ok);
+            if (error == SSL_ERROR_WANT_READ)
+            {
+                status_ = TsRequestTlsWriteStatus::NeedRead;
+                return {0, status_};
+            }
+            if (error == SSL_ERROR_WANT_WRITE)
+            {
+                status_ = TsRequestTlsWriteStatus::NeedWrite;
+                return {0, status_};
+            }
+            close();
+            return {0, TsRequestTlsWriteStatus::Invalid};
+        }
+    }
+
     if (written == 0 || written > remaining)
     {
         close();
@@ -828,6 +975,12 @@ bool TsRequestTlsReplyWriter::releaseReply() noexcept
 {
     if (status_ != TsRequestTlsWriteStatus::Complete)
         return false;
+    if (boundOwner_ != nullptr &&
+        boundOwner_->establishedTls() != boundServerTls_)
+    {
+        close();
+        return false;
+    }
     CredSspTlsCertificateFingerprint current{};
     const bool sameCertificate =
         certificatePinned_ &&

@@ -145,6 +145,8 @@ function(add_rdp_test source_file suite behavior)
                 credssp-tls-coalesced
                 credssp-tls-rejections
                 credssp-tls-provenance
+                credssp-r1-owned-framing
+                credssp-r1-owned-reply
                 credssp-tls-certificate-pinning
                 credssp-tls-reply-wire
                 credssp-tls-reply-backpressure

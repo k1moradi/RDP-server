@@ -1,3 +1,21 @@
+## R1-owned TLS application framing rule (2026-10-16)
+
+When a higher protocol layer needs decrypted/encrypted application bytes from
+an R1-owned accepted connection, it MUST call
+`OwnedPreauthTcpConnection::readTlsApplicationData` /
+`writeTlsApplicationData`. The `establishedTls()` borrow is
+inspection-only and MUST NOT be used to invoke `SSL_read_ex`,
+`SSL_write_ex` or handshake advancement outside R1.
+
+A higher-layer framer may pin that borrowed SSL together with the exact
+nonmoving R1 owner for synchronous certificate/provenance checks. Once
+owner-bound, fail closed on owner substitution, direct-SSL I/O downgrade,
+cancellation or selected-certificate change. Check owner validity before
+dereferencing a retained SSL borrow after any possible teardown. Pending WANT
+retries retain only operation identity and the same logical byte count inside
+R1; higher layers retain their own stable bytes and never hand R1 a stored
+caller span.
+
 ## Runtime connection aggregate teardown
 
 When R10 composes a live connection from existing road owners, do not transfer

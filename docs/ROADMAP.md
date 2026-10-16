@@ -3536,6 +3536,20 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   [issue #13](https://github.com/k1moradi/RDP-server/issues/13).
   **NOT RUN:** full repo hosted CTest on that exact SHA, owner macOS27,
   Windows CLANG64 Clang23, Linux/X11, live desktop and benchmarks.
+  **R7 Quartz exact-source hosted CI PASS (2026-10-16):**
+  Implementation `3849c8e3073822984c185aad1c996f87e448031e`,
+  [Actions 38858255530](https://github.com/k1moradi/RDP-server/actions/runs/38858255530)
+  completed Ubuntu/GCC **255/255**, macOS/Apple Clang **237/237**,
+  Windows/MSVC **254/254** registered CTests **in both Debug and Release**.
+  All three new `macos.desktop-native-reconfiguration-*` offline
+  CTests passed on all hosted OSes. Documentation-policy, R9 security
+  sanitizer, installed SDK consumer, and ZIP/checksum packaging PASS.
+  Native CoreGraphics callback code COMPILED/LINKED on hosted macOS;
+  tests emitted synthetic events only and NEVER registered the actual
+  Quartz callback or accessed TCC. **NOT RUN:** owner macOS27, Windows
+  CLANG64 Clang23 and Linux/X11 common-SHA one-root test, actual display
+  callbacks, authorized client, live ScreenCaptureKit/input, benchmarks.
+  M1/M5 open; next R2/R3-bound event subscription and R4 frame ownership.
   **R7 Quartz display notifications (2026-10-16):**
   Added explicit opt-in CoreGraphics `CGDisplayRegisterReconfigurationCallback`
   and paired removal, with a process-lifetime atomic revision signal and

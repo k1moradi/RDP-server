@@ -5935,3 +5935,23 @@ unchanged. M1–M6 remain OPEN.
 **R1 corrected production:** `c78a745aaa5180007a00a35a2858072974c2ad17` (Darwin supported SO_TYPE/peer guard, Linux/Windows SO_ACCEPTCONN and POSIX O_NONBLOCK preserved). **Exact-source integration SHA:** [`01a9dd001dc8111668635511208a0a6a93bff622`](https://github.com/k1moradi/RDP-server/commit/01a9dd001dc8111668635511208a0a6a93bff622), [Actions run 38858078854](https://github.com/k1moradi/RDP-server/actions/runs/38858078854) **SUCCESS**. Linux/GCC full **252/252 Debug and Release**, macOS/AppleClang full **234/234 Debug and Release**, Windows/MSVC full **251/251 Debug and Release**. Both dedicated new R1 listener configuration CTests `transport.tcp-native-listener-role-and-mode-denials` and `transport.tcp-native-wrong-socket-type-denials` PASS across all six platform/build combinations. R9 security-protocol sanitizer, documentation-policy, SDK downstream consumer and artifact packaging PASS. Windows runtime `runtime.validates-tls-files-private-regular` also PASS in Debug and Release after a separately owned R10 test correction; [Issue #14](https://github.com/k1moradi/RDP-server/issues/14) CLOSED. Historical earlier failure at R1 SHA c78a remains documented above, not retroactively marked PASS.
 
 **OWNER checkpoints NOT RUN:** Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS27 at one exact nominated SHA. Actual Microsoft RDP client, real credential validation, independent OS session authorization, MCS/channel/share activation, desktop and service operations **NOT RUN**. This is native R1 transport CI acceptance, not M2/M6 milestone acceptance.
+
+## R7 native topology signal exact-commit hosted CI (2026-10-16)
+
+**Code SHA:** `3849c8e3073822984c185aad1c996f87e448031e`.
+**Exact-SHA PASS:** [GitHub Actions 38858255530](https://github.com/k1moradi/RDP-server/actions/runs/38858255530),
+Ubuntu/GCC **255/255**, macOS/Apple Clang **237/237**, Windows/MSVC
+**254/254** registered CTests **in both Debug and Release**.
+All three new R7 synthetic Quartz topology tests passed on each OS.
+Hosted macOS compiled and linked the actual CoreGraphics callback
+registration/removal in `rdp-server-macos-capture`, which is isolated
+from the portable protocol SDK. Documentation policy, R9 security
+sanitizers, staged SDK consumer, ZIP/checksum artifacts PASS.
+**NOT RUN:** actual native CoreGraphics callback firing/unregister against
+an interactive user, macOS27 owner one-root CTest, Windows MSYS2 CLANG64
+Clang23 and Linux/X11 owner exact-SHA CTests, real TCC/ScreenCaptureKit
+frames, authorized Microsoft RDP client, cursor/input and benchmarks.
+**First missing boundary:** R2/R3-authorized per-user session and native
+listener start/stop ownership, then R4-approved BGRA frame transfer.
+**Next:** deterministic native callback cancellation/race fixture and
+an explicitly authorized native ScreenCaptureKit lifecycle increment.

@@ -3726,9 +3726,16 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   one ordinary Format Data Response slot. This portable boundary does not
   block, sleep, start threads, publish an OS clipboard, convert image bytes
   or grant R3 channel authority. Dedicated
-  `clipboard.nonblocking-paste-readiness` CTest. **At authoring:** exact-SHA
-  hosted CI, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and live
-  native paste are NOT RUN.
+  `clipboard.nonblocking-paste-readiness` CTest. Exact implementation
+  `cc8e0a9cbfbbf6891720eab03f1e94b926a30285`,
+  [Actions 38870845839](https://github.com/k1moradi/RDP-server/actions/runs/38870845839)
+  **PASS**: Linux/GCC Debug+Release **277/277** each, macOS/Clang
+  Debug+Release **259/259** each, Windows/MSVC Debug+Release **277/277**
+  each; the dedicated R8 test passes all six configurations. R9 Clang
+  ASan/UBSan **19/19 clipboard + 10/10 MCS/CredSSP PASS** and the bounded
+  MCS/CLIPRDR fuzzer **1/1 PASS**; documentation-policy PASS; each staged
+  installed-package consumer **1/1 PASS**. Owner Linux/X11, Windows MSYS2
+  CLANG64/Clang23, macOS27 and live native paste remain NOT RUN.
   **Remaining:** bind this receipt to R5/R6/R7 asynchronous native clipboard
   requests and bounded lazy image conversion/INCR, then real-client paste
   acceptance.

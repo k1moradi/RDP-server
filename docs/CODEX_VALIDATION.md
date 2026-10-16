@@ -43,7 +43,7 @@ independently authorized target session's native window/service WTS events
 onto the existing serialized R6 owner, then bind authorized D3D11/DXGI
 device/output lifetime.
 
-## R8 nonblocking pending-paste receipt (2026-10-16; CI pending)
+## R8 nonblocking pending-paste receipt exact-SHA hosted CI (2026-10-16)
 
 **Authoring parent main:** `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`. The existing event-loop-confined
 `RemoteTransfer` now owns one portable native paste receipt in addition to
@@ -67,12 +67,26 @@ registration denial without an offer/with expired deadlines, live paste during
 an already-in-flight speculative image request, suppression of speculative
 fallback, ready Unicode and DIB completion, exact-deadline timeout, stale and
 valid owner-loss cancellation, valid Format List replacement, disconnect,
-monotonic reconnect receipts and channel poison. **NOT RUN at authoring:**
-local canonical CMake/CTest in this tool environment, exact-SHA hosted CI,
-owner Linux/X11 / Windows MSYS2 CLANG64 Clang23 / macOS27, native clipboard
-ownership/INCR, Microsoft-client/Firefox paste and performance. Next R8 gate:
-bind the receipt to one R5/R6/R7 native asynchronous clipboard adapter path
-with bounded lazy conversion while preserving R3 writer authority.
+monotonic reconnect receipts and channel poison.
+
+**Implementation SHA:** `cc8e0a9cbfbbf6891720eab03f1e94b926a30285`.
+**Actions run:** [38870845839](https://github.com/k1moradi/RDP-server/actions/runs/38870845839),
+overall **PASS**. Linux/GCC Debug **277/277** and Release **277/277**;
+macOS/Clang Debug **259/259** and Release **259/259**; Windows/MSVC Debug
+**277/277** and Release **277/277**. The dedicated
+`clipboard.nonblocking-paste-readiness` CTest passed in all six
+configurations. R9 Clang ASan/UBSan passed **19/19 clipboard** tests and
+**10/10 MCS/CredSSP** tests, and `fuzz.mcs-cliprdr-bounded` passed **1/1**.
+Documentation policy passed. Each platform's staged installed-package
+consumer passed **1/1**; packaging and artifact upload completed, while
+prerelease publication was skipped without a release tag.
+
+**NOT RUN:** local canonical CMake/CTest in this tool environment, owner
+Linux/X11 / Windows MSYS2 CLANG64 Clang23 / macOS27 one-root commands,
+native clipboard ownership/INCR, Microsoft-client/Firefox paste and
+performance. Next R8 gate: bind the receipt to one R5/R6/R7 native
+asynchronous clipboard adapter path with bounded lazy conversion while
+preserving R3 writer authority.
 
 ## R8 validated image readiness exact-SHA hosted CI (2026-10-16)
 

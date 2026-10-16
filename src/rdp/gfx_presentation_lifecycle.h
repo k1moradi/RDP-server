@@ -82,6 +82,8 @@ public:
         std::uint64_t generation,
         std::span<const std::byte> advertisement) noexcept;
     // Configure exactly one AVC420-compatible even-size surface per mapping.
+    // surfaceId spans the full MS-RDPEGFX u16 domain, including zero; stage_
+    // carries configured/unconfigured state and must not be inferred from ID.
     [[nodiscard]] bool configureSurface(
         std::uint64_t generation, std::uint16_t surfaceId,
         PixelSize geometry, std::uint32_t originX = 0,

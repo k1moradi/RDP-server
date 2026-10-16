@@ -71,7 +71,7 @@ bool GfxPresentationLifecycle::configureSurface(
 {
     if (!active(generation) ||
         stage_ != GfxPresentationStage::SurfaceUnconfigured ||
-        surfaceId == 0 || geometry.widthPixels == 0 ||
+        geometry.widthPixels == 0 ||
         geometry.heightPixels == 0 || (geometry.widthPixels & 1U) != 0 ||
         (geometry.heightPixels & 1U) != 0 ||
         geometry.widthPixels > std::numeric_limits<std::uint16_t>::max() ||
@@ -161,6 +161,7 @@ bool GfxPresentationLifecycle::completeCommand(
     case GfxPresentationStage::DeleteInFlight:
         if (receipt.command != GfxPresentationCommand::Delete) { return false; }
         next = GfxPresentationStage::SurfaceUnconfigured;
+        // Value is irrelevant in this stage; zero remains wire-valid when mapped.
         surfaceId_ = 0;
         geometry_ = {};
         break;

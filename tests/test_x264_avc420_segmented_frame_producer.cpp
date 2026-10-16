@@ -72,13 +72,13 @@ GfxPresentationReceipt emit(GfxPresentationLifecycle &lifecycle,
 }
 
 void mapSurface(GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
-                PixelSize visible)
+                PixelSize visible, std::uint16_t surfaceId = 7)
 {
     assert(lifecycle.open(generation));
     assert(lifecycle.acceptCapabilities(generation, advertisement()));
     auto receipt = emit(lifecycle, generation);
     assert(lifecycle.completeCommand(receipt, receipt.bytes));
-    assert(lifecycle.configureSurface(generation, 7, visible));
+    assert(lifecycle.configureSurface(generation, surfaceId, visible));
     receipt = emit(lifecycle, generation);
     assert(lifecycle.completeCommand(receipt, receipt.bytes));
     receipt = emit(lifecycle, generation);
@@ -143,9 +143,10 @@ constexpr std::array<GfxAvc420QuantQuality, 1> kQuality{{{23, 80}}};
 
 X264Avc420FrameRequest request(std::uint32_t frameId,
                                const Nv12Frame &frame,
-                               std::int64_t pts) noexcept
+                               std::int64_t pts,
+                               std::uint16_t surfaceId = 7) noexcept
 {
-    return {7, frameId, frame.view(pts), kRegions, kQuality};
+    return {surfaceId, frameId, frame.view(pts), kRegions, kQuality};
 }
 
 void encodedDeliveryContinuity()
@@ -810,6 +811,40 @@ void zeroFrameIdDelivery()
     assert(acknowledged == GfxFrameAckWindowResult::Acknowledged);
 }
 
+
+void zeroSurfaceIdDelivery()
+{
+    constexpr std::uint64_t generation = 6601;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible, 0);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+
+    const auto firstPixels = makeFrame(kCoded, 8);
+    const auto nextPixels = makeFrame(kCoded, 19);
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepare(
+        lifecycle, generation, request(10, firstPixels, 0, 0), first));
+    assert(first.valid());
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(first.wireBytes().size() > 27U);
+    assert(first.wireBytes()[26] == std::byte{} &&
+           first.wireBytes()[27] == std::byte{});
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+
+    GfxFrameAckWindowResult acknowledged{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(10), acknowledged));
+    assert(acknowledged == GfxFrameAckWindowResult::Acknowledged);
+
+    GfxAvc420SegmentedFrame next;
+    assert(producer.prepare(
+        lifecycle, generation, request(11, nextPixels, 1, 0), next));
+    assert(hasNalType(next.wireBytes(), 1));
+    assert(!hasNalType(next.wireBytes(), 5));
+}
+
 void fixedCfrPtsPreserveReferenceContinuity()
 {
     // NV12: arbitrary caller PTS values must not become a second ordering
@@ -941,6 +976,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-zero-frame-id-delivery")
     {
         zeroFrameIdDelivery();
+        return 0;
+    }
+    if (behavior == "x264-segmented-zero-surface-id-delivery")
+    {
+        zeroSurfaceIdDelivery();
         return 0;
     }
     if (behavior == "x264-segmented-cfr-pts-reference-continuity")

@@ -12819,3 +12819,38 @@ Windows R2/R3 authorization is still absent, so no runtime DXGI/SendInput route
 is added. Live Desktop Duplication, Microsoft-client M4 acceptance and native
 performance remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT ACCEPTED.**
 
+
+
+## R4 zero-valued RDPGFX surface ID correction (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `58cca7726936acc42fc90024bb273c10fe7106a2`.
+
+Current MS-RDPEGFX defines CREATE_SURFACE and WIRE_TO_SURFACE `surfaceId` as
+16-bit unsigned surface identifiers and does not reserve zero. Microsoft's
+published RDPEGFX client test design explicitly creates, maps and uses
+`surfaceId = 0`, including a duplicate-surface negative case. R4's stateless
+CREATE/MAP/DELETE builders already serialized zero correctly, but the one
+stateful presentation lifecycle and AVC420 metadata preflight rejected zero.
+
+R4 now admits the full uint16 surface-ID wire domain by removing only those two
+non-normative zero rejections. No surface allocator or alternate owner is added:
+`GfxPresentationStage` remains the sole configured/unconfigured authority, so
+the stored ID value is irrelevant while the lifecycle is
+`SurfaceUnconfigured`. Frame delivery validity remains generation + receipt
+serial + stage, and exact-surface matching remains unchanged.
+
+Dedicated production-backed CTests:
+`graphics.surface-zero-id-wire` locks raw CREATE/MAP/DELETE serialization,
+and `graphics.x264-segmented-zero-surface-id-delivery` runs real x264 through
+the existing presentation lifecycle and segmented AVC420 path on surface zero,
+then requires the next same-surface frame to remain a reference-continuous
+P slice. The x264 case carries the existing `x264` label and therefore joins
+the fully instrumented ASan/UBSan R4 group.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest is **NOT RUN**
+in this connector environment. Exact-SHA Linux/GCC, macOS/Clang, Windows/MSVC
+Debug/Release, R4 x264 sanitizer, documentation policy and SDK/package checks
+are required after publication. Genuine authenticated R3 Graphics DVC/full-send
+integration, owner three-OS commands, native capture performance and
+Microsoft-client visible graphics remain **NOT RUN/BLOCKED**. Gate B and
+M3/M4/M5 remain **OPEN**.

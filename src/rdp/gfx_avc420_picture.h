@@ -22,6 +22,8 @@ struct GfxAvc420QuantQuality final
 
 struct GfxAvc420Picture final
 {
+    // Full MS-RDPEGFX surface-ID u16 domain; zero is a valid surface ID.
+    // Configuredness belongs to the presentation lifecycle stage, not this value.
     std::uint16_t surfaceId{};
     // Full MS-RDPEGFX START/END_FRAME u32 domain; zero is a valid wire ID.
     // Delivery validity is carried by the lifecycle receipt serial, not this ID.

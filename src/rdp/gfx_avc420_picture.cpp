@@ -119,7 +119,6 @@ bool gfxAvc420PictureMetadataValid(
     const PixelSize coded = picture.codedGeometry;
     const PixelSize visible = resolvedVisibleGeometry(picture);
     if (count == 0 || count > kGfxMaximumAvc420Regions ||
-        picture.surfaceId == 0 ||
         coded.widthPixels == 0 || coded.heightPixels == 0 ||
         (coded.widthPixels & 15U) != 0 ||
         (coded.heightPixels & 15U) != 0 ||

@@ -2098,3 +2098,14 @@ nonzero receipt serial and stage/generation state identify a live delivery.
 Tests must cover protocol boundary values through the complete production path,
 including duplicate/backpressure handling, rather than relying only on a
 serializer unit check.
+
+
+## R4 RDPGFX identifier-domain coverage (2026-10-16)
+
+Do not infer sentinel semantics from zero-valued RDPGFX scalar identifiers.
+Tests must cover the complete wire domains actually permitted by MS-RDPEGFX.
+START/END_FRAME `frameId` spans uint32 including zero, and surface-management
+/ WIRE_TO_SURFACE `surfaceId` spans uint16 including zero. Lifecycle validity
+must be asserted through explicit stage/generation/receipt state rather than by
+treating a legal wire identifier as an implicit "unset" value. Keep
+duplicate-ID and stale-generation tests independent from scalar-domain tests.

@@ -13314,3 +13314,24 @@ Windows R2/R3 authorization is still absent, so no runtime DXGI/SendInput route
 is added. Live Desktop Duplication, Microsoft-client M4 acceptance and native
 performance remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT ACCEPTED.**
 
+
+
+## R4 zero-valued RDPGFX surface ID authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `58cca7726936acc42fc90024bb273c10fe7106a2`.
+
+Normative/published Microsoft test review found that RDPGFX surface ID zero is
+valid: the wire field is uint16 and Microsoft's RDPEGFX client tests explicitly
+create and use surface 0. The existing stateless R4 surface builders already
+accepted it; only `GfxPresentationLifecycle::configureSurface` and
+`gfxAvc420PictureMetadataValid` imposed a contradictory zero rejection.
+
+Those two gates are corrected without adding an ID allocator or changing
+ownership. New ordinary CTests cover raw surface-zero wire commands and the
+real x264 segmented delivery path through the stateful lifecycle. The real-x264
+case is included in the existing sanitizer `x264` label.
+
+Canonical local execution is **NOT RUN** because this connector does not expose
+the owner `~/rdp-server` checkout. Exact publication-SHA hosted CI is the
+first executable gate. R3 Graphics DVC/full-send and real-client graphics
+remain **BLOCKED/NOT RUN**.

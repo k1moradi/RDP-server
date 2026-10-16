@@ -93,6 +93,24 @@ void testWire()
     assert(output[12] == std::byte{0xFF});
 }
 
+
+void testZeroSurfaceIdWire()
+{
+    std::array<std::byte, 24> output{};
+
+    output.fill(kCanary);
+    assert(buildGfxCreateSurfaceCommand({0, {640, 480}}, output) == 15);
+    assert(output[8] == std::byte{} && output[9] == std::byte{});
+
+    output.fill(kCanary);
+    assert(buildGfxMapSurfaceToOutputCommand({0, 11, 13}, output) == 20);
+    assert(output[8] == std::byte{} && output[9] == std::byte{});
+
+    output.fill(kCanary);
+    assert(buildGfxDeleteSurfaceCommand(0, output) == 10);
+    assert(output[8] == std::byte{} && output[9] == std::byte{});
+}
+
 void testRejections()
 {
     std::array<std::byte, 24> output{};
@@ -145,6 +163,11 @@ int main(int argc, char **argv)
     if (behavior == "surface-lifecycle-wire")
     {
         testWire();
+        return 0;
+    }
+    if (behavior == "surface-zero-id-wire")
+    {
+        testZeroSurfaceIdWire();
         return 0;
     }
     if (behavior == "surface-lifecycle-rejections")

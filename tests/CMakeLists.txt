@@ -338,6 +338,7 @@ function(add_rdp_test source_file suite behavior)
     elseif(test_target STREQUAL "test_gfx_surface_lifecycle")
         foreach(case_name IN ITEMS
                 surface-lifecycle-wire
+                surface-zero-id-wire
                 surface-lifecycle-rejections)
             add_test(NAME "graphics.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
@@ -1521,6 +1522,7 @@ foreach(case_name IN ITEMS
         x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset
         x264-segmented-zero-frame-id-delivery
+        x264-segmented-zero-surface-id-delivery
         x264-segmented-cfr-pts-reference-continuity
         bgra-nv12-bt709-pixel-oracle
         bgra-nv12-stride-padding-lifetime

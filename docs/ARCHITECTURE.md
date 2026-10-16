@@ -4552,3 +4552,15 @@ NSS/logind admission and Microsoft-client acceptance remain **NOT RUN**.
 R3's emerging licensing identity/configuration work does not remove this
 authentication blocker and is not sufficient reason to enable a listener.
 M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+
+## R4 RDPGFX surface identifier domain (2026-10-16)
+
+R4 treats `surfaceId` as the full MS-RDPEGFX uint16 wire domain, including
+zero. `GfxPresentationLifecycle::stage()` is the configuredness authority;
+the stored `surfaceId_` value is meaningful only in the surface-command /
+mapped stages and is not a validity sentinel. A mapped surface with ID zero
+therefore passes through CREATE, MAP, WIRE_TO_SURFACE_1, frame delivery/ACK
+and DELETE exactly like any other ID. R3 remains responsible for the future
+authenticated Graphics DVC; this rule adds no surface allocator or transport
+ownership.

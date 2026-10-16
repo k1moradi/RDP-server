@@ -16681,3 +16681,38 @@ R6 -> R10 composition gate is unchanged: after genuine R2/R3 authorization,
 R10 may serialize native session-change delivery into the stateless R6
 retirement boundary; recovery still requires fresh authorization and newly
 composed native owners.
+
+## R3 encrypted/MACed Server New/Upgrade License wrapper (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `11009883c7adc33b9c2fc3c479ac7712e49b7f8b`.
+
+R3 adds the roadmap's pure allocation-free grant wrapper:
+`encodeRdpServerLicenseGrant` packages already-authority-produced
+`NEW_LICENSE_INFO` as `SERVER_NEW_LICENSE` or
+`SERVER_UPGRADE_LICENSE`, RC4-encrypts the exact plaintext with the derived
+licensing key, and appends MS-RDPELE MACData over that plaintext.
+
+The 16 KiB CAL cap plus bounded scope/company/product fields yields a maximum
+17,940-byte plaintext and 17,964-byte wrapped grant, below R1's existing
+18 KiB TLS application-write ceiling. A fixed contiguous scratch packet keeps
+all rejection paths transactional.
+
+This remains offline: no CAL validation/signing/issuance, policy decision,
+lifecycle mutation, receipt owner, R2 authorization or network publication is
+added. The terminal-server RSA key-exchange credential is not a CAL issuer.
+
+New central CTests:
+`transport.licensing-server-license-grant-wire` and
+`transport.licensing-server-license-grant-denials`, both selected by the
+bounded R1/R3 ASan/UBSan gate.
+
+Canonical owner-local `~/rdp-server/build/` is **NOT RUN** here.
+Exact-publication-SHA hosted Debug/Release, sanitizer, documentation-policy and
+SDK/package evidence are pending.
+
+**Next R3:** define the real licensing-authority result boundary and only then
+add receipt-bound live New/Upgrade License publication behind fresh R2
+authorization. `CLIENT_LICENSE_INFO` still requires CAL trust/signature,
+product/version/expiration and HWID validation before
+`STATUS_VALID_CLIENT`. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

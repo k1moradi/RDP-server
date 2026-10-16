@@ -513,6 +513,12 @@ inline constexpr std::size_t kMaximumRdpServerLicenseIdentityTextBytes = 512U;
 // this keeps a future encrypted grant below R1's 18 KiB application-write cap.
 // CAL bytes are opaque here and MUST come from a real licensing authority.
 inline constexpr std::size_t kMaximumRdpIssuedCalBytes = 16U * 1024U;
+inline constexpr std::size_t kMaximumRdpNewLicenseInfoBytes =
+    20U + 3U * kMaximumRdpServerLicenseIdentityTextBytes +
+    kMaximumRdpIssuedCalBytes;
+inline constexpr std::size_t kMaximumRdpServerLicenseGrantBytes =
+    4U + 4U + kMaximumRdpNewLicenseInfoBytes +
+    kRdpLicensingMacBytes;
 
 enum class RdpNewLicenseInfoEncodeError : std::uint8_t
 {
@@ -618,6 +624,45 @@ private:
 [[nodiscard]] RdpNewLicenseInfoEncodeResult encodeRdpNewLicenseInformation(
     const RdpServerLicenseIdentity &identity,
     std::span<const std::uint8_t> issuedCal,
+    std::span<std::uint8_t> output) noexcept;
+
+enum class RdpServerLicenseGrantKind : std::uint8_t
+{
+    NewLicense,
+    UpgradeLicense,
+};
+
+enum class RdpServerLicenseGrantEncodeError : std::uint8_t
+{
+    None,
+    InvalidPlaintext,
+    Oversized,
+    OutputTooSmall,
+    EncryptionFailure,
+    MacFailure,
+};
+
+struct RdpServerLicenseGrantEncodeResult
+{
+    std::size_t bytesWritten{};
+    RdpServerLicenseGrantEncodeError error{
+        RdpServerLicenseGrantEncodeError::InvalidPlaintext};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpServerLicenseGrantEncodeError::None;
+    }
+};
+
+// MS-RDPELE 2.2.2.6 / 2.2.2.7 pure wrapper for already-authority-produced
+// NEW_LICENSE_INFO. The plaintext is RC4-encrypted into one
+// BB_ENCRYPTED_DATA_BLOB and MACData authenticates the exact plaintext.
+// This helper does not validate or issue CALs, mutate lifecycle state, create
+// receipts, invoke R2, or publish bytes. Output is unchanged on failure.
+[[nodiscard]] RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
+    RdpServerLicenseGrantKind kind,
+    std::span<const std::uint8_t> plaintextNewLicenseInfo,
+    const RdpLicensingKeyMaterial &keyMaterial,
     std::span<std::uint8_t> output) noexcept;
 
 struct RdpServerLicenseRequestEncodeResult

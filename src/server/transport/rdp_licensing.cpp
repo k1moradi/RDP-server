@@ -1227,6 +1227,74 @@ RdpNewLicenseInfoEncodeResult encodeRdpNewLicenseInformation(
     return {offset, RdpNewLicenseInfoEncodeError::None};
 }
 
+RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
+    RdpServerLicenseGrantKind kind,
+    std::span<const std::uint8_t> plaintextNewLicenseInfo,
+    const RdpLicensingKeyMaterial &keyMaterial,
+    std::span<std::uint8_t> output) noexcept
+{
+    constexpr std::size_t preambleBytes = 4U;
+    constexpr std::size_t blobHeaderBytes = 4U;
+    constexpr std::uint16_t encryptedDataBlobType = 0x0009U;
+
+    if (plaintextNewLicenseInfo.empty())
+        return {0U, RdpServerLicenseGrantEncodeError::InvalidPlaintext};
+    if (plaintextNewLicenseInfo.size() > kMaximumRdpNewLicenseInfoBytes ||
+        plaintextNewLicenseInfo.size() >
+            std::numeric_limits<std::uint16_t>::max())
+        return {0U, RdpServerLicenseGrantEncodeError::Oversized};
+
+    const std::size_t totalBytes =
+        preambleBytes + blobHeaderBytes + plaintextNewLicenseInfo.size() +
+        kRdpLicensingMacBytes;
+    if (totalBytes > kMaximumRdpServerLicenseGrantBytes ||
+        totalBytes > std::numeric_limits<std::uint16_t>::max())
+        return {0U, RdpServerLicenseGrantEncodeError::Oversized};
+    if (output.size() < totalBytes)
+        return {0U, RdpServerLicenseGrantEncodeError::OutputTooSmall};
+
+    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantBytes> packet{};
+    packet[0] = static_cast<std::uint8_t>(
+        kind == RdpServerLicenseGrantKind::NewLicense
+            ? RdpLicensingMessageType::ServerNewLicense
+            : RdpLicensingMessageType::ServerUpgradeLicense);
+    packet[1] = 0x03U;
+    writeLe16(packet, 2U, static_cast<std::uint16_t>(totalBytes));
+
+    std::size_t offset = preambleBytes;
+    writeLe16(packet, offset, encryptedDataBlobType);
+    writeLe16(
+        packet, offset + 2U,
+        static_cast<std::uint16_t>(plaintextNewLicenseInfo.size()));
+    offset += blobHeaderBytes;
+
+    auto encrypted =
+        std::span(packet).subspan(offset, plaintextNewLicenseInfo.size());
+    if (!cryptRdpLicensingData(
+            keyMaterial.encryptionKey, plaintextNewLicenseInfo, encrypted))
+    {
+        OPENSSL_cleanse(packet.data(), packet.size());
+        return {0U, RdpServerLicenseGrantEncodeError::EncryptionFailure};
+    }
+    offset += plaintextNewLicenseInfo.size();
+
+    auto mac = generateRdpLicensingMac(
+        keyMaterial.macSaltKey, plaintextNewLicenseInfo);
+    if (!mac)
+    {
+        OPENSSL_cleanse(packet.data(), packet.size());
+        OPENSSL_cleanse(mac.value.data(), mac.value.size());
+        return {0U, RdpServerLicenseGrantEncodeError::MacFailure};
+    }
+    std::copy(mac.value.begin(), mac.value.end(), packet.begin() + offset);
+    OPENSSL_cleanse(mac.value.data(), mac.value.size());
+    offset += kRdpLicensingMacBytes;
+
+    std::copy(packet.begin(), packet.begin() + offset, output.begin());
+    OPENSSL_cleanse(packet.data(), packet.size());
+    return {offset, RdpServerLicenseGrantEncodeError::None};
+}
+
 RdpServerLicenseRequestEncodeResult
 encodeEnhancedSecurityServerLicenseRequest(
     const RdpServerLicenseRequestFields &fields,

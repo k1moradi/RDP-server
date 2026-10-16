@@ -1,3 +1,20 @@
+## R9 TS_INFO_PACKET sanitizer selection (2026-10-16)
+
+**Parent:** `0abf1e5de12517817a70973be3740ac56ff1d522`.
+The R3 TS_INFO_PACKET exact-SHA receipt explicitly identifies two centrally
+registered production-backed cases that ordinary CI runs but the R9 bounded
+selector omitted: `transport.mcs-client-info-packet-structure` and
+`transport.mcs-client-info-packet-denials`.
+
+Only `.github/workflows/ci.yml` selection changes. The existing
+`test_owned_mcs_connect_initial` target is already compiled by the sanitizer
+job. Expected bounded R1/R3 transport/security coverage becomes **27 cases**;
+all other sanitizer groups and failure-isolation semantics are preserved.
+
+Owner-local testing is **NOT RUN** here. Exact publication-SHA hosted
+ASan/UBSan execution is pending; no positive authentication, licensing or
+Microsoft-client acceptance is inferred.
+
 ### R3 TS_INFO_PACKET exact-SHA hosted validation receipt (2026-10-16)
 
 Implementation `6d15aa6f1e564e389224e4b54d44b62b7d2920de`,

@@ -1,3 +1,28 @@
+## R9 TS_INFO_PACKET sanitizer coverage handoff (2026-10-16; exact-SHA CI pending)
+
+**Reconciled publication parent:** `0abf1e5de12517817a70973be3740ac56ff1d522`.
+R3 implementation `6d15aa6f1e564e389224e4b54d44b62b7d2920de` added
+`transport.mcs-client-info-packet-structure` and
+`transport.mcs-client-info-packet-denials`. Exact Actions `38904425329` is
+fully green across Linux/GCC, macOS/Clang and Windows/MSVC Debug/Release,
+but the R3 receipt correctly records those two packet-structure cases as
+**NOT RUN under R9 sanitizers**.
+
+R9 closes only that selector gap. Both cases already reuse the production
+`parseRdpClientInfoPacket` path inside `test_owned_mcs_connect_initial` and
+the central CTest registry; no parser, R3 lifecycle, test semantics, build
+target or credential/admission behavior changes. The existing bounded
+R1/R3 transport/security sanitizer selection grows from **25 to 27** cases.
+Clipboard, R4 x264, native GSS/R2/R3, R10 runtime, R5 X11 and fuzzer groups
+remain unchanged, as do ASan/UBSan options and the GSS-only MIT-krb5 LSan
+suppression.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution remain **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted evidence is required. Real Client Info from a
+Microsoft client, positive Kerberos/logind admission, licensing/Share and
+M2/M3 remain **NOT RUN/OPEN**.
+
 ### R3 TS_INFO_PACKET exact-SHA hosted validation receipt (2026-10-16)
 
 Implementation `6d15aa6f1e564e389224e4b54d44b62b7d2920de`,

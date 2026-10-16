@@ -86,12 +86,17 @@ also builds noninstalled `rdp-server-linux-x11-desktop`. The
 `x11.desktop-resource-owner-connection-denial` CTest needs no X server.
 When `xvfb-run` is present, CTest additionally registers
 `x11.desktop-resource-owner-lifecycle`,
-`x11.desktop-resource-event-routing`, and
+`x11.desktop-resource-event-routing`,
+`x11.desktop-resource-randr-rebuild`, and
 `x11.display-event-failure-defers-owner-teardown` against an ephemeral
 1280x720x24 Xvfb server. The routing case generates a real XDamage
 notification only on that synthetic root window; the failure case generates
 an invalid unchecked core request to verify child-before-parent teardown.
-Neither injects keyboard/mouse input or accesses a logged-in desktop.
+The RandR case disables only the synthetic Xvfb CRTC, resizes its root to
+1024x600 through XCB/RandR, verifies geometry-bound XShm/Damage/input
+reconstruction keeps the same XCB descriptor, then verifies a new XDamage
+notification is routed after the rebuild. None inject keyboard/mouse input
+or accesses a logged-in desktop.
 
 Hosted Ubuntu installs `xvfb` and `xauth`; local absence means those
 optional synthetic-display cases are NOT RUN, not PASS. The normal one-root

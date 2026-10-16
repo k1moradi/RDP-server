@@ -30,7 +30,7 @@ private:
 X11DesktopResources::X11DesktopResources(
     std::string_view displayName,
     std::uint64_t maximumCapturePixels) noexcept
-    : display_(displayName)
+    : display_(displayName), maximumCapturePixels_(maximumCapturePixels)
 {
     if (!display_.valid())
     {
@@ -50,7 +50,7 @@ X11DesktopResources::X11DesktopResources(
     }
 
     capture_.emplace(*connection, display_.rootWindow(), display_.rootVisual(),
-                     display_.rootDepth(), geometry, maximumCapturePixels);
+                     display_.rootDepth(), geometry, maximumCapturePixels_);
     if (!capture_->valid())
     {
         fail(capture_->failureReason());
@@ -168,15 +168,25 @@ X11DesktopResources::processEvents(std::size_t eventBudget,
         return ConnectionStatus::Failed;
     }
 
-    if (display_.sourceGeometry() != resourceGeometry_)
+    const PixelSize observedGeometry = display_.sourceGeometry();
+    if (observedGeometry != resourceGeometry_)
     {
+        if (!rebuildGeometryBoundResources(observedGeometry))
+        {
+            if (workMayRemain != nullptr)
+            {
+                *workMayRemain = false;
+            }
+            return ConnectionStatus::Failed;
+        }
+
+        // The display drain stops immediately after a valid RandR screen
+        // change. Service any events queued behind it only after the new
+        // geometry-bound generation is fully committed.
         if (workMayRemain != nullptr)
         {
-            *workMayRemain = false;
+            *workMayRemain = true;
         }
-        fail("X11 desktop geometry changed; native resources revoked");
-        cancelNativeResources();
-        return ConnectionStatus::Failed;
     }
     if (!childrenValid())
     {
@@ -210,20 +220,14 @@ X11DesktopResources::fail(const char *reason) noexcept
 }
 
 void
-X11DesktopResources::cancelNativeResources() noexcept
+X11DesktopResources::cancelGeometryBoundResources() noexcept
 {
-    // Input may own pressed native state, so release it first. Cursor, Damage
-    // and XShm all borrow the same XCB connection and must be cancelled before
-    // X11DisplayConnection closes that sole connection.
+    // Input can retain pressed native state and must release it before any
+    // other geometry-bound resource is replaced or the connection is closed.
     if (input_)
     {
         input_->disconnect();
         input_.reset();
-    }
-    if (cursor_)
-    {
-        cursor_->disconnect();
-        cursor_.reset();
     }
     if (damage_)
     {
@@ -235,8 +239,67 @@ X11DesktopResources::cancelNativeResources() noexcept
         capture_->disconnect();
         capture_.reset();
     }
-
     resourceGeometry_ = {};
+}
+
+bool
+X11DesktopResources::rebuildGeometryBoundResources(
+    PixelSize geometry) noexcept
+{
+    xcb_connection_t *connection = display_.nativeConnection();
+    if (connection == nullptr || geometry.widthPixels == 0 ||
+        geometry.heightPixels == 0)
+    {
+        fail("X11 desktop resize geometry is invalid");
+        cancelNativeResources();
+        return false;
+    }
+
+    // Commit-or-revoke transaction: no public call can observe the interval
+    // between old-generation cancellation and complete new construction.
+    cancelGeometryBoundResources();
+
+    capture_.emplace(*connection, display_.rootWindow(), display_.rootVisual(),
+                     display_.rootDepth(), geometry, maximumCapturePixels_);
+    if (!capture_->valid())
+    {
+        fail(capture_->failureReason());
+        cancelNativeResources();
+        return false;
+    }
+
+    damage_.emplace(*connection, display_.rootWindow(), geometry);
+    if (!damage_->valid())
+    {
+        fail(damage_->failureReason());
+        cancelNativeResources();
+        return false;
+    }
+
+    input_.emplace(*connection, display_.rootWindow(), geometry);
+    if (!input_->valid())
+    {
+        fail(input_->failureReason());
+        cancelNativeResources();
+        return false;
+    }
+
+    resourceGeometry_ = geometry;
+    return true;
+}
+
+void
+X11DesktopResources::cancelNativeResources() noexcept
+{
+    cancelGeometryBoundResources();
+
+    // Cursor is not geometry-bound, but it still borrows the same connection.
+    if (cursor_)
+    {
+        cursor_->disconnect();
+        cursor_.reset();
+    }
+
     display_.disconnect();
 }
 

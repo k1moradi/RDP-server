@@ -150,11 +150,21 @@ The aggregate now owns the bounded native event-routing call. Each serviced
 event is offered directly to the owned cursor and Damage trackers on the same
 serialized XCB thread; no event memory or child pointer escapes the callback.
 After the display owner processes its internal RandR observation, the
-aggregate compares the new source geometry with the geometry that capture,
-Damage and input were constructed against. A mismatch revokes all native
-children and the connection before stale bounds can be used. This increment
-intentionally revokes rather than reconstructs resources; rebuilding and R4
-frame/cursor consumption remain later admitted-session work.
+aggregate compares the new source geometry with the generation that XShm,
+Damage and input were constructed against. A valid size change stops the
+display drain before any later queued event is serviced. The aggregate then
+cancels the old input/Damage/XShm generation, reconstructs all three against
+the new bounds on the **same** XCB connection, and commits the new geometry
+only after every child is valid. Any reconstruction failure revokes the whole
+native owner instead of exposing a mixed generation. XFixes cursor remains
+connection-bound rather than geometry-bound and is retained across a
+successful resize.
+
+This is a synchronous commit-or-revoke transition on the serialized XCB owner
+thread, not a second scheduler. The caller is told work may remain after a
+screen-change boundary so queued events are drained only after the new
+generation is complete. R4 still owns frame/cursor scheduling and R3 still
+owns authorized input routing.
 
 A dispatch/protocol failure invalidates `X11DisplayConnection` readiness but
 does not immediately free its XCB allocation. The aggregate therefore gets a

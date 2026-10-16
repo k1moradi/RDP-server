@@ -44,8 +44,9 @@ public:
 
     /**
      * Route one bounded batch of XCB events to the owned cursor/damage
-     * adapters. RandR geometry changes revoke the geometry-bound resource set
-     * before any stale capture/input bounds can be reused.
+     * adapters. RandR geometry changes rebuild XShm/Damage/input against the
+     * new bounds before any later queued event is serviced. Rebuild failure
+     * revokes the complete native owner rather than exposing a partial mix.
      */
     [[nodiscard]] ConnectionStatus processEvents(
         std::size_t eventBudget = 128, bool *workMayRemain = nullptr,
@@ -57,6 +58,9 @@ public:
 
 private:
     void fail(const char *reason) noexcept;
+    void cancelGeometryBoundResources() noexcept;
+    [[nodiscard]] bool rebuildGeometryBoundResources(
+        PixelSize geometry) noexcept;
     void cancelNativeResources() noexcept;
     [[nodiscard]] bool childrenValid() const noexcept;
 
@@ -68,5 +72,6 @@ private:
     std::optional<X11DamageTracker> damage_{};
     std::optional<X11InputController> input_{};
     PixelSize resourceGeometry_{};
+    std::uint64_t maximumCapturePixels_{};
     const char *failureReason_{"not initialized"};
 };

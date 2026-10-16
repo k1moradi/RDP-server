@@ -7172,3 +7172,33 @@ remains `-fsanitize=address,undefined -fno-omit-frame-pointer
 admission:** NOT RUN. **R3->R8 authorized routing:** BLOCKED. **Owner platform
 trio, Microsoft client, performance/reliability:** NOT RUN. No temporary patch
 or diff file was created.
+
+## R5 transactional RandR geometry rebuild (2026-10-16; CI pending)
+
+**Authoring main:** `f99a2ad3efefb03b2316cc940cc625f77d3699eb`.
+
+**Production:** the display event drain now stops immediately after observing
+a valid root `SCREEN_CHANGE_NOTIFY`, and reports that work may remain. The
+one `X11DesktopResources` owner compares the new geometry with its committed
+resource generation. On change it releases old input state, XDamage and XShm,
+reconstructs XShm/Damage/XTEST against the new bounds using the unchanged XCB
+connection/root/visual/depth, and updates `resourceGeometry_` only after all
+three constructors succeed. XFixes cursor remains connected because it is
+root/connection-bound rather than capture-geometry-bound. Any rebuild failure
+uses the existing ordered full-owner cancellation path, so callers observe
+either a complete new generation or a revoked owner.
+
+**Dedicated ordinary CTest:** `x11.desktop-resource-randr-rebuild` runs only
+when the native aggregate and `xvfb-run` exist. It creates an ephemeral
+1280x720x24 Xvfb display, disables only that synthetic server's RandR CRTC,
+requests a 1024x600 root size using XCB/RandR, drives the production bounded
+event route until the new generation commits, verifies the XCB descriptor did
+not change, then clears the resized synthetic root and requires a notification
+from the newly constructed XDamage tracker. No credential, logged-in desktop,
+R2/R3 positive admission or XTEST injection is used.
+
+**NOT RUN at authoring:** synchronized local native build/full CTest in this
+environment, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23 and macOS27 one-root commands, admitted desktop routing, R4
+frame/cursor consumption, Microsoft-client M3 acceptance, and performance
+benchmarks.

@@ -865,13 +865,18 @@ if(TARGET rdp-server-linux-x11-desktop)
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources> event-routing)
+        add_test(NAME x11.desktop-resource-randr-rebuild
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_desktop_resources> randr-rebuild)
         set_tests_properties(
             x11.desktop-resource-owner-lifecycle
             x11.desktop-resource-event-routing
+            x11.desktop-resource-randr-rebuild
             PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
                        TIMEOUT 20)
     else()
-        message(STATUS "R5 xvfb-run unavailable: synthetic X11 owner lifecycle/event CTests not built")
+        message(STATUS "R5 xvfb-run unavailable: synthetic X11 owner lifecycle/event/resize CTests not built")
     endif()
 endif()
 

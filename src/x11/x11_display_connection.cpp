@@ -14,12 +14,18 @@ struct XcbPollContext
 {
     X11DisplayConnection *owner;
     bool socketReadable;
+    bool stopAfterCurrentEvent{false};
 };
 
 xcb_generic_event_t *
 poll_xcb_event(void *context) noexcept
 {
     const auto &state = *static_cast<XcbPollContext *>(context);
+    if (state.stopAfterCurrentEvent)
+    {
+        return nullptr;
+    }
+
     // Recheck after each callback: a sink may cancel/disconnect the owner.
     xcb_connection_t *connection = state.owner->nativeConnection();
     if (connection == nullptr)
@@ -42,6 +48,7 @@ struct RandrObservation
     std::uint8_t firstEvent;
     xcb_window_t rootWindow;
     PixelSize *geometry;
+    bool *stopAfterCurrentEvent;
 };
 
 void
@@ -62,6 +69,7 @@ observe_randr(const xcb_generic_event_t &event, void *context) noexcept
         resize.width != 0 && resize.height != 0)
     {
         *state.geometry = {resize.width, resize.height};
+        *state.stopAfterCurrentEvent = true;
     }
 }
 
@@ -269,7 +277,7 @@ X11DisplayConnection::processEvents(X11EventSink &eventSink,
 
     XcbPollContext poll{this, socketReadable};
     RandrObservation randr{this, randrFirstEvent_, rootWindow_,
-                           &sourceGeometry_};
+                           &sourceGeometry_, &poll.stopAfterCurrentEvent};
     const auto result = processX11EventBatch(
         eventSink, poll_xcb_event, &poll, eventBudget,
         observe_randr, &randr);
@@ -280,7 +288,7 @@ X11DisplayConnection::processEvents(X11EventSink &eventSink,
     }
     if (workMayRemain != nullptr)
     {
-        *workMayRemain = result.workMayRemain;
+        *workMayRemain = result.workMayRemain || poll.stopAfterCurrentEvent;
     }
     return ConnectionStatus::Ok;
 }

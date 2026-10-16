@@ -9,6 +9,7 @@
 #include <string_view>
 #include <thread>
 
+#include <xcb/randr.h>
 #include <xcb/xcb.h>
 
 namespace
@@ -28,6 +29,16 @@ struct XcbConnectionDeleter
 using XcbConnection = std::unique_ptr<xcb_connection_t, XcbConnectionDeleter>;
 
 constexpr std::uint64_t kCaptureArenaPixels = 256U * 1024U;
+
+XcbConnection
+connectHelper(const char *display, int &screenNumber)
+{
+    XcbConnection connection(xcb_connect(display, &screenNumber));
+    assert(connection != nullptr);
+    assert(screenNumber >= 0);
+    assert(xcb_connection_has_error(connection.get()) == 0);
+    return connection;
+}
 
 const char *
 syntheticDisplay()
@@ -49,6 +60,69 @@ screenFor(xcb_connection_t &connection, int screenNumber)
     }
     assert(iterator.rem > 0 && iterator.data != nullptr);
     return iterator.data;
+}
+
+void
+disableRandrCrtcsAndResize(xcb_connection_t &connection,
+                           xcb_window_t root,
+                           PixelSize geometry) noexcept
+{
+    xcb_generic_error_t *resourcesError = nullptr;
+    const auto resourcesCookie =
+        xcb_randr_get_screen_resources_current(&connection, root);
+    xcb_randr_get_screen_resources_current_reply_t *resources =
+        xcb_randr_get_screen_resources_current_reply(
+            &connection, resourcesCookie, &resourcesError);
+    assert(resourcesError == nullptr);
+    std::free(resourcesError);
+    assert(resources != nullptr);
+
+    const int crtcCount =
+        xcb_randr_get_screen_resources_current_crtcs_length(resources);
+    xcb_randr_crtc_t *crtcs =
+        xcb_randr_get_screen_resources_current_crtcs(resources);
+    assert(crtcCount >= 0);
+    for (int index = 0; index < crtcCount; ++index)
+    {
+        xcb_generic_error_t *configError = nullptr;
+        const auto configCookie = xcb_randr_set_crtc_config(
+            &connection, crtcs[index], resources->timestamp,
+            resources->config_timestamp, 0, 0, XCB_NONE,
+            XCB_RANDR_ROTATION_ROTATE_0, 0, nullptr);
+        xcb_randr_set_crtc_config_reply_t *config =
+            xcb_randr_set_crtc_config_reply(
+                &connection, configCookie, &configError);
+        assert(configError == nullptr);
+        std::free(configError);
+        assert(config != nullptr);
+        assert(config->status == XCB_RANDR_SET_CONFIG_SUCCESS);
+        std::free(config);
+    }
+    std::free(resources);
+
+    const xcb_void_cookie_t resizeCookie =
+        xcb_randr_set_screen_size_checked(
+            &connection, root,
+            static_cast<std::uint16_t>(geometry.widthPixels),
+            static_cast<std::uint16_t>(geometry.heightPixels),
+            geometry.widthPixels / 4, geometry.heightPixels / 4);
+    xcb_generic_error_t *resizeError =
+        xcb_request_check(&connection, resizeCookie);
+    assert(resizeError == nullptr);
+    std::free(resizeError);
+    assert(xcb_flush(&connection) > 0);
+}
+
+void
+clearSyntheticRoot(xcb_connection_t &connection, xcb_window_t root) noexcept
+{
+    const xcb_void_cookie_t clearCookie = xcb_clear_area_checked(
+        &connection, 0, root, 0, 0, 32, 32);
+    xcb_generic_error_t *clearError =
+        xcb_request_check(&connection, clearCookie);
+    assert(clearError == nullptr);
+    std::free(clearError);
+    assert(xcb_flush(&connection) > 0);
 }
 
 void
@@ -123,21 +197,12 @@ syntheticXvfbEventRouting()
     assert(resources.valid());
 
     int helperScreenNumber = -1;
-    XcbConnection helper(xcb_connect(display, &helperScreenNumber));
-    assert(helper != nullptr);
-    assert(helperScreenNumber >= 0);
-    assert(xcb_connection_has_error(helper.get()) == 0);
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
     xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
     const std::uint64_t notificationCountBefore =
         resources.damageNotificationCount();
 
-    const xcb_void_cookie_t clearCookie = xcb_clear_area_checked(
-        helper.get(), 0, helperScreen->root, 0, 0, 32, 32);
-    xcb_generic_error_t *clearError =
-        xcb_request_check(helper.get(), clearCookie);
-    assert(clearError == nullptr);
-    std::free(clearError);
-    assert(xcb_flush(helper.get()) > 0);
+    clearSyntheticRoot(*helper, helperScreen->root);
 
     bool routedDamage = false;
     for (std::size_t attempt = 0; attempt < 250; ++attempt)
@@ -156,6 +221,68 @@ syntheticXvfbEventRouting()
     assert(routedDamage);
     assert(resources.damagePending());
     assert(resources.valid());
+    resources.disconnect();
+}
+
+void
+syntheticXvfbRandrRebuild()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    assert(resources.valid());
+    assert(resources.randrAvailable());
+    const int originalDescriptor = resources.fileDescriptor();
+    assert(originalDescriptor >= 0);
+    assert((resources.sourceGeometry() == PixelSize{1280, 720}));
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+    constexpr PixelSize resizedGeometry{1024, 600};
+    disableRandrCrtcsAndResize(
+        *helper, helperScreen->root, resizedGeometry);
+
+    bool rebuilt = false;
+    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(8, &workMayRemain, true) ==
+               ConnectionStatus::Ok);
+        if (resources.sourceGeometry() == resizedGeometry)
+        {
+            rebuilt = true;
+            assert(workMayRemain);
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(rebuilt);
+    assert(resources.valid());
+    assert(resources.fileDescriptor() == originalDescriptor);
+
+    const std::uint64_t notificationsAfterResize =
+        resources.damageNotificationCount();
+    clearSyntheticRoot(*helper, helperScreen->root);
+
+    bool routedPostResizeDamage = false;
+    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(8, &workMayRemain, true) ==
+               ConnectionStatus::Ok);
+        if (resources.damageNotificationCount() > notificationsAfterResize)
+        {
+            routedPostResizeDamage = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(routedPostResizeDamage);
+    assert(resources.damagePending());
+    assert(resources.valid());
+    assert(resources.fileDescriptor() == originalDescriptor);
     resources.disconnect();
 }
 
@@ -179,6 +306,11 @@ main(int argc, char **argv)
     if (behavior == "event-routing")
     {
         syntheticXvfbEventRouting();
+        return 0;
+    }
+    if (behavior == "randr-rebuild")
+    {
+        syntheticXvfbRandrRebuild();
         return 0;
     }
 

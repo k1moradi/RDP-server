@@ -3553,6 +3553,29 @@ actually run; another parser CTest alone is not a complete session.
   consumption; Microsoft-client M3 acceptance; performance benchmarks.
   The runtime still does not link the native X11 aggregate. M3 remains OPEN.
 
+  **R5 transactional RandR geometry rebuild (2026-10-16; based on main
+  `f99a2ad3efefb03b2316cc940cc625f77d3699eb`; exact-SHA CI pending):** Replace resize revocation with a
+  synchronous commit-or-revoke rebuild under the existing
+  `X11DesktopResources` owner. A valid RandR screen-change notification now
+  stops the bounded display drain before later queued events; the aggregate
+  cancels old XTEST/Damage/XShm geometry-bound state, reconstructs all three
+  against the new bounds on the same XCB connection, and publishes the new
+  geometry only after every child is valid. XFixes cursor remains live across
+  a successful geometry-only transition. Rebuild failure closes the entire
+  native owner rather than exposing partial generations. Add ordinary
+  Linux/Xvfb CTest `x11.desktop-resource-randr-rebuild`: disable only the
+  ephemeral Xvfb CRTC, resize its root 1280x720 -> 1024x600 via XCB/RandR,
+  verify owner validity and unchanged XCB descriptor, then generate another
+  root change and verify the newly constructed XDamage tracker receives it.
+  No live desktop, credentials or input injection are involved.
+  **NOT RUN at authoring:** synchronized local native build/full CTest,
+  exact-SHA hosted CI, owner Linux/X11, Windows CLANG64/Clang23, macOS27,
+  admitted R2/R3 desktop routing, R4 frame/cursor consumption, Microsoft
+  client and benchmarks. **Next R5:** expose synchronous bounded capture,
+  Damage snapshot and cursor refresh/ack reads from this admitted native
+  owner for R4, then bind only R3-authorized typed input; do not create a
+  second graphics scheduler. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

@@ -477,6 +477,25 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# Shared R10 exact opened-file snapshot owner for TLS/licensing credentials.
+# It is noninstalled and keeps private-key bytes inside runtime-only consumers.
+add_library(rdp-server-runtime-credential-files STATIC
+    src/server/runtime/runtime_credential_file.cpp)
+target_compile_features(rdp-server-runtime-credential-files PUBLIC cxx_std_23)
+target_include_directories(rdp-server-runtime-credential-files PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-runtime-credential-files PUBLIC
+    OpenSSL::Crypto)
+if(WIN32)
+    target_link_libraries(rdp-server-runtime-credential-files PUBLIC Advapi32)
+endif()
+if(MSVC)
+    target_compile_options(rdp-server-runtime-credential-files PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-runtime-credential-files PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R10 runtime-only TLS owner: it securely validates one credential snapshot,
 # constructs one reusable server SSL_CTX, and creates per-connection SSL owners.
 # It is deliberately not installed/exported and never binds or listens.
@@ -485,8 +504,9 @@ add_library(rdp-server-runtime-tls STATIC
 target_compile_features(rdp-server-runtime-tls PUBLIC cxx_std_23)
 target_include_directories(rdp-server-runtime-tls PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
-target_link_libraries(rdp-server-runtime-tls PUBLIC
-    OpenSSL::Crypto OpenSSL::SSL)
+target_link_libraries(rdp-server-runtime-tls
+    PUBLIC OpenSSL::Crypto OpenSSL::SSL
+    PRIVATE rdp-server-runtime-credential-files)
 if(WIN32)
     target_link_libraries(rdp-server-runtime-tls PRIVATE Advapi32)
 endif()
@@ -505,8 +525,9 @@ add_library(rdp-server-runtime-licensing STATIC
 target_compile_features(rdp-server-runtime-licensing PUBLIC cxx_std_23)
 target_include_directories(rdp-server-runtime-licensing PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
-target_link_libraries(rdp-server-runtime-licensing PUBLIC
-    rdp-server-protocol)
+target_link_libraries(rdp-server-runtime-licensing
+    PUBLIC rdp-server-protocol
+    PRIVATE rdp-server-runtime-credential-files)
 if(MSVC)
     target_compile_options(rdp-server-runtime-licensing PRIVATE /W4)
 else()
@@ -715,7 +736,8 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "windows" EXCLUDE
     PATTERN "macos" EXCLUDE
     PATTERN "linux" EXCLUDE
-    PATTERN "x11" EXCLUDE)
+    PATTERN "x11" EXCLUDE
+    PATTERN "runtime_credential_file_internal.h" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake
     NAMESPACE RDPServer::

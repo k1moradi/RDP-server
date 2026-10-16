@@ -5789,6 +5789,99 @@ struct LicensingCryptoFixture final
     }
 };
 
+void writeRuntimeLicensingFixtureFile(
+    const char *path, std::span<const std::uint8_t> bytes)
+{
+    assert(path != nullptr && *path != '\0' && !bytes.empty());
+    std::ofstream output{
+        path, std::ios::binary | std::ios::out | std::ios::trunc};
+    assert(output.good());
+    output.write(
+        reinterpret_cast<const char *>(bytes.data()),
+        static_cast<std::streamsize>(bytes.size()));
+    assert(output.good());
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+readRuntimeLicensingFixtureFile(const char *path)
+{
+    assert(path != nullptr && *path != '\0');
+    std::ifstream input{path, std::ios::binary};
+    assert(input.good());
+    input.seekg(0, std::ios::end);
+    const auto end = input.tellg();
+    assert(end > 0);
+    input.seekg(0, std::ios::beg);
+    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(end));
+    input.read(
+        reinterpret_cast<char *>(bytes.data()),
+        static_cast<std::streamsize>(bytes.size()));
+    assert(input.good());
+    return bytes;
+}
+
+void emitRuntimeLicensingCredentialFixture(
+    const char *serverCertificatePath,
+    const char *privateKeyPath,
+    const char *encryptedPreMasterPath)
+{
+    const LicensingCryptoFixture fixture;
+    writeRuntimeLicensingFixtureFile(
+        serverCertificatePath, fixture.serverCertificate);
+    writeRuntimeLicensingFixtureFile(
+        privateKeyPath, fixture.privateKeyPem);
+    writeRuntimeLicensingFixtureFile(
+        encryptedPreMasterPath, fixture.encryptedPreMasterSecret);
+}
+
+void testRuntimeLicensingContextSecureFiles(
+    const char *serverCertificatePath,
+    const char *privateKeyPath,
+    const char *encryptedPreMasterPath)
+{
+    RuntimeLicensingContext context;
+    assert(context.configureFromCredentialFiles(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        serverCertificatePath, kServerLicenseScope, privateKeyPath));
+
+    const auto *identity = context.identity();
+    const auto *credential = context.credential();
+    assert(identity != nullptr && credential != nullptr);
+    assert(credential->matches(*identity));
+
+    const std::vector<std::uint8_t> retainedCertificate{
+        identity->serverCertificate().begin(),
+        identity->serverCertificate().end()};
+    const auto encryptedPreMaster =
+        readRuntimeLicensingFixtureFile(encryptedPreMasterPath);
+
+    constexpr std::array<std::uint8_t, 8> replacement{
+        'R', 'E', 'P', 'L', 'A', 'C', 'E', 'D'};
+    writeRuntimeLicensingFixtureFile(serverCertificatePath, replacement);
+    writeRuntimeLicensingFixtureFile(privateKeyPath, replacement);
+
+    assert(std::equal(
+        identity->serverCertificate().begin(),
+        identity->serverCertificate().end(),
+        retainedCertificate.begin(), retainedCertificate.end()));
+    assert(credential->matches(*identity));
+
+    std::array<std::uint8_t, kRdpLicensingPreMasterSecretBytes>
+        expectedPreMaster{};
+    for (std::size_t index = 0U; index < expectedPreMaster.size(); ++index)
+        expectedPreMaster[index] =
+            static_cast<std::uint8_t>(0x31U + index);
+
+    const auto decrypted =
+        credential->decryptPreMasterSecret(encryptedPreMaster);
+    assert(decrypted);
+    assert(decrypted.value == expectedPreMaster);
+
+    assert(!context.configureFromCredentialFiles(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        serverCertificatePath, kServerLicenseScope, privateKeyPath));
+}
+
 void testRuntimeLicensingContextOwnership()
 {
     LicensingCryptoFixture fixture;
@@ -6525,6 +6618,25 @@ constexpr std::array<McsTestCase, 100> kMcsTestCases{{
 
 int main(int argc, char **argv)
 {
+    if (argc == 5 && argv[1] != nullptr && argv[2] != nullptr &&
+        argv[3] != nullptr && argv[4] != nullptr)
+    {
+        const std::string_view mode{argv[1]};
+        if (mode == "emit-runtime-licensing-fixture")
+        {
+            emitRuntimeLicensingCredentialFixture(
+                argv[2], argv[3], argv[4]);
+            return 0;
+        }
+        if (mode == "licensing-runtime-context-secure-files")
+        {
+            testRuntimeLicensingContextSecureFiles(
+                argv[2], argv[3], argv[4]);
+            return 0;
+        }
+        return 2;
+    }
+
     if (argc == 1)
     {
         for (const auto &test : kMcsTestCases)

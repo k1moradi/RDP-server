@@ -15167,3 +15167,42 @@ boundary by reusing the already-reviewed R10 opened-file ownership rules rather
 than reopening caller pathnames, while keeping the resulting context offline
 and non-authorizing. Do not connect licensing into the per-connection aggregate
 or enable a listener until genuine R2 positive admission exists.
+
+
+
+## R10 shared secure credential snapshot + licensing file provisioning (2026-10-16; hosted CI pending)
+
+Starting reconciled shared `main`: `4b49f34b883d4377c51597b7df4ab5d76ff426dd`. R10 now factors the existing
+TLS credential opened-file rules into one runtime-internal exact snapshot owner
+and reuses it for licensing provisioning. Each absolute path is opened once;
+the native object identity is retained from that handle, certificate/key
+aliasing is rejected, the existing POSIX no-symlink/regular-file/mode rules or
+Windows opened-HANDLE reparse/DACL rules are applied, and exact bounded bytes
+are read from those already-open objects. Private-key bytes are explicitly
+cleansed on failed reads and snapshot destruction.
+
+`RuntimeServerTlsContext` and TLS metadata preflight are refactored onto this
+shared owner without changing PEM, validity, server-purpose or key-match
+semantics. `RuntimeLicensingContext::configureFromCredentialFiles` uses the
+same opened-file snapshot with R3's licensing-specific size ceilings and then
+synchronously transfers those exact bytes into the reviewed R3
+identity/credential owners. There is no validate-then-reopen pathname window.
+
+New cross-platform CTest
+`runtime.licensing-context-secure-file-snapshots` reuses the existing
+ephemeral R3 RSA/X.509 generator, applies deterministic owner-private
+permissions/DACLs, configures the production file-backed context, replaces both
+pathname contents with garbage, and still requires the retained private key to
+decrypt the original premaster and the retained certificate identity to remain
+unchanged. The case is included in the bounded Clang ASan/UBSan licensing
+selection. Existing TLS credential tests regression-test the shared opener.
+
+The internal helper header is excluded from the SDK. No configuration schema,
+listener, authentication, R2 lease, per-connection licensing transition,
+licensing decision or Share activation is added. Positive live composition
+remains blocked on R2's deny-only final CredSSP credential authorization.
+
+Canonical owner-local `~/rdp-server/build` and real credential/client gates
+are **NOT RUN** here. Exact-publication-SHA hosted Linux/GCC, macOS/Clang,
+Windows/MSVC, sanitizer, documentation-policy and SDK/package evidence are
+required before PASS is claimed. M2/M3 remain **OPEN / NOT ACCEPTED**.

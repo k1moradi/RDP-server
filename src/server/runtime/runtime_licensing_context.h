@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 namespace rdp_server::server::runtime
 {
@@ -37,6 +38,14 @@ public:
         std::span<const std::uint8_t> scopeAnsi,
         std::span<const std::uint8_t> privateKeyPem) noexcept;
 
+    [[nodiscard]] bool configureFromCredentialFiles(
+        std::uint32_t productVersion,
+        std::span<const std::uint8_t> companyNameUtf16,
+        std::span<const std::uint8_t> productIdUtf16,
+        std::string_view serverCertificatePath,
+        std::span<const std::uint8_t> scopeAnsi,
+        std::string_view privateKeyPath) noexcept;
+
     [[nodiscard]] bool configured() const noexcept { return configured_; }
 
     [[nodiscard]]
@@ -54,6 +63,14 @@ public:
     }
 
 private:
+    [[nodiscard]] bool configureSnapshot(
+        std::uint32_t productVersion,
+        std::span<const std::uint8_t> companyNameUtf16,
+        std::span<const std::uint8_t> productIdUtf16,
+        std::span<const std::uint8_t> serverCertificate,
+        std::span<const std::uint8_t> scopeAnsi,
+        std::span<const std::uint8_t> privateKeyPem) noexcept;
+
     rdp_server::server::transport::RdpServerLicenseIdentity identity_{};
     rdp_server::server::transport::RdpLicensingServiceCredential credential_{};
     bool attempted_{};

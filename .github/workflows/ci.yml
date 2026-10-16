@@ -206,7 +206,176 @@ jobs:
         run: |
           set -euo pipefail
           # Verify the actual central CTest registry before instrumented execution.
-          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-client-license-read|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$'
+          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-client-license-read|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-secure-file-snapshots|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'transport.licensing-server-identity-configuration' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-server-request-generated-random' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-key-exchange-wire' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-key-exchange-denials' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-key-derivation' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-rc4-wire' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-mac-wire' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-client-license-info-hwid-proof' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-client-license-info-hwid-denials' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-client-license-info-hwid-fresh-verification' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-premaster-rsa-decrypt' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-premaster-rsa-denials' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-runtime-context-ownership' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-runtime-context-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-context-secure-file-snapshots' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-initial-crypto-preparation' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-initial-crypto-denials' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-key-material-terminal-replay' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-native-accept-orderly-eof' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-native-accept-batch-budget-handoff' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-tls-application-cancellation' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-client-response-before-request-delivery' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-generated-request-cancellation-replay' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-client-response-single-consumption' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$licensing_selection" --output-on-failure
+      - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          # MIT krb5 1.20.1 and 1.21.3 both leak an unreachable internal
+          # principal copy when gss_acquire_cred_from fails with no output
+          # credential. Keep the suppression scoped to these GSS tests only.
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 --verbose \
+            -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|native-admission-r1-nla-provenance-denials|r3-initial-nla-owner-fence|r1-owned-credssp-provenance-fence|r1-owned-binding-delivery-fence|credssp-authinfo-terminal-denials|r1-owned-credssp-cancellation-fence|r1-owned-completed-frame-cancellation-fence|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-channel-join-contract|r3-channel-join-terminal-replay-fence|r3-joined-clipboard-role-contract|r3-client-info-route-contract|r3-server-license-request-write-contract|r3-client-licensing-route-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
+
+      - name: Run R10 Linux runtime pre-admission CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          # The R10 runtime aggregate acquires the same MIT GSS service
+          # credentials as the native R2 tests; keep the provider-only leak
+          # suppression scoped to this Linux GSS-backed selection.
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 --verbose \
+            -R '^runtime\.linux-connection-(credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|pre-admission-dispatch)$' --output-on-failure
+
+      - name: Run all R5 native X11 CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-disconnect-cancellation|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-connection-denials-and-cancellation|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild)|input-r3-admission-route-denials-and-revocation)$' --output-on-failure
+
+      - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --build-config Debug --timeout 60 -R '^fuzz\.mcs-cliprdr-bounded$' --output-on-failure
+
+  r7-macos-session-sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GCC sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gcc
+          command -v g++
+          gcc --version
+          g++ --version
+      - name: Configure R7 session-watch tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile R7 session-watch test target
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_macos_desktop_session_guard
+      - name: Run R7 macOS session-watch CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^macos\.desktop-session-' --output-on-failure
+
+  documentation-policy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
+
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
           printf '%s\n' "$selected_tests"

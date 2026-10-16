@@ -1,3 +1,41 @@
+## R8 Windows file-handle destination exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `e9df0e305f149758553e0a564f72d995262fe791`.  
+**Actions:** [38971892636](https://github.com/k1moradi/RDP-server/actions/runs/38971892636) — **SUCCESS**.
+
+The exact implementation SHA is green across the complete hosted matrix.
+Ubuntu/GCC full CTest is **481/481 PASS** in Debug and **481/481 PASS** in
+Release. macOS/Clang full CTest is **406/406 PASS** in Debug and
+**406/406 PASS** in Release. Windows/MSVC focused native preflight is
+**48/48 PASS** in Debug and Release; full CTest is **436/436 PASS** in Debug
+and **436/436 PASS** in Release. Downstream installed-SDK consumer, package,
+digest/artifact and documentation-policy gates pass.
+
+The three cross-platform R8 cases
+`clipboard.windows-file-destination-streaming`,
+`clipboard.windows-file-destination-size-cancel`, and
+`clipboard.windows-file-destination-denials` pass in every hosted
+Debug/Release configuration. The Windows-only production callback case
+`clipboard.windows-file-destination-native-handle` also passes in both MSVC
+configurations, exercising a real build-root HANDLE through DuplicateHandle,
+FileEndOfFileInfo truncation, WriteFile, FlushFileBuffers and duplicate close.
+
+R9 Clang ASan/UBSan clipboard coverage is **53/53 PASS**, including all three
+portable Windows destination cases. The sanitizer job also completes all of
+its other selected protocol/native groups and the bounded MCS/CLIPRDR fuzzer
+successfully.
+
+This validates the bounded Windows HANDLE destination and cross-platform
+state/receipt behavior only. Canonical owner-local `~/rdp-server/build`,
+owner Windows MSYS2 CLANG64/Clang23, live File Explorer handoff,
+authenticated Microsoft-client file copy, macOS file destination and
+clipboard-file performance remain **NOT RUN/OPEN**. No live user clipboard or
+user document was accessed.
+
+**Next R8:** add the equivalent bounded macOS file destination without
+whole-file prefetch, a second CLIPRDR writer or authentication shortcuts; only
+after exact completion may a later native file-manager handoff publish it.
+
 ## R8 Windows file-handle destination authoring validation (2026-10-16)
 
 **Base:** `3cdaa4d1b2355f26d6e1e33e95077b911d8515ae`. No MS-RDPECLIP wire codec changed; this increment consumes the already-reviewed FileContents receipt/result surface. Microsoft Win32 documentation was checked for synchronous `WriteFile` file-position behavior and `SetFileInformationByHandle(FileEndOfFileInfo)` truncation semantics.

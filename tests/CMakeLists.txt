@@ -1138,3 +1138,27 @@ foreach(case_name IN ITEMS
     set_tests_properties("graphics.${case_name}" PROPERTIES
         LABELS "protocol;graphics;x264;offline")
 endforeach()
+
+# R4 production codec -> packetizer -> segmented-frame convergence. This
+# remains noninstalled and links the native graphics target, not the SDK.
+add_executable(test_x264_avc420_segmented_frame_producer
+    test_x264_avc420_segmented_frame_producer.cpp)
+target_link_libraries(test_x264_avc420_segmented_frame_producer PRIVATE
+    rdp-server-graphics)
+if(MSVC)
+    target_compile_options(test_x264_avc420_segmented_frame_producer PRIVATE
+        /W4 /UNDEBUG)
+else()
+    target_compile_options(test_x264_avc420_segmented_frame_producer PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        x264-segmented-delivery-continuity
+        x264-segmented-backpressure-preflight
+        x264-segmented-publication-idr-recovery
+        x264-segmented-abort-generation-reset)
+    add_test(NAME "graphics.${case_name}"
+        COMMAND test_x264_avc420_segmented_frame_producer "${case_name}")
+    set_tests_properties("graphics.${case_name}" PROPERTIES
+        LABELS "protocol;graphics;x264;offline")
+endforeach()

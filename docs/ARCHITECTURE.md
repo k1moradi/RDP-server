@@ -1,3 +1,27 @@
+### R4 x264 publication/reference ownership (2026-10-16)
+
+`X264Avc420SegmentedFrameProducer` is the native-codec subordinate of the
+existing `GfxPresentationLifecycle`, not another graphics controller. One
+producer instance is bound to one presentation generation and one coded/
+visible geometry pair. Its synchronous input NV12 planes remain caller-owned;
+its output is the existing move-only `GfxAvc420SegmentedFrame`, which owns
+the complete RDP8 segmented wire bytes for a future R3 send.
+
+The producer preflights lifecycle generation, mapped surface and backpressure
+before encoding. Once x264 accepts a picture, that picture has entered codec
+reference history. Therefore any later failure to reserve/packetize the same
+frame invalidates that history: the producer immediately reconstructs x264 at
+the same geometry so the next accepted frame is IDR. Conversely, ordinary
+backpressure rejected before encode leaves the existing reference chain
+untouched. Terminal frame-delivery abort closes the presentation through its
+existing owner and resets codec history.
+
+R3 remains solely authoritative for authenticated Graphics DVC ownership,
+fragmentation and full transport completion. R2/native roads remain solely
+authoritative for admitted desktop/capture ownership. This producer cannot
+open a DVC, admit a peer, capture pixels, acknowledge delivery or create a
+second scheduling queue.
+
 ### R4 stable segmented-frame handoff ownership (2026-10-16)
 
 `GfxAvc420SegmentedFrame` owns exactly one complete R4 outbound frame after

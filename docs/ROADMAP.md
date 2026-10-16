@@ -1,3 +1,47 @@
+## R4 x264 -> segmented AVC420 publication owner (2026-10-16; exact-SHA CI pending)
+
+Starting inspected shared `main`: `be0a0322117742da5a2cdd8be97b972289d4cce0`;
+publication is reconciled onto the current shared `main`. R3 still exposes no
+authenticated `Microsoft::Windows::RDS::Graphics` DVC authority, so this
+increment does not fabricate a channel contract. Instead it closes the next
+R4-internal correctness gap between the already-landed x264 encoder and the
+already-landed stable segmented-frame handoff.
+
+New noninstalled `X264Avc420SegmentedFrameProducer` is subordinate to the
+existing single `GfxPresentationLifecycle`. It binds one x264 context to one
+nonzero presentation generation plus coded/visible geometry, accepts one
+validated NV12 picture request, produces genuine x264 Annex-B, composes the
+existing AVC420 packetizer and RDP8 segmented-data handoff, and returns the
+existing move-only `GfxAvc420SegmentedFrame`. It owns no graphics DVC,
+capture source, scheduler, transport queue, ACK window or authorization state.
+
+Reference continuity is fail-closed. Deterministic lifecycle/backpressure
+denials are checked before x264 runs. If x264 accepts a picture but the exact
+frame cannot subsequently be reserved/packetized, the producer immediately
+reopens the same encoder configuration so the next accepted picture starts
+with SPS/PPS/IDR instead of referencing an unsent frame. A terminal/partial
+delivery abort delegates to the existing presentation abort and drops codec
+history. Reconfiguration to a new generation creates fresh codec history.
+Successful full delivery preserves x264 references for later P slices.
+
+Dedicated production-backed CTests:
+`graphics.x264-segmented-delivery-continuity`,
+`graphics.x264-segmented-backpressure-preflight`,
+`graphics.x264-segmented-publication-idr-recovery`, and
+`graphics.x264-segmented-abort-generation-reset`. They encode real NV12 with
+the vendored x264 target and assert IDR/SPS/PPS on first/recovered frames,
+reference-continuous P slices after successful delivery, no codec advancement
+under R4 backpressure, and generation-safe abort/reset semantics.
+
+**Authoring validation:** source/CMake/test construction complete; canonical
+repository build/full CTest is **NOT RUN** in this tool environment because no
+owner `~/rdp-server/build/` checkout is available. Exact-SHA hosted CI is the
+next automated gate. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
+real R3 Graphics DVC, Microsoft-client rendering and graphics performance are
+**NOT RUN**. Gate B / M3 remains **OPEN**. **Next R4:** consume the future
+R3-authenticated Graphics DVC with this exact stable owned frame/full-send
+boundary; do not add another scheduler or synthetic authorization token.
+
 ## R10 Linux runtime-security publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Implementation commit: `d6efca9f14e8b5bd675016f0c7962f4f98a6da6d`

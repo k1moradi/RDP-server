@@ -1,3 +1,17 @@
+## Reference-coded graphics publication continuity
+
+For stateful video codecs, successful encode is itself a state transition:
+the codec may reference that picture from later frames even before transport
+accepts it. The single graphics owner must therefore check deterministic
+backpressure/generation/surface denials before encode. If encode succeeds but
+the corresponding frame cannot be transactionally reserved for publication,
+discard/reinitialize codec reference history so the next accepted frame is an
+independent refresh/IDR. Never continue a P-frame chain through an unsent or
+ambiguously delivered reference. A terminal/partial transport abort likewise
+invalidates codec history for that presentation generation. Keep this logic
+inside the one graphics owner/subordinate codec boundary, not in a second
+scheduler or transport queue.
+
 ## Linux provider credential-file continuity
 
 When a native provider API accepts a filename but R10 has already security-

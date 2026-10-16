@@ -1,3 +1,33 @@
+## R4 x264 -> segmented AVC420 producer authoring (2026-10-16)
+
+**Starting inspected main:** `be0a0322117742da5a2cdd8be97b972289d4cce0`;
+shared docs are reconciled onto newer concurrent `main`.
+
+**Production:** added
+`src/rdp/x264_avc420_segmented_frame_producer.{h,cpp}` to the existing
+noninstalled `rdp-server-graphics` target. The generation-bound owner
+composes the real x264 encoder with the existing
+`GfxAvc420SegmentedFrame` preparation/completion boundary. Backpressure is
+checked before encode; any post-encode publication failure reconstructs the
+encoder so no later P picture references an unsent frame. Delivery abort
+revokes the existing presentation and drops codec history. No R3 DVC,
+scheduler, transport, capture or authorization owner is added.
+
+**Dedicated CTests added:**
+`graphics.x264-segmented-delivery-continuity`,
+`graphics.x264-segmented-backpressure-preflight`,
+`graphics.x264-segmented-publication-idr-recovery`, and
+`graphics.x264-segmented-abort-generation-reset`. These use genuine vendored
+x264 output and inspect SPS/PPS/IDR/P-slice behavior across successful
+delivery, pre-encode backpressure, post-encode packet rejection and terminal
+generation reset.
+
+**NOT RUN at authoring:** canonical one-root CMake build/full CTest,
+Linux/GCC, Windows/MSVC, macOS/Clang, owner Linux/X11, owner Windows MSYS2
+CLANG64/Clang23, owner macOS27, real R3 Graphics DVC, Microsoft client and
+performance. Exact-SHA hosted CI is required after publication. Gate B / M3
+remains **OPEN**.
+
 ## R10 Linux runtime-security publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Implementation commit: `d6efca9f14e8b5bd675016f0c7962f4f98a6da6d`

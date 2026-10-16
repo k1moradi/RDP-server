@@ -11239,3 +11239,18 @@ provisioning into the R2-authorized R3 owner, client-license cryptography,
 Share activation, and Microsoft-client acceptance remain **OPEN / NOT RUN**.
 **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R5 pointer echo-authority rollover correction (2026-10-16; CI pending)
+
+Continuation review after the XI2 integration found a second bounded echo-state
+edge. A newly accepted remote move changes the pointer position already known
+to the peer, so the prior locally forwarded coordinate must no longer remain a
+duplicate-publication sentinel. Conversely, once a later native position is
+successfully published, any older remote-echo coordinate is stale and must not
+suppress a genuine future native return to that coordinate.
+
+The existing `x11.pointer-xi2-remote-echo-suppression` production-linked CTest
+now proves both rollover directions. This remains one latest-position observer
+under the sole XCB owner; it adds no timeout, queue, XTEST path, RDP parser,
+scheduler, or client-publication owner. Exact-SHA hosted CI is pending.

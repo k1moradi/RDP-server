@@ -182,6 +182,12 @@ X11PointerPositionTracker::noteRemotePointerPosition(
     }
     remotePosition_ = injectedRemotePosition(position);
     hasRemotePosition_ = true;
+
+    // The peer now knows the pointer at this remote position. A later native
+    // return to the previously forwarded local coordinate is not a duplicate
+    // of what the peer currently sees.
+    lastForwardedPosition_ = {};
+    hasForwardedPosition_ = false;
 }
 
 bool
@@ -243,6 +249,11 @@ X11PointerPositionTracker::acknowledge(X11PointerPosition position,
     hasPendingPosition_ = false;
     if (forwarded)
     {
+        // A successfully published local position supersedes any older
+        // remote-echo coordinate. If the pointer later returns there, that is
+        // a new native observation rather than the stale remote echo.
+        remotePosition_ = {};
+        hasRemotePosition_ = false;
         lastForwardedPosition_ = position;
         hasForwardedPosition_ = true;
         localPointerAuthorityPosition_ = position;

@@ -279,6 +279,28 @@ remoteEchoSuppression()
     assert(!tracker.shouldForward(remoteB));
     tracker.acknowledge(remoteB, false);
 
+    // Remote activity moved the peer away from localA, so a later native
+    // return to localA must not be suppressed by the old forwarded snapshot.
+    routeMotion(
+        tracker,
+        motionEvent(*fixture.connection, fixture.screen->root,
+                    static_cast<std::int64_t>(localA.x) * kFixedPointOne,
+                    static_cast<std::int64_t>(localA.y) * kFixedPointOne));
+    assert(tracker.pendingPosition(pending) && pending == localA);
+    assert(tracker.shouldForward(localA));
+    tracker.acknowledge(localA, true);
+
+    // Once that local return is actually published, the older remoteB echo
+    // authority is retired. A later native return to remoteB is new motion.
+    routeMotion(
+        tracker,
+        motionEvent(*fixture.connection, fixture.screen->root,
+                    static_cast<std::int64_t>(remoteB.x) * kFixedPointOne,
+                    static_cast<std::int64_t>(remoteB.y) * kFixedPointOne));
+    assert(tracker.pendingPosition(pending) && pending == remoteB);
+    assert(tracker.shouldForward(remoteB));
+    tracker.acknowledge(remoteB, false);
+
     constexpr X11PointerPosition localC{330, 350};
     constexpr X11PointerPosition localD{440, 460};
     routeMotion(

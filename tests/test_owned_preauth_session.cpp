@@ -3544,6 +3544,216 @@ void testR3ServerLicenseRequestSliceThroughOwnedTls()
 }
 
 
+void testR3ServerLicenseRequestCancelReplayThroughOwnedTls()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using WriteOutcome = RdpServerLicenseRequestWriteOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    static_assert(kMaximumRdpServerLicenseRequestBytes <=
+                  kMaximumTlsApplicationIoBytes);
+
+    const auto configureNearMaximumIdentity =
+        [](RdpServerLicenseIdentity &identity)
+        {
+            std::array<std::uint8_t,
+                       kMaximumRdpServerLicenseIdentityTextBytes> company{};
+            std::array<std::uint8_t,
+                       kMaximumRdpServerLicenseIdentityTextBytes> product{};
+            std::array<std::uint8_t,
+                       kMaximumRdpServerLicenseIdentityTextBytes> scope{};
+            for (std::size_t index = 0;
+                 index + 2U < company.size();
+                 index += 2U)
+            {
+                company[index] = static_cast<std::uint8_t>('R');
+                product[index] = static_cast<std::uint8_t>('P');
+            }
+            scope.fill(static_cast<std::uint8_t>('s'));
+            scope.back() = 0U;
+
+            // Synthetic protocol identity only. It cannot establish R2
+            // authorization or licensing-authority provenance.
+            constexpr std::array<std::uint8_t, 4> certificate{
+                0xde, 0xad, 0xbe, 0xef};
+            assert(identity.configure(
+                0x00060001U, company, product, certificate, scope));
+        };
+
+    // Cancellation before the first application write leaves R3 unchanged
+    // until the caller explicitly retires its independent licensing gate.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        RdpServerLicenseIdentity identity;
+        configureNearMaximumIdentity(identity);
+        RdpLicensingLifecycle lifecycle;
+        RdpServerLicenseRequestWriteGate gate{lifecycle};
+        assert(gate.queue(identity));
+        const auto pending = gate.pendingWrite();
+        assert(pending);
+        assert(pending.bytes.size() > 1024U);
+        const auto staleBytes = pending.bytes;
+        const auto staleReplySequence = pending.replySequence;
+        const auto staleWriteSliceSequence = pending.writeSliceSequence;
+        assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+
+        owner.cancel();
+        assert(!owner.active());
+        assert(owner.ioInterest() == Interest::Closed);
+        const auto closedWrite = owner.writeTlsApplicationData(staleBytes);
+        assert(closedWrite.outcome == Outcome::TransportClosed);
+        assert(closedWrite.bytes == 0U);
+        assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+
+        gate.close();
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+        assert(!gate.pendingWrite());
+        assert(gate.onBytesWritten(
+                   staleReplySequence,
+                   staleWriteSliceSequence,
+                   staleBytes.size()) == WriteOutcome::Rejected);
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+        assert(owner.writeTlsApplicationData(staleBytes).outcome ==
+               Outcome::TransportClosed);
+
+        owner.cancel();
+        gate.close();
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+    }
+
+    // Positive TLS progress may already be visible to the peer. Cancellation
+    // cannot retract it, but it must prevent the remaining suffix/receipt from
+    // becoming a completed licensing request.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        assert(SSL_set_max_send_fragment(tls.server.get(), 1024) == 1);
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        RdpServerLicenseIdentity identity;
+        configureNearMaximumIdentity(identity);
+        RdpLicensingLifecycle lifecycle;
+        RdpServerLicenseRequestWriteGate gate{lifecycle};
+        assert(gate.queue(identity));
+        auto pending = gate.pendingWrite();
+        assert(pending);
+        assert(pending.bytes.size() > 1024U);
+        const auto originalReplySequence = pending.replySequence;
+        const auto originalWriteSliceSequence = pending.writeSliceSequence;
+
+        const auto deadline = Clock::now() + std::chrono::seconds{5};
+        RdpServerLicenseRequestWriteView remaining{};
+        std::size_t acceptedBytes = 0U;
+        for (int attempt = 0;
+             attempt < 128 && acceptedBytes == 0U;
+             ++attempt)
+        {
+            const auto offered = pending.bytes;
+            const auto write = owner.writeTlsApplicationData(offered);
+            if (write.outcome == Outcome::Progress)
+            {
+                assert(write.bytes > 0U);
+                assert(write.bytes <= 1024U);
+                assert(write.bytes < offered.size());
+                acceptedBytes = write.bytes;
+                assert(gate.onBytesWritten(
+                           pending.replySequence,
+                           pending.writeSliceSequence,
+                           acceptedBytes) == WriteOutcome::Pending);
+                remaining = gate.pendingWrite();
+                assert(remaining);
+                assert(remaining.replySequence == pending.replySequence);
+                assert(remaining.writeSliceSequence !=
+                       pending.writeSliceSequence);
+                assert(remaining.bytes.data() ==
+                       offered.data() + acceptedBytes);
+                assert(remaining.bytes.size() ==
+                       offered.size() - acceptedBytes);
+                break;
+            }
+
+            assert(write.bytes == 0U);
+            assert(write.outcome == Outcome::NeedRead ||
+                   write.outcome == Outcome::NeedWrite);
+            const auto expectedInterest =
+                write.outcome == Outcome::NeedRead
+                    ? Interest::Read
+                    : Interest::Write;
+            assert(owner.ioInterest() == expectedInterest);
+            assert(gate.onBytesWritten(
+                       pending.replySequence,
+                       pending.writeSliceSequence,
+                       0U) == WriteOutcome::Pending);
+            const auto retry = gate.pendingWrite();
+            assert(retry);
+            assert(retry.replySequence == pending.replySequence);
+            assert(retry.writeSliceSequence ==
+                   pending.writeSliceSequence);
+            assert(retry.bytes.data() == offered.data());
+            assert(retry.bytes.size() == offered.size());
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome == PollOutcome::Dispatched ||
+                   polled.outcome == PollOutcome::NoEvent);
+            assert(polled.nextInterest == expectedInterest);
+            assert(Clock::now() < deadline);
+            pending = retry;
+        }
+
+        assert(acceptedBytes > 0U);
+        assert(remaining);
+        assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+
+        const auto remainingBytes = remaining.bytes;
+        const auto remainingReplySequence = remaining.replySequence;
+        const auto remainingWriteSliceSequence =
+            remaining.writeSliceSequence;
+        owner.cancel();
+        assert(!owner.active());
+        assert(owner.ioInterest() == Interest::Closed);
+        const auto retryAfterClose =
+            owner.writeTlsApplicationData(remainingBytes);
+        assert(retryAfterClose.outcome == Outcome::TransportClosed);
+        assert(retryAfterClose.bytes == 0U);
+        assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+
+        gate.close();
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+        assert(!gate.pendingWrite());
+        assert(gate.onBytesWritten(
+                   remainingReplySequence,
+                   remainingWriteSliceSequence,
+                   remainingBytes.size()) == WriteOutcome::Rejected);
+        assert(gate.onBytesWritten(
+                   originalReplySequence,
+                   originalWriteSliceSequence,
+                   1U) == WriteOutcome::Rejected);
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+
+        owner.cancel();
+        gate.close();
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+    }
+}
+
+
 [[nodiscard]] std::array<std::uint8_t, kMaximumInitialMcsTpktBytes>
 makeMaximumClientLicensingTpkt()
 {
@@ -3797,6 +4007,115 @@ void testR3ServerPlatformChallengeSliceThroughOwnedTls()
 
     owner.cancel();
 }
+
+void testR3ServerPlatformChallengeCancelReplayThroughOwnedTls()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using WriteOutcome = RdpServerPlatformChallengeWriteOutcome;
+
+    const auto clientPacket = makeMaximumClientLicensingTpkt();
+    const auto request = parseMcsChannelRequest(clientPacket);
+    assert(request);
+    const auto envelope =
+        parseEnhancedSecurityLicensingEnvelope(request.request.userData);
+    assert(envelope);
+    const auto licensing =
+        parseRdpLicensingMessage(envelope.value.licensingMessage);
+    assert(licensing);
+    assert(licensing.value.type ==
+           RdpLicensingMessageType::ClientNewLicenseRequest);
+
+    constexpr std::array<std::uint8_t, 8> company{
+        0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 8> product{
+        0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 4> certificate{
+        0xde,0xad,0xbe,0xef};
+    constexpr std::array<std::uint8_t, 6> scope{
+        0x73,0x63,0x6f,0x70,0x65,0x00};
+
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, company, product, certificate, scope));
+    RdpLicensingLifecycle lifecycle;
+    RdpServerLicenseRequestWriteGate requestWriter{lifecycle};
+    assert(requestWriter.queue(identity));
+    const auto serverRequest = requestWriter.pendingWrite();
+    assert(serverRequest);
+    assert(requestWriter.onBytesWritten(
+               serverRequest.replySequence,
+               serverRequest.writeSliceSequence,
+               serverRequest.bytes.size()) ==
+           RdpServerLicenseRequestWriteOutcome::Delivered);
+    assert(lifecycle.onClientMessage(envelope.value.licensingMessage) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::PlatformChallengeRequired);
+
+    RdpLicensingKeyMaterial keyMaterial{};
+    for (std::size_t index = 0U; index < kRdpLicensingKeyBytes; ++index)
+    {
+        keyMaterial.macSaltKey[index] = static_cast<std::uint8_t>(index);
+        keyMaterial.encryptionKey[index] =
+            static_cast<std::uint8_t>(0x10U + index);
+    }
+
+    RdpServerPlatformChallengeWriteGate challengeWriter{lifecycle};
+    assert(challengeWriter.queue(keyMaterial));
+    const auto pending = challengeWriter.pendingWrite();
+    assert(pending);
+    assert(pending.bytes.size() == kRdpServerPlatformChallengeBytes);
+    const auto parsed = parseRdpLicensingMessage(pending.bytes);
+    assert(parsed);
+    assert(parsed.value.type ==
+           RdpLicensingMessageType::ServerPlatformChallenge);
+
+    const auto staleBytes = pending.bytes;
+    const auto staleReplySequence = pending.replySequence;
+    const auto staleWriteSliceSequence = pending.writeSliceSequence;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    owner.cancel();
+    assert(!owner.active());
+    assert(owner.ioInterest() == Interest::Closed);
+    const auto closedWrite = owner.writeTlsApplicationData(staleBytes);
+    assert(closedWrite.outcome == Outcome::TransportClosed);
+    assert(closedWrite.bytes == 0U);
+
+    // R1 transport teardown has no authority to mutate R3. The explicit
+    // caller-controlled gate retirement is the terminal R3 action.
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::PlatformChallengeRequired);
+    challengeWriter.close();
+    assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+    assert(lifecycle.decisionBranch() == RdpLicensingDecisionBranch::None);
+    assert(lifecycle.platformChallenge().empty());
+    assert(!challengeWriter.pendingWrite());
+
+    assert(challengeWriter.onBytesWritten(
+               staleReplySequence,
+               staleWriteSliceSequence,
+               staleBytes.size()) == WriteOutcome::Rejected);
+    assert(!challengeWriter.queue(keyMaterial));
+    assert(!challengeWriter.pendingWrite());
+    assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+
+    owner.cancel();
+    challengeWriter.close();
+    assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+}
+
 
 void testR3ClientLicensingReadThroughOwnedTls()
 {
@@ -9864,7 +10183,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
     {"tcp-owned-r3-connect-response-slice", &testR3ConnectResponseSliceThroughOwnedTls},
     {"tcp-owned-r3-license-request-slice", &testR3ServerLicenseRequestSliceThroughOwnedTls},
+    {"tcp-owned-r3-license-request-cancel-replay", &testR3ServerLicenseRequestCancelReplayThroughOwnedTls},
     {"tcp-owned-r3-platform-challenge-slice", &testR3ServerPlatformChallengeSliceThroughOwnedTls},
+    {"tcp-owned-r3-platform-challenge-cancel-replay", &testR3ServerPlatformChallengeCancelReplayThroughOwnedTls},
     {"tcp-owned-r3-client-license-read", &testR3ClientLicensingReadThroughOwnedTls},
     {"tcp-owned-r3-platform-challenge-response-read", &testR3ClientPlatformChallengeResponseReadThroughOwnedTls},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},

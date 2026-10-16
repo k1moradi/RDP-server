@@ -17087,3 +17087,20 @@ CLIENT_LICENSE_INFO still requires issuer trust/signature, product/version,
 expiration/upgrade policy and CAL-to-client hardware authorization. M1
 owner-machine evidence and M2/M3 remain **OPEN / NOT ACCEPTED**.
 
+## R3 encrypted grant Windows portability correction (2026-10-16; exact-SHA CI pending)
+
+The first hosted run of `fb63d5873057145d8a22a38d56645be5397bf940`
+identified one R3-owned Windows/MSVC compile failure. R3 now includes R1's
+`nonblocking_tcp_adapter.h` only to bind the licensing-grant maximum to the
+actual `kMaximumTlsApplicationIoBytes` constant. On Windows that transitive
+header can expose the Win32 `min`/`max` macros; those macros expanded the
+pre-existing `std::numeric_limits<...>::max()` expressions later in
+`rdp_licensing.cpp`, producing MSVC C2589/C2059 errors.
+
+The correction defines `NOMINMAX` before that cross-road header on Windows.
+There is no protocol, bound, packet, test or authority behavior change. The
+compile-time assertion against R1's real 18 KiB ceiling remains in place, and
+Linux/macOS behavior is unchanged. Exact correction-SHA hosted validation is
+pending; the failed `fb63d587...` Windows leg is not reported as passing.
+M1/M2/M3 remain OPEN / NOT ACCEPTED.
+

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdp_licensing.h"
+
+#if defined(_WIN32) && !defined(NOMINMAX)
+#define NOMINMAX
+#endif
 #include "nonblocking_tcp_adapter.h"
 
 #include <openssl/bio.h>

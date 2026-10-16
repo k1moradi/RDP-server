@@ -7813,3 +7813,18 @@ consume the now-landed immutable R1 negotiation provenance plus R2
 generation-bound reauthorization once R3 exposes a real protected transition;
 until then, continue independent sanitizer/regression coverage of reachable
 production boundaries without synthetic admission.
+
+
+### R1 owner loopback accept-fixture normalization (2026-10-16)
+
+**Starting main:** `8ae99d9ae229a1d99ec59053a28c791cd9404e14`.
+After the macOS scheduler race reproduced in the owned-connection cancellation
+case, R1 audited the remaining owner/readiness fixtures against the existing
+testing rule that a completed loopback `connect()` does not imply immediate
+visibility to a nonblocking `accept()`. The five owner behavior groups for
+readiness dispatch, reply-interest priority, deadline cancellation, bounded
+poll TLS, and bounded poll timeout/EOF now use the shared bounded
+`waitForAcceptedLoopbackConnection` helper for their initial connected peer.
+Tests whose purpose is the one-step native accept/`WouldBlock` contract keep
+direct `acceptNonblockingTcpConnection` calls. Production transport code,
+deadlines, socket ownership and assertions are unchanged.

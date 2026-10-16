@@ -2618,7 +2618,7 @@ void testOwnedTcpReadinessDispatch()
 {
     // Real ephemeral TCP listener; no OS session admission or service.
     LoopbackSocketPair pair{false};
-    auto accepted = acceptNonblockingTcpConnection(
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2729,7 +2729,7 @@ void testOwnedTcpReadinessDispatch()
     // A denied CR must first flush its X.224 NEG_FAILURE response, not
     // start TLS or close prematurely on the first readable event.
     LoopbackSocketPair rejectedPair{false};
-    auto rejectedSocket = acceptNonblockingTcpConnection(
+    auto rejectedSocket = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(rejectedPair.listener.value));
     assert(rejectedSocket.outcome == TcpAcceptOutcome::Accepted);
     OwnedPreauthTcpConnection rejected{
@@ -2760,7 +2760,7 @@ void testOwnedTcpPendingReplyInterestPriority()
     for (const bool valid : {true, false})
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2805,7 +2805,7 @@ void testOwnedTcpDeadlineCancellation()
     // incoming request without sleeps, allocation or a timer thread.
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2831,7 +2831,7 @@ void testOwnedTcpDeadlineCancellation()
     // exact TLS before releasing its borrowed nonblocking native socket.
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2884,7 +2884,7 @@ void testOwnedTcpBoundedPollLoopbackTls()
     using Clock = std::chrono::steady_clock;
 
     LoopbackSocketPair pair{false};
-    auto accepted = acceptNonblockingTcpConnection(
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -3004,7 +3004,7 @@ void testOwnedTcpBoundedPollTimeoutAndDisconnect()
     // expiration is checked at both ends of the one-step poll.
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -3031,7 +3031,7 @@ void testOwnedTcpBoundedPollTimeoutAndDisconnect()
     // readable/HUP then fail closed, while preserving the listener.
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};

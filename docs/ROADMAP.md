@@ -3991,6 +3991,35 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   performance. **Next:** bind this revocation guard only after R2/R3
   issues real OS-authorized Windows session evidence; add explicit
   lock/unlock/session-change notification invalidation before live M4.
+  **R6 target-session change revocation (2026-10-16; authored against
+  parent `5510d09b31bb1aaa0697a9086edeb317e3c12b42`; exact-SHA CI pending):** Extend the existing
+  `WindowsCaptureSessionGenerationGuard` with a same-owner-thread
+  `notifySessionChange(sessionId)` sink. Any valid notification for the
+  selected target terminally revokes the guard; this conservatively covers
+  lock/unlock, connect/disconnect and logon/logoff when the runtime routes
+  those native WTS changes. Unrelated valid session IDs are ignored;
+  zero/sentinel IDs fail closed, repeated target revocation is idempotent,
+  and a target change delivered reentrantly during session observation
+  prevents the old generation from being published. An already mapped
+  guarded frame is then rejected by the existing generation check, which
+  unmaps D3D11 staging before releasing the DXGI frame and publishes no
+  caller-owned pixels. The guard still registers no window/service callback,
+  switches no desktop, creates no token and grants no R2/R3 authorization.
+  The future runtime/session owner must marshal native session changes onto
+  the serialized R6 capture owner and cancel active capture promptly; a
+  reconnect/unlock requires fresh independent authorization and a new guard.
+  **Dedicated Windows-only CTests:** `windows.capture-session-change-revocation`
+  and `windows.capture-session-change-denials`, in the existing R6
+  executable/registry with synthetic callbacks only.
+  **PASS (isolated portable seam):** Clang 17 C++23 strict-warning fixture
+  and Clang 17 ASan/UBSan fixture. **NOT RUN at authoring:** full canonical
+  repository CMake/CTest, native Windows SDK/MSVC, owner MSYS2 CLANG64
+  Clang23/Linux X11/macOS27, live WTS notifications, R2/R3 admission,
+  Desktop Duplication, Microsoft client and performance.
+  **Next:** after genuine R2/R3 Windows authorization exists, route native
+  service/window session-change events into this sink and bind authorized
+  device/output duplication lifetime; then proceed to cursor/input in
+  focused increments.
   **R6 capture session/device generation revocation (2026-10-15;
   authored against parent `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`; exact-SHA CI pending):**
   The existing `WindowsDxgiCaptureCycle` accepts an OPTIONAL,

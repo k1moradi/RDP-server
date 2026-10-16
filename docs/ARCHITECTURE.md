@@ -189,12 +189,23 @@ process/target mismatch, inactive state, zero generation or reentrant
 observation terminally closes the guard. A new guard/capture cycle is
 required after revocation.
 
+The same guard also exposes `notifySessionChange(sessionId)` as a
+same-capture-owner-thread revocation sink. Any valid event for the selected
+session closes the guard, so lock/unlock, connect/disconnect and
+logon/logoff cannot silently preserve an old capture generation once the
+runtime routes those native WTS changes. Unrelated session IDs are ignored;
+malformed zero/sentinel IDs fail closed. A notification delivered
+reentrantly during a session observation prevents that observation from
+publishing its generation. Unlock/reconnect does not reopen the guard.
+
 This layer grants no rights: a caller can fabricate the target ID and
 synthetic callbacks, so R2/R3 must independently authenticate the user,
-authorize the native session and own its lifetime. WTS active state is
-also not a complete lock/unlock authority; a later session-change
-notification boundary must revoke capture on lock, switch, logoff and
-disconnect. Ordinary CTests execute synthetic callbacks only.
+authorize the native session and own its lifetime. The guard deliberately
+does not register a window, service control handler or WTS notification
+source. R10/R3 must marshal `WM_WTSSESSION_CHANGE` or
+`SERVICE_CONTROL_SESSIONCHANGE` delivery onto the serialized R6 capture
+owner and promptly cancel an active cycle after target revocation. Ordinary
+CTests execute synthetic callbacks only.
 
 ### R6 bounded native DXGI move/dirty metadata on active lease
 

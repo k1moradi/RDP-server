@@ -9,6 +9,40 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R6 target-session change revocation (2026-10-16; CI pending)
+
+**Authoring parent main:** `5510d09b31bb1aaa0697a9086edeb317e3c12b42`. The existing
+`WindowsCaptureSessionGenerationGuard` now accepts a serialized
+`notifySessionChange(sessionId)` revocation event. A valid target-session
+change closes the guard; unrelated valid session changes are ignored;
+zero/sentinel IDs fail closed; repeated target delivery is idempotent.
+Target notification during a WTS observation prevents publication of the
+old generation. If a guarded DXGI frame is already mapped, the next
+existing capture-cycle generation check closes the cycle, unmaps staging
+before `ReleaseFrame`, and publishes no caller-owned pixels.
+
+**Changed files:** `src/windows/windows_capture_session_guard.{h,cpp}`,
+`tests/windows_capture_session_guard_cases.cpp`,
+`tests/test_windows_desktop_geometry.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, and this ledger.
+**New Windows-only CTests:** `windows.capture-session-change-revocation`
+and `windows.capture-session-change-denials`. They use synthetic
+session/generation/frame callbacks only; ordinary CTest neither registers
+for native WTS notifications nor touches a real desktop.
+
+**PASS (isolated portable seam only):** Clang 17 C++23 with
+`-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror`, and
+the same seam under ASan+UBSan with leak detection. **NOT RUN at
+authoring:** full canonical repository CMake/CTest, hosted exact-SHA CI,
+native Windows SDK/MSVC, owner Windows MSYS2 CLANG64 Clang23/Linux
+X11/macOS27, live WTS event delivery, R2/R3 Windows authorization,
+Desktop Duplication, Microsoft-client M4 acceptance or performance.
+The guard adds no session-notification registrar, token/desktop switch,
+capture scheduler or authorization capability. **Next:** route an
+independently authorized target session's native window/service WTS events
+onto the existing serialized R6 owner, then bind authorized D3D11/DXGI
+device/output lifetime.
+
 ## R8 validated image readiness exact-SHA hosted CI (2026-10-16)
 
 **Starting main SHA:** `a1ae1e7aef0ca67bd155271fc760a6cff70d9a9a`. The existing R8 `RemoteTransfer`

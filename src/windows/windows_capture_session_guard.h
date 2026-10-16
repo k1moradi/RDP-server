@@ -25,6 +25,14 @@ struct WindowsCaptureSessionReadCallbacks final
                  WindowsCaptureSessionObservation &observation) noexcept{};
 };
 
+enum class WindowsCaptureSessionChangeResult
+{
+    ignored,
+    revoked,
+    alreadyClosed,
+    invalidSession,
+};
+
 // Composes the EXISTING capture generation source with a synchronous Windows
 // session-state precondition. This class never creates a token, switches
 // desktops, opens DXGI, or decides OS admission. It only revokes.
@@ -46,6 +54,11 @@ public:
         const WindowsCaptureSessionGenerationGuard &) = delete;
 
     [[nodiscard]] WindowsCaptureGenerationReader reader() noexcept;
+    // Called only on the same serialized capture-owner thread as reader().
+    // Any valid change for the selected target is revocation-only: unlock or
+    // reconnect never reopens this guard without fresh R2/R3 authorization.
+    [[nodiscard]] WindowsCaptureSessionChangeResult notifySessionChange(
+        std::uint32_t sessionId) noexcept;
     [[nodiscard]] bool closed() const noexcept { return closed_; }
 
 private:

@@ -42,6 +42,30 @@ WindowsCaptureSessionGenerationGuard::reader() noexcept
     return {this, &WindowsCaptureSessionGenerationGuard::readGeneration};
 }
 
+WindowsCaptureSessionChangeResult
+WindowsCaptureSessionGenerationGuard::notifySessionChange(
+    std::uint32_t sessionId) noexcept
+{
+    if (sessionId == 0 ||
+        sessionId == std::numeric_limits<std::uint32_t>::max())
+    {
+        // A malformed native session-change event cannot be safely matched.
+        closed_ = true;
+        return WindowsCaptureSessionChangeResult::invalidSession;
+    }
+    if (sessionId != targetSessionId_)
+    {
+        return WindowsCaptureSessionChangeResult::ignored;
+    }
+    if (closed_)
+    {
+        return WindowsCaptureSessionChangeResult::alreadyClosed;
+    }
+
+    closed_ = true;
+    return WindowsCaptureSessionChangeResult::revoked;
+}
+
 bool WindowsCaptureSessionGenerationGuard::readGeneration(
     void *context, WindowsCaptureGeneration &current) noexcept
 {

@@ -481,11 +481,13 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
     endforeach()
-    # R6 target-session revocation guard. Synthetic observations only:
-    # no CTest queries a real logged-on Windows session.
+    # R6 target-session revocation guard and session-change event sink.
+    # Synthetic observations only: no CTest queries or changes a real session.
     foreach(case_name IN ITEMS
             capture-session-generation-active-lifetime
-            capture-session-revocation-denials)
+            capture-session-revocation-denials
+            capture-session-change-revocation
+            capture-session-change-denials)
         add_test(NAME "windows.${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.${case_name}" PROPERTIES

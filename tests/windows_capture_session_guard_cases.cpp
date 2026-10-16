@@ -18,9 +18,12 @@ struct FakeSessionSource final
     bool active{true};
     bool fail{};
     bool reenter{};
+    bool notifyOnRead{};
     unsigned reads{};
     WindowsCaptureSessionGenerationGuard *guard{};
     bool reentrantResult{true};
+    WindowsCaptureSessionChangeResult notificationResult{
+        WindowsCaptureSessionChangeResult::ignored};
 
     static bool read(
         void *context, std::uint32_t targetSessionId,
@@ -35,6 +38,11 @@ struct FakeSessionSource final
             self.reentrantResult =
                 reader.read != nullptr &&
                 reader.read(reader.context, nested);
+        }
+        if (self.notifyOnRead && self.guard != nullptr)
+        {
+            self.notificationResult =
+                self.guard->notifySessionChange(targetSessionId);
         }
         if (self.fail)
         {
@@ -293,4 +301,90 @@ void windowsCaptureSessionRevocationDenials()
     {
         assert(value == std::byte{0xee});
     }
+}
+
+void windowsCaptureSessionChangeRevocation()
+{
+    FakeSessionSource session{};
+    FakeGenerationSource generation{};
+    WindowsCaptureSessionGenerationGuard guard(
+        42, session.callbacks(), generation.callbacks());
+    session.guard = &guard;
+
+    WindowsCaptureGeneration pinned{};
+    const auto reader = guard.reader();
+    assert(reader.read != nullptr &&
+           reader.read(reader.context, pinned));
+    assert((pinned == WindowsCaptureGeneration{101, 202}));
+
+    assert(guard.notifySessionChange(43) ==
+           WindowsCaptureSessionChangeResult::ignored);
+    assert(!guard.closed());
+
+    FakeFramePipeline native{};
+    WindowsDxgiCaptureCycle cycle(
+        onePixelLayout(), native.frameCallbacks(), native.stagingCallbacks(),
+        {}, guard.reader(), pinned);
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(native.acquisitions == 1 && native.maps == 1);
+
+    assert(guard.notifySessionChange(42) ==
+           WindowsCaptureSessionChangeResult::revoked);
+    assert(guard.closed());
+    assert(guard.notifySessionChange(42) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+
+    std::array<std::byte, 4> destination{};
+    destination.fill(std::byte{0xee});
+    FramebufferView view{};
+    assert(cycle.copyFrameTo(destination, view) ==
+           WindowsCaptureConsumeResult::closed);
+    assert(cycle.closed() && view.pixels.empty());
+    assert(native.unmaps == 1 && native.releases == 1);
+    for (const auto value : destination)
+    {
+        assert(value == std::byte{0xee});
+    }
+
+    WindowsCaptureGeneration stale{7, 9};
+    assert(!reader.read(reader.context, stale));
+    assert((stale == WindowsCaptureGeneration{7, 9}));
+}
+
+void windowsCaptureSessionChangeDenials()
+{
+    FakeSessionSource zeroSession{};
+    FakeGenerationSource zeroGeneration{};
+    WindowsCaptureSessionGenerationGuard zeroGuard(
+        42, zeroSession.callbacks(), zeroGeneration.callbacks());
+    assert(zeroGuard.notifySessionChange(0) ==
+           WindowsCaptureSessionChangeResult::invalidSession);
+    assert(zeroGuard.closed());
+
+    FakeSessionSource sentinelSession{};
+    FakeGenerationSource sentinelGeneration{};
+    WindowsCaptureSessionGenerationGuard sentinelGuard(
+        42, sentinelSession.callbacks(), sentinelGeneration.callbacks());
+    assert(sentinelGuard.notifySessionChange(
+               std::numeric_limits<std::uint32_t>::max()) ==
+           WindowsCaptureSessionChangeResult::invalidSession);
+    assert(sentinelGuard.closed());
+
+    // A target change delivered synchronously while WTS state is being read
+    // must prevent the old session/device generation from being published.
+    FakeSessionSource reentrantSession{};
+    FakeGenerationSource reentrantGeneration{};
+    WindowsCaptureSessionGenerationGuard reentrantGuard(
+        42, reentrantSession.callbacks(), reentrantGeneration.callbacks());
+    reentrantSession.guard = &reentrantGuard;
+    reentrantSession.notifyOnRead = true;
+    WindowsCaptureGeneration output{3, 4};
+    const auto reader = reentrantGuard.reader();
+    assert(reader.read != nullptr);
+    assert(!reader.read(reader.context, output));
+    assert(reentrantSession.notificationResult ==
+           WindowsCaptureSessionChangeResult::revoked);
+    assert(reentrantGuard.closed());
+    assert(reentrantGeneration.reads == 0);
+    assert((output == WindowsCaptureGeneration{3, 4}));
 }

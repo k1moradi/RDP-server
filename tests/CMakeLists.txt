@@ -78,6 +78,7 @@ function(add_rdp_test source_file suite behavior)
                 licensing-mac-wire
                 licensing-client-license-info-hwid-proof
                 licensing-client-license-info-hwid-denials
+                licensing-client-license-info-hwid-fresh-verification
                 licensing-premaster-rsa-decrypt
                 licensing-premaster-rsa-denials
                 licensing-initial-crypto-preparation

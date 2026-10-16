@@ -1,3 +1,18 @@
+## R9 CLIENT_LICENSE_INFO fresh-verification authoring (2026-10-16)
+
+**Parent:** `f5beef84a25bebd82b1e8ae71b32930c2ff5dc23`.
+Added `transport.licensing-client-license-info-hwid-fresh-verification` to
+exercise the production HWID verifier against mutable caller-owned bytes after
+a prior successful proof. MACData mutation and encrypted-HWID mutation must
+both be freshly rejected; restoring the exact bytes may verify again only at
+the stateless helper boundary. The supplied key material is asserted unchanged
+through every call and then wiped with the production cleanse helper.
+
+The case is centrally registered and explicitly asserted in the existing
+bounded R1/R3 licensing sanitizer preflight. No synthetic lease, positive R3
+admission or licensing decision is introduced. Owner-local validation is
+**NOT RUN** here; exact publication-SHA hosted evidence is pending.
+
 ## R6 adapter-reference provenance authoring verification (2026-10-16)
 
 Starting/reconciled parent: `38eba71c68a0eb1c51e0be909a1dacf430cc298d`.

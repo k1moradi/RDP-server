@@ -1,3 +1,33 @@
+## R9 CLIENT_LICENSE_INFO fresh-proof replay fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `f5beef84a25bebd82b1e8ae71b32930c2ff5dc23`.
+R3 now verifies the decrypted 20-byte CLIENT_HARDWARE_ID against MACData with
+the session-derived licensing keys before retaining a CLIENT_LICENSE_INFO
+branch. Its four RC4/MAC/HWID tests are already present in the bounded R9
+ASan/UBSan selector; R9 does not duplicate those wire/oracle cases.
+
+R9 adds independent production-backed
+`transport.licensing-client-license-info-hwid-fresh-verification` in the
+existing `test_owned_mcs_connect_initial` binary. One valid proof is verified,
+then the same caller-owned packet is mutated in-place first at MACData and
+then at encrypted HWID. Each fresh call must reject the current bytes with
+`MacMismatch` rather than reuse a prior success. Restoring the bytes permits
+only a new stateless verifier success; the test explicitly does not model or
+revive R3 session/licensing authority. The caller-owned MAC/encryption keys
+must remain unchanged across success and denial and are explicitly cleansed
+at the end.
+
+No production API, admission seam, licensing state machine, CAL trust logic,
+R2 authorization or positive server decision changes. The central CTest
+registry and fail-closed bounded licensing sanitizer selector are updated in
+the same commit. Canonical owner-local `~/rdp-server/build/` configure/build/
+full CTest and local sanitizer execution remain **NOT RUN** in this connector
+environment; no alternate build root/worktree/branch is created. Exact-SHA
+hosted Linux/GCC, macOS/Clang, Windows/MSVC, R9 sanitizer and documentation
+evidence is required. Real Kerberos/NSS/logind admission, CAL validation,
+Microsoft-client licensing/Share/desktop acceptance and M2/M3 remain
+**NOT RUN/OPEN**.
+
 ## R6 explicit DXGI adapter-reference transfer ownership (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `38eba71c68a0eb1c51e0be909a1dacf430cc298d`.

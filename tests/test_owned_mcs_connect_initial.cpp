@@ -5524,6 +5524,75 @@ void testRdpClientLicenseInfoHardwareIdDenials()
     cleanseRdpLicensingKeyMaterial(material);
 }
 
+
+void testRdpClientLicenseInfoHardwareIdFreshVerification()
+{
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> cipher{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+    constexpr std::array<std::uint8_t, kRdpLicensingMacBytes> mac{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+
+    RdpLicensingKeyMaterial material{};
+    material.macSaltKey = key;
+    material.encryptionKey = key;
+    const RdpLicensingKeyMaterial originalMaterial = material;
+
+    auto message = makeClientLicenseInfoWithHardwareProof(cipher, mac);
+    const auto parsed = parseRdpClientLicenseInfo(message);
+    assert(parsed);
+    const auto macOffset = static_cast<std::size_t>(
+        parsed.value.macData.data() - message.data());
+    const auto hardwareOffset = static_cast<std::size_t>(
+        parsed.value.encryptedHardwareId.data() - message.data());
+    assert(macOffset < message.size());
+    assert(hardwareOffset + 7U < message.size());
+
+    // A previous success is not a reusable proof. The verifier must parse and
+    // authenticate the bytes presented by each call without mutating its keys.
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+    assert(material.macSaltKey == originalMaterial.macSaltKey);
+    assert(material.encryptionKey == originalMaterial.encryptionKey);
+
+    message[macOffset] ^= 0x01U;
+    const auto staleMac =
+        verifyRdpClientLicenseInfoHardwareId(message, material);
+    assert(!staleMac);
+    assert(staleMac.error ==
+           RdpClientLicenseInfoHardwareIdError::MacMismatch);
+    assert(material.macSaltKey == originalMaterial.macSaltKey);
+    assert(material.encryptionKey == originalMaterial.encryptionKey);
+
+    // Restoring the caller-owned bytes permits a new stateless verification;
+    // this is not session/licensing authority and does not revive R3 state.
+    message[macOffset] ^= 0x01U;
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+
+    message[hardwareOffset + 7U] ^= 0x80U;
+    const auto staleCipher =
+        verifyRdpClientLicenseInfoHardwareId(message, material);
+    assert(!staleCipher);
+    assert(staleCipher.error ==
+           RdpClientLicenseInfoHardwareIdError::MacMismatch);
+    assert(material.macSaltKey == originalMaterial.macSaltKey);
+    assert(material.encryptionKey == originalMaterial.encryptionKey);
+
+    message[hardwareOffset + 7U] ^= 0x80U;
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+
+    cleanseRdpLicensingKeyMaterial(material);
+    assert(std::all_of(
+        material.macSaltKey.begin(), material.macSaltKey.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+    assert(std::all_of(
+        material.encryptionKey.begin(), material.encryptionKey.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+}
+
 using LicensingKeyPointer =
     std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using LicensingCertificatePointer =
@@ -6265,7 +6334,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 97> kMcsTestCases{{
+constexpr std::array<McsTestCase, 98> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -6327,6 +6396,7 @@ constexpr std::array<McsTestCase, 97> kMcsTestCases{{
     {"licensing-mac-wire", &testRdpLicensingMacWire},
     {"licensing-client-license-info-hwid-proof", &testRdpClientLicenseInfoHardwareIdProof},
     {"licensing-client-license-info-hwid-denials", &testRdpClientLicenseInfoHardwareIdDenials},
+    {"licensing-client-license-info-hwid-fresh-verification", &testRdpClientLicenseInfoHardwareIdFreshVerification},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
     {"licensing-initial-crypto-preparation", &testRdpInitialLicensingCryptoPreparation},

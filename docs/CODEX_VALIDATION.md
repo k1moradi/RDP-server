@@ -1,3 +1,29 @@
+## R10 administrator licensing preflight authoring validation (2026-10-16; CI pending)
+
+**Authoring parent:** `35833ba667a110ec859e04958d2a4ef269616012`.
+
+Source/ownership review **PASS**: production
+`RuntimeLicensingContext::configureFromCredentialFiles()`, shared secure
+credential snapshots and R3 identity/credential validation are reused; there
+is no parallel licensing engine. Six dedicated `runtime.licensing-cli-*`
+process CTests invoke the real runtime and existing R3 fixture generator,
+verify exact exit/output boundaries, and keep startup disabled.
+
+R9's Clang ASan/UBSan licensing selection builds `rdp-server` and runs the
+five licensing-specific cases; the compatibility aggregate remains ordinary
+matrix coverage because Linux intentionally enters the separately sanitized GSS
+preflight.
+
+Canonical local compile/full CTest is **NOT RUN** because no synchronized
+`~/rdp-server` checkout is available and cloning is unavailable. Exact-SHA
+Linux/GCC Debug+Release, macOS/AppleClang Debug+Release, Windows/MSVC
+Debug+Release, R9 sanitizer, docs, SDK consumer and package/digest evidence are
+**PENDING**.
+
+Success grants no Microsoft licensing trust/CAL, authentication, R2 lease, R3
+licensing/Share state or listener readiness. M1 owner same-SHA and real-client
+M2 acceptance remain **NOT RUN / BLOCKED**.
+
 ## R8 Windows completed-file Explorer handoff authoring validation (2026-10-16)
 
 **Base:** `67e6bf5a9305ff4ffbaf535cbded8bf9331a6743`. Current Microsoft Win32/Shell documentation was checked for predefined `CF_HDROP`, `DROPFILES`, double-NUL fully qualified file lists, `GlobalAlloc(GMEM_MOVEABLE)`, and `SetClipboardData` ownership. The implementation uses that native completed-file contract only after the existing Windows destination reaches exact `Complete` state.

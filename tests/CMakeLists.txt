@@ -616,6 +616,34 @@ if(TARGET rdp-server-linux-runtime-security)
     endforeach()
 endif()
 
+# R10 administrator-facing licensing provisioning. These process-level cases
+# execute the real non-listening rdp-server and reuse the existing R3 fixture
+# generator; no separate licensing test executable or credential policy exists.
+set(runtime_licensing_cli_arguments
+    "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
+    "-DRDP_RUNTIME_VERSION=${PROJECT_VERSION}"
+    "-DRDP_RUNTIME_LICENSING_HELPER=$<TARGET_FILE:test_owned_mcs_connect_initial>")
+if(TARGET test_runtime_linux_security)
+    list(APPEND runtime_licensing_cli_arguments
+        "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=$<TARGET_FILE:test_runtime_linux_security>")
+endif()
+foreach(runtime_licensing_cli_case IN ITEMS
+        licensing-cli-valid-provisioning
+        licensing-cli-incomplete-configuration
+        licensing-cli-invalid-product-identity
+        licensing-cli-credential-file-denials
+        licensing-cli-existing-check-compatibility
+        licensing-cli-service-still-disabled)
+    add_test(NAME "runtime.${runtime_licensing_cli_case}"
+        COMMAND "${CMAKE_COMMAND}"
+            ${runtime_licensing_cli_arguments}
+            "-DRDP_RUNTIME_TEST_CASE=${runtime_licensing_cli_case}"
+            "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-licensing-cli-fixtures/${runtime_licensing_cli_case}"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
+    set_tests_properties("runtime.${runtime_licensing_cli_case}"
+        PROPERTIES LABELS "runtime;security;licensing;offline" TIMEOUT 60)
+endforeach()
+
 # R6 fixture-only checks: do not enumerate a real desktop, capture pixels,
 # or inject input during an ordinary Windows CTest run.
 if(TARGET rdp-server-windows-desktop)

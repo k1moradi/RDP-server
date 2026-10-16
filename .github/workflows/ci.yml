@@ -169,7 +169,7 @@ jobs:
             test_owned_mcs_connect_initial test_owned_preauth_session \
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_linux_gssapi_spnego \
-            test_runtime_linux_security \
+            test_runtime_linux_security rdp-server \
             test_x11_clipboard_adapter test_x11_capture_layout \
             test_x11_cursor_reply test_x11_native_capture \
             test_x11_capture_disconnect test_x11_display_events \
@@ -240,7 +240,7 @@ jobs:
         run: |
           set -euo pipefail
           # Verify the actual central CTest registry before instrumented execution.
-          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-platform-challenge-slice|r3-platform-challenge-response-read|r3-client-license-read|tls-application-partial-write|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-strict-fields)|credssp-binding))$'
+          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-platform-challenge-slice|r3-platform-challenge-response-read|r3-client-license-read|tls-application-partial-write|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|runtime\.licensing-cli-(valid-provisioning|incomplete-configuration|invalid-product-identity|credential-file-denials|service-still-disabled)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-strict-fields)|credssp-binding))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
           printf '%s\n' "$selected_tests"
@@ -274,6 +274,11 @@ jobs:
           grep -Fq 'runtime.licensing-context-secure-file-snapshots' <<< "$selected_tests"
           grep -Fq 'runtime.licensing-context-replacement-freshness' <<< "$selected_tests"
           grep -Fq 'runtime.licensing-context-secure-file-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-cli-valid-provisioning' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-cli-incomplete-configuration' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-cli-invalid-product-identity' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-cli-credential-file-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-cli-service-still-disabled' <<< "$selected_tests"
           grep -Fq 'transport.licensing-initial-crypto-preparation' <<< "$selected_tests"
           grep -Fq 'transport.licensing-initial-crypto-denials' <<< "$selected_tests"
           grep -Fq 'transport.licensing-key-material-terminal-replay' <<< "$selected_tests"

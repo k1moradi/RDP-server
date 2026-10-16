@@ -1,3 +1,56 @@
+## R10 offline licensing credential preflight (2026-10-16)
+
+The noninstalled runtime executable accepts one additional offline command:
+
+```bash
+rdp-server --check-licensing-credentials /absolute/path/rdp-server.conf
+```
+
+The existing 4096-byte whole-file bound remains. The six licensing fields are
+optional as a group for legacy checks, but all six are mandatory here:
+
+```text
+listen_address=127.0.0.1
+listen_port=3389
+tls_certificate=/etc/rdp-server/tls.crt
+tls_private_key=/etc/rdp-server/tls.key
+authentication=required
+os_authorization=required
+max_connections=4
+licensing_certificate=/etc/rdp-server/licensing-certificate.bin
+licensing_private_key=/etc/rdp-server/licensing-private-key.pem
+licensing_product_version=393217
+licensing_company_name=RDP
+licensing_product_id=A02
+licensing_scope=scope
+```
+
+`licensing_product_version` is nonzero decimal `uint32_t`.
+`licensing_company_name` and `licensing_product_id` are canonical UTF-8
+converted to R3's null-terminated UTF-16LE with a 512-byte encoded bound.
+Control characters, malformed/overlong UTF-8 and invalid surrogate encodings
+are rejected. `licensing_scope` is printable ASCII and becomes R3's
+null-terminated ANSI scope, also within 512 bytes.
+
+The certificate path names a binary RDP `SERVER_CERTIFICATE` version-2
+X.509-chain object, not a standalone DER certificate or ordinary TLS PEM file.
+R3 requires a coherent root-first chain and an unencrypted PEM RSA private key
+matching its terminal leaf. The shared secure snapshot loader enforces the
+existing absolute-path, no-symlink/reparse, regular-file,
+key-permission/DACL and native-object alias rules. No environment or home
+expansion occurs.
+
+Exit 0 means only that configuration, secure file metadata, RDP certificate
+encoding and the matching RSA key were accepted by production R10/R3 owners.
+Invalid or incomplete provisioning exits 3 with the generic configuration
+failure. It does not establish Microsoft licensing trust, issue a license,
+authenticate a user, authorize a desktop session or make the service ready to
+listen. Ordinary startup still exits 2 with the established refusal.
+
+`--check-config`, `--check-tls-files`, `--check-tls-credentials` and the
+supported `--check-linux-security` keep their prior semantics when the
+licensing group is absent and do not open licensing credential files.
+
 ## R8 Windows completed-file CF_HDROP build boundary (2026-10-16)
 
 No new library or package is added. The existing cross-platform `rdp-server-windows-clipboard` target compiles the completed-file state and bounded DROPFILES serializer everywhere; `_WIN32` continues to compile the real `GlobalAlloc(GMEM_MOVEABLE)`/`SetClipboardData` bridge and link the existing `user32` dependency.

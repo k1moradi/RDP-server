@@ -1,3 +1,33 @@
+## R10 administrator licensing provisioning boundary (2026-10-16)
+
+R10 owns the administrator-facing configuration boundary for the existing R3
+licensing identity and private-key credential. The optional six-field group is
+`licensing_certificate`, `licensing_private_key`,
+`licensing_product_version`, `licensing_company_name`,
+`licensing_product_id`, and `licensing_scope`; partial groups fail. Legacy
+syntax/TLS/Linux-security checks accept the group being absent and do not open
+licensing credential files.
+
+Product version is nonzero decimal `uint32_t`. Company/product are canonical
+UTF-8 converted allocation-free to null-terminated UTF-16LE within R3's
+512-byte bound; malformed/overlong UTF-8, surrogate encodings, embedded
+NUL/control characters and overflow fail. Scope is printable ASCII converted
+to R3's null-terminated ANSI form within the same bound.
+
+`--check-licensing-credentials` uses production `RuntimeLicensingContext`
+and `configureFromCredentialFiles()`, reusing the exact-opened-object secure
+snapshot policy and native-object alias rejection. The certificate is the RDP
+`SERVER_CERTIFICATE` v2 root-first X.509-chain binary structure (at least two
+DER certificates with RDP framing/padding), not arbitrary DER or TLS PEM. R3
+checks chain signatures and requires an unencrypted PEM RSA private key matching
+the terminal leaf. This proves cryptographic continuity only, not Microsoft
+licensing trust.
+
+Success creates no listener/socket, R2 lease, authenticated user, R3 licensing
+transition or Share activation and makes no CAL/real-client acceptance claim.
+The temporary context is destroyed before exit and R3 cleanses retained key
+bytes. Normal startup remains fail-closed.
+
 ## R8 Windows completed-file CF_HDROP presentation boundary (2026-10-16)
 
 `WindowsClipboardFileDestination` remains a native materialization child of `RemoteTransfer`; it now may retain one caller-supplied fully qualified local path alongside the caller-selected HANDLE capability. That path is local metadata only, never synthesized from the remote FILEDESCRIPTORW leaf name, and is observable only after the existing exact-size resize/flush/close completion transition. Partial, cancelled, failed or replaced-generation destinations expose no path.

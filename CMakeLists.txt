@@ -545,7 +545,8 @@ target_compile_definitions(rdp-server PRIVATE
     "RDP_SERVER_VERSION=\"${PROJECT_VERSION}\"")
 target_link_libraries(rdp-server PRIVATE
     rdp-server-protocol
-    rdp-server-runtime-tls)
+    rdp-server-runtime-tls
+    rdp-server-runtime-licensing)
 if(WIN32)
     # GetSecurityInfo on the *opened* file handle requires Advapi32.
     target_link_libraries(rdp-server PRIVATE Advapi32)

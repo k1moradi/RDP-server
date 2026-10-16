@@ -6,6 +6,430 @@ foreach(required_argument IN ITEMS RDP_RUNTIME_EXECUTABLE RDP_RUNTIME_VERSION RD
     endif()
 endforeach()
 
+# R10 administrator licensing provisioning uses the real process entry point,
+# the existing R3 RSA/X.509-chain fixture generator and production secure-file
+# loader. These cases return before the legacy process checker below.
+if(RDP_RUNTIME_TEST_CASE MATCHES "^licensing-cli-")
+    if(NOT DEFINED RDP_RUNTIME_FIXTURE_DIRECTORY OR
+       RDP_RUNTIME_FIXTURE_DIRECTORY STREQUAL "")
+        message(FATAL_ERROR "Missing RDP_RUNTIME_FIXTURE_DIRECTORY")
+    endif()
+    file(MAKE_DIRECTORY "${RDP_RUNTIME_FIXTURE_DIRECTORY}")
+
+    # Compatibility is deliberately evaluated through the pre-existing cases
+    # so this dedicated CTest cannot drift from their process expectations.
+    if(RDP_RUNTIME_TEST_CASE STREQUAL
+       "licensing-cli-existing-check-compatibility")
+        set(compatibility_cases
+            validates-configuration-syntax
+            validates-tls-files-private-regular
+            validates-tls-credentials-matching-pair)
+        if(DEFINED RDP_RUNTIME_LINUX_SECURITY_HELPER AND
+           NOT RDP_RUNTIME_LINUX_SECURITY_HELPER STREQUAL "")
+            list(APPEND compatibility_cases
+                validates-linux-security-provisioning)
+        endif()
+        foreach(compatibility_case IN LISTS compatibility_cases)
+            set(compatibility_arguments
+                "-DRDP_RUNTIME_EXECUTABLE=${RDP_RUNTIME_EXECUTABLE}"
+                "-DRDP_RUNTIME_VERSION=${RDP_RUNTIME_VERSION}"
+                "-DRDP_RUNTIME_TEST_CASE=${compatibility_case}"
+                "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${RDP_RUNTIME_FIXTURE_DIRECTORY}/${compatibility_case}")
+            if(compatibility_case STREQUAL
+               "validates-linux-security-provisioning")
+                list(APPEND compatibility_arguments
+                    "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=${RDP_RUNTIME_LINUX_SECURITY_HELPER}")
+            endif()
+            execute_process(
+                COMMAND "${CMAKE_COMMAND}"
+                    ${compatibility_arguments}
+                    -P "${CMAKE_CURRENT_LIST_FILE}"
+                RESULT_VARIABLE compatibility_result
+                OUTPUT_VARIABLE compatibility_output
+                ERROR_VARIABLE compatibility_error)
+            if(NOT compatibility_result STREQUAL "0")
+                message(FATAL_ERROR
+                    "Legacy runtime compatibility case ${compatibility_case} failed (${compatibility_result})\n${compatibility_output}${compatibility_error}")
+            endif()
+        endforeach()
+        return()
+    endif()
+
+    if(NOT DEFINED RDP_RUNTIME_LICENSING_HELPER OR
+       RDP_RUNTIME_LICENSING_HELPER STREQUAL "")
+        message(FATAL_ERROR "Missing RDP_RUNTIME_LICENSING_HELPER")
+    endif()
+
+    set(licensing_certificate
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/licensing-certificate.bin")
+    set(licensing_private_key
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/licensing-private-key.pem")
+    set(licensing_premaster
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/licensing-premaster.bin")
+    set(pristine_certificate
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/licensing-certificate.pristine")
+    set(pristine_private_key
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/licensing-private-key.pristine")
+    set(alternate_certificate
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/alternate-certificate.bin")
+    set(alternate_private_key
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/alternate-private-key.pem")
+    set(alternate_premaster
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/alternate-premaster.bin")
+    set(config_file
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TEST_CASE}.conf")
+
+    if(WIN32)
+        execute_process(COMMAND whoami.exe
+            RESULT_VARIABLE whoami_result
+            OUTPUT_VARIABLE runtime_account
+            OUTPUT_STRIP_TRAILING_WHITESPACE)
+        if(NOT whoami_result STREQUAL "0" OR runtime_account STREQUAL "")
+            message(FATAL_ERROR "Cannot discover synthetic fixture owner")
+        endif()
+    endif()
+
+    function(set_private_runtime_file_metadata path)
+        if(UNIX)
+            file(CHMOD "${path}" PERMISSIONS OWNER_READ OWNER_WRITE)
+        elseif(WIN32)
+            execute_process(COMMAND icacls.exe "${path}"
+                /inheritance:r /grant:r "${runtime_account}:(F)"
+                RESULT_VARIABLE acl_result
+                OUTPUT_QUIET ERROR_VARIABLE acl_error)
+            if(NOT acl_result STREQUAL "0")
+                message(FATAL_ERROR
+                    "Cannot set private synthetic fixture DACL")
+            endif()
+            execute_process(COMMAND icacls.exe "${path}"
+                /setowner "${runtime_account}"
+                RESULT_VARIABLE owner_result
+                OUTPUT_QUIET ERROR_VARIABLE owner_error)
+            if(NOT owner_result STREQUAL "0")
+                message(FATAL_ERROR
+                    "Cannot set synthetic fixture owner")
+            endif()
+        endif()
+    endfunction()
+
+    function(set_public_certificate_metadata path)
+        if(UNIX)
+            file(CHMOD "${path}" PERMISSIONS
+                OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+        elseif(WIN32)
+            set_private_runtime_file_metadata("${path}")
+        endif()
+    endfunction()
+
+    function(write_private_runtime_config config_text)
+        if(IS_DIRECTORY "${config_file}")
+            file(REMOVE_RECURSE "${config_file}")
+        else()
+            file(REMOVE "${config_file}")
+        endif()
+        file(WRITE "${config_file}" "${config_text}")
+        set_private_runtime_file_metadata("${config_file}")
+    endfunction()
+
+    set(empty_output "")
+    set(configuration_failure_output
+        "rdp-server: configuration check failed; service remains disabled.\n")
+    set(licensing_success_output
+        "rdp-server: licensing certificate, matching RSA private key and product identity accepted by the offline R3 credential validator; Microsoft-client trust or acceptance, license issuance, user authentication, RDP session authorization and listener readiness not verified; service remains disabled.\n")
+
+    function(run_runtime_cli option config_text expected_exit
+             expected_stdout_variable expected_stderr_variable)
+        write_private_runtime_config("${config_text}")
+        execute_process(
+            COMMAND "${RDP_RUNTIME_EXECUTABLE}" "${option}" "${config_file}"
+            RESULT_VARIABLE runtime_exit_code
+            OUTPUT_VARIABLE runtime_stdout
+            ERROR_VARIABLE runtime_stderr)
+        string(REPLACE "\r\n" "\n" runtime_stdout "${runtime_stdout}")
+        string(REPLACE "\r\n" "\n" runtime_stderr "${runtime_stderr}")
+        if(NOT "${runtime_exit_code}" STREQUAL "${expected_exit}")
+            message(FATAL_ERROR
+                "Unexpected licensing CLI exit status: ${runtime_exit_code}")
+        endif()
+        if(NOT runtime_stdout STREQUAL
+               "${${expected_stdout_variable}}" OR
+           NOT runtime_stderr STREQUAL
+               "${${expected_stderr_variable}}")
+            message(FATAL_ERROR
+                "Licensing CLI output crossed its documented trust boundary")
+        endif()
+    endfunction()
+
+    file(REMOVE
+        "${licensing_certificate}" "${licensing_private_key}"
+        "${licensing_premaster}" "${pristine_certificate}"
+        "${pristine_private_key}" "${alternate_certificate}"
+        "${alternate_private_key}" "${alternate_premaster}")
+    execute_process(
+        COMMAND "${RDP_RUNTIME_LICENSING_HELPER}"
+            emit-runtime-licensing-fixture
+            "${licensing_certificate}" "${licensing_private_key}"
+            "${licensing_premaster}"
+        RESULT_VARIABLE fixture_result
+        OUTPUT_VARIABLE fixture_output
+        ERROR_VARIABLE fixture_error)
+    if(NOT fixture_result STREQUAL "0")
+        message(FATAL_ERROR
+            "Cannot generate licensing fixture (${fixture_result})\n${fixture_output}${fixture_error}")
+    endif()
+    set_public_certificate_metadata("${licensing_certificate}")
+    set_private_runtime_file_metadata("${licensing_private_key}")
+    file(COPY_FILE "${licensing_certificate}" "${pristine_certificate}")
+    file(COPY_FILE "${licensing_private_key}" "${pristine_private_key}")
+    set_public_certificate_metadata("${pristine_certificate}")
+    set_private_runtime_file_metadata("${pristine_private_key}")
+
+    function(restore_licensing_fixture)
+        file(REMOVE "${licensing_certificate}" "${licensing_private_key}")
+        file(COPY_FILE "${pristine_certificate}" "${licensing_certificate}")
+        file(COPY_FILE "${pristine_private_key}" "${licensing_private_key}")
+        set_public_certificate_metadata("${licensing_certificate}")
+        set_private_runtime_file_metadata("${licensing_private_key}")
+    endfunction()
+
+    set(tls_certificate
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/synthetic-unused-tls.crt")
+    set(tls_private_key
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/synthetic-unused-tls.key")
+    set(base_config
+        "listen_address=127.0.0.1\nlisten_port=3389\n"
+        "tls_certificate=${tls_certificate}\n"
+        "tls_private_key=${tls_private_key}\n"
+        "authentication=required\nos_authorization=required\n"
+        "max_connections=4\n")
+    string(JOIN "" base_config ${base_config})
+    set(licensing_config
+        "licensing_certificate=${licensing_certificate}\n"
+        "licensing_private_key=${licensing_private_key}\n"
+        "licensing_product_version=393217\n"
+        "licensing_company_name=RDP\n"
+        "licensing_product_id=A02\n"
+        "licensing_scope=scope\n")
+    string(JOIN "" licensing_config ${licensing_config})
+    set(full_config "${base_config}${licensing_config}")
+
+    if(RDP_RUNTIME_TEST_CASE STREQUAL
+       "licensing-cli-valid-provisioning")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 0
+            licensing_success_output empty_output)
+
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL
+           "licensing-cli-incomplete-configuration")
+        set(partial_config
+            "${base_config}licensing_certificate=${licensing_certificate}\n")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${partial_config}" 3
+            empty_output configuration_failure_output)
+
+        string(REPLACE
+            "licensing_scope=scope\n" ""
+            missing_scope_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${missing_scope_config}" 3
+            empty_output configuration_failure_output)
+
+        string(REPLACE
+            "licensing_product_version=393217\n" ""
+            missing_version_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${missing_version_config}" 3
+            empty_output configuration_failure_output)
+
+        set(duplicate_field_config
+            "${full_config}licensing_scope=other\n")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${duplicate_field_config}" 3
+            empty_output configuration_failure_output)
+
+        string(REPLACE
+            "licensing_company_name=RDP"
+            "licensing_company_name="
+            empty_identity_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${empty_identity_config}" 3
+            empty_output configuration_failure_output)
+
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL
+           "licensing-cli-invalid-product-identity")
+        string(REPLACE
+            "licensing_product_version=393217"
+            "licensing_product_version=0"
+            invalid_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_config}" 3
+            empty_output configuration_failure_output)
+
+        string(REPLACE
+            "licensing_product_version=393217"
+            "licensing_product_version=4294967296"
+            invalid_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_config}" 3
+            empty_output configuration_failure_output)
+
+        string(REPEAT "A" 256 oversized_identity)
+        string(REPLACE
+            "licensing_company_name=RDP"
+            "licensing_company_name=${oversized_identity}"
+            invalid_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_config}" 3
+            empty_output configuration_failure_output)
+
+        string(ASCII 195 malformed_utf8_lead)
+        string(REPLACE
+            "licensing_company_name=RDP"
+            "licensing_company_name=R${malformed_utf8_lead}"
+            invalid_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_config}" 3
+            empty_output configuration_failure_output)
+
+        string(REPLACE
+            "licensing_company_name=RDP"
+            "licensing_company_name=R\tDP"
+            invalid_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_config}" 3
+            empty_output configuration_failure_output)
+
+        string(ASCII 194 169 unsupported_scope)
+        string(REPLACE
+            "licensing_scope=scope"
+            "licensing_scope=${unsupported_scope}"
+            invalid_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_config}" 3
+            empty_output configuration_failure_output)
+
+        string(REPEAT "s" 512 oversized_scope)
+        string(REPLACE
+            "licensing_scope=scope"
+            "licensing_scope=${oversized_scope}"
+            invalid_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_config}" 3
+            empty_output configuration_failure_output)
+
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL
+           "licensing-cli-credential-file-denials")
+        restore_licensing_fixture()
+        file(REMOVE "${licensing_certificate}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 3
+            empty_output configuration_failure_output)
+
+        restore_licensing_fixture()
+        file(REMOVE "${licensing_private_key}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 3
+            empty_output configuration_failure_output)
+
+        restore_licensing_fixture()
+        string(REPLACE
+            "${licensing_private_key}" "relative-licensing.key"
+            invalid_path_config "${full_config}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${invalid_path_config}" 3
+            empty_output configuration_failure_output)
+
+        restore_licensing_fixture()
+        if(UNIX)
+            file(CHMOD "${licensing_certificate}" PERMISSIONS
+                OWNER_READ OWNER_WRITE)
+        endif()
+        file(REMOVE "${licensing_private_key}")
+        file(CREATE_LINK
+            "${licensing_certificate}" "${licensing_private_key}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 3
+            empty_output configuration_failure_output)
+
+        restore_licensing_fixture()
+        if(UNIX)
+            file(CHMOD "${licensing_private_key}" PERMISSIONS
+                OWNER_READ OWNER_WRITE GROUP_READ)
+        elseif(WIN32)
+            execute_process(COMMAND icacls.exe "${licensing_private_key}"
+                /grant "*S-1-1-0:(R)"
+                RESULT_VARIABLE public_read_result
+                OUTPUT_QUIET ERROR_QUIET)
+            if(NOT public_read_result STREQUAL "0")
+                message(FATAL_ERROR
+                    "Cannot grant synthetic public licensing-key read ACE")
+            endif()
+        endif()
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 3
+            empty_output configuration_failure_output)
+
+        restore_licensing_fixture()
+        file(WRITE "${licensing_certificate}"
+            "NOT_A_LICENSING_CERTIFICATE")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 3
+            empty_output configuration_failure_output)
+
+        restore_licensing_fixture()
+        file(WRITE "${licensing_private_key}" "NOT_A_PRIVATE_KEY")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 3
+            empty_output configuration_failure_output)
+
+        execute_process(
+            COMMAND "${RDP_RUNTIME_LICENSING_HELPER}"
+                emit-runtime-licensing-fixture
+                "${alternate_certificate}" "${alternate_private_key}"
+                "${alternate_premaster}"
+            RESULT_VARIABLE alternate_result
+            OUTPUT_VARIABLE alternate_output
+            ERROR_VARIABLE alternate_error)
+        if(NOT alternate_result STREQUAL "0")
+            message(FATAL_ERROR
+                "Cannot generate mismatched licensing fixture")
+        endif()
+        set_private_runtime_file_metadata("${alternate_private_key}")
+        restore_licensing_fixture()
+        file(REMOVE "${licensing_private_key}")
+        file(COPY_FILE
+            "${alternate_private_key}" "${licensing_private_key}")
+        set_private_runtime_file_metadata("${licensing_private_key}")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 3
+            empty_output configuration_failure_output)
+
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL
+           "licensing-cli-service-still-disabled")
+        run_runtime_cli(
+            "--check-licensing-credentials" "${full_config}" 0
+            licensing_success_output empty_output)
+        execute_process(
+            COMMAND "${RDP_RUNTIME_EXECUTABLE}"
+            RESULT_VARIABLE startup_exit_code
+            OUTPUT_VARIABLE startup_stdout
+            ERROR_VARIABLE startup_stderr)
+        string(REPLACE "\r\n" "\n" startup_stdout "${startup_stdout}")
+        string(REPLACE "\r\n" "\n" startup_stderr "${startup_stderr}")
+        set(expected_startup_error
+            "rdp-server: refusing to start: authenticated OS authorization and authoritative live RDP sessions are unavailable.\n")
+        if(NOT startup_exit_code STREQUAL "2" OR
+           NOT startup_stdout STREQUAL "" OR
+           NOT startup_stderr STREQUAL expected_startup_error)
+            message(FATAL_ERROR
+                "Successful licensing preflight must not enable service startup")
+        endif()
+    else()
+        message(FATAL_ERROR "Unknown licensing CLI test case")
+    endif()
+    return()
+endif()
+
 set(runtime_arguments)
 set(runtime_working_directory "${CMAKE_CURRENT_BINARY_DIR}")
 if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-unconfigured-startup")

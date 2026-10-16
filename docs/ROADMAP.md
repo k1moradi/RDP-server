@@ -1,3 +1,45 @@
+## R10 administrator licensing provisioning preflight (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `35833ba667a110ec859e04958d2a4ef269616012`.
+
+R10 adds the six all-or-none administrator licensing fields documented in
+`docs/compile.md` and a new
+`--check-licensing-credentials FILE` offline command. It validates bounded
+nonzero decimal product version, canonical UTF-8 -> null-terminated UTF-16LE
+company/product identity, printable-ASCII -> ANSI scope, and the existing
+4096-byte configuration bound. No identity defaults are invented.
+
+The command calls production
+`RuntimeLicensingContext::configureFromCredentialFiles()`, so it reuses R10
+secure opened-file snapshots and R3 identity/RDP X.509-chain/RSA matching. The
+certificate is RDP `SERVER_CERTIFICATE` v2 chain framing, not arbitrary DER.
+Legacy syntax/TLS/Linux-security checks remain compatible when licensing is
+absent and do not open licensing files.
+
+New real-process CTests, registered once:
+- `runtime.licensing-cli-valid-provisioning`
+- `runtime.licensing-cli-incomplete-configuration`
+- `runtime.licensing-cli-invalid-product-identity`
+- `runtime.licensing-cli-credential-file-denials`
+- `runtime.licensing-cli-existing-check-compatibility`
+- `runtime.licensing-cli-service-still-disabled`
+
+They reuse the existing R3 RSA/X.509 fixture helper and cover partial,
+duplicate, empty, malformed/overflow/oversized identity, absent/invalid/
+aliased/insecure/malformed/mismatched credentials, legacy behavior and startup
+refusal. The R9 Clang ASan/UBSan licensing selector runs the five
+licensing-specific cases; compatibility stays ordinary hosted coverage because
+its Linux branch deliberately uses the separately sanitized GSS preflight.
+
+Canonical owner `~/rdp-server/build/` compile/full CTest is **NOT RUN** in
+this connector environment because the checkout is unavailable and cloning is
+unavailable; no alternate build root was created. Exact-SHA hosted platform,
+sanitizer, docs and SDK/package evidence are **PENDING**.
+
+No R2 admission, R3 licensing transition, CAL issuance, Share channel or
+listener is added. M1 owner same-SHA remains **NOT RUN** and M2 real
+authorization/licensing/Microsoft-client acceptance remains **BLOCKED**.
+
 ## R8 Windows completed-file Explorer handoff (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `67e6bf5a9305ff4ffbaf535cbded8bf9331a6743`. Linux completed-file X11 handoff, Windows bounded HANDLE materialization, and macOS completed-file URL/pasteboard handoff remain present. This increment completes the corresponding Windows **completed-only** native clipboard publication without adding another CLIPRDR owner or transport writer.

@@ -151,6 +151,7 @@ jobs:
         run: |
           cmake --build build --config Debug --parallel 2 --target \
             test_owned_remote_transfer test_clipboard_protocol \
+            test_windows_clipboard_adapter \
             test_owned_mcs_connect_initial test_owned_preauth_session \
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_linux_gssapi_spnego \

@@ -1,3 +1,19 @@
+## R8 Windows clipboard tests are host-clipboard free
+
+Exercise the Windows clipboard state owner through injected native operations
+under ordinary CTest on every hosted platform. Cover ready-only publication,
+exact CRLF UTF-16LE conversion, PNG versus DIB/DIBV5 format identity,
+generation replacement, local owner takeover, `WM_RENDERALLFORMATS` owner
+verification, disconnect cleanup, native-call failure and reentry. The
+production Win32 callbacks still compile under Windows/MSVC, but automated
+tests must not call `OpenClipboard`, alter a developer clipboard, create an
+interactive HWND, or treat synthetic publication as Microsoft-client
+acceptance.
+
+The R9 sanitizer job must explicitly build the Windows clipboard test target
+before running `ctest -L clipboard`; otherwise registered cases would exist
+without an executable in the selected-target sanitizer build.
+
 ## Windows OpenSSL test-oracle CRT boundaries
 
 On Windows, test helpers must not pass an application-owned `FILE*` directly

@@ -1,3 +1,54 @@
+## R8 Windows ready-data clipboard presentation (2026-10-16; exact-SHA CI pending)
+
+**Starting shared main:** `f2c363b27f20e047b31611861e585a63b3076703`. R8 P0/P1 remain intact: the
+FILEDESCRIPTORW fixture correction and bounded Lock/Unlock plus locked
+FileContents lifecycle are already hosted-validated. The protected R3 session
+still does not expose a complete licensing/Share-activated CLIPRDR
+payload-writer contract, so this increment does not fabricate channel
+authority or transmit any RDP bytes.
+
+A new noninstalled `WindowsClipboardAdapter` adds the next independent native
+R8 boundary. `RemoteTransfer` remains the sole clipboard generation and data
+owner. The adapter announces only **already verified current-generation**
+CF_UNICODETEXT, CF_DIB/CF_DIBV5, or registered `PNG` data. Win32 delayed
+rendering is therefore a local copy operation only: `WM_RENDERFORMAT` never
+starts a network request or blocks waiting for CLIPRDR. Text is bounded and
+re-expanded to Windows CRLF UTF-16LE at render time; image bytes remain in the
+validated packed/compressed representation. A native takeover yields the same
+remote generation instead of timer-driven reclaiming, and generation
+replacement prevents stale delayed rendering.
+
+The native seam follows Win32 ownership rules: publication opens and empties
+the clipboard before declaring delayed formats; `WM_RENDERFORMAT` rendering
+must not reopen it; `WM_RENDERALLFORMATS` opens it, verifies the HWND still
+owns the clipboard, renders ready formats, then closes it. Disconnect clears
+our delayed publication only while that HWND is still owner. The real
+User32/GlobalAlloc callbacks compile only on Windows; ordinary tests inject
+callbacks and never touch the host clipboard.
+
+Dedicated registered CTests:
+`clipboard.windows-clipboard-remote-ready-publication`,
+`clipboard.windows-clipboard-generation-owner-loss`,
+`clipboard.windows-clipboard-png-dib-routing`,
+`clipboard.windows-clipboard-render-all-disconnect`, and
+`clipboard.windows-clipboard-failure-reentry-denials`. The existing R9
+sanitizer build list now compiles this target before its all-clipboard label
+run.
+
+**Authoring validation:** source/ownership/documentation review **PASS**.
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** because this connector environment does not expose that checkout;
+no alternate build root was created. Exact-SHA Linux/GCC, macOS/Clang,
+Windows/MSVC Debug/Release, R9 ASan/UBSan and documentation-policy are
+**PENDING after publication**. No live Windows clipboard, Microsoft client,
+R3-authorized CLIPRDR payload dispatch, file-manager destination integration,
+Windows MSYS2 CLANG64/Clang23 owner run or performance acceptance was executed.
+
+**Next R8:** add the equivalent ready-data macOS clipboard adapter and continue
+native file-destination integration while R3 completes the authoritative
+post-admission clipboard payload writer; only then wire native fetch intents
+to actual CLIPRDR transmission.
+
 ## R2 binding-fence warning-clean correction (2026-10-16)
 
 Post-publication review of `5400566af551b6b5715a23d76569a3e838bcd8bd` found an obsolete local `activeServerTls` left in `LinuxConsoleAdmissionBroker::issue` after native issuance switched to `verifiedPrincipalForOwnedConnection()`. The Linux GSS target uses `-Werror`; this correction removes only that unused raw-TLS local. Authorization and teardown semantics are unchanged.

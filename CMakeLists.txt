@@ -173,6 +173,26 @@ if(WIN32)
     endif()
 endif()
 
+# R8 Windows clipboard presentation is noninstalled and never owns CLIPRDR.
+# The state machine is compiled on every CI platform through an injected native
+# call seam; only Windows includes the dormant User32/GlobalAlloc bridge.
+add_library(rdp-server-windows-clipboard STATIC
+    src/windows/windows_clipboard_adapter.cpp)
+target_compile_features(rdp-server-windows-clipboard PUBLIC cxx_std_23)
+target_include_directories(rdp-server-windows-clipboard PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-windows-clipboard PUBLIC
+    rdp-server-protocol)
+if(WIN32)
+    target_link_libraries(rdp-server-windows-clipboard PRIVATE user32)
+endif()
+if(MSVC)
+    target_compile_options(rdp-server-windows-clipboard PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-windows-clipboard PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R5 first-party native XCB/RandR connection; the portable RDP SDK
 # never links XCB. The native target is built when the development
 # packages exist; CI provisions them on Linux for exact-SHA coverage.

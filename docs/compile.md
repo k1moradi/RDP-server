@@ -1,3 +1,18 @@
+## R8 Windows clipboard adapter build boundary (2026-10-16)
+
+The noninstalled `rdp-server-windows-clipboard` target compiles the
+production clipboard state machine on every CI OS so its injected lifetime
+logic receives broad warning/test coverage. Only `_WIN32` compiles the
+dormant User32/GlobalAlloc callback bridge, linking `user32`; Linux/macOS
+gain no Windows headers or native runtime dependency. The target links the
+existing portable protocol library for `RemoteTransfer` and is not exported
+or packaged in the SDK.
+
+`test_windows_clipboard_adapter` uses synthetic native callbacks and never
+opens the host clipboard. The owner's normal single `~/rdp-server/build`
+command is unchanged; Windows/MSVC and owner MSYS2 CLANG64/Clang23 remain
+separate compiler evidence for the native branch.
+
 ## R10 Linux explicit service-keytab provisioning (2026-10-16)
 
 The pre-listener Linux runtime security component is currently built only when

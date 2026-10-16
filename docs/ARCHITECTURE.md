@@ -1,3 +1,27 @@
+## R8 Windows clipboard presentation boundary (2026-10-16)
+
+`WindowsClipboardAdapter` is a native presentation child of the existing
+`RemoteTransfer`; it is not a second clipboard controller. It borrows one
+caller-owned window token and a small native operation table, retains no RDP
+payload copy, and is confined to the same serialized native/event-loop
+context. `RemoteTransfer` owns generation, verified UTF-8 text, validated
+PNG/DIB bytes, request correlation and disconnect semantics.
+
+Windows publication is ready-data-only. The adapter may advertise
+CF_UNICODETEXT, CF_DIB, CF_DIBV5, or the process-registered `PNG` format only
+when the matching `RemoteTransfer` snapshot is already verified for the
+current generation. Delayed rendering never waits on network I/O. A generation
+change invalidates publication before native render can copy stale bytes.
+`WM_DESTROYCLIPBOARD` yields the published generation so a local application
+can take ownership without R8 immediately reclaiming it.
+
+The Win32 bridge is quarantined behind injected callbacks. Its
+`SetClipboardData` path uses `GMEM_MOVEABLE`, copies bounded verified bytes,
+and transfers ownership to the OS only on success. `WM_RENDERFORMAT` does not
+call `OpenClipboard`; `WM_RENDERALLFORMATS` opens and verifies owner identity
+first. No constructor or callback grants R2/R3 admission, creates an RDP
+channel, or performs CLIPRDR transmission.
+
 ### R2 owner-completed CredSSP binding proof
 
 Native admission distinguishes a prepared server binding from a binding reply actually completed through R1. Only `advanceOwnedCredSspHandshake()` may set the private completion latch after exact owner-backed write completion and reply release. `verifiedPrincipalForOwnedConnection()` additionally requires the same live HYBRID owner, established TLS and selected-certificate continuity. Legacy framed helpers remain protocol-test surfaces and cannot satisfy native admission; rejection clears the latch before GSS/TLS teardown.

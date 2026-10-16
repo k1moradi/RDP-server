@@ -1,3 +1,20 @@
+## Win32 delayed clipboard rendering is never a network wait
+
+For R8 Windows publication, do not use `WM_RENDERFORMAT` as the trigger for a
+CLIPRDR fetch. Win32 delivers that message while the requesting application
+holds the clipboard open, and the owner is expected to place the requested
+format immediately without reopening the clipboard. Announce a delayed native
+format only after the current `RemoteTransfer` generation already owns
+validated bytes. Keep generation checks immediately before the synchronous
+native copy; stale generations fail without publishing data.
+
+For `WM_RENDERALLFORMATS`, open the clipboard, verify the configured owner
+window still owns it, render only already-ready formats, then close. Transfer
+`GMEM_MOVEABLE` ownership to Win32 only after successful
+`SetClipboardData`; free it on failure. A local clipboard takeover suppresses
+republication of the same remote generation. Native clipboard ownership is
+presentation state, never R3 channel authority.
+
 ## R1-owned TLS application framing rule (2026-10-16)
 
 When a higher protocol layer needs decrypted/encrypted application bytes from

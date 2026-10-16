@@ -1,3 +1,33 @@
+## R8 Windows ready-data clipboard adapter authoring (2026-10-16)
+
+**Starting main:** `f2c363b27f20e047b31611861e585a63b3076703`.
+
+Added the noninstalled `WindowsClipboardAdapter` plus dormant Win32
+User32/GlobalAlloc operations. The adapter consumes only current verified
+`RemoteTransfer` snapshots and never requests CLIPRDR data from
+`WM_RENDERFORMAT`. Publication is generation-fenced, local owner loss yields
+the same generation, CRLF UTF-16LE conversion is bounded, PNG/DIB/DIBV5
+identities remain distinct, and disconnect clears our delayed publication only
+when the configured window still owns the clipboard.
+
+Five new production-linked CTests are registered under the `clipboard` label:
+`windows-clipboard-remote-ready-publication`,
+`windows-clipboard-generation-owner-loss`,
+`windows-clipboard-png-dib-routing`,
+`windows-clipboard-render-all-disconnect`, and
+`windows-clipboard-failure-reentry-denials`. The R9 sanitizer selected-target
+compile list includes the new executable so the existing all-clipboard run can
+execute them.
+
+Authoring source and ownership review **PASS**. Canonical local build/full
+CTest, focused CTest, sanitizers and native compiler execution are **NOT RUN**
+because this connector has no synchronized `~/rdp-server` checkout and
+project policy forbids a second build root. Exact-SHA hosted Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, sanitizer and docs-policy are
+**PENDING after publication**. Live Win32 clipboard mutation,
+Microsoft-client interoperability, authenticated CLIPRDR routing and
+performance are **NOT RUN**.
+
 ## R2 binding-fence warning-clean correction (2026-10-16)
 
 Post-publication review of `5400566af551b6b5715a23d76569a3e838bcd8bd` found an obsolete local `activeServerTls` left in `LinuxConsoleAdmissionBroker::issue` after native issuance switched to `verifiedPrincipalForOwnedConnection()`. The Linux GSS target uses `-Werror`; this correction removes only that unused raw-TLS local. Authorization and teardown semantics are unchanged.

@@ -1202,6 +1202,31 @@ if(TARGET rdp-server-linux-x11-authorized-input AND
                    TIMEOUT 20)
 endif()
 
+# R8 Windows clipboard presentation. Every case uses deterministic injected
+# native operations; no ordinary CTest opens or mutates the host clipboard.
+# The same production source compiles the dormant Win32 bridge on Windows.
+add_executable(test_windows_clipboard_adapter
+    test_windows_clipboard_adapter.cpp)
+target_link_libraries(test_windows_clipboard_adapter PRIVATE
+    rdp-server-windows-clipboard)
+if(MSVC)
+    target_compile_options(test_windows_clipboard_adapter PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_windows_clipboard_adapter PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        windows-clipboard-remote-ready-publication
+        windows-clipboard-generation-owner-loss
+        windows-clipboard-png-dib-routing
+        windows-clipboard-render-all-disconnect
+        windows-clipboard-failure-reentry-denials)
+    add_test(NAME "clipboard.${case_name}"
+        COMMAND test_windows_clipboard_adapter "${case_name}")
+    set_tests_properties("clipboard.${case_name}" PROPERTIES
+        LABELS "protocol;clipboard;windows-adapter;offline")
+endforeach()
+
 # R8 native X11 CLIPBOARD selection adapter. All cases use a deterministic
 # native operation seam; they compile the real adapter without DISPLAY/Xvfb.
 if(TARGET rdp-server-linux-x11-clipboard)

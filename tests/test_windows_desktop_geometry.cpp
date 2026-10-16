@@ -34,6 +34,7 @@ void windowsCaptureSessionChangeDenials();
 void windowsDxgiDuplicationOwnerLifecycle();
 void windowsDxgiDuplicationOwnerSelectionDenials();
 void windowsDxgiDuplicationOwnerSameAdapterAmbiguity();
+void windowsDxgiDuplicationOwnerCaptureCycleSingleAttach();
 void windowsDxgiDuplicationOwnerCaptureCycleLayoutDenials();
 void windowsDxgiDuplicationOwnerEpochRevocation();
 void windowsDxgiPointerShapeOwnedLifetime();
@@ -883,6 +884,10 @@ int main(int argc, char **argv)
     else if (behavior == "dxgi-duplication-owner-same-adapter-ambiguity")
     {
         windowsDxgiDuplicationOwnerSameAdapterAmbiguity();
+    }
+    else if (behavior == "dxgi-duplication-owner-capture-cycle-single-attach")
+    {
+        windowsDxgiDuplicationOwnerCaptureCycleSingleAttach();
     }
     else if (behavior == "dxgi-duplication-owner-capture-cycle-layout-denials")
     {

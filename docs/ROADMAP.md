@@ -1,3 +1,26 @@
+## R6 capture-cycle single-attachment ownership coverage (2026-10-16; exact-SHA CI pending)
+
+With native runtime binding still blocked on genuine Windows R2/R3 admission and
+owner CLANG64/Clang23 evidence, the next R6 maintenance increment strengthens
+the newest transactional attachment contract without changing production code.
+Dedicated CTest
+`windows.capture-dxgi-duplication-owner-capture-cycle-single-attach` opens the
+existing production `WindowsDxgiDuplicationOwner`, attaches one capture-cycle
+subordinate with a canonical selected-output layout, then requires a second
+attach attempt to fail without replacing the live subordinate or revoking owner
+readiness. Terminal `close()` must clear the subordinate, invalidate readiness
+and remain idempotent while synthetic duplication/context/device references are
+released exactly once.
+
+The test constructs the existing native staging/capture wrappers but performs
+no frame acquisition, GPU mapping, live desktop access or SendInput. No
+authorization surface, production callback, scheduler or runtime route changes.
+
+Canonical owner-local CMake/CTest is **NOT RUN** in this connector environment.
+Exact-SHA hosted Windows/MSVC Debug+Release preflight/full matrix is required
+after publication. Owner Windows MSYS2 CLANG64/Clang23 and genuine Windows
+R2/R3 admission remain **NOT RUN/BLOCKED**; M4 remains OPEN.
+
 ## R9 owner-completed CredSSP binding sanitizer handoff (2026-10-16; exact-SHA CI pending)
 
 **Reconciled publication parent:** `b1cd3e30b5b2a708831c55c4cc857b103a46f246`.

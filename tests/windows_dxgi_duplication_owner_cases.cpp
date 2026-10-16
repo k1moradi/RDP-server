@@ -185,6 +185,14 @@ bool readGeneration(
     generation = {41, 73};
     return true;
 }
+
+[[nodiscard]] WindowsDesktopLayout selectedLayout() noexcept
+{
+    constexpr std::array monitors{selectedTarget.expectedBounds};
+    WindowsDesktopLayout layout{};
+    assert(makeWindowsDesktopLayout(monitors, layout));
+    return layout;
+}
 } // namespace
 
 void windowsDxgiDuplicationOwnerLifecycle()
@@ -302,6 +310,35 @@ void windowsDxgiDuplicationOwnerSameAdapterAmbiguity()
     assert(backend.outputs[1][0].releases == 1);
     assert(backend.outputs[1][1].releases == 1);
     assert(backend.adapters[1].releases == 1);
+}
+
+void windowsDxgiDuplicationOwnerCaptureCycleSingleAttach()
+{
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(backend.callbacks());
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+
+    int readerContext = 0;
+    const WindowsCaptureGenerationReader reader{&readerContext, &readGeneration};
+    assert(owner.attachCaptureCycle(selectedLayout(), reader, 41));
+    auto *const attached = owner.captureCycle();
+    assert(attached != nullptr && !attached->closed());
+    assert(owner.ready());
+
+    // One duplication owner has exactly one capture-cycle subordinate. A
+    // second attach cannot replace the already-live cycle or mutate readiness.
+    assert(!owner.attachCaptureCycle(selectedLayout(), reader, 41));
+    assert(owner.captureCycle() == attached);
+    assert(owner.ready());
+
+    owner.close();
+    assert(owner.captureCycle() == nullptr);
+    assert(!owner.ready());
+    owner.close();
+    backend.assertReleased();
+    assert(backend.duplication.releases == 1);
+    assert(backend.context.releases == 1);
+    assert(backend.device.releases == 1);
 }
 
 void windowsDxgiDuplicationOwnerCaptureCycleLayoutDenials()

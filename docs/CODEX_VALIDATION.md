@@ -1,3 +1,20 @@
+## R6 capture-cycle single-attachment authoring verification (2026-10-16)
+
+Added dedicated behavior
+`windows.capture-dxgi-duplication-owner-capture-cycle-single-attach` to the
+existing Windows desktop test executable and central CTest registry. It
+exercises the production duplication owner with the existing synthetic native
+reference backend and proves: first canonical capture-cycle attachment succeeds;
+a second attachment cannot replace the live subordinate; owner readiness
+remains stable; terminal close clears the subordinate; repeated close is
+idempotent; duplication, D3D11 context and device references each release once.
+
+No production source changed. Authoring/source ownership review **PASS**.
+Canonical `~/rdp-server/build` compile/CTest **NOT RUN**. Exact-SHA hosted
+Windows/MSVC Debug+Release and full matrix are **PENDING**. Owner Windows MSYS2
+CLANG64/Clang23, live DXGI/SendInput, Microsoft-client M4 and genuine Windows
+R2/R3 admission remain **NOT RUN/BLOCKED**.
+
 ## R9 owned binding-delivery sanitizer selection (2026-10-16)
 
 **Parent:** `b1cd3e30b5b2a708831c55c4cc857b103a46f246`.

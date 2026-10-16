@@ -542,6 +542,7 @@ if(TARGET rdp-server-windows-desktop)
             dxgi-duplication-owner-lifecycle
             dxgi-duplication-owner-selection-denials
             dxgi-duplication-owner-same-adapter-ambiguity
+            dxgi-duplication-owner-capture-cycle-single-attach
             dxgi-duplication-owner-capture-cycle-layout-denials
             dxgi-duplication-owner-epoch-revocation)
         add_test(NAME "windows.capture-${case_name}"

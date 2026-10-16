@@ -631,6 +631,7 @@ if(TARGET rdp-server-windows-desktop)
             dxgi-duplication-owner-selection-denials
             dxgi-duplication-owner-same-adapter-ambiguity
             dxgi-duplication-owner-repeated-adapter-reference
+            dxgi-duplication-owner-repeated-output-reference
             dxgi-duplication-owner-capture-cycle-single-attach
             dxgi-duplication-owner-capture-cycle-layout-denials
             dxgi-duplication-owner-epoch-revocation

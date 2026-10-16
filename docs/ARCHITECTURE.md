@@ -1002,8 +1002,11 @@ COM interface address. Within one adapter scan, transferring the candidate into
 the same scan reuse it without another release. A later `adapterAt` result is
 a distinct owned reference and must be released independently unless that
 specific result is transferred, even if COM returns the same interface address.
-Ambiguous duplicate-output denial releases each output reference once and
-leaves terminal `close()` to release the retained selected-adapter reference.
+The same rule applies to `outputAt`: a later output enumeration can return the
+same interface address with another owned reference, so ambiguity cleanup
+releases that later candidate separately from the already-retained selected
+output. Ambiguous duplicate-output denial releases each output reference once
+and leaves terminal `close()` to release the retained selected-adapter reference.
 All failed construction paths release returned partial native references.
 `close` is terminal; destruction first cancels/destroys the existing
 `WindowsDxgiCaptureCycle` (unmap before ReleaseFrame), then drops native

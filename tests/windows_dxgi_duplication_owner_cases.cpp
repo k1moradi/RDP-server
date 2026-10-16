@@ -40,6 +40,7 @@ struct FakeDxgiBackend
     bool detached{}, empty{}, rotated{}, wrongMonitor{}, ambiguous{};
     bool sameAdapterAmbiguous{};
     bool repeatSelectedAdapterReference{};
+    bool repeatSelectedOutputReference{};
     bool enumeratingRepeatedAdapter{};
     bool assignFailureResource{};
     bool reenterOpen{};
@@ -160,6 +161,13 @@ struct FakeDxgiBackend
             adapter == &self.adapters[1] && index >= self.outputCount)
         {
             self.closeOwner();
+        }
+        if (self.repeatSelectedOutputReference &&
+            adapter == &self.adapters[1] && index == 2)
+        {
+            // Same interface address, independently owned outputAt reference.
+            retain(out, self.outputs[1][1]);
+            return WindowsDxgiEnumerationResult::item;
         }
         if (index >= self.outputCount)
             return WindowsDxgiEnumerationResult::end;
@@ -455,6 +463,31 @@ void windowsDxgiDuplicationOwnerRepeatedAdapterReference()
     }
     backend.assertReleased();
     assert(backend.adapters[1].releases == 2);
+}
+
+
+void windowsDxgiDuplicationOwnerRepeatedOutputReference()
+{
+    FakeDxgiBackend backend{};
+    backend.repeatSelectedOutputReference = true;
+    {
+        WindowsDxgiDuplicationOwner owner(backend.callbacks());
+        assert(owner.open(selectedTarget) ==
+               WindowsDxgiDuplicationResult::ambiguous);
+        assert(!owner.ready() && owner.deviceEpoch() == 0);
+
+        // outputAt returned the selected output address again but transferred
+        // a second owned reference. Ambiguity cleanup must release the later
+        // candidate and the retained selected reference independently.
+        assert(backend.outputs[1][1].outstanding == 0);
+        assert(backend.outputs[1][1].releases == 2);
+        assert(backend.adapters[1].releases == 1);
+
+        owner.close();
+    }
+    backend.assertReleased();
+    assert(backend.outputs[1][1].releases == 2);
+    assert(backend.adapters[1].releases == 1);
 }
 
 void windowsDxgiDuplicationOwnerCaptureCycleSingleAttach()

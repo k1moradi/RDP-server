@@ -15166,3 +15166,37 @@ the corrected exact SHA completes hosted CI. Canonical owner-local
 `~/rdp-server/build/`, owner macOS 27 live display/session notification
 delivery, genuine non-forgeable R2/R3 macOS admission and Microsoft-client M5
 acceptance remain **NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.
+
+## R6 repeated-output COM reference provenance coverage (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `b0a439898976d2c64719fe5ae6fefbbc8d639f84`.
+
+The immediately preceding R6 adapter fix made ownership provenance explicit:
+each successful enumeration callback return transfers one owned COM reference,
+and raw interface-address equality is not proof that two local names share one
+release obligation. A sibling audit of the already-existing selected-output
+path found the production cleanup is already correct, but that same-address /
+two-reference case is not independently regression-tested for `outputAt`.
+
+This bounded maintenance increment therefore changes no production algorithm.
+The existing DXGI fixture can now return the selected output interface address
+again from a later `outputAt` call while incrementing the synthetic reference
+count. New CTest
+`windows.capture-dxgi-duplication-owner-repeated-output-reference` requires
+the second matching output to produce terminal `ambiguous`, release the later
+candidate reference once, release the previously retained selected-output
+reference once during fail-closed teardown, retain only one transferred adapter
+reference, and finish with every synthetic COM reference count at zero.
+
+`docs/ARCHITECTURE.md` states the same ownership-event rule for output
+enumeration as for adapter enumeration. No native API, owner, authorization
+surface, runtime DXGI/SendInput route, scheduler, or acceptance claim changes.
+
+Canonical owner-local `~/rdp-server/build` execution is **NOT RUN** because
+this connector environment exposes no synchronized checkout. Exact publication
+SHA Windows/MSVC focused/full Debug+Release plus hosted Linux/GCC,
+macOS/AppleClang, sanitizer, documentation-policy and SDK/package evidence are
+**PENDING**. Owner Windows MSYS2 CLANG64/Clang23, genuine Windows R2/R3 native
+admission, live Desktop Duplication/SendInput, Microsoft-client M4 and native
+performance remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT ACCEPTED.**
+

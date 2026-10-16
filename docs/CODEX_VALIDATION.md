@@ -15316,3 +15316,27 @@ the corrected exact SHA completes hosted CI. Canonical owner-local
 `~/rdp-server/build/`, owner macOS 27 live display/session notification
 delivery, genuine non-forgeable R2/R3 macOS admission and Microsoft-client M5
 acceptance remain **NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.
+
+## R6 repeated-output reference provenance authoring receipt (2026-10-16; CI pending)
+
+Starting/reconciled shared `main`: `b0a439898976d2c64719fe5ae6fefbbc8d639f84`.
+
+Source/ownership audit **PASS**: the selected-output path already releases a
+later ambiguous `outputAt` candidate independently from the previously
+retained selected output, even when both pointers have the same interface
+address. What was missing was a fixture capable of proving two simultaneous
+owned references on that one address.
+
+The reference-counting DXGI backend now retains the selected output token on a
+later enumeration result and the new production-linked behavior
+`windows.capture-dxgi-duplication-owner-repeated-output-reference` requires
+`ambiguous`, two output releases, one selected-adapter release, terminal
+non-readiness and zero outstanding references. No production source or test
+assertion is weakened.
+
+Canonical local one-root build/CTest is **NOT RUN / BLOCKED** in this connector
+environment. Exact-SHA hosted platform, sanitizer, documentation and
+SDK/package validation are **PENDING**. Genuine Windows R2/R3 admission,
+owner MSYS2 CLANG64/Clang23, live DXGI/SendInput and Microsoft-client M4 remain
+**NOT RUN/BLOCKED**.
+

@@ -12273,3 +12273,45 @@ documentation-policy and SDK/package evidence are **PENDING** after
 publication. Genuine non-forgeable macOS R2/R3 admission, owner macOS 27 live
 fast-user-switch delivery and Microsoft-client M5 acceptance remain
 **NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.
+
+
+## R7 session-watch retirement callback race exact-SHA hosted receipt (2026-10-16)
+
+Implementation `f0b43eaf374a38ee75814ef7e72d349c7311ce43`, Actions
+`38917886165`, completed **SUCCESS**. The shared CTest registry again includes
+the previously validated
+`macos.desktop-session-watch-partial-install-retirement` case, and the new
+`macos.desktop-session-watch-retirement-callback-race` case passed in both
+Debug and Release on every hosted compiler.
+
+Ubuntu/GCC full CTest is **443/443 PASS** in Debug and **443/443 PASS** in
+Release. macOS/AppleClang is **370/370 PASS** in Debug and **370/370 PASS** in
+Release. Windows/MSVC is **399/399 PASS** in Debug and **399/399 PASS** in
+Release, with the focused Windows native preflight **44/44 PASS** in both
+configurations. Installed SDK consumer is **1/1 PASS** on all three platforms
+and package generation/upload succeeds.
+
+The retirement-race regression invokes the production static recorder from
+inside the injected observer `remove()` callback on both a failed removal and
+its successful retry. The replacement watch revision is exactly three greater
+than the original active revision, proving those in-removal callbacks did not
+consume a process revision after `stop()` entered `Retiring` and cleared the
+active registration epoch. Delayed old-epoch delivery after replacement is
+also inert.
+
+Documentation policy and the configured R9 Clang ASan/UBSan job both **PASS**.
+The sanitizer job passes its configured groups (**49/49 clipboard**, **19/19 R4
+x264**, **35/35 bounded R1/R3 transport/security**, **27/27 native R2/R3 GSS**,
+**4/4 R10 runtime CredSSP**, **24/24 R5 X11**, **1/1 bounded fuzzer**). The R7
+session-watch executable is not part of those bounded sanitizer selections, so
+direct sanitizer execution of the new case is **NOT RUN** and is not claimed.
+Untagged prerelease publication is correctly **SKIPPED**.
+
+Production R7 source and native reachability are unchanged. Ordinary tests
+install no AppKit observer, request no TCC permission, read no live desktop and
+perform no capture, cursor sampling or Quartz input. Canonical owner-local
+`~/rdp-server/build/`, owner macOS 27 live fast-user-switch delivery, genuine
+non-forgeable macOS R2/R3 admission, native capture/input/cursor publication
+and Microsoft-client M5 acceptance remain **NOT RUN/OPEN**. The next
+authority-bearing R7 step remains blocked on the genuine macOS admission
+capability and **M5 remains OPEN/BLOCKED**.

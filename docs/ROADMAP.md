@@ -1,3 +1,39 @@
+## R5 XShm retirement registry/shared-CI correction (2026-10-16; exact-SHA CI pending)
+
+**Correction parent:** `7a6435b0a912fe5440d6d85bf1111d10111fcfca`. The preceding R5 publication
+`d5779a5cc96ee371b00bb470f98e4abfb8967df6` is implementation evidence only
+and is **not** executable validation evidence.
+
+Immediate integration review found two fail-closed publication defects. The new
+`x11.capture-native-destructor-retirement` block checked
+`RDP_SERVER_XVFB_RUN_EXECUTABLE` before any
+`find_program(... xvfb-run)` call had initialized it. Because CMake processes
+the registry sequentially and the root project does not predefine that
+variable, the new XShm behavior was not registered even on hosted Linux. The
+R5 sanitizer registry preflight already required its exact name, so that job
+would fail before executing the test.
+
+The same R5 publication also carried a stale shared-workflow edit that removed
+concurrent R2
+`security.credssp-password-credential-strict-fields` coverage from both the
+bounded sanitizer regex and its exact-name preflight. This correction discovers
+Xvfb before the XShm registration gate and restores the R2 selector/preflight
+while preserving R3's current server-license-grant cases and all later shared
+workflow additions.
+
+This is integration-only: production XShm, R2 and R3 source plus the XShm test
+body are unchanged. Canonical owner-local `~/rdp-server/build/` execution is
+**NOT RUN** in this connector environment because the synchronized checkout is
+unavailable; no alternate persistent build root is created. Exact-publication
+SHA Linux/GCC Debug+Release, macOS/Clang Debug+Release, Windows/MSVC
+Debug+Release, R9 sanitizer (including the R5 31-case native-X11 selection and
+restored R2 strict credential case), documentation policy and SDK/package
+evidence are **PENDING**.
+
+The functional R5 Input-PDU path remains **BLOCKED** on R3 exposing its
+authoritative authenticated decoded-input handoff. M1 owner-platform evidence
+and M2/M3 real-client gates remain **NOT RUN / OPEN**.
+
 ## R7 exact-SHA completion status (2026-10-16)
 
 R7 native GUI-session retirement is **DONE for synthetic production-backed lifetime enforcement** at `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`; see `docs/CODEX_VALIDATION.md` for exact hosted evidence. Hosted macOS Debug/Release, Linux Debug/Release, Windows Debug/Release, the dedicated R7 GCC ASan/UBSan job, documentation policy and package/digest gates passed. The R9 sanitizer workflow failed only at the concurrently introduced R5 X11 registration preflight before its X11 tests ran; that first boundary is recorded without attributing it to R7.

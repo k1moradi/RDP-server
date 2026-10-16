@@ -1,3 +1,26 @@
+## R5 XShm retirement integration correction (2026-10-16; CI pending)
+
+**Parent:** `7a6435b0a912fe5440d6d85bf1111d10111fcfca`.
+
+Review of `d5779a5cc96ee371b00bb470f98e4abfb8967df6` found its XShm retirement
+test body sound, but its CTest registration unreachable because the block used
+`RDP_SERVER_XVFB_RUN_EXECUTABLE` before the first `find_program` that could
+set it. The same publication stale-overwrote concurrent R2 strict-CredSSP
+sanitizer coverage.
+
+The correction adds the pre-registration `find_program(... xvfb-run)` and
+restores `security.credssp-password-credential-strict-fields` in both the
+bounded regex and exact-name preflight. Current R3 licensing-grant sanitizer
+cases remain intact. No production R5/R2/R3 source or XShm test-body change is
+made.
+
+Static integration checks require Xvfb discovery before the new registration,
+the R5 selector to retain
+`capture-native-(disconnect-cancellation|destructor-retirement)`, the R2
+strict-field name in selector/preflight, and R3's server-license-grant cases.
+Canonical local execution remains **NOT RUN**; exact-SHA hosted evidence is
+pending.
+
 ## R7 macOS GUI-session consumer retirement exact-SHA validation (2026-10-16)
 
 **Validated R7 integration SHA:** `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`.

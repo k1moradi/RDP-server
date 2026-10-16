@@ -3749,6 +3749,27 @@ actually run; another parser CTest alone is not a complete session.
   path on admission-generation/session revocation; do not create another
   input or session controller. M3 remains OPEN.
 
+  **R5 synchronous native graphics-read hosted receipt (2026-10-16):**
+  implementation `9331ec040819b7156a24ea24ab9cc5973a8d891f`,
+  [Actions 38877739759](https://github.com/k1moradi/RDP-server/actions/runs/38877739759).
+  Ubuntu/GCC compiled the real `rdp-server-linux-x11-desktop` target and
+  `x11.desktop-resource-r4-read-boundary` **PASS** under ephemeral Xvfb,
+  together with all other R5 X11 cases. Full Debug CTest was **302/303**
+  because unrelated `transport.gcc-conference-create` aborted at
+  `earlyCapabilityFlags == 0x0001U`; the immediate parent
+  `c09e581ac965e79ce700ef4617a0af6d2b04adba`,
+  [Actions 38877612047](https://github.com/k1moradi/RDP-server/actions/runs/38877612047),
+  reproduces that same Linux failure before the R5 change. Release/package
+  therefore did not run on the exact Linux SHA. macOS/Clang Debug likewise
+  reached **270/271**, with the same inherited conference-create failure
+  reproduced by the parent; Release did not run. Documentation-policy and
+  R9 sanitizer jobs **PASS**. The exact Windows/MSVC job was **IN PROGRESS**
+  when this receipt was recorded and is not claimed as PASS/FAIL.
+  **NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+  one-root commands; genuine R2/R3 admitted desktop/R4 delivery; live XTEST
+  input; Microsoft-client M3 acceptance; performance benchmarks. M3 remains
+  OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

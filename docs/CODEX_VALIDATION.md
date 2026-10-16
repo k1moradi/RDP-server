@@ -7828,3 +7828,36 @@ poll TLS, and bounded poll timeout/EOF now use the shared bounded
 Tests whose purpose is the one-step native accept/`WouldBlock` contract keep
 direct `acceptNonblockingTcpConnection` calls. Production transport code,
 deadlines, socket ownership and assertions are unchanged.
+
+## R5 synchronous native graphics-read hosted receipt (2026-10-16)
+
+**Implementation:** `9331ec040819b7156a24ea24ab9cc5973a8d891f`,
+[Actions 38877739759](https://github.com/k1moradi/RDP-server/actions/runs/38877739759).
+
+**Native R5 evidence:** Ubuntu/GCC configured and compiled the real
+`rdp-server-linux-x11-desktop` aggregate and its production-backed test.
+`x11.desktop-resource-r4-read-boundary` **PASS** under ephemeral Xvfb:
+real XShm 32x16 capture, real routed XDamage snapshot/acknowledgement,
+initial XFixes cursor refresh/image/ack, and post-disconnect fail-closed reads
+all succeeded. Every other registered R5 X11 case also passed.
+
+**Full-suite boundary:** Linux Debug was **302/303**, with the sole failure
+`transport.gcc-conference-create` at
+`test_owned_gcc_conference_create.cpp:109`,
+`settings.earlyCapabilityFlags == 0x0001U`. Immediate parent
+`c09e581ac965e79ce700ef4617a0af6d2b04adba`,
+[Actions 38877612047](https://github.com/k1moradi/RDP-server/actions/runs/38877612047),
+reproduces exactly that failure before the R5 implementation, so Linux
+Release/package stages were skipped. macOS/Clang Debug was **270/271** with
+the same inherited assertion, also reproduced by the parent; its Release
+stage was skipped. Documentation-policy and
+`r9-security-protocol-sanitizers` completed **SUCCESS**.
+
+**Windows/MSVC:** the exact implementation job was still **IN PROGRESS** at
+receipt publication and no result is claimed.
+
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+same-SHA commands; genuine positive R2/R3 admitted desktop use; R4 delivery to
+a client; live XTEST input; Microsoft-client M3 acceptance; performance
+benchmarks. The native aggregate remains noninstalled and is not a standalone
+authorization or graphics scheduler.

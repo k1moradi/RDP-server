@@ -4,6 +4,8 @@
 
 The initial R7 publication exposed a malformed CI YAML edit during immediate diff review. This follow-up repairs only the R7 sanitizer workflow block on current shared `main`; the production/session-retirement semantics and dedicated CTests are unchanged. The malformed SHA is not treated as validation evidence.
 
+A second immediate review found the exact-test regex anchor was truncated by replacement-string semantics; the follow-up fixes that single selector line before accepting any CI result. Both earlier R7 authoring SHAs remain non-evidence.
+
 Production changes pin the existing `NativeSessionChangeWatch` revision in
 `MacInputController` and `MacScreenCaptureBinding/State`. Input session loss
 is terminal without held-state cleanup posting; capture session loss is checked

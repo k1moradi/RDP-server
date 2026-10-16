@@ -378,7 +378,7 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R '^macos\.desktop-session-' --output-on-failure
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^macos\.input-controller-session-watch-revocation \
+            -R '^macos\.input-controller-session-watch-revocation$' \
             --output-on-failure
 
   documentation-policy:

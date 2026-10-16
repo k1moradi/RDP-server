@@ -1,3 +1,30 @@
+## R2 final-CredSSP admission fence exact-SHA validation (2026-10-16)
+
+**Implementation:** `4f07aec3001a1dbc7b7da69fc6376a2c853ce4ec`,
+Actions `38908224554` — **SUCCESS**.
+
+Hosted production-linked matrix is green on the exact R2 implementation SHA:
+Linux/GCC **411/411 Debug + 411/411 Release PASS**; macOS/Clang
+**352/352 Debug + 352/352 Release PASS**; Windows/MSVC **39/39 focused
+preflight Debug + Release PASS** and **376/376 full Debug + 376/376 full
+Release PASS**. Downstream installed SDK consumer/package and documentation
+policy also pass.
+
+R9 Clang ASan/UBSan is **PASS**. The native R2/R3 GSS selection is **24/24
+PASS**, and the newly registered
+`security.gssapi-credssp-authinfo-terminal-denials` passes under sanitizers.
+The other bounded sanitizer groups are also green: **41/41 clipboard**,
+**18/18 x264/BGRA**, **30/30 R1/R3 transport/security**, **4/4 R10 runtime
+CredSSP**, **16/16 X11**, and **1/1 fuzzer**.
+
+The exact hosted receipt verifies the fail-closed R2 admission fence, owner
+dispatch, terminal authInfo denial and R10 teardown mapping. It does not
+provide a positive delegated-credential authorization policy. Canonical
+owner-local `~/rdp-server/build/`, the opt-in real Kerberos/KDC/keytab/client
+cache cases, positive NSS/logind admission, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, and Microsoft-client acceptance remain **NOT RUN**.
+**M2/M3 remain OPEN.**
+
 ## R8 macOS ready-data pasteboard authoring validation (2026-10-16)
 
 **Base:** `1cbb068c4dd7b0b9b2b8065244ba650b71676005`. Current AppKit documentation was checked for

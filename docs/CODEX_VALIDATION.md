@@ -1,3 +1,37 @@
+## R5 exact descendant hosted receipt after lifecycle stabilization (2026-10-16)
+
+**Tested SHA:** `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`.
+**Actions:** `38893987860`.
+
+Ubuntu/GCC Debug and Release each complete **362/362 PASS**. In both runs,
+the R5 aggregate lifecycle, event route, transactional RandR rebuild,
+synchronous R4 read boundary and concrete R3-admission input-denial CTests all
+pass; `x11.desktop-resource-owner-lifecycle` is **PASS** at approximately
+0.03 s in each configuration. This is the first full Linux Debug+Release
+descendant after the `-noreset` lifecycle correction and subsequent shared
+fixture unblockers.
+
+The sanitizer job completes **SUCCESS**: clipboard **31/31**, selected
+R1/R3 protocol/security **20/20**, native GSS **14/14**, R5
+`x11.input-r3-admission-route-denials-and-revocation` **1/1**, and bounded
+fuzzer **1/1** all pass under the configured Clang ASan/UBSan job. macOS/Clang
+is **310/310 PASS** in Debug and Release.
+
+Windows/MSVC full Debug reaches **332/334**. The only failures are the two R10
+live TLS context positive tests, both reporting
+`OPENSSL_Uplink(...): no OPENSSL_Applink`. Its dedicated R6 native preflight
+is **35/35 PASS** in both invocations. Because the Windows full Debug step
+fails, Windows Release and package stages are **NOT RUN**. Documentation-policy
+passes, so workflow `38893987860` concludes **FAIL** for that unrelated R10
+Windows/OpenSSL boundary; no R5 failure is present.
+
+Owner-local canonical build/CTest and the three owner platform commands remain
+**NOT RUN** in this connector environment. Positive R2/R3 native admission,
+live XTEST, Microsoft-client desktop acceptance and performance remain
+**NOT RUN**. Current source still has no R3 RDP Share/Input/Fast-Path input PDU
+surface, so the roadmap's next R5 production translation is **BLOCKED** rather
+than implemented speculatively.
+
 ## R5 descendant FILEDESCRIPTORW fixture validation repair (2026-10-16)
 
 Actions `38893052784` at `fa79a916fbdda240a8df9601858989ede5e4ca92`

@@ -1,3 +1,47 @@
+## R5 X11 lifecycle/input-boundary descendant hosted validation (2026-10-16)
+
+Validated descendant: `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`,
+Actions `38893987860`. The R5 lifecycle correction from
+`f1718fa601c12e9ff10f9be3bba281acd0a57e90` remains present unchanged while
+the descendant also contains later R2/R3/R8/R9 work.
+
+**R5/Linux PASS:** Ubuntu/GCC full CTest is **362/362 PASS** in both Debug and
+Release. The production-backed R5 cases all pass in both configurations:
+`x11.desktop-resource-owner-connection-denial`,
+`x11.desktop-resource-owner-lifecycle`,
+`x11.desktop-resource-event-routing`,
+`x11.desktop-resource-randr-rebuild`,
+`x11.desktop-resource-r4-read-boundary`, and
+`x11.input-r3-admission-route-denials-and-revocation`. The corrected
+lifecycle case completed in about **0.03 s** in both Debug and Release. The
+Linux registry reports **24 x11-labeled tests** total.
+
+**Sanitizer PASS:** the R9 ASan/UBSan job passed its full selected scope,
+including **31/31** clipboard tests, **20/20** bounded R1/R3 MCS/CredSSP/
+licensing tests, **14/14** native R2/R3 GSS tests,
+`x11.input-r3-admission-route-denials-and-revocation` **1/1 PASS** under
+ASan/UBSan, and the bounded fuzzer **1/1 PASS**.
+
+**Cross-platform context:** macOS/Clang full CTest is **310/310 PASS** in both
+Debug and Release. Windows/MSVC native R6 preflight is **35/35 PASS** twice,
+but the full Windows Debug registry is **332/334** because unrelated R10
+`runtime.validates-live-tls-context-construction` and
+`runtime.tls-context-survives-credential-path-replacement` fail with
+`OPENSSL_Uplink ... no OPENSSL_Applink`; Windows Release/package therefore
+did not run. Documentation-policy passes. The overall workflow conclusion is
+**FAIL solely at that Windows R10 boundary**, not an R5 failure.
+
+The shared FILEDESCRIPTORW fixtures repaired on this SHA also pass in Linux,
+macOS and the sanitizer scope. Canonical owner-local Linux/X11, Windows MSYS2
+CLANG64/Clang23 and macOS27 remain **NOT RUN**, as do genuine positive
+Kerberos/logind admission, live XTEST injection and Microsoft-client M3.
+
+**Next R5 remains BLOCKED on R3 protocol ownership:** there is still no
+authoritative R3 Share/Input or Fast-Path Input PDU event surface to translate
+into the existing typed `X11InputEvent`. R5 must not introduce a competing
+parser/session/input controller. Resume production input translation only when
+R3 exposes that boundary; M3 remains OPEN.
+
 ## R5 descendant FILEDESCRIPTORW fixture unblock (2026-10-16; CI pending)
 
 R5 validation descendant `fa79a916fbdda240a8df9601858989ede5e4ca92`, Actions

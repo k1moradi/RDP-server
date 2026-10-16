@@ -494,7 +494,8 @@ public:
 
     // Any Erect, Attach, Join or SendData PDU before admission, or before the
     // admitted Connect Response has been completely delivered, is terminal.
-    // A valid peer Disconnect is acknowledged only on the denial-only path.
+    // A valid peer Disconnect remains acknowledged as teardown in either
+    // open phase, including while the admitted Connect Response is pending.
     [[nodiscard]] McsSessionIntake onDomainPdu(
         std::span<const std::uint8_t> completeTpkt) noexcept;
 

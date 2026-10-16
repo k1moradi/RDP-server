@@ -5542,3 +5542,60 @@ used by the newly added peer-endpoint test and all post-TLS application-I/O
 fixtures. Production listener/accept behavior, ownership, deadlines, TLS,
 R2/R3 authority and byte-stream semantics are unchanged. The bounded helper
 exists solely to remove scheduler timing from the loopback oracle.
+
+
+## R3 concrete R2 admission -> MCS Connect Initial handoff (2026-10-16)
+
+**Implementation SHA:** `70897645ed1f822c081747024a847a0928e18f15`.
+**Starting main inspected:** `e540be81f297c7f880c6b03db6ffc1a3ad8998ad`;
+the implementation was reconciled over concurrent R10/R5 work and published
+directly to main without force. A later stale-base R6 shared-file rewrite
+preserved the R3 production sources but accidentally dropped this roadmap text
+and the Linux CTest registration; this follow-up restores those shared entries
+without reverting R6 or subsequent R1 work.
+
+R2 implementation `03f2edbbfaa9049e7d6a22f22c11c94d9ad91213`
+introduced the concrete, move-only Linux native admission lease. The sole
+`McsSessionLifecycle` now has a private positive transition that only
+`LinuxConsoleAdmissionBroker` can invoke. The broker's
+`authorizeR3McsConnectInitial` requires current
+`kConsoleViewPermission` and runs the existing native `authorizes()`
+revalidation immediately before R3 sees the complete Connect Initial. R3
+validates its existing parser/domain/GCC boundaries, binds the nonzero R2
+admission and native session generations, and advances exactly to
+`AwaitConnectResponse`. Public `onConnectInitial` remains denial-only.
+No public admission bool/token, fake evidence source, user ID, channel
+allocation, TLS writer or response bytes were added.
+
+Any authorization failure closes R3. Any malformed/wrong-order admitted MCS
+input closes R3 and revokes the broker/GSS capability, preventing replay.
+A valid Disconnect Provider Ultimatum remains legal teardown while waiting for
+Connect Response; other DomainMCSPDUs are terminal ordering failures.
+`revokeR3Session` provides the ordered cancellation barrier:
+R3 state -> R2/GSS revocation -> caller-owned R1 TLS/socket teardown.
+
+**Exact-SHA hosted CI:** [Actions 38873422752](https://github.com/k1moradi/RDP-server/actions/runs/38873422752)
+for `70897645ed1f822c081747024a847a0928e18f15` completed **SUCCESS**.
+Linux/GCC passed **290/290** CTests in Debug and **290/290** in Release;
+the Linux-only dedicated
+`security.gssapi-r3-mcs-admission-contract` passed in both configurations.
+macOS/Clang passed **265/265** Debug and **265/265** Release, and
+Windows/MSVC passed **285/285** Debug and **285/285** Release. Those two
+platforms compile the portable R3 protocol changes but do not build the
+Linux-GSS-specific contract CTest. R9 sanitizer CI passed **19/19 clipboard**,
+**10/10 MCS/CredSSP**, and the bounded fuzzer **1/1**; documentation policy
+passed. Installed SDK consumers passed **1/1** per platform, with packaging
+and artifact upload successful; untagged prerelease publication was skipped.
+
+**Positive native admission remains NOT RUN in ordinary CI:** no test-only
+path can mint `LinuxConsoleAdmissionLease`; genuine Kerberos/TLS plus a real
+active physical logind session is required. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27 and Microsoft-client desktop remain **NOT RUN**.
+M2 remains **NOT ACCEPTED**.
+
+**Next R3:** extend `AwaitConnectResponse` only after updating the existing
+Connect Response encoder for the real CredSSP/PROTOCOL_HYBRID settings replay
+and moving static-channel/node allocation into this same R3 owner. Require a
+fresh broker authorization matching the stored admission/session generations
+immediately before response publication, and bind partial TLS writes to stable
+monotonic receipts. Then proceed in order to Erect/Attach/Join.

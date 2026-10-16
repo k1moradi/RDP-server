@@ -2357,3 +2357,41 @@ segmentation/reassembly, direction and licensing phase. The common licensing
 parser returns only an immutable borrowed body span whose lifetime is the
 caller's unchanged input. It never allocates from `wMsgSize` or nested BLOB
 lengths and never logs opaque licensing material.
+
+
+## R3 native R2 admission handoff into MCS Basic Settings (2026-10-16)
+
+R2 now has a concrete Linux-only admission lease, so R3 no longer treats
+"admission unavailable" as a permanent architectural condition. The public
+`McsSessionLifecycle::onConnectInitial` remains deliberately denial-only.
+The only current positive entry is
+`LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial`: the concrete
+broker first calls its existing native `authorizes` path with
+`kConsoleViewPermission`, rechecking exact TLS/GSS identity, policy epoch,
+NSS/logind session identity, native change watch and lease freshness, then
+immediately invokes a private friend transition on the sole R3 owner.
+
+No caller-visible bool, scalar token, principal string, user ID or synthetic
+evidence object can invoke that private transition. On success, R3 validates
+the complete bounded MCS Connect Initial, T.125 DomainParameters and GCC Client
+Data while the input span is live, stores only the R2 admission/session
+generation numbers, and advances to `AwaitConnectResponse`. It emits no
+bytes and does not yet allocate user/static channel IDs. Malformed or
+wrong-order admitted input closes R3 and revokes the same broker/GSS admission
+so it cannot be replayed on a fresh protocol owner.
+
+Disconnect ordering is explicit through
+`LinuxConsoleAdmissionBroker::revokeR3Session`: close R3 protocol/licensing/
+channel state first, revoke R2/GSS second, and only then may the caller release
+R1 TLS/socket ownership. The method is idempotent. A valid peer Disconnect
+Provider Ultimatum is recognized as teardown while R3 waits for Connect
+Response; every other DomainMCSPDU in that phase is terminal ordering failure.
+The native logind check/use race documented by R2 remains: the service must
+monitor the broker's native change fd and repeat broker authorization
+immediately before every later protected R3 transition.
+
+The existing MCS Connect Response encoder remains offline because it currently
+accepts only its diagnostic PROTOCOL_SSL input and caller-supplied channel IDs.
+The live CredSSP/Hybrid path therefore stops at `AwaitConnectResponse` rather
+than emitting a response with invented or mismatched protocol/allocation
+semantics.

@@ -7016,3 +7016,41 @@ used by the newly added peer-endpoint test and all post-TLS application-I/O
 fixtures. Production listener/accept behavior, ownership, deadlines, TLS,
 R2/R3 authority and byte-stream semantics are unchanged. The bounded helper
 exists solely to remove scheduler timing from the loopback oracle.
+
+
+## R3 native admission handoff exact-SHA validation (2026-10-16)
+
+**Atomic implementation:** `70897645ed1f822c081747024a847a0928e18f15`,
+[Actions 38873422752](https://github.com/k1moradi/RDP-server/actions/runs/38873422752),
+overall **SUCCESS**. The concrete `LinuxConsoleAdmissionBroker` is the only
+friend able to enter positive MCS state. It revalidates
+`kConsoleViewPermission` and live native GSS/TLS + NSS/logind provenance,
+then invokes R3 synchronously. A successful complete Connect Initial binds the
+lease admission generation and native session generation and stops at
+`AwaitConnectResponse`; public MCS intake remains denial-only. Parse/order
+failure revokes both R3 and the R2/GSS capability. The cancellation helper
+closes R3 before R2/GSS, leaving R1 TLS/socket release as the caller's next
+teardown step.
+
+The dedicated Linux CTest
+`security.gssapi-r3-mcs-admission-contract` statically requires the exact
+`LinuxConsoleAdmissionLease const&` API and rejects a Boolean substitute;
+runtime coverage verifies fresh R3 state and repeatable R3-before-R2
+cancellation without fabricating a positive lease. It passed under hosted
+Linux/GCC in both Debug and Release. Full hosted suites: Linux **290/290**
+Debug + **290/290** Release; macOS **265/265** Debug + **265/265** Release;
+Windows **285/285** Debug + **285/285** Release. The portable R3 production
+sources compiled on all three hosted platforms. R9 ASan/UBSan configured
+security coverage passed **19/19 clipboard**, **10/10 MCS/CredSSP**, plus
+`fuzz.mcs-cliprdr-bounded` **1/1**. Documentation policy and each installed
+SDK consumer passed; packaging/artifact upload succeeded.
+
+A concurrent R6 commit based on an older shared-file snapshot later removed
+the R3 documentation tail and Linux CTest registration while leaving all R3
+production sources intact. This follow-up restores only those shared entries
+and corrects the header comment to match the implemented rule that a valid
+peer Disconnect is teardown in either open phase.
+
+**NOT RUN:** genuine positive Kerberos + physical logind lease issuance into
+R3, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, Microsoft RDP
+client and desktop activation. These are required before M2 acceptance.

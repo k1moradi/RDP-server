@@ -6558,6 +6558,21 @@ OpenSSL 3.x comparison behind a compile-time version gate. Local
 GCC 14.2/OpenSSL 3.5.5 high-warning probe **PASS**; corrected hosted
 macOS/OpenSSL 4 is pending.
 
+**Corrected OpenSSL 4 exact-SHA CI:** compatibility fix
+`e540be81f297c7f880c6b03db6ffc1a3ad8998ad`,
+[Actions 38872488081](https://github.com/k1moradi/RDP-server/actions/runs/38872488081)
+is **PASS**. Linux/GCC **287/287**, macOS/Clang + Homebrew OpenSSL
+**4.0.3** **265/265**, and Windows/MSVC **285/285** full registered
+CTests PASS in each Debug and Release configuration. On all six
+host/configuration combinations the two original configuration positives,
+the matching TLS credential positive, and both temporal denials
+explicitly PASS. R9 sanitizer and documentation-policy PASS; every
+per-OS installed SDK consumer is **1/1 PASS**, and protocol ZIP/SHA256
+packaging/artifact upload succeeds. Untagged prerelease is skipped.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 remain
+**NOT RUN**. Certificate trust/hostname/revocation, live credential
+handle continuity, R2/R3 admission and service activation remain OPEN.
+
 
 ## R1 bounded post-handshake TLS application I/O (2026-10-15)
 

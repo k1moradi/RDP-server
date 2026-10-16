@@ -547,6 +547,22 @@ GCC 14.2/OpenSSL 3.5.5 `-Wall -Wextra -Wpedantic -Werror` probe
 startup refusal are unchanged. Corrected hosted OpenSSL 4 compilation,
 owner MSYS2 CLANG64/Clang23 and macOS27 remain to be verified.
 
+**R10 OpenSSL 4 temporal-check corrected exact-SHA CI PASS (2026-10-16):**
+Compatibility fix `e540be81f297c7f880c6b03db6ffc1a3ad8998ad`,
+[Actions 38872488081](https://github.com/k1moradi/RDP-server/actions/runs/38872488081)
+is **PASS**. Linux/GCC **287/287**, macOS/Clang with Homebrew
+OpenSSL **4.0.3** **265/265**, and Windows/MSVC **285/285** full CTests
+PASS in each Debug and Release configuration. The owner-reported
+configuration syntax/CRLF positives, validity-aware matching-pair
+success, expired-certificate denial and not-yet-valid-certificate denial
+all explicitly PASS on every hosted OS/configuration. R9 sanitizer,
+documentation-policy, downstream installed SDK **1/1**, ZIP/SHA256
+packaging and artifact upload PASS; untagged prerelease is skipped.
+This closes the hosted OpenSSL 4 compile regression without changing
+temporal policy. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS27 same-SHA validation remain **NOT RUN**; chain trust, hostname,
+revocation, live-loader continuity and service activation remain OPEN.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

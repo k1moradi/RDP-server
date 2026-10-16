@@ -1,3 +1,13 @@
+## R8 Windows completed-file CF_HDROP presentation boundary (2026-10-16)
+
+`WindowsClipboardFileDestination` remains a native materialization child of `RemoteTransfer`; it now may retain one caller-supplied fully qualified local path alongside the caller-selected HANDLE capability. That path is local metadata only, never synthesized from the remote FILEDESCRIPTORW leaf name, and is observable only after the existing exact-size resize/flush/close completion transition. Partial, cancelled, failed or replaced-generation destinations expose no path.
+
+`WindowsClipboardAdapter` remains the only Win32 clipboard presentation owner. Completed local files use predefined `CF_HDROP`, not the remote CLIPRDR FileGroupDescriptorW/FileContents protocol. R8 serializes a `DROPFILES` payload with a 20-byte little-endian header (`pFiles=20`, zero point, `fNC=FALSE`, `fWide=TRUE`) followed by one UTF-16 fully qualified path, its terminator, and the list terminator. The existing native byte setter owns the GMEM_MOVEABLE allocation until successful `SetClipboardData`; then Win32 owns the memory.
+
+This boundary is immediate-data-only: it does not open the destination file, fetch more FileContents bytes, serialize CLIPRDR, or grant R2/R3/session/TLS authority. Clipboard self-replacement uses the existing `selfReplacingPublication_` fence, while a real local takeover yields the current generation through the existing WM_DESTROYCLIPBOARD path. Missed owner notifications are additionally caught by querying the current clipboard owner before replacement. Stale completed destinations are rejected by exact RemoteTransfer generation comparison.
+
+The first handoff supports one completed regular file. Directory trees, multiple-file CF_HDROP publication, local directory creation and authenticated real-client Explorer acceptance remain later R8 gates.
+
 ## R8 macOS completed-file pasteboard handoff (2026-10-16)
 
 ## R2 final password-credential parsing boundary (2026-10-16)

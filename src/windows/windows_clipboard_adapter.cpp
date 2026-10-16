@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <limits>
 #include <new>
 
 #ifdef _WIN32
@@ -107,6 +108,7 @@ void WindowsClipboardAdapter::clearPublicationState() noexcept
     imagePublished_ = false;
     textRendered_ = false;
     imageRendered_ = false;
+    fileDropPublished_ = false;
     ownsClipboard_ = false;
 }
 
@@ -148,6 +150,7 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
     }
 
     if (ownsClipboard_ && publicationGeneration_ == generation &&
+        !fileDropPublished_ &&
         textPublished_ == textReady && imagePublished_ == imageReady &&
         (!imageReady || publishedImageFormat_ == image->format))
     {
@@ -201,6 +204,7 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
         }
         textRendered_ = false;
         imageRendered_ = false;
+        fileDropPublished_ = false;
         ownsClipboard_ = true;
     }
     else
@@ -267,6 +271,168 @@ bool WindowsClipboardAdapter::encodeNativeUnicodeText(
         bytes.clear();
         return false;
     }
+}
+
+bool WindowsClipboardAdapter::encodeFileDrop(
+    const std::u16string_view absolutePath,
+    std::vector<std::uint8_t> &bytes) const noexcept
+{
+    constexpr std::size_t kDropFilesHeaderBytes = 20U;
+    bytes.clear();
+    if (absolutePath.empty() ||
+        absolutePath.size() >
+            WindowsClipboardFileDestination::kMaximumLocalPathCodeUnits ||
+        absolutePath.size() >
+            (std::numeric_limits<std::size_t>::max() -
+             kDropFilesHeaderBytes) / 2U - 2U)
+    {
+        return false;
+    }
+
+    try
+    {
+        bytes.assign(
+            kDropFilesHeaderBytes +
+                (absolutePath.size() + 2U) * 2U,
+            0U);
+    }
+    catch (...)
+    {
+        bytes.clear();
+        return false;
+    }
+
+    const auto write32 = [&bytes](
+        const std::size_t offset, const std::uint32_t value)
+    {
+        bytes[offset] = static_cast<std::uint8_t>(value);
+        bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+        bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 16U);
+        bytes[offset + 3U] = static_cast<std::uint8_t>(value >> 24U);
+    };
+    // DROPFILES: pFiles=20, pt={0,0}, fNC=FALSE, fWide=TRUE.
+    write32(0U, static_cast<std::uint32_t>(kDropFilesHeaderBytes));
+    write32(16U, 1U);
+
+    std::size_t outputOffset = kDropFilesHeaderBytes;
+    for (const char16_t codeUnit : absolutePath)
+    {
+        const auto value = static_cast<std::uint16_t>(codeUnit);
+        bytes[outputOffset++] = static_cast<std::uint8_t>(value);
+        bytes[outputOffset++] = static_cast<std::uint8_t>(value >> 8U);
+    }
+    // The zero-filled tail supplies the path NUL and final list NUL.
+    return true;
+}
+
+bool WindowsClipboardAdapter::publishCompletedFileDestination(
+    const WindowsClipboardFileDestination &destination) noexcept
+{
+    const auto completedPath = destination.completedFilePath();
+    if (closed_ || operationInProgress_ ||
+        !remoteTransfer_.synchronized() ||
+        destination.status() !=
+            WindowsClipboardFileDestination::Status::Complete ||
+        !completedPath)
+    {
+        return false;
+    }
+
+    const std::uint64_t generation = remoteTransfer_.generation();
+    if (generation == 0U ||
+        destination.generation() != generation ||
+        generation == yieldedGeneration_)
+    {
+        return false;
+    }
+
+    std::vector<std::uint8_t> dropBytes;
+    if (!encodeFileDrop(*completedPath, dropBytes))
+    {
+        return false;
+    }
+
+    operationInProgress_ = true;
+    bool success = true;
+    if (ownsClipboard_ &&
+        nativeOperations_.clipboardOwner(nativeOperations_.context) !=
+            ownerWindow_)
+    {
+        yieldedGeneration_ = publicationGeneration_;
+        clearPublicationState();
+        success = false;
+    }
+
+    bool opened = false;
+    if (success)
+    {
+        opened = nativeOperations_.openClipboard(
+            nativeOperations_.context, ownerWindow_);
+        success = opened;
+    }
+
+    const bool wasOwner = ownsClipboard_;
+    selfReplacingPublication_ = wasOwner;
+    if (success)
+    {
+        success = nativeOperations_.emptyClipboard(
+            nativeOperations_.context);
+    }
+    if (success)
+    {
+        success = nativeOperations_.setFormatBytes(
+            nativeOperations_.context, kFileDropFormat,
+            std::as_bytes(std::span<const std::uint8_t>{dropBytes}));
+    }
+    if (success)
+    {
+        const bool sourceStillCurrent =
+            remoteTransfer_.synchronized() &&
+            remoteTransfer_.generation() == generation &&
+            destination.generation() == generation &&
+            destination.status() ==
+                WindowsClipboardFileDestination::Status::Complete &&
+            destination.completedFilePath().has_value();
+        if (!sourceStillCurrent)
+        {
+            (void)nativeOperations_.emptyClipboard(
+                nativeOperations_.context);
+            success = false;
+        }
+    }
+    if (!success && opened)
+    {
+        (void)nativeOperations_.emptyClipboard(
+            nativeOperations_.context);
+    }
+    selfReplacingPublication_ = false;
+
+    const bool closedClipboard =
+        !opened || nativeOperations_.closeClipboard(
+            nativeOperations_.context);
+    if (opened && !closedClipboard)
+    {
+        closed_ = true;
+    }
+
+    if (success && closedClipboard && !closed_)
+    {
+        publicationGeneration_ = generation;
+        textPublished_ = false;
+        imagePublished_ = false;
+        textRendered_ = false;
+        imageRendered_ = false;
+        fileDropPublished_ = true;
+        ownsClipboard_ = true;
+    }
+    else
+    {
+        clearPublicationState();
+    }
+
+    operationInProgress_ = false;
+    finishDeferredDisconnect();
+    return success && closedClipboard && !closed_;
 }
 
 bool WindowsClipboardAdapter::renderFormatInternal(

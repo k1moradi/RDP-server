@@ -1,3 +1,19 @@
+## R8 Windows completed-file Explorer handoff (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `67e6bf5a9305ff4ffbaf535cbded8bf9331a6743`. Linux completed-file X11 handoff, Windows bounded HANDLE materialization, and macOS completed-file URL/pasteboard handoff remain present. This increment completes the corresponding Windows **completed-only** native clipboard publication without adding another CLIPRDR owner or transport writer.
+
+`WindowsClipboardFileDestination` can now bind one caller-selected fully qualified local UTF-16 path to the exact caller-selected destination HANDLE at `begin`. Only drive-qualified (`C:\\...`) or ordinary UNC (`\\\\server\\share...`) metadata is accepted; relative paths, embedded NUL/newline data and Win32 device namespaces are refused before HANDLE duplication. The remote FILEDESCRIPTORW leaf name remains metadata only and is never converted into a local path. The path is hidden until exact-size materialization, final resize, flush and duplicate close complete.
+
+The existing `WindowsClipboardAdapter` remains the sole Win32 clipboard presentation owner. It can publish a completed current-generation destination as predefined `CF_HDROP` (15). R8 builds the documented 20-byte `DROPFILES` header with `pFiles=20`, `fWide=TRUE`, then one fully qualified UTF-16 path followed by the required double NUL. The existing native `setFormatBytes` seam copies that bounded payload into `GlobalAlloc(GMEM_MOVEABLE)` memory and transfers it through `SetClipboardData`; after successful SetClipboardData the system owns the memory. No file I/O, CLIPRDR request or network wait occurs in the clipboard adapter.
+
+Publication retains the current Windows ownership rules. `EmptyClipboard` self-replacement is fenced by `selfReplacingPublication_`; `WM_DESTROYCLIPBOARD`/owner mismatch yields the remote generation so the same generation cannot steal the clipboard back from a local application. A completed destination from an older generation is refused. If the source changes during publication, R8 clears its just-created clipboard contents before close rather than exposing stale local-file metadata.
+
+Dedicated production-backed CTest `clipboard.windows-completed-file-hdrop-handoff` uses the real destination state machine plus injected Win32 clipboard operations. It proves partial materialization cannot publish, exact completion exposes only the caller path, the exact `DROPFILES`/UTF-16/double-NUL bytes are emitted as CF_HDROP, local takeover blocks same-generation reclaim, and a later remote generation rejects the stale completed destination. Existing destination denials now also prove relative/device path metadata is rejected before native duplication. R9's sanitizer registry preflight explicitly requires the new case.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is **NOT RUN** in this connector environment; no alternate build root was created. Exact-publication-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC, R9 ASan/UBSan clipboard, documentation-policy and SDK/package evidence are **PENDING**. Live Explorer paste, owner Windows MSYS2 CLANG64/Clang23, authenticated Microsoft-client file copy and performance remain **NOT RUN/OPEN**.
+
+**Next R8 after hosted validation:** bounded directory-tree materialization/handoff without whole-tree prefetch or path derivation from remote metadata, then real-client file-copy acceptance. R3 remains the sole authorized CLIPRDR writer.
+
 ## R5 XShm retirement correction exact-SHA hosted validation (2026-10-16)
 
 **Implementation/correction:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.  

@@ -1602,7 +1602,8 @@ foreach(case_name IN ITEMS
         windows-file-destination-streaming
         windows-file-destination-size-cancel
         windows-file-destination-destructor-retirement
-        windows-file-destination-denials)
+        windows-file-destination-denials
+        windows-completed-file-hdrop-handoff)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_windows_clipboard_file_destination "${case_name}")
     set_tests_properties("clipboard.${case_name}" PROPERTIES

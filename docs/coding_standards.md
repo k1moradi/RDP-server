@@ -1,3 +1,11 @@
+## Windows completed files publish as CF_HDROP, never remote paths
+
+When a fully materialized R8 Windows destination is handed to Explorer, bind the caller-selected fully qualified local UTF-16 path to the same destination capability at begin time. Never derive, append or resolve a local path from the remote FILEDESCRIPTORW name. Keep that local path hidden until exact-size materialization, final resize, flush and duplicate close have completed.
+
+For one existing local file, use predefined `CF_HDROP`: encode a `DROPFILES` header with `pFiles` pointing at a double-NUL-terminated fully qualified Unicode file list and `fWide=TRUE`. Build the complete bounded payload before opening/emptying the clipboard. Transfer GMEM_MOVEABLE ownership only through successful `SetClipboardData`; free it on failure through the existing native seam. Do not use delayed rendering to trigger FileContents network work.
+
+A local clipboard takeover wins. Use the existing WM_DESTROYCLIPBOARD/self-replacement fence and verify native ownership before replacing an R8-owned publication. Refuse stale destination generations. CF_HDROP publication is native presentation only and never creates CLIPRDR/R3 authority.
+
 ## Completed native file handoff must consume a completion capability
 
 Do not let a caller publish an arbitrary local path/URL by passing a Boolean

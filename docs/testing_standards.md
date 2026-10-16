@@ -1,3 +1,9 @@
+## Windows completed-file handoff tests stay host-clipboard free
+
+Exercise CF_HDROP handoff through the production Windows destination and clipboard-adapter state machines with injected clipboard callbacks. Ordinary CTest must never call the real host clipboard. Require: no publication while the destination is partial; exact completed caller path retention; `DROPFILES.pFiles=20`, `fWide=TRUE`, one fully qualified UTF-16 path and the final double NUL; relative/device-path metadata rejection before native destination duplication; local owner takeover with same-generation reclaim denial; and stale-generation refusal.
+
+Keep the real Win32 `GlobalAlloc`/`SetClipboardData` branch to hosted Windows compile/link coverage unless a separately authorized native acceptance test is requested. Synthetic CF_HDROP success is not Explorer paste acceptance or authenticated Microsoft-client file-copy proof. The R9 sanitizer preflight must enumerate the dedicated `clipboard.windows-completed-file-hdrop-handoff` registration before running the complete clipboard label.
+
 ## Completed-file handoff tests must prove partial invisibility
 
 For native file-manager/pasteboard handoff, construct the real destination

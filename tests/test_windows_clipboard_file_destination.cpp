@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "clipboard/clipboard_protocol.h"
 #include "server/clipboard/remote_transfer.h"
+#include "windows/windows_clipboard_adapter.h"
 #include "windows/windows_clipboard_file_destination.h"
 
 #include <algorithm>
@@ -308,6 +309,126 @@ struct FakeNative final
     }
 };
 
+struct FakeClipboard final
+{
+    struct Write final
+    {
+        WindowsClipboardFormat format{};
+        std::vector<std::byte> bytes{};
+    };
+
+    static constexpr WindowsClipboardWindowToken kOwnerWindow = 0x3030U;
+    static constexpr WindowsClipboardFormat kPngFormat = 0xc303U;
+
+    std::vector<Write> writes{};
+    WindowsClipboardWindowToken currentOwner{};
+    WindowsClipboardWindowToken openedFor{};
+    unsigned openCalls{};
+    unsigned emptyCalls{};
+    unsigned closeCalls{};
+    bool opened{};
+    WindowsClipboardAdapter *adapter{};
+
+    static WindowsClipboardFormat registerFormat(
+        void *context, std::string_view name) noexcept
+    {
+        auto &self = *static_cast<FakeClipboard *>(context);
+        assert(name == "PNG");
+        return self.kPngFormat;
+    }
+
+    static bool openClipboard(
+        void *context, WindowsClipboardWindowToken owner) noexcept
+    {
+        auto &self = *static_cast<FakeClipboard *>(context);
+        ++self.openCalls;
+        self.opened = true;
+        self.openedFor = owner;
+        return true;
+    }
+
+    static bool emptyClipboard(void *context) noexcept
+    {
+        auto &self = *static_cast<FakeClipboard *>(context);
+        ++self.emptyCalls;
+        if (!self.opened)
+        {
+            return false;
+        }
+        const bool replacingSelf =
+            self.currentOwner == self.openedFor &&
+            self.adapter != nullptr;
+        self.currentOwner = self.openedFor;
+        self.writes.clear();
+        if (replacingSelf)
+        {
+            self.adapter->onDestroyClipboard();
+        }
+        return true;
+    }
+
+    static bool setDelayedFormat(
+        void *, WindowsClipboardFormat) noexcept
+    {
+        return true;
+    }
+
+    static bool setFormatBytes(
+        void *context, WindowsClipboardFormat format,
+        std::span<const std::byte> bytes) noexcept
+    {
+        auto &self = *static_cast<FakeClipboard *>(context);
+        if (!self.opened || bytes.empty())
+        {
+            return false;
+        }
+        self.writes.push_back(
+            Write{format, std::vector<std::byte>{bytes.begin(), bytes.end()}});
+        return true;
+    }
+
+    static bool closeClipboard(void *context) noexcept
+    {
+        auto &self = *static_cast<FakeClipboard *>(context);
+        ++self.closeCalls;
+        if (!self.opened)
+        {
+            return false;
+        }
+        self.opened = false;
+        return true;
+    }
+
+    static WindowsClipboardWindowToken clipboardOwner(
+        void *context) noexcept
+    {
+        return static_cast<FakeClipboard *>(context)->currentOwner;
+    }
+
+    [[nodiscard]] WindowsClipboardNativeOperations operations() noexcept
+    {
+        return {
+            this,
+            &registerFormat,
+            &openClipboard,
+            &emptyClipboard,
+            &setDelayedFormat,
+            &setFormatBytes,
+            &closeClipboard,
+            &clipboardOwner,
+        };
+    }
+
+    void localTakeover() noexcept
+    {
+        currentOwner = 0x9090U;
+        if (adapter != nullptr)
+        {
+            adapter->onDestroyClipboard();
+        }
+    }
+};
+
 std::vector<std::uint8_t> makeChunk(
     const std::uint64_t offset,
     const std::size_t bytes)
@@ -469,6 +590,21 @@ void windowsFileDestinationDenials()
 {
     {
         RemoteTransfer owner;
+        installSingleFileOffer(owner, u"path.bin", true, 4U);
+        FakeNative native;
+        WindowsClipboardFileDestination destination{
+            owner, native.operations()};
+        assert(!destination.begin(
+            0, native.sourceToken, u"relative\\path.bin"));
+        assert(!destination.begin(
+            0, native.sourceToken, u"\\\\?\\C:\\device.bin"));
+        assert(destination.status() ==
+               WindowsClipboardFileDestination::Status::Idle);
+        assert(native.duplicateCalls == 0U);
+    }
+
+    {
+        RemoteTransfer owner;
         installSingleFileOffer(owner, u"replace.bin", true, 8U);
         FakeNative native;
         WindowsClipboardFileDestination destination{
@@ -541,6 +677,79 @@ void windowsFileDestinationDenials()
                WindowsClipboardFileDestination::Status::NativeError);
         assert(native.bytes.empty());
     }
+}
+
+void windowsCompletedFileHdropHandoff()
+{
+    constexpr std::u16string_view kLocalPath{
+        u"C:\\Temp\\rdp-server-windows-complete.bin"};
+
+    RemoteTransfer owner;
+    installSingleFileOffer(owner, u"remote-name.bin", true, 4U);
+
+    FakeNative fileNative;
+    WindowsClipboardFileDestination destination{
+        owner, fileNative.operations()};
+    assert(destination.begin(
+        0, fileNative.sourceToken, kLocalPath));
+    assert(!destination.completedFilePath());
+
+    FakeClipboard clipboard;
+    WindowsClipboardAdapter adapter{
+        owner, clipboard.operations(), FakeClipboard::kOwnerWindow};
+    clipboard.adapter = &adapter;
+    assert(!adapter.publishCompletedFileDestination(destination));
+    assert(clipboard.writes.empty());
+
+    const auto intent = destination.nextRequestIntent();
+    assert(intent && intent->requestedBytes == 4U);
+    const auto bytes = makeChunk(0U, 4U);
+    receiveRange(owner, destination, *intent, bytes);
+    assert(destination.status() ==
+           WindowsClipboardFileDestination::Status::Complete);
+    const auto completedPath = destination.completedFilePath();
+    assert(completedPath && *completedPath == kLocalPath);
+
+    assert(adapter.publishCompletedFileDestination(destination));
+    assert(adapter.ownsClipboard());
+    assert(adapter.publicationGeneration() == owner.generation());
+    assert(clipboard.writes.size() == 1U);
+    const auto &drop = clipboard.writes.front();
+    assert(drop.format == WindowsClipboardAdapter::kFileDropFormat);
+    assert(drop.bytes.size() == 20U + (kLocalPath.size() + 2U) * 2U);
+    const auto byteAt = [&drop](const std::size_t index)
+    {
+        return static_cast<std::uint8_t>(drop.bytes[index]);
+    };
+    assert(byteAt(0) == 20U && byteAt(1) == 0U &&
+           byteAt(2) == 0U && byteAt(3) == 0U);
+    assert(byteAt(16) == 1U && byteAt(17) == 0U &&
+           byteAt(18) == 0U && byteAt(19) == 0U);
+    for (std::size_t index = 0; index < kLocalPath.size(); ++index)
+    {
+        const auto codeUnit = static_cast<std::uint16_t>(kLocalPath[index]);
+        const std::size_t offset = 20U + index * 2U;
+        assert(byteAt(offset) == static_cast<std::uint8_t>(codeUnit));
+        assert(byteAt(offset + 1U) ==
+               static_cast<std::uint8_t>(codeUnit >> 8U));
+    }
+    for (std::size_t offset =
+             20U + kLocalPath.size() * 2U;
+         offset < drop.bytes.size(); ++offset)
+    {
+        assert(byteAt(offset) == 0U);
+    }
+
+    const std::size_t writesBeforeTakeover = clipboard.writes.size();
+    clipboard.localTakeover();
+    assert(!adapter.ownsClipboard());
+    assert(!adapter.publishCompletedFileDestination(destination));
+    assert(clipboard.writes.size() == writesBeforeTakeover);
+
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(!adapter.publishCompletedFileDestination(destination));
 }
 
 #ifdef _WIN32
@@ -644,6 +853,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-file-destination-denials")
     {
         windowsFileDestinationDenials();
+        return 0;
+    }
+    if (behavior == "windows-completed-file-hdrop-handoff")
+    {
+        windowsCompletedFileHdropHandoff();
         return 0;
     }
 #ifdef _WIN32

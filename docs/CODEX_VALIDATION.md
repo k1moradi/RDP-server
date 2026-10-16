@@ -1,3 +1,11 @@
+## R8 Windows completed-file Explorer handoff authoring validation (2026-10-16)
+
+**Base:** `67e6bf5a9305ff4ffbaf535cbded8bf9331a6743`. Current Microsoft Win32/Shell documentation was checked for predefined `CF_HDROP`, `DROPFILES`, double-NUL fully qualified file lists, `GlobalAlloc(GMEM_MOVEABLE)`, and `SetClipboardData` ownership. The implementation uses that native completed-file contract only after the existing Windows destination reaches exact `Complete` state.
+
+The new production-backed `clipboard.windows-completed-file-hdrop-handoff` case composes the existing `RemoteTransfer`, `WindowsClipboardFileDestination` and `WindowsClipboardAdapter`. It verifies partial-file suppression, caller-bound absolute path exposure only after completion, exact 20-byte DROPFILES fields, UTF-16 path bytes and double terminator, local owner takeover/reclaim denial, and stale-generation refusal. Existing destination denial coverage is extended for relative and device-namespace local path metadata. The shared R9 clipboard sanitizer registration preflight now requires this exact test name.
+
+Canonical local `~/rdp-server/build` execution is **NOT RUN** because this connector environment does not expose that checkout and policy forbids a second persistent build root. Exact publication-SHA hosted Linux/GCC, macOS/AppleClang, Windows/MSVC and R9 sanitizer evidence is **PENDING**. Live Windows clipboard/Explorer interaction, Windows MSYS2 CLANG64/Clang23, authenticated Microsoft-client file copy and performance remain **NOT RUN/OPEN**.
+
 ## R5 XShm retirement correction exact-SHA validation receipt (2026-10-16)
 
 **Validated SHA:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.  

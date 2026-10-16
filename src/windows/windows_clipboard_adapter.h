@@ -2,6 +2,7 @@
 #pragma once
 
 #include "server/clipboard/remote_transfer.h"
+#include "windows_clipboard_file_destination.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -48,6 +49,7 @@ public:
         rdp_server::server::clipboard::RemoteTransfer;
 
     static constexpr WindowsClipboardFormat kUnicodeTextFormat = 13U;
+    static constexpr WindowsClipboardFormat kFileDropFormat = 15U;
     static constexpr WindowsClipboardFormat kDibFormat = 8U;
     static constexpr WindowsClipboardFormat kDibV5Format = 17U;
     static constexpr std::size_t kMaximumNativeTextBytes =
@@ -73,6 +75,11 @@ public:
     // RemoteTransfer for its current generation. A local takeover suppresses
     // reclaiming that same generation; a later RDP generation may publish.
     [[nodiscard]] bool publishReadyRemoteGeneration() noexcept;
+
+    // Publish one completed caller-selected local path as CF_HDROP. The
+    // destination path is local capability metadata, never a remote name.
+    [[nodiscard]] bool publishCompletedFileDestination(
+        const WindowsClipboardFileDestination &destination) noexcept;
 
     // WM_RENDERFORMAT boundary. The caller MUST NOT open the clipboard first;
     // this method only copies already-ready bytes into the requested format.
@@ -100,6 +107,9 @@ private:
         WindowsClipboardFormat format) noexcept;
     [[nodiscard]] bool encodeNativeUnicodeText(
         std::string_view text, std::vector<std::uint8_t> &bytes) const noexcept;
+    [[nodiscard]] bool encodeFileDrop(
+        std::u16string_view absolutePath,
+        std::vector<std::uint8_t> &bytes) const noexcept;
     void clearPublicationState() noexcept;
     void finishDeferredDisconnect() noexcept;
 
@@ -115,6 +125,7 @@ private:
     bool imagePublished_{};
     bool textRendered_{};
     bool imageRendered_{};
+    bool fileDropPublished_{};
     bool ownsClipboard_{};
     bool operationInProgress_{};
     bool selfReplacingPublication_{};

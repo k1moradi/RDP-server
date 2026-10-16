@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -16,6 +17,58 @@
 
 namespace rdp_server::windows
 {
+namespace
+{
+
+[[nodiscard]] bool asciiDriveLetter(const char16_t character) noexcept
+{
+    return (character >= u'A' && character <= u'Z') ||
+           (character >= u'a' && character <= u'z');
+}
+
+[[nodiscard]] bool validLocalAbsolutePath(
+    const std::u16string_view path) noexcept
+{
+    if (path.empty())
+    {
+        return true;
+    }
+    if (path.size() >
+        WindowsClipboardFileDestination::kMaximumLocalPathCodeUnits)
+    {
+        return false;
+    }
+    for (const char16_t character : path)
+    {
+        if (character == u'\0' || character == u'\r' ||
+            character == u'\n')
+        {
+            return false;
+        }
+    }
+    if (path.size() >= 3U && asciiDriveLetter(path[0]) &&
+        path[1] == u':' && path[2] == u'\\')
+    {
+        return true;
+    }
+    if (path.size() < 5U || path[0] != u'\\' || path[1] != u'\\' ||
+        path[2] == u'?' || path[2] == u'.')
+    {
+        return false;
+    }
+    const std::size_t serverEnd = path.find(u'\\', 2U);
+    if (serverEnd == std::u16string_view::npos || serverEnd == 2U ||
+        serverEnd + 1U >= path.size())
+    {
+        return false;
+    }
+    const std::size_t shareEnd = path.find(u'\\', serverEnd + 1U);
+    return shareEnd == std::u16string_view::npos ?
+               serverEnd + 1U < path.size() :
+               shareEnd > serverEnd + 1U;
+}
+
+} // namespace
 
 WindowsClipboardFileDestination::WindowsClipboardFileDestination(
     RemoteTransfer &remoteTransfer,
@@ -83,6 +136,7 @@ void WindowsClipboardFileDestination::discardPartial(
         closeDestination();
     }
     activeRequest_ = {};
+    localAbsolutePath_.clear();
     status_ = discarded ? terminalStatus : Status::NativeError;
 }
 
@@ -133,10 +187,52 @@ bool WindowsClipboardFileDestination::begin(
     const std::size_t fileIndex,
     const WindowsClipboardFileHandleToken destinationHandle) noexcept
 {
+    return beginInternal(fileIndex, destinationHandle, {});
+}
+
+bool WindowsClipboardFileDestination::begin(
+    const std::size_t fileIndex,
+    const WindowsClipboardFileHandleToken destinationHandle,
+    const std::u16string_view localAbsolutePath) noexcept
+{
+    if (localAbsolutePath.empty())
+    {
+        return false;
+    }
+    return beginInternal(
+        fileIndex, destinationHandle, localAbsolutePath);
+}
+
+std::optional<std::u16string_view>
+WindowsClipboardFileDestination::completedFilePath() const noexcept
+{
+    if (status_ != Status::Complete || localAbsolutePath_.empty())
+    {
+        return std::nullopt;
+    }
+    return std::u16string_view{localAbsolutePath_};
+}
+
+bool WindowsClipboardFileDestination::beginInternal(
+    const std::size_t fileIndex,
+    const WindowsClipboardFileHandleToken destinationHandle,
+    const std::u16string_view localAbsolutePath) noexcept
+{
     if (closed_ || status_ != Status::Idle ||
         destinationHandle == 0U ||
+        !validLocalAbsolutePath(localAbsolutePath) ||
         !remoteTransfer_.synchronized() ||
         !remoteTransfer_.fileStreamingAvailable())
+    {
+        return false;
+    }
+
+    std::u16string pathCopy;
+    try
+    {
+        pathCopy.assign(localAbsolutePath);
+    }
+    catch (...)
     {
         return false;
     }
@@ -171,6 +267,7 @@ bool WindowsClipboardFileDestination::begin(
         file->name.begin(), file->name.end(),
         sourceName_.begin());
     sourceNameLength_ = file->name.size();
+    localAbsolutePath_ = std::move(pathCopy);
     sourceGeneration_ = remoteTransfer_.generation();
     fileIndex_ = fileIndex;
     expectedSizeKnown_ = file->sizeKnown;

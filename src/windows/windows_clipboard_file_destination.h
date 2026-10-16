@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 
 namespace rdp_server::windows
 {
@@ -51,6 +53,8 @@ class WindowsClipboardFileDestination final
 public:
     using RemoteTransfer =
         rdp_server::server::clipboard::RemoteTransfer;
+
+    static constexpr std::size_t kMaximumLocalPathCodeUnits = 32767U;
 
     enum class Status : std::uint8_t
     {
@@ -99,6 +103,12 @@ public:
     [[nodiscard]] bool begin(
         std::size_t fileIndex,
         WindowsClipboardFileHandleToken destinationHandle) noexcept;
+    [[nodiscard]] bool begin(
+        std::size_t fileIndex,
+        WindowsClipboardFileHandleToken destinationHandle,
+        std::u16string_view localAbsolutePath) noexcept;
+    [[nodiscard]] std::optional<std::u16string_view>
+    completedFilePath() const noexcept;
 
     [[nodiscard]] std::optional<RequestIntent>
     nextRequestIntent() noexcept;
@@ -143,6 +153,10 @@ public:
     }
 
 private:
+    [[nodiscard]] bool beginInternal(
+        std::size_t fileIndex,
+        WindowsClipboardFileHandleToken destinationHandle,
+        std::u16string_view localAbsolutePath) noexcept;
     [[nodiscard]] bool nativeOperationsValid() const noexcept;
     [[nodiscard]] bool ensureSourceCurrent() noexcept;
     [[nodiscard]] bool finishComplete() noexcept;
@@ -152,6 +166,7 @@ private:
     RemoteTransfer &remoteTransfer_;
     WindowsClipboardFileNativeOperations nativeOperations_{};
     std::array<char16_t, 260> sourceName_{};
+    std::u16string localAbsolutePath_{};
     std::size_t sourceNameLength_{};
     RemoteTransfer::FileContentsRequestReceipt activeRequest_{};
     std::uint64_t sourceGeneration_{};

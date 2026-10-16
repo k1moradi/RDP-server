@@ -1,3 +1,9 @@
+## R8 Windows completed-file CF_HDROP build boundary (2026-10-16)
+
+No new library or package is added. The existing cross-platform `rdp-server-windows-clipboard` target compiles the completed-file state and bounded DROPFILES serializer everywhere; `_WIN32` continues to compile the real `GlobalAlloc(GMEM_MOVEABLE)`/`SetClipboardData` bridge and link the existing `user32` dependency.
+
+The existing `test_windows_clipboard_file_destination` executable gains `clipboard.windows-completed-file-hdrop-handoff`, so Linux/macOS exercise the portable ownership/serialization state with injected callbacks and Windows also compiles the native branch. R9 already builds this executable before `ctest -L clipboard`; its fail-closed registry preflight now requires the new handoff case. The installed portable SDK remains unchanged.
+
 ## R8 macOS file-descriptor destination build boundary (2026-10-16)
 
 The existing noninstalled `rdp-server-macos-clipboard` target now also

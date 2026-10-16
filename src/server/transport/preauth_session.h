@@ -23,6 +23,9 @@ enum class PreauthStage : std::uint8_t
 {
     AwaitConnectionRequest,
     AwaitTls,
+    // TLS is established after an exact PROTOCOL_HYBRID selection, but
+    // R2 has not yet authenticated CredSSP and R3 MCS is not permitted.
+    AwaitCredSsp,
     AwaitMcsConnectInitial,
     Closed,
 };
@@ -59,6 +62,7 @@ public:
 
     void close() noexcept
     {
+        selectedProtocol_ = 0;
         mcsSession_.close();
         stage_ = PreauthStage::Closed;
     }
@@ -67,6 +71,9 @@ private:
     SecurityNegotiationPolicy negotiationPolicy_{
         SecurityNegotiationPolicy::DiagnosticTlsOnly};
     McsSessionLifecycle mcsSession_{};
+    // Actual protocol selected by this session's one X.224 exchange.
+    // Private transport state only; callers cannot fabricate NLA completion.
+    std::uint32_t selectedProtocol_{};
     PreauthStage stage_{PreauthStage::AwaitConnectionRequest};
 };
 
@@ -156,16 +163,7 @@ public:
     // SAME server SSL has completed TLS and is revoked on close. Returning
     // by value exposes no packet buffer, SSL/BIO or mutable socket capability.
     [[nodiscard]] std::optional<SecurityNegotiationProvenance>
-    securityNegotiationProvenance(const SSL *serverTls) const noexcept
-    {
-        if (serverTls == nullptr ||
-            stage() != PreauthStage::AwaitMcsConnectInitial ||
-            activeServerTls_ != serverTls ||
-            !selectedTlsCertificatePinned_ ||
-            !securityNegotiationProvenance_)
-            return std::nullopt;
-        return securityNegotiationProvenance_;
-    }
+    securityNegotiationProvenance(const SSL *serverTls) const noexcept;
 
     [[nodiscard]] ConnectionIntakeResult consumeConnectionRequest(
         std::span<const std::uint8_t> receivedBytes) noexcept;

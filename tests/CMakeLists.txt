@@ -130,6 +130,9 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-bounded-poll-timeout-eof
                 tcp-owned-security-negotiation-provenance
                 tcp-owned-hybrid-nla-negotiation
+                tcp-owned-hybrid-credssp-first-record
+                tcp-owned-hybrid-no-premature-mcs
+                tcp-owned-hybrid-provenance-revocation
                 tcp-owned-tls-application-io
                 tcp-owned-tls-application-partial-write
                 tcp-owned-r3-connect-response-slice

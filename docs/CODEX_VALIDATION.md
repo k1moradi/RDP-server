@@ -1,3 +1,27 @@
+## R1 HYBRID CredSSP-before-MCS authoring receipt (2026-10-16)
+
+Authoring parent `e9acfa52007247488f5088af0a66161e1e9d735a`. P0 is inherited from validated R1 commit
+`8dc5cfd962f9432d4aaf3ac3c552ddb8fed172d7`, Actions `38897048825`, overall
+SUCCESS across hosted protocol, sanitizer, docs, SDK-consumer and package jobs.
+The P0 mechanism is confirmed as deferred native-loopback TLS record readiness,
+not a production readiness-semantics defect.
+
+This increment adds `AwaitCredSsp` only for the actual HYBRID selection,
+prevents automatic/explicit diagnostic MCS consumption before R2, preserves the
+same owned TLS application-I/O seam, and revalidates the selected certificate
+when exposing negotiation provenance. New CTests:
+`transport.tcp-owned-hybrid-credssp-first-record`,
+`transport.tcp-owned-hybrid-no-premature-mcs`, and
+`transport.tcp-owned-hybrid-provenance-revocation`. They are also selected by
+the existing bounded R9 sanitizer job.
+
+Local canonical configure/build/full CTest is **NOT RUN** because this connector
+has no owner `~/rdp-server` checkout. Hosted exact-publication-SHA results are
+pending and must be recorded before claiming the P1 increment PASS. No test in
+this increment proves Kerberos authentication, native OS admission, R3 MCS
+membership, listener operation or Microsoft-client acceptance. M2 remains
+**OPEN / NOT ACCEPTED**.
+
 ## R9 TS_INFO_PACKET sanitizer hosted verification (2026-10-16)
 
 Commit `d2df45e136fb7668212d7566bcd95cd96da67587`, Actions

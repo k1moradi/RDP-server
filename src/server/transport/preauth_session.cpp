@@ -22,7 +22,12 @@ SecurityReply PreauthSession::onConnectionRequest(
     }
     const auto reply = negotiateSecurity(request, negotiationPolicy_);
     if (reply.decision == SecurityDecision::Tls)
+    {
+        // Preserve the actual selected protocol, not merely the configured
+        // policy, so only this exact X.224 exchange can select CredSSP-first.
+        selectedProtocol_ = reply.selectedProtocol;
         stage_ = PreauthStage::AwaitTls;
+    }
     else
         close(); // Denied negotiation revokes the embedded R3 owner.
     return reply;
@@ -36,7 +41,12 @@ bool PreauthSession::onTlsHandshake(bool completed) noexcept
         close();
         return false;
     }
-    stage_ = PreauthStage::AwaitMcsConnectInitial;
+    // MS-RDPBCGR Enhanced Security: an exact HYBRID selection requires
+    // CredSSP after TLS. Diagnostic PROTOCOL_SSL keeps the historical MCS
+    // syntax path. R1 does not claim that CredSSP has authenticated anyone.
+    stage_ = selectedProtocol_ == kRdpProtocolHybrid
+                 ? PreauthStage::AwaitCredSsp
+                 : PreauthStage::AwaitMcsConnectInitial;
     return true;
 }
 
@@ -59,6 +69,36 @@ bool PreauthSession::onEncryptedMcsConnectInitial(
            McsSessionIntake::ValidButNotAdmitted;
 }
 
+
+std::optional<SecurityNegotiationProvenance>
+PreauthConnectionStream::securityNegotiationProvenance(
+    const SSL *serverTls) const noexcept
+{
+    const auto currentStage = stage();
+    if (serverTls == nullptr ||
+        (currentStage != PreauthStage::AwaitCredSsp &&
+         currentStage != PreauthStage::AwaitMcsConnectInitial) ||
+        activeServerTls_ != serverTls ||
+        !selectedTlsCertificatePinned_ ||
+        !securityNegotiationProvenance_)
+        return std::nullopt;
+
+    // An unchanged SSL pointer is insufficient if its selected certificate
+    // was replaced in place. Provenance remains tied to the certificate R1
+    // pinned when this exact TLS transport became established.
+    security::CredSspTlsCertificateFingerprint currentCertificate{};
+    if (!security::fingerprintActiveCredSspServerTlsCertificate(
+            serverTls, currentCertificate) ||
+        CRYPTO_memcmp(currentCertificate.data(),
+                      selectedTlsCertificateFingerprint_.data(),
+                      currentCertificate.size()) != 0)
+    {
+        OPENSSL_cleanse(currentCertificate.data(), currentCertificate.size());
+        return std::nullopt;
+    }
+    OPENSSL_cleanse(currentCertificate.data(), currentCertificate.size());
+    return securityNegotiationProvenance_;
+}
 
 void PreauthConnectionStream::clearIntakeBuffer() noexcept
 {

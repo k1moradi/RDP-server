@@ -306,9 +306,11 @@ bool PreauthTcpAdapter::matchesAttachedTlsTransport() const noexcept
 bool PreauthTcpAdapter::isEstablishedTlsTransport(
     const SSL *serverTls) const noexcept
 {
+    const auto currentStage = connection_.stage();
     return serverTls != nullptr &&
            serverTls == attachedServerTls_ &&
-           connection_.stage() == PreauthStage::AwaitMcsConnectInitial &&
+           (currentStage == PreauthStage::AwaitCredSsp ||
+            currentStage == PreauthStage::AwaitMcsConnectInitial) &&
            matchesAttachedTlsTransport() &&
            SSL_is_init_finished(attachedServerTls_) == 1;
 }
@@ -713,6 +715,15 @@ TcpConnectionIoInterest OwnedPreauthTcpConnection::ioInterest() const noexcept
         return SSL_want_write(serverTls_.get())
                    ? TcpConnectionIoInterest::Write
                    : TcpConnectionIoInterest::Read;
+    case PreauthStage::AwaitCredSsp:
+        if (!serverTls_ ||
+            !adapter_.isEstablishedTlsTransport(serverTls_.get()))
+            return TcpConnectionIoInterest::Closed;
+        if (pendingApplicationOperation_ != TlsApplicationOperation::None)
+            return pendingApplicationInterest_;
+        // HYBRID readiness belongs to the external R2 CredSSP consumer.
+        // Never infer MCS intake merely because no application call ran yet.
+        return TcpConnectionIoInterest::Read;
     case PreauthStage::AwaitMcsConnectInitial:
         if (!serverTls_) return TcpConnectionIoInterest::Closed;
         if (applicationIoActive_)
@@ -771,6 +782,10 @@ TcpConnectionIoInterest OwnedPreauthTcpConnection::onSocketReady(
         break;
     case PreauthStage::AwaitTls:
         (void)onTlsIoReady();
+        break;
+    case PreauthStage::AwaitCredSsp:
+        // Surface matching readiness only. R2 must explicitly resubmit its
+        // current bounded buffer through the R1 application-I/O boundary.
         break;
     case PreauthStage::AwaitMcsConnectInitial:
         (void)onMcsIoReady();
@@ -993,6 +1008,14 @@ TlsHandshakeStatus OwnedPreauthTcpConnection::onTlsIoReady() noexcept
 McsIntakeResult OwnedPreauthTcpConnection::onMcsIoReady() noexcept
 {
     if (!active()) return {0, McsIntakeStatus::Closed};
+    // HYBRID never permits the historical diagnostic MCS reader to become
+    // the first post-TLS plaintext consumer. Explicit misuse is terminal and
+    // consumes zero TLS application bytes.
+    if (stage() == PreauthStage::AwaitCredSsp)
+    {
+        cancel();
+        return {0, McsIntakeStatus::Invalid};
+    }
     // Once a real R2/R3 consumer opts into application byte-stream mode,
     // the legacy diagnostic must never become a competing TLS plaintext
     // reader. Treat an attempted second consumer as terminal misuse.
@@ -1077,6 +1100,7 @@ TcpPreauthEvent PreauthTcpAdapter::idleStatus() const noexcept
         return TcpPreauthEvent::ReadyForTls;
     case PreauthStage::Closed:
         return TcpPreauthEvent::Closed;
+    case PreauthStage::AwaitCredSsp:
     case PreauthStage::AwaitMcsConnectInitial:
         // The socket adapter is only for the pre-TLS plaintext boundary.
         return TcpPreauthEvent::ReadyForTls;

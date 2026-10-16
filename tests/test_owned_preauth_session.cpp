@@ -4775,6 +4775,223 @@ std::size_t drainCredSspReplyThroughOwnedTls(
 }
 
 
+
+void testOwnedHybridCredSspFirstRecord()
+{
+    using Interest = TcpConnectionIoInterest;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    SSL *const selectedServer = tls.server.get();
+    auto request = tlsAndHybridRequestWire();
+
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, request,
+        SecurityNegotiationPolicy::HybridNla);
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    assert(owner.ioInterest() == Interest::Read);
+    assert(owner.establishedTls() == selectedServer);
+
+    request[15] = 0; // Caller storage cannot rewrite immutable provenance.
+    const auto provenance = owner.securityNegotiationProvenance();
+    assert(provenance.has_value());
+    assert(provenance->clientRequestedProtocols ==
+           (kRdpProtocolSsl | kRdpProtocolHybrid));
+    assert(provenance->serverSelectedProtocol == kRdpProtocolHybrid);
+
+    TsRequestFrameReader reader;
+    const auto initial = reader.readOneTlsStep(owner);
+    assert(initial.status == TsRequestTlsReadStatus::NeedRead);
+    assert(initial.plaintextBytesRead == 0);
+    assert(reader.completedFrameServerTls() == nullptr);
+
+    writeNativeTlsClientAll(tls.client.get(), kTestCredSspDer);
+    assert(drainCredSspFromOwnedTls(
+               reader, owner, TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size());
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    assert(reader.completedFrameServerTls() == selectedServer);
+    assert(std::equal(reader.completeDer().begin(),
+                      reader.completeDer().end(),
+                      kTestCredSspDer.begin(), kTestCredSspDer.end()));
+    assert(reader.releaseFrame());
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+
+    // DER framing is syntax only: TLS completion and one valid TSRequest do
+    // not create R2 authentication or advance this transport into R3 MCS.
+    owner.cancel();
+    assert(owner.stage() == PreauthStage::Closed);
+    assert(!owner.securityNegotiationProvenance().has_value());
+}
+
+void testOwnedHybridNoPrematureMcs()
+{
+    using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    const auto request = tlsAndHybridRequestWire();
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, request,
+        SecurityNegotiationPolicy::HybridNla);
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+
+    // Make a syntactically valid MCS envelope readable as the first post-TLS
+    // application record. Readiness dispatch must not consume it as MCS.
+    const auto earlyMcs = validMcsPacket();
+    writeNativeTlsClientAll(tls.client.get(), earlyMcs);
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    bool readinessSurfaced = false;
+    for (std::size_t step = 0; step < 256; ++step)
+    {
+        const auto polled = owner.pollSocketOnce(
+            deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        if (polled.outcome == PollOutcome::Dispatched)
+        {
+            assert(polled.nextInterest == Interest::Read);
+            readinessSurfaced = true;
+            break;
+        }
+    }
+    assert(readinessSurfaced);
+    assert(owner.active());
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    assert(owner.securityNegotiationProvenance().has_value());
+
+    // The diagnostic MCS API is not an authentication bypass for HYBRID.
+    // It fails closed before any SSL_read_ex and revokes all R1 provenance.
+    const auto denied = owner.onMcsIoReady();
+    assert(denied.status == McsIntakeStatus::Invalid);
+    assert(denied.bytesConsumed == 0);
+    assert(!owner.active());
+    assert(owner.stage() == PreauthStage::Closed);
+    assert(owner.establishedTls() == nullptr);
+    assert(!owner.securityNegotiationProvenance().has_value());
+}
+
+void testOwnedHybridProvenanceRevocation()
+{
+    // Stable HYBRID provenance remains available through a valid CredSSP
+    // readiness wait, then cancellation makes every borrowed identity inert.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        auto request = tlsAndHybridRequestWire();
+        establishOwnedApplicationTlsForRequest(
+            owner, clientIo, tls, request,
+            SecurityNegotiationPolicy::HybridNla);
+        request[15] = 0;
+
+        const auto provenance = owner.securityNegotiationProvenance();
+        assert(provenance.has_value());
+        assert(provenance->clientRequestedProtocols ==
+               (kRdpProtocolSsl | kRdpProtocolHybrid));
+        assert(provenance->serverSelectedProtocol == kRdpProtocolHybrid);
+
+        TsRequestFrameReader reader;
+        assert(reader.readOneTlsStep(owner).status ==
+               TsRequestTlsReadStatus::NeedRead);
+        assert(owner.securityNegotiationProvenance() == provenance);
+
+        owner.cancel();
+        owner.cancel();
+        assert(owner.stage() == PreauthStage::Closed);
+        assert(owner.establishedTls() == nullptr);
+        assert(!owner.securityNegotiationProvenance().has_value());
+        assert(reader.readOneTlsStep(owner).status ==
+               TsRequestTlsReadStatus::Closed);
+        assert(owner.onTlsIoReady() == TlsHandshakeStatus::Closed);
+        assert(!owner.securityNegotiationProvenance().has_value());
+    }
+
+    // Replacing the selected certificate in-place on the same established
+    // SSL revokes negotiation provenance even though the raw SSL pointer is
+    // unchanged. No mutable SSL capability is exposed by the production API.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        SSL *const selectedServer = tls.server.get();
+        const auto request = tlsAndHybridRequestWire();
+        establishOwnedApplicationTlsForRequest(
+            owner, clientIo, tls, request,
+            SecurityNegotiationPolicy::HybridNla);
+        assert(owner.securityNegotiationProvenance().has_value());
+
+        TlsHandshakeFixture replacementCertificate;
+        substituteCredSspReplyCertificate(
+            selectedServer, replacementCertificate.server.get());
+        assert(owner.establishedTls() == selectedServer);
+        assert(!owner.securityNegotiationProvenance().has_value());
+        owner.cancel();
+    }
+
+    // A caller cannot replace the R1-owned SSL object after establishment.
+    // The attempted second owner is consumed by RAII and terminally revokes
+    // the original connection rather than creating another TLS controller.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        const auto request = tlsAndHybridRequestWire();
+        establishOwnedApplicationTlsForRequest(
+            owner, clientIo, tls, request,
+            SecurityNegotiationPolicy::HybridNla);
+        assert(owner.securityNegotiationProvenance().has_value());
+
+        TlsHandshakeFixture replacement{false, false};
+        OwnedPreauthTcpConnection::ServerTls replacementServer{
+            replacement.server.release(), SSL_free};
+        assert(!owner.attachServerTls(std::move(replacementServer)));
+        assert(!owner.active());
+        assert(owner.stage() == PreauthStage::Closed);
+        assert(owner.establishedTls() == nullptr);
+        assert(!owner.securityNegotiationProvenance().has_value());
+    }
+}
+
 void testLiveTlsCertificateBindingPositive()
 {
     // The OpenSSL TLS fixture performs a real handshake and chooses an
@@ -7865,6 +8082,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-bounded-poll-timeout-eof", &testOwnedTcpBoundedPollTimeoutAndDisconnect},
     {"tcp-owned-security-negotiation-provenance", &testOwnedSecurityNegotiationProvenance},
     {"tcp-owned-hybrid-nla-negotiation", &testOwnedHybridNlaNegotiation},
+    {"tcp-owned-hybrid-credssp-first-record", &testOwnedHybridCredSspFirstRecord},
+    {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},
+    {"tcp-owned-hybrid-provenance-revocation", &testOwnedHybridProvenanceRevocation},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
     {"tcp-owned-r3-connect-response-slice", &testR3ConnectResponseSliceThroughOwnedTls},

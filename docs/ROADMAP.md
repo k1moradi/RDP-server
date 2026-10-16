@@ -1,3 +1,43 @@
+## R1 HYBRID CredSSP-before-MCS transport phase (2026-10-16; hosted CI pending)
+
+Authoring parent: `e9acfa52007247488f5088af0a66161e1e9d735a`. P0's deferred loopback TLS-read repair is already
+validated at `8dc5cfd962f9432d4aaf3ac3c552ddb8fed172d7` / Actions
+`38897048825`: Windows/MSVC 351/351 Debug+Release, macOS/AppleClang 326/326
+Debug+Release, Linux/GCC full Debug+Release, R9 sanitizer, documentation,
+SDK consumer and package jobs PASS. The confirmed failure was fixture-only:
+a legitimate zero-byte `NeedRead` could arrive after client `SSL_write_ex`
+accepted the eight-byte prefix but before that TLS record was server-readable.
+The strengthened fixture waits for both exact plaintext progress and its
+requested framing status using the bounded R1 poll/deadline path.
+
+P1 now distinguishes the exact X.224-selected `PROTOCOL_HYBRID` path from the
+historical `DiagnosticTlsOnly` path. Successful HYBRID TLS enters
+`PreauthStage::AwaitCredSsp`; diagnostic TLS continues to
+`AwaitMcsConnectInitial`. HYBRID socket readiness is surfaced to the external
+R2 consumer without invoking the diagnostic MCS reader. Explicit MCS intake in
+this phase fails closed before an application read. The established R1
+application-I/O seam remains the only SSL/BIO byte path; no authentication,
+lease, MCS admission, listener or authenticated-transition API is added.
+
+Negotiation provenance remains a value snapshot of the original offered mask
+and selected HYBRID protocol while the same R1 SSL/BIO/certificate is live.
+Cancellation, SSL-owner replacement, selected-certificate replacement and
+terminal denial revoke that provenance. Dedicated production-linked CTests are
+`transport.tcp-owned-hybrid-credssp-first-record`,
+`transport.tcp-owned-hybrid-no-premature-mcs`, and
+`transport.tcp-owned-hybrid-provenance-revocation`; the R9 bounded sanitizer
+selector includes all three. The existing `transport.credssp-r1-owned-framing`
+retains the P0 delayed-readiness regression, so no duplicate timing test is
+introduced.
+
+The canonical owner-local `~/rdp-server/build` command is **NOT RUN** in this
+connector environment because the owner checkout is unavailable. Exact
+publication-SHA hosted Linux/GCC, Windows/MSVC, macOS/AppleClang, R9 sanitizer,
+documentation, SDK consumer and package outcomes are pending. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23, macOS 27, real Kerberos/logind admission and a
+current Microsoft-client NLA session remain separate **NOT RUN** gates.
+**M2 remains OPEN / NOT ACCEPTED.**
+
 ## R9 TS_INFO_PACKET sanitizer exact-SHA receipt (2026-10-16)
 
 **Implementation:** `d2df45e136fb7668212d7566bcd95cd96da67587`,

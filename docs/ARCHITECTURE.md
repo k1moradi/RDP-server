@@ -1,3 +1,27 @@
+## R1 post-TLS HYBRID phase ownership (2026-10-16)
+
+R1's transport state now records the actual protocol selected by its one X.224
+exchange. A completed TLS handshake transitions an exact `PROTOCOL_HYBRID`
+selection to `AwaitCredSsp`; an SSL-only `DiagnosticTlsOnly` selection keeps
+the historical `AwaitMcsConnectInitial` diagnostic. The new state is not an
+authentication result and has no API for callers to mark NLA complete.
+
+While `AwaitCredSsp`, `OwnedPreauthTcpConnection::ioInterest()` reports the
+same R1-owned nonblocking SSL application's required readiness, and
+`onSocketReady()` only surfaces that readiness. It never dispatches
+`onMcsIoReady()`. R2 synchronously supplies its current bounded buffer to
+`readTlsApplicationData()` / `writeTlsApplicationData()`; R1 still retains no
+caller buffer pointer and performs one OpenSSL application operation per call.
+An explicit diagnostic MCS call in this phase closes the owner with zero MCS
+plaintext consumed. R1 deliberately provides no authenticated-R2-to-R3 phase
+transition; that integration remains R2/R3-owned.
+
+The immutable negotiation provenance lookup accepts both established
+post-TLS phases but revalidates the originally pinned selected-certificate
+fingerprint before returning the offered/selected snapshot. Wrong owner/BIO,
+unfinished or closed TLS, certificate substitution, cancellation and terminal
+transport failure therefore cannot supply live provenance.
+
 ### R3 bounded Client Info structure and pre-licensing state (2026-10-16)
 
 Client Info is consumed exactly once by the existing R3 session owner. The

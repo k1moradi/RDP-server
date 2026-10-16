@@ -4925,6 +4925,27 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   **Next:** independently test real R3-admitted R8
   channel dispatch/cancellation when implemented.
 
+  **R9 bounded native coverage-guided MCS/CLIPRDR fuzz gate (2026-10-16):**
+  Add opt-in `RDP_SERVER_BUILD_FUZZERS` for Linux/Clang only;
+  normal owner builds remain unchanged. New first-party
+  `fuzz_mcs_cliprdr` links the actual protocol library and
+  drives raw T.125/MCS parsing, CLIPRDR PDU/capability/format
+  list/response parsing, nested SendDataRequest payloads and
+  bounded chunk-reassembly/reset. Inputs larger than 4096 bytes
+  are ignored. Two checked-in binary seeds reach a valid
+  Format Data Response and complete TPKT/MCS envelope.
+  Conditional CTest `fuzz.mcs-cliprdr-bounded` uses 5000 runs,
+  fixed seed 12648430, max_len 4096, 512 MiB RSS, two-second
+  per-input and 30-second CTest timeouts; mutable corpus/crash
+  files stay under the existing CI `build/`. Existing R9
+  Clang ASan/UBSan CI enables it after the 25 deterministic
+  sanitizer CTests. No socket, credential, R3 admission or
+  desktop is created. **Parent main:** `1260eb659073d5269724a4436e3a8bbfda322725`.
+  **NOT RUN at authoring:** exact-SHA libFuzzer/CI and owner
+  platform commands. **Next:** inspect any crash artifact and
+  first sanitizer stack; otherwise retain bounded seeds and
+  await genuine R3-admitted R8 dispatch.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

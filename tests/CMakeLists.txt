@@ -795,6 +795,37 @@ if(TARGET rdp-server-linux-xtest-input)
         PROPERTIES LABELS "x11;linux-adapter;native")
 endif()
 
+# R9 opt-in bounded coverage-guided wire fuzzing. This is deliberately
+# absent from normal owner builds and uses only first-party production APIs.
+if(RDP_SERVER_BUILD_FUZZERS)
+    add_executable(fuzz_mcs_cliprdr fuzz_mcs_cliprdr.cpp)
+    target_link_libraries(fuzz_mcs_cliprdr PRIVATE rdp-server-protocol)
+    target_compile_options(fuzz_mcs_cliprdr PRIVATE
+        -Wall -Wextra -Wpedantic -Werror
+        -fsanitize=fuzzer,address,undefined
+        -fno-omit-frame-pointer -fno-sanitize-recover=all)
+    target_link_options(fuzz_mcs_cliprdr PRIVATE
+        -fsanitize=fuzzer,address,undefined)
+    set(rdp_fuzz_corpus_dir
+        "${CMAKE_BINARY_DIR}/fuzz-corpus-mcs-cliprdr")
+    set(rdp_fuzz_artifact_dir
+        "${CMAKE_BINARY_DIR}/fuzz-artifacts-mcs-cliprdr")
+    file(MAKE_DIRECTORY "${rdp_fuzz_corpus_dir}" "${rdp_fuzz_artifact_dir}")
+    file(COPY "${PROJECT_SOURCE_DIR}/tests/fixtures/fuzz_mcs_cliprdr/"
+        DESTINATION "${rdp_fuzz_corpus_dir}")
+    add_test(NAME fuzz.mcs-cliprdr-bounded
+        COMMAND fuzz_mcs_cliprdr
+            "${rdp_fuzz_corpus_dir}"
+            -runs=5000 -seed=12648430 -max_len=4096
+            -rss_limit_mb=512 -malloc_limit_mb=64
+            -timeout=2 -print_final_stats=1
+            "-artifact_prefix=${rdp_fuzz_artifact_dir}/")
+    set_tests_properties(fuzz.mcs-cliprdr-bounded PROPERTIES
+        LABELS "fuzz;protocol;security;offline"
+        TIMEOUT 30
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

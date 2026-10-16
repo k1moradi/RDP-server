@@ -6426,3 +6426,24 @@ fixture WANT loops now wait 1 ms between explicit retries, and the partial
 write test resubmits the same 7-byte caller span until Progress instead of
 assuming one retry is sufficient. No hidden R1 retry or retained span is
 introduced.
+
+
+## R9 bounded libFuzzer MCS/CLIPRDR gate (2026-10-16)
+
+**Parent main:** `1260eb659073d5269724a4436e3a8bbfda322725`. No production behavior changes.
+New `RDP_SERVER_BUILD_FUZZERS` defaults OFF and requires
+Linux/Clang plus existing CTest support. `fuzz_mcs_cliprdr`
+links `rdp-server-protocol` and exercises production MCS/
+CLIPRDR parsing, response coordination and chunk reassembly.
+`fuzz.mcs-cliprdr-bounded` runs 5000 coverage-guided
+executions with fixed seed 12648430, max input 4096 bytes,
+512 MiB RSS, 64 MiB allocation limit, two-second per-input
+and 30-second CTest timeouts. Two binary seeds are copied
+into `build/fuzz-corpus-mcs-cliprdr`; crash artifacts stay
+under `build/fuzz-artifacts-mcs-cliprdr`. Existing sanitizer
+CI compiles it with libFuzzer+ASan+UBSan and retains prior
+15 clipboard + ten MCS/CredSSP deterministic sanitizer tests.
+**NOT RUN at authoring:** exact-SHA hosted fuzz/full CI, owner
+Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27, live
+NLA/OS admission or Microsoft client/desktop. Any fuzzer
+crash is FAIL; preserve reproducer and first production stack.

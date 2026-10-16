@@ -1840,3 +1840,15 @@ UDP socket and one real queued TCP peer to verify failure without
 callback from one-shot, batch and borrowed listener poll, followed
 by bounded successful handoff of the original TCP peer. This covers
 the Darwin SO_TYPE fallback and all Windows/Linux role checks.
+
+## Bounded coverage-guided protocol fuzzing (R9; opt-in)
+
+`RDP_SERVER_BUILD_FUZZERS=ON` is limited to Linux/Clang sanitizer
+CI or an explicitly requested compatible developer run and is OFF
+for the owner's normal command. Fuzz targets stay in the sole
+`tests/CMakeLists.txt`, link production code, use checked-in
+reproducible seeds and write mutable corpus/artifacts only below
+the one `build/` root. Fix seed, finite run count, input/resource
+bounds and CTest timeout. Treat libFuzzer/ASan/UBSan crashes as
+FAIL and preserve the reproducer. A bounded fuzz PASS is sampling,
+not exhaustive security proof or real-client admission.

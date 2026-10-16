@@ -67,20 +67,6 @@ built and must be marked NOT RUN (not PASS). The owner's existing
 one-root configure/build/CTest command is unchanged, and XCB
 remains excluded from installed portable protocol headers.
 
-## Linux-only native XTEST input dependencies (R5)
-
-When `pkg-config` finds `xcb` and `xcb-xtest`, Linux builds the
-noninstalled `rdp-server-linux-xtest-input` target from the real
-`src/x11/x11_input_controller.cpp`. Debian/Ubuntu development packages are
-`libxcb1-dev` and `libxcb-xtest0-dev`; hosted Linux CI installs both.
-The dedicated
-`x11.input-native-connection-denials-and-cancellation` CTest uses an
-already-failed XCB descriptor, so routine validation requires no X server,
-logged-in desktop, credentials or input injection. If XTEST development files
-are absent, the native target/test are NOT RUN rather than counted as PASS.
-The portable protocol SDK and the owner's unchanged one-root build command do
-not acquire an XCB/XTEST dependency.
-
 ## Owner's required daily test from the latest GitHub main
 
 Agents commit production code, its dedicated, registered behavior-named
@@ -312,3 +298,13 @@ hostname, chain, revocation, validity dates, user authentication or
 permission to start the RDP service. Ordinary CTests use fixed
 test-only EC material under `build/runtime-fixtures`; no real
 credential is installed or read.
+
+## Opt-in R9 Linux/Clang libFuzzer build
+
+Normal builds leave `RDP_SERVER_BUILD_FUZZERS=OFF`. The Linux
+sanitizer CI may set it ON while reusing that job's sole `build/`.
+It requires Linux/Clang/CTest; the fuzzer target links
+`-fsanitize=fuzzer,address,undefined`. Corpus and crash outputs
+remain in `build/fuzz-corpus-mcs-cliprdr` and
+`build/fuzz-artifacts-mcs-cliprdr`. Do not create `build-fuzz`
+or alter the owner's unchanged configure/build/CTest command.

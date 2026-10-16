@@ -6485,3 +6485,40 @@ hosted matrix is separate from the owner's Linux/X11, Windows MSYS2
 CLANG64/Clang 23 and macOS 27 environments, which remain **NOT RUN** here.
 M2 remains **NOT ACCEPTED** pending genuine R2 admission, R3 activation and
 real Microsoft-client evidence.
+
+## R9 bounded libFuzzer exact-SHA CI PASS (2026-10-16)
+
+**Exact implementation SHA:** `f3cde6d231b4f396746f3cd40628e660af5c3a3a`.
+**Actions:** [38866538809](https://github.com/k1moradi/RDP-server/actions/runs/38866538809),
+overall `completed/success`; `head_sha` matched implementation.
+**Fuzz/sanitizer environment:** Ubuntu Clang **18.1.3**, C++23
+Debug, libFuzzer plus AddressSanitizer and
+UndefinedBehaviorSanitizer, LeakSanitizer enabled through
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1`,
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+**PASS:** clipboard sanitizer set **18/18**, selected MCS/CredSSP
+security set **10/10**, and dedicated
+`fuzz.mcs-cliprdr-bounded` **1/1**. The fuzzer CTest command
+is statically bounded to **5000 runs**, fixed seed 12648430,
+4096-byte maximum input, 512 MiB RSS, 64 MiB allocation limit,
+two-second per-input timeout and 30-second CTest timeout. Seed
+corpus: valid standalone CLIPRDR Format Data Response and valid
+TPKT/MCS SendDataRequest carrying that response. No ASan, UBSan,
+LSan or libFuzzer crash diagnostic was present in the hosted log.
+
+**Same exact SHA normal CI PASS:** Linux/GCC **276/276**
+Debug and **276/276** Release; macOS/Clang **258/258** both;
+Windows/MSVC **276/276** both. Documentation-policy, installed
+SDK downstream consumer, ZIP/SHA256 and artifact upload PASS.
+No first failing hosted boundary.
+
+**Scope limit:** this 5000-run corpus is bounded coverage-guided
+sampling, not exhaustive fuzzing or proof that all production
+code is memory safe. The current MCS/R8 interfaces still state
+that joined membership is not authenticated authorization.
+**NOT RUN:** owner's unchanged Linux/X11, MSYS2 CLANG64 Clang23
+and macOS27 commands, long-duration/minimized fuzz campaigns,
+real CredSSP/NLA plus OS admission, Microsoft RDP client and
+desktop/clipboard. M1–M6 remain open. **Next R9:** actual
+authorized R3→R8 ingress and disconnect/late-response rejection
+when the sole production session router exposes that contract.

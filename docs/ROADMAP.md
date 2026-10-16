@@ -4960,6 +4960,29 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   first sanitizer stack; otherwise retain bounded seeds and
   await genuine R3-admitted R8 dispatch.
 
+  **R9 bounded libFuzzer exact-SHA CI PASS (2026-10-16):**
+  Implementation `f3cde6d231b4f396746f3cd40628e660af5c3a3a`,
+  [Actions 38866538809](https://github.com/k1moradi/RDP-server/actions/runs/38866538809)
+  completed **SUCCESS**. Ubuntu Clang **18.1.3** built the
+  opt-in `fuzz_mcs_cliprdr` target with libFuzzer+ASan+UBSan.
+  Existing sanitizer stages passed **18/18 clipboard** and
+  **10/10 MCS/CredSSP** CTests, then
+  `fuzz.mcs-cliprdr-bounded` **1/1 PASS**. The registered
+  CTest invokes libFuzzer with `-runs=5000`, fixed seed
+  12648430, `-max_len=4096`, RSS/allocation/time bounds and
+  the two checked-in seed inputs. No ASan/UBSan/LSan diagnostic
+  appeared. Same-SHA full hosted suites PASS in BOTH Debug and
+  Release: Linux/GCC **276/276**, macOS/Clang **258/258**,
+  Windows/MSVC **276/276**; docs policy, SDK consumer and
+  package jobs PASS. This bounded sample is not exhaustive and
+  proves neither R2/R3 admission nor Microsoft-client desktop
+  interoperability. **NOT RUN:** owner Linux/X11, Windows
+  MSYS2 CLANG64/Clang23, macOS27, sustained multi-corpus
+  fuzzing and live authenticated desktop/clipboard.
+  **Next:** preserve crashing artifacts if future runs fail;
+  otherwise test the real R3-admitted R8 dispatcher when that
+  production authority exists.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

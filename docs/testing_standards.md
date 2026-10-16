@@ -67,6 +67,16 @@ republish a stale arena view. These synthetic tests prove native source pixels
 and lifetime boundaries only, not RDP graphics delivery or Microsoft-client
 desktop acceptance.
 
+For the XShm child itself, a failed-connection cancellation test is not enough
+to prove the native retirement path. Under ephemeral Xvfb, first establish a
+real attached capture and finish consuming its borrowed `FramebufferView`.
+Then exercise ordinary scope-exit destruction while the external XCB owner
+remains live, require a bounded XCB round trip to succeed, and construct a
+replacement XShm child on that exact owner. Exercise successful explicit
+disconnect/idempotence separately and require another replacement generation.
+Do not retain a framebuffer span across either retirement boundary, inspect a
+logged-in display, or infer R4/RDP delivery from this native lifetime proof.
+
 ## macOS clipboard file-destination tests separate state from native I/O
 
 Compile the macOS file-destination state machine on every hosted OS through

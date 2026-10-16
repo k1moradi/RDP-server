@@ -1161,8 +1161,15 @@ portable dependency of the protocol archive. A separate noninstalled
 Linux `rdp-server-linux-xshm` target compiles the real native
 XShm capture adapter when pkg-config finds `xcb` and `xcb-shm`.
 Its headless CTest uses a deliberately invalid XCB fd to check
-fail-closed construction without contacting a desktop. Neither this
-target nor this test authorizes an OS session or delivers R4 frames.
+fail-closed construction without contacting a desktop. An additional
+ephemeral-Xvfb lifecycle case drives a real MIT-SHM attach and GetImage,
+then lets the production destructor retire the child while its borrowed XCB
+owner remains alive. A fresh XShm child must attach and capture immediately on
+that exact owner; the same case also exercises successful explicit disconnect
+and repeated cancellation before a second replacement generation. Borrowed
+`FramebufferView` spans are consumed before every retirement boundary.
+Neither this target nor these tests authorize an OS session or deliver R4
+frames.
 Other imported algorithms not
 listed in CMake are under porting review and are not silently shipped.
 

@@ -1,3 +1,34 @@
+## R5 XShm destructor-retirement authoring validation (2026-10-16; CI pending)
+
+**Authoring base:** `d60fd8c15ef9ff33a64a6ad004a985a285d3e24e`.
+
+Audit of current R5 lifetime coverage found that
+`x11.capture-native-disconnect-cancellation` starts from an already-failed
+XCB descriptor. It proves post-cancellation safety but cannot execute the
+successful `xcb_shm_detach_checked` / local SysV detach path. Other native R5
+children already have ephemeral-Xvfb destructor-retirement cases.
+
+The new `x11.capture-native-destructor-retirement` behavior reuses the same
+production-linked executable and one external XCB owner. It performs a valid
+XShm capture, consumes the borrowed frame before teardown, destroys the child
+without calling `disconnect()`, then proves the same owner is still responsive
+and can immediately construct/capture with a replacement. That replacement is
+explicitly disconnected twice, followed by another successful owner round trip
+and a second fresh capture generation. No production source changes are made.
+
+The existing R9 X11 sanitizer selector is extended from 30 to 31 behavior names
+and its `ctest -N` preflight explicitly requires the new registration. The
+test uses only ephemeral Xvfb and no live desktop, credentials, RDP packets,
+scheduler, admission lease or runtime service.
+
+Canonical `~/rdp-server/build/` execution is **NOT RUN** because this
+connector environment does not expose the synchronized owner checkout and
+project policy forbids creating another persistent build root. Exact
+publication-SHA hosted matrix, native-X11 ASan/UBSan, documentation-policy and
+SDK/package evidence are **PENDING**. This is XShm resource-lifetime evidence,
+not M1 owner-machine acceptance, M2 activation or M3 Microsoft-client desktop
+acceptance.
+
 ## R7 macOS session-watch consumer-retirement authoring receipt (2026-10-16)
 
 ## R2 strict CredSSP parser CI correction receipt (2026-10-16)

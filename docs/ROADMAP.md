@@ -1,3 +1,48 @@
+## R5 XShm successful retirement and same-owner replacement (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `d60fd8c15ef9ff33a64a6ad004a985a285d3e24e`.
+
+The next functional R5 input-PDU integration remains blocked on R3's
+authoritative authenticated decoded-input boundary, so this increment closes a
+distinct native lifetime gap instead of introducing a parallel parser. XFixes,
+XDamage, XI2 and XTEST already have live-owner retirement coverage; XShm only
+had a failed-XCB explicit-disconnect case, which never exercised a successful
+server attach/local SysV mapping teardown.
+
+The existing production-linked `test_x11_capture_disconnect` executable now
+also registers `x11.capture-native-destructor-retirement` when `xvfb-run` is
+available. On an isolated 1280x720x24 Xvfb root it constructs the real
+`X11SharedMemoryCapture`, performs one real MIT-SHM GetImage, consumes the
+borrowed framebuffer view, then retires the child by ordinary C++ scope exit
+while the borrowed XCB owner stays alive. A checked round trip must succeed and
+a replacement XShm child must attach and capture immediately on the exact same
+owner. The same behavior separately exercises successful explicit
+`disconnect()`, repeated cancellation, another owner round trip and a second
+fresh replacement generation.
+
+No production R5 source or API changes are required: the existing destructor
+already delegates to the idempotent disconnect path and the test is intended to
+prove that real successful path rather than create another resource owner. The
+R9 Clang ASan/UBSan native-X11 selector expands from **30** to **31** cases and
+its existing fail-closed registry preflight now requires the new behavior by
+exact name.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution are **NOT RUN** in this connector environment because
+the synchronized owner checkout is unavailable; no alternate persistent build
+root was created. Exact-publication-SHA hosted Linux/GCC Debug+Release,
+macOS/Clang Debug+Release, Windows/MSVC Debug+Release, R9 native-X11
+ASan/UBSan, documentation-policy and SDK/package evidence are **PENDING**.
+The prior R5 pixel/RandR capture-fidelity increment remains present and selected
+by the same sanitizer gate; its executable evidence is not retroactively
+claimed until a descendant run actually records it.
+
+M1 still requires same-integration-SHA owner-machine Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 evidence. M2/M3 remain outside this native
+lifetime increment. After validation, R5 should not add a protocol input parser;
+the functional input path remains blocked until R3 publishes the authoritative
+authenticated typed-event contract.
+
 ## R7 macOS GUI-session consumer retirement (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `a5651588b1b8b2697c63305515bc58807917c519`.

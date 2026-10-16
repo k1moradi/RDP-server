@@ -994,8 +994,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PROPERTIES LABELS "x11;linux-adapter")
 endif()
 
-# R5 XShm shared-memory and borrowed XCB owner teardown. The native test
-# intentionally starts with a failed fd and never touches a live desktop.
+# R5 XShm shared-memory and borrowed XCB owner teardown. The ordinary case
+# uses a failed fd. The optional Xvfb case exercises a real attached segment,
+# destructor retirement and immediate replacement on the same borrowed owner.
 if(TARGET rdp-server-linux-xshm)
     add_rdp_test(test_x11_capture_disconnect.cpp x11
         capture-native-disconnect-cancellation)
@@ -1003,6 +1004,18 @@ if(TARGET rdp-server-linux-xshm)
         rdp-server-linux-xshm)
     set_tests_properties(x11.capture-native-disconnect-cancellation
         PROPERTIES LABELS "x11;linux-adapter;native")
+
+    if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
+        add_test(NAME x11.capture-native-destructor-retirement
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_capture_disconnect>
+                destructor-retirement)
+        set_tests_properties(x11.capture-native-destructor-retirement
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display"
+                TIMEOUT 20)
+    endif()
 endif()
 
 # R7 standard CTests are synthetic and permission-safe on every OS.

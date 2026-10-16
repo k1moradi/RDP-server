@@ -207,6 +207,24 @@ report native PASS from headless helper checks. Windows/macOS and
 the portable protocol library never require XCB. No display server,
 credentials or live desktop are required for the native fixture.
 
+## Linux native XShm capture dependencies (R5)
+
+When pkg-config discovers both `xcb` and `xcb-shm`, Linux builds the
+noninstalled `rdp-server-linux-xshm` target from the real
+`x11_shared_memory_capture.cpp`. Debian/Ubuntu provide these headers and
+libraries through `libxcb1-dev` and `libxcb-shm0-dev`, already provisioned
+by hosted Linux CI. The ordinary
+`x11.capture-native-disconnect-cancellation` case remains headless and starts
+from a failed XCB descriptor. When `xvfb-run` is available, the same
+production-linked executable also registers
+`x11.capture-native-destructor-retirement` against a 1280x720x24 ephemeral
+synthetic display. It performs a real MIT-SHM attach/capture, destructor
+retirement, same-owner replacement, successful explicit disconnect, and a
+second replacement generation. No logged-in desktop or credentials are used.
+Missing native development files or Xvfb make only the corresponding optional
+cases **NOT RUN**, never PASS. The one-root build command and portable SDK are
+unchanged.
+
 ## Linux native XFixes cursor development dependencies (R5)
 
 When `pkg-config` discovers both `xcb` and `xcb-xfixes`, the

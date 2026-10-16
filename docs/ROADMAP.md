@@ -1,3 +1,41 @@
+## R5 complete native X11 sanitizer selection (2026-10-16; exact-SHA CI pending)
+
+The prior R5 sanitizer expansion `3b57baa31cd2533d29a00d92d1606f27cb476af8`,
+Actions `38894949531`, is **PASS for R5**: its Clang ASan/UBSan job compiled the
+real native X11 aggregate and ran **7/7 PASS** for deferred XCB teardown,
+aggregate connection denial/lifecycle recovery, event routing, transactional
+RandR rebuild, synchronous R4 reads and the R3-admission input denial. Ubuntu/GCC
+full CTest on the same SHA is **369/369 PASS** in both Debug and Release,
+including all 24 X11-labeled tests. The workflow's overall FAIL is unrelated:
+macOS/Clang Debug failed only concurrent R1
+`transport.credssp-r1-owned-framing`, while Windows/MSVC Debug failed only
+the two known R10 OpenSSL `no OPENSSL_Applink` live-TLS tests. Documentation
+policy passed.
+
+Current R3 work has progressed through protected Channel Join and Client Info,
+but still exports no Share/Input or Fast-Path Input PDU event surface. R5
+therefore does not add protocol parsing or another input/session owner.
+
+This increment completes sanitizer selection for the existing R5 native X11
+registry without touching R8 clipboard tests. The same ASan/UBSan job now
+builds the remaining production-linked R5 executables and runs exactly **16**
+R5 X11 behaviors: capture layout; cursor reply bounds; XShm arena/connection
+and disconnect cancellation; display event budget/readiness, disconnect and
+deferred-owner teardown; XFixes, XDamage and XTEST child cancellation; the five
+one-XCB aggregate ownership/read/resize cases; and the concrete R3-admission
+input denial. No CTest is duplicated, no production source changes, and the
+ephemeral Xvfb cases still perform no positive admission or live keyboard/
+pointer injection.
+
+**Authoring status:** current-main source/CTest/CI mapping inspection PASS.
+Canonical owner-local `~/rdp-server/build` compile/CTest is **NOT RUN** in
+this connector environment. Exact-SHA hosted ASan/UBSan is **PENDING**. Owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, genuine Kerberos/logind
+admission, live XTEST and Microsoft-client M3 remain **NOT RUN**. **Next R5:**
+after this complete sanitizer selection is green, retain the tested native
+boundary and wait for R3's authoritative input PDU/event contract before
+production translation. M3 remains OPEN.
+
 ### R3 Client Info exact-SHA compile correction (2026-10-16)
 
 Implementation `3819cdaab6b787c037b0aed93e6c6626b9f5b8e2`,

@@ -1,3 +1,25 @@
+## R5 full native-X11 sanitizer selection authoring receipt (2026-10-16)
+
+Previous exact R5 CI `38894949531` at
+`3b57baa31cd2533d29a00d92d1606f27cb476af8`: Clang ASan/UBSan R5 selection
+**7/7 PASS**; Ubuntu/GCC **369/369 PASS** Debug and **369/369 PASS** Release.
+The overall workflow was red only on unrelated macOS R1 CredSSP framing and
+Windows R10 OpenSSL Applink tests. That result is R5 behavioral evidence, not
+a repository-wide green claim.
+
+The sanitizer job is now extended to compile all remaining existing R5 native
+X11 test executables and execute exactly the 16 R5 X11 cases, excluding the 8
+R8 clipboard/X11 cases that already run in the clipboard sanitizer step. The
+selection covers child-level capture/cursor/damage/input cancellation and
+bounds plus aggregate event/lifecycle/RandR/R4-read/admission behavior. It
+reuses the central CTest registry and existing Xvfb fixtures; no production
+source or test semantics change.
+
+Current source still has no R3 Share/Input or Fast-Path Input PDU event
+boundary, so production R5 input translation remains **BLOCKED** by design.
+Owner-local canonical testing and live admitted XTEST remain **NOT RUN**.
+Exact-SHA hosted ASan/UBSan for this 16-test selection is **PENDING**.
+
 ### R3 Client Info exact-SHA compile correction (2026-10-16)
 
 Implementation `3819cdaab6b787c037b0aed93e6c6626b9f5b8e2`,

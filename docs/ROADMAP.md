@@ -7754,3 +7754,31 @@ Each `allows(Capture)` / `allows(Input)` call checks the pinned geometry, reads 
 Implementation `ce23e7dd73a0c943c42a8257149111fe5a66baf7` is on `main`; exact-SHA Actions `38885564347` is **QUEUED**, not PASS/FAIL. Focused strict GCC/Clang C++23 behavior tests and Clang ASan+UBSan+LSan passed locally; the Apple CoreFoundation/CoreGraphics path passed strict syntax against stubs. Real Apple SDK compile/link, owner macOS 27, live GUI-session reads, actual Screen Recording/Accessibility state, positive macOS R2/R3 admission, capture/input use, and Microsoft-client acceptance remain **NOT RUN**.
 
 **Next R7:** add a monotonic native console/session-change revision/watch so a switch-away-and-back entirely between synchronous checks cannot be missed; keep it revocation-only and keep native capture/input capabilities inaccessible until concrete R2/R3 authorization exists. If R4 exposes a portable cursor consumer first, cursor publication/deduplication may proceed instead without creating another scheduler. M5 remains **OPEN**.
+
+
+## R9 Attach User terminal replay sanitizer coverage (2026-10-16; CI pending)
+
+**Starting main:** `fa79a916fbdda240a8df9601858989ede5e4ca92`. R3 now owns protected Erect Domain and Attach
+User confirmation boundaries, while genuine positive Kerberos/TLS plus native
+OS admission remains unavailable in hosted CI. R9 therefore extends the real
+denial/replay surface rather than fabricating a lease.
+
+New independent CTest
+`security.gssapi-r3-attach-user-terminal-replay-fence` exercises the
+production `completeR3AttachUserConfirmWrite` rejection path with no lease,
+then proves late Attach/Erect PDUs, changed receipt scalars, replacement of only
+the R3 lifecycle, and a full reconnect with fresh R2/R3/R1 owners cannot revive
+authority or allocate a user ID. It reuses the existing Linux GSS executable
+and central registry; no second owner, positive fixture, or test-only admission
+seam is added.
+
+The existing single R9 GSS sanitizer selection now includes both
+`gssapi-r3-attach-user-contract` and this R9 replay fence, in addition to the
+previous Connect Response/Erect/generation/revocation cases. The scoped MIT
+`krb5_copy_principal` suppression remains confined to the GSS step.
+
+Canonical local build/CTest is **NOT RUN** in this connector environment.
+Exact-SHA hosted ASan/UBSan/LSan and ordinary matrix evidence is required after
+publication. Positive Attach User/Join progression, genuine Kerberos/logind
+admission, authorized R3 virtual-channel/desktop routes, owner platform checks,
+Microsoft-client interoperability and performance remain **NOT RUN/BLOCKED**.

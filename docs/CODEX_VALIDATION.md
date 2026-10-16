@@ -9086,3 +9086,31 @@ still **QUEUED** behind older workflows at this authoring snapshot.
 **Exact-SHA hosted state:** Actions `38885564347` for `ce23e7dd73a0c943c42a8257149111fe5a66baf7` is **QUEUED** at this receipt. Earlier R7 cursor run `38881746797` and input-controller run `38884345628` are also **QUEUED**. Real Apple SDK compile/link and full hosted CTest therefore remain **NOT RUN** for these exact SHAs.
 
 **Known remaining gap:** synchronous double-read catches a session change during one operation, but cannot detect an unobserved switch-away-and-back occurring entirely between later calls. The next R7 lifecycle increment is a monotonic native console/session-change revision/watch pinned by this guard. Positive macOS R2/R3 admission, live capture/input, owner macOS 27, Microsoft-client interoperability and performance/reliability remain **NOT RUN**. M5 remains **OPEN**.
+
+
+## R9 Attach User terminal replay sanitizer coverage (2026-10-16; CI pending)
+
+**Starting main:** `fa79a916fbdda240a8df9601858989ede5e4ca92`. R3 now owns protected Erect Domain and Attach
+User confirmation boundaries, while genuine positive Kerberos/TLS plus native
+OS admission remains unavailable in hosted CI. R9 therefore extends the real
+denial/replay surface rather than fabricating a lease.
+
+New independent CTest
+`security.gssapi-r3-attach-user-terminal-replay-fence` exercises the
+production `completeR3AttachUserConfirmWrite` rejection path with no lease,
+then proves late Attach/Erect PDUs, changed receipt scalars, replacement of only
+the R3 lifecycle, and a full reconnect with fresh R2/R3/R1 owners cannot revive
+authority or allocate a user ID. It reuses the existing Linux GSS executable
+and central registry; no second owner, positive fixture, or test-only admission
+seam is added.
+
+The existing single R9 GSS sanitizer selection now includes both
+`gssapi-r3-attach-user-contract` and this R9 replay fence, in addition to the
+previous Connect Response/Erect/generation/revocation cases. The scoped MIT
+`krb5_copy_principal` suppression remains confined to the GSS step.
+
+Canonical local build/CTest is **NOT RUN** in this connector environment.
+Exact-SHA hosted ASan/UBSan/LSan and ordinary matrix evidence is required after
+publication. Positive Attach User/Join progression, genuine Kerberos/logind
+admission, authorized R3 virtual-channel/desktop routes, owner platform checks,
+Microsoft-client interoperability and performance remain **NOT RUN/BLOCKED**.

@@ -1076,6 +1076,73 @@ void testR3AttachUserContract()
     assert(early.onDomainPdu(attach) == McsSessionIntake::Closed);
 }
 
+
+void testR3AttachUserTerminalReplayFence()
+{
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+
+    constexpr std::array<std::uint8_t, 8> attach{
+        0x03, 0x00, 0x00, 0x08, 0x02, 0xf0, 0x80, 0x28};
+    constexpr std::array<std::uint8_t, 12> erect{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x04, 0x01, 0x00, 0x01, 0x00};
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+    // No positive lease/TLS/native session exists. Guessed confirmation
+    // receipts must retire the exact R3/R2/GSS owners before any later Attach
+    // or Erect work can be consumed.
+    assert(broker.completeR3AttachUserConfirmWrite(
+               nullptr, acceptor, connection, session,
+               41U, 43U, 11U) == Outcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.allocatedUserId() == 0U);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(session.pendingJoinConfirmation().empty());
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    assert(session.onDomainPdu(attach) == McsSessionIntake::Closed);
+    assert(session.onDomainPdu(erect) == McsSessionIntake::Closed);
+    assert(broker.completeR3AttachUserConfirmWrite(
+               nullptr, acceptor, connection, session,
+               UINT64_MAX, UINT64_MAX, 0U) == Outcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+
+    // Replacing only R3 does not cross already revoked R2/GSS authority.
+    McsSessionLifecycle replacement;
+    assert(broker.completeR3AttachUserConfirmWrite(
+               nullptr, acceptor, connection, replacement,
+               41U, 43U, 0U) == Outcome::Rejected);
+    assert(replacement.phase() == McsSessionPhase::Closed);
+    assert(replacement.onDomainPdu(attach) == McsSessionIntake::Closed);
+
+    // A complete reconnect gets fresh owners, but scalar receipts still do
+    // not manufacture the missing nonforgeable lease or established R1 TLS.
+    GssapiSpnegoAcceptor freshAcceptor;
+    LinuxConsoleAdmissionBroker freshBroker(policy);
+    McsSessionLifecycle freshSession;
+    OwnedPreauthTcpConnection freshConnection{OwnedNativeTcpSocket{}};
+    assert(freshBroker.state() == LinuxConsoleAdmissionState::Ready);
+    assert(freshBroker.completeR3AttachUserConfirmWrite(
+               nullptr, freshAcceptor, freshConnection, freshSession,
+               41U, 43U, 11U) == Outcome::Rejected);
+    assert(freshSession.phase() == McsSessionPhase::Closed);
+    assert(freshSession.allocatedUserId() == 0U);
+    assert(freshSession.onDomainPdu(attach) == McsSessionIntake::Closed);
+    assert(freshBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(freshAcceptor.stage() == SpnegoStage::Failed);
+}
+
 void testR3NativeChangeRevocation()
 {
     ConsoleIdentityPolicy policy;
@@ -1292,6 +1359,11 @@ int main(int argc, char **argv)
             testR3AttachUserContract();
             return 0;
         }
+        if (name == "gssapi-r3-attach-user-terminal-replay-fence")
+        {
+            testR3AttachUserTerminalReplayFence();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -1325,6 +1397,7 @@ int main(int argc, char **argv)
     testR3ErectDomainContract();
     testR3ProtectedTransitionTerminalReplayFence();
     testR3AttachUserContract();
+    testR3AttachUserTerminalReplayFence();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

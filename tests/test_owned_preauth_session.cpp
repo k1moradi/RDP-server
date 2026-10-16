@@ -1961,6 +1961,426 @@ void testOwnedTcpConnectionCancellation()
     return owner.ioInterest();
 }
 
+
+void establishOwnedApplicationTls(
+    OwnedPreauthTcpConnection &owner,
+    NativeTcpIo &clientIo,
+    TlsHandshakeFixture &tls)
+{
+    using Interest = TcpConnectionIoInterest;
+    nativeSendAll(clientIo, validRequestWire());
+    assert(waitForOwnedTcpReply(owner) == Interest::Write);
+    assert(owner.onSocketReady(false, true) == Interest::ConfigureTls);
+    std::array<std::uint8_t, 19> confirm{};
+    nativeReadAll(clientIo, confirm);
+    assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
+
+    OwnedPreauthTcpConnection::ServerTls server{
+        tls.server.release(), SSL_free};
+    assert(owner.attachServerTls(std::move(server)));
+    assert(!server);
+    assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
+
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    for (int pass = 0; pass < 16384; ++pass)
+    {
+        if (!clientEstablished)
+        {
+            const int result = SSL_do_handshake(tls.client.get());
+            if (result == 1)
+                clientEstablished = true;
+            else
+            {
+                const int error = SSL_get_error(tls.client.get(), result);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+        if (!serverEstablished)
+        {
+            const auto result = owner.onTlsIoReady();
+            assert(result == TlsHandshakeStatus::NeedRead ||
+                   result == TlsHandshakeStatus::NeedWrite ||
+                   result == TlsHandshakeStatus::Established);
+            serverEstablished =
+                result == TlsHandshakeStatus::Established;
+        }
+        if (clientEstablished && serverEstablished) break;
+        std::this_thread::yield();
+    }
+    assert(clientEstablished && serverEstablished);
+    assert(owner.establishedTls() != nullptr);
+    assert(owner.ioInterest() == Interest::Read);
+}
+
+void writeNativeTlsClientAll(
+    SSL *client, std::span<const std::uint8_t> payload)
+{
+    assert(client != nullptr);
+    std::size_t total = 0;
+    for (int attempt = 0; attempt < 16384 && total < payload.size();
+         ++attempt)
+    {
+        std::size_t bytes = 0;
+        const int result = SSL_write_ex(
+            client, payload.data() + total, payload.size() - total, &bytes);
+        if (result == 1)
+        {
+            assert(bytes > 0 && bytes <= payload.size() - total);
+            total += bytes;
+            continue;
+        }
+        assert(bytes == 0);
+        const int error = SSL_get_error(client, result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        std::this_thread::yield();
+    }
+    assert(total == payload.size());
+}
+
+void readNativeTlsClientAll(
+    SSL *client, std::span<std::uint8_t> output)
+{
+    assert(client != nullptr);
+    std::size_t total = 0;
+    for (int attempt = 0; attempt < 16384 && total < output.size();
+         ++attempt)
+    {
+        std::size_t bytes = 0;
+        const int result = SSL_read_ex(
+            client, output.data() + total, output.size() - total, &bytes);
+        if (result == 1)
+        {
+            assert(bytes > 0 && bytes <= output.size() - total);
+            total += bytes;
+            continue;
+        }
+        assert(bytes == 0);
+        const int error = SSL_get_error(client, result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        std::this_thread::yield();
+    }
+    assert(total == output.size());
+}
+
+void testOwnedTlsApplicationIo()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+
+    std::array<std::uint8_t, 1> premature{};
+    assert(owner.readTlsApplicationData(premature).outcome ==
+           Outcome::Invalid);
+    assert(owner.writeTlsApplicationData(premature).outcome ==
+           Outcome::Invalid);
+    assert(owner.active());
+    assert(owner.stage() == PreauthStage::AwaitConnectionRequest);
+
+    TlsHandshakeFixture tls{false, false};
+    establishOwnedApplicationTls(owner, clientIo, tls);
+    const SSL *const established = owner.establishedTls();
+    assert(established != nullptr);
+
+    std::array<std::uint8_t, kMaximumTlsApplicationIoBytes + 1U>
+        oversized{};
+    assert(owner.readTlsApplicationData({}).outcome == Outcome::Invalid);
+    assert(owner.writeTlsApplicationData({}).outcome == Outcome::Invalid);
+    assert(owner.readTlsApplicationData(oversized).outcome ==
+           Outcome::Invalid);
+    assert(owner.writeTlsApplicationData(oversized).outcome ==
+           Outcome::Invalid);
+    assert(owner.establishedTls() == established);
+
+    std::array<std::uint8_t, 257> inbound{};
+    for (std::size_t index = 0; index < inbound.size(); ++index)
+        inbound[index] =
+            static_cast<std::uint8_t>((index * 13U + 7U) & 0xffU);
+    std::array<std::uint8_t, 257> received{};
+    const auto blocked = owner.readTlsApplicationData(received);
+    assert(blocked.outcome == Outcome::NeedRead && blocked.bytes == 0);
+    assert(owner.ioInterest() == Interest::Read);
+    assert(owner.onSocketReady(false, true) == Interest::Read);
+
+    writeNativeTlsClientAll(tls.client.get(), inbound);
+    const auto polled = owner.pollSocketOnce(
+        Clock::now() + std::chrono::seconds{1}, kMaximumTcpPollWait);
+    assert(polled.outcome == TcpConnectionPollOutcome::Dispatched);
+    assert(polled.nextInterest == Interest::Read);
+    assert(std::all_of(received.begin(), received.end(),
+                       [](std::uint8_t byte) { return byte == 0; }));
+
+    const auto read = owner.readTlsApplicationData(received);
+    assert(read.outcome == Outcome::Progress);
+    assert(read.bytes == inbound.size());
+    assert(received == inbound);
+    assert(owner.ioInterest() == Interest::Read);
+
+    std::array<std::uint8_t, 511> outbound{};
+    for (std::size_t index = 0; index < outbound.size(); ++index)
+        outbound[index] =
+            static_cast<std::uint8_t>((index * 29U + 3U) & 0xffU);
+    std::size_t written = 0;
+    for (int attempt = 0; attempt < 128 && written < outbound.size();
+         ++attempt)
+    {
+        const auto result = owner.writeTlsApplicationData(
+            std::span(outbound).subspan(written));
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0 &&
+                   result.bytes <= outbound.size() - written);
+            written += result.bytes;
+            continue;
+        }
+        assert(result.bytes == 0);
+        const auto expected = result.outcome == Outcome::NeedRead
+            ? Interest::Read
+            : Interest::Write;
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        assert(owner.ioInterest() == expected);
+        assert(owner.onSocketReady(true, true) == expected);
+    }
+    assert(written == outbound.size());
+
+    std::array<std::uint8_t, 511> delivered{};
+    readNativeTlsClientAll(tls.client.get(), delivered);
+    assert(delivered == outbound);
+    assert(owner.establishedTls() == established);
+    assert(owner.onMcsIoReady().status == McsIntakeStatus::Invalid);
+    assert(!owner.active());
+    assert(owner.establishedTls() == nullptr);
+}
+
+void testOwnedTlsApplicationPartialWrite()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    static_assert(kMaximumTlsApplicationIoBytes ==
+                  kMaximumTcpIoChunkBytes);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    assert(SSL_set_max_send_fragment(tls.server.get(), 1024) == 1);
+    establishOwnedApplicationTls(owner, clientIo, tls);
+    assert((SSL_get_mode(owner.establishedTls()) &
+            SSL_MODE_ENABLE_PARTIAL_WRITE) != 0);
+    assert((SSL_get_mode(owner.establishedTls()) &
+            SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER) != 0);
+
+    std::array<std::uint8_t, kMaximumTlsApplicationIoBytes> payload{};
+    for (std::size_t index = 0; index < payload.size(); ++index)
+        payload[index] =
+            static_cast<std::uint8_t>((index * 17U + 11U) & 0xffU);
+
+    std::size_t written = 0;
+    bool observedShortProgress = false;
+    for (int attempt = 0; attempt < 256 && written < payload.size();
+         ++attempt)
+    {
+        const auto remaining = std::span(payload).subspan(written);
+        const auto result = owner.writeTlsApplicationData(remaining);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0 && result.bytes <= remaining.size());
+            if (written == 0)
+            {
+                assert(result.bytes <= 1024);
+                assert(result.bytes < remaining.size());
+                observedShortProgress = true;
+            }
+            written += result.bytes;
+            continue;
+        }
+        assert(result.bytes == 0);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto expected = result.outcome == Outcome::NeedRead
+            ? Interest::Read
+            : Interest::Write;
+        assert(owner.ioInterest() == expected);
+        assert(owner.onSocketReady(true, true) == expected);
+    }
+    assert(observedShortProgress);
+    assert(written == payload.size());
+
+    std::array<std::uint8_t, kMaximumTlsApplicationIoBytes> delivered{};
+    readNativeTlsClientAll(tls.client.get(), delivered);
+    assert(delivered == payload);
+
+    std::array<std::uint8_t, 7> pendingRead{};
+    const auto blocked = owner.readTlsApplicationData(pendingRead);
+    assert(blocked.outcome == Outcome::NeedRead && blocked.bytes == 0);
+    std::array<std::uint8_t, 7> wrongDirection{};
+    assert(owner.writeTlsApplicationData(wrongDirection).outcome ==
+           Outcome::Invalid);
+    assert(owner.readTlsApplicationData(
+               std::span(pendingRead).first(6)).outcome ==
+           Outcome::Invalid);
+    assert(owner.ioInterest() == Interest::Read);
+
+    constexpr std::array<std::uint8_t, 7> retryPayload{
+        0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37};
+    writeNativeTlsClientAll(tls.client.get(), retryPayload);
+    const auto completed = owner.readTlsApplicationData(pendingRead);
+    assert(completed.outcome == Outcome::Progress);
+    assert(completed.bytes == retryPayload.size());
+    assert(pendingRead == retryPayload);
+    owner.cancel();
+}
+
+void testOwnedTlsApplicationCancellation()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using Clock = std::chrono::steady_clock;
+
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+        std::array<std::uint8_t, 8> buffer{};
+        assert(owner.readTlsApplicationData(buffer).outcome ==
+               Outcome::NeedRead);
+        const auto deadline = Clock::now();
+        assert(owner.cancelIfExpired(deadline, deadline));
+        assert(!owner.active());
+        assert(owner.ioInterest() == Interest::Closed);
+        assert(owner.readTlsApplicationData(buffer).outcome ==
+               Outcome::TransportClosed);
+        assert(owner.writeTlsApplicationData(buffer).outcome ==
+               Outcome::TransportClosed);
+        assert(owner.onSocketReady(true, true) == Interest::Closed);
+        owner.cancel();
+        owner.cancel();
+    }
+
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        bool closeNotifySent = false;
+        for (int attempt = 0; attempt < 128; ++attempt)
+        {
+            const int result = SSL_shutdown(tls.client.get());
+            if (result >= 0)
+            {
+                closeNotifySent = true;
+                break;
+            }
+            const int error = SSL_get_error(tls.client.get(), result);
+            assert(error == SSL_ERROR_WANT_READ ||
+                   error == SSL_ERROR_WANT_WRITE);
+            std::this_thread::yield();
+        }
+        assert(closeNotifySent);
+
+        std::array<std::uint8_t, 16> buffer{};
+        TlsApplicationIoResult result{};
+        for (int attempt = 0; attempt < 128; ++attempt)
+        {
+            result = owner.readTlsApplicationData(buffer);
+            if (result.outcome != Outcome::NeedRead &&
+                result.outcome != Outcome::NeedWrite)
+                break;
+            assert(result.bytes == 0);
+            std::this_thread::yield();
+        }
+        assert(result.outcome == Outcome::TlsClosed);
+        assert(result.bytes == 0);
+        assert(!owner.active());
+    }
+
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+        pair.client.close();
+
+        std::array<std::uint8_t, 16> buffer{};
+        TlsApplicationIoResult result{};
+        for (int attempt = 0; attempt < 128; ++attempt)
+        {
+            result = owner.readTlsApplicationData(buffer);
+            if (result.outcome != Outcome::NeedRead &&
+                result.outcome != Outcome::NeedWrite)
+                break;
+            assert(result.bytes == 0);
+            std::this_thread::yield();
+        }
+        assert(result.outcome == Outcome::TransportClosed);
+        assert(result.bytes == 0);
+        assert(!owner.active());
+    }
+
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+        constexpr std::array<std::uint8_t, 6> invalidTlsRecord{
+            0x17, 0x03, 0x03, 0x00, 0x01, 0x00};
+        nativeSendAll(clientIo, invalidTlsRecord);
+
+        std::array<std::uint8_t, 16> buffer{};
+        TlsApplicationIoResult result{};
+        for (int attempt = 0; attempt < 128; ++attempt)
+        {
+            result = owner.readTlsApplicationData(buffer);
+            if (result.outcome != Outcome::NeedRead &&
+                result.outcome != Outcome::NeedWrite)
+                break;
+            assert(result.bytes == 0);
+            std::this_thread::yield();
+        }
+        assert(result.outcome == Outcome::FatalTlsFailure);
+        assert(result.bytes == 0);
+        assert(!owner.active());
+        owner.cancel();
+    }
+}
+
+
 void testOwnedTcpReadinessDispatch()
 {
     // Real ephemeral TCP listener; no OS session admission or service.
@@ -5416,6 +5836,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-deadline-cancellation", &testOwnedTcpDeadlineCancellation},
     {"tcp-owned-bounded-poll-loopback-tls", &testOwnedTcpBoundedPollLoopbackTls},
     {"tcp-owned-bounded-poll-timeout-eof", &testOwnedTcpBoundedPollTimeoutAndDisconnect},
+    {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},
+    {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
+    {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},

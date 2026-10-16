@@ -7,7 +7,9 @@
 #include <memory>
 
 #include <openssl/bio.h>
+#include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/sslerr.h>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -27,6 +29,18 @@ namespace rdp_server::server::transport
 {
 namespace
 {
+[[nodiscard]] bool isUnexpectedTlsEof() noexcept
+{
+#ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
+    const auto error = ERR_peek_last_error();
+    return error != 0 &&
+           ERR_GET_LIB(error) == ERR_LIB_SSL &&
+           ERR_GET_REASON(error) == SSL_R_UNEXPECTED_EOF_WHILE_READING;
+#else
+    return false;
+#endif
+}
+
 [[nodiscard]] TcpIoResult nativeFailure() noexcept
 {
 #ifdef _WIN32
@@ -249,6 +263,16 @@ bool PreauthTcpAdapter::matchesAttachedTlsTransport() const noexcept
            SSL_get_wbio(attachedServerTls_) == attachedTcpBio_ &&
            BIO_get_init(attachedTcpBio_) == 1 &&
            BIO_get_data(attachedTcpBio_) == &io_;
+}
+
+bool PreauthTcpAdapter::isEstablishedTlsTransport(
+    const SSL *serverTls) const noexcept
+{
+    return serverTls != nullptr &&
+           serverTls == attachedServerTls_ &&
+           connection_.stage() == PreauthStage::AwaitMcsConnectInitial &&
+           matchesAttachedTlsTransport() &&
+           SSL_is_init_finished(attachedServerTls_) == 1;
 }
 
 TlsHandshakeStatus PreauthTcpAdapter::onAttachedTlsIoReady() noexcept
@@ -625,8 +649,20 @@ TcpConnectionIoInterest OwnedPreauthTcpConnection::ioInterest() const noexcept
                    : TcpConnectionIoInterest::Read;
     case PreauthStage::AwaitMcsConnectInitial:
         if (!serverTls_) return TcpConnectionIoInterest::Closed;
-        // SSL_read_ex can exceptionally WANT_WRITE during TLS record
-        // processing; honor the actual provider direction, not a guess.
+        if (applicationIoActive_)
+        {
+            if (!adapter_.isEstablishedTlsTransport(serverTls_.get()))
+                return TcpConnectionIoInterest::Closed;
+            if (pendingApplicationOperation_ !=
+                TlsApplicationOperation::None)
+                return pendingApplicationInterest_;
+            // With no unfinished caller operation, inbound application data
+            // is the only readiness that can be inferred without retaining
+            // caller-owned outbound bytes.
+            return TcpConnectionIoInterest::Read;
+        }
+        // Legacy first-MCS diagnostic path. SSL_read_ex can exceptionally
+        // WANT_WRITE during TLS record processing; honor provider direction.
         return SSL_want_write(serverTls_.get())
                    ? TcpConnectionIoInterest::Write
                    : TcpConnectionIoInterest::Read;
@@ -654,6 +690,12 @@ TcpConnectionIoInterest OwnedPreauthTcpConnection::onSocketReady(
         (void)onWritable();
         return ioInterest();
     }
+
+    // Application I/O never retains a caller span, so readiness cannot
+    // safely retry SSL_read_ex/SSL_write_ex here. The higher-level owner
+    // receives this matching interest and resubmits its stable logical
+    // buffer explicitly.
+    if (applicationIoActive_) return requested;
 
     // Exactly ONE existing bounded callback per matching event.
     switch (stage())
@@ -683,13 +725,122 @@ bool OwnedPreauthTcpConnection::cancelIfExpired(
     return true;
 }
 
-const SSL *OwnedPreauthTcpConnection::establishedTls() const noexcept
+bool OwnedPreauthTcpConnection::establishedApplicationTls() const noexcept
 {
     return active() && serverTls_ &&
-                   stage() == PreauthStage::AwaitMcsConnectInitial &&
-                   SSL_is_init_finished(serverTls_.get()) == 1
-               ? serverTls_.get()
-               : nullptr;
+           adapter_.isEstablishedTlsTransport(serverTls_.get());
+}
+
+const SSL *OwnedPreauthTcpConnection::establishedTls() const noexcept
+{
+    return establishedApplicationTls() ? serverTls_.get() : nullptr;
+}
+
+void OwnedPreauthTcpConnection::clearPendingTlsApplicationIo() noexcept
+{
+    pendingApplicationOperation_ = TlsApplicationOperation::None;
+    pendingApplicationInterest_ = TcpConnectionIoInterest::Read;
+    pendingApplicationBytes_ = 0;
+}
+
+TlsApplicationIoResult OwnedPreauthTcpConnection::finishTlsApplicationStep(
+    int sslResult, std::size_t bytes,
+    TlsApplicationOperation operation,
+    std::size_t attemptedBytes) noexcept
+{
+    using Outcome = TlsApplicationIoOutcome;
+    if (sslResult == 1)
+    {
+        if (bytes == 0 || bytes > attemptedBytes)
+        {
+            cancel();
+            return {Outcome::FatalTlsFailure, 0};
+        }
+        clearPendingTlsApplicationIo();
+        return {Outcome::Progress, bytes};
+    }
+
+    if (bytes != 0 || !serverTls_)
+    {
+        cancel();
+        return {Outcome::FatalTlsFailure, 0};
+    }
+
+    const int error = SSL_get_error(serverTls_.get(), sslResult);
+    switch (error)
+    {
+    case SSL_ERROR_WANT_READ:
+        pendingApplicationOperation_ = operation;
+        pendingApplicationInterest_ = TcpConnectionIoInterest::Read;
+        pendingApplicationBytes_ = attemptedBytes;
+        return {Outcome::NeedRead, 0};
+    case SSL_ERROR_WANT_WRITE:
+        pendingApplicationOperation_ = operation;
+        pendingApplicationInterest_ = TcpConnectionIoInterest::Write;
+        pendingApplicationBytes_ = attemptedBytes;
+        return {Outcome::NeedWrite, 0};
+    case SSL_ERROR_ZERO_RETURN:
+        cancel();
+        return {Outcome::TlsClosed, 0};
+    case SSL_ERROR_SYSCALL:
+        cancel();
+        return {Outcome::TransportClosed, 0};
+    case SSL_ERROR_SSL:
+        if (isUnexpectedTlsEof())
+        {
+            cancel();
+            return {Outcome::TransportClosed, 0};
+        }
+        [[fallthrough]];
+    default:
+        cancel();
+        return {Outcome::FatalTlsFailure, 0};
+    }
+}
+
+TlsApplicationIoResult OwnedPreauthTcpConnection::readTlsApplicationData(
+    std::span<std::uint8_t> destination) noexcept
+{
+    using Outcome = TlsApplicationIoOutcome;
+    if (!active()) return {Outcome::TransportClosed, 0};
+    if (destination.empty() ||
+        destination.size() > kMaximumTlsApplicationIoBytes ||
+        !establishedApplicationTls())
+        return {Outcome::Invalid, 0};
+    if (pendingApplicationOperation_ != TlsApplicationOperation::None &&
+        (pendingApplicationOperation_ != TlsApplicationOperation::Read ||
+         pendingApplicationBytes_ != destination.size()))
+        return {Outcome::Invalid, 0};
+
+    applicationIoActive_ = true;
+    std::size_t bytes = 0;
+    ERR_clear_error();
+    const int result = SSL_read_ex(serverTls_.get(), destination.data(),
+                                   destination.size(), &bytes);
+    return finishTlsApplicationStep(
+        result, bytes, TlsApplicationOperation::Read, destination.size());
+}
+
+TlsApplicationIoResult OwnedPreauthTcpConnection::writeTlsApplicationData(
+    std::span<const std::uint8_t> source) noexcept
+{
+    using Outcome = TlsApplicationIoOutcome;
+    if (!active()) return {Outcome::TransportClosed, 0};
+    if (source.empty() || source.size() > kMaximumTlsApplicationIoBytes ||
+        !establishedApplicationTls())
+        return {Outcome::Invalid, 0};
+    if (pendingApplicationOperation_ != TlsApplicationOperation::None &&
+        (pendingApplicationOperation_ != TlsApplicationOperation::Write ||
+         pendingApplicationBytes_ != source.size()))
+        return {Outcome::Invalid, 0};
+
+    applicationIoActive_ = true;
+    std::size_t bytes = 0;
+    ERR_clear_error();
+    const int result = SSL_write_ex(serverTls_.get(), source.data(),
+                                    source.size(), &bytes);
+    return finishTlsApplicationStep(
+        result, bytes, TlsApplicationOperation::Write, source.size());
 }
 
 OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
@@ -703,7 +854,11 @@ OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
 
 void OwnedPreauthTcpConnection::cancel() noexcept
 {
-    // The BIO borrows io_; free its SSL before closing the native socket.
+    // No borrowed application buffer is stored, but pending readiness must
+    // become inert before SSL/BIO teardown. The BIO borrows io_; free its
+    // SSL before closing the native socket.
+    applicationIoActive_ = false;
+    clearPendingTlsApplicationIo();
     adapter_.close();
     serverTls_.reset();
     socket_.close();
@@ -731,8 +886,20 @@ TcpPreauthEvent OwnedPreauthTcpConnection::onWritable() noexcept
 
 bool OwnedPreauthTcpConnection::attachServerTls(ServerTls serverTls) noexcept
 {
-    if (!active() || serverTls_ || !serverTls ||
-        !adapter_.attachTlsTransport(serverTls.get()))
+    if (!active() || serverTls_ || !serverTls)
+    {
+        cancel();
+        return false;
+    }
+
+    // Expose short application-write progress instead of silently consuming
+    // a multi-record span. ACCEPT_MOVING_WRITE_BUFFER permits a higher-level
+    // owner to retain the same logical bytes in stable storage whose address
+    // may change between explicit WANT retries; byte count/content must not.
+    (void)SSL_set_mode(serverTls.get(),
+                       SSL_MODE_ENABLE_PARTIAL_WRITE |
+                       SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+    if (!adapter_.attachTlsTransport(serverTls.get()))
     {
         cancel();
         return false;
@@ -759,6 +926,14 @@ TlsHandshakeStatus OwnedPreauthTcpConnection::onTlsIoReady() noexcept
 McsIntakeResult OwnedPreauthTcpConnection::onMcsIoReady() noexcept
 {
     if (!active()) return {0, McsIntakeStatus::Closed};
+    // Once a real R2/R3 consumer opts into application byte-stream mode,
+    // the legacy diagnostic must never become a competing TLS plaintext
+    // reader. Treat an attempted second consumer as terminal misuse.
+    if (applicationIoActive_)
+    {
+        cancel();
+        return {0, McsIntakeStatus::Invalid};
+    }
     if (!serverTls_)
     {
         cancel();

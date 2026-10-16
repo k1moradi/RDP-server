@@ -2103,3 +2103,28 @@ Apple does not support `getsockopt(SO_ACCEPTCONN)`; use supported
 The existing native nonblocking accept rejects remaining nonlisteners.
 Windows/Linux continue SO_ACCEPTCONN, all POSIX continues O_NONBLOCK.
 No listener ownership or authenticated session activation.
+
+
+## R1 post-handshake encrypted byte-stream ownership (2026-10-15)
+
+The accepted connection remains one lifetime:
+`OwnedNativeTcpSocket -> NativeTcpIo -> OpenSSL BIO -> SSL ->
+OwnedPreauthTcpConnection application I/O`. R1 never exports mutable
+`SSL*`, BIO ownership or a duplicate descriptor. R2 may continue to borrow
+the established `const SSL*` only for immutable TLS/certificate inspection;
+R3 receives plaintext byte counts through the bounded transport methods and
+retains all packet/framing/session state itself.
+
+Each application call is synchronous and one-step. The span is valid only
+for that call. WANT_READ/WANT_WRITE stores no pointer: only Read/Write
+operation identity, retry byte count and actual OpenSSL readiness direction
+survive. Therefore `onSocketReady`/one-shot polling report readiness but
+cannot silently retry application TLS I/O. A short successful write is
+returned immediately so the higher owner advances its own stable logical
+buffer. Once this byte-stream mode is selected, the older diagnostic MCS
+reader cannot consume from the same TLS stream.
+
+Terminal teardown remains application buffers stop -> OpenSSL operations stop
+-> SSL/owned BIO release -> `NativeTcpIo` borrow ends -> accepted socket
+close. No worker thread, second event loop, listener owner, authentication
+decision or second RDP session controller is introduced.

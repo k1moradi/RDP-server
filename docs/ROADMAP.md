@@ -4901,3 +4901,42 @@ Protocol SDK ZIPs are developer packages, not server deployment.
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.
+
+
+## R1 bounded post-handshake TLS application byte stream (2026-10-15)
+
+**Starting main:** `1efd3688872cc38e7c932efc661c793edfd4c4b7`.
+R1 now extends the existing nonmoving `OwnedPreauthTcpConnection` instead
+of exposing mutable OpenSSL ownership. `readTlsApplicationData` and
+`writeTlsApplicationData` accept only 1..18 KiB caller spans and perform
+exactly one `SSL_read_ex` / `SSL_write_ex` step on the same accepted
+socket -> `NativeTcpIo` -> owned BIO -> owned `SSL` chain. Results expose
+exact plaintext progress, provider-derived WANT_READ/WANT_WRITE, orderly
+TLS close, transport close, fatal TLS failure and invalid state. OpenSSL
+partial-write mode keeps short writes visible; no caller span is retained.
+
+Application mode starts only after a valid established-TLS call, leaving
+the legacy first-MCS diagnostic unchanged until an R2/R3 consumer opts in.
+A WANT remembers only operation kind, exact retry length and actual
+readiness direction; readiness callbacks never replay stale caller memory.
+Cancellation/deadline/TLS close/fatal transport errors clear that interest,
+destroy SSL/BIO before the accepted socket and remain terminal/idempotent.
+The legacy MCS diagnostic is terminally denied once application mode owns
+TLS plaintext, preventing a second reader.
+
+Dedicated central CTests:
+`transport.tcp-owned-tls-application-io`,
+`transport.tcp-owned-tls-application-partial-write`, and
+`transport.tcp-owned-tls-application-cancellation`. They use only a real
+ephemeral loopback connection and real OpenSSL handshake; cover pre-TLS and
+span-bound denials, WANT/readiness without hidden retry, exact bidirectional
+byte parity, deterministic short progress, retry-shape denial, deadline
+cancellation, close_notify, abrupt FIN and fatal malformed TLS input.
+
+Local one-root CTest is **NOT RUN** in this agent sandbox because no repository
+checkout is available and outbound GitHub DNS is blocked; exact-SHA hosted CI
+is required after publication. No R2 identity/OS admission, R3 protocol
+activation, production listener or R10 scheduler was added. M2 remains
+**NOT ACCEPTED**. **Next R1 dependency:** consume concrete R2/R3 integration
+feedback; add no further transport abstraction unless their sole owners
+demonstrate a missing bounded hook.

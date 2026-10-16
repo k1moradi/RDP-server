@@ -22,6 +22,12 @@ namespace rdp_server::server::transport
 // by their own event loop. No int narrowing on Windows and no allocation.
 inline constexpr std::size_t kMaximumTcpIoChunkBytes = 18U * 1024U;
 
+// Keep the post-handshake plaintext boundary no larger than one existing
+// bounded TCP/BIO callback. Callers retain larger logical RDP PDUs and
+// resubmit only the remaining stable suffix after explicit progress.
+inline constexpr std::size_t kMaximumTlsApplicationIoBytes =
+    kMaximumTcpIoChunkBytes;
+
 // One result from a caller-owned NONBLOCKING TCP descriptor. A Progress
 // result must have 1..buffer.size() bytes. Other outcomes must have zero.
 // No invented timeouts, packet boundaries or automatic OS authorization.
@@ -36,6 +42,27 @@ enum class TcpIoOutcome : std::uint8_t
 struct TcpIoResult
 {
     TcpIoOutcome outcome{TcpIoOutcome::Failure};
+    std::size_t bytes{};
+};
+
+// One synchronous post-handshake TLS application-data step. Progress is
+// exact plaintext bytes consumed/produced. NeedRead/NeedWrite are derived
+// from SSL_get_error and may oppose the nominal operation direction.
+// Terminal outcomes close the sole SSL/BIO/socket owner.
+enum class TlsApplicationIoOutcome : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    TlsClosed,
+    TransportClosed,
+    FatalTlsFailure,
+    Invalid,
+};
+
+struct TlsApplicationIoResult
+{
+    TlsApplicationIoOutcome outcome{TlsApplicationIoOutcome::Invalid};
     std::size_t bytes{};
 };
 
@@ -249,6 +276,13 @@ public:
 private:
     [[nodiscard]] TcpPreauthEvent idleStatus() const noexcept;
     [[nodiscard]] bool matchesAttachedTlsTransport() const noexcept;
+    [[nodiscard]] bool isEstablishedTlsTransport(
+        const SSL *serverTls) const noexcept;
+
+    // The enclosing nonmoving owner may verify that application I/O still
+    // targets the exact SSL/BIO pair attached to this adapter. No mutable
+    // SSL/BIO capability is exposed to R2/R3.
+    friend class OwnedPreauthTcpConnection;
 
     TcpNonblockingIo &io_;
     PreauthConnectionStream connection_{};
@@ -366,11 +400,25 @@ private:
      [[nodiscard]] TlsHandshakeStatus onTlsIoReady() noexcept;
      [[nodiscard]] McsIntakeResult onMcsIoReady() noexcept;
 
-     // Derived from the existing preauth phase and SSL_want state, not a
+     // Bounded post-handshake encrypted byte-stream boundary for R2/R3.
+     // Each call performs at most ONE SSL_read_ex/SSL_write_ex using the
+     // exact owned SSL/BIO/socket and accepts 1..18 KiB only. No caller
+     // span is retained. After WANT_READ/WANT_WRITE, retry the same logical
+     // operation with the same byte count; write bytes must be unchanged
+     // although the span address may move. Short progress is never retried
+     // internally and authentication/session framing remains outside R1.
+     [[nodiscard]] TlsApplicationIoResult readTlsApplicationData(
+         std::span<std::uint8_t> destination) noexcept;
+     [[nodiscard]] TlsApplicationIoResult writeTlsApplicationData(
+         std::span<const std::uint8_t> source) noexcept;
+
+     // Derived from the existing preauth phase and SSL/app WANT state, not a
      // second state machine. The caller polls for precisely this interest.
      [[nodiscard]] TcpConnectionIoInterest ioInterest() const noexcept;
      // Process at most ONE bounded existing preauth/TLS/MCS callback.
-     // Wrong-direction, empty or stale readiness never touches the socket.
+     // Application mode reports matching readiness only; it cannot retry
+     // SSL I/O without the caller's current span. Wrong-direction, empty
+     // or stale readiness never touches the socket.
      [[nodiscard]] TcpConnectionIoInterest onSocketReady(
          bool readable, bool writable) noexcept;
      // The caller owns its clock/timer and deadline policy. An expired
@@ -398,10 +446,34 @@ private:
      void cancel() noexcept;
 
  private:
+     enum class TlsApplicationOperation : std::uint8_t
+     {
+         None,
+         Read,
+         Write,
+     };
+
+     [[nodiscard]] bool establishedApplicationTls() const noexcept;
+     [[nodiscard]] TlsApplicationIoResult finishTlsApplicationStep(
+         int sslResult, std::size_t bytes,
+         TlsApplicationOperation operation,
+         std::size_t attemptedBytes) noexcept;
+     void clearPendingTlsApplicationIo() noexcept;
+
      OwnedNativeTcpSocket socket_{};
      NativeTcpIo io_;
      PreauthTcpAdapter adapter_;
      ServerTls serverTls_{nullptr, SSL_free};
+     // Application mode begins only after the first valid bounded call.
+     // This preserves the legacy first-MCS diagnostic until a real R2/R3
+     // consumer opts into the byte-stream boundary.
+     bool applicationIoActive_{};
+     TlsApplicationOperation pendingApplicationOperation_{
+         TlsApplicationOperation::None};
+     TcpConnectionIoInterest pendingApplicationInterest_{
+         TcpConnectionIoInterest::Read};
+     // Size only: caller memory is never borrowed beyond a method call.
+     std::size_t pendingApplicationBytes_{};
  };
 
 } // namespace rdp_server::server::transport

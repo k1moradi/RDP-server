@@ -6334,3 +6334,30 @@ client or OS-authorized desktop is exercised. Owner Linux/X11,
 Windows MSYS2 CLANG64/Clang23 and macOS27 same-SHA validation is
 **NOT RUN**. Certificate trust chain, hostname, time validity and
 revocation remain outside this increment. M1–M6 remain OPEN.
+
+
+## R1 bounded post-handshake TLS application I/O (2026-10-15)
+
+**Starting main:** `1efd3688872cc38e7c932efc661c793edfd4c4b7`.
+Production changes extend only the existing `OwnedPreauthTcpConnection`
+SSL/BIO/socket owner with 1..18 KiB one-step application reads/writes and
+explicit progress/WANT/close/fatal results. No mutable SSL/BIO/socket
+handoff, protocol parsing, R2 admission, R3 authorization or R10 listener
+ownership is introduced. WANT state retains only operation, exact byte count
+and actual readiness direction; caller memory is never retained. Partial
+writes are enabled and surfaced rather than internally retried.
+
+New independently registered CTests:
+`transport.tcp-owned-tls-application-io`,
+`transport.tcp-owned-tls-application-partial-write`,
+`transport.tcp-owned-tls-application-cancellation`.
+They exercise real ephemeral TCP + OpenSSL TLS, byte parity, readiness,
+bounds, short progress/retry rules and terminal deadline/TLS-close/FIN/fatal
+paths.
+
+**Authoring validation:** local build/CTest **NOT RUN** because this agent
+sandbox has no repository checkout and cannot resolve github.com for a clone.
+Exact-SHA GitHub Actions is **PENDING** immediately after the direct-to-main
+publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27
+remain **NOT RUN**. M2 remains **NOT ACCEPTED** pending genuine R2 admission,
+R3 activation and Microsoft-client evidence.

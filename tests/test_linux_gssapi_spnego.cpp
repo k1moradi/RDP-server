@@ -17,6 +17,7 @@
 #include <thread>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -1647,6 +1648,10 @@ void testR3ClientLicensingRouteContract()
     using Connection = const OwnedPreauthTcpConnection &;
     using Session = McsSessionLifecycle &;
     using Bytes = std::span<const std::uint8_t>;
+    using KeyExchange =
+        rdp_server::server::transport::RdpClientLicensingKeyExchangeView;
+    using KeyMaterial =
+        rdp_server::server::transport::RdpLicensingKeyMaterial;
 
     static_assert(std::is_invocable_r_v<
         std::optional<RdpLicensingIntake>,
@@ -1666,23 +1671,94 @@ void testR3ClientLicensingRouteContract()
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, std::string_view,
         Acceptor, Connection, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const KeyExchange &,
+        Acceptor, Connection, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const KeyMaterial &,
+        Acceptor, Connection, Session, Bytes>);
 
-    // This is a complete client SendDataRequest carrying a valid Enhanced
-    // Security licensing header and a complete licensing preamble. It is
-    // deliberately not a full positive client-license body: the public R3
-    // surface must reject before any private licensing lifecycle can matter.
-    constexpr std::array<std::uint8_t, 22> licensingShapedPacket{
-        0x03,0x00,0x00,0x16,0x02,0xf0,0x80,
-        0x64,0x00,0x01,0x03,0xeb,0x70,0x08,
-        0x80,0x00,0x00,0x00,0x13,0x03,0x04,0x00};
+    // Build one structurally complete CLIENT_NEW_LICENSE_REQUEST. R3's public
+    // parsers may classify protocol bytes and derive keys from already-decoded
+    // material, but none of those values is an R2 admission capability.
+    std::vector<std::uint8_t> licensingMessage{0x13, 0x83, 0x00, 0x00};
+    const auto appendLe32 =
+        [&](std::uint32_t value)
+        {
+            for (unsigned shift = 0U; shift < 32U; shift += 8U)
+                licensingMessage.push_back(
+                    static_cast<std::uint8_t>(value >> shift));
+        };
+    const auto appendBlob =
+        [&](std::uint16_t type, std::span<const std::uint8_t> payload)
+        {
+            assert(payload.size() <= UINT16_MAX);
+            const auto length = static_cast<std::uint16_t>(payload.size());
+            licensingMessage.push_back(static_cast<std::uint8_t>(type));
+            licensingMessage.push_back(static_cast<std::uint8_t>(type >> 8U));
+            licensingMessage.push_back(static_cast<std::uint8_t>(length));
+            licensingMessage.push_back(
+                static_cast<std::uint8_t>(length >> 8U));
+            licensingMessage.insert(
+                licensingMessage.end(), payload.begin(), payload.end());
+        };
+
+    appendLe32(1U);          // KEY_EXCHANGE_ALG_RSA
+    appendLe32(0x04010000U); // Microsoft WinNT platform
+    for (std::uint8_t value = 0U; value < 32U; ++value)
+        licensingMessage.push_back(value);
+
+    constexpr std::array<std::uint8_t, 3> encryptedPreMaster{
+        0x11, 0x22, 0x33};
+    constexpr std::array<std::uint8_t, 5> user{
+        0x75, 0x73, 0x65, 0x72, 0x00};
+    constexpr std::array<std::uint8_t, 5> host{
+        0x68, 0x6f, 0x73, 0x74, 0x00};
+    appendBlob(0x0002U, encryptedPreMaster);
+    appendBlob(0x000fU, user);
+    appendBlob(0x0010U, host);
+    assert(licensingMessage.size() <= UINT16_MAX);
+    const auto licensingLength =
+        static_cast<std::uint16_t>(licensingMessage.size());
+    licensingMessage[2] =
+        static_cast<std::uint8_t>(licensingLength);
+    licensingMessage[3] =
+        static_cast<std::uint8_t>(licensingLength >> 8U);
+
+    std::vector<std::uint8_t> licensingEnvelope{
+        0x80, 0x00, 0x00, 0x00}; // SEC_LICENSE_PKT
+    licensingEnvelope.insert(
+        licensingEnvelope.end(),
+        licensingMessage.begin(), licensingMessage.end());
+    assert(licensingEnvelope.size() < 128U);
+
+    // Complete TPKT/X.224/MCS SendDataRequest for UserId 1002, global I/O
+    // channel 1003, begin|end segmentation. The one-byte PER length is valid
+    // because the complete Enhanced-Security licensing envelope is <128 B.
+    std::vector<std::uint8_t> licensingPacket{
+        0x03,0x00,0x00,0x00,0x02,0xf0,0x80,
+        0x64,0x00,0x01,0x03,0xeb,0x70,
+        static_cast<std::uint8_t>(licensingEnvelope.size())};
+    licensingPacket.insert(
+        licensingPacket.end(),
+        licensingEnvelope.begin(), licensingEnvelope.end());
+    assert(licensingPacket.size() <= UINT16_MAX);
+    const auto packetLength =
+        static_cast<std::uint16_t>(licensingPacket.size());
+    licensingPacket[2] = static_cast<std::uint8_t>(packetLength >> 8U);
+    licensingPacket[3] = static_cast<std::uint8_t>(packetLength);
 
     const auto parsed =
         rdp_server::server::transport::parseMcsChannelRequest(
-            licensingShapedPacket);
+            licensingPacket);
     assert(parsed);
     assert(parsed.request.kind ==
            rdp_server::server::transport::McsChannelRequestKind::
                SendDataRequest);
+    assert(parsed.request.initiator == 1002U);
+    assert(parsed.request.channelId == 1003U);
+    assert(parsed.request.segmentation == 3U);
+
     const auto envelope =
         rdp_server::server::transport::parseEnhancedSecurityLicensingEnvelope(
             parsed.request.userData);
@@ -1695,16 +1771,46 @@ void testR3ClientLicensingRouteContract()
            rdp_server::server::transport::RdpLicensingMessageType::
                ClientNewLicenseRequest);
 
-    // Ordinary hosted CI has no positive native lease. Even a fully framed
-    // licensing-shaped packet cannot skip Client Info/request delivery or make
-    // the private R2-authorized licensing intake reachable.
+    const auto keyExchange =
+        rdp_server::server::transport::parseRdpClientLicensingKeyExchange(
+            envelope.value.licensingMessage);
+    assert(keyExchange);
+    assert(keyExchange.value.clientRandom.size() == 32U);
+    assert(std::equal(
+        keyExchange.value.encryptedPreMasterSecret.begin(),
+        keyExchange.value.encryptedPreMasterSecret.end(),
+        encryptedPreMaster.begin()));
+
+    std::array<std::uint8_t,
+               rdp_server::server::transport::
+                   kRdpLicensingPreMasterSecretBytes> preMaster{};
+    std::array<std::uint8_t,
+               rdp_server::server::transport::
+                   kRdpLicensingRandomBytes> serverRandom{};
+    for (std::size_t index = 0U; index < preMaster.size(); ++index)
+        preMaster[index] = static_cast<std::uint8_t>(index);
+    for (std::size_t index = 0U; index < serverRandom.size(); ++index)
+        serverRandom[index] = static_cast<std::uint8_t>(0x80U + index);
+    auto derived =
+        rdp_server::server::transport::deriveRdpLicensingKeys(
+            preMaster, keyExchange.value.clientRandom, serverRandom);
+    assert(derived);
+
+    // Ordinary hosted CI has no positive native lease. Even valid licensing
+    // syntax plus extracted key-exchange fields and derived symmetric keys
+    // cannot skip Client Info/request delivery or cross the private
+    // R2-authorized licensing intake.
     McsSessionLifecycle session;
     assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
     assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
-    assert(session.onDomainPdu(licensingShapedPacket) ==
+    assert(session.onDomainPdu(licensingPacket) ==
            McsSessionIntake::ValidButNotAdmitted);
     assert(session.phase() == McsSessionPhase::Closed);
     assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+
+    derived.value = {};
+    preMaster.fill(0U);
+    serverRandom.fill(0U);
 }
 
 void testR3NativeChangeRevocation()

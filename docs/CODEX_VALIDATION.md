@@ -12568,3 +12568,44 @@ lifecycle, preserving security-header/segmentation ordering and stopping at
 `AwaitServerDecision` until real cryptographic licensing logic exists.
 **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R4 zero-valued RDPGFX frame ID exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `11388bd05b11eb8cf3b228c5c75e6fd774e67d37`.
+**Actions:** `38913360450` — **SUCCESS**.
+
+R4 now admits the full unsigned 32-bit START_FRAME/END_FRAME `frameId`
+domain, including zero. Delivery liveness remains owned by the existing
+presentation generation/stage and nonzero receipt serial; the existing ACK
+window still rejects a duplicate pending ID before x264 runs.
+
+- **Linux/GCC:** Debug **436/436 PASS**, Release **436/436 PASS**.
+  `graphics.avc420-zero-frame-id-wire` is test **#232** and
+  `graphics.x264-segmented-zero-frame-id-delivery` is test **#429** in both
+  configurations. Installed SDK consumer/package gates PASS.
+- **macOS/Clang:** Debug **364/364 PASS**, Release **364/364 PASS**.
+  The new cases are tests **#217** and **#357** in both configurations;
+  SDK consumer/package gates PASS.
+- **Windows/MSVC:** focused native preflight **44/44 PASS** in Debug and
+  Release; full Debug **393/393 PASS**, Release **393/393 PASS**.
+  The new cases are tests **#217** and **#386** in both full suites;
+  SDK consumer/package gates PASS.
+- **Clang ASan+UBSan R4 x264/BGRA:** **19/19 PASS**. The new real-x264
+  `graphics.x264-segmented-zero-frame-id-delivery` case is sanitizer test
+  **#430** and PASS. No sanitizer suppression or weakened assertion was added.
+- **Documentation policy PASS**; ordinary untagged prerelease publication is
+  correctly **SKIPPED**.
+
+The real x264 regression also proves that a pending duplicate frame ID zero is
+denied before codec advancement, ACK zero retires the exact pending frame, and
+the following distinct frame remains a P slice rather than forcing an avoidable
+IDR. No frame allocator, wrap policy, second scheduler, transport authority or
+wire-format extension was introduced.
+
+Canonical owner `~/rdp-server/build` validation and owner Linux/X11,
+Windows MSYS2 CLANG64/Clang 23 and macOS 27 commands remain **NOT RUN** in
+this connector environment. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC/full-send integration, native capture
+performance and Microsoft-client visible graphics acceptance remain
+**BLOCKED/NOT RUN**. Gate B and M3/M4/M5 remain **OPEN**.

@@ -4981,3 +4981,19 @@ removes only those two test-introspection assertions; it does not cast away
 constness, broaden SSL ownership, or alter production behavior. The existing
 1 KiB test send fragment and required short-progress assertion remain the
 behavioral proof of `SSL_MODE_ENABLE_PARTIAL_WRITE`.
+
+
+**Second exact-SHA CI / nonblocking fixture timing correction:**
+`68ef1e4a81284df029a4fd00a17db6d1aafdc86f`,
+[Actions 38866114504](https://github.com/k1moradi/RDP-server/actions/runs/38866114504),
+compiled Debug successfully on Linux and macOS; sanitizer and documentation
+policy passed. The new cancellation CTest passed on both hosts and the main
+application-I/O CTest passed on macOS. Linux exposed test-fixture timing:
+the nonblocking client helper exhausted a yield-only retry loop before all
+TLS ciphertext became readable. macOS also showed that a same-size explicit
+application read retry may legitimately return WANT again before the full
+record arrives. The correction keeps production one-step semantics intact:
+fixture WANT loops now wait 1 ms between explicit retries, and the partial
+write test resubmits the same 7-byte caller span until Progress instead of
+assuming one retry is sufficient. No hidden R1 retry or retained span is
+introduced.

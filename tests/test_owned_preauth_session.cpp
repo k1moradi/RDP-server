@@ -2035,7 +2035,10 @@ void writeNativeTlsClientAll(
         const int error = SSL_get_error(client, result);
         assert(error == SSL_ERROR_WANT_READ ||
                error == SSL_ERROR_WANT_WRITE);
-        std::this_thread::yield();
+        // Real loopback delivery is asynchronous even after the peer's
+        // preceding SSL_write_ex accepted plaintext. Keep retry delay in
+        // this bounded fixture; production application I/O never sleeps.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     assert(total == payload.size());
 }
@@ -2061,7 +2064,9 @@ void readNativeTlsClientAll(
         const int error = SSL_get_error(client, result);
         assert(error == SSL_ERROR_WANT_READ ||
                error == SSL_ERROR_WANT_WRITE);
-        std::this_thread::yield();
+        // A successful server SSL_write_ex does not make all TCP segments
+        // synchronously readable on every hosted kernel.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     assert(total == output.size());
 }
@@ -2237,7 +2242,20 @@ void testOwnedTlsApplicationPartialWrite()
     constexpr std::array<std::uint8_t, 7> retryPayload{
         0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37};
     writeNativeTlsClientAll(tls.client.get(), retryPayload);
-    const auto completed = owner.readTlsApplicationData(pendingRead);
+    TlsApplicationIoResult completed{};
+    for (int attempt = 0; attempt < 2048; ++attempt)
+    {
+        completed = owner.readTlsApplicationData(pendingRead);
+        if (completed.outcome == Outcome::Progress) break;
+        assert(completed.bytes == 0);
+        assert(completed.outcome == Outcome::NeedRead ||
+               completed.outcome == Outcome::NeedWrite);
+        const auto expected = completed.outcome == Outcome::NeedRead
+            ? Interest::Read
+            : Interest::Write;
+        assert(owner.ioInterest() == expected);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     assert(completed.outcome == Outcome::Progress);
     assert(completed.bytes == retryPayload.size());
     assert(pendingRead == retryPayload);

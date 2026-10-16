@@ -6927,3 +6927,14 @@ publication. Positive Kerberos/logind admission, actual protected
 writes/completion/Erect/input injection, Attach/Join, authorized R3->R8
 runtime routing, owner-platform commands, Microsoft-client interoperability
 and performance remain **NOT RUN/BLOCKED**. M1-M6 remain unaccepted.
+
+
+## R7 generation-safe macOS cursor snapshot boundary (2026-10-16)
+
+R7 now has a separate move-only cursor snapshot beside ScreenCaptureKit frames. A visible snapshot owns at most 256x256 premultiplied BGRA pixels, a checked hotspot, the hotspot position in RDP virtual-desktop pixels, the geometry generation and the Quartz topology revision. Shape storage is tightly packed and capped at 256 KiB. Hidden snapshots deliberately contain no shape bytes or stale position metadata. The portable constructor adopts caller-owned contiguous storage transactionally and rejects stale generations/topology, cursor points outside the validated desktop, invalid dimensions/hotspots/stride and mismatched byte counts.
+
+The Apple-only read-only sampler uses the existing normalized display epoch and maps the Quartz pointer location through `NativeDisplayGeometryRefresh`. It scales the current system cursor image/hotspot to the backing scale of the display under the pointer and renders into owned BGRA storage. Deprecated public system-wide cursor introspection is quarantined in `mac_cursor_snapshot.mm` with local warning suppression. ScreenCaptureKit's `showsCursor` remains disabled, so R7 does not double-composite the pointer into frame pixels.
+
+Dedicated permission-free CTests are `macos.cursor-owned-shape`, `macos.cursor-validation-denials`, and `macos.cursor-topology-revocation`. They never invoke the Apple sampler or inspect a live desktop. Implementation commit `be0a0322117742da5a2cdd8be97b972289d4cce0` is on `main`; exact-SHA hosted Actions run `38881746797` is **QUEUED**, not yet PASS/FAIL. Local strict Clang/GCC and Clang ASan+UBSan+LSan harnesses pass; owner macOS 27 and live cursor sampling remain **NOT RUN**.
+
+This increment still grants no R2/R3 authorization, performs no input injection, and does not publish cursor updates into R4. **Next R7:** define the smallest generation-safe cursor publication/deduplication boundary that consumes this owned snapshot once R4's portable cursor consumer contract is available; otherwise continue native macOS input/session groundwork without duplicating R4 ownership. M5 remains **OPEN**.

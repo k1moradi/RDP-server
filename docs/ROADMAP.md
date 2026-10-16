@@ -2806,6 +2806,15 @@ actually run; another parser CTest alone is not a complete session.
   independent Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
   genuine R2 TLS-bound OS admission, Microsoft client or desktop.
   Gate A/M2 remains OPEN.
+  **Initial exact-SHA CI FAIL / test-oracle correction:**
+  implementation `1f82be913b2ad7ae09134d939542ec22b3656d63`,
+  [Actions 38864030223](https://github.com/k1moradi/RDP-server/actions/runs/38864030223)
+  compiled the new domain classification and its new CTest passed on
+  Linux/macOS Debug. Full Debug stopped because the older
+  `transport.mcs-session-unverified-ordering` still expected generic
+  `InvalidEnvelope` for a six-byte truncated TPKT. The parser reports
+  `InvalidTransport`, so R3 now returns `InvalidDomainTransport`.
+  Correct only that stale test oracle; production behavior is unchanged.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

@@ -3266,6 +3266,15 @@ R3 Gate A/M2 remains NOT ACCEPTED.
 
 ## R3 domain-PDU first failing boundary classification (2026-10-15)
 
+**First exact-SHA CI:** implementation `1f82be913b2ad7ae09134d939542ec22b3656d63`,
+[Actions 38864030223](https://github.com/k1moradi/RDP-server/actions/runs/38864030223).
+The new `transport.mcs-session-domain-failure-boundaries` test passed
+on Linux/macOS Debug. Full Debug failed only because an older R3
+ordering assertion still expected `InvalidEnvelope` for a truncated
+TPKT. The production parser returns `InvalidTransport`; the correction
+updates only that test oracle to `InvalidDomainTransport` and records
+the parser error explicitly. Production semantics are unchanged.
+
 **Production:** the existing deny-only `McsSessionLifecycle::onDomainPdu`
 now maps `McsChannelParseError::InvalidTransport`,
 `InvalidDomainPdu` and `InvalidPerValue` to appended

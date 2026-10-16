@@ -3298,8 +3298,11 @@ void testMcsSessionUnverifiedDomainOrdering()
     assert(peerClosed.onDomainPdu(join) == McsSessionIntake::Closed);
 
     McsSessionLifecycle bad;
-    assert(bad.onDomainPdu(std::span(join).first(6)) ==
-           McsSessionIntake::InvalidEnvelope);
+    const auto truncated = std::span(join).first(6);
+    assert(parseMcsChannelRequest(truncated).error ==
+           McsChannelParseError::InvalidTransport);
+    assert(bad.onDomainPdu(truncated) ==
+           McsSessionIntake::InvalidDomainTransport);
     assert(bad.onDomainPdu(disconnect) == McsSessionIntake::Closed);
     bad.close();
     assert(bad.pendingJoinConfirmation().empty());

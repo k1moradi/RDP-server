@@ -4876,6 +4876,10 @@ void testRdpServerLicenseRequestWriteReceipts()
     const auto first = writer.pendingWrite();
     assert(first);
     assert(first.bytes.size() == 94U);
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> sentServerRandom{};
+    std::copy_n(
+        first.bytes.begin() + 4U, sentServerRandom.size(),
+        sentServerRandom.begin());
 
     assert(writer.onBytesWritten(
                first.replySequence, first.writeSliceSequence, 0U) ==
@@ -4906,6 +4910,12 @@ void testRdpServerLicenseRequestWriteReceipts()
     assert(!writer.pendingWrite());
     assert(lifecycle.phase() ==
            RdpLicensingPhase::AwaitClientLicenseResponse);
+    assert(lifecycle.serverRandom().size() == sentServerRandom.size());
+    assert(std::equal(
+        lifecycle.serverRandom().begin(), lifecycle.serverRandom().end(),
+        sentServerRandom.begin()));
+    lifecycle.close();
+    assert(lifecycle.serverRandom().empty());
 }
 
 void testRdpServerLicenseRequestWriteDenials()
@@ -5191,6 +5201,106 @@ void testRdpClientResponseSingleConsumption()
            RdpLicensingIntake::Failed);
 }
 
+void testRdpClientLicensingKeyExchangeViews()
+{
+    const auto newRequest = makeClientNewLicenseRequest();
+    const auto newExchange = parseRdpClientLicensingKeyExchange(newRequest);
+    assert(newExchange);
+    assert(newExchange.value.type ==
+           RdpLicensingMessageType::ClientNewLicenseRequest);
+    assert(newExchange.value.clientRandom.size() == kRdpLicensingRandomBytes);
+    for (std::size_t index = 0; index < kRdpLicensingRandomBytes; ++index)
+        assert(newExchange.value.clientRandom[index] ==
+               static_cast<std::uint8_t>(index));
+    constexpr std::array<std::uint8_t, 3> expectedNewEncrypted{
+        0x11, 0x22, 0x33};
+    assert(std::equal(newExchange.value.encryptedPreMasterSecret.begin(),
+                      newExchange.value.encryptedPreMasterSecret.end(),
+                      expectedNewEncrypted.begin()));
+
+    const auto licenseInfo = makeClientLicenseInfo();
+    const auto existingExchange =
+        parseRdpClientLicensingKeyExchange(licenseInfo);
+    assert(existingExchange);
+    assert(existingExchange.value.type ==
+           RdpLicensingMessageType::ClientLicenseInfo);
+    for (std::size_t index = 0; index < kRdpLicensingRandomBytes; ++index)
+        assert(existingExchange.value.clientRandom[index] ==
+               static_cast<std::uint8_t>(0xa0U + index));
+    constexpr std::array<std::uint8_t, 2> expectedExistingEncrypted{
+        0x31, 0x32};
+    assert(std::equal(existingExchange.value.encryptedPreMasterSecret.begin(),
+                      existingExchange.value.encryptedPreMasterSecret.end(),
+                      expectedExistingEncrypted.begin()));
+}
+
+void testRdpClientLicensingKeyExchangeDenials()
+{
+    const auto valid = makeClientNewLicenseRequest();
+    for (std::size_t size = 0; size < valid.size(); ++size)
+        assert(!parseRdpClientLicensingKeyExchange(
+            std::span(valid).first(size)));
+
+    auto wrongAlgorithm = valid;
+    wrongAlgorithm[4U] = 2U;
+    const auto algorithmDenied =
+        parseRdpClientLicensingKeyExchange(wrongAlgorithm);
+    assert(!algorithmDenied);
+    assert(algorithmDenied.error ==
+           RdpClientLicensingKeyExchangeError::MalformedBody);
+
+    auto wrongBlob = valid;
+    wrongBlob[44U] = 1U;
+    const auto blobDenied =
+        parseRdpClientLicensingKeyExchange(wrongBlob);
+    assert(!blobDenied);
+    assert(blobDenied.error ==
+           RdpClientLicensingKeyExchangeError::MalformedBody);
+
+    constexpr std::array<std::uint8_t, 4> challengeResponse{
+        0x15, 0x03, 0x04, 0x00};
+    const auto unexpected =
+        parseRdpClientLicensingKeyExchange(challengeResponse);
+    assert(!unexpected);
+    assert(unexpected.error ==
+           RdpClientLicensingKeyExchangeError::UnexpectedMessage);
+}
+
+void testRdpLicensingKeyDerivation()
+{
+    std::array<std::uint8_t, kRdpLicensingPreMasterSecretBytes> preMaster{};
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> clientRandom{};
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom{};
+    for (std::size_t index = 0; index < preMaster.size(); ++index)
+        preMaster[index] = static_cast<std::uint8_t>(index);
+    for (std::size_t index = 0; index < clientRandom.size(); ++index)
+    {
+        clientRandom[index] = static_cast<std::uint8_t>(0xa0U + index);
+        serverRandom[index] = static_cast<std::uint8_t>(index + 1U);
+    }
+
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> expectedMac{
+        0xf0,0x06,0xe2,0xb6,0x29,0x7c,0x71,0x85,
+        0xc0,0x03,0xde,0x89,0x95,0x6c,0x00,0xe9};
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes>
+        expectedEncryption{
+        0x24,0x40,0x04,0x1d,0xf7,0x5e,0x84,0x2f,
+        0x16,0xa7,0x90,0xc1,0xe0,0x4f,0xb4,0xb4};
+
+    const auto result =
+        deriveRdpLicensingKeys(preMaster, clientRandom, serverRandom);
+    assert(result);
+    assert(result.value.macSaltKey == expectedMac);
+    assert(result.value.encryptionKey == expectedEncryption);
+
+    const auto shortPreMaster = deriveRdpLicensingKeys(
+        std::span(preMaster).first(preMaster.size() - 1U),
+        clientRandom, serverRandom);
+    assert(!shortPreMaster);
+    assert(shortPreMaster.error ==
+           RdpLicensingKeyDerivationError::InvalidInput);
+}
+
 void testRdpLicensingPreambleAndState()
 {
     const auto newRequest = makeClientNewLicenseRequest();
@@ -5349,7 +5459,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 85> kMcsTestCases{{
+constexpr std::array<McsTestCase, 88> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -5404,6 +5514,9 @@ constexpr std::array<McsTestCase, 85> kMcsTestCases{{
     {"licensing-client-response-single-consumption", &testRdpClientResponseSingleConsumption},
     {"licensing-client-envelope-wire", &testRdpClientLicensingEnvelopeWire},
     {"licensing-client-envelope-denials", &testRdpClientLicensingEnvelopeDenials},
+    {"licensing-key-exchange-wire", &testRdpClientLicensingKeyExchangeViews},
+    {"licensing-key-exchange-denials", &testRdpClientLicensingKeyExchangeDenials},
+    {"licensing-key-derivation", &testRdpLicensingKeyDerivation},
     {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},
     {"licensing-length-bounds", &testRdpLicensingLengthBounds},
     {"licensing-ordering-denials", &testRdpLicensingOrderingDenials},

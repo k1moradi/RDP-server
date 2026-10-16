@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdp_licensing.h"
 
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
 #include <openssl/rand.h>
 
 #include <algorithm>
@@ -20,6 +22,7 @@ constexpr std::uint8_t kAllowedPreambleFlags =
     kProtocolVersionMask | kExtendedErrorSupported;
 constexpr std::size_t kInitialClientFixedBytes = 40U;
 constexpr std::size_t kMacBytes = 16U;
+constexpr std::size_t kClientRandomOffset = 8U;
 
 constexpr std::uint16_t kBlobData = 0x0001U;
 constexpr std::uint16_t kBlobRandom = 0x0002U;
@@ -135,8 +138,9 @@ void writeLe32(
     return readLe32(body, 0U) == kKeyExchangeAlgRsa;
 }
 
-[[nodiscard]] bool validClientNewLicenseRequest(
-    std::span<const std::uint8_t> body) noexcept
+[[nodiscard]] bool parseClientNewLicenseRequestBody(
+    std::span<const std::uint8_t> body,
+    RdpClientLicensingKeyExchangeView &view) noexcept
 {
     if (!validInitialClientPrefix(body))
         return false;
@@ -151,15 +155,21 @@ void writeLe32(
                           clientUserName) ||
         !readRequiredBlob(body, offset, kBlobClientMachineName,
                           clientMachineName) ||
-        offset != body.size())
+        offset != body.size() ||
+        !validNullTerminatedAnsi(clientUserName) ||
+        !validNullTerminatedAnsi(clientMachineName))
         return false;
 
-    return validNullTerminatedAnsi(clientUserName) &&
-           validNullTerminatedAnsi(clientMachineName);
+    view.type = RdpLicensingMessageType::ClientNewLicenseRequest;
+    view.clientRandom =
+        body.subspan(kClientRandomOffset, kRdpLicensingRandomBytes);
+    view.encryptedPreMasterSecret = encryptedPreMasterSecret;
+    return true;
 }
 
-[[nodiscard]] bool validClientLicenseInfo(
-    std::span<const std::uint8_t> body) noexcept
+[[nodiscard]] bool parseClientLicenseInfoBody(
+    std::span<const std::uint8_t> body,
+    RdpClientLicensingKeyExchangeView &view) noexcept
 {
     if (!validInitialClientPrefix(body))
         return false;
@@ -171,13 +181,178 @@ void writeLe32(
     if (!readRequiredBlob(body, offset, kBlobRandom,
                           encryptedPreMasterSecret) ||
         !readRequiredBlob(body, offset, kBlobData, licenseInfo) ||
-        !readRequiredBlob(body, offset, kBlobData, encryptedHardwareId))
+        !readRequiredBlob(body, offset, kBlobData, encryptedHardwareId) ||
+        offset > body.size() || body.size() - offset != kMacBytes)
         return false;
 
-    // MACData is exactly 16 bytes and terminates CLIENT_LICENSE_INFO.
-    return offset <= body.size() && body.size() - offset == kMacBytes;
+    view.type = RdpLicensingMessageType::ClientLicenseInfo;
+    view.clientRandom =
+        body.subspan(kClientRandomOffset, kRdpLicensingRandomBytes);
+    view.encryptedPreMasterSecret = encryptedPreMasterSecret;
+    return true;
+}
+
+[[nodiscard]] bool appendBytes(
+    std::span<std::uint8_t> destination,
+    std::size_t &offset,
+    std::span<const std::uint8_t> source) noexcept
+{
+    if (offset > destination.size() ||
+        source.size() > destination.size() - offset)
+        return false;
+    std::copy(source.begin(), source.end(), destination.begin() + offset);
+    offset += source.size();
+    return true;
+}
+
+[[nodiscard]] bool digestExact(
+    const EVP_MD *algorithm,
+    std::span<const std::uint8_t> input,
+    std::span<std::uint8_t> output) noexcept
+{
+    std::array<std::uint8_t, EVP_MAX_MD_SIZE> digest{};
+    unsigned int digestBytes = 0U;
+    const int result = EVP_Digest(
+        input.data(), input.size(), digest.data(), &digestBytes,
+        algorithm, nullptr);
+    if (result != 1 || digestBytes != output.size())
+    {
+        OPENSSL_cleanse(digest.data(), digest.size());
+        return false;
+    }
+    std::copy_n(digest.begin(), output.size(), output.begin());
+    OPENSSL_cleanse(digest.data(), digest.size());
+    return true;
+}
+
+[[nodiscard]] bool saltedHash(
+    std::span<const std::uint8_t> secret,
+    std::span<const std::uint8_t> label,
+    std::span<const std::uint8_t> firstRandom,
+    std::span<const std::uint8_t> secondRandom,
+    std::span<std::uint8_t> output) noexcept
+{
+    std::array<std::uint8_t, 128> shaInput{};
+    std::size_t shaBytes = 0U;
+    if (!appendBytes(shaInput, shaBytes, label) ||
+        !appendBytes(shaInput, shaBytes, secret) ||
+        !appendBytes(shaInput, shaBytes, firstRandom) ||
+        !appendBytes(shaInput, shaBytes, secondRandom))
+        return false;
+
+    std::array<std::uint8_t, 20> shaDigest{};
+    if (!digestExact(
+            EVP_sha1(), std::span(shaInput).first(shaBytes), shaDigest))
+    {
+        OPENSSL_cleanse(shaInput.data(), shaInput.size());
+        return false;
+    }
+
+    std::array<std::uint8_t, 80> md5Input{};
+    std::size_t md5Bytes = 0U;
+    const bool appended =
+        appendBytes(md5Input, md5Bytes, secret) &&
+        appendBytes(md5Input, md5Bytes, shaDigest);
+    const bool ok =
+        appended &&
+        digestExact(
+            EVP_md5(), std::span(md5Input).first(md5Bytes), output);
+    OPENSSL_cleanse(shaInput.data(), shaInput.size());
+    OPENSSL_cleanse(shaDigest.data(), shaDigest.size());
+    OPENSSL_cleanse(md5Input.data(), md5Input.size());
+    return ok;
 }
 } // namespace
+
+RdpClientLicensingKeyExchangeParseResult
+parseRdpClientLicensingKeyExchange(
+    std::span<const std::uint8_t> completeMessage) noexcept
+{
+    const auto parsed = parseRdpLicensingMessage(completeMessage);
+    if (!parsed)
+        return {{},
+                RdpClientLicensingKeyExchangeError::InvalidLicensingMessage};
+
+    RdpClientLicensingKeyExchangeView view{};
+    switch (parsed.value.type)
+    {
+    case RdpLicensingMessageType::ClientNewLicenseRequest:
+        if (!parseClientNewLicenseRequestBody(parsed.value.body, view))
+            return {{}, RdpClientLicensingKeyExchangeError::MalformedBody};
+        break;
+    case RdpLicensingMessageType::ClientLicenseInfo:
+        if (!parseClientLicenseInfoBody(parsed.value.body, view))
+            return {{}, RdpClientLicensingKeyExchangeError::MalformedBody};
+        break;
+    default:
+        return {{}, RdpClientLicensingKeyExchangeError::UnexpectedMessage};
+    }
+    return {view, RdpClientLicensingKeyExchangeError::None};
+}
+
+RdpLicensingKeyDerivationResult deriveRdpLicensingKeys(
+    std::span<const std::uint8_t> preMasterSecret,
+    std::span<const std::uint8_t> clientRandom,
+    std::span<const std::uint8_t> serverRandom) noexcept
+{
+    if (preMasterSecret.size() != kRdpLicensingPreMasterSecretBytes ||
+        clientRandom.size() != kRdpLicensingRandomBytes ||
+        serverRandom.size() != kRdpLicensingRandomBytes)
+        return {};
+
+    constexpr std::array<std::uint8_t, 1> labelA{'A'};
+    constexpr std::array<std::uint8_t, 2> labelBB{'B', 'B'};
+    constexpr std::array<std::uint8_t, 3> labelCCC{'C', 'C', 'C'};
+    const std::array<std::span<const std::uint8_t>, 3> labels{
+        labelA, labelBB, labelCCC};
+
+    std::array<std::uint8_t, 48> masterSecret{};
+    std::array<std::uint8_t, 48> sessionKeyBlob{};
+    bool ok = true;
+    for (std::size_t index = 0U; index < labels.size(); ++index)
+    {
+        ok = ok && saltedHash(
+            preMasterSecret, labels[index], clientRandom, serverRandom,
+            std::span(masterSecret).subspan(index * 16U, 16U));
+    }
+    for (std::size_t index = 0U; ok && index < labels.size(); ++index)
+    {
+        ok = saltedHash(
+            masterSecret, labels[index], serverRandom, clientRandom,
+            std::span(sessionKeyBlob).subspan(index * 16U, 16U));
+    }
+
+    RdpLicensingKeyDerivationResult result{};
+    if (ok)
+    {
+        std::copy_n(
+            sessionKeyBlob.begin(), kRdpLicensingKeyBytes,
+            result.value.macSaltKey.begin());
+
+        std::array<std::uint8_t, 80> finalInput{};
+        std::size_t finalBytes = 0U;
+        ok = appendBytes(
+                 finalInput, finalBytes,
+                 std::span(sessionKeyBlob).subspan(16U, 16U)) &&
+             appendBytes(finalInput, finalBytes, clientRandom) &&
+             appendBytes(finalInput, finalBytes, serverRandom) &&
+             digestExact(
+                 EVP_md5(), std::span(finalInput).first(finalBytes),
+                 result.value.encryptionKey);
+        OPENSSL_cleanse(finalInput.data(), finalInput.size());
+    }
+
+    OPENSSL_cleanse(masterSecret.data(), masterSecret.size());
+    OPENSSL_cleanse(sessionKeyBlob.data(), sessionKeyBlob.size());
+    if (!ok)
+    {
+        result.value = {};
+        result.error = RdpLicensingKeyDerivationError::DigestFailure;
+        return result;
+    }
+    result.error = RdpLicensingKeyDerivationError::None;
+    return result;
+}
 
 bool RdpServerLicenseIdentity::configure(
     std::uint32_t productVersion,
@@ -405,17 +580,17 @@ bool RdpServerLicenseRequestWriteGate::queue(
         return false;
     }
 
-    std::array<std::uint8_t, 32> serverRandom{};
+    serverRandom_.fill(0U);
     if (RAND_priv_bytes(
-            serverRandom.data(),
-            static_cast<int>(serverRandom.size())) != 1)
+            serverRandom_.data(),
+            static_cast<int>(serverRandom_.size())) != 1)
     {
         close();
         return false;
     }
 
     const RdpServerLicenseRequestFields fields{
-        serverRandom,
+        serverRandom_,
         identity.productVersion(),
         identity.companyNameUtf16(),
         identity.productIdUtf16(),
@@ -423,8 +598,6 @@ bool RdpServerLicenseRequestWriteGate::queue(
         identity.scopeAnsi()};
     const auto encoded = encodeEnhancedSecurityServerLicenseRequest(
         fields, pending_);
-    // ServerRandom is public on the wire, but keep only the owned packet copy.
-    serverRandom.fill(0U);
     if (!encoded || !advanceReplySequence() ||
         !advanceWriteSliceSequence())
     {
@@ -481,11 +654,12 @@ RdpServerLicenseRequestWriteGate::onBytesWritten(
         return RdpServerLicenseRequestWriteOutcome::Pending;
     }
 
-    if (!lifecycle_->onServerLicenseRequestWritten())
+    if (!lifecycle_->onServerLicenseRequestWritten(serverRandom_))
     {
         close();
         return RdpServerLicenseRequestWriteOutcome::Rejected;
     }
+    serverRandom_.fill(0U);
 
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
@@ -497,21 +671,26 @@ void RdpServerLicenseRequestWriteGate::close() noexcept
 {
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
+    serverRandom_.fill(0U);
     delivered_ = false;
     closed_ = true;
     if (lifecycle_ != nullptr)
         lifecycle_->close();
 }
 
-bool RdpLicensingLifecycle::onServerLicenseRequestWritten() noexcept
+bool RdpLicensingLifecycle::onServerLicenseRequestWritten(
+    std::span<const std::uint8_t> serverRandom) noexcept
 {
     if (phase_ == RdpLicensingPhase::Closed)
         return false;
-    if (phase_ != RdpLicensingPhase::NotStarted)
+    if (phase_ != RdpLicensingPhase::NotStarted ||
+        serverRandom.size() != serverRandom_.size())
     {
         fail();
         return false;
     }
+    std::copy(serverRandom.begin(), serverRandom.end(), serverRandom_.begin());
+    serverRandomReady_ = true;
     phase_ = RdpLicensingPhase::AwaitClientLicenseResponse;
     return true;
 }
@@ -539,22 +718,28 @@ RdpLicensingIntake RdpLicensingLifecycle::onClientMessage(
     switch (parsed.value.type)
     {
     case RdpLicensingMessageType::ClientNewLicenseRequest:
-        if (!validClientNewLicenseRequest(parsed.value.body))
+    {
+        RdpClientLicensingKeyExchangeView view{};
+        if (!parseClientNewLicenseRequestBody(parsed.value.body, view))
         {
             fail();
             return RdpLicensingIntake::MalformedMessage;
         }
         phase_ = RdpLicensingPhase::AwaitServerDecision;
         return RdpLicensingIntake::ClientNewLicenseRequestAccepted;
+    }
 
     case RdpLicensingMessageType::ClientLicenseInfo:
-        if (!validClientLicenseInfo(parsed.value.body))
+    {
+        RdpClientLicensingKeyExchangeView view{};
+        if (!parseClientLicenseInfoBody(parsed.value.body, view))
         {
             fail();
             return RdpLicensingIntake::MalformedMessage;
         }
         phase_ = RdpLicensingPhase::AwaitServerDecision;
         return RdpLicensingIntake::ClientLicenseInfoAccepted;
+    }
 
     default:
         fail();

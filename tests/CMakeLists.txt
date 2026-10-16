@@ -71,6 +71,9 @@ function(add_rdp_test source_file suite behavior)
                 licensing-client-response-single-consumption
                 licensing-client-envelope-wire
                 licensing-client-envelope-denials
+                licensing-key-exchange-wire
+                licensing-key-exchange-denials
+                licensing-key-derivation
                 licensing-preamble-and-state
                 licensing-length-bounds
                 licensing-ordering-denials

@@ -64,6 +64,81 @@ struct RdpLicensingParseResult
 [[nodiscard]] RdpLicensingParseResult parseRdpLicensingMessage(
     std::span<const std::uint8_t> completeMessage) noexcept;
 
+inline constexpr std::size_t kRdpLicensingRandomBytes = 32U;
+inline constexpr std::size_t kRdpLicensingPreMasterSecretBytes = 48U;
+inline constexpr std::size_t kRdpLicensingKeyBytes = 16U;
+
+// Borrowed cryptographic inputs from exactly one structurally valid initial
+// client licensing message. These spans are valid only while completeMessage
+// remains alive and unchanged; parsing them does not authorize or license.
+struct RdpClientLicensingKeyExchangeView
+{
+    RdpLicensingMessageType type{RdpLicensingMessageType::ErrorAlert};
+    std::span<const std::uint8_t> clientRandom{};
+    std::span<const std::uint8_t> encryptedPreMasterSecret{};
+};
+
+enum class RdpClientLicensingKeyExchangeError : std::uint8_t
+{
+    None,
+    InvalidLicensingMessage,
+    UnexpectedMessage,
+    MalformedBody,
+};
+
+struct RdpClientLicensingKeyExchangeParseResult
+{
+    RdpClientLicensingKeyExchangeView value{};
+    RdpClientLicensingKeyExchangeError error{
+        RdpClientLicensingKeyExchangeError::InvalidLicensingMessage};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpClientLicensingKeyExchangeError::None;
+    }
+};
+
+// MS-RDPELE 2.2.2.2/2.2.2.3 zero-copy extraction. It validates the same
+// complete CLIENT_NEW_LICENSE_REQUEST / CLIENT_LICENSE_INFO structure used by
+// the state machine, then returns only ClientRandom and encrypted premaster.
+[[nodiscard]] RdpClientLicensingKeyExchangeParseResult
+parseRdpClientLicensingKeyExchange(
+    std::span<const std::uint8_t> completeMessage) noexcept;
+
+struct RdpLicensingKeyMaterial
+{
+    std::array<std::uint8_t, kRdpLicensingKeyBytes> macSaltKey{};
+    std::array<std::uint8_t, kRdpLicensingKeyBytes> encryptionKey{};
+};
+
+enum class RdpLicensingKeyDerivationError : std::uint8_t
+{
+    None,
+    InvalidInput,
+    DigestFailure,
+};
+
+struct RdpLicensingKeyDerivationResult
+{
+    RdpLicensingKeyMaterial value{};
+    RdpLicensingKeyDerivationError error{
+        RdpLicensingKeyDerivationError::InvalidInput};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpLicensingKeyDerivationError::None;
+    }
+};
+
+// MS-RDPELE 5.1.2. The caller must already have decrypted and validated the
+// exact 48-byte premaster secret with the matching licensing private key.
+// This helper derives keys only; it does not perform RSA, RC4, MAC validation,
+// license validation, authorization or any session phase transition.
+[[nodiscard]] RdpLicensingKeyDerivationResult deriveRdpLicensingKeys(
+    std::span<const std::uint8_t> preMasterSecret,
+    std::span<const std::uint8_t> clientRandom,
+    std::span<const std::uint8_t> serverRandom) noexcept;
+
 // Under Enhanced RDP Security, SC_SECURITY carries no server certificate.
 // SERVER_LICENSE_REQUEST therefore has to carry the explicitly provisioned
 // licensing certificate needed by the client's RSA key exchange. Keep the
@@ -239,6 +314,14 @@ public:
     RdpLicensingLifecycle &operator=(RdpLicensingLifecycle &&) = delete;
 
     [[nodiscard]] RdpLicensingPhase phase() const noexcept { return phase_; }
+    // Public protocol random already sent on the wire, retained only while a
+    // live licensing decision may still need MS-RDPELE 5.1.2 derivation.
+    [[nodiscard]] std::span<const std::uint8_t> serverRandom() const noexcept
+    {
+        return serverRandomReady_
+            ? std::span<const std::uint8_t>{serverRandom_}
+            : std::span<const std::uint8_t>{};
+    }
 
     // Accept exactly one complete client licensing message in the initial
     // response state. CLIENT_LICENSE_INFO and CLIENT_NEW_LICENSE_REQUEST are
@@ -250,17 +333,30 @@ public:
 
     // Terminal for this object. Reconnect requires a fresh owning R3 session
     // and therefore a fresh RdpLicensingLifecycle instance.
-    void close() noexcept { phase_ = RdpLicensingPhase::Closed; }
+    void close() noexcept
+    {
+        serverRandom_.fill(0U);
+        serverRandomReady_ = false;
+        phase_ = RdpLicensingPhase::Closed;
+    }
 
 private:
     friend class RdpServerLicenseRequestWriteGate;
 
     // Only the receipt gate may advance this transition after every byte of
     // its stable owned SERVER_LICENSE_REQUEST has been accepted.
-    [[nodiscard]] bool onServerLicenseRequestWritten() noexcept;
-    void fail() noexcept { phase_ = RdpLicensingPhase::Failed; }
+    [[nodiscard]] bool onServerLicenseRequestWritten(
+        std::span<const std::uint8_t> serverRandom) noexcept;
+    void fail() noexcept
+    {
+        serverRandom_.fill(0U);
+        serverRandomReady_ = false;
+        phase_ = RdpLicensingPhase::Failed;
+    }
 
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom_{};
     RdpLicensingPhase phase_{RdpLicensingPhase::NotStarted};
+    bool serverRandomReady_{};
 };
 
 struct RdpServerLicenseRequestWriteView
@@ -324,6 +420,7 @@ private:
     [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
 
     std::array<std::uint8_t, kMaximumRdpServerLicenseRequestBytes> pending_{};
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom_{};
     RdpLicensingLifecycle *lifecycle_{};
     std::size_t pendingLength_{};
     std::size_t bytesWritten_{};

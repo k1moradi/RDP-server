@@ -13466,3 +13466,19 @@ domain is weakened.
 
 Canonical owner-local execution remains **NOT RUN**. Exact follow-up-SHA
 hosted CI is required before recording PASS for the complete matrix.
+
+## R3 licensing key-material authoring receipt (2026-10-16)
+
+**Reconciled parent:** `1b7f4a56cb6ce96310d7e9b498b769959a39d031`.
+
+Source review PASS: R3 retains the request random only after complete receipt
+delivery, reuses one bounded parser for the two initial client licensing forms,
+and adds a deterministic MS-RDPELE 5.1.2 key-derivation helper. New central
+CTest names are `licensing-key-exchange-wire`,
+`licensing-key-exchange-denials`, and `licensing-key-derivation`; the
+bounded sanitizer selection asserts all three names before execution.
+
+No positive licensing state, activation, or desktop authority is added.
+Canonical local testing is NOT RUN in this connector environment. Hosted
+exact-SHA validation is pending publication.
+

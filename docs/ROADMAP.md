@@ -13012,3 +13012,33 @@ Canonical owner `~/rdp-server/build` and owner Linux/X11, Windows MSYS2
 CLANG64/Clang 23 and macOS 27 remain **NOT RUN** here. Genuine authenticated
 R3 Graphics DVC/full-send integration and Microsoft-client visible graphics
 remain **BLOCKED/NOT RUN**. Gate B and M3/M4/M5 remain **OPEN**.
+
+## R3 licensing key-material derivation boundary (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `1b7f4a56cb6ce96310d7e9b498b769959a39d031`.
+
+R3 now retains the CSPRNG ServerRandom only after the complete Server License
+Request write is accepted, and clears it on failure/close. A new bounded
+zero-copy decoder exposes the exact 32-byte ClientRandom and encrypted
+premaster BLOB from the already-supported initial client licensing messages,
+reusing the same structural validation as the licensing lifecycle.
+
+A pure `deriveRdpLicensingKeys` helper implements MS-RDPELE 5.1.2 for an
+already-decoded exact 48-byte premaster value: MasterSecret/SessionKeyBlob,
+16-byte MAC salt key, and 16-byte licensing encryption key. Temporary
+master/session buffers are cleansed. New central tests cover key-exchange
+views/denials and an independent deterministic derivation oracle; the bounded
+R1/R3 sanitizer selector asserts all three cases are selected.
+
+This is not a positive licensing decision. No asymmetric credential operation,
+RC4 processing, MAC/CAL/HWID validation, license issuance, valid-client status,
+or activation is introduced. M2/M3 remain OPEN / NOT ACCEPTED.
+
+Canonical local testing is NOT RUN in this connector environment. Hosted
+exact-SHA Debug/Release, sanitizer, documentation-policy, and package evidence
+are pending.
+
+**Next R3:** bind the advertised licensing certificate to its real service
+credential, decode the client's premaster inside the protected transition, and
+then perform MAC/license validation before any positive response.
+

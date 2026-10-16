@@ -26,6 +26,16 @@
 
 namespace {
 
+template <typename Geometry>
+concept ExposesNativeCursorSampler =
+    requires(const Geometry& geometry) {
+        queryNativeMacCursorSnapshot(geometry, std::uint64_t{1});
+    };
+
+static_assert(
+    !ExposesNativeCursorSampler<rdp::macos::NativeDisplayGeometryRefresh>,
+    "native AppKit cursor sampler must remain authorization-quarantined");
+
 // A geometry epoch is singular within its native caller context.
 static_assert(!std::is_copy_constructible_v<rdp::macos::NativeDisplayGeometryRefresh>);
 static_assert(!std::is_move_constructible_v<rdp::macos::NativeDisplayGeometryRefresh>);
@@ -810,6 +820,11 @@ void testNativeReconfigurationSignalRevision() {
 }
 
 
+void testMacCursorNativeSamplerQuarantine() {
+    assert(!ExposesNativeCursorSampler<
+           rdp::macos::NativeDisplayGeometryRefresh>);
+}
+
 void testMacCursorOwnedShape() {
     using namespace rdp::macos;
     NativeDisplayGeometryRefresh geometry;
@@ -989,6 +1004,8 @@ int main(const int argument_count, const char* const arguments[]) {
         testNativeReconfigurationDuringRead();
     } else if (test_case == "native-reconfiguration-revision-sequence") {
         testNativeReconfigurationSignalRevision();
+    } else if (test_case == "cursor-native-sampler-quarantine") {
+        testMacCursorNativeSamplerQuarantine();
     } else if (test_case == "cursor-owned-shape") {
         testMacCursorOwnedShape();
     } else if (test_case == "cursor-validation-denials") {

@@ -939,10 +939,12 @@ foreach(case_name IN ITEMS
     set_tests_properties("macos.desktop-native-reconfiguration-${case_name}"
         PROPERTIES LABELS "macos;geometry;offline")
 endforeach()
-# R7 cursor snapshots are synthetic on every OS. The Apple-only native sampler
-# is compile/link checked through rdp-server-macos-capture but is never invoked
-# by ordinary CTest, so no live pointer or AppKit desktop state is inspected.
-foreach(case_name IN ITEMS owned-shape validation-denials topology-revocation)
+# R7 cursor snapshots are synthetic on every OS. The Apple sampler remains
+# translation-unit-private until authorized R2/R3 + R4 composition; its source
+# is compile/link checked but ordinary CTest cannot invoke live AppKit state.
+foreach(case_name IN ITEMS
+        native-sampler-quarantine owned-shape validation-denials
+        topology-revocation)
     add_test(NAME "macos.cursor-${case_name}"
         COMMAND test_macos_capture_pixel_buffer "cursor-${case_name}")
     set_tests_properties("macos.cursor-${case_name}" PROPERTIES

@@ -3330,3 +3330,22 @@ No listener, system service, fabricated lease or alternate owner was
 introduced. M2/M3 remain **OPEN**. Next R10 gate is verified genuine
 HYBRID TLS/fragmented DER -> R2 GSS processing and owner-aware reply
 receipt, followed by native console admission before listener work.
+
+
+## R7 live macOS desktop-read quarantine (2026-10-16)
+
+R7 distinguishes portable state construction from live desktop access. The
+owned `MacCursorSnapshot` value and `makeMacCursorSnapshot` remain portable
+and authorization-neutral. The AppKit sampler that obtains the current system
+cursor, global pointer location and rendered shape is translation-unit-private;
+it has no header declaration and no externally callable symbol. Its body is
+kept compiled for Apple SDK/deprecation/rendering checks, but an R7 caller
+cannot acquire live cursor data from geometry alone.
+
+Together with the preceding ScreenCaptureKit factory quarantine and already
+private Quartz input-posting factory, all native macOS desktop data/action
+entry points now require future explicit composition work. TCC permission,
+display generation, topology revision, session-watch revision and portable
+cursor/capture objects remain revocation or data facts only. A future R2/R3
+macOS capability must be the single authority-bearing route that can invoke
+these native implementations and must still revalidate the R7 session guard.

@@ -9937,3 +9937,35 @@ No listener, system service, fabricated lease or alternate owner was
 introduced. M2/M3 remain **OPEN**. Next R10 gate is verified genuine
 HYBRID TLS/fragmented DER -> R2 GSS processing and owner-aware reply
 receipt, followed by native console admission before listener work.
+
+
+## R7 native capture receipt + cursor sampler quarantine (2026-10-16; cursor CI pending)
+
+**Capture exact-SHA evidence:** commit
+`7a83947d7876574f573ac393d3e1311d40eea80f`, Actions `38896898244`.
+Linux/GCC full CTest is **378/378 PASS** in Debug and Release; Windows/MSVC is
+**351/351 PASS** in Debug and Release; both platforms pass staged SDK consumer
+and package work. Documentation policy and the R9 sanitizer/fuzzer job PASS.
+macOS AppleClang configures and compiles the real ScreenCaptureKit translation
+unit after removal of the native factory, and
+`macos.capture-stream-native-factory-quarantine` passes. Full macOS Debug is
+**325/326** with the sole unrelated R1
+`transport.credssp-r1-owned-framing` assertion; no R7 capture CTest fails and
+Release is not reached because CI is fail-fast.
+
+**Cursor hardening:** the public declaration of
+`queryNativeMacCursorSnapshot` is removed. The AppKit implementation is moved
+to internal linkage and marked intentionally unused so it still compiles under
+the real Apple SDK without becoming callable before authorization exists.
+`MacCursorSnapshot` ownership/validation code is unchanged.
+
+New portable CTest `macos.cursor-native-sampler-quarantine` has a compile-time
+dependent lookup check proving the header exposes no sampler. It does not
+sample a live cursor. Existing cursor ownership, malformed-input and topology
+revocation tests remain registered.
+
+Canonical owner-local `~/rdp-server/build` remains unavailable in this
+connector environment. Exact-SHA hosted validation for the cursor change is
+required after publication; owner macOS 27 live cursor/session behavior,
+genuine macOS R2/R3 admission, R4 cursor publication and client acceptance
+remain **NOT RUN**.

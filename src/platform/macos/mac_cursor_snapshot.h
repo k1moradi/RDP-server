@@ -82,13 +82,8 @@ makeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
                       std::unique_ptr<std::byte[]> storage,
                       std::size_t byteCount) noexcept;
 
-#if defined(__APPLE__)
-// Read-only native cursor sampler for a caller already bound to the intended,
-// independently authorized interactive session. This does not request TCC,
-// install event taps, move the pointer, or create an RDP/session capability.
-[[nodiscard]] std::expected<MacCursorSnapshot, MacCursorSnapshotError>
-queryNativeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
-                             std::uint64_t geometryGeneration) noexcept;
-#endif
+// Native AppKit cursor sampling stays translation-unit-private until a future
+// R2/R3 macOS authorization owner and R4 cursor consumer can invoke it through
+// one capability-bound route. Geometry alone must not expose live cursor state.
 
 } // namespace rdp::macos

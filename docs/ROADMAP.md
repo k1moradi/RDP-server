@@ -8813,3 +8813,41 @@ No listener, system service, fabricated lease or alternate owner was
 introduced. M2/M3 remain **OPEN**. Next R10 gate is verified genuine
 HYBRID TLS/fragmented DER -> R2 GSS processing and owner-aware reply
 receipt, followed by native console admission before listener work.
+
+
+## R7 native capture quarantine receipt and cursor-sampler quarantine (2026-10-16; new CI pending)
+
+Capture-factory hardening commit `7a83947d7876574f573ac393d3e1311d40eea80f`,
+Actions `38896898244`, is validated as follows: documentation policy and the
+R9 sanitizer/fuzzer job **PASS**; Linux/GCC full **378/378 Debug and 378/378
+Release PASS** with SDK consumer/package PASS; Windows/MSVC full **351/351
+Debug and 351/351 Release PASS** with SDK consumer/package PASS. macOS
+AppleClang successfully compiles the private ScreenCaptureKit backend with no
+public native factory, and
+`macos.capture-stream-native-factory-quarantine` **PASS**. The macOS full
+Debug suite is **325/326** only because unrelated R1
+`transport.credssp-r1-owned-framing` aborts in the concurrently changing
+owned-TLS fixture; Release/package are skipped after that failure. No R7
+capture test failed.
+
+The same authorization invariant is now extended to cursor state. The portable,
+owned `MacCursorSnapshot` constructor remains public for synthetic/native data
+that an authorized owner may eventually provide, but
+`queryNativeMacCursorSnapshot` is removed from the header. The AppKit sampler
+stays compiled as a translation-unit-private, `[[maybe_unused]]` function so
+deprecated cursor API containment, Retina scaling and BGRA rendering continue
+to receive Apple compiler coverage without exposing a live desktop read path.
+No R4 cursor scheduler/encoder is introduced.
+
+Portable CTest `macos.cursor-native-sampler-quarantine` uses a dependent
+`requires` expression plus `static_assert` to prove the public header cannot
+resolve the native sampler through ADL; it performs no AppKit call. Existing
+owned-shape/validation/topology cursor tests are unchanged.
+
+Exact-SHA Linux/Windows/macOS and policy/sanitizer validation for this cursor
+quarantine is pending publication. Genuine macOS R2/R3 per-user authorization,
+owner macOS 27 live notification/cursor/capture validation, R4 cursor
+publication and Microsoft-client M5 acceptance remain **NOT RUN/BLOCKED**.
+**Next R7:** expose neither live cursor sampling nor native capture/input until a
+non-forgeable macOS R2/R3 capability exists; consume R4's cursor contract only
+if R4 publishes one.

@@ -73,7 +73,9 @@ scaledHotspot(const double hotspotPoints, const double imagePoints,
 
 } // namespace
 
-std::expected<MacCursorSnapshot, MacCursorSnapshotError>
+namespace {
+
+[[maybe_unused]] std::expected<MacCursorSnapshot, MacCursorSnapshotError>
 queryNativeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
                              const std::uint64_t geometryGeneration) noexcept {
     if (geometryGeneration == 0) {
@@ -213,5 +215,7 @@ queryNativeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
     return makeMacCursorSnapshot(
         geometry, geometryGeneration, observation, std::move(pixels), byteCount);
 }
+
+} // namespace
 
 } // namespace rdp::macos

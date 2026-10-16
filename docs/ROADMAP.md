@@ -4151,11 +4151,15 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   enum/integral conditional in R5's new borrowed `rootWindow()` fallback.
   Correction `24193f2548cfe847749f34dd62c32287819673e5`, Actions
   **38876427741**, builds the Linux native targets; three new R8 CTests PASS.
-  The ownership-generation CTest aborted before its assertions because the
-  shared helper invokes its default registration without a case argument.
-  That test-driver-only correction is pending exact-SHA CI. The same run has
-  an unrelated concurrent `transport.gcc-conference-create` assertion
-  failure on Linux/macOS.
+  The ownership-generation CTest initially aborted before its assertions
+  because the shared helper invokes its default registration without a case
+  argument. Test-driver correction
+  `9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`, Actions **38876792846**,
+  then builds the real Linux adapter and passes **23/23** clipboard-labelled
+  CTests, including all four new X11 behaviors. R9 sanitizer clipboard
+  **19/19 PASS**, bounded CLIPRDR fuzzer **1/1 PASS**, and documentation
+  policy PASS. The workflow is still red from the unrelated concurrent
+  `transport.gcc-conference-create` assertion on Linux/macOS, not from R8.
   Owner Linux/X11, Windows CLANG64/Clang23, macOS27, live clipboard,
   Microsoft client/Firefox and performance are NOT RUN. Genuine
   R3 CLIPRDR-role activation remains external. **INCR is NOT IMPLEMENTED and

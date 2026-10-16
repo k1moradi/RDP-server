@@ -173,7 +173,7 @@ independently authorized target session's native window/service WTS events
 onto the existing serialized R6 owner, then bind authorized D3D11/DXGI
 device/output lifetime.
 
-## R8 native X11 CLIPBOARD publication (2026-10-16; exact-SHA CI pending)
+## R8 native X11 CLIPBOARD publication (2026-10-16; R8 exact-SHA PASS)
 
 **Authoring parent main:** `d415648b880ec44734e1458ac81fa51fa3a59d8a`. This increment adds the first real native
 R8 publication boundary. Linux `X11ClipboardAdapter` borrows R5's sole XCB
@@ -225,11 +225,19 @@ execution: `clipboard.x11-targets-publication`,
 `clipboard.x11-selection-request-nonblocking`, and
 `clipboard.x11-selection-owner-loss` PASS. The ownership-generation CTest
 was incorrectly registered by the shared `add_rdp_test` default without its
-case argument and aborted before executing its assertions. The test driver
-correction treats that one helper registration as its documented default
-behavior; exact-SHA CI is pending. The same run also failed unrelated
-`transport.gcc-conference-create` on Linux and macOS due a concurrent GCC
-settings assertion.
+case argument and aborted before executing its assertions. The test-driver correction treats that one helper registration as its
+documented default behavior.
+
+**R8 exact-SHA evidence:** correction
+`9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`, Actions **38876792846**,
+builds the real Linux native adapter and passes all **23/23** clipboard-
+labelled Linux CTests, including all four new X11 behaviors. Documentation
+policy PASS. The R9 sanitizer job PASSes all **19/19** portable clipboard
+tests and the bounded `fuzz.mcs-cliprdr-bounded` case **1/1** with no reported
+ASan/UBSan/LSan finding. The full workflow is not an R8 green claim:
+`transport.gcc-conference-create` independently aborts on Linux and macOS
+at `earlyCapabilityFlags == 0x0001U`; that concurrent transport regression is
+outside R8 ownership.
 
 **NOT RUN:** canonical owner `~/rdp-server/build` CMake/CTest, owner
 Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27, live

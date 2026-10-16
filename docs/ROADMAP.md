@@ -5088,3 +5088,42 @@ hosted matrix is separate from the owner's Linux/X11, Windows MSYS2
 CLANG64/Clang 23 and macOS 27 environments, which remain **NOT RUN** here.
 M2 remains **NOT ACCEPTED** pending genuine R2 admission, R3 activation and
 real Microsoft-client evidence.
+
+
+## R1 immutable accepted peer endpoint (2026-10-16)
+
+**Starting main:** `cc8e0a9cbfbbf6891720eab03f1e94b926a30285`.
+R1 now completes the transport-side half of the roadmap's
+"immutable active TLS/peer identity" contract without exposing the native
+socket to R2/R3 for address discovery. The SAME successful
+`accept`/`accept4` call that creates `OwnedNativeTcpSocket` captures the
+IPv4/IPv6 peer endpoint into a fixed-size `TcpPeerEndpoint`: 16 address
+bytes in network order, host-order port, and host-order IPv6 scope ID.
+Unsupported/non-IP peer address shapes fail closed before an accepted
+connection is exposed.
+
+The endpoint moves atomically with the sole accepted-socket owner and is
+cleared on close/cancellation. `OwnedPreauthTcpConnection::peerEndpoint()`
+returns a value snapshot only; there is no pointer to sockaddr storage,
+mutable descriptor capability, reverse DNS, heap allocation, thread, listener
+ownership, admission decision, or new state machine. This value is transport
+metadata only: it is NOT a verified CredSSP/Kerberos principal, OS identity,
+or authorization capability.
+
+New central CTest
+`transport.tcp-native-accepted-peer-endpoint` uses a real ephemeral
+127.0.0.1 listener/client, independently queries the client's local endpoint,
+checks exact accepted peer address/port parity, verifies move continuity into
+`OwnedPreauthTcpConnection`, then verifies cancellation revokes the snapshot
+while preserving the borrowed listener.
+
+**Authoring validation:** local one-root build/CTest is **NOT RUN** in this
+agent sandbox because no repository checkout is mounted and direct GitHub
+clone DNS is unavailable. Exact-SHA hosted Debug/Release CI is **PENDING**
+after publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and
+macOS 27 remain **NOT RUN**. No R2 admission, R3 activation, listener service
+or Microsoft-client acceptance is implied; M2 remains **NOT ACCEPTED**.
+**Next R1 dependency:** let R2/R3 consume this immutable endpoint alongside
+the existing read-only established TLS object and bounded application I/O;
+add no further transport surface unless integration demonstrates a concrete
+missing hook.

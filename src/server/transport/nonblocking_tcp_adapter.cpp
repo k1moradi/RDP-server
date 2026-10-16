@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <limits>
 #include <memory>
 
@@ -39,6 +40,41 @@ namespace
 #else
     return false;
 #endif
+}
+
+[[nodiscard]] TcpPeerEndpoint nativeTcpPeerEndpoint(
+    const sockaddr_storage &nativeAddress,
+    std::size_t nativeAddressBytes) noexcept
+{
+    TcpPeerEndpoint endpoint{};
+    if (nativeAddress.ss_family == AF_INET &&
+        nativeAddressBytes >= sizeof(sockaddr_in))
+    {
+        sockaddr_in address{};
+        std::memcpy(&address, &nativeAddress, sizeof(address));
+        endpoint.family = TcpPeerAddressFamily::Ipv4;
+        endpoint.port = ntohs(address.sin_port);
+        static_assert(sizeof(address.sin_addr) <=
+                      sizeof(endpoint.address));
+        std::memcpy(endpoint.address.data(), &address.sin_addr,
+                    sizeof(address.sin_addr));
+        return endpoint;
+    }
+    if (nativeAddress.ss_family == AF_INET6 &&
+        nativeAddressBytes >= sizeof(sockaddr_in6))
+    {
+        sockaddr_in6 address{};
+        std::memcpy(&address, &nativeAddress, sizeof(address));
+        endpoint.family = TcpPeerAddressFamily::Ipv6;
+        endpoint.port = ntohs(address.sin6_port);
+        endpoint.ipv6ScopeId = address.sin6_scope_id;
+        static_assert(sizeof(address.sin6_addr) ==
+                      sizeof(endpoint.address));
+        std::memcpy(endpoint.address.data(), &address.sin6_addr,
+                    sizeof(address.sin6_addr));
+        return endpoint;
+    }
+    return endpoint;
 }
 
 [[nodiscard]] TcpIoResult nativeFailure() noexcept
@@ -329,6 +365,8 @@ McsIntakeResult PreauthTcpAdapter::onAttachedMcsIoReady() noexcept
 
 void OwnedNativeTcpSocket::close() noexcept
 {
+    // Endpoint identity belongs to the active owned connection only.
+    peerEndpoint_ = {};
     if (!valid()) return;
     const auto socketToClose =
         std::exchange(socket_, kInvalidSocket);
@@ -345,14 +383,26 @@ TcpAcceptResult acceptNonblockingTcpConnection(
     if (!configuredNativeListener(listenerSocket))
         return {};
 
+    sockaddr_storage peerAddress{};
 #ifdef _WIN32
+    int peerAddressLength = sizeof(peerAddress);
     const SOCKET acceptedSocket = ::accept(
-        static_cast<SOCKET>(listenerSocket), nullptr, nullptr);
+        static_cast<SOCKET>(listenerSocket),
+        reinterpret_cast<sockaddr *>(&peerAddress),
+        &peerAddressLength);
     if (acceptedSocket == INVALID_SOCKET)
     {
         return {nativeFailure().outcome == TcpIoOutcome::WouldBlock
                     ? TcpAcceptOutcome::WouldBlock
                     : TcpAcceptOutcome::Failure, {}};
+    }
+
+    const auto peerEndpoint = nativeTcpPeerEndpoint(
+        peerAddress, static_cast<std::size_t>(peerAddressLength));
+    if (!peerEndpoint.valid())
+    {
+        ::closesocket(acceptedSocket);
+        return {};
     }
 
     // A returned SOCKET belongs to this function until all setup succeeds.
@@ -371,21 +421,34 @@ TcpAcceptResult acceptNonblockingTcpConnection(
             (std::numeric_limits<int>::max)()))
         return {};
 
+    sockaddr_storage peerAddress{};
+    socklen_t peerAddressLength = sizeof(peerAddress);
 #ifdef __linux__
     // Atomic descriptor flags avoid an inheritable or blocking window
     // during concurrent exec/fork or socket-readiness dispatch.
     const int acceptedSocket = ::accept4(
-        static_cast<int>(listenerSocket), nullptr, nullptr,
-        SOCK_NONBLOCK | SOCK_CLOEXEC);
+        static_cast<int>(listenerSocket),
+        reinterpret_cast<sockaddr *>(&peerAddress),
+        &peerAddressLength, SOCK_NONBLOCK | SOCK_CLOEXEC);
 #else
     const int acceptedSocket = ::accept(
-        static_cast<int>(listenerSocket), nullptr, nullptr);
+        static_cast<int>(listenerSocket),
+        reinterpret_cast<sockaddr *>(&peerAddress),
+        &peerAddressLength);
 #endif
     if (acceptedSocket < 0)
     {
         return {nativeFailure().outcome == TcpIoOutcome::WouldBlock
                     ? TcpAcceptOutcome::WouldBlock
                     : TcpAcceptOutcome::Failure, {}};
+    }
+
+    const auto peerEndpoint = nativeTcpPeerEndpoint(
+        peerAddress, static_cast<std::size_t>(peerAddressLength));
+    if (!peerEndpoint.valid())
+    {
+        ::close(acceptedSocket);
+        return {};
     }
 
 #ifndef __linux__
@@ -413,8 +476,10 @@ TcpAcceptResult acceptNonblockingTcpConnection(
 
     // This is ownership of a native connection only, NOT permission to
     // authenticate, dispatch MCS messages or open an OS desktop session.
-    return {TcpAcceptOutcome::Accepted,
-            OwnedNativeTcpSocket{static_cast<std::uintptr_t>(acceptedSocket)}};
+    return {
+        TcpAcceptOutcome::Accepted,
+        OwnedNativeTcpSocket{
+            static_cast<std::uintptr_t>(acceptedSocket), peerEndpoint}};
 }
 
 

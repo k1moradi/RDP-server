@@ -3,6 +3,7 @@
 
 #include "preauth_session.h"
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +28,33 @@ inline constexpr std::size_t kMaximumTcpIoChunkBytes = 18U * 1024U;
 // resubmit only the remaining stable suffix after explicit progress.
 inline constexpr std::size_t kMaximumTlsApplicationIoBytes =
     kMaximumTcpIoChunkBytes;
+
+// Immutable transport metadata captured by the SAME successful native
+// accept call that creates the owned TCP connection. Address bytes stay
+// in network order; port and IPv6 scope ID are host-order scalar values.
+// This is not an authenticated user/principal or an OS admission grant.
+enum class TcpPeerAddressFamily : std::uint8_t
+{
+    Unspecified,
+    Ipv4,
+    Ipv6,
+};
+
+struct TcpPeerEndpoint
+{
+    TcpPeerAddressFamily family{TcpPeerAddressFamily::Unspecified};
+    std::array<std::uint8_t, 16> address{};
+    std::uint16_t port{};
+    std::uint32_t ipv6ScopeId{};
+
+    [[nodiscard]] constexpr bool valid() const noexcept
+    {
+        return family != TcpPeerAddressFamily::Unspecified;
+    }
+
+    friend constexpr bool operator==(
+        const TcpPeerEndpoint &, const TcpPeerEndpoint &) noexcept = default;
+};
 
 // One result from a caller-owned NONBLOCKING TCP descriptor. A Progress
 // result must have 1..buffer.size() bytes. Other outcomes must have zero.
@@ -115,13 +143,15 @@ public:
     OwnedNativeTcpSocket(const OwnedNativeTcpSocket &) = delete;
     OwnedNativeTcpSocket &operator=(const OwnedNativeTcpSocket &) = delete;
     OwnedNativeTcpSocket(OwnedNativeTcpSocket &&other) noexcept
-        : socket_(std::exchange(other.socket_, kInvalidSocket)) {}
+        : socket_(std::exchange(other.socket_, kInvalidSocket)),
+          peerEndpoint_(std::exchange(other.peerEndpoint_, TcpPeerEndpoint{})) {}
     OwnedNativeTcpSocket &operator=(OwnedNativeTcpSocket &&other) noexcept
     {
         if (this != &other)
         {
             close();
             socket_ = std::exchange(other.socket_, kInvalidSocket);
+            peerEndpoint_ = std::exchange(other.peerEndpoint_, TcpPeerEndpoint{});
         }
         return *this;
     }
@@ -135,15 +165,21 @@ public:
     {
         return socket_;
     }
+    [[nodiscard]] TcpPeerEndpoint peerEndpoint() const noexcept
+    {
+        return valid() ? peerEndpoint_ : TcpPeerEndpoint{};
+    }
     void close() noexcept;
 
 private:
-    explicit OwnedNativeTcpSocket(std::uintptr_t nativeSocket) noexcept
-        : socket_(nativeSocket) {}
+    explicit OwnedNativeTcpSocket(
+        std::uintptr_t nativeSocket, TcpPeerEndpoint peerEndpoint) noexcept
+        : socket_(nativeSocket), peerEndpoint_(peerEndpoint) {}
     friend TcpAcceptResult acceptNonblockingTcpConnection(
         std::uintptr_t listenerSocket) noexcept;
 
     std::uintptr_t socket_{kInvalidSocket};
+    TcpPeerEndpoint peerEndpoint_{};
 };
 
 enum class TcpAcceptOutcome : std::uint8_t
@@ -384,6 +420,12 @@ private:
      [[nodiscard]] std::uintptr_t nativeSocket() const noexcept
      {
          return socket_.nativeSocket();
+     }
+     // Snapshot by value so R2/R3 never receives a mutable socket/address
+     // capability. Invalid after cancellation/close; never authorization.
+     [[nodiscard]] TcpPeerEndpoint peerEndpoint() const noexcept
+     {
+         return socket_.peerEndpoint();
      }
      [[nodiscard]] PreauthStage stage() const noexcept
      {

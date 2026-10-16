@@ -2173,3 +2173,28 @@ Terminal teardown remains application buffers stop -> OpenSSL operations stop
 -> SSL/owned BIO release -> `NativeTcpIo` borrow ends -> accepted socket
 close. No worker thread, second event loop, listener owner, authentication
 decision or second RDP session controller is introduced.
+
+
+## R1 immutable accepted peer identity metadata (2026-10-16)
+
+The native accept boundary now snapshots the remote TCP endpoint in the same
+OS accept operation that transfers descriptor ownership. The normalized
+`TcpPeerEndpoint` is allocation-free and platform-neutral: address family,
+16 network-order address bytes, host-order port, and IPv6 scope ID. IPv4 uses
+the first four bytes and zeroes the remaining twelve. An unsupported
+address-family result is rejected before the connected descriptor is exposed.
+
+Ownership remains singular:
+`borrowed listener -> OwnedNativeTcpSocket{socket, peer endpoint} ->
+NativeTcpIo -> owned BIO/SSL -> OwnedPreauthTcpConnection`.
+Moving the socket owner moves the endpoint snapshot; close/cancel clears it.
+The nonmoving connection owner returns the snapshot by value, so consumers
+cannot mutate native sockaddr storage or perform an address lookup through a
+borrowed descriptor.
+
+This endpoint is only network transport provenance. It MUST NOT be treated as
+an authenticated client identity, Kerberos/CredSSP principal, OS-authorized
+session, channel permission or anti-spoofing proof. R2 still owns identity and
+admission; R3 still owns session/channel state. No reverse DNS lookup,
+listener policy, connection scheduler, second event loop or service
+activation is introduced.

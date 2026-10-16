@@ -6553,3 +6553,28 @@ real CredSSP/NLA plus OS admission, Microsoft RDP client and
 desktop/clipboard. M1–M6 remain open. **Next R9:** actual
 authorized R3→R8 ingress and disconnect/late-response rejection
 when the sole production session router exposes that contract.
+
+
+## R1 immutable accepted peer endpoint (2026-10-16)
+
+**Starting main:** `cc8e0a9cbfbbf6891720eab03f1e94b926a30285`.
+Production change: the existing sole accepted socket owner now carries a
+fixed-size IPv4/IPv6 `TcpPeerEndpoint` captured by the successful native
+accept call itself. Address bytes remain network order; port and IPv6 scope
+ID are host order. The value moves with `OwnedNativeTcpSocket`, is forwarded
+by value through `OwnedPreauthTcpConnection`, and is invalidated by
+close/cancel. Unsupported address-family results are closed before exposure.
+No DNS, allocation, authentication, OS admission or R3 state is added.
+
+New independently registered CTest:
+`transport.tcp-native-accepted-peer-endpoint`. It checks a real ephemeral
+loopback client's independently queried local address/port against the
+accepted peer snapshot, move-only ownership transfer, connection-owner
+continuity, and terminal cancellation invalidation while the borrowed
+listener remains valid.
+
+**Authoring status:** local repository build and CTest **NOT RUN** because
+this sandbox has no mounted checkout and cannot directly clone GitHub.
+Exact-SHA hosted CI **PENDING** after the direct-to-main commit. Owner
+Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and real Microsoft-client
+acceptance remain **NOT RUN**. M2 remains **NOT ACCEPTED**.

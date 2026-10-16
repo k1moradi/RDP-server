@@ -1613,6 +1613,67 @@ void testNativeTcpAcceptOwnershipAndCancellation()
     assert(!moved.valid());
 }
 
+
+void testNativeTcpAcceptedPeerEndpointIdentity()
+{
+    LoopbackSocketPair pair{false};
+
+    sockaddr_in clientAddress{};
+#ifdef _WIN32
+    int clientAddressLength = sizeof(clientAddress);
+#else
+    socklen_t clientAddressLength = sizeof(clientAddress);
+#endif
+    assert(::getsockname(
+        pair.client.value, reinterpret_cast<sockaddr *>(&clientAddress),
+        &clientAddressLength) == 0);
+    assert(static_cast<std::size_t>(clientAddressLength) ==
+           sizeof(clientAddress));
+    assert(clientAddress.sin_family == AF_INET);
+    assert(clientAddress.sin_port != 0);
+
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    const auto endpoint = accepted.connection.peerEndpoint();
+    assert(endpoint.valid());
+    assert(endpoint.family == TcpPeerAddressFamily::Ipv4);
+    assert(endpoint.port == ntohs(clientAddress.sin_port));
+    assert(endpoint.ipv6ScopeId == 0);
+
+    const std::uint32_t address = ntohl(clientAddress.sin_addr.s_addr);
+    const std::array<std::uint8_t, 4> expectedAddress{
+        static_cast<std::uint8_t>((address >> 24U) & 0xffU),
+        static_cast<std::uint8_t>((address >> 16U) & 0xffU),
+        static_cast<std::uint8_t>((address >> 8U) & 0xffU),
+        static_cast<std::uint8_t>(address & 0xffU)};
+    assert(std::equal(expectedAddress.begin(), expectedAddress.end(),
+                      endpoint.address.begin()));
+    assert(std::all_of(endpoint.address.begin() + expectedAddress.size(),
+                       endpoint.address.end(),
+                       [](std::uint8_t octet) { return octet == 0; }));
+    assert(endpoint.address[0] == 127);
+
+    // The immutable metadata moves with the ONLY accepted-socket owner.
+    OwnedNativeTcpSocket moved{std::move(accepted.connection)};
+    assert(!accepted.connection.valid());
+    assert(!accepted.connection.peerEndpoint().valid());
+    assert(moved.peerEndpoint() == endpoint);
+
+    OwnedPreauthTcpConnection owner{std::move(moved)};
+    assert(!moved.valid());
+    assert(!moved.peerEndpoint().valid());
+    assert(owner.active());
+    assert(owner.peerEndpoint() == endpoint);
+
+    // Closing the transport revokes both raw socket access and peer
+    // metadata so a stale endpoint cannot masquerade as an active peer.
+    owner.cancel();
+    assert(!owner.active());
+    assert(!owner.peerEndpoint().valid());
+    assert(pair.listener.value != kInvalidLocalSocket);
+}
+
 void testNativeTcpAcceptMoveReplacement()
 {
     static_assert(!std::is_copy_constructible_v<OwnedNativeTcpSocket>);
@@ -5838,6 +5899,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-bio-chunk-bounds", &testBorrowedTcpBioChunkBounds},
     {"tcp-native-chunk-bounds", &testNativeTcpChunkBounds},
     {"tcp-native-accept-ownership", &testNativeTcpAcceptOwnershipAndCancellation},
+    {"tcp-native-accepted-peer-endpoint", &testNativeTcpAcceptedPeerEndpointIdentity},
     {"tcp-native-accept-move-replacement", &testNativeTcpAcceptMoveReplacement},
     {"tcp-native-accept-orderly-eof", &testNativeTcpAcceptOrderlyPeerDisconnect},
     {"tcp-native-accept-batch-budget-handoff", &testNativeTcpAcceptBatchBudgetAndHandoff},

@@ -6263,6 +6263,25 @@ void testRuntimeLicensingContextSecureFiles(
         serverCertificatePath, kServerLicenseScope, privateKeyPath));
 }
 
+void testRuntimeLicensingContextSecureFileDenial(
+    const char *serverCertificatePath,
+    const char *privateKeyPath)
+{
+    RuntimeLicensingContext context;
+    assert(!context.configureFromCredentialFiles(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        serverCertificatePath, kServerLicenseScope, privateKeyPath));
+    assert(!context.configured());
+    assert(context.identity() == nullptr);
+    assert(context.credential() == nullptr);
+    assert(!context.configureFromCredentialFiles(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        serverCertificatePath, kServerLicenseScope, privateKeyPath));
+    assert(!context.configured());
+    assert(context.identity() == nullptr);
+    assert(context.credential() == nullptr);
+}
+
 void testRuntimeLicensingContextReplacementFreshness(
     const char *serverCertificatePath,
     const char *privateKeyPath,
@@ -7054,6 +7073,11 @@ int main(int argc, char **argv)
         {
             testRuntimeLicensingContextReplacementFreshness(
                 argv[2], argv[3], argv[4]);
+            return 0;
+        }
+        if (mode == "licensing-runtime-context-secure-file-denial")
+        {
+            testRuntimeLicensingContextSecureFileDenial(argv[2], argv[3]);
             return 0;
         }
         return 2;

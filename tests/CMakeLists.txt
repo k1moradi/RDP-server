@@ -433,6 +433,14 @@ add_test(NAME runtime.licensing-context-replacement-freshness
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_licensing_context.cmake")
 set_tests_properties(runtime.licensing-context-replacement-freshness
     PROPERTIES LABELS "runtime;security;licensing;offline" TIMEOUT 30)
+add_test(NAME runtime.licensing-context-secure-file-denials
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_RUNTIME_LICENSING_TEST=$<TARGET_FILE:test_owned_mcs_connect_initial>"
+        "-DRDP_RUNTIME_LICENSING_CASE=licensing-runtime-context-secure-file-denials"
+        "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-licensing-denial-fixtures"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_licensing_context.cmake")
+set_tests_properties(runtime.licensing-context-secure-file-denials
+    PROPERTIES LABELS "runtime;security;licensing;offline" TIMEOUT 30)
 add_rdp_test(test_owned_gcc_conference_create.cpp transport gcc-conference-create)
 add_rdp_test(test_owned_preauth_session.cpp transport preauth-session)
 # Test-only cross-road composition: R1 remains in the exported protocol target;

@@ -5500,3 +5500,39 @@ parallel `CLIENT_LICENSE_INFO` branch still requires CAL
 trust/signature/product/expiration/HWID validation. **M2/M3 remain OPEN / NOT
 ACCEPTED.**
 
+
+
+## R10 licensing credential-file denial coverage (2026-10-16; exact-SHA CI pending)
+
+Starting reconciled shared `main`: `4b72268e3e050a6855f28683ebe0b489aa79b385`. Review of the current
+`RuntimeLicensingContext::configureFromCredentialFiles` boundary found that
+the shared opened-file snapshot owner already enforces absolute paths, distinct
+native file identities, owner-private key metadata and symlink/reparse
+rejection, but licensing-specific coverage only exercised successful snapshot
+retention and post-replacement freshness.
+
+R10 now adds one production-backed
+`runtime.licensing-context-secure-file-denials` CTest. It drives the actual
+licensing context through the shared secure opener and requires terminal
+one-shot failure with null identity/credential publication for the same native
+object supplied as certificate and private key, a missing private key, a
+relative private-key path, and a private key whose metadata violates the
+platform policy. POSIX additionally exercises a final-component key symlink and
+group-readable key; Windows grants Everyone read access to an otherwise
+owner-controlled copied key and requires rejection through the opened-HANDLE
+DACL check. No test uses real user credentials.
+
+The test reuses the existing ephemeral R3 licensing RSA/X.509 fixture and
+existing CMake driver; production credential ownership code is unchanged.
+The bounded Clang ASan/UBSan licensing registry now explicitly requires and
+runs the new case. This closes a licensing-call-site evidence gap without
+adding a configuration schema, listener, R2 lease, licensing decision, Share
+activation or alternate file owner.
+
+Canonical owner-local `~/rdp-server/build` and owner platform commands are
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/AppleClang, Windows/MSVC, sanitizer, documentation-policy and SDK/package
+evidence are required before PASS is claimed. Positive live composition
+remains **BLOCKED on R2** while final CredSSP credential authorization is
+deny-only; R10 must not connect licensing or a listener around a fabricated
+lease. M2/M3 remain **OPEN / NOT ACCEPTED**.

@@ -1855,3 +1855,15 @@ the one `build/` root. Fix seed, finite run count, input/resource
 bounds and CTest timeout. Treat libFuzzer/ASan/UBSan crashes as
 FAIL and preserve the reproducer. A bounded fuzz PASS is sampling,
 not exhaustive security proof or real-client admission.
+
+
+## R1 cross-road write-slice compatibility
+
+When a higher-layer R3 writer is expected to feed R1's bounded TLS
+application writer directly, keep one production-backed compatibility CTest
+that proves the maximum R3 slice fits R1's public byte ceiling and that
+receipt semantics survive actual OpenSSL short progress and WANT results.
+Such a test must not fabricate R2 authorization: it proves only byte/receipt
+compatibility. On zero-byte WANT, retain the same higher-layer receipt and
+borrowed span; rotate a receipt only after positive accepted bytes. Use the
+real loopback TLS owner and keep all retries explicit in the test fixture.

@@ -3424,6 +3424,60 @@ void testMcsSessionUnadmittedDomainSizeBounds()
     assert(peer.onDomainPdu(disconnect) == McsSessionIntake::Closed);
 }
 
+void testMcsSessionFirstFailureBoundaries()
+{
+    // The one R3 owner reports the FIRST failing Connect-Initial layer
+    // without exposing borrowed GCC bytes or granting R2 admission.
+    // Reuse the checked-in Microsoft 4.1.3 packet and production decoders.
+    const auto valid = publishedFixture();
+    const auto expectTerminal = [&](std::span<const std::uint8_t> packet,
+                                    McsSessionIntake expected)
+    {
+        McsSessionLifecycle session;
+        assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+        assert(session.onConnectInitial(packet) == expected);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(session.pendingJoinConfirmation().empty());
+        assert(!session.channelJoinConfirmed(1003));
+        assert(session.onConnectInitial(valid) == McsSessionIntake::Closed);
+        assert(session.pendingJoinConfirmation().empty());
+    };
+
+    expectTerminal(valid, McsSessionIntake::ValidButNotAdmitted);
+
+    auto syntax = valid;
+    syntax[7] = 0x7e; // wrong BER Connect-Initial tag
+    assert(!parseMcsConnectInitial(syntax));
+    expectTerminal(syntax, McsSessionIntake::InvalidEnvelope);
+
+    auto negotiation = valid;
+    negotiation[47] = 3;  // target protocol version
+    negotiation[74] = 3;  // minimum protocol version
+    negotiation[104] = 3; // maximum protocol version
+    const auto syntacticallyValid = parseMcsConnectInitial(negotiation);
+    assert(syntacticallyValid);
+    assert(!mergeMcsDomainParameters(syntacticallyValid.value));
+    expectTerminal(negotiation, McsSessionIntake::InvalidDomainParameters);
+
+    auto gccCorrupt = valid;
+    const auto parsedValid = parseMcsConnectInitial(gccCorrupt);
+    assert(parsedValid);
+    const auto gccOffset = static_cast<std::size_t>(
+        parsedValid.value.gccUserData.data() - gccCorrupt.data());
+    assert(gccOffset + 3U < gccCorrupt.size());
+    gccCorrupt[gccOffset + 3U] = 0; // invalid GCC t124Identifier
+    const auto parsedGccCorrupt = parseMcsConnectInitial(gccCorrupt);
+    assert(parsedGccCorrupt);
+    assert(mergeMcsDomainParameters(parsedGccCorrupt.value));
+    assert(!parseGccConferenceCreate(parsedGccCorrupt.value.gccUserData));
+    expectTerminal(gccCorrupt, McsSessionIntake::InvalidGccUserData);
+
+    // R3's independent size guard wins before any BER, merge or GCC
+    // inspection, and late callbacks cannot replace the denial result.
+    std::vector<std::uint8_t> large(8193U, 0xff);
+    expectTerminal(large, McsSessionIntake::OversizedEnvelope);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -3450,7 +3504,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 55> kMcsTestCases{{
+constexpr std::array<McsTestCase, 56> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3478,6 +3532,7 @@ constexpr std::array<McsTestCase, 55> kMcsTestCases{{
     {"mcs-session-unverified-ordering", &testMcsSessionUnverifiedDomainOrdering},
     {"mcs-session-first-envelope-size-bounds", &testMcsSessionFirstEnvelopeSizeBounds},
     {"mcs-session-unadmitted-domain-size-bounds", &testMcsSessionUnadmittedDomainSizeBounds},
+    {"mcs-session-first-failure-boundaries", &testMcsSessionFirstFailureBoundaries},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

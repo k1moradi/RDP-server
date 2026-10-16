@@ -456,7 +456,9 @@ enum class McsSessionIntake : std::uint8_t
     Closed,
 };
 
-class McsSessionLifecycle final
+class McsSessionLifecycle final    InvalidDomainParameters,
+    InvalidGccUserData,
+
 {
 public:
     McsSessionLifecycle() noexcept = default;

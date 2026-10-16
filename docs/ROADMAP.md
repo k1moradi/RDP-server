@@ -2540,6 +2540,23 @@ actually run; another parser CTest alone is not a complete session.
   CLANG64/Clang23 and macOS27 CTests at this SHA, genuine
   R2 TLS-bound OS authorization, Microsoft-client activation
   or desktop. R3 Gate A/M2 remains NOT ACCEPTED.
+  **R3 first failing MCS negotiation boundary (2026-10-15; CI NOT RUN at authoring):**
+  The one deny-only `McsSessionLifecycle` now distinguishes
+  invalid RFC1006/BER MCS Connect-Initial syntax,
+  failed T.125 domain-parameter negotiation, and failed
+  GCC Conference Create parsing using the existing first-party
+  decoders. All outcomes synchronously revoke joined/pending
+  state and close; a fully valid Microsoft fixture remains
+  `ValidButNotAdmitted` without a Connect Response or user
+  authorization. Existing outcome numeric values remain unchanged;
+  new error-only outcomes are appended. One new central CTest
+  mutates the verbatim Microsoft packet independently at each layer
+  and proves first-failure classification, terminal cleanup,
+  stale reentry rejection and oversize precedence.
+  **NOT RUN at authoring:** new-SHA full hosted CI, owner
+  independent Linux/X11, Windows MSYS2 CLANG64/Clang23
+  and macOS27 tests, real R2 TLS-bound identity plus OS
+  authorization, external client or desktop. Gate A/M2 OPEN.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

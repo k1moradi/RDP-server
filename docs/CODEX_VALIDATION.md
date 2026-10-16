@@ -3048,6 +3048,31 @@ any branch, live desktop access or input injection.
 **Next:** native frame acquisition/release with deterministic cancellation
 tests after R2/R3 session and R4 frame lifetime agreement.
 
+## R3 MCS Connect-Initial first failing boundary (2026-10-15)
+
+**Production:** `McsSessionLifecycle::onConnectInitial` now returns
+`InvalidEnvelope` for BER/TPKT syntax failure,
+`InvalidDomainParameters` for a valid envelope with failed
+T.125 domain merge, and `InvalidGccUserData` for a valid
+MCS/domain negotiation with failed GCC Conference Create data.
+The previous `McsSessionIntake` numeric order remains unchanged;
+the new error-only statuses are appended. All failures and a
+fully valid Microsoft envelope terminate the same noncopyable
+R3 owner; a successful parse still yields
+`ValidButNotAdmitted`, never session authorization or a reply.
+
+**One new centrally registered CTest:**
+`transport.mcs-session-first-failure-boundaries`, using the checked-in
+Microsoft MS-RDPBCGR 4.1.3 416-byte packet and the real decoders.
+It separately mutates MCS BER choice, T.125 protocol-version
+domain merge and GCC t124Identifier, independently proves each
+parser boundary, tests unchanged valid diagnostic classification,
+revocation/stale reentry and 8193-byte oversize precedence.
+**NOT RUN at authoring:** exact-commit full hosted CTests, owner
+independent three-platform runs, real R2 GSS/CredSSP and independent
+OS authorization, licensed Microsoft client or desktop.
+R3 Gate A/M2 remains NOT ACCEPTED.
+
 ## R3 pre-admission oversized domain-PDU denial (2026-10-15)
 
 **Exact-SHA hosted CI results (2026-10-15):**

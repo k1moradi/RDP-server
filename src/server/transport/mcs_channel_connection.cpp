@@ -312,15 +312,29 @@ McsSessionIntake McsSessionLifecycle::onConnectInitial(
         return McsSessionIntake::InvalidEnvelope;
     }
 
+    // Classify the first rejected layer without retaining any borrowed
+    // packet/GCC view or logging peer-supplied data. These are diagnostics,
+    // NOT an R2 OS authorization decision or permission to reply.
     const auto parsed = parseMcsConnectInitial(completeTpkt);
-    const bool valid = parsed &&
-        static_cast<bool>(mergeMcsDomainParameters(parsed.value)) &&
-        static_cast<bool>(parseGccConferenceCreate(parsed.value.gccUserData));
-    // No R2 OS-authorized admission exists. Even valid negotiation cannot
-    // allocate a domain or preserve a borrowed GCC view for later use.
+    if (!parsed)
+    {
+        close();
+        return McsSessionIntake::InvalidEnvelope;
+    }
+    if (!mergeMcsDomainParameters(parsed.value))
+    {
+        close();
+        return McsSessionIntake::InvalidDomainParameters;
+    }
+    if (!parseGccConferenceCreate(parsed.value.gccUserData))
+    {
+        close();
+        return McsSessionIntake::InvalidGccUserData;
+    }
+    // Even an entirely valid Microsoft envelope cannot allocate a domain
+    // or produce an MCS response without actual R2 OS admission.
     close();
-    return valid ? McsSessionIntake::ValidButNotAdmitted
-                 : McsSessionIntake::InvalidEnvelope;
+    return McsSessionIntake::ValidButNotAdmitted;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(

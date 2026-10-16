@@ -1716,6 +1716,16 @@ means only diagnostic progress to an MCS envelope, not R2 authorization.
 No new transport, admission capability or session state machine exists.
 
 
+**R3 first-failure MCS negotiation classification (2026-10-15):**
+The existing single deny-only `McsSessionLifecycle` distinguishes
+an invalid MCS Connect-Initial envelope from a syntactically valid
+packet with failed T.125 domain-parameter merging or failed GCC
+Conference Create parsing. It checks these in protocol order using
+the first-party decoders; no exception, parser fork, borrowed
+userdata retention, negotiated channel or TLS output is introduced.
+Each outcome revokes pending join bookkeeping. Valid decoding
+remains a syntax diagnostic, never R2 OS-authorized admission.
+
 **R3 unadmitted-domain PDU budget (2026-10-15):**
 The same R3 `McsSessionLifecycle` now applies the project's shared
 8192-byte first-MCS pre-admission budget to unsolicited T.125 domain

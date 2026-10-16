@@ -6975,3 +6975,19 @@ environment, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
 CLANG64/Clang23, macOS27, a genuine RandR geometry-change notification,
 R2/R3 admitted desktop routing, R4 frame/cursor consumption, Microsoft-client
 M3 acceptance, or performance benchmarks.
+
+## R5 bounded event routing exact-SHA hosted CI PASS (2026-10-16)
+
+Implementation `ba59c94c7ab07c688d6b19ee8d440ddcd98acee8`,
+[Actions 38873077390](https://github.com/k1moradi/RDP-server/actions/runs/38873077390):
+**SUCCESS**. Linux/GCC full CTest **289/289 PASS** Debug and Release.
+`x11.desktop-resource-event-routing` and
+`x11.display-event-failure-defers-owner-teardown` passed in both, along
+with the existing XTEST and one-XCB owner cases. macOS/Clang **265/265 PASS**
+Debug/Release; Windows/MSVC **285/285 PASS** Debug/Release. Documentation
+policy, R9 sanitizers, installed-SDK consumer/package/digest/upload PASS.
+
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+one-root commands; genuine RandR resize; R2/R3 admitted desktop routing;
+live XTEST input; R4 frame/cursor consumption; Microsoft-client M3;
+performance. The native aggregate remains noninstalled and unlinked.

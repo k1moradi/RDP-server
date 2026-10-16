@@ -3512,6 +3512,24 @@ actually run; another parser CTest alone is not a complete session.
   owner; then expose synchronous R4 capture/damage/cursor reads and
   R3-authorized typed input. M3 remains OPEN.
 
+  **R5 bounded event routing exact-SHA hosted CI PASS (2026-10-16):**
+  implementation `ba59c94c7ab07c688d6b19ee8d440ddcd98acee8`,
+  [Actions 38873077390](https://github.com/k1moradi/RDP-server/actions/runs/38873077390)
+  completed **SUCCESS**. Ubuntu/GCC full CTest was **289/289 PASS** in
+  Debug and **289/289 PASS** in Release. Both new native Xvfb cases,
+  `x11.desktop-resource-event-routing` and
+  `x11.display-event-failure-defers-owner-teardown`, passed in both
+  configurations, together with the existing XTEST and one-XCB owner cases.
+  macOS/Clang full CTest was **265/265 PASS** Debug/Release; Windows/MSVC
+  **285/285 PASS** Debug/Release. Documentation-policy, R9 sanitizers,
+  installed-SDK consumer, package/digest/upload stages all PASS; prerelease
+  publication was skipped without a release tag.
+  **NOT RUN:** owner's Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+  one-root commands; a real RandR geometry-change notification; genuine
+  R2/R3 admitted desktop routing; live XTEST input; R4 frame/cursor
+  consumption; Microsoft-client M3 acceptance; performance benchmarks.
+  The runtime still does not link the native X11 aggregate. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

@@ -16537,3 +16537,49 @@ platform tests and Microsoft-client acceptance remain **NOT RUN**.
 **Next R1:** add no transport surface unless R3 lands a protected receipt-bound
 New/Upgrade License publication or later Share activation that demonstrates a
 concrete bounded TCP/TLS mismatch.
+
+
+## R6 coordinated Windows native session retirement exact-SHA validation (2026-10-16)
+
+**Implementation:** `94813489bd8986932b5fe09310c80ad24c77eb76`.  
+**Actions:** [38973719259](https://github.com/k1moradi/RDP-server/actions/runs/38973719259) — **SUCCESS**.
+
+The exact R6 implementation SHA passes the complete hosted matrix. Windows/MSVC
+native R6 preflight is **51/51 PASS** in Debug and **51/51 PASS** in Release;
+the new production-backed cases
+`windows.capture-session-change-coordinated-input-revocation`,
+`windows.capture-session-change-callback-revocation`, and
+`windows.input-session-change-held-state-retirement` each pass in both
+configurations. Full Windows CTest is **450/450 PASS Debug** and **450/450 PASS
+Release**. Linux/GCC is **496/496 PASS** in Debug and Release, and macOS/Clang
+is **418/418 PASS** in Debug and Release.
+
+R9 Clang ASan/UBSan is **PASS** for its configured Linux-portable/native groups,
+including clipboard **57/57**, portable R4 lifecycle **33/33**, R4 x264/BGRA
+**20/20**, R4 capability **4/4**, bounded R1/R3 **73/73**, native R2/R3 GSSAPI
+**29/29**, direct R10 runtime security **10/10**, native R5 X11 **30/30**, and
+the bounded fuzzer **1/1**. This is not direct sanitizer execution of the
+Windows-only R6 executable, which remains **NOT RUN**. The independent R7
+macOS-session sanitizer job and documentation-policy job also pass.
+
+Installed SDK downstream consumer is **1/1 PASS** on Linux, macOS and Windows;
+package generation, reproducible digest and artifact upload pass on all three
+hosted platforms. The untagged prerelease publication job is correctly
+**SKIPPED**.
+
+No additional R6 production change is indicated by this validation. The native
+retirement order remains guard revocation -> input cancellation -> capture
+cancellation, with mapped-view invalidation -> D3D11 unmap -> exact-once DXGI
+`ReleaseFrame`; callback-time physical teardown is deferred only by the
+existing capture-cycle reentrancy guard. Revoked held input is discarded with
+no stale `SendInput`, while orderly close on a still-current generation keeps
+the existing best-effort held-input release contract.
+
+Canonical owner-local `~/rdp-server/build/`, owner Windows MSYS2
+CLANG64/Clang 23, direct Windows R6 sanitizer execution, live WTS/DXGI/
+`SendInput`, genuine Windows R2/R3 admission and Microsoft-client M4 acceptance
+remain **NOT RUN / OPEN**. **M1 and M4 remain OPEN / NOT ACCEPTED.** The next
+R6 -> R10 composition gate is unchanged: after genuine R2/R3 authorization,
+R10 may serialize native session-change delivery into the stateless R6
+retirement boundary; recovery still requires fresh authorization and newly
+composed native owners.

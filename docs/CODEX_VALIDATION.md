@@ -15578,3 +15578,24 @@ translation boundary. R5 must not create a parallel RDP parser, authorization
 token, session/input owner or scheduler. Owner Linux/X11, Windows MSYS2
 CLANG64/Clang23, macOS 27, genuine Kerberos/logind-authorized XTEST use and
 Microsoft-client M3 acceptance remain **NOT RUN/OPEN**.
+
+
+## R4 portable RDPGFX sanitizer authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `50dd46ab43aa8f70753ba6e71c9afe4df9a7429f`.
+
+Review of current R4 sanitizer scope found that codec/BGRA (**20** cases) and
+capability negotiation (**4** cases) are directly instrumented, while the six
+portable RDPGFX wire/lifecycle executables are only exercised by normal hosted
+Debug/Release jobs. The shared Clang ASan+UBSan job is extended to compile
+those six existing targets and run exactly **33** centrally registered
+production-backed behaviors covering surface IDs/lifecycle, ACK correlation
+and suspension, presentation receipts/abort/reconnect, AVC420 picture metadata
+and overlap-safe serialization, segmented-data bounds, and segmented AVC420
+delivery/ACK.
+
+This is CI/testing-only; production code and CTest registration are unchanged.
+Canonical owner-local execution is **NOT RUN** because this connector does not
+expose `~/rdp-server`. Exact publication-SHA hosted CI is the first executable
+gate. Authenticated R3 Graphics DVC/full-send and Microsoft-client graphics
+remain **BLOCKED/NOT RUN**.

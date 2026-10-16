@@ -158,6 +158,9 @@ jobs:
             test_owned_remote_transfer test_clipboard_protocol \
             test_windows_clipboard_adapter test_macos_clipboard_adapter \
             test_linux_clipboard_file_destination \
+            test_gfx_surface_lifecycle test_gfx_frame_acknowledge \
+            test_gfx_presentation_lifecycle test_gfx_avc420_picture \
+            test_gfx_segmented_data test_gfx_avc420_segmented_frame \
             test_gfx_avc420_capabilities \
             test_x264_avc420_encoder \
             test_x264_avc420_segmented_frame_producer \
@@ -177,6 +180,25 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --build-config Debug --timeout 60 -L clipboard --output-on-failure
+      - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          portable_graphics_selection='^graphics\.(surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack)))$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$portable_graphics_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'graphics.surface-zero-id-wire' <<< "$selected_tests"
+          grep -Fq 'graphics.frame-ack-stale-generation' <<< "$selected_tests"
+          grep -Fq 'graphics.frame-delivery-abort-revocation' <<< "$selected_tests"
+          grep -Fq 'graphics.avc420-zero-frame-id-wire' <<< "$selected_tests"
+          grep -Fq 'graphics.segmented-data-denials-inplace' <<< "$selected_tests"
+          grep -Fq 'graphics.avc420-segmented-frame-delivery-ack' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$portable_graphics_selection" --output-on-failure
+
       - name: Run all R4 x264 and BGRA CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

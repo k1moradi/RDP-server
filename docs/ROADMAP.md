@@ -15438,3 +15438,37 @@ translation boundary. R5 must not create a parallel RDP parser, authorization
 token, session/input owner or scheduler. Owner Linux/X11, Windows MSYS2
 CLANG64/Clang23, macOS 27, genuine Kerberos/logind-authorized XTEST use and
 Microsoft-client M3 acceptance remain **NOT RUN/OPEN**.
+
+
+## R4 portable RDPGFX ASan/UBSan coverage (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `50dd46ab43aa8f70753ba6e71c9afe4df9a7429f`.
+
+R4's exact hosted sanitizer coverage is currently split between the fully
+instrumented **20-case** x264/BGRA group and the **4-case** capability
+negotiation group. The remaining portable RDPGFX production boundaries still
+run in normal Debug/Release CTest but are not compiler-instrumented in the
+shared sanitizer job: surface lifecycle, frame ACK/window correlation,
+presentation/full-send receipts, AVC420 picture construction, RDP segmented
+data, and segmented-frame handoff.
+
+This increment changes CI/testing policy only. The existing sanitizer build now
+also compiles the six existing portable R4 executables and runs their complete
+bounded **33-case** CTest family as an independent
+`always() && compile-success` group. Before execution, the job enumerates the
+central registry and requires representative tests from all six families so a
+lost registration cannot be mistaken for sanitizer PASS. The selector does
+not include capability, x264/BGRA or any native OS graphics test; those retain
+their existing independent groups.
+
+No production source, CTest semantics, graphics scheduler, ACK policy, wire
+format, channel authority or OS adapter changes. Canonical owner
+`~/rdp-server/build` configure/build/full CTest is **NOT RUN** in this
+connector environment. Exact publication-SHA Linux/GCC, macOS/Clang,
+Windows/MSVC Debug/Release, the new portable R4 sanitizer group, existing
+capability and x264 sanitizer groups, documentation policy and SDK/package
+gates are required after publication. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC admission/full-send completion,
+owner three-OS commands, native capture performance and Microsoft-client
+visible graphics remain **NOT RUN/BLOCKED**. Gate B and M3/M4/M5 remain
+**OPEN**.

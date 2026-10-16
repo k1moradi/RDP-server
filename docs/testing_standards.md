@@ -2191,3 +2191,23 @@ is known inactive; production must reject with
 should first install a synthetic geometry epoch and verify the denied native
 refresh still invalidates that old epoch. Positive native coverage and real
 display-change delivery remain owner-macOS acceptance, not hosted CTest.
+
+
+### R4 portable RDPGFX sanitizer selection (2026-10-16)
+
+The shared Linux/Clang ASan+UBSan job must build and execute the complete
+portable R4 wire/lifecycle boundary independently from codec and capability
+groups. The bounded selection contains **33** existing production-backed CTests
+from exactly these executables: `test_gfx_surface_lifecycle`,
+`test_gfx_frame_acknowledge`, `test_gfx_presentation_lifecycle`,
+`test_gfx_avc420_picture`, `test_gfx_segmented_data`, and
+`test_gfx_avc420_segmented_frame`.
+
+The sanitizer selector must enumerate the central CTest registry before
+execution and assert one representative behavior from every family is present:
+zero-valued surface IDs, stale-generation ACK handling, terminal frame-delivery
+abort, zero-valued frame IDs, segmented-data denial/in-place safety, and
+segmented AVC420 delivery/ACK. Keep this group separate from the existing
+4-case capability selector and 20-case x264/BGRA label so failures remain
+attributable and one R4 group cannot hide later road evidence. No native X11,
+Windows or macOS graphics test belongs in this portable selection.

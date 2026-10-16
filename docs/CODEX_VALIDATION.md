@@ -9,6 +9,30 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R8 verified Unicode text exact-SHA hosted CI (2026-10-16)
+
+**Implementation SHA:** `8f5e194a5662ae2f70a849c0e451c8bbb60f87b0`.
+**Actions run:** [38857378176](https://github.com/k1moradi/RDP-server/actions/runs/38857378176).
+**PASS:** Linux/GCC Debug **238/238** and Release **238/238**;
+Windows/MSVC Debug **239/239** and Release **239/239**;
+`clipboard.verified-unicode-text-readiness` passed in all those
+runs and macOS/Clang Debug; R9 clipboard ASan/UBSan tests passed;
+documentation policy passed.
+**FAILED overall:** macOS/Clang Debug **205/220**, 15 failures in
+`transport.tcp-native-accept-*`, `transport.tcp-native-listener-*`,
+`transport.tcp-listener-poll-*` and `transport.tcp-owned-*`.
+The first failing boundary is `transport.tcp-native-accept-ownership`:
+`test_owned_preauth_session.cpp:1564` asserts
+`accepted.outcome == TcpAcceptOutcome::Accepted`; no R8 CTest failed.
+macOS Release stage did not run because Debug aborted the job.
+No claim of full three-platform acceptance.
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64 Clang23,
+macOS27, genuine R2/R3 admission, native OS clipboard,
+Microsoft-client/Firefox paste and performance.
+**Next gates:** R1/R9 triage macOS TCP listener regression and recheck
+same-SHA CI; R8 proceeds with validated PNG/DIB and native adapter
+integration without disguising the transport failure.
+
 ## R8 verified Unicode clipboard readiness (2026-10-16)
 
 **Starting main SHA:** `9dd3197115bcd56d4465ec18b1bdedddcccc5336`. **Files:**

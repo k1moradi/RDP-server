@@ -3311,7 +3311,12 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   payload leaves sound PDU framing usable but never becomes paste-ready.
   New offers, disconnect and coordinator poison invalidate readiness.
   Dedicated `clipboard.verified-unicode-text-readiness` CTest.
-  Full CI/owner three-platform and real OS paste: NOT RUN at authoring.
+  Exact-code [Actions run 38857378176](https://github.com/k1moradi/RDP-server/actions/runs/38857378176):
+  Linux/GCC Debug+Release 238/238 each and Windows/MSVC
+  Debug+Release 239/239 each PASS, as do new R8 and sanitizer tests.
+  macOS R8 CTest PASS but full Debug suite FAIL 15/220
+  `transport.tcp-*` CTests (first: native accept ownership);
+  macOS Release NOT RUN. Owner machines and live paste NOT RUN.
   **Remaining:** validated PNG/DIB readiness, native
   prefetch scheduling/conversion and actual OS paste acceptance.
 - [ ] **Nonblocking clipboard paste readiness**: register a pending OS paste

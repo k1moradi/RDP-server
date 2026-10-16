@@ -488,7 +488,11 @@ void dxgiFrameLeaseAcquireCallbackRevocation()
                WindowsDxgiAcquireResult::closed);
         assert(cancelledOwner.closed());
         assert(cancelledOwner.resource() == nullptr);
-        assert(cancelledOwner.frameInfo() == WindowsDxgiFrameInfo{});
+        const auto cancelledInfo = cancelledOwner.frameInfo();
+        assert(!cancelledInfo.pointerPositionUpdated &&
+               !cancelledInfo.pointerVisible &&
+               cancelledInfo.pointerX == 0 && cancelledInfo.pointerY == 0 &&
+               cancelledInfo.pointerShapeBufferSize == 0);
         assert(cancelled.acquisitions == 1 && cancelled.releases == 1);
         cancelledOwner.cancel();
         assert(cancelled.releases == 1);

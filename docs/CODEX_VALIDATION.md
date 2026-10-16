@@ -14942,3 +14942,45 @@ session-watch job **PASS**; the latter is **10/10 PASS**. macOS is **FAIL at
 compile**, so exact-SHA rerun is required. Owner-local `~/rdp-server/build/`,
 owner macOS 27 positive display-change delivery, genuine R2/R3 macOS admission
 and Microsoft-client M5 acceptance remain **NOT RUN/OPEN**.
+
+## R3 CLIENT_LICENSE_INFO HWID integrity exact-SHA validation (2026-10-16)
+
+**Implementation:** `aa371286b8a706a888fdf5f9234089ece8f5d0df`.
+**Actions:** `38965361905` — **SUCCESS**.
+
+Ubuntu/GCC full CTest is **468/468 PASS Debug** and **468/468 PASS
+Release**. macOS/Clang is **393/393 PASS Debug** and **393/393 PASS
+Release**. Windows/MSVC focused native preflight is **47/47 PASS Debug**
+and **47/47 PASS Release**; full CTest is **423/423 PASS Debug** and
+**423/423 PASS Release**.
+
+The four new production-linked cases
+`transport.licensing-rc4-wire`,
+`transport.licensing-mac-wire`,
+`transport.licensing-client-license-info-hwid-proof`, and
+`transport.licensing-client-license-info-hwid-denials` pass in all six
+hosted Debug/Release platform configurations.
+
+R9 Clang ASan/UBSan is **PASS**. The bounded R1/R3
+transport/security/licensing selection is **58/58 PASS**; its registry
+preflight explicitly selects all four new cases and each passes under
+ASan/UBSan. The other configured sanitizer groups pass: clipboard **50/50**,
+R4 x264/BGRA **20/20**, native R2/R3 GSS **27/27**, R10 Linux runtime
+CredSSP **5/5**, native R5 X11 **26/26**, and bounded fuzzer **1/1**.
+Documentation policy and the dedicated R7 session sanitizer side gate pass.
+
+Installed SDK downstream consumer is **1/1 PASS** and ZIP package/artifact
+creation/upload succeeds on Linux, macOS and Windows. No unrelated hosted
+failure is present on the exact R3 implementation SHA.
+
+This validates only RC4 licensing-data transformation, MS-RDPELE MAC
+generation, exact 20-byte HWID structure and MAC integrity under the already
+derived session keys. CAL signature/trust, product identity, expiration,
+CAL-to-HWID authorization, server licensing decisions, Platform Challenge,
+New/Upgrade License, Demand Active, Share activation and Microsoft-client
+desktop acceptance remain **NOT IMPLEMENTED / NOT RUN**. Canonical owner-local
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS 27, genuine Kerberos/NSS/logind positive admission and real licensing
+authority configuration remain **NOT RUN / OPEN**. **M2/M3 remain OPEN / NOT
+ACCEPTED.**
+

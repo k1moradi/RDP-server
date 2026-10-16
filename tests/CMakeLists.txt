@@ -285,6 +285,11 @@ if(TARGET rdp-server-linux-gssapi)
     endforeach()
 endif()
 add_rdp_test(test_owned_remote_transfer.cpp clipboard remote-transfer)
+# R9 bounded mutational wire negative corpus, reusing the production test.
+add_test(NAME clipboard.mcs-cliprdr-length-mutation-denials
+    COMMAND test_owned_remote_transfer mcs-cliprdr-length-mutation-denials)
+set_tests_properties(clipboard.mcs-cliprdr-length-mutation-denials PROPERTIES
+    LABELS "protocol;clipboard;security;offline")
 # Offline MCS-joined membership/teardown integration, not TLS/OS admission.
 add_test(NAME clipboard.mcs-joined-response-teardown
     COMMAND test_owned_remote_transfer mcs-joined-response-teardown)

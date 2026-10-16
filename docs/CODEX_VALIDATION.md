@@ -4043,3 +4043,36 @@ owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
 tests, authenticated R3 DVC writer, pinned x264, genuine H.264
 NAL transmission, real Microsoft clients and benchmarks.
 After publication examine exact-commit hosted Actions.
+
+## R9 bounded MCS/CLIPRDR length mutation security regression (2026-10-15)
+
+**Parent `main` SHA:** `3130fc9f5b57c7d57719ffaf86e9dcc252bfe6bd`. **Changed:**
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/CODEX_VALIDATION.md`.
+**CTest:** `clipboard.mcs-cliprdr-length-mutation-denials` (labels protocol/clipboard/security/offline).
+This independently dispatched, headless deterministic mutation corpus
+runs production `parseMcsChannelRequest`,
+`McsChannelJoinWriteGate::matchesJoinedInboundSendData` and
+`RemoteTransfer::receiveResponse/resetAfterDisconnect`.
+Cases: every strict frame prefix; all mismatched 0..255 one-byte
+outer TPKT, PER userData and inner CLIPRDR response lengths;
+invalid UserId/channel, malformed PER padding; refusal/empty
+borrowed result after malformed nested length, failed subsequent
+request until disconnect; explicit clean-session recovery and
+all 256 opaque payload byte values correctly accepted.
+A successful membership result never substitutes for R2 TLS/OS
+admission, licensing, native permissions, actual channel role or
+a live R3 router. No real user/client or network socket is started.
+
+**Pre-publication checks:** source blobs and single `main`
+declaration/CTest registration inspected against current `main`
+using GitHub API. **NOT RUN:** local full checkout build,
+focused/full CTest and sanitizers because GitHub hostname
+cannot resolve for direct clone from this runner; exact-SHA
+hosted Linux/GCC, macOS/Clang, Windows/MSVC CI pending at
+authoring; owner's Linux/X11, MSYS2 CLANG64/Clang23, macOS27,
+credentialed Microsoft RDP client, authorized OS desktop/clipboard.
+**Next:** obtain the actual Actions compile+CTest receipts
+for this exact new implementation SHA, repair introduced failures
+without hiding tests, and then extend testing to R3's
+production-authenticated R8 routing when available.

@@ -928,6 +928,150 @@ void testFormatListResponseJoinedMcsEnvelope()
                        [](std::uint8_t byte) { return byte == 0xa5; }));
 }
 
+// R9 bounded mutation corpus over a COMPLETE TPKT/X.224/T.125 PDU
+// carrying a first-party CLIPRDR response. These are parser and joined
+// membership prerequisites, NOT TLS identity or OS authorization.
+void testMcsCliprdrLengthMutationDenials()
+{
+    using namespace rdp_server::server::transport;
+    McsChannelJoinWriteGate channels;
+    const std::array<std::uint16_t, 1> joinedIds{1003};
+    assert(channels.configure(1007, joinedIds));
+
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(channels.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    const auto confirmationLength = channels.pendingBytes().size();
+    assert(confirmationLength != 0);
+    assert(channels.onReplyBytesWritten(
+               channels.pendingReplySequence(),
+               channels.pendingWriteSliceSequence(), confirmationLength) ==
+           McsJoinWriteOutcome::Confirmed);
+    assert(channels.channelJoinConfirmed(1003));
+
+    const std::array<std::uint8_t, 3> opaqueBytes{0x12, 0x34, 0x56};
+    const auto clipboardPdu = responsePdu(
+        rdp_server::clipboard::kResponseOk, opaqueBytes);
+    assert(clipboardPdu.size() == 11);
+
+    // Full single-PDU MCS framing; the CLIPRDR bytes start at offset 14.
+    // Only the declared lengths are mutated below; neither parser should
+    // observe a fragment as a complete frame.
+    std::vector<std::uint8_t> frame{
+        0x03, 0x00, 0x00, 0x00, 0x02, 0xf0, 0x80,
+        0x64, 0x00, 0x06, 0x03, 0xeb, 0x70,
+        static_cast<std::uint8_t>(clipboardPdu.size())};
+    frame.insert(frame.end(), clipboardPdu.begin(), clipboardPdu.end());
+    assert(frame.size() == 25);
+    frame[3] = static_cast<std::uint8_t>(frame.size());
+
+    const auto seed = parseMcsChannelRequest(frame);
+    assert(seed && seed.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(channels.matchesJoinedInboundSendData(seed.request));
+    assert(seed.request.userData.data() == frame.data() + 14);
+    assert(seed.request.userData.size() == clipboardPdu.size());
+
+    // Every strict prefix and every incorrect one-byte TPKT length fails
+    // at the outer parser, before R8 could observe any clipboard bytes.
+    for (std::size_t length = 0; length < frame.size(); ++length)
+    {
+        assert(!parseMcsChannelRequest(
+            std::span<const std::uint8_t>{frame.data(), length}));
+    }
+    for (unsigned declared = 0; declared <= 255U; ++declared)
+    {
+        if (declared == frame.size())
+            continue;
+        auto invalid = frame;
+        invalid[3] = static_cast<std::uint8_t>(declared);
+        assert(!parseMcsChannelRequest(invalid));
+    }
+
+    // The T.125 PER user-data length must agree with the complete frame
+    // for both short and long determinant encodings.
+    for (unsigned declared = 0; declared <= 255U; ++declared)
+    {
+        if (declared == clipboardPdu.size())
+            continue;
+        auto invalid = frame;
+        invalid[13] = static_cast<std::uint8_t>(declared);
+        assert(!parseMcsChannelRequest(invalid));
+    }
+
+    const auto membershipDenied = [&](std::vector<std::uint8_t> invalid) {
+        const auto parsed = parseMcsChannelRequest(invalid);
+        assert(!parsed || !channels.matchesJoinedInboundSendData(parsed.request));
+    };
+    auto invalid = frame;
+    invalid[9] = 0x07;  // Client UserId 1008 instead of 1007.
+    membershipDenied(invalid);
+    invalid = frame;
+    invalid[11] = 0xec; // Unjoined channel 1004.
+    membershipDenied(invalid);
+    invalid = frame;
+    invalid[12] |= 0x01; // Nonzero T.125 choice padding.
+    assert(!parseMcsChannelRequest(invalid));
+
+    // A correct MCS envelope does NOT make the nested clipboard length
+    // trustworthy. Each malformed CB_FORMAT_DATA_RESPONSE poisons a fresh
+    // R8 coordinator without returning borrowed payload bytes.
+    const std::array<std::uint32_t, 1> advertised{13};
+    for (unsigned declared = 0; declared <= 255U; ++declared)
+    {
+        if (declared == opaqueBytes.size())
+            continue;
+        auto nested = frame;
+        nested[18] = static_cast<std::uint8_t>(declared); // CLIPRDR dataLen[0].
+        const auto parsed = parseMcsChannelRequest(nested);
+        assert(parsed && channels.matchesJoinedInboundSendData(parsed.request));
+
+        RemoteTransfer transfer;
+        std::vector<std::uint8_t> request;
+        assert(transfer.receiveFormatList(advertised));
+        assert(transfer.beginRequest(13, request));
+        const auto rejected = transfer.receiveResponse(parsed.request.userData);
+        assert(rejected.status == RemoteTransfer::ResponseStatus::ProtocolError);
+        assert(rejected.payload.empty());
+        assert(!transfer.synchronized());
+        assert(!transfer.beginRequest(13, request));
+        assert(request.empty());
+
+        // Only an actual disconnect reset clears the poisoned generation;
+        // a response cannot be associated with a new request implicitly.
+        transfer.resetAfterDisconnect();
+        assert(!transfer.advertises(13));
+        assert(!transfer.beginRequest(13, request));
+        assert(transfer.receiveFormatList(advertised));
+        assert(transfer.beginRequest(13, request));
+        assert(transfer.receiveResponse(clipboardPdu).status ==
+               RemoteTransfer::ResponseStatus::Received);
+    }
+
+    // All opaque one-byte content values are allowed; length checking
+    // must not accidentally reject valid clipboard data.
+    for (unsigned value = 0; value <= 255U; ++value)
+    {
+        auto valid = frame;
+        valid.back() = static_cast<std::uint8_t>(value);
+        const auto parsed = parseMcsChannelRequest(valid);
+        assert(parsed && channels.matchesJoinedInboundSendData(parsed.request));
+        RemoteTransfer transfer;
+        std::vector<std::uint8_t> request;
+        assert(transfer.receiveFormatList(advertised));
+        assert(transfer.beginRequest(13, request));
+        const auto result = transfer.receiveResponse(parsed.request.userData);
+        assert(result.status == RemoteTransfer::ResponseStatus::Received);
+        assert(result.payload.size() == opaqueBytes.size());
+        assert(result.payload.data() == valid.data() + 14 + 8);
+        assert(result.payload.back() == static_cast<std::uint8_t>(value));
+    }
+
+    channels.close();
+    assert(!channels.matchesJoinedInboundSendData(seed.request));
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -935,6 +1079,11 @@ int main(int argumentCount, char **arguments)
     if (argumentCount == 2)
     {
         const std::string_view caseName{arguments[1]};
+        if (caseName == "mcs-cliprdr-length-mutation-denials")
+        {
+            testMcsCliprdrLengthMutationDenials();
+            return 0;
+        }
         if (caseName == "mcs-joined-response-teardown")
         {
             testMcsJoinedClipboardResponseTeardown();

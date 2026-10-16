@@ -3291,6 +3291,29 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   test authenticated R3-to-R8 routing and stale session
   teardown using the real, once-available authorized router.
 
+  **R9 bounded MCS/CLIPRDR nested-length mutation gate (2026-10-15):**
+  Added dedicated default-on `clipboard.mcs-cliprdr-length-mutation-denials` to the existing
+  production-linked clipboard executable and sole CTest registry.
+  It sweeps 25 strict prefixes and each mismatched byte value of
+  the outer TPKT length, T.125/PER userData length and inner
+  CLIPRDR Format Data Response payload length (0..255),
+  rejecting unauthorized or malformed interpretation before
+  clipboard delivery. It also checks assigned UserId/static
+  channel membership and invalid PER padding, persistent R8
+  fail-closed poison until actual disconnect/reset, recovered
+  clean offers, and 256 valid opaque one-byte payload variants
+  with zero-copy borrowed-result lifetime. A completed R3 join
+  confirmation is a *necessary*, not sufficient, authorization
+  precondition; no synthetic TLS/R2/OS admission is granted.
+  **Parent main:** `3130fc9f5b57c7d57719ffaf86e9dcc252bfe6bd`. Production implementations
+  unchanged; test is deterministic, finite and headless.
+  **NOT RUN at authoring:** full local CMake/CTest because direct
+  GitHub clone still fails DNS on this worker; exact-commit
+  hosted Debug/Release CI and owner platform trio are pending.
+  **Next R9:** inspect exact-SHA hosted full CTests, triage
+  unrelated cross-road failures explicitly and verify R3
+  authenticated ingress only when its production router exists.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

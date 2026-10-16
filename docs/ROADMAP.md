@@ -2562,7 +2562,7 @@ actually run; another parser CTest alone is not a complete session.
   CLANG64/Clang23 and macOS27 CTests at this SHA, genuine
   R2 TLS-bound OS authorization, Microsoft-client activation
   or desktop. R3 Gate A/M2 remains NOT ACCEPTED.
-  **R3 first failing MCS negotiation boundary (2026-10-15; CI NOT RUN at authoring):**
+  **R3 first failing MCS negotiation boundary (2026-10-15; exact-SHA CI PASS):**
   The one deny-only `McsSessionLifecycle` now distinguishes
   invalid RFC1006/BER MCS Connect-Initial syntax,
   failed T.125 domain-parameter negotiation, and failed
@@ -2579,6 +2579,20 @@ actually run; another parser CTest alone is not a complete session.
   independent Linux/X11, Windows MSYS2 CLANG64/Clang23
   and macOS27 tests, real R2 TLS-bound identity plus OS
   authorization, external client or desktop. Gate A/M2 OPEN.
+  **R3 first-failure exact-SHA hosted CI (2026-10-15):**
+  [Corrected implementation 4ddf21920fbd10c0185f2d4f8d405c13600426a0](https://github.com/k1moradi/RDP-server/commit/4ddf21920fbd10c0185f2d4f8d405c13600426a0),
+  [Actions 38856886973, attempt 2](https://github.com/k1moradi/RDP-server/actions/runs/38856886973)
+  PASS: Linux/GCC **229/229**, macOS/Clang **212/212**,
+  Windows/MSVC **231/231** full CTests in Debug AND Release.
+  The new R3 case, sanitizer job, documentation-policy, SDK
+  consumer and packaging passed. First attempt macOS Release
+  FAILED at existing unrelated R1 accept-batch test assertion
+  `test_owned_preauth_session.cpp:2494`; the same-SHA rerun
+  passed **212/212** in both configs. This failure remains
+  recorded in R1 issue #11; it is not erased by the rerun.
+  NOT RUN: independent owner Linux/X11, Windows CLANG64/Clang23,
+  macOS27 exact-SHA command, real Kerberos/CredSSP and OS
+  authorization, Microsoft client or desktop. Gate A/M2 OPEN.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

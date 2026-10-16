@@ -3050,6 +3050,23 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 MCS Connect-Initial first failing boundary (2026-10-15)
 
+**Exact corrected implementation-SHA hosted CI:**
+[`4ddf21920fbd10c0185f2d4f8d405c13600426a0`](https://github.com/k1moradi/RDP-server/commit/4ddf21920fbd10c0185f2d4f8d405c13600426a0),
+[Actions 38856886973, attempt 2](https://github.com/k1moradi/RDP-server/actions/runs/38856886973)
+**PASS** Linux/GCC **229/229**, macOS/Clang **212/212**,
+Windows/MSVC **231/231** complete Debug and Release CTests.
+The `transport.mcs-session-first-failure-boundaries` case,
+security/protocol sanitizers, SDK consumers and docs-policy PASS.
+First macOS Release attempt FAILED at unrelated R1
+`transport.tcp-native-accept-batch-budget-handoff`
+(`tests/test_owned_preauth_session.cpp:2494`), while the
+new R3 test passed; same-SHA macOS rerun **212/212 PASS**
+in both Debug and Release. Record this intermittent R1 case
+(issue #11) rather than treating it as erased.
+NOT RUN: owner's independent Linux/X11, Windows CLANG64/Clang23
+and macOS27 exact-SHA CTests, genuine R2 OS-authorized session,
+Microsoft client or desktop. Gate A/M2 NOT ACCEPTED.
+
 **Compilation placement correction:** the first implementation SHA placed
 new `McsSessionIntake` enumerators after the enum closing brace.
 The immediate follow-up moves them inside the enum, without altering

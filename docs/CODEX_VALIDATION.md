@@ -5955,3 +5955,34 @@ frames, authorized Microsoft RDP client, cursor/input and benchmarks.
 listener start/stop ownership, then R4-approved BGRA frame transfer.
 **Next:** deterministic native callback cancellation/race fixture and
 an explicitly authorized native ScreenCaptureKit lifecycle increment.
+
+## R10 TLS parent-symlink guard exact-SHA hosted CI (2026-10-15)
+
+**Implementation SHA** [`88ba20c5d4581765475e9337b366469a0d9bf089`](https://github.com/k1moradi/RDP-server/commit/88ba20c5d4581765475e9337b366469a0d9bf089),
+[Actions 38858338819](https://github.com/k1moradi/RDP-server/actions/runs/38858338819)
+**COMPLETED SUCCESS**. Linux/GCC Debug **258/258 PASS** and Release
+**258/258 PASS**; macOS/Clang Debug **240/240 PASS** and Release
+**240/240 PASS**; Windows/MSVC Debug **254/254 PASS** and Release
+**254/254 PASS**. New cases
+`runtime.validates-tls-files-nested-real-parent`,
+`runtime.rejects-tls-files-key-parent-symlink`,
+`runtime.rejects-tls-files-certificate-parent-symlink`
+explicitly passed on Linux/macOS in both configurations; Windows
+tests remain native-only and unchanged. Windows's original
+`runtime.validates-configuration-syntax` and
+`runtime.validates-configuration-comments-crlf` also PASS in Debug
+and Release. R9 security sanitizer PASS, documentation-policy PASS,
+downstream SDK installed consumer **1/1 PASS per platform**,
+protocol-only SDK ZIP/SHA256 upload PASS. No release tag was
+published; prerelease job SKIPPED.
+
+**NOT RUN:** user's Linux/X11 native X11, Windows MSYS2 CLANG64
+Clang23 and macOS27 same-SHA owner one-liner, standalone real
+server listener, TLS key parsing, crypto match, Microsoft real RDP
+client, independent R2 authenticated OS authorization or R3
+authoritative desktop. The successful preflight is not a service
+deployment and cannot prevent replacement after the inspected
+file handles close. No branches or force updates were used.
+M1–M6 remain OPEN. **Next R10:** cryptographic PEM certificate
+and private-key parsing/match through the existing independent
+offline preflight, bounded and without activating a listener.

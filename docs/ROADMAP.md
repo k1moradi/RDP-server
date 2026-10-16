@@ -391,6 +391,24 @@ Debug/Release and owner full CTests, then actual cryptographic
 certificate/private-key parsing and matching without service
 activation.
 
+**R10 POSIX TLS ancestor symlink exact-SHA CI PASS (2026-10-15):**
+Implementation [`88ba20c5d4581765475e9337b366469a0d9bf089`](https://github.com/k1moradi/RDP-server/commit/88ba20c5d4581765475e9337b366469a0d9bf089)
+passed [GitHub Actions 38858338819](https://github.com/k1moradi/RDP-server/actions/runs/38858338819)
+with Linux/GCC **258/258**, macOS/Clang **240/240**, and
+Windows/MSVC **254/254** full CTests in EACH Debug and Release.
+Three new R10 POSIX parent-path cases (nested real directory,
+symlinked key ancestor, symlinked certificate ancestor) explicitly
+PASS on Linux and macOS, while Windows's runtime syntax/CRLF,
+DACL and native TLS metadata CTests remain passing. R9 sanitizer,
+documentation-policy and all three downstream SDK consumer jobs
+**PASS**; protocol SDK ZIP/digests and uploads PASS.
+Untagged prerelease skipped as intended.
+This is hosted exact-SHA evidence; owner's Linux/X11,
+Windows MSYS2 CLANG64 Clang23 and macOS27 single-root command
+still **NOT RUN** here, and M1–M6 remain OPEN. Offline acceptance
+cannot authorize live RDP sessions or guarantee a later separately
+opened TLS file's identity.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

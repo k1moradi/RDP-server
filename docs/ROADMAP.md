@@ -6542,32 +6542,36 @@ tests and sanitizer coverage passed; the corrected descendant must provide
 cross-platform confirmation.
 
 
-## R1 R3 Connect Response slice compatibility (2026-10-16)
+## R3 protected Erect Domain progression (2026-10-16)
 
-**Starting main:** `372ad95ebe4d93c8c4c476eae10e6064209577aa`.
-R2/R3 now consume R1's immutable X.224 negotiation provenance for the
-protected Connect Response contract. No new R1 transport surface is required:
-R3's current `kMaximumMcsResponseBytes` is 2048 bytes, strictly below R1's
-18 KiB `kMaximumTlsApplicationIoBytes` one-step write ceiling.
+**Authoring base:** `86b5c32aa0318ab96a3e5e30ddda57a84f54b3b3`; reconciled onto
+`e51d69ac5b66e622bb1992a858ee463b25309d0f` without overwriting the concurrent R3 fixture-lifetime correction.
+The existing R1 connection owner, R2 generation-bound native admission lease
+and R3 Connect Response receipt path remain unchanged. This increment adds only
+the next Channel Connection state: after a completely delivered Connect
+Response, the sole R3 owner can consume one Erect Domain Request only through
+`LinuxConsoleAdmissionBroker::authorizeR3ErectDomain`.
 
-A new independently registered
-`transport.tcp-owned-r3-connect-response-slice` regression proves that
-contract through the existing production types. It queues a maximum-sized
-`McsConnectResponse` in R3's receipt-owning
-`McsConnectResponseWriteGate`, establishes a real OpenSSL TLS session over
-an ephemeral loopback socket owned by `OwnedPreauthTcpConnection`, and feeds
-each borrowed R3 write view directly to
-`OwnedPreauthTcpConnection::writeTlsApplicationData`. A forced 1 KiB TLS
-record fragment proves caller-visible short progress; positive progress rotates
-the R3 slice receipt, while zero-byte OpenSSL WANT preserves the exact receipt
-and borrowed span until explicit retry. The peer receives exact byte parity.
+The broker requires the nonforgeable `LinuxConsoleAdmissionLease`, GSS
+acceptor, exact `OwnedPreauthTcpConnection`, sole `McsSessionLifecycle`,
+and one complete decrypted TPKT. It derives TLS from the R1 owner and repeats
+the existing generation fence plus fresh view/native authorization before
+calling R3's private Erect transition. No Boolean, raw TLS pointer, identity
+string or generation scalar can invoke the positive API.
 
-This is transport-compatibility coverage only. The synthetic response is not
-authorized for publication and creates no R2 lease, OS admission, R3 phase
-advance, listener, session controller or authentication success. Production
-R1/R2/R3 code is unchanged. Local repository CMake/CTest is **NOT RUN** in
-this agent environment; exact-SHA hosted Debug/Release CI is required after
-publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and
-real Microsoft-client validation remain **NOT RUN**; M2 remains
-**NOT ACCEPTED**. **Next R1:** no new surface unless protected
-Erect/Attach/Join integration demonstrates a concrete bounded TCP/TLS gap.
+R3 accepts Erect only from `AwaitErectDomain`. The existing bounded T.125
+parser must establish a complete TPKT/X.224 Data TPDU and both PER INTEGER
+fields. Success advances exactly to `AwaitAttachUser`; no UserId/channel is
+allocated and no reply bytes exist for this step. Nonzero subHeight/subInterval
+remain syntactically accepted because Microsoft recommends zero at the client
+while server processing requires field presence rather than zero values.
+Malformed, oversized, wrong-kind/order, disconnect, stale-generation or
+reauthorization failure is terminal and revokes R3 then R2/GSS.
+
+Dedicated CTest: `security.gssapi-r3-erect-domain-contract`. It proves the
+broker signature requires the concrete lease plus R1 owner and that public R3
+Domain intake cannot manufacture positive progression. Genuine positive
+execution still requires real R2 native admission; no fake lease/test backdoor
+is added. **Next R3:** Attach User allocation plus receipt-bound Attach User
+Confirm, with fresh R2 authorization before request consumption and every
+outbound write slice. M2 remains **NOT ACCEPTED**.

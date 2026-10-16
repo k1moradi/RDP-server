@@ -2676,3 +2676,19 @@ history; geometry or generation changes must reset/recreate the encoder.
 x264 SPS crop fields describe the visible dimensions inside the 16-aligned
 coded frame; RDPGFX regions independently constrain the presented surface.
 R3 remains the sole future Graphics DVC authority.
+
+
+## R3 protected Erect Domain boundary (2026-10-16)
+
+After full Connect Response delivery, R3 owns `AwaitErectDomain`. Erect is
+input-only: the protocol sequence sends Attach User next, so a successful Erect
+moves directly to `AwaitAttachUser` and creates no outbound write state.
+
+Only `LinuxConsoleAdmissionBroker::authorizeR3ErectDomain` can invoke that
+positive transition. R2 derives the active TLS pointer from the same
+`OwnedPreauthTcpConnection`, checks the bound admission/session generations
+and repeats native view authorization before R3 parses the complete decrypted
+TPKT. Borrowed packet bytes do not survive the synchronous call. Wrong order,
+malformed transport/PER, oversized input, unexpected PDU, disconnect, stale
+lease or native reauthorization failure closes R3 and revokes R2/GSS. Erect
+allocates no UserId/channel and grants no licensing/share/application authority.

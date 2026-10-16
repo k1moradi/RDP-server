@@ -453,6 +453,7 @@ enum class McsSessionPhase : std::uint8_t
     AwaitVerifiedR2Admission,
     AwaitConnectResponse,
     AwaitErectDomain,
+    AwaitAttachUser,
     Closed,
 };
 
@@ -460,6 +461,7 @@ enum class McsSessionIntake : std::uint8_t
 {
     ValidButNotAdmitted,
     AdmittedConnectInitial,
+    ErectDomainAccepted,
     AdmissionDenied,
     InvalidOrdering,
     PeerDisconnected,
@@ -561,6 +563,12 @@ private:
     [[nodiscard]] McsConnectResponseWriteOutcome completeConnectResponseWrite(
         std::uint64_t replySequence, std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
+
+    // Positive Erect Domain progression is private: only the concrete R2
+    // broker may invoke it after fresh generation/TLS/native authorization.
+    // No reply bytes exist for this protocol step.
+    [[nodiscard]] McsSessionIntake onVerifiedR2ErectDomain(
+        std::span<const std::uint8_t> completeTpkt) noexcept;
 
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};

@@ -196,6 +196,8 @@ using R3ConnectResponseWrite =
     decltype(&LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite);
 using R3ConnectResponseCompletion =
     decltype(&LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite);
+using R3ErectDomain =
+    decltype(&LinuxConsoleAdmissionBroker::authorizeR3ErectDomain);
 
 static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
@@ -269,6 +271,23 @@ static_assert(std::is_invocable_r_v<
               GssapiSpnegoAcceptor &,
               McsSessionLifecycle &,
               std::uint64_t, std::uint64_t, std::size_t>);
+static_assert(std::is_invocable_r_v<
+              McsSessionIntake,
+              R3ErectDomain,
+              LinuxConsoleAdmissionBroker &,
+              const LinuxConsoleAdmissionLease &,
+              GssapiSpnegoAcceptor &,
+              const rdp_server::server::transport::OwnedPreauthTcpConnection &,
+              McsSessionLifecycle &,
+              std::span<const std::uint8_t>>);
+static_assert(!std::is_invocable_v<
+              R3ErectDomain,
+              LinuxConsoleAdmissionBroker &,
+              bool,
+              GssapiSpnegoAcceptor &,
+              const SSL *,
+              McsSessionLifecycle &,
+              std::span<const std::uint8_t>>);
 
 void testNativeAdmissionCapabilityDenials()
 {
@@ -384,6 +403,24 @@ void testR3ConnectResponseWriteContract()
     assert(broker.completeR3ConnectResponseWrite(
         acceptor,session,1U,1U,1U)==Outcome::Rejected);
     assert(session.phase()==McsSessionPhase::Closed);
+}
+
+void testR3ErectDomainContract()
+{
+    constexpr std::array<std::uint8_t, 12> erect{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x04, 0x01, 0x00, 0x01, 0x00};
+
+    McsSessionLifecycle unadmitted;
+    assert(unadmitted.onDomainPdu(erect) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(unadmitted.phase() == McsSessionPhase::Closed);
+    assert(unadmitted.licensingPhase() == RdpLicensingPhase::Closed);
+
+    McsSessionLifecycle fresh;
+    assert(fresh.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    fresh.revokeUnlessAdmissionBindingMatches(1U, 1U);
+    assert(fresh.phase() == McsSessionPhase::Closed);
 }
 
 void testR3NativeChangeRevocation()
@@ -572,6 +609,11 @@ int main(int argc, char **argv)
             testR3ConnectResponseWriteContract();
             return 0;
         }
+        if (name == "gssapi-r3-erect-domain-contract")
+        {
+            testR3ErectDomainContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -599,6 +641,7 @@ int main(int argc, char **argv)
     testR3McsAdmissionContract();
     testR3ProtectedTransitionGenerationFence();
     testR3ConnectResponseWriteContract();
+    testR3ErectDomainContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

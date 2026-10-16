@@ -566,6 +566,33 @@ LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite(
     return outcome;
 }
 
+rdp_server::server::transport::McsSessionIntake
+LinuxConsoleAdmissionBroker::authorizeR3ErectDomain(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using rdp_server::server::transport::McsSessionIntake;
+    const SSL *activeServerTls = connection.establishedTls();
+    if (activeServerTls == nullptr ||
+        !authorizeR3ProtectedTransition(
+            lease, acceptor, activeServerTls, session,
+            kConsoleViewPermission))
+    {
+        if (session.phase() !=
+            rdp_server::server::transport::McsSessionPhase::Closed)
+            revokeR3Session(acceptor, session);
+        return McsSessionIntake::AdmissionDenied;
+    }
+
+    const auto result = session.onVerifiedR2ErectDomain(completeTpkt);
+    if (result != McsSessionIntake::ErectDomainAccepted)
+        revokeR3Session(acceptor, session);
+    return result;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

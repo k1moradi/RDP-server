@@ -171,6 +171,17 @@ public:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // Protected input-only Erect transition. Derive TLS from the same R1
+    // owner, freshly authorize, then let the sole R3 owner consume one PDU.
+    [[nodiscard]] rdp_server::server::transport::McsSessionIntake
+    authorizeR3ErectDomain(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

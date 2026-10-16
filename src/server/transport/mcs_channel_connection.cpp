@@ -434,6 +434,58 @@ McsConnectResponseWriteOutcome McsSessionLifecycle::completeConnectResponseWrite
     return out;
 }
 
+McsSessionIntake McsSessionLifecycle::onVerifiedR2ErectDomain(
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ == McsSessionPhase::Closed)
+        return McsSessionIntake::Closed;
+    if (phase_ != McsSessionPhase::AwaitErectDomain)
+    {
+        close();
+        return McsSessionIntake::InvalidOrdering;
+    }
+    if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return McsSessionIntake::OversizedEnvelope;
+    }
+
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed)
+    {
+        close();
+        switch (parsed.error)
+        {
+        case McsChannelParseError::InvalidTransport:
+            return McsSessionIntake::InvalidDomainTransport;
+        case McsChannelParseError::InvalidDomainPdu:
+            return McsSessionIntake::InvalidDomainPdu;
+        case McsChannelParseError::InvalidPerValue:
+            return McsSessionIntake::InvalidDomainPerValue;
+        case McsChannelParseError::None:
+            break;
+        }
+        return McsSessionIntake::InvalidEnvelope;
+    }
+    if (parsed.request.kind ==
+        McsChannelRequestKind::DisconnectProviderUltimatum)
+    {
+        close();
+        return McsSessionIntake::PeerDisconnected;
+    }
+    if (parsed.request.kind != McsChannelRequestKind::ErectDomain)
+    {
+        close();
+        return McsSessionIntake::InvalidOrdering;
+    }
+
+    // Both PER INTEGER fields are already known present and bounded. Microsoft
+    // recommends zero client values, but server processing requires presence,
+    // not a zero-value rejection.
+    phase_ = McsSessionPhase::AwaitAttachUser;
+    return McsSessionIntake::ErectDomainAccepted;
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {

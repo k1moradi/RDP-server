@@ -8063,3 +8063,26 @@ publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and
 real Microsoft-client validation remain **NOT RUN**; M2 remains
 **NOT ACCEPTED**. **Next R1:** no new surface unless protected
 Erect/Attach/Join integration demonstrates a concrete bounded TCP/TLS gap.
+
+
+## R3 protected Erect Domain authoring validation (2026-10-16)
+
+**Implementation base:** `86b5c32aa0318ab96a3e5e30ddda57a84f54b3b3`; reconciled through
+`5b20869e68e7ffccd93d1a6e145e7ee5e7fb8fc5` without overwriting concurrent fixture/R1 validation work.
+Production changes stay in the existing R3 `McsSessionLifecycle` and R2
+`LinuxConsoleAdmissionBroker`. The new private transition accepts only
+`McsChannelRequestKind::ErectDomain` in `AwaitErectDomain` and advances
+only to `AwaitAttachUser`. Every error path is terminal; the broker revokes
+R3 before R2/GSS on denial. Public `onDomainPdu` remains denial-only.
+
+Dedicated registered CTest:
+`security.gssapi-r3-erect-domain-contract`. Compile-time checks require a
+real `LinuxConsoleAdmissionLease` and `OwnedPreauthTcpConnection`, reject a
+Boolean/raw-SSL substitute, and runtime checks prove a valid Erect on the
+public unadmitted path closes rather than progressing. Genuine positive
+Kerberos/logind admission is intentionally not fabricated.
+
+Local synchronized CMake/CTest is **NOT RUN** in this connector-only authoring
+environment. Exact-SHA hosted CI is required after publication. Owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, genuine positive native
+admission and Microsoft-client Channel Connection remain **NOT RUN**.

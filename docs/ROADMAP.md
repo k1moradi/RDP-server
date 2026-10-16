@@ -4272,9 +4272,8 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   handling for `UTF8_STRING` and registered `image/png`, while exposing only
   an exact remote-format fetch intent for R3's future authorized writer.
   `PasteKind::Png` prevents a ready DIB/DIBV5 fallback from satisfying PNG.
-  **Remaining:** complete X11 INCR for large data, genuine R3-authorized
-  request transmission, Windows/macOS adapters and real-client paste
-  acceptance.
+  **Remaining:** genuine R3-authorized request transmission, Windows/macOS
+  adapters and real-client paste acceptance.
 - [ ] **OS clipboard ownership without competition**: one native adapter per
   OS; on X11 use the `CLIPBOARD` selection (not `PRIMARY`), XFixes owner-change
   events, timestamps, TARGETS and selection-clear rules. Claim ownership on
@@ -4293,12 +4292,22 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   fails deterministically. SelectionClear/local takeover yields immediately,
   exact-sequence owner-loss cancellation prevents stale callbacks, own owner
   observations are ignored, and the yielded generation is never reclaimed by
-  timer. Direct properties are capped at 64 KiB; larger data fails cleanly.
-  Dedicated headless CTests:
+  timer. Direct properties remain capped at 64 KiB. Larger verified UTF-8 text
+  and registered PNG use ICCCM INCR without another whole-payload copy: one
+  active transfer advertises its total byte count, then advances in bounded
+  64-KiB property chunks only after the exact requestor/property emits
+  PropertyDelete. The transfer finishes with the required zero-length chunk.
+  A five-second monotonic acknowledgement deadline, clipboard generation or
+  ownership-epoch change, local takeover, requester destruction and stale
+  property events cancel safely; requestor event masks are restored when that
+  window still exists. Dedicated headless CTests:
   `clipboard.x11-selection-ownership-generation`,
   `clipboard.x11-targets-publication`,
-  `clipboard.x11-selection-request-nonblocking`, and
-  `clipboard.x11-selection-owner-loss`.
+  `clipboard.x11-selection-request-nonblocking`,
+  `clipboard.x11-selection-owner-loss`,
+  `clipboard.x11-incr-large-text-progression`,
+  `clipboard.x11-incr-png-progression`, and
+  `clipboard.x11-incr-cancellation`.
   Isolated GCC 14.2 and Clang 17 strict C++23 native-source compilation PASS;
   deterministic fake-XCB behavior 4/4 PASS and Clang ASan+UBSan+LSan 4/4
   PASS. Initial implementation `047e4ffc9ce93faeee1a05ecc9eb6e75079f84cc`
@@ -4318,8 +4327,11 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   `transport.gcc-conference-create` assertion on Linux/macOS, not from R8.
   Owner Linux/X11, Windows CLANG64/Clang23, macOS27, live clipboard,
   Microsoft client/Firefox and performance are NOT RUN. Genuine
-  R3 CLIPRDR-role activation remains external. **INCR is NOT IMPLEMENTED and
-  is the immediate next R8 increment.**
+  R3 CLIPRDR-role activation remains external. **Bounded X11 INCR is now
+  implemented in the R8 adapter; authoring parent main `95c79fbb610c007431b1227bc5a5cc05816dea45`, exact-SHA
+  hosted CI and owner/live desktop tests are NOT RUN at authoring. Next R8:
+  genuine R3-authorized CLIPRDR request transmission, then native Windows/macOS
+  adapters and bounded FileContents streaming.**
 - [ ] **Native clipboard file streaming, never whole-file prefetch**:
   negotiate `CB_STREAM_FILECLIP_ENABLED`, `FileGroupDescriptorW` and
   FileContents size/range requests; use `streamId` per file-content request,

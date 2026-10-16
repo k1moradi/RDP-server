@@ -131,9 +131,12 @@ When pkg-config finds `xcb`, Linux builds the noninstalled
 `rdp-server-linux-x11-clipboard` target from the real
 `src/x11/x11_clipboard_adapter.cpp`. Debian/Ubuntu provide the required
 header/library through `libxcb1-dev`, already installed by hosted Linux CI.
-The four `clipboard.x11-*` CTests use a deterministic native-call seam and
+The seven `clipboard.x11-*` CTests use a deterministic native-call seam and
 need no `DISPLAY`, Xvfb, clipboard manager, RDP client or actual desktop
-data. Missing XCB development files mean this native target/test set is
+data. The INCR cases exercise large UTF-8, validated registered PNG,
+PropertyDelete chunk progression, final zero-length completion, timeout,
+generation/owner cancellation and requester destruction without a live X
+server. Missing XCB development files mean this native target/test set is
 **NOT RUN**, not PASS. The portable SDK and Windows/macOS builds do not gain
 an XCB dependency. R5 still owns the sole XCB connection; the adapter borrows
 it only while `X11DesktopResources` is valid. The owner's one-root command

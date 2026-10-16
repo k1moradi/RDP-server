@@ -1,3 +1,41 @@
+## R8 bounded X11 INCR transfer (2026-10-16; exact-SHA CI NOT RUN at authoring)
+
+**Authoring parent main:** `95c79fbb610c007431b1227bc5a5cc05816dea45`. This increment completes the next
+approved R8 X11 step without changing clipboard-generation ownership.
+`RemoteTransfer` remains the sole generation, verified-content and
+pending-paste owner; `X11ClipboardAdapter` continues to borrow R5's one XCB
+connection/event fanout and adds no connection, worker thread or payload cache.
+
+Large verified `UTF8_STRING` and registered `image/png` values now use a
+complete ICCCM INCR state machine instead of failing above the 64-KiB direct
+property limit. The adapter writes one 32-bit total-size INCR marker, sends the
+single SelectionNotify, then advances only on matching PropertyDelete events in
+64-KiB chunks and emits the required final zero-length target-typed property.
+The incremental state borrows R8-owned bytes and is fenced by remote generation,
+native ownership epoch, exact requestor/property and a five-second monotonic
+acknowledgement deadline. Clipboard replacement, local owner loss, timeout and
+requester destruction cancel deterministically; stale PropertyNotify events are
+ignored. The requestor's previous X event mask is restored when the requestor
+still exists.
+
+**Changed:** `src/x11/x11_clipboard_adapter.{h,cpp}`,
+`tests/test_x11_clipboard_adapter.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/compile.md`, and this
+ledger. **New dedicated CTests:**
+`clipboard.x11-incr-large-text-progression`,
+`clipboard.x11-incr-png-progression`, and
+`clipboard.x11-incr-cancellation`.
+
+**Validation at authoring:** full repository/local checkout build is NOT RUN in
+the tool environment because direct GitHub checkout cannot resolve the public
+host. The normal Linux target has only the existing `xcb` dependency.
+Exact-SHA hosted CI, canonical owner `~/rdp-server/build` CMake/CTest, live
+Linux clipboard/clipboard-manager, Microsoft-client/Firefox, Windows
+CLANG64/Clang23 and macOS27 remain NOT RUN at authoring. Runtime activation
+still lacks genuine R3 CLIPRDR-role authority. **Next R8:** bind the existing
+native fetch intent to genuine R3-authorized CLIPRDR request transmission, then
+native Windows/macOS adapters and bounded FileContents streaming.
+
 ## R10 live TLS-context owner authoring validation (2026-10-16)
 
 **Starting main:** `9331ec040819b7156a24ea24ab9cc5973a8d891f`.

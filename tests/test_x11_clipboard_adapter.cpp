@@ -26,6 +26,7 @@ constexpr xcb_atom_t kClipboardAtom = 101;
 constexpr xcb_atom_t kTargetsAtom = 102;
 constexpr xcb_atom_t kUtf8Atom = 103;
 constexpr xcb_atom_t kPngAtom = 104;
+constexpr xcb_atom_t kIncrAtom = 105;
 constexpr xcb_window_t kOwnerWindow = 501;
 constexpr xcb_window_t kRootWindow = 1;
 constexpr xcb_window_t kRequestorWindow = 701;
@@ -61,6 +62,11 @@ struct FakeNative
     std::size_t createWindowCalls{};
     std::size_t destroyWindowCalls{};
     std::size_t setOwnerCalls{};
+    std::size_t selectTransferEventsCalls{};
+    std::size_t restoreEventMaskCalls{};
+    std::size_t deletePropertyCalls{};
+    std::uint32_t currentEventMask{
+        static_cast<std::uint32_t>(XCB_EVENT_MASK_ENTER_WINDOW)};
     bool failPropertyWrite{};
     bool failNotification{};
 
@@ -77,6 +83,7 @@ struct FakeNative
         if (name == "TARGETS") return kTargetsAtom;
         if (name == "UTF8_STRING") return kUtf8Atom;
         if (name == "image/png") return kPngAtom;
+        if (name == "INCR") return kIncrAtom;
         return XCB_ATOM_NONE;
     }
 
@@ -136,6 +143,40 @@ struct FakeNative
         return true;
     }
 
+    static bool selectTransferEvents(
+        void *context, xcb_window_t window,
+        std::uint32_t &previousEventMask) noexcept
+    {
+        auto &state = self(context);
+        if (window != kRequestorWindow) return false;
+        ++state.selectTransferEventsCalls;
+        previousEventMask = state.currentEventMask;
+        state.currentEventMask |=
+            static_cast<std::uint32_t>(XCB_EVENT_MASK_PROPERTY_CHANGE) |
+            static_cast<std::uint32_t>(XCB_EVENT_MASK_STRUCTURE_NOTIFY);
+        return true;
+    }
+
+    static bool restoreEventMask(
+        void *context, xcb_window_t window, std::uint32_t eventMask) noexcept
+    {
+        auto &state = self(context);
+        if (window != kRequestorWindow) return false;
+        ++state.restoreEventMaskCalls;
+        state.currentEventMask = eventMask;
+        return true;
+    }
+
+    static bool deleteProperty(
+        void *context, xcb_window_t window, xcb_atom_t property) noexcept
+    {
+        auto &state = self(context);
+        if (window != kRequestorWindow || property == XCB_ATOM_NONE)
+            return false;
+        ++state.deletePropertyCalls;
+        return true;
+    }
+
     static bool sendSelectionNotify(
         void *context, const xcb_selection_notify_event_t &notify) noexcept
     {
@@ -157,6 +198,7 @@ struct FakeNative
         return X11ClipboardNativeOperations{
             this, internAtom, createOwnerWindow, destroyWindow,
             setSelectionOwner, selectionOwner, changeProperty,
+            selectTransferEvents, restoreEventMask, deleteProperty,
             sendSelectionNotify};
     }
 };
@@ -224,14 +266,45 @@ void storeText(RemoteTransfer &transfer, std::string_view text)
     assert(transfer.storeVerifiedUnicodeText(response));
 }
 
-void storePng(RemoteTransfer &transfer)
+void storePngPayload(RemoteTransfer &transfer,
+                     std::span<const std::uint8_t> png)
 {
     std::vector<std::uint8_t> request;
     assert(transfer.beginRequest(kPngFormatId, request));
-    const auto responseWire = responsePdu(kValidPng);
+    const auto responseWire = responsePdu(png);
     const auto response = transfer.receiveResponse(responseWire);
     assert(response.status == RemoteTransfer::ResponseStatus::Received);
     assert(transfer.storeVerifiedImage(response));
+}
+
+void storePng(RemoteTransfer &transfer)
+{
+    storePngPayload(transfer, kValidPng);
+}
+
+std::vector<std::uint8_t> largeValidPng()
+{
+    constexpr std::size_t kPngPrefixBytes = 33;
+    constexpr std::size_t kIdatChunkBytes = 25;
+    constexpr std::size_t kIendChunkBytes = 12;
+    constexpr std::size_t kRepeatedIdatChunks = 3000;
+
+    std::vector<std::uint8_t> result;
+    result.reserve(kPngPrefixBytes +
+                   kRepeatedIdatChunks * kIdatChunkBytes +
+                   kIendChunkBytes);
+    result.insert(result.end(), kValidPng.begin(),
+                  kValidPng.begin() + kPngPrefixBytes);
+    for (std::size_t index = 0; index < kRepeatedIdatChunks; ++index)
+    {
+        result.insert(result.end(),
+                      kValidPng.begin() + kPngPrefixBytes,
+                      kValidPng.begin() + kPngPrefixBytes +
+                          kIdatChunkBytes);
+    }
+    result.insert(result.end(),
+                  kValidPng.end() - kIendChunkBytes, kValidPng.end());
+    return result;
 }
 
 void storeDib(RemoteTransfer &transfer)
@@ -290,6 +363,33 @@ void dispatchRequest(X11ClipboardAdapter &adapter,
     adapter.handleAt(event, now);
 }
 
+void dispatchPropertyDelete(X11ClipboardAdapter &adapter,
+                            xcb_atom_t property,
+                            Clock::time_point now,
+                            xcb_window_t window = kRequestorWindow)
+{
+    xcb_property_notify_event_t notify{};
+    notify.response_type = XCB_PROPERTY_NOTIFY;
+    notify.window = window;
+    notify.atom = property;
+    notify.time = 1;
+    notify.state = XCB_PROPERTY_DELETE;
+    const auto event = genericEvent(notify);
+    adapter.handleAt(event, now);
+}
+
+void dispatchDestroy(X11ClipboardAdapter &adapter,
+                     xcb_window_t window,
+                     Clock::time_point now)
+{
+    xcb_destroy_notify_event_t destroy{};
+    destroy.response_type = XCB_DESTROY_NOTIFY;
+    destroy.event = window;
+    destroy.window = window;
+    const auto event = genericEvent(destroy);
+    adapter.handleAt(event, now);
+}
+
 std::vector<xcb_atom_t> propertyAtoms(const PropertyWrite &write)
 {
     assert(write.format == 32);
@@ -297,6 +397,15 @@ std::vector<xcb_atom_t> propertyAtoms(const PropertyWrite &write)
     std::vector<xcb_atom_t> atoms(write.bytes.size() / sizeof(xcb_atom_t));
     std::memcpy(atoms.data(), write.bytes.data(), write.bytes.size());
     return atoms;
+}
+
+std::uint32_t propertyUint32(const PropertyWrite &write)
+{
+    assert(write.format == 32);
+    assert(write.bytes.size() == sizeof(std::uint32_t));
+    std::uint32_t value = 0;
+    std::memcpy(&value, write.bytes.data(), sizeof(value));
+    return value;
 }
 
 std::string propertyText(const PropertyWrite &write)
@@ -405,14 +514,161 @@ void targetsPublication()
     assert((dibOnlyTargets ==
             std::vector<xcb_atom_t>{kTargetsAtom, kUtf8Atom}));
 
-    // INCR is deliberately deferred: oversized content fails cleanly.
+}
+
+void incrLargeTextProgression()
+{
+    RemoteTransfer transfer;
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    FakeNative native;
+    X11ClipboardAdapter adapter(transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{6}};
+    assert(adapter.publishCurrentRemoteOffer(start));
+
     const std::string largeText(
-        X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'x');
+        X11ClipboardAdapter::kIncrChunkBytes * 2U + 17U, 'x');
     storeText(transfer, largeText);
-    const std::size_t writesBeforeLarge = native.propertyWrites.size();
-    dispatchRequest(adapter, requestFor(kUtf8Atom), start);
-    assert(native.propertyWrites.size() == writesBeforeLarge);
-    assert(native.notifications.back().property == XCB_ATOM_NONE);
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 841, 41), start);
+
+    assert(adapter.incrAtom() == kIncrAtom);
+    assert(adapter.incrTransferActive());
+    assert(adapter.incrBytesSent() == 0);
+    assert(native.selectTransferEventsCalls == 1);
+    assert(native.propertyWrites.size() == 1);
+    assert(native.propertyWrites.back().type == kIncrAtom);
+    assert(propertyUint32(native.propertyWrites.back()) == largeText.size());
+    assert(native.notifications.size() == 1);
+    assert(native.notifications.back().property == 841);
+
+    dispatchPropertyDelete(adapter, 999, start);
+    assert(native.propertyWrites.size() == 1);
+
+    dispatchPropertyDelete(adapter, 841, start + std::chrono::milliseconds{1});
+    assert(native.propertyWrites.back().type == kUtf8Atom);
+    assert(native.propertyWrites.back().bytes.size() ==
+           X11ClipboardAdapter::kIncrChunkBytes);
+    assert(adapter.incrBytesSent() == X11ClipboardAdapter::kIncrChunkBytes);
+
+    dispatchPropertyDelete(adapter, 841, start + std::chrono::milliseconds{2});
+    assert(native.propertyWrites.back().bytes.size() ==
+           X11ClipboardAdapter::kIncrChunkBytes);
+    assert(adapter.incrBytesSent() ==
+           X11ClipboardAdapter::kIncrChunkBytes * 2U);
+
+    dispatchPropertyDelete(adapter, 841, start + std::chrono::milliseconds{3});
+    assert(native.propertyWrites.back().bytes.size() == 17U);
+    assert(adapter.incrBytesSent() == largeText.size());
+
+    dispatchPropertyDelete(adapter, 841, start + std::chrono::milliseconds{4});
+    assert(!adapter.incrTransferActive());
+    assert(native.propertyWrites.back().bytes.empty());
+    assert(native.propertyWrites.back().type == kUtf8Atom);
+    assert(native.restoreEventMaskCalls == 1);
+    assert(native.currentEventMask ==
+           static_cast<std::uint32_t>(XCB_EVENT_MASK_ENTER_WINDOW));
+    assert(native.notifications.size() == 1);
+}
+
+void incrPngProgression()
+{
+    RemoteTransfer transfer;
+    offerTextAndPng(transfer);
+    FakeNative native;
+    X11ClipboardAdapter adapter(transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{7}};
+    assert(adapter.publishCurrentRemoteOffer(start));
+
+    const auto png = largeValidPng();
+    assert(png.size() > X11ClipboardAdapter::kMaximumDirectPropertyBytes);
+    storePngPayload(transfer, png);
+    dispatchRequest(adapter, requestFor(kPngAtom, 842, 42), start);
+    assert(adapter.incrTransferActive());
+    assert(native.propertyWrites.size() == 1);
+    assert(native.propertyWrites.back().type == kIncrAtom);
+    assert(propertyUint32(native.propertyWrites.back()) == png.size());
+
+    std::size_t dataBytes = 0;
+    std::size_t iterations = 0;
+    while (adapter.incrTransferActive())
+    {
+        const std::size_t writesBefore = native.propertyWrites.size();
+        dispatchPropertyDelete(
+            adapter, 842,
+            start + std::chrono::milliseconds{
+                        static_cast<std::chrono::milliseconds::rep>(
+                            ++iterations)});
+        assert(native.propertyWrites.size() == writesBefore + 1U);
+        const auto &write = native.propertyWrites.back();
+        if (!write.bytes.empty())
+        {
+            assert(write.type == kPngAtom);
+            assert(write.bytes.size() <= X11ClipboardAdapter::kIncrChunkBytes);
+            dataBytes += write.bytes.size();
+        }
+        assert(iterations < 16U);
+    }
+    assert(dataBytes == png.size());
+    assert(native.propertyWrites.back().bytes.empty());
+    assert(native.propertyWrites.back().type == kPngAtom);
+    assert(native.notifications.size() == 1);
+    assert(native.restoreEventMaskCalls == 1);
+}
+
+void incrCancellation()
+{
+    RemoteTransfer transfer;
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    FakeNative native;
+    X11ClipboardAdapter adapter(transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{8}};
+    assert(adapter.publishCurrentRemoteOffer(start));
+    const std::string largeText(
+        X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'y');
+    storeText(transfer, largeText);
+
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 843, 43), start);
+    assert(adapter.incrTransferActive());
+    assert(adapter.servicePendingPaste(
+        start + X11ClipboardAdapter::kIncrTimeout));
+    assert(!adapter.incrTransferActive());
+    assert(native.restoreEventMaskCalls == 1);
+    assert(native.notifications.size() == 1);
+
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 844, 44), start);
+    assert(adapter.incrTransferActive());
+    const std::size_t writesBeforeReplacement = native.propertyWrites.size();
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(adapter.publishCurrentRemoteOffer(
+        start + std::chrono::milliseconds{1}));
+    assert(!adapter.incrTransferActive());
+    dispatchPropertyDelete(adapter, 844, start + std::chrono::milliseconds{2});
+    assert(native.propertyWrites.size() == writesBeforeReplacement);
+
+    storeText(transfer, largeText);
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 845, 45), start);
+    assert(adapter.incrTransferActive());
+    native.currentSelectionOwner = 999;
+    adapter.observeClipboardOwner(999);
+    assert(!adapter.incrTransferActive());
+    assert(!adapter.ownsClipboard());
+
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(adapter.publishCurrentRemoteOffer(start));
+    storeText(transfer, largeText);
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 846, 46), start);
+    assert(adapter.incrTransferActive());
+    const std::size_t restoresBeforeDestroy = native.restoreEventMaskCalls;
+    dispatchDestroy(adapter, kRequestorWindow, start);
+    assert(!adapter.incrTransferActive());
+    assert(native.restoreEventMaskCalls == restoresBeforeDestroy);
 }
 
 void selectionRequestNonblocking()
@@ -675,6 +931,21 @@ int main(int argc, char **argv)
     if (behavior == "x11-selection-owner-loss")
     {
         selectionOwnerLoss();
+        return 0;
+    }
+    if (behavior == "x11-incr-large-text-progression")
+    {
+        incrLargeTextProgression();
+        return 0;
+    }
+    if (behavior == "x11-incr-png-progression")
+    {
+        incrPngProgression();
+        return 0;
+    }
+    if (behavior == "x11-incr-cancellation")
+    {
+        incrCancellation();
         return 0;
     }
     if (behavior == "x11-disconnect-late-paste-fence")

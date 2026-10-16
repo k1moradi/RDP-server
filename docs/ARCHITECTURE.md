@@ -289,12 +289,17 @@ The clipboard adapter never calls `xcb_connect`, never closes the borrowed
 connection and must be disconnected before the R5 owner.
 
 Only `CLIPBOARD` is claimed; `PRIMARY` is never interned or modified.
-Fixed native atoms are bounded to `CLIPBOARD`, `TARGETS`, `UTF8_STRING`
-and `image/png`. A current remote generation advertises UTF-8 text when
+Fixed native atoms are bounded to `CLIPBOARD`, `TARGETS`, `UTF8_STRING`,
+`image/png` and `INCR`. A current remote generation advertises UTF-8 text when
 CF_UNICODETEXT is offered and `image/png` only when that generation names a
 registered PNG format. Verified PNG bytes remain compressed; DIB/DIBV5 are
-never mislabeled as PNG. A 64-KiB direct-property ceiling rejects larger data
-cleanly until the complete INCR state machine is implemented.
+never mislabeled as PNG. A 64-KiB direct-property ceiling keeps ordinary
+ChangeProperty requests bounded. Larger verified text/PNG uses ICCCM INCR:
+the request property first carries one 32-bit total byte count with type INCR,
+then the adapter waits for PropertyDelete acknowledgement before each bounded
+64-KiB target-typed chunk and ends with one zero-length chunk. The adapter
+borrows the existing RemoteTransfer storage throughout; it does not duplicate
+the whole transfer.
 
 SelectionRequest handling is nonblocking with respect to CLIPRDR. Ready R8
 views are borrowed only for the synchronous property write. Otherwise one
@@ -302,17 +307,23 @@ native request binds to one monotonic `RemoteTransfer` paste receipt and a
 two-second monotonic deadline. The adapter exposes only the exact remote
 format-fetch intent; R3 must still authorize and serialize any Format Data
 Request through its one writer. `PasteKind::Png` prevents an already-ready
-DIB fallback from satisfying an `image/png` request. Property success precedes
-one SelectionNotify; timeout, replacement, disconnect, owner loss, oversize or
-native write failure returns the X11 failure form exactly once.
+DIB fallback from satisfying an `image/png` request. Property success precedes one SelectionNotify. For INCR, that same notify is
+the only SelectionNotify; later chunk failure cancels the incremental state
+rather than sending a contradictory second terminal notify. Before native
+bytes become ready, timeout, replacement, disconnect or owner loss still uses
+the X11 failure form exactly once.
 
 SelectionClear or an observed different owner yields immediately, cancels the
 exact pending receipt by sequence and marks that remote generation as yielded.
 The adapter ignores its own owner observation and has no timer or same-
 generation reclaim path. Ownership tracks remote generation, native epoch and
-source rather than content hashes. Runtime activation remains disabled until
-R2/R3 provide genuine admitted CLIPRDR/session authority. INCR, DIB-to-PNG,
-Windows/macOS adapters and file streaming remain later R8 increments.
+source rather than content hashes. An active INCR additionally binds the exact
+requestor window/property to that generation/epoch, restores the requestor's
+previous event mask on normal completion/cancellation, skips restore after
+requester destruction, and has a five-second monotonic acknowledgement
+deadline. Runtime activation remains disabled until R2/R3 provide genuine
+admitted CLIPRDR/session authority. DIB-to-PNG, Windows/macOS adapters and file
+streaming remain later R8 increments.
 
 ### R5 native XCB connection readiness and ownership
 

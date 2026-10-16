@@ -994,7 +994,10 @@ if(TARGET rdp-server-linux-x11-clipboard)
             x11-targets-publication
             x11-selection-request-nonblocking
             x11-selection-owner-loss
-            x11-disconnect-late-paste-fence)
+            x11-disconnect-late-paste-fence
+            x11-incr-large-text-progression
+            x11-incr-png-progression
+            x11-incr-cancellation)
         add_test(NAME "clipboard.${case_name}"
             COMMAND $<TARGET_FILE:test_x11_clipboard_adapter> "${case_name}")
         set_tests_properties("clipboard.${case_name}" PROPERTIES

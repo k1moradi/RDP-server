@@ -33,6 +33,10 @@ struct X11ClipboardNativeOperations
     bool (*changeProperty)(void *, xcb_window_t, xcb_atom_t, xcb_atom_t,
                            std::uint8_t,
                            std::span<const std::byte>) noexcept{};
+    bool (*selectTransferEvents)(void *, xcb_window_t,
+                                 std::uint32_t &) noexcept{};
+    bool (*restoreEventMask)(void *, xcb_window_t, std::uint32_t) noexcept{};
+    bool (*deleteProperty)(void *, xcb_window_t, xcb_atom_t) noexcept{};
     bool (*sendSelectionNotify)(
         void *, const xcb_selection_notify_event_t &) noexcept{};
 };
@@ -52,11 +56,12 @@ public:
     using RemoteTransfer = rdp_server::server::clipboard::RemoteTransfer;
     using PasteClock = RemoteTransfer::PasteClock;
 
-    // Direct core ChangeProperty remains deliberately below the base X11
-    // maximum request size. Larger text/PNG must wait for a complete INCR
-    // state machine rather than issuing an oversized or partial property.
+    // Keep direct and incremental property writes below a conservative
+    // single-request ceiling. INCR never duplicates the full payload.
     static constexpr std::size_t kMaximumDirectPropertyBytes = 64U * 1024U;
+    static constexpr std::size_t kIncrChunkBytes = 64U * 1024U;
     static constexpr auto kPasteTimeout = std::chrono::seconds{2};
+    static constexpr auto kIncrTimeout = std::chrono::seconds{5};
 
     enum class Source : std::uint8_t
     {
@@ -91,6 +96,9 @@ public:
     [[nodiscard]] xcb_atom_t targetsAtom() const noexcept;
     [[nodiscard]] xcb_atom_t utf8StringAtom() const noexcept;
     [[nodiscard]] xcb_atom_t pngAtom() const noexcept;
+    [[nodiscard]] xcb_atom_t incrAtom() const noexcept;
+    [[nodiscard]] bool incrTransferActive() const noexcept;
+    [[nodiscard]] std::size_t incrBytesSent() const noexcept;
     [[nodiscard]] std::uint64_t publicationGeneration() const noexcept;
     [[nodiscard]] std::uint64_t ownershipEpoch() const noexcept;
     [[nodiscard]] bool ownsClipboard() const noexcept;
@@ -139,6 +147,7 @@ private:
         xcb_atom_t targets{XCB_ATOM_NONE};
         xcb_atom_t utf8String{XCB_ATOM_NONE};
         xcb_atom_t png{XCB_ATOM_NONE};
+        xcb_atom_t incr{XCB_ATOM_NONE};
     };
 
     struct PendingSelectionRequest
@@ -151,6 +160,20 @@ private:
         std::uint32_t remoteFormatId{};
         RemoteTransfer::PasteKind kind{RemoteTransfer::PasteKind::UnicodeText};
         bool remoteFetchStarted{};
+        bool active{};
+    };
+
+    struct IncrTransfer
+    {
+        xcb_selection_request_event_t request{};
+        xcb_atom_t property{XCB_ATOM_NONE};
+        xcb_atom_t propertyType{XCB_ATOM_NONE};
+        std::span<const std::byte> bytes{};
+        std::size_t offset{};
+        std::uint32_t previousEventMask{};
+        PasteClock::time_point deadline{};
+        std::uint64_t publicationGeneration{};
+        std::uint64_t ownershipEpoch{};
         bool active{};
     };
 
@@ -176,11 +199,24 @@ private:
         xcb_atom_t property) noexcept;
     [[nodiscard]] bool publishText(
         const xcb_selection_request_event_t &request,
-        xcb_atom_t property, std::string_view text) noexcept;
+        xcb_atom_t property, std::string_view text,
+        PasteClock::time_point now) noexcept;
     [[nodiscard]] bool publishPng(
         const xcb_selection_request_event_t &request,
         xcb_atom_t property,
-        const RemoteTransfer::VerifiedImage &image) noexcept;
+        const RemoteTransfer::VerifiedImage &image,
+        PasteClock::time_point now) noexcept;
+    [[nodiscard]] bool beginIncrTransfer(
+        const xcb_selection_request_event_t &request,
+        xcb_atom_t property, xcb_atom_t propertyType,
+        std::span<const std::byte> bytes,
+        PasteClock::time_point now) noexcept;
+    [[nodiscard]] bool serviceIncrTransfer(
+        PasteClock::time_point now) noexcept;
+    void handlePropertyNotify(const xcb_property_notify_event_t &property,
+                              PasteClock::time_point now) noexcept;
+    void handleDestroyNotify(const xcb_destroy_notify_event_t &destroy) noexcept;
+    void cancelIncrTransfer(bool requestorDestroyed) noexcept;
     [[nodiscard]] bool publishPropertyAndNotify(
         const xcb_selection_request_event_t &request,
         xcb_atom_t property, xcb_atom_t propertyType, std::uint8_t format,
@@ -202,6 +238,7 @@ private:
     xcb_window_t ownerWindow_{XCB_WINDOW_NONE};
     Atoms atoms_{};
     PendingSelectionRequest pending_{};
+    IncrTransfer incr_{};
     std::uint64_t publicationGeneration_{};
     std::uint64_t ownershipEpoch_{};
     std::uint64_t yieldedGeneration_{};

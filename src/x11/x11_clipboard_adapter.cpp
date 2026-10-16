@@ -2,6 +2,7 @@
 
 #include "x11_clipboard_adapter.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <limits>
@@ -156,6 +157,85 @@ xcbChangeProperty(void *context, xcb_window_t window, xcb_atom_t property,
 }
 
 bool
+xcbSelectTransferEvents(void *context, xcb_window_t window,
+                        std::uint32_t &previousEventMask) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || window == XCB_WINDOW_NONE)
+    {
+        return false;
+    }
+
+    const auto attributesCookie = xcb_get_window_attributes(connection, window);
+    xcb_generic_error_t *attributesError = nullptr;
+    xcb_get_window_attributes_reply_t *attributes =
+        xcb_get_window_attributes_reply(
+            connection, attributesCookie, &attributesError);
+    if (attributesError != nullptr || attributes == nullptr)
+    {
+        std::free(attributesError);
+        std::free(attributes);
+        return false;
+    }
+
+    previousEventMask = attributes->your_event_mask;
+    std::free(attributes);
+    constexpr std::uint32_t transferEventMask =
+        static_cast<std::uint32_t>(XCB_EVENT_MASK_PROPERTY_CHANGE) |
+        static_cast<std::uint32_t>(XCB_EVENT_MASK_STRUCTURE_NOTIFY);
+    const std::uint32_t requestedEventMask =
+        previousEventMask | transferEventMask;
+    if (requestedEventMask == previousEventMask)
+    {
+        return true;
+    }
+
+    const xcb_void_cookie_t cookie = xcb_change_window_attributes_checked(
+        connection, window, XCB_CW_EVENT_MASK, &requestedEventMask);
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    const bool success = error == nullptr;
+    std::free(error);
+    return success;
+}
+
+bool
+xcbRestoreEventMask(void *context, xcb_window_t window,
+                    std::uint32_t eventMask) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || window == XCB_WINDOW_NONE)
+    {
+        return false;
+    }
+
+    const xcb_void_cookie_t cookie = xcb_change_window_attributes_checked(
+        connection, window, XCB_CW_EVENT_MASK, &eventMask);
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    const bool success = error == nullptr;
+    std::free(error);
+    return success;
+}
+
+bool
+xcbDeleteProperty(void *context, xcb_window_t window,
+                  xcb_atom_t property) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || window == XCB_WINDOW_NONE ||
+        property == XCB_ATOM_NONE)
+    {
+        return false;
+    }
+
+    const xcb_void_cookie_t cookie =
+        xcb_delete_property_checked(connection, window, property);
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    const bool success = error == nullptr;
+    std::free(error);
+    return success;
+}
+
+bool
 xcbSendSelectionNotify(void *context,
                        const xcb_selection_notify_event_t &event) noexcept
 {
@@ -186,6 +266,9 @@ X11ClipboardAdapter::makeXcbOperations(xcb_connection_t &connection) noexcept
         xcbSetSelectionOwner,
         xcbSelectionOwner,
         xcbChangeProperty,
+        xcbSelectTransferEvents,
+        xcbRestoreEventMask,
+        xcbDeleteProperty,
         xcbSendSelectionNotify,
     };
 }
@@ -220,10 +303,13 @@ X11ClipboardAdapter::X11ClipboardAdapter(
         nativeOperations_.internAtom(nativeOperations_.context, "UTF8_STRING");
     atoms_.png =
         nativeOperations_.internAtom(nativeOperations_.context, "image/png");
+    atoms_.incr =
+        nativeOperations_.internAtom(nativeOperations_.context, "INCR");
     if (atoms_.clipboard == XCB_ATOM_NONE ||
         atoms_.targets == XCB_ATOM_NONE ||
         atoms_.utf8String == XCB_ATOM_NONE ||
-        atoms_.png == XCB_ATOM_NONE)
+        atoms_.png == XCB_ATOM_NONE ||
+        atoms_.incr == XCB_ATOM_NONE)
     {
         return;
     }
@@ -248,6 +334,9 @@ X11ClipboardAdapter::nativeOperationsValid() const noexcept
            nativeOperations_.setSelectionOwner != nullptr &&
            nativeOperations_.selectionOwner != nullptr &&
            nativeOperations_.changeProperty != nullptr &&
+           nativeOperations_.selectTransferEvents != nullptr &&
+           nativeOperations_.restoreEventMask != nullptr &&
+           nativeOperations_.deleteProperty != nullptr &&
            nativeOperations_.sendSelectionNotify != nullptr;
 }
 
@@ -286,6 +375,24 @@ xcb_atom_t
 X11ClipboardAdapter::pngAtom() const noexcept
 {
     return valid() ? atoms_.png : xcb_atom_t{};
+}
+
+xcb_atom_t
+X11ClipboardAdapter::incrAtom() const noexcept
+{
+    return valid() ? atoms_.incr : xcb_atom_t{};
+}
+
+bool
+X11ClipboardAdapter::incrTransferActive() const noexcept
+{
+    return valid() && incr_.active;
+}
+
+std::size_t
+X11ClipboardAdapter::incrBytesSent() const noexcept
+{
+    return incr_.active ? incr_.offset : 0;
 }
 
 std::uint64_t
@@ -350,6 +457,7 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
         return false;
     }
 
+    (void)serviceIncrTransfer(now);
     if (pending_.active)
     {
         (void)servicePendingPaste(now);
@@ -446,8 +554,16 @@ X11ClipboardAdapter::handleAt(const xcb_generic_event_t &event,
             handleSelectionClear(
                 reinterpret_cast<const xcb_selection_clear_event_t &>(event));
             break;
+        case XCB_PROPERTY_NOTIFY:
+            handlePropertyNotify(
+                reinterpret_cast<const xcb_property_notify_event_t &>(event),
+                now);
+            break;
+        case XCB_DESTROY_NOTIFY:
+            handleDestroyNotify(
+                reinterpret_cast<const xcb_destroy_notify_event_t &>(event));
+            break;
         default:
-            // PropertyNotify remains reserved for the complete INCR increment.
             break;
     }
 }
@@ -458,7 +574,7 @@ X11ClipboardAdapter::handleSelectionRequest(
     PasteClock::time_point now) noexcept
 {
     if (!currentPublicationValid() || request.owner != ownerWindow_ ||
-        request.selection != atoms_.clipboard)
+        request.selection != atoms_.clipboard || incr_.active)
     {
         (void)sendFailureNotify(request);
         return;
@@ -480,7 +596,7 @@ X11ClipboardAdapter::handleSelectionRequest(
         const auto text = remoteTransfer_.verifiedUnicodeText();
         if (text)
         {
-            (void)publishText(request, property, *text);
+            (void)publishText(request, property, *text, now);
             return;
         }
         beginDelayedRequest(request, property,
@@ -497,7 +613,7 @@ X11ClipboardAdapter::handleSelectionRequest(
             image->generation == publicationGeneration_ &&
             image->sourceFormatId == pngFormatId)
         {
-            (void)publishPng(request, property, *image);
+            (void)publishPng(request, property, *image, now);
             return;
         }
         beginDelayedRequest(request, property, RemoteTransfer::PasteKind::Png,
@@ -595,10 +711,15 @@ X11ClipboardAdapter::publishTargets(
 bool
 X11ClipboardAdapter::publishText(
     const xcb_selection_request_event_t &request, xcb_atom_t property,
-    std::string_view text) noexcept
+    std::string_view text, PasteClock::time_point now) noexcept
 {
     const auto bytes =
         std::as_bytes(std::span<const char>{text.data(), text.size()});
+    if (bytes.size() > kMaximumDirectPropertyBytes)
+    {
+        return beginIncrTransfer(
+            request, property, atoms_.utf8String, bytes, now);
+    }
     return publishPropertyAndNotify(
         request, property, atoms_.utf8String, 8, bytes);
 }
@@ -606,7 +727,8 @@ X11ClipboardAdapter::publishText(
 bool
 X11ClipboardAdapter::publishPng(
     const xcb_selection_request_event_t &request, xcb_atom_t property,
-    const RemoteTransfer::VerifiedImage &image) noexcept
+    const RemoteTransfer::VerifiedImage &image,
+    PasteClock::time_point now) noexcept
 {
     if (image.format != RemoteTransfer::VerifiedImageFormat::Png ||
         image.generation != publicationGeneration_ ||
@@ -614,8 +736,158 @@ X11ClipboardAdapter::publishPng(
     {
         return sendFailureNotify(request);
     }
+
+    const auto bytes = std::as_bytes(image.bytes);
+    if (bytes.size() > kMaximumDirectPropertyBytes)
+    {
+        return beginIncrTransfer(
+            request, property, atoms_.png, bytes, now);
+    }
     return publishPropertyAndNotify(
-        request, property, atoms_.png, 8, std::as_bytes(image.bytes));
+        request, property, atoms_.png, 8, bytes);
+}
+
+bool
+X11ClipboardAdapter::beginIncrTransfer(
+    const xcb_selection_request_event_t &request, xcb_atom_t property,
+    xcb_atom_t propertyType, std::span<const std::byte> bytes,
+    PasteClock::time_point now) noexcept
+{
+    if (incr_.active || !currentPublicationValid() ||
+        bytes.size() <= kMaximumDirectPropertyBytes ||
+        bytes.size() > std::numeric_limits<std::uint32_t>::max())
+    {
+        return sendFailureNotify(request);
+    }
+
+    std::uint32_t previousEventMask = 0;
+    if (!nativeOperations_.selectTransferEvents(
+            nativeOperations_.context, request.requestor, previousEventMask))
+    {
+        return sendFailureNotify(request);
+    }
+
+    const std::uint32_t totalBytes = static_cast<std::uint32_t>(bytes.size());
+    const auto sizeBytes =
+        std::as_bytes(std::span<const std::uint32_t>{&totalBytes, 1});
+    if (!nativeOperations_.changeProperty(
+            nativeOperations_.context, request.requestor, property,
+            atoms_.incr, 32, sizeBytes))
+    {
+        (void)nativeOperations_.restoreEventMask(
+            nativeOperations_.context, request.requestor, previousEventMask);
+        return sendFailureNotify(request);
+    }
+    if (!sendNotify(request, property))
+    {
+        (void)nativeOperations_.deleteProperty(
+            nativeOperations_.context, request.requestor, property);
+        (void)nativeOperations_.restoreEventMask(
+            nativeOperations_.context, request.requestor, previousEventMask);
+        return false;
+    }
+
+    incr_.request = request;
+    incr_.property = property;
+    incr_.propertyType = propertyType;
+    incr_.bytes = bytes;
+    incr_.offset = 0;
+    incr_.previousEventMask = previousEventMask;
+    incr_.deadline = now + kIncrTimeout;
+    incr_.publicationGeneration = publicationGeneration_;
+    incr_.ownershipEpoch = ownershipEpoch_;
+    incr_.active = true;
+    return true;
+}
+
+bool
+X11ClipboardAdapter::serviceIncrTransfer(
+    PasteClock::time_point now) noexcept
+{
+    if (!incr_.active)
+    {
+        return true;
+    }
+    if (now >= incr_.deadline || !currentPublicationValid() ||
+        incr_.publicationGeneration != publicationGeneration_ ||
+        incr_.ownershipEpoch != ownershipEpoch_)
+    {
+        cancelIncrTransfer(false);
+    }
+    return true;
+}
+
+void
+X11ClipboardAdapter::handlePropertyNotify(
+    const xcb_property_notify_event_t &property,
+    PasteClock::time_point now) noexcept
+{
+    if (!incr_.active || property.window != incr_.request.requestor ||
+        property.atom != incr_.property ||
+        property.state != XCB_PROPERTY_DELETE)
+    {
+        return;
+    }
+    (void)serviceIncrTransfer(now);
+    if (!incr_.active)
+    {
+        return;
+    }
+
+    if (incr_.offset < incr_.bytes.size())
+    {
+        const std::size_t remaining = incr_.bytes.size() - incr_.offset;
+        const std::size_t chunkBytes =
+            (std::min)(remaining, kIncrChunkBytes);
+        const auto chunk = incr_.bytes.subspan(incr_.offset, chunkBytes);
+        if (!nativeOperations_.changeProperty(
+                nativeOperations_.context, incr_.request.requestor,
+                incr_.property, incr_.propertyType, 8, chunk))
+        {
+            cancelIncrTransfer(false);
+            return;
+        }
+        incr_.offset += chunkBytes;
+        incr_.deadline = now + kIncrTimeout;
+        return;
+    }
+
+    if (!nativeOperations_.changeProperty(
+            nativeOperations_.context, incr_.request.requestor,
+            incr_.property, incr_.propertyType, 8, {}))
+    {
+        cancelIncrTransfer(false);
+        return;
+    }
+    cancelIncrTransfer(false);
+}
+
+void
+X11ClipboardAdapter::handleDestroyNotify(
+    const xcb_destroy_notify_event_t &destroy) noexcept
+{
+    if (incr_.active && destroy.window == incr_.request.requestor)
+    {
+        cancelIncrTransfer(true);
+    }
+}
+
+void
+X11ClipboardAdapter::cancelIncrTransfer(bool requestorDestroyed) noexcept
+{
+    if (!incr_.active)
+    {
+        return;
+    }
+
+    const IncrTransfer cancelled = incr_;
+    incr_ = {};
+    if (!requestorDestroyed)
+    {
+        (void)nativeOperations_.restoreEventMask(
+            nativeOperations_.context, cancelled.request.requestor,
+            cancelled.previousEventMask);
+    }
 }
 
 bool
@@ -662,6 +934,7 @@ bool
 X11ClipboardAdapter::servicePendingPaste(
     PasteClock::time_point now) noexcept
 {
+    (void)serviceIncrTransfer(now);
     if (!pending_.active)
     {
         return true;
@@ -688,14 +961,16 @@ X11ClipboardAdapter::servicePendingPaste(
     if (result.status == RemoteTransfer::PasteStatus::ReadyUnicodeText &&
         completed.kind == RemoteTransfer::PasteKind::UnicodeText)
     {
-        return publishText(completed.request, completed.property, result.text);
+        return publishText(
+            completed.request, completed.property, result.text, now);
     }
     if (result.status == RemoteTransfer::PasteStatus::ReadyImage &&
         completed.kind == RemoteTransfer::PasteKind::Png && result.image &&
         result.image->format == RemoteTransfer::VerifiedImageFormat::Png &&
         result.image->sourceFormatId == completed.remoteFormatId)
     {
-        return publishPng(completed.request, completed.property, *result.image);
+        return publishPng(
+            completed.request, completed.property, *result.image, now);
     }
 
     return sendFailureNotify(completed.request);
@@ -762,6 +1037,7 @@ X11ClipboardAdapter::yieldToLocalOwner() noexcept
         return;
     }
     cancelPendingForOwnerLoss();
+    cancelIncrTransfer(false);
     yieldedGeneration_ = publicationGeneration_;
     ownsClipboard_ = false;
     publicationGeneration_ = 0;
@@ -794,6 +1070,7 @@ X11ClipboardAdapter::releaseNativeOwnership() noexcept
     {
         cancelPendingForOwnerLoss();
     }
+    cancelIncrTransfer(false);
 
     if (ownsClipboard_)
     {
@@ -829,6 +1106,7 @@ X11ClipboardAdapter::disconnect() noexcept
     }
 
     pending_ = {};
+    incr_ = {};
     ownerWindow_ = XCB_WINDOW_NONE;
     rootWindow_ = XCB_WINDOW_NONE;
     atoms_ = {};

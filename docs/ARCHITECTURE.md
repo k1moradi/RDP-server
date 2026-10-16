@@ -35,6 +35,23 @@ target nor this test authorizes an OS session or delivers R4 frames.
 Other imported algorithms not
 listed in CMake are under porting review and are not silently shipped.
 
+### R5 native XFixes cursor lifetime (Linux only)
+
+The existing `X11CursorTracker` borrows a native `xcb_connection_t`
+from the R5 XCB connection owner. Its `disconnect()` is an explicit,
+repeatable cancellation barrier: it drops the borrowed pointer and
+cached pixel/mask views, resets pending image state and warning flags,
+and prevents further XFixes requests or event handling. The owner must
+cancel the cursor before destroying its XCB connection, and no consumer
+may retain cursor spans beyond cancellation or the next refresh.
+Constructing the cursor against a failed XCB connection is rejected
+before negotiating XFixes. The native `rdp-server-linux-xfixes-cursor`
+CMake target compiles the existing native tracker and first-party pixel
+converter against `xcb` and `xcb-xfixes` only on Linux, not into the
+installed portable SDK. The headless native test uses only an invalid
+XCB descriptor and never confers R2/R3 authorization. R4 alone owns
+graphics scheduling and cursor delivery.
+
 ### R5 native XCB connection readiness and ownership
 
 The existing `src/x11/x11_display_connection.{h,cpp}` is the only XCB

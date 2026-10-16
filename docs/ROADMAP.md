@@ -2396,6 +2396,27 @@ actually run; another parser CTest alone is not a complete session.
   **PASS:** isolated headless event helper GCC/Clang/ASan tests.
   **NOT RUN:** corrected exact-SHA CI and native owner-local test
   until the follow-up commit completes. M3 remains NOT RUN.
+  **R5 native XFixes cursor cancellation and lifecycle (2026-10-15;
+  based on main `991320318e681fba99ca85adf1d29039c3e3137c`, exact-SHA CI pending):**
+  Compiles the real `X11CursorTracker` and existing production cursor
+  converter in a Linux-only, noninstalled `rdp-server-linux-xfixes-cursor`
+  target when pkg-config finds `xcb` and `xcb-xfixes`. Reject already
+  failed XCB connections before requesting extensions; add idempotent
+  cursor `disconnect()` that invalidates the borrowed XCB pointer,
+  discards cached images and flags and forbids stale refresh/event use
+  after its parent is destroyed. Dedicated Linux-native headless CTest
+  `x11.cursor-native-connection-denials-and-cancellation` exercises the
+  real cursor translation unit with a deliberately invalid fd, failure
+  handling, cancellation before XCB teardown and safe subsequent calls.
+  It does not open a real display or inject input. Existing
+  `x11.cursor-reply-length-bounds` tests remain unchanged.
+  **PASS prior SHA:** Linux/GCC full suite for published R5 readiness
+  `f46a9a47751aafbf30419851f4df40213d1e3f52` (191/191).
+  **NOT RUN at authoring:** new native XFixes build/CTest locally
+  (missing `xcb/xfixes.h`); new-SHA CI, owner three-platform tests,
+  authorized X11 desktop, R4 graphics integration and benchmarks.
+  **Next R5:** native damage, capture/cursor connection teardown
+  ordering and R2/R3-approved frame/cursor delivery; M3 NOT ACCEPTED.
   **R5 Linux XCB-SHM native compile increment (2026-10-15;
   base `aa15209c67d74814cac8c859997e623cd096691c`, exact-SHA CI pending):**
   Add separate, noninstalled `rdp-server-linux-xshm` native Linux

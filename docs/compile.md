@@ -38,6 +38,20 @@ report native PASS from headless helper checks. Windows/macOS and
 the portable protocol library never require XCB. No display server,
 credentials or live desktop are required for the native fixture.
 
+## Linux native XFixes cursor development dependencies (R5)
+
+When `pkg-config` discovers both `xcb` and `xcb-xfixes`, the
+Linux build compiles `rdp-server-linux-xfixes-cursor` from actual
+`x11_cursor_tracker.cpp` and `cursor_image_conversion.cpp`.
+On Debian/Ubuntu, install `libxcb1-dev` and
+`libxcb-xfixes0-dev`; the existing GitHub Actions Linux job
+provisions both. The new native-only
+`x11.cursor-native-connection-denials-and-cancellation` CTest is
+registered only when this target exists. Absence of the development
+headers means native source/test NOT RUN, not PASS. No running X server,
+live desktop, or credentials are needed for ordinary tests. The
+owner's single `build/` command and portable SDK remain unchanged.
+
 ## Owner's required daily test from the latest GitHub main
 
 Agents commit production code, its dedicated, registered behavior-named

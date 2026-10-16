@@ -561,6 +561,18 @@ if(TARGET rdp-server-x11-connection)
         PROPERTIES LABELS "x11;linux-adapter;native")
 endif()
 
+# First-party native XFixes cursor source: exercise failure and borrowed
+# connection cancellation without an X server or desktop access.
+if(TARGET rdp-server-linux-xfixes-cursor)
+    add_rdp_test(test_x11_native_cursor.cpp x11
+        cursor-native-connection-denials-and-cancellation)
+    target_link_libraries(test_x11_native_cursor PRIVATE
+        rdp-server-linux-xfixes-cursor)
+    set_tests_properties(
+        x11.cursor-native-connection-denials-and-cancellation
+        PROPERTIES LABELS "x11;linux-adapter;native")
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

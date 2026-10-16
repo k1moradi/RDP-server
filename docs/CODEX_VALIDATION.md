@@ -4311,3 +4311,44 @@ Microsoft-client desktop/input, graphics presentation, and
 performance. R6 M4 remains unaccepted. **Next:** use an agreed
 R2/R3-authorized native session and R4's single graphics owner
 for synchronous captured-frame transfer and disconnect tests.
+## R5 native XFixes cursor failed-connection and cancellation increment (2026-10-15)
+
+**Baseline main:** `991320318e681fba99ca85adf1d29039c3e3137c`; exact new implementation SHA and CI to
+be verified after publication. Atomic change: native cursor tracker
+`src/x11/x11_cursor_tracker.{h,cpp}`, new
+`tests/test_x11_native_cursor.cpp`, Linux native CMake target and
+dedicated `x11.cursor-native-connection-denials-and-cancellation`
+CTest in existing `tests/CMakeLists.txt`, Linux CI XFixes packages,
+and canonical roadmap/architecture/compile/validation documentation.
+
+**Production behavior:** Reject XCB connection error before XFixes
+extension negotiation. `disconnect()` clears borrowed XCB pointer,
+pixel/mask cache, cursor geometry, event pending and warning state
+without issuing XCB requests. Subsequent tracker getters, refresh
+and event handling fail closed even after the owning XCB connection
+has been destroyed. No ownership transfer or copied socket fd.
+
+**New dedicated native CTest:** A deliberately invalid XCB file
+descriptor exercises actual tracker initialization failure; then
+cancellation, parent XCB destruction, idempotent cancellation and
+post-destruction denied calls. Test needs XCB/XFixes development
+libraries but no X server or display access. The existing headless
+cursor-reply bounds and conversion tests are preserved.
+
+**PASS (previous R5 readiness implementation, not this new code):**
+`f46a9a47751aafbf30419851f4df40213d1e3f52`
+[Actions 38800928607](https://github.com/k1moradi/RDP-server/actions/runs/38800928607)
+Linux 191/191 Debug+Release CTests, including real XCB/RandR
+compilation and native event tests; macOS 178/178 and Windows
+182/182 each configuration.
+
+**NOT RUN locally for this increment:** strict native XFixes C++
+translation-unit compilation (authoring container lacks
+`xcb/xfixes.h`), canonical full project CMake/CTest (no full checkout
+and GitHub DNS unavailable), new exact-SHA CI, owner independent
+Linux/X11, MSYS2 CLANG64/Clang23 and macOS27, live Microsoft
+RDP client/authorized desktop, R2 OS admission/R3 routing/R4
+graphics-cursor consumer, and performance/latency benchmarks.
+**Next:** verify new exact-SHA Linux native target/CTest and full
+Windows/macOS regression; integrate connected capture/cursor/damage
+teardown and resize only behind R2/R3 authorization.

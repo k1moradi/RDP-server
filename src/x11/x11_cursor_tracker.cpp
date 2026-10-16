@@ -24,6 +24,13 @@ X11CursorTracker::X11CursorTracker(xcb_connection_t &connection,
       cursorImageReply_(cursorImageReply),
       cursorImageReplyContext_(cursorImageReplyContext)
 {
+    // A failed connection is still an XCB pointer, but must never be used
+    // for extension negotiation, reply retrieval, or cursor notification.
+    if (xcb_connection_has_error(connection_) != 0)
+    {
+        fail("XFixes cursor connection is already failed");
+        return;
+    }
     const xcb_query_extension_reply_t *extension =
         xcb_get_extension_data(connection_, &xcb_xfixes_id);
     if (extension == nullptr || !extension->present)
@@ -337,6 +344,34 @@ std::span<const std::byte>
 X11CursorTracker::mask() const noexcept
 {
     return mask_;
+}
+
+void
+X11CursorTracker::disconnect() noexcept
+{
+    // The connection belongs to X11DisplayConnection (or its caller), not
+    // this tracker. Never issue XCB requests during cancellation, including
+    // when the parent has already lost its transport.
+    connection_ = nullptr;
+    rootWindow_ = XCB_WINDOW_NONE;
+    cursorImageReply_ = nullptr;
+    cursorImageReplyContext_ = nullptr;
+    firstEvent_ = 0;
+    pending_ = false;
+    widthPixels_ = 0;
+    heightPixels_ = 0;
+    hotspotX_ = 0;
+    hotspotY_ = 0;
+    unsupportedCursor_ = false;
+    unsupportedWarningLogged_ = false;
+    refreshFailureWarningPending_ = false;
+    refreshFailureWarningLogged_ = false;
+    refreshFailureReason_ = nullptr;
+    refreshErrorCode_ = 0;
+    refreshConnectionError_ = 0;
+    std::vector<std::byte>{}.swap(pixels_);
+    std::vector<std::byte>{}.swap(mask_);
+    failureReason_ = "XFixes cursor tracker is disconnected";
 }
 
 void

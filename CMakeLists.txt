@@ -175,6 +175,30 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# Native XFixes cursor owner remains separate from the portable engine
+# and is testable without a live X server. No xrdp libraries are used.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_XCB_XFIXES QUIET IMPORTED_TARGET
+            xcb xcb-xfixes)
+    endif()
+    if(TARGET PkgConfig::RDP_SERVER_XCB_XFIXES)
+        add_library(rdp-server-linux-xfixes-cursor STATIC
+            src/x11/x11_cursor_tracker.cpp
+            src/x11/cursor_image_conversion.cpp)
+        target_compile_features(rdp-server-linux-xfixes-cursor PUBLIC cxx_std_23)
+        target_include_directories(rdp-server-linux-xfixes-cursor PUBLIC
+            "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+        target_link_libraries(rdp-server-linux-xfixes-cursor PUBLIC
+            PkgConfig::RDP_SERVER_XCB_XFIXES)
+        target_compile_options(rdp-server-linux-xfixes-cursor PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    else()
+        message(STATUS "R5 xcb-xfixes development files unavailable: native XFixes cursor CTest not built")
+    endif()
+endif()
+
 if(MSVC)
     target_compile_options(rdp-server-protocol PRIVATE /W4)
 else()

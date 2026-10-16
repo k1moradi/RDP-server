@@ -49,6 +49,10 @@ public:
     [[nodiscard]] std::span<const std::byte> pixels() const noexcept;
     [[nodiscard]] std::span<const std::byte> mask() const noexcept;
 
+    // Call before the owning XCB connection is destroyed. Afterwards no
+    // method may dereference the borrowed XCB pointer; cancel is repeatable.
+    void disconnect() noexcept;
+
 private:
     void fail(const char *reason) noexcept;
     void noteRefreshFailure(const char *reason,

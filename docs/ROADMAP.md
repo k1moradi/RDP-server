@@ -2655,6 +2655,16 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   **Next:** R3 actual authenticated channel-role admission and
   R9 bounded fragmented-channel reassembly, then R5/R6/R7 native
   integration and real-client acceptance.
+  **Verified hosted CI for R8 inbound dispatch:** exact implementation
+  commit `288f10ebd7c51616f16098c39c3fae9d7a9c090b`,
+  [Actions 38845220243](https://github.com/k1moradi/RDP-server/actions/runs/38845220243)
+  **PASS** documentation policy, Linux/GCC **207/207**,
+  macOS/Clang **193/193**, and Windows/MSVC **203/203**
+  in BOTH Debug and Release. Both R8 joined-channel CTests
+  PASS on all three hosted platforms. Owner-operated Linux/X11,
+  Windows MSYS2 CLANG64 Clang23, macOS27, authenticated desktop,
+  real-client clipboard, Firefox PNG File paste and performance
+  **NOT RUN**.
 - [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
   after a *legitimate client Format List* for generation N, prioritize
   `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),

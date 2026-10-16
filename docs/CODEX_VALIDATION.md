@@ -152,6 +152,21 @@ The caller remains responsible for verifying TLS/NLA, OS session
 admission, negotiated CLIPRDR role, security headers, the one
 outbound writer, and R9 multi-chunk reassembly before this boundary.
 
+**Exact-commit GitHub Actions verification (2026-10-16):**
+implementation `288f10ebd7c51616f16098c39c3fae9d7a9c090b`,
+[workflow #38845220243](https://github.com/k1moradi/RDP-server/actions/runs/38845220243):
+**PASS** documentation policy and all three hosted protocol jobs.
+Linux/GCC **207/207 Debug and 207/207 Release**; macOS/Clang
+**193/193 Debug and 193/193 Release**; Windows/MSVC
+**203/203 Debug and 203/203 Release**. Both
+`clipboard.joined-static-channel-inbound-gates` and
+`clipboard.format-list-response-joined-mcs-envelope` PASS in each
+configuration. Staged installed SDK consumer, ZIP and SHA256 artifact
+steps succeeded; prerelease publishing skipped without a release tag.
+The owner's Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+checks remain **NOT RUN**, as do native OS paste integration,
+authenticated real-client clipboard, Firefox PNG File, and performance.
+
 ## Local validation (one reused build root)
 
 ```sh

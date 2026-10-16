@@ -11575,3 +11575,37 @@ this connector environment. Owner Windows MSYS2 CLANG64/Clang23 validation is
 authorization and Microsoft-client M4 acceptance remain **NOT RUN/BLOCKED**.
 **M4 remains OPEN / NOT ACCEPTED.**
 
+## R10 opt-in real Kerberos aggregate binding gate (2026-10-16; execution pending)
+
+Starting reconciled shared `main`: `172564bbae431f09e118652d4124d4727a8c1d01`. The existing R2 opt-in
+Kerberos fixture already proves genuine MIT GSS/CredSSP binding through the R1
+owner. R10 now reuses that client/provider machinery in a dedicated
+`runtime.linux-connection-real-kerberos-binding` CTest whose server side is
+the production `LinuxRuntimeConnection` aggregate.
+
+The test body is compiled with the ordinary Linux GSS test executable but the
+CTest is registered only when `RDP_SERVER_TEST_REAL_KERBEROS=ON`. It requires
+the existing explicit `RDP_TEST_KRB5_SERVICE=TERMSRV/...@REALM`,
+`RDP_TEST_KRB5_KEYTAB=FILE:/...` and `RDP_TEST_KRB5_CCACHE=FILE:/...`
+inputs. For CredSSP versions 5 and 6 it drives the aggregate's R1
+`HybridNla` X.224 selection, production R10 TLS context, real MIT SPNEGO
+rounds, final combined GSS token plus protected client public-key binding, and
+the R2 provider-generated protected server binding reply. Success is only the
+aggregate's explicit `BindingVerified` transport/GSS receipt.
+
+The case additionally requires that no native admission lease exists and R3
+remains at `AwaitVerifiedR2Admission` before explicit ordered revocation.
+It does not send final delegated credentials, sample NSS/logind, authorize a
+desktop, invoke MCS progression, bind a production listener or install a
+service. Current R2 policy still denies final `authInfo`; therefore
+`BindingVerified` is deliberately not native admission authority.
+
+Canonical owner-local build and the opt-in Kerberos CTest are **NOT RUN** in
+this connector environment because `~/rdp-server` and explicit KDC
+credentials are unavailable. Ordinary exact-SHA hosted CI can compile the test
+body and provide regression evidence, but it cannot promote this opt-in case
+to PASS. M2/M3 remain **OPEN**. The next R10 gate after an owner real-Kerberos
+PASS is to drive the existing R2 final-`authInfo`
+`UnsupportedFinalCredentials` denial through this same aggregate, then keep
+native NSS/logind admission blocked until R2 defines a reviewed positive final
+credential authorization contract.

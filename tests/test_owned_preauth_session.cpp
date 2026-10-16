@@ -7,6 +7,7 @@
 #include "security/credssp_tsrequest.h"
 #include "security/credssp_tls_certificate.h"
 #ifdef RDP_TEST_LINUX_GSSAPI
+#include "server/runtime/linux_runtime_connection.h"
 #include "security/gssapi_spnego_acceptor.h"
 #include "security/linux_console_admission.h"
 #include <gssapi/gssapi_ext.h>
@@ -61,6 +62,11 @@
 using namespace rdp_server::server::transport;
 using namespace rdp_server::server::security;
 using rdp_server::server::runtime::RuntimeServerTlsContext;
+#ifdef RDP_TEST_LINUX_GSSAPI
+using rdp_server::server::runtime::LinuxCredSspStepStatus;
+using rdp_server::server::runtime::LinuxRuntimeConnection;
+using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
+#endif
 
 namespace
 {
@@ -7244,6 +7250,338 @@ std::vector<std::uint8_t> realKerberosAuthInfoDer(
     return frame;
 }
 
+void establishRuntimeAggregateHybridTls(
+    LinuxRuntimeConnection &connection,
+    NativeTcpIo &clientIo,
+    RuntimeTlsClientFixture &clientTls,
+    const RuntimeServerTlsContext &tlsContext)
+{
+    const auto request = tlsAndHybridRequestWire();
+    const auto parsed = parseConnectionRequest(request);
+    assert(parsed);
+    const auto expected = negotiateSecurity(
+        parsed, SecurityNegotiationPolicy::HybridNla);
+    assert(expected.decision == SecurityDecision::Tls);
+    assert(expected.selectedProtocol == kRdpProtocolHybrid);
+
+    const auto deadline = runtimeTlsFixtureDeadline();
+    nativeSendAllBefore(clientIo, request, deadline);
+
+    TcpPreauthEvent preauth = TcpPreauthEvent::NeedRead;
+    while (preauth == TcpPreauthEvent::NeedRead &&
+           RuntimeClock::now() < deadline)
+    {
+        preauth = connection.onReadable();
+        if (preauth == TcpPreauthEvent::NeedRead)
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    assert(preauth == TcpPreauthEvent::NeedWrite);
+
+    while (preauth == TcpPreauthEvent::NeedWrite &&
+           RuntimeClock::now() < deadline)
+    {
+        preauth = connection.onWritable();
+        if (preauth == TcpPreauthEvent::NeedWrite)
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    assert(preauth == TcpPreauthEvent::ReadyForTls);
+
+    std::array<std::uint8_t, 19> confirm{};
+    nativeReadAllBefore(clientIo, confirm, deadline);
+    assert(confirm == expected.packet);
+    assert(confirm[15] == kRdpProtocolHybrid);
+
+    assert(connection.attachServerTls(tlsContext));
+    assert(attachNonblockingTcpBio(clientTls.connection.get(), clientIo));
+
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    while ((!clientEstablished || !serverEstablished) &&
+           RuntimeClock::now() < deadline)
+    {
+        if (!clientEstablished)
+        {
+            const int result = SSL_do_handshake(clientTls.connection.get());
+            if (result == 1)
+            {
+                clientEstablished = true;
+            }
+            else
+            {
+                const int error =
+                    SSL_get_error(clientTls.connection.get(), result);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+
+        if (!serverEstablished)
+        {
+            const auto status = connection.onTlsIoReady();
+            assert(status != TlsHandshakeStatus::Invalid);
+            assert(status != TlsHandshakeStatus::Closed);
+            serverEstablished = status == TlsHandshakeStatus::Established;
+        }
+
+        if (!clientEstablished || !serverEstablished)
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    assert(clientEstablished && serverEstablished);
+
+    const CertificatePointer observed{
+        SSL_get1_peer_certificate(clientTls.connection.get()), X509_free};
+    assert(observed);
+    assert(tlsContext.certificate() != nullptr);
+    assert(X509_cmp(observed.get(), tlsContext.certificate()) == 0);
+}
+
+[[nodiscard]] std::size_t driveRuntimeAggregateCredSspReply(
+    LinuxRuntimeConnection &connection,
+    std::size_t expectedRequestBytes,
+    bool expectBindingVerified)
+{
+    std::size_t totalRead = 0;
+    std::size_t totalWritten = 0;
+    const auto deadline = runtimeTlsFixtureDeadline();
+
+    for (std::size_t stepIndex = 0;
+         stepIndex < kMaximumCredSspRequestBytes + 64 &&
+         RuntimeClock::now() < deadline;
+         ++stepIndex)
+    {
+        const auto step = connection.onCredSspIoReady();
+
+        // One aggregate callback delegates at most one R1 TLS application
+        // read OR write. GSS/DER bookkeeping may occur in the same call.
+        assert(step.plaintextBytesRead == 0 ||
+               step.plaintextBytesWritten == 0);
+        totalRead += step.plaintextBytesRead;
+        totalWritten += step.plaintextBytesWritten;
+        assert(totalRead <= expectedRequestBytes);
+        assert(totalWritten <= kMaximumCredSspRequestBytes);
+
+        assert(step.status != LinuxCredSspStepStatus::Invalid);
+        assert(step.status != LinuxCredSspStepStatus::Closed);
+        assert(step.status !=
+               LinuxCredSspStepStatus::UnsupportedFinalCredentials);
+
+        if (expectBindingVerified &&
+            step.status == LinuxCredSspStepStatus::BindingVerified)
+        {
+            assert(totalRead == expectedRequestBytes);
+            assert(totalWritten > 0);
+            return totalWritten;
+        }
+
+        // A completed continuation reply returns Progress after R2 releases
+        // its writer. Read interest proves no queued response remains.
+        if (!expectBindingVerified &&
+            step.status == LinuxCredSspStepStatus::Progress &&
+            totalRead == expectedRequestBytes &&
+            totalWritten > 0 &&
+            connection.ioInterest() == TcpConnectionIoInterest::Read)
+        {
+            return totalWritten;
+        }
+
+        assert(step.status == LinuxCredSspStepStatus::Progress ||
+               step.status == LinuxCredSspStepStatus::NeedRead ||
+               step.status == LinuxCredSspStepStatus::NeedWrite);
+        if (step.status != LinuxCredSspStepStatus::Progress)
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+
+    assert(false && "R10 aggregate CredSSP reply did not complete");
+    return 0;
+}
+
+// Opt-in real-provider proof for the complete non-listening R10 aggregate.
+// The externally supplied ticket/keytab are used only by MIT GSS. The test
+// stops at R2 BindingVerified and never creates native admission or R3 state.
+void testRuntimeRealKerberosOwnedBinding(
+    const char *certificatePath,
+    const char *privateKeyPath)
+{
+    const char *serviceName = std::getenv("RDP_TEST_KRB5_SERVICE");
+    const char *serviceKeytab = std::getenv("RDP_TEST_KRB5_KEYTAB");
+    const char *clientCache = std::getenv("RDP_TEST_KRB5_CCACHE");
+    assert(serviceName && serviceKeytab && clientCache);
+
+    const std::string_view service{serviceName};
+    const std::string_view keytab{serviceKeytab};
+    const std::string_view cache{clientCache};
+    assert(service.starts_with("TERMSRV/") &&
+           service.find('@') != service.npos);
+    assert(keytab.starts_with("FILE:/") && cache.starts_with("FILE:/"));
+
+    LinuxRuntimeSecurityConfiguration securityConfiguration;
+    const ConsoleIdentityRuleInput unusedNativeRule{
+        "runtime.probe@EXAMPLE.TEST", "rdptest", "seat0", ":0",
+        1001U, kConsoleViewPermission};
+    assert(securityConfiguration.configure(
+        service, keytab, unusedNativeRule));
+
+    RuntimeServerTlsContext tlsContext =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            certificatePath, privateKeyPath);
+    assert(tlsContext);
+    assert(tlsContext.certificate() != nullptr);
+
+    const ASN1_BIT_STRING *publicKeyBits =
+        X509_get0_pubkey_bitstr(tlsContext.certificate());
+    assert(publicKeyBits);
+    const int publicKeyLength = ASN1_STRING_length(publicKeyBits);
+    assert(publicKeyLength > 0);
+    const auto *publicKeyBytes = ASN1_STRING_get0_data(publicKeyBits);
+    assert(publicKeyBytes);
+    const auto publicKey = std::span{
+        static_cast<const std::uint8_t *>(publicKeyBytes),
+        static_cast<std::size_t>(publicKeyLength)};
+
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        LinuxRuntimeConnection connection{
+            securityConfiguration, std::move(accepted)};
+        assert(connection.ready());
+        assert(connection.gssStage() == SpnegoStage::AwaitInitialToken);
+        assert(!connection.hasAdmissionLease());
+
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        RuntimeTlsClientFixture clientTls{};
+        establishRuntimeAggregateHybridTls(
+            connection, clientIo, clientTls, tlsContext);
+
+        TestKerberosInitiator client{service, cache};
+        std::vector<std::uint8_t> nextClientToken;
+        OM_uint32 clientStatus = client.next({}, nextClientToken);
+        assert(clientStatus == GSS_S_CONTINUE_NEEDED);
+        assert(!nextClientToken.empty());
+        assert(isInitialSpnegoToken(nextClientToken));
+
+        bool haveFinalClientToken = false;
+        for (std::size_t round = 0;
+             round < kMaximumSpnegoRoundTrips;
+             ++round)
+        {
+            const auto request = encodeCredSspServerTsRequest(
+                version, CredSspServerReplyField::NegoToken,
+                nextClientToken);
+            assert(!request.empty());
+            OPENSSL_cleanse(
+                nextClientToken.data(), nextClientToken.size());
+            nextClientToken.clear();
+
+            writeRuntimeTlsClientAll(
+                clientTls.connection.get(), request);
+            const std::size_t replyBytes =
+                driveRuntimeAggregateCredSspReply(
+                    connection, request.size(), false);
+            std::vector<std::uint8_t> reply(replyBytes);
+            readRuntimeTlsClientAll(clientTls.connection.get(), reply);
+
+            const auto parsedReply = parseCredSspTsRequest(reply);
+            assert(parsedReply &&
+                   parsedReply.value.version == version &&
+                   parsedReply.value.initialNegoTokenOnly() &&
+                   parsedReply.value.tokenCount == 1);
+
+            clientStatus = client.next(
+                parsedReply.value.tokens[0], nextClientToken);
+            OPENSSL_cleanse(reply.data(), reply.size());
+
+            assert(connection.gssStage() == SpnegoStage::ContinueNeeded);
+            assert(!connection.hasAdmissionLease());
+            assert(connection.mcsPhase() ==
+                   McsSessionPhase::AwaitVerifiedR2Admission);
+
+            if (clientStatus == GSS_S_COMPLETE)
+            {
+                haveFinalClientToken = true;
+                break;
+            }
+            assert(clientStatus == GSS_S_CONTINUE_NEEDED);
+            assert(!nextClientToken.empty());
+        }
+        assert(haveFinalClientToken);
+        assert(clientStatus == GSS_S_COMPLETE);
+        assert(!nextClientToken.empty());
+
+        std::array<std::uint8_t, kCredSspNonceBytes> nonce{};
+        for (std::size_t index = 0; index < nonce.size(); ++index)
+            nonce[index] =
+                static_cast<std::uint8_t>(0x60U + version + index);
+
+        CredSspHash clientHash{};
+        CredSspHash serverHash{};
+        assert(computeCredSspBindingHash(
+            CredSspBindingDirection::ClientToServer,
+            nonce, publicKey, clientHash));
+        assert(computeCredSspBindingHash(
+            CredSspBindingDirection::ServerToClient,
+            nonce, publicKey, serverHash));
+
+        auto encryptedBinding = client.seal(clientHash);
+        OPENSSL_cleanse(clientHash.data(), clientHash.size());
+        const auto finalRequest = realKerberosFinalNegoAndBindingDer(
+            version, nextClientToken, encryptedBinding, nonce);
+        OPENSSL_cleanse(
+            nextClientToken.data(), nextClientToken.size());
+        nextClientToken.clear();
+        OPENSSL_cleanse(
+            encryptedBinding.data(), encryptedBinding.size());
+        encryptedBinding.clear();
+
+        writeRuntimeTlsClientAll(
+            clientTls.connection.get(), finalRequest);
+        const std::size_t bindingReplyBytes =
+            driveRuntimeAggregateCredSspReply(
+                connection, finalRequest.size(), true);
+
+        assert(connection.gssStage() ==
+               SpnegoStage::ServerBindingPrepared);
+        assert(connection.admissionState() ==
+               LinuxConsoleAdmissionState::Ready);
+        assert(connection.mcsPhase() ==
+               McsSessionPhase::AwaitVerifiedR2Admission);
+        assert(!connection.hasAdmissionLease());
+
+        std::vector<std::uint8_t> bindingReply(bindingReplyBytes);
+        readRuntimeTlsClientAll(
+            clientTls.connection.get(), bindingReply);
+        const auto parsedBindingReply =
+            parseCredSspTsRequest(bindingReply);
+        assert(parsedBindingReply &&
+               parsedBindingReply.value.version == version &&
+               parsedBindingReply.value.hasPubKeyAuth &&
+               parsedBindingReply.value.tokenCount == 0);
+        client.verifyProtectedServerProof(
+            parsedBindingReply.value.encryptedPubKeyAuth,
+            serverHash);
+        OPENSSL_cleanse(serverHash.data(), serverHash.size());
+        OPENSSL_cleanse(
+            bindingReply.data(), bindingReply.size());
+
+        // Binding proof is deliberately not desktop authority.
+        assert(!connection.hasAdmissionLease());
+        assert(connection.mcsPhase() ==
+               McsSessionPhase::AwaitVerifiedR2Admission);
+
+        connection.revoke();
+        assert(!connection.ready());
+        assert(connection.gssStage() == SpnegoStage::Failed);
+        assert(connection.admissionState() ==
+               LinuxConsoleAdmissionState::Revoked);
+        assert(connection.mcsPhase() == McsSessionPhase::Closed);
+        assert(!connection.hasAdmissionLease());
+        assert(connection.onCredSspIoReady().status ==
+               LinuxCredSspStepStatus::Closed);
+    }
+}
+
 enum class RealKerberosOwnedCredSspScenario : std::uint8_t
 {
     BindingReceipt,
@@ -8462,6 +8800,15 @@ int main(int argc, char **argv)
             testOwnedRuntimeTlsHandshake(argv[2], argv[3]);
             return 0;
         }
+#ifdef RDP_TEST_REAL_KERBEROS
+        if (fixtureCase == "linux-connection-real-kerberos-binding")
+        {
+            if (argc != 4 || argv[2] == nullptr || argv[3] == nullptr)
+                return 2;
+            testRuntimeRealKerberosOwnedBinding(argv[2], argv[3]);
+            return 0;
+        }
+#endif
         if (fixtureCase == "tcp-owned-runtime-tls-identity-continuity")
         {
             if (argc != 6 || argv[2] == nullptr || argv[3] == nullptr ||

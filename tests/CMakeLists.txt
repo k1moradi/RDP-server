@@ -384,7 +384,8 @@ if(TARGET rdp-server-linux-gssapi)
     # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
     # in-memory TLS fixture; no duplicate certificate/test implementation.
     target_link_libraries(test_owned_preauth_session PRIVATE
-        rdp-server-linux-gssapi)
+        rdp-server-linux-gssapi
+        rdp-server-linux-runtime-security)
     target_compile_definitions(test_owned_preauth_session PRIVATE
         RDP_TEST_LINUX_GSSAPI=1)
     if(RDP_SERVER_TEST_REAL_KERBEROS)
@@ -401,6 +402,21 @@ if(TARGET rdp-server-linux-gssapi)
             set_tests_properties("security.${case_name}"
                 PROPERTIES LABELS "security;linux-provider;opt-in-kerberos")
         endforeach()
+
+        # R10 opt-in real-provider composition. Reuse the secure R10 TLS
+        # fixture writer and the existing real MIT GSS initiator; no listener,
+        # native admission or R3 session is created.
+        add_test(NAME runtime.linux-connection-real-kerberos-binding
+            COMMAND "${CMAKE_COMMAND}"
+                "-DRDP_RUNTIME_TLS_CONTEXT_TEST=$<TARGET_FILE:test_owned_preauth_session>"
+                "-DRDP_RUNTIME_TLS_CONTEXT_CASE=linux-connection-real-kerberos-binding"
+                "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-tls-context-fixtures"
+                -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_tls_context.cmake")
+        set_tests_properties(
+            runtime.linux-connection-real-kerberos-binding
+            PROPERTIES
+                LABELS "runtime;security;linux-provider;opt-in-kerberos"
+                TIMEOUT 30)
     endif()
     foreach(case_name IN ITEMS
             gssapi-r1-owned-credssp-provenance-fence

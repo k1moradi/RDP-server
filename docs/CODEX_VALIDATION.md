@@ -7970,3 +7970,32 @@ real Microsoft RDP client. M2 remains **NOT ACCEPTED**.
 **Next R1:** no new transport surface is justified. Support R3's protected
 Erect/Attach/Join progression only if integration demonstrates a concrete
 missing bounded TCP/TLS hook.
+
+
+## R4 pinned x264 AVC420 authoring validation (2026-10-16)
+
+**Starting authoring HEAD:** `9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`;
+concurrent-agent main changes are reconciled before publication.
+
+The increment vendors VideoLAN x264 revision
+`4613ac3c15fd75cebc4b9f65b7fb95e70a3acce1` and builds only its static
+8-bit portable-C encoder library. The noninstalled `rdp-server-graphics`
+target owns `X264Avc420Encoder`; `rdp-server-protocol` remains x264-free.
+Input NV12 planes are stride/extent checked and borrowed synchronously.
+Returned x264 NAL storage is copied into an owned bounded Annex-B vector before
+the next encoder call.
+
+Dedicated CTests:
+`graphics.x264-nv12-annexb-picture`,
+`graphics.x264-input-rejections`,
+`graphics.x264-visible-crop-sequence`, and
+`graphics.x264-reset-reference-lifecycle`. The positive case requires
+encoder-produced SPS/PPS/IDR, parses the Baseline SPS coded/visible crop and
+serializes the same owned bytes with `buildGfxAvc420Picture`.
+
+The source-authoring sandbox cannot reach GitHub from the local build runtime,
+so the owner's checkout-local configure/build/CTest command is **NOT RUN**
+before publication. Exact-SHA hosted Linux/macOS/Windows compilation and CTest
+are required immediately after publication. R3 Graphics DVC authorization,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, Microsoft-client
+rendering and performance are **NOT RUN**. M3 / Gate B remains **OPEN**.

@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(RDP_server VERSION 0.1.0
     DESCRIPTION "Portable standards-first C++23 Remote Desktop Protocol server"
-    LANGUAGES CXX)
+    LANGUAGES C CXX)
 include(CTest)
 
 # The only build root is <checkout>/build; local checkout: ~/rdp-server.
@@ -316,6 +316,73 @@ if(MSVC)
     target_compile_options(rdp-server-protocol PRIVATE /W4)
 else()
     target_compile_options(rdp-server-protocol PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+# R4 real AVC420 producer. x264 is a pinned, vendored, library-only static
+# dependency and never enters the installed/exported portable protocol SDK.
+set(RDP_SERVER_X264_SOURCE_DIR "${PROJECT_SOURCE_DIR}/third_party/x264")
+add_library(rdp-server-x264 STATIC
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/osdep.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/base.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/cpu.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/tables.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/api.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/mc.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/predict.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/pixel.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/macroblock.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/frame.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/dct.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/cabac.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/common.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/rectangle.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/set.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/quant.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/deblock.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/vlc.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/mvpred.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/common/bitstream.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/analyse.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/me.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/ratecontrol.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/set.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/macroblock.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/cabac.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/cavlc.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/encoder.c
+    ${RDP_SERVER_X264_SOURCE_DIR}/encoder/lookahead.c)
+set_target_properties(rdp-server-x264 PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED YES
+    C_EXTENSIONS YES)
+target_include_directories(rdp-server-x264 PUBLIC
+    "${RDP_SERVER_X264_SOURCE_DIR}")
+target_compile_definitions(rdp-server-x264 PRIVATE
+    BIT_DEPTH=8
+    HIGH_BIT_DEPTH=0)
+if(MSVC)
+    target_compile_definitions(rdp-server-x264 PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_options(rdp-server-x264 PRIVATE /w)
+else()
+    target_compile_options(rdp-server-x264 PRIVATE -w)
+endif()
+if(NOT WIN32)
+    target_link_libraries(rdp-server-x264 PRIVATE m)
+endif()
+
+add_library(rdp-server-graphics STATIC
+    src/rdp/x264_avc420_encoder.cpp)
+target_compile_features(rdp-server-graphics PUBLIC cxx_std_23)
+target_include_directories(rdp-server-graphics PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-graphics
+    PUBLIC rdp-server-protocol
+    PRIVATE rdp-server-x264)
+if(MSVC)
+    target_compile_options(rdp-server-graphics PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-graphics PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 

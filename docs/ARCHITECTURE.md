@@ -2651,3 +2651,28 @@ Completion uses only the previously issued monotonic reply/slice receipt;
 wrong or late completion fails closed. Full response delivery changes only
 R3's phase to `AwaitErectDomain`; later DomainMCSPDU transitions remain
 separately protected.
+
+
+## R4 x264 AVC420 encoder ownership (2026-10-16)
+
+The first real H.264 producer is the noninstalled `rdp-server-graphics`
+target. `X264Avc420Encoder` owns exactly one `x264_t` context; no protocol,
+platform-capture, scheduler, authorization, or runtime owner manipulates that
+handle directly. The exported `rdp-server-protocol` target retains the
+RDPGFX packetizer/lifecycle and has no x264 dependency.
+
+The wrapper accepts one validated NV12 picture with independent Y/UV strides
+and extents. Input is borrowed only for the synchronous
+`x264_encoder_encode` call and is never retained, which is compatible with
+short-lived XShm, mapped D3D11 and locked CoreVideo views. Every successful
+access unit is copied out of x264's next-call-invalidated NAL storage into a
+bounded caller-owned `std::vector<std::byte>`.
+
+The initial correctness profile is 8-bit 4:2:0 H.264 Baseline, Annex-B,
+repeat SPS/PPS on IDR, no B frames, no lookahead, one encoder thread and one
+reference frame. Reference history is preserved only across successive
+pictures with the same coded/visible geometry. `reset()` destroys that
+history; geometry or generation changes must reset/recreate the encoder.
+x264 SPS crop fields describe the visible dimensions inside the 16-aligned
+coded frame; RDPGFX regions independently constrain the presented surface.
+R3 remains the sole future Graphics DVC authority.

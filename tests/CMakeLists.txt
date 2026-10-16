@@ -1017,3 +1017,25 @@ add_test(NAME project.policy
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"
         -P "${PROJECT_SOURCE_DIR}/cmake/verify_project_policy.cmake")
 set_tests_properties(project.policy PROPERTIES LABELS "project-policy")
+
+
+# R4 genuine x264 producer tests. This executable links the noninstalled
+# graphics target; portable protocol test binaries remain x264-free.
+add_executable(test_x264_avc420_encoder test_x264_avc420_encoder.cpp)
+target_link_libraries(test_x264_avc420_encoder PRIVATE rdp-server-graphics)
+if(MSVC)
+    target_compile_options(test_x264_avc420_encoder PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_x264_avc420_encoder PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        x264-nv12-annexb-picture
+        x264-input-rejections
+        x264-visible-crop-sequence
+        x264-reset-reference-lifecycle)
+    add_test(NAME "graphics.${case_name}"
+        COMMAND test_x264_avc420_encoder "${case_name}")
+    set_tests_properties("graphics.${case_name}" PROPERTIES
+        LABELS "protocol;graphics;x264;offline")
+endforeach()

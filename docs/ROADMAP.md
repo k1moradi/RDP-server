@@ -6481,3 +6481,29 @@ real Microsoft RDP client. M2 remains **NOT ACCEPTED**.
 **Next R1:** no new transport surface is justified. Support R3's protected
 Erect/Attach/Join progression only if integration demonstrates a concrete
 missing bounded TCP/TLS hook.
+
+
+## R4 real x264 AVC420 producer increment (2026-10-16)
+
+R4 now owns a first production H.264 boundary behind the existing RDPGFX
+AVC420 packetizer: validated NV12 -> one RAII x264 encoder -> bounded owned
+Annex-B access unit -> existing `GfxAvc420Picture`. The x264 source is pinned
+and statically vendored, while `rdp-server-protocol` stays independently
+buildable/installable without it. The initial encoder is synchronous,
+single-threaded, Baseline 8-bit 4:2:0, Annex-B, no B-frame reordering or
+lookahead, with explicit SPS coded-to-visible cropping and reset-driven
+reference invalidation.
+
+Dedicated production-backed cases are
+`graphics.x264-nv12-annexb-picture`,
+`graphics.x264-input-rejections`,
+`graphics.x264-visible-crop-sequence`, and
+`graphics.x264-reset-reference-lifecycle`. They require bytes produced by
+x264, inspect SPS/PPS/IDR structure and SPS cropping, feed the result into the
+existing AVC420 packetizer, reject malformed plane/stride/lifetime inputs,
+and preserve frame-N output storage across frame N+1.
+
+This increment does not create R3 Graphics DVC authorization, a second
+presentation scheduler, native capture, or runtime service activation.
+Microsoft-client rendering and authorized native-desktop delivery therefore
+remain NOT RUN/BLOCKED. M3 / Gate B remains OPEN.

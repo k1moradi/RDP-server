@@ -397,3 +397,18 @@ or alter the owner's unchanged configure/build/CTest command.
 On Apple, the existing `rdp-server-macos-capture` target now enables Objective-C++ only inside the `APPLE` block and compiles `screen_capture_stream.mm` with ARC. The target links `ScreenCaptureKit`, `Foundation`, `CoreMedia`, `CoreVideo`, `CoreGraphics`, and `CoreFoundation`; none of these dependencies are added to `rdp-server-protocol`, Linux, or Windows. The existing CMake command remains valid and does not require Xcode project generation or a second build tree.
 
 Ordinary CTests do not invoke the native ScreenCaptureKit backend. They use the production C++ lifecycle owner with an injected backend and synthetic CoreVideo buffers, so a normal test run neither starts live screen capture nor requests TCC permission. Compiling/linking the Objective-C++ source on macOS is evidence that the SDK bridge builds; it is not evidence that a live screen was captured.
+
+
+## R4 static x264 encoder dependency (2026-10-16)
+
+The normal owner configure/build/CTest command is unchanged. R4 builds the
+pinned sources under `third_party/x264` as a static `rdp-server-x264`
+library and links it only into noninstalled `rdp-server-graphics`. No
+network fetch, system x264 installation, FFmpeg, NASM, OpenCL or second build
+tree is required. The portable installed `RDPServer::protocol` SDK remains
+x264-free.
+
+The first integration deliberately uses x264's portable C implementation with
+one encoder thread and no assembly optimizations. This is a correctness-first
+cross-platform build contract; SIMD/thread tuning requires later R4/R9
+measurement and must not silently change frame ordering or ownership.

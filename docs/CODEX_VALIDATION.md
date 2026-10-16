@@ -4213,3 +4213,22 @@ interactive display/TCC/reconfiguration tests, authenticated Microsoft
 RDP client and actual desktop, performance/soak. **Next:** R2/R3
 authorization and R4 physical frame layout contract before live native
 ScreenCaptureKit capture; then independently authorized macOS27 trial.
+
+
+## R2 TLS-framed authInfo credential CI receipt (2026-10-15)
+
+**Exact code SHA:** `063bcaa1c3cb5b49fbb4be4b84230736fcd6bf7f`.
+[Actions 38844600869](https://github.com/k1moradi/RDP-server/actions/runs/38844600869)
+**PASS overall:** Linux GCC Debug/Release **195/195** each,
+Windows MSVC Debug/Release **185/185** each, macOS AppleClang
+Debug/Release **181/181** each. Distinct
+`security.gssapi-tls-framed-credential-denials` CTest PASS
+on Linux in both modes. Hosted documentation policy, package
+and downstream installed SDK consumer PASS. No owner-machine
+commands ran; `~/rdp-server` checkout was not available.
+
+**NOT RUN:** isolated positive Kerberos keytab/ticket exchange,
+native independently audited OS console session and R3 admission,
+owner local Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
+live Microsoft client, desktop or user interaction.
+Gate A remains OPEN; this increment is deny-only.

@@ -1022,6 +1022,16 @@ actually run; another parser CTest alone is not a complete session.
   Kerberos credentials, OS admission and R3 access remain NOT RUN.
   **Next:** validate exact-commit CI, then independently audit native
   OS identity/console authority without issuing synthetic capabilities.
+  **R2 TLS-owned credentials full hosted-CI receipt (2026-10-15):**
+  Source+CTest+docs `063bcaa1c3cb5b49fbb4be4b84230736fcd6bf7f`,
+  [Actions 38844600869](https://github.com/k1moradi/RDP-server/actions/runs/38844600869)
+  **PASS overall:** Linux/GCC **195/195**, Windows/MSVC
+  **185/185**, macOS/Clang **181/181** CTests in BOTH Debug
+  and Release; `security.gssapi-tls-framed-credential-denials`
+  PASS on Linux in both. Docs policy and SDK consumer PASS.
+  **NOT RUN:** owner Linux/X11, MSYS2 CLANG64/Clang23, macOS27,
+  genuine Kerberos, independently authorized OS session and
+  Microsoft-client desktop. Console admission stays deny-only.
   **R2 provider/TLS identity handoff (2026-10-15; CI pending):**
   `GssapiSpnegoAcceptor::verifiedPrincipal()` now requires genuine
   GSS completion AND the selected TLS X.509-bound CredSSP v5/v6

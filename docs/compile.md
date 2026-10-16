@@ -545,3 +545,15 @@ The bridge is header-only with respect to R4 ownership: it consumes
 any protocol transport target. Apple `test_macos_capture_stream` continues to
 link the private macOS capture target only for SDK/lifecycle compile coverage;
 the public native ScreenCaptureKit factory remains absent.
+
+
+## R4 sanitizer compiler coverage for vendored x264 (2026-10-16)
+
+Ordinary builds remain unchanged. In the existing Linux sanitizer CI job only,
+CMake selects `clang` for C as well as `clang++` for C++, applying the same
+ASan/UBSan compile flags to both languages. The repository's C translation
+units are exclusively the pinned `third_party/x264` sources, so this directly
+instruments the real codec while the existing R4 C++ converter/producer and
+test executables are instrumented through the C++ flags. Link sanitizer flags
+remain on the test executables. No system x264, alternate build directory or
+new dependency is introduced.

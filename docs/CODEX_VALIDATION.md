@@ -11358,3 +11358,28 @@ existing R10 CredSSP aggregate CTests under ASan/UBSan while retaining every
 pre-existing R9 clipboard, R1/R3, native R2/R3, X11 and fuzzer selection.
 Production source, CTest semantics, admission authority and listener state are
 unchanged. Exact correction-SHA CI is required before sanitizer PASS is claimed.
+
+
+## R4 full x264/BGRA sanitizer authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `9d37c0da57553fadc105669cd65e5ae566cf9b03`.
+
+The existing R4 `x264` label has **18** production-backed CTests across
+`test_x264_avc420_encoder` and
+`test_x264_avc420_segmented_frame_producer`. The shared Linux sanitizer job
+previously built neither executable and supplied sanitizer compile flags only
+to C++, leaving the vendored x264 C implementation outside compiler
+instrumentation.
+
+The job is extended in-place: both Clang C/C++ compilers are verified; C and
+C++ receive ASan+UBSan, frame-pointer and fail-on-UB flags; both R4 executables
+join the existing shared target build; and `ctest -L x264` runs as a
+failure-isolated group with leak detection/halt-on-error. Because every
+repository C source is under `third_party/x264`, the C flags specifically
+instrument the real pinned codec. No sanitizer suppression, production code,
+CTest registration, graphics authority or extra build root is added.
+
+Canonical local execution is **NOT RUN** because this connector environment
+does not expose `~/rdp-server`. Exact-SHA hosted CI is the first executable
+gate. Real authenticated R3 Graphics DVC/full-send, owner three-OS commands,
+native capture/client rendering and performance remain **NOT RUN/BLOCKED**.

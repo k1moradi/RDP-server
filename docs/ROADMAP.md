@@ -10565,3 +10565,37 @@ existing R10 CredSSP aggregate CTests under ASan/UBSan while retaining every
 pre-existing R9 clipboard, R1/R3, native R2/R3, X11 and fuzzer selection.
 Production source, CTest semantics, admission authority and listener state are
 unchanged. Exact correction-SHA CI is required before sanitizer PASS is claimed.
+
+
+## R4 full x264/BGRA ASan+UBSan gate (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `9d37c0da57553fadc105669cd65e5ae566cf9b03`.
+
+The previous R4 exact-SHA matrix left one explicit validation hole: the shared
+R9 sanitizer job passed its configured scope but did not build or execute
+`test_x264_avc420_encoder` or
+`test_x264_avc420_segmented_frame_producer`. Source/build review also found
+that every C translation unit in this repository belongs to the pinned x264
+library, while the sanitizer job configured only C++ sanitizer flags. Merely
+adding the R4 executables would therefore exercise a sanitized wrapper around
+an uninstrumented codec.
+
+This increment closes that gap without changing production graphics behavior.
+The existing sanitizer job now verifies both `clang` and `clang++`,
+configures both C and C++ with ASan+UBSan/fail-on-UB flags, builds the two
+existing R4 production-linked test executables, and runs the complete
+`x264` CTest label as an independent `always() && compile-success` group.
+The current label contains **18** cases and covers real instrumented x264 C,
+the C++ encoder wrapper, BGRA-to-NV12 conversion, segmented AVC420/RDP8
+publication, reference recovery, ACK/backpressure and fixed-CFR PTS behavior.
+No x264 suppression is added.
+
+No R3 DVC/channel authority, scheduler, capture owner, codec state or wire
+format changes. Canonical owner `~/rdp-server/build` configure/build/full
+CTest is **NOT RUN** in this connector environment. Exact-SHA hosted
+Linux/Clang sanitizer execution plus the normal Linux/GCC, macOS/Clang and
+Windows/MSVC Debug/Release matrix, documentation policy and SDK/package gates
+are required after publication. Genuine authenticated R3 Graphics
+DVC/full-send integration, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27, native capture performance and Microsoft-client rendering remain
+**NOT RUN/BLOCKED**. Gate B and M3/M4/M5 remain **OPEN**.

@@ -1991,3 +1991,25 @@ Such a test must not fabricate R2 authorization: it proves only byte/receipt
 compatibility. On zero-byte WANT, retain the same higher-layer receipt and
 borrowed span; rotate a receipt only after positive accepted bytes. Use the
 real loopback TLS owner and keep all retries explicit in the test fixture.
+
+
+## R4 x264/BGRA sanitizer selection (2026-10-16)
+
+The one Linux/Clang sanitizer job must compile both existing R4 graphics test
+executables, `test_x264_avc420_encoder` and
+`test_x264_avc420_segmented_frame_producer`, then run the complete
+`x264` CTest label as its own failure-isolated group. The label currently
+contains 18 production-backed cases covering the pinned x264 encoder,
+NV12 validation/reference continuity, BGRA-to-NV12 conversion, segmented
+RDP8 publication, ACK/backpressure and fixed-CFR PTS behavior.
+
+Configure **both** C and C++ with Clang and the same
+`-fsanitize=address,undefined -fno-omit-frame-pointer
+-fno-sanitize-recover=all` flags. All repository C translation units are the
+vendored x264 library, so setting the sanitizer C compiler/flags is what makes
+this a real codec-instrumented run rather than merely a sanitized C++ wrapper
+calling uninstrumented C. Keep leak detection and halt-on-error enabled, do
+not suppress x264 findings, and keep this group behind the shared compile
+success with `always()` so failures do not hide later road evidence. This
+does not change the owner's ordinary build command or create another build
+root.

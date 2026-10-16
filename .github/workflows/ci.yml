@@ -124,7 +124,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          command -v clang
           command -v clang++
+          clang --version
           clang++ --version
       - name: Install credential-free Linux GSSAPI build dependencies
         shell: bash
@@ -144,7 +146,9 @@ jobs:
             -DRDP_SERVER_TEST_LINUX_GSSAPI=ON \
             -DRDP_SERVER_TEST_REAL_KERBEROS=OFF \
             -DRDP_SERVER_BUILD_FUZZERS=ON \
+            -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
             "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
       - name: Compile existing production-linked protocol test targets
@@ -153,6 +157,8 @@ jobs:
           cmake --build build --config Debug --parallel 2 --target \
             test_owned_remote_transfer test_clipboard_protocol \
             test_windows_clipboard_adapter \
+            test_x264_avc420_encoder \
+            test_x264_avc420_segmented_frame_producer \
             test_owned_mcs_connect_initial test_owned_preauth_session \
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_linux_gssapi_spnego \
@@ -168,6 +174,13 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --build-config Debug --timeout 60 -L clipboard --output-on-failure
+      - name: Run all R4 x264 and BGRA CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --build-config Debug --timeout 60 -L x264 --output-on-failure
+
       - name: Run bounded R1/R3 MCS, CredSSP and licensing CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

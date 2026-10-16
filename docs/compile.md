@@ -487,3 +487,10 @@ The existing `test_macos_capture_pixel_buffer` executable gains three synthetic 
 The Apple-only `rdp-server-macos-capture` target also compiles `mac_input_controller.mm` and links ApplicationServices for the non-prompting Accessibility trust query; CoreGraphics already supplies Quartz event construction/posting. The native posting callback remains private to that translation unit and is not runtime-wired. No extra framework dependency reaches the installed portable protocol SDK or non-Apple builds.
 
 `test_macos_input_controller` is registered on every OS with three ordinary cases: `macos.input-controller-lifecycle`, `macos.input-controller-validation-denials`, and `macos.input-controller-revocation-cleanup`. Non-Apple builds compile the portable controller plus synthetic geometry sources directly. Apple links the production macOS target, which compile/links the real Quartz/ApplicationServices bridge, but the tests inject their own callback and never query Accessibility or post native events.
+
+
+## R7 synchronous macOS desktop session/permission guard (2026-10-16)
+
+The Apple-only `rdp-server-macos-capture` target now also compiles `mac_desktop_session_guard.cpp`. Its native path uses CoreGraphics/CoreFoundation already linked by the R7 target and the existing non-prompting Screen Recording/Accessibility probes; no new framework reaches the portable protocol SDK.
+
+`test_macos_desktop_session_guard` is registered on every OS with `macos.desktop-session-lifecycle`, `macos.desktop-session-validation-denials`, and `macos.desktop-session-revocation-reentry`. Non-Apple builds compile the portable guard plus synthetic geometry directly. Apple links the production R7 target, but ordinary CTest injects synthetic session/permission callbacks and never calls `CGSessionCopyCurrentDictionary`, queries real TCC/Accessibility state, starts capture, or posts input.

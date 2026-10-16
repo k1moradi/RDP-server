@@ -356,8 +356,6 @@ LinuxConsoleAdmissionBroker::issue(
         deny(acceptor);
         return std::nullopt;
     }
-    const SSL *activeServerTls = r1Security->activeServerTls;
-
     const std::uint64_t policyGeneration = policy_.generation();
     const std::string_view proven =
         acceptor.verifiedPrincipalForOwnedConnection(connection);

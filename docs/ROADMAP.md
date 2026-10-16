@@ -1,3 +1,7 @@
+## R2 binding-fence warning-clean correction (2026-10-16)
+
+Post-publication review of `5400566af551b6b5715a23d76569a3e838bcd8bd` found an obsolete local `activeServerTls` left in `LinuxConsoleAdmissionBroker::issue` after native issuance switched to `verifiedPrincipalForOwnedConnection()`. The Linux GSS target uses `-Werror`; this correction removes only that unused raw-TLS local. Authorization and teardown semantics are unchanged.
+
 ## R6 capture-cycle attach bounds exact-SHA hosted validation (2026-10-16)
 
 R6 implementation `82655aee07a404bf553faf3273fce37daec51f09`,

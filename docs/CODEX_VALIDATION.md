@@ -6726,3 +6726,35 @@ Xvfb/xauth and xcb-xtest development files.
 **NOT RUN at authoring:** native composite build/CTest in this environment,
 owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, R2/R3 admission,
 RandR reconstruction, R4 consumers, Microsoft-client M3 and benchmarks.
+
+
+### R3 bounded licensing hosted validation receipt (2026-10-16)
+
+**Atomic R3 implementation:** `05b3814dc93360513c6c0077afa1006c1ad669a4`,
+[Actions 38871063598](https://github.com/k1moradi/RDP-server/actions/runs/38871063598).
+That exact-SHA workflow **FAILED at an inherited R1 compile boundary** before
+the R3 CTests could link: the immediately preceding peer-endpoint change in
+`nonblocking_tcp_adapter.cpp` lacked portable IPv4/IPv6 address declarations
+and redeclared POSIX peer storage. Documentation policy passed, and
+`rdp_licensing.cpp` itself compiled in Linux sanitizer, Linux/GCC,
+macOS/Clang and Windows/MSVC builds. The three R3 licensing CTests are therefore
+**NOT RUN on the implementation SHA**, not falsely counted as PASS.
+
+R1 corrected only that compile boundary in descendant
+`10fff1ab437b74f7065bdd4c87dd9a5095f1f050`,
+[Actions 38871271985](https://github.com/k1moradi/RDP-server/actions/runs/38871271985).
+With the R3 sources unchanged, Linux/GCC Debug and Release passed **281/281**
+CTests each and Windows/MSVC Debug and Release passed **281/281** each.
+`transport.licensing-preamble-and-state`,
+`transport.licensing-length-bounds`, and
+`transport.licensing-ordering-denials` passed in all four suites.
+macOS/Clang Debug also passed all three R3 licensing tests; its full suite was
+**262/263** because the unrelated R1
+`transport.tcp-owned-tls-application-partial-write` aborted, so macOS Release
+did not run. The descendant sanitizer job passed its configured suites; an
+independent local Clang 17 ASan+UBSan+LeakSanitizer focused run of
+`rdp_licensing.cpp` also passed.
+
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 remain **NOT RUN**.
+No real credentials, OS admission, Microsoft RDP client or desktop were used.
+M2 remains **NOT ACCEPTED**.

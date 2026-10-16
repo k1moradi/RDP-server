@@ -10381,3 +10381,25 @@ lease or alternate TLS/GSS/R3 owner was added. M2/M3 remain **OPEN**. Next R10
 gate after hosted compilation is the opt-in genuine Kerberos path through this
 same aggregate to a provider-generated continuation/final binding reply, then
 independent native console admission before any listener work.
+
+
+### R10 CredSSP aggregate test-enum compile correction (2026-10-16)
+
+Exact implementation SHA `b2d1122f6ad9bd063688c0466cc30ae434806485`,
+Actions `38898862902`, reached the R10 Linux production target successfully:
+`rdp-server-linux-runtime-security` compiled and linked. Ubuntu, macOS and the
+R9 sanitizer build were initially blocked by an unrelated R3
+`frameDomainPdu` declaration error; descendant R3 commit
+`23c3703cd562f596622fd8840c36a1a9d0439443` fixed that shared compile
+boundary. The descendant Ubuntu build then exposed one R10 test-only stale
+enum comparison in `testConnectionCredSspAuthorizationDenials`: the final
+post-revoke assertion still named `TsRequestTlsReadStatus::Closed` after
+`onCredSspIoReady()` moved to `LinuxCredSspStepStatus`.
+
+This correction changes only that assertion to
+`LinuxCredSspStepStatus::Closed`; production CredSSP/GSS orchestration,
+ownership and teardown are unchanged. The failing descendant compile therefore
+records the R10 test as **NOT RUN**, not FAIL behavior. Exact correction-SHA
+hosted CI is required before claiming the new aggregate CTests PASS. Owner-local
+canonical `~/rdp-server/build` remains **NOT RUN** in this connector
+environment.

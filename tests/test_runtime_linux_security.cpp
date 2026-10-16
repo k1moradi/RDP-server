@@ -823,7 +823,7 @@ void testConnectionCredSspAuthorizationDenials(
            LinuxCredSspStepStatus::Closed);
     connection.revoke();
     assert(connection.onCredSspIoReady().status ==
-           rdp_server::server::security::TsRequestTlsReadStatus::Closed);
+           LinuxCredSspStepStatus::Closed);
     assert(::close(clientDescriptor) == 0);
 }
 

@@ -8666,3 +8666,18 @@ sanitizer stages. No test is disabled, quarantined or made less strict.
 The prior R9 protected-transition SHA
 `b009c43bc6913513937b89c9de16a0abbc5a6a50`, Actions **38880965403**, is
 still **QUEUED** behind older workflows at this authoring snapshot.
+
+
+## R7 generation-pinned macOS input controller (2026-10-16)
+
+**Implementation:** `003f455148fa72f6ee82bd5fbdf6016e3df4fab8` on `main`. The implementation commit changes only the Apple/native build wiring, `mac_input_controller.{h,cpp,mm}`, the dedicated synthetic test executable/CTest registration, and `docs/compile.md`.
+
+**Local/isolated PASS:** the production portable controller and three-case synthetic harness compile and execute with Clang and GCC C++23 under `-Wall -Wextra -Wpedantic -Werror -UNDEBUG`. Clang ASan+UBSan with leak detection passes all three cases. Coverage includes Retina center-point translation, button drag state, wheel remainder accumulation, duplicate make suppression, monitor-gap rejection, malformed enum/delta/scan inputs, key-mapping mismatch, short native batches, callback reentry, cancellation during callback, generation refresh, topology revocation, and the rule that stale/replacement epochs receive no cleanup injection.
+
+**Native source syntax:** `mac_input_controller.mm` passes Objective-C++ C++23 syntax checking against stub CoreGraphics/ApplicationServices declarations. The production native bridge creates keyboard/mouse/drag/line-scroll Quartz events and performs a non-prompting Accessibility trust check before posting, but its callback factory is intentionally private. Stub syntax is not Apple SDK compile/link or live event evidence.
+
+**Dedicated standard CTests:** `macos.input-controller-lifecycle`, `macos.input-controller-validation-denials`, and `macos.input-controller-revocation-cleanup`. On non-Apple hosts they build the portable controller plus synthetic geometry sources directly. On Apple they link `rdp-server-macos-capture`, so the real native translation unit must compile/link, but the tests inject a fake callback and never call the Accessibility query or `CGEventPost`.
+
+**Exact-SHA hosted state:** Actions run `38884345628` for `003f455148fa72f6ee82bd5fbdf6016e3df4fab8` is **QUEUED** in the repository-wide runner backlog. All five jobs were queued at this receipt; therefore real Apple SDK/ApplicationServices compile/link and full hosted CTest remain **NOT RUN** for this exact SHA and must not be counted as PASS. The prior R7 cursor workflow `38881746797` also remains **QUEUED**.
+
+**Still NOT RUN:** owner macOS 27, actual Accessibility trust, live Quartz keyboard/pointer injection, genuine macOS R2/R3 admission/session binding, R4 cursor publication, Microsoft-client cursor/input behavior, and performance/reliability acceptance. M5 remains **OPEN**.

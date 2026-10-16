@@ -101,31 +101,35 @@ Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27, genuine positive
 Kerberos/NSS/logind admission, live Explorer/Finder file handoff,
 authenticated Microsoft-client file copy and M2/M3 remain **NOT RUN / OPEN**.
 
-## R6 pre-invalidated guard retirement authoring receipt (2026-10-16)
+## R6 pre-invalidated guard retirement exact-SHA validation (2026-10-16)
 
-**Parent:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`. Exact publication-SHA hosted validation: **PENDING**.
+**Implementation/test increment:** `77a03edcaf796268b35d567c64414cde65ffaaff`.  
+**Actions:** [38975350202](https://github.com/k1moradi/RDP-server/actions/runs/38975350202) — **SUCCESS**.
 
-No R6 production change is made. The existing coordinated session-retirement
-CTest now exercises the case where the real
-`WindowsCaptureSessionGenerationGuard` has already failed closed because its
-session observation became unavailable while mapped capture and held input
-remain live. A later valid notification for a different session must still be
-terminal at `retireWindowsNativeConsumersOnSessionChange()`, despite the
-guard-level notification itself being classified `ignored`.
+The existing production-backed
+`windows.capture-session-change-coordinated-input-revocation` CTest now
+directly covers an already-invalid shared guard with still-live mapped capture
+and held input. The guard is invalidated through its real session-reader path.
+A subsequent valid unrelated session notification reaches the real
+`retireWindowsNativeConsumersOnSessionChange()` boundary and must return
+`alreadyClosed`, discard held input without cleanup injection, unmap staging
+once, release the DXGI frame once after unmap, close both consumers, and remain
+idempotent.
 
-The test requires `alreadyClosed`, no synthetic input cleanup after guard
-invalidation, one D3D11 unmap followed by one DXGI frame release, terminal
-capture/input state, and idempotency on a repeated unrelated notification. It
-uses the existing deterministic injected callbacks only; no WTS mutation, live
-Desktop Duplication, D3D11 device or host `SendInput` call is performed.
-CTest registration is unchanged because this extends the already dedicated
-`windows.capture-session-change-coordinated-input-revocation` behavior.
+Windows/MSVC native preflight is **51/51 PASS** in Debug and Release; the
+extended behavior is test **#311**, **0.01 s** in both. Full Windows CTest is
+**456/456 PASS Debug + 456/456 PASS Release**. Linux/GCC is **503/503** in
+Debug and Release; macOS/AppleClang is **426/426** in Debug and Release.
+R9's configured Clang ASan/UBSan groups are all green at **59/59, 33/33,
+20/20, 4/4, 76/76, 29/29, 10/10, 31/31 and 1/1** respectively. This is not
+direct sanitizer execution of the Windows-only R6 executable. Documentation
+policy, R7 sanitizers, SDK consumer and package/artifact stages pass.
 
-Canonical local build/full CTest and owner Windows CLANG64 execution are
-**NOT RUN** in this connector environment. Exact-SHA hosted matrix evidence is
-pending. Direct Windows-only sanitizer execution, genuine R2/R3 Windows
-admission, live native capture/input and Microsoft-client M4 remain
-**NOT RUN / OPEN**.
+No R6 production or registry file changed. Canonical owner-local build, owner
+Windows CLANG64/Clang 23, live native capture/input, genuine R2/R3 Windows
+admission and Microsoft-client M4 remain **NOT RUN / OPEN**. The production
+composition dependency remains R2/R3 authorization before R10 can create or
+recover Windows native owners.
 
 ## R5 XShm retirement integration correction (2026-10-16; CI pending)
 

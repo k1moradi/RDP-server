@@ -105,41 +105,52 @@ Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27, genuine positive
 Kerberos/NSS/logind admission, live Explorer/Finder file handoff,
 authenticated Microsoft-client file copy and M2/M3 remain **NOT RUN / OPEN**.
 
-## R6 pre-invalidated guard coordinated retirement coverage (2026-10-16; exact-SHA CI pending)
+## R6 pre-invalidated guard coordinated retirement exact-SHA validation (2026-10-16)
 
-**Starting reconciled shared main:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.
+**Implementation/test increment:** `77a03edcaf796268b35d567c64414cde65ffaaff`.  
+**Actions:** [38975350202](https://github.com/k1moradi/RDP-server/actions/runs/38975350202) — **SUCCESS**.
 
-The coordinated Windows retirement boundary is already exact-SHA validated and
-requires no new production owner or algorithm. Follow-up audit found one
-specific branch of its fail-closed contract that was implemented but not
-directly exercised: `notifySessionChange()` returns `ignored` for a valid
-unrelated session identifier before consulting the guard's closed state, while
-`retireWindowsNativeConsumersOnSessionChange()` must still treat the
-composition as terminal when the shared guard had already failed closed.
+This test-only R6 increment closes the remaining direct coverage gap in the
+already-validated coordinated retirement boundary. The existing
+`windows.capture-session-change-coordinated-input-revocation` behavior now
+also leaves a synthetic frame mapped and a key held, makes the real
+`WindowsCaptureSessionGenerationGuard` fail closed because its session
+observation becomes unavailable, and only then delivers a valid notification
+for another session. The coordinator must convert the guard-level `ignored`
+classification into terminal `alreadyClosed`, synchronously retire input and
+capture, emit no stale held-input cleanup, unmap once, release the DXGI frame
+once after unmap, and remain idempotent on repetition.
 
-The existing
-`windows.capture-session-change-coordinated-input-revocation` CTest now
-covers that state. It leaves one synthetic frame mapped and one input key held,
-then makes the real `WindowsCaptureSessionGenerationGuard` fail closed through
-an unavailable session observation before either consumer samples the failure.
-A later valid notification for session 43 while the guard targets 42 must return
-`alreadyClosed`, close input and capture synchronously, emit no stale held-key
-cleanup, unmap once, release the DXGI frame once in that order, and remain
-idempotent on repetition.
+No production R6 source, native callback, owner, CTest registration,
+authorization decision or runtime integration changed.
 
-This is test-only coverage of the existing coordinator. Production R6 source,
-CTest registration, WTS behavior, DXGI ownership, input behavior and
-authorization boundaries are unchanged; the behavior remains centrally
-registered exactly once.
+Exact-SHA hosted results:
+- Windows/MSVC native R6 preflight **51/51 PASS Debug + 51/51 PASS Release**;
+  the extended behavior is test **#311** and passes in **0.01 s** in both.
+  Full CTest is **456/456 PASS Debug + 456/456 PASS Release**.
+- Linux/GCC **503/503 PASS Debug + 503/503 PASS Release**.
+- macOS/AppleClang **426/426 PASS Debug + 426/426 PASS Release**.
+- R9 Clang ASan/UBSan groups: **59/59, 33/33, 20/20, 4/4, 76/76, 29/29,
+  10/10, 31/31 and 1/1 PASS**. The Windows-only R6 executable is not selected
+  by that Linux sanitizer job, so direct R6 sanitizer execution remains
+  **NOT RUN**.
+- Documentation policy and the R7 sanitizer job **PASS**. Installed SDK
+  consumer is **1/1 PASS** on Linux, macOS and Windows; package/digest/artifact
+  stages pass. Untagged prerelease publication is correctly **SKIPPED**.
 
-Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
-connector environment. Exact publication-SHA hosted Windows/MSVC focused/full
-Debug+Release, Linux/GCC, macOS/Clang, R9 sanitizer, documentation-policy and
-SDK/package evidence are **PENDING**. Direct Windows R6 sanitizer execution,
-owner Windows MSYS2 CLANG64/Clang 23, live WTS/DXGI/`SendInput`, genuine
-Windows R2/R3 admission and Microsoft-client M4 remain **NOT RUN / OPEN**. The
-next R6 -> R10 production-composition gate is unchanged and still requires
-fresh genuine R2/R3 Windows authorization.
+Validated invariant: once the common R6 session guard is invalid, a later
+session-change route cannot preserve mapped capture or held input merely because
+that notification names another valid session. Terminal composition state
+dominates the per-notification `ignored` result, with no stale input injection
+and exact-once capture retirement.
+
+Canonical owner-local `~/rdp-server/build/`, owner Windows MSYS2
+CLANG64/Clang 23, direct Windows R6 sanitizer execution, live WTS/DXGI/
+`SendInput`, genuine Windows R2/R3 admission and Microsoft-client M4
+acceptance remain **NOT RUN / OPEN**. No further standalone R6 production
+change is justified by this audit. The next R6 -> R10 composition gate remains
+fresh genuine R2/R3 Windows authorization followed by new native-owner
+composition and serialized delivery into the existing retirement boundary.
 
 ## R5 XShm retirement registry/shared-CI correction (2026-10-16; exact-SHA CI pending)
 

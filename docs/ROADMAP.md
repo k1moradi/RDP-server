@@ -6422,3 +6422,62 @@ terminal. **Next R3:** add protected Erect Domain progression, then Attach User
 allocation/confirmation, each with fresh R2 authorization and the same
 single-owner receipt discipline. M2 remains **NOT ACCEPTED** pending genuine
 positive native admission and Microsoft-client evidence.
+
+
+### R1 X.224 negotiation provenance hosted validation (2026-10-16)
+
+**Production/test SHA:** `a00454ab30e4c3d7708befaee2d7f452901163eb`.
+**Documentation descendant:** `c09e581ac965e79ce700ef4617a0af6d2b04adba`.
+**Owner-fixture normalization:** `ae50773088356ef3d3d281656c0d6e09e432d82d`.
+
+The immutable X.224 request/selection provenance compiles on hosted GCC,
+AppleClang and MSVC. On
+[Actions 38877612047](https://github.com/k1moradi/RDP-server/actions/runs/38877612047),
+`transport.tcp-owned-security-negotiation-provenance` **PASS** on Linux/GCC
+Debug and macOS/AppleClang Debug. The surrounding R1 owner block also passes:
+connection TLS lifecycle, cancellation, readiness dispatch, reply-interest
+priority, deadline cancellation, both bounded-poll cases and all three
+post-TLS application-I/O cases. Linux Debug is **301/302** and macOS Debug
+**270/271**; each has exactly one unrelated inherited failure,
+`transport.gcc-conference-create`, at
+`test_owned_gcc_conference_create.cpp:109`
+(`settings.earlyCapabilityFlags == 0x0001U`). Release is skipped after that
+Debug failure. Documentation-policy and the R9 sanitizer job **PASS** on the
+documentation descendant.
+
+The test-only normalization
+`ae50773088356ef3d3d281656c0d6e09e432d82d`,
+[Actions 38878305211](https://github.com/k1moradi/RDP-server/actions/runs/38878305211),
+again passes the complete R1 owner block on Linux and macOS after moving the
+remaining owner/readiness setup paths onto the shared bounded accept fixture.
+Linux Debug is **306/307** and macOS Debug **274/275**, with the same sole
+inherited GCC failure. Documentation-policy and sanitizer again **PASS**.
+
+Windows/MSVC Debug **COMPILE PASS** on both R1 runs, but full CTest remains
+**IN PROGRESS**; no Windows CTest PASS/FAIL is claimed. This is inherited:
+pre-R1 parent `9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`,
+[Actions 38876792846](https://github.com/k1moradi/RDP-server/actions/runs/38876792846),
+is still in the same Windows full-Debug CTest step while its Linux/macOS jobs
+fail the same GCC assertion. R1 does not add a watchdog or weaken transport
+assertions to mask that suite-level stall.
+
+R3 has since consumed the new R1 surface in production:
+`LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite` obtains both
+`establishedTls()` and `securityNegotiationProvenance()` from the same
+`OwnedPreauthTcpConnection`, freshly reauthorizes through R2, and supplies
+R3's receipt-bound Connect Response writer. No caller protocol scalar is
+accepted. This satisfies the concrete integration gap that motivated the R1
+increment; the existing bounded R1 application writer remains sufficient for
+the eventual TLS write step.
+
+The source SHA's standalone documentation-policy job failed only because the
+connector transaction ceiling forced source/tests and Markdown into two
+consecutive direct-to-main commits. The immediate documentation descendant
+passes policy; history is retained rather than force-rewritten.
+
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27
+same-SHA commands; genuine positive Kerberos/TLS/native-session admission;
+real Microsoft RDP client. M2 remains **NOT ACCEPTED**.
+**Next R1:** no new transport surface is justified. Support R3's protected
+Erect/Attach/Join progression only if integration demonstrates a concrete
+missing bounded TCP/TLS hook.

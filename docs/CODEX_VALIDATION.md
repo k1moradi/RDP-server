@@ -13514,3 +13514,54 @@ No positive licensing state, activation, or desktop authority is added.
 Canonical local testing is NOT RUN in this connector environment. Hosted
 exact-SHA validation is pending publication.
 
+
+
+## R4 zero-surface stale-negative correction exact-SHA hosted receipt (2026-10-16)
+
+**Correction:** `3d77a024b0150cb93058f5ac52f84cff639d3a88`.
+**Actions:** `38922487647` — **FAIL overall due unrelated R1 macOS Release assertion; R4 correction PASS**.
+
+The correction removes the two stale surface-zero negative expectations left
+behind by `4ac92d9717d751b62c7268d4fd800ed0210246d8` and adds direct
+`graphics.avc420-zero-surface-id-wire` coverage. The standards-correct
+production surface-zero behavior is retained.
+
+Exact R4 evidence on the correction SHA:
+
+- **Linux/GCC:** Debug **453/453 PASS**, Release **453/453 PASS**.
+  `graphics.surface-zero-id-wire` (#220),
+  corrected `graphics.channel-lifecycle-denials` (#233),
+  `graphics.avc420-zero-surface-id-wire` (#244),
+  corrected `graphics.avc420-picture-rejections` (#245), and real-x264
+  `graphics.x264-segmented-zero-surface-id-delivery` (#446) all PASS in
+  both configurations. Installed SDK consumer/package gates PASS.
+- **Windows/MSVC:** focused native preflight **45/45 PASS** in Debug and
+  Release; full Debug **409/409 PASS**, Release **409/409 PASS**. The same
+  R4 cases pass as #205/#218/#229/#230/#402 in both full suites; SDK
+  consumer/package gates PASS.
+- **macOS/Clang:** Debug **379/379 PASS**. Release executes every R4 graphics
+  case above successfully, including the full **20-test x264** set, but the
+  complete suite is **378/379** because unrelated R1
+  `transport.tcp-owned-tls-application-cancellation` aborts on an expected
+  `FatalTlsFailure` assertion. This is the sole macOS Release failure and
+  is not attributed to R4.
+- **Clang ASan+UBSan R4 x264/BGRA:** **20/20 PASS**, including
+  `graphics.x264-segmented-zero-surface-id-delivery`. The bounded R1/R3
+  sanitizer selection that failed on the preceding surface-zero SHA is also
+  repaired by concurrent R2 work and PASS on this exact correction SHA.
+- **Documentation policy PASS** and the dedicated R7 session sanitizer job
+  PASS.
+
+Therefore the R4 surface-zero production behavior and its stale-test
+correction are validated across Linux/Windows Debug+Release, macOS Debug,
+macOS Release R4-specific execution, and the fully instrumented x264 group.
+The workflow as a whole is **not green** because of the separate R1 macOS
+Release regression, so this receipt does not claim whole-matrix success.
+
+Canonical owner `~/rdp-server/build` validation and owner Linux/X11,
+Windows MSYS2 CLANG64/Clang 23 and macOS 27 commands remain **NOT RUN** in
+this connector environment. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC/full-send integration, native
+capture performance and Microsoft-client visible graphics acceptance remain
+**BLOCKED/NOT RUN**. R4 must not fabricate a second channel/session authority;
+Gate B and M3/M4/M5 remain **OPEN**.

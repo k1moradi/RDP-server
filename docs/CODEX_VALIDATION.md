@@ -14921,3 +14921,24 @@ Microsoft-client M3 acceptance remain **NOT RUN/OPEN**. The next functional R5
 input-PDU integration remains **BLOCKED** until R3 exposes its authoritative
 authenticated Share/Input or Fast-Path Input translation boundary; R5 must not
 invent that parser or another session/input controller.
+
+
+## R7 native geometry coverage-gate first exact-SHA failure and test-order correction (2026-10-16)
+
+Implementation `f5beef84a25bebd82b1e8ae71b32930c2ff5dc23`, Actions
+`38965511368`, exposed an R7-owned macOS compile failure before the new
+behavior could run: AppleClang reports undeclared `nativeDisplayFixture` and
+`readSyntheticNativeDisplays` because the new Apple-only test function was
+placed before those shared geometry helpers.
+
+This correction moves only that test function below the existing helper
+definitions. Production topology-coverage code, dispatch and CTest registration
+are unchanged. The corrected case still cannot register a real observer or
+enumerate CoreGraphics state because `refreshNative()` denies first while
+coverage is inactive.
+
+On the failed SHA, documentation policy and the dedicated R7 GCC ASan/UBSan
+session-watch job **PASS**; the latter is **10/10 PASS**. macOS is **FAIL at
+compile**, so exact-SHA rerun is required. Owner-local `~/rdp-server/build/`,
+owner macOS 27 positive display-change delivery, genuine R2/R3 macOS admission
+and Microsoft-client M5 acceptance remain **NOT RUN/OPEN**.

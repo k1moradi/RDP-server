@@ -13331,3 +13331,47 @@ CLANG64/Clang 23 and macOS 27 remain **NOT RUN** here. Genuine authenticated R3
 `Microsoft::Windows::RDS::Graphics` DVC/full-send integration, native capture
 performance and Microsoft-client visible graphics remain **BLOCKED/NOT RUN**.
 Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R4 zero-surface clean descendant matrix (2026-10-16)
+
+**Validated descendant:** `dc89b81192e7fee4854ef63890444bffd5e17062`.
+**Actions:** `38923249015` — **SUCCESS**.
+
+This descendant contains both the production zero-surface correction
+`4ac92d9717d751b62c7268d4fd800ed0210246d8` and stale-test correction
+`3d77a024b0150cb93058f5ac52f84cff639d3a88`, plus the unrelated R1
+readiness fix that removes the prior macOS Release-only blocker. No additional
+R4 source or test change is required.
+
+- **Linux/GCC:** Debug **457/457 PASS**, Release **457/457 PASS**.
+  `graphics.surface-zero-id-wire` (#223),
+  `graphics.channel-lifecycle-denials` (#236),
+  `graphics.avc420-zero-surface-id-wire` (#247),
+  `graphics.avc420-picture-rejections` (#248), and
+  `graphics.x264-segmented-zero-surface-id-delivery` (#450) all PASS in
+  both configurations. Installed SDK consumer/package gates PASS.
+- **macOS/Clang:** Debug **382/382 PASS**, Release **382/382 PASS**. The same
+  R4 cases pass as #208/#221/#232/#233/#375 in both configurations; SDK
+  consumer/package gates PASS. This closes the prior unrelated R1 Release
+  failure.
+- **Windows/MSVC:** focused native preflight **45/45 PASS** in Debug and
+  Release; full Debug **412/412 PASS**, Release **412/412 PASS**. The same R4
+  cases pass as #208/#221/#232/#233/#405 in both full suites; SDK
+  consumer/package gates PASS.
+- **Clang ASan+UBSan R4 x264/BGRA:** **20/20 PASS**. The production-backed
+  `graphics.x264-segmented-zero-surface-id-delivery` case is selected and
+  PASS. All other configured sanitizer groups and the bounded fuzzer PASS.
+  **Documentation policy PASS**; untagged prerelease publication is correctly
+  **SKIPPED**.
+
+Hosted validation for zero-valued RDPGFX surface IDs is therefore fully closed.
+The canonical owner `~/rdp-server/build` commands on Linux/X11, Windows
+MSYS2 CLANG64/Clang 23 and macOS 27 remain **NOT RUN** in this connector
+environment.
+
+The next R4 production integration gate remains genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC admission plus full-send completion.
+R4 must not create a parallel channel/session owner. Native capture performance
+and Microsoft-client visible graphics acceptance remain **BLOCKED/NOT RUN**.
+Gate B and M3/M4/M5 remain **OPEN**.

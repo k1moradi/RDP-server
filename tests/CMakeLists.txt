@@ -1163,7 +1163,7 @@ endif()
 foreach(case_name IN ITEMS
         x264-segmented-delivery-continuity
         x264-segmented-backpressure-preflight
-        x264-segmented-publication-idr-recovery
+        x264-segmented-metadata-preflight
         x264-segmented-abort-generation-reset)
     add_test(NAME "graphics.${case_name}"
         COMMAND test_x264_avc420_segmented_frame_producer "${case_name}")

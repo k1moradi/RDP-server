@@ -81,10 +81,11 @@ void rejections()
         for (std::byte b : output) assert(b == std::byte{0xA5});
     };
     const auto valid = picture();
+    assert(gfxAvc420PictureMetadataValid(valid));
     for (std::size_t n = 0; n < gfxAvc420PictureBytes(2, 7); ++n)
         fail(valid, n);
-    {auto p=valid;p.surfaceId=0;fail(p,output.size());}
-    {auto p=valid;p.frameId=0;fail(p,output.size());}
+    {auto p=valid;p.surfaceId=0;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
+    {auto p=valid;p.frameId=0;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
     for(const PixelSize size : {PixelSize{0,16}, PixelSize{32,0},
                                 PixelSize{31,16}, PixelSize{32,17},
                                 PixelSize{65536,16}, PixelSize{32,65536}})
@@ -98,14 +99,14 @@ void rejections()
     {auto p=valid;p.annexBPicture=nonsense;fail(p,output.size());}
     std::array<GfxAvc420QuantQuality,2> bad=kQuality;
     bad[0].qp=52;
-    {auto p=valid;p.quantQualities=bad;fail(p,output.size());}
+    {auto p=valid;p.quantQualities=bad;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
     bad=kQuality;bad[0].quality=101;
-    {auto p=valid;p.quantQualities=bad;fail(p,output.size());}
+    {auto p=valid;p.quantQualities=bad;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
     std::array<Rectangle,2> rects=kRegions;
     rects[0].x=-1;
-    {auto p=valid;p.regions=rects;fail(p,output.size());}
+    {auto p=valid;p.regions=rects;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
     rects=kRegions;rects[0].widthPixels=33;
-    {auto p=valid;p.regions=rects;fail(p,output.size());}
+    {auto p=valid;p.regions=rects;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
     assert(gfxAvc420PictureBytes(0,7)==0);
     assert(gfxAvc420PictureBytes(4097,7)==0);
     assert(gfxAvc420PictureBytes(1,kGfxMaximumAnnexBPictureBytes+1)==0);

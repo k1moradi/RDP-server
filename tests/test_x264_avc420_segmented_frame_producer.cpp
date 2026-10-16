@@ -208,30 +208,45 @@ void backpressureDoesNotAdvanceEncoder()
     assert(!hasNalType(second.wireBytes(), 5));
 }
 
-void rejectedPublicationForcesIdrRecovery()
+void metadataPreflightPreservesReferences()
 {
     GfxPresentationLifecycle lifecycle;
     mapSurface(lifecycle, 4003, kVisible);
     X264Avc420SegmentedFrameProducer producer;
     assert(producer.open(4003, kCoded, kVisible));
 
-    const auto pixels = makeFrame(kCoded, 7);
-    auto malformed = request(20, pixels, 0);
+    const auto firstPixels = makeFrame(kCoded, 7);
+    const auto secondPixels = makeFrame(kCoded, 17);
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepare(
+        lifecycle, 4003, request(20, firstPixels, 0), first));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(4003, acknowledge(20), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    auto malformed = request(21, secondPixels, 1);
     const std::array<GfxAvc420QuantQuality, 1> badQuality{{{52, 80}}};
     malformed.quantQualities = badQuality;
-
     GfxAvc420SegmentedFrame denied;
     assert(!producer.prepare(lifecycle, 4003, malformed, denied));
     assert(!denied.valid());
     assert(lifecycle.canSubmitFrame(4003));
     assert(producer.valid());
 
-    GfxAvc420SegmentedFrame recovered;
+    const std::array<Rectangle, 1> outside{
+        Rectangle{0, 0, kVisible.widthPixels, kVisible.heightPixels + 2U}};
+    malformed = request(21, secondPixels, 1);
+    malformed.regions = outside;
+    assert(!producer.prepare(lifecycle, 4003, malformed, denied));
+    assert(lifecycle.canSubmitFrame(4003));
+
+    GfxAvc420SegmentedFrame second;
     assert(producer.prepare(
-        lifecycle, 4003, request(20, pixels, 1), recovered));
-    assert(hasNalType(recovered.wireBytes(), 7));
-    assert(hasNalType(recovered.wireBytes(), 8));
-    assert(hasNalType(recovered.wireBytes(), 5));
+        lifecycle, 4003, request(21, secondPixels, 1), second));
+    assert(hasNalType(second.wireBytes(), 1));
+    assert(!hasNalType(second.wireBytes(), 5));
 }
 
 void abortAndGenerationReset()
@@ -278,9 +293,9 @@ int main(int argc, char **argv)
         backpressureDoesNotAdvanceEncoder();
         return 0;
     }
-    if (behavior == "x264-segmented-publication-idr-recovery")
+    if (behavior == "x264-segmented-metadata-preflight")
     {
-        rejectedPublicationForcesIdrRecovery();
+        metadataPreflightPreservesReferences();
         return 0;
     }
     if (behavior == "x264-segmented-abort-generation-reset")

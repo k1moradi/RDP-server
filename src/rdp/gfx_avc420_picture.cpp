@@ -72,6 +72,14 @@ void header(std::span<std::byte> out, std::size_t at,
            right <= std::numeric_limits<std::uint16_t>::max() &&
            bottom <= std::numeric_limits<std::uint16_t>::max();
 }
+[[nodiscard]] PixelSize resolvedVisibleGeometry(
+    const GfxAvc420Picture &picture) noexcept
+{
+    return picture.visibleGeometry.widthPixels == 0 &&
+                   picture.visibleGeometry.heightPixels == 0
+               ? picture.codedGeometry
+               : picture.visibleGeometry;
+}
 } // namespace
 
 PixelSize gfxAvc420CodedGeometry(PixelSize visible) noexcept
@@ -104,18 +112,13 @@ std::size_t gfxAvc420PictureBytes(
     return frameBase + annexBBytes;
 }
 
-std::size_t buildGfxAvc420Picture(
-    const GfxAvc420Picture &picture, std::span<std::byte> output) noexcept
+bool gfxAvc420PictureMetadataValid(
+    const GfxAvc420Picture &picture) noexcept
 {
     const std::size_t count = picture.regions.size();
-    const std::size_t total = gfxAvc420PictureBytes(
-        count, picture.annexBPicture.size());
     const PixelSize coded = picture.codedGeometry;
-    const PixelSize visible =
-        picture.visibleGeometry.widthPixels == 0 &&
-        picture.visibleGeometry.heightPixels == 0
-            ? coded : picture.visibleGeometry;
-    if (total == 0 || output.size() < total ||
+    const PixelSize visible = resolvedVisibleGeometry(picture);
+    if (count == 0 || count > kGfxMaximumAvc420Regions ||
         picture.surfaceId == 0 || picture.frameId == 0 ||
         coded.widthPixels == 0 || coded.heightPixels == 0 ||
         (coded.widthPixels & 15U) != 0 ||
@@ -125,10 +128,9 @@ std::size_t buildGfxAvc420Picture(
         visible.widthPixels == 0 || visible.heightPixels == 0 ||
         visible.widthPixels > coded.widthPixels ||
         visible.heightPixels > coded.heightPixels ||
-        picture.quantQualities.size() != count ||
-        !hasAnnexBPicture(picture.annexBPicture))
+        picture.quantQualities.size() != count)
     {
-        return 0;
+        return false;
     }
     for (std::size_t i = 0; i < count; ++i)
     {
@@ -136,9 +138,25 @@ std::size_t buildGfxAvc420Picture(
             picture.quantQualities[i].qp > 51U ||
             picture.quantQualities[i].quality > 100U)
         {
-            return 0;
+            return false;
         }
     }
+    return true;
+}
+
+std::size_t buildGfxAvc420Picture(
+    const GfxAvc420Picture &picture, std::span<std::byte> output) noexcept
+{
+    const std::size_t count = picture.regions.size();
+    const std::size_t total = gfxAvc420PictureBytes(
+        count, picture.annexBPicture.size());
+    if (total == 0 || output.size() < total ||
+        !gfxAvc420PictureMetadataValid(picture) ||
+        !hasAnnexBPicture(picture.annexBPicture))
+    {
+        return 0;
+    }
+    const PixelSize visible = resolvedVisibleGeometry(picture);
 
     // Copy payload FIRST using memmove. Source may overlap the output
     // buffer; metadata/header writes after copying cannot corrupt it.

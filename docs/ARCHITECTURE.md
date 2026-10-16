@@ -1,3 +1,17 @@
+### R4 deterministic metadata before stateful encode (2026-10-16)
+
+AVC420 envelope metadata validation is shared between the packetizer and the
+x264 producer through `gfxAvc420PictureMetadataValid()`. It intentionally
+does not inspect Annex-B bytes: surface/frame IDs, coded/visible geometry,
+region count/bounds and quant-quality entries are all knowable before encode
+and must be rejected before x264 can change reference history.
+
+This keeps ordinary malformed work cheap and reference-stable. Only failures
+that can occur after x264 has genuinely accepted a picture—encoded-payload
+validation, allocation/framing/reservation failure, or terminal delivery
+failure—may require codec-history invalidation. R3 channel/session authority
+and the existing R4 presentation lifecycle remain unchanged.
+
 ### R4 x264 publication/reference ownership (2026-10-16)
 
 `X264Avc420SegmentedFrameProducer` is the native-codec subordinate of the

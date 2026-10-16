@@ -52,6 +52,13 @@ inline constexpr std::size_t kGfxMaximumAvc420Regions = 4096U;
 
 [[nodiscard]] std::size_t gfxAvc420PictureBytes(
     std::size_t regionCount, std::size_t annexBBytes) noexcept;
+
+// Validate all deterministic AVC420 envelope metadata without inspecting an
+// encoded bitstream. R4 uses this before stateful encode so malformed
+// surface/frame/geometry/region/quant fields cannot advance codec references.
+[[nodiscard]] bool gfxAvc420PictureMetadataValid(
+    const GfxAvc420Picture &picture) noexcept;
+
 [[nodiscard]] std::size_t buildGfxAvc420Picture(
     const GfxAvc420Picture &picture, std::span<std::byte> output) noexcept;
 

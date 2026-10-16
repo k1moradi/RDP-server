@@ -1,3 +1,39 @@
+## R4 deterministic AVC420 metadata pre-encode gate (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main`: `95a3c3d1da9aa440a94d8275d61560ceda00bd3b`;
+publication is reconciled onto the current shared `main`. R3 still has no
+authenticated Graphics DVC authority, so R4 continues only inside its existing
+codec/presentation ownership boundary.
+
+The AVC420 packetizer now exposes
+`gfxAvc420PictureMetadataValid()`, one allocation-free validator for the
+deterministic surface/frame/coded-visible geometry/region/quant metadata
+already enforced by `buildGfxAvc420Picture()`. The x264 segmented-frame
+producer uses that same validator before calling x264. Invalid QP/quality,
+out-of-visible regions and other deterministic envelope errors therefore do
+not advance codec references and do not force an avoidable encoder rebuild.
+The packetizer still validates Annex-B only after encode; any genuine
+post-encode publication failure remains fail-closed and rebuilds codec history.
+
+The producer regression is now
+`graphics.x264-segmented-metadata-preflight`: after one delivered/ACKed IDR,
+bad quant metadata and an out-of-bounds region are rejected while lifecycle
+submission remains available, and the next valid frame must remain a P slice,
+proving x264 history was not touched. Existing AVC420 packetizer rejection
+coverage also checks the shared metadata validator for representative surface,
+frame, quant and rectangle denials.
+
+**Authoring validation:** source/CMake/test construction complete. Canonical
+one-root repository build/full CTest is **NOT RUN** on this host; the exact
+prior R4 workflow `38882596797` for
+`23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334` was still **QUEUED** when
+rechecked. Exact-SHA hosted CI for this increment is required after
+publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, real R3
+Graphics DVC, Microsoft-client rendering and graphics performance are
+**NOT RUN**. Gate B / M3 remains **OPEN**. **Next R4:** integrate only when R3
+exports its authenticated Graphics DVC/full-send authority; otherwise continue
+hardening the existing single-owner graphics path without a synthetic channel.
+
 ## R10 positive Linux security preflight coverage (2026-10-16; exact-SHA CI pending)
 
 Starting shared `main`: `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`. This is a testing-only R10 increment;

@@ -71,14 +71,23 @@ bool X264Avc420SegmentedFrameProducer::prepare(
     const X264Avc420FrameRequest &request,
     GfxAvc420SegmentedFrame &output) noexcept
 {
-    // Reject deterministic lifecycle/backpressure mismatches before x264
-    // advances its reference state.
+    const GfxAvc420Picture metadata{
+        request.surfaceId,
+        request.frameId,
+        codedGeometry_,
+        request.regions,
+        request.quantQualities,
+        {},
+        visibleGeometry_,
+    };
+
+    // Reject every deterministic lifecycle and AVC420 envelope mismatch
+    // before x264 advances reference state. The encoded Annex-B payload is
+    // intentionally excluded from metadata validation.
     if (!valid() || generation != generation_ ||
-        request.surfaceId == 0 || request.frameId == 0 ||
         request.surfaceId != lifecycle.surfaceId() ||
         request.picture.codedGeometry != codedGeometry_ ||
-        request.regions.empty() ||
-        request.regions.size() != request.quantQualities.size() ||
+        !gfxAvc420PictureMetadataValid(metadata) ||
         !lifecycle.canSubmitFrame(generation))
     {
         return false;

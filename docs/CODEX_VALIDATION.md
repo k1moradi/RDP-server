@@ -1,3 +1,28 @@
+## R4 AVC420 metadata preflight authoring (2026-10-16)
+
+**Starting main:** `95a3c3d1da9aa440a94d8275d61560ceda00bd3b`;
+publication is reconciled onto newer concurrent `main`.
+
+**Production:** factored deterministic AVC420 envelope checks into
+`gfxAvc420PictureMetadataValid()` and reused them in both
+`buildGfxAvc420Picture()` and
+`X264Avc420SegmentedFrameProducer::prepare()`. This prevents malformed
+region/quant/surface/frame/geometry requests from advancing x264 state before
+the packetizer rejects them. Annex-B validation remains post-encode.
+
+**CTest:** replaced the producer's synthetic post-encode metadata-failure case
+with `graphics.x264-segmented-metadata-preflight`. It establishes one
+delivered/ACKed reference frame, rejects invalid quant metadata and a visible-
+bounds violation, then requires the next valid x264 picture to be a P slice
+rather than a recovery IDR. Existing packetizer rejection assertions now also
+exercise the shared metadata predicate.
+
+**NOT RUN at authoring:** canonical one-root configure/build/full CTest,
+hosted Linux/GCC, Windows/MSVC, macOS/Clang, owner Linux/X11, owner MSYS2
+CLANG64/Clang23, owner macOS27, live R3 Graphics DVC, Microsoft client and
+performance. Prior R4 Actions `38882596797` remained queued at inspection.
+Gate B / M3 remains **OPEN**.
+
 ## R8 bounded FileContents metadata/range increment (2026-10-16; CI pending)
 
 **Authoring parent main:** `23d9f362283d27bee7fc7cd4646b402512934575`. R3's protected session lifecycle currently

@@ -2,8 +2,10 @@
 
 For stateful video codecs, successful encode is itself a state transition:
 the codec may reference that picture from later frames even before transport
-accepts it. The single graphics owner must therefore check deterministic
-backpressure/generation/surface denials before encode. If encode succeeds but
+accepts it. The single graphics owner must therefore check every deterministic
+backpressure/generation/surface and packet-metadata denial before encode,
+reusing the packetizer's canonical metadata validator rather than duplicating
+its geometry/quant rules. If encode succeeds but
 the corresponding frame cannot be transactionally reserved for publication,
 discard/reinitialize codec reference history so the next accepted frame is an
 independent refresh/IDR. Never continue a P-frame chain through an unsent or

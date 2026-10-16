@@ -1,3 +1,24 @@
+## R9 macOS file-destination destructor-retirement authoring (2026-10-16)
+
+**Parent:** `9ff9e7cd6ff057568696c8be954f505acd680599`.
+
+Added `clipboard.macos-file-destination-destructor-retirement` to the existing
+production-linked `test_macos_clipboard_file_destination` executable. It
+writes a short first RANGE into the injected native destination, leaves the
+state active, then relies only on RAII scope exit. The production destructor
+must truncate the partial duplicate, close it once and never flush it.
+
+The central CTest registry labels the new case `clipboard`, so ordinary full
+CTest and R9's existing all-clipboard ASan/UBSan run both select it. R9 also
+adds a fail-closed `ctest -N -L clipboard` assertion for the exact behavior
+name before sanitizer execution. No production source or authorization surface
+changes.
+
+Canonical local one-root validation is **NOT RUN** because this connector has
+no synchronized owner checkout. Exact publication-SHA hosted evidence is
+pending. Real Finder/file-manager publication, authenticated Microsoft-client
+file copy, owner macOS 27 and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R5 native XShm pixel/RandR fidelity authoring validation (2026-10-16; CI pending)
 
 **Authoring base:** `1b753b65cb40b49062fa896e3b73dc45c8a6512a`.

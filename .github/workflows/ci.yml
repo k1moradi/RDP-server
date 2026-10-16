@@ -181,7 +181,13 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: ctest --test-dir build --build-config Debug --timeout 60 -L clipboard --output-on-failure
+        run: |
+          set -euo pipefail
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -L clipboard)"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'clipboard.macos-file-destination-destructor-retirement' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -L clipboard --output-on-failure
       - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

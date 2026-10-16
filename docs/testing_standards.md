@@ -1,3 +1,13 @@
+## R9 native file-destination destructor retirement
+
+For injected native file-destination state machines that own a duplicated file
+capability, explicit `cancel()` coverage is not sufficient. Also destroy an
+active destination after at least one short RANGE has been materialized and
+prove RAII teardown takes the same fail-closed retirement path: truncate the
+partial destination, close the owned duplicate exactly once, and never flush or
+publish completion. Keep the case host-state free so it runs in the shared
+clipboard sanitizer label on non-native CI hosts.
+
 ## R5 native X11 capture-fidelity fixtures (2026-10-16)
 
 Production-backed native capture tests must use an ephemeral 24-bit Xvfb

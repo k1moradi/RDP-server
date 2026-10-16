@@ -1498,6 +1498,7 @@ endif()
 foreach(case_name IN ITEMS
         macos-file-destination-streaming
         macos-file-destination-size-cancel
+        macos-file-destination-destructor-retirement
         macos-file-destination-denials)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_macos_clipboard_file_destination "${case_name}")

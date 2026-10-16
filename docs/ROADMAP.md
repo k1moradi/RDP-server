@@ -1,3 +1,41 @@
+## R9 macOS file-destination destructor retirement fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `9ff9e7cd6ff057568696c8be954f505acd680599`.
+
+R8's new `MacClipboardFileDestination` already covers explicit cancellation,
+generation replacement, remote failure, receipt/protocol denial and native I/O
+failure, and its portable injected state machine is built into R9's Linux/Clang
+clipboard sanitizer job. R9 found one distinct lifetime boundary not yet
+exercised: destruction while a destination still owns a partially materialized
+file duplicate.
+
+R9 adds production-backed
+`clipboard.macos-file-destination-destructor-retirement` to the existing
+cross-platform injected-seam executable. The case materializes only the first
+4 bytes of an 8-byte remote file, proves the destination remains active and
+unflushed, then destroys the destination without calling `cancel()`.
+The production destructor must route through the same fail-closed partial-file
+retirement path: truncate the owned duplicate to zero, close it exactly once,
+and never flush or mark the partial file complete.
+
+The existing R9 clipboard sanitizer step still executes the complete
+`clipboard` label, but now first enumerates the central CTest registry with
+`ctest -N -L clipboard` and explicitly requires the new destructor-retirement
+behavior. A lost registration therefore fails closed instead of silently
+reducing sanitizer coverage. No production R8 state, native callback, R3
+channel authority, wire encoding, R2 authorization or filesystem-path policy
+changes.
+
+Concurrent R3 `NEW_LICENSE_INFO` serializer cases and R5 X11 capture-fidelity
+cases on this parent are already explicitly covered by their existing R9
+bounded selectors and registry preflights; R9 preserves them without
+duplication. Canonical owner-local `~/rdp-server/build/` configure/build/full
+CTest and local sanitizer execution remain **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC,
+R9 sanitizer, documentation-policy and SDK/package evidence are required.
+Owner macOS 27, live Finder handoff, authenticated Microsoft-client file copy
+and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R5 native XShm pixel and RandR capture-generation fidelity (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `1b753b65cb40b49062fa896e3b73dc45c8a6512a`.

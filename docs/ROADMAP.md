@@ -1,3 +1,53 @@
+## R9 licensing certificate sanitizer hosted receipt (2026-10-16)
+
+R3 certificate correction `1d030ab1fe5e3301b82ba7f4c37a2a0fd5f30b91`,
+Actions `38920277918`, is ordinary-matrix clean: Linux/GCC **446/446 PASS**
+in Debug and Release, macOS/Clang **372/372 PASS** in Debug and Release, and
+Windows/MSVC native preflight **44/44 PASS** in both configurations followed
+by full **401/401 PASS** Debug and Release. The strengthened/new portable
+licensing cases `transport.licensing-server-identity-configuration`,
+`transport.licensing-server-request-certificate-required`, and
+`transport.licensing-server-request-generated-random` pass in all six hosted
+Debug/Release configurations; downstream SDK consumer/package and
+documentation-policy gates also pass.
+
+That exact R3 workflow is overall **FAIL** only because the shared R9
+sanitizer target-build was temporarily blocked by concurrent R7's Linux/Clang
+`std::expected` toolchain mismatch before any sanitizer CTest ran. No R3
+licensing sanitizer failure occurred on that SHA.
+
+Descendant R7 correction `f7597117584e9bc1d41c1d17cf5e7c2569d6b174`,
+Actions `38920728890`, restores the shared R9 Clang target list and isolates
+R7 session-watch sanitizer execution into its own road-local GCC job. The R9
+sanitizer job is **SUCCESS** and directly executes the current licensing
+selection: clipboard **49/49**, R4 x264/BGRA **19/19**, bounded R1/R3
+transport/CredSSP/licensing **39/39**, native GSS/R2/R3 **27/27**, R10
+runtime CredSSP **4/4**, native R5 X11 **25/25**, and bounded fuzzer **1/1**.
+The three licensing identity/certificate/CSPRNG cases run as tests 15-17 of
+the bounded group and all **PASS** under ASan/UBSan. The GSS-only MIT-krb5
+LSan suppression remains limited to the same two known
+`krb5_copy_principal` provider-failure paths at **216 bytes / 10
+allocations** each.
+
+The dedicated R7 sanitizer job also passes **10/10**. Linux/GCC and
+macOS/Clang full Debug/Release suites on `f759...` remain fully green
+(**446/446** and **372/372** respectively). Windows on that descendant stops
+in the R6-focused preflight because
+`windows.capture-frame-cancel-and-topology-rejections` times out; this is
+separate from R3 licensing and does not invalidate the exact R3 Windows
+**401/401** evidence above. Follow-up R6 work is tracked on its own road.
+
+Current R9 registry/selector audit finds no unselected portable R3 licensing
+case and no unselected centrally registered `test_linux_gssapi_spnego` R2/R3
+contract. Do not add another speculative harness before R3 lands the planned
+premaster/key-processing boundary.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizers remain **NOT RUN** in this connector environment. Genuine
+licensing certificate/private-key provisioning, premaster decryption,
+licensing-key/MAC validation, positive Kerberos/logind admission,
+Microsoft-client licensing and M2/M3 remain **NOT RUN/OPEN**.
+
 ## R1 R3 Server License Request slice exact-SHA hosted validation (2026-10-16)
 
 Implementation `92f60be80ee09ed907a65521637f5b25328f1fad`; Actions

@@ -1,3 +1,34 @@
+## R9 licensing certificate sanitizer verification (2026-10-16)
+
+R3 implementation `1d030ab1fe5e3301b82ba7f4c37a2a0fd5f30b91` / Actions
+`38920277918` proves the certificate-required Server License Request change in
+ordinary hosted Debug/Release CTest: Linux **446/446 + 446/446**, macOS
+**372/372 + 372/372**, Windows **44/44 native preflight** in both
+configurations plus **401/401 + 401/401** full CTest. Identity configuration,
+certificate-required denial, and CSPRNG request generation pass everywhere.
+
+The sanitizer job on that exact SHA did **NOT RUN CTest** because concurrent
+R7's newly added `test_macos_desktop_session_guard` failed to compile under
+hosted Clang 18/libstdc++ at `std::expected`. Descendant R7 correction
+`f7597117584e9bc1d41c1d17cf5e7c2569d6b174` / Actions `38920728890`
+restores R9's shared Clang job and moves R7's portable watch tests to a
+road-local GCC sanitizer job.
+
+On `f759...`, R9 sanitizer is **PASS** with exact groups **49/49 clipboard**,
+**19/19 x264/BGRA**, **39/39 bounded R1/R3 transport/security/licensing**,
+**27/27 native GSS/R2/R3**, **4/4 R10 runtime CredSSP**, **25/25 native X11**,
+and **1/1 fuzzer**. The three R3 licensing identity/certificate/CSPRNG cases
+execute directly and pass under ASan/UBSan. The existing GSS-only MIT-krb5
+suppression remains scoped to the same two 216-byte/10-allocation failure
+paths. R7's dedicated sanitizer job separately passes **10/10**.
+
+The descendant workflow is overall FAIL only because the R6-focused Windows
+preflight times out in `windows.capture-frame-cancel-and-topology-rejections`;
+Linux and macOS full suites are green. No R9/R3 sanitizer defect remains.
+
+Owner-local canonical testing and genuine licensing/private-key,
+Kerberos/logind, and Microsoft-client acceptance remain **NOT RUN**.
+
 ## R1 licensing slice exact-SHA validation (2026-10-16)
 
 **Implementation:** `92f60be80ee09ed907a65521637f5b25328f1fad`.

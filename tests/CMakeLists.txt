@@ -345,6 +345,10 @@ add_test(NAME clipboard.chunk-reassembly-reset-bounds
     COMMAND test_clipboard_protocol chunk-reassembly-reset-bounds)
 set_tests_properties(clipboard.chunk-reassembly-reset-bounds PROPERTIES
     LABELS "protocol;clipboard;security")
+add_test(NAME clipboard.wire-codec-mutated-boundaries
+    COMMAND test_clipboard_protocol wire-codec-mutated-boundaries)
+set_tests_properties(clipboard.wire-codec-mutated-boundaries PROPERTIES
+    LABELS "protocol;clipboard;security;offline")
 add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)
 add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)
 add_rdp_test(test_base64_codec.cpp security base64-codec)

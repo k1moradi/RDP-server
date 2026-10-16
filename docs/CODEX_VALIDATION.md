@@ -25,6 +25,43 @@ hosted exact-SHA CI, owner Linux/X11, Windows CLANG64/Clang23
 and macOS27, native clipboard, Microsoft client and performance.
 **Next:** exact-SHA CI and PNG/DIB validation before OS adapter paste.
 
+## R9 CLIPRDR core wire codec deterministic mutation gate (2026-10-15)
+
+**Parent main:** `8a4f466c3bab9af155da623a54dba91b7cb7529d`. **Changed files:**
+`tests/test_clipboard_protocol.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/CODEX_VALIDATION.md`.
+**New CTest:** `clipboard.wire-codec-mutated-boundaries`
+(labels `protocol;clipboard;security;offline`), using the existing
+`test_clipboard_protocol` executable and production
+`encodePdu/decodePdu` functions, no duplicate test registry.
+
+**R9 regression:** 40 codec round trips across ten packet lengths and
+four type/flag pairs; all strict prefixes and one trailing-byte variant
+are rejected; all 312 single-bit mutations in a 39-byte seed validate
+strict declared little-endian length, correct transparent opaque fields,
+read-only input and zero-copy payload span. The structural codec must
+not reject unknown type/flag values itself; stateful CLIPRDR ownership
+and negotiation restrictions are separately checked by RemoteTransfer.
+
+**PASS, locally isolated ONLY:** first-party production wire-codec
+function bodies tested using a minimal extracted C++23 harness in
+`~/rdp-server/build/r9-wire-codec`, GCC 14.2 `-O1 -g -Werror` and
+`-O3 -DNDEBUG -Werror` (test assertions active), plus Clang 17
+`-O1 -g -Werror -fsanitize=address,undefined` with ASan leak detection.
+A deliberate local mutant disabling `decodePdu` length equality fails
+with exit 134 on the trailing-byte assertion, as expected. This mutant
+is NOT a reported production defect.
+
+**NOT RUN:** canonical full repository configure/build/CTest on the
+actual source tree, GitHub Actions on the new exact commit, Windows
+MSYS2 CLANG64 Clang23, owner Linux/X11, macOS27, external Microsoft
+clients and authenticated OS authorization/desktop. No full local
+checkout was available (GitHub DNS lookup failed), so isolated PASS
+must not be equated to full CTest PASS or the RDP product acceptance.
+**Next:** exact-commit hosted matrix/sanitizer receipt and owner's
+three-platform same-SHA CTest, then R3/R8 joined authorization and
+lifecycle fuzzing once a production admitted-session boundary exists.
+
 ## R6 native DXGI damage metadata bound to one capture frame (2026-10-15)
 
 **Remote main used for integration:** `3c09e0763d019d0423919f17d880375167bb7be7`. **Changed files:**

@@ -4095,6 +4095,26 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   actual nonblocking TLS socket adapter and CredSSP/NLA admission.
 
 
+  **R9 bounded CLIPRDR wire-codec mutation gate (2026-10-15; new):**
+  Register default-on `clipboard.wire-codec-mutated-boundaries` in the
+  one existing test registry, dispatched by `test_clipboard_protocol`.
+  The native C++23 codec is exercised for ten payload lengths (including
+  zero, 1, 1600 and 4096 bytes), four opaque type/flag combinations,
+  every strict prefix and trailing byte, and each one-bit mutation of
+  a 39-byte complete PDU (312 cases). Verify precise advertised length,
+  read-only decoding and payload span pointing into the caller buffer.
+  Unknown type/flag bits remain structurally valid in the low-level
+  codec; policy rejection belongs in the higher CLIPRDR state machine.
+  **Parent main:** `8a4f466c3bab9af155da623a54dba91b7cb7529d`.
+  **PASS (isolated production-wire excerpt only):** GCC 14.2 strict
+  C++23 Debug and Release; Clang 17 ASan/UBSan with leak detection.
+  Mutant with disabled declared-length check aborts at the trailing
+  byte assertion (expected negative). **NOT RUN:** full repository CMake
+  and CTest (GitHub transport DNS unavailable to local shell), new
+  exact-commit CI, owner Linux/X11, Windows CLANG64 Clang23, macOS27
+  and Microsoft-client authorization/desktop. **Next:** verify hosted
+  exact-SHA CTests and repeat owner's three-platform same-SHA command.
+
   **R9 CLIPRDR Format Data Response fail-closed regression (2026-10-15):**
   A new distinct default-enabled `clipboard.remote-transfer-framing-rejections`
   CTest invokes the production `RemoteTransfer::receiveResponse` and CLIPRDR

@@ -7,11 +7,13 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -397,10 +399,115 @@ void test_chunk_reassembly_reset_and_bounds()
     assert(complete == expected);
 }
 
+
+void test_wire_codec_mutated_boundaries()
+{
+    using namespace rdp_server::clipboard;
+
+    // The codec transports opaque type/flag bits. Ownership, exact framing
+    // and the payload view must remain correct for every byte boundary.
+    constexpr std::array<std::size_t, 10> lengths{
+        0, 1, 2, 3, 7, 8, 31, 255, 1600, 4096};
+    constexpr std::array<std::uint16_t, 4> values{
+        0, 0x0001U, 0x7fffU, 0xffffU};
+    for (const std::size_t length : lengths)
+    {
+        std::vector<std::uint8_t> payload(length);
+        for (std::size_t index = 0; index < length; ++index)
+        {
+            payload[index] = static_cast<std::uint8_t>(
+                (index * 29U + (index >> 2U) + 0x53U) & 0xffU);
+        }
+        for (const std::uint16_t value : values)
+        {
+            std::vector<std::uint8_t> encoded{0xee};
+            assert(encodePdu(value, static_cast<std::uint16_t>(~value),
+                             payload, encoded));
+            assert(encoded.size() == length + 8U);
+            PduView view;
+            assert(decodePdu(encoded, view));
+            assert(view.type == value);
+            assert(view.flags == static_cast<std::uint16_t>(~value));
+            assert(view.payload.size() == payload.size());
+            assert(view.payload.data() == encoded.data() + 8U);
+            assert(std::equal(view.payload.begin(), view.payload.end(),
+                              payload.begin(), payload.end()));
+
+            // Every strict prefix, including the 0..7-byte header prefixes,
+            // and an otherwise valid packet with one extra byte fail closed.
+            for (std::size_t prefix = 0; prefix < encoded.size(); ++prefix)
+            {
+                const std::span<const std::uint8_t> truncated{
+                    encoded.data(), prefix};
+                assert(!decodePdu(truncated, view));
+            }
+            auto trailing = encoded;
+            trailing.push_back(0x7fU);
+            assert(!decodePdu(trailing, view));
+        }
+    }
+
+    // Mutate every bit in a frame, including all length-field bits.
+    // The lower-level codec intentionally accepts unknown message types
+    // and flags; only the exact little-endian declared length is structural.
+    std::vector<std::uint8_t> payload(31);
+    for (std::size_t index = 0; index < payload.size(); ++index)
+        payload[index] = static_cast<std::uint8_t>(index * 13U);
+    std::vector<std::uint8_t> frame;
+    assert(encodePdu(kFormatList, kUseLongFormatNames, payload, frame));
+    const auto read16 = [](const std::uint8_t *bytes) {
+        return static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(bytes[0]) |
+            static_cast<std::uint16_t>(bytes[1]) << 8U);
+    };
+    const auto read32 = [](const std::uint8_t *bytes) {
+        return static_cast<std::uint32_t>(bytes[0]) |
+               static_cast<std::uint32_t>(bytes[1]) << 8U |
+               static_cast<std::uint32_t>(bytes[2]) << 16U |
+               static_cast<std::uint32_t>(bytes[3]) << 24U;
+    };
+    for (std::size_t offset = 0; offset < frame.size(); ++offset)
+    {
+        for (unsigned bit = 0; bit < 8U; ++bit)
+        {
+            auto mutated = frame;
+            mutated[offset] ^= static_cast<std::uint8_t>(1U << bit);
+            const auto beforeDecode = mutated;
+            const bool structurallyValid =
+                read32(mutated.data() + 4U) == mutated.size() - 8U;
+            PduView view;
+            assert(decodePdu(mutated, view) == structurallyValid);
+            if (structurallyValid)
+            {
+                assert(view.type == read16(mutated.data()));
+                assert(view.flags == read16(mutated.data() + 2U));
+                assert(view.payload.data() == mutated.data() + 8U);
+                assert(view.payload.size() == mutated.size() - 8U);
+                assert(std::equal(view.payload.begin(), view.payload.end(),
+                                  mutated.begin() + 8U, mutated.end()));
+            }
+            assert(mutated == beforeDecode); // Read-only parser contract.
+        }
+    }
+
+    // The declared length is an untrusted uint32_t, not a reason to
+    // allocate or read that many bytes from a short peer message.
+    std::array<std::uint8_t, 8> hugeLength{
+        0x02U, 0x00U, 0x02U, 0x00U, 0xffU, 0xffU, 0xffU, 0xffU};
+    PduView ignored;
+    assert(!decodePdu(hugeLength, ignored));
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
 {
+    if (argumentCount == 2 &&
+        std::string_view(arguments[1]) == "wire-codec-mutated-boundaries")
+    {
+        test_wire_codec_mutated_boundaries();
+        return 0;
+    }
     if (argumentCount == 2 &&
         std::string_view(arguments[1]) == "chunk-reassembly-reset-bounds")
     {

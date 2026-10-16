@@ -1,3 +1,26 @@
+## R2 Linux PAM verifier exact-SHA validation (2026-10-16)
+
+**Validated implementation/integration SHA:** `d2a1ac10ac3c5ecd64b7d34b3777e2121119f678`.  
+**Actions:** `38978066830` — **SUCCESS**.
+
+The real Linux-PAM verifier groundwork is validated without enabling admission.
+Linux/GCC Debug + Release are **521/521 PASS** and the PAM denial case is
+test **#319** in both. macOS/AppleClang is **442/442 PASS** Debug + Release
+without PAM. Windows/MSVC native preflight is **51/51 PASS** Debug + Release
+and full suites are **472/472 PASS** Debug + Release. R9 Clang ASan/UBSan
+compiles the production PAM target and executes the exact PAM denial selection
+**1/1 PASS**; native GSS/R2/R3 is **29/29**, direct Linux runtime security
+**10/10**, native X11 **32/32**, and the fuzzer **1/1**, all PASS.
+Documentation policy, R7 sanitizer, SDK consumers and packaging pass.
+
+This closes only the standalone real-provider verifier boundary. Final
+CredSSP remains terminal deny-only and the private completion latch remains
+false. The next R2 work is authenticated extraction of the confidential
+`TSPasswordCreds` username plus exact immutable
+Kerberos-principal-to-local-account policy matching before PAM invocation.
+Positive Kerberos/PAM/NSS/logind admission and M2 remain **BLOCKED / NOT RUN**.
+Owner-local `~/rdp-server/build/` remains **NOT RUN** in this connector.
+
 ## R5 RandR stale-damage generation fence exact-SHA hosted validation (2026-10-16)
 
 **Production correction:** `741015795132a623033fabfff624a2a4794088e1`.  

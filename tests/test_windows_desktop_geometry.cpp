@@ -23,6 +23,8 @@ void windowsCaptureCycleOrderedLifetime();
 void windowsCaptureCycleSynchronousConsumeLifetime();
 void windowsCaptureCycleSynchronousConsumeDenials();void windowsCapturePackedCopyLifetime();
 void windowsCapturePackedCopyDenials();
+void windowsCaptureNativeDamageReadLifetime();
+void windowsCaptureNativeDamageReadDenials();
 void windowsCaptureCycleLifecycleDenials();
 
 using namespace rdp_server::windows;
@@ -743,6 +745,14 @@ int main(int argc, char **argv)
     else if (behavior == "capture-packed-copy-denials")
     {
         windowsCapturePackedCopyDenials();
+    }
+    else if (behavior == "dxgi-native-damage-map-lifetime")
+    {
+        windowsCaptureNativeDamageReadLifetime();
+    }
+    else if (behavior == "dxgi-native-damage-denials")
+    {
+        windowsCaptureNativeDamageReadDenials();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

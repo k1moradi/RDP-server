@@ -104,6 +104,15 @@ For Release, **reconfigure the same root** with
 it replaces prior configuration. Multi-config generators use
 `--config Debug`/`--config Release` inside the same root.
 
+## R6 native DXGI metadata linkage (2026-10-15; CI pending)
+
+The noninstalled Windows-only `rdp-server-windows-desktop` adapter
+explicitly links the Windows SDK `d3d11` and `dxgi` import libraries
+alongside `user32`. This does not add native SDK dependencies to the
+portable RDP protocol archive, Linux or macOS targets. Hosted
+Windows/MSVC build and owner MSYS2 CLANG64 Clang23 are independent
+verification gates; no ordinary CTest opens a live desktop.
+
 ## Windows (PowerShell, MSVC and OpenSSL)
 
 ```powershell

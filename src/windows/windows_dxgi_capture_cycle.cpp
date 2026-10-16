@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "windows_bgra_frame.h"
 
+#include <algorithm>
+#include <array>
 #include <cstring>
 #include <functional>
 #include <span>
@@ -11,8 +13,9 @@ namespace rdp_server::windows
 
 WindowsDxgiCaptureCycle::WindowsDxgiCaptureCycle(
     WindowsDesktopLayout layout, WindowsDxgiFrameCallbacks frameCallbacks,
-    WindowsD3D11StagingCallbacks stagingCallbacks) noexcept
-    : layout_(layout), duplication_(frameCallbacks), staging_(stagingCallbacks),
+    WindowsD3D11StagingCallbacks stagingCallbacks,
+    WindowsDxgiDamageReadCallbacks damageCallbacks) noexcept
+    : layout_(layout), duplication_(frameCallbacks), staging_(stagingCallbacks), damage_(damageCallbacks),
       closed_(layout.monitorCount == 0 ||
               layout.monitorCount > kMaximumWindowsDesktopMonitors ||
               layout.virtualBounds.widthPixels == 0 ||
@@ -229,6 +232,51 @@ WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::consumeFrame(
     }
     return accepted ? WindowsCaptureConsumeResult::consumed
                     : WindowsCaptureConsumeResult::rejected;
+}
+
+WindowsCaptureDamageResult WindowsDxgiCaptureCycle::readFrameDamage(
+    std::span<PortableRectangle> destination,
+    std::size_t &writtenCount) noexcept
+{
+    if (closed_)
+        return WindowsCaptureDamageResult::closed;
+    if (operationInProgress_)
+        return WindowsCaptureDamageResult::busy;
+    if (!staging_.mapped() || duplication_.resource() == nullptr)
+        return WindowsCaptureDamageResult::noFrame;
+    if (damage_.context == nullptr || damage_.read == nullptr)
+    {
+        cancel();
+        return WindowsCaptureDamageResult::unavailable;
+    }
+
+    operationInProgress_ = true;
+    std::array<PortableRectangle,kMaximumWindowsDxgiDamageRectangles> normalized{};
+    std::size_t count = 0;
+    const auto view = staging_.frame();
+    const auto status = readWindowsDxgiFrameDamage(
+        damage_,{view.widthPixels,view.heightPixels},normalized,count);
+    const bool cancelled = closed_;
+    if (status != WindowsDxgiDamageReadResult::ready ||
+        count > destination.size())
+        closed_ = true;
+    if (closed_)
+    {
+        // If a callback cancelled the frame, unmap/release AFTER its return.
+        finishCancellation();
+        operationInProgress_ = false;
+        if (cancelled)
+            return WindowsCaptureDamageResult::closed;
+        if (status == WindowsDxgiDamageReadResult::accessLost)
+            return WindowsCaptureDamageResult::accessLost;
+        if (status == WindowsDxgiDamageReadResult::failed)
+            return WindowsCaptureDamageResult::failed;
+        return WindowsCaptureDamageResult::invalid;
+    }
+    std::copy_n(normalized.begin(),count,destination.begin());
+    writtenCount=count;
+    operationInProgress_=false;
+    return WindowsCaptureDamageResult::ready;
 }
 
 bool WindowsDxgiCaptureCycle::releaseFrame() noexcept

@@ -142,7 +142,7 @@ if(WIN32)
     target_compile_features(rdp-server-windows-desktop PUBLIC cxx_std_23)
     target_include_directories(rdp-server-windows-desktop PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
-    target_link_libraries(rdp-server-windows-desktop PRIVATE user32)
+    target_link_libraries(rdp-server-windows-desktop PRIVATE user32 d3d11 dxgi)
     if(MSVC)
         target_compile_options(rdp-server-windows-desktop PRIVATE /W4)
     else()

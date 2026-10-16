@@ -3129,6 +3129,27 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   R4 graphics presentation and M4 Microsoft-client desktop acceptance.
   **Next:** consume an R2/R3 authorization-bound native capture
   lifecycle, then hand synchronous frame bytes to the sole R4 owner.
+  **R6 native DXGI move/dirty metadata read (2026-10-15,
+  authored against latest main `3c09e0763d019d0423919f17d880375167bb7be7`; CI pending):** Extend the
+  existing `WindowsDxgiCaptureCycle` to read
+  `IDXGIOutputDuplication::GetFrameMoveRects/GetFrameDirtyRects` only
+  while its existing frame lease and staging map remain held. The native
+  byte lengths and combined 1,024-descriptor budget are checked before
+  using existing move-before-dirty portable damage normalization.
+  Missing callbacks, malformed metadata, short output capacity,
+  access loss and cancellation fail closed and unmap staging BEFORE
+  DXGI ReleaseFrame, without exposing partial rectangles. No second
+  capture owner, protocol engine, R4 frame schedule, or R2/R3 admission.
+  **New dedicated registered Windows CTests:**
+  `windows.capture-dxgi-native-damage-map-lifetime` and
+  `windows.capture-dxgi-native-damage-denials` in the existing test
+  executable. **PASS (isolated headless fixture only):**
+  GCC 14.2 and Clang 17 C++23 strict warnings ASan/UBSan 2/2,
+  sparse R6 CTest 8/8. **NOT RUN at authoring:** full repository CTest,
+  Windows SDK/MSVC exact-SHA CI, owner Windows CLANG64/Clang23,
+  Linux/X11/macOS27, authorized live DXGI, real RDP client,
+  M4 acceptance and performance. **Next:** R2/R3 independently
+  authorized interactive Windows session/output and R4 frame lifecycle.
   **R6 caller-owned packed BGRA snapshot (2026-10-15; implementation
   against inspected main `b127398873a810d50957ad94537d56a4c0eb8b55`; hosted CI pending):** Existing
   `WindowsDxgiCaptureCycle::copyFrameTo` now accepts bounded caller

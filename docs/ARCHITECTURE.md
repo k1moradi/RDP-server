@@ -152,6 +152,20 @@ before the next acquisition; access loss requires recreating
 duplication:
 https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_2/nf-dxgi1_2-idxgioutputduplication-releaseframe
 
+### R6 bounded native DXGI move/dirty metadata on active lease
+
+`WindowsDxgiCaptureCycle::readFrameDamage` samples metadata only
+while the EXISTING DXGI lease and D3D11 staging map are held. The caller
+must bind the borrowed `WindowsDxgiDamageReadCallbacks` to that same
+duplication after independent R2/R3 OS authorization. Native
+`GetFrameMoveRects`/`GetFrameDirtyRects` result byte counts must be
+multiples of SDK descriptor sizes and together fit 1,024 rectangles.
+The existing normalized portable damage format and move-before-dirty
+ordering are reused. Invalid/cancelled/access-lost reads terminally
+revoke the cycle, with no partially published damage; cancellation
+inside callbacks defers unmap and DXGI frame release until return.
+No second acquisition owner, R4 scheduler or live desktop access.
+
 ### Caller-owned packed BGRA handoff (R6; offline tested)
 
 `WindowsDxgiCaptureCycle::copyFrameTo` reuses the existing

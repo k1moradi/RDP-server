@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "windows_dxgi_damage.h"
 #include "windows_d3d11_staging_map.h"
 #include "windows_desktop_geometry.h"
 #include "windows_dxgi_frame_owner.h"
@@ -32,6 +33,11 @@ struct WindowsCaptureFrameConsumer
     bool (*consume)(void *context, const FramebufferView &frame) noexcept{};
 };
 
+enum class WindowsCaptureDamageResult
+{
+    ready, noFrame, unavailable, invalid, accessLost, failed, busy, closed,
+};
+
 enum class WindowsCaptureConsumeResult
 {
     consumed,
@@ -54,7 +60,8 @@ class WindowsDxgiCaptureCycle final
 public:
     WindowsDxgiCaptureCycle(
         WindowsDesktopLayout layout, WindowsDxgiFrameCallbacks frameCallbacks,
-        WindowsD3D11StagingCallbacks stagingCallbacks) noexcept;
+        WindowsD3D11StagingCallbacks stagingCallbacks,
+        WindowsDxgiDamageReadCallbacks damageCallbacks = {}) noexcept;
     ~WindowsDxgiCaptureCycle() noexcept;
 
     WindowsDxgiCaptureCycle(const WindowsDxgiCaptureCycle &) = delete;
@@ -77,6 +84,11 @@ public:
     // Rejected/cancelled/failed requests clear the output view.
     [[nodiscard]] WindowsCaptureConsumeResult copyFrameTo(
         std::span<std::byte> destination, FramebufferView &ownedOutput) noexcept;
+    // Sample validated metadata only while this cycle owns the matching
+    // frame. Malformed/stale reads revoke the cycle without partial output.
+    [[nodiscard]] WindowsCaptureDamageResult readFrameDamage(
+        std::span<PortableRectangle> destination,
+        std::size_t &writtenCount) noexcept;
     [[nodiscard]] bool releaseFrame() noexcept;
     // Compare caller-sampled, validated geometry with the pinned snapshot.
     // A changed topology revokes the cycle; no Win32 enumeration is done.
@@ -96,6 +108,7 @@ private:
     WindowsDesktopLayout layout_{};
     WindowsDxgiFrameOwner duplication_;
     WindowsD3D11StagingMap staging_;
+    WindowsDxgiDamageReadCallbacks damage_{};
     bool operationInProgress_{};
     bool closed_{};
 };

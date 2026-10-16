@@ -9,6 +9,34 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R6 native DXGI damage metadata bound to one capture frame (2026-10-15)
+
+**Remote main used for integration:** `3c09e0763d019d0423919f17d880375167bb7be7`. **Changed files:**
+`CMakeLists.txt`, `tests/CMakeLists.txt`,
+`src/windows/windows_dxgi_damage.{h,cpp}`,
+`src/windows/windows_dxgi_capture_cycle.{h,cpp}`,
+`tests/windows_capture_damage_cases.cpp` (new),
+`tests/test_windows_desktop_geometry.cpp`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/compile.md`, and this ledger.
+**New Windows-only CTests:**
+`windows.capture-dxgi-native-damage-map-lifetime` and
+`windows.capture-dxgi-native-damage-denials`. Production native
+callbacks read DXGI-reported move/dirty bytes on the existing acquired
+lease and normalize to existing portable rectangles, with strict
+combined-size bounds and transactional publication. Bad metadata and
+session cancellation unmap staging then release the existing lease.
+
+**PASS (isolated sparse test fixture, NOT full repository):**
+Linux GCC 14.2 and Clang 17 C++23 strict warnings, ASan/UBSan,
+focused 2/2 each and `ctest --test-dir ~/rdp-server/build
+-C Debug --output-on-failure` 8/8 sparse synthetic CTests.
+**NOT RUN at authoring:** full checkout CMake/CTest, actual Windows
+SDK/hosted MSVC at new SHA, owner MSYS2 CLANG64 Clang23,
+Linux/X11/macOS27, R2/R3-authorized desktop, Microsoft client
+and performance. M4 remains OPEN; GitHub Actions to be checked
+after publication.
+
 ## R6 caller-owned packed BGRA frame snapshot (2026-10-15)
 
 **Starting main SHA:** `b127398873a810d50957ad94537d56a4c0eb8b55`. **Actual changes:**

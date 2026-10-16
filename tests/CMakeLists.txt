@@ -340,7 +340,8 @@ if(TARGET rdp-server-windows-desktop)
     add_executable(test_windows_desktop_geometry
         test_windows_desktop_geometry.cpp
         windows_geometry_gdi_type_probe.cpp
-        windows_capture_cycle_cases.cpp)
+        windows_capture_cycle_cases.cpp
+        windows_capture_damage_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop)
     if(MSVC)
@@ -410,6 +411,15 @@ if(TARGET rdp-server-windows-desktop)
         add_test(NAME "windows.${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;offline")
+    endforeach()
+    # One bounded native frame metadata reader; synthetic tests never access DXGI.
+    foreach(case_name IN ITEMS
+            dxgi-native-damage-map-lifetime
+            dxgi-native-damage-denials)
+        add_test(NAME "windows.capture-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.capture-${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
     endforeach()
     # R6 DXGI metadata converts native move/dirty descriptors only; tests

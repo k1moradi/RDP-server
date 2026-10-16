@@ -9,6 +9,10 @@
 #include <cstdint>
 #include <span>
 
+#ifdef _WIN32
+struct IDXGIOutputDuplication;
+#endif
+
 namespace rdp_server::windows
 {
 
@@ -52,5 +56,31 @@ inline constexpr std::size_t kMaximumWindowsDxgiDamageRectangles = 1024;
     std::span<const WindowsDxgiRectangle> dirtyRectangles,
     std::span<PortableRectangle> destination,
     std::size_t &writtenCount) noexcept;
+
+enum class WindowsDxgiDamageReadResult { ready, invalid, accessLost, failed };
+
+// Reads bounded move/dirty descriptors ONLY while the existing frame owner
+// holds the matching DXGI duplication lease. No OS admission is granted.
+struct WindowsDxgiDamageReadCallbacks
+{
+    void *context{};
+    WindowsDxgiDamageReadResult (*read)(
+        void *, std::span<WindowsDxgiMoveRectangle>,
+        std::span<WindowsDxgiRectangle>,
+        std::size_t &moveCount, std::size_t &dirtyCount) noexcept{};
+};
+
+// Normalizes through the existing portable damage contract; output and
+// writtenCount remain unchanged on malformed counts/geometry/capacity.
+[[nodiscard]] WindowsDxgiDamageReadResult readWindowsDxgiFrameDamage(
+    WindowsDxgiDamageReadCallbacks callbacks, PixelSize dimensions,
+    std::span<PortableRectangle> destination,
+    std::size_t &writtenCount) noexcept;
+
+#ifdef _WIN32
+// Borrows the duplication from the existing authorized frame owner.
+[[nodiscard]] WindowsDxgiDamageReadCallbacks windowsDxgiDamageReadCallbacks(
+    IDXGIOutputDuplication &duplication) noexcept;
+#endif
 
 } // namespace rdp_server::windows

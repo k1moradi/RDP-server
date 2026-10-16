@@ -152,13 +152,18 @@ X11DisplayConnection::X11DisplayConnection(std::string_view displayName) noexcep
         close();
         return;
     }
-
-
 }
 
 X11DisplayConnection::~X11DisplayConnection() noexcept
 {
     close();
+}
+
+void
+X11DisplayConnection::markFailedForOwnerTeardown() noexcept
+{
+    failed_ = true;
+    connectionFileDescriptor_ = -1;
 }
 
 void
@@ -258,7 +263,7 @@ X11DisplayConnection::processEvents(X11EventSink &eventSink,
     }
     if (!valid())
     {
-        disconnect();
+        markFailedForOwnerTeardown();
         return ConnectionStatus::Failed;
     }
 
@@ -270,7 +275,7 @@ X11DisplayConnection::processEvents(X11EventSink &eventSink,
         observe_randr, &randr);
     if (result.status == ConnectionStatus::Failed || !valid())
     {
-        disconnect();
+        markFailedForOwnerTeardown();
         return ConnectionStatus::Failed;
     }
     if (workMayRemain != nullptr)

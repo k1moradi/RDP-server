@@ -2,6 +2,31 @@
 
 #include "x11_desktop_resources.h"
 
+namespace
+{
+
+class X11DesktopResourceEventSink final : public X11EventSink
+{
+public:
+    X11DesktopResourceEventSink(X11CursorTracker &cursor,
+                                X11DamageTracker &damage) noexcept
+        : cursor_(cursor), damage_(damage)
+    {
+    }
+
+    void handle(const xcb_generic_event_t &event) noexcept override
+    {
+        cursor_.handle(event);
+        damage_.handle(event);
+    }
+
+private:
+    X11CursorTracker &cursor_;
+    X11DamageTracker &damage_;
+};
+
+} // namespace
+
 X11DesktopResources::X11DesktopResources(
     std::string_view displayName,
     std::uint64_t maximumCapturePixels) noexcept
@@ -95,6 +120,76 @@ bool
 X11DesktopResources::randrAvailable() const noexcept
 {
     return valid() && display_.randrAvailable();
+}
+
+bool
+X11DesktopResources::damagePending() const noexcept
+{
+    return valid() && damage_->hasPendingDamage();
+}
+
+std::uint64_t
+X11DesktopResources::damageNotificationCount() const noexcept
+{
+    return valid() ? damage_->notificationCount() : 0;
+}
+
+ConnectionStatus
+X11DesktopResources::processEvents(std::size_t eventBudget,
+                                  bool *workMayRemain,
+                                  bool socketReadable) noexcept
+{
+    if (workMayRemain != nullptr)
+    {
+        *workMayRemain = false;
+    }
+    if (failureReason_ != nullptr || !display_.valid() || !childrenValid() ||
+        resourceGeometry_ != display_.sourceGeometry())
+    {
+        if (failureReason_ == nullptr)
+        {
+            fail("X11 desktop resources became invalid before event dispatch");
+        }
+        cancelNativeResources();
+        return ConnectionStatus::Failed;
+    }
+
+    X11DesktopResourceEventSink eventSink(*cursor_, *damage_);
+    const ConnectionStatus status = display_.processEvents(
+        eventSink, eventBudget, workMayRemain, socketReadable);
+    if (status == ConnectionStatus::Failed)
+    {
+        if (workMayRemain != nullptr)
+        {
+            *workMayRemain = false;
+        }
+        fail("X11 desktop event dispatch failed");
+        cancelNativeResources();
+        return ConnectionStatus::Failed;
+    }
+
+    if (display_.sourceGeometry() != resourceGeometry_)
+    {
+        if (workMayRemain != nullptr)
+        {
+            *workMayRemain = false;
+        }
+        fail("X11 desktop geometry changed; native resources revoked");
+        cancelNativeResources();
+        return ConnectionStatus::Failed;
+    }
+    if (!childrenValid())
+    {
+        if (workMayRemain != nullptr)
+        {
+            *workMayRemain = false;
+        }
+        fail("X11 desktop child resource failed during event dispatch");
+        cancelNativeResources();
+        return ConnectionStatus::Failed;
+    }
+
+    return ConnectionStatus::Ok;
 }
 
 void

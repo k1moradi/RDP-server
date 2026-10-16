@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string_view>
@@ -19,8 +20,9 @@
  * R2/R3 must independently admit the OS desktop before a runtime constructs
  * this object. The current server executable does not link this adapter.
  *
- * Thread safety: construct, query and disconnect on the same serialized XCB
- * owner thread. No child object or borrowed XCB handle may outlive this owner.
+ * Thread safety: construct, service, query and disconnect on the same
+ * serialized XCB owner thread. No child object or borrowed XCB handle may
+ * outlive this owner.
  */
 class X11DesktopResources final
 {
@@ -37,6 +39,17 @@ public:
     [[nodiscard]] int fileDescriptor() const noexcept;
     [[nodiscard]] PixelSize sourceGeometry() const noexcept;
     [[nodiscard]] bool randrAvailable() const noexcept;
+    [[nodiscard]] bool damagePending() const noexcept;
+    [[nodiscard]] std::uint64_t damageNotificationCount() const noexcept;
+
+    /**
+     * Route one bounded batch of XCB events to the owned cursor/damage
+     * adapters. RandR geometry changes revoke the geometry-bound resource set
+     * before any stale capture/input bounds can be reused.
+     */
+    [[nodiscard]] ConnectionStatus processEvents(
+        std::size_t eventBudget = 128, bool *workMayRemain = nullptr,
+        bool socketReadable = false) noexcept;
 
     // Idempotent ordered cancellation. Child resources are disconnected and
     // destroyed before the sole XCB connection owner is disconnected.

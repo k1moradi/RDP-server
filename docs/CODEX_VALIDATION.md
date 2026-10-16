@@ -6910,3 +6910,40 @@ one-root commands; genuine R2/R3 admitted desktop routing; live XTEST input;
 RandR geometry child reconstruction; R4 frame/cursor consumption; Microsoft
 client M3 acceptance; performance benchmarks. The aggregate remains
 noninstalled and unlinked from the server runtime.
+
+## R5 bounded owner event routing and resize revocation (2026-10-16; CI pending)
+
+**Authoring main:** `ae4f2501a1e7c42b83fafe769f6fcd049d2685e6`.
+
+**Production:** `X11DesktopResources::processEvents` now owns one bounded,
+nonblocking XCB event-service call and forwards each borrowed event to the
+existing XFixes cursor and XDamage trackers. No queue, duplicate event owner,
+scheduler or heap allocation is added to the dispatch path. After the display
+owner applies its RandR observation, the aggregate compares source geometry
+with the geometry pinned when XShm/Damage/input were constructed. Any mismatch
+revokes every child and then the sole XCB connection, preventing stale capture
+or input bounds. This increment deliberately revokes rather than reconstructs
+the children.
+
+`X11DisplayConnection::processEvents` no longer frees the owned connection
+inside a dispatch-failure return. It immediately invalidates public readiness
+and the borrowed descriptor, but retains the XCB allocation until explicit
+`disconnect()`/destruction. That permits the aggregate to clear every child
+borrow before the sole XCB allocation disappears.
+
+**Dedicated CTests:** `x11.desktop-resource-event-routing` runs under
+ephemeral Xvfb, modifies only its synthetic root via a checked ClearArea
+request, and verifies the real production XDamage notification reaches the
+aggregate. `x11.display-event-failure-defers-owner-teardown` runs under
+ephemeral Xvfb, sends one invalid unchecked DestroyWindow request, observes
+the protocol error through the real bounded event drain, verifies public XCB
+access is revoked while the previously borrowed allocation is still alive,
+then performs explicit idempotent teardown. Existing owner lifecycle and
+headless denial cases remain registered. No test injects keyboard/mouse input,
+uses credentials, or touches a logged-in desktop.
+
+**NOT RUN at authoring:** synchronized local native build/full CTest in this
+environment, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, a genuine RandR geometry-change notification,
+R2/R3 admitted desktop routing, R4 frame/cursor consumption, Microsoft-client
+M3 acceptance, or performance benchmarks.

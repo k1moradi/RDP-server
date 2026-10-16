@@ -775,6 +775,19 @@ if(TARGET rdp-server-x11-connection)
         x11.display-event-budget-and-readiness
         x11.display-event-disconnect-cleanup
         PROPERTIES LABELS "x11;linux-adapter;native")
+
+    find_program(RDP_SERVER_XVFB_RUN_EXECUTABLE NAMES xvfb-run)
+    if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
+        add_test(NAME x11.display-event-failure-defers-owner-teardown
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_display_events>
+                failure-defers-owner-teardown)
+        set_tests_properties(
+            x11.display-event-failure-defers-owner-teardown
+            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
+                       TIMEOUT 20)
+    endif()
 endif()
 
 # First-party native XFixes cursor source: exercise failure and borrowed
@@ -828,18 +841,22 @@ if(TARGET rdp-server-linux-x11-desktop)
         x11.desktop-resource-owner-connection-denial
         PROPERTIES LABELS "x11;linux-adapter;native")
 
-    find_program(RDP_SERVER_XVFB_RUN_EXECUTABLE NAMES xvfb-run)
     if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
         add_test(NAME x11.desktop-resource-owner-lifecycle
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources> lifecycle)
+        add_test(NAME x11.desktop-resource-event-routing
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_desktop_resources> event-routing)
         set_tests_properties(
             x11.desktop-resource-owner-lifecycle
+            x11.desktop-resource-event-routing
             PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
                        TIMEOUT 20)
     else()
-        message(STATUS "R5 xvfb-run unavailable: synthetic X11 owner lifecycle CTest not built")
+        message(STATUS "R5 xvfb-run unavailable: synthetic X11 owner lifecycle/event CTests not built")
     endif()
 endif()
 

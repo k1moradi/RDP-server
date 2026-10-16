@@ -7,10 +7,12 @@
 
 #include <array>
 #include <cassert>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <string_view>
+#include <thread>
 
 namespace
 {
@@ -64,6 +66,51 @@ void observe(const xcb_generic_event_t &event, void *context) noexcept
     ++observer.callbacks;
     observer.lastType = event.response_type;
 }
+
+#if defined(RDP_TEST_NATIVE_X11_CONNECTION)
+void
+failureDefersOwnerTeardown()
+{
+    const char *displayName = std::getenv("DISPLAY");
+    assert(displayName != nullptr && displayName[0] != '\0');
+
+    X11DisplayConnection display(displayName);
+    assert(display.valid());
+    xcb_connection_t *borrowedConnection = display.nativeConnection();
+    assert(borrowedConnection != nullptr);
+
+    // Deliberately issue one invalid *unchecked* core request. XCB returns the
+    // protocol error through the normal event queue, allowing processEvents()
+    // to fail without a live desktop mutation or connection transport fault.
+    xcb_destroy_window(borrowedConnection, XCB_WINDOW_NONE);
+    assert(xcb_flush(borrowedConnection) > 0);
+
+    Sink sink;
+    bool failed = false;
+    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    {
+        if (display.processEvents(sink, 8, nullptr, true) ==
+            ConnectionStatus::Failed)
+        {
+            failed = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(failed);
+    assert(!display.valid());
+    assert(display.nativeConnection() == nullptr);
+    assert(display.fileDescriptor() == -1);
+    assert(sink.count == 0);
+
+    // Public access is revoked, but the XCB allocation is intentionally still
+    // alive until the owner performs ordered child teardown then disconnects.
+    (void)xcb_connection_has_error(borrowedConnection);
+    display.disconnect();
+    display.disconnect();
+}
+#endif
 } // namespace
 
 int main(int argc, char *argv[])
@@ -85,6 +132,12 @@ int main(int argc, char *argv[])
         disconnected.disconnect();
         disconnected.disconnect();
         assert(!disconnected.valid() && disconnected.fileDescriptor() == -1);
+        return 0;
+    }
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "failure-defers-owner-teardown")
+    {
+        failureDefersOwnerTeardown();
         return 0;
     }
     assert(argc == 1);

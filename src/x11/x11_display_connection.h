@@ -43,12 +43,18 @@ public:
      * the external event loop reports socketReadable. If workMayRemain is
      * set, schedule another nonblocking service iteration (even without a
      * fresh edge notification). All callbacks must return before teardown.
+     *
+     * A dispatch/connection failure invalidates public readiness immediately
+     * but deliberately keeps the owned XCB connection allocated until
+     * disconnect()/destruction. This lets an aggregate owner cancel every
+     * child that borrows the connection before the sole XCB owner is freed.
      */
     [[nodiscard]] ConnectionStatus processEvents(
         X11EventSink &eventSink, std::size_t eventBudget = 128,
         bool *workMayRemain = nullptr, bool socketReadable = false) noexcept;
 
 private:
+    void markFailedForOwnerTeardown() noexcept;
     void close() noexcept;
 
     xcb_connection_t *connection_{nullptr};

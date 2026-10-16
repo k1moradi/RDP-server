@@ -3450,6 +3450,32 @@ actually run; another parser CTest alone is not a complete session.
   admission/routing, live input, RandR reconstruction, R4 consumption,
   Microsoft client and benchmarks. M3 remains OPEN.
 
+  **R5 bounded owner event routing and resize revocation (2026-10-16;
+  based on main `ae4f2501a1e7c42b83fafe769f6fcd049d2685e6`; exact-SHA CI pending):** Add
+  `X11DesktopResources::processEvents` as the single native event-routing
+  entry point. It reuses the display owner's bounded nonblocking drain and
+  forwards borrowed events to the existing XFixes cursor and XDamage
+  trackers on the same serialized XCB thread. If RandR changes source
+  geometry, revoke input/cursor/Damage/XShm and then the XCB owner before
+  stale geometry can reach capture or input; resource reconstruction remains
+  a later admitted-session step. Also change display event failure semantics:
+  public readiness/native access is invalidated immediately, but the owned
+  XCB allocation stays alive until explicit owner teardown so children cannot
+  retain dangling connection pointers.
+  New Xvfb CTests:
+  `x11.desktop-resource-event-routing` generates a real synthetic-root
+  XDamage operation and verifies it reaches the owned tracker;
+  `x11.display-event-failure-defers-owner-teardown` queues a deliberate
+  unchecked protocol error and proves the borrowed XCB pointer remains alive
+  until explicit disconnect. Existing denial/lifecycle CTests remain.
+  **NOT RUN at authoring:** synchronized local native compile/CTest, owner
+  Linux/X11, Windows CLANG64/Clang23, macOS27, a real RandR resize event,
+  R2/R3 admitted desktop, R4 frame/cursor consumption, Microsoft client and
+  benchmarks. **Next R5:** rebuild geometry-bound XShm/Damage/input children
+  transactionally after an admitted RandR resize, preserving the one XCB
+  owner; then expose synchronous R4 capture/damage/cursor reads and
+  R3-authorized typed input. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

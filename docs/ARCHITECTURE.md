@@ -97,11 +97,29 @@ with the existing XShm capture, XFixes cursor, XDamage and XTEST input
 adapters. It adds no second connection, graphics scheduler, authorization
 state or protocol engine, and the runtime does not link it before R2/R3
 admission. Child cancellation is ordered input, cursor, Damage, XShm, then
-the sole XCB connection. Construction failures use that same path. The
-noninstalled aggregate builds only when all five native adapter targets exist.
-Its headless denial CTest needs no X server; an optional lifecycle CTest runs
-under ephemeral Xvfb and touches no logged-in desktop. Event routing, RandR
-resource reconstruction and R3/R4 consumers remain later boundaries.
+the sole XCB connection. Construction failures use that same path.
+
+The aggregate now owns the bounded native event-routing call. Each serviced
+event is offered directly to the owned cursor and Damage trackers on the same
+serialized XCB thread; no event memory or child pointer escapes the callback.
+After the display owner processes its internal RandR observation, the
+aggregate compares the new source geometry with the geometry that capture,
+Damage and input were constructed against. A mismatch revokes all native
+children and the connection before stale bounds can be used. This increment
+intentionally revokes rather than reconstructs resources; rebuilding and R4
+frame/cursor consumption remain later admitted-session work.
+
+A dispatch/protocol failure invalidates `X11DisplayConnection` readiness but
+does not immediately free its XCB allocation. The aggregate therefore gets a
+deterministic child-before-parent cancellation window even when the event
+stream fails. Public descriptor/native access is denied as soon as failure is
+observed; explicit `disconnect()` or destruction performs the final close.
+
+The noninstalled aggregate builds only when all five native adapter targets
+exist. Headless denial tests need no X server. Ephemeral-Xvfb CTests exercise
+complete resource lifetime, real XDamage notification routing, and a deliberate
+protocol-error path proving connection destruction is deferred until ordered
+owner teardown. They touch no logged-in desktop and inject no user input.
 
 ### R5 native XCB connection readiness and ownership
 

@@ -12770,3 +12770,52 @@ NSS/logind admission and Microsoft-client acceptance remain **NOT RUN**.
 R3's emerging licensing identity/configuration work does not remove this
 authentication blocker and is not sufficient reason to enable a listener.
 M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+## R6 capture-cycle release-callback revocation exact-SHA validation (2026-10-16)
+
+**Corrected implementation:** `bc10b90571139a6e692e201744c8e6962616d4ab`.  
+**Actions:** `38920966029` — **SUCCESS**.
+
+The first implementation `233dc7e8f40243650f32fd0771df8f5e1e73b468`,
+Actions `38920538959`, provided useful negative evidence rather than an
+acceptance receipt. The new
+`windows.capture-frame-release-callback-revocation` case passed, but focused
+Windows Debug finished **44/45** because the unchanged
+`windows.capture-frame-cancel-and-topology-rejections` case caught an
+overbroad result normalization. That assertion was not weakened; correction
+`bc10b905...` limits the override to a still-pending retryable `notReady`
+outcome.
+
+On the corrected exact SHA, Windows/MSVC focused native R6 preflight is
+**45/45 PASS Debug** and **45/45 PASS Release**. Both
+`windows.capture-frame-cancel-and-topology-rejections` and
+`windows.capture-frame-release-callback-revocation` pass in **0.01 s** in
+both configurations. Full Windows CTest is **402/402 PASS Debug** and
+**402/402 PASS Release**, with both cases passing again in the complete suite.
+The installed Windows SDK consumer is **1/1 PASS**; package, digest and artifact
+steps pass.
+
+Linux/GCC full CTest is **446/446 PASS Debug** and **446/446 PASS Release**.
+macOS/AppleClang is **372/372 PASS Debug** and **372/372 PASS Release**.
+Installed SDK consumer is **1/1 PASS** on each hosted platform.
+Documentation-policy is **PASS**. R9 Clang ASan/UBSan is fully green across its
+configured groups: clipboard **49/49**, R4 x264/BGRA **19/19**, bounded
+R1/R3 protocol/security/licensing **39/39**, native R2/R3 GSSAPI **27/27**,
+R10 runtime CredSSP **4/4**, R5 native X11 **25/25**, and bounded fuzzer
+**1/1**. The Windows-only R6 executable is not part of those Linux sanitizer
+selections, so direct sanitizer execution of this new R6 case is **NOT RUN**
+and is not claimed. Untagged prerelease publication is correctly **SKIPPED**.
+
+Validated invariant: GPU-not-ready is retryable only if the capture cycle
+remains live after synchronous DXGI lease retirement. A release callback may
+request cancellation while the outer operation guard is active; nested capture
+is denied, teardown remains deferred/exact-once, and the outer result becomes
+terminal `closed`. Errors that closed the cycle before lease retirement retain
+their original `failed` classification.
+
+Canonical owner-local `~/rdp-server/build/` and owner Windows MSYS2
+CLANG64/Clang23 remain **NOT RUN** in this connector environment. Genuine
+Windows R2/R3 authorization is still absent, so no runtime DXGI/SendInput route
+is added. Live Desktop Duplication, Microsoft-client M4 acceptance and native
+performance remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT ACCEPTED.**
+

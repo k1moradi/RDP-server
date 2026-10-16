@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 
 namespace rdp::linux_platform
 {
@@ -29,6 +30,10 @@ class LinuxClipboardFileDestination final
 public:
     using RemoteTransfer =
         rdp_server::server::clipboard::RemoteTransfer;
+
+    // Bound caller-supplied local file URIs used by native clipboard handoff.
+    // Non-ASCII path bytes must be percent-encoded by the caller.
+    static constexpr std::size_t kMaximumLocalFileUriBytes = 4096U;
 
     enum class Status : std::uint8_t
     {
@@ -74,6 +79,19 @@ public:
     // copied only as metadata and are never resolved as local paths.
     [[nodiscard]] bool begin(
         std::size_t fileIndex, int destinationDescriptor) noexcept;
+
+    // Optional handoff-aware overload. The URI is caller-selected local
+    // metadata bound to this exact destination capability; it is never
+    // constructed from the remote FILEDESCRIPTORW name. Only strict local
+    // file:/// URIs are retained.
+    [[nodiscard]] bool begin(
+        std::size_t fileIndex, int destinationDescriptor,
+        std::string_view localFileUri) noexcept;
+
+    // Available only after exact-size completion and fsync/duplicate close.
+    // The returned view borrows this destination object.
+    [[nodiscard]] std::optional<std::string_view>
+    completedFileUri() const noexcept;
 
     // Return the exact next R8 request shape. This never serializes or sends
     // protocol bytes and never reserves a RemoteTransfer request slot.
@@ -133,6 +151,9 @@ public:
     }
 
 private:
+    [[nodiscard]] bool beginInternal(
+        std::size_t fileIndex, int destinationDescriptor,
+        std::string_view localFileUri) noexcept;
     [[nodiscard]] bool ensureSourceCurrent() noexcept;
     [[nodiscard]] bool finishComplete() noexcept;
     void discardPartial(Status terminalStatus) noexcept;
@@ -140,7 +161,9 @@ private:
 
     RemoteTransfer &remoteTransfer_;
     std::array<char16_t, 260> sourceName_{};
+    std::array<char, kMaximumLocalFileUriBytes> localFileUri_{};
     std::size_t sourceNameLength_{};
+    std::size_t localFileUriLength_{};
     RemoteTransfer::FileContentsRequestReceipt activeRequest_{};
     std::uint64_t sourceGeneration_{};
     std::uint64_t expectedSize_{};

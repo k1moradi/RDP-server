@@ -1,3 +1,35 @@
+## R8 completed-file X11 handoff authoring validation (2026-10-16)
+
+**Base:** `64f91607a1346258c5a843fb10a717e91747518a`. Current external references were reviewed before
+authoring: RFC 2483 defines `text/uri-list` as one URI per line with CRLF line
+termination; current Qt/Nautilus documentation/source describes
+`x-special/gnome-copied-files` as the copy/cut action line followed by file
+URI(s); KDE-compatible copy metadata uses
+`application/x-kde-cutselection` byte `0`. The current XDG FileTransfer
+portal was also reviewed and deliberately remains a separate Wayland/session
+integration.
+
+Production changes are limited to the existing Linux descriptor destination
+and existing X11 clipboard adapter. The destination binds/validates bounded
+caller-local URI metadata and reveals it only at `Complete`. X11 adds fixed
+atoms/payload encoders and a completed-object publication gate; no new
+transport, parser, file cache, portal dependency or clipboard owner is added.
+
+New dedicated CTest:
+`clipboard.x11-completed-file-uri-handoff`. It uses a real build-root regular
+file and production FileContents result handling to prove a partial sink is not
+publishable, completes four bytes, then verifies the exact X11 TARGETS,
+`text/uri-list`, GNOME copy payload and KDE copy marker. It also proves local
+owner takeover blocks same-generation republish and a later generation rejects
+the old completion. Existing Linux destination tests additionally cover strict
+local URI validation and URI readiness across a 70,000-byte two-range copy.
+
+Canonical owner-local `~/rdp-server/build` execution is **NOT RUN** in this
+connector environment; no alternate build root was created. Exact publication
+SHA hosted CI/sanitizer evidence is **PENDING**. Live Nautilus/Dolphin,
+Wayland portal, Microsoft client, owner three-OS native commands and performance
+remain **NOT RUN/OPEN**.
+
 ## R9 licensing transition exact-SHA QA receipts (2026-10-16)
 
 **Implementation:** [`2e15654204b69542ead641728dbd1402e3cc74aa`](https://github.com/k1moradi/RDP-server/commit/2e15654204b69542ead641728dbd1402e3cc74aa).

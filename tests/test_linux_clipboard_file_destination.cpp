@@ -301,7 +301,11 @@ void linuxFileDestinationStreaming()
            static_cast<ssize_t>(stale.size()));
 
     LinuxClipboardFileDestination destination{owner};
-    assert(destination.begin(0, file.descriptor()));
+    constexpr std::string_view kLocalFileUri{
+        "file:///rdp-server-tests/payload.bin"};
+    assert(destination.begin(
+        0, file.descriptor(), kLocalFileUri));
+    assert(!destination.completedFileUri());
     assert(fileSize(file.descriptor()) == 0U);
     assert(destination.status() ==
            LinuxClipboardFileDestination::Status::NeedRangeRequest);
@@ -341,6 +345,8 @@ void linuxFileDestinationStreaming()
     assert(destination.bytesWritten() == kFileBytes);
     assert(destination.expectedSizeKnown());
     assert(destination.expectedSize() == kFileBytes);
+    assert(destination.completedFileUri());
+    assert(*destination.completedFileUri() == kLocalFileUri);
     assert(fileSize(file.descriptor()) == kFileBytes);
 
     for (const std::uint64_t offset :
@@ -405,6 +411,28 @@ void linuxFileDestinationSizeDiscoveryCancellation()
 
 void linuxFileDestinationSourceAndNativeDenials()
 {
+    {
+        RemoteTransfer owner;
+        installSingleFileOffer(owner, u"uri.bin", true, 4U);
+        ScopedTestFile file{"linux-clipboard-uri-denials"};
+        LinuxClipboardFileDestination destination{owner};
+        for (const std::string_view invalidUri :
+             std::array<std::string_view, 6>{
+                 "",
+                 "file://remote-host/tmp/uri.bin",
+                 "file:///tmp/bad path.bin",
+                 "file:///tmp/bad\\path.bin",
+                 "file:///tmp/bad#fragment",
+                 "file:///tmp/bad%2"})
+        {
+            assert(!destination.begin(
+                0, file.descriptor(), invalidUri));
+            assert(destination.status() ==
+                   LinuxClipboardFileDestination::Status::Idle);
+            assert(!destination.completedFileUri());
+        }
+    }
+
     {
         RemoteTransfer owner;
         installSingleFileOffer(owner, u"append.bin", true, 4U);

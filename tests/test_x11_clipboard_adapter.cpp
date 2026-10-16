@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "clipboard/clipboard_protocol.h"
+#include "platform/linux/linux_clipboard_file_destination.h"
 #include "server/clipboard/remote_transfer.h"
 #include "x11/x11_clipboard_adapter.h"
 
@@ -11,15 +12,20 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <fcntl.h>
 #include <span>
 #include <string>
 #include <string_view>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 namespace
 {
 
 using RemoteTransfer = rdp_server::server::clipboard::RemoteTransfer;
+using LinuxClipboardFileDestination =
+    rdp::linux_platform::LinuxClipboardFileDestination;
 using Clock = RemoteTransfer::PasteClock;
 
 constexpr xcb_atom_t kClipboardAtom = 101;
@@ -27,11 +33,16 @@ constexpr xcb_atom_t kTargetsAtom = 102;
 constexpr xcb_atom_t kUtf8Atom = 103;
 constexpr xcb_atom_t kPngAtom = 104;
 constexpr xcb_atom_t kIncrAtom = 105;
+constexpr xcb_atom_t kUriListAtom = 106;
+constexpr xcb_atom_t kGnomeCopiedFilesAtom = 107;
+constexpr xcb_atom_t kKdeCutSelectionAtom = 108;
 constexpr xcb_window_t kOwnerWindow = 501;
 constexpr xcb_window_t kRootWindow = 1;
 constexpr xcb_window_t kRequestorWindow = 701;
 constexpr xcb_atom_t kPropertyAtom = 801;
 constexpr std::uint32_t kPngFormatId = 0xc001;
+constexpr std::uint32_t kFileListFormatId = 0xc520;
+constexpr std::size_t kFileDescriptorBytes = 592U;
 
 constexpr std::array<std::uint8_t, 70> kValidPng{
     0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,
@@ -83,6 +94,11 @@ struct FakeNative
         if (name == "TARGETS") return kTargetsAtom;
         if (name == "UTF8_STRING") return kUtf8Atom;
         if (name == "image/png") return kPngAtom;
+        if (name == "text/uri-list") return kUriListAtom;
+        if (name == "x-special/gnome-copied-files")
+            return kGnomeCopiedFilesAtom;
+        if (name == "application/x-kde-cutselection")
+            return kKdeCutSelectionAtom;
         if (name == "INCR") return kIncrAtom;
         return XCB_ATOM_NONE;
     }
@@ -234,6 +250,164 @@ std::vector<std::uint8_t> responsePdu(
         rdp_server::clipboard::kFormatDataResponse,
         rdp_server::clipboard::kResponseOk, payload, wire));
     return wire;
+}
+
+std::vector<std::uint8_t> capabilitiesPdu(
+    const std::uint32_t generalFlags)
+{
+    const std::array<std::uint8_t, 16> payload{
+        1, 0, 0, 0,
+        1, 0, 12, 0,
+        2, 0, 0, 0,
+        static_cast<std::uint8_t>(generalFlags),
+        static_cast<std::uint8_t>(generalFlags >> 8U),
+        static_cast<std::uint8_t>(generalFlags >> 16U),
+        static_cast<std::uint8_t>(generalFlags >> 24U),
+    };
+    std::vector<std::uint8_t> wire;
+    assert(rdp_server::clipboard::encodePdu(
+        rdp_server::clipboard::kClipCaps, 0, payload, wire));
+    return wire;
+}
+
+void put32(std::span<std::uint8_t> bytes, std::size_t offset,
+           std::uint32_t value)
+{
+    assert(offset + 4U <= bytes.size());
+    bytes[offset] = static_cast<std::uint8_t>(value);
+    bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 16U);
+    bytes[offset + 3U] = static_cast<std::uint8_t>(value >> 24U);
+}
+
+void putDescriptorFileSize(
+    std::span<std::uint8_t> descriptor, std::uint64_t value)
+{
+    put32(descriptor, 64U, static_cast<std::uint32_t>(value >> 32U));
+    put32(descriptor, 68U, static_cast<std::uint32_t>(value));
+}
+
+void putFileName(
+    std::span<std::uint8_t> descriptor, std::u16string_view name)
+{
+    constexpr std::size_t kNameOffset = 72U;
+    assert(name.size() < 260U);
+    for (std::size_t index = 0; index < name.size(); ++index)
+    {
+        const auto codeUnit =
+            static_cast<std::uint16_t>(name[index]);
+        descriptor[kNameOffset + index * 2U] =
+            static_cast<std::uint8_t>(codeUnit);
+        descriptor[kNameOffset + index * 2U + 1U] =
+            static_cast<std::uint8_t>(codeUnit >> 8U);
+    }
+}
+
+std::vector<std::uint8_t> fileContentsResponsePdu(
+    std::uint32_t streamId,
+    std::span<const std::uint8_t> bytes)
+{
+    std::vector<std::uint8_t> payload(4U + bytes.size());
+    put32(payload, 0U, streamId);
+    std::copy(bytes.begin(), bytes.end(), payload.begin() + 4U);
+    std::vector<std::uint8_t> wire;
+    assert(rdp_server::clipboard::encodePdu(
+        rdp_server::clipboard::kFileContentsResponse,
+        rdp_server::clipboard::kResponseOk, payload, wire));
+    return wire;
+}
+
+void installSingleFileOffer(
+    RemoteTransfer &transfer, std::uint64_t fileBytes)
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t kFileFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+    constexpr std::uint32_t kFdFileSize = 0x00000040U;
+
+    assert(transfer.receiveCapabilitiesPdu(
+        capabilitiesPdu(kFileFlags), kFileFlags));
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(
+        formats, kFileListFormatId, "FileGroupDescriptorW");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+
+    std::vector<std::uint8_t> request;
+    assert(transfer.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> list(
+        4U + kFileDescriptorBytes, 0);
+    put32(list, 0U, 1U);
+    auto descriptor =
+        std::span(list).subspan(4U, kFileDescriptorBytes);
+    put32(descriptor, 0U, kFdFileSize);
+    putDescriptorFileSize(descriptor, fileBytes);
+    putFileName(descriptor, u"handoff.bin");
+    const auto responseWire = responsePdu(list);
+    const auto response = transfer.receiveResponse(responseWire);
+    assert(response.status == RemoteTransfer::ResponseStatus::Received);
+    assert(transfer.storeFileGroupDescriptors(response));
+}
+
+class ScopedTestFile final
+{
+public:
+    explicit ScopedTestFile(std::string_view stem)
+        : path_(
+              std::string{stem} + "-" +
+              std::to_string(static_cast<long long>(::getpid())) +
+              ".bin")
+    {
+        descriptor_ = ::open(
+            path_.c_str(), O_CREAT | O_RDWR | O_TRUNC, 0600);
+        assert(descriptor_ >= 0);
+    }
+
+    ~ScopedTestFile()
+    {
+        if (descriptor_ >= 0)
+            (void)::close(descriptor_);
+        (void)::unlink(path_.c_str());
+    }
+
+    ScopedTestFile(const ScopedTestFile &) = delete;
+    ScopedTestFile &operator=(const ScopedTestFile &) = delete;
+
+    [[nodiscard]] int descriptor() const noexcept
+    {
+        return descriptor_;
+    }
+
+private:
+    std::string path_{};
+    int descriptor_{-1};
+};
+
+void completeFileDestination(
+    RemoteTransfer &transfer,
+    LinuxClipboardFileDestination &destination)
+{
+    const auto intent = destination.nextRequestIntent();
+    assert(intent);
+    assert(intent->kind == RemoteTransfer::FileContentsKind::Range);
+    std::vector<std::uint8_t> request;
+    const auto receipt = transfer.beginFileRangeRequest(
+        intent->fileIndex, intent->offset,
+        intent->requestedBytes, request);
+    assert(receipt);
+    assert(destination.bindRequest(*receipt));
+
+    const std::array<std::uint8_t, 4> fileBytes{9, 8, 7, 6};
+    assert(intent->requestedBytes == fileBytes.size());
+    const auto responseWire =
+        fileContentsResponsePdu(receipt->streamId, fileBytes);
+    const auto result =
+        transfer.receiveFileContentsResponse(responseWire);
+    assert(result.status ==
+           RemoteTransfer::FileContentsStatus::ReceivedRange);
+    assert(destination.acceptResult(result));
+    assert(destination.status() ==
+           LinuxClipboardFileDestination::Status::Complete);
 }
 
 void offerTextAndPng(RemoteTransfer &transfer, bool includeDib = false)
@@ -514,6 +688,81 @@ void targetsPublication()
     assert((dibOnlyTargets ==
             std::vector<xcb_atom_t>{kTargetsAtom, kUtf8Atom}));
 
+}
+
+void completedFileUriHandoff()
+{
+    constexpr std::string_view kLocalFileUri{
+        "file:///rdp-server-tests/handoff%20file.bin"};
+
+    RemoteTransfer transfer;
+    installSingleFileOffer(transfer, 4U);
+    ScopedTestFile file{"x11-completed-file-handoff"};
+    LinuxClipboardFileDestination destination{transfer};
+    assert(destination.begin(
+        0U, file.descriptor(), kLocalFileUri));
+    assert(!destination.completedFileUri());
+
+    FakeNative native;
+    X11ClipboardAdapter adapter(
+        transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{9}};
+    assert(adapter.valid());
+    assert(adapter.uriListAtom() == kUriListAtom);
+    assert(adapter.gnomeCopiedFilesAtom() ==
+           kGnomeCopiedFilesAtom);
+    assert(adapter.kdeCutSelectionAtom() ==
+           kKdeCutSelectionAtom);
+
+    // A partial descriptor sink is deliberately not visible to file managers.
+    assert(!adapter.publishCompletedFile(destination, start));
+    assert(!adapter.publishCurrentRemoteOffer(start));
+    assert(!adapter.ownsClipboard());
+
+    completeFileDestination(transfer, destination);
+    assert(destination.completedFileUri());
+    assert(*destination.completedFileUri() == kLocalFileUri);
+    assert(adapter.publishCompletedFile(destination, start));
+    assert(adapter.ownsClipboard());
+    assert(adapter.publicationGeneration() == transfer.generation());
+
+    dispatchRequest(adapter, requestFor(kTargetsAtom, 851, 51), start);
+    assert(native.propertyWrites.size() == 1U);
+    const auto targets = propertyAtoms(native.propertyWrites.back());
+    assert((targets == std::vector<xcb_atom_t>{
+        kTargetsAtom, kUriListAtom,
+        kGnomeCopiedFilesAtom, kKdeCutSelectionAtom}));
+
+    dispatchRequest(adapter, requestFor(kUriListAtom, 852, 52), start);
+    assert(native.propertyWrites.back().type == kUriListAtom);
+    assert(propertyText(native.propertyWrites.back()) ==
+           std::string{kLocalFileUri} + "\r\n");
+
+    dispatchRequest(
+        adapter, requestFor(kGnomeCopiedFilesAtom, 853, 53), start);
+    assert(native.propertyWrites.back().type == kGnomeCopiedFilesAtom);
+    assert(propertyText(native.propertyWrites.back()) ==
+           std::string{"copy\n"} + std::string{kLocalFileUri});
+
+    dispatchRequest(
+        adapter, requestFor(kKdeCutSelectionAtom, 854, 54), start);
+    assert(native.propertyWrites.back().type == kKdeCutSelectionAtom);
+    assert(propertyText(native.propertyWrites.back()) == "0");
+
+    // Local owner loss yields this remote generation and cannot be reclaimed
+    // merely because the completed local file still exists.
+    native.currentSelectionOwner = 999;
+    adapter.observeClipboardOwner(999);
+    assert(!adapter.ownsClipboard());
+    const std::size_t ownerSetsAfterTakeover = native.setOwnerCalls;
+    assert(!adapter.publishCompletedFile(destination, start));
+    assert(native.setOwnerCalls == ownerSetsAfterTakeover);
+
+    // A newer remote generation also makes the old completion proof stale.
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(!adapter.publishCompletedFile(destination, start));
 }
 
 void incrLargeTextProgression()
@@ -926,6 +1175,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-selection-request-nonblocking")
     {
         selectionRequestNonblocking();
+        return 0;
+    }
+    if (behavior == "x11-completed-file-uri-handoff")
+    {
+        completedFileUriHandoff();
         return 0;
     }
     if (behavior == "x11-selection-owner-loss")

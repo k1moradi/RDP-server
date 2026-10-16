@@ -1,3 +1,54 @@
+## R8 completed-file X11 file-manager handoff (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `64f91607a1346258c5a843fb10a717e91747518a`. The hosted-validated Linux
+file-descriptor sink remains the only native materializer and
+`RemoteTransfer` remains the sole CLIPRDR generation/FileContents owner. This
+increment adds an **X11 completed-file handoff only**; it does not fetch a file,
+open a remote-named path, create a portal session or send RDP bytes.
+
+The Linux destination now optionally binds one caller-supplied local
+`file:///...` URI when the caller supplies the writable destination
+descriptor. The URI is fixed-capacity (4096 bytes), must be a local absolute
+file URI with ASCII URI bytes and valid percent escapes, and rejects spaces,
+controls, backslashes, query/fragment syntax and remote authorities. The
+remote FILEDESCRIPTORW leaf name is never used to construct the URI. URI
+metadata is erased on cancellation/failure and is exposed only after exact-size
+completion, final truncate/fsync and closure of the destination's duplicate fd.
+
+The existing `X11ClipboardAdapter` can consume only that completed URI for
+the exact current RDP generation. It copies the URI into bounded adapter state,
+then publishes real X11 CLIPBOARD file-manager targets alongside any existing
+text/PNG targets: RFC 2483 `text/uri-list` as one URI terminated by CRLF,
+`x-special/gnome-copied-files` as `copy\n<uri>` with no trailing blank
+line, and `application/x-kde-cutselection` as byte `0` for copy. PRIMARY
+remains untouched. A partial destination is never advertised. Local CLIPBOARD
+owner takeover clears the handoff and yields that remote generation; an old
+completed destination cannot be republished after generation replacement.
+
+Dedicated production-backed CTest
+`clipboard.x11-completed-file-uri-handoff` drives the real descriptor sink
+through the existing FileContents receipt/result owner, proves incomplete
+materialization cannot publish, then verifies the exact TARGETS and three X11
+payloads through the existing native-operation seam. The existing Linux
+file-destination denial case is strengthened to reject malformed/nonlocal
+handoff URIs, and the >64-KiB streaming case now proves its completed URI is
+unavailable until completion and retained afterwards. The existing R9
+`ctest -L clipboard` sanitizer selection already builds both production
+targets and will include the new case automatically.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** because this connector environment has no synchronized owner
+checkout and no alternate build root was created. Exact-publication-SHA
+Linux/GCC Debug/Release, R9 ASan/UBSan clipboard coverage and repository-wide
+hosted matrix are **PENDING**. A real Nautilus/Dolphin paste, owner Linux/X11,
+Wayland/XDG portal FileTransfer, Microsoft-client file copy, Windows/macOS file
+destinations and clipboard-file performance remain **NOT RUN/OPEN**.
+
+**Next R8 after hosted validation:** add bounded Windows/macOS file
+destinations without a whole-file memory cache or second CLIPRDR writer.
+Separately, a future Wayland runtime may use the real XDG FileTransfer/Clipboard
+portal session contract rather than emulating it in X11 code.
+
 ## R9 licensing transition exact-SHA QA receipts (2026-10-16)
 
 **Implementation:** [`2e15654204b69542ead641728dbd1402e3cc74aa`](https://github.com/k1moradi/RDP-server/commit/2e15654204b69542ead641728dbd1402e3cc74aa).

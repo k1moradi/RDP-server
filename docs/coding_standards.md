@@ -1,3 +1,32 @@
+## Completed X11 file handoff never derives a path from remote metadata
+
+For R8 X11 file-manager handoff, bind any local file URI at the same native
+destination-capability boundary that receives the caller-selected descriptor.
+The URI is caller metadata, never a conversion of FILEDESCRIPTORW names.
+Accept only a bounded local `file:///...` URI, require percent-encoding for
+spaces/non-ASCII bytes, reject controls/backslashes/query/fragment syntax and
+remote authorities, and erase the URI on partial-transfer failure or cancel.
+
+Do not advertise file-manager clipboard targets until the materializer has
+reached exact-size `Complete` after final truncate, sync and duplicate close.
+At that point the existing X11 clipboard owner may copy the URI into bounded
+publication state. Publish `text/uri-list` with CRLF line termination (RFC
+2483), GNOME/Nautilus `x-special/gnome-copied-files` as
+`copy\n<uri>` without a trailing empty line, and KDE's supplemental
+`application/x-kde-cutselection` value `0` for copy. These native formats
+must never trigger CLIPRDR I/O.
+
+File URI publication follows the same X11 ownership epoch as text/image. Local
+owner takeover yields the remote generation and clears the file handoff; an
+old completed file cannot reclaim CLIPBOARD for that same generation. Remote
+generation replacement invalidates the URI even if the local file remains.
+PRIMARY stays untouched.
+
+Do not emulate XDG Desktop Portal FileTransfer with an X11 MIME payload. A
+Wayland portal integration must use the real portal session and
+`application/vnd.portal.filetransfer` contract when that runtime boundary
+exists.
+
 ## Linux clipboard destinations are descriptor capabilities
 
 For R8 Linux file materialization, a native destination descriptor is a

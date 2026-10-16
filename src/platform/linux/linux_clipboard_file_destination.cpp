@@ -131,6 +131,54 @@ namespace
     return result == 0;
 }
 
+[[nodiscard]] bool isHexDigit(const char character) noexcept
+{
+    return (character >= '0' && character <= '9') ||
+           (character >= 'a' && character <= 'f') ||
+           (character >= 'A' && character <= 'F');
+}
+
+[[nodiscard]] bool validLocalFileUri(
+    const std::string_view uri) noexcept
+{
+    constexpr std::string_view kLocalFilePrefix{"file:///"};
+    if (uri.empty())
+    {
+        return true;
+    }
+    if (uri.size() <= kLocalFilePrefix.size() ||
+        uri.size() >
+            LinuxClipboardFileDestination::kMaximumLocalFileUriBytes ||
+        !uri.starts_with(kLocalFilePrefix))
+    {
+        return false;
+    }
+
+    for (std::size_t index = kLocalFilePrefix.size();
+         index < uri.size(); ++index)
+    {
+        const unsigned char byte =
+            static_cast<unsigned char>(uri[index]);
+        if (byte <= 0x20U || byte >= 0x7fU ||
+            uri[index] == '\\' || uri[index] == '?' ||
+            uri[index] == '#')
+        {
+            return false;
+        }
+        if (uri[index] == '%')
+        {
+            if (index + 2U >= uri.size() ||
+                !isHexDigit(uri[index + 1U]) ||
+                !isHexDigit(uri[index + 2U]))
+            {
+                return false;
+            }
+            index += 2U;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 LinuxClipboardFileDestination::LinuxClipboardFileDestination(
@@ -180,6 +228,8 @@ void LinuxClipboardFileDestination::discardPartial(
         closeDestination();
     }
     activeRequest_ = {};
+    localFileUri_.fill(0);
+    localFileUriLength_ = 0;
     status_ = discarded ? terminalStatus : Status::NativeError;
 }
 
@@ -226,7 +276,40 @@ bool LinuxClipboardFileDestination::begin(
     const std::size_t fileIndex,
     const int destinationDescriptor) noexcept
 {
+    return beginInternal(fileIndex, destinationDescriptor, {});
+}
+
+bool LinuxClipboardFileDestination::begin(
+    const std::size_t fileIndex,
+    const int destinationDescriptor,
+    const std::string_view localFileUri) noexcept
+{
+    if (localFileUri.empty())
+    {
+        return false;
+    }
+    return beginInternal(
+        fileIndex, destinationDescriptor, localFileUri);
+}
+
+std::optional<std::string_view>
+LinuxClipboardFileDestination::completedFileUri() const noexcept
+{
+    if (status_ != Status::Complete || localFileUriLength_ == 0)
+    {
+        return std::nullopt;
+    }
+    return std::string_view{
+        localFileUri_.data(), localFileUriLength_};
+}
+
+bool LinuxClipboardFileDestination::beginInternal(
+    const std::size_t fileIndex,
+    const int destinationDescriptor,
+    const std::string_view localFileUri) noexcept
+{
     if (status_ != Status::Idle || destinationDescriptor < 0 ||
+        !validLocalFileUri(localFileUri) ||
         !remoteTransfer_.synchronized() ||
         !remoteTransfer_.fileStreamingAvailable())
     {
@@ -265,6 +348,11 @@ bool LinuxClipboardFileDestination::begin(
         file->name.begin(), file->name.end(),
         sourceName_.begin());
     sourceNameLength_ = file->name.size();
+    localFileUri_.fill(0);
+    localFileUriLength_ = localFileUri.size();
+    std::copy(
+        localFileUri.begin(), localFileUri.end(),
+        localFileUri_.begin());
     sourceGeneration_ = remoteTransfer_.generation();
     fileIndex_ = fileIndex;
     expectedSizeKnown_ = file->sizeKnown;

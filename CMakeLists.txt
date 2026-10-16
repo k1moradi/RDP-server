@@ -363,7 +363,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
         target_link_libraries(rdp-server-linux-x11-clipboard PUBLIC
             rdp-server-protocol
-            PkgConfig::RDP_SERVER_XCB_CLIPBOARD)
+            PkgConfig::RDP_SERVER_XCB_CLIPBOARD
+            rdp-server-linux-clipboard-file-destination)
         target_compile_options(rdp-server-linux-x11-clipboard PRIVATE
             -Wall -Wextra -Wpedantic -Werror)
     else()

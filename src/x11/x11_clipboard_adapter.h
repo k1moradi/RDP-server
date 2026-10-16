@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -13,6 +14,11 @@
 
 #include "server/clipboard/remote_transfer.h"
 #include "x11_event_dispatch.h"
+
+namespace rdp::linux_platform
+{
+class LinuxClipboardFileDestination;
+}
 
 /**
  * Small allocation-free native XCB call table used by the clipboard adapter.
@@ -60,6 +66,7 @@ public:
     // single-request ceiling. INCR never duplicates the full payload.
     static constexpr std::size_t kMaximumDirectPropertyBytes = 64U * 1024U;
     static constexpr std::size_t kIncrChunkBytes = 64U * 1024U;
+    static constexpr std::size_t kMaximumFileUriBytes = 4096U;
     static constexpr auto kPasteTimeout = std::chrono::seconds{2};
     static constexpr auto kIncrTimeout = std::chrono::seconds{5};
 
@@ -96,6 +103,9 @@ public:
     [[nodiscard]] xcb_atom_t targetsAtom() const noexcept;
     [[nodiscard]] xcb_atom_t utf8StringAtom() const noexcept;
     [[nodiscard]] xcb_atom_t pngAtom() const noexcept;
+    [[nodiscard]] xcb_atom_t uriListAtom() const noexcept;
+    [[nodiscard]] xcb_atom_t gnomeCopiedFilesAtom() const noexcept;
+    [[nodiscard]] xcb_atom_t kdeCutSelectionAtom() const noexcept;
     [[nodiscard]] xcb_atom_t incrAtom() const noexcept;
     [[nodiscard]] bool incrTransferActive() const noexcept;
     [[nodiscard]] std::size_t incrBytesSent() const noexcept;
@@ -111,6 +121,16 @@ public:
      * republishing the same generation. PRIMARY is never touched.
      */
     [[nodiscard]] bool publishCurrentRemoteOffer(
+        PasteClock::time_point now) noexcept;
+
+    /**
+     * Publish one already-complete Linux descriptor materialization as native
+     * file-manager clipboard metadata for its exact current RDP generation.
+     * The local file:/// URI was caller-bound when the destination started;
+     * this adapter never constructs a path from the remote filename.
+     */
+    [[nodiscard]] bool publishCompletedFile(
+        const rdp::linux_platform::LinuxClipboardFileDestination &destination,
         PasteClock::time_point now) noexcept;
 
     /**
@@ -147,6 +167,9 @@ private:
         xcb_atom_t targets{XCB_ATOM_NONE};
         xcb_atom_t utf8String{XCB_ATOM_NONE};
         xcb_atom_t png{XCB_ATOM_NONE};
+        xcb_atom_t uriList{XCB_ATOM_NONE};
+        xcb_atom_t gnomeCopiedFiles{XCB_ATOM_NONE};
+        xcb_atom_t kdeCutSelection{XCB_ATOM_NONE};
         xcb_atom_t incr{XCB_ATOM_NONE};
     };
 
@@ -181,6 +204,7 @@ private:
     makeXcbOperations(xcb_connection_t &connection) noexcept;
     [[nodiscard]] bool nativeOperationsValid() const noexcept;
     [[nodiscard]] bool currentPublicationValid() const noexcept;
+    [[nodiscard]] bool fileHandoffAvailable() const noexcept;
     [[nodiscard]] bool remoteTextOffered() const noexcept;
     [[nodiscard]] std::uint32_t remotePngFormatId() const noexcept;
     [[nodiscard]] xcb_atom_t requestProperty(
@@ -206,6 +230,15 @@ private:
         xcb_atom_t property,
         const RemoteTransfer::VerifiedImage &image,
         PasteClock::time_point now) noexcept;
+    [[nodiscard]] bool publishUriList(
+        const xcb_selection_request_event_t &request,
+        xcb_atom_t property) noexcept;
+    [[nodiscard]] bool publishGnomeCopiedFiles(
+        const xcb_selection_request_event_t &request,
+        xcb_atom_t property) noexcept;
+    [[nodiscard]] bool publishKdeCopyMarker(
+        const xcb_selection_request_event_t &request,
+        xcb_atom_t property) noexcept;
     [[nodiscard]] bool beginIncrTransfer(
         const xcb_selection_request_event_t &request,
         xcb_atom_t property, xcb_atom_t propertyType,
@@ -230,6 +263,7 @@ private:
     void cancelPendingForOwnerLoss() noexcept;
     void yieldToLocalOwner() noexcept;
     void releaseNativeOwnership() noexcept;
+    void clearFileHandoff() noexcept;
     void clearPublicationState() noexcept;
 
     RemoteTransfer &remoteTransfer_;
@@ -242,8 +276,12 @@ private:
     std::uint64_t publicationGeneration_{};
     std::uint64_t ownershipEpoch_{};
     std::uint64_t yieldedGeneration_{};
+    std::uint64_t fileHandoffGeneration_{};
+    std::array<char, kMaximumFileUriBytes> fileUri_{};
+    std::size_t fileUriLength_{};
     bool textOffered_{};
     bool pngOffered_{};
+    bool fileOffered_{};
     bool ownsClipboard_{};
     bool valid_{};
     Source contentSource_{Source::None};

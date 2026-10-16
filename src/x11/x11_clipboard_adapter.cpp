@@ -8,6 +8,7 @@
 #include <limits>
 
 #include "clipboard/clipboard_protocol.h"
+#include "platform/linux/linux_clipboard_file_destination.h"
 
 namespace
 {
@@ -303,12 +304,21 @@ X11ClipboardAdapter::X11ClipboardAdapter(
         nativeOperations_.internAtom(nativeOperations_.context, "UTF8_STRING");
     atoms_.png =
         nativeOperations_.internAtom(nativeOperations_.context, "image/png");
+    atoms_.uriList =
+        nativeOperations_.internAtom(nativeOperations_.context, "text/uri-list");
+    atoms_.gnomeCopiedFiles = nativeOperations_.internAtom(
+        nativeOperations_.context, "x-special/gnome-copied-files");
+    atoms_.kdeCutSelection = nativeOperations_.internAtom(
+        nativeOperations_.context, "application/x-kde-cutselection");
     atoms_.incr =
         nativeOperations_.internAtom(nativeOperations_.context, "INCR");
     if (atoms_.clipboard == XCB_ATOM_NONE ||
         atoms_.targets == XCB_ATOM_NONE ||
         atoms_.utf8String == XCB_ATOM_NONE ||
         atoms_.png == XCB_ATOM_NONE ||
+        atoms_.uriList == XCB_ATOM_NONE ||
+        atoms_.gnomeCopiedFiles == XCB_ATOM_NONE ||
+        atoms_.kdeCutSelection == XCB_ATOM_NONE ||
         atoms_.incr == XCB_ATOM_NONE)
     {
         return;
@@ -378,6 +388,24 @@ X11ClipboardAdapter::pngAtom() const noexcept
 }
 
 xcb_atom_t
+X11ClipboardAdapter::uriListAtom() const noexcept
+{
+    return valid() ? atoms_.uriList : xcb_atom_t{};
+}
+
+xcb_atom_t
+X11ClipboardAdapter::gnomeCopiedFilesAtom() const noexcept
+{
+    return valid() ? atoms_.gnomeCopiedFiles : xcb_atom_t{};
+}
+
+xcb_atom_t
+X11ClipboardAdapter::kdeCutSelectionAtom() const noexcept
+{
+    return valid() ? atoms_.kdeCutSelection : xcb_atom_t{};
+}
+
+xcb_atom_t
 X11ClipboardAdapter::incrAtom() const noexcept
 {
     return valid() ? atoms_.incr : xcb_atom_t{};
@@ -426,6 +454,14 @@ X11ClipboardAdapter::lastOwnershipTransitionSource() const noexcept
 }
 
 bool
+X11ClipboardAdapter::fileHandoffAvailable() const noexcept
+{
+    return fileUriLength_ != 0U &&
+           fileHandoffGeneration_ != 0U &&
+           fileHandoffGeneration_ == remoteTransfer_.generation();
+}
+
+bool
 X11ClipboardAdapter::remoteTextOffered() const noexcept
 {
     return remoteTransfer_.advertises(
@@ -446,6 +482,64 @@ X11ClipboardAdapter::currentPublicationValid() const noexcept
            contentSource_ == Source::RemoteRdp &&
            remoteTransfer_.synchronized() && publicationGeneration_ != 0 &&
            publicationGeneration_ == remoteTransfer_.generation();
+}
+
+bool
+X11ClipboardAdapter::publishCompletedFile(
+    const rdp::linux_platform::LinuxClipboardFileDestination &destination,
+    PasteClock::time_point now) noexcept
+{
+    static_assert(
+        kMaximumFileUriBytes ==
+        rdp::linux_platform::LinuxClipboardFileDestination::
+            kMaximumLocalFileUriBytes);
+
+    if (!valid() ||
+        destination.status() !=
+            rdp::linux_platform::LinuxClipboardFileDestination::
+                Status::Complete ||
+        destination.generation() == 0U ||
+        destination.generation() != remoteTransfer_.generation() ||
+        !remoteTransfer_.synchronized() ||
+        (yieldedGeneration_ == destination.generation() &&
+         !ownsClipboard_))
+    {
+        return false;
+    }
+
+    const auto uri = destination.completedFileUri();
+    if (!uri || uri->empty() ||
+        uri->size() > fileUri_.size())
+    {
+        return false;
+    }
+
+    if (fileHandoffGeneration_ == destination.generation() &&
+        fileUriLength_ != 0U)
+    {
+        const std::string_view publishedUri{
+            fileUri_.data(), fileUriLength_};
+        if (publishedUri != *uri)
+        {
+            // One completed local file per remote generation. Changing the
+            // payload behind the same X11 owner would not produce a new
+            // selection-owner transition for file managers to observe.
+            return false;
+        }
+        return publishCurrentRemoteOffer(now);
+    }
+
+    fileUri_.fill(0);
+    std::copy(uri->begin(), uri->end(), fileUri_.begin());
+    fileUriLength_ = uri->size();
+    fileHandoffGeneration_ = destination.generation();
+
+    if (!publishCurrentRemoteOffer(now))
+    {
+        clearFileHandoff();
+        return false;
+    }
+    return true;
 }
 
 bool
@@ -480,15 +574,23 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
         return false;
     }
 
+    if (fileHandoffGeneration_ != 0U &&
+        fileHandoffGeneration_ != generation)
+    {
+        clearFileHandoff();
+    }
+
     const bool textOffered = remoteTextOffered();
     const bool pngOffered = remotePngFormatId() != 0;
-    if (!textOffered && !pngOffered)
+    const bool fileOffered = fileHandoffAvailable();
+    if (!textOffered && !pngOffered && !fileOffered)
     {
         releaseNativeOwnership();
         return false;
     }
     if (ownsClipboard_ && publicationGeneration_ == generation &&
-        textOffered_ == textOffered && pngOffered_ == pngOffered)
+        textOffered_ == textOffered && pngOffered_ == pngOffered &&
+        fileOffered_ == fileOffered)
     {
         return true;
     }
@@ -514,6 +616,7 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
     publicationGeneration_ = generation;
     textOffered_ = textOffered;
     pngOffered_ = pngOffered;
+    fileOffered_ = fileOffered;
     ownsClipboard_ = true;
     yieldedGeneration_ = 0;
     contentSource_ = Source::RemoteRdp;
@@ -620,6 +723,21 @@ X11ClipboardAdapter::handleSelectionRequest(
                             pngFormatId, now);
         return;
     }
+    if (request.target == atoms_.uriList && fileOffered_)
+    {
+        (void)publishUriList(request, property);
+        return;
+    }
+    if (request.target == atoms_.gnomeCopiedFiles && fileOffered_)
+    {
+        (void)publishGnomeCopiedFiles(request, property);
+        return;
+    }
+    if (request.target == atoms_.kdeCutSelection && fileOffered_)
+    {
+        (void)publishKdeCopyMarker(request, property);
+        return;
+    }
 
     (void)sendFailureNotify(request);
 }
@@ -691,7 +809,7 @@ X11ClipboardAdapter::publishTargets(
     const xcb_selection_request_event_t &request,
     xcb_atom_t property) noexcept
 {
-    std::array<xcb_atom_t, 3> targets{};
+    std::array<xcb_atom_t, 6> targets{};
     std::size_t count = 0;
     targets[count++] = atoms_.targets;
     if (textOffered_)
@@ -701,6 +819,12 @@ X11ClipboardAdapter::publishTargets(
     if (pngOffered_)
     {
         targets[count++] = atoms_.png;
+    }
+    if (fileOffered_)
+    {
+        targets[count++] = atoms_.uriList;
+        targets[count++] = atoms_.gnomeCopiedFiles;
+        targets[count++] = atoms_.kdeCutSelection;
     }
     const auto bytes =
         std::as_bytes(std::span<const xcb_atom_t>{targets.data(), count});
@@ -745,6 +869,69 @@ X11ClipboardAdapter::publishPng(
     }
     return publishPropertyAndNotify(
         request, property, atoms_.png, 8, bytes);
+}
+
+bool
+X11ClipboardAdapter::publishUriList(
+    const xcb_selection_request_event_t &request,
+    xcb_atom_t property) noexcept
+{
+    if (!fileOffered_ || !fileHandoffAvailable())
+    {
+        return sendFailureNotify(request);
+    }
+
+    std::array<char, kMaximumFileUriBytes + 2U> payload{};
+    std::copy_n(
+        fileUri_.begin(), fileUriLength_, payload.begin());
+    payload[fileUriLength_] = '\r';
+    payload[fileUriLength_ + 1U] = '\n';
+    return publishPropertyAndNotify(
+        request, property, atoms_.uriList, 8,
+        std::as_bytes(std::span<const char>{
+            payload.data(), fileUriLength_ + 2U}));
+}
+
+bool
+X11ClipboardAdapter::publishGnomeCopiedFiles(
+    const xcb_selection_request_event_t &request,
+    xcb_atom_t property) noexcept
+{
+    if (!fileOffered_ || !fileHandoffAvailable())
+    {
+        return sendFailureNotify(request);
+    }
+
+    constexpr std::array<char, 5> kCopyPrefix{
+        'c', 'o', 'p', 'y', '\n'};
+    std::array<char, kMaximumFileUriBytes + kCopyPrefix.size()> payload{};
+    std::copy(
+        kCopyPrefix.begin(), kCopyPrefix.end(),
+        payload.begin());
+    std::copy_n(
+        fileUri_.begin(), fileUriLength_,
+        payload.begin() + kCopyPrefix.size());
+    return publishPropertyAndNotify(
+        request, property, atoms_.gnomeCopiedFiles, 8,
+        std::as_bytes(std::span<const char>{
+            payload.data(), kCopyPrefix.size() + fileUriLength_}));
+}
+
+bool
+X11ClipboardAdapter::publishKdeCopyMarker(
+    const xcb_selection_request_event_t &request,
+    xcb_atom_t property) noexcept
+{
+    if (!fileOffered_ || !fileHandoffAvailable())
+    {
+        return sendFailureNotify(request);
+    }
+
+    constexpr std::array<char, 1> kCopyMarker{'0'};
+    return publishPropertyAndNotify(
+        request, property, atoms_.kdeCutSelection, 8,
+        std::as_bytes(std::span<const char>{
+            kCopyMarker.data(), kCopyMarker.size()}));
 }
 
 bool
@@ -1043,8 +1230,19 @@ X11ClipboardAdapter::yieldToLocalOwner() noexcept
     publicationGeneration_ = 0;
     textOffered_ = false;
     pngOffered_ = false;
+    fileOffered_ = false;
+    clearFileHandoff();
     contentSource_ = Source::LocalNative;
     lastOwnershipTransitionSource_ = Source::LocalNative;
+}
+
+void
+X11ClipboardAdapter::clearFileHandoff() noexcept
+{
+    fileUri_.fill(0);
+    fileUriLength_ = 0;
+    fileHandoffGeneration_ = 0;
+    fileOffered_ = false;
 }
 
 void
@@ -1053,6 +1251,7 @@ X11ClipboardAdapter::clearPublicationState() noexcept
     publicationGeneration_ = 0;
     textOffered_ = false;
     pngOffered_ = false;
+    clearFileHandoff();
     if (!ownsClipboard_)
     {
         contentSource_ = Source::None;
@@ -1112,8 +1311,12 @@ X11ClipboardAdapter::disconnect() noexcept
     atoms_ = {};
     publicationGeneration_ = 0;
     yieldedGeneration_ = 0;
+    fileHandoffGeneration_ = 0;
+    fileUri_.fill(0);
+    fileUriLength_ = 0;
     textOffered_ = false;
     pngOffered_ = false;
+    fileOffered_ = false;
     ownsClipboard_ = false;
     valid_ = false;
     contentSource_ = Source::None;

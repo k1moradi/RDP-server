@@ -1,3 +1,39 @@
+## R8 completed Linux file URI handoff through X11 (2026-10-16)
+
+The Linux file-descriptor materializer and X11 clipboard adapter remain
+subordinates of the one `RemoteTransfer` clipboard generation. The
+materializer may bind a caller-provided local `file:///...` URI to the same
+destination descriptor capability at `begin()`; it never creates that URI
+from remote metadata. The URI is fixed-capacity and unavailable until the
+materializer reaches `Complete` after exact byte count, final truncate,
+`fsync`, and duplicate-fd close. Cancellation/failure clears it.
+
+`X11ClipboardAdapter::publishCompletedFile` accepts the destination object
+itself, not a caller Boolean or forgeable completion scalar. It requires
+`Status::Complete`, matching nonzero current RDP generation and a retained
+local URI before it can claim CLIPBOARD. The adapter copies the URI into its
+own 4096-byte bounded publication state, so the destination object need not
+outlive later X11 SelectionRequests.
+
+For X11 file-manager interoperability the owner advertises
+`text/uri-list`, `x-special/gnome-copied-files`, and
+`application/x-kde-cutselection`. The standard URI-list payload is the one
+URI plus CRLF. GNOME/Nautilus receives `copy\n<uri>` without a trailing
+empty line; KDE's supplemental cut-selection marker is `0` for copy. These
+are local presentation formats only: no FileContents request, MCS envelope,
+TLS output or R2/R3 authorization occurs while servicing the X11 request.
+
+File targets participate in the existing X11 ownership epoch and source model.
+A local owner takeover clears the URI publication and records the yielded
+remote generation, preventing timer/same-generation reclaim. A remote
+generation change invalidates the previous URI even if the completed local
+file still exists. PRIMARY remains isolated.
+
+The XDG Desktop Portal FileTransfer contract is intentionally not approximated
+here. A future Wayland integration must use its real session/D-Bus lifecycle
+and `application/vnd.portal.filetransfer` key rather than treating an X11 URI
+payload as portal authorization.
+
 ### R1 bounded client-licensing intake compatibility (2026-10-16)
 
 R1's post-handshake application seam deliberately remains a bounded byte

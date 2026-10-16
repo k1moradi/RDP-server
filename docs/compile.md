@@ -1,3 +1,19 @@
+## R8 completed-file X11 handoff build boundary (2026-10-16)
+
+The existing Linux-only `rdp-server-linux-x11-clipboard` target now links the
+existing noninstalled `rdp-server-linux-clipboard-file-destination` target so
+its production XCB owner can consume completed descriptor materializations.
+No new package is required beyond the XCB dependency already needed by that
+adapter; no D-Bus, GLib/GIO, FUSE or xdg-desktop-portal development dependency
+is introduced.
+
+The existing `test_x11_clipboard_adapter` executable gains the dedicated
+`clipboard.x11-completed-file-uri-handoff` case and continues to run through
+the central clipboard label. R9 already builds both the X11 clipboard and
+Linux file-destination test targets before `ctest -L clipboard`, so no
+second sanitizer workflow or build root is added. The portable installed SDK,
+macOS and Windows target graphs remain unchanged.
+
 ## R8 Linux file-descriptor destination build boundary (2026-10-16)
 
 Linux builds the noninstalled

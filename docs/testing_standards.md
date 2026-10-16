@@ -1,3 +1,22 @@
+## R8 completed-file X11 handoff tests
+
+Ordinary X11 file-handoff CTests must remain desktop-independent: use the
+existing deterministic XCB operation seam plus build-root regular-file
+fixtures, never a live user's CLIPBOARD or file manager. Drive the real Linux
+descriptor materializer and real `RemoteTransfer` FileContents result owner so
+the handoff proof comes from production completion state rather than a test
+Boolean.
+
+Require an incomplete materialization to be unpublishable. After completion,
+verify TARGETS contains `text/uri-list`,
+`x-special/gnome-copied-files`, and
+`application/x-kde-cutselection`; verify exact single-file payloads including
+URI-list CRLF, GNOME's `copy\n` prefix without a trailing blank URI, and KDE
+copy marker `0`. Cover malformed/nonlocal caller URIs, same-generation local
+owner takeover, and remote-generation replacement. Sanitizer clipboard
+selection must execute the case. This is synthetic file-manager protocol
+coverage, not a claim that Nautilus/Dolphin or Wayland portals were exercised.
+
 ## R7 macOS session-watch sanitizer coverage is host-desktop free
 
 The R7 desktop-session/watch executable is deterministic on non-Apple hosts:

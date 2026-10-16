@@ -3181,6 +3181,8 @@ void testOwnedTlsApplicationPartialWrite()
 {
     using Outcome = TlsApplicationIoOutcome;
     using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
     static_assert(kMaximumTlsApplicationIoBytes ==
                   kMaximumTcpIoChunkBytes);
 
@@ -3204,6 +3206,7 @@ void testOwnedTlsApplicationPartialWrite()
 
     std::size_t written = 0;
     bool observedShortProgress = false;
+    const auto writeDeadline = Clock::now() + std::chrono::seconds{5};
     for (int attempt = 0; attempt < 256 && written < payload.size();
          ++attempt)
     {
@@ -3228,7 +3231,12 @@ void testOwnedTlsApplicationPartialWrite()
             ? Interest::Read
             : Interest::Write;
         assert(owner.ioInterest() == expected);
-        assert(owner.onSocketReady(true, true) == expected);
+        const auto polled =
+            owner.pollSocketOnce(writeDeadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(polled.nextInterest == expected);
+        assert(Clock::now() < writeDeadline);
     }
     assert(observedShortProgress);
     assert(written == payload.size());
@@ -3252,6 +3260,7 @@ void testOwnedTlsApplicationPartialWrite()
         0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37};
     writeNativeTlsClientAll(tls.client.get(), retryPayload);
     TlsApplicationIoResult completed{};
+    const auto readDeadline = Clock::now() + std::chrono::seconds{5};
     for (int attempt = 0; attempt < 2048; ++attempt)
     {
         completed = owner.readTlsApplicationData(pendingRead);
@@ -3263,7 +3272,12 @@ void testOwnedTlsApplicationPartialWrite()
             ? Interest::Read
             : Interest::Write;
         assert(owner.ioInterest() == expected);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        const auto polled =
+            owner.pollSocketOnce(readDeadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(polled.nextInterest == expected);
+        assert(Clock::now() < readDeadline);
     }
     assert(completed.outcome == Outcome::Progress);
     assert(completed.bytes == retryPayload.size());
@@ -3275,7 +3289,9 @@ void testR3ConnectResponseSliceThroughOwnedTls()
 {
     using Outcome = TlsApplicationIoOutcome;
     using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
     using WriteOutcome = McsConnectResponseWriteOutcome;
+    using Clock = std::chrono::steady_clock;
 
     static_assert(kMaximumMcsResponseBytes <=
                   kMaximumTlsApplicationIoBytes);
@@ -3307,6 +3323,7 @@ void testR3ConnectResponseSliceThroughOwnedTls()
     assert(view.bytes.size() <= kMaximumTlsApplicationIoBytes);
 
     bool observedShortProgress = false;
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
     WriteOutcome completion = WriteOutcome::Pending;
     for (int attempt = 0;
          attempt < 2048 && completion == WriteOutcome::Pending;
@@ -3357,9 +3374,13 @@ void testR3ConnectResponseSliceThroughOwnedTls()
         assert(retry.writeSliceSequence == sliceSequence);
         assert(retry.bytes.data() == offered.data());
         assert(retry.bytes.size() == offered.size());
-        assert(owner.onSocketReady(true, true) == expected);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(polled.nextInterest == expected);
+        assert(Clock::now() < deadline);
         view = retry;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     assert(observedShortProgress);

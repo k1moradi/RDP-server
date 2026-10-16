@@ -16941,3 +16941,46 @@ real license-authority issuance and Microsoft-client acceptance remain
 behind real authority/R2 authorization, verify the final production slice
 through the sole owned TLS writer. Otherwise wait for a live Share activation
 boundary that demonstrates a concrete bounded transport mismatch.
+
+
+## R1 owned-TLS application readiness hardening (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `77a03edcaf796268b35d567c64414cde65ffaaff`.
+
+R1 removes the remaining fixed-sleep/fabricated-readiness pattern from two
+production-backed owned-TLS application-I/O regressions. In
+`transport.tcp-owned-tls-application-partial-write`, zero-byte
+`SSL_ERROR_WANT_READ/WRITE` during the forced-fragment server write now waits
+through `OwnedPreauthTcpConnection::pollSocketOnce` with a finite monotonic
+deadline and asserts the exact `ioInterest()` direction before retrying. The
+pending application read uses an independent finite deadline and the same
+direction-preserving poll path instead of a 1 ms scheduler sleep.
+
+`transport.tcp-owned-r3-connect-response-slice` now applies the same rule to
+the existing R3 Connect Response receipt compatibility test. A zero-byte TLS
+WANT preserves the exact reply sequence, write-slice sequence, data pointer and
+remaining byte count; R1 then polls only the recorded readiness direction and
+the caller explicitly resubmits the same stable pending slice. The test no
+longer fabricates simultaneous readable+writable readiness with
+`onSocketReady(true, true)` and no longer sleeps between retries.
+
+This is test-harness determinism only. No production R1 transport source,
+application-I/O bound, TLS owner, R2 authorization, MCS lifecycle or network
+publication behavior changes. The existing
+`transport.tcp-owned-r3-connect-response-slice` remains in R9's bounded
+R1/R3 sanitizer selector; `transport.tcp-owned-tls-application-partial-write`
+is now explicitly added and both names are fail-closed selector checks.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate persistent build root
+or branch is created. Exact publication-SHA Linux/GCC, macOS/AppleClang,
+Windows/MSVC Debug/Release, bounded sanitizer, documentation-policy and
+SDK/package evidence are pending. Owner native platform runs, real
+license-authority issuance and Microsoft-client acceptance remain **NOT RUN**.
+**M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R1:** when R3 adds receipt-bound live New/Upgrade License publication
+behind legitimate authority and fresh R2 authorization, verify that final
+production slice through the sole owned TLS writer. Otherwise wait for a live
+Share-activation boundary that demonstrates a concrete bounded transport
+mismatch.

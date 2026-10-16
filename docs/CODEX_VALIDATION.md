@@ -117,6 +117,41 @@ performance NOT RUN. Record exact-SHA hosted CI separately when
 it completes. **Next:** R3 authorized/static channel ID
 handoff and writer completion/cancellation; native R5/R6/R7 adapters.
 
+## R8 joined inbound static-VC dispatch (2026-10-15; CI pending)
+
+**Implementation:** `RemoteTransfer::receiveJoinedStaticChannelPdu`
+routes only an externally admitted, complete, unsegmented R3 MCS
+SendDataRequest matching the expected CLIPRDR channel ID and R3's
+fully confirmed join. Check MS-RDPBCGR `CHANNEL_PDU_HEADER` uncompressed
+length, FIRST|LAST, unsupported compression, and a full CLIPRDR PDU
+before using the existing capability, Format List native-acceptance,
+and single-flight Format Data Response handlers. Fail-closed framing
+errors poison only this clipboard coordinator. Unsupported clipboard
+types are ignored. Received-data spans borrow the input packet.
+
+**Files:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/coding_standards.md`, and this ledger.
+**New CTest:** `clipboard.joined-static-channel-inbound-gates`.
+The previously published
+`clipboard.format-list-response-joined-mcs-envelope` is also
+restored to central CTest registration after concurrent edits.
+The test constructs real T.125 SendDataRequest TPKTs with synthetic
+CHANNEL_PDU_HEADER and clipboard PDU bytes; it checks unjoined/wrong
+channel/wrong user/unauthorized/segmented denial, negotiation,
+valid format offer and borrowed response, native refusal, malformed/
+compressed/truncated headers, stale generation, and closed gates.
+**At authoring:** full repository checkout/CMake/CTest NOT RUN
+(Git transport unavailable in execution environment), exact-commit
+GitHub Actions PENDING, owner's Linux/X11, Windows MSYS2 CLANG64
+Clang23, and macOS27 full CTests NOT RUN. No native clipboard,
+Firefox image/png File paste, actual authenticated connection,
+performance benchmark or three-platform owner acceptance was run.
+The caller remains responsible for verifying TLS/NLA, OS session
+admission, negotiated CLIPRDR role, security headers, the one
+outbound writer, and R9 multi-chunk reassembly before this boundary.
+
 ## Local validation (one reused build root)
 
 ```sh

@@ -495,6 +495,101 @@ std::optional<std::size_t> RemoteTransfer::encodeJoinedFormatListResponse(
         channelId, 1, 3, userData, output);
 }
 
+RemoteTransfer::JoinedReceiveResult
+RemoteTransfer::receiveJoinedStaticChannelPdu(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    const transport::McsChannelRequest &request,
+    std::uint16_t expectedCliprdrChannelId,
+    bool authenticatedOsSessionAdmitted,
+    std::uint32_t localAdvertisedGeneralFlags,
+    bool nativeOfferAccepted) noexcept
+{
+    using namespace rdp_server::clipboard;
+    JoinedReceiveResult result{};
+    // R3's membership predicate is necessary but NEVER sufficient for
+    // dispatch. Authentication/OS/role authority belongs to its caller.
+    if (!authenticatedOsSessionAdmitted || expectedCliprdrChannelId == 0 ||
+        request.channelId != expectedCliprdrChannelId ||
+        request.segmentation != 3 ||
+        !joinedChannels.matchesJoinedInboundSendData(request))
+    {
+        return result;
+    }
+    if (poisoned_)
+    {
+        result.status = JoinedReceiveStatus::ProtocolError;
+        return result;
+    }
+
+    // MS-RDPBCGR 2.2.6.1.1: 8-byte CHANNEL_PDU_HEADER, length of the
+    // UNCOMPRESSED clipboard PDU excluding this header. Reject fragmented
+    // or compressed traffic until the sole R3/R9 intake reassembles it.
+    constexpr std::uint32_t kFirstLast = 0x00000003U;
+    constexpr std::uint32_t kIgnoredClientFlags = 0x000000f0U;
+    constexpr std::size_t kChannelHeaderLength = 8;
+    const auto wire = request.userData;
+    if (wire.size() < kChannelHeaderLength + 8U ||
+        wire.size() > kMaximumPduBytes + kChannelHeaderLength ||
+        read32(wire, 0) != wire.size() - kChannelHeaderLength ||
+        (read32(wire, 4) & kFirstLast) != kFirstLast ||
+        (read32(wire, 4) & ~(kFirstLast | kIgnoredClientFlags)) != 0)
+    {
+        poisoned_ = true;
+        result.status = JoinedReceiveStatus::ProtocolError;
+        return result;
+    }
+
+    const auto completeClipboardPdu = wire.subspan(kChannelHeaderLength);
+    PduView pdu{};
+    if (!decodePdu(completeClipboardPdu, pdu))
+    {
+        poisoned_ = true;
+        result.status = JoinedReceiveStatus::ProtocolError;
+        return result;
+    }
+    switch (pdu.type)
+    {
+    case kClipCaps:
+        result.status = receiveCapabilitiesPdu(
+            completeClipboardPdu, localAdvertisedGeneralFlags) ?
+            JoinedReceiveStatus::CapabilitiesAccepted :
+            JoinedReceiveStatus::ProtocolError;
+        return result;
+    case kFormatList:
+        result.status = receiveNegotiatedFormatListWithResponse(
+            completeClipboardPdu, nativeOfferAccepted,
+            result.acknowledgment) ?
+            JoinedReceiveStatus::FormatListAccepted :
+            (poisoned_ ? JoinedReceiveStatus::ProtocolError :
+                         JoinedReceiveStatus::FormatListDeclined);
+        result.acknowledgmentReady = true;
+        return result;
+    case kFormatDataResponse:
+        result.data = receiveResponse(completeClipboardPdu);
+        switch (result.data.status)
+        {
+        case ResponseStatus::Received:
+            result.status = JoinedReceiveStatus::DataReceived;
+            break;
+        case ResponseStatus::RemoteFailure:
+            result.status = JoinedReceiveStatus::DataFailed;
+            break;
+        case ResponseStatus::DiscardedPreviousGeneration:
+            result.status = JoinedReceiveStatus::ObsoleteDataDiscarded;
+            break;
+        case ResponseStatus::ProtocolError:
+            result.status = JoinedReceiveStatus::ProtocolError;
+            break;
+        }
+        return result;
+    default:
+        // MS-RDPECLIP 3.1.5.1: ignore unexpected messages, never
+        // treat their payload as clipboard data or an implicit offer.
+        result.status = JoinedReceiveStatus::Ignored;
+        return result;
+    }
+}
+
 std::uint32_t RemoteTransfer::namedFormatId(std::string_view name) const noexcept
 {
     if (poisoned_ || generation_ == 0)

@@ -12,6 +12,7 @@
 namespace rdp_server::server::transport
 {
 class McsChannelJoinWriteGate;
+struct McsChannelRequest;
 }
 
 namespace rdp_server::server::clipboard
@@ -112,6 +113,44 @@ public:
         std::uint16_t channelId,
         std::span<const std::uint8_t> completeResponse,
         std::span<std::uint8_t> output) const noexcept;
+
+    // OFFLINE inbound R3/R8 dispatch boundary. The caller MUST already
+    // validate TLS/NLA, OS-session admission, security headers and the
+    // negotiated CLIPRDR channel role; a joined MCS channel is not authority.
+    // request is a previously parsed complete T.125 SendDataRequest.
+    // This path accepts ONE complete, uncompressed static VC chunk only:
+    // fragmented MCS or VC traffic must be reassembled by R3/R9 first.
+    // It never owns an MCS session, opens TLS, or touches an OS clipboard.
+    enum class JoinedReceiveStatus : std::uint8_t
+    {
+        Denied,
+        Ignored,
+        CapabilitiesAccepted,
+        FormatListAccepted,
+        FormatListDeclined,
+        DataReceived,
+        DataFailed,
+        ObsoleteDataDiscarded,
+        ProtocolError,
+    };
+
+    struct JoinedReceiveResult
+    {
+        JoinedReceiveStatus status{JoinedReceiveStatus::Denied};
+        Response data{};
+        // Generated only for a CLIPRDR Format List, including FAIL.
+        // Caller must send it through the existing R3 writer after admission.
+        std::array<std::uint8_t, 8> acknowledgment{};
+        bool acknowledgmentReady{};
+    };
+
+    [[nodiscard]] JoinedReceiveResult receiveJoinedStaticChannelPdu(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        const transport::McsChannelRequest &request,
+        std::uint16_t expectedCliprdrChannelId,
+        bool authenticatedOsSessionAdmitted,
+        std::uint32_t localAdvertisedGeneralFlags,
+        bool nativeOfferAccepted) noexcept;
 
     // Known registered format names are resolved from this generation's offer.
     [[nodiscard]] std::uint32_t namedFormatId(std::string_view name) const noexcept;

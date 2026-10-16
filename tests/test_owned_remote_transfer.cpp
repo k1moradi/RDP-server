@@ -1072,6 +1072,161 @@ void testMcsCliprdrLengthMutationDenials()
     assert(!channels.matchesJoinedInboundSendData(seed.request));
 }
 
+// A T.125 SendDataRequest is not itself a clipboard PDU. Route only
+// verified joined CLIPRDR traffic with one full uncompressed static VC header.
+void testJoinedStaticChannelInboundGates()
+{
+    using namespace rdp_server::server::transport;
+    using namespace rdp_server::clipboard;
+    using Status = RemoteTransfer::JoinedReceiveStatus;
+
+    const auto packet = [](std::span<const std::uint8_t> clipboard,
+                           std::uint32_t channelFlags = 3U)
+    {
+        assert(clipboard.size() + 8U < 128U);
+        std::vector<std::uint8_t> frame{
+            3, 0, 0, 0, 2, 0xf0, 0x80,
+            0x64, 0, 6, 3, 0xeb, 0x70,
+            static_cast<std::uint8_t>(clipboard.size() + 8U),
+            static_cast<std::uint8_t>(clipboard.size()), 0, 0, 0,
+            static_cast<std::uint8_t>(channelFlags),
+            static_cast<std::uint8_t>(channelFlags >> 8U),
+            static_cast<std::uint8_t>(channelFlags >> 16U),
+            static_cast<std::uint8_t>(channelFlags >> 24U),
+        };
+        frame.insert(frame.end(), clipboard.begin(), clipboard.end());
+        frame[3] = static_cast<std::uint8_t>(frame.size());
+        return frame;
+    };
+    const auto wrapPdu = [&](std::uint16_t type,
+                             std::span<const std::uint8_t> payload = {})
+    {
+        std::vector<std::uint8_t> pdu;
+        assert(encodePdu(type, 0, payload, pdu));
+        return packet(pdu);
+    };
+
+    McsChannelJoinWriteGate gate;
+    const std::array<std::uint16_t, 1> channels{1003};
+    assert(gate.configure(1007, channels));
+    RemoteTransfer transfer;
+    // Client General capability: version 2, long names enabled.
+    const std::array<std::uint8_t, 16> caps{
+        1, 0, 0, 0, 1, 0, 12, 0, 2, 0, 0, 0, 2, 0, 0, 0};
+    auto capFrame = wrapPdu(kClipCaps, caps);
+    auto parsed = parseMcsChannelRequest(capFrame);
+    assert(parsed);
+    const auto receive = [&](const McsChannelRequest &request,
+                             bool admitted = true,
+                             std::uint16_t expectedChannel = 1003,
+                             bool nativeAccepted = true)
+    {
+        return transfer.receiveJoinedStaticChannelPdu(
+            gate, request, expectedChannel, admitted, 2, nativeAccepted);
+    };
+    // Before both external admission and completed join, no state is touched.
+    assert(receive(parsed.request, false).status == Status::Denied);
+    assert(receive(parsed.request).status == Status::Denied);
+    assert(transfer.negotiatedGeneralFlags() == 0);
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(
+        gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 15) ==
+        McsJoinWriteOutcome::Confirmed);
+    assert(receive(parsed.request, false).status == Status::Denied);
+    assert(receive(parsed.request, true, 1004).status == Status::Denied);
+    auto wrongUser = parsed.request;
+    wrongUser.initiator = 1008;
+    assert(receive(wrongUser).status == Status::Denied);
+    auto segmented = parsed.request;
+    segmented.segmentation = 1;
+    assert(receive(segmented).status == Status::Denied);
+    assert(transfer.synchronized());
+    assert(receive(parsed.request).status == Status::CapabilitiesAccepted);
+    assert(transfer.negotiatedGeneralFlags() == 2);
+
+    std::vector<std::uint8_t> offer;
+    appendLongFormat(offer, 13, "");
+    appendLongFormat(offer, 0xc001, "PNG");
+    auto offerFrame = wrapPdu(kFormatList, offer);
+    auto offered = parseMcsChannelRequest(offerFrame);
+    assert(offered);
+    const auto accepted = receive(offered.request);
+    assert(accepted.status == Status::FormatListAccepted);
+    assert(accepted.acknowledgmentReady);
+    assert(accepted.acknowledgment[2] == kResponseOk);
+    assert(transfer.namedFormatId("PNG") == 0xc001);
+
+    std::vector<std::uint8_t> requestBytes;
+    assert(transfer.beginRequest(0xc001, requestBytes));
+    const std::array<std::uint8_t, 3> png{0x89, 0x50, 0x4e};
+    auto replyPdu = responsePdu(kResponseOk, png);
+    auto responseFrame = packet(replyPdu, 0x13U); // SHOW_PROTOCOL is allowed.
+    auto responseRequest = parseMcsChannelRequest(responseFrame);
+    assert(responseRequest);
+    const auto result = receive(responseRequest.request);
+    assert(result.status == Status::DataReceived);
+    assert(result.data.generation == 1 && result.data.formatId == 0xc001);
+    assert(result.data.payload.size() == png.size());
+    assert(result.data.payload.data() == responseFrame.data() + 30U);
+    assert(std::equal(png.begin(), png.end(), result.data.payload.begin()));
+
+    // Unsupported clipboard messages are ignored, never interpreted as data.
+    auto unrecognized = wrapPdu(kMonitorReady);
+    assert(receive(parseMcsChannelRequest(unrecognized).request).status ==
+           Status::Ignored);
+
+    // An adapter rejection is still a valid new generation and must
+    // carry FAIL; format IDs are no longer eligible for requests.
+    const auto rejected = receive(offered.request, true, 1003, false);
+    assert(rejected.status == Status::FormatListDeclined);
+    assert(rejected.acknowledgmentReady);
+    assert(rejected.acknowledgment[2] == kResponseFail);
+    assert(!transfer.advertises(0xc001));
+
+    const auto malformed = [&](std::vector<std::uint8_t> frame)
+    {
+        RemoteTransfer candidate;
+        const auto candidateRequest = parseMcsChannelRequest(frame);
+        assert(candidateRequest);
+        const auto invalid = candidate.receiveJoinedStaticChannelPdu(
+            gate, candidateRequest.request, 1003, true, 2, true);
+        assert(invalid.status == Status::ProtocolError);
+        assert(!candidate.synchronized());
+        candidate.resetAfterDisconnect();
+        assert(candidate.synchronized());
+    };
+    auto badLength = capFrame;
+    badLength[14] += 1; // VC totalLength differs from chunk length.
+    malformed(badLength);
+    auto badFlags = capFrame;
+    badFlags[18] = 1; // FIRST only: incomplete chunk unsupported.
+    malformed(badFlags);
+    badFlags = capFrame;
+    badFlags[18] = 0x03;
+    badFlags[20] = 0x20; // CHANNEL_PACKET_COMPRESSED: no inflater.
+    malformed(badFlags);
+    auto raw = capFrame;
+    raw.erase(raw.begin() + 14, raw.begin() + 22);
+    raw[13] -= 8;
+    raw[3] -= 8;
+    malformed(raw); // Missing required CHANNEL_PDU_HEADER.
+
+    // An old in-flight data response cannot become a new offer's bytes.
+    transfer.resetAfterDisconnect();
+    assert(transfer.receiveFormatList(std::array<std::uint32_t, 1>{13}));
+    assert(transfer.beginRequest(13, requestBytes));
+    assert(transfer.receiveFormatList(std::array<std::uint32_t, 1>{8}));
+    assert(receive(responseRequest.request).status ==
+           Status::ObsoleteDataDiscarded);
+    assert(!transfer.hasOutstandingRequest());
+    gate.close();
+    assert(receive(parsed.request).status == Status::Denied);
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -1087,6 +1242,11 @@ int main(int argumentCount, char **arguments)
         if (caseName == "mcs-joined-response-teardown")
         {
             testMcsJoinedClipboardResponseTeardown();
+            return 0;
+        }
+        if (caseName == "joined-static-channel-inbound-gates")
+        {
+            testJoinedStaticChannelInboundGates();
             return 0;
         }
         if (caseName == "format-list-response-joined-mcs-envelope")

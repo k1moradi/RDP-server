@@ -2612,6 +2612,28 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   authenticated session owner must bind verified `cliprdr` channel IDs,
   permissions, outbound writer completion/cancellation and inbound
   reassembly to this existing R8 owner; R5/R6/R7 adapters remain required.
+  **R8 inbound joined-static-channel dispatch (2026-10-15):**
+  the same `RemoteTransfer` owner now checks R3's confirmed
+  MCS join predicate, exact expected CLIPRDR channel ID, external
+  authenticated/OS-session admission and unsegmented T.125 request
+  BEFORE parsing a single complete uncompressed static VC chunk.
+  The MS-RDPBCGR 8-byte CHANNEL_PDU_HEADER total length, FIRST|LAST
+  flags, compression and PDU framing are checked before routing
+  `CB_CLIP_CAPS`, `CB_FORMAT_LIST` and `CB_FORMAT_DATA_RESPONSE`
+  to their existing generation-safe handlers. Unexpected types are
+  ignored; invalid inbound framing poisons the clipboard coordinator.
+  Borrowed received-data spans never outlive the caller's MCS input.
+  Dedicated `clipboard.joined-static-channel-inbound-gates` CTest
+  covers membership, admission, name negotiation, offers, data,
+  malformed headers, stale responses and teardown; restore existing
+  `clipboard.format-list-response-joined-mcs-envelope` registration.
+  **At authoring:** full hosted CI and owner's local three-platform
+  CTest NOT RUN. This offline adapter does not authenticate, allocate
+  CLIPRDR role permissions, own a TLS writer, reassemble multi-chunk
+  MCS/VC payloads, or access a live clipboard.
+  **Next:** R3 actual authenticated channel-role admission and
+  R9 bounded fragmented-channel reassembly, then R5/R6/R7 native
+  integration and real-client acceptance.
 - [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
   after a *legitimate client Format List* for generation N, prioritize
   `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),

@@ -2,20 +2,15 @@
 // R10 process entry point. No listener, session controller or OS adapter is
 // constructed until R2 admission and R3 authoritative live sessions exist.
 // An explicit offline configuration check does not authenticate or start a user.
+#include "runtime_tls_context.h"
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
-#include <new>
 #include <string_view>
 
-#include <openssl/bio.h>
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-#include <openssl/opensslv.h>
-#include <openssl/x509.h>
-#include <openssl/x509v3.h>
 #if defined(_WIN32)
 #include <windows.h>
 #include <aclapi.h>
@@ -183,8 +178,7 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
 // Conservative file DACL gate: broad principals may read configuration,
 // but must not be granted write, delete or permission-changing rights.
 // Evaluate the opened HANDLE, not a second (racy) path lookup.
-[[nodiscard]] bool hasRestrictedConfigurationDacl(
-    HANDLE fileHandle, bool privateKey = false) noexcept {
+[[nodiscard]] bool hasRestrictedConfigurationDacl(HANDLE fileHandle) noexcept {
     PSID owner = nullptr;
     PACL dacl = nullptr;
     PSECURITY_DESCRIPTOR rawDescriptor = nullptr;
@@ -241,296 +235,17 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
         if (broadPrincipal && (allow->Mask & unsafeRights) != 0) {
             return false;
         }
-        if (privateKey && !::EqualSid(principal, owner) &&
-            !::IsWellKnownSid(principal, WinLocalSystemSid) &&
-            !::IsWellKnownSid(principal, WinBuiltinAdministratorsSid)) {
-            return false; // A readable private key must not be public.
-        }
     }
     return true;
 }
 #endif
 
-
-#if !defined(_WIN32)
-// Walk the absolute path through one open directory descriptor at a time.
-// O_NOFOLLOW on every component rejects parent symlink/junction aliases
-// without a separate pathname stat and avoids opening a FIFO for reading.
-[[nodiscard]] int openTlsFileWithoutSymlinkParents(
-    std::string_view path) noexcept {
-    if (path.size() < 2 || path.front() != '/') {
-        return -1;
-    }
-    int parentFd = ::open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-    if (parentFd < 0) {
-        return -1;
-    }
-    path.remove_prefix(1);
-    while (true) {
-        const std::size_t separator = path.find('/');
-        const std::string_view component = path.substr(0, separator);
-        if (component.empty() || component == "." || component == "..") {
-            (void)::close(parentFd);
-            return -1;
-        }
-        std::array<char, 1025> terminated{};
-        std::copy(component.begin(), component.end(), terminated.begin());
-        const int flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK |
-            (separator == std::string_view::npos ? 0 : O_DIRECTORY);
-        const int opened = ::openat(parentFd, terminated.data(), flags);
-        (void)::close(parentFd);
-        if (opened < 0) {
-            return -1;
-        }
-        if (separator == std::string_view::npos) {
-            return opened;
-        }
-        parentFd = opened;
-        path.remove_prefix(separator + 1);
-    }
-}
-#endif
 
 struct FileCloser {
     void operator()(std::FILE* file) const noexcept {
         (void)std::fclose(file);
     }
 };
-using OwnedFile = std::unique_ptr<std::FILE, FileCloser>;
-
-struct TlsFileIdentity {
-#if defined(_WIN32)
-    DWORD volume = 0;
-    DWORD indexHigh = 0;
-    DWORD indexLow = 0;
-#else
-    dev_t device = 0;
-    ino_t inode = 0;
-#endif
-};
-
-[[nodiscard]] bool sameTlsFileIdentity(
-    const TlsFileIdentity& left, const TlsFileIdentity& right) noexcept {
-#if defined(_WIN32)
-    return left.volume == right.volume &&
-           left.indexHigh == right.indexHigh &&
-           left.indexLow == right.indexLow;
-#else
-    return left.device == right.device && left.inode == right.inode;
-#endif
-}
-
-// Return the already-validated native object as a FILE stream. Metadata,
-// identity and parsing therefore use one open object rather than reopening
-// a pathname after a security decision.
-[[nodiscard]] OwnedFile openTlsFile(
-    std::string_view path, bool privateKey,
-    TlsFileIdentity& identity, std::size_t& openedBytes) noexcept {
-    openedBytes = 0;
-    constexpr std::size_t kMaximumCertificateBytes = 1024U * 1024U;
-    constexpr std::size_t kMaximumPrivateKeyBytes = 256U * 1024U;
-    const std::size_t maximumBytes =
-        privateKey ? kMaximumPrivateKeyBytes : kMaximumCertificateBytes;
-    if (!isAbsoluteConfigurationPath(path)) {
-        return OwnedFile{};
-    }
-#if defined(_WIN32)
-    std::array<char, 1025> terminatedPath{};
-    std::copy(path.begin(), path.end(), terminatedPath.begin());
-    const HANDLE handle = ::CreateFileA(
-        terminatedPath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-        OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
-        nullptr);
-    if (handle == INVALID_HANDLE_VALUE) {
-        return OwnedFile{};
-    }
-    FILE_ATTRIBUTE_TAG_INFO attributes{};
-    BY_HANDLE_FILE_INFORMATION information{};
-    const bool haveAttributes = ::GetFileInformationByHandleEx(
-        handle, FileAttributeTagInfo, &attributes, sizeof(attributes)) != FALSE;
-    const bool haveInformation =
-        ::GetFileInformationByHandle(handle, &information) != FALSE;
-    const std::uint64_t fileBytes = haveInformation
-        ? ((static_cast<std::uint64_t>(information.nFileSizeHigh) << 32U) |
-           information.nFileSizeLow)
-        : 0U;
-    const bool safe =
-        ::GetFileType(handle) == FILE_TYPE_DISK &&
-        haveAttributes &&
-        (attributes.FileAttributes &
-         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) == 0 &&
-        haveInformation &&
-        fileBytes > 0 &&
-        fileBytes <= maximumBytes &&
-        hasRestrictedConfigurationDacl(handle, privateKey);
-    if (!safe) {
-        (void)::CloseHandle(handle);
-        return OwnedFile{};
-    }
-    identity.volume = information.dwVolumeSerialNumber;
-    identity.indexHigh = information.nFileIndexHigh;
-    identity.indexLow = information.nFileIndexLow;
-    openedBytes = static_cast<std::size_t>(fileBytes);
-    const int descriptor = ::_open_osfhandle(
-        reinterpret_cast<std::intptr_t>(handle), _O_RDONLY | _O_BINARY);
-    if (descriptor < 0) {
-        (void)::CloseHandle(handle);
-        openedBytes = 0;
-        return OwnedFile{};
-    }
-    OwnedFile file{::_fdopen(descriptor, "rb")};
-    if (!file) {
-        (void)::_close(descriptor);
-        openedBytes = 0;
-        return OwnedFile{};
-    }
-    return file;
-#else
-    const int fd = openTlsFileWithoutSymlinkParents(path);
-    if (fd < 0) {
-        return OwnedFile{};
-    }
-    struct stat information {};
-    const bool safe = ::fstat(fd, &information) == 0 &&
-        S_ISREG(information.st_mode) &&
-        information.st_size > 0 &&
-        information.st_size <= static_cast<off_t>(maximumBytes) &&
-        (information.st_mode & (S_IWGRP | S_IWOTH)) == 0 &&
-        (!privateKey ||
-         (information.st_uid == ::geteuid() &&
-          (information.st_mode & (S_IRWXG | S_IRWXO)) == 0 &&
-          (information.st_mode & S_IRUSR) != 0));
-    if (!safe) {
-        (void)::close(fd);
-        return OwnedFile{};
-    }
-    identity.device = information.st_dev;
-    identity.inode = information.st_ino;
-    openedBytes = static_cast<std::size_t>(information.st_size);
-    OwnedFile file{::fdopen(fd, "rb")};
-    if (!file) {
-        (void)::close(fd);
-        openedBytes = 0;
-        return OwnedFile{};
-    }
-    return file;
-#endif
-}
-
-[[nodiscard]] bool checkTlsFileReferences(
-    std::string_view certificatePath, std::string_view privateKeyPath) noexcept {
-    TlsFileIdentity certificateIdentity{};
-    TlsFileIdentity privateKeyIdentity{};
-    std::size_t certificateBytes = 0;
-    std::size_t privateKeyBytes = 0;
-    OwnedFile certificate = openTlsFile(
-        certificatePath, false, certificateIdentity, certificateBytes);
-    OwnedFile privateKey = openTlsFile(
-        privateKeyPath, true, privateKeyIdentity, privateKeyBytes);
-    return certificate && privateKey &&
-           certificateBytes > 0 && privateKeyBytes > 0 &&
-           !sameTlsFileIdentity(certificateIdentity, privateKeyIdentity);
-}
-
-int rejectPrivateKeyPassword(char*, int, int, void*) noexcept {
-    return 0; // Never prompt or accept encrypted key material offline.
-}
-
-struct BioCloser {
-    void operator()(BIO* bio) const noexcept {
-        ::BIO_free(bio);
-    }
-};
-struct X509Closer {
-    void operator()(X509* certificate) const noexcept {
-        ::X509_free(certificate);
-    }
-};
-struct PkeyCloser {
-    void operator()(EVP_PKEY* key) const noexcept {
-        ::EVP_PKEY_free(key);
-    }
-};
-
-[[nodiscard]] bool readOpenedFileExactly(
-    std::FILE* file, std::size_t bytes,
-    std::unique_ptr<unsigned char[]>& output) noexcept {
-    if (file == nullptr || bytes == 0) {
-        return false;
-    }
-    std::unique_ptr<unsigned char[]> buffer{
-        new (std::nothrow) unsigned char[bytes]};
-    if (!buffer) {
-        return false;
-    }
-    if (std::fread(buffer.get(), 1, bytes, file) != bytes ||
-        std::ferror(file) != 0 || std::fgetc(file) != EOF) {
-        return false;
-    }
-    output = std::move(buffer);
-    return true;
-}
-
-[[nodiscard]] bool hasCurrentCertificateValidity(const X509* certificate) noexcept {
-    if (certificate == nullptr) {
-        return false;
-    }
-#if OPENSSL_VERSION_NUMBER >= 0x40000000L
-    return ::X509_check_certificate_times(nullptr, certificate, nullptr) == 1;
-#else
-    const int notBeforeComparison =
-        ::X509_cmp_current_time(::X509_get0_notBefore(certificate));
-    const int notAfterComparison =
-        ::X509_cmp_current_time(::X509_get0_notAfter(certificate));
-    return notBeforeComparison == -1 && notAfterComparison == 1;
-#endif
-}
-
-[[nodiscard]] bool checkTlsCredentialContents(
-    std::string_view certificatePath, std::string_view privateKeyPath) noexcept {
-    TlsFileIdentity certificateIdentity{};
-    TlsFileIdentity privateKeyIdentity{};
-    std::size_t certificateBytes = 0;
-    std::size_t privateKeyBytes = 0;
-    OwnedFile certificateFile = openTlsFile(
-        certificatePath, false, certificateIdentity, certificateBytes);
-    OwnedFile privateKeyFile = openTlsFile(
-        privateKeyPath, true, privateKeyIdentity, privateKeyBytes);
-    if (!certificateFile || !privateKeyFile ||
-        sameTlsFileIdentity(certificateIdentity, privateKeyIdentity)) {
-        return false;
-    }
-
-    std::unique_ptr<unsigned char[]> certificateData;
-    std::unique_ptr<unsigned char[]> privateKeyData;
-    if (!readOpenedFileExactly(
-            certificateFile.get(), certificateBytes, certificateData) ||
-        !readOpenedFileExactly(
-            privateKeyFile.get(), privateKeyBytes, privateKeyData)) {
-        return false;
-    }
-
-    std::unique_ptr<BIO, BioCloser> certificateBio{
-        ::BIO_new_mem_buf(certificateData.get(),
-                          static_cast<int>(certificateBytes))};
-    std::unique_ptr<BIO, BioCloser> privateKeyBio{
-        ::BIO_new_mem_buf(privateKeyData.get(),
-                          static_cast<int>(privateKeyBytes))};
-    if (!certificateBio || !privateKeyBio) {
-        return false;
-    }
-
-    std::unique_ptr<X509, X509Closer> certificate{
-        ::PEM_read_bio_X509(certificateBio.get(), nullptr, nullptr, nullptr)};
-    std::unique_ptr<EVP_PKEY, PkeyCloser> privateKey{
-        ::PEM_read_bio_PrivateKey(
-            privateKeyBio.get(), nullptr, rejectPrivateKeyPassword, nullptr)};
-    return certificate && privateKey &&
-           hasCurrentCertificateValidity(certificate.get()) &&
-           ::X509_check_private_key(certificate.get(), privateKey.get()) == 1 &&
-           ::X509_check_purpose(
-               certificate.get(), X509_PURPOSE_SSL_SERVER, 0) == 1;
-}
 
 // Offline checks do not establish certificate trust, hostname, revocation,
 // R2 admission, an R3 session decision or permission to listen.
@@ -624,9 +339,11 @@ enum class ConfigurationCheckMode {
     case ConfigurationCheckMode::Syntax:
         return true;
     case ConfigurationCheckMode::TlsMetadata:
-        return checkTlsFileReferences(validatedFields[2], validatedFields[3]);
+        return rdp_server::server::runtime::validateTlsFileReferences(
+            validatedFields[2], validatedFields[3]);
     case ConfigurationCheckMode::TlsCredentials:
-        return checkTlsCredentialContents(validatedFields[2], validatedFields[3]);
+        return rdp_server::server::runtime::validateTlsCredentialContents(
+            validatedFields[2], validatedFields[3]);
     }
     return false;
 }

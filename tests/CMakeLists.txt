@@ -559,6 +559,35 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         LABELS "x11;linux-adapter")
 endif()
 
+# R10 production TLS-context ownership. These tests exercise the runtime-only
+# component directly; they never bind/listen and use only synthetic credentials.
+add_executable(test_runtime_tls_context test_runtime_tls_context.cpp)
+target_link_libraries(test_runtime_tls_context PRIVATE
+    rdp-server-runtime-tls
+    rdp-server-protocol
+    OpenSSL::Crypto
+    OpenSSL::SSL)
+if(MSVC)
+    target_compile_options(test_runtime_tls_context PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_runtime_tls_context PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(runtime_tls_context_case IN ITEMS
+        validates-live-tls-context-construction
+        tls-context-survives-credential-path-replacement
+        rejects-live-tls-context-invalid-material
+        rejects-live-tls-context-extra-certificate-material)
+    add_test(NAME "runtime.${runtime_tls_context_case}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_TLS_CONTEXT_TEST=$<TARGET_FILE:test_runtime_tls_context>"
+            "-DRDP_RUNTIME_TLS_CONTEXT_CASE=${runtime_tls_context_case}"
+            "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-tls-context-fixtures"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_tls_context.cmake")
+    set_tests_properties("runtime.${runtime_tls_context_case}" PROPERTIES
+        LABELS "runtime;security;offline")
+endforeach()
+
 # One R10 production executable, and one offline CMake-script checker,
 # without opening a listener, reading real credentials or installing a service.
 foreach(runtime_case IN ITEMS

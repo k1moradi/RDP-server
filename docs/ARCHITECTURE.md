@@ -1,3 +1,37 @@
+### R10 runtime TLS-context ownership (2026-10-16)
+
+`RuntimeServerTlsContext` is the sole R10 owner of the reusable server
+`SSL_CTX`. Construction is one continuous credential-snapshot pipeline:
+secure native open → metadata/identity policy → exact bounded read → PEM parse
+→ current validity/server-purpose/key-match checks → `TLS_server_method()`
+context population. OpenSSL receives the already-parsed `X509` and
+`EVP_PKEY` objects through `SSL_CTX_use_certificate` and
+`SSL_CTX_use_PrivateKey`; no filename-loading API is used, so there is no
+post-validation pathname replacement boundary. `SSL_CTX_check_private_key`
+must also succeed before the owner becomes valid.
+
+The context has a TLS 1.2 minimum and no TLS 1.3 cap. Compression is disabled,
+and legacy renegotiation is disabled where the OpenSSL build provides that
+option. Default OpenSSL cipher/security-level policy is otherwise retained.
+The certificate-file contract currently accepts exactly one certificate PEM
+object; a second certificate or other trailing non-whitespace material is
+rejected. Therefore this increment does not yet present an intermediate chain
+and does not claim CA trust, hostname acceptance, external revocation status or
+client interoperability.
+
+For each accepted connection, R10 may call `createServerTls()`, which creates
+one server-role `SSL` with the exact unique-owner type expected by R1
+`OwnedPreauthTcpConnection::attachServerTls`. The runtime context logically
+outlives all of these connections; R1 remains the sole per-connection owner of
+SSL/BIO/socket state. R2 may later borrow only R1's established `const SSL*`
+and R3 owns session state; neither owns the context or transport objects.
+
+Offline credential checks and live context construction share the same
+validated-snapshot loader. Successful offline acceptance is still distinct
+from a live `SSL_CTX`, and a live context is still distinct from listener
+activation, R2 authorization, R3 session activation and external-client
+acceptance. No listener or service lifecycle is introduced here.
+
 # RDP-server architecture
 
 ### R6 acquired-frame DXGI pointer ownership

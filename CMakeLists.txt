@@ -319,6 +319,26 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R10 runtime-only TLS owner: it securely validates one credential snapshot,
+# constructs one reusable server SSL_CTX, and creates per-connection SSL owners.
+# It is deliberately not installed/exported and never binds or listens.
+add_library(rdp-server-runtime-tls STATIC
+    src/server/runtime/runtime_tls_context.cpp)
+target_compile_features(rdp-server-runtime-tls PUBLIC cxx_std_23)
+target_include_directories(rdp-server-runtime-tls PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-runtime-tls PUBLIC
+    OpenSSL::Crypto OpenSSL::SSL)
+if(WIN32)
+    target_link_libraries(rdp-server-runtime-tls PRIVATE Advapi32)
+endif()
+if(MSVC)
+    target_compile_options(rdp-server-runtime-tls PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-runtime-tls PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R10 process entry point: compile and test it, but do not install/package
 # an RDP service before authenticating and OS-authorizing live sessions.
 add_executable(rdp-server src/server/runtime/main.cpp)
@@ -327,7 +347,7 @@ target_compile_definitions(rdp-server PRIVATE
     "RDP_SERVER_VERSION=\"${PROJECT_VERSION}\"")
 target_link_libraries(rdp-server PRIVATE
     rdp-server-protocol
-    OpenSSL::Crypto)
+    rdp-server-runtime-tls)
 if(WIN32)
     # GetSecurityInfo on the *opened* file handle requires Advapi32.
     target_link_libraries(rdp-server PRIVATE Advapi32)

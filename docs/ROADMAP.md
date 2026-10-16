@@ -1,3 +1,60 @@
+## R10 reusable live TLS context owner (2026-10-16; exact-SHA CI pending)
+
+Starting `main`: `9331ec040819b7156a24ea24ab9cc5973a8d891f`. R10 now has a runtime-only
+`RuntimeServerTlsContext` that owns exactly one RAII `SSL_CTX`. Its
+production factory performs the existing secure native certificate/private-key
+open, metadata and distinct-file identity checks, exact bounded reads, PEM
+parse, certificate time and `X509_PURPOSE_SSL_SERVER` checks, and key match,
+then installs those already-parsed objects directly into
+`SSL_CTX_new(TLS_server_method())`. No certificate/key pathname is reopened
+between validation and context population; the source file handles and parsed
+temporary objects are released only after OpenSSL has retained the server
+identity. The offline `--check-tls-files` and `--check-tls-credentials`
+paths reuse this same runtime component instead of maintaining a second TLS
+credential policy.
+
+The context explicitly requires TLS 1.2 or newer, leaves TLS 1.3 enabled,
+disables compression, and disables legacy renegotiation when OpenSSL exposes
+`SSL_OP_NO_RENEGOTIATION`; it does not lower OpenSSL's security level or
+invent a cipher list. This increment deliberately supports exactly one X.509
+certificate object in the configured certificate PEM: additional certificates
+or other trailing non-whitespace PEM material are rejected rather than
+silently ignored. This is server identity loading, not CA-chain/trust,
+hostname, revocation or external-client acceptance.
+
+`createServerTls()` returns the same
+`std::unique_ptr<SSL, decltype(&SSL_free)>` ownership type consumed by R1's
+`OwnedPreauthTcpConnection::attachServerTls`; each SSL is put in server
+accept state. R10 keeps the context owner alive while its per-connection SSLs
+are active, and ownership of each SSL/BIO/socket remains solely with R1.
+Neither R2 nor R3 owns OpenSSL transport objects.
+
+Dedicated CTests:
+`runtime.validates-live-tls-context-construction`,
+`runtime.tls-context-survives-credential-path-replacement`,
+`runtime.rejects-live-tls-context-invalid-material`, and
+`runtime.rejects-live-tls-context-extra-certificate-material`. The
+replacement regression constructs the context first, replaces both credential
+paths deterministically, then creates a fresh server SSL and verifies that its
+certificate is still the originally validated identity.
+
+**Authoring validation:** OpenSSL 3.5.5 / GCC 14.2 C++23
+`-Wall -Wextra -Wpedantic -Werror` compile of the production TLS component:
+**PASS**. A focused synthetic fixture harness covering context construction,
+TLS policy, per-connection server SSL, path replacement, malformed material
+and duplicate certificate material: **4/4 PASS**. The complete repository
+checkout/full CTest, Windows/MSVC, macOS/Clang, owner Linux/X11, owner MSYS2
+CLANG64/Clang23, owner macOS27, external RDP clients and service installation
+are **NOT RUN at authoring**; exact-SHA hosted CI is the next gate.
+
+The executable remains fail-closed and **does not activate a listener**.
+R2's genuine admission capability and R3's authoritative session lifecycle
+remain separate and are not invoked by this new TLS owner. Packaging/install
+remain protocol-SDK-only. **Next R10 step:** secure Linux runtime provisioning
+for explicit GSS service principal/keytab and native identity policy, then a
+minimal loopback listener/event loop only once the complete R1→R2→R3
+connection aggregate can be constructed and revoked coherently.
+
 # RDP-server protocol roadmap and acceptance gates
 
 ## R6 generation-safe DXGI pointer shape ownership (2026-10-16; exact-SHA CI pending)

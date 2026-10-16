@@ -1,3 +1,40 @@
+## R10 live TLS-context owner authoring validation (2026-10-16)
+
+**Starting main:** `9331ec040819b7156a24ea24ab9cc5973a8d891f`.
+
+**Production change:** added runtime-private `RuntimeServerTlsContext` and
+moved R10 TLS credential metadata/identity/read/PEM/time/purpose/key-match
+policy into that component. The live factory builds
+`SSL_CTX_new(TLS_server_method())`, requires TLS 1.2+, disables compression
+and legacy renegotiation where supported, installs the already-parsed
+certificate/private key without reopening a pathname, and requires
+`SSL_CTX_check_private_key == 1`. Exactly one certificate PEM object is
+supported in this increment; extra certificate/trailing PEM material fails
+closed. `createServerTls()` creates a server-role per-connection SSL with the
+same unique-owner type R1 already consumes. Default executable startup remains
+non-serving.
+
+**Dedicated tests added:**
+`runtime.validates-live-tls-context-construction`,
+`runtime.tls-context-survives-credential-path-replacement`,
+`runtime.rejects-live-tls-context-invalid-material`, and
+`runtime.rejects-live-tls-context-extra-certificate-material`.
+
+**Authoring PASS:** OpenSSL 3.5.5, GCC 14.2, C++23 high-warning compile of
+the production component. Focused synthetic behavior harness: **4/4 PASS**,
+including context creation, TLS 1.2 minimum/options, server-role `SSL_new`,
+original-certificate retention after deterministic replacement of both
+credential paths, malformed-certificate denial, and duplicate-certificate
+denial.
+
+**NOT RUN at authoring:** full repository CMake/build/CTest because this
+environment has no GitHub DNS checkout; Windows/MSVC; macOS/Clang/OpenSSL 4;
+owner Linux/X11; owner Windows MSYS2 CLANG64/Clang23; owner macOS27; real
+Kerberos/R2 admission; R3 live session; listener activation; Microsoft/other
+external RDP clients; service install/package. Exact-SHA GitHub Actions after
+publication is the next automated evidence gate. No M1–M6 milestone is
+promoted.
+
 # CODEX_VALIDATION.md — validation ledger and agent contract
 
 ## R6 DXGI pointer shape ownership authoring (2026-10-16)

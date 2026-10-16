@@ -5140,3 +5140,20 @@ macOS 27, authenticated desktop. No production behavior changed;
 the existing security check remains fail-closed. **Next:** verify
 exact-SHA CI and request full CTest failure text if the owner
 continues to see either failure; M1–M6 remain OPEN.
+
+## R9 sanitizer CI YAML correction (2026-10-15)
+
+**Failed first SHA:** `2cca0ed17d8c98b5f38d5d34079f90d66ce389d4`.
+[GitHub Actions 38850195312](https://github.com/k1moradi/RDP-server/actions/runs/38850195312)
+returned completed FAILURE with **zero jobs**. Committed
+`.github/workflows/ci.yml` had the MCS/CredSSP `-R`
+selector and `documentation-policy:` joined on one YAML
+line. No CI build, CTest, sanitizer, policy or package job
+executed. **Corrective parent:** `22915cee335df7d82149728543866f45db7bc8aa`; fix only
+the YAML line and adjacent duplicate comments. Preserve
+Clang ASan/UBSan/LSan flags, five production-linked test
+targets, all clipboard tests and ten MCS/CredSSP cases.
+**NOT RUN yet:** corrected exact-SHA hosted results,
+owner Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27,
+live Microsoft-client/OS admission/desktop. **Next:**
+check actual sanitizer test log for PASS or first failure.

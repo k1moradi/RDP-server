@@ -4000,6 +4000,21 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   error, record compiler and CTest evidence, then validate
   R3→R8 genuine authorized channel routing when available.
 
+  **R9 workflow syntax repair (2026-10-15):**
+  `2cca0ed17d8c98b5f38d5d34079f90d66ce389d4`,
+  [Actions 38850195312](https://github.com/k1moradi/RDP-server/actions/runs/38850195312),
+  **FAIL** before scheduling tests (zero jobs): R9's quoted
+  `ctest -R` expression was truncated into the subsequent
+  `documentation-policy` YAML header. This is an R9 CI edit
+  defect, NOT a sanitizer finding. Correct the single broken
+  workflow line, reinstate `--output-on-failure` and the
+  independent documentation-policy job header, retain all
+  twenty-two selected clipboard and MCS/CredSSP cases,
+  existing full CI matrix and strict sanitizer settings.
+  **Parent:** `22915cee335df7d82149728543866f45db7bc8aa`. **NOT RUN at authoring:**
+  corrected workflow hosted CI/owner commands. **Next:**
+  verify new SHA job scheduling and real sanitizer output.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

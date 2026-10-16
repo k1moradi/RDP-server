@@ -1,4 +1,4 @@
-## R10 reusable live TLS context owner (2026-10-16; exact-SHA CI pending)
+## R10 reusable live TLS context owner (2026-10-16; R10 hosted tests PASS, unrelated full-suite blocker)
 
 Starting `main`: `9331ec040819b7156a24ea24ab9cc5973a8d891f`. R10 now has a runtime-only
 `RuntimeServerTlsContext` that owns exactly one RAII `SSL_CTX`. Its
@@ -47,6 +47,25 @@ test failure. The test now includes
 `server/runtime/runtime_tls_context.h` through the target's existing
 `src/` include root; this is an integration-path correction only, with no
 TLS ownership or policy change. Exact-SHA CI for the correction is pending.
+
+**Corrected exact-SHA hosted evidence:** correction commit
+`d2b81dd06e70b9ab06dd14e899db514919644956`, Actions
+`38878109138`. Linux/GCC found OpenSSL **3.0.13**, compiled Debug and ran
+**307** registered CTests: **306 PASS / 1 FAIL**. macOS/Clang found Homebrew
+OpenSSL **4.0.3**, compiled Debug and ran **275** registered CTests:
+**274 PASS / 1 FAIL**. On both hosts all four new R10 tests PASS:
+`runtime.validates-live-tls-context-construction`,
+`runtime.tls-context-survives-credential-path-replacement`,
+`runtime.rejects-live-tls-context-invalid-material`, and
+`runtime.rejects-live-tls-context-extra-certificate-material`; the sole
+full-suite failure is `transport.gcc-conference-create`. Pre-R10 parent
+`c09e581ac965e79ce700ef4617a0af6d2b04adba`, Actions
+`38877612047`, already fails that same transport test on Linux and macOS,
+so R10 does not modify or mask it. R9 sanitizer and documentation-policy jobs
+PASS. Windows/MSVC Debug configure and compile PASS; its full Debug CTest is
+still **IN PROGRESS** at this evidence snapshot. Linux/macOS Release,
+Windows Release, SDK/package steps and the exact Windows CTest result are
+therefore **NOT RUN/NOT COMPLETE** for this SHA.
 
 **Authoring validation:** OpenSSL 3.5.5 / GCC 14.2 C++23
 `-Wall -Wextra -Wpedantic -Werror` compile of the production TLS component:

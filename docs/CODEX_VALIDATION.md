@@ -32,6 +32,25 @@ uses `"server/runtime/runtime_tls_context.h"`, matching the existing
 changed. Windows and later matrix steps from that failed SHA are not accepted
 as completion evidence.
 
+**Corrected exact-SHA hosted evidence:** SHA
+`d2b81dd06e70b9ab06dd14e899db514919644956`, Actions
+`38878109138`.
+- Linux/GCC: OpenSSL **3.0.13**, Debug compile PASS; **306/307** CTests PASS.
+  All four new R10 TLS-context CTests PASS. The only failure is the unrelated
+  `transport.gcc-conference-create`.
+- macOS/Clang: Homebrew OpenSSL **4.0.3**, Debug compile PASS;
+  **274/275** CTests PASS. All four new R10 TLS-context CTests PASS. The only
+  failure is the same `transport.gcc-conference-create`.
+- Pre-R10 SHA `c09e581ac965e79ce700ef4617a0af6d2b04adba`, Actions
+  `38877612047`, already has that identical sole Linux/macOS transport
+  failure, so it is not an R10 regression.
+- Windows/MSVC: Debug configure/compile PASS; full Debug CTest remains
+  **IN PROGRESS** at this snapshot. Release and packaging have not been
+  reached.
+- R9 sanitizer: PASS. Documentation policy: PASS.
+- Linux/macOS Release, SDK consumer/package and owner-platform acceptance:
+  **NOT RUN** because the unrelated Debug transport failure stops those jobs.
+
 **Authoring PASS:** OpenSSL 3.5.5, GCC 14.2, C++23 high-warning compile of
 the production component. Focused synthetic behavior harness: **4/4 PASS**,
 including context creation, TLS 1.2 minimum/options, server-role `SSL_new`,

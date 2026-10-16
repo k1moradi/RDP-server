@@ -1,3 +1,50 @@
+## R9 CLIENT_LICENSE_INFO fresh-proof exact-SHA receipt (2026-10-16)
+
+**Implementation:** `8c93173c1e4a44cf3a024a317a63de994dea9b53`.
+**Actions:** `38965573625` — overall **FAIL** only because the concurrent R7
+macOS test source inherited from parent `f5beef84a25bebd82b1e8ae71b32930c2ff5dc23`
+did not compile. The R9-owned sanitizer job, Linux/GCC, Windows/MSVC,
+documentation policy and the independent R7 sanitizer all completed successfully.
+
+The new production-backed
+`transport.licensing-client-license-info-hwid-fresh-verification` is test 64.
+It passes Linux/GCC **469/469 Debug + 469/469 Release**, Windows/MSVC
+**424/424 Debug + 424/424 Release** after focused preflight
+**47/47 Debug + 47/47 Release**, and the installed SDK consumer is **1/1**
+on both completed protocol platforms. The R9 Clang ASan/UBSan job is
+**SUCCESS**: clipboard **50/50**, x264/BGRA **20/20**, RDPGFX capability
+**4/4**, bounded R1/R3 transport/CredSSP/licensing **59/59**, native
+GSS/R2/R3 **27/27**, R10 pre-admission **5/5**, native X11 **26/26**,
+and bounded fuzzer **1/1**. The new fresh-proof case is explicitly discovered
+by the fail-closed registry preflight and passes under ASan/UBSan in **0.02 s**.
+The GSS-only MIT-krb5 LSan suppression remains limited to the same two known
+`krb5_copy_principal` failure paths, each **216 bytes / 10 allocations**.
+
+The exact-SHA macOS job is **COMPILE FAIL / CTest NOT RUN**. Its only
+reported compile errors are in concurrent R7
+`tests/test_macos_capture_pixel_buffer.cpp`: `nativeDisplayFixture` and
+`readSyntheticNativeDisplays` are referenced before declaration. R9 does not
+rewrite that failure as a pass. R7 correction
+`9d05b8f2eec3cce4179402a7aebe968d0f72c6de`, Actions `38965849463`,
+is a descendant with the R9 test unchanged; macOS/AppleClang then passes
+**395/395 Debug + 395/395 Release**, the R9 test passes as case 64 in both,
+and the downstream consumer is **1/1 PASS**. This descendant evidence closes
+the platform compile blocker without changing R9 semantics.
+
+Validated R9 invariant: a prior successful CLIENT_LICENSE_INFO HWID proof is
+not reusable authority for mutated caller-owned bytes. Each verifier call
+re-parses/authenticates the current MACData/encrypted-HWID bytes; mutations
+fail with `MacMismatch`, restoration permits only a fresh stateless crypto
+verification, caller-owned keys remain unchanged until explicit cleanse, and
+no R2 lease, R3 admission, CAL trust decision or licensed-session state is
+fabricated.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution remain **NOT RUN** in this connector environment.
+Genuine Kerberos/NSS/logind admission, CAL trust/product/expiry validation,
+Platform Challenge/New/Upgrade License publication, Microsoft-client
+licensing/Share/desktop acceptance and M2/M3 remain **NOT RUN/OPEN**.
+
 ## R6 adapter-reference transfer exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `06d2e08eeea0c224c949b68ae46ffb5b9bd7175a`. **Actions:**

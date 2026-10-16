@@ -1,3 +1,31 @@
+## R9 CLIENT_LICENSE_INFO fresh-proof hosted verification (2026-10-16)
+
+Implementation `8c93173c1e4a44cf3a024a317a63de994dea9b53`, Actions
+`38965573625`: R9 Clang ASan/UBSan **PASS** with exact groups
+**50/50 clipboard**, **20/20 x264/BGRA**, **4/4 RDPGFX capability**,
+**59/59 bounded R1/R3 transport/security/licensing**, **27/27 native
+GSS/R2/R3**, **5/5 R10 pre-admission**, **26/26 X11**, and **1/1 fuzzer**.
+`transport.licensing-client-license-info-hwid-fresh-verification` is selected
+as test 64 and passes under sanitizers in **0.02 s**.
+
+Linux/GCC is **469/469 Debug + 469/469 Release PASS** and Windows/MSVC is
+**47/47 focused preflight Debug + Release PASS**, followed by
+**424/424 full Debug + 424/424 full Release PASS**; the new case passes in
+all four full configurations. SDK consumer/package stages pass on both.
+
+The exact implementation workflow is overall **FAIL**, not green, because
+the concurrent R7 macOS source fails to compile before CTest: undeclared
+`nativeDisplayFixture` and `readSyntheticNativeDisplays` in
+`tests/test_macos_capture_pixel_buffer.cpp`. Descendant R7 correction
+`9d05b8f2eec3cce4179402a7aebe968d0f72c6de` / Actions `38965849463`
+keeps the R9 sources unchanged and gives macOS **395/395 Debug + 395/395
+Release PASS**, including the new R9 case, plus downstream consumer **1/1**.
+
+Local canonical owner testing remains **NOT RUN**. The result proves fresh
+stateless HWID/MAC verification and sanitizer cleanliness only; it does not
+prove positive admission, CAL validity, a server licensing decision or
+Microsoft-client acceptance.
+
 ## R6 adapter-reference provenance exact-SHA receipt (2026-10-16)
 
 Implementation `06d2e08eeea0c224c949b68ae46ffb5b9bd7175a`, Actions

@@ -15746,3 +15746,47 @@ Windows MSYS2 CLANG64/Clang23, macOS 27 and Microsoft-client acceptance remain
 intake, verify its complete encrypted application envelope fits the same
 bounded R1 read contract and add a production-backed owned-TLS read regression
 only if that transition demonstrates a concrete gap.
+
+## R3 Server Platform Challenge exact-SHA validation receipt (2026-10-16)
+
+**Implementation:** `06ebfa7897b305b2b65eba85b29e0610779f6c00`.
+**Actions:** `38971624372` — **SUCCESS**.
+
+The exact implementation SHA passes the complete hosted matrix. Ubuntu/GCC
+full CTest is **478/478 PASS Debug** and **478/478 PASS Release**.
+macOS/Clang is **403/403 PASS Debug** and **403/403 PASS Release**.
+Windows/MSVC focused native preflight is **48/48 PASS Debug** and
+**48/48 PASS Release**, with full CTest **432/432 PASS Debug** and
+**432/432 PASS Release**. Installed SDK downstream consumer is **1/1 PASS**
+on Linux, macOS and Windows, and package/digest/artifact publication checks
+pass.
+
+All new R3 cases pass in every applicable hosted configuration:
+`transport.licensing-server-platform-challenge-wire`,
+`transport.licensing-server-platform-challenge-write-receipts`,
+`transport.licensing-server-platform-challenge-write-denials`, and Linux
+`security.gssapi-r3-server-platform-challenge-write-contract`.
+
+R9 Clang ASan/UBSan is **PASS**. The bounded R1/R3
+transport/CredSSP/licensing selection is **66/66 PASS**, including all three
+new portable Platform Challenge cases. The native R2/R3 GSS selection is
+**28/28 PASS**, including the new challenge publication authority contract.
+Other configured R9 groups also pass, and the bounded fuzzer is **1/1 PASS**.
+Documentation policy and the separate R7 macOS-session sanitizer job are
+**PASS**. Untagged protocol prerelease publication is correctly **SKIPPED**.
+
+The validated boundary is deliberately incomplete: the server can now publish
+one cryptographically protected, receipt-bound Platform Challenge only after a
+real `CLIENT_NEW_LICENSE_REQUEST` branch and fresh R2 reauthorization, but
+R3 still does **not** accept/verify the client's Platform Challenge Response,
+issue a CAL/New License, validate an existing CAL's trust/product/expiration,
+emit `STATUS_VALID_CLIENT`, or enter Share activation. Canonical owner-local
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27 and Microsoft-client end-to-end M2 remain **NOT RUN / OPEN**.
+
+**Next R3:** implement the bounded protected
+`CLIENT_PLATFORM_CHALLENGE_RESPONSE` verifier against the exact retained
+challenge and current licensing keys, including decrypted response/HWID and
+MAC verification, then stop before license issuance until authoritative
+license-issuance policy/material exists. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

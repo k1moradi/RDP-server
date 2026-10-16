@@ -16904,3 +16904,79 @@ behind legitimate authority and fresh R2 authorization, verify that final
 production slice through the sole owned TLS writer. Otherwise wait for a live
 Share-activation boundary that demonstrates a concrete bounded transport
 mismatch.
+
+## R3 encrypted New/Upgrade License transport-bound correction (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `0a376216a88733082926c49b3932f70d80af2133`.
+
+The earlier pure grant wrapper at
+`d2bb7f073ba796fa3eebc5352834ba0c5cf63d94` established the correct
+SERVER_NEW_LICENSE / SERVER_UPGRADE_LICENSE cryptographic wire skeleton, but
+follow-up audit against the current R3 assignment found two material boundary
+gaps. It accepted already-serialized plaintext instead of reusing
+`encodeRdpNewLicenseInformation` from the supplied identity/CAL, and its
+17,964-byte worst-case packet proof considered only R1's 18 KiB TLS
+application-write ceiling. A single unfragmented T.125 SendData userData field
+is limited to 16,383 bytes, of which Enhanced Security consumes four bytes for
+the Basic Security Header.
+
+The corrected standalone encoder now receives an explicit
+`RdpServerLicenseGrantKind`, configured `RdpServerLicenseIdentity`, opaque
+caller-supplied CAL, and borrowed `RdpLicensingKeyMaterialView`. It invokes
+the existing NEW_LICENSE_INFO serializer internally, MACs the complete
+plaintext with the existing licensing MAC, RC4-encrypts exactly that plaintext
+with the existing licensing cipher, and emits one BB_ENCRYPTED_DATA_BLOB
+(0x0009) followed by exactly 16 bytes of MACData. Unsupported enum values,
+unconfigured identity, empty/oversized CAL, non-16-byte key spans and short
+output fail before caller output changes. Temporary plaintext, ciphertext
+scratch and MAC storage are explicitly cleansed; caller CAL/key spans are never
+retained.
+
+The existing standalone NEW_LICENSE_INFO CAL ceiling remains 16 KiB. For this
+eventual wire wrapper, the conservative always-transportable CAL ceiling is
+**14,799 bytes** with all three identity strings at their 512-byte configured
+maxima. The corresponding maximum NEW_LICENSE_INFO plaintext is **16,355
+bytes**, the complete licensing packet is **16,379 bytes**, and adding the
+four-byte Basic Security Header reaches exactly the T.125 unfragmented userData
+limit of **16,383 bytes**. The existing 15-byte long TPKT/X.224/MCS
+SendDataIndication header gives a maximum R1 TLS plaintext application write of
+**16,398 bytes**, safely below `kMaximumTlsApplicationIoBytes` (**18,432
+bytes**). A compile-time assertion binds that proof to R1's actual constant;
+R1 is not enlarged.
+
+Five dedicated central CTests replace the earlier coarse pair:
+`transport.licensing-server-new-license-wire`,
+`transport.licensing-server-upgrade-license-wire`,
+`transport.licensing-server-license-grant-encode-denials`,
+`transport.licensing-server-license-grant-transactional-output`, and
+`transport.licensing-server-grant-no-live-publication`. The New/Upgrade
+cases use an independently fixed 71-byte encrypted/MACed oracle and decrypt it
+back to the exact 47-byte NEW_LICENSE_INFO plaintext; the denial matrix covers
+invalid grant kind, unconfigured identity, empty/oversized CAL, truncated or
+missing key material, output bounds and the exact maximum envelope. The
+transactional case proves failures leave a sentinel buffer untouched and
+success does not modify excess capacity. The no-publication case proves a
+synthetic opaque CAL cannot mutate licensing/session state or bypass the public
+MCS admission boundary. All five are fail-closed entries in the bounded R1/R3
+ASan/UBSan selector.
+
+This remains a pure offline protocol encoder. It does **not** validate, sign or
+issue a CAL; confer issuer trust; create a licensing decision; create a write
+receipt; invoke R2; publish network bytes; mark a client licensed; enter Share
+activation; or use the terminal-server key-exchange private key as a CAL issuer.
+A future live grant still requires an audited licensing authority/result,
+legitimate CAL material and fresh R2 authorization.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment because the synchronized owner
+checkout is unavailable and no alternate persistent build root was created.
+Exact-publication-SHA Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release,
+bounded R9 sanitizer, documentation-policy and SDK/package evidence are
+pending.
+
+**Next R3:** audit the real CAL validation/issuance authority boundary before
+any receipt-bound live New/Upgrade publication or STATUS_VALID_CLIENT.
+CLIENT_LICENSE_INFO still requires issuer trust/signature, product/version,
+expiration/upgrade policy and CAL-to-client hardware authorization. M1
+owner-machine evidence and M2/M3 remain **OPEN / NOT ACCEPTED**.
+

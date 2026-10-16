@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdp_licensing.h"
+#include "nonblocking_tcp_adapter.h"
 
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
@@ -19,6 +20,10 @@
 
 namespace rdp_server::server::transport
 {
+static_assert(
+    kMaximumRdpServerLicenseGrantTlsApplicationBytes <=
+    kMaximumTlsApplicationIoBytes);
+
 namespace
 {
 constexpr std::size_t kLicensePreambleBytes = 4U;
@@ -1229,35 +1234,82 @@ RdpNewLicenseInfoEncodeResult encodeRdpNewLicenseInformation(
 
 RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
     RdpServerLicenseGrantKind kind,
-    std::span<const std::uint8_t> plaintextNewLicenseInfo,
-    const RdpLicensingKeyMaterial &keyMaterial,
+    const RdpServerLicenseIdentity &identity,
+    std::span<const std::uint8_t> issuedCal,
+    RdpLicensingKeyMaterialView keyMaterial,
     std::span<std::uint8_t> output) noexcept
 {
     constexpr std::size_t preambleBytes = 4U;
     constexpr std::size_t blobHeaderBytes = 4U;
     constexpr std::uint16_t encryptedDataBlobType = 0x0009U;
 
-    if (plaintextNewLicenseInfo.empty())
-        return {0U, RdpServerLicenseGrantEncodeError::InvalidPlaintext};
-    if (plaintextNewLicenseInfo.size() > kMaximumRdpNewLicenseInfoBytes ||
-        plaintextNewLicenseInfo.size() >
-            std::numeric_limits<std::uint16_t>::max())
+    std::uint8_t messageType = 0U;
+    switch (kind)
+    {
+    case RdpServerLicenseGrantKind::NewLicense:
+        messageType = static_cast<std::uint8_t>(
+            RdpLicensingMessageType::ServerNewLicense);
+        break;
+    case RdpServerLicenseGrantKind::UpgradeLicense:
+        messageType = static_cast<std::uint8_t>(
+            RdpLicensingMessageType::ServerUpgradeLicense);
+        break;
+    default:
+        return {0U, RdpServerLicenseGrantEncodeError::InvalidGrantKind};
+    }
+
+    if (!identity.configured())
+        return {0U,
+                RdpServerLicenseGrantEncodeError::IdentityNotConfigured};
+    if (issuedCal.empty())
+        return {0U, RdpServerLicenseGrantEncodeError::InvalidLicense};
+    if (issuedCal.size() > kMaximumRdpServerLicenseGrantCalBytes)
         return {0U, RdpServerLicenseGrantEncodeError::Oversized};
+    if (keyMaterial.macSaltKey.size() != kRdpLicensingKeyBytes ||
+        keyMaterial.encryptionKey.size() != kRdpLicensingKeyBytes)
+        return {0U, RdpServerLicenseGrantEncodeError::InvalidKeyMaterial};
+
+    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantPlaintextBytes>
+        plaintext{};
+    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantBytes> packet{};
+    const auto cleanseTemporaryBuffers = [&]() noexcept
+    {
+        OPENSSL_cleanse(plaintext.data(), plaintext.size());
+        OPENSSL_cleanse(packet.data(), packet.size());
+    };
+
+    const auto plaintextResult =
+        encodeRdpNewLicenseInformation(identity, issuedCal, plaintext);
+    if (!plaintextResult)
+    {
+        cleanseTemporaryBuffers();
+        return {0U,
+                RdpServerLicenseGrantEncodeError::PlaintextEncodingFailure};
+    }
+
+    const std::size_t plaintextBytes = plaintextResult.bytesWritten;
+    if (plaintextBytes > kMaximumRdpServerLicenseGrantPlaintextBytes ||
+        plaintextBytes > std::numeric_limits<std::uint16_t>::max())
+    {
+        cleanseTemporaryBuffers();
+        return {0U, RdpServerLicenseGrantEncodeError::Oversized};
+    }
 
     const std::size_t totalBytes =
-        preambleBytes + blobHeaderBytes + plaintextNewLicenseInfo.size() +
-        kRdpLicensingMacBytes;
+        kRdpServerLicenseGrantFixedBytes + plaintextBytes;
     if (totalBytes > kMaximumRdpServerLicenseGrantBytes ||
         totalBytes > std::numeric_limits<std::uint16_t>::max())
+    {
+        cleanseTemporaryBuffers();
         return {0U, RdpServerLicenseGrantEncodeError::Oversized};
+    }
     if (output.size() < totalBytes)
+    {
+        cleanseTemporaryBuffers();
         return {0U, RdpServerLicenseGrantEncodeError::OutputTooSmall};
+    }
 
-    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantBytes> packet{};
-    packet[0] = static_cast<std::uint8_t>(
-        kind == RdpServerLicenseGrantKind::NewLicense
-            ? RdpLicensingMessageType::ServerNewLicense
-            : RdpLicensingMessageType::ServerUpgradeLicense);
+    packet[0] = messageType;
     packet[1] = 0x03U;
     writeLe16(packet, 2U, static_cast<std::uint16_t>(totalBytes));
 
@@ -1265,24 +1317,25 @@ RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
     writeLe16(packet, offset, encryptedDataBlobType);
     writeLe16(
         packet, offset + 2U,
-        static_cast<std::uint16_t>(plaintextNewLicenseInfo.size()));
+        static_cast<std::uint16_t>(plaintextBytes));
     offset += blobHeaderBytes;
 
-    auto encrypted =
-        std::span(packet).subspan(offset, plaintextNewLicenseInfo.size());
+    const auto plaintextView =
+        std::span<const std::uint8_t>{plaintext}.first(plaintextBytes);
+    auto encrypted = std::span(packet).subspan(offset, plaintextBytes);
     if (!cryptRdpLicensingData(
-            keyMaterial.encryptionKey, plaintextNewLicenseInfo, encrypted))
+            keyMaterial.encryptionKey, plaintextView, encrypted))
     {
-        OPENSSL_cleanse(packet.data(), packet.size());
+        cleanseTemporaryBuffers();
         return {0U, RdpServerLicenseGrantEncodeError::EncryptionFailure};
     }
-    offset += plaintextNewLicenseInfo.size();
+    offset += plaintextBytes;
 
     auto mac = generateRdpLicensingMac(
-        keyMaterial.macSaltKey, plaintextNewLicenseInfo);
+        keyMaterial.macSaltKey, plaintextView);
     if (!mac)
     {
-        OPENSSL_cleanse(packet.data(), packet.size());
+        cleanseTemporaryBuffers();
         OPENSSL_cleanse(mac.value.data(), mac.value.size());
         return {0U, RdpServerLicenseGrantEncodeError::MacFailure};
     }
@@ -1291,7 +1344,7 @@ RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
     offset += kRdpLicensingMacBytes;
 
     std::copy(packet.begin(), packet.begin() + offset, output.begin());
-    OPENSSL_cleanse(packet.data(), packet.size());
+    cleanseTemporaryBuffers();
     return {offset, RdpServerLicenseGrantEncodeError::None};
 }
 

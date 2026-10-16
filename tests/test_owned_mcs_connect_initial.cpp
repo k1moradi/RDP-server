@@ -4973,109 +4973,325 @@ void testRdpNewLicenseInformationDenials()
 [[nodiscard]] RdpLicensingKeyMaterial
 platformChallengeKeys() noexcept;
 
-void testRdpServerLicenseGrantWire()
-{
-    constexpr std::array<std::uint8_t, 47> plaintext{
-        0x01,0x00,0x06,0x00,
-        0x06,0x00,0x00,0x00,
-        0x73,0x63,0x6f,0x70,0x65,0x00,
-        0x08,0x00,0x00,0x00,
-        0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00,
-        0x08,0x00,0x00,0x00,
-        0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00,
-        0x05,0x00,0x00,0x00,
-        0x30,0x03,0x02,0x01,0x01};
-    constexpr std::array<std::uint8_t, 71> expectedNew{
-        0x03,0x03,0x47,0x00,0x09,0x00,0x2f,0x00,
-        0x4a,0xb0,0x06,0xcc,0xfb,0x00,0x1b,0xf2,
-        0x44,0xdd,0x8a,0xa7,0xe9,0x3b,0xf4,0xa2,
-        0xb2,0x46,0xf9,0x34,0x1f,0xec,0x8b,0xe4,
-        0xdc,0xe2,0x02,0x83,0x37,0x3b,0xfa,0x39,
-        0xf3,0xdb,0x00,0x5a,0x1a,0x19,0x9c,0x50,
-        0x27,0x42,0xfd,0x66,0xa4,0xa7,0xd3,
-        0x60,0x0d,0x43,0x63,0xda,0x09,0xe7,0xff,
-        0xb2,0x4b,0xd6,0x5c,0x2b,0x1e,0xc7,0x00};
+constexpr std::array<std::uint8_t, 5> kSyntheticIssuedCal{
+    0x30,0x03,0x02,0x01,0x01};
 
+// Independent NEW_LICENSE_INFO oracle for the small synthetic CAL above.
+// These bytes are test material only and are not a legitimate issued CAL.
+constexpr std::array<std::uint8_t, 47> kSyntheticNewLicenseInfoPlaintext{
+    0x01,0x00,0x06,0x00,
+    0x06,0x00,0x00,0x00,
+    0x73,0x63,0x6f,0x70,0x65,0x00,
+    0x08,0x00,0x00,0x00,
+    0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00,
+    0x08,0x00,0x00,0x00,
+    0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00,
+    0x05,0x00,0x00,0x00,
+    0x30,0x03,0x02,0x01,0x01};
+
+constexpr std::array<std::uint8_t, 71> kExpectedServerNewLicense{
+    0x03,0x03,0x47,0x00,0x09,0x00,0x2f,0x00,
+    0x4a,0xb0,0x06,0xcc,0xfb,0x00,0x1b,0xf2,
+    0x44,0xdd,0x8a,0xa7,0xe9,0x3b,0xf4,0xa2,
+    0xb2,0x46,0xf9,0x34,0x1f,0xec,0x8b,0xe4,
+    0xdc,0xe2,0x02,0x83,0x37,0x3b,0xfa,0x39,
+    0xf3,0xdb,0x00,0x5a,0x1a,0x19,0x9c,0x50,
+    0x27,0x42,0xfd,0x66,0xa4,0xa7,0xd3,
+    0x60,0x0d,0x43,0x63,0xda,0x09,0xe7,0xff,
+    0xb2,0x4b,0xd6,0x5c,0x2b,0x1e,0xc7,0x00};
+
+void verifySyntheticGrantPayload(
+    std::span<const std::uint8_t> packet,
+    RdpLicensingMessageType expectedType,
+    const RdpLicensingKeyMaterial &keys)
+{
+    assert(packet.size() == kExpectedServerNewLicense.size());
+    const auto parsed = parseRdpLicensingMessage(packet);
+    assert(parsed);
+    assert(parsed.value.type == expectedType);
+    assert(parsed.value.protocolVersion == 3U);
+    assert(!parsed.value.extendedErrorSupported);
+
+    // One BB_ENCRYPTED_DATA_BLOB, then exactly 16 MAC bytes.
+    assert(packet[4] == 0x09U && packet[5] == 0x00U);
+    assert(packet[6] == 0x2fU && packet[7] == 0x00U);
+    constexpr std::size_t encryptedOffset = 8U;
+    constexpr std::size_t encryptedBytes =
+        kSyntheticNewLicenseInfoPlaintext.size();
+    constexpr std::size_t macOffset = encryptedOffset + encryptedBytes;
+    static_assert(macOffset + kRdpLicensingMacBytes ==
+                  kExpectedServerNewLicense.size());
+
+    std::array<std::uint8_t, encryptedBytes> decrypted{};
+    assert(cryptRdpLicensingData(
+        keys.encryptionKey,
+        packet.subspan(encryptedOffset, encryptedBytes),
+        decrypted));
+    assert(decrypted == kSyntheticNewLicenseInfoPlaintext);
+
+    auto expectedMac =
+        generateRdpLicensingMac(keys.macSaltKey, decrypted);
+    assert(expectedMac);
+    assert(std::equal(
+        expectedMac.value.begin(), expectedMac.value.end(),
+        packet.begin() + static_cast<std::ptrdiff_t>(macOffset)));
+    OPENSSL_cleanse(decrypted.data(), decrypted.size());
+    OPENSSL_cleanse(expectedMac.value.data(), expectedMac.value.size());
+}
+
+void testRdpServerNewLicenseWire()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
     auto keys = platformChallengeKeys();
+
     std::array<std::uint8_t, 96> output{};
     output.fill(0xa5U);
-    const auto newLicense = encodeRdpServerLicenseGrant(
-        RdpServerLicenseGrantKind::NewLicense, plaintext, keys, output);
-    assert(newLicense);
-    assert(newLicense.bytesWritten == expectedNew.size());
+    const auto encoded = encodeRdpServerLicenseGrant(
+        RdpServerLicenseGrantKind::NewLicense,
+        identity, kSyntheticIssuedCal, keys, output);
+    assert(encoded);
+    assert(encoded.bytesWritten == kExpectedServerNewLicense.size());
     assert(std::equal(
-        expectedNew.begin(), expectedNew.end(), output.begin()));
+        kExpectedServerNewLicense.begin(),
+        kExpectedServerNewLicense.end(),
+        output.begin()));
     assert(std::all_of(
-        output.begin() + static_cast<std::ptrdiff_t>(expectedNew.size()),
+        output.begin() +
+            static_cast<std::ptrdiff_t>(encoded.bytesWritten),
         output.end(),
         [](std::uint8_t value) { return value == 0xa5U; }));
 
-    const auto parsedNew = parseRdpLicensingMessage(
-        std::span(output).first(newLicense.bytesWritten));
-    assert(parsedNew);
-    assert(parsedNew.value.type ==
-           RdpLicensingMessageType::ServerNewLicense);
-    assert(parsedNew.value.protocolVersion == 3U);
-
-    auto expectedUpgrade = expectedNew;
-    expectedUpgrade[0] = static_cast<std::uint8_t>(
-        RdpLicensingMessageType::ServerUpgradeLicense);
-    output.fill(0xa5U);
-    const auto upgrade = encodeRdpServerLicenseGrant(
-        RdpServerLicenseGrantKind::UpgradeLicense, plaintext, keys, output);
-    assert(upgrade);
-    assert(upgrade.bytesWritten == expectedUpgrade.size());
-    assert(std::equal(
-        expectedUpgrade.begin(), expectedUpgrade.end(), output.begin()));
-    const auto parsedUpgrade = parseRdpLicensingMessage(
-        std::span(output).first(upgrade.bytesWritten));
-    assert(parsedUpgrade);
-    assert(parsedUpgrade.value.type ==
-           RdpLicensingMessageType::ServerUpgradeLicense);
-
+    verifySyntheticGrantPayload(
+        std::span(output).first(encoded.bytesWritten),
+        RdpLicensingMessageType::ServerNewLicense, keys);
     cleanseRdpLicensingKeyMaterial(keys);
 }
 
-void testRdpServerLicenseGrantDenials()
+void testRdpServerUpgradeLicenseWire()
 {
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
     auto keys = platformChallengeKeys();
-    constexpr std::array<std::uint8_t, 4> plaintext{
-        0x01,0x02,0x03,0x04};
-    std::array<std::uint8_t, 64> output{};
+
+    auto expected = kExpectedServerNewLicense;
+    expected[0] = static_cast<std::uint8_t>(
+        RdpLicensingMessageType::ServerUpgradeLicense);
+
+    std::array<std::uint8_t, 96> output{};
+    output.fill(0xa5U);
+    const auto encoded = encodeRdpServerLicenseGrant(
+        RdpServerLicenseGrantKind::UpgradeLicense,
+        identity, kSyntheticIssuedCal, keys, output);
+    assert(encoded);
+    assert(encoded.bytesWritten == expected.size());
+    assert(std::equal(expected.begin(), expected.end(), output.begin()));
+    assert(std::all_of(
+        output.begin() +
+            static_cast<std::ptrdiff_t>(encoded.bytesWritten),
+        output.end(),
+        [](std::uint8_t value) { return value == 0xa5U; }));
+
+    verifySyntheticGrantPayload(
+        std::span(output).first(encoded.bytesWritten),
+        RdpLicensingMessageType::ServerUpgradeLicense, keys);
+    cleanseRdpLicensingKeyMaterial(keys);
+}
+
+void testRdpServerLicenseGrantEncodeDenials()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    auto keys = platformChallengeKeys();
+
+    std::array<std::uint8_t, 96> output{};
     output.fill(0x5aU);
+
+    RdpServerLicenseIdentity unconfigured;
+    assert(encodeRdpServerLicenseGrant(
+               RdpServerLicenseGrantKind::NewLicense,
+               unconfigured, kSyntheticIssuedCal, keys, output).error ==
+           RdpServerLicenseGrantEncodeError::IdentityNotConfigured);
+
+    assert(encodeRdpServerLicenseGrant(
+               static_cast<RdpServerLicenseGrantKind>(0xffU),
+               identity, kSyntheticIssuedCal, keys, output).error ==
+           RdpServerLicenseGrantEncodeError::InvalidGrantKind);
 
     assert(encodeRdpServerLicenseGrant(
                RdpServerLicenseGrantKind::NewLicense,
-               {}, keys, output).error ==
-           RdpServerLicenseGrantEncodeError::InvalidPlaintext);
-    assert(std::all_of(
-        output.begin(), output.end(),
-        [](std::uint8_t value) { return value == 0x5aU; }));
+               identity, {}, keys, output).error ==
+           RdpServerLicenseGrantEncodeError::InvalidLicense);
 
-    std::vector<std::uint8_t> oversized(
-        kMaximumRdpNewLicenseInfoBytes + 1U, 0x42U);
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseGrantCalBytes + 1U>
+        oversizedCal{};
+    oversizedCal.fill(0x42U);
+    assert(oversizedCal.size() <= kMaximumRdpIssuedCalBytes);
     assert(encodeRdpServerLicenseGrant(
                RdpServerLicenseGrantKind::UpgradeLicense,
-               oversized, keys, output).error ==
+               identity, oversizedCal, keys, output).error ==
            RdpServerLicenseGrantEncodeError::Oversized);
 
-    std::array<std::uint8_t, 27> tooSmall{};
+    const RdpLicensingKeyMaterialView shortMac{
+        std::span(keys.macSaltKey).first(kRdpLicensingKeyBytes - 1U),
+        keys.encryptionKey};
+    assert(encodeRdpServerLicenseGrant(
+               RdpServerLicenseGrantKind::NewLicense,
+               identity, kSyntheticIssuedCal, shortMac, output).error ==
+           RdpServerLicenseGrantEncodeError::InvalidKeyMaterial);
+
+    const RdpLicensingKeyMaterialView shortEncryption{
+        keys.macSaltKey,
+        std::span(keys.encryptionKey).first(kRdpLicensingKeyBytes - 1U)};
+    assert(encodeRdpServerLicenseGrant(
+               RdpServerLicenseGrantKind::NewLicense,
+               identity, kSyntheticIssuedCal, shortEncryption, output).error ==
+           RdpServerLicenseGrantEncodeError::InvalidKeyMaterial);
+
+    const RdpLicensingKeyMaterialView missingKeys{
+        std::span<const std::uint8_t>{},
+        std::span<const std::uint8_t>{}};
+    assert(encodeRdpServerLicenseGrant(
+               RdpServerLicenseGrantKind::NewLicense,
+               identity, kSyntheticIssuedCal, missingKeys, output).error ==
+           RdpServerLicenseGrantEncodeError::InvalidKeyMaterial);
+
+    std::array<std::uint8_t, 70> tooSmall{};
     tooSmall.fill(0xa5U);
     assert(encodeRdpServerLicenseGrant(
                RdpServerLicenseGrantKind::NewLicense,
-               plaintext, keys, tooSmall).error ==
+               identity, kSyntheticIssuedCal, keys, tooSmall).error ==
            RdpServerLicenseGrantEncodeError::OutputTooSmall);
     assert(std::all_of(
         tooSmall.begin(), tooSmall.end(),
         [](std::uint8_t value) { return value == 0xa5U; }));
 
-    RdpLicensingLifecycle lifecycle;
-    assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
-    std::array<std::uint8_t, 28> exact{};
-    assert(encodeRdpServerLicenseGrant(
-        RdpServerLicenseGrantKind::UpgradeLicense,
-        plaintext, keys, exact));
-    assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+    // The conservative CAL ceiling proves worst-case identity strings still
+    // fit one unfragmented 16,383-byte MCS userData field.
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseIdentityTextBytes>
+        maximumCompany{};
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseIdentityTextBytes>
+        maximumProduct{};
+    for (std::size_t offset = 0U;
+         offset + 2U < maximumCompany.size(); offset += 2U)
+    {
+        maximumCompany[offset] = 0x41U;
+        maximumProduct[offset] = 0x42U;
+    }
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseIdentityTextBytes>
+        maximumScope{};
+    maximumScope.fill(0x73U);
+    maximumScope.back() = 0U;
+
+    RdpServerLicenseIdentity maximumIdentity;
+    assert(maximumIdentity.configure(
+        0x00060001U, maximumCompany, maximumProduct,
+        kServerLicenseCertificate, maximumScope));
+
+    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantCalBytes>
+        maximumCal{};
+    maximumCal.fill(0x42U);
+    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantBytes>
+        maximumPacket{};
+    const auto maximum = encodeRdpServerLicenseGrant(
+        RdpServerLicenseGrantKind::NewLicense,
+        maximumIdentity, maximumCal, keys, maximumPacket);
+    assert(maximum);
+    assert(maximum.bytesWritten == kMaximumRdpServerLicenseGrantBytes);
+    assert(maximum.bytesWritten +
+               kRdpLicensingBasicSecurityHeaderBytes ==
+           kMaximumRdpLicensingUnfragmentedMcsUserDataBytes);
+    assert(kMaximumRdpServerLicenseGrantTlsApplicationBytes <
+           18U * 1024U);
+
+    assert(std::all_of(
+        output.begin(), output.end(),
+        [](std::uint8_t value) { return value == 0x5aU; }));
+    cleanseRdpLicensingKeyMaterial(keys);
+}
+
+void testRdpServerLicenseGrantTransactionalOutput()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    auto keys = platformChallengeKeys();
+
+    std::array<std::uint8_t, 128> output{};
+    output.fill(0xc3U);
+    const auto original = output;
+
+    const RdpLicensingKeyMaterialView invalidKeys{
+        std::span(keys.macSaltKey).first(kRdpLicensingKeyBytes - 1U),
+        keys.encryptionKey};
+    assert(!encodeRdpServerLicenseGrant(
+        RdpServerLicenseGrantKind::NewLicense,
+        identity, kSyntheticIssuedCal, invalidKeys, output));
+    assert(output == original);
+
+    assert(!encodeRdpServerLicenseGrant(
+        static_cast<RdpServerLicenseGrantKind>(0x7fU),
+        identity, kSyntheticIssuedCal, keys, output));
+    assert(output == original);
+
+    const auto encoded = encodeRdpServerLicenseGrant(
+        RdpServerLicenseGrantKind::NewLicense,
+        identity, kSyntheticIssuedCal, keys, output);
+    assert(encoded);
+    assert(std::equal(
+        kExpectedServerNewLicense.begin(),
+        kExpectedServerNewLicense.end(),
+        output.begin()));
+    assert(std::all_of(
+        output.begin() +
+            static_cast<std::ptrdiff_t>(encoded.bytesWritten),
+        output.end(),
+        [](std::uint8_t value) { return value == 0xc3U; }));
+
+    cleanseRdpLicensingKeyMaterial(keys);
+}
+
+void testRdpServerGrantNoLivePublication()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    auto keys = platformChallengeKeys();
+
+    RdpLicensingLifecycle licensing;
+    McsSessionLifecycle session;
+    assert(licensing.phase() == RdpLicensingPhase::NotStarted);
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
+
+    std::array<std::uint8_t, 96> output{};
+    const auto encoded = encodeRdpServerLicenseGrant(
+        RdpServerLicenseGrantKind::NewLicense,
+        identity, kSyntheticIssuedCal, keys, output);
+    assert(encoded);
+
+    // Serialization has no licensing/session authority or side effect.
+    assert(licensing.phase() == RdpLicensingPhase::NotStarted);
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
+
+    // Treating the pure server packet as a client licensing message is
+    // out-of-order and terminal; it cannot become a reusable grant token.
+    RdpLicensingLifecycle licensingMisuse;
+    assert(licensingMisuse.onClientMessage(
+               std::span(output).first(encoded.bytesWritten)) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(licensingMisuse.phase() == RdpLicensingPhase::Failed);
+
+    // Nor can the bare encoded bytes bypass the public MCS admission boundary.
+    McsSessionLifecycle sessionMisuse;
+    assert(sessionMisuse.onDomainPdu(
+               std::span(output).first(encoded.bytesWritten)) ==
+           McsSessionIntake::InvalidDomainTransport);
+    assert(sessionMisuse.phase() == McsSessionPhase::Closed);
+    assert(sessionMisuse.licensingPhase() == RdpLicensingPhase::Closed);
 
     cleanseRdpLicensingKeyMaterial(keys);
 }
@@ -7133,7 +7349,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 109> kMcsTestCases{{
+constexpr std::array<McsTestCase, 112> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -7203,8 +7419,11 @@ constexpr std::array<McsTestCase, 109> kMcsTestCases{{
     {"licensing-client-platform-challenge-response-denials", &testRdpClientPlatformChallengeResponseDenials},
     {"licensing-new-license-info-wire", &testRdpNewLicenseInformationWire},
     {"licensing-new-license-info-denials", &testRdpNewLicenseInformationDenials},
-    {"licensing-server-license-grant-wire", &testRdpServerLicenseGrantWire},
-    {"licensing-server-license-grant-denials", &testRdpServerLicenseGrantDenials},
+    {"licensing-server-new-license-wire", &testRdpServerNewLicenseWire},
+    {"licensing-server-upgrade-license-wire", &testRdpServerUpgradeLicenseWire},
+    {"licensing-server-license-grant-encode-denials", &testRdpServerLicenseGrantEncodeDenials},
+    {"licensing-server-license-grant-transactional-output", &testRdpServerLicenseGrantTransactionalOutput},
+    {"licensing-server-grant-no-live-publication", &testRdpServerGrantNoLivePublication},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
     {"licensing-runtime-context-ownership", &testRuntimeLicensingContextOwnership},

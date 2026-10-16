@@ -513,12 +513,51 @@ inline constexpr std::size_t kMaximumRdpServerLicenseIdentityTextBytes = 512U;
 // this keeps a future encrypted grant below R1's 18 KiB application-write cap.
 // CAL bytes are opaque here and MUST come from a real licensing authority.
 inline constexpr std::size_t kMaximumRdpIssuedCalBytes = 16U * 1024U;
+inline constexpr std::size_t kRdpNewLicenseInfoFixedBytes = 20U;
 inline constexpr std::size_t kMaximumRdpNewLicenseInfoBytes =
-    20U + 3U * kMaximumRdpServerLicenseIdentityTextBytes +
+    kRdpNewLicenseInfoFixedBytes +
+    3U * kMaximumRdpServerLicenseIdentityTextBytes +
     kMaximumRdpIssuedCalBytes;
+
+// One unfragmented T.125 SendData userData field is limited to 14 bits.
+// The eventual Enhanced-Security envelope consumes four of those bytes for
+// TS_SECURITY_HEADER, so this pure licensing packet must stay <= 16,379
+// bytes. With all three identity strings at their configured 512-byte maxima,
+// the largest CAL that is always transportable without PER fragmentation is
+// therefore 14,799 bytes. The complete future TPKT/X.224/MCS long-header
+// application write is 16,398 bytes, below R1's 18 KiB plaintext ceiling.
+inline constexpr std::size_t
+    kMaximumRdpLicensingUnfragmentedMcsUserDataBytes = 16383U;
+inline constexpr std::size_t kRdpLicensingBasicSecurityHeaderBytes = 4U;
+inline constexpr std::size_t kRdpServerLicenseGrantFixedBytes =
+    4U + 4U + kRdpLicensingMacBytes;
+inline constexpr std::size_t kMaximumRdpServerLicenseGrantCalBytes =
+    kMaximumRdpLicensingUnfragmentedMcsUserDataBytes -
+    kRdpLicensingBasicSecurityHeaderBytes -
+    kRdpServerLicenseGrantFixedBytes -
+    kRdpNewLicenseInfoFixedBytes -
+    3U * kMaximumRdpServerLicenseIdentityTextBytes;
+inline constexpr std::size_t kMaximumRdpServerLicenseGrantPlaintextBytes =
+    kRdpNewLicenseInfoFixedBytes +
+    3U * kMaximumRdpServerLicenseIdentityTextBytes +
+    kMaximumRdpServerLicenseGrantCalBytes;
 inline constexpr std::size_t kMaximumRdpServerLicenseGrantBytes =
-    4U + 4U + kMaximumRdpNewLicenseInfoBytes +
-    kRdpLicensingMacBytes;
+    kRdpServerLicenseGrantFixedBytes +
+    kMaximumRdpServerLicenseGrantPlaintextBytes;
+inline constexpr std::size_t kRdpServerLicenseGrantLongMcsHeaderBytes = 15U;
+inline constexpr std::size_t
+    kMaximumRdpServerLicenseGrantTlsApplicationBytes =
+        kRdpServerLicenseGrantLongMcsHeaderBytes +
+        kRdpLicensingBasicSecurityHeaderBytes +
+        kMaximumRdpServerLicenseGrantBytes;
+
+static_assert(kMaximumRdpServerLicenseGrantCalBytes == 14799U);
+static_assert(
+    kMaximumRdpServerLicenseGrantBytes +
+        kRdpLicensingBasicSecurityHeaderBytes ==
+    kMaximumRdpLicensingUnfragmentedMcsUserDataBytes);
+static_assert(kMaximumRdpServerLicenseGrantBytes == 16379U);
+static_assert(kMaximumRdpServerLicenseGrantTlsApplicationBytes == 16398U);
 
 enum class RdpNewLicenseInfoEncodeError : std::uint8_t
 {
@@ -628,16 +667,44 @@ private:
 
 enum class RdpServerLicenseGrantKind : std::uint8_t
 {
-    NewLicense,
-    UpgradeLicense,
+    NewLicense = 0x03U,
+    UpgradeLicense = 0x04U,
+};
+
+// Borrowed view over exactly one derived RdpLicensingKeyMaterial. The explicit
+// span constructor exists so fail-closed tests can exercise truncated keys;
+// no key bytes are copied, retained, logged, or interpreted as authority.
+struct RdpLicensingKeyMaterialView
+{
+    std::span<const std::uint8_t> macSaltKey{};
+    std::span<const std::uint8_t> encryptionKey{};
+
+    RdpLicensingKeyMaterialView(
+        const RdpLicensingKeyMaterial &material) noexcept
+        : macSaltKey(material.macSaltKey),
+          encryptionKey(material.encryptionKey)
+    {
+    }
+
+    RdpLicensingKeyMaterialView(
+        std::span<const std::uint8_t> macSaltKeyValue,
+        std::span<const std::uint8_t> encryptionKeyValue) noexcept
+        : macSaltKey(macSaltKeyValue),
+          encryptionKey(encryptionKeyValue)
+    {
+    }
 };
 
 enum class RdpServerLicenseGrantEncodeError : std::uint8_t
 {
     None,
-    InvalidPlaintext,
+    InvalidGrantKind,
+    IdentityNotConfigured,
+    InvalidLicense,
+    InvalidKeyMaterial,
     Oversized,
     OutputTooSmall,
+    PlaintextEncodingFailure,
     EncryptionFailure,
     MacFailure,
 };
@@ -646,7 +713,7 @@ struct RdpServerLicenseGrantEncodeResult
 {
     std::size_t bytesWritten{};
     RdpServerLicenseGrantEncodeError error{
-        RdpServerLicenseGrantEncodeError::InvalidPlaintext};
+        RdpServerLicenseGrantEncodeError::InvalidGrantKind};
 
     [[nodiscard]] explicit operator bool() const noexcept
     {
@@ -654,15 +721,17 @@ struct RdpServerLicenseGrantEncodeResult
     }
 };
 
-// MS-RDPELE 2.2.2.6 / 2.2.2.7 pure wrapper for already-authority-produced
-// NEW_LICENSE_INFO. The plaintext is RC4-encrypted into one
-// BB_ENCRYPTED_DATA_BLOB and MACData authenticates the exact plaintext.
-// This helper does not validate or issue CALs, mutate lifecycle state, create
-// receipts, invoke R2, or publish bytes. Output is unchanged on failure.
+// MS-RDPELE 2.2.2.6 / 2.2.2.7 pure New/Upgrade License encoder. It reuses
+// encodeRdpNewLicenseInformation, RC4 and the licensing MAC over the complete
+// plaintext, then emits one BB_ENCRYPTED_DATA_BLOB followed by MACData.
+// issuedCal is opaque authority output supplied by the caller; this helper
+// does not validate/sign/issue it, mutate lifecycle state, create receipts,
+// invoke R2, or publish bytes. Output is transactional on every failure.
 [[nodiscard]] RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
     RdpServerLicenseGrantKind kind,
-    std::span<const std::uint8_t> plaintextNewLicenseInfo,
-    const RdpLicensingKeyMaterial &keyMaterial,
+    const RdpServerLicenseIdentity &identity,
+    std::span<const std::uint8_t> issuedCal,
+    RdpLicensingKeyMaterialView keyMaterial,
     std::span<std::uint8_t> output) noexcept;
 
 struct RdpServerLicenseRequestEncodeResult

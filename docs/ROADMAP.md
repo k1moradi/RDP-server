@@ -1,3 +1,50 @@
+## R8 completed-file X11 handoff exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `af52796a380bb9400cdfcc7ad2dac5b604f91087`.
+**Actions:** [38923110908](https://github.com/k1moradi/RDP-server/actions/runs/38923110908),
+attempt 2 — **SUCCESS**.
+
+Ubuntu/GCC full CTest is **457/457 PASS** in Debug and **457/457 PASS**
+in Release. The new
+`clipboard.x11-completed-file-uri-handoff` case passes in both, as do the
+strengthened `clipboard.linux-file-destination-streaming`,
+`clipboard.linux-file-destination-size-cancel`, and
+`clipboard.linux-file-destination-denials` cases.
+
+R9 Clang ASan/UBSan is **PASS**. Its complete clipboard-labelled selection is
+**50/50 PASS**, including the new X11 completed-file handoff and all three
+Linux destination cases. The remaining selected groups also pass:
+x264/BGRA **20/20**, bounded R1/R3 transport/CredSSP/licensing **46/46**,
+native R2/R3 GSSAPI **27/27**, R10 Linux runtime CredSSP **4/4**, native R5
+X11 **25/25**, and the bounded MCS/CLIPRDR fuzzer **1/1**.
+
+Windows/MSVC focused native preflight is **45/45 PASS** in Debug and Release;
+full CTest is **412/412 PASS** in Debug and Release. macOS/Clang attempt 2 is
+**382/382 PASS** in Debug and **382/382 PASS** in Release. Documentation
+policy, the separate R7 macOS session sanitizer job, staged SDK install,
+downstream consumer, package, digest and artifact upload all pass.
+
+For complete provenance, workflow attempt 1 had one unrelated macOS Release
+failure:
+`transport.tcp-owned-tls-application-cancellation` asserted at
+`tests/test_owned_preauth_session.cpp:3869` while the other **381/382**
+tests passed; macOS Debug was already **382/382 PASS**. The same exact
+implementation SHA was rerun through GitHub's failed-job path and the R1 test
+passed in attempt 2. No R8 source change was made to obtain the green rerun.
+
+This validates the bounded completed-file X11 presentation contract and Linux
+descriptor integration under hosted builds/sanitizers. It does **not** claim a
+live Nautilus/Dolphin paste, Wayland/XDG FileTransfer portal integration,
+authenticated Microsoft-client file copy, owner Linux/X11, owner Windows
+MSYS2 CLANG64/Clang23, owner macOS 27, or clipboard-file performance. The
+canonical owner-local `~/rdp-server/build` command remains **NOT RUN** in
+this connector environment.
+
+**Next R8:** add bounded Windows/macOS file destinations without whole-file
+prefetch, a second CLIPRDR writer, or authentication shortcuts. Keep a future
+Wayland file handoff on the real XDG FileTransfer/Clipboard portal session
+contract rather than emulating it in X11 code.
+
 ## R1 malformed-TLS readiness exact-SHA hosted validation (2026-10-16; PASS)
 
 **Implementation:** `1235aa0593f533d13930fb90783fbbb07f99a1cd`.

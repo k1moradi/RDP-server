@@ -7763,3 +7763,53 @@ environment, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
 CLANG64/Clang23 and macOS27 commands, genuine R2/R3 admitted desktop,
 R4 client delivery, live XTEST input, Microsoft-client M3 acceptance and
 performance benchmarks.
+
+
+### R9 X11 clipboard teardown sanitizer exact-SHA receipt (2026-10-16)
+
+Implementation `b532c91492b4e6705a0786a5afe6348ec13b79c4`,
+[Actions 38877445677](https://github.com/k1moradi/RDP-server/actions/runs/38877445677).
+The dedicated `r9-security-protocol-sanitizers` job completed **SUCCESS**
+with Ubuntu Clang **18.1.3 (1ubuntu1)** after discovering and compiling the
+real X11 clipboard production target through `libxcb1-dev`.
+
+Sanitizer results are **24/24 clipboard PASS**: the prior 19 portable cases,
+all four R8 X11 cases, and the independently authored
+`clipboard.x11-disconnect-late-paste-fence`. The new case proves that
+disconnect cancels/consumes the exact pending paste receipt and sends one
+failure notify before native-window destruction; a later valid CLIPRDR response
+may remain owned by `RemoteTransfer` but cannot produce an X11 property,
+duplicate notify, stale fetch or republish. Repeated disconnect remains
+idempotent.
+
+The unsuppressed MCS/CredSSP/licensing selection is **13/13 PASS**. The native
+R2/R3 GSS selection is **8/8 PASS**, including the concurrently added
+`security.gssapi-r3-protected-transition-generation-fence` plus the prior
+admission/revocation fences. The GSS-only MIT provider suppression was used
+exactly twice, each **216 bytes / 10 `krb5_copy_principal` allocations**,
+matching the already documented external failure-path signature. No
+X11/clipboard, MCS, CredSSP, licensing or fuzzer test uses that suppression.
+The bounded `fuzz.mcs-cliprdr-bounded` case is **1/1 PASS** with its existing
+5,000-run/seed/length/resource/time limits. No unsuppressed ASan/UBSan/LSan
+diagnostic occurred in the R9 job.
+
+Documentation policy is **PASS**. The ordinary hosted matrix is not a green R9
+claim because it consumes unrelated road changes: Linux Debug reached
+**300/301** and macOS Debug **269/270**, each failing only
+`transport.gcc-conference-create` at the pre-existing R3 assertion
+`earlyCapabilityFlags == 0x0001U`. The checked-in Microsoft fixture's bytes
+at that Client Core field are `18 00` = `0x0018`. Release/package stages on
+those two platforms were skipped after Debug failure. The Windows job remained
+**IN PROGRESS** when this receipt was authored; do not infer a pass or failure
+for it from R9.
+
+Positive Kerberos/TLS + active physical logind admission is still **NOT RUN**,
+so positive R3 protected-transition authorization and genuine authorized
+R3->R8 runtime clipboard routing remain **BLOCKED/NOT RUN**. Live X11
+clipboard-manager behavior, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS27, Microsoft-client interoperability and performance/reliability
+acceptance remain **NOT RUN**. M1-M6 remain unaccepted. The next R9 step is to
+consume the now-landed immutable R1 negotiation provenance plus R2
+generation-bound reauthorization once R3 exposes a real protected transition;
+until then, continue independent sanitizer/regression coverage of reachable
+production boundaries without synthetic admission.

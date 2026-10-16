@@ -1,3 +1,37 @@
+## R5 lifecycle validation update and shared CI unblock (2026-10-16; descendant CI pending)
+
+Historical lifecycle workflow `38873727660` attempt 2 completed **SUCCESS**
+at unchanged SHA `45dc57878bcc741a87bd2ba8b9b9edf15588f062`. Linux/GCC Debug and
+Release each passed **289/289** CTests; the previously intermittent
+`x11.desktop-resource-owner-lifecycle` passed in both (**0.07 s** each).
+This confirms the old fixture could pass unchanged and is consistent with the
+last-client Xvfb reset race already reproduced by the R5 bounded probe; it does
+not invalidate the deterministic `-noreset` correction.
+
+Exact R5 implementation `f1718fa601c12e9ff10f9be3bba281acd0a57e90`, Actions
+`38885619241`, concluded **FAIL** before any R5 CTest could run. Linux/GCC,
+macOS/Clang, Windows/MSVC and the R9 sanitizer job all stopped while compiling
+unrelated R8 test source `tests/test_owned_remote_transfer.cpp`: two
+`assert` invocations contained a braced `std::u16string_view{ptr, size}`
+initializer whose comma was parsed as a second macro argument. Documentation
+policy passed. The failure is therefore a shared test-build blocker, not an R5
+runtime/lifecycle failure.
+
+This descendant repair changes only those two R8 test assertions by wrapping
+the complete Boolean expressions in an extra pair of parentheses. Production
+clipboard behavior, R5 X11 production code and ownership are unchanged; the
+existing `clipboard.file-descriptor-metadata-validation` CTest remains the
+behavior-named coverage. No duplicate test is added.
+
+**R5 next production gate remains BLOCKED by R3:** current source contains no
+RDP Share/Input or Fast-Path Input PDU parser/event surface. The only R5 native
+entry remains the existing `X11AuthorizedInputRoute`, which already requires
+the concrete R2 lease, exact R1 owner/GSS provenance and sole R3 session before
+XTEST. Do not invent a second parser/session/input authority. After this shared
+compile repair, exact descendant hosted CI must compile and run the existing R5
+native matrix; owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and live
+Microsoft-client acceptance remain **NOT RUN**.
+
 ## R6 Windows native-adapter CI preflight (2026-10-16; exact-SHA CI pending)
 
 Post-publication validation of R6 implementation

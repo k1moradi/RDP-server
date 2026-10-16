@@ -1,3 +1,28 @@
+## R5 lifecycle rerun result and cross-road compile unblock (2026-10-16)
+
+Historical Actions `38873727660` attempt 2 completed **SUCCESS** at exact SHA
+`45dc57878bcc741a87bd2ba8b9b9edf15588f062`. Ubuntu/GCC ran the same 289-test
+registry in both configurations: Debug **289/289 PASS**, Release **289/289
+PASS**, and `x11.desktop-resource-owner-lifecycle` passed in both at **0.07 s**.
+The result demonstrates intermittency of the old fixture but does not provide
+the missing child `failureReason()` from attempt 1; the deterministic Xvfb
+last-client-reset evidence and `-noreset` fix remain the R5 root-cause basis.
+
+Exact implementation Actions `38885619241` for
+`f1718fa601c12e9ff10f9be3bba281acd0a57e90` never reached CTest. GCC, Clang,
+MSVC and the sanitizer build all rejected the same unrelated R8 test assertions
+in `test_owned_remote_transfer.cpp`: the comma inside
+`std::u16string_view{name.data(), name.size()}` split the function-like
+`assert` macro argument. This descendant test-only correction wraps each full
+expression in parentheses. It changes no production source and reuses the
+existing registered `clipboard.file-descriptor-metadata-validation` behavior.
+
+Canonical owner-local build/CTest is **NOT RUN** in this connector environment.
+The next R5 production increment is also **BLOCKED** until R3 exposes an
+authoritative Share/Input PDU parser/event boundary; repository source has no
+such parser today. Exact descendant hosted CI is the next automated gate for
+the repaired shared build and existing R5 tests.
+
 ## R6 exact-SHA CI triage and focused Windows preflight (2026-10-16)
 
 Actions `38885699857` for implementation SHA

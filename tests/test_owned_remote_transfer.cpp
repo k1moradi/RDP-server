@@ -1631,9 +1631,9 @@ void testFileDescriptorMetadataValidation()
     assert(transfer.remoteFileCount() == 2U);
 
     const auto alpha = transfer.remoteFile(0);
-    assert(alpha &&
-           std::u16string_view{alpha->name.data(), alpha->name.size()} ==
-               u"alpha.txt");
+    assert((alpha &&
+            std::u16string_view{alpha->name.data(), alpha->name.size()} ==
+                u"alpha.txt"));
     assert(alpha->sizeKnown);
     assert(alpha->size == (std::uint64_t{1} << 32U) + 17U);
     assert(!alpha->directory);
@@ -1650,9 +1650,9 @@ void testFileDescriptorMetadataValidation()
     assert(transfer.cancelUnsentFileContentsRequest(highRange->sequence));
 
     const auto folder = transfer.remoteFile(1);
-    assert(folder &&
-           std::u16string_view{folder->name.data(), folder->name.size()} ==
-               u"folder");
+    assert((folder &&
+            std::u16string_view{folder->name.data(), folder->name.size()} ==
+                u"folder"));
     assert(folder->directory);
     assert(!folder->sizeKnown);
     assert(!transfer.beginFileRangeRequest(1, 0, 1, request));

@@ -1,3 +1,26 @@
+## R2 combined-head licensing sanitizer selector repair (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `4ac92d9717d751b62c7268d4fd800ed0210246d8`.
+
+R2 production authorization code is unchanged. Combined-head validation exposed
+a test-harness regression in Actions `38921553485`: the preceding R9 edit
+left `licensing_selection='...` without its terminal `$'`, so Bash exited
+with `unexpected EOF while looking for matching '\''` before the registry
+selection assertions or bounded R1/R3 licensing sanitizer CTests could run.
+
+The same failed workflow independently completed the native R2/R3 GSS sanitizer
+step **27/27 PASS**, including
+`security.gssapi-r3-client-licensing-route-contract`. This is therefore a CI
+selector failure, not a protocol/GSS/CredSSP/NSS/logind/R2 authorization
+failure. The repair restores only the missing regex end anchor and shell quote;
+the new licensing replay tests and all production sources are unchanged.
+
+Exact-publication-SHA hosted matrix and sanitizer evidence is **PENDING**.
+Canonical owner-local `~/rdp-server/build/`, genuine positive
+Kerberos/final-CredSSP + NSS/logind acceptance, and Microsoft-client M2 remain
+**NOT RUN / OPEN**. Per the live roadmap, R2 still must not add a speculative
+server-decision authorization API until R3 exposes that real transition.
+
 ## R9 licensing transition regression and sanitizer selection (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `3a178f60a3a5e6612b9a1c2ef930eb81d8e4c24c`.

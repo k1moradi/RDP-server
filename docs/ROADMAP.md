@@ -613,7 +613,8 @@ actually run; another parser CTest alone is not a complete session.
   No socket array allocation, extra event loop, bind/listen call,
   idle blocking, producer queue, session owner or OS privilege.
   Dedicated `transport.tcp-native-accept-batch-budget-handoff`
-  verifies three real loopback clients, exact budget-limited
+  verifies three sequential real loopback clients (no platform
+  backlog-depth assumption), exact one/two-accept budget-limited
   delivery, true X.224 Confirm using the sole accepted owner, and
   intact listener. `transport.tcp-native-accept-batch-stops-denials`
   covers zero/excessive budget, null sink, invalid descriptor,

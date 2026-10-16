@@ -1751,8 +1751,9 @@ has advanced the underlying stage, and never become premature TLS.
 `transport.tcp-native-accept-batch-stops-denials` are separately
 registered in the one existing preauth executable/CMake registry.
 Use only real ephemeral IPv4 loopback clients and borrowed
-nonblocking listener handles: exercise three queued connections
-with budget-one/two, exact X.224 Confirm under the sole
+nonblocking listener handles: exercise three sequential incoming
+connections with budget-one/two (next client connects only after
+prior accepted socket), exact X.224 Confirm under the sole
 `OwnedPreauthTcpConnection`, no accidental listener close,
 empty-backlog would-block, the difference between exhausted and
 drained, invalid/null callback, zero/oversized budget,

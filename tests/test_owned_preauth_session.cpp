@@ -2427,13 +2427,12 @@ void testNativeTcpAcceptBatchBudgetAndHandoff()
     using Outcome = TcpAcceptBatchOutcome;
     using Interest = TcpConnectionIoInterest;
     LoopbackSocketPair pair{false};
-    // Three connections queued against one EPHEMERAL loopback listener.
-    // The first client is the existing native fixture's connection.
-    assert(::listen(pair.listener.value, 8) == 0);
+    // Exactly three clients, but never require more than one queued at
+    // once: Windows may preserve its original listen backlog limit.
+    // The second arrives after the first handoff; the callback for
+    // that second accepted socket connects the third before returning.
     LocalSocket secondClient{};
     LocalSocket thirdClient{};
-    connectAdditionalLoopbackClient(secondClient, pair.listener.value);
-    connectAdditionalLoopbackClient(thirdClient, pair.listener.value);
 
     NativeTcpIo originalClient{
         static_cast<std::uintptr_t>(pair.client.value)};
@@ -2442,8 +2441,10 @@ void testNativeTcpAcceptBatchBudgetAndHandoff()
     struct HandoffState
     {
         NativeTcpIo &firstClient;
+        LocalSocket &thirdClient;
+        LocalSocketId listener;
         std::size_t transferred{};
-    } state{originalClient};
+    } state{originalClient, thirdClient, pair.listener.value};
     const auto handoff = +[](OwnedNativeTcpSocket accepted,
                              void *context) noexcept -> bool
     {
@@ -2465,6 +2466,14 @@ void testNativeTcpAcceptBatchBudgetAndHandoff()
             assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
             assert(owner.establishedTls() == nullptr);
         }
+        if (state.transferred == 1)
+        {
+            // The second accepted socket is already removed from the
+            // backlog. Queue the third now, so a batch of two still
+            // proves multiple accepts without assuming backlog >= 2.
+            connectAdditionalLoopbackClient(
+                state.thirdClient, state.listener);
+        }
         ++state.transferred;
         owner.cancel();
         assert(!owner.active());
@@ -2477,6 +2486,7 @@ void testNativeTcpAcceptBatchBudgetAndHandoff()
     assert(first.outcome == Outcome::BudgetReached);
     assert(first.accepted == 1 && state.transferred == 1);
     assert(pair.listener.value != kInvalidLocalSocket);
+    connectAdditionalLoopbackClient(secondClient, pair.listener.value);
 
     const auto next = acceptNonblockingTcpBatch(
         static_cast<std::uintptr_t>(pair.listener.value),

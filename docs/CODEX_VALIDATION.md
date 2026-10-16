@@ -4505,8 +4505,9 @@ into a no-throw callback once, return explicit budget/drain/stop/
 failure outcomes and accepted count. Does not bind/listen, poll
 forever, allocate a queue or allow unauthenticated sessions.
 **New dedicated CTests:**
-`transport.tcp-native-accept-batch-budget-handoff` (three queued
-loopback peers, budget and exact first-connection X.224 Confirm)
+`transport.tcp-native-accept-batch-budget-handoff` (three sequential
+loopback peers, bounded budgets and exact X.224 Confirm without
+assuming the OS allows more than one pending connection)
 and `transport.tcp-native-accept-batch-stops-denials` (invalid
 inputs, non-listener failure, callback refusal closes one accepted
 socket, post-progress drain and listener preservation). Reuse
@@ -4543,3 +4544,23 @@ Windows MSYS2 CLANG64 Clang23 and Linux/X11 one-root CTests; real
 CoreGraphics screen reading, ScreenCaptureKit, client input/cursor,
 authenticated OS admission and benchmarks. **Next:** exact-SHA Actions,
 then R4 mixed-scale physical placement and R2/R3-authorized capture.
+
+## R1 backlog-independent portable fixture adjustment (2026-10-15)
+
+**Previous batch-accept commit:** `c3b10eecf9f76d550d09f6601c3095130ff94b95`,
+[Actions run 38848654322](https://github.com/k1moradi/RDP-server/actions/runs/38848654322).
+**PASS:** Linux/GCC **210/210** Debug and Release; macOS/AppleClang
+**195/195** Debug and Release, including both new R1 accept-batch
+tests and downstream SDK CTest. **Windows/MSVC:** Debug compiled
+PASS but CTest remained in progress while fixture required three
+simultaneous pending clients behind a listener initially configured
+with backlog 1; do NOT claim Windows FAIL or PASS without logs.
+**Adjustment:** Preserve three real clients and budget-one/two
+handoff assertions, but connect client two AFTER acceptance of the
+first socket, and connect client three from the callback AFTER
+acceptance of client two; this never assumes any Windows/POSIX
+backlog depth beyond one. No production API/implementation change,
+no broad retry, no suppressed assertions. Corrected exact-SHA hosted
+CI and owner Linux/X11, Windows CLANG64 Clang23 and macOS27
+**NOT RUN at authoring**. R2 authenticated identity/R3 session
+and real Microsoft desktop remain NOT ACCEPTED.

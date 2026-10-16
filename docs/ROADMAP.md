@@ -14445,3 +14445,50 @@ The next functional R5 input-PDU integration remains **BLOCKED** on R3 exposing
 its authoritative authenticated Share/Input or Fast-Path Input translation
 boundary. R5 does not create a parallel parser/session owner. M3 remains
 **OPEN / NOT ACCEPTED**.
+
+
+## R4 capability negotiation sanitizer exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `56fddfcc155a0fea2f0aa98ff19c2013bff308d7`.  
+**Actions:** `38964249811` — **SUCCESS**.
+
+The shared Linux/Clang ASan+UBSan job now builds the existing
+`test_gfx_avc420_capabilities` production-linked executable and executes the
+complete registered `graphics.avc420-capabilities-*` family as an independent
+R4 group. The selector first enumerates the central CTest registry and requires
+`graphics.avc420-capabilities-highest-supported-selection` to be present,
+preventing a missing registration from being mistaken for sanitizer coverage.
+
+Exact sanitizer evidence:
+- **RDPGFX capability negotiation ASan+UBSan:** **4/4 PASS**:
+  `graphics.avc420-capabilities-selection`,
+  `graphics.avc420-capabilities-highest-supported-selection`,
+  `graphics.avc420-capabilities-rejections`, and
+  `graphics.avc420-capabilities-header-bounds`.
+- **R4 x264/BGRA ASan+UBSan:** existing complete `x264` label **20/20 PASS**.
+  No sanitizer suppression or weaker assertion was introduced.
+
+Normal exact-SHA hosted matrix:
+- **Linux/GCC:** Debug **463/463 PASS**, Release **463/463 PASS**; the
+  highest-supported capability regression is test **#231** in both.
+- **macOS/Clang:** Debug **389/389 PASS**, Release **389/389 PASS**; the same
+  regression is test **#216** in both.
+- **Windows/MSVC:** focused native preflight **46/46 PASS** in Debug and
+  Release; full Debug **418/418 PASS**, Release **418/418 PASS**; the same
+  capability regression is test **#216** in both full suites.
+- Installed SDK consumer/package gates PASS on Linux, macOS and Windows.
+  Documentation policy PASS. The dedicated R7 sanitizer job and all remaining
+  configured shared sanitizer/fuzzer groups PASS. Untagged prerelease
+  publication is correctly SKIPPED.
+
+This closes the prior sanitizer-specific **NOT RUN** item for R4 capability
+negotiation. No production wire behavior, codec, scheduler, ACK policy,
+graphics-channel authority or CTest registration changed.
+
+Canonical owner `~/rdp-server/build` validation and owner Linux/X11,
+Windows MSYS2 CLANG64/Clang 23 and macOS 27 commands remain **NOT RUN** in
+this connector environment. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC admission/full-send completion,
+native capture performance and Microsoft-client visible graphics acceptance
+remain **BLOCKED/NOT RUN**. The next R4 production integration gate remains
+that real R3 channel seam; Gate B and M3/M4/M5 remain **OPEN**.

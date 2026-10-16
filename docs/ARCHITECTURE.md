@@ -1,25 +1,3 @@
-### R4 deterministic NV12 input denial without codec reset (2026-10-16)
-
-The existing `X264Avc420Encoder` alone owns the input-plane validation
-used by x264. `canEncodePicture()` is a side-effect-free,
-allocation-free preflight for bound coded geometry, nonzero plane width/row
-count, minimum 8-bit Y/UV stride, x264 `INT_MAX` stride ceiling,
-overflow-safe last-row extent and borrowed `std::span` storage bounds.
-`encode()` invokes the same predicate for direct callers; no validator
-copy or separate x264 state is introduced.
-
-`X264Avc420SegmentedFrameProducer::prepare()` asks this predicate
-after existing presentation generation, surface, metadata and frame-ID
-reservation checks but **before** invoking stateful x264. Malformed NV12
-planes fail without mutating output, ACK accounting or reference history;
-a later fresh valid frame remains eligible for a P-slice. Any failure
-after x264 was actually called or after packetization/publication still
-conservatively reopens the encoder for recovery IDR. The borrowed BGRA
-path converges on the same synchronous NV12 producer and keeps its
-capture and scratch lifetime unchanged. Everything is serialized on the
-existing R4 event thread; this adds neither a graphics scheduler nor
-channel admission.
-
 ### R3 protected Enhanced-Security Client Info route (2026-10-16)
 
 After complete Attach User and Channel Join confirmation, the single R3
@@ -699,7 +677,12 @@ remains revocation-only. There is no automatic recreation on unlock.
 
 The optional `attachCaptureCycle` composes the already-existing frame
 owner/staging map/capture cycle with borrowed callbacks and a revocation
-reader. It does not expose owned D3D interfaces or pixel data to R4.
+reader. It validates the fixed monitor-array count and canonical desktop layout
+before any iteration/native wrapper construction, requires exactly one selected
+output rectangle, and commits staging/capture subordinates transactionally only
+after the cycle is open. A failed attach therefore leaves no partial
+`captureCycle()` installed. It does not expose owned D3D interfaces or pixel
+data to R4.
 All native calls are serialized on the capture owner thread, with no
 callback still in progress during destruction. R4 must synchronously
 consume or copy into independently owned bytes. Ordinary Windows CTests

@@ -1,3 +1,28 @@
+## R6 capture-cycle attach bounds authoring validation (2026-10-16)
+
+Source audit of `WindowsDxgiDuplicationOwner::attachCaptureCycle` found that
+`layout.monitorCount` was consumed as a loop bound before it was checked
+against the fixed 16-entry `WindowsDesktopLayout::monitors` array. The
+subordinate `WindowsDxgiCaptureCycle` had the correct bound check, but it ran
+too late to protect the owner's pre-construction search. Failed subordinate
+construction also remained installed in `captureCycle_`/staging ownership.
+
+The correction validates the monitor count first, canonicalizes the bounded
+span with `makeWindowsDesktopLayout`, requires exact layout equality and one
+selected-output match, then constructs subordinate RAII objects locally and
+commits them only on success. Dedicated behavior test:
+`windows.capture-dxgi-duplication-owner-capture-cycle-layout-denials`.
+Assertions require oversized and non-canonical layouts to return false while
+`captureCycle() == nullptr`, the duplication owner remains ready, and final
+synthetic native-reference teardown is balanced.
+
+Authoring source/ownership review **PASS**. Canonical
+`~/rdp-server/build` compile/CTest **NOT RUN**. Exact-SHA Windows/MSVC
+Debug+Release, full hosted matrix, documentation policy and selected sanitizer
+evidence are **PENDING**. Owner Windows MSYS2 CLANG64/Clang23, live DXGI,
+Microsoft-client M4 and genuine Windows R2/R3 authorization remain
+**NOT RUN/BLOCKED**.
+
 ## R9 Client Info / NLA sanitizer hosted verification (2026-10-16)
 
 Implementation `f59f3e89b02925d6d91a5ce35c312830918c0fe8`, Actions

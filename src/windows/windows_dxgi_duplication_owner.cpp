@@ -281,27 +281,49 @@ bool WindowsDxgiDuplicationOwner::attachCaptureCycle(
     std::uint64_t pinnedSessionEpoch)
 {
     if (!ready() || captureCycle_ || sessionReader.context == nullptr ||
-        sessionReader.read == nullptr || pinnedSessionEpoch == 0)
+        sessionReader.read == nullptr || pinnedSessionEpoch == 0 ||
+        layout.monitorCount == 0 ||
+        layout.monitorCount > layout.monitors.size())
         return false;
-    bool found = false;
+
+    // Validate the bounded fixed-array payload before iterating it or
+    // constructing native wrappers. A stale/corrupt count must never index
+    // beyond monitors, and a non-canonical virtual desktop is not attachable.
+    WindowsDesktopLayout validatedLayout{};
+    if (!makeWindowsDesktopLayout(
+            std::span<const PortableRectangle>{
+                layout.monitors.data(), layout.monitorCount},
+            validatedLayout) ||
+        validatedLayout != layout)
+        return false;
+
+    std::size_t matchingOutputs = 0;
     for (std::size_t index = 0; index < layout.monitorCount; ++index)
-        found = found || layout.monitors[index] == selected_.expectedBounds;
-    if (!found)
+        matchingOutputs += layout.monitors[index] == selected_.expectedBounds;
+    if (matchingOutputs != 1)
         return false;
-    sessionReader_ = sessionReader;
-    pinnedSessionEpoch_ = pinnedSessionEpoch;
-    stagingContext_ = std::make_unique<WindowsD3D11NativeStagingContext>(
+
+    // Keep attachment transactional: a rejected subordinate must not leave a
+    // closed capture cycle/staging context installed and block later recovery.
+    auto stagingContext = std::make_unique<WindowsD3D11NativeStagingContext>(
         *static_cast<ID3D11Device *>(device_),
         *static_cast<ID3D11DeviceContext *>(context_));
-    captureCycle_ = std::make_unique<WindowsDxgiCaptureCycle>(
-        layout, frameCallbacks(), stagingContext_->callbacks(),
+    auto captureCycle = std::make_unique<WindowsDxgiCaptureCycle>(
+        layout, frameCallbacks(), stagingContext->callbacks(),
         WindowsDxgiDamageReadCallbacks{},
         WindowsCaptureGenerationReader{this, &observeGeneration},
         WindowsCaptureGeneration{pinnedSessionEpoch, deviceEpoch_},
         windowsDxgiPointerShapeReadCallbacks(
             *static_cast<IDXGIOutputDuplication *>(duplication_)),
         selected_.expectedBounds);
-    return !captureCycle_->closed();
+    if (captureCycle->closed())
+        return false;
+
+    sessionReader_ = sessionReader;
+    pinnedSessionEpoch_ = pinnedSessionEpoch;
+    stagingContext_ = std::move(stagingContext);
+    captureCycle_ = std::move(captureCycle);
+    return true;
 }
 
 WindowsDxgiCaptureCycle *WindowsDxgiDuplicationOwner::captureCycle() noexcept

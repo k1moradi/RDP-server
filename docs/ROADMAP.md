@@ -1,3 +1,36 @@
+## R6 capture-cycle layout bounds and transactional attach (2026-10-16; exact-SHA CI pending)
+
+Continuing the allowed R6 ownership/error-path audit while genuine Windows
+R2/R3 admission remains absent found an unchecked fixed-array boundary in
+`WindowsDxgiDuplicationOwner::attachCaptureCycle`. The method iterated
+`layout.monitorCount` before proving it was at most
+`kMaximumWindowsDesktopMonitors`; a stale/corrupt count could therefore read
+past `WindowsDesktopLayout::monitors` before the subordinate capture-cycle
+constructor rejected the layout. A non-canonical layout could also construct
+and retain a closed staging/capture subordinate before returning `false`,
+making a failed attach non-transactional.
+
+Attachment now rejects zero/oversized monitor counts before forming a span or
+iterating, rebuilds and compares the canonical desktop layout, requires exactly
+one selected output rectangle, and constructs staging/capture subordinates in
+local RAII owners. Session-reader state and subordinate ownership are committed
+only after the new capture cycle is open. Failed attachment therefore leaves
+the already-open duplication owner ready and retryable with no partial
+`captureCycle()`.
+
+New dedicated Windows CTest
+`windows.capture-dxgi-duplication-owner-capture-cycle-layout-denials` reuses
+the existing production duplication owner and synthetic COM-reference fixture.
+It rejects an oversized monitor count and a matching-output/non-canonical
+virtual desktop, requires no partial capture cycle to remain, then verifies
+ordinary owner teardown releases every synthetic native reference once.
+
+Canonical owner-local CMake/CTest is **NOT RUN** in this connector environment.
+Exact-SHA hosted Windows/MSVC Debug+Release preflight/full matrix is required
+after publication. Owner Windows MSYS2 CLANG64/Clang23 and genuine Windows
+R2/R3 admission remain **NOT RUN/BLOCKED**. No live Desktop Duplication or
+SendInput is exercised; M4 remains OPEN.
+
 ## R9 Client Info / NLA sanitizer exact-SHA hosted receipt (2026-10-16)
 
 **Validated implementation:** `f59f3e89b02925d6d91a5ce35c312830918c0fe8`,

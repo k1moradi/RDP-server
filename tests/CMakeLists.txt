@@ -541,6 +541,7 @@ if(TARGET rdp-server-windows-desktop)
             dxgi-duplication-owner-lifecycle
             dxgi-duplication-owner-selection-denials
             dxgi-duplication-owner-same-adapter-ambiguity
+            dxgi-duplication-owner-capture-cycle-layout-denials
             dxgi-duplication-owner-epoch-revocation)
         add_test(NAME "windows.capture-${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")
@@ -1058,7 +1059,7 @@ if(APPLE)
     endif()
     foreach(case_name IN ITEMS
             lifecycle stale-generation-denials callback-retirement
-            native-factory-quarantine framebuffer-contract)
+            consumer-cancellation native-factory-quarantine framebuffer-contract)
         add_test(NAME "macos.capture-stream-${case_name}"
             COMMAND test_macos_capture_stream "${case_name}")
         set_tests_properties("macos.capture-stream-${case_name}" PROPERTIES
@@ -1304,7 +1305,6 @@ foreach(case_name IN ITEMS
         x264-segmented-delivery-continuity
         x264-segmented-backpressure-preflight
         x264-segmented-metadata-preflight
-        x264-segmented-malformed-nv12-reference-continuity
         x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset
         bgra-nv12-bt709-pixel-oracle

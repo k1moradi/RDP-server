@@ -178,6 +178,13 @@ struct FakeDxgiBackend
 };
 constexpr WindowsDxgiTarget selectedTarget{
     1234, {-1920, 0, 1920, 1080}};
+
+bool readGeneration(
+    void *, WindowsCaptureGeneration &generation) noexcept
+{
+    generation = {41, 73};
+    return true;
+}
 } // namespace
 
 void windowsDxgiDuplicationOwnerLifecycle()
@@ -295,6 +302,34 @@ void windowsDxgiDuplicationOwnerSameAdapterAmbiguity()
     assert(backend.outputs[1][0].releases == 1);
     assert(backend.outputs[1][1].releases == 1);
     assert(backend.adapters[1].releases == 1);
+}
+
+void windowsDxgiDuplicationOwnerCaptureCycleLayoutDenials()
+{
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(backend.callbacks());
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+
+    int readerContext = 0;
+    const WindowsCaptureGenerationReader reader{&readerContext, &readGeneration};
+
+    // The fixed monitor array must be bounded before any iteration.
+    WindowsDesktopLayout oversized{};
+    oversized.monitorCount = kMaximumWindowsDesktopMonitors + 1;
+    assert(!owner.attachCaptureCycle(oversized, reader, 41));
+    assert(owner.captureCycle() == nullptr && owner.ready());
+
+    // A matching monitor inside a non-canonical virtual desktop must fail
+    // before native wrappers are installed, leaving the owner retryable.
+    WindowsDesktopLayout nonCanonical{};
+    nonCanonical.monitorCount = 1;
+    nonCanonical.monitors[0] = selectedTarget.expectedBounds;
+    nonCanonical.virtualBounds = {-1920, 0, 1919, 1080};
+    assert(!owner.attachCaptureCycle(nonCanonical, reader, 41));
+    assert(owner.captureCycle() == nullptr && owner.ready());
+
+    owner.close();
+    backend.assertReleased();
 }
 
 void windowsDxgiDuplicationOwnerEpochRevocation()

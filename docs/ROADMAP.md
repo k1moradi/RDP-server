@@ -3029,6 +3029,23 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   one TLS writer remain external, and media/OS paste acceptance
   is NOT RUN. At authoring full exact-SHA CI and owner-machine CTests
   NOT RUN; next bridge the R3 authorized writer and verify bytes.
+  **R8 outbound request exact-code validation (2026-10-16):**
+  implementation `22915cee335df7d82149728543866f45db7bc8aa`
+  is an ancestor of verified [Actions run 38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646)
+  on `a0c39e4a612c740949c05e4a9699f711061c21d0`.
+  The initial implementation-SHA CI run 38850425244 had **zero jobs**
+  because a concurrent shared workflow edit duplicated YAML jobs; R10
+  repaired that in `4d24b8b3b9857370fef8608cf7d7782f644df3ea`.
+  A further unrelated R10 test fixture used an unsupported CMake
+  permission token, fixed in `a0c39e4a612c740949c05e4a9699f711061c21d0`.
+  On the corrected descendant SHA: **PASS** Linux/GCC 226/226,
+  macOS/Clang 209/209 and Windows/MSVC 228/228 CTests in both
+  Debug and Release, both new R8 joined-request tests on every
+  platform, 15/15 sanitizer clipboard tests, and docs policy.
+  Owner-operated Linux/X11, Windows MSYS2 CLANG64/Clang23,
+  macOS27 and live authenticated clipboard/Firefox PNG File paste
+  remain **NOT RUN**. Next: R3's genuinely authorized single TLS
+  writer and receipt handoff, then validated media byte readiness.
 - [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
   after a *legitimate client Format List* for generation N, prioritize
   `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),

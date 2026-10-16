@@ -315,6 +315,40 @@ admission, R3 writer integration, clipboard bytes validation,
 native paste/Firefox PNG File and performance. Follow-up requires
 authorized R3 write-hand-off and payload-readiness adapter boundary.
 
+## R8 joined-request exact-code CI verification (2026-10-16)
+
+**R8 production SHA:** `22915cee335df7d82149728543866f45db7bc8aa`.
+Its initial [workflow #38850425244](https://github.com/k1moradi/RDP-server/actions/runs/38850425244)
+failed during workflow parsing with zero jobs, because a concurrent
+workflow edit contained duplicate job IDs. R10 restored valid CI YAML
+at `4d24b8b3b9857370fef8608cf7d7782f644df3ea`. The first
+repaired run exposed a separate R10 regression:
+`runtime.validates-configuration-mode-normalization` used invalid
+CMake `OTHERS_WRITE`; R10 corrected it at
+`a0c39e4a612c740949c05e4a9699f711061c21d0`.
+
+**Verified complete hosted run:**
+[Actions #38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646),
+on code-equivalent descendant
+`a0c39e4a612c740949c05e4a9699f711061c21d0`.
+Linux/GCC **226/226** Debug and Release PASS; macOS/Clang
+**209/209** Debug and Release PASS; Windows/MSVC
+**228/228** Debug and Release PASS.
+Both `clipboard.format-data-request-joined-mcs-envelope` and
+`clipboard.format-data-request-generation-cancellation` PASS on
+all platforms/configurations. R9's Clang sanitizer job:
+**15/15** clipboard CTests plus **10/10** bounded security CTests PASS.
+Documentation-policy and downstream packaging stages PASS;
+prerelease publication SKIPPED without an authorized tag.
+
+**NOT RUN:** the owner's exact Linux/X11, Windows MSYS2 CLANG64
+Clang 23 and macOS27 full CTests; real TLS/NLA/OS session
+admission and R3 writer integration; any native clipboard
+ownership, Firefox PNG File paste, real-client interoperability,
+bounded Unicode/PNG media readiness or performance benchmarks.
+The corrected CI SHA is a descendant of the R8 implementation
+SHA, not the original zero-job Actions attempt.
+
 ## Local validation (one reused build root)
 
 ```sh

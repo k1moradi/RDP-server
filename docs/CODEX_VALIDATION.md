@@ -1,3 +1,34 @@
+## R4 BGRA-to-NV12 production boundary authoring (2026-10-16)
+
+**Inspected starting main:** `b348e2708a9870b69c7e099302357a4a65cef0e5`.
+**Changed production:** new bounded `src/rdp/bgra_nv12_converter.{h,cpp}`,
+modified `src/rdp/x264_avc420_segmented_frame_producer.{h,cpp}` and
+`CMakeLists.txt`, retaining existing x264, lifecycle and wire owners.
+**Tests:** extended `tests/test_x264_avc420_segmented_frame_producer.cpp`
+and central `tests/CMakeLists.txt` with five dedicated production-backed
+BGRA/NV12 and encoded segmented-frame cases named in ROADMAP.
+
+**Baseline CI inspected:** workflow
+[38881366561](https://github.com/k1moradi/RDP-server/actions/runs/38881366561)
+at `6cdfab6e45126baa67cc277339443b8a223b42a2` **FAIL** (Windows R6
+cursor assertion and R10 OpenSSL AppLink tests); workflow
+[38882596797](https://github.com/k1moradi/RDP-server/actions/runs/38882596797)
+at `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334` **FAIL** with the same
+Windows R6/R10 failures; workflow
+[38883477072](https://github.com/k1moradi/RDP-server/actions/runs/38883477072)
+at `20dd5e7de5b90ec4a5ae52a43144549203d88459` **FAIL** at R8
+`test_owned_remote_transfer.cpp` assert-macro compilation. No demonstrated
+R4-owned baseline regression was identified.
+
+**Canonical owner validation command (NOT RUN in this environment):**
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`.
+The local checkout and DNS Git transport are unavailable to this session;
+no compiler, CTest, sanitizer, native desktop or owner-machine pass is claimed.
+Hosted final-SHA Linux/GCC, Windows/MSVC, macOS/Clang, R9 sanitizer,
+documentation-policy and downstream SDK evidence remains **NOT RUN** until
+post-publication. Gate B/M3/M4/M5 and authenticated client graphics remain
+**OPEN**.
+
 ## R2 HYBRID provenance descendant validation receipt (2026-10-16)
 
 R2 implementation `2fb5ed5a832c97241d236813599b6d1e8efef985` and its downstream

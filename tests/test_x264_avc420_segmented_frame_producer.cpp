@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -276,6 +277,291 @@ void abortAndGenerationReset()
         lifecycle, aborted, aborted.wireBytes().size()));
 }
 
+
+struct BgraFrame final
+{
+    PixelSize visible{};
+    std::size_t stride{};
+    std::vector<std::byte> pixels{};
+
+    [[nodiscard]] FramebufferView view() const noexcept
+    {
+        return {pixels, visible.widthPixels, visible.heightPixels, stride};
+    }
+
+    void paint(std::uint32_t column, std::uint32_t row,
+               std::uint8_t red, std::uint8_t green,
+               std::uint8_t blue, std::uint8_t alpha) noexcept
+    {
+        const std::size_t at =
+            static_cast<std::size_t>(row) * stride +
+            static_cast<std::size_t>(column) * 4U;
+        pixels[at] = static_cast<std::byte>(blue);
+        pixels[at + 1U] = static_cast<std::byte>(green);
+        pixels[at + 2U] = static_cast<std::byte>(red);
+        pixels[at + 3U] = static_cast<std::byte>(alpha);
+    }
+
+    void solid(std::uint8_t red, std::uint8_t green,
+               std::uint8_t blue, std::uint8_t alpha) noexcept
+    {
+        for (std::uint32_t row = 0; row < visible.heightPixels; ++row)
+            for (std::uint32_t column = 0; column < visible.widthPixels;
+                 ++column)
+                paint(column, row, red, green, blue, alpha);
+    }
+};
+
+BgraFrame makeBgraFrame(PixelSize visible, std::size_t rowPadding = 0)
+{
+    const std::size_t stride =
+        static_cast<std::size_t>(visible.widthPixels) * 4U + rowPadding;
+    BgraFrame frame{visible, stride,
+                    std::vector<std::byte>(
+                        stride * visible.heightPixels, std::byte{0xA5})};
+    frame.solid(0, 0, 0, 0);
+    return frame;
+}
+
+X264BgraFrameRequest bgraRequest(std::uint32_t frameId,
+                                 const BgraFrame &frame,
+                                 std::int64_t pts) noexcept
+{
+    return {7, frameId, frame.view(), pts, kRegions, kQuality};
+}
+
+void bgraBt709PixelOracle()
+{
+    BgraNv12Converter converter;
+    auto input = makeBgraFrame({2, 2});
+    constexpr PixelSize visible{2, 2};
+    constexpr PixelSize coded{16, 16};
+
+    // Independently tabulated Q16 full-range BT.709 primary oracles.
+    struct Expected final
+    {
+        std::uint8_t red;
+        std::uint8_t green;
+        std::uint8_t blue;
+        std::uint8_t y;
+        std::uint8_t u;
+        std::uint8_t v;
+    };
+    constexpr std::array<Expected, 6> colors{{
+        {0, 0, 0, 0, 128, 128},
+        {255, 255, 255, 255, 128, 128},
+        {255, 0, 0, 54, 99, 255},
+        {0, 255, 0, 182, 30, 12},
+        {0, 0, 255, 18, 255, 116},
+        {128, 64, 32, 75, 105, 161},
+    }};
+    for (const auto expected : colors)
+    {
+        input.solid(expected.red, expected.green, expected.blue, 0);
+        assert(converter.convert(input.view(), visible, coded, 9));
+        const auto result = converter.picture();
+        assert(result.codedGeometry == coded && result.pts == 9);
+        assert(result.yStrideBytes == 16 && result.uvStrideBytes == 16);
+        assert(result.yPlane.size() == 256 && result.uvPlane.size() == 128);
+        assert(result.yPlane[0] == static_cast<std::byte>(expected.y));
+        assert(result.yPlane[17] == static_cast<std::byte>(expected.y));
+        assert(result.yPlane[255] == static_cast<std::byte>(expected.y));
+        assert(result.uvPlane[0] == static_cast<std::byte>(expected.u));
+        assert(result.uvPlane[1] == static_cast<std::byte>(expected.v));
+
+        // Alpha is ignored, including fully transparent vs opaque desktop.
+        input.solid(expected.red, expected.green, expected.blue, 255);
+        assert(converter.convert(input.view(), visible, coded, 9));
+        assert(converter.picture().yPlane[0] ==
+               static_cast<std::byte>(expected.y));
+        assert(converter.picture().uvPlane[0] ==
+               static_cast<std::byte>(expected.u));
+    }
+
+    input.paint(0, 0, 255, 0, 0, 0);
+    input.paint(1, 0, 0, 255, 0, 64);
+    input.paint(0, 1, 0, 0, 255, 128);
+    input.paint(1, 1, 255, 255, 255, 255);
+    assert(converter.convert(input.view(), visible, coded, 10));
+    const auto result = converter.picture();
+    assert(result.yPlane[0] == std::byte{54});
+    assert(result.yPlane[1] == std::byte{182});
+    assert(result.yPlane[16] == std::byte{18});
+    assert(result.yPlane[17] == std::byte{255});
+    // Mean RGB of the 2x2 block is neutral 128,128,128.
+    assert(result.uvPlane[0] == std::byte{128});
+    assert(result.uvPlane[1] == std::byte{128});
+}
+
+void bgraStridePaddingLifetime()
+{
+    BgraNv12Converter converter;
+    constexpr PixelSize visible{18, 18};
+    constexpr PixelSize coded{32, 32};
+    auto input = makeBgraFrame(visible, 11);
+    input.paint(0, 0, 0, 0, 255, 0);
+    input.paint(17, 17, 255, 0, 0, 0);
+    assert(converter.convert(input.view(), visible, coded, 30));
+    const auto picture = converter.picture();
+    assert(picture.yStrideBytes == 32 && picture.uvStrideBytes == 32);
+    assert(picture.yPlane.size() == 1024 && picture.uvPlane.size() == 512);
+    assert(picture.yPlane[0] == std::byte{18});
+    assert(picture.yPlane[31U * 32U + 31U] == std::byte{54});
+    const std::size_t bottomChroma = 15U * 32U + 30U;
+    assert(picture.uvPlane[bottomChroma] == std::byte{99});
+    assert(picture.uvPlane[bottomChroma + 1U] == std::byte{255});
+    const auto *const originalStorage = picture.yPlane.data();
+    const std::size_t originalCapacity = converter.capacityBytes();
+
+    // A native owner may unmap/free its capture immediately after convert.
+    input.pixels.clear();
+    input.pixels.shrink_to_fit();
+    assert(converter.picture().yPlane[0] == std::byte{18});
+    assert(converter.picture().yPlane[31U * 32U + 31U] == std::byte{54});
+
+    auto next = makeBgraFrame(visible, 3);
+    next.solid(0, 255, 0, 255);
+    assert(converter.convert(next.view(), visible, coded, 31));
+    assert(converter.capacityBytes() == originalCapacity);
+    assert(converter.picture().yPlane.data() == originalStorage);
+    assert(converter.picture().yPlane[0] == std::byte{182});
+    assert(converter.picture().yPlane.back() == std::byte{182});
+    assert(converter.picture().uvPlane.back() == std::byte{12});
+}
+
+void bgraInvalidFrameDenials()
+{
+    BgraNv12Converter converter;
+    auto input = makeBgraFrame({2, 2});
+    constexpr PixelSize visible{2, 2};
+    constexpr PixelSize coded{16, 16};
+    assert(converter.convert(input.view(), visible, coded, 0));
+
+    auto reject = [&](FramebufferView invalid,
+                      PixelSize invalidVisible = PixelSize{2, 2},
+                      PixelSize invalidCoded = PixelSize{16, 16})
+    {
+        assert(!converter.convert(invalid, invalidVisible,
+                                  invalidCoded, 0));
+        assert(converter.picture().yPlane.empty());
+        assert(converter.picture().uvPlane.empty());
+    };
+
+    reject({input.pixels, 0, 2, 8});
+    reject({input.pixels, 2, 0, 8});
+    reject({input.pixels, 2, 2, 7});
+    reject({std::span<const std::byte>(input.pixels).first(15), 2, 2, 8});
+    reject({input.pixels, 2, 2,
+            std::numeric_limits<std::size_t>::max()});
+    reject(input.view(), {3, 2}, coded);
+    reject(input.view(), {2, 3}, coded);
+    reject(input.view(), visible, {32, 16});
+    reject(input.view(), {65520, 65520}, {65520, 65520});
+
+    // Reinterpret converter-owned luma as a source to prove overlap denial.
+    assert(converter.convert(input.view(), visible, coded, 1));
+    const auto published = converter.picture();
+    reject({published.yPlane.first(16), 2, 2, 8});
+    assert(converter.convert(input.view(), visible, coded, 2));
+    assert(!converter.picture().yPlane.empty());
+}
+
+void x264BgraSegmentedProductionChain()
+{
+    GfxPresentationLifecycle lifecycle;
+    constexpr std::uint64_t generation = 6001;
+    mapSurface(lifecycle, generation, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+    auto firstPixels = makeBgraFrame(kVisible, 9);
+    firstPixels.solid(64, 128, 192, 0);
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepareBgra(
+        lifecycle, generation, bgraRequest(1, firstPixels, 0), first));
+    assert(first.valid() && first.wireBytes().size() > 64U);
+    assert(first.wireBytes()[0] == std::byte{0xE0});
+    assert(first.wireBytes()[1] == std::byte{0x04});
+    assert(hasNalType(first.wireBytes(), 7));
+    assert(hasNalType(first.wireBytes(), 8));
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(lifecycle.outstandingFrames() == 0);
+    assert(!producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size() - 1U));
+    assert(lifecycle.outstandingFrames() == 0);
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    assert(lifecycle.outstandingFrames() == 1);
+    GfxFrameAckWindowResult acknowledgment{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(1), acknowledgment));
+    assert(acknowledgment == GfxFrameAckWindowResult::Acknowledged);
+
+    auto nextPixels = makeBgraFrame(kVisible, 5);
+    nextPixels.solid(65, 128, 191, 255);
+    GfxAvc420SegmentedFrame second;
+    assert(producer.prepareBgra(
+        lifecycle, generation, bgraRequest(2, nextPixels, 1), second));
+    assert(hasNalType(second.wireBytes(), 1));
+    assert(!hasNalType(second.wireBytes(), 5));
+    GfxAvc420SegmentedFrame stale;
+    assert(!producer.prepareBgra(
+        lifecycle, generation - 1U,
+        bgraRequest(3, nextPixels, 2), stale));
+    assert(producer.abortDelivery(lifecycle, second));
+    assert(!producer.valid());
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+    assert(!producer.prepareBgra(
+        lifecycle, generation, bgraRequest(3, nextPixels, 2), stale));
+}
+
+void x264BgraBackpressureReferenceDenials()
+{
+    GfxPresentationLifecycle lifecycle;
+    constexpr std::uint64_t generation = 6002;
+    mapSurface(lifecycle, generation, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+    auto pixels = makeBgraFrame(kVisible);
+    pixels.solid(70, 90, 110, 0);
+
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepareBgra(
+        lifecycle, generation, bgraRequest(4, pixels, 0), first));
+    GfxAvc420SegmentedFrame denied;
+    assert(!producer.prepareBgra(
+        lifecycle, generation, bgraRequest(5, pixels, 1), denied));
+    assert(!denied.valid());
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    GfxFrameAckWindowResult acknowledgment{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(4), acknowledgment));
+    assert(acknowledgment == GfxFrameAckWindowResult::Acknowledged);
+
+    const std::array<GfxAvc420QuantQuality, 1> malformedQuality{{{52, 80}}};
+    auto badMetadata = bgraRequest(5, pixels, 1);
+    badMetadata.quantQualities = malformedQuality;
+    assert(!producer.prepareBgra(
+        lifecycle, generation, badMetadata, denied));
+    auto badSource = bgraRequest(5, pixels, 1);
+    badSource.framebuffer.strideBytes = 2;
+    assert(!producer.prepareBgra(
+        lifecycle, generation, badSource, denied));
+    badSource = bgraRequest(5, pixels, 1);
+    badSource.framebuffer.pixels =
+        badSource.framebuffer.pixels.first(4);
+    assert(!producer.prepareBgra(
+        lifecycle, generation, badSource, denied));
+    assert(producer.valid() && lifecycle.canSubmitFrame(generation));
+
+    pixels.solid(72, 91, 112, 255);
+    GfxAvc420SegmentedFrame second;
+    assert(producer.prepareBgra(
+        lifecycle, generation, bgraRequest(5, pixels, 1), second));
+    assert(hasNalType(second.wireBytes(), 1));
+    assert(!hasNalType(second.wireBytes(), 5));
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -301,6 +587,31 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-abort-generation-reset")
     {
         abortAndGenerationReset();
+        return 0;
+    }
+    if (behavior == "bgra-nv12-bt709-pixel-oracle")
+    {
+        bgraBt709PixelOracle();
+        return 0;
+    }
+    if (behavior == "bgra-nv12-stride-padding-lifetime")
+    {
+        bgraStridePaddingLifetime();
+        return 0;
+    }
+    if (behavior == "bgra-nv12-invalid-frame-denials")
+    {
+        bgraInvalidFrameDenials();
+        return 0;
+    }
+    if (behavior == "x264-bgra-segmented-production-chain")
+    {
+        x264BgraSegmentedProductionChain();
+        return 0;
+    }
+    if (behavior == "x264-bgra-backpressure-reference-denials")
+    {
+        x264BgraBackpressureReferenceDenials();
         return 0;
     }
     return 2;

@@ -1,3 +1,45 @@
+### R4 borrowed BGRA framebuffer to owned x264 NV12 input (2026-10-16)
+
+The noninstalled `rdp-server-graphics` target now owns
+`BgraNv12Converter`, a single-threaded synchronous bridge from a complete
+first-party native `FramebufferView` to `X264Nv12PictureView`. R5/XShm,
+R6/DXGI and R7/CoreVideo retain all platform resources. R4 never retains
+capture pointers or carries a view across native unmap, callback, event or
+resize. The producer embeds reusable contiguous scratch; the Y and
+interleaved UV spans are valid only until the next conversion/reset and
+are read synchronously by its existing x264 `prepare()` path.
+
+Visible dimensions must be nonzero, even, exactly equal to capture width
+and height and compatible with `gfxAvc420CodedGeometry()`. Source pitch
+must be at least width * 4 with complete pitched rows, checked size arithmetic
+and no overlap with scratch. Current coded dimensions remain 16-aligned
+and both packed NV12 planes are limited to a total 64 MiB; input rows and
+plane offsets are checked before reading or writing. The output uses
+Y stride = UV stride = coded width; each plane is exactly sized, with
+no exposed row padding. Scratch reallocates only when coded byte size
+changes, never inside the pixel loop, and is logically invalid after any
+failed conversion.
+
+BGRA/XRGB bytes are interpreted B,G,R,ignored-alpha (neither blending nor
+premultiplication). Reference scalar full-range BT.709 integer coefficients
+are Q16: Y=(13933R+46871G+4732B)/65536,
+Cb=128+(-7509R-25259G+32768B)/65536,
+Cr=128+(32768R-29763G-3005B)/65536. Signed division rounds to the nearest
+integer with ties away from zero; channels clamp to 0..255. Each NV12 2x2
+chroma block averages its four edge-clamped RGB pixels first using
+(sum+2)/4, then applies Cb/Cr. Right/bottom coded margins replicate the
+nearest visible pixel before luma/chroma conversion. No resize, scaling
+or multi-monitor composition occurs.
+
+`X264Avc420SegmentedFrameProducer::prepareBgra()` preflights generation,
+surface, AVC420 envelope and `GfxPresentationLifecycle::canSubmitFrame()`
+before conversion, then borrows scratch only for the existing synchronous
+`prepare()`. This preserves the single encoder reference chain and
+transactional full-wire delivery receipt: pre-encode rejection does not
+advance codec/ACK, post-encode publication denial rebuilds IDR, and terminal
+partial abort invalidates generation and encoder history. A converter never
+creates an authorized graphics channel or client-visible desktop.
+
 ### R1-owned CredSSP plaintext transport boundary (2026-10-16)
 
 CredSSP framing may inspect the same established server SSL for immutable

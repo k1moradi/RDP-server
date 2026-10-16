@@ -374,6 +374,7 @@ if(NOT WIN32)
 endif()
 
 add_library(rdp-server-graphics STATIC
+    src/rdp/bgra_nv12_converter.cpp
     src/rdp/x264_avc420_encoder.cpp
     src/rdp/x264_avc420_segmented_frame_producer.cpp)
 target_compile_features(rdp-server-graphics PUBLIC cxx_std_23)

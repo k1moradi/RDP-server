@@ -1271,7 +1271,12 @@ foreach(case_name IN ITEMS
         x264-segmented-delivery-continuity
         x264-segmented-backpressure-preflight
         x264-segmented-metadata-preflight
-        x264-segmented-abort-generation-reset)
+        x264-segmented-abort-generation-reset
+        bgra-nv12-bt709-pixel-oracle
+        bgra-nv12-stride-padding-lifetime
+        bgra-nv12-invalid-frame-denials
+        x264-bgra-segmented-production-chain
+        x264-bgra-backpressure-reference-denials)
     add_test(NAME "graphics.${case_name}"
         COMMAND test_x264_avc420_segmented_frame_producer "${case_name}")
     set_tests_properties("graphics.${case_name}" PROPERTIES

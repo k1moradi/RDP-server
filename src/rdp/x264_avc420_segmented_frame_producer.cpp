@@ -23,6 +23,7 @@ bool X264Avc420SegmentedFrameProducer::open(
 void X264Avc420SegmentedFrameProducer::reset() noexcept
 {
     encoder_.reset();
+    bgraConverter_.reset();
     generation_ = 0;
     codedGeometry_ = {};
     visibleGeometry_ = {};
@@ -126,6 +127,44 @@ bool X264Avc420SegmentedFrameProducer::prepare(
 
     output = std::move(candidate);
     return true;
+}
+
+bool X264Avc420SegmentedFrameProducer::prepareBgra(
+    GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
+    const X264BgraFrameRequest &request,
+    GfxAvc420SegmentedFrame &output) noexcept
+{
+    const GfxAvc420Picture metadata{
+        request.surfaceId,
+        request.frameId,
+        codedGeometry_,
+        request.regions,
+        request.quantQualities,
+        {},
+        visibleGeometry_,
+    };
+
+    // All deterministic pre-encode denial gates precede BGRA conversion.
+    // In particular, a refused in-flight/ACK-window frame never wastes a
+    // conversion or changes x264's reference chain.
+    if (!valid() || generation != generation_ ||
+        request.surfaceId != lifecycle.surfaceId() ||
+        !gfxAvc420PictureMetadataValid(metadata) ||
+        !lifecycle.canSubmitFrame(generation))
+        return false;
+
+    if (!bgraConverter_.convert(request.framebuffer, visibleGeometry_,
+                                codedGeometry_, request.pts))
+        return false;
+
+    const X264Avc420FrameRequest converted{
+        request.surfaceId,
+        request.frameId,
+        bgraConverter_.picture(),
+        request.regions,
+        request.quantQualities,
+    };
+    return prepare(lifecycle, generation, converted, output);
 }
 
 bool X264Avc420SegmentedFrameProducer::completeDelivery(

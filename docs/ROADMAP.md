@@ -1,3 +1,57 @@
+## R4 bounded desktop BGRA to AVC420 NV12 boundary (2026-10-16; CI NOT RUN)
+
+Starting inspected shared `main`: `b348e2708a9870b69c7e099302357a4a65cef0e5`.
+The next missing R4 format boundary is implemented under the existing noninstalled
+`rdp-server-graphics` target as `BgraNv12Converter` and
+`X264Avc420SegmentedFrameProducer::prepareBgra()`. No R1 transport,
+R2 admission, R3 DVC, R5/R6/R7 capture owner, scheduler, listener or
+second encoder is introduced. The capture view is borrowed only during the
+synchronous call; R4 retains reusable, contiguous, bounded NV12 bytes.
+
+**Input/codec policy:** exact complete visible BGRA/XRGB frame, even nonzero
+visible geometry, checked 4-byte pixels, full row stride and full row bytes,
+no source/scratch overlap; reject any mismatch to
+`gfxAvc420CodedGeometry()` or the x264 64 MiB NV12 limit before touching
+output. RGB ignores alpha. Scalar Q16 full-range BT.709 Y/Cb/Cr uses signed
+nearest-integer rounding, ties away from zero, and 8-bit clamp. Averages each
+2x2 RGB block before chroma conversion and edge-replicates right/bottom
+pixels into aligned 16x16 coded margins. Y and UV strides equal coded width,
+with no uninitialized padding and no resize/compositing.
+
+**Publication/continuity:** one same-generation coded/visible and surface
+preflight checks `gfxAvc420PictureMetadataValid()` and
+`canSubmitFrame()` before conversion. The current producer is still the
+only x264 reference owner; invalid BGRA and ordinary backpressure leave
+references untouched, successful full delivery permits P slices, failed
+post-encode publication rebuilds IDR state, and terminal abort drops
+generation and encoder history. Only R3's genuine complete wire-delivery
+receipt advances the existing ACK owner.
+
+**Dedicated offline behavior CTests (added to existing x264 segmented
+producer executable):**
+`graphics.bgra-nv12-bt709-pixel-oracle`,
+`graphics.bgra-nv12-stride-padding-lifetime`,
+`graphics.bgra-nv12-invalid-frame-denials`,
+`graphics.x264-bgra-segmented-production-chain`, and
+`graphics.x264-bgra-backpressure-reference-denials`.
+
+**Validation:** source and centralized CTest registration authored;
+owner's canonical `~/rdp-server/build` configure/build/full CTest **NOT RUN**
+because this session cannot access that checkout or execute hosted tooling
+directly. Initial exact-SHA R4 historical Actions
+[38881366561](https://github.com/k1moradi/RDP-server/actions/runs/38881366561),
+[38882596797](https://github.com/k1moradi/RDP-server/actions/runs/38882596797)
+and [38883477072](https://github.com/k1moradi/RDP-server/actions/runs/38883477072)
+all concluded **FAIL** due to R6/R10 Windows tests or R8 clipboard
+assert-macro compilation, rather than a confirmed R4 regression. The new
+change requires *its own* exact-final-SHA Linux/GCC, Windows/MSVC, macOS/Clang,
+sanitizer, documentation-policy and downstream SDK checks after publication.
+
+**Next gate:** run/reconcile final-SHA hosted CI and owner's Linux/X11,
+Windows MSYS2 CLANG64/Clang23, and macOS 27 validations. Real authenticated
+R3 Graphics DVC/full-send integration, native capture-driven scheduling,
+Microsoft-client display, Gate B and M3/M4/M5 acceptance remain **OPEN**.
+
 ## R2 HYBRID provenance descendant validation receipt (2026-10-16)
 
 R2 implementation `2fb5ed5a832c97241d236813599b6d1e8efef985` and its downstream

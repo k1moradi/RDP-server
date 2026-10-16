@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <span>
 
+#include "bgra_nv12_converter.h"
 #include "gfx_avc420_picture.h"
 #include "gfx_avc420_segmented_frame.h"
 #include "x264_avc420_encoder.h"
@@ -17,6 +18,16 @@ struct X264Avc420FrameRequest final
     std::uint16_t surfaceId{};
     std::uint32_t frameId{};
     X264Nv12PictureView picture{};
+    std::span<const Rectangle> regions{};
+    std::span<const GfxAvc420QuantQuality> quantQualities{};
+};
+
+struct X264BgraFrameRequest final
+{
+    std::uint16_t surfaceId{};
+    std::uint32_t frameId{};
+    FramebufferView framebuffer{};
+    std::int64_t pts{};
     std::span<const Rectangle> regions{};
     std::span<const GfxAvc420QuantQuality> quantQualities{};
 };
@@ -60,6 +71,14 @@ public:
         const X264Avc420FrameRequest &request,
         GfxAvc420SegmentedFrame &output) noexcept;
 
+    // Consume a complete synchronously borrowed BGRA/XRGB desktop frame.
+    // Reject envelope/lifecycle denials before converting. The R4-owned NV12
+    // scratch is borrowed only by this producer's synchronous prepare().
+    [[nodiscard]] bool prepareBgra(
+        GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
+        const X264BgraFrameRequest &request,
+        GfxAvc420SegmentedFrame &output) noexcept;
+
     // R3 calls this only after the full owned outer wire span was delivered.
     [[nodiscard]] bool completeDelivery(
         GfxPresentationLifecycle &lifecycle,
@@ -76,6 +95,7 @@ private:
     [[nodiscard]] bool rebuildEncoder() noexcept;
 
     X264Avc420Encoder encoder_{};
+    BgraNv12Converter bgraConverter_{};
     std::uint64_t generation_{};
     PixelSize codedGeometry_{};
     PixelSize visibleGeometry_{};

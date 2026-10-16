@@ -4126,3 +4126,30 @@ Agent's local environment lacks Win32 compilation and GitHub
 checkout DNS. No DACL, intermediate-reparse or TLS key-permission
 acceptance is claimed; M1–M6 remain open.
 **Next:** exact-SHA CI, then Windows DACL permission-policy gates.
+
+## R9 exact-commit MCS/CLIPRDR mutation CI verification (2026-10-15)
+
+**Implementation SHA:** `4eb24cd9312e1d3e133811a8c3a9151cebab4501`.
+[GitHub Actions run 38844672159](https://github.com/k1moradi/RDP-server/actions/runs/38844672159), exact head SHA
+matched implementation and overall **completed SUCCESS**.
+Hosted Linux/GCC **202/202** Debug and **202/202** Release CTests;
+macOS/Clang **188/188** Debug and **188/188** Release;
+Windows/MSVC **192/192** Debug and **192/192** Release.
+New dedicated `clipboard.mcs-cliprdr-length-mutation-denials`
+passed in all six CTest runs; no test was bypassed for the
+R9 increment. Documentation-policy PASS. One reused CI
+`build/` per runner; staged SDK install, downstream consumer
+CTest and ZIP/SHA256 uploaded artifacts PASS.
+Prerelease job SKIPPED because this was not a release tag.
+
+**First failing boundary:** none on this exact implementation SHA
+for the hosted build/CTest matrix. **NOT RUN:** direct
+`~/rdp-server/build` local compile/full CTest and ASan/UBSan
+in this execution runner (GitHub DNS unresolvable for clone),
+owner three-platform same-SHA tests with specified
+Windows MSYS2 CLANG64 Clang23/macOS27, real authenticated
+Kerberos/NLA + OS account admission, live Microsoft-client
+RDP session, clipboard/desktop or fuzzer infrastructure.
+No M1–M6 milestone is promoted by this synthetic security test.
+**Next:** R9 adds sanitizer/fuzzing receipts and verifies actual
+R3→R8 authorized channel routing when the sole session owner exists.

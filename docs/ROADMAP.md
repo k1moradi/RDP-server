@@ -3351,6 +3351,24 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   unrelated cross-road failures explicitly and verify R3
   authenticated ingress only when its production router exists.
 
+  **R9 exact-commit MCS/CLIPRDR mutation CI PASS (2026-10-15):**
+  Exact implementation `4eb24cd9312e1d3e133811a8c3a9151cebab4501`,
+  [Actions 38844672159](https://github.com/k1moradi/RDP-server/actions/runs/38844672159) completed **SUCCESS**.
+  Linux/GCC **202/202**, macOS/Clang **188/188**, Windows/MSVC
+  **192/192** registered CTests EACH in Debug and Release,
+  including new `clipboard.mcs-cliprdr-length-mutation-denials`
+  PASS on all six hosted builds. Documentation-policy,
+  staged installed SDK and downstream consumer, ZIP/SHA256
+  packaging and artifact uploads PASS; prerelease SKIPPED
+  (no version tag). No R9 compiler/CTest defect was confirmed.
+  **NOT RUN:** author's local full checkout/ASan/UBSan (GitHub DNS
+  unavailable to runner), owner's Linux/X11, Windows MSYS2
+  CLANG64/Clang23, macOS27 same-SHA command; real TLS/NLA,
+  OS authorization, Microsoft client/desktop/clipboard.
+  **Next:** introduce native bounded ASan/fuzzer execution
+  receipts, and test *actual* R3-admitted R8 ingress only when
+  a production authorized routing owner has been integrated.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

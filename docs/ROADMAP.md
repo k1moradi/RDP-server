@@ -1,3 +1,46 @@
+## R2 reauthorized Server License Request publication (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `d57f3df6d8543e327165adf0f547aca5e54ebe74`.
+
+R3 now owns a bounded receipt-tracked `SERVER_LICENSE_REQUEST` serializer,
+which creates the next protected publication boundary after accepted Client
+Info. R2 binds that writer into the sole `McsSessionLifecycle`: the licensing
+write gate is no longer an independently supplied lifecycle for production
+session progression. `LinuxConsoleAdmissionBroker` revalidates the concrete
+move-only lease, exact R1 HYBRID/TLS owner, GSS identity, policy generation,
+NSS/logind fingerprint and native session watch immediately before exposing
+each pending licensing slice and again before accepting every write receipt.
+
+Caller-provisioned server random/product/scope fields remain serialization
+inputs only. R2 does not infer CSPRNG provenance or licensing authority from
+their syntax, and the current deny-only final CredSSP credential policy still
+cannot mint a native admission lease. Receipt sequence numbers, slice numbers,
+accepted-byte counts or a separately completed production licensing writer
+cannot substitute for that lease.
+
+Dedicated production-linked CTest
+`security.gssapi-r3-server-license-request-write-contract` uses a real
+`RdpServerLicenseRequestWriteGate` to obtain genuine monotonic receipt values,
+then proves those values cannot advance a fresh R3 owner through the R2
+completion API without the unforgeable lease/original R1 owner. Denial closes
+R3 licensing first and then revokes R2/GSS; replay remains terminal. The case
+is included in R9's native GSS ASan/UBSan selection.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** because this connector environment exposes no synchronized owner
+checkout; no alternate build root was created. Exact-publication-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer,
+documentation policy and SDK/package evidence are **PENDING**.
+
+Genuine positive Kerberos/final-CredSSP authorization, NSS/logind lease
+issuance, legitimate licensing provisioning/cryptography and Microsoft-client
+acceptance remain **NOT RUN / OPEN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R2:** apply the same fresh protected-transition authorization to R3's
+future client licensing intake and subsequent licensing/activation writers as
+those production transitions become available; never treat licensing syntax
+or delivery receipts as authentication capability.
+
 ## R9 CredSSP completed-frame cancellation and licensing sanitizer exact-SHA validation (2026-10-16)
 
 **Implementation:** `9c4888a088bb71ad30e04cfeeaf09d159c38550f`  

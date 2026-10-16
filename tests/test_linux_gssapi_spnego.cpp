@@ -34,7 +34,12 @@ using rdp_server::server::transport::McsSessionPhase;
 using rdp_server::server::transport::NativeTcpIo;
 using rdp_server::server::transport::OwnedNativeTcpSocket;
 using rdp_server::server::transport::OwnedPreauthTcpConnection;
+using rdp_server::server::transport::RdpLicensingLifecycle;
 using rdp_server::server::transport::RdpLicensingPhase;
+using rdp_server::server::transport::RdpServerLicenseRequestFields;
+using rdp_server::server::transport::RdpServerLicenseRequestWriteGate;
+using rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
+using rdp_server::server::transport::RdpServerLicenseRequestWriteView;
 using rdp_server::server::transport::SecurityNegotiationProvenance;
 using rdp_server::server::transport::TcpAcceptOutcome;
 using rdp_server::server::transport::TcpIoOutcome;
@@ -1527,6 +1532,108 @@ void testR3ClientInfoRouteContract()
     (void)connection;
 }
 
+void testR3ServerLicenseRequestWriteContract()
+{
+    using PrepareMethod =
+        decltype(&LinuxConsoleAdmissionBroker::
+                     authorizeR3ServerLicenseRequestWrite);
+    using CompletionMethod =
+        decltype(&LinuxConsoleAdmissionBroker::
+                     completeR3ServerLicenseRequestWrite);
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Session = McsSessionLifecycle &;
+    using Fields = const RdpServerLicenseRequestFields &;
+
+    static_assert(std::is_invocable_r_v<
+        std::optional<RdpServerLicenseRequestWriteView>,
+        PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session, Fields>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, bool, Acceptor, Connection, Session, Fields>);
+    static_assert(std::is_invocable_r_v<
+        RdpServerLicenseRequestWriteOutcome,
+        CompletionMethod, Broker, const LinuxConsoleAdmissionLease *,
+        Acceptor, Connection, Session, std::uint64_t, std::uint64_t,
+        std::size_t>);
+    static_assert(!std::is_invocable_v<
+        CompletionMethod, Broker, bool, Acceptor, Connection, Session,
+        std::uint64_t, std::uint64_t, std::size_t>);
+
+    constexpr std::array<std::uint8_t, 32> random{
+        0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
+        0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x10,
+        0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,
+        0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f,0x20};
+    constexpr std::array<std::uint8_t, 8> company{
+        0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 8> product{
+        0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 6> scope{
+        0x73,0x63,0x6f,0x70,0x65,0x00};
+    const RdpServerLicenseRequestFields fields{
+        random, 0x00060001U, company, product, scope};
+
+    // A real production licensing writer can produce valid receipt integers
+    // for its own lifecycle. Those integers are bookkeeping, not transferable
+    // R2/R3 authority.
+    RdpLicensingLifecycle detachedLifecycle;
+    RdpServerLicenseRequestWriteGate detachedWriter{detachedLifecycle};
+    assert(detachedWriter.queue(fields));
+    const auto first = detachedWriter.pendingWrite();
+    assert(first && first.bytes.size() > 11U);
+    assert(detachedWriter.onBytesWritten(
+               first.replySequence, first.writeSliceSequence, 11U) ==
+           RdpServerLicenseRequestWriteOutcome::Pending);
+    const auto remainder = detachedWriter.pendingWrite();
+    assert(remainder);
+    assert(remainder.replySequence == first.replySequence);
+    assert(remainder.writeSliceSequence != first.writeSliceSequence);
+    const auto copiedReplySequence = remainder.replySequence;
+    const auto copiedWriteSliceSequence = remainder.writeSliceSequence;
+    const auto copiedAcceptedBytes = remainder.bytes.size();
+    assert(detachedWriter.onBytesWritten(
+               copiedReplySequence, copiedWriteSliceSequence,
+               copiedAcceptedBytes) ==
+           RdpServerLicenseRequestWriteOutcome::Delivered);
+    assert(detachedLifecycle.phase() ==
+           RdpLicensingPhase::AwaitClientLicenseResponse);
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
+
+    // A copied real writer receipt plus plausible accepted-byte count cannot
+    // substitute for the unforgeable lease or original HYBRID/TLS/GSS owner.
+    assert(broker.completeR3ServerLicenseRequestWrite(
+               nullptr, acceptor, connection, session,
+               copiedReplySequence, copiedWriteSliceSequence,
+               copiedAcceptedBytes) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    // Terminal replay is still denial even with the exact same real receipt.
+    assert(broker.completeR3ServerLicenseRequestWrite(
+               nullptr, acceptor, connection, session,
+               copiedReplySequence, copiedWriteSliceSequence,
+               copiedAcceptedBytes) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+}
+
 void testR3NativeChangeRevocation()
 {
     ConsoleIdentityPolicy policy;
@@ -1768,6 +1875,11 @@ int main(int argc, char **argv)
             testR3ClientInfoRouteContract();
             return 0;
         }
+        if (name == "gssapi-r3-server-license-request-write-contract")
+        {
+            testR3ServerLicenseRequestWriteContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -1806,6 +1918,7 @@ int main(int argc, char **argv)
     testR3ChannelJoinTerminalReplayFence();
     testR3JoinedClipboardRoleContract();
     testR3ClientInfoRouteContract();
+    testR3ServerLicenseRequestWriteContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

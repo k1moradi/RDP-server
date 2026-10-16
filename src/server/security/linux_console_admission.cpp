@@ -951,6 +951,69 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientInfoPacket(
     return accepted;
 }
 
+std::optional<
+    rdp_server::server::transport::RdpServerLicenseRequestWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3ServerLicenseRequestWrite(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::transport::RdpServerLicenseRequestFields
+        &fields) noexcept
+{
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending =
+        session.prepareServerLicenseRequestWrite(*provenance, fields);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3ServerLicenseRequestWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome =
+        rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
+
+    if (lease == nullptr ||
+        !authorizeR3ProtectedTransition(
+            *lease, acceptor, connection, session, kConsoleViewPermission))
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto outcome = session.completeServerLicenseRequestWrite(
+        *provenance, replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

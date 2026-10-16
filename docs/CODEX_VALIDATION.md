@@ -1,3 +1,27 @@
+## R2 Server License Request authorization authoring validation (2026-10-16)
+
+**Reconciled parent:** `d57f3df6d8543e327165adf0f547aca5e54ebe74`.
+
+Source/ownership review **PASS**: R3's newly landed
+`RdpServerLicenseRequestWriteGate` is now embedded in the sole
+`McsSessionLifecycle`, and production access is private to the concrete R2
+broker. New prepare and completion paths require fresh protected-transition
+authorization before bytes are exposed or accepted-byte receipts mutate R3
+state. A real detached production writer can generate valid receipt values,
+but the dedicated
+`security.gssapi-r3-server-license-request-write-contract` case verifies
+those values are non-transferable and terminally rejected without a genuine
+lease/original owner. The case is centrally registered and selected by the R9
+native GSS sanitizer job.
+
+Canonical local build/full CTest: **NOT RUN / BLOCKED** because this connector
+environment has no synchronized `~/rdp-server` checkout and project policy
+forbids creating an alternate persistent build root. Hosted exact-publication
+SHA Debug/Release, sanitizer, documentation-policy and SDK/package validation:
+**PENDING** until publication. Real Kerberos/final-CredSSP authorization,
+positive NSS/logind admission, production licensing credentials/cryptography
+and Microsoft-client M2 remain **NOT RUN**.
+
 ## R9 CredSSP completed-frame cancellation and licensing sanitizer exact-SHA validation (2026-10-16)
 
 **Implementation:** `9c4888a088bb71ad30e04cfeeaf09d159c38550f`  

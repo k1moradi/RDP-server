@@ -690,6 +690,7 @@ public:
         connectResponseBoundProvenance_ = {};
         connectResponseProvenanceBound_ = false;
         connectResponseWrite_.close();
+        serverLicenseRequestWrite_.close();
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
@@ -769,6 +770,21 @@ private:
         const SecurityNegotiationProvenance &provenance,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // R3 remains the sole licensing writer owner. The concrete R2 broker
+    // reauthorizes the exact lease/R1 owner before every borrowed slice and
+    // every accepted-byte receipt. Provisioned fields are sampled only when
+    // the one stable request is first queued; later calls return its suffix.
+    [[nodiscard]] std::optional<RdpServerLicenseRequestWriteView>
+    prepareServerLicenseRequestWrite(
+        const SecurityNegotiationProvenance &provenance,
+        const RdpServerLicenseRequestFields &fields) noexcept;
+    [[nodiscard]] RdpServerLicenseRequestWriteOutcome
+    completeServerLicenseRequestWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
     McsConnectResponseAllocation connectResponseAllocation_{};
@@ -778,6 +794,7 @@ private:
     McsAttachUserConfirmWriteGate attachConfirmWrite_{};
     std::uint32_t allocatedUserId_{};
     RdpLicensingLifecycle licensing_{};
+    RdpServerLicenseRequestWriteGate serverLicenseRequestWrite_{licensing_};
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};
     std::uint64_t sessionGeneration_{};

@@ -1,3 +1,21 @@
+## R2/R3 licensing publication authorization boundary (2026-10-16)
+
+The R3 `RdpServerLicenseRequestWriteGate` is a child of the one
+`McsSessionLifecycle` for production session progression. It owns stable
+serialized licensing bytes and monotonic delivery receipts, but those facts are
+not authority. R2 is the only component that can expose a pending licensing
+slice or consume its accepted-byte receipt: both operations require a fresh
+`LinuxConsoleAdmissionBroker` revalidation of the exact move-only admission
+lease and original R1 HYBRID/TLS/GSS/native-session owner.
+
+The server-random, product and scope fields remain caller-provisioned R3
+serialization inputs. R2 does not certify entropy or licensing provenance, R1
+alone performs transport writes, and receipt completion advances only the
+nested licensing lifecycle. A detached licensing writer, copied receipt
+integers, a raw SSL pointer, principal string or Boolean cannot advance the
+session. Any mismatch follows the established ordered teardown:
+R3/licensing first, then R2/GSS, then the caller releases R1.
+
 ## R8 macOS pasteboard presentation boundary (2026-10-16)
 
 `MacClipboardAdapter` is a native presentation child of the existing

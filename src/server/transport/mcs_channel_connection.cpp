@@ -1166,6 +1166,60 @@ McsSessionLifecycle::acceptVerifiedR2ClientInfoPacket(
     return info.value;
 }
 
+std::optional<RdpServerLicenseRequestWriteView>
+McsSessionLifecycle::prepareServerLicenseRequestWrite(
+    const SecurityNegotiationProvenance &provenance,
+    const RdpServerLicenseRequestFields &fields) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitServerLicenseRequest ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        licensing_.phase() != RdpLicensingPhase::NotStarted)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    auto pending = serverLicenseRequestWrite_.pendingWrite();
+    if (!pending)
+    {
+        if (!serverLicenseRequestWrite_.queue(fields))
+        {
+            close();
+            return std::nullopt;
+        }
+        pending = serverLicenseRequestWrite_.pendingWrite();
+    }
+    if (!pending)
+    {
+        close();
+        return std::nullopt;
+    }
+    return pending;
+}
+
+RdpServerLicenseRequestWriteOutcome
+McsSessionLifecycle::completeServerLicenseRequestWrite(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitServerLicenseRequest ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_)
+    {
+        close();
+        return RdpServerLicenseRequestWriteOutcome::Rejected;
+    }
+
+    const auto outcome = serverLicenseRequestWrite_.onBytesWritten(
+        replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == RdpServerLicenseRequestWriteOutcome::Rejected)
+        close();
+    return outcome;
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {

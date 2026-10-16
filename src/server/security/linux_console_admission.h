@@ -316,6 +316,36 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Start or resume the sole R3-owned SERVER_LICENSE_REQUEST write only
+    // after fresh view permission plus exact R1 HYBRID/TLS/GSS/native-session
+    // reauthorization. The fields supply serialization input only: they are
+    // not proof of entropy provenance, licensing authority or R2 admission.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpServerLicenseRequestWriteView>
+    authorizeR3ServerLicenseRequestWrite(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::transport::RdpServerLicenseRequestFields
+            &fields) noexcept;
+
+    // Accepted bytes are not durable R3 progress until the same concrete
+    // lease and owner reauthorize the receipt. A null lease is denial-only
+    // for ordinary CI and can never advance licensing.
+    [[nodiscard]]
+    rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
+    completeR3ServerLicenseRequestWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

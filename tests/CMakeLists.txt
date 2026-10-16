@@ -215,6 +215,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-r3-channel-join-terminal-replay-fence
                 gssapi-r3-joined-clipboard-role-contract
                 gssapi-r3-client-info-route-contract
+                gssapi-r3-server-license-request-write-contract
                 gssapi-r3-attach-user-terminal-replay-fence
                 gssapi-r3-protected-transition-terminal-replay-fence
                 gssapi-r3-native-change-revocation

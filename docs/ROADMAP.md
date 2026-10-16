@@ -1,3 +1,41 @@
+## R1 orderly-EOF accept visibility exact-SHA hosted validation (2026-10-16; PASS)
+
+**Implementation:** `66220b8dbcb9a0a4247bcc508c1a07b92ba1d2ea`.  
+**Actions:** `38962682714` — **SUCCESS**.
+
+The test/CI-only correction is fully hosted-validated. Ubuntu/GCC passes
+**461/461 Debug** and **461/461 Release**. macOS/AppleClang passes
+**387/387 Debug** and **387/387 Release**; the formerly intermittent
+`transport.tcp-native-accept-orderly-eof` is test 109 and passes in both
+configurations. Windows/MSVC passes **416/416 Debug** and **416/416 Release**,
+with the same R1 case passing as test 109 in each.
+
+R9 Clang ASan+UBSan explicitly selects the newly added EOF case. The bounded
+R1/R3 transport/security/licensing group grows from **51 to 52** and passes
+**52/52**, with `transport.tcp-native-accept-orderly-eof` passing as test 109.
+Clipboard **50/50**, R4 x264/BGRA **20/20**, native R2/R3 GSS **27/27**,
+R10 pre-admission runtime **5/5**, native R5 X11 **25/25**, and the bounded
+fuzzer **1/1** also pass. Documentation policy and the independent R7 macOS
+sanitizer gate pass.
+
+Installed SDK downstream consumer is **1/1 PASS** on Linux, macOS and Windows;
+package/digest/artifact upload gates pass on all hosted protocol platforms.
+The run is untagged, so prerelease publication is correctly skipped.
+
+This closes the scheduler-visibility regression without changing production
+R1 behavior. The native one-shot acceptor remains retry-free; only the test
+fixture performs bounded resubmission after legitimate `WouldBlock`. EOF
+semantics remain queued-bytes-first, explicit end-of-stream, idempotent
+accepted-owner close and borrowed-listener preservation.
+
+Per the current roadmap, **Next R1:** add no new transport surface unless a
+later protected licensing/Share transition demonstrates a concrete bounded
+TCP/TLS mismatch. Current R3 server licensing request (16 KiB maximum) and
+client licensing intake (8 KiB maximum) remain within R1's existing 18 KiB
+application-I/O boundary. Canonical owner-local `~/rdp-server/build`, owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27 and Microsoft-client
+acceptance remain **NOT RUN**. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
 ## R2 licensing service-credential non-authority fence (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `66220b8dbcb9a0a4247bcc508c1a07b92ba1d2ea`.

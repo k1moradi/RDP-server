@@ -1,3 +1,31 @@
+## R1 orderly-EOF visibility exact-SHA validation receipt (2026-10-16)
+
+**Implementation SHA:** `66220b8dbcb9a0a4247bcc508c1a07b92ba1d2ea`.  
+**Workflow:** `38962682714` — **SUCCESS**.
+
+Hosted matrix: Ubuntu/GCC **461/461 Debug + 461/461 Release**, macOS/
+AppleClang **387/387 Debug + 387/387 Release**, Windows/MSVC **416/416
+Debug + 416/416 Release**. In all six platform configurations,
+`transport.tcp-native-accept-orderly-eof` passes as test 109, including the
+macOS Release configuration that failed intermittently on Actions
+`38936935534`.
+
+R9 Clang ASan/UBSan central-registry preflight finds
+`transport.tcp-native-accept-orderly-eof`; bounded R1/R3 selection is
+**52/52 PASS** and the EOF case itself passes in **0.02 s**. All other
+configured sanitizer groups and the fuzzer pass. Documentation policy and the
+separate R7 macOS sanitizer gate pass. Installed SDK consumer and package
+gates pass on all three hosted platforms.
+
+No production R1 source or public API changed. The only behavior change is in
+the test fixture: it uses the existing bounded visibility helper before the
+unchanged payload/FIN/EOF assertions. This is now consistent with
+`docs/testing_standards.md`, which already forbids assuming that synchronous
+loopback `connect()` makes the peer immediately observable by a nonblocking
+accept.
+
+Owner-local canonical build and owner-native acceptance remain **NOT RUN**.
+
 ## R2 licensing service-credential non-authority authoring validation (2026-10-16)
 
 **Reconciled parent:** `66220b8dbcb9a0a4247bcc508c1a07b92ba1d2ea`.

@@ -3378,7 +3378,9 @@ void testR3ServerLicenseRequestSliceThroughOwnedTls()
 {
     using Outcome = TlsApplicationIoOutcome;
     using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
     using WriteOutcome = RdpServerLicenseRequestWriteOutcome;
+    using Clock = std::chrono::steady_clock;
 
     static_assert(kMaximumRdpServerLicenseRequestBytes <=
                   kMaximumTlsApplicationIoBytes);
@@ -3434,6 +3436,7 @@ void testR3ServerLicenseRequestSliceThroughOwnedTls()
     std::copy(view.bytes.begin(), view.bytes.end(), expected.begin());
 
     bool observedShortProgress = false;
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
     WriteOutcome completion = WriteOutcome::Pending;
     for (int attempt = 0;
          attempt < 2048 && completion == WriteOutcome::Pending;
@@ -3486,9 +3489,13 @@ void testR3ServerLicenseRequestSliceThroughOwnedTls()
         assert(retry.writeSliceSequence == sliceSequence);
         assert(retry.bytes.data() == offered.data());
         assert(retry.bytes.size() == offered.size());
-        assert(owner.onSocketReady(true, true) == expectedInterest);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(polled.nextInterest == expectedInterest);
+        assert(Clock::now() < deadline);
         view = retry;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     assert(observedShortProgress);
@@ -3624,7 +3631,9 @@ void testR3ServerPlatformChallengeSliceThroughOwnedTls()
 {
     using Outcome = TlsApplicationIoOutcome;
     using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
     using WriteOutcome = RdpServerPlatformChallengeWriteOutcome;
+    using Clock = std::chrono::steady_clock;
 
     static_assert(kRdpServerPlatformChallengeBytes <=
                   kMaximumTlsApplicationIoBytes);
@@ -3696,6 +3705,7 @@ void testR3ServerPlatformChallengeSliceThroughOwnedTls()
     TlsHandshakeFixture tls{false, false};
     establishOwnedApplicationTls(owner, clientIo, tls);
 
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
     WriteOutcome completion = WriteOutcome::Pending;
     for (int attempt = 0;
          attempt < 128 && completion == WriteOutcome::Pending;
@@ -3741,9 +3751,13 @@ void testR3ServerPlatformChallengeSliceThroughOwnedTls()
         assert(retry.writeSliceSequence == sliceSequence);
         assert(retry.bytes.data() == offered.data());
         assert(retry.bytes.size() == offered.size());
-        assert(owner.onSocketReady(true, true) == expectedInterest);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(polled.nextInterest == expectedInterest);
+        assert(Clock::now() < deadline);
         view = retry;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     assert(completion == WriteOutcome::Delivered);

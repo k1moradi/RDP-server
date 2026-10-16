@@ -16496,3 +16496,40 @@ next R4 production integration gate remains **BLOCKED on R3**; R4 must not
 fabricate a parallel channel/session owner. Native capture performance and
 Microsoft-client visible graphics acceptance also remain **NOT RUN/BLOCKED**.
 Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R1 owned-TLS licensing write readiness hardening (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `47cb1a6e496ff5c62a2a27612e9cdbd9666ca76e`.
+
+R1's two production-backed R3 licensing write regressions no longer use a
+fixed 1 ms scheduler sleep after zero-byte TLS WANT. Both
+`transport.tcp-owned-r3-license-request-slice` and
+`transport.tcp-owned-r3-platform-challenge-slice` now preserve the exact
+R3 reply/write-slice receipt and stable pending span, then call the existing
+R1 `OwnedPreauthTcpConnection::pollSocketOnce` with a finite monotonic
+deadline and `kMaximumTcpPollWait`.
+
+The poller waits only for the exact `ioInterest()` direction recorded by the
+failed SSL application write. In application mode it intentionally cannot
+retry SSL I/O because R1 never retains caller memory; after matching readiness
+the test explicitly resubmits the same logical R3 slice. `Dispatched` and
+`NoEvent` are the only nonterminal poll results accepted, the returned
+interest must remain the recorded WANT direction, and expiration is a hard
+test failure rather than a hidden retry.
+
+This is test-harness reliability only. No production transport API, TLS owner,
+buffer bound, listener, queue, authorization result or licensing state changes.
+Both named CTests are already in the bounded R9 R1/R3 ASan/UBSan selector.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate persistent build root
+or branch was created. Exact publication-SHA hosted Linux/GCC,
+macOS/AppleClang, Windows/MSVC Debug/Release, sanitizer,
+documentation-policy and SDK/package evidence are pending. Owner native
+platform tests and Microsoft-client acceptance remain **NOT RUN**.
+**M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R1:** add no transport surface unless R3 lands a protected receipt-bound
+New/Upgrade License publication or later Share activation that demonstrates a
+concrete bounded TCP/TLS mismatch.

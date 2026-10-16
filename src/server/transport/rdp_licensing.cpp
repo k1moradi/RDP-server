@@ -1236,6 +1236,64 @@ RdpNewLicenseInfoEncodeResult encodeRdpNewLicenseInformation(
     return {offset, RdpNewLicenseInfoEncodeError::None};
 }
 
+RdpLicensingAuthorityGrantError RdpLicensingAuthorityGrant::configure(
+    RdpServerLicenseGrantKind kind,
+    std::uint64_t authorityGeneration,
+    std::span<const std::uint8_t> authorityFingerprint,
+    std::span<const std::uint8_t> issuedCal) noexcept
+{
+    if (attempted_)
+        return RdpLicensingAuthorityGrantError::AlreadyConfigured;
+    attempted_ = true;
+
+    switch (kind)
+    {
+    case RdpServerLicenseGrantKind::NewLicense:
+    case RdpServerLicenseGrantKind::UpgradeLicense:
+        break;
+    default:
+        return RdpLicensingAuthorityGrantError::InvalidLicense;
+    }
+
+    if (authorityGeneration == 0U)
+        return RdpLicensingAuthorityGrantError::InvalidAuthorityGeneration;
+    if (authorityFingerprint.size() != authorityFingerprint_.size() ||
+        std::all_of(
+            authorityFingerprint.begin(), authorityFingerprint.end(),
+            [](std::uint8_t value) { return value == 0U; }))
+    {
+        return RdpLicensingAuthorityGrantError::InvalidAuthorityFingerprint;
+    }
+    if (issuedCal.empty())
+        return RdpLicensingAuthorityGrantError::InvalidLicense;
+    if (issuedCal.size() > issuedCal_.size())
+        return RdpLicensingAuthorityGrantError::Oversized;
+
+    kind_ = kind;
+    authorityGeneration_ = authorityGeneration;
+    issuedCalLength_ = issuedCal.size();
+    std::copy(
+        authorityFingerprint.begin(), authorityFingerprint.end(),
+        authorityFingerprint_.begin());
+    std::copy(issuedCal.begin(), issuedCal.end(), issuedCal_.begin());
+    configured_ = true;
+    return RdpLicensingAuthorityGrantError::None;
+}
+
+bool RdpLicensingAuthorityGrant::matchesAuthority(
+    std::uint64_t authorityGeneration,
+    std::span<const std::uint8_t> authorityFingerprint) const noexcept
+{
+    return configured_ &&
+           authorityGeneration != 0U &&
+           authorityGeneration == authorityGeneration_ &&
+           authorityFingerprint.size() == authorityFingerprint_.size() &&
+           CRYPTO_memcmp(
+               authorityFingerprint.data(),
+               authorityFingerprint_.data(),
+               authorityFingerprint_.size()) == 0;
+}
+
 RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
     RdpServerLicenseGrantKind kind,
     const RdpServerLicenseIdentity &identity,

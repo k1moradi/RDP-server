@@ -17112,3 +17112,56 @@ Linux/macOS behavior is unchanged. Exact correction-SHA hosted validation is
 pending; the failed `fb63d587...` Windows leg is not reported as passing.
 M1/M2/M3 remain OPEN / NOT ACCEPTED.
 
+## R3 licensing-authority grant snapshot boundary (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `74b5fb33484e961479a652204d35864ecfc77fd8`.
+
+R3 now defines the roadmap's next non-live licensing-authority result boundary
+without treating arbitrary CAL bytes as a session decision.
+`RdpLicensingAuthorityGrant` is a one-shot, noncopyable, fixed-storage
+snapshot containing one New/Upgrade grant kind, one bounded CAL, a nonzero
+authority generation, and one fixed 32-byte opaque authority fingerprint.
+Caller storage is copied into contiguous owned memory and cannot replace a
+result after the first configure attempt.
+
+The CAL bound is the corrected live-safe grant limit of **14,799 bytes**, not
+the larger 16 KiB standalone `NEW_LICENSE_INFO` test/serializer ceiling. It
+therefore remains compatible with the existing one-PER-fragment proof:
+complete licensing PDU **16,379 bytes**, plus the four-byte Basic Security
+Header **16,383 bytes**, with the full long MCS/TLS plaintext still below R1's
+existing 18 KiB write bound.
+
+The generation/fingerprint pair is correlation only, not proof that a caller
+is a licensing authority. `matchesAuthority` requires the exact nonzero
+generation and compares the fixed fingerprint in constant time, allowing a
+future service authority owner to reject stale results after policy/material
+rotation. Zero generation, wrong-sized or all-zero fingerprint, empty CAL,
+invalid grant kind, and a CAL beyond 14,799 bytes fail closed.
+
+This boundary intentionally has **no** lifecycle mutation, receipt owner, R2
+entry point, or network publication. A captured CAL can feed the existing pure
+New/Upgrade License encoder, but the snapshot itself cannot license a client or
+advance `RdpLicensingLifecycle`. Live New/Upgrade publication remains blocked
+until R10 owns a real issuance provider and R2 freshly authorizes both
+publication and accepted-byte completion against current authority correlation.
+
+New central production-linked CTest:
+`transport.licensing-authority-grant-boundary`. It proves fixed ownership,
+one-shot replacement denial, stale authority correlation denial, invalid
+generation/fingerprint/kind/CAL rejection, composition with the corrected
+offline grant encoder, and zero licensing-state advance. The bounded R1/R3
+ASan/UBSan selector explicitly requires this case.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, bounded sanitizers,
+documentation-policy, and SDK/package evidence are pending.
+
+**Next R3:** once a concrete R10 licensing-authority owner can supply this
+snapshot with a freshly verifiable generation/fingerprint, add a receipt-bound
+live New/Upgrade License writer behind fresh R2 authorization. The parallel
+`CLIENT_LICENSE_INFO` path still requires real CAL signature/trust,
+product/version/expiration and HWID validation before any
+`STATUS_VALID_CLIENT` or Share activation. **M2/M3 remain OPEN / NOT
+ACCEPTED.**
+

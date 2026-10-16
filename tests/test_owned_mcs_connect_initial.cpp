@@ -4973,6 +4973,123 @@ void testRdpNewLicenseInformationDenials()
 [[nodiscard]] RdpLicensingKeyMaterial
 platformChallengeKeys() noexcept;
 
+void testRdpLicensingAuthorityGrantBoundary()
+{
+    static_assert(!std::is_copy_constructible_v<RdpLicensingAuthorityGrant>);
+    static_assert(!std::is_copy_assignable_v<RdpLicensingAuthorityGrant>);
+    static_assert(!std::is_move_constructible_v<RdpLicensingAuthorityGrant>);
+    static_assert(!std::is_move_assignable_v<RdpLicensingAuthorityGrant>);
+
+    constexpr std::uint64_t authorityGeneration = 7U;
+    std::array<std::uint8_t, kRdpLicensingAuthorityFingerprintBytes>
+        authorityFingerprint{};
+    for (std::size_t index = 0U; index < authorityFingerprint.size(); ++index)
+        authorityFingerprint[index] =
+            static_cast<std::uint8_t>(0x40U + index);
+
+    std::array<std::uint8_t, 5> issuedCal{
+        0x30,0x03,0x02,0x01,0x01};
+    const auto expectedFingerprint = authorityFingerprint;
+    const auto expectedCal = issuedCal;
+
+    RdpLicensingAuthorityGrant grant;
+    assert(grant.configure(
+               RdpServerLicenseGrantKind::NewLicense,
+               authorityGeneration,
+               authorityFingerprint,
+               issuedCal) ==
+           RdpLicensingAuthorityGrantError::None);
+    assert(grant.configured());
+    assert(grant.kind() == RdpServerLicenseGrantKind::NewLicense);
+    assert(grant.authorityGeneration() == authorityGeneration);
+    assert(grant.matchesAuthority(
+        authorityGeneration, authorityFingerprint));
+    assert(!grant.matchesAuthority(
+        authorityGeneration + 1U, authorityFingerprint));
+
+    auto wrongFingerprint = authorityFingerprint;
+    wrongFingerprint.back() ^= 0x01U;
+    assert(!grant.matchesAuthority(
+        authorityGeneration, wrongFingerprint));
+
+    // The authority snapshot owns its correlation token and CAL.
+    authorityFingerprint.fill(0U);
+    issuedCal.fill(0U);
+    assert(std::equal(
+        grant.authorityFingerprint().begin(),
+        grant.authorityFingerprint().end(),
+        expectedFingerprint.begin()));
+    assert(std::equal(
+        grant.issuedCal().begin(), grant.issuedCal().end(),
+        expectedCal.begin()));
+
+    // It composes with the existing pure grant encoder but still has no live
+    // R3/R2 publication path or licensing-state side effect.
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    auto keys = platformChallengeKeys();
+    std::array<std::uint8_t, 96> encoded{};
+    const auto wire = encodeRdpServerLicenseGrant(
+        grant.kind(), identity, grant.issuedCal(), keys, encoded);
+    assert(wire);
+    assert(wire.bytesWritten == 71U);
+    cleanseRdpLicensingKeyMaterial(keys);
+
+    RdpLicensingLifecycle lifecycle;
+    assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+
+    // Authority rotation cannot replace a previously returned result.
+    assert(grant.configure(
+               RdpServerLicenseGrantKind::UpgradeLicense,
+               authorityGeneration + 1U,
+               expectedFingerprint,
+               expectedCal) ==
+           RdpLicensingAuthorityGrantError::AlreadyConfigured);
+
+    RdpLicensingAuthorityGrant zeroGeneration;
+    assert(zeroGeneration.configure(
+               RdpServerLicenseGrantKind::NewLicense,
+               0U, expectedFingerprint, expectedCal) ==
+           RdpLicensingAuthorityGrantError::InvalidAuthorityGeneration);
+
+    std::array<std::uint8_t, kRdpLicensingAuthorityFingerprintBytes>
+        zeroFingerprint{};
+    RdpLicensingAuthorityGrant zeroFingerprintGrant;
+    assert(zeroFingerprintGrant.configure(
+               RdpServerLicenseGrantKind::NewLicense,
+               authorityGeneration, zeroFingerprint, expectedCal) ==
+           RdpLicensingAuthorityGrantError::InvalidAuthorityFingerprint);
+
+    RdpLicensingAuthorityGrant shortFingerprint;
+    assert(shortFingerprint.configure(
+               RdpServerLicenseGrantKind::NewLicense,
+               authorityGeneration,
+               std::span(expectedFingerprint).first(
+                   expectedFingerprint.size() - 1U),
+               expectedCal) ==
+           RdpLicensingAuthorityGrantError::InvalidAuthorityFingerprint);
+
+    RdpLicensingAuthorityGrant emptyCal;
+    assert(emptyCal.configure(
+               RdpServerLicenseGrantKind::NewLicense,
+               authorityGeneration, expectedFingerprint, {}) ==
+           RdpLicensingAuthorityGrantError::InvalidLicense);
+
+    std::vector<std::uint8_t> oversizedCal(
+        kMaximumRdpServerLicenseGrantCalBytes + 1U, 0x42U);
+    RdpLicensingAuthorityGrant oversized;
+    assert(oversized.configure(
+               RdpServerLicenseGrantKind::UpgradeLicense,
+               authorityGeneration, expectedFingerprint, oversizedCal) ==
+           RdpLicensingAuthorityGrantError::Oversized);
+
+    RdpLicensingAuthorityGrant invalidKind;
+    assert(invalidKind.configure(
+               static_cast<RdpServerLicenseGrantKind>(0x7fU),
+               authorityGeneration, expectedFingerprint, expectedCal) ==
+           RdpLicensingAuthorityGrantError::InvalidLicense);
+}
+
 constexpr std::array<std::uint8_t, 5> kSyntheticIssuedCal{
     0x30,0x03,0x02,0x01,0x01};
 
@@ -7349,7 +7466,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 112> kMcsTestCases{{
+constexpr std::array<McsTestCase, 113> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -7417,6 +7534,7 @@ constexpr std::array<McsTestCase, 112> kMcsTestCases{{
     {"licensing-server-platform-challenge-write-denials", &testRdpServerPlatformChallengeWriteDenials},
     {"licensing-client-platform-challenge-response-proof", &testRdpClientPlatformChallengeResponseProof},
     {"licensing-client-platform-challenge-response-denials", &testRdpClientPlatformChallengeResponseDenials},
+    {"licensing-authority-grant-boundary", &testRdpLicensingAuthorityGrantBoundary},
     {"licensing-new-license-info-wire", &testRdpNewLicenseInformationWire},
     {"licensing-new-license-info-denials", &testRdpNewLicenseInformationDenials},
     {"licensing-server-new-license-wire", &testRdpServerNewLicenseWire},

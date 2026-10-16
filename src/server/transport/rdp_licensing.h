@@ -671,6 +671,86 @@ enum class RdpServerLicenseGrantKind : std::uint8_t
     UpgradeLicense = 0x04U,
 };
 
+// Opaque correlation token for one service-owned licensing-authority result.
+// R3 does not define the fingerprint's contents; the future authority owner
+// must rotate both this token and its nonzero generation when issuance policy
+// or material changes.
+inline constexpr std::size_t kRdpLicensingAuthorityFingerprintBytes = 32U;
+
+enum class RdpLicensingAuthorityGrantError : std::uint8_t
+{
+    None,
+    AlreadyConfigured,
+    InvalidAuthorityGeneration,
+    InvalidAuthorityFingerprint,
+    InvalidLicense,
+    Oversized,
+};
+
+// Non-live, one-shot snapshot of a license-authority issuance result. The CAL
+// is capped to the grant encoder's always-unfragmented limit rather than the
+// larger offline NEW_LICENSE_INFO limit. This object owns no authority by
+// itself: it cannot mutate R3 state, invoke R2, create a write receipt, or
+// publish bytes. Future live publication must receive it from the actual
+// service authority owner and freshly match generation/fingerprint first.
+class RdpLicensingAuthorityGrant final
+{
+public:
+    RdpLicensingAuthorityGrant() noexcept = default;
+    RdpLicensingAuthorityGrant(const RdpLicensingAuthorityGrant &) = delete;
+    RdpLicensingAuthorityGrant &operator=(
+        const RdpLicensingAuthorityGrant &) = delete;
+    RdpLicensingAuthorityGrant(RdpLicensingAuthorityGrant &&) = delete;
+    RdpLicensingAuthorityGrant &operator=(
+        RdpLicensingAuthorityGrant &&) = delete;
+
+    [[nodiscard]] RdpLicensingAuthorityGrantError configure(
+        RdpServerLicenseGrantKind kind,
+        std::uint64_t authorityGeneration,
+        std::span<const std::uint8_t> authorityFingerprint,
+        std::span<const std::uint8_t> issuedCal) noexcept;
+
+    [[nodiscard]] bool configured() const noexcept { return configured_; }
+    [[nodiscard]] RdpServerLicenseGrantKind kind() const noexcept
+    {
+        return kind_;
+    }
+    [[nodiscard]] std::uint64_t authorityGeneration() const noexcept
+    {
+        return configured_ ? authorityGeneration_ : 0U;
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    authorityFingerprint() const noexcept
+    {
+        return configured_
+            ? std::span<const std::uint8_t>{authorityFingerprint_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t> issuedCal() const noexcept
+    {
+        return configured_
+            ? std::span<const std::uint8_t>{issuedCal_}.first(issuedCalLength_)
+            : std::span<const std::uint8_t>{};
+    }
+
+    // Constant-time fingerprint comparison plus exact generation correlation.
+    // A match is continuity evidence only; it is not licensing authority.
+    [[nodiscard]] bool matchesAuthority(
+        std::uint64_t authorityGeneration,
+        std::span<const std::uint8_t> authorityFingerprint) const noexcept;
+
+private:
+    std::array<std::uint8_t, kRdpLicensingAuthorityFingerprintBytes>
+        authorityFingerprint_{};
+    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantCalBytes>
+        issuedCal_{};
+    RdpServerLicenseGrantKind kind_{RdpServerLicenseGrantKind::NewLicense};
+    std::uint64_t authorityGeneration_{};
+    std::size_t issuedCalLength_{};
+    bool attempted_{};
+    bool configured_{};
+};
+
 // Borrowed view over exactly one derived RdpLicensingKeyMaterial. The explicit
 // span constructor exists so fail-closed tests can exercise truncated keys;
 // no key bytes are copied, retained, logged, or interpreted as authority.

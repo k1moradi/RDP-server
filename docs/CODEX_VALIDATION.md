@@ -2926,6 +2926,11 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 authoritative first MCS intake-size denial (2026-10-15)
 
+**Test-only correction:** ensure every braced initializer-list element in
+`mcs-session-first-envelope-size-bounds` has `std::size_t` type;
+this avoids platform-width-dependent deduction errors under C++23.
+No production behavior or expectation changed.
+
 **Code:** `kMaximumInitialMcsTpktBytes` is defined once by
 `mcs_connect_initial.h` and used unchanged (8192 bytes) by
 R1's bounded first TLS MCS intake and the existing R3

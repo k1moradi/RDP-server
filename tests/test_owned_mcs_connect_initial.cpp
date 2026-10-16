@@ -3337,7 +3337,8 @@ void testMcsSessionFirstEnvelopeSizeBounds()
     // Exact over-limit status proves that R3 rejects before BER/GCC
     // parsing, even if the attacker supplies a larger borrowed buffer.
     for (const std::size_t size : {
-             maximum + 1U, maximum + 4096U, 65536U})
+             maximum + 1U, maximum + 4096U,
+             static_cast<std::size_t>(65536U)})
     {
         std::vector<std::uint8_t> packet(size, 0);
         McsSessionLifecycle overLimit;

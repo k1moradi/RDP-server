@@ -4687,3 +4687,29 @@ SUCCESS but does not validate this new XDamage source.
 Linux hosted CI, plus Windows/macOS regressions; then implement
 connection-owner teardown and resize ordering across damage,
 cursor and XShm without activating protected desktop access.
+
+## R10 Windows opened-HANDLE DACL broad-write regression (2026-10-15)
+
+**Road:** R10 secure runtime configuration, parent `2f3b0ea12d7324cfd501ec25665fc02e030b0469`.
+**Production:** add `GetSecurityInfo(SE_FILE_OBJECT)` with the existing
+file handle, release its descriptor via `LocalFree` RAII, reject
+null/invalid DACL/owner and unexpected allow-ACE kinds, and reject
+broad principals with write, append, delete, owner or DACL changes.
+`rdp-server` links Advapi32 on Windows only. POSIX reader and
+unconditional startup refusal remain unchanged.
+
+**New dedicated Windows-only CTests** in the canonical registry:
+`runtime.validates-configuration-windows-private-dacl`,
+`runtime.rejects-configuration-windows-everyone-write`,
+`runtime.rejects-configuration-windows-authenticated-write`,
+`runtime.rejects-configuration-windows-users-write`. The existing
+test CMake script creates private fixture ACLs and explicit broad
+grants with built-in Windows `icacls` only inside `build/`.
+**NOT RUN at authoring:** native Windows compilation (no Windows
+toolchain available in this environment), full local repository
+CTest (GitHub checkout unavailable from local container),
+exact-commit GitHub Actions, owner Linux/X11 / Windows MSYS2
+CLANG64 Clang23 / macOS27 tests, real credentials, NLA,
+desktop and release acceptance. Next: inspect exact-SHA CI;
+expand to complete effective Windows DACL trustees and TLS key
+permissions. M1–M6 remain OPEN.

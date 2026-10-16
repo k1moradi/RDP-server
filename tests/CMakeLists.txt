@@ -458,9 +458,13 @@ foreach(runtime_case IN ITEMS
         rejects-configuration-windows-directory
         rejects-configuration-windows-relative-file
         rejects-windows-device-namespace
+        validates-configuration-windows-private-dacl
+        rejects-configuration-windows-everyone-write
+        rejects-configuration-windows-authenticated-write
+        rejects-configuration-windows-users-write
         )
     if(NOT WIN32 AND runtime_case MATCHES
-       "^(validates-configuration-windows-regular|rejects-configuration-windows-(directory|relative-file)|rejects-windows-device-namespace)$")
+       "^(validates-configuration-windows-(regular|private-dacl)|rejects-configuration-windows-(directory|relative-file|everyone-write|authenticated-write|users-write)|rejects-windows-device-namespace)$")
         continue()
     endif()
     # POSIX descriptor-identity/permissions tests are not applicable to

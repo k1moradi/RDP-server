@@ -8,6 +8,7 @@
 #include <string_view>
 #if defined(_WIN32)
 #include <windows.h>
+#include <aclapi.h>
 #include <fcntl.h>
 #include <io.h>
 #include <cstdint>
@@ -161,6 +162,72 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
            isDecimalWithin(fieldValues[6], 1, 64);
 }
 
+#if defined(_WIN32)
+// Conservative file DACL gate: broad principals may read configuration,
+// but must not be granted write, delete or permission-changing rights.
+// Evaluate the opened HANDLE, not a second (racy) path lookup.
+[[nodiscard]] bool hasRestrictedConfigurationDacl(HANDLE fileHandle) noexcept {
+    PSID owner = nullptr;
+    PACL dacl = nullptr;
+    PSECURITY_DESCRIPTOR rawDescriptor = nullptr;
+    if (::GetSecurityInfo(fileHandle, SE_FILE_OBJECT,
+                          OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+                          &owner, nullptr, &dacl, nullptr,
+                          &rawDescriptor) != ERROR_SUCCESS) {
+        return false;
+    }
+    struct DescriptorCloser {
+        void operator()(void* ptr) const noexcept {
+            (void)::LocalFree(ptr);
+        }
+    };
+    std::unique_ptr<void, DescriptorCloser> descriptor{rawDescriptor};
+    if (!descriptor || owner == nullptr || !::IsValidSid(owner) ||
+        dacl == nullptr || !::IsValidAcl(dacl)) {
+        return false; // A null DACL grants unrestricted access.
+    }
+    constexpr DWORD unsafeRights =
+        FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_EA |
+        FILE_WRITE_ATTRIBUTES | DELETE | WRITE_DAC | WRITE_OWNER |
+        GENERIC_WRITE | GENERIC_ALL;
+    for (DWORD index = 0; index < dacl->AceCount; ++index) {
+        void* rawAce = nullptr;
+        if (!::GetAce(dacl, index, &rawAce) || rawAce == nullptr) {
+            return false;
+        }
+        const auto* header = static_cast<const ACE_HEADER*>(rawAce);
+        if ((header->AceFlags & INHERIT_ONLY_ACE) != 0) {
+            continue; // Does not authorize access to this file.
+        }
+        if (header->AceType == ACCESS_DENIED_ACE_TYPE) {
+            continue;
+        }
+        // Do not silently accept unexamined callback/object allow ACEs.
+        if (header->AceType != ACCESS_ALLOWED_ACE_TYPE ||
+            header->AceSize < sizeof(ACCESS_ALLOWED_ACE)) {
+            return false;
+        }
+        auto* allow = static_cast<ACCESS_ALLOWED_ACE*>(rawAce);
+        PSID principal = &allow->SidStart;
+        if (!::IsValidSid(principal)) {
+            return false;
+        }
+        const bool broadPrincipal =
+            ::IsWellKnownSid(principal, WinWorldSid) ||
+            ::IsWellKnownSid(principal, WinAuthenticatedUserSid) ||
+            ::IsWellKnownSid(principal, WinBuiltinUsersSid) ||
+            ::IsWellKnownSid(principal, WinBuiltinGuestsSid) ||
+            ::IsWellKnownSid(principal, WinAnonymousSid) ||
+            ::IsWellKnownSid(principal, WinInteractiveSid) ||
+            ::IsWellKnownSid(principal, WinNetworkSid);
+        if (broadPrincipal && (allow->Mask & unsafeRights) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+#endif
+
 [[nodiscard]] bool checkConfigurationFile(const char* path) noexcept {
     if (path == nullptr || *path == '\0') {
         return false;
@@ -215,7 +282,8 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
         !::GetFileInformationByHandleEx(nativeHandle.get(), FileAttributeTagInfo,
                                         &attributes, sizeof(attributes)) ||
         (attributes.FileAttributes &
-         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0) {
+         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0 ||
+        !hasRestrictedConfigurationDacl(nativeHandle.get())) {
         return false;
     }
     // Exactly one owner across HANDLE -> CRT descriptor -> FILE.

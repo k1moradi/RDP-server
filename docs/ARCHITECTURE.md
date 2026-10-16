@@ -446,6 +446,20 @@ publish a GitHub **protocol SDK prerelease**. This is an artifact
 delivery mechanism only: it does not introduce an RDP listener,
 service installation, authentication or desktop deployment.
 
+### R10 opened Windows HANDLE DACL protection (2026-10-15)
+
+The offline runtime queries `GetSecurityInfo(SE_FILE_OBJECT)` with
+the already-opened HANDLE and rejects null/unreadable ACLs and broad
+write/delete/permission-change grants to common untrusted built-in
+principals; only ordinary allow ACEs are evaluated. The query
+requires `Advapi32`, linked on the runtime executable only.
+Native handle ownership, path classification and POSIX descriptor
+policies are otherwise unchanged. This conservative common-principal
+screen is *not* comprehensive Windows effective-access enforcement:
+arbitrary domain groups, intermediate directory reparse points and
+TLS key permissions still require explicit native auditing. No
+network/desktop access or R2/R3 session is created.
+
 ### R10 Windows native configuration-file descriptor guard (2026-10-15)
 
 The non-installable runtime uses Win32 `CreateFileA`,

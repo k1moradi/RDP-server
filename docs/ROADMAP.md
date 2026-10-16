@@ -172,6 +172,30 @@ Native ACL/reparse ancestors and actual TLS private-key/OS
 authorization remain unverified, so M1–M6 remain OPEN.
 **Next R10:** Windows DACL/write-access gate and dedicated CTests.
 
+**R10 Windows opened-HANDLE DACL write-grant gate (2026-10-15; CI NOT RUN at authoring):**
+The offline, non-installable `rdp-server --check-config` reads
+`OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION` from the
+already-open Win32 file handle with `GetSecurityInfo` (Advapi32),
+not from a second pathname lookup. Null/invalid owner or DACL,
+unexpected allow-ACE representations, and write/append/delete/ACL
+modification grants to Everyone, Authenticated Users, BUILTIN Users/
+Guests, Anonymous, Interactive or Network principals fail closed.
+Deny ACEs and inherit-only entries are not misread as live grants.
+The native file-handle and 4,096-byte syntax checks remain intact;
+the server refuses to start. Four new Windows-only dedicated CTests
+check owner-private acceptance and synthetically granted Everyone,
+Authenticated Users and BUILTIN Users modification rights. All
+Windows configuration test fixtures receive a private DACL before
+running, independent of checkout ACL inheritance; the tests use
+the OS-provided `whoami.exe` and `icacls.exe`, not privileged
+service activation. **NOT RUN at authoring:** Windows/MSVC or
+MSYS2 CLANG64/Clang23 build, exact-SHA Actions, owner three-platform
+same-SHA CTest and real Microsoft RDP client. Inherited parent
+junctions, unknown domain-specific trustees, full Windows effective-
+access evaluation, TLS private-key file protection and OS admission
+remain unverified; M1–M6 remain open. **Next:** exact-commit CI,
+then comprehensive ACL policy and credentials-file permissions.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

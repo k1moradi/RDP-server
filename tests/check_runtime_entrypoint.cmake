@@ -87,6 +87,10 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         if(NOT WIN32)
             string(REPLACE "\n" "\r\n" config_text "${config_text}")
         endif()
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-windows-private-dacl")
+        # A private DACL remains readable by its owner.
+    elseif(RDP_RUNTIME_TEST_CASE MATCHES "^rejects-configuration-windows-(everyone|authenticated|users)-write$")
+        # Add a broad write grant to the otherwise private test DACL.
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-windows-regular")
         # Existing disk-backed synthetic fixture must be accepted.
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
@@ -114,6 +118,39 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         # This case deliberately leaves the generated fixture absent.
     else()
         file(WRITE "${config_file}" "${config_text}")
+        if(WIN32 AND NOT RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
+            # Ensure every Windows config fixture has an explicit private
+            # baseline DACL, independent of CI checkout inheritance.
+            execute_process(COMMAND whoami.exe
+                RESULT_VARIABLE whoami_result
+                OUTPUT_VARIABLE runtime_account
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+            if(NOT whoami_result STREQUAL "0" OR runtime_account STREQUAL "")
+                message(FATAL_ERROR "Cannot discover synthetic fixture owner")
+            endif()
+            execute_process(COMMAND icacls.exe "${config_file}"
+                /inheritance:r /grant:r "${runtime_account}:(F)"
+                RESULT_VARIABLE private_acl_result
+                OUTPUT_QUIET ERROR_VARIABLE private_acl_error)
+            if(NOT private_acl_result STREQUAL "0")
+                message(FATAL_ERROR "Cannot set private synthetic config DACL")
+            endif()
+            if(RDP_RUNTIME_TEST_CASE MATCHES "^rejects-configuration-windows-(everyone|authenticated|users)-write$")
+                if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-everyone-write")
+                    set(broad_sid "*S-1-1-0")
+                elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-authenticated-write")
+                    set(broad_sid "*S-1-5-11")
+                else()
+                    set(broad_sid "*S-1-5-32-545")
+                endif()
+                execute_process(COMMAND icacls.exe "${config_file}"
+                    /grant "${broad_sid}:(M)"
+                    RESULT_VARIABLE grant_result OUTPUT_QUIET ERROR_QUIET)
+                if(NOT grant_result STREQUAL "0")
+                    message(FATAL_ERROR "Cannot grant synthetic broad write ACE")
+                endif()
+            endif()
+        endif()
         if(WIN32 AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
             file(REMOVE "${config_file}")
             file(MAKE_DIRECTORY "${config_file}")

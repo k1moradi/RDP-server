@@ -237,6 +237,10 @@ target_compile_features(rdp-server PRIVATE cxx_std_23)
 target_compile_definitions(rdp-server PRIVATE
     "RDP_SERVER_VERSION=\"${PROJECT_VERSION}\"")
 target_link_libraries(rdp-server PRIVATE rdp-server-protocol)
+if(WIN32)
+    # GetSecurityInfo on the *opened* file handle requires Advapi32.
+    target_link_libraries(rdp-server PRIVATE Advapi32)
+endif()
 if(MSVC)
     target_compile_options(rdp-server PRIVATE /W4)
 else()

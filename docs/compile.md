@@ -224,3 +224,16 @@ Four additional Windows-only `runtime.*` CTests use existing
 The owner's existing one-line CMake/CTest workflow is unchanged.
 DACL and TLS private-key file permissions are NOT yet verified;
 `--check-config` does not activate a service.
+
+## R10 Windows offline config file DACL fixture gate (2026-10-15)
+
+On Windows, `rdp-server --check-config` additionally inspects the
+opened HANDLE's DACL for broad write/delete/permission-changing
+grants. All Windows synthetic config fixtures in normal CTest are
+given a private DACL using standard `whoami.exe` and `icacls.exe`,
+then dedicated negative cases grant Everyone, Authenticated Users
+or BUILTIN Users modify access and require exit 3. These commands
+run only against files generated under `build/runtime-fixtures/`,
+never a real credential or system file. The owner's normal CMake/
+CTest one-liner is unchanged. No complete effective-access, TLS
+private-key permissions or OS-admission claim is implied.

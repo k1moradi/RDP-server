@@ -1759,3 +1759,11 @@ empty-backlog would-block, the difference between exhausted and
 drained, invalid/null callback, zero/oversized budget,
 non-listening sockets, callback stop and accepted-handle RAII
 closure. No live desktop, server, credentials or external client.
+
+## R1 native accept-batch watchdog (2026-10-15)
+
+Both real-loopback accepted-socket batch CTests register a 20-second
+CTest TIMEOUT in the existing central list. The limit is a test
+diagnostic for platform-dependent socket/listen backlog stalls,
+NOT a production timeout or a relaxation of any assertion. Do not
+declare an incomplete/hung Windows job PASS or FAIL without its logs.

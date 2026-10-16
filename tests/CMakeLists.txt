@@ -135,6 +135,13 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("transport.${case_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
+        # Fail fast with a NAMED CTest TIMEOUT instead of tying up a
+        # Windows worker forever if native connect/backlog handling stalls.
+        # Keep both original production assertions intact.
+        set_tests_properties(
+            transport.tcp-native-accept-batch-budget-handoff
+            transport.tcp-native-accept-batch-stops-denials
+            PROPERTIES TIMEOUT 20)
         # Live server-cert binding belongs to the existing real TLS
         # fixture, but exposes separate positive and negative security
         # contracts rather than hiding them under transport CTest.

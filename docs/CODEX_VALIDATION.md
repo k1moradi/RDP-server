@@ -4766,3 +4766,23 @@ input/cursor/clipboard and current Microsoft client, performance.
 **Next:** coordinate R4 compositor ownership for mixed Retina layouts,
 then a narrowly scoped R2/R3-approved ScreenCaptureKit callback lifecycle
 with generation, cancellation, permission denial and revocation tests.
+
+## R1 native accept-batch watchdog (2026-10-15)
+
+**Integration parent:** `927b34591d7cac9506d132ad844c2185fa419efa`. Earlier native accept-batch
+`c3b10eecf9f76d550d09f6601c3095130ff94b95` CI run
+[38848654322](https://github.com/k1moradi/RDP-server/actions/runs/38848654322):
+**PASS Linux 210/210, macOS 195/195 Debug and Release**;
+**Windows Debug IN PROGRESS** and no Windows CTest result observed.
+Portability correction `16ec8326ef2be45d56f2e87e49f907635a314eb8`
+[run 38849165118](https://github.com/k1moradi/RDP-server/actions/runs/38849165118):
+new R1 native batch cases **PASS** Linux and macOS Debug.
+Full Debug **FAIL Linux 215/216, macOS 200/201** due to unrelated
+R7 `macos.geometry-native-mixed-scale-denials` at fixture
+`test_macos_capture_pixel_buffer.cpp:552` ([Issue #12](https://github.com/k1moradi/RDP-server/issues/12)).
+Windows full Debug still IN PROGRESS in both runs when checked.
+To bound further diagnostics, register **TIMEOUT 20** on the
+two existing R1 batch CTests only; no code or assertions change.
+**NOT RUN:** new timeout SHA hosted CI, owner Linux/X11,
+Windows MSYS2 CLANG64 Clang23, macOS27, live Microsoft client,
+R2 user authorization/R3 OS session and desktop.

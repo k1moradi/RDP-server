@@ -654,6 +654,23 @@ actually run; another parser CTest alone is not a complete session.
   fairness and process-owned listener policy; never let an offline
   X.224/TLS diagnostic bypass R2 authentication and R3 session gates.
 
+  **R1 Windows bounded native batch CTest watchdog (2026-10-15; parent
+  `927b34591d7cac9506d132ad844c2185fa419efa`):** New batch-accept R1 cases PASS on Linux/macOS
+  hosted CI at `c3b10eecf9f76d550d09f6601c3095130ff94b95`
+  (Linux 210/210, macOS 195/195 Debug+Release). Windows Debug
+  remains IN PROGRESS on initial and backlog-independent fixture
+  runs, with no named test result yet; do not claim WIN PASS/FAIL.
+  Add per-test CTest `TIMEOUT 20` for the two new R1 batch cases to
+  expose platform-dependent stalls with a named failure, without
+  changing implementation, test expectations or socket ownership.
+  The corrected fixture commit `16ec8326ef2be45d56f2e87e49f907635a314eb8`
+  has its two new R1 cases PASS Linux/macOS Debug, but full Linux
+  215/216 and macOS 200/201 FAIL the separately owned R7
+  `macos.geometry-native-mixed-scale-denials` assertion at line 552,
+  tracked in [Issue #12](https://github.com/k1moradi/RDP-server/issues/12).
+  Corrected watchdog CI **NOT RUN** at authorship. Owner-local
+  Linux/X11, MSYS2 CLANG64 Clang23 and macOS27 **NOT RUN**.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

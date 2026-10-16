@@ -1,3 +1,35 @@
+## R10 connection-aggregate publication receipt and CredSSP I/O blocker (2026-10-16)
+
+Implementation commit: `be99fb50d0f1c7ae981a8e706ec44794a309eadc`
+(`feat(r10): own Linux connection teardown aggregate`), published directly to
+`main` from `461077c612ec4370d8f943e1a2502172e4649ee3` by expected-head,
+non-force update. Exact workflow: Actions `38885191523`, currently
+**QUEUED**; hosted compile/CTest is therefore **NOT RUN yet** for this SHA.
+The prerequisite sealed-keytab seal-query correction workflow
+`38884685461` is also still **QUEUED**.
+
+Post-publication integration review confirms the aggregate itself does not yet
+make a production listener permissible. R1 now explicitly owns bounded
+post-handshake TLS application I/O through
+`OwnedPreauthTcpConnection::readTlsApplicationData` /
+`writeTlsApplicationData`, while the current R2
+`TsRequestFrameReader::readOneTlsStep(SSL*)` and
+`TsRequestTlsReplyWriter::writeOneTlsStep(SSL*)` still advance OpenSSL
+directly. R1's `establishedTls()` borrow explicitly forbids advancing SSL
+outside R1. Exposing the aggregate's private acceptor or bypassing R1 would
+violate sole-owner architecture.
+
+This cross-road seam is tracked as issue #17,
+**R1/R2: route CredSSP framing through the owned TLS application-I/O
+boundary**. R10 will keep the aggregate non-listening until R1/R2 supply a
+bounded framed path through the owned application-I/O seam and both pending
+R10 exact-SHA Linux gates pass.
+
+Descendant `main` inspected at `5d7f4cef992436091c97c49d514ea7bff0fa2279` changes clipboard/docs/test
+registration only relative to the R10 aggregate commit; the new
+`linux_runtime_connection.{h,cpp}`, R10 CMake source registration and
+aggregate tests remain unchanged.
+
 ## R10 non-listening Linux R1→R2→R3 connection aggregate (2026-10-16; exact-SHA CI pending)
 
 Starting shared `main`: `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`;

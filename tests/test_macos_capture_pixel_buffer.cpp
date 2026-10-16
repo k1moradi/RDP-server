@@ -608,8 +608,7 @@ void testNativeGeometryFailClosed() {
     using namespace rdp::macos;
     auto fixture = nativeDisplayFixture();
     fixture.firstCount = fixture.secondCount = 2;
-    fixture.first[1].xPoints = fixture.second[1].xPoints = -1920.0;
-    fixture.first[1].yPoints = fixture.second[1].yPoints = -100.0;
+    fixture.first[1] = fixture.second[1] = kNativeLeft;
     auto geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 30));
     assert(!geometry &&
            geometry.error() == NativeDisplayGeometryError::UnsupportedMixedScale);
@@ -649,7 +648,7 @@ void testNativeGeometryGenerationRefresh() {
         fixture.second[0].backingWidthPixels = 2268;
     fixture.first[0].backingHeightPixels =
         fixture.second[0].backingHeightPixels = 1473;
-    // Change logical dimensions instead of breaking isotropic scaling.
+    // Change the backing scale from 2x to 1.5x, preserving logical bounds.
     fixture.first[0].widthPoints = fixture.second[0].widthPoints = 1512;
     fixture.first[0].heightPoints = fixture.second[0].heightPoints = 982;
     const auto after = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 91));

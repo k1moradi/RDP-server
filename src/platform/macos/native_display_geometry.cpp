@@ -17,7 +17,7 @@ namespace {
     return std::isfinite(first) && std::isfinite(second) && first > 0.0L &&
            second > 0.0L &&
            std::fabs(first - second) <=
-               1e-10L * (std::max)(1.0L, (std::max)(first, second));
+               1e-10L * (std::max)(first, second);
 }
 
 [[nodiscard]] bool pixelOrigin(const long double logicalOffset,

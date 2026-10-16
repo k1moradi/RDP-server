@@ -4564,3 +4564,16 @@ no broad retry, no suppressed assertions. Corrected exact-SHA hosted
 CI and owner Linux/X11, Windows CLANG64 Clang23 and macOS27
 **NOT RUN at authoring**. R2 authenticated identity/R3 session
 and real Microsoft desktop remain NOT ACCEPTED.
+
+## R7 native display converter relative-scale and fixture correction (2026-10-16)
+
+**Original implementation:** `2427cdea0f0aa866e1b8fe8caa53f119317225bf`.
+**Correction:** Use proportional common-scale tolerance for very small
+scale factors, and initialize the full mirrored pair of mixed-scale
+native test observations before the expected denial. Generation CTest
+now describes its actual 2x to 1.5x backing-resolution change.
+**PASS (sparse fixture):** GCC14.2 one-root Debug CTest 4/4, Clang17
+strict C++23 ASan/UBSan 4/4. **NOT RUN at authoring:** corrected-source
+full GitHub Actions or owner macOS27/Windows CLANG64 Clang23/Linux
+one-root tests; live ScreenCaptureKit, TCC, client input and performance.
+No OS admission, permission or graphics scheduler behavior changed.

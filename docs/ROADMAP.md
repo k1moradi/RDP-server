@@ -2823,6 +2823,14 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 conversion hardening (2026-10-16):** Corrected the
+  mixed-scale rejection test so its second display has complete native
+  identity/dimensions, and tightened common-scale comparison to relative
+  tolerance. This preserves rejection for extremely small but different
+  scales. New behavior-named CTests remain registered unchanged;
+  isolated GCC14 CTest 4/4 and Clang17 ASan/UBSan 4/4 PASS.
+  Corrected-source hosted CI and owner macOS27 remain NOT RUN at
+  authoring; M1/M5 still open.
   **R7 native-to-portable compositor geometry (2026-10-16):**
   Native CoreGraphics display observations now feed the existing
   generation-safe `DesktopDisplayGeometry` via `makeDesktopGeometry`.

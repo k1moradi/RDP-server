@@ -1145,6 +1145,78 @@ void testR3AttachUserTerminalReplayFence()
     assert(freshAcceptor.stage() == SpnegoStage::Failed);
 }
 
+void testR3ProtectedChannelJoinContract()
+{
+    using StartMethod =
+        decltype(&LinuxConsoleAdmissionBroker::authorizeR3ChannelJoin);
+    using PrepareMethod =
+        decltype(&LinuxConsoleAdmissionBroker::authorizeR3ChannelJoinConfirmWrite);
+    using CompletionMethod =
+        decltype(&LinuxConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite);
+    using Start = rdp_server::server::transport::McsJoinStartOutcome;
+    using Outcome = rdp_server::server::transport::McsJoinWriteOutcome;
+    using Packet = std::span<const std::uint8_t>;
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Session = McsSessionLifecycle &;
+
+    static_assert(std::is_invocable_r_v<
+        Start, StartMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session, Packet>);
+    static_assert(!std::is_invocable_v<
+        StartMethod, Broker, bool, Acceptor, Connection, Session, Packet>);
+    static_assert(!std::is_invocable_v<
+        StartMethod, Broker, const SSL *, Acceptor, Connection, Session, Packet>);
+    static_assert(!std::is_invocable_v<
+        StartMethod, Broker, std::uint64_t, Acceptor, Connection, Session, Packet>);
+    static_assert(std::is_invocable_r_v<
+        std::optional<rdp_server::server::transport::McsConnectResponseWriteView>,
+        PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, bool, Acceptor, Connection, Session>);
+    static_assert(std::is_invocable_r_v<
+        Outcome, CompletionMethod, Broker, const LinuxConsoleAdmissionLease *,
+        Acceptor, Connection, Session, std::uint64_t, std::uint64_t,
+        std::size_t>);
+    static_assert(!std::is_invocable_v<
+        CompletionMethod, Broker, bool, Acceptor, Connection, Session,
+        std::uint64_t, std::uint64_t, std::size_t>);
+
+    constexpr std::array<std::uint8_t, 12> validJoin{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x01, 0x03, 0xeb};
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST","alice","seat0",":0",
+                       1001,kConsoleViewPermission}) == ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+    assert(broker.completeR3ChannelJoinConfirmWrite(
+        nullptr, acceptor, connection, session, 1U, 1U, 15U) ==
+        Outcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(session.allocatedUserId() == 0U);
+    assert(session.pendingJoinConfirmation().empty());
+    assert(!session.channelJoinConfirmed(1003U));
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    assert(broker.completeR3ChannelJoinConfirmWrite(
+        nullptr, acceptor, connection, session, UINT64_MAX, UINT64_MAX,
+        0U) == Outcome::Rejected);
+    assert(session.onDomainPdu(validJoin) == McsSessionIntake::Closed);
+
+    // Fresh R3 cannot accept the packet by syntax alone.
+    McsSessionLifecycle unadmitted;
+    assert(unadmitted.onDomainPdu(validJoin) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(unadmitted.phase() == McsSessionPhase::Closed);
+    assert(!unadmitted.channelJoinConfirmed(1003U));
+}
+
 void testR3NativeChangeRevocation()
 {
     ConsoleIdentityPolicy policy;
@@ -1366,6 +1438,11 @@ int main(int argc, char **argv)
             testR3AttachUserTerminalReplayFence();
             return 0;
         }
+        if (name == "gssapi-r3-channel-join-contract")
+        {
+            testR3ProtectedChannelJoinContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -1400,6 +1477,7 @@ int main(int argc, char **argv)
     testR3ProtectedTransitionTerminalReplayFence();
     testR3AttachUserContract();
     testR3AttachUserTerminalReplayFence();
+    testR3ProtectedChannelJoinContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

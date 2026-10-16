@@ -617,6 +617,21 @@ private:
         std::size_t acceptedBytes) noexcept;
     [[nodiscard]] std::optional<std::uint32_t> allocateAttachUserId() const noexcept;
 
+    // After complete Attach confirmation, the existing bounded join gate is
+    // the only channel-join writer. These private methods require a fresh
+    // concrete R2 authorization before every intake, slice and completion.
+    [[nodiscard]] McsJoinStartOutcome onVerifiedR2ChannelJoin(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<McsConnectResponseWriteView>
+    prepareChannelJoinConfirmWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] McsJoinWriteOutcome completeChannelJoinConfirmWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
     McsConnectResponseAllocation connectResponseAllocation_{};

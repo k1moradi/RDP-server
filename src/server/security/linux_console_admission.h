@@ -258,6 +258,39 @@ public:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // Post-Attach Channel Join still requires the original R1 owner and live
+    // native R2 authorization. The existing gate handles only allocated
+    // channel IDs and one reply at a time; it does not activate Send Data.
+    [[nodiscard]] rdp_server::server::transport::McsJoinStartOutcome
+    authorizeR3ChannelJoin(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::McsConnectResponseWriteView>
+    authorizeR3ChannelJoinConfirmWrite(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
+    // Null is denial-only, never an alternative positive admission source.
+    [[nodiscard]] rdp_server::server::transport::McsJoinWriteOutcome
+    completeR3ChannelJoinConfirmWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

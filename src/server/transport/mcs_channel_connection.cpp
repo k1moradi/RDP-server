@@ -725,6 +725,85 @@ McsSessionLifecycle::completeAttachUserConfirmWrite(
     return result;
 }
 
+McsJoinStartOutcome McsSessionLifecycle::onVerifiedR2ChannelJoin(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitChannelJoin ||
+        allocatedUserId_ == 0U ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return McsJoinStartOutcome::Rejected;
+    }
+
+    // Each request is one already-decrypted, exact TPKT from R1. The gate
+    // copies only the allocated channel index; no borrowed packet survives.
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed || parsed.request.kind != McsChannelRequestKind::ChannelJoin)
+    {
+        // A peer Disconnect is terminal, never a successful Join.
+        close();
+        return McsJoinStartOutcome::Rejected;
+    }
+
+    const auto outcome = joins_.beginJoin(parsed.request);
+    if (outcome == McsJoinStartOutcome::Rejected)
+        close();
+    // AlreadyJoined/AlreadyPending are idempotent according to T.125.
+    // Buffered permits a bounded batch, not an outbound scheduling owner.
+    return outcome;
+}
+
+std::optional<McsConnectResponseWriteView>
+McsSessionLifecycle::prepareChannelJoinConfirmWrite(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitChannelJoin ||
+        allocatedUserId_ == 0U ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_)
+    {
+        close();
+        return std::nullopt;
+    }
+    const auto suffix = joins_.pendingBytes();
+    const auto replySequence = joins_.pendingReplySequence();
+    const auto writeSliceSequence = joins_.pendingWriteSliceSequence();
+    if (suffix.empty() || replySequence == 0U || writeSliceSequence == 0U)
+    {
+        close();
+        return std::nullopt;
+    }
+    return McsConnectResponseWriteView{
+        suffix, replySequence, writeSliceSequence};
+}
+
+McsJoinWriteOutcome McsSessionLifecycle::completeChannelJoinConfirmWrite(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitChannelJoin ||
+        allocatedUserId_ == 0U ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_)
+    {
+        close();
+        return McsJoinWriteOutcome::Rejected;
+    }
+    const auto outcome = joins_.onReplyBytesWritten(
+        replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == McsJoinWriteOutcome::Rejected)
+        close();
+    // Even an accepted full Join Confirm grants no licensing, Share Control
+    // or application-channel dispatch without later protected transitions.
+    return outcome;
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {

@@ -1,3 +1,59 @@
+## R3 protected Channel Join intake and confirmation (2026-10-16; exact-SHA CI pending)
+
+Starting inspected main for this increment:
+`9131611a110aa7bbe6746c341607c8667ddfad4a`;
+latest reconciled shared main:
+`07f53d3aef9162a55943cefe6c6bd513a757cc12`.
+The previous R3 Attach User implementation
+`f5fd24e2e6a5c41409f38746c5adaa8fd56504e5`
+compiled the portable R3 test target on Linux in Actions
+[38885550643](https://github.com/k1moradi/RDP-server/actions/runs/38885550643),
+but its full Debug/Release matrix FAILED at unrelated R8
+`tests/test_owned_remote_transfer.cpp` assert macro parsing
+(lines 1634-1655), also blocking R9 sanitizer execution. The
+documentation-policy job PASSED. Those are not R3 CTest PASS receipts;
+the source owner of the first failure is R8. Later main includes a
+separate R8 test correction, but no success is inferred before hosted CI.
+
+The sole `McsSessionLifecycle` now exposes *private* protected
+post-Attach Channel Join intake and confirmation progress. The only
+positive entry is the concrete LinuxConsoleAdmissionBroker with the
+nonforgeable R2 lease, original GSS acceptor, exact R1-owned established
+HYBRID/NLA TLS connection, bounded already-decrypted complete TPKT, and
+`kConsoleViewPermission`. R2 rechecks GSS/CredSSP certificate, native
+NSS/logind watch, policy epoch and stored session/admission generations
+before each Join intake, writer suffix and accepted-byte completion.
+Every denial tears down R3 protocol, licensing and channel state before
+R2/GSS; R1 TLS/socket teardown remains under its original owner.
+
+After a fully completed Attach User Confirm, R3 validates each Channel
+Join Request through the existing single T.125 parser and
+`McsChannelJoinWriteGate`. Only UserId 1002 and the assigned user,
+I/O 1003 and static channels may be joined. Correctly repeated joins
+are idempotent. Distinct client-batched joins are bounded by fixed
+allocation; the same existing gate serializes each 15-byte confirm
+with nonzero reply and write-slice receipts, stable backpressure bytes,
+one-completion-at-a-time membership, and terminal stale/overreported
+receipt denial. No second writer, scheduler, socket owner or borrowed
+packet state is introduced. The public `onDomainPdu()` remains
+denial-only. Channel membership alone does not authorize Send Data,
+licensing, Share Control, graphics, input or clipboard.
+
+New central-registry CTests in the existing executables:
+`transport.mcs-session-join-confirm-receipts`,
+`transport.mcs-session-join-confirm-denials` and
+`security.gssapi-r3-channel-join-contract` (Linux GSSAPI).
+Offline tests cover real production join gate wire/receipt behavior
+and compile-time protected authority signatures plus genuine null-lease,
+missing R1 TLS and terminal replay denials. No test invents an R2
+positive lease. **Owner local full build/CTest NOT RUN** because
+`~/rdp-server` is absent and shell GitHub DNS fails. **Hosted exact-SHA
+Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizers and
+owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 remain
+NOT RUN for this increment at authoring.** Next R3 requires
+R2-authorized channel-role dispatch/licensing/Share progression and
+real-client positive native-admission integration. **M2 NOT ACCEPTED.**
+
 ## R6 hosted Windows native-adapter stabilization receipt (2026-10-16)
 
 R6 CI-preflight commit `d965eb8e15c9dbffd30ed497020f7d0560384eef`

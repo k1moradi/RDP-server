@@ -1,3 +1,39 @@
+### R3 protected Channel Join receipts after Attach User (2026-10-16)
+
+The existing `McsSessionLifecycle`, not a second join owner, handles
+Channel Join after complete authorized 11-byte Attach User Confirm
+delivery. Its `AwaitChannelJoin` phase retains the assigned UserId
+1002 and checked GCC/IO/static channel allocation. A private
+`onVerifiedR2ChannelJoin()` consumes exactly one already-decrypted
+TPKT after `LinuxConsoleAdmissionBroker` reauthorizes the genuine
+nonforgeable lease, GSS/selected TLS certificate, immutable R1
+HYBRID/NLA provenance, NSS/logind watch, policy epoch, session
+generation and view permission. Neither the public diagnostic
+`onDomainPdu()` nor a Boolean/raw SSL/identifier can grant admission.
+
+The already-configured `McsChannelJoinWriteGate` owns one fixed
+15-byte Join Confirm and a bounded queued index for each distinct
+requested assigned channel. A repeat pending/confirmed Join remains
+idempotent; foreign/wrong initiator, invalid/early/late/wrong-order
+PDU, cancellation and stale/overreported receipts are terminal.
+One R3-owned output suffix, reply receipt and independent slice
+receipt are borrowed only after fresh broker authorization.
+`OwnedPreauthTcpConnection::writeTlsApplicationData()` remains
+the sole TLS write boundary. WANT with no accepted bytes retains
+the same suffix and receipt; positive partial acceptance advances
+only the slice; full authorized acceptance confirms exactly the
+corresponding channel and may publish the next pending Join reply.
+
+The broker reauthorizes again before consuming each completion,
+so R2 revocation or changed TLS provenance cannot turn old accepted
+bytes into channel membership. Terminal failures revoke R3 join,
+licensing and protocol state first, then R2/GSS; R1 releases TLS
+afterward. Confirmed MCS membership is a prerequisite only: there
+is still NO admitted Send Data, channel-role dispatch, licensing,
+Share Control, graphics, input, clipboard or listener. R3 keeps
+its existing single event-loop-affine writer and no extra thread,
+scheduler or heap-based queue.
+
 ### R3 authorized Attach User and receipt-bound MCS UserId (2026-10-16)
 
 The sole `McsSessionLifecycle` owns the allocated UserId, pending 11-byte

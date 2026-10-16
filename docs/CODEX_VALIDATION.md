@@ -1,3 +1,49 @@
+## R3 protected Channel Join authoring and CI blocker (2026-10-16)
+
+**Starting main:** `9131611a110aa7bbe6746c341607c8667ddfad4a`.
+**Reconciled authoring main:** `07f53d3aef9162a55943cefe6c6bd513a757cc12`.
+Prior R3 Attach User commit:
+`f5fd24e2e6a5c41409f38746c5adaa8fd56504e5`.
+Exact prior Actions:
+[38885550643](https://github.com/k1moradi/RDP-server/actions/runs/38885550643).
+Linux `test_owned_mcs_connect_initial` compiled/linked; full
+Linux/GCC, macOS/Clang, Windows/MSVC and R9 sanitizer jobs **FAIL**
+at R8 `tests/test_owned_remote_transfer.cpp` assert macro syntax
+(lines 1634-1655). Docs-policy **PASS**. Full CTest **NOT RUN**;
+do not misattribute this error to R3. Concurrent R8 source changes
+later address the blocker, but this does not constitute R3 test PASS.
+
+**Production:** private `McsSessionLifecycle::onVerifiedR2ChannelJoin`,
+`prepareChannelJoinConfirmWrite`, and
+`completeChannelJoinConfirmWrite`, reached solely through the
+existing concrete `LinuxConsoleAdmissionBroker` with native R2
+authorization and original R1 connection. Reauthorize before each
+intake/slice/completion; R3 still owns all channel IDs and the
+single bounded `McsChannelJoinWriteGate`. Genuine peer Disconnect,
+malformed/wrong-order/foreign Join and wrong/stale receipt are
+terminal. Buffered allocated Join Requests cannot advance channel
+membership before their own exact confirmation completes.
+
+**Dedicated CTests added (NOT RUN at authoring):**
+`transport.mcs-session-join-confirm-receipts`,
+`transport.mcs-session-join-confirm-denials`,
+`security.gssapi-r3-channel-join-contract` (Linux only).
+These exercise the real fixed-size join gate, 15-byte serializer,
+bounded batch receipts/backpressure/cancellation, public early-Join
+denial, compile-time native lease/exact R1 owner type restrictions,
+and null-lease revocation. No positive Kerberos or logind session
+is fabricated.
+
+**Verification matrix for this increment:** source and central CTest
+registration reviewed; canonical `~/rdp-server/build` CMake and CTest
+**BLOCKED / NOT RUN** (owner checkout unavailable, GitHub DNS fails
+from shell). New exact-SHA Linux/GCC, macOS/Clang and Windows/MSVC
+Debug/Release plus R9 sanitizer and docs-policy **PENDING**;
+independent owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27 **NOT RUN**. KDC/client ticket/native session, Microsoft
+client, Send Data/Share/desktop **NOT RUN**. First failure for new
+CI unknown until that exact workflow completes. M2 **NOT ACCEPTED**.
+
 ## R6 hosted Windows DXGI/input focused validation (2026-10-16)
 
 **Implementation:** `527977bfe3fbb167dc14d6273006f1b802edc170`.

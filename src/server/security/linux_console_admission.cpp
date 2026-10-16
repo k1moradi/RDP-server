@@ -817,6 +817,88 @@ LinuxConsoleAdmissionBroker::completeR3AttachUserConfirmWrite(
     return outcome;
 }
 
+rdp_server::server::transport::McsJoinStartOutcome
+LinuxConsoleAdmissionBroker::authorizeR3ChannelJoin(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using Outcome = rdp_server::server::transport::McsJoinStartOutcome;
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return Outcome::Rejected;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto outcome = session.onVerifiedR2ChannelJoin(
+        *provenance, completeTpkt);
+    if (outcome == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
+std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3ChannelJoinConfirmWrite(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+    const auto pending = session.prepareChannelJoinConfirmWrite(*provenance);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+rdp_server::server::transport::McsJoinWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome = rdp_server::server::transport::McsJoinWriteOutcome;
+    if (lease == nullptr ||
+        !authorizeR3ProtectedTransition(
+            *lease, acceptor, connection, session, kConsoleViewPermission))
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto outcome = session.completeChannelJoinConfirmWrite(
+        *provenance, replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

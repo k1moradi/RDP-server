@@ -1,3 +1,9 @@
+## R7 exact-SHA completion status (2026-10-16)
+
+R7 native GUI-session retirement is **DONE for synthetic production-backed lifetime enforcement** at `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`; see `docs/CODEX_VALIDATION.md` for exact hosted evidence. Hosted macOS Debug/Release, Linux Debug/Release, Windows Debug/Release, the dedicated R7 GCC ASan/UBSan job, documentation policy and package/digest gates passed. The R9 sanitizer workflow failed only at the concurrently introduced R5 X11 registration preflight before its X11 tests ran; that first boundary is recorded without attributing it to R7.
+
+Remaining R7 acceptance gaps are unchanged: owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 evidence are **NOT RUN**; genuine macOS 27 fast-user-switch/AppKit notification delivery, TCC behavior, native capture/input and current Microsoft-client M5 are **NOT RUN**. Fresh positive authorization still belongs to R2/R3, and future R4 owns negotiated frame scheduling/composition/encoder integration.
+
 ## R9 native file-destination lifetime and handoff sanitizer fence (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`.

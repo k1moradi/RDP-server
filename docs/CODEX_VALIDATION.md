@@ -1,3 +1,20 @@
+## R7 macOS GUI-session consumer retirement exact-SHA validation (2026-10-16)
+
+**Validated R7 integration SHA:** `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`.
+**GitHub Actions:** `38974611308` — https://github.com/k1moradi/RDP-server/actions/runs/38974611308
+
+The R7 session-watch lifetime work is production-complete for the synthetic/native-boundary scope in this roadmap. The existing process-scoped `NativeSessionChangeWatch` revision is pinned by both `MacInputController` and `MacScreenCaptureState`; stale input discards held state without synthetic cleanup, and capture revalidates session continuity at prepare/start/frame boundaries, including synchronous callback return fences. No positive R2/R3 admission, second watcher, native scheduler or live ScreenCaptureKit/Input capability was added.
+
+Exact-SHA hosted evidence at `c2334ff9...`:
+- macOS/AppleClang Debug: **PASS, 423/423**; Release: **PASS, 423/423**. The dedicated `macos.input-controller-session-watch-revocation`, `macos.capture-stream-session-watch-frame-retirement`, and `macos.capture-stream-session-watch-consumer-race` cases all passed in both configurations.
+- Linux/GCC Debug: **PASS, 499/499**; Release: **PASS, 500/500**. The portable input session-watch case passed in both configurations.
+- Windows/MSVC Debug: **PASS, 453/453**; Release: **PASS, 453/453**. The portable input session-watch case passed in both configurations.
+- R7 GCC ASan/UBSan: **PASS** — all 10 `macos.desktop-session-*` cases plus `macos.input-controller-session-watch-revocation` passed.
+- Documentation policy: **PASS**. SDK consumer, package and digest stages: **PASS** on all three hosted platform jobs.
+- R9 Clang ASan/UBSan: **FAIL at an unrelated R5 registration preflight** after all preceding sanitizer selections passed. The first failing command required `x11.capture-native-destructor-retirement`; that name was absent from the selected R5 X11 CTest list, so the R5 X11 CTest execution did not begin. This is not attributed to R7 and is recorded at the actual first boundary rather than inflated to PASS.
+
+Owner-platform evidence for the exact same integration SHA remains **NOT RUN** for Linux/X11 owner hardware, Windows MSYS2 CLANG64/Clang 23 and macOS 27. Genuine macOS 27 notification delivery/TCC/native capture/input and live Microsoft-client M5 remain **NOT RUN**. Positive R2/R3 desktop authority and R4 negotiated graphics scheduling/encoder integration remain open composition contracts; this R7 work grants no admission and publishes no borrowed CoreVideo buffer beyond synchronous consumption.
+
 ## R9 Windows file-destination destructor retirement authoring (2026-10-16)
 
 **Parent:** `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`.

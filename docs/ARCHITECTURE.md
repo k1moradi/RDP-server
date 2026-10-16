@@ -278,6 +278,20 @@ the native producer validates DXGI metadata byte lengths and releases
 the frame before changing the session. This increment owns no COM
 objects, authorization, queue, capture polling or graphics scheduler.
 
+### R4 AVC420 visible-surface crop and coded macroblocks
+
+MS-RDPEGFX AVC420 requires an H.264 bitstream with 16-pixel
+macroblock-aligned dimensions but crops display pixels using regionRects.
+The optional trailing GfxAvc420Picture::visibleGeometry separates the
+mapped RDPGFX destRect and mask from codedGeometry. Both zero defaults
+to codedGeometry for existing callers. The checked
+gfxAvc420CodedGeometry rounds surfaces up to 16 without u16 overflow.
+R4's single GfxPresentationLifecycle compares the *visible* extent
+to the mapped surface, then uses the same full-delivery receipt and
+bounded ACK accounting. E.g. coded 1920x1088 maps visible 1920x1080.
+A genuine x264 encoder must supply correctly cropped SPS/bitstream;
+R4 does not validate actual H.264, authorize R3 or show a live desktop.
+Normative: MS-RDPEGFX 2.2.2.1, 2.2.4.4, 2.2.4.4.1.
 ### R4 mapped AVC420 picture composition and receipt boundary
 
 The existing `GfxPresentationLifecycle` now composes

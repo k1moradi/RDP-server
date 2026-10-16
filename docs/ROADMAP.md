@@ -3160,6 +3160,23 @@ actually run; another parser CTest alone is not a complete session.
   authorized R3 DVC, real x264, client and benchmarks.
   **Next R4:** actual authorized R3 DVC full-send callback then
   integrate the existing H.264 frame owner/x264. Gate B NOT ACCEPTED.
+  **R4 AVC420 visible/coded picture crop (2026-10-15, source parent a604ab9ab1aa77caeb5fb74feb8fbeac0afde94a):**
+  distinguish 16-aligned H.264 codedGeometry from actual mapped
+  RDPGFX visibleGeometry and region mask, preserving zero/zero
+  default for previous callers. 1920x1088 coded may target a
+  1920x1080 surface; RECT16 destRect and region mask crop to 1080.
+  Add bounded gfxAvc420CodedGeometry() alignment helper; reject
+  zero/partial visible geometry, padded mask regions and u16 overflow.
+  The ONE R4 owner now verifies visible versus mapped surface size.
+  Dedicated CTests graphics.avc420-visible-crop,
+  graphics.avc420-visible-crop-rejections and
+  graphics.avc420-mapped-padded-picture cover valid PDU bytes,
+  invalid geometry/output atomicity and full-send receipt.
+  **NOT RUN at authoring:** local whole-project build, owner's
+  Linux/X11, CLANG64 Clang23 and macOS27 test, x264 output SPS crop,
+  authenticated R3 channel, real-client desktop or benchmark.
+  Gate B remains OPEN. **Next R4:** pinned license-reviewed static
+  x264 producing decodable H.264 SPS/picture and R3 full-send DVC.
   **R4 mapped AVC420 delivery preparation + CMake recovery (2026-10-15;
   parent `6d5422f82dc9e644e8fa058e30e22deedb76bd84`):** Restore the previously committed picture
   packetizer and three existing AVC420 picture CTests to the normal

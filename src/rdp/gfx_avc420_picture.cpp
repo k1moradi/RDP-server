@@ -74,6 +74,18 @@ void header(std::span<std::byte> out, std::size_t at,
 }
 } // namespace
 
+PixelSize gfxAvc420CodedGeometry(PixelSize visible) noexcept
+{
+    constexpr std::uint32_t maxAligned =
+        std::numeric_limits<std::uint16_t>::max() & ~15U;
+    if (visible.widthPixels == 0 || visible.heightPixels == 0 ||
+        visible.widthPixels > maxAligned ||
+        visible.heightPixels > maxAligned)
+        return {};
+    return {(visible.widthPixels + 15U) & ~15U,
+            (visible.heightPixels + 15U) & ~15U};
+}
+
 std::size_t gfxAvc420PictureBytes(
     std::size_t regionCount, std::size_t annexBBytes) noexcept
 {
@@ -98,14 +110,21 @@ std::size_t buildGfxAvc420Picture(
     const std::size_t count = picture.regions.size();
     const std::size_t total = gfxAvc420PictureBytes(
         count, picture.annexBPicture.size());
-    const PixelSize geometry = picture.codedGeometry;
+    const PixelSize coded = picture.codedGeometry;
+    const PixelSize visible =
+        picture.visibleGeometry.widthPixels == 0 &&
+        picture.visibleGeometry.heightPixels == 0
+            ? coded : picture.visibleGeometry;
     if (total == 0 || output.size() < total ||
         picture.surfaceId == 0 || picture.frameId == 0 ||
-        geometry.widthPixels == 0 || geometry.heightPixels == 0 ||
-        (geometry.widthPixels & 15U) != 0 ||
-        (geometry.heightPixels & 15U) != 0 ||
-        geometry.widthPixels > std::numeric_limits<std::uint16_t>::max() ||
-        geometry.heightPixels > std::numeric_limits<std::uint16_t>::max() ||
+        coded.widthPixels == 0 || coded.heightPixels == 0 ||
+        (coded.widthPixels & 15U) != 0 ||
+        (coded.heightPixels & 15U) != 0 ||
+        coded.widthPixels > std::numeric_limits<std::uint16_t>::max() ||
+        coded.heightPixels > std::numeric_limits<std::uint16_t>::max() ||
+        visible.widthPixels == 0 || visible.heightPixels == 0 ||
+        visible.widthPixels > coded.widthPixels ||
+        visible.heightPixels > coded.heightPixels ||
         picture.quantQualities.size() != count ||
         !hasAnnexBPicture(picture.annexBPicture))
     {
@@ -113,7 +132,7 @@ std::size_t buildGfxAvc420Picture(
     }
     for (std::size_t i = 0; i < count; ++i)
     {
-        if (!rectangleFits(picture.regions[i], geometry) ||
+        if (!rectangleFits(picture.regions[i], visible) ||
             picture.quantQualities[i].qp > 51U ||
             picture.quantQualities[i].quality > 100U)
         {
@@ -143,9 +162,9 @@ std::size_t buildGfxAvc420Picture(
     write16(output, kStart + 13U, 0);
     write16(output, kStart + 15U, 0);
     write16(output, kStart + 17U,
-            static_cast<std::uint16_t>(geometry.widthPixels));
+            static_cast<std::uint16_t>(visible.widthPixels));
     write16(output, kStart + 19U,
-            static_cast<std::uint16_t>(geometry.heightPixels));
+            static_cast<std::uint16_t>(visible.heightPixels));
     write32(output, kStart + 21U, static_cast<std::uint32_t>(
         kMetaCount + count * kPerRegion + picture.annexBPicture.size()));
 

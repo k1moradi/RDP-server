@@ -214,9 +214,13 @@ bool GfxPresentationLifecycle::prepareAvc420Picture(
 {
     // R3 must have separately authorized this graphics DVC. Opening R4's
     // offline lifecycle cannot authorize a peer, capture or transport.
+    const PixelSize visible =
+        picture.visibleGeometry.widthPixels == 0 &&
+        picture.visibleGeometry.heightPixels == 0
+            ? picture.codedGeometry : picture.visibleGeometry;
     if (!canSubmitFrame(generation) ||
         picture.surfaceId != surfaceId_ ||
-        picture.codedGeometry != geometry_ ||
+        visible != geometry_ ||
         lastSerial_ == std::numeric_limits<std::uint64_t>::max() ||
         !acknowledgements_.canRecordFrame(generation, picture.frameId))
     {

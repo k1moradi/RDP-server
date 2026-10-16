@@ -200,7 +200,9 @@ function(add_rdp_test source_file suite behavior)
         foreach(case_name IN ITEMS
                 avc420-picture-wire
                 avc420-picture-rejections
-                avc420-picture-overlap)
+                avc420-picture-overlap
+                avc420-visible-crop
+                avc420-visible-crop-rejections)
             add_test(NAME "graphics.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("graphics.${case_name}" PROPERTIES
@@ -216,7 +218,8 @@ function(add_rdp_test source_file suite behavior)
                 frame-delivery-abort-revocation
                 avc420-mapped-frame-wire
                 avc420-mapped-frame-denials
-                avc420-mapped-frame-reconnect)
+                avc420-mapped-frame-reconnect
+                avc420-mapped-padded-picture)
             add_test(NAME "graphics.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("graphics.${case_name}" PROPERTIES

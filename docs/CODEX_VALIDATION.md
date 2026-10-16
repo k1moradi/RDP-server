@@ -5986,3 +5986,24 @@ file handles close. No branches or force updates were used.
 M1–M6 remain OPEN. **Next R10:** cryptographic PEM certificate
 and private-key parsing/match through the existing independent
 offline preflight, bounded and without activating a listener.
+
+## R4 AVC420 visible/coded dimension compatibility (2026-10-15)
+
+**Parent main:** `a604ab9ab1aa77caeb5fb74feb8fbeac0afde94a`.
+Production picture serializer now serializes visible RDPGFX destRect
+and region mask independently of macroblock-aligned coded picture
+dimensions. Trailing zero/zero visible geometry retains old API.
+Checked alignment helper refuses zero and uint16 overflow.
+The one R4 lifecycle uses visible surface extent for negotiation/receipt.
+Three new dedicated central CTests: `graphics.avc420-visible-crop`,
+`graphics.avc420-visible-crop-rejections`,
+`graphics.avc420-mapped-padded-picture`. Negative fixtures include
+partial zeros, oversized visible geometry and padded-area mask rects.
+Normative: MS-RDPEGFX sections 2.2.2.1, 2.2.4.4 and 2.2.4.4.1.
+
+**NOT RUN at authoring:** full local repository checkout/CTest
+(GitHub DNS unavailable), user's Linux/X11, MSYS2 CLANG64 Clang23,
+macOS27 one-root CTest, real x264 SPS crop or Microsoft-client decode,
+R3 admitted dynamic virtual channel and frame-send receipt, benchmark.
+Inspect exact source GitHub CI after publication; Gate B remains open.
+

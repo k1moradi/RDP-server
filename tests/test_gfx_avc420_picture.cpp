@@ -123,6 +123,49 @@ void overlap()
     assert(buildGfxAvc420Picture(p,output)==84);
     for(std::size_t i=0;i<7;++i)assert(output[65+i]==kSyntheticAnnexB[i]);
 }
+
+void crop1080()
+{
+    assert(gfxAvc420CodedGeometry({1920,1080}) ==
+           (PixelSize{1920,1088}));
+    assert(gfxAvc420CodedGeometry({1366,768}) ==
+           (PixelSize{1376,768}));
+    std::array<Rectangle,1> regions{Rectangle{0,0,1920,1080}};
+    std::array<GfxAvc420QuantQuality,1> quant{{{22,80}}};
+    GfxAvc420Picture p{7,42,{1920,1088},regions,quant,
+                       kSyntheticAnnexB,{1920,1080}};
+    std::array<std::byte,96> out{};
+    out.fill(std::byte{0xCC});
+    assert(buildGfxAvc420Picture(p,out)==74);
+    assert(u16(out,33)==1920 && u16(out,35)==1080);
+    assert(u16(out,49)==1920 && u16(out,51)==1080);
+    assert(u16(out,62)==0x000C && u32(out,70)==42);
+    for(std::size_t i=74;i<out.size();++i)
+        assert(out[i]==std::byte{0xCC});
+}
+void cropDenials()
+{
+    assert(gfxAvc420CodedGeometry({0,1080})==PixelSize{});
+    assert(gfxAvc420CodedGeometry({65521,16})==PixelSize{});
+    std::array<Rectangle,1> regions{Rectangle{0,0,1920,1080}};
+    std::array<GfxAvc420QuantQuality,1> quant{{{22,80}}};
+    GfxAvc420Picture p{7,42,{1920,1088},regions,quant,
+                       kSyntheticAnnexB,{1920,1080}};
+    std::array<std::byte,96> out{};
+    auto denied=[&](const GfxAvc420Picture &bad){
+        out.fill(std::byte{0xCC});
+        assert(buildGfxAvc420Picture(bad,out)==0);
+        for(auto b:out)assert(b==std::byte{0xCC});
+    };
+    {auto b=p;b.visibleGeometry={1920,0};denied(b);}
+    {auto b=p;b.visibleGeometry={0,1080};denied(b);}
+    {auto b=p;b.visibleGeometry={1936,1080};denied(b);}
+    {auto b=p;b.visibleGeometry={1920,1104};denied(b);}
+    {auto b=p;b.codedGeometry={1920,1080};denied(b);}
+    {auto b=p;b.visibleGeometry={1920,1072};denied(b);}
+    std::array<Rectangle,1> padded{Rectangle{0,1072,1920,16}};
+    {auto b=p;b.regions=padded;denied(b);}
+}
 } // namespace
 
 int main(int argc, char **argv)
@@ -132,5 +175,7 @@ int main(int argc, char **argv)
     if(testName=="avc420-picture-wire") {wire();return 0;}
     if(testName=="avc420-picture-rejections") {rejections();return 0;}
     if(testName=="avc420-picture-overlap") {overlap();return 0;}
+    if(testName=="avc420-visible-crop") {crop1080();return 0;}
+    if(testName=="avc420-visible-crop-rejections") {cropDenials();return 0;}
     return 2;
 }

@@ -376,6 +376,42 @@ void mappedPictureReconnect()
     assert(lifecycle.requestSurfaceDelete(604));
     assert(!lifecycle.prepareAvc420Picture(604,picture(56),bytes,current));
 }
+
+void mappedPaddedPicture()
+{
+    GfxPresentationLifecycle l;
+    constexpr std::uint64_t gen=2001;
+    assert(l.open(gen));
+    assert(l.acceptCapabilities(gen,advertisement()));
+    assert(l.completeCommand(emit(l,gen,std::byte{19},20),20));
+    assert(l.configureSurface(gen,7,{1920,1080}));
+    assert(l.completeCommand(emit(l,gen,std::byte{9},15),15));
+    assert(l.completeCommand(emit(l,gen,std::byte{15},20),20));
+    std::array<Rectangle,1> rects{Rectangle{0,0,1920,1080}};
+    std::array<GfxAvc420QuantQuality,1> quant{{{22,80}}};
+    GfxAvc420Picture p{7,91,{1920,1088},rects,quant,kAvc420Nal,
+                       {1920,1080}};
+    std::array<std::byte,96> out{};
+    GfxFrameDeliveryReceipt ticket{};
+    assert(l.prepareAvc420Picture(gen,p,out,ticket));
+    assert(ticket.bytes==74 && out[35]==std::byte{0x38} &&
+           out[36]==std::byte{0x04});
+    assert(l.outstandingFrames()==0);
+    assert(l.completeFrameDelivery(ticket,ticket.bytes));
+    assert(l.outstandingFrames()==1);
+    GfxFrameAckWindowResult result{};
+    assert(l.onFrameAcknowledge(gen,ack(91),result));
+    assert(result==GfxFrameAckWindowResult::Acknowledged);
+    p.frameId=92;
+    p.visibleGeometry={1920,1088};
+    GfxFrameDeliveryReceipt untouched{9,8,7,6};
+    out.fill(std::byte{0xCC});
+    assert(!l.prepareAvc420Picture(gen,p,out,untouched));
+    assert(untouched==(GfxFrameDeliveryReceipt{9,8,7,6}));
+    for(auto b:out)assert(b==std::byte{0xCC});
+    l.disconnect();
+    assert(!l.completeFrameDelivery(ticket,ticket.bytes));
+}
 } // namespace
 
 int main(int argc, char **argv)
@@ -391,5 +427,6 @@ int main(int argc, char **argv)
     if (mode == "avc420-mapped-frame-wire") { mappedPictureWire(); return 0; }
     if (mode == "avc420-mapped-frame-denials") { mappedPictureDenials(); return 0; }
     if (mode == "avc420-mapped-frame-reconnect") { mappedPictureReconnect(); return 0; }
+    if (mode == "avc420-mapped-padded-picture") { mappedPaddedPicture(); return 0; }
     return 2;
 }

@@ -31,6 +31,9 @@ struct GfxAvc420Picture final
     std::span<const GfxAvc420QuantQuality> quantQualities{};
     // Borrowed x264 H.264 Annex-B picture; not encoded by this helper.
     std::span<const std::byte> annexBPicture{};
+    // Actual visible RDPGFX surface, distinct from 16-aligned H.264
+    // codedGeometry. Both zero defaults to codedGeometry (legacy API).
+    PixelSize visibleGeometry{};
 };
 
 inline constexpr std::size_t kGfxMaximumAnnexBPictureBytes = 16U * 1024U * 1024U;
@@ -43,6 +46,10 @@ inline constexpr std::size_t kGfxMaximumAvc420Regions = 4096U;
 // Failure leaves output and its suffix untouched. The caller must
 // provide one genuine x264 picture and R3 must authorize and transmit
 // the whole sequence. This is not an H.264 decoder or session owner.
+// Align an actual surface up to 16-pixel H.264 macroblocks without
+// allowing a coded dimension beyond the 16-bit RDPGFX coordinate range.
+[[nodiscard]] PixelSize gfxAvc420CodedGeometry(PixelSize visible) noexcept;
+
 [[nodiscard]] std::size_t gfxAvc420PictureBytes(
     std::size_t regionCount, std::size_t annexBBytes) noexcept;
 [[nodiscard]] std::size_t buildGfxAvc420Picture(

@@ -1447,6 +1447,16 @@ data routing. The sole R3 controller must enforce those separately and
 bound the upstream TPKT intake. No second writer, session owner or
 live desktop service is introduced.
 
+**R3 preauth terminal-state synchronization (denial-only):**
+The one R1 preauthentication owner now revokes its embedded, sole
+`McsSessionLifecycle` on an invalid/repeated X.224 request or failed/
+premature TLS handshake through the same `close()` used by cancellation.
+A read-only lifecycle-phase query provides diagnostic visibility only;
+it cannot authenticate an identity or configure a join. Valid TLS still
+means only diagnostic progress to an MCS envelope, not R2 authorization.
+No new transport, admission capability or session state machine exists.
+
+
 **R3 first R1/R2 session integration boundary (deny-only):** The
 noncopyable `McsSessionLifecycle` owns the R3 Channel Join bookkeeping
 and receives the already-decrypted first MCS Connect-Initial from the

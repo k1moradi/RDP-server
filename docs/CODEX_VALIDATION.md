@@ -2816,6 +2816,25 @@ any branch, live desktop access or input injection.
 **Next:** native frame acquisition/release with deterministic cancellation
 tests after R2/R3 session and R4 frame lifetime agreement.
 
+## R3 preauth terminal revocation of MCS lifecycle (2026-10-15)
+
+**Production:** `PreauthSession::onConnectionRequest` and
+`PreauthSession::onTlsHandshake` now run `close()` on rejected or
+out-of-order transitions, invalidating the embedded R3 session state
+in the same event-loop callback. A read-only `mcsLifecyclePhase()`
+status enables explicit revocation assertions and cannot grant authority.
+
+**Dedicated central CTest:** `transport.mcs-preauth-terminal-revocation`
+in the existing `test_owned_preauth_session` executable. Checks invalid
+and repeated X.224, premature TLS, failure after valid X.224, explicit
+cancel/late MCS callbacks, and valid synthetic diagnostic MCS that still
+tears down R3; tests real production code with no live services.
+**NOT RUN at authoring:** local full repository compile/CTest (full
+checkout unavailable), new-SHA hosted CI, owner three-OS exact-SHA
+one-liner and real R2 GSS/CredSSP/OS-authorized Microsoft RDP.
+Gate A/M2 remains NOT ACCEPTED. Next is a genuine R2-issued
+TLS-bound OS admission contract and ordered Connect Response through R1.
+
 ## R3 admitted-session boundary remains deny-only (2026-10-15)
 
 **Exact implementation CI follow-up (2026-10-15):**

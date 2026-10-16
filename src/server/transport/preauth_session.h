@@ -35,6 +35,13 @@ class PreauthSession final
 public:
     [[nodiscard]] PreauthStage stage() const noexcept { return stage_; }
 
+    // Read-only diagnostic of the embedded R3 owner; never an
+    // authentication, OS-authorization or MCS admission capability.
+    [[nodiscard]] McsSessionPhase mcsLifecyclePhase() const noexcept
+    {
+        return mcsSession_.phase();
+    }
+
     [[nodiscard]] SecurityReply onConnectionRequest(
         const ConnectionParseResult &request) noexcept;
 

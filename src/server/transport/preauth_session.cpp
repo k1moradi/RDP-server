@@ -16,13 +16,15 @@ SecurityReply PreauthSession::onConnectionRequest(
 {
     if (stage_ != PreauthStage::AwaitConnectionRequest)
     {
-        stage_ = PreauthStage::Closed;
+        // Repeated/out-of-order X.224 is terminal for R3 as well as R1.
+        close();
         return negotiateDiagnosticTls({});
     }
     const auto reply = negotiateDiagnosticTls(request);
-    stage_ = reply.decision == SecurityDecision::Tls
-                 ? PreauthStage::AwaitTls
-                 : PreauthStage::Closed;
+    if (reply.decision == SecurityDecision::Tls)
+        stage_ = PreauthStage::AwaitTls;
+    else
+        close(); // Denied negotiation revokes the embedded R3 owner.
     return reply;
 }
 
@@ -30,7 +32,8 @@ bool PreauthSession::onTlsHandshake(bool completed) noexcept
 {
     if (stage_ != PreauthStage::AwaitTls || !completed)
     {
-        stage_ = PreauthStage::Closed;
+        // Failed or premature handshake cannot retain candidate R3 state.
+        close();
         return false;
     }
     stage_ = PreauthStage::AwaitMcsConnectInitial;

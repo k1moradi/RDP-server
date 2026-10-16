@@ -80,6 +80,7 @@ function(add_rdp_test source_file suite behavior)
         # compilation, executables, state controllers or fixture sources.
         foreach(case_name IN ITEMS
                 preauth-session-lifecycle
+                mcs-preauth-terminal-revocation
                 x224-request-fragments
                 x224-request-outcomes
                 x224-confirm-write-order

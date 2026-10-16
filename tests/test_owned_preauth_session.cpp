@@ -4370,6 +4370,73 @@ void testGssapiPrincipalTlsProofGate()
 }
 #endif
 
+void testMcsPreauthTerminalRevocation()
+{
+    // R1 may validate X.224 and TLS without ever receiving the independently
+    // OS-authorized R2 capability required to progress the one R3 owner.
+    const auto request = validRequest();
+    assert(request);
+    const auto frame = validMcsPacket();
+
+    PreauthSession denied;
+    assert(denied.mcsLifecyclePhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(denied.onConnectionRequest({}).decision ==
+           SecurityDecision::Reject);
+    assert(denied.stage() == PreauthStage::Closed);
+    assert(denied.mcsLifecyclePhase() == McsSessionPhase::Closed);
+    assert(!denied.onTlsHandshake(true));
+    assert(!denied.onEncryptedMcsConnectInitial(frame));
+    assert(denied.mcsLifecyclePhase() == McsSessionPhase::Closed);
+
+    PreauthSession duplicate;
+    assert(duplicate.onConnectionRequest(request).decision ==
+           SecurityDecision::Tls);
+    assert(duplicate.mcsLifecyclePhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(duplicate.onConnectionRequest(request).decision ==
+           SecurityDecision::Reject);
+    assert(duplicate.stage() == PreauthStage::Closed);
+    assert(duplicate.mcsLifecyclePhase() == McsSessionPhase::Closed);
+    assert(!duplicate.onEncryptedMcsConnectInitial(frame));
+
+    PreauthSession tlsRejected;
+    assert(tlsRejected.onConnectionRequest(request).decision ==
+           SecurityDecision::Tls);
+    assert(!tlsRejected.onTlsHandshake(false));
+    assert(tlsRejected.stage() == PreauthStage::Closed);
+    assert(tlsRejected.mcsLifecyclePhase() == McsSessionPhase::Closed);
+    assert(!tlsRejected.onTlsHandshake(true));
+    assert(!tlsRejected.onEncryptedMcsConnectInitial(frame));
+
+    PreauthSession prematureTls;
+    assert(!prematureTls.onTlsHandshake(true));
+    assert(prematureTls.mcsLifecyclePhase() == McsSessionPhase::Closed);
+
+    PreauthSession cancelled;
+    assert(cancelled.onConnectionRequest(request).decision ==
+           SecurityDecision::Tls);
+    cancelled.close();
+    cancelled.close();
+    assert(cancelled.stage() == PreauthStage::Closed);
+    assert(cancelled.mcsLifecyclePhase() == McsSessionPhase::Closed);
+    assert(!cancelled.onEncryptedMcsConnectInitial(frame));
+
+    // Normal synthetic diagnostic progress remains syntax-only and
+    // cannot claim R2 authority. A valid MCS envelope closes R3 too.
+    PreauthSession diagnostic;
+    assert(diagnostic.onConnectionRequest(request).decision ==
+           SecurityDecision::Tls);
+    assert(diagnostic.onTlsHandshake(true));
+    assert(diagnostic.stage() == PreauthStage::AwaitMcsConnectInitial);
+    assert(diagnostic.mcsLifecyclePhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(diagnostic.onEncryptedMcsConnectInitial(frame));
+    assert(diagnostic.stage() == PreauthStage::Closed);
+    assert(diagnostic.mcsLifecyclePhase() == McsSessionPhase::Closed);
+    assert(!diagnostic.onEncryptedMcsConnectInitial(frame));
+}
+
 void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
@@ -4441,6 +4508,7 @@ struct PreauthTestCase
 // Running without an argument still executes the complete native suite.
 constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
+    {"mcs-preauth-terminal-revocation", &testMcsPreauthTerminalRevocation},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
     {"x224-confirm-write-order", &testConnectionReplyMustBeSentBeforeTls},

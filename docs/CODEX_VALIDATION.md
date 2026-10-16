@@ -3978,3 +3978,14 @@ human live Microsoft RDP client and R2/R3 OS admission.
 **Next:** R10 integrate the single connection polling step under
 a bounded listener-accept budget; R2 authorizes identity and R3 owns
 MCS/channel/OS session progression independently.
+
+**Exact-implementation hosted CI receipt:** `fb63d6c41734e3d8a5d14f35237bacee90fd72ba`,
+[Actions 38844140123](https://github.com/k1moradi/RDP-server/actions/runs/38844140123)
+**SUCCESS**: Linux/GCC **194/194** Debug+Release, macOS/AppleClang
+**181/181** Debug+Release, Windows/MSVC **185/185** Debug+Release,
+including BOTH newly registered one-step native poll R1 CTests on
+each hosted platform/build configuration; documentation-policy and
+installed SDK consumer verification PASS, SDK ZIP packaging PASS.
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27,
+authenticated R2/OS session or real Microsoft RDP client and desktop.
+The prior authoring-time NOT RUN statements above remain historical.

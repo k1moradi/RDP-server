@@ -542,6 +542,25 @@ actually run; another parser CTest alone is not a complete session.
   session. Next gate: R10 runtime callback wiring to bounded listener
   acceptance with R2 identity/R3 session trust decisions preserved.
 
+  **R1 exact-commit native polling acceptance receipt (2026-10-15):**
+  [commit `fb63d6c41734e3d8a5d14f35237bacee90fd72ba`](https://github.com/k1moradi/RDP-server/commit/fb63d6c41734e3d8a5d14f35237bacee90fd72ba);
+  [GitHub Actions 38844140123](https://github.com/k1moradi/RDP-server/actions/runs/38844140123)
+  completed **SUCCESS** at that exact source SHA.
+  **PASS:** Linux/GCC **194/194** Debug and **194/194** Release;
+  macOS/AppleClang **181/181** Debug and **181/181** Release;
+  Windows/MSVC **185/185** Debug and **185/185** Release.
+  Both new ordinary transport CTests
+  `transport.tcp-owned-bounded-poll-loopback-tls` and
+  `transport.tcp-owned-bounded-poll-timeout-eof` PASS on all three
+  hosted platforms in both configurations. Project documentation,
+  installed SDK downstream consumer CTest, and SDK ZIP artifacts PASS;
+  prerelease SKIPPED without a release tag.
+  **NOT RUN:** owner's exact-SHA Linux/X11, Windows MSYS2
+  CLANG64/Clang23, macOS 27 tests; real client, live OS authorization,
+  R2 credential acceptance, R3 session and graphical desktop.
+  Next: R10 single listener/poller activation remains outside R1 and
+  requires independent authorization; no full M2 acceptance is implied.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

@@ -625,9 +625,12 @@ if(TARGET rdp-server-windows-desktop)
         COMMAND test_windows_desktop_geometry capture-cycle-ordered-lifetime)
     add_test(NAME windows.capture-frame-cancel-and-topology-rejections
         COMMAND test_windows_desktop_geometry capture-cycle-cancel-and-topology-rejections)
+    add_test(NAME windows.capture-frame-release-callback-revocation
+        COMMAND test_windows_desktop_geometry capture-cycle-release-callback-revocation)
     set_tests_properties(
         windows.capture-frame-ordered-lifetime
         windows.capture-frame-cancel-and-topology-rejections
+        windows.capture-frame-release-callback-revocation
         PROPERTIES LABELS "windows;desktop-capture;offline")
     # Scoped synchronous consumption never leaves a DXGI lease or staging map
     # live after returning, including cancellation and sink rejection.

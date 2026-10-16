@@ -13049,3 +13049,27 @@ stop before any positive client decision until the relevant MAC/license
 material is cryptographically verified. R10 remains responsible for real
 service credential provisioning. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+## R6 capture-cycle release-callback revocation authoring receipt (2026-10-16; CI pending)
+
+Starting reconciled shared `main`: `1d030ab1fe5e3301b82ba7f4c37a2a0fd5f30b91`. Source audit reproduced a
+return-state inconsistency in the existing production capture cycle:
+GPU-not-ready cleanup could successfully release its DXGI lease, receive a
+synchronous terminal `cancel()` from that release callback, and nevertheless
+return retryable `WindowsCaptureCycleResult::notReady`.
+
+The production correction makes callback revocation dominate the retryable
+result after successful lease retirement; native release failures remain
+`failed`. Dedicated existing-binary case
+`windows.capture-frame-release-callback-revocation` asserts nested capture is
+`busy` during the release callback, cancellation is deferred, exactly one
+lease is acquired/released, no staging mapping is owned, repeated cancellation
+is idempotent, and the terminal cycle cannot reacquire.
+
+Source, ownership, registry and documentation review are **PASS**. Canonical
+owner-local `~/rdp-server/build/` execution is **NOT RUN** in this connector
+environment. Exact publication-SHA hosted Windows/MSVC focused/full
+Debug+Release, Linux/GCC, macOS/Clang, R9 sanitizer, documentation-policy and
+SDK/package validation are **PENDING**. Owner Windows MSYS2 CLANG64/Clang23,
+genuine Windows R2/R3 authorization, live Desktop Duplication/SendInput and
+Microsoft-client M4 remain **NOT RUN/BLOCKED**.
+

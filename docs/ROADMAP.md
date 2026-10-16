@@ -12522,3 +12522,40 @@ stop before any positive client decision until the relevant MAC/license
 material is cryptographically verified. R10 remains responsible for real
 service credential provisioning. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+## R6 capture-cycle release-callback revocation hardening (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `1d030ab1fe5e3301b82ba7f4c37a2a0fd5f30b91`.
+
+Bounded maintenance review of the existing `WindowsDxgiCaptureCycle` found a
+fail-closed result mismatch on the GPU-not-ready path. The cycle correctly
+unmaps any staging state and releases its acquired DXGI frame before returning
+`notReady`. If the synchronous release callback requests terminal
+`cancel()`, ownership cleanup is already deferred and exact-once, but the
+outer method could still return the retryable `notReady` result even though
+the cycle had become permanently closed.
+
+The correction preserves the existing lease/state owners and release order.
+`captureFrame()` now records the DXGI release result: a failed release remains
+terminal `failed`, while a successful release followed by synchronous
+callback revocation returns `closed`. No later generation check, map, acquire,
+or scheduler retry can reinterpret a terminally revoked cycle as retryable.
+
+New production-linked CTest
+`windows.capture-frame-release-callback-revocation` reuses the existing
+`test_windows_desktop_geometry` executable and central registry. Its injected
+staging callback returns GPU-not-ready without publishing a mapping; the
+release callback attempts nested capture (which must remain `busy`) and then
+cancels the cycle. The test requires one acquisition, one staging attempt, zero
+unmaps, one release, deferred teardown, terminal `closed` return, and no
+second acquire/release after repeated cancellation.
+
+No R2/R3 authority, runtime desktop route, native callback factory, R4 queue,
+or additional capture owner is introduced. Canonical owner-local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment.
+Exact-SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC focused/full
+Debug+Release, R9 sanitizer, documentation-policy and SDK/package evidence is
+**PENDING**. Owner Windows MSYS2 CLANG64/Clang23 and a genuine Windows R2/R3
+authorization capability remain the next production gates; live
+DXGI/SendInput and Microsoft-client M4 acceptance remain **BLOCKED/NOT RUN**.
+**M4 remains OPEN / NOT ACCEPTED.**
+

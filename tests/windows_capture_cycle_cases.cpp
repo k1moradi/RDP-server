@@ -25,9 +25,13 @@ struct FakeCaptureCycle final
     unsigned damageReads{};
     std::uint64_t *rotateSessionDuringDamageRead{};
     bool cancelDuringAcquire{}, cancelDuringMap{}, cancelDuringUnmap{};
+    bool cancelDuringRelease{}, reenterDuringRelease{};
     bool reenterDuringMap{}, viewClearedOnUnmap{};
+    bool teardownDeferredDuringRelease{};
     std::uint64_t *rotateSessionDuringMap{};
     WindowsCaptureCycleResult reentrantResult{WindowsCaptureCycleResult::failed};
+    WindowsCaptureCycleResult releaseReentrantResult{
+        WindowsCaptureCycleResult::failed};
 
     void record(char value) noexcept
     {
@@ -56,6 +60,16 @@ struct FakeCaptureCycle final
         assert(resource == &self.token);
         self.record('R');
         ++self.releases;
+        if (self.reenterDuringRelease && self.cycle)
+        {
+            self.releaseReentrantResult = self.cycle->captureFrame(0);
+        }
+        if (self.cancelDuringRelease && self.cycle)
+        {
+            self.cycle->cancel();
+            self.teardownDeferredDuringRelease =
+                self.cycle->closed() && self.releases == 1;
+        }
         return self.releaseResult;
     }
 
@@ -615,6 +629,35 @@ void windowsCaptureCycleOrderedLifetime()
         assert(owner.captureFrame(0) == WindowsCaptureCycleResult::mapped);
     }
     assert(destructor.unmaps == 1 && destructor.releases == 1);
+}
+
+
+void windowsCaptureCycleReleaseCallbackRevocation()
+{
+    FakeCaptureCycle source{};
+    source.mapResult = WindowsD3D11MapResult::notReady;
+    source.cancelDuringRelease = true;
+    source.reenterDuringRelease = true;
+
+    WindowsDxgiCaptureCycle cycle(
+        sampleLayout(), source.frameCallbacks(), source.stagingCallbacks());
+    source.cycle = &cycle;
+
+    // GPU-not-ready is ordinarily retryable, but terminal cancellation from
+    // the synchronous DXGI release callback must win before returning.
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
+    assert(cycle.closed());
+    assert(source.releaseReentrantResult == WindowsCaptureCycleResult::busy);
+    assert(source.teardownDeferredDuringRelease);
+    assert(source.acquisitions == 1 && source.maps == 1);
+    assert(source.unmaps == 0 && source.releases == 1);
+    assert(cycle.frame().pixels.empty());
+
+    // Deferred cancellation must not release or acquire the same lease again.
+    cycle.cancel();
+    assert(source.releases == 1);
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
+    assert(source.acquisitions == 1);
 }
 
 void windowsCaptureCycleLifecycleDenials()

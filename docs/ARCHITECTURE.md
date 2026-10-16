@@ -4491,3 +4491,20 @@ stop before any positive client decision until the relevant MAC/license
 material is cryptographically verified. R10 remains responsible for real
 service credential provisioning. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+## R6 capture-cycle release callback result boundary (2026-10-16)
+
+A successful native DXGI `ReleaseFrame` only proves that the current lease was
+retired; it does not prove that the enclosing `WindowsDxgiCaptureCycle` is
+still usable. Release callbacks are synchronous and may request terminal
+cancellation while `captureFrame()` owns the operation guard. Such
+cancellation remains deferred until the callback returns, preventing recursive
+teardown or duplicate release.
+
+When staging reports GPU-not-ready, the cycle still releases the frame before
+returning. If that release fails, the cycle reports `failed`. If release
+succeeds but its callback has terminally revoked the cycle, terminal `closed`
+dominates the otherwise retryable `notReady` result. Only a still-live cycle
+may report `notReady` and be retried. The existing staging-before-DXGI release
+order, single lease owner, generation reader, and authorization boundary are
+unchanged.
+

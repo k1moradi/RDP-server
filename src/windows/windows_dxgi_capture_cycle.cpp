@@ -189,11 +189,18 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
                 // lease while the caller waits for the next capture attempt.
                 // Any cursor update is already independently owned above.
                 staging_.unmap();
-                if (duplication_.releaseFrame() !=
-                    WindowsDxgiReleaseResult::released)
+                const auto releaseResult = duplication_.releaseFrame();
+                if (releaseResult != WindowsDxgiReleaseResult::released)
                 {
                     closed_ = true;
                     outcome = WindowsCaptureCycleResult::failed;
+                }
+                else if (closed_)
+                {
+                    // A synchronous ReleaseFrame callback may revoke this
+                    // cycle. Do not report a retryable GPU-not-ready result
+                    // after terminal cancellation was requested.
+                    outcome = WindowsCaptureCycleResult::closed;
                 }
             }
         }

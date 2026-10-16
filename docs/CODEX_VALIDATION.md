@@ -14299,3 +14299,97 @@ No `STATUS_VALID_CLIENT`, Platform Challenge, New License or Demand Active
 path may advance before those cryptographic checks. **M2/M3 remain OPEN / NOT
 ACCEPTED.**
 
+## R3 licensing service credential RSA exact-SHA validation (2026-10-16)
+
+**Implementation:** `10ff27cdd93a9c0226a024f40e6e9fe1f90bd1f0`.
+**Premaster-value correction:** `1268b81fcf315d8521a1282f1dabf11508852398`.
+**Authoritative Actions:** `38937314411` — **SUCCESS**.
+
+The corrected exact SHA is green across every hosted gate. Ubuntu/GCC full
+CTest is **461/461 PASS Debug** and **461/461 PASS Release**. macOS/Clang is
+**387/387 PASS Debug** and **387/387 PASS Release**. Windows/MSVC native
+preflight is **46/46 PASS Debug** and **46/46 PASS Release**, and the full
+suite is **416/416 PASS Debug** plus **416/416 PASS Release**. The new
+`transport.licensing-premaster-rsa-decrypt` and
+`transport.licensing-premaster-rsa-denials` cases pass in all six hosted
+Debug/Release platform configurations.
+
+R9 Clang ASan/UBSan is **PASS**: clipboard **50/50**, R4 x264/BGRA **20/20**,
+bounded R1/R3 transport/security/licensing **51/51**, native R2/R3 GSS
+**27/27**, R10 Linux runtime CredSSP **5/5**, native R5 X11 **25/25**, and
+bounded fuzzer **1/1**. Both new RSA credential cases are explicitly selected
+by the bounded R1/R3 registry preflight and pass under ASan/UBSan.
+Documentation policy and the independent R7 macOS sanitizer side gate pass.
+Installed SDK downstream consumer is **1/1 PASS** and package/artifact upload
+passes on Linux, macOS and Windows.
+
+An earlier intermediate run of `10ff27c...` had one unrelated macOS failure
+in `transport.tcp-native-accept-orderly-eof`; both new RSA licensing tests
+passed there in Debug and Release. The corrected `1268b81...` rerun is fully
+green and is the authoritative result.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, genuine Kerberos/NSS/logind positive admission,
+real service licensing credentials, Microsoft-client licensing/Share/desktop
+acceptance remain **NOT RUN / OPEN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
+
+## R3 bound licensing credential continuity (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `1268b81fcf315d8521a1282f1dabf11508852398`.
+
+The live protected licensing path now requires the cryptographically validated
+`RdpLicensingServiceCredential`; a structurally configured
+`RdpServerLicenseIdentity` alone can no longer reach R2-authorized request
+publication or first client licensing intake. This changes ownership/provenance
+only and does not alter the Server License Request wire bytes.
+
+`RdpLicensingServiceCredential::certificateFingerprint()` exposes only the
+non-secret SHA-256 binding of the exact advertised `SERVER_CERTIFICATE`.
+On the first authorized Server License Request preparation,
+`McsSessionLifecycle` requires `credential.matches(identity)`, copies that
+32-byte fingerprint into session-owned fixed storage and queues the existing
+stable request. Every later partial-write resubmission must present a
+credential whose fingerprint exactly matches the one already bound; a second
+otherwise-valid credential/identity pair cannot silently replace the key
+identity for an in-flight request. Teardown clears the fingerprint and binding
+flag.
+
+The concrete Linux R2 broker method
+`authorizeR3ServerLicenseRequestWrite` now requires both the immutable
+identity and the service credential after the same fresh lease/R1
+reauthorization used previously. The existing
+`security.gssapi-r3-server-license-request-write-contract` compile-time
+contract is strengthened so identity without credential, raw request fields,
+Boolean authorization and other substitutes cannot satisfy that protected
+signature.
+
+The first client licensing response also requires the same bound credential
+before any MCS/security-envelope parsing can advance licensing state.
+`authorizeR3ClientLicensingMessage` and its private R3 intake now take the
+service credential and compare its fingerprint with the one pinned when the
+server request was prepared. This is continuity only: the client premaster is
+not yet decrypted in the session, no derived key is stored, no CAL/HWID/MAC is
+validated, and no positive licensing result or activation is emitted. The
+existing Linux client-licensing route contract is strengthened in place and
+remains selected by R9.
+
+No private key bytes are copied into `McsSessionLifecycle`; the sole
+credential object remains the bounded service credential owner. R1 remains the
+only TLS/application writer and R2 remains the only native admission/
+reauthorization owner. No listener, scheduler, synthetic positive lease,
+license authority or second transport owner is introduced.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer, documentation-policy and
+SDK/package evidence are pending.
+
+**Next R3:** inside the freshly R2-reauthorized first-client-response
+transition, parse the already bounded key-exchange view, decrypt its exact
+encrypted premaster through the session-bound credential, derive the licensing
+MAC/encryption keys from the retained request ServerRandom, securely erase
+temporary premaster material, and stop at `AwaitServerDecision`. Do not emit
+`STATUS_VALID_CLIENT`, Platform Challenge, New License or Demand Active
+until the required CAL/HWID/MAC validation is implemented. **M2/M3 remain
+OPEN / NOT ACCEPTED.**
+

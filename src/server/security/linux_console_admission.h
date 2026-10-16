@@ -329,7 +329,9 @@ public:
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::transport::RdpServerLicenseIdentity
-            &identity) noexcept;
+            &identity,
+        const rdp_server::server::transport::RdpLicensingServiceCredential
+            &credential) noexcept;
 
     // Accepted bytes are not durable R3 progress until the same concrete
     // lease and owner reauthorize the receipt. A null lease is denial-only
@@ -358,6 +360,8 @@ public:
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::transport::RdpLicensingServiceCredential
+            &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol

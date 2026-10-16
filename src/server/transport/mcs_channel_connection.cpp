@@ -1207,15 +1207,39 @@ McsSessionLifecycle::acceptVerifiedR2ClientInfoPacket(
 std::optional<RdpServerLicenseRequestWriteView>
 McsSessionLifecycle::prepareServerLicenseRequestWrite(
     const SecurityNegotiationProvenance &provenance,
-    const RdpServerLicenseIdentity &identity) noexcept
+    const RdpServerLicenseIdentity &identity,
+    const RdpLicensingServiceCredential &credential) noexcept
 {
+    const auto credentialFingerprint = credential.certificateFingerprint();
     if (phase_ != McsSessionPhase::AwaitServerLicenseRequest ||
         !connectResponseProvenanceBound_ ||
         provenance != connectResponseBoundProvenance_ ||
-        licensing_.phase() != RdpLicensingPhase::NotStarted)
+        licensing_.phase() != RdpLicensingPhase::NotStarted ||
+        !credential.matches(identity) ||
+        credentialFingerprint.size() !=
+            licensingCredentialFingerprint_.size())
     {
         close();
         return std::nullopt;
+    }
+
+    if (licensingCredentialBound_)
+    {
+        if (!std::equal(
+                credentialFingerprint.begin(),
+                credentialFingerprint.end(),
+                licensingCredentialFingerprint_.begin()))
+        {
+            close();
+            return std::nullopt;
+        }
+    }
+    else
+    {
+        std::copy(
+            credentialFingerprint.begin(), credentialFingerprint.end(),
+            licensingCredentialFingerprint_.begin());
+        licensingCredentialBound_ = true;
     }
 
     auto pending = serverLicenseRequestWrite_.pendingWrite();
@@ -1273,14 +1297,22 @@ McsSessionLifecycle::completeServerLicenseRequestWrite(
 std::optional<RdpLicensingIntake>
 McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
     const SecurityNegotiationProvenance &provenance,
+    const RdpLicensingServiceCredential &credential,
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
+    const auto credentialFingerprint = credential.certificateFingerprint();
     if (phase_ != McsSessionPhase::AwaitClientLicenseResponse ||
         allocatedUserId_ == 0U || !connectResponseAllocation_ ||
         !connectResponseProvenanceBound_ ||
         provenance != connectResponseBoundProvenance_ ||
         provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
         licensing_.phase() != RdpLicensingPhase::AwaitClientLicenseResponse ||
+        !licensingCredentialBound_ ||
+        credentialFingerprint.size() !=
+            licensingCredentialFingerprint_.size() ||
+        !std::equal(
+            credentialFingerprint.begin(), credentialFingerprint.end(),
+            licensingCredentialFingerprint_.begin()) ||
         completeTpkt.size() > kMaximumInitialMcsTpktBytes)
     {
         close();

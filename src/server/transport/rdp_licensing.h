@@ -201,6 +201,15 @@ public:
     [[nodiscard]] bool configured() const noexcept { return configured_; }
     [[nodiscard]] bool matches(
         const RdpServerLicenseIdentity &identity) const noexcept;
+    // Public, non-secret binding token for session continuity. Empty until
+    // successful one-shot configuration; the private PEM is never exposed.
+    [[nodiscard]] std::span<const std::uint8_t>
+    certificateFingerprint() const noexcept
+    {
+        return configured_
+            ? std::span<const std::uint8_t>{serverCertificateSha256_}
+            : std::span<const std::uint8_t>{};
+    }
 
     // MS-RDPELE uses the terminal server certificate's RSA key and the RDP
     // little-endian raw-RSA integer convention. The client BLOB must be

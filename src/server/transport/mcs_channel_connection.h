@@ -730,6 +730,8 @@ public:
         connectResponseProvenanceBound_ = false;
         connectResponseWrite_.close();
         serverLicenseRequestWrite_.close();
+        licensingCredentialFingerprint_.fill(0U);
+        licensingCredentialBound_ = false;
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
@@ -816,7 +818,8 @@ private:
     [[nodiscard]] std::optional<RdpServerLicenseRequestWriteView>
     prepareServerLicenseRequestWrite(
         const SecurityNegotiationProvenance &provenance,
-        const RdpServerLicenseIdentity &identity) noexcept;
+        const RdpServerLicenseIdentity &identity,
+        const RdpLicensingServiceCredential &credential) noexcept;
     [[nodiscard]] RdpServerLicenseRequestWriteOutcome
     completeServerLicenseRequestWrite(
         const SecurityNegotiationProvenance &provenance,
@@ -832,6 +835,7 @@ private:
     [[nodiscard]] std::optional<RdpLicensingIntake>
     acceptVerifiedR2ClientLicensingMessage(
         const SecurityNegotiationProvenance &provenance,
+        const RdpLicensingServiceCredential &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
     McsDomainParameters connectResponseDomain_{};
@@ -844,6 +848,8 @@ private:
     std::uint32_t allocatedUserId_{};
     RdpLicensingLifecycle licensing_{};
     RdpServerLicenseRequestWriteGate serverLicenseRequestWrite_{licensing_};
+    std::array<std::uint8_t, 32> licensingCredentialFingerprint_{};
+    bool licensingCredentialBound_{};
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};
     std::uint64_t sessionGeneration_{};

@@ -39,6 +39,7 @@ using rdp_server::server::transport::OwnedPreauthTcpConnection;
 using rdp_server::server::transport::RdpLicensingIntake;
 using rdp_server::server::transport::RdpLicensingLifecycle;
 using rdp_server::server::transport::RdpLicensingPhase;
+using rdp_server::server::transport::RdpLicensingServiceCredential;
 using rdp_server::server::transport::RdpServerLicenseIdentity;
 using rdp_server::server::transport::RdpServerLicenseRequestFields;
 using rdp_server::server::transport::RdpServerLicenseRequestWriteGate;
@@ -1549,17 +1550,22 @@ void testR3ServerLicenseRequestWriteContract()
     using Connection = const OwnedPreauthTcpConnection &;
     using Session = McsSessionLifecycle &;
     using Identity = const RdpServerLicenseIdentity &;
+    using Credential = const RdpLicensingServiceCredential &;
     using Fields = const RdpServerLicenseRequestFields &;
 
     static_assert(std::is_invocable_r_v<
         std::optional<RdpServerLicenseRequestWriteView>,
         PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
-        Acceptor, Connection, Session, Identity>);
-    static_assert(!std::is_invocable_v<
-        PrepareMethod, Broker, bool, Acceptor, Connection, Session, Identity>);
+        Acceptor, Connection, Session, Identity, Credential>);
     static_assert(!std::is_invocable_v<
         PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
-        Acceptor, Connection, Session, Fields>);
+        Acceptor, Connection, Session, Identity>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, bool, Acceptor, Connection, Session,
+        Identity, Credential>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session, Fields, Credential>);
     static_assert(std::is_invocable_r_v<
         RdpServerLicenseRequestWriteOutcome,
         CompletionMethod, Broker, const LinuxConsoleAdmissionLease *,
@@ -1653,31 +1659,36 @@ void testR3ClientLicensingRouteContract()
         rdp_server::server::transport::RdpClientLicensingKeyExchangeView;
     using KeyMaterial =
         rdp_server::server::transport::RdpLicensingKeyMaterial;
+    using Credential = const RdpLicensingServiceCredential &;
 
     static_assert(std::is_invocable_r_v<
         std::optional<RdpLicensingIntake>,
         RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
-        Acceptor, Connection, Session, Bytes>);
-    static_assert(!std::is_invocable_v<
-        RouteMethod, Broker, bool, Acceptor, Connection, Session, Bytes>);
+        Acceptor, Connection, Session, Credential, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
-        Acceptor, const SSL *, Session, Bytes>);
+        Acceptor, Connection, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, bool, Acceptor, Connection, Session,
+        Credential, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, const SSL *, Session, Credential, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, const LinuxConsoleAdmissionLease *,
-        Acceptor, Connection, Session, Bytes>);
+        Acceptor, Connection, Session, Credential, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, std::uint64_t,
-        Acceptor, Connection, Session, Bytes>);
+        Acceptor, Connection, Session, Credential, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, std::string_view,
-        Acceptor, Connection, Session, Bytes>);
+        Acceptor, Connection, Session, Credential, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, const KeyExchange &,
-        Acceptor, Connection, Session, Bytes>);
+        Acceptor, Connection, Session, Credential, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, const KeyMaterial &,
-        Acceptor, Connection, Session, Bytes>);
+        Acceptor, Connection, Session, Credential, Bytes>);
 
     // Build one structurally complete CLIENT_NEW_LICENSE_REQUEST. R3's public
     // parsers may classify protocol bytes and derive keys from already-decoded

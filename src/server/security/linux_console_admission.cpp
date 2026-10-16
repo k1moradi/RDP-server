@@ -959,7 +959,9 @@ LinuxConsoleAdmissionBroker::authorizeR3ServerLicenseRequestWrite(
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::transport::RdpServerLicenseIdentity
-        &identity) noexcept
+        &identity,
+    const rdp_server::server::transport::RdpLicensingServiceCredential
+        &credential) noexcept
 {
     if (!authorizeR3ProtectedTransition(
             lease, acceptor, connection, session, kConsoleViewPermission))
@@ -972,8 +974,8 @@ LinuxConsoleAdmissionBroker::authorizeR3ServerLicenseRequestWrite(
         return std::nullopt;
     }
 
-    const auto pending =
-        session.prepareServerLicenseRequestWrite(*provenance, identity);
+    const auto pending = session.prepareServerLicenseRequestWrite(
+        *provenance, identity, credential);
     if (!pending)
         revokeR3Session(acceptor, session);
     return pending;
@@ -1020,6 +1022,8 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage(
     GssapiSpnegoAcceptor &acceptor,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::transport::RdpLicensingServiceCredential
+        &credential,
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     if (!authorizeR3ProtectedTransition(
@@ -1034,7 +1038,7 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage(
     }
 
     const auto accepted = session.acceptVerifiedR2ClientLicensingMessage(
-        *provenance, completeTpkt);
+        *provenance, credential, completeTpkt);
     if (!accepted)
         revokeR3Session(acceptor, session);
     return accepted;

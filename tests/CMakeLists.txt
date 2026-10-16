@@ -441,6 +441,7 @@ if(TARGET rdp-server-linux-runtime-security)
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     foreach(runtime_linux_security_case IN ITEMS
             linux-security-explicit-keytab-continuity
+            linux-security-keytab-snapshot-mutation-continuity
             linux-security-keytab-policy-denials)
         add_test(NAME "runtime.${runtime_linux_security_case}"
             COMMAND test_runtime_linux_security

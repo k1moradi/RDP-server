@@ -11,11 +11,12 @@
 namespace rdp_server::server::runtime
 {
 
-// Linux-only pre-listener security provisioning. The object owns the securely
-// opened keytab descriptor and one immutable ConsoleIdentityPolicy. It does not
-// own a connection, TLS, GSS context or R3 session. Keep it alive for every
-// GssapiSpnegoAcceptor configured from it so FILE:/proc/self/fd/<n> continues
-// to identify the exact keytab object opened during startup.
+// Linux-only pre-listener security provisioning. The object owns one sealed,
+// anonymous snapshot of the securely opened keytab plus one immutable
+// ConsoleIdentityPolicy. It does not own a connection, TLS, GSS context or R3
+// session. Keep it alive for every GssapiSpnegoAcceptor configured from it so
+// FILE:/proc/self/fd/<n> continues to identify the exact immutable snapshot
+// accepted during startup.
 //
 // All methods are externally serialized. Configuration is one-shot: a failed
 // attempt cannot be retried on the same object, and successful configuration
@@ -39,10 +40,11 @@ public:
     // keytabUri must be an explicit FILE:/ absolute path. The opened object
     // must be a nonempty bounded regular file, owned by the current effective
     // uid, owner-readable, and inaccessible to group/other. Parent/final
-    // symlinks and . / .. components are rejected. A temporary R2 acceptor
-    // then proves that MIT GSS can acquire the exact requested TERMSRV
-    // acceptor credential through this retained descriptor. No KDC or client
-    // ticket is contacted/required for credential acquisition.
+    // symlinks and . / .. components are rejected. The bounded contents are
+    // copied into an anonymous memfd and sealed against write/grow/shrink
+    // before any credential is exposed. A temporary R2 acceptor then proves
+    // that MIT GSS can acquire the exact requested TERMSRV credential through
+    // this sealed descriptor. No KDC or client ticket is contacted/required.
     //
     // The rule is validated by the existing R2 ConsoleIdentityPolicy. Success
     // therefore prepares one explicit service identity and one native mapping,
@@ -54,7 +56,7 @@ public:
         noexcept;
 
     // Configure one existing per-connection R2 acceptor from the retained
-    // keytab descriptor. The configuration object must outlive that acceptor.
+    // sealed keytab snapshot. The configuration object must outlive it.
     // False is terminal for the supplied acceptor.
     [[nodiscard]] bool configureAcceptor(
         rdp_server::server::security::GssapiSpnegoAcceptor &acceptor)

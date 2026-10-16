@@ -1,3 +1,55 @@
+## R10 sealed immutable Linux keytab snapshot (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main`: `b41269ed75628285767dc3a59d7bedacfc3dcc8b`. Review of the new explicit-keytab owner
+found a narrower TOCTOU gap before listener promotion: retaining the securely
+opened source descriptor prevents pathname substitution, but it does **not**
+freeze bytes in that inode. A same-owner writer could truncate or rewrite the
+configured keytab and a later per-connection `gss_acquire_cred_from` through
+`/proc/self/fd/<source>` would observe the changed contents.
+
+R10 now converts the validated source into an immutable anonymous snapshot
+before exposing it to GSS. After the existing component-by-component
+`openat(... O_NOFOLLOW ...)`, owner/mode/type and 1 MiB bounds, production
+copies the exact source bytes into `memfd_create(... MFD_ALLOW_SEALING)`.
+The copy uses bounded stack storage that is cleansed on scope exit, explicit
+`pread`/`pwrite` offsets with EINTR/partial-write handling, rejects source
+growth/short reads, and rechecks device/inode/size/mtime/ctime after copying.
+The anonymous descriptor is owner-read-only and must accept all of
+`F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL`; otherwise
+configuration fails closed. The mutable source descriptor is then closed.
+The existing R2 acceptor continues to receive only
+`FILE:/proc/self/fd/<n>`, now naming the sealed snapshot.
+
+New dedicated CTest
+`runtime.linux-security-keytab-snapshot-mutation-continuity` overwrites the
+**same configured source inode in place** after R10 configuration, then
+requires a fresh real `GssapiSpnegoAcceptor` to acquire the originally
+provisioned service identity. The earlier pathname-replacement continuity,
+keytab/policy denials, process-level missing-provisioning denial, and positive
+`runtime.validates-linux-security-provisioning` are retained.
+
+**Authoring PASS:** under `~/rdp-server/build/r10-probe/`, a control
+`mutable_fd_probe` demonstrates the previous model is content-mutable:
+after an in-place source rewrite, real MIT GSS returns non-complete credential
+acquisition. The replacement `sealed_keytab_probe` reports
+`acquire=0 minor=0 seals=0xf` after the same source rewrite. Recompiled with
+Clang C++23 `-Wall -Wextra -Wpedantic -Werror` plus ASan+UBSan and
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1`; the sealed probe PASSes with
+the same GSS result and no sanitizer finding. These are provider/API probes,
+not a full repository build.
+
+Full repository configure/build/CTest remains **NOT RUN** on this execution
+host because local GitHub DNS cannot materialize the checkout. The earlier
+implementation workflow `38881106173` remains queued and is superseded for
+R10 acceptance by the hardened SHA after publication. Owner Linux/X11,
+MSYS2 CLANG64/Clang23, macOS27, real KDC/client ticket, positive native R2
+admission, R3, external clients and listener/service remain **NOT RUN**.
+
+**Next R10 gate:** exact-SHA hosted Linux compile and all Linux-security CTests
+for the sealed-snapshot implementation, including positive production preflight,
+same-inode mutation continuity and pathname replacement. Do not promote the
+provisioning boundary or add a listener before that evidence.
+
 ## R1 production R10 TLS through owned transport (2026-10-16; exact-SHA CI pending)
 
 Starting inspected shared `main`: `20dd5e7de5b90ec4a5ae52a43144549203d88459`. This R1 increment adds no

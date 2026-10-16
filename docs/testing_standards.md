@@ -1,3 +1,13 @@
+## Credential continuity tests must mutate the same inode
+
+A pathname-replacement regression proves object-identity continuity but cannot
+prove that later provider loads are protected from writes to the already-opened
+inode. For credentials retained across connections, add a separate
+same-inode/truncate-or-rewrite regression: provision successfully, mutate the
+exact source object in place, then require the later provider to consume the
+original immutable snapshot. Keep this test distinct from path/symlink
+substitution and from positive user-authentication acceptance.
+
 ## Synthetic service-keytab test boundary
 
 A generated build-root-only Kerberos keytab may test exact service-credential

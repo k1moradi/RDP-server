@@ -1,3 +1,19 @@
+## Credential object identity is not credential-content immutability
+
+When a provider will reload security-sensitive bytes later, retaining a
+validated read-only descriptor closes pathname TOCTOU but does **not** freeze
+the inode contents. Do not treat descriptor identity as an immutable credential
+snapshot. On Linux, copy the validated bounded credential into a private
+anonymous file, verify the source did not change during the copy, seal the
+snapshot against write/grow/shrink, and close the mutable source before later
+provider loads. Fail closed when immutable snapshot support is unavailable;
+never silently fall back to the original pathname or mutable descriptor.
+
+Keep the immutable owner alive for every provider object that references its
+procfd. Cleanse temporary credential-copy buffers. This rule is distinct from
+authentication: loading an immutable server credential does not prove a remote
+user or authorize an OS session.
+
 ## Reference-coded graphics publication continuity
 
 For stateful video codecs, successful encode is itself a state transition:

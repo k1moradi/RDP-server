@@ -165,6 +165,28 @@ void testExplicitKeytabContinuity(
     assert(configuration.configured());
 }
 
+void testSealedKeytabSnapshotSurvivesSourceMutation(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-security-mutable-source.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    const std::string keytabUri = "FILE:" + keytab.string();
+    assert(configuration.configure(
+        kServicePrincipal, keytabUri, validRule()));
+
+    // Mutate the exact source inode in place after configuration. Retaining
+    // only that source descriptor would expose these new bytes to the next
+    // GSS credential acquisition. R10 must instead use its sealed snapshot.
+    assert(writePrivateGarbage(keytab));
+
+    GssapiSpnegoAcceptor connectionAcceptor;
+    assert(configuration.configureAcceptor(connectionAcceptor));
+    assert(connectionAcceptor.stage() == SpnegoStage::AwaitInitialToken);
+}
+
 void testKeytabAndPolicyDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -269,6 +291,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-security-explicit-keytab-continuity")
     {
         testExplicitKeytabContinuity(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-security-keytab-snapshot-mutation-continuity")
+    {
+        testSealedKeytabSnapshotSurvivesSourceMutation(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-security-keytab-policy-denials")

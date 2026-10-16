@@ -1,3 +1,22 @@
+### R10 immutable service-keytab snapshot ownership (2026-10-16)
+
+The R10 Linux security configuration owns a **sealed anonymous keytab
+snapshot**, not the mutable configured source file. Secure path walking and
+metadata checks first establish the intended source object. R10 then copies the
+bounded contents through explicit-offset I/O into a `memfd`, rechecks source
+identity/size/change timestamps and rejects short/growing/changed input before
+requiring all write/grow/shrink/final seals. Temporary copy storage is
+cleansed and the source descriptor is closed.
+
+The snapshot descriptor is service-lifetime R10 state and must outlive every
+R2 `GssapiSpnegoAcceptor` configured through its
+`FILE:/proc/self/fd/<n>` URI. Neither path replacement nor later writes to
+the original source inode can change the credential bytes seen by a future
+connection. This is server credential immutability only: GSS/CredSSP still
+proves the client identity, `LinuxConsoleAdmissionBroker` still owns native
+authorization/revocation, and R3 remains the sole session owner. No listener
+is activated by snapshot creation.
+
 ### R1/R10 live TLS ownership composition (2026-10-16)
 
 R10 owns the reusable validated `SSL_CTX` and must outlive every

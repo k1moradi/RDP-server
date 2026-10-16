@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "linux_runtime_security.h"
 
+#include <openssl/crypto.h>
+
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <charconv>
 #include <cstddef>
-#include <cstdio>
+#include <cstdint>
 #include <string_view>
 #include <system_error>
 
 #include <fcntl.h>
+#include <linux/memfd.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 namespace rdp_server::server::runtime
@@ -22,6 +27,34 @@ constexpr std::size_t kMaximumKeytabBytes = 1024U * 1024U;
 constexpr std::size_t kMaximumPathComponentBytes = 255;
 constexpr std::string_view kFilePrefix{"FILE:"};
 constexpr std::string_view kProcFdPrefix{"FILE:/proc/self/fd/"};
+
+struct SensitiveCopyBuffer final
+{
+    std::array<unsigned char, 16384> bytes{};
+
+    ~SensitiveCopyBuffer()
+    {
+        OPENSSL_cleanse(bytes.data(), bytes.size());
+    }
+
+    SensitiveCopyBuffer() = default;
+    SensitiveCopyBuffer(const SensitiveCopyBuffer &) = delete;
+    SensitiveCopyBuffer &operator=(const SensitiveCopyBuffer &) = delete;
+};
+
+[[nodiscard]] bool isPrivateKeytab(
+    int descriptor, struct stat &information) noexcept
+{
+    return descriptor >= 0 &&
+           ::fstat(descriptor, &information) == 0 &&
+           S_ISREG(information.st_mode) &&
+           information.st_size > 2 &&
+           information.st_size <=
+               static_cast<off_t>(kMaximumKeytabBytes) &&
+           information.st_uid == ::geteuid() &&
+           (information.st_mode & S_IRUSR) != 0 &&
+           (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+}
 
 [[nodiscard]] int openPrivateKeytab(std::string_view keytabUri) noexcept
 {
@@ -75,16 +108,7 @@ constexpr std::string_view kProcFdPrefix{"FILE:/proc/self/fd/"};
         if (leaf)
         {
             struct stat information {};
-            const bool privateRegularKeytab =
-                ::fstat(openedDescriptor, &information) == 0 &&
-                S_ISREG(information.st_mode) &&
-                information.st_size > 2 &&
-                information.st_size <=
-                    static_cast<off_t>(kMaximumKeytabBytes) &&
-                information.st_uid == ::geteuid() &&
-                (information.st_mode & S_IRUSR) != 0 &&
-                (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
-            if (!privateRegularKeytab)
+            if (!isPrivateKeytab(openedDescriptor, information))
             {
                 (void)::close(openedDescriptor);
                 return -1;
@@ -95,6 +119,133 @@ constexpr std::string_view kProcFdPrefix{"FILE:/proc/self/fd/"};
         parentDescriptor = openedDescriptor;
         path.remove_prefix(separator + 1U);
     }
+}
+
+[[nodiscard]] ssize_t preadRetry(
+    int descriptor, void *buffer, std::size_t bytes,
+    off_t offset) noexcept
+{
+    ssize_t result = -1;
+    do
+    {
+        result = ::pread(descriptor, buffer, bytes, offset);
+    }
+    while (result < 0 && errno == EINTR);
+    return result;
+}
+
+[[nodiscard]] bool pwriteAll(
+    int descriptor, const unsigned char *buffer, std::size_t bytes,
+    off_t offset) noexcept
+{
+    std::size_t written = 0;
+    while (written < bytes)
+    {
+        ssize_t result = -1;
+        do
+        {
+            result = ::pwrite(
+                descriptor, buffer + written, bytes - written,
+                offset + static_cast<off_t>(written));
+        }
+        while (result < 0 && errno == EINTR);
+
+        if (result <= 0)
+        {
+            return false;
+        }
+        written += static_cast<std::size_t>(result);
+    }
+    return true;
+}
+
+[[nodiscard]] bool sameKeytabSnapshotFacts(
+    const struct stat &before, const struct stat &after) noexcept
+{
+    return before.st_dev == after.st_dev &&
+           before.st_ino == after.st_ino &&
+           before.st_size == after.st_size &&
+           before.st_mtim.tv_sec == after.st_mtim.tv_sec &&
+           before.st_mtim.tv_nsec == after.st_mtim.tv_nsec &&
+           before.st_ctim.tv_sec == after.st_ctim.tv_sec &&
+           before.st_ctim.tv_nsec == after.st_ctim.tv_nsec;
+}
+
+[[nodiscard]] int createSealedKeytabSnapshot(
+    int sourceDescriptor) noexcept
+{
+#if !defined(SYS_memfd_create)
+    (void)sourceDescriptor;
+    return -1;
+#else
+    struct stat before {};
+    if (!isPrivateKeytab(sourceDescriptor, before))
+    {
+        return -1;
+    }
+
+    const long rawSnapshotDescriptor = ::syscall(
+        SYS_memfd_create, "rdp-server-keytab",
+        MFD_CLOEXEC | MFD_ALLOW_SEALING);
+    if (rawSnapshotDescriptor < 0)
+    {
+        return -1;
+    }
+    const int snapshotDescriptor =
+        static_cast<int>(rawSnapshotDescriptor);
+
+    SensitiveCopyBuffer copyBuffer;
+    off_t offset = 0;
+    bool copied = true;
+    while (offset < before.st_size)
+    {
+        const auto remaining =
+            static_cast<std::uint64_t>(before.st_size - offset);
+        const std::size_t requested = static_cast<std::size_t>(
+            std::min<std::uint64_t>(
+                remaining, copyBuffer.bytes.size()));
+        const ssize_t bytesRead = preadRetry(
+            sourceDescriptor, copyBuffer.bytes.data(), requested, offset);
+        if (bytesRead <= 0)
+        {
+            copied = false;
+            break;
+        }
+        const auto count = static_cast<std::size_t>(bytesRead);
+        if (!pwriteAll(
+                snapshotDescriptor, copyBuffer.bytes.data(), count, offset))
+        {
+            copied = false;
+            break;
+        }
+        offset += static_cast<off_t>(count);
+    }
+
+    unsigned char extraByte = 0;
+    const ssize_t extraRead = copied
+        ? preadRetry(sourceDescriptor, &extraByte, 1U, before.st_size)
+        : -1;
+    struct stat after {};
+    const bool sourceStable =
+        copied && extraRead == 0 &&
+        isPrivateKeytab(sourceDescriptor, after) &&
+        sameKeytabSnapshotFacts(before, after);
+
+    constexpr int requiredSeals =
+        F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
+    const bool sealed =
+        sourceStable &&
+        ::fchmod(snapshotDescriptor, S_IRUSR) == 0 &&
+        ::fcntl(snapshotDescriptor, F_ADD_SEALS, requiredSeals) == 0 &&
+        (::fcntl(snapshotDescriptor, F_GET_SEALS) & requiredSeals) ==
+            requiredSeals;
+    if (!sealed)
+    {
+        (void)::close(snapshotDescriptor);
+        return -1;
+    }
+    return snapshotDescriptor;
+#endif
 }
 
 [[nodiscard]] std::string_view descriptorKeytabUri(
@@ -183,7 +334,14 @@ bool LinuxRuntimeSecurityConfiguration::configure(
     {
         return false;
     }
-    keytabDescriptor_ = openedKeytab;
+    const int snapshotKeytab =
+        createSealedKeytabSnapshot(openedKeytab);
+    (void)::close(openedKeytab);
+    if (snapshotKeytab < 0)
+    {
+        return false;
+    }
+    keytabDescriptor_ = snapshotKeytab;
 
     if (policy_.add(rule) !=
         rdp_server::server::security::ConsoleRuleError::None)
@@ -199,8 +357,9 @@ bool LinuxRuntimeSecurityConfiguration::configure(
 
     // Probe exactly the R2 provider that live connections will use. GSS
     // credential acquisition loads the explicit acceptor key and does not
-    // authenticate a client or contact a KDC. Supplying /proc/self/fd keeps
-    // acquisition tied to the already-opened, permission-checked keytab.
+    // authenticate a client or contact a KDC. The procfd names a sealed
+    // anonymous snapshot, so neither pathname replacement nor later writes to
+    // the configured source inode can change per-connection credentials.
     rdp_server::server::security::GssapiSpnegoAcceptor probe;
     if (!configureAcceptorFromDescriptor(
             std::string_view(

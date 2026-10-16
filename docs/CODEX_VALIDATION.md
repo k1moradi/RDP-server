@@ -1,3 +1,38 @@
+## R10 sealed-keytab authoring validation (2026-10-16)
+
+**Starting shared main:** `b41269ed75628285767dc3a59d7bedacfc3dcc8b`.
+
+**Security correction:** a retained ordinary source FD protects file identity,
+not file contents. R10 now copies the already security-validated bounded
+keytab into an anonymous Linux memfd, verifies the source remained stable
+during the copy, sets owner-read-only mode, and requires write/grow/shrink/seal
+file seals before closing the source. All startup and future per-connection R2
+GSS acceptors use `FILE:/proc/self/fd/<sealed-snapshot>`. Failure to create,
+copy or seal the snapshot is terminal and does not fall back to the mutable
+source path/descriptor.
+
+**New behavior CTest:**
+`runtime.linux-security-keytab-snapshot-mutation-continuity`. It performs an
+in-place rewrite of the exact configured source inode after successful R10
+provisioning and then requires a fresh existing R2 acceptor to remain bound to
+the original sealed credential. Existing path-replacement continuity and
+positive/negative process preflight tests remain.
+
+**Authoring PASS, MIT Kerberos/GSSAPI 1.21.3:**
+- `~/rdp-server/build/r10-probe/mutable_fd_probe`: after in-place rewrite,
+  ordinary retained-source procfd acquisition is non-complete, demonstrating
+  the gap in the prior model.
+- `~/rdp-server/build/r10-probe/sealed_keytab_probe`:
+  `sealed uri=FILE:/proc/self/fd/4 acquire=0 minor=0 seals=0xf`.
+- Clang C++23 high-warning ASan+UBSan rebuild of the sealed probe: same
+  `GSS_S_COMPLETE` result, seals `0xf`, no sanitizer finding with leak
+  detection enabled.
+
+**NOT RUN:** full repository build/CTest locally, hosted exact-SHA candidate
+(unpublished at authoring), owner platforms, live client/KDC authentication,
+native R2 admission, R3 or listener/service. Exact hardened-SHA Linux
+compile/CTest is required before runtime promotion.
+
 ## R1 R10-to-owned-transport TLS integration authoring (2026-10-16)
 
 **Starting inspected main:** `20dd5e7de5b90ec4a5ae52a43144549203d88459`.

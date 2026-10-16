@@ -11109,3 +11109,22 @@ integration and Microsoft-client M3 desktop acceptance remain
 **NOT RUN/OPEN**. R5 introduces no second XCB connection, listener, scheduler,
 RDP pointer parser or client cursor publication owner. **M3 remains OPEN /
 NOT ACCEPTED.**
+
+
+### R5 remote-pointer clamp/echo correction (2026-10-16; exact-SHA CI pending)
+
+Post-validation review found one bounded echo edge: XTEST clamps remote root
+coordinates to both the current source geometry and its signed 16-bit native
+coordinate range, while the XI2 tracker had retained the original untrusted
+remote request for echo comparison. An out-of-range remote move could therefore
+reappear as a different, clamped XI2 coordinate and be incorrectly eligible
+for publication back to the client.
+
+The existing tracker now normalizes remote authority through the same geometry
+and int16 bounds before comparison/storage. The existing
+`x11.pointer-xi2-remote-echo-suppression` production-linked CTest is
+strengthened with a wide synthetic geometry to prove both same-authority
+rejection and native-echo suppression at the actual injected coordinate. No
+new queue, XTEST path, RDP parser or capability is added; the R5 sanitizer
+selection remains **23** behavior-named cases. Exact correction-SHA hosted CI
+is pending.

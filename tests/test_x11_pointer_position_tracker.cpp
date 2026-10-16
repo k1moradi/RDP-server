@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <string_view>
 
@@ -312,6 +313,52 @@ remoteEchoSuppression()
     constexpr X11PointerPosition remoteE{550, 500};
     assert(tracker.shouldAcceptRemoteMotion(remoteE));
     tracker.disconnect();
+
+    // Remote requests are clamped before XTEST reaches the root. Echo
+    // authority must use that actual injected coordinate, including the
+    // int16 wire limit, rather than retaining the untrusted request value.
+    constexpr PixelSize wideGeometry{65535, 65535};
+    X11PointerPositionTracker wideTracker(
+        *fixture.connection, fixture.screen->root, wideGeometry);
+    assert(wideTracker.valid());
+    clearInitialPosition(wideTracker);
+
+    constexpr std::int32_t maximumInjectedCoordinate =
+        std::numeric_limits<std::int16_t>::max();
+    constexpr X11PointerPosition injectedMaximum{
+        maximumInjectedCoordinate, maximumInjectedCoordinate};
+    routeMotion(
+        wideTracker,
+        motionEvent(*fixture.connection, fixture.screen->root,
+                    static_cast<std::int64_t>(injectedMaximum.x) *
+                        kFixedPointOne,
+                    static_cast<std::int64_t>(injectedMaximum.y) *
+                        kFixedPointOne));
+    assert(wideTracker.pendingPosition(pending));
+    assert(pending == injectedMaximum);
+    wideTracker.acknowledge(injectedMaximum, true);
+
+    constexpr X11PointerPosition untrustedMaximum{
+        std::numeric_limits<std::int32_t>::max(),
+        std::numeric_limits<std::int32_t>::max()};
+    assert(!wideTracker.shouldAcceptRemoteMotion(untrustedMaximum));
+
+    // Once remote authority is active, the native echo at the clamped
+    // coordinate must be suppressed as the same remote movement.
+    constexpr X11PointerPosition distinctRemote{10, 10};
+    assert(wideTracker.shouldAcceptRemoteMotion(distinctRemote));
+    wideTracker.noteRemotePointerPosition(untrustedMaximum);
+    routeMotion(
+        wideTracker,
+        motionEvent(*fixture.connection, fixture.screen->root,
+                    static_cast<std::int64_t>(injectedMaximum.x) *
+                        kFixedPointOne,
+                    static_cast<std::int64_t>(injectedMaximum.y) *
+                        kFixedPointOne));
+    assert(wideTracker.pendingPosition(pending));
+    assert(pending == injectedMaximum);
+    assert(!wideTracker.shouldForward(injectedMaximum));
+    wideTracker.disconnect();
 }
 
 void

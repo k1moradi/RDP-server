@@ -49,6 +49,8 @@ public:
     void disconnect() noexcept;
 
 private:
+    [[nodiscard]] X11PointerPosition injectedRemotePosition(
+        X11PointerPosition position) const noexcept;
     void queuePosition(std::int64_t x, std::int64_t y) noexcept;
 
     xcb_connection_t *connection_{nullptr};

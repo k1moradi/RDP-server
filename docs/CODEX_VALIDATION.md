@@ -11794,3 +11794,20 @@ is no unrelated R10 failure on this exact R5 implementation SHA.
 Owner-platform commands and genuine authenticated client/desktop acceptance
 remain **NOT RUN**; R3 remains the RDP input/session authority and R4 remains
 the cursor/frame scheduling and client-publication authority.
+
+
+## R5 remote-pointer clamp/echo correction (2026-10-16; CI pending)
+
+After the green XI2 implementation receipt, edge review compared the tracker
+against the existing `X11InputController::coordinate()` XTEST boundary.
+Remote X/Y requests can be outside the desktop and are also limited to
+`int16_t` by XTEST, but the tracker previously stored the caller's raw
+coordinate. The tracker now computes the actual injected coordinate before
+remote/local authority comparisons and before recording remote echo state.
+
+The existing `x11.pointer-xi2-remote-echo-suppression` CTest now exercises
+a 65535x65535 synthetic tracker geometry: a locally forwarded (32767,32767)
+position rejects an INT32_MAX remote request because XTEST would inject the
+same position, and a recorded INT32_MAX remote request suppresses a subsequent
+XI2 echo at (32767,32767). This is a bounds/echo correction within the existing
+behavior, so no duplicate CTest or sanitizer selector entry is added.

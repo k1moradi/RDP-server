@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <limits>
 
 #include <xcb/xinput.h>
 
@@ -179,7 +180,7 @@ X11PointerPositionTracker::noteRemotePointerPosition(
     {
         return;
     }
-    remotePosition_ = position;
+    remotePosition_ = injectedRemotePosition(position);
     hasRemotePosition_ = true;
 }
 
@@ -217,8 +218,10 @@ X11PointerPositionTracker::shouldAcceptRemoteMotion(
         return true;
     }
 
-    if ((hasRemotePosition_ && position == remotePosition_) ||
-        position == localPointerAuthorityPosition_)
+    const X11PointerPosition injectedPosition =
+        injectedRemotePosition(position);
+    if ((hasRemotePosition_ && injectedPosition == remotePosition_) ||
+        injectedPosition == localPointerAuthorityPosition_)
     {
         return false;
     }
@@ -290,6 +293,25 @@ X11PointerPositionTracker::disconnect() noexcept
     localPointerAuthorityActive_ = false;
     subscribed_ = false;
     failureReason_ = reason;
+}
+
+X11PointerPosition
+X11PointerPositionTracker::injectedRemotePosition(
+    X11PointerPosition position) const noexcept
+{
+    // XTEST stores root X/Y as int16. Mirror X11InputController::coordinate()
+    // so echo suppression records the coordinate native injection can
+    // actually produce, not an untrusted out-of-range request.
+    const std::uint32_t maximumX = std::min<std::uint32_t>(
+        sourceGeometry_.widthPixels - 1U,
+        static_cast<std::uint32_t>(std::numeric_limits<std::int16_t>::max()));
+    const std::uint32_t maximumY = std::min<std::uint32_t>(
+        sourceGeometry_.heightPixels - 1U,
+        static_cast<std::uint32_t>(std::numeric_limits<std::int16_t>::max()));
+    return {
+        std::clamp(position.x, 0, static_cast<std::int32_t>(maximumX)),
+        std::clamp(position.y, 0, static_cast<std::int32_t>(maximumY)),
+    };
 }
 
 void

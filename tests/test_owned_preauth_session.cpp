@@ -4447,8 +4447,41 @@ void testNativeTcpAcceptBatchBudgetAndHandoff()
     const auto next = acceptNonblockingTcpBatch(
         static_cast<std::uintptr_t>(pair.listener.value),
         2, handoff, &state);
-    assert(next.outcome == Outcome::BudgetReached);
-    assert(next.accepted == 2 && state.transferred == 3);
+    // The callback's connect() completion does not guarantee that the newly
+    // queued third peer is synchronously visible to the very next native
+    // accept on every kernel. Both outcomes are valid production semantics:
+    // BudgetReached if both peers were visible, Drained if the second accept
+    // correctly observed WouldBlock after transferring only the second peer.
+    assert(next.outcome == Outcome::BudgetReached ||
+           next.outcome == Outcome::Drained);
+    assert(next.accepted >= 1 && next.accepted <= 2);
+    assert(state.transferred == 1 + next.accepted);
+
+    if (state.transferred == 2)
+    {
+        // Retry only at the TEST caller boundary until the already-connected
+        // third peer becomes observable. Production batch intake remains one
+        // bounded accept loop with no hidden sleep, poll or retry.
+        bool acceptedThird = false;
+        for (int attempt = 0; attempt < 2048; ++attempt)
+        {
+            const auto tail = acceptNonblockingTcpBatch(
+                static_cast<std::uintptr_t>(pair.listener.value),
+                1, handoff, &state);
+            if (tail.outcome == Outcome::WouldBlock)
+            {
+                assert(tail.accepted == 0 && state.transferred == 2);
+                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                continue;
+            }
+            assert(tail.outcome == Outcome::BudgetReached);
+            assert(tail.accepted == 1 && state.transferred == 3);
+            acceptedThird = true;
+            break;
+        }
+        assert(acceptedThird);
+    }
+    assert(state.transferred == 3);
     // BudgetReached deliberately makes no false claim that the native
     // backlog has been fully drained. The next call observes WouldBlock.
     const auto idle = acceptNonblockingTcpBatch(

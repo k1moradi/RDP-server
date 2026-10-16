@@ -1,3 +1,20 @@
+## R1 nonblocking accept-batch visibility fixtures
+
+A test must not infer that synchronous client `connect()` completion makes a
+new peer visible to the listener's immediately following nonblocking
+`accept()`. In a bounded batch, a callback may connect another peer and the
+next production accept may still legitimately return would-block; the correct
+batch result is then `Drained` with the already transferred count.
+
+Keep production accept/batch helpers retry-free. If a loopback fixture needs to
+observe a peer that has already connected, boundedly retry from the external
+test caller, accepting only `WouldBlock` until one transfer occurs. Preserve
+the production distinctions among `WouldBlock`, `Drained`,
+`BudgetReached`, `CallbackStopped` and `Failure`; do not weaken those
+outcomes merely to remove scheduler timing. Sanitizer coverage should include
+the direct batch budget/handoff case because it exercises native descriptor
+ownership and callback transfer.
+
 ## R8 completed-file X11 handoff tests
 
 Ordinary X11 file-handoff CTests must remain desktop-independent: use the

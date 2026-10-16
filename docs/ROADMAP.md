@@ -1,3 +1,36 @@
+## R1 accept-batch callback visibility regression (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `4be6e17ed741be198bf0d15e7921af66340904ac`.
+
+Current shared-head Actions `38930150408` is green on Ubuntu/GCC, Windows/MSVC,
+R9 ASan+UBSan, R7 sanitizers and documentation policy, but macOS/AppleClang
+fails only `transport.tcp-native-accept-batch-budget-handoff`. The failing
+assertion requires a two-accept batch to return `BudgetReached` after the
+second accepted-socket callback synchronously connects a third loopback peer.
+
+That expectation is not portable. A successful nonblocking `connect()` does
+not require a listener to expose the new peer to the immediately following
+`accept()` in the same production batch call. R1 correctly returns
+`Drained` after one transfer when that second native accept observes
+would-block. No production transport defect or API gap is demonstrated.
+
+The test now accepts exactly the two valid outcomes: `BudgetReached` with two
+transfers, or `Drained` with one. In the latter case only the test caller
+boundedly resubmits `acceptNonblockingTcpBatch(..., 1, ...)` until the already
+connected third peer becomes visible. Production keeps its existing single
+bounded accept loop with no sleep, poll, hidden retry, queue, listener owner or
+authorization behavior. The test still proves move-only handoff, callback
+adoption, budget accounting, listener survival and final would-block.
+
+R9's bounded R1/R3 sanitizer selector now executes
+`transport.tcp-native-accept-batch-budget-handoff` and asserts that the
+central CTest registration is selected. Canonical owner-local
+`~/rdp-server/build` and owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS 27 remain **NOT RUN** in this connector environment. Exact publication
+SHA Linux/GCC, macOS/AppleClang, Windows/MSVC, sanitizer, documentation and
+SDK/package evidence is required. This is test/CI hardening only; M2/M3 remain
+**OPEN / NOT ACCEPTED**.
+
 ## R9 licensing key-material terminal replay fence (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `bb913860a0f7dde8a2a174b7b938fb70c8d90bdc`.

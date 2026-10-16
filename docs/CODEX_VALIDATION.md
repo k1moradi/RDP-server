@@ -1,3 +1,30 @@
+## R1 accept-batch callback visibility correction authoring (2026-10-16)
+
+**Parent:** `4be6e17ed741be198bf0d15e7921af66340904ac`.
+
+**Observed hosted failure:** current-head Actions `38930150408`, macOS full
+CTest, `transport.tcp-native-accept-batch-budget-handoff` at
+`test_owned_preauth_session.cpp:4450`. The remaining R1 owner/TLS/CredSSP/
+licensing cases pass in that same macOS run; Ubuntu, Windows and R9 sanitizer
+jobs are green.
+
+**Root cause:** test scheduling assumption. The second accepted-socket callback
+connects a third loopback client, but macOS can make the next nonblocking
+accept observe would-block before that peer becomes accept-visible. Production
+therefore returns the documented `Drained` result after one transfer. The
+test incorrectly required `BudgetReached` with two.
+
+**Correction:** no production source change. The test accepts either documented
+outcome, validates exact transferred counts, and if the third peer is not yet
+visible, retries only from a bounded test-side caller loop using the same
+production batch API. The final listener would-block and sole-owner handoff
+assertions remain. The R9 bounded sanitizer selector now includes this case and
+preflights its registration.
+
+**Authoring validation:** source/ownership review **PASS**. Local canonical
+build/CTest is **NOT RUN** because this connector exposes no synchronized owner
+checkout. Exact-SHA hosted Debug/Release and sanitizer evidence is pending.
+
 ## R9 licensing key-material terminal replay authoring (2026-10-16)
 
 **Parent:** `bb913860a0f7dde8a2a174b7b938fb70c8d90bdc`.

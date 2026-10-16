@@ -14,19 +14,49 @@ namespace rdp_server::windows
 WindowsDxgiCaptureCycle::WindowsDxgiCaptureCycle(
     WindowsDesktopLayout layout, WindowsDxgiFrameCallbacks frameCallbacks,
     WindowsD3D11StagingCallbacks stagingCallbacks,
-    WindowsDxgiDamageReadCallbacks damageCallbacks) noexcept
-    : layout_(layout), duplication_(frameCallbacks), staging_(stagingCallbacks), damage_(damageCallbacks),
+    WindowsDxgiDamageReadCallbacks damageCallbacks,
+    WindowsCaptureGenerationReader generationReader,
+    WindowsCaptureGeneration pinnedGeneration) noexcept
+    : layout_(layout), duplication_(frameCallbacks), staging_(stagingCallbacks),
+      damage_(damageCallbacks), generationReader_(generationReader),
+      pinnedGeneration_(pinnedGeneration),
       closed_(layout.monitorCount == 0 ||
               layout.monitorCount > kMaximumWindowsDesktopMonitors ||
               layout.virtualBounds.widthPixels == 0 ||
               layout.virtualBounds.heightPixels == 0 ||
-              duplication_.closed() || staging_.closed())
+              duplication_.closed() || staging_.closed() ||
+              // Incomplete revocation sources are terminal, never opt-out.
+              ((generationReader.context != nullptr ||
+                generationReader.read != nullptr ||
+                pinnedGeneration.session != 0 ||
+                pinnedGeneration.device != 0) &&
+               (generationReader.context == nullptr ||
+                generationReader.read == nullptr ||
+                pinnedGeneration.session == 0 ||
+                pinnedGeneration.device == 0)))
 {
 }
 
 WindowsDxgiCaptureCycle::~WindowsDxgiCaptureCycle() noexcept
 {
     cancel();
+}
+
+bool WindowsDxgiCaptureCycle::generationUnchanged() noexcept
+{
+    if (generationReader_.read == nullptr)
+    {
+        // Legacy fixture/no generation source: NOT production authorization.
+        return true;
+    }
+    WindowsCaptureGeneration current{};
+    if (!generationReader_.read(generationReader_.context, current) ||
+        closed_ || current != pinnedGeneration_)
+    {
+        closed_ = true;
+        return false;
+    }
+    return true;
 }
 
 WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
@@ -43,6 +73,12 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
     }
 
     operationInProgress_ = true;
+    if (!generationUnchanged())
+    {
+        finishCancellation();
+        operationInProgress_ = false;
+        return WindowsCaptureCycleResult::closed;
+    }
     const auto acquired = duplication_.acquireFrame(timeoutMilliseconds);
     WindowsCaptureCycleResult outcome = WindowsCaptureCycleResult::failed;
     if (closed_)
@@ -61,6 +97,13 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
     {
         closed_ = true;
         outcome = WindowsCaptureCycleResult::accessLost;
+    }
+    else if (acquired == WindowsDxgiAcquireResult::acquired &&
+             !generationUnchanged())
+    {
+        // DXGI acquired a lease but the session/output switched before
+        // mapping: cancellation releases that resource exactly once.
+        outcome = WindowsCaptureCycleResult::closed;
     }
     else if (acquired == WindowsDxgiAcquireResult::acquired)
     {
@@ -98,6 +141,10 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
         closed_ = true;
     }
 
+    if (!closed_ && !generationUnchanged())
+    {
+        outcome = WindowsCaptureCycleResult::closed;
+    }
     if (duplication_.closed() || staging_.closed())
     {
         closed_ = true;
@@ -205,9 +252,20 @@ WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::consumeFrame(
     }
 
     operationInProgress_ = true;
+    if (!generationUnchanged())
+    {
+        finishCancellation();
+        operationInProgress_ = false;
+        return WindowsCaptureConsumeResult::closed;
+    }
     // The sink can call cancel() or topologyUnchanged(), but both defer
     // native teardown until it returns; nested release/capture is denied.
     const bool accepted = consumer.consume(consumer.context, staging_.frame());
+    // Catch a session/output switch during synchronous pixel consumption.
+    if (!closed_)
+    {
+        (void)generationUnchanged();
+    }
     const bool revoked = closed_;
     staging_.unmap();
     const bool released =
@@ -251,11 +309,22 @@ WindowsCaptureDamageResult WindowsDxgiCaptureCycle::readFrameDamage(
     }
 
     operationInProgress_ = true;
+    if (!generationUnchanged())
+    {
+        finishCancellation();
+        operationInProgress_ = false;
+        return WindowsCaptureDamageResult::closed;
+    }
     std::array<PortableRectangle,kMaximumWindowsDxgiDamageRectangles> normalized{};
     std::size_t count = 0;
     const auto view = staging_.frame();
     const auto status = readWindowsDxgiFrameDamage(
         damage_,{view.widthPixels,view.heightPixels},normalized,count);
+    // Never publish damage from a generation that changed during read.
+    if (!closed_)
+    {
+        (void)generationUnchanged();
+    }
     const bool cancelled = closed_;
     if (status != WindowsDxgiDamageReadResult::ready ||
         count > destination.size())
@@ -335,7 +404,10 @@ void WindowsDxgiCaptureCycle::finishCancellation() noexcept
 
 FramebufferView WindowsDxgiCaptureCycle::frame() const noexcept
 {
-    if (closed_ || operationInProgress_ || !staging_.mapped())
+    // A raw borrowed view cannot be revalidated once returned; guarded
+    // cycles expose frames only through consumeFrame/copyFrameTo.
+    if (closed_ || operationInProgress_ || !staging_.mapped() ||
+        generationReader_.read != nullptr)
     {
         return {};
     }

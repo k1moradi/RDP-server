@@ -451,6 +451,16 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.capture-${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
     endforeach()
+    # Revocation-only session/device generation observations. Synthetic
+    # sources cannot grant R2/R3 OS admission or access a real desktop.
+    foreach(case_name IN ITEMS
+            capture-generation-pinned-frame-lifetime
+            capture-generation-revocation-denials)
+        add_test(NAME "windows.${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;offline")
+    endforeach()
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.
     add_test(NAME windows.capture-dxgi-move-before-dirty

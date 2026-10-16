@@ -62,6 +62,35 @@ must not be equated to full CTest PASS or the RDP product acceptance.
 three-platform same-SHA CTest, then R3/R8 joined authorization and
 lifecycle fuzzing once a production admitted-session boundary exists.
 
+## R6 capture generation revocation checks (2026-10-15)
+
+**Authoring parent main:** `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`. Existing
+`WindowsDxgiCaptureCycle` gains revocation-only
+`WindowsCaptureGenerationReader` and pinned session/device epochs.
+New/changed code and tests:
+`src/windows/windows_dxgi_capture_cycle.{h,cpp}`,
+`tests/windows_capture_cycle_cases.cpp`,
+`tests/test_windows_desktop_geometry.cpp`,
+`tests/CMakeLists.txt`, plus `docs/ROADMAP.md`,
+`docs/ARCHITECTURE.md` and this validation ledger.
+**New offline conditional Windows CTests:**
+`windows.capture-generation-pinned-frame-lifetime`,
+`windows.capture-generation-revocation-denials`.
+Read-only synthetic fixtures verify stable copies, terminal
+pre-acquire and mid-map generation change, pre-consume and
+in-consumer revocation, callback unavailability, malformed
+binding, cancellation, reentrancy and exactly-once unmap/ReleaseFrame.
+Guarded raw frame() borrows are suppressed. Legacy unbound
+cycles remain test-only. This does NOT implement R2/R3 OS admission.
+
+**NOT RUN at authoring:** real synchronized source-tree CMake/CTest
+(GitHub clone DNS unavailable in this environment), Windows
+MSYS2 CLANG64 Clang23 owner build, owner Linux/X11 and macOS27,
+approved live Win32 session/device selection, R4 asynchronous
+encoding, Microsoft RDP client, performance benchmarks. Hosted
+Windows/MSVC Debug/Release and Linux/macOS exact-SHA CI must be
+inspected after the atomic commit. M4 remains open.
+
 ## R6 native DXGI damage metadata bound to one capture frame (2026-10-15)
 
 **Remote main used for integration:** `3c09e0763d019d0423919f17d880375167bb7be7`. **Changed files:**

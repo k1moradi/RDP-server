@@ -152,6 +152,29 @@ before the next acquisition; access loss requires recreating
 duplication:
 https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_2/nf-dxgi1_2-idxgioutputduplication-releaseframe
 
+### R6 session/device capture generation invalidation (offline only)
+
+`WindowsDxgiCaptureCycle` can optionally pin two nonzero lifecycle
+epochs for a separately authorized Windows native interactive session
+and D3D11 device/output. Its **revocation-only**
+`WindowsCaptureGenerationReader` checks that neither epoch has
+changed on either side of frame acquisition/mapping, synchronous
+pixel consumption and native damage reads. Failed observations and
+reentrant cancellation invalidate the cycle; one staging mapping is
+unmapped before the original DXGI lease releases exactly once. A
+guarded cycle does not expose an unchecked raw borrowed view through
+`frame()`; consumers must use checked synchronous
+`consumeFrame`/`copyFrameTo`. Independently owned output is
+published only if its generation is still current on return.
+An asynchronously side-effecting consumer cannot have its work
+rolled back, so R4 must use the owned-copy path before enqueueing.
+This guards reuse of stale capture resources but **does not grant
+authentication, OS-session admission, ACL access or desktop
+permissions**. Synthetic callback epochs are not trustworthy
+authority. Live Windows capture remains disabled until R2/R3
+supplies independently verified session/device lifecycle and
+R4 owns asynchronous frame scheduling.
+
 ### R6 bounded native DXGI move/dirty metadata on active lease
 
 `WindowsDxgiCaptureCycle::readFrameDamage` samples metadata only

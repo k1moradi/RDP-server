@@ -49,6 +49,25 @@ enum class WindowsCaptureConsumeResult
     releaseFailed,
 };
 
+// A REVOCATION-ONLY source of session and graphics-device generations.
+// R2/R3 must independently authenticate and authorize the interactive
+// session. Matching numbers, or a callback returning true, grant NO access.
+// The observation is sampled synchronously on the capture owner thread.
+struct WindowsCaptureGeneration
+{
+    std::uint64_t session{};
+    std::uint64_t device{};
+
+    friend bool operator==(const WindowsCaptureGeneration &,
+                           const WindowsCaptureGeneration &) = default;
+};
+
+struct WindowsCaptureGenerationReader
+{
+    void *context{};
+    bool (*read)(void *context, WindowsCaptureGeneration &current) noexcept{};
+};
+
 // Coordinates the two existing native RAII owners, NOT the R4 graphics
 // scheduler or the R2/R3 authorization decision. The caller must already
 // own an authorized duplication + D3D11 context, and must serialize calls
@@ -61,7 +80,9 @@ public:
     WindowsDxgiCaptureCycle(
         WindowsDesktopLayout layout, WindowsDxgiFrameCallbacks frameCallbacks,
         WindowsD3D11StagingCallbacks stagingCallbacks,
-        WindowsDxgiDamageReadCallbacks damageCallbacks = {}) noexcept;
+        WindowsDxgiDamageReadCallbacks damageCallbacks = {},
+        WindowsCaptureGenerationReader generationReader = {},
+        WindowsCaptureGeneration pinnedGeneration = {}) noexcept;
     ~WindowsDxgiCaptureCycle() noexcept;
 
     WindowsDxgiCaptureCycle(const WindowsDxgiCaptureCycle &) = delete;
@@ -103,12 +124,16 @@ private:
     // In-flight native callbacks can call cancel() synchronously. Deferring
     // actual teardown until the outer method returns prevents a release
     // while a staging callback still uses the acquired DXGI resource.
+    // Called only with operationInProgress_ set; false terminally revokes.
+    [[nodiscard]] bool generationUnchanged() noexcept;
     void finishCancellation() noexcept;
 
     WindowsDesktopLayout layout_{};
     WindowsDxgiFrameOwner duplication_;
     WindowsD3D11StagingMap staging_;
     WindowsDxgiDamageReadCallbacks damage_{};
+    WindowsCaptureGenerationReader generationReader_{};
+    WindowsCaptureGeneration pinnedGeneration_{};
     bool operationInProgress_{};
     bool closed_{};
 };

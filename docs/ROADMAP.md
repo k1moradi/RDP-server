@@ -3563,6 +3563,33 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   R4 graphics presentation and M4 Microsoft-client desktop acceptance.
   **Next:** consume an R2/R3 authorization-bound native capture
   lifecycle, then hand synchronous frame bytes to the sole R4 owner.
+  **R6 capture session/device generation revocation (2026-10-15;
+  authored against parent `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`; exact-SHA CI pending):**
+  The existing `WindowsDxgiCaptureCycle` accepts an OPTIONAL,
+  revocation-only `WindowsCaptureGenerationReader` plus independently
+  pinned nonzero native session/device epochs. A bound reader is
+  sampled before DXGI acquisition, between acquisition and mapping,
+  after mapping, before/after synchronous R4-owned pixel copy or
+  consumer execution, and before/after reading native damage. Missing,
+  partial, zero, stale or unavailable bound observations fail closed.
+  Revocation unmaps the staging buffer and then releases the one
+  existing DXGI frame; it never publishes pixels or damage from
+  the replaced generation. Guarded cycles expose raw borrowed
+  frames ONLY via checked synchronous consumption, not `frame()`.
+  Legacy unbound cycles remain available for isolated offline fixtures;
+  **these numbers are NOT R2/R3 authorization, a token, or permission
+  to open a desktop**. Native R2/R3 authenticated admission and audited
+  Windows-session evidence are required separately before real use.
+  **Dedicated offline Windows CTests:**
+  `windows.capture-generation-pinned-frame-lifetime` and
+  `windows.capture-generation-revocation-denials`; reused the
+  existing R6 executable and registry. **NOT RUN at authoring:**
+  full canonical checkout CMake/CTest, owner Windows MSYS2 CLANG64
+  Clang23/Linux X11/macOS27, real authenticated session, desktop
+  capture and Microsoft client, or performance. Hosted exact-SHA CI
+  to be checked after direct-main publication. **Next:** connect
+  the revocation reader to audited R2/R3 native session/device
+  lifecycle, then agree on generation-safe R4 graphics ownership.
   **R6 native DXGI move/dirty metadata read (2026-10-15,
   authored against latest main `3c09e0763d019d0423919f17d880375167bb7be7`; CI pending):** Extend the
   existing `WindowsDxgiCaptureCycle` to read

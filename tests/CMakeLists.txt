@@ -559,7 +559,12 @@ if(TARGET rdp-server-windows-desktop)
             dxgi-duplication-owner-same-adapter-ambiguity
             dxgi-duplication-owner-capture-cycle-single-attach
             dxgi-duplication-owner-capture-cycle-layout-denials
-            dxgi-duplication-owner-epoch-revocation)
+            dxgi-duplication-owner-epoch-revocation
+            dxgi-duplication-owner-release-reentry
+            dxgi-duplication-owner-open-cancel-reentry
+            dxgi-duplication-owner-partial-result-cleanup
+            dxgi-duplication-owner-ambiguous-reentry
+            dxgi-duplication-owner-child-close-order)
         add_test(NAME "windows.capture-${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.capture-${case_name}" PROPERTIES

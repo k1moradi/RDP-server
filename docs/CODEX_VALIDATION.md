@@ -12059,3 +12059,34 @@ product/scope provisioning. The serializer and receipt fence are ready, but
 that missing provisioning/integration boundary prevents a standards-correct
 live request from being emitted. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+## R6 DXGI duplication-owner callback reentry authoring receipt (2026-10-16; CI pending)
+
+Starting reconciled shared `main`: `452a13f1e79acce64d12bda488f07564887cfc68`. Production/source review
+reproduced the unsafe ownership sequence: `releaseResource` called the injected
+release callback while the member still held the same pointer, and `open()`
+had no guard against synchronous terminal close or nested `open()` during
+partially constructed state.
+
+The correction detaches owned pointers before callback release, defers
+`open()` teardown across synchronous callbacks, blocks overlapping teardown,
+checks terminal cancellation before every subsequent native construction step,
+cleans failure-with-pointer results, preserves selected-adapter alias ownership,
+retires the child capture cycle before parent COM objects, and prevents device
+epoch wraparound revival.
+
+Dedicated production-linked cases registered in the existing
+`test_windows_desktop_geometry` executable:
+`windows.capture-dxgi-duplication-owner-release-reentry`,
+`windows.capture-dxgi-duplication-owner-open-cancel-reentry`,
+`windows.capture-dxgi-duplication-owner-partial-result-cleanup`,
+`windows.capture-dxgi-duplication-owner-ambiguous-reentry`, and
+`windows.capture-dxgi-duplication-owner-child-close-order`.
+
+Source/registry/documentation review is **PASS**. Canonical owner-local
+`~/rdp-server/build/` compile/CTest is **NOT RUN** in this connector-only
+environment. Exact publication-SHA hosted Windows/MSVC focused/full
+Debug+Release, Linux/GCC, macOS/Clang, selected R9 sanitizer,
+documentation-policy and SDK/package validation are **PENDING**. Windows MSYS2
+CLANG64/Clang23, live Desktop Duplication/SendInput, genuine Windows R2/R3
+authorization and Microsoft-client M4 acceptance remain **NOT RUN/BLOCKED**.
+

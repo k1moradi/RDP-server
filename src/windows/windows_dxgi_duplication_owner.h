@@ -63,8 +63,8 @@ struct WindowsDxgiNativeCallbacks
 // Nonmoving, single-thread-affine RAII owner. No implicit authentication,
 // desktop access, device recreation or R4 scheduler. Only call open AFTER
 // R2/R3 independently bind an authorized target, never as an admission test.
-// Close/cancel must execute on the serialized capture thread and never during
-// an in-flight synchronous capture callback.
+// Native callback reentry may request terminal close; teardown is deferred
+// until the active open/release boundary returns on the serialized thread.
 class WindowsDxgiDuplicationOwner final
 {
 public:
@@ -99,6 +99,7 @@ public:
 
 private:
     void releaseResource(WindowsDxgiNativeResource kind, void *&resource) noexcept;
+    void releaseOwnedResources() noexcept;
     [[nodiscard]] bool hasCallbacks() const noexcept;
     [[nodiscard]] static bool observeGeneration(
         void *, WindowsCaptureGeneration &) noexcept;
@@ -116,6 +117,8 @@ private:
     std::uint64_t pinnedSessionEpoch_{};
     std::uint64_t deviceEpoch_{};
     bool closed_{};
+    bool operationInProgress_{};
+    bool teardownInProgress_{};
 #ifdef _WIN32
     std::unique_ptr<WindowsD3D11NativeStagingContext> stagingContext_{};
     std::unique_ptr<WindowsDxgiCaptureCycle> captureCycle_{};

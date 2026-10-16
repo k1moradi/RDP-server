@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <limits>
+#include <utility>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -23,6 +24,20 @@ namespace
 constexpr std::uint32_t kMaximumAdapters = 32;
 constexpr std::uint32_t kMaximumOutputsPerAdapter = 32;
 std::atomic<std::uint64_t> nextDeviceEpoch{1};
+
+std::uint64_t allocateDeviceEpoch() noexcept
+{
+    auto epoch = nextDeviceEpoch.load(std::memory_order_relaxed);
+    const auto exhausted = std::numeric_limits<std::uint64_t>::max();
+    while (epoch != 0 && epoch != exhausted)
+    {
+        if (nextDeviceEpoch.compare_exchange_weak(
+                epoch, epoch + 1, std::memory_order_relaxed,
+                std::memory_order_relaxed))
+            return epoch;
+    }
+    return 0;
+}
 
 bool matches(const WindowsDxgiOutputDescription &description,
              const WindowsDxgiTarget &target) noexcept
@@ -58,28 +73,70 @@ bool WindowsDxgiDuplicationOwner::hasCallbacks() const noexcept
 void WindowsDxgiDuplicationOwner::releaseResource(
     WindowsDxgiNativeResource kind, void *&resource) noexcept
 {
-    if (resource != nullptr)
+    void *const owned = std::exchange(resource, nullptr);
+    if (owned != nullptr)
+        callbacks_.release(callbacks_.context, kind, owned);
+}
+
+void WindowsDxgiDuplicationOwner::releaseOwnedResources() noexcept
+{
+    if (operationInProgress_ || teardownInProgress_)
+        return;
+
+    teardownInProgress_ = true;
+#ifdef _WIN32
+    if (captureCycle_)
     {
-        callbacks_.release(callbacks_.context, kind, resource);
-        resource = nullptr;
+        captureCycle_->cancel();
+        captureCycle_.reset();
     }
+    stagingContext_.reset();
+#endif
+    sessionReader_ = {};
+    pinnedSessionEpoch_ = 0;
+    selected_ = {};
+    releaseResource(WindowsDxgiNativeResource::duplication, duplication_);
+    releaseResource(WindowsDxgiNativeResource::output1, output1_);
+    releaseResource(WindowsDxgiNativeResource::context, context_);
+    releaseResource(WindowsDxgiNativeResource::device, device_);
+    releaseResource(WindowsDxgiNativeResource::output, output_);
+    releaseResource(WindowsDxgiNativeResource::adapter, adapter_);
+    releaseResource(WindowsDxgiNativeResource::factory, factory_);
+    teardownInProgress_ = false;
 }
 
 WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
     WindowsDxgiTarget target) noexcept
 {
-    if (closed_ || factory_ != nullptr || duplication_ != nullptr)
+    if (closed_ || operationInProgress_ || teardownInProgress_ ||
+        factory_ != nullptr || duplication_ != nullptr)
         return WindowsDxgiDuplicationResult::closed;
     if (target.monitor == 0 || target.expectedBounds.widthPixels == 0 ||
         target.expectedBounds.heightPixels == 0)
         return WindowsDxgiDuplicationResult::invalidTarget;
 
-    auto fail = [this](WindowsDxgiDuplicationResult result) noexcept {
-        close();
+    operationInProgress_ = true;
+    auto finish = [this](WindowsDxgiDuplicationResult result) noexcept {
+        operationInProgress_ = false;
+        if (closed_)
+            releaseOwnedResources();
         return result;
     };
-    if (!callbacks_.createFactory(callbacks_.context, factory_) ||
-        factory_ == nullptr)
+    auto fail = [this, &finish](
+                    WindowsDxgiDuplicationResult result) noexcept {
+        closed_ = true;
+        deviceEpoch_ = 0;
+        return finish(result);
+    };
+    auto cancelled = [&finish]() noexcept {
+        return finish(WindowsDxgiDuplicationResult::closed);
+    };
+
+    const bool factoryCreated =
+        callbacks_.createFactory(callbacks_.context, factory_);
+    if (closed_)
+        return cancelled();
+    if (!factoryCreated || factory_ == nullptr)
         return fail(WindowsDxgiDuplicationResult::failed);
 
     bool enumerationEnded = false;
@@ -89,10 +146,19 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
         void *candidateAdapter = nullptr;
         const auto enumeration = callbacks_.adapterAt(
             callbacks_.context, factory_, adapterIndex, candidateAdapter);
+        if (closed_)
+        {
+            releaseResource(WindowsDxgiNativeResource::adapter,
+                            candidateAdapter);
+            return cancelled();
+        }
         if (enumeration != WindowsDxgiEnumerationResult::item ||
             candidateAdapter == nullptr)
         {
-            releaseResource(WindowsDxgiNativeResource::adapter, candidateAdapter);
+            releaseResource(WindowsDxgiNativeResource::adapter,
+                            candidateAdapter);
+            if (closed_)
+                return cancelled();
             if (enumeration == WindowsDxgiEnumerationResult::end)
             {
                 enumerationEnded = true;
@@ -109,11 +175,27 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
             const auto outputEnumeration = callbacks_.outputAt(
                 callbacks_.context, candidateAdapter, outputIndex,
                 candidateOutput);
+            if (closed_)
+            {
+                releaseResource(WindowsDxgiNativeResource::output,
+                                candidateOutput);
+                if (candidateAdapter != adapter_)
+                    releaseResource(WindowsDxgiNativeResource::adapter,
+                                    candidateAdapter);
+                return cancelled();
+            }
             if (outputEnumeration != WindowsDxgiEnumerationResult::item ||
                 candidateOutput == nullptr)
             {
                 releaseResource(WindowsDxgiNativeResource::output,
                                 candidateOutput);
+                if (closed_)
+                {
+                    if (candidateAdapter != adapter_)
+                        releaseResource(WindowsDxgiNativeResource::adapter,
+                                        candidateAdapter);
+                    return cancelled();
+                }
                 if (outputEnumeration == WindowsDxgiEnumerationResult::end)
                 {
                     outputEnumerationEnded = true;
@@ -122,19 +204,35 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                 if (candidateAdapter != adapter_)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
+                if (closed_)
+                    return cancelled();
                 return fail(WindowsDxgiDuplicationResult::failed);
             }
+
             WindowsDxgiOutputDescription description{};
-            if (!callbacks_.describeOutput(callbacks_.context,
-                                            candidateOutput, description))
+            const bool described = callbacks_.describeOutput(
+                callbacks_.context, candidateOutput, description);
+            if (closed_)
             {
                 releaseResource(WindowsDxgiNativeResource::output,
                                 candidateOutput);
                 if (candidateAdapter != adapter_)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
+                return cancelled();
+            }
+            if (!described)
+            {
+                releaseResource(WindowsDxgiNativeResource::output,
+                                candidateOutput);
+                if (candidateAdapter != adapter_)
+                    releaseResource(WindowsDxgiNativeResource::adapter,
+                                    candidateAdapter);
+                if (closed_)
+                    return cancelled();
                 return fail(WindowsDxgiDuplicationResult::failed);
             }
+
             const bool sameMonitor = description.monitor == target.monitor;
             if (sameMonitor && !matches(description, target))
             {
@@ -145,6 +243,8 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                 if (candidateAdapter != adapter_)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
+                if (closed_)
+                    return cancelled();
                 return fail(WindowsDxgiDuplicationResult::unavailable);
             }
             if (matches(description, target))
@@ -155,89 +255,101 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                                     candidateOutput);
                     // candidateAdapter can alias the adapter retained by the
                     // first matching output. That retained reference belongs
-                    // to adapter_ and close() must release it exactly once.
+                    // to adapter_ and terminal teardown releases it once.
                     if (candidateAdapter != adapter_)
                     {
                         releaseResource(WindowsDxgiNativeResource::adapter,
                                         candidateAdapter);
                     }
+                    if (closed_)
+                        return cancelled();
                     return fail(WindowsDxgiDuplicationResult::ambiguous);
                 }
                 output_ = candidateOutput;
-                // Retain the sole adapter owning the matching output.
                 adapter_ = candidateAdapter;
             }
             else
             {
                 releaseResource(WindowsDxgiNativeResource::output,
                                 candidateOutput);
+                if (closed_)
+                {
+                    if (candidateAdapter != adapter_)
+                        releaseResource(WindowsDxgiNativeResource::adapter,
+                                        candidateAdapter);
+                    return cancelled();
+                }
             }
         }
+
         if (!outputEnumerationEnded)
         {
             if (candidateAdapter != adapter_)
                 releaseResource(WindowsDxgiNativeResource::adapter,
                                 candidateAdapter);
+            if (closed_)
+                return cancelled();
             return fail(WindowsDxgiDuplicationResult::failed);
         }
         if (candidateAdapter != adapter_)
             releaseResource(WindowsDxgiNativeResource::adapter,
                             candidateAdapter);
+        if (closed_)
+            return cancelled();
     }
+
     if (!enumerationEnded)
         return fail(WindowsDxgiDuplicationResult::failed);
     if (output_ == nullptr)
         return fail(WindowsDxgiDuplicationResult::unavailable);
 
-    if (!callbacks_.createDevice(callbacks_.context, adapter_,
-                                 device_, context_) ||
-        device_ == nullptr || context_ == nullptr)
+    const bool deviceCreated = callbacks_.createDevice(
+        callbacks_.context, adapter_, device_, context_);
+    if (closed_)
+        return cancelled();
+    if (!deviceCreated || device_ == nullptr || context_ == nullptr)
         return fail(WindowsDxgiDuplicationResult::unsupported);
-    if (!callbacks_.queryOutput1(callbacks_.context, output_, output1_) ||
-        output1_ == nullptr)
+
+    const bool output1Created =
+        callbacks_.queryOutput1(callbacks_.context, output_, output1_);
+    if (closed_)
+        return cancelled();
+    if (!output1Created || output1_ == nullptr)
         return fail(WindowsDxgiDuplicationResult::unsupported);
 
     WindowsDxgiOutputDescription refreshed{};
-    if (!callbacks_.describeOutput(callbacks_.context, output_, refreshed) ||
-        !matches(refreshed, target))
+    const bool refreshedDescription = callbacks_.describeOutput(
+        callbacks_.context, output_, refreshed);
+    if (closed_)
+        return cancelled();
+    if (!refreshedDescription || !matches(refreshed, target))
         return fail(WindowsDxgiDuplicationResult::accessLost);
 
     const auto outcome = callbacks_.duplicate(
         callbacks_.context, output1_, device_, duplication_);
+    if (closed_)
+        return cancelled();
     if (outcome != WindowsDxgiDuplicationResult::ready ||
         duplication_ == nullptr)
         return fail(outcome == WindowsDxgiDuplicationResult::ready
                         ? WindowsDxgiDuplicationResult::failed : outcome);
 
     selected_ = target;
-    const auto epoch = nextDeviceEpoch.fetch_add(1, std::memory_order_relaxed);
-    if (epoch == 0 || epoch == std::numeric_limits<std::uint64_t>::max())
+    const auto epoch = allocateDeviceEpoch();
+    if (epoch == 0)
         return fail(WindowsDxgiDuplicationResult::failed);
     deviceEpoch_ = epoch;
-    return WindowsDxgiDuplicationResult::ready;
+    return finish(WindowsDxgiDuplicationResult::ready);
 }
 
 void WindowsDxgiDuplicationOwner::close() noexcept
 {
     closed_ = true;
     deviceEpoch_ = 0;
-#ifdef _WIN32
-    if (captureCycle_)
-    {
-        captureCycle_->cancel();
-        captureCycle_.reset();
-    }
-    stagingContext_.reset();
-#endif
-    releaseResource(WindowsDxgiNativeResource::duplication, duplication_);
-    releaseResource(WindowsDxgiNativeResource::output1, output1_);
-    releaseResource(WindowsDxgiNativeResource::context, context_);
-    releaseResource(WindowsDxgiNativeResource::device, device_);
-    releaseResource(WindowsDxgiNativeResource::output, output_);
-    releaseResource(WindowsDxgiNativeResource::adapter, adapter_);
-    releaseResource(WindowsDxgiNativeResource::factory, factory_);
+    if (operationInProgress_ || teardownInProgress_)
+        return;
+    releaseOwnedResources();
 }
-
 bool WindowsDxgiDuplicationOwner::ready() const noexcept
 {
     return !closed_ && duplication_ != nullptr && deviceEpoch_ != 0;

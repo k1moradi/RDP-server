@@ -37,6 +37,11 @@ void windowsDxgiDuplicationOwnerSameAdapterAmbiguity();
 void windowsDxgiDuplicationOwnerCaptureCycleSingleAttach();
 void windowsDxgiDuplicationOwnerCaptureCycleLayoutDenials();
 void windowsDxgiDuplicationOwnerEpochRevocation();
+void windowsDxgiDuplicationOwnerReleaseReentry();
+void windowsDxgiDuplicationOwnerOpenCancelReentry();
+void windowsDxgiDuplicationOwnerPartialResultCleanup();
+void windowsDxgiDuplicationOwnerAmbiguousReentry();
+void windowsDxgiDuplicationOwnerChildCloseOrder();
 void windowsDxgiPointerShapeOwnedLifetime();
 void windowsDxgiPointerShapeGenerationDenials();
 void windowsInputSendInputLifecycle();
@@ -896,6 +901,26 @@ int main(int argc, char **argv)
     else if (behavior == "dxgi-duplication-owner-epoch-revocation")
     {
         windowsDxgiDuplicationOwnerEpochRevocation();
+    }
+    else if (behavior == "dxgi-duplication-owner-release-reentry")
+    {
+        windowsDxgiDuplicationOwnerReleaseReentry();
+    }
+    else if (behavior == "dxgi-duplication-owner-open-cancel-reentry")
+    {
+        windowsDxgiDuplicationOwnerOpenCancelReentry();
+    }
+    else if (behavior == "dxgi-duplication-owner-partial-result-cleanup")
+    {
+        windowsDxgiDuplicationOwnerPartialResultCleanup();
+    }
+    else if (behavior == "dxgi-duplication-owner-ambiguous-reentry")
+    {
+        windowsDxgiDuplicationOwnerAmbiguousReentry();
+    }
+    else if (behavior == "dxgi-duplication-owner-child-close-order")
+    {
+        windowsDxgiDuplicationOwnerChildCloseOrder();
     }
     else if (behavior == "cursor-dxgi-shape-owned-lifetime")
     {

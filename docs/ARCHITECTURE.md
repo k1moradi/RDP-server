@@ -4025,3 +4025,30 @@ provisioning into the R2-authorized R3 owner, client-license cryptography,
 Share activation, and Microsoft-client acceptance remain **OPEN / NOT RUN**.
 **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+## R6 DXGI duplication-owner callback boundary (2026-10-16)
+
+`WindowsDxgiDuplicationOwner` remains the sole outer owner for its factory,
+selected adapter/output, D3D11 device/context, output interface and duplication
+reference. Native callbacks execute synchronously on the documented serialized
+capture-owner thread; they may request terminal `close()`, but cannot start a
+second teardown while `open()` or resource release is active.
+
+`closed_` is the terminal revocation bit and invalidates readiness/device epoch
+immediately. During `open()`, `operationInProgress_` defers physical teardown
+until the callback returns; the caller then stops before issuing another native
+operation and releases every acquired local/owned reference. During final
+teardown, `teardownInProgress_` makes nested `close()` idempotent while the
+outer pass continues through every remaining resource. Each owned slot is
+cleared before its external release callback, preventing that callback from
+seeing the same owner reference twice.
+
+Parent teardown order remains: terminal owner/generation invalidation, capture
+cycle cancellation/destruction, native staging context destruction, duplication,
+output1, D3D11 context/device, selected output/adapter, then factory. Temporary
+enumeration references remain local and distinct from the retained selected
+adapter/output contract; a same-address selected-adapter alias is not released
+as a second local reference. Failure callbacks that publish a pointer still
+transfer one owned reference and are cleaned exactly once. No callback result
+can revive a terminal owner, and device-epoch allocation saturates permanently
+at exhaustion rather than wrapping.
+

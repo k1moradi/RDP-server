@@ -16,23 +16,46 @@ struct FakeDxgiBackend
         none, factory, adapters, outputs, description, device,
         missingContext, output1, duplicate, changedOutput
     };
+    enum class ReentryPhase
+    {
+        none, factory, adapter, output, description, device, output1,
+        duplicate, selectedAdapterEnd
+    };
     struct Token
     {
         unsigned outstanding{};
         unsigned releases{};
     };
+
     Token factory{}, adapters[2]{}, outputs[2][2]{};
     Token device{}, context{}, output1{}, duplication{};
     Failure failure{Failure::none};
+    ReentryPhase reentryPhase{ReentryPhase::none};
     WindowsDxgiDuplicationResult duplicateResult{
         WindowsDxgiDuplicationResult::ready};
+    WindowsDxgiDuplicationResult nestedOpenResult{
+        WindowsDxgiDuplicationResult::invalidTarget};
+    WindowsDxgiDuplicationOwner *owner{};
+    Token *closeOnRelease{};
     bool detached{}, empty{}, rotated{}, wrongMonitor{}, ambiguous{};
     bool sameAdapterAmbiguous{};
+    bool assignFailureResource{};
+    bool reenterOpen{};
+    bool closeOnEveryRelease{};
+    bool releaseReentryIssued{};
+    bool requireChildRetiredBeforeRelease{};
     unsigned adapterCount{2};
     unsigned outputCount{2};
+    unsigned factoryCalls{};
+    unsigned adapterCalls{};
+    unsigned outputCalls{};
     unsigned descriptions{};
+    unsigned createDeviceCalls{};
+    unsigned output1Calls{};
+    unsigned duplicateCalls{};
     unsigned releaseSequence{};
     unsigned duplicationReleasedAt{};
+    unsigned output1ReleasedAt{};
     unsigned contextReleasedAt{};
     unsigned deviceReleasedAt{};
     unsigned outputReleasedAt{};
@@ -49,23 +72,52 @@ struct FakeDxgiBackend
         token.outstanding = 1;
         out = &token;
     }
+    void closeOwner() noexcept
+    {
+        assert(owner != nullptr);
+        owner->close();
+    }
+    void closeIf(ReentryPhase phase) noexcept
+    {
+        if (reentryPhase == phase)
+            closeOwner();
+    }
     static bool createFactory(void *context, void *&out) noexcept
     {
         auto &self = backend(context);
+        ++self.factoryCalls;
         if (self.failure == Failure::factory)
+        {
+            if (self.assignFailureResource)
+                assign(out, self.factory);
             return false;
+        }
         assign(out, self.factory);
+        if (self.reenterOpen)
+        {
+            self.reenterOpen = false;
+            assert(self.owner != nullptr);
+            self.nestedOpenResult = self.owner->open(
+                {1234U, {-1920, 0, 1920, 1080}});
+        }
+        self.closeIf(ReentryPhase::factory);
         return true;
     }
     static WindowsDxgiEnumerationResult adapterAt(
         void *context, void *, std::uint32_t index, void *&out) noexcept
     {
         auto &self = backend(context);
+        ++self.adapterCalls;
         if (self.failure == Failure::adapters)
+        {
+            if (self.assignFailureResource)
+                assign(out, self.adapters[0]);
             return WindowsDxgiEnumerationResult::failed;
+        }
         if (index >= self.adapterCount)
             return WindowsDxgiEnumerationResult::end;
         assign(out, self.adapters[index]);
+        self.closeIf(ReentryPhase::adapter);
         return WindowsDxgiEnumerationResult::item;
     }
     static WindowsDxgiEnumerationResult outputAt(
@@ -73,12 +125,24 @@ struct FakeDxgiBackend
         void *&out) noexcept
     {
         auto &self = backend(context);
+        ++self.outputCalls;
+        const unsigned adapterIndex =
+            adapter == &self.adapters[0] ? 0U : 1U;
         if (self.failure == Failure::outputs)
+        {
+            if (self.assignFailureResource)
+                assign(out, self.outputs[adapterIndex][0]);
             return WindowsDxgiEnumerationResult::failed;
+        }
+        if (self.reentryPhase == ReentryPhase::selectedAdapterEnd &&
+            adapter == &self.adapters[1] && index >= self.outputCount)
+        {
+            self.closeOwner();
+        }
         if (index >= self.outputCount)
             return WindowsDxgiEnumerationResult::end;
-        const unsigned adapterIndex = adapter == &self.adapters[0] ? 0U : 1U;
         assign(out, self.outputs[adapterIndex][index]);
+        self.closeIf(ReentryPhase::output);
         return WindowsDxgiEnumerationResult::item;
     }
     static bool describe(
@@ -101,35 +165,57 @@ struct FakeDxgiBackend
         if (self.failure == Failure::changedOutput &&
             self.descriptions > 4 && matching)
             description.bounds.widthPixels = 1800;
+        self.closeIf(ReentryPhase::description);
         return true;
     }
     static bool createDevice(
         void *context, void *, void *&outDevice, void *&outContext) noexcept
     {
         auto &self = backend(context);
+        ++self.createDeviceCalls;
         if (self.failure == Failure::device)
+        {
+            if (self.assignFailureResource)
+            {
+                assign(outDevice, self.device);
+                assign(outContext, self.context);
+            }
             return false;
+        }
         assign(outDevice, self.device);
         if (self.failure != Failure::missingContext)
             assign(outContext, self.context);
+        self.closeIf(ReentryPhase::device);
         return true;
     }
     static bool queryOutput1(
         void *context, void *, void *&out) noexcept
     {
         auto &self = backend(context);
+        ++self.output1Calls;
         if (self.failure == Failure::output1)
+        {
+            if (self.assignFailureResource)
+                assign(out, self.output1);
             return false;
+        }
         assign(out, self.output1);
+        self.closeIf(ReentryPhase::output1);
         return true;
     }
     static WindowsDxgiDuplicationResult duplicate(
         void *context, void *, void *, void *&out) noexcept
     {
         auto &self = backend(context);
+        ++self.duplicateCalls;
         if (self.failure == Failure::duplicate)
+        {
+            if (self.assignFailureResource)
+                assign(out, self.duplication);
             return self.duplicateResult;
+        }
         assign(out, self.duplication);
+        self.closeIf(ReentryPhase::duplicate);
         return WindowsDxgiDuplicationResult::ready;
     }
     static void release(
@@ -138,6 +224,19 @@ struct FakeDxgiBackend
     {
         auto &self = backend(context);
         auto &token = *static_cast<Token *>(resource);
+        if (self.requireChildRetiredBeforeRelease)
+        {
+            assert(self.owner != nullptr);
+            assert(self.owner->captureCycle() == nullptr);
+        }
+        const bool shouldReenter =
+            self.owner != nullptr && !self.releaseReentryIssued &&
+            (self.closeOnEveryRelease || self.closeOnRelease == &token);
+        if (shouldReenter)
+        {
+            self.releaseReentryIssued = true;
+            self.owner->close();
+        }
         assert(token.outstanding == 1);
         token.outstanding = 0;
         ++token.releases;
@@ -150,13 +249,14 @@ struct FakeDxgiBackend
             self.adapterReleasedAt = self.releaseSequence; break;
         case WindowsDxgiNativeResource::output:
             self.outputReleasedAt = self.releaseSequence; break;
+        case WindowsDxgiNativeResource::output1:
+            self.output1ReleasedAt = self.releaseSequence; break;
         case WindowsDxgiNativeResource::device:
             self.deviceReleasedAt = self.releaseSequence; break;
         case WindowsDxgiNativeResource::context:
             self.contextReleasedAt = self.releaseSequence; break;
         case WindowsDxgiNativeResource::duplication:
             self.duplicationReleasedAt = self.releaseSequence; break;
-        case WindowsDxgiNativeResource::output1: break;
         }
     }
     [[nodiscard]] WindowsDxgiNativeCallbacks callbacks() noexcept
@@ -384,4 +484,198 @@ void windowsDxgiDuplicationOwnerEpochRevocation()
     later.close();
     first.assertReleased();
     second.assertReleased();
+}
+
+
+void windowsDxgiDuplicationOwnerReleaseReentry()
+{
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(backend.callbacks());
+    backend.owner = &owner;
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+
+    backend.closeOnEveryRelease = true;
+    owner.close();
+    assert(backend.releaseReentryIssued);
+    assert(!owner.ready() && owner.deviceEpoch() == 0);
+    assert(backend.duplicationReleasedAt != 0);
+    assert(backend.duplicationReleasedAt < backend.output1ReleasedAt);
+    assert(backend.output1ReleasedAt < backend.contextReleasedAt);
+    assert(backend.contextReleasedAt < backend.deviceReleasedAt);
+    assert(backend.deviceReleasedAt < backend.outputReleasedAt);
+    assert(backend.outputReleasedAt < backend.adapterReleasedAt);
+    assert(backend.adapterReleasedAt < backend.factoryReleasedAt);
+    owner.close();
+    backend.assertReleased();
+    assert(backend.duplication.releases == 1);
+    assert(backend.output1.releases == 1);
+    assert(backend.context.releases == 1);
+    assert(backend.device.releases == 1);
+    assert(backend.outputs[1][1].releases == 1);
+    assert(backend.adapters[1].releases == 1);
+    assert(backend.factory.releases == 1);
+}
+
+void windowsDxgiDuplicationOwnerOpenCancelReentry()
+{
+    {
+        FakeDxgiBackend backend{};
+        backend.reenterOpen = true;
+        WindowsDxgiDuplicationOwner owner(backend.callbacks());
+        backend.owner = &owner;
+        assert(owner.open(selectedTarget) ==
+               WindowsDxgiDuplicationResult::ready);
+        assert(backend.nestedOpenResult ==
+               WindowsDxgiDuplicationResult::closed);
+        assert(owner.ready() && owner.deviceEpoch() != 0);
+        owner.close();
+        backend.assertReleased();
+    }
+
+    constexpr std::array phases{
+        FakeDxgiBackend::ReentryPhase::factory,
+        FakeDxgiBackend::ReentryPhase::adapter,
+        FakeDxgiBackend::ReentryPhase::output,
+        FakeDxgiBackend::ReentryPhase::description,
+        FakeDxgiBackend::ReentryPhase::device,
+        FakeDxgiBackend::ReentryPhase::output1,
+        FakeDxgiBackend::ReentryPhase::duplicate,
+        FakeDxgiBackend::ReentryPhase::selectedAdapterEnd};
+    for (const auto phase : phases)
+    {
+        FakeDxgiBackend backend{};
+        backend.reentryPhase = phase;
+        WindowsDxgiDuplicationOwner owner(backend.callbacks());
+        backend.owner = &owner;
+        assert(owner.open(selectedTarget) ==
+               WindowsDxgiDuplicationResult::closed);
+        assert(!owner.ready() && owner.deviceEpoch() == 0);
+        assert(owner.open(selectedTarget) ==
+               WindowsDxgiDuplicationResult::closed);
+        backend.assertReleased();
+
+        if (phase == FakeDxgiBackend::ReentryPhase::factory)
+            assert(backend.adapterCalls == 0);
+        if (phase == FakeDxgiBackend::ReentryPhase::adapter)
+            assert(backend.outputCalls == 0);
+        if (phase == FakeDxgiBackend::ReentryPhase::output)
+            assert(backend.descriptions == 0);
+        if (phase == FakeDxgiBackend::ReentryPhase::description)
+            assert(backend.createDeviceCalls == 0);
+        if (phase == FakeDxgiBackend::ReentryPhase::device)
+            assert(backend.output1Calls == 0);
+        if (phase == FakeDxgiBackend::ReentryPhase::output1)
+        {
+            assert(backend.descriptions == 4);
+            assert(backend.duplicateCalls == 0);
+        }
+        if (phase == FakeDxgiBackend::ReentryPhase::duplicate)
+            assert(backend.duplicateCalls == 1);
+        if (phase == FakeDxgiBackend::ReentryPhase::selectedAdapterEnd)
+            assert(backend.createDeviceCalls == 0);
+    }
+}
+
+void windowsDxgiDuplicationOwnerPartialResultCleanup()
+{
+    auto partial = [](FakeDxgiBackend::Failure failure,
+                      WindowsDxgiDuplicationResult expected,
+                      auto verify) {
+        FakeDxgiBackend backend{};
+        backend.failure = failure;
+        backend.assignFailureResource = true;
+        if (failure == FakeDxgiBackend::Failure::duplicate)
+            backend.duplicateResult =
+                WindowsDxgiDuplicationResult::accessDenied;
+        WindowsDxgiDuplicationOwner owner(backend.callbacks());
+        backend.owner = &owner;
+        assert(owner.open(selectedTarget) == expected);
+        assert(!owner.ready() && owner.deviceEpoch() == 0);
+        owner.close();
+        backend.assertReleased();
+        verify(backend);
+    };
+
+    partial(FakeDxgiBackend::Failure::factory,
+            WindowsDxgiDuplicationResult::failed,
+            [](const auto &backend) {
+                assert(backend.factory.releases == 1);
+            });
+    partial(FakeDxgiBackend::Failure::adapters,
+            WindowsDxgiDuplicationResult::failed,
+            [](const auto &backend) {
+                assert(backend.adapters[0].releases == 1);
+            });
+    partial(FakeDxgiBackend::Failure::outputs,
+            WindowsDxgiDuplicationResult::failed,
+            [](const auto &backend) {
+                assert(backend.outputs[0][0].releases == 1);
+            });
+    partial(FakeDxgiBackend::Failure::device,
+            WindowsDxgiDuplicationResult::unsupported,
+            [](const auto &backend) {
+                assert(backend.device.releases == 1);
+                assert(backend.context.releases == 1);
+            });
+    partial(FakeDxgiBackend::Failure::output1,
+            WindowsDxgiDuplicationResult::unsupported,
+            [](const auto &backend) {
+                assert(backend.output1.releases == 1);
+            });
+    partial(FakeDxgiBackend::Failure::duplicate,
+            WindowsDxgiDuplicationResult::accessDenied,
+            [](const auto &backend) {
+                assert(backend.duplication.releases == 1);
+            });
+}
+
+void windowsDxgiDuplicationOwnerAmbiguousReentry()
+{
+    auto exercise = [](bool sameAdapter) {
+        FakeDxgiBackend backend{};
+        backend.sameAdapterAmbiguous = sameAdapter;
+        backend.ambiguous = !sameAdapter;
+        WindowsDxgiDuplicationOwner owner(backend.callbacks());
+        backend.owner = &owner;
+        backend.closeOnRelease = &backend.outputs[1][1];
+
+        assert(owner.open(selectedTarget) ==
+               WindowsDxgiDuplicationResult::closed);
+        assert(backend.releaseReentryIssued);
+        assert(!owner.ready() && owner.deviceEpoch() == 0);
+        owner.close();
+        backend.assertReleased();
+        assert(backend.outputs[1][1].releases == 1);
+        assert(backend.adapters[0].releases == 1);
+        assert(backend.adapters[1].releases == 1);
+        if (sameAdapter)
+            assert(backend.outputs[1][0].releases == 1);
+        else
+            assert(backend.outputs[0][0].releases == 1);
+    };
+
+    exercise(true);
+    exercise(false);
+}
+
+void windowsDxgiDuplicationOwnerChildCloseOrder()
+{
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(backend.callbacks());
+    backend.owner = &owner;
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+
+    int readerContext = 0;
+    const WindowsCaptureGenerationReader reader{&readerContext, &readGeneration};
+    assert(owner.attachCaptureCycle(selectedLayout(), reader, 41));
+    assert(owner.captureCycle() != nullptr);
+
+    backend.requireChildRetiredBeforeRelease = true;
+    backend.closeOnEveryRelease = true;
+    owner.close();
+    assert(backend.releaseReentryIssued);
+    assert(owner.captureCycle() == nullptr);
+    assert(!owner.ready() && owner.deviceEpoch() == 0);
+    owner.close();
+    backend.assertReleased();
 }

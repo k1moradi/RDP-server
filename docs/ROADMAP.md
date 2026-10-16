@@ -11407,3 +11407,47 @@ product/scope provisioning. The serializer and receipt fence are ready, but
 that missing provisioning/integration boundary prevents a standards-correct
 live request from being emitted. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+## R6 DXGI outer-owner callback reentry hardening (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `452a13f1e79acce64d12bda488f07564887cfc68`.
+
+Audit of the production `WindowsDxgiDuplicationOwner` confirmed that its
+release callback was invoked before the owner slot was cleared, so synchronous
+`close()` reentry could observe and release the same COM reference again.
+`open()` also had no operation guard: terminal close requested by factory,
+enumeration, description, device, output-interface or duplication callbacks
+could tear down partly constructed state before the callback returned, and a
+nested `open()` could enter before factory publication.
+
+The outer owner keeps the existing single-threaded ownership model and adds two
+local state guards. `operationInProgress_` defers terminal teardown until the
+active `open()` callback boundary returns; `teardownInProgress_` rejects
+overlapping teardown from release-callback reentry. Owned slots are detached
+with `std::exchange` before invoking external release callbacks. Every native
+callback is followed by a terminal-cancellation check before the next native
+operation. Temporary adapter/output enumeration references are released exactly
+once, including failure-with-pointer results, while the selected-adapter alias
+remains retained for owner teardown. Device-epoch allocation now saturates on
+exhaustion instead of wrapping back to a usable generation.
+
+Five production-linked behaviors are added to the existing Windows desktop
+fixture and central registry:
+`windows.capture-dxgi-duplication-owner-release-reentry`,
+`windows.capture-dxgi-duplication-owner-open-cancel-reentry`,
+`windows.capture-dxgi-duplication-owner-partial-result-cleanup`,
+`windows.capture-dxgi-duplication-owner-ambiguous-reentry`, and
+`windows.capture-dxgi-duplication-owner-child-close-order`. They cover
+release reentry, cancellation at actual `open()` phases, nested-open denial,
+failure callbacks that still assign owned references, same/different-adapter
+ambiguity after retention, and child retirement before parent DXGI/D3D11
+release.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment because the checkout is unavailable;
+no alternate build root, branch or worktree was created. Exact-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC Debug+Release, focused Windows native
+preflight, R9 sanitizer, documentation-policy and SDK/package evidence is
+**PENDING** after publication. Owner Windows MSYS2 CLANG64/Clang23, genuine
+R2/R3 Windows admission, live DXGI/SendInput and Microsoft-client M4 acceptance
+remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT ACCEPTED.**
+

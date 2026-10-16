@@ -1,3 +1,66 @@
+## R9 licensing transition exact-SHA QA receipts (2026-10-16)
+
+**Implementation:** [`2e15654204b69542ead641728dbd1402e3cc74aa`](https://github.com/k1moradi/RDP-server/commit/2e15654204b69542ead641728dbd1402e3cc74aa).
+**Corrected sanitizer selector:** [`03df6ea7cb834359820adb0d27fc0d083a65f5f2`](https://github.com/k1moradi/RDP-server/commit/03df6ea7cb834359820adb0d27fc0d083a65f5f2)
+(fix independently published by R2). Evidence is not interchangeable between SHAs.
+
+At R9 implementation SHA, [Actions 38921553485](https://github.com/k1moradi/RDP-server/actions/runs/38921553485)
+showed hosted Linux/GCC **PASS 449/449 Debug + Release**,
+macOS/AppleClang **PASS 375/375 Debug + Release**, and Windows/MSVC
+**PASS 405/405 Debug + Release**, plus Windows native preflight
+**PASS 45/45 Debug + Release**. The three new transition CTests
+`transport.licensing-client-response-before-request-delivery`,
+`transport.licensing-generated-request-cancellation-replay` and
+`transport.licensing-client-response-single-consumption` all **PASS** as
+cases 52-54 on all three platforms, both configurations. Documentation-policy,
+staged SDK and downstream consumer **PASS 1/1** per OS; packages, artifact
+digests and uploads **PASS**. The R9 bounded licensing sanitizer step is
+**FAIL / NOT EXECUTED** at this SHA, due to the missing selector shell quote.
+Other R9 sanitizer groups still executed independently.
+
+At the corrected selector SHA, [Actions 38922034933](https://github.com/k1moradi/RDP-server/actions/runs/38922034933)
+proves **PASS** for the actual Clang ASan/UBSan production-linked groups:
+clipboard **49/49**, x264/BGRA **20/20**, bounded R1/R3 **42/42**,
+native GSSAPI **27/27**, runtime CredSSP **4/4**, native X11 **25/25**,
+bounded fuzzer **1/1**. The actual `ctest -N` lists
+`transport.licensing-server-identity-configuration` (test 47),
+`transport.licensing-server-request-generated-random` (test 49), and
+the new licensing cases (52-54); all five explicitly **PASS** under
+the instrumented binary in the 42-case group. R2/GSS-only
+MIT-krb5 LSan suppression scope remains unchanged. Documentation policy
+**PASS**. **Overall hosted CI FAIL at this SHA**: unrelated R4
+zero-surface contract assertions fail in
+`gfx.presentation-lifecycle-denials` and
+`gfx.avc420-picture-rejections` on Linux and macOS; R4 owns that
+production/test reconciliation, not R9. R4 subsequently published
+`3d77a024b0150cb93058f5ac52f84cff639d3a88` to correct those
+test expectations; the fix's exact-SHA full hosted receipts are
+**NOT RUN / PENDING** at authoring.
+
+The R2 client licensing API still accepts only an actual move-only
+`LinuxConsoleAdmissionLease` with the live R1 HYBRID/TLS owner and
+GSS/native-session revalidation; no raw SSL, boolean, pointer or
+synthetic-positive substitute. R3 validates exact MCS initiator, global
+I/O channel, segmentation and Enhanced Security header before private
+licensing intake. The existing GSSAPI route test is compile-time API
+shape plus public unadmitted denial, **not** positive authentication.
+No genuine native lease was fabricated.
+
+**M1: OPEN / NOT ACCEPTED.** Canonical owner-local `~/rdp-server/build/`
+configure, full CTest and `ctest -N` remain **BLOCKED / NOT RUN** here
+(no synchronized checkout). Owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+and macOS 27 validations at one identical integration SHA remain
+**NOT RUN**. Hosted CI cannot replace them.
+
+**M2: OPEN / NOT ACCEPTED.** Positive final CredSSP `authInfo` remains
+deny-only; real Kerberos plus NSS/logind admission is **BLOCKED** on
+native credentials/session facts; R3 only reaches
+`AwaitServerLicenseDecision`, not cryptographic licensing success.
+Share activation and real Microsoft-client acceptance remain
+**NOT RUN**. Genuine positive admission needs opt-in owner-native
+Kerberos/KDC, actual NSS/logind session facts, and the same real R1
+owner; do not test with a forged lease.
+
 ## R1 protected client-licensing read compatibility (2026-10-16; exact-SHA CI pending)
 
 **Starting inspected shared main:** `bc10b90571139a6e692e201744c8e6962616d4ab`;

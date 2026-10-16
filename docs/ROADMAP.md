@@ -2064,7 +2064,7 @@ actually run; another parser CTest alone is not a complete session.
   receipt was prepared. Documentation-policy PASS.
   This is a partial CI result, NOT an overall green commit, and M2
   remains unaccepted pending actual R2-backed OS admission and owner CTests.
-  **R3 preauth-to-session terminal revocation (2026-10-15; CI NOT RUN at authoring):**
+  **R3 preauth-to-session terminal revocation (2026-10-15; exact-SHA CI PASS):**
   The existing R1 `PreauthSession` now calls its single close() path
   on rejected/duplicate X.224 negotiation and unsuccessful/premature
   TLS handshake, revoking the R3 `McsSessionLifecycle` in the same
@@ -2079,6 +2079,16 @@ actually run; another parser CTest alone is not a complete session.
   **Next:** R2 must issue verified, TLS-bound, independently OS-authorized
   session evidence before this sole R3 owner can send Connect Response
   or advance to Erect/Attach/Join. Gate A/M2 NOT ACCEPTED.
+  **R3 exact-SHA CI verification (2026-10-15):**
+  [Implementation 84d55d00f4c49772ddaad524d078ade198cf5f03](https://github.com/k1moradi/RDP-server/commit/84d55d00f4c49772ddaad524d078ade198cf5f03)
+  [Actions 38844029977](https://github.com/k1moradi/RDP-server/actions/runs/38844029977)
+  PASS: Linux/GCC **192/192**, macOS/Clang **179/179**,
+  Windows/MSVC **183/183** full CTests in Debug AND Release.
+  New R3 terminal-revocation CTest, SDK consumer, packaging and
+  documentation-policy checks PASS; prerelease SKIPPED (no tag).
+  Owner exact-SHA Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+  macOS27 validation, real R2 OS admission, Microsoft client and
+  desktop remain NOT RUN. Gate A/M2 remains OPEN.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

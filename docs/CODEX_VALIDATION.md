@@ -2818,6 +2818,18 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 preauth terminal revocation of MCS lifecycle (2026-10-15)
 
+**Exact-SHA hosted CI PASS:** [implementation 84d55d00f4c49772ddaad524d078ade198cf5f03](https://github.com/k1moradi/RDP-server/commit/84d55d00f4c49772ddaad524d078ade198cf5f03),
+[Actions 38844029977](https://github.com/k1moradi/RDP-server/actions/runs/38844029977)
+PASS Linux/GCC **192/192**, macOS/Clang **179/179** and
+Windows/MSVC **183/183** full CTests in both Debug and Release.
+`transport.mcs-preauth-terminal-revocation`, installed SDK consumer,
+package artifacts and documentation-policy PASS. Prerelease skipped.
+NOT RUN: owner's independent exact-SHA Linux/X11, Windows MSYS2
+CLANG64/Clang23 and macOS27 tests; real R2 authenticated OS
+session authorization, Microsoft-client activation and desktop.
+R3 Gate A/M2 NOT ACCEPTED.
+
+
 **Production:** `PreauthSession::onConnectionRequest` and
 `PreauthSession::onTlsHandshake` now run `close()` on rejected or
 out-of-order transitions, invalidating the embedded R3 session state

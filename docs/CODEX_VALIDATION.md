@@ -9,7 +9,7 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
-## R6 Win32 cursor metadata snapshot (2026-10-16; CI pending)
+## R6 Win32 cursor metadata snapshot (2026-10-16; exact-SHA CI PASS)
 
 **Authoring parent main:** `10fff1ab437b74f7065bdd4c87dd9a5095f1f050`. Added
 `src/windows/windows_cursor_snapshot.{h,cpp}` to the existing R6 native
@@ -26,11 +26,23 @@ HCURSOR lifetime, R4 scheduling, input or authorization was added.
 **New Windows-only CTests:** `windows.cursor-snapshot-visible-and-hidden`
 and `windows.cursor-snapshot-rejections`, in the existing R6 executable
 and central registry. **PASS (isolated portable seam only):** GCC 14.2 and
-Clang 17 C++23 with strict warnings, plus Clang 17 ASan/UBSan. **NOT RUN at
-authoring:** full repository CMake/CTest, hosted exact-SHA CI, Windows SDK/
-MSVC native path, owner Windows MSYS2 CLANG64 Clang23/Linux X11/macOS27,
-live authorized cursor/session, Microsoft-client M4 acceptance or performance.
-**Next:** exact-SHA hosted CI, then bounded native cursor shape extraction
+Clang 17 C++23 with strict warnings, plus Clang 17 ASan/UBSan.
+
+**Implementation SHA:** `0ee521f2802bb2f2fd3fd6fa1ebfb834f4d47287`.
+**Actions run:** [38871393796](https://github.com/k1moradi/RDP-server/actions/runs/38871393796),
+overall **PASS**. Windows/MSVC native R6 target compiled and registered CTest
+passed **283/283** in both Debug and Release; both
+`windows.cursor-snapshot-visible-and-hidden` and
+`windows.cursor-snapshot-rejections` passed in both configurations.
+Linux/GCC passed **281/281** Debug and Release; macOS/Clang passed
+**263/263** Debug and Release. Documentation policy passed. R9 Clang
+ASan/UBSan protocol tests and bounded coverage-guided MCS/CLIPRDR fuzzer
+passed. Each staged installed SDK consumer passed **1/1** and packaging/
+artifact upload completed; prerelease publication was skipped without a tag.
+
+**NOT RUN:** owner Windows MSYS2 CLANG64 Clang23/Linux X11/macOS27 one-root
+validation, live authorized cursor/session, Microsoft-client M4 acceptance
+or performance. **Next:** bounded native cursor shape extraction
 with explicit color/monochrome transparency semantics and generation-safe
 R4 ownership.
 

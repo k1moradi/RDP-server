@@ -4135,7 +4135,7 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   device/output duplication lifetime; then proceed to cursor/input in
   focused increments.
   **R6 Win32 cursor metadata snapshot (2026-10-16; authored against
-  parent `10fff1ab437b74f7065bdd4c87dd9a5095f1f050`; exact-SHA CI pending):**
+  parent `10fff1ab437b74f7065bdd4c87dd9a5095f1f050`; exact-SHA CI PASS):**
   Add `windows_cursor_snapshot.{h,cpp}` to the existing noninstalled R6
   adapter. A synthetic/native callback reports cursor visibility, screen
   position, dimensions and hotspot; the shared validation path translates
@@ -4154,9 +4154,16 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   and `windows.cursor-snapshot-rejections`, using synthetic callbacks while
   compiling the native Win32 path on Windows. **PASS (isolated portable
   seam):** GCC 14.2 and Clang 17 strict C++23, plus Clang 17 ASan/UBSan.
-  **NOT RUN at authoring:** full repository CMake/CTest, Windows SDK/MSVC,
-  owner MSYS2 CLANG64 Clang23, live authorized cursor/session, Microsoft
-  client and performance. **Next:** add bounded cursor shape-pixel extraction
+  **Hosted exact-SHA PASS:** implementation
+  `0ee521f2802bb2f2fd3fd6fa1ebfb834f4d47287`,
+  [Actions 38871393796](https://github.com/k1moradi/RDP-server/actions/runs/38871393796):
+  Windows/MSVC **283/283** registered CTests passed in both Debug and Release,
+  including both new cursor cases; Linux/GCC **281/281** and macOS/Clang
+  **263/263** passed in both configurations. Documentation policy, R9
+  ASan/UBSan protocol tests, bounded MCS/CLIPRDR fuzzer, installed SDK
+  consumers and package/artifact checks also passed.
+  **NOT RUN:** owner MSYS2 CLANG64 Clang23, live authorized cursor/session,
+  Microsoft client and performance. **Next:** add bounded cursor shape-pixel extraction
   with explicit alpha/AND/XOR semantics and generation-safe R4 ownership;
   input injection remains separately gated on real R2/R3 authorization.
   **R6 capture session/device generation revocation (2026-10-15;

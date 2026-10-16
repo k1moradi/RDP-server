@@ -135,7 +135,7 @@ portable RDP protocol archive, Linux or macOS targets. Hosted
 Windows/MSVC build and owner MSYS2 CLANG64 Clang23 are independent
 verification gates; no ordinary CTest opens a live desktop.
 
-## R6 Win32 cursor metadata linkage (2026-10-16; CI pending)
+## R6 Win32 cursor metadata linkage (2026-10-16; exact-SHA hosted PASS)
 
 The same noninstalled `rdp-server-windows-desktop` target now compiles
 `windows_cursor_snapshot.cpp` and links `gdi32` in addition to its
@@ -145,6 +145,9 @@ for the temporary cursor bitmaps require GDI32. No Windows cursor headers
 or import libraries enter the installed portable protocol SDK. Hosted
 Windows/MSVC and owner MSYS2 CLANG64/Clang23 remain independent compile
 gates. Ordinary CTest uses synthetic callbacks and never reads a live cursor.
+Implementation `0ee521f2802bb2f2fd3fd6fa1ebfb834f4d47287` compiled this
+native target and passed **283/283** Windows/MSVC CTests in both Debug and
+Release in Actions 38871393796. Owner MSYS2 CLANG64/Clang23 remains NOT RUN.
 
 ## Windows (PowerShell, MSVC and OpenSSL)
 
@@ -314,13 +317,13 @@ and real TLS contents remain separately unverified.
 
 `rdp-server --check-tls-credentials FILE` runs the existing config
 syntax and TLS-file metadata checks, then parses the already-open
-certificate and private key as PEM. The certificate must be within its
-current `notBefore`/`notAfter` validity window and the key must match
-the certificate. It never prompts for a password; encrypted private keys
+certificate and private key as PEM and requires the key to match the
+certificate. It never prompts for a password; encrypted private keys
 are rejected. A passing result does not establish certificate trust,
-hostname, chain, revocation, user authentication or permission to start
-the RDP service. Ordinary CTests use fixed test-only EC material under
-`build/runtime-fixtures`; no real credential is installed or read.
+hostname, chain, revocation, validity dates, user authentication or
+permission to start the RDP service. Ordinary CTests use fixed
+test-only EC material under `build/runtime-fixtures`; no real
+credential is installed or read.
 
 ## Opt-in R9 Linux/Clang libFuzzer build
 

@@ -67,6 +67,15 @@ void put64(std::span<std::uint8_t> bytes, std::size_t offset,
     put32(bytes, offset + 4U, static_cast<std::uint32_t>(value >> 32U));
 }
 
+void putDescriptorFileSize(std::span<std::uint8_t> descriptor,
+                           std::uint64_t value)
+{
+    // FILEDESCRIPTORW stores nFileSizeHigh before nFileSizeLow; unlike a
+    // normal little-endian uint64_t, the two DWORDs are high then low.
+    put32(descriptor, 64U, static_cast<std::uint32_t>(value >> 32U));
+    put32(descriptor, 68U, static_cast<std::uint32_t>(value));
+}
+
 void putFileName(std::span<std::uint8_t> descriptor,
                  std::u16string_view name)
 {
@@ -1615,7 +1624,7 @@ void testFileDescriptorMetadataValidation()
     auto first = std::span(list).subspan(4U, kDescriptorBytes);
     put32(first, 0, kFdAttributes | kFdFileSize);
     put32(first, 36U, kFileAttributeNormal);
-    put64(first, 64U, (std::uint64_t{1} << 32U) + 17U);
+    putDescriptorFileSize(first, (std::uint64_t{1} << 32U) + 17U);
     putFileName(first, u"alpha.txt");
 
     auto second = std::span(list).subspan(
@@ -1682,7 +1691,7 @@ void testFileDescriptorMetadataValidation()
     put32(hugeList, 0, 1);
     auto huge = std::span(hugeList).subspan(4U, kDescriptorBytes);
     put32(huge, 0, kFdFileSize);
-    put64(huge, 64U, std::uint64_t{1} << 32U);
+    putDescriptorFileSize(huge, std::uint64_t{1} << 32U);
     putFileName(huge, u"huge.bin");
     const auto hugeWire = responsePdu(kResponseOk, hugeList);
     const auto hugeResponse = bounded.receiveResponse(hugeWire);
@@ -1827,7 +1836,7 @@ void testJoinedFileContentsRequestEnvelopeAndWriteFences()
         put32(list, 0, 1);
         auto descriptor = std::span(list).subspan(4U, kDescriptorBytes);
         put32(descriptor, 0, kFdFileSize);
-        put64(descriptor, 64U, 100000U);
+        putDescriptorFileSize(descriptor, 100000U);
         putFileName(descriptor, u"joined.bin");
         const auto listWire = responsePdu(kResponseOk, list);
         assert(owner.storeFileGroupDescriptors(
@@ -1982,7 +1991,7 @@ void testFileContentsResponseRejections()
         put32(list, 0, 1);
         auto descriptor = std::span(list).subspan(4U, kDescriptorBytes);
         put32(descriptor, 0, kFdFileSize);
-        put64(descriptor, 64U, 32U);
+        putDescriptorFileSize(descriptor, 32U);
         putFileName(descriptor, u"small.bin");
         const auto wire = responsePdu(kResponseOk, list);
         assert(owner.storeFileGroupDescriptors(owner.receiveResponse(wire)));

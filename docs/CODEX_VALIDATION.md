@@ -1,3 +1,24 @@
+## R5 descendant FILEDESCRIPTORW fixture validation repair (2026-10-16)
+
+Actions `38893052784` at `fa79a916fbdda240a8df9601858989ede5e4ca92`
+proved the earlier clipboard preprocessing repair compiled. macOS/Clang reached
+ordinary Debug CTest and reported **306/308 PASS**; the only failures were the
+two R8 file-descriptor behaviors. Production correctly decodes the separate
+FILEDESCRIPTORW high DWORD at offset 64 and low DWORD at 68, while the fixture
+used a generic low-first `put64`.
+
+A test-only `putDescriptorFileSize` now writes high then low and replaces
+exactly four FILEDESCRIPTORW size writers. Genuine FILECONTENTS 64-bit response
+fixtures retain generic `put64`. No production source changes. The unrelated
+Linux/sanitizer stale R3 diagnostic was corrected independently before this
+repair; concurrent R3 Channel Join production/test changes on the publication
+parent are retained.
+
+Canonical owner-local CMake/CTest is **NOT RUN** in this connector environment.
+R5's next production input translation is **BLOCKED** until R3 exposes the
+authoritative RDP input PDU/event boundary required by the roadmap. Exact
+descendant hosted CI is the next R5 validation gate.
+
 ## R3 protected Channel Join authoring and CI blocker (2026-10-16)
 
 **Starting main:** `9131611a110aa7bbe6746c341607c8667ddfad4a`.

@@ -1,3 +1,30 @@
+## R5 descendant FILEDESCRIPTORW fixture unblock (2026-10-16; CI pending)
+
+R5 validation descendant `fa79a916fbdda240a8df9601858989ede5e4ca92`, Actions
+`38893052784`, compiled past the prior clipboard assert-macro error. macOS
+then ran Debug CTest and failed only
+`clipboard.file-descriptor-metadata-validation` and
+`clipboard.file-contents-response-rejections`. Production
+`RemoteTransfer::storeFileGroupDescriptors` reads FILEDESCRIPTORW
+`nFileSizeHigh` at byte 64 and `nFileSizeLow` at byte 68; the fixtures had
+incorrectly reused the generic low-first little-endian `put64`.
+
+This shared test-only repair adds `putDescriptorFileSize`, writing high then
+low DWORD, at the four FILEDESCRIPTORW fixture sites. Generic `put64` remains
+unchanged for true contiguous 64-bit FILECONTENTS payloads. No R8 production
+behavior or R5 X11 production code changes. Linux/sanitizer on that descendant
+were separately blocked by a stale R3 test accessor; R9 repaired its own
+fixture before this change, and concurrent R3 Channel Join work on current
+`main` is preserved unchanged.
+
+**R5 remains dependency-blocked for new production input work:** the repository
+still has no authoritative R3 Share/Input or Fast-Path Input PDU event surface
+to translate into the existing typed `X11InputEvent`. Do not add a second
+parser/session/input owner. Exact descendant hosted CI is the next automated
+gate for the existing R5 matrix; owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27 and live Microsoft-client acceptance remain **NOT
+RUN**.
+
 ## R3 protected Channel Join intake and confirmation (2026-10-16; exact-SHA CI pending)
 
 Starting inspected main for this increment:

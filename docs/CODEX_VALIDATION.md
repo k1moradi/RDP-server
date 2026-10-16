@@ -7999,3 +7999,19 @@ before publication. Exact-SHA hosted Linux/macOS/Windows compilation and CTest
 are required immediately after publication. R3 Graphics DVC authorization,
 owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, Microsoft-client
 rendering and performance are **NOT RUN**. M3 / Gate B remains **OPEN**.
+
+
+### R3 Microsoft Client Core fixture expectation correction (2026-10-16)
+
+The central GCC regression had a stale test-only expectation for
+`earlyCapabilityFlags`: it asserted `0x0001`, while the checked-in
+Microsoft 4.1.3 wire fixture contains little-endian `18 00` at the parser's
+validated Client Core field and therefore decodes to `0x0018`. Multiple
+hosted Linux/macOS runs before the protected Connect Response change reproduced
+this same sole assertion failure.
+
+The production parser is unchanged: it continues to read the exact optional
+field only when the complete legal Client Core prefix is present. The CTest now
+asserts the fixture's actual `0x0018` value. This is a regression-fixture
+correction, not a capability negotiation or admission policy change. Exact-SHA
+hosted validation is required on the descendant commit.

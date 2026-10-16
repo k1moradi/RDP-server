@@ -106,7 +106,9 @@ void testPublishedGccSettings()
     assert(settings.requestedWidth == 1280);
     assert(settings.requestedHeight == 1024);
     assert(settings.hasEarlyCapabilityFlags);
-    assert(settings.earlyCapabilityFlags == 0x0001U);
+    // The checked-in Microsoft 4.1.3 fixture contains little-endian 18 00
+    // in this exact Client Core field. Preserve the published wire value.
+    assert(settings.earlyCapabilityFlags == 0x0018U);
     assert(settings.hasServerSelectedProtocol);
     assert(settings.serverSelectedProtocol == 0U);
     assert(settings.encryptionMethods == 0x1bU);

@@ -6544,6 +6544,20 @@ expectation correction; it does not verify owner Windows MSYS2
 CLANG64/Clang 23, macOS27/Linux-X11 live environments, certificate
 trust/hostname/revocation, live-loader continuity or service activation.
 
+**OpenSSL 4 compatibility failure:** documentation receipt
+`f249acf6d06269d895daa10db219d8c12a087e8b`,
+[Actions 38872238533](https://github.com/k1moradi/RDP-server/actions/runs/38872238533)
+fails macOS during Debug compilation at
+`src/server/runtime/main.cpp:477/479`: Homebrew OpenSSL **4.0.3** marks
+`X509_cmp_current_time` deprecated and `-Werror` turns both warnings
+into errors. This is R10-owned and occurs before CTest. Linux and the
+R9 sanitizer/documentation gates PASS; Windows had not completed when
+the correction was authored. The follow-up uses
+`X509_check_certificate_times` on OpenSSL 4+ and preserves the strict
+OpenSSL 3.x comparison behind a compile-time version gate. Local
+GCC 14.2/OpenSSL 3.5.5 high-warning probe **PASS**; corrected hosted
+macOS/OpenSSL 4 is pending.
+
 
 ## R1 bounded post-handshake TLS application I/O (2026-10-15)
 

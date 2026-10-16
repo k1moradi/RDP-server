@@ -532,6 +532,21 @@ remain **NOT RUN**. Certificate chain trust, hostname/revocation,
 live-loader handle continuity, R2/R3 authorization, listener/service
 startup and M1-M6 remain OPEN.
 
+**R10 OpenSSL 4 temporal-check API correction (2026-10-16; corrected exact-SHA CI pending):**
+Documentation receipt `f249acf6d06269d895daa10db219d8c12a087e8b`,
+[Actions 38872238533](https://github.com/k1moradi/RDP-server/actions/runs/38872238533)
+exposed a new R10 compile boundary after the macOS runner installed
+OpenSSL **4.0.3**: `X509_cmp_current_time` is deprecated there and the
+project's `-Werror` gate correctly rejected both calls before CTest.
+Linux and R9 sanitizer/documentation-policy PASS on that run; Windows
+was still executing when the correction was authored. The runtime now
+selects OpenSSL 4+'s nondeprecated certificate-level temporal checker
+and retains the prior strict comparison only for OpenSSL 3.x. Local
+GCC 14.2/OpenSSL 3.5.5 `-Wall -Wextra -Wpedantic -Werror` probe
+**PASS**. Temporal semantics, key matching, secure handle ownership and
+startup refusal are unchanged. Corrected hosted OpenSSL 4 compilation,
+owner MSYS2 CLANG64/Clang23 and macOS27 remain to be verified.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

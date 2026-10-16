@@ -791,7 +791,9 @@ OpenSSL. The private key must be unencrypted and match the
 certificate public key through `X509_check_private_key`. The
 certificate's `notBefore` and `notAfter` fields must also contain
 the current system time; malformed time encodings, expired
-certificates and not-yet-valid certificates fail closed. The password
+certificates and not-yet-valid certificates fail closed. OpenSSL 4+
+uses its certificate-level temporal checker, while OpenSSL 3.x retains
+the equivalent strict individual-time comparison. The password
 callback is noninteractive and always rejects encrypted keys. This
 eliminates a path reopen between metadata validation and content
 parsing. It does not validate a trust chain, hostname, revocation,

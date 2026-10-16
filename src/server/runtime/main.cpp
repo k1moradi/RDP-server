@@ -13,6 +13,7 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/opensslv.h>
 #include <openssl/x509.h>
 #if defined(_WIN32)
 #include <windows.h>
@@ -473,11 +474,15 @@ struct PkeyCloser {
     if (certificate == nullptr) {
         return false;
     }
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+    return ::X509_check_certificate_times(nullptr, certificate, nullptr) == 1;
+#else
     const int notBeforeComparison =
         ::X509_cmp_current_time(::X509_get0_notBefore(certificate));
     const int notAfterComparison =
         ::X509_cmp_current_time(::X509_get0_notAfter(certificate));
     return notBeforeComparison == -1 && notAfterComparison == 1;
+#endif
 }
 
 [[nodiscard]] bool checkTlsCredentialContents(

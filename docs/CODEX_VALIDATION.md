@@ -7335,3 +7335,66 @@ hosted CI is required after publication. Genuine selected-protocol provenance,
 positive Kerberos/logind admission, Connect Response write ownership, owner
 Linux/X11 / Windows MSYS2 CLANG64/Clang23 / macOS27 and Microsoft-client
 evidence remain **NOT RUN/BLOCKED**.
+
+
+### R9 integrated native admission/licensing sanitizer exact-SHA receipt (2026-10-16)
+
+Final R9 implementation SHA `799280df6ed88099614ac6a1ddcda2a9aefcb01b`,
+[Actions 38875589060](https://github.com/k1moradi/RDP-server/actions/runs/38875589060)
+completed **SUCCESS**. This verifies the focused R9 Path-B increment against
+the real R2->R3 production boundary without a synthetic positive lease.
+
+The single Ubuntu sanitizer job used Clang **18.1.3 (1ubuntu1)** and one
+checkout-local `build/` with
+`RDP_SERVER_TEST_LINUX_GSSAPI=ON`,
+`RDP_SERVER_TEST_REAL_KERBEROS=OFF`,
+`RDP_SERVER_BUILD_FUZZERS=ON`,
+`-fsanitize=address,undefined -fno-omit-frame-pointer
+-fno-sanitize-recover=all`,
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1`, and
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+Built production-linked targets were
+`test_owned_remote_transfer`, `test_clipboard_protocol`,
+`test_owned_mcs_connect_initial`, `test_owned_credssp_tsrequest`,
+`test_owned_credssp_binding`, `test_linux_gssapi_spnego`, and
+`fuzz_mcs_cliprdr`.
+
+Sanitizer results: clipboard **19/19 PASS**; unsuppressed MCS/CredSSP/licensing
+**13/13 PASS**; native R2/R3 GSSAPI **7/7 PASS**; bounded
+`fuzz.mcs-cliprdr-bounded` **1/1 PASS**. The fuzzer retains 5,000 runs,
+seed 12648430, max input 4096 bytes, 512 MiB RSS, 64 MiB allocation,
+2-second per-input timeout and 30-second CTest bound. The three R3 licensing
+cases all passed. The four requested credential-free R2 cases all passed, as
+did `security.gssapi-r3-mcs-admission-contract`,
+`security.gssapi-r3-native-change-revocation`, and R9's independent
+`security.gssapi-r3-mcs-disconnect-revocation-fence`.
+
+The two provider-acquisition denial cases used the documented GSS-only
+`leak:krb5_copy_principal` LSan suppression. Verbose output reported the
+suppression exactly twice, each **216 bytes / 10 allocations**. No suppression
+is active for clipboard, MCS, CredSSP, licensing or the fuzzer. This signature
+was independently reproduced outside RDP-server with MIT Kerberos 1.21.3 and
+no returned credential handle, while hosted Ubuntu uses MIT Kerberos 1.20.1.
+No RDP-server ASan/UBSan/unsuppressed LSan diagnostic occurred in the final
+job.
+
+Full same-SHA hosted matrix also passed: Linux/GCC **294/294 Debug** and
+**294/294 Release**; macOS/Clang **266/266 Debug** and **266/266 Release**;
+Windows/MSVC **289/289 Debug** and **289/289 Release**. Installed SDK consumer
+tests passed **1/1** per platform; packaging/digest/upload stages completed in
+the successful protocol jobs; documentation-policy passed. The earlier
+`f99a2ad3...` sanitizer compile failure was R9 CI dependency coverage
+(`libsystemd-dev` absent) and was corrected without weakening warnings. Its
+concurrent macOS R1 loopback-fixture failure did not reproduce on this final
+R9 SHA.
+
+**NOT RUN/BLOCKED:** genuine positive Kerberos/TLS + active physical logind
+lease issuance is **NOT RUN**; therefore real positive R3 admission is
+**NOT RUN**. Authenticated/authorized R3->R8 clipboard routing remains
+**BLOCKED**. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
+Microsoft-client interoperability, and performance/reliability acceptance are
+**NOT RUN**. No temporary patch/diff files remain. M1-M6 are not accepted from
+this offline/hosted QA increment alone. **Next R9:** when explicit native
+authorization is available, independently exercise positive lease issuance,
+revocation across reconnect/session generations, and then the genuine
+authorized R3->R8 route.

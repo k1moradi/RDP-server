@@ -1,3 +1,41 @@
+## R6 DXGI pre-map cursor denial regression validation (2026-10-16)
+
+**Initial inspected main:** `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`.
+The atomic publication candidate is reconciled onto parent `f1718fa601c12e9ff10f9be3bba281acd0a57e90`.
+
+**Root cause:** `windows.cursor-dxgi-shape-generation-denials` used a generic
+`assertTerminalRelease()` helper that required one D3D11 unmap for every
+terminal cursor path. The real `WindowsDxgiCaptureCycle::captureFrame`
+sequence captures/validates pointer state before it calls
+`staging_.mapFrame()`. The failing denial paths therefore own one acquired
+DXGI frame but no staging mapping. `finishCancellation()` correctly makes the
+staging cancel a no-op and then releases the frame once. The test now asserts
+the distinct pre-map invariant instead of manufacturing a production unmap.
+
+**Historical Windows evidence:** Actions `38879555520`
+(`e51d69ac5b66e622bb1992a858ee463b25309d0f`) and `38879607776`
+(`8bc97f5b8f5d64008c039e57304a17467c404849`) both show test #222 starting,
+then `***Timeout 1500.01 sec` followed by
+`Assertion failed: backend.unmaps == 1`. The assertion-failure process did not
+terminate before CTest's historical default timeout. Current hosted workflow
+invocations already cap tests at 60 seconds; this dedicated deterministic case
+also receives `TIMEOUT 20` so the owner's ordinary CTest command is bounded.
+
+**Strengthened CTest:** existing
+`windows.cursor-dxgi-shape-generation-denials`; no duplicate executable or
+new production transition. The oversize pre-map denial explicitly checks one
+acquisition, no map, no unmap, one release, repeated cancel idempotence and no
+destructor double release. The remaining terminal shape/coordinate/generation
+cases use the same narrowly named pre-map contract. Existing
+`windows.cursor-dxgi-shape-owned-lifetime` is retained unchanged.
+
+**Authoring status:** source trace PASS; canonical local configure/build/CTest
+**NOT RUN** because the execution environment has no owner checkout and DNS
+cannot resolve github.com for a compliant clone. No second build root, branch,
+worktree, patch or live desktop/input test was created. Exact-SHA hosted CI and
+owner Windows MSYS2 CLANG64/Clang23 remain required after publication. M4 is
+OPEN and native Windows input remains admission-gated.
+
 ## R5 X11 lifecycle fixture root-cause validation (2026-10-16; CI pending)
 
 **Inspected starting main:** `ce23e7dd73a0c943c42a8257149111fe5a66baf7`.

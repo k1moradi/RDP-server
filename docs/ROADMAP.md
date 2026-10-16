@@ -1,3 +1,46 @@
+## R6 DXGI pre-map cursor denial lifecycle regression (2026-10-16; exact-SHA CI pending)
+
+Initial inspected `main`: `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`;
+concurrent work advanced the shared branch, and this fix is reconciled onto
+publication parent `f1718fa601c12e9ff10f9be3bba281acd0a57e90` immediately before the expected-head update.
+
+Windows Actions runs `38879555520` at
+`e51d69ac5b66e622bb1992a858ee463b25309d0f` and `38879607776` at
+`8bc97f5b8f5d64008c039e57304a17467c404849` both reached
+`windows.cursor-dxgi-shape-generation-denials`, then waited exactly the
+historical CTest default before reporting `***Timeout 1500.01 sec` and
+`Assertion failed: backend.unmaps == 1`. Source tracing confirms the affected
+oversize/malformed/native-shape-error/generation-change/callback-cancel and
+coordinate-overflow paths all terminate after `AcquireNextFrame` pointer
+processing and before `WindowsD3D11StagingMap::mapFrame`. Cleanup therefore
+releases the acquired DXGI frame exactly once with zero staging maps and zero
+unmap callbacks. Adding a production unmap would violate the existing owner
+contract; the regression is a fixture-only expectation error.
+
+The existing dedicated denial CTest now names and checks that pre-map contract
+(`acquisitions == 1`, `maps == 0`, `unmaps == 0`, `releases == 1`).
+Its first oversize case additionally proves repeated terminal cancellation and
+destruction do not release twice. No R6 production owner changes. The same test
+has explicit `TIMEOUT 20` so the owner's plain canonical CTest command cannot
+wait 25 minutes if a future MSVC debug assertion leaves the process pending;
+current hosted CI separately uses `ctest --timeout 60`.
+
+**Authoring validation:** production/test/doc source trace PASS. Canonical local
+configure/build/CTest is **NOT RUN** because this execution environment has no
+owner checkout and cannot resolve github.com to create one; no alternate build
+root was created. Exact-SHA hosted Windows/MSVC Debug+Release, Linux/GCC
+Debug+Release, macOS/Clang Debug+Release, documentation-policy and relevant
+sanitizer results remain pending publication. The two Windows runtime TLS
+context failures seen in the historical runs are R10-owned and are not changed
+by R6.
+
+**Next R6 gate:** exact-SHA hosted CI plus the owner Windows MSYS2
+CLANG64/Clang23 check. Native `WindowsInputController` remains unreachable
+without genuine R2/R3 Windows admission; generation numbers are revocation-only.
+M4 remains OPEN. After stabilization, the next R6 increment is only the
+smallest authorized Windows session/capture binding exposed by R2/R3, not broad
+runtime integration.
+
 ## R5 X11 desktop lifecycle fixture reliability (2026-10-16; exact-SHA CI pending)
 
 **Starting shared main:** `ce23e7dd73a0c943c42a8257149111fe5a66baf7`. This P0 investigation preserves the

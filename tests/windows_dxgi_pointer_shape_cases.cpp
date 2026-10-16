@@ -185,9 +185,11 @@ void seedColorShape(FakePointerCapture &backend) noexcept
     }
 }
 
-void assertTerminalRelease(const FakePointerCapture &backend) noexcept
+void assertPreMapTerminalRelease(const FakePointerCapture &backend) noexcept
 {
-    assert(backend.unmaps == 1);
+    assert(backend.acquisitions == 1);
+    assert(backend.maps == 0);
+    assert(backend.unmaps == 0);
     assert(backend.releases == 1);
 }
 
@@ -347,23 +349,33 @@ void windowsDxgiPointerShapeGenerationDenials()
             true, true, 0, 0,
             static_cast<std::uint32_t>(
                 kMaximumWindowsDxgiPointerShapeBytes + 1U)};
-        WindowsDxgiCaptureCycle cycle(
-            pointerLayout(), backend.frames(), backend.staging(), {},
-            backend.generations(), kPinnedGeneration,
-            backend.pointerShapes(), pointerLayout().monitors[0]);
-        backend.cycle = &cycle;
-        WindowsCapturePointerUpdate output{};
-        output.generation = {91, 92};
-        output.visible = true;
-        output.nativeTopLeft = {7, 9};
-        assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::failed);
-        assert(cycle.readFramePointerUpdate(output) ==
-               WindowsCapturePointerResult::closed);
-        assert(cycle.closed());
-        assert(output.generation == (WindowsCaptureGeneration{91, 92}));
-        assert((output.nativeTopLeft == WindowsNativePoint{7, 9}));
-        assert(backend.shapeReads == 0);
-        assertTerminalRelease(backend);
+        {
+            WindowsDxgiCaptureCycle cycle(
+                pointerLayout(), backend.frames(), backend.staging(), {},
+                backend.generations(), kPinnedGeneration,
+                backend.pointerShapes(), pointerLayout().monitors[0]);
+            backend.cycle = &cycle;
+            WindowsCapturePointerUpdate output{};
+            output.generation = {91, 92};
+            output.visible = true;
+            output.nativeTopLeft = {7, 9};
+            assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::failed);
+            assert(cycle.readFramePointerUpdate(output) ==
+                   WindowsCapturePointerResult::closed);
+            assert(cycle.closed());
+            assert(output.generation == (WindowsCaptureGeneration{91, 92}));
+            assert((output.nativeTopLeft == WindowsNativePoint{7, 9}));
+            assert(backend.shapeReads == 0);
+            assert(backend.acquisitions == 1);
+            assert(backend.maps == 0);
+            assert(backend.unmaps == 0);
+            assert(backend.releases == 1);
+            cycle.cancel();
+            cycle.cancel();
+            assert(backend.releases == 1);
+        }
+        // Destruction after terminal cancellation is also idempotent.
+        assert(backend.releases == 1);
     }
 
     // Malformed shape metadata and unsupported type are terminal.
@@ -396,7 +408,7 @@ void windowsDxgiPointerShapeGenerationDenials()
         backend.cycle = &cycle;
         assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::failed);
         assert(cycle.closed());
-        assertTerminalRelease(backend);
+        assertPreMapTerminalRelease(backend);
     }
 
     // Masked-color alpha has binary replace/XOR semantics only.
@@ -414,7 +426,7 @@ void windowsDxgiPointerShapeGenerationDenials()
         backend.cycle = &cycle;
         assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::failed);
         assert(cycle.closed());
-        assertTerminalRelease(backend);
+        assertPreMapTerminalRelease(backend);
     }
 
     for (const auto result : {
@@ -437,7 +449,7 @@ void windowsDxgiPointerShapeGenerationDenials()
         else
             assert(observed == WindowsCaptureCycleResult::failed);
         assert(cycle.closed());
-        assertTerminalRelease(backend);
+        assertPreMapTerminalRelease(backend);
     }
 
     // A device epoch switch during the native read discards copied bytes.
@@ -453,7 +465,7 @@ void windowsDxgiPointerShapeGenerationDenials()
         backend.cycle = &cycle;
         assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
         assert(cycle.closed());
-        assertTerminalRelease(backend);
+        assertPreMapTerminalRelease(backend);
     }
 
     // An independently copied update still cannot cross a later generation
@@ -492,7 +504,7 @@ void windowsDxgiPointerShapeGenerationDenials()
         backend.cycle = &cycle;
         assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
         assert(backend.teardownDeferredDuringShape);
-        assertTerminalRelease(backend);
+        assertPreMapTerminalRelease(backend);
     }
 
     // Pointer integration cannot opt out of the existing nonzero generation
@@ -545,6 +557,6 @@ void windowsDxgiPointerShapeGenerationDenials()
         backend.cycle = &cycle;
         assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::failed);
         assert(cycle.closed());
-        assertTerminalRelease(backend);
+        assertPreMapTerminalRelease(backend);
     }
 }

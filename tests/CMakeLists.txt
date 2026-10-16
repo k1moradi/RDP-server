@@ -611,6 +611,10 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.${case_name}" PROPERTIES
             LABELS "windows;desktop-cursor;desktop-capture;security;offline")
     endforeach()
+    # Keep this deterministic denial suite bounded under the owner's plain
+    # CTest command even if MSVC debug assertion handling waits interactively.
+    set_tests_properties(windows.cursor-dxgi-shape-generation-denials
+        PROPERTIES TIMEOUT 20)
     # R6 generation-pinned SendInput controller. Synthetic callbacks exercise
     # command/state logic only; ordinary CTest never injects host input.
     foreach(case_name IN ITEMS

@@ -327,7 +327,9 @@ DXGI output-relative top-left is checked and translated through the selected
 output's signed desktop origin. The pending record carries the already-pinned
 session/device generation. Generation failure before publication clears it;
 cancellation during the native shape callback is deferred until callback
-return, then follows the existing staging-unmap/frame-release order.
+return. Terminal cleanup releases the acquired DXGI frame exactly once. If a
+staging map exists it is unmapped before `ReleaseFrame`; a denial before
+mapping correctly performs no D3D11 unmap callback.
 
 `WindowsDxgiDuplicationOwner::attachCaptureCycle` supplies this borrowed
 shape callback and exact selected-output rectangle to the same capture cycle it

@@ -197,12 +197,20 @@ public:
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer) noexcept;
 
-    // One-shot protected-credential boundary, ONLY after the GSS-bound
-    // server response. Parses raw DER, GSS-unwraps with confidentiality,
-    // examines structure without exposing secrets, securely erases the
-    // provider's plaintext, and ALWAYS closes/rejects. There is no
-    // credential delegation authorization or console-session policy yet.
-    // There is deliberately no success/authorization return value.
+    // The ONLY credential-decryption entry point. Requires a complete
+    // TSRequest received over the SAME pinned server TLS and X.509 as
+    // the genuine GSS/CredSSP public-key exchange, in version 5 or 6.
+    // GSS-unwraps the protected authInfo synchronously, inspects bounded
+    // credential structure without exporting secrets, securely erases
+    // GSS plaintext and terminally closes both reader and provider.
+    // Even a genuine decrypted credential is NEVER OS/session admission:
+    // no audited delegated-credential authorization exists yet.
+    void consumeFramedAndDenyDelegatedCredentials(
+        TsRequestFrameReader &reader) noexcept;
+
+    // Legacy raw-DER interface has no TLS provenance. It MUST NOT
+    // GSS-decrypt caller-supplied bytes, regardless of provider state.
+    // Retained only as terminal deny-only compatibility, never handoff.
     void consumeAndDenyDelegatedCredentials(
         std::span<const std::uint8_t> protectedRequestDer) noexcept;
 

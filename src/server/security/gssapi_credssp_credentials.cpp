@@ -28,14 +28,39 @@ namespace
 void GssapiSpnegoAcceptor::consumeAndDenyDelegatedCredentials(
     std::span<const std::uint8_t> protectedRequestDer) noexcept
 {
-    // The GSS security context and an active TLS server key must already
-    // have completed the protected pubKeyAuth exchange. Reparse raw DER:
-    // caller-constructed "valid" structs cannot bypass envelope policy.
-    const auto parsed = parseCredSspTsRequest(protectedRequestDer);
-    if (stage_ != SpnegoStage::ServerBindingPrepared ||
+    // Caller-provided DER is not necessarily TLS-derived. Never attempt
+    // GSS decryption or a credential-origin claim through this old API.
+    (void)protectedRequestDer;
+    reject();
+}
+
+void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
+    TsRequestFrameReader &reader) noexcept
+{
+    // The single TLS framing owner establishes transport provenance. The
+    // GSS owner must ALSO recheck its entire negotiated TLS certificate
+    // identity: a different reader could have been used for this frame.
+    const SSL *sourceTls = reader.completedFrameServerTls();
+    if (sourceTls == nullptr ||
+        stage_ != SpnegoStage::ServerBindingPrepared ||
         context_ == GSS_C_NO_CONTEXT ||
-        !permittedCredentialMessage(parsed))
+        negotiatedServerTls_ != sourceTls ||
+        (negotiatedVersion_ != 5 && negotiatedVersion_ != 6) ||
+        verifiedPrincipal().empty() ||
+        !matchesNegotiatedCertificate(sourceTls))
     {
+        reader.close();
+        reject();
+        return;
+    }
+
+    // Reject every field combination other than the one final encrypted
+    // authInfo. Never borrow caller-created DER or a detached GSS token.
+    const auto parsed = parseCredSspTsRequest(reader.completeDer());
+    if (!permittedCredentialMessage(parsed) ||
+        parsed.value.version != negotiatedVersion_)
+    {
+        reader.close();
         reject();
         return;
     }
@@ -72,9 +97,10 @@ void GssapiSpnegoAcceptor::consumeAndDenyDelegatedCredentials(
     }
     (void)gss_release_buffer(&minor, &plaintext);
 
-    // No authorized PAM/session adapter or supported credential-delegation
-    // policy exists yet. ALWAYS erase the GSS context and deny, even if
-    // GSS authenticated a syntactically valid set of credentials.
+    // There is no OS delegate or permission capability. Erase the one
+    // TLS-derived DER frame as well as all provider context before return;
+    // a caller cannot reuse these ciphertext bytes with a new transcript.
+    reader.close();
     reject();
 }
 

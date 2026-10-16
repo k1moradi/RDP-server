@@ -984,6 +984,24 @@ actually run; another parser CTest alone is not a complete session.
   invalid accounts, altered certificates, downgrade, expiry, denial,
   cleanup and replay. Fail closed rather than bypassing NLA or
   accepting synthetic credentials as proof of admission.
+  **R2 TLS-provenant delegated-credential handoff (2026-10-15;
+  CI pending):** optional Linux GSS now accepts protected authInfo
+  only from the existing complete TLS-derived `TsRequestFrameReader`.
+  It requires the same pinned server SSL/X.509, negotiated v5/v6,
+  genuinely verified GSS identity and confidential public-key proof,
+  and a credential-only TSRequest envelope before GSS unwrap.
+  Provider plaintext is inspected only for bounded credential metadata
+  then securely erased; both GSS and frame owners are terminally
+  closed/rejected. The old raw-DER API never decrypts and only denies.
+  **Dedicated new default Linux CTest:**
+  `security.gssapi-tls-framed-credential-denials` checks real TLS
+  framing with no GSS proof, v5/v6 authInfo DER, manual/incomplete
+  frames, changed same-SSL certificate, no reply and replay denial.
+  **PASS at authoring:** source-level review; **NOT RUN** local
+  checkout CTest or new-head hosted CI until published; genuine
+  Kerberos credentials, OS admission and R3 access remain NOT RUN.
+  **Next:** validate exact-commit CI, then independently audit native
+  OS identity/console authority without issuing synthetic capabilities.
   **R2 provider/TLS identity handoff (2026-10-15; CI pending):**
   `GssapiSpnegoAcceptor::verifiedPrincipal()` now requires genuine
   GSS completion AND the selected TLS X.509-bound CredSSP v5/v6

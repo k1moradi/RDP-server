@@ -4563,6 +4563,85 @@ void testGssapiPrincipalTlsProofGate()
     assert(acceptor.verifiedPrincipal().empty());
     assert(reader.status() == TsRequestFrameStatus::Closed);
 }
+
+void testGssapiTlsFramedCredentialDenials()
+{
+    // Real TLS carries syntactically valid authInfo-only v5/v6 DER.
+    // The opaque bytes intentionally are NOT a GSS-wrapped credential.
+    // No implicit keytab, credential cache or OS login is ever touched.
+    constexpr std::array<std::uint8_t, 14> authInfo{
+        0x30, 0x0c, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa2, 0x05, 0x04, 0x03, 0x11, 0x22, 0x33};
+
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        auto der = authInfo;
+        der[6] = version;
+        const auto parsed = parseCredSspTsRequest(der);
+        assert(parsed && parsed.value.version == version);
+        assert(parsed.value.hasAuthInfo && !parsed.value.hasPubKeyAuth);
+        assert(parsed.value.tokenCount == 0);
+        assert(parsed.value.encryptedAuthInfo.size() == 3);
+
+        // A complete AUTHENTIC TLS frame is necessary but insufficient:
+        // without real GSS and pubKeyAuth proof, deny and wipe.
+        TlsHandshakeFixture tls;
+        TsRequestFrameReader reader;
+        GssapiSpnegoAcceptor acceptor;
+        writeTlsClientApplicationData(tls.client.get(), der);
+        receiveOneCredSspTlsFrame(reader, tls.server.get(), der.size());
+        assert(reader.completedFrameServerTls() == tls.server.get());
+        acceptor.consumeFramedAndDenyDelegatedCredentials(reader);
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(acceptor.verifiedPrincipal().empty());
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(reader.completeDer().empty());
+        assert(reader.completedFrameServerTls() == nullptr);
+        assert(reader.bytesNeeded() == 0);
+        assert(reader.consume(der).status == TsRequestFrameStatus::Closed);
+        assertNoGssReplyDelivered(tls.client.get());
+
+        // Caller-provided DER and partial frames never gain TLS origin.
+        TsRequestFrameReader manual;
+        GssapiSpnegoAcceptor manualAcceptor;
+        assert(manual.consume(der).status == TsRequestFrameStatus::Complete);
+        assert(manual.completedFrameServerTls() == nullptr);
+        manualAcceptor.consumeFramedAndDenyDelegatedCredentials(manual);
+        assert(manualAcceptor.stage() == SpnegoStage::Failed);
+        assert(manual.status() == TsRequestFrameStatus::Closed);
+        assert(manual.completeDer().empty());
+        TsRequestFrameReader partial;
+        GssapiSpnegoAcceptor partialAcceptor;
+        assert(partial.consume(std::span(der).first(5)).status ==
+               TsRequestFrameStatus::NeedMore);
+        partialAcceptor.consumeFramedAndDenyDelegatedCredentials(partial);
+        assert(partialAcceptor.stage() == SpnegoStage::Failed);
+        assert(partial.status() == TsRequestFrameStatus::Closed);
+
+        // A new selected X.509 on the SAME SSL* must deny a completed
+        // TLS credential frame, even before the GSS admission check.
+        TlsHandshakeFixture certTls;
+        TlsHandshakeFixture other;
+        TsRequestFrameReader changed;
+        GssapiSpnegoAcceptor certAcceptor;
+        writeTlsClientApplicationData(certTls.client.get(), der);
+        receiveOneCredSspTlsFrame(changed, certTls.server.get(), der.size());
+        substituteCredSspReplyCertificate(
+            certTls.server.get(), other.server.get());
+        assert(changed.completedFrameServerTls() == nullptr);
+        certAcceptor.consumeFramedAndDenyDelegatedCredentials(changed);
+        assert(certAcceptor.stage() == SpnegoStage::Failed);
+        assert(changed.status() == TsRequestFrameStatus::Closed);
+        assert(changed.completeDer().empty());
+
+        // The historical raw-DER path is permanently deny-only and
+        // cannot perform a GSS unwrap of caller-provided ciphertext.
+        GssapiSpnegoAcceptor oldApi;
+        oldApi.consumeAndDenyDelegatedCredentials(der);
+        assert(oldApi.stage() == SpnegoStage::Failed);
+        assert(oldApi.verifiedPrincipal().empty());
+    }
+}
 #endif
 
 void testMcsPreauthTerminalRevocation()
@@ -4754,6 +4833,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
 #ifdef RDP_TEST_LINUX_GSSAPI
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
     {"gssapi-principal-tls-proof-gate", &testGssapiPrincipalTlsProofGate},
+    {"gssapi-tls-framed-credential-denials", &testGssapiTlsFramedCredentialDenials},
     {"gssapi-final-combined-denials", &testGssapiCombinedFinalBindingDenied},
     {"gssapi-negotiation-reply-gates", &testGssapiNegotiationReplyHandoffDenied},
     {"gssapi-failure-reply-denials", &testGssapiFailureReplyWithoutCredentialsDenied},

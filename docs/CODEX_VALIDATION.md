@@ -3989,3 +3989,31 @@ installed SDK consumer verification PASS, SDK ZIP packaging PASS.
 **NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27,
 authenticated R2/OS session or real Microsoft RDP client and desktop.
 The prior authoring-time NOT RUN statements above remain historical.
+
+
+## R2 GSS/TLS-owned delegated credentials denial (2026-10-15)
+
+**Production:** the old caller-provided DER credentials API now
+terminally denies without GSS unwrap. The new
+`consumeFramedAndDenyDelegatedCredentials(reader)` requires genuine
+GSS-authenticated and CredSSP TLS public-key-bound provider identity,
+the EXACT still-pinned server SSL/X.509 and v5/v6, plus an
+authInfo-only complete TLS frame before any GSS unwrap. Provider
+plaintext metadata-only inspection is bounded and cleansed.
+Every case terminally wipes frame and GSS context, never OS admission.
+
+**Dedicated new Linux GSS CTest:**
+`security.gssapi-tls-framed-credential-denials`, existing test binary,
+real memory-BIO TLS with valid-shaped v5/v6 authInfo ciphertext but
+no actual GSS credentials, negative partial/manual/certificate-swap
+frames, unchanged no-reply terminal cleanup, replay denial and
+historical raw API denial.
+**PASS at authoring:** source/DER envelope and CTest registration
+static validation. **NOT RUN at authoring:** patched local single-root
+CTest (the canonical checkout is absent and container git cannot
+resolve github.com), exact new-commit hosted CI (pending publication),
+authorized real Kerberos/GSS positive delegation, independently
+authorized native OS session or Microsoft client acceptance.
+**Next gate:** exact-SHA hosted CI then genuine GSS/TLS-bound
+credential provenance plus separately audited OS-session authorization,
+before any R3 authenticated session output.

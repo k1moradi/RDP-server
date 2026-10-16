@@ -970,6 +970,33 @@ admitted authenticated desktop. An audited native account/session
 authority, credential provenance and revocable admission decision
 remain necessary. Normal CTests never load default host keytabs.
 
+### TLS-owned delegated credential denial boundary (2026-10-15)
+
+After the server has verified GSS/SPNEGO and an active CredSSP v5/v6
+TLS public-key binding, the client may send a final TLS-protected
+`TSRequest.authInfo` containing GSS-encrypted `TSCredentials`
+([MS-CSSP 2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/6aac4dea-08ef-47a6-8747-22ea7f6d8685),
+[3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c)).
+The existing Linux `GssapiSpnegoAcceptor` remains its sole GSS
+context owner. `consumeFramedAndDenyDelegatedCredentials()` requires
+the completed existing `TsRequestFrameReader` and independently
+checks BOTH the frame's TLS identity and the acceptor's pinned
+original selected X.509, TLS pointer, protocol version, authenticated
+principal visibility and GSS context before parsing an authInfo-only
+envelope. Only then may the provider attempt confidential
+`gss_unwrap`; its plaintext is inspected in-place for metadata
+only and securely cleansed before provider buffer release.
+
+**All paths are terminal deny-only.** The reader's encrypted frame
+is wiped and closed, and the GSS acceptor's context, credentials and
+principal are rejected; no delegated password, token, OS capability
+or MCS authorization result is emitted. The legacy
+`consumeAndDenyDelegatedCredentials(std::span)` cannot establish
+TLS read provenance and is therefore retained solely as a
+nondecrypting terminal denial. This prevents synthetic/caller
+ciphertext from becoming a future privileged identity source while
+OS user and console-session authorization remains unimplemented.
+
 ### Combined final CredSSP SPNEGO and TLS binding (2026-10-14)
 
 Per [MS-CSSP 3.1.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cssp/385a7489-d46b-464c-b224-f7340e308a5c),

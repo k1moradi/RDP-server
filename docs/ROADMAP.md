@@ -11067,3 +11067,45 @@ gate. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and real
 Microsoft-client desktop acceptance remain **NOT RUN**. R3 still owns real
 RDP Input parsing/authorization and R4 still owns client cursor scheduling and
 delivery. **M3 remains OPEN / NOT ACCEPTED.**
+
+
+## R5 XInput2 pointer observation exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `50b171d5fb0b818d1029153b953e4c374ba62caa`.
+**Actions:** `38908798693`, overall **SUCCESS**.
+
+The exact implementation SHA compiled the real optional
+`rdp-server-linux-xinput-pointer` target against hosted
+`libxcb-xinput-dev` and linked it into the sole
+`rdp-server-linux-x11-desktop` aggregate. Ubuntu/GCC full CTest is
+**423/423 PASS** in Debug and **423/423 PASS** in Release. All seven new
+production-linked R5 behaviors passed in both configurations:
+`x11.pointer-xi2-motion-coalescing`,
+`x11.pointer-xi2-remote-echo-suppression`,
+`x11.pointer-xi2-disconnect-cancellation`,
+`x11.pointer-xi2-malformed-event-bounds`,
+`x11.desktop-resource-pointer-capability-denials`,
+`x11.desktop-resource-pointer-event-routing`, and
+`x11.desktop-resource-pointer-randr-rebuild`.
+
+The shared Clang ASan/UBSan job completed **SUCCESS** and the expanded R5
+native X11 selection passed **23/23**, including each new XI2 tracker and
+aggregate case. The same sanitizer job also passed the R10 Linux CredSSP
+selection **4/4**; the previously tracked
+`runtime.linux-connection-credssp-owner-framing` failure is therefore not
+present on this SHA.
+
+Cross-platform portability remained green: macOS/Clang full CTest
+**357/357 PASS** in Debug and Release; Windows/MSVC full CTest
+**381/381 PASS** in Debug and Release. Documentation policy, downstream
+installed-SDK consumer **1/1**, package creation/digest/upload, the other
+sanitizer groups and the bounded fuzzer all passed. The prerelease publisher
+was correctly skipped because this was not a protocol release tag.
+
+Canonical owner-local `~/rdp-server/build/` execution remains **NOT RUN**
+in this connector environment. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, real authenticated R3 Input/Graphics DVC
+integration and Microsoft-client M3 desktop acceptance remain
+**NOT RUN/OPEN**. R5 introduces no second XCB connection, listener, scheduler,
+RDP pointer parser or client cursor publication owner. **M3 remains OPEN /
+NOT ACCEPTED.**

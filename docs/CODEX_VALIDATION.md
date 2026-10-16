@@ -11772,3 +11772,25 @@ Actions `38900083125` (**SUCCESS**). Exact implementation-SHA Linux/GCC,
 macOS/Clang, Windows/MSVC, R9 ASan/UBSan, documentation and downstream SDK
 results are pending publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang
 23, macOS 27 and Microsoft-client M3 acceptance remain **NOT RUN/OPEN**.
+
+
+## R5 XI2 pointer exact-SHA validation receipt (2026-10-16)
+
+Implementation `50b171d5fb0b818d1029153b953e4c374ba62caa`, Actions
+`38908798693`: **SUCCESS**. Ubuntu/GCC full CTest passed **423/423** in
+both Debug and Release. The seven new XI2 pointer behaviors all passed in both
+configurations. The shared Clang ASan/UBSan R5 selector expanded to **23/23
+PASS**, directly executing motion coalescing, remote-echo suppression,
+disconnect/reconnect, malformed GenericEvent bounds, aggregate capability
+denials/event routing and RandR generation reset.
+
+macOS/Clang passed **357/357** full CTests in Debug and Release;
+Windows/MSVC passed **381/381** in Debug and Release. Documentation policy,
+downstream SDK consumer/package gates, all other sanitizer groups and the
+bounded fuzzer passed. The same sanitizer run shows the formerly recurring
+R10 `runtime.linux-connection-credssp-owner-framing` case **PASS**, so there
+is no unrelated R10 failure on this exact R5 implementation SHA.
+
+Owner-platform commands and genuine authenticated client/desktop acceptance
+remain **NOT RUN**; R3 remains the RDP input/session authority and R4 remains
+the cursor/frame scheduling and client-publication authority.

@@ -980,11 +980,14 @@ schedules graphics transmission.
 
 The existing `X11CursorTracker` borrows a native `xcb_connection_t`
 from the R5 XCB connection owner. Its `disconnect()` is an explicit,
-repeatable cancellation barrier: it drops the borrowed pointer and
-cached pixel/mask views, resets pending image state and warning flags,
-and prevents further XFixes requests or event handling. The owner must
-cancel the cursor before destroying its XCB connection, and no consumer
-may retain cursor spans beyond cancellation or the next refresh.
+repeatable cancellation barrier: while the borrowed owner remains healthy it
+first clears this client's XFixes display-cursor notification mask, then drops
+the borrowed pointer and cached pixel/mask views, resets pending image state
+and warning flags, and prevents further XFixes requests or event handling.
+The destructor reuses the same barrier, so native cursor notifications cannot
+outlive ordinary tracker scope exit. The owner must cancel the cursor before
+destroying its XCB connection, and no consumer may retain cursor spans beyond
+cancellation or the next refresh.
 Constructing the cursor against a failed XCB connection is rejected
 before negotiating XFixes. The native `rdp-server-linux-xfixes-cursor`
 CMake target compiles the existing native tracker and first-party pixel

@@ -207,6 +207,15 @@ aborting: identify the construction phase and print the aggregate's existing
 buffers, credentials or other sensitive state merely to diagnose a fixture
 failure.
 
+When a native child installs event interest or another server-side registration
+through a borrowed owner, lifetime tests must keep that owner alive across child
+destruction and verify the registration is actually retired. Clearing only the
+C++ pointer is insufficient evidence. Prefer a deterministic synthetic native
+server plus an ordering round trip over sleeps: prove one event arrives while
+the child is active, destroy or disconnect the child, then prove a later native
+change produces no event for that client and that a replacement child can
+register cleanly.
+
 ## Acceptance criteria and reporting
 
 | Feature | Offline coverage | Real acceptance gate |

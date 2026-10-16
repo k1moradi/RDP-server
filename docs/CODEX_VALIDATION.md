@@ -12935,3 +12935,54 @@ exact-publication-SHA Debug/Release, R7 ASan/UBSan, documentation-policy and
 SDK/package evidence are **PENDING**. Real macOS 27 fast-user-switch delivery,
 genuine macOS admission and Microsoft-client M5 acceptance remain
 **NOT RUN/OPEN**.
+
+
+## R5 XFixes cursor observer retirement (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `5bdd5430bd143d24822c74a8c1301a5349ff2598`.
+
+Lifecycle review after the XI2 retirement fix found the same server-registration
+class of defect in the existing XFixes cursor observer. `X11CursorTracker`
+successfully installs `XFixesSelectCursorInput` for display-cursor changes, but
+its destructor was defaulted and `disconnect()` only cleared C++ state. A live
+tracker destroyed while the borrowed XCB owner remained healthy could therefore
+leave cursor notifications selected for a C++ observer that no longer existed.
+
+The tracker now records successful native subscription state, its destructor
+reuses the idempotent `disconnect()` barrier, and cancellation first submits a
+checked zero XFixes cursor-notify mask only when the borrowed connection and
+root are still healthy. It then clears the borrowed pointer, subscription bit,
+cached image/mask storage and diagnostics exactly as before. A failed shared
+transport remains terminal and receives no cleanup request; the tracker never
+owns or closes the XCB connection.
+
+The existing production-linked `test_x11_native_cursor` executable gains
+behavior `x11.cursor-native-destructor-retirement`. Under ephemeral Xvfb it
+uses a second helper XCB connection only to replace the synthetic root cursor.
+The owner connection receives one real XFixes display-cursor notification while
+the tracker is alive; a deterministic owner round trip drains that event without
+sleeping. Normal scope exit must then retire selection, a later helper cursor
+change must produce no event for that client, a replacement tracker must
+subscribe successfully, and explicit `disconnect()` must retire the same mask.
+No XTEST input, logged-in desktop, credential, RDP parser, scheduler or second
+production XCB owner is introduced.
+
+The shared Clang ASan/UBSan R5 native-X11 selector expands from **24** to **25**
+behavior-named cases. `docs/testing_standards.md` now records the reusable rule
+that borrowed native event observers must be tested with the parent owner kept
+alive across child destruction and must prove the server-side registration is
+actually retired; clearing only a C++ pointer is insufficient evidence.
+
+**Authoring validation:** affected-source/ownership/registry review **PASS**.
+Canonical
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+is **NOT RUN** because this connector environment does not expose the required
+owner checkout/build root; no alternate build root was created. Exact-SHA
+hosted Linux/GCC, macOS/Clang, Windows/MSVC, R9 ASan/UBSan,
+documentation-policy and SDK/package validation are the next executable gate.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27, positive
+Kerberos/logind/XTEST operation and Microsoft-client M3 acceptance remain
+**NOT RUN/OPEN**. The next functional R5 input-PDU step remains **BLOCKED** on
+R3 exposing its authoritative authenticated Share/Input or Fast-Path Input
+translation boundary; R5 must not fabricate that parser or a parallel session
+owner.

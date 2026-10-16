@@ -21,7 +21,7 @@ public:
                      xcb_window_t rootWindow,
                      CursorImageReplyFunction cursorImageReply = nullptr,
                      void *cursorImageReplyContext = nullptr) noexcept;
-    ~X11CursorTracker() noexcept = default;
+    ~X11CursorTracker() noexcept;
 
     X11CursorTracker(const X11CursorTracker &) = delete;
     X11CursorTracker &operator=(const X11CursorTracker &) = delete;
@@ -64,6 +64,7 @@ private:
     CursorImageReplyFunction cursorImageReply_{nullptr};
     void *cursorImageReplyContext_{nullptr};
     std::uint8_t firstEvent_{0};
+    bool subscribed_{false};
     bool pending_{true};
     std::uint32_t widthPixels_{0};
     std::uint32_t heightPixels_{0};

@@ -170,12 +170,16 @@ Linux build compiles `rdp-server-linux-xfixes-cursor` from actual
 `x11_cursor_tracker.cpp` and `cursor_image_conversion.cpp`.
 On Debian/Ubuntu, install `libxcb1-dev` and
 `libxcb-xfixes0-dev`; the existing GitHub Actions Linux job
-provisions both. The new native-only
-`x11.cursor-native-connection-denials-and-cancellation` CTest is
-registered only when this target exists. Absence of the development
-headers means native source/test NOT RUN, not PASS. No running X server,
-live desktop, or credentials are needed for ordinary tests. The
-owner's single `build/` command and portable SDK remain unchanged.
+provisions both. Native case
+`x11.cursor-native-connection-denials-and-cancellation` remains headless.
+When `xvfb-run` is available, the same production-linked executable also
+registers `x11.cursor-native-destructor-retirement` against an ephemeral
+synthetic display; it changes only that Xvfb root cursor and verifies XFixes
+notification retirement while the borrowed XCB owner stays alive. Absence of
+the development headers means native source/test NOT RUN, not PASS; absence of
+Xvfb means only the synthetic-display retirement case is NOT RUN. No live
+desktop or credentials are required. The owner's single `build/` command
+and portable SDK remain unchanged.
 
 ## Linux-only native XDamage dependencies (R5)
 

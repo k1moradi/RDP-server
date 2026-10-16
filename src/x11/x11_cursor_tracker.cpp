@@ -73,6 +73,7 @@ X11CursorTracker::X11CursorTracker(xcb_connection_t &connection,
         fail("XFixes cursor notification setup failed");
         return;
     }
+    subscribed_ = true;
     if (xcb_connection_has_error(connection_) != 0 || xcb_flush(connection_) <= 0)
     {
         fail("XFixes cursor setup lost the X connection");
@@ -82,11 +83,16 @@ X11CursorTracker::X11CursorTracker(xcb_connection_t &connection,
     failureReason_ = nullptr;
 }
 
+X11CursorTracker::~X11CursorTracker() noexcept
+{
+    disconnect();
+}
+
 bool
 X11CursorTracker::valid() const noexcept
 {
     return failureReason_ == nullptr && connection_ != nullptr &&
-           rootWindow_ != XCB_WINDOW_NONE &&
+           rootWindow_ != XCB_WINDOW_NONE && subscribed_ &&
            xcb_connection_has_error(connection_) == 0;
 }
 
@@ -349,9 +355,22 @@ X11CursorTracker::mask() const noexcept
 void
 X11CursorTracker::disconnect() noexcept
 {
-    // The connection belongs to X11DisplayConnection (or its caller), not
-    // this tracker. Never issue XCB requests during cancellation, including
-    // when the parent has already lost its transport.
+    // XFixes cursor selection belongs to this client/window pair. Retire it
+    // while the borrowed owner is still healthy so cursor notifications cannot
+    // outlive this observer. A failed owner is already terminal; do not issue
+    // native requests through it.
+    if (subscribed_ && connection_ != nullptr &&
+        rootWindow_ != XCB_WINDOW_NONE &&
+        xcb_connection_has_error(connection_) == 0)
+    {
+        const xcb_void_cookie_t cookie =
+            xcb_xfixes_select_cursor_input_checked(connection_, rootWindow_, 0);
+        xcb_generic_error_t *error =
+            xcb_request_check(connection_, cookie);
+        std::free(error);
+    }
+
+    subscribed_ = false;
     connection_ = nullptr;
     rootWindow_ = XCB_WINDOW_NONE;
     cursorImageReply_ = nullptr;

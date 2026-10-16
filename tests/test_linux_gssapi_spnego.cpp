@@ -1217,6 +1217,50 @@ void testR3ProtectedChannelJoinContract()
     assert(!unadmitted.channelJoinConfirmed(1003U));
 }
 
+void testR3JoinedClipboardRoleContract()
+{
+    // The only positive role observation takes a concrete R2 lease, original
+    // R1 TLS connection, GSS acceptor and sole R3 owner. No bool/string,
+    // guessed UserId or borrowed SSL pointer can substitute for the lease.
+    using Method =
+        decltype(&LinuxConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel);
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Session = McsSessionLifecycle &;
+    static_assert(std::is_invocable_r_v<std::optional<std::uint16_t>,
+        Method, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session>);
+    static_assert(!std::is_invocable_v<
+        Method, Broker, bool, Acceptor, Connection, Session>);
+    static_assert(!std::is_invocable_v<
+        Method, Broker, const SSL *, Acceptor, Connection, Session>);
+    static_assert(!std::is_invocable_v<
+        Method, Broker, std::uint64_t, Acceptor, Connection, Session>);
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle owner;
+    // No positive test lease or selected-TLS/GSS proof is forged.
+    assert(owner.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(owner.allocatedStaticChannelIds().empty());
+    assert(!owner.channelJoinConfirmed(1005U));
+    broker.revokeR3Session(acceptor, owner);
+    assert(owner.phase() == McsSessionPhase::Closed);
+    assert(owner.allocatedUserId() == 0U);
+    assert(owner.allocatedStaticChannelIds().empty());
+    assert(!owner.channelJoinConfirmed(1005U));
+    assert(owner.pendingJoinConfirmation().empty());
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    broker.revokeR3Session(acceptor, owner);
+    assert(owner.phase() == McsSessionPhase::Closed);
+}
+
 void testR3NativeChangeRevocation()
 {
     ConsoleIdentityPolicy policy;
@@ -1443,6 +1487,11 @@ int main(int argc, char **argv)
             testR3ProtectedChannelJoinContract();
             return 0;
         }
+        if (name == "gssapi-r3-joined-clipboard-role-contract")
+        {
+            testR3JoinedClipboardRoleContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -1478,6 +1527,7 @@ int main(int argc, char **argv)
     testR3AttachUserContract();
     testR3AttachUserTerminalReplayFence();
     testR3ProtectedChannelJoinContract();
+    testR3JoinedClipboardRoleContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

@@ -291,6 +291,17 @@ public:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // Synchronous, non-capability CLIPRDR channel observation after
+    // genuine R2 lease and exact R1-owned TLS reauthorization.
+    // No licensing, Share or clipboard payload permission is granted.
+    [[nodiscard]] std::optional<std::uint16_t>
+    authorizeR3JoinedClipboardChannel(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

@@ -233,6 +233,63 @@ constexpr std::uint32_t kLastMcsUserId = 65536;
 // MS-RDPBCGR 4.1.7: 03 00 00 0b 02 f0 80 2e 00 00 06 for user 1007.
 // 0x2e is attachUserConfirm with the optional initiator present.
 // 0x00 represents rt-successful. All writes are bounded fixed-size.
+std::optional<std::uint16_t> resolveMcsStaticChannelRole(
+    const GccClientSettings &settings,
+    const McsConnectResponseAllocation &allocation,
+    McsStaticChannelRole role) noexcept
+{
+    // NUL-padded CHANNEL_DEF names must match all eight bytes. Never
+    // grant CLIPRDR from a prefix, malformed string or copied channel ID.
+    std::array<char, 8> expected{};
+    switch (role)
+    {
+    case McsStaticChannelRole::Clipboard:
+        expected = {'c', 'l', 'i', 'p', 'r', 'd', 'r', 0};
+        break;
+    case McsStaticChannelRole::DeviceRedirection:
+        expected = {'r', 'd', 'p', 'd', 'r', 0, 0, 0};
+        break;
+    case McsStaticChannelRole::Sound:
+        expected = {'r', 'd', 'p', 's', 'n', 'd', 0, 0};
+        break;
+    case McsStaticChannelRole::DynamicVirtualChannels:
+        expected = {'d', 'r', 'd', 'y', 'n', 'v', 'c', 0};
+        break;
+    default:
+        return std::nullopt;
+    }
+
+    if (!settings.hasNetworkData || !allocation ||
+        settings.channelCount > settings.channels.size() ||
+        allocation.staticChannelCount != settings.channelCount ||
+        allocation.gccNodeId < 1001U || allocation.gccNodeId > 65536U ||
+        allocation.ioChannelId == 0U ||
+        allocation.ioChannelId == allocation.gccNodeId)
+        return std::nullopt;
+
+    std::optional<std::uint16_t> found;
+    const auto ids = allocation.staticChannels();
+    for (std::size_t index = 0; index < ids.size(); ++index)
+    {
+        if (ids[index] == 0U || ids[index] == allocation.ioChannelId ||
+            ids[index] == allocation.gccNodeId)
+            return std::nullopt;
+        for (std::size_t earlier = 0; earlier < index; ++earlier)
+        {
+            if (ids[index] == ids[earlier])
+                return std::nullopt;
+        }
+        if (settings.channels[index].name == expected)
+        {
+            // A duplicated negotiated role is ambiguous, not a first-win.
+            if (found)
+                return std::nullopt;
+            found = ids[index];
+        }
+    }
+    return found;
+}
+
 McsChannelConfirm encodeMcsAttachUserConfirm(
     std::uint32_t assignedUserId) noexcept
 {
@@ -802,6 +859,33 @@ McsJoinWriteOutcome McsSessionLifecycle::completeChannelJoinConfirmWrite(
     // Even an accepted full Join Confirm grants no licensing, Share Control
     // or application-channel dispatch without later protected transitions.
     return outcome;
+}
+
+std::optional<std::uint16_t>
+McsSessionLifecycle::resolveVerifiedR2JoinedClipboardChannel(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitChannelJoin ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto id = resolveMcsStaticChannelRole(
+        connectResponseClientSettings_, connectResponseAllocation_,
+        McsStaticChannelRole::Clipboard);
+    // Both foundational joins and this static role's own confirmation
+    // must have been fully accepted. No licensing/Share progression here.
+    if (!id ||
+        !joins_.channelJoinConfirmed(
+            static_cast<std::uint16_t>(allocatedUserId_)) ||
+        !joins_.channelJoinConfirmed(connectResponseAllocation_.ioChannelId) ||
+        !joins_.channelJoinConfirmed(*id))
+        return std::nullopt;
+    return id;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(

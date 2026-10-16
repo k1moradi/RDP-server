@@ -1,3 +1,56 @@
+## R3 protected joined-CLIPRDR role identity boundary (2026-10-16; exact-SHA CI pending)
+
+**Authoring base:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`;
+**concurrent main reconciled:** `c31c07f87152f8bd8c536c77abb7f5511871a6e8`.
+This incremental R3 boundary adds a first-party bounded, allocation-free,
+**syntax-only** `resolveMcsStaticChannelRole` mapping between the existing
+parsed CS_NET CHANNEL_DEF names and the same owned SC_NET positional static
+ID array, per MS-RDPBCGR 2.2.1.3.4 and 2.2.1.4.4. Exact 8-byte
+NUL-padded name matching, original positional correspondence, matching
+counts, unique nonzero IDs, no GCC/IO collision and ambiguous duplicate
+role rejection are required. Recognized roles are cliprdr, rdpdr,
+rdpsnd and drdynvc. This pure function never admits a session or channel.
+
+The only positive R3 joined-clipboard role observation remains private to
+the noncopyable `McsSessionLifecycle` and reachable solely through
+`LinuxConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel`.
+R2 must revalidate the genuine native revocable lease, original GSS
+acceptor and R1-owned established TLS/HYBRID provenance, view permission,
+policy/session generations and native NSS/logind watch for every call.
+R3 requires its own `AwaitChannelJoin` phase, bound Connect Response
+provenance, allocated UserId, unique negotiated CLIPRDR name/ID and **fully
+confirmed joins** on the user channel, I/O channel and CLIPRDR channel.
+Before any of those conditions the result exposes no CLIPRDR ID. No
+caller-supplied boolean, raw SSL pointer, string or static channel ID can
+replace the concrete broker admission. The result is a synchronous
+non-capability role observation: caching it never grants clipboard,
+MCS Send Data, licensing, Share Control, OS data or input authorization.
+R8 and R9 still own their existing bounded clipboard/framing semantics.
+
+Dedicated behavior CTests reuse the central registry and existing binaries:
+`transport.mcs-static-channel-role-binding`,
+`transport.mcs-static-channel-role-denials`, and Linux-only
+`security.gssapi-r3-joined-clipboard-role-contract`.
+The portable cases use the real Microsoft 4.1.3 fixture and production
+CS_NET/SC_NET allocation to cover the 1004/1005/1006 positional mapping,
+reordered IDs, missing/duplicated/unterminated roles, malformed counts,
+overflows and collisions. Linux checks concrete native-lease/R1 owner
+method signatures and terminal revocation without fabricating positive
+native admission.
+
+**Authoring compile/full CTest NOT RUN locally**: no `~/rdp-server`
+checkout and GitHub is unreachable by shell DNS. New exact-SHA
+Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer and
+project policy jobs are **NOT RUN at authoring**, to be checked through
+hosted Actions after publication. R10 listener/runtime integration,
+real Kerberos client ticket/logind positive admission, MS-RDPBCGR
+license/Share activation, R8 CLIPRDR payload dispatch and three owner
+OS validation reports are **NOT RUN**. Next R3 increment must add
+genuinely protected channel message/role routing with bounded
+segmentation, licensing/Share ordering and specific permission checks;
+a mere numeric role snapshot is not dispatch permission. M2 **NOT
+ACCEPTED**.
+
 ## R4 BGRA converter reset reuse + exact-SHA matrix (2026-10-16; new CI pending)
 
 The production BGRA-to-NV12 implementation landed directly on `main` at

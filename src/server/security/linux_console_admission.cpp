@@ -899,6 +899,30 @@ LinuxConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite(
     return outcome;
 }
 
+std::optional<std::uint16_t>
+LinuxConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return std::nullopt;
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+    const auto channel = session.resolveVerifiedR2JoinedClipboardChannel(
+        *provenance);
+    if (session.phase() ==
+        rdp_server::server::transport::McsSessionPhase::Closed)
+        revokeR3Session(acceptor, session);
+    return channel;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

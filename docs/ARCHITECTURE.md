@@ -1,3 +1,36 @@
+### R3 authenticated joined static-channel role observation (2026-10-16)
+
+MS-RDPBCGR CS_NET `CHANNEL_DEF` positions correspond exactly to the
+server SC_NET `channelIdArray` positions. The sole R3 MCS owner already
+retains the parsed client settings and its checked allocation. The new
+portable `resolveMcsStaticChannelRole` provides **syntax-only**,
+constant-bounded positional identity for exact NUL-padded static
+roles: CLIPRDR, RDPDR, RDPSND and DRDYNVC. It fails closed for
+mismatched lengths, missing CS_NET, unknown/duplicated role,
+malformed/ambiguous names or colliding allocations. It never
+configures joins or produces an admission capability.
+
+The new private `McsSessionLifecycle` resolver may report a CLIPRDR
+static-channel ID only after the retained native admission generation
+has passed the concrete R2 broker's immediate authorization on the
+same R1-owned TLS/HYBRID connection, and the sole existing join gate
+has completely accepted the UserId, I/O and CLIPRDR confirmations.
+No borrowed GCC input is retained; the copied settings and allocation
+are owned by R3. Cancellation clears both, all channel membership and
+licensing before R2/GSS teardown. A not-yet-joined or absent role
+produces no role ID.
+
+`authorizeR3JoinedClipboardChannel` returns only a transient numeric
+classification to the synchronous caller. No stand-alone bool,
+channel ID, proposed clipboard name, GSS principal string or raw SSL
+pointer grants OS/session access. Any subsequent message handling must
+reauthorize R2, recheck R3 generations/role, enforce MCS reassembly,
+VC framing, licensing, Share activation and R8's existing clipboard
+generation before reading or writing any clipboard data. R1 alone
+reads/writes TLS application bytes. This increment deliberately
+does **not** install a clipboard dispatcher, license a client,
+start a service or activate a desktop.
+
 ### R4 reset-stable NV12 scratch lifetime (2026-10-16)
 
 `BgraNv12Converter::reset()` invalidates `picture()` via `ready_ = false`

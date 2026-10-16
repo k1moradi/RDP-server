@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 
 namespace rdp_server::server::security
 {
@@ -106,6 +107,21 @@ struct McsChannelConfirm
         return std::span(packet).first(length);
     }
 };
+
+// Offline positional CS_NET / SC_NET static-channel identity only.
+// MS-RDPBCGR 2.2.1.3.4 and 2.2.1.4.4. NOT a permission or a join.
+enum class McsStaticChannelRole : std::uint8_t
+{
+    Clipboard,
+    DeviceRedirection,
+    Sound,
+    DynamicVirtualChannels,
+};
+
+[[nodiscard]] std::optional<std::uint16_t> resolveMcsStaticChannelRole(
+    const GccClientSettings &settings,
+    const McsConnectResponseAllocation &allocation,
+    McsStaticChannelRole role) noexcept;
 
 // T.125 AttachUserConfirm rt-successful with initiator present.
 // 'assignedUserId' is an explicit external allocation, never
@@ -631,6 +647,12 @@ private:
         std::uint64_t replySequence,
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
+
+    // Privately classify only an R2-revalidated, fully joined channel.
+    // The result is not license/Share authorization or an input dispatcher.
+    [[nodiscard]] std::optional<std::uint16_t>
+    resolveVerifiedR2JoinedClipboardChannel(
+        const SecurityNegotiationProvenance &provenance) noexcept;
 
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};

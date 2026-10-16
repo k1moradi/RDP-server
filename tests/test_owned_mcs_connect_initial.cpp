@@ -457,6 +457,109 @@ void testMcsResponseSessionAllocationPlan()
     return response;
 }
 
+void testMcsStaticChannelRoleBinding()
+{
+    // Microsoft MS-RDPBCGR 4.1.3 negotiated CS_NET has rdpdr,
+    // cliprdr and rdpsnd in that order; SC_NET IDs are positional.
+    const auto fixture = publishedFixture();
+    const auto client = parseMcsConnectInitial(fixture);
+    assert(client);
+    const auto gcc = parseGccConferenceCreate(client.value.gccUserData);
+    const auto domain = mergeMcsDomainParameters(client.value);
+    assert(gcc && domain && gcc.settings.channelCount == 3U);
+    const auto allocation =
+        planMcsConnectResponseAllocation(domain.value, gcc.settings);
+    assert(allocation);
+    assert(resolveMcsStaticChannelRole(
+        gcc.settings, *allocation, McsStaticChannelRole::DeviceRedirection)
+           == 1004U);
+    assert(resolveMcsStaticChannelRole(
+        gcc.settings, *allocation, McsStaticChannelRole::Clipboard) == 1005U);
+    assert(resolveMcsStaticChannelRole(
+        gcc.settings, *allocation, McsStaticChannelRole::Sound) == 1006U);
+    assert(!resolveMcsStaticChannelRole(
+        gcc.settings, *allocation, McsStaticChannelRole::DynamicVirtualChannels));
+
+    // Never guess "1005" from the name alone: the mapping belongs to the
+    // same negotiated reply ID array and preserves exact client ordering.
+    auto reordered = *allocation;
+    std::swap(reordered.staticChannelIds[0], reordered.staticChannelIds[1]);
+    assert(resolveMcsStaticChannelRole(
+        gcc.settings, reordered, McsStaticChannelRole::Clipboard) == 1004U);
+    assert(resolveMcsStaticChannelRole(
+        gcc.settings, reordered, McsStaticChannelRole::DeviceRedirection)
+           == 1005U);
+    McsSessionLifecycle unadmitted;
+    assert(unadmitted.allocatedUserId() == 0U);
+    assert(!unadmitted.channelJoinConfirmed(1005U));
+}
+
+void testMcsStaticChannelRoleDenials()
+{
+    const auto fixture = publishedFixture();
+    const auto client = parseMcsConnectInitial(fixture);
+    assert(client);
+    const auto gcc = parseGccConferenceCreate(client.value.gccUserData);
+    const auto domain = mergeMcsDomainParameters(client.value);
+    assert(gcc && domain);
+    const auto allocation =
+        planMcsConnectResponseAllocation(domain.value, gcc.settings);
+    assert(allocation);
+
+    auto duplicate = gcc.settings;
+    duplicate.channels[0].name = duplicate.channels[1].name;
+    assert(!resolveMcsStaticChannelRole(
+        duplicate, *allocation, McsStaticChannelRole::Clipboard));
+    auto unknown = gcc.settings;
+    unknown.channels[1].name = {};
+    assert(!resolveMcsStaticChannelRole(
+        unknown, *allocation, McsStaticChannelRole::Clipboard));
+    auto nonterminated = gcc.settings;
+    nonterminated.channels[1].name.back() = 'X';
+    assert(!resolveMcsStaticChannelRole(
+        nonterminated, *allocation, McsStaticChannelRole::Clipboard));
+    auto nonnetwork = gcc.settings;
+    nonnetwork.hasNetworkData = false;
+    assert(!resolveMcsStaticChannelRole(
+        nonnetwork, *allocation, McsStaticChannelRole::Clipboard));
+    auto truncated = gcc.settings;
+    truncated.channelCount = 2U;
+    assert(!resolveMcsStaticChannelRole(
+        truncated, *allocation, McsStaticChannelRole::Clipboard));
+    auto oversized = gcc.settings;
+    oversized.channelCount =
+        static_cast<std::uint8_t>(kMaximumStaticChannelCount + 1U);
+    assert(!resolveMcsStaticChannelRole(
+        oversized, *allocation, McsStaticChannelRole::Clipboard));
+
+    auto bad = *allocation;
+    bad.staticChannelIds[1] = bad.staticChannelIds[0];
+    assert(!resolveMcsStaticChannelRole(
+        gcc.settings, bad, McsStaticChannelRole::Clipboard));
+    bad = *allocation;
+    bad.staticChannelIds[1] = bad.ioChannelId;
+    assert(!resolveMcsStaticChannelRole(
+        gcc.settings, bad, McsStaticChannelRole::Clipboard));
+    bad = *allocation;
+    bad.gccNodeId = bad.ioChannelId;
+    assert(!resolveMcsStaticChannelRole(
+        gcc.settings, bad, McsStaticChannelRole::Clipboard));
+    bad = *allocation;
+    bad.staticChannelCount =
+        static_cast<std::uint8_t>(kMaximumStaticChannelCount + 1U);
+    assert(!resolveMcsStaticChannelRole(
+        gcc.settings, bad, McsStaticChannelRole::Clipboard));
+    assert(!resolveMcsStaticChannelRole(
+        gcc.settings, *allocation, static_cast<McsStaticChannelRole>(255)));
+
+    // A guessed static ID or role cannot advance the public R3 owner.
+    McsSessionLifecycle early;
+    assert(early.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    early.revokeUnlessAdmissionBindingMatches(1002U, 1005U);
+    assert(early.phase() == McsSessionPhase::Closed);
+    assert(!early.channelJoinConfirmed(1005U));
+}
+
 void testMcsResponseWriteReceipts()
 {
     const auto response=testPlannedConnectResponse();
@@ -4272,7 +4375,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 68> kMcsTestCases{{
+constexpr std::array<McsTestCase, 70> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -4282,6 +4385,8 @@ constexpr std::array<McsTestCase, 68> kMcsTestCases{{
     {"mcs-response-wire", &testMcsResponseWire},
     {"mcs-response-security-replay", &testMcsResponseSecurityReplay},
     {"mcs-response-session-allocation-plan", &testMcsResponseSessionAllocationPlan},
+    {"mcs-static-channel-role-binding", &testMcsStaticChannelRoleBinding},
+    {"mcs-static-channel-role-denials", &testMcsStaticChannelRoleDenials},
     {"mcs-response-write-receipts", &testMcsResponseWriteReceipts},
     {"mcs-response-write-denials", &testMcsResponseWriteDenials},
     {"mcs-response-rejections", &testMcsResponseRejectInvalidInputs},

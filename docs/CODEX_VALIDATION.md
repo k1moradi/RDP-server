@@ -1,3 +1,35 @@
+## R3 joined static-channel role authoring verification (2026-10-16)
+
+**Inspected main:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`.
+**Reconciled main:** `c31c07f87152f8bd8c536c77abb7f5511871a6e8`.
+Normative alignment: Microsoft MS-RDPBCGR 2.2.1.3.4 CS_NET
+CHANNEL_DEF and 2.2.1.4.4 SC_NET channelIdArray positional
+mapping; used the existing real 416-byte Microsoft 4.1.3 GCC fixture.
+Implementation: production `mcs_channel_connection` syntax-only role
+resolver and private joined-clipboard R3 method; concrete
+`LinuxConsoleAdmissionBroker` adds exact R1 owner, native R2
+revalidation and terminal teardown on mismatch. No new state owner
+or runtime listener, and no early licensing/Share/clipboard dispatch.
+
+**Dedicated registered tests (NOT RUN locally at authoring):**
+`transport.mcs-static-channel-role-binding`,
+`transport.mcs-static-channel-role-denials`,
+`security.gssapi-r3-joined-clipboard-role-contract` on Linux.
+Portable tests cover actual negotiated roles/order/reordered IDs,
+duplicate/padded/absent role names, malformed counts, invalid
+allocations and pre-admission channel denials. Linux contract tests
+enforce unforgeable native lease and exact R1 connection signatures
+and exercise only terminal R3→R2/GSS teardown.
+
+**Local owner build/CTest BLOCKED/NOT RUN:** no mounted
+`~/rdp-server` clone and container GitHub DNS lookup fails.
+Exact-SHA hosted cross-platform Debug/Release, docs-policy and
+R9 sanitizers **NOT RUN at authoring**; check hosted CI after the
+atomic direct-main commit. Real positive KDC/client-ticket/CredSSP,
+NSS/logind session, joined role with a Microsoft client, R8
+clipboard dispatch, owner Linux/X11, Windows CLANG64/Clang23 and
+macOS27 **NOT RUN**. No artificial green evidence; M2 NOT ACCEPTED.
+
 ## R4 BGRA/NV12 hosted receipt and reset reuse hardening (2026-10-16)
 
 **Published production parent:**

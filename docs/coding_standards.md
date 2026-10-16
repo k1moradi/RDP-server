@@ -1361,3 +1361,10 @@ without mutating flags. A caller still owns the listener,
 its socket mode, fairness and lifetime; Windows callers MUST
 configure `FIONBIO` explicitly. No new listening service,
 session controller or identity authority.
+
+## R1 native Darwin socket-option compatibility (2026-10-15)
+
+Never infer getsockopt support from a defined option constant.
+macOS SO_ACCEPTCONN returns ENOPROTOOPT: check SO_TYPE and peer
+state on Darwin, retain read-only O_NONBLOCK and native accept
+rejection. Do not configure borrowed listeners or add a controller.

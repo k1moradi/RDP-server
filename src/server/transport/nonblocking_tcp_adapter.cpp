@@ -149,7 +149,9 @@ struct TcpBioMethod final
     std::uintptr_t candidate) noexcept
 {
     if (candidate == OwnedNativeTcpSocket::kInvalidSocket) return false;
+#ifndef __APPLE__
     int listening = 0;
+#endif
 #ifdef _WIN32
     // The caller must already have set FIONBIO; Winsock provides
     // no non-mutating query for this mode. SO_ACCEPTCONN is read-only.
@@ -166,13 +168,35 @@ struct TcpBioMethod final
     const int flags = ::fcntl(descriptor, F_GETFL, 0);
     if (flags < 0 || (flags & O_NONBLOCK) == 0)
         return false;
+#ifdef __APPLE__
+    // Darwin exposes the SO_ACCEPTCONN macro but getsockopt rejects
+    // that option with ENOPROTOOPT. Use supported type/peer checks.
+    // The existing nonblocking accept still rejects bound-but-idle
+    // non-listening SOCK_STREAM descriptors without blocking.
+    int kind = 0;
+    socklen_t kindLength = sizeof(kind);
+    if (::getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &kind,
+                     &kindLength) != 0 ||
+        kindLength != sizeof(kind) || kind != SOCK_STREAM)
+        return false;
+    sockaddr_storage peer{};
+    socklen_t peerLength = sizeof(peer);
+    if (::getpeername(descriptor,
+                      reinterpret_cast<sockaddr *>(&peer),
+                      &peerLength) == 0)
+        return false;
+    return errno == ENOTCONN;
+#else
     socklen_t length = sizeof(listening);
     if (::getsockopt(descriptor, SOL_SOCKET, SO_ACCEPTCONN,
                      &listening, &length) != 0)
         return false;
 #endif
+#endif
+#ifndef __APPLE__
     return length == static_cast<decltype(length)>(sizeof(listening)) &&
            listening != 0;
+#endif
 }
 
 bool attachNonblockingTcpBio(SSL *tls, TcpNonblockingIo &io) noexcept

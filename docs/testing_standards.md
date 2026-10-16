@@ -1832,3 +1832,11 @@ consuming the queued peer or modifying flags, restores its
 original nonblocking mode, then proves exactly one successful
 handoff to the existing sole preauth owner. No live service,
 credentials, OS authorization or desktop.
+
+## R1 native wrong-socket-type denials (2026-10-15)
+
+`transport.tcp-native-wrong-socket-type-denials` uses a nonblocking
+UDP socket and one real queued TCP peer to verify failure without
+callback from one-shot, batch and borrowed listener poll, followed
+by bounded successful handoff of the original TCP peer. This covers
+the Darwin SO_TYPE fallback and all Windows/Linux role checks.

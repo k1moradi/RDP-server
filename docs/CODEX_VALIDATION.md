@@ -5737,3 +5737,19 @@ real TLS certificate/key contents, trusted OS identity,
 Microsoft RDP client and human desktop. M1–M6 remain OPEN.
 **Next:** exact-SHA matrix CI and owner one-root validation,
 then real certificate/key provisioning and end-to-end admission.
+
+## R1 Darwin SO_ACCEPTCONN rollback to supported native checks (2026-10-15)
+
+**Parent:** `ab78ed83f59b64463123382da34b8b13b832c0e1`. **FAIL:** original R1 `6d5422f82dc9e644e8fa058e30e22deedb76bd84`
+[Actions 38857085837](https://github.com/k1moradi/RDP-server/actions/runs/38857085837),
+macOS Debug **15 native transport CTests FAIL**: Apple does not
+support `getsockopt(SO_ACCEPTCONN)` despite defining the macro.
+Linux/GCC and Windows/MSVC full jobs, documentation and R9 sanitizers
+**PASS** on the original commit. **Correction:** macOS supported
+`SO_TYPE` and connected peer-state denials with unchanged POSIX
+`O_NONBLOCK` guarantee, preserving Linux/Windows SO_ACCEPTCONN.
+**New CTest:** `transport.tcp-native-wrong-socket-type-denials`,
+UDP one-shot/batch/poll rejections plus bounded successful TCP handoff.
+**NOT RUN at authoring:** corrected exact-SHA CI, owner Windows
+MSYS2 CLANG64 Clang23, Linux/X11, macOS27, live credentials, R2/R3
+OS authorization/session and Microsoft client.

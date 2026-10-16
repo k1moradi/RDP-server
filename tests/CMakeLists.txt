@@ -99,6 +99,7 @@ function(add_rdp_test source_file suite behavior)
                 tcp-native-accept-batch-budget-handoff
                 tcp-native-accept-batch-stops-denials
                 tcp-native-listener-role-and-mode-denials
+                tcp-native-wrong-socket-type-denials
                 tcp-listener-poll-budget-handoff
                 tcp-listener-poll-deadline-denials
                 tcp-owned-connection-tls-lifecycle
@@ -147,6 +148,7 @@ function(add_rdp_test source_file suite behavior)
             transport.tcp-native-accept-batch-budget-handoff
             transport.tcp-native-accept-batch-stops-denials
             transport.tcp-native-listener-role-and-mode-denials
+            transport.tcp-native-wrong-socket-type-denials
             transport.tcp-listener-poll-budget-handoff
             transport.tcp-listener-poll-deadline-denials
             PROPERTIES TIMEOUT 20)

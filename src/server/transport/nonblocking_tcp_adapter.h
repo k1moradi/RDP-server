@@ -133,7 +133,8 @@ struct TcpAcceptResult
 };
 
 // Accept ONE connection on a caller-owned, already-bound/listening,
-// NONBLOCKING socket. SO_ACCEPTCONN rejects non-listening sockets and
+// NONBLOCKING socket. Linux/Windows SO_ACCEPTCONN verifies listeners;
+// Darwin uses supported SO_TYPE/peer-state and native accept errors.
 // POSIX F_GETFL rejects blocking listeners BEFORE a native accept.
 // Winsock callers MUST set FIONBIO (mode cannot be queried safely).
 // No hidden wait/retry, bind policy, daemon or session admission. A successful result owns one NONBLOCKING, close-on-exec (POSIX)
@@ -318,8 +319,9 @@ private:
 
  // Supply a monotonic deadline and one-step maxWait; clamped to 25ms.
  // POSIX: poll(POLLIN). Winsock: select(readfds) for listener
- // compatibility. Fail closed before polling a non-listener or
- // a POSIX listener lacking O_NONBLOCK. No EINTR hidden retry.
+ // compatibility. Fail closed before polling a connected/non-listening
+ // socket or a POSIX listener lacking O_NONBLOCK. Darwin uses SO_TYPE
+ // and peer-state because it does not implement SO_ACCEPTCONN. No EINTR hidden retry.
  // An OS error does not close the listener. If ready, accept at most
  // budget connections and transfer each to the caller callback.
  [[nodiscard]] TcpListenerPollResult pollNonblockingTcpAcceptBatch(

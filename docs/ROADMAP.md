@@ -937,6 +937,26 @@ actually run; another parser CTest alone is not a complete session.
   Next: R10's gated live listener scheduling using the sole
   R1 transport owner without creating competing state authority.
 
+  **R1 Darwin listener socket-option compatibility correction (2026-10-15):
+  Initial production commit `6d5422f82dc9e644e8fa058e30e22deedb76bd84`
+  [Actions 38857085837](https://github.com/k1moradi/RDP-server/actions/runs/38857085837)
+  **PASS** Linux/GCC and Windows/MSVC hosted CI, docs and R9 sanitizers,
+  but **FAIL macOS Debug** with 15 native transport tests rejecting
+  configured listeners. macOS defines `SO_ACCEPTCONN` but does not
+  support its use with `getsockopt` (`ENOPROTOOPT`). Instead check
+  supported `SO_TYPE=SOCK_STREAM`, exclude already-connected sockets
+  through `getpeername`, and let the existing NONBLOCKING native
+  accept reject other unlistening streams. Retain Linux/Windows
+  `SO_ACCEPTCONN` and all POSIX `O_NONBLOCK` checks; no mutation
+  of borrowed listener state. Add dedicated 20s-watchdog
+  `transport.tcp-native-wrong-socket-type-denials` CTest for
+  UDP rejection by one-shot/batch/poll and positive queued TCP
+  recovery, with the same single owner. **NOT RUN at authorship:**
+  corrected exact-SHA CI, owner Linux/X11, Windows CLANG64/Clang23,
+  macOS27, real R2/R3 identity/session/desktop acceptance.
+  Next: verify all hosted Debug+Release platforms before R10
+  runtime listener integration.**
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

@@ -1920,3 +1920,11 @@ close or otherwise own the listener. Windows runtime must set
 `FIONBIO` itself because the existing mode is not safely queryable.
 The already sole accepted-socket owner and authenticated R2/R3
 session boundaries remain unchanged.
+
+## R1 Darwin listener-role fallback (2026-10-15)
+
+Apple does not support `getsockopt(SO_ACCEPTCONN)`; use supported
+`SO_TYPE` and `getpeername` to reject datagram/connected sockets.
+The existing native nonblocking accept rejects remaining nonlisteners.
+Windows/Linux continue SO_ACCEPTCONN, all POSIX continues O_NONBLOCK.
+No listener ownership or authenticated session activation.

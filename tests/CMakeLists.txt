@@ -379,6 +379,16 @@ if(TARGET rdp-server-windows-desktop)
         windows.capture-frame-ordered-lifetime
         windows.capture-frame-cancel-and-topology-rejections
         PROPERTIES LABELS "windows;desktop-capture;offline")
+    # Scoped synchronous consumption never leaves a DXGI lease or staging map
+    # live after returning, including cancellation and sink rejection.
+    foreach(case_name IN ITEMS
+            capture-cycle-synchronous-consume-lifetime
+            capture-cycle-synchronous-consume-denials)
+        add_test(NAME "windows.capture-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.capture-${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;offline")
+    endforeach()
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.
     add_test(NAME windows.capture-dxgi-move-before-dirty

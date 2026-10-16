@@ -2864,6 +2864,27 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   R4 graphics presentation and M4 Microsoft-client desktop acceptance.
   **Next:** consume an R2/R3 authorization-bound native capture
   lifecycle, then hand synchronous frame bytes to the sole R4 owner.
+  **R6 scoped capture-cycle frame consumption (2026-10-15; authored
+  against remote main `d3a7137dcb8b4c0d2e4a036068dca04af4617de9`; integration CI pending):** Extend
+  the EXISTING `WindowsDxgiCaptureCycle` with `consumeFrame`, a
+  synchronous consumer callback that receives only the borrowed
+  `FramebufferView` while staging is mapped. Reentrant capture/
+  consumption/release is rejected; in-callback cancellation and topology
+  revocation defer cleanup until the callback returns. Even rejection or
+  missing consumer unmaps staging BEFORE releasing the existing DXGI
+  lease. Device/access-loss release errors close the cycle. R4 must
+  independently own pixels before any asynchronous encoding; real
+  R2/R3 Windows session authorization is still missing.
+  **Dedicated Windows CTests:**
+  `windows.capture-capture-cycle-synchronous-consume-lifetime` and
+  `windows.capture-capture-cycle-synchronous-consume-denials`.
+  **PASS (focused synthetic CMake fixture only):** Clang 17 C++23
+  ASan/UBSan **2/2** and strict-warning compilation; hosted CI and
+  owner Windows CLANG64/Clang 23 **NOT RUN at authoring**.
+  Full checkout local CTest, native desktop, real Microsoft client
+  and performance **NOT RUN**. Next: R2/R3 native Windows admission,
+  independently owned R4 frame snapshot/queue contract and
+  device/duplication generation invalidation.
   **R6 D3D11 staging-copy/map RAII (2026-10-15; parent
   `19512d5fdbc0568fbd6c3333b32c770d76c6f8b4`):** `src/windows/windows_d3d11_staging_map.{h,cpp}`
   now consumes a borrowed `IDXGIResource` from the existing R6

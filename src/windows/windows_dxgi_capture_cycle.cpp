@@ -102,6 +102,58 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
     return outcome;
 }
 
+WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::consumeFrame(
+    WindowsCaptureFrameConsumer consumer) noexcept
+{
+    if (closed_)
+    {
+        return WindowsCaptureConsumeResult::closed;
+    }
+    if (operationInProgress_)
+    {
+        return WindowsCaptureConsumeResult::busy;
+    }
+    if (!staging_.mapped() || duplication_.resource() == nullptr)
+    {
+        return WindowsCaptureConsumeResult::noFrame;
+    }
+    if (consumer.context == nullptr || consumer.consume == nullptr)
+    {
+        // Reject the sink but do not strand an acquired desktop frame.
+        return releaseFrame() ? WindowsCaptureConsumeResult::invalidConsumer
+                              : WindowsCaptureConsumeResult::releaseFailed;
+    }
+
+    operationInProgress_ = true;
+    // The sink can call cancel() or topologyUnchanged(), but both defer
+    // native teardown until it returns; nested release/capture is denied.
+    const bool accepted = consumer.consume(consumer.context, staging_.frame());
+    const bool revoked = closed_;
+    staging_.unmap();
+    const bool released =
+        duplication_.releaseFrame() == WindowsDxgiReleaseResult::released;
+    if (!released || duplication_.closed() || staging_.closed())
+    {
+        closed_ = true;
+    }
+    if (closed_)
+    {
+        finishCancellation();
+    }
+    operationInProgress_ = false;
+
+    if (!released)
+    {
+        return WindowsCaptureConsumeResult::releaseFailed;
+    }
+    if (revoked || closed_)
+    {
+        return WindowsCaptureConsumeResult::closed;
+    }
+    return accepted ? WindowsCaptureConsumeResult::consumed
+                    : WindowsCaptureConsumeResult::rejected;
+}
+
 bool WindowsDxgiCaptureCycle::releaseFrame() noexcept
 {
     if (operationInProgress_ || !staging_.mapped())

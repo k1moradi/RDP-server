@@ -19,7 +19,9 @@ namespace rdp_server::windows
 
 // Behavior cases are in the same R6 CTest executable.
 void windowsCaptureCycleOrderedLifetime();
-void windowsCaptureCycleLifecycleDenials();
+
+void windowsCaptureCycleSynchronousConsumeLifetime();
+void windowsCaptureCycleSynchronousConsumeDenials();void windowsCaptureCycleLifecycleDenials();
 
 using namespace rdp_server::windows;
 
@@ -723,6 +725,14 @@ int main(int argc, char **argv)
     else if (behavior == "capture-cycle-cancel-and-topology-rejections")
     {
         windowsCaptureCycleLifecycleDenials();
+    }
+    else if (behavior == "capture-cycle-synchronous-consume-lifetime")
+    {
+        windowsCaptureCycleSynchronousConsumeLifetime();
+    }
+    else if (behavior == "capture-cycle-synchronous-consume-denials")
+    {
+        windowsCaptureCycleSynchronousConsumeDenials();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

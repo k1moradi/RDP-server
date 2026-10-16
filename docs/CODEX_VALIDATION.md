@@ -9,6 +9,35 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R6 DXGI synchronous scoped-frame handoff (2026-10-15)
+
+**Parent main SHA inspected:** `d3a7137dcb8b4c0d2e4a036068dca04af4617de9`. The native D3D11
+staging/Map owner and `WindowsDxgiCaptureCycle` already existed.
+**Changed paths:** `src/windows/windows_dxgi_capture_cycle.{h,cpp}`,
+`tests/windows_capture_cycle_cases.cpp`,
+`tests/test_windows_desktop_geometry.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/CODEX_VALIDATION.md`. The one existing R6 native executable
+now registers `windows.capture-capture-cycle-synchronous-consume-lifetime`
+and `windows.capture-capture-cycle-synchronous-consume-denials`.
+The callback synchronously borrows BGRA frame memory while the cycle
+holds its native map. It cannot reenter capture/release and cannot
+invalidate its own backing map through a cycle cancellation until it
+returns. On all exits the existing stage unmaps before the DXGI lease
+releases, including rejection, failed native release, and topology
+revocation. R4 must own any bytes it retains asynchronously.
+
+**PASS (isolated authoring fixture, NOT the full repository):**
+Linux Clang 17 C++23 `-Wall -Wextra -Wpedantic -Werror -UNDEBUG
+-fsanitize=address,undefined` build and `ctest --test-dir
+~/rdp-server/build --output-on-failure` **2/2** for the focused
+capture-cycle cases. The fixture compiled the production-equivalent
+cycle and existing lease/map logic without native Windows D3D11 SDK.
+**NOT RUN:** full exact-SHA repository CMake/CTest, Windows
+MSYS2 CLANG64/Clang 23, owner Linux/X11/macOS 27, real authorized
+desktop, RDP client, native GPU mapping, benchmark. Hosted CI must
+be assessed at the published SHA. M4 remains open.
+
 ## R8 portable CLIPRDR Format List wire intake (2026-10-15; CI pending)
 
 The same `RemoteTransfer` instance now owns incoming long and short Format

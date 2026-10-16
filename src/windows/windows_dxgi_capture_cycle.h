@@ -22,6 +22,26 @@ enum class WindowsCaptureCycleResult
     closed,
 };
 
+// Only consumed synchronously while the existing capture cycle still holds
+// its DXGI lease and mapped staging resource. The sink must copy into owned
+// storage before returning if R4 will encode on another thread.
+struct WindowsCaptureFrameConsumer
+{
+    void *context{};
+    bool (*consume)(void *context, const FramebufferView &frame) noexcept{};
+};
+
+enum class WindowsCaptureConsumeResult
+{
+    consumed,
+    noFrame,
+    invalidConsumer,
+    rejected,
+    busy,
+    closed,
+    releaseFailed,
+};
+
 // Coordinates the two existing native RAII owners, NOT the R4 graphics
 // scheduler or the R2/R3 authorization decision. The caller must already
 // own an authorized duplication + D3D11 context, and must serialize calls
@@ -43,6 +63,12 @@ public:
 
     [[nodiscard]] WindowsCaptureCycleResult captureFrame(
         std::uint32_t timeoutMilliseconds) noexcept;
+    // Consume the currently mapped frame, then unmap and release its DXGI
+    // lease before returning, including sink rejection and cancellation.
+    // The synchronous sink cannot retain the borrowed view or call native
+    // capture APIs on another thread. This does not authorize a session.
+    [[nodiscard]] WindowsCaptureConsumeResult consumeFrame(
+        WindowsCaptureFrameConsumer consumer) noexcept;
     [[nodiscard]] bool releaseFrame() noexcept;
     // Compare caller-sampled, validated geometry with the pinned snapshot.
     // A changed topology revokes the cycle; no Win32 enumeration is done.

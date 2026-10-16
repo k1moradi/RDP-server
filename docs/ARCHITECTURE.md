@@ -134,6 +134,19 @@ before the next acquisition; access loss requires recreating
 duplication:
 https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_2/nf-dxgi1_2-idxgioutputduplication-releaseframe
 
+### Scoped DXGI mapped-frame consumption (R6; synthetic tests only)
+
+`WindowsDxgiCaptureCycle::consumeFrame` is the synchronous R6 handoff
+for an already-acquired/mapped frame. It borrows the existing portable
+`FramebufferView` only for the duration of the consumer callback, defers
+session/topology cancellation inside that callback, rejects reentrant
+release/capture, then unmaps its one D3D11 staging resource BEFORE the
+existing DXGI lease owner releases the resource and calls `ReleaseFrame`.
+Missing/rejecting consumers still release the lease. R4 must copy or
+otherwise independently own pixels before returning if enqueueing work
+asynchronously. No new capture owner, graphics scheduler, admission
+token, Windows service or live desktop access is introduced.
+
 ### Windows D3D11 staging map/copy lifetime (R6; fixture-only admission)
 
 `WindowsD3D11StagingMap` extends the existing BGRA pitch/bounds view

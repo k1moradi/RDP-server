@@ -105,7 +105,145 @@ struct FakeCaptureCycle final
     layout.monitors[0] = layout.virtualBounds;
     return layout;
 }
+struct ScopedCaptureConsumer
+{
+    FakeCaptureCycle *backend{};
+    WindowsDxgiCaptureCycle *cycle{};
+    unsigned callbacks{};
+    bool reject{};
+    bool cancelDuringCallback{};
+    bool changeLayoutDuringCallback{};
+    bool attemptReentry{};
+
+    static bool receive(void *context, const FramebufferView &view) noexcept
+    {
+        auto &self = *static_cast<ScopedCaptureConsumer *>(context);
+        ++self.callbacks;
+        self.backend->record('C');
+        assert(view.valid() && view.widthPixels == 2 && view.heightPixels == 2);
+        assert(view.strideBytes == 12 && view.pixels.size() == 24);
+        assert(view.pixels.data() == self.backend->pixels.data());
+        assert(view.pixels[0] == std::byte{0x25});
+        assert(view.pixels[12] == std::byte{0x68});
+        assert(self.backend->unmaps + 1 == self.backend->maps);
+        assert(self.backend->releases + 1 == self.backend->acquisitions);
+        // The callback borrows a valid view, but it cannot observe/reenter
+        // the cycle as another consumer before the current lease is released.
+        assert(self.cycle->frame().pixels.empty());
+        if (self.attemptReentry)
+        {
+            assert(self.cycle->consumeFrame({&self, &receive}) ==
+                   WindowsCaptureConsumeResult::busy);
+            assert(self.cycle->captureFrame(0) ==
+                   WindowsCaptureCycleResult::busy);
+            assert(!self.cycle->releaseFrame());
+        }
+        if (self.changeLayoutDuringCallback)
+        {
+            auto latest = sampleLayout();
+            latest.monitors[0].widthPixels = 300;
+            assert(!self.cycle->topologyUnchanged(latest));
+        }
+        if (self.cancelDuringCallback)
+        {
+            self.cycle->cancel();
+        }
+        return !self.reject;
+    }
+
+    [[nodiscard]] WindowsCaptureFrameConsumer consumer() noexcept
+    {
+        return {this, &receive};
+    }
+};
+
 } // namespace
+
+void windowsCaptureCycleSynchronousConsumeLifetime()
+{
+    FakeCaptureCycle source{};
+    source.pixels[0] = std::byte{0x25};
+    source.pixels[12] = std::byte{0x68};
+    WindowsDxgiCaptureCycle cycle(
+        sampleLayout(), source.frameCallbacks(), source.stagingCallbacks());
+    source.cycle = &cycle;
+    ScopedCaptureConsumer sink{&source, &cycle};
+
+    assert(cycle.consumeFrame(sink.consumer()) ==
+           WindowsCaptureConsumeResult::noFrame);
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    sink.attemptReentry = true;
+    assert(cycle.consumeFrame(sink.consumer()) ==
+           WindowsCaptureConsumeResult::consumed);
+    assert(source.count == 5 && source.order[0] == 'A' &&
+           source.order[1] == 'S' && source.order[2] == 'C' &&
+           source.order[3] == 'U' && source.order[4] == 'R');
+    assert(sink.callbacks == 1 && source.unmaps == 1 &&
+           source.releases == 1 && source.viewClearedOnUnmap);
+    assert(!cycle.closed() && cycle.frame().pixels.empty() &&
+           !cycle.releaseFrame());
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    sink.attemptReentry = false;
+    sink.reject = true;
+    assert(cycle.consumeFrame(sink.consumer()) ==
+           WindowsCaptureConsumeResult::rejected);
+    assert(sink.callbacks == 2 && source.unmaps == 2 &&
+           source.releases == 2 && !cycle.closed());
+}
+
+void windowsCaptureCycleSynchronousConsumeDenials()
+{
+    FakeCaptureCycle source{};
+    source.pixels[0] = std::byte{0x25};
+    source.pixels[12] = std::byte{0x68};
+    WindowsDxgiCaptureCycle cycle(
+        sampleLayout(), source.frameCallbacks(), source.stagingCallbacks());
+    source.cycle = &cycle;
+    ScopedCaptureConsumer sink{&source, &cycle};
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(cycle.consumeFrame({}) ==
+           WindowsCaptureConsumeResult::invalidConsumer);
+    assert(source.unmaps == 1 && source.releases == 1 &&
+           source.viewClearedOnUnmap && sink.callbacks == 0 && !cycle.closed());
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    sink.cancelDuringCallback = true;
+    assert(cycle.consumeFrame(sink.consumer()) ==
+           WindowsCaptureConsumeResult::closed);
+    assert(cycle.closed() && source.unmaps == 2 &&
+           source.releases == 2 && source.viewClearedOnUnmap);
+    cycle.cancel();
+    assert(source.unmaps == 2 && source.releases == 2);
+
+    FakeCaptureCycle topology{};
+    topology.pixels[0] = std::byte{0x25};
+    topology.pixels[12] = std::byte{0x68};
+    WindowsDxgiCaptureCycle topologyCycle(
+        sampleLayout(), topology.frameCallbacks(), topology.stagingCallbacks());
+    topology.cycle = &topologyCycle;
+    ScopedCaptureConsumer topologySink{&topology, &topologyCycle};
+    topologySink.changeLayoutDuringCallback = true;
+    assert(topologyCycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(topologyCycle.consumeFrame(topologySink.consumer()) ==
+           WindowsCaptureConsumeResult::closed);
+    assert(topologyCycle.closed() && topology.unmaps == 1 &&
+           topology.releases == 1 && topology.viewClearedOnUnmap);
+
+    FakeCaptureCycle lost{};
+    lost.pixels[0] = std::byte{0x25};
+    lost.pixels[12] = std::byte{0x68};
+    WindowsDxgiCaptureCycle lostCycle(
+        sampleLayout(), lost.frameCallbacks(), lost.stagingCallbacks());
+    lost.cycle = &lostCycle;
+    ScopedCaptureConsumer lostSink{&lost, &lostCycle};
+    assert(lostCycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    lost.releaseResult = WindowsDxgiReleaseResult::accessLost;
+    assert(lostCycle.consumeFrame(lostSink.consumer()) ==
+           WindowsCaptureConsumeResult::releaseFailed);
+    assert(lostCycle.closed() && lost.unmaps == 1 &&
+           lost.releases == 1 && lost.viewClearedOnUnmap);
+}
 
 void windowsCaptureCycleOrderedLifetime()
 {

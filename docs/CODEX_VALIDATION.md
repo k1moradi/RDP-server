@@ -4786,3 +4786,34 @@ two existing R1 batch CTests only; no code or assertions change.
 **NOT RUN:** new timeout SHA hosted CI, owner Linux/X11,
 Windows MSYS2 CLANG64 Clang23, macOS27, live Microsoft client,
 R2 user authorization/R3 OS session and desktop.
+
+## R5 native XDamage exact-SHA hosted CI receipt (2026-10-15)
+
+**Production commit:** [`2f3b0ea12d7324cfd501ec25665fc02e030b0469`](https://github.com/k1moradi/RDP-server/commit/2f3b0ea12d7324cfd501ec25665fc02e030b0469).
+[GitHub Actions 38849416185](https://github.com/k1moradi/RDP-server/actions/runs/38849416185)
+**completed SUCCESS** on exact implementation SHA.
+
+**Linux/GCC Debug/Release PASS:** the actual
+`src/x11/x11_damage_tracker.cpp` compiled with real XCB-Damage
+development packages and linked into `rdp-server-linux-xdamage`.
+The dedicated headless
+`x11.damage-native-connection-denials-and-cancellation` CTest
+passed in Debug and Release; full CTests **217/217 PASS** in each.
+No desktop/window capture, input injection or credentials used.
+
+**macOS/Clang full CTests:** **201/201 PASS** Debug and Release.
+**Windows/MSVC full CTests:** **215/215 PASS** Debug and Release.
+XCB-Damage source/test is Linux-only and NOT RUN on other OSes.
+Documentation policy, SDK stage/consumer/install/package/digests
+and the additional R9 clipboard sanitizer job all PASS.
+
+**NOT RUN:** owner's independently built Linux/X11,
+Windows MSYS2 CLANG64 Clang23 and macOS27 exact-SHA one-liners;
+authenticated Kerberos/CredSSP and independently approved R2 OS
+session, R3 remote desktop/input routing, R4 H.264 graphics and
+cursor consumer, live Microsoft RDP client interaction, real
+native event/damage/capture multi-component teardown and resize,
+and repeatable capture/performance benchmarks. M1/M3 NOT ACCEPTED.
+**Next R5:** bring one XCB owner, XShm, XFixes and XDamage
+through ordered invalidation/resize using deterministic tests,
+without allowing protected operations before OS authorization.

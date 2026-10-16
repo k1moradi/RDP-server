@@ -2548,6 +2548,20 @@ actually run; another parser CTest alone is not a complete session.
   desktop and benchmarks. **Next R5:** coordinate one XCB owner with
   capture/damage/cursor teardown and resize, then R2/R3 admission
   and R4 frame/cursor consumption. M3 remains NOT ACCEPTED.
+  **R5 native XDamage exact-SHA hosted CI PASS (2026-10-15):**
+  production `2f3b0ea12d7324cfd501ec25665fc02e030b0469`;
+  [Actions 38849416185](https://github.com/k1moradi/RDP-server/actions/runs/38849416185)
+  completed SUCCESS. Real Linux XCB-Damage tracker and DamageRegion
+  compiled and linked in Debug/Release. **217/217** Linux CTests
+  PASS in both, including dedicated
+  `x11.damage-native-connection-denials-and-cancellation`.
+  Hosted macOS **201/201** and Windows **215/215** full CTests PASS
+  in Debug and Release; Linux-only XDamage test not run elsewhere.
+  Docs policy, SDK stage/consumer/package and R9 clipboard
+  sanitizers PASS. **NOT RUN:** owner's independent Linux/X11,
+  Windows CLANG64/Clang23, macOS27, real R2/R3-authorized
+  desktop/client, native teardown/resize integration with R4
+  and reproducible benchmarks. M1/M3 remain unaccepted.
   **R5 Linux XCB-SHM native compile increment (2026-10-15;
   base `aa15209c67d74814cac8c859997e623cd096691c`, exact-SHA CI pending):**
   Add separate, noninstalled `rdp-server-linux-xshm` native Linux

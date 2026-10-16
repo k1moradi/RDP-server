@@ -1,3 +1,24 @@
+## R1 macOS Release CredSSP timing-fixture correction (2026-10-16)
+
+**Trigger:** exact HYBRID run `38896489005` on
+`611c10b6973b077aeb515c75485ca39384159aa0`. New R1 HYBRID negotiation tests
+PASS in macOS Debug and Release, Linux Debug/Release, and the R9 sanitizer
+selection. macOS Release alone failed the pre-existing
+`transport.credssp-r1-owned-framing` test because its helper treated the
+first `NeedRead` as proof that an already-written 8-byte plaintext prefix had
+been consumed.
+
+**Correction:** test-only. `drainCredSspFromOwnedTls` may wait through
+socket-level `NeedRead` until an explicit minimum plaintext prefix has been
+read. Production ownership, TLS I/O, CredSSP framing, retry direction and byte
+accounting are unchanged. The positive prefix assertion remains exactly 8
+bytes once delivered.
+
+**Unrelated Windows blocker:** R6 preflight compile error
+`WindowsDxgiFrameInfo ==` at `test_windows_desktop_geometry.cpp:491`
+stopped the Windows job before R1 compilation/CTest. Windows R1 is NOT RUN for
+that SHA.
+
 ## R6 frame-owner malformed-acquire cleanup authoring (2026-10-16)
 
 Prior frame-owner commit `c31c07f87152f8bd8c536c77abb7f5511871a6e8`,

@@ -4690,7 +4690,8 @@ std::size_t drainCredSspFromTls(
 std::size_t drainCredSspFromOwnedTls(
     TsRequestFrameReader &reader,
     OwnedPreauthTcpConnection &owner,
-    TsRequestTlsReadStatus finalStatus)
+    TsRequestTlsReadStatus finalStatus,
+    std::size_t minimumPlaintextBeforeNeedRead = 0)
 {
     using PollOutcome = TcpConnectionPollOutcome;
     const auto deadline =
@@ -4701,7 +4702,9 @@ std::size_t drainCredSspFromOwnedTls(
         const auto result = reader.readOneTlsStep(owner);
         total += result.plaintextBytesRead;
         assert(result.error == TsRequestError::None);
-        if (result.status == finalStatus)
+        if (result.status == finalStatus &&
+            (finalStatus != TsRequestTlsReadStatus::NeedRead ||
+             total >= minimumPlaintextBeforeNeedRead))
             return total;
         if (result.status == TsRequestTlsReadStatus::Progress)
         {
@@ -5829,7 +5832,7 @@ void testOwnedTlsCredSspFraming()
         writeNativeTlsClientAll(
             tls.client.get(), std::span(kTestCredSspDer).first(8));
         assert(drainCredSspFromOwnedTls(
-            reader, owner, TsRequestTlsReadStatus::NeedRead) == 8);
+            reader, owner, TsRequestTlsReadStatus::NeedRead, 8) == 8);
         assert(reader.completedFrameServerTls() == nullptr);
 
         writeNativeTlsClientAll(

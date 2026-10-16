@@ -1,3 +1,27 @@
+## R1 HYBRID exact-SHA hosted receipt and CredSSP fixture follow-up (2026-10-16)
+
+R1 HYBRID implementation `611c10b6973b077aeb515c75485ca39384159aa0`,
+Actions `38896489005`: documentation policy **PASS**; Linux/GCC full Debug
+and Release, SDK consumer/package **PASS**; R9 ASan/UBSan selection **PASS**,
+including `transport.tcp-owned-hybrid-nla-negotiation`; macOS/AppleClang
+Debug **325/325 PASS**. On macOS Release, both new HYBRID cases also **PASS**:
+`transport.security-negotiation` and
+`transport.tcp-owned-hybrid-nla-negotiation`. The sole macOS Release failure
+is the older R1 `transport.credssp-r1-owned-framing` fixture: after the client
+accepted an 8-byte TLS application write, the helper returned on the first
+legitimate socket-level `NeedRead` before those bytes became readable.
+
+This follow-up changes no production code. The existing owner-backed CredSSP
+test drain helper now accepts `NeedRead` as its requested boundary only after
+the caller-specified minimum plaintext prefix has actually been consumed.
+That preserves one production TLS operation per callback and exercises the
+same readiness polling rather than assuming immediate loopback delivery.
+
+Windows on the HYBRID exact SHA did not build R1: the new R6 preflight failed
+first at `test_windows_desktop_geometry.cpp:491` because
+`WindowsDxgiFrameInfo` lacked the asserted equality operator. That is
+R6-owned and Windows R1 remains **NOT RUN** for the HYBRID SHA.
+
 ## R6 malformed-acquire guarded cleanup (2026-10-16; exact-SHA CI pending)
 
 Exact-SHA validation of `c31c07f87152f8bd8c536c77abb7f5511871a6e8`,

@@ -1,3 +1,44 @@
+## R8 bounded file-stream Lock/Unlock validation (2026-10-16)
+
+P0 commit `2bdc77344862ee589ae3adbdbe167b4d5947bbc7` corrected only the
+FILEDESCRIPTORW fixtures: `nFileSizeHigh` offset 64,
+`nFileSizeLow` offset 68. The generic low-then-high `put64()` remains for
+ordinary FileContents SIZE wire integers, and production descriptor decoding
+is unchanged.
+
+P1 commit `9938faf3a54682b76e2d925e354f728a32981b65` adds the bounded
+Lock/Unlock owner state, monotonic receipt/`clipDataId` policy, retained
+generation metadata, Temporary Directory prerequisite parsing and optional
+locked FileContents `clipDataId`. The five production-linked CTests cover
+exact Lock/Unlock wire/MCS envelopes, cumulative full-send receipts,
+wrong/stale/duplicate progress, fully-unwritten cancellation,
+partial/uncertain poison, disconnect revocation and ID nonreuse, one-generation
+retention across clipboard replacement, matching Unlock release, 32-byte
+unlocked versus 36-byte locked FileContents requests, retained SIZE/RANGE
+bounds/stream correlation, zero-byte FILEDESCRIPTORW metadata, and capability
+prerequisite/advertisement denials.
+
+Exact-SHA workflow:
+https://github.com/k1moradi/RDP-server/actions/runs/38897188955
+
+- Linux/GCC Debug: **PASS**, 384/384 CTests; Release: **PASS**, 384/384.
+- macOS/Clang Debug: **PASS**, 331/331; Release: **PASS**, 331/331.
+- Windows/MSVC Debug: **PASS**, 356/356; Release: **PASS**, 356/356.
+- R9 ASan/UBSan: **PASS**; all registered clipboard sanitizer tests 36/36,
+  including the five new R8 lock/locked-stream cases.
+- Downstream SDK/package consumer checks: **PASS** on the platform jobs.
+- Documentation policy: **FAIL** only because the feature SHA contained
+  production/test/CMake changes without Markdown. This follow-up documentation
+  receipt is the required co-change and preserves concurrent road receipts.
+- Owner-local `~/rdp-server/build` validation: **NOT RUN** because that
+  synchronized checkout is unavailable in this connector environment; no
+  alternate build root was created.
+
+The hosted results validate deterministic protocol/writer behavior only. They
+do not claim authenticated CLIPRDR, live Microsoft-client file copy, native
+Windows/macOS clipboard integration, or completion of the R2/R3 protected
+payload-dispatch path; those remain OPEN.
+
 ## R4 frame-ID reservation preflight authoring (2026-10-16)
 
 **Inspected starting main:** `7a83947d7876574f573ac393d3e1311d40eea80f`.

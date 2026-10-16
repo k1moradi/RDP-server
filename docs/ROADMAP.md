@@ -1,3 +1,64 @@
+## R8 bounded file-stream Lock/Unlock lifecycle (2026-10-16)
+
+P0 is integrated at `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`.
+The two exposed macOS R8 failures shared one fixture root cause:
+FILEDESCRIPTORW stores `nFileSizeHigh` at descriptor offset 64 and
+`nFileSizeLow` at 68, while the generic `put64()` helper correctly writes
+ordinary little-endian FileContents SIZE integers low-DWORD first. The
+descriptor fixtures now use a dedicated high-then-low helper. Production
+FILEDESCRIPTORW decoding was not weakened.
+
+P1 is published at `9938faf3a54682b76e2d925e354f728a32981b65`.
+The existing `RemoteTransfer` remains the only clipboard/file-stream owner.
+A completely delivered Lock assigns a monotonic nonzero `clipDataId` and
+retains at most one exact clipboard generation's existing 64-entry descriptor
+metadata. No file body is cached. Matching Unlock releases only that
+generation. Receipt and lock-ID counters never reset; completely unwritten
+frames may be cancelled, while partial/ambiguous Lock or Unlock delivery
+poisons the owner until genuine disconnect.
+
+Lock/Unlock are 12-byte CLIPRDR PDUs: eight-byte header, zero `msgFlags`,
+four-byte payload length and one four-byte `clipDataId`. Locked
+FileContents requests append that optional ID, producing a 28-byte payload /
+36-byte complete CLIPRDR PDU; unlocked requests remain 24/32 bytes.
+SIZE/RANGE bounds, huge-file gates, one-outstanding-stream correlation and
+joined-MCS writer receipts resolve against the exact current or retained
+descriptor generation.
+
+The client Temporary Directory PDU is structurally validated after
+capabilities and before the first Format List. `CB_CAN_LOCK_CLIPDATA`
+remains deliberately absent from `kSupportedGeneralFlags` (`0x2e`).
+R3's protected joined-CLIPRDR role observation from
+`b31d910a7c5f17f16676469bee7e7c8ba1bd69fe` is preserved, but it is not
+licensing, Share activation or clipboard payload-dispatch permission.
+R8 does not duplicate or bypass R2/R3 authority, so capability advertisement
+remains disabled until the complete protected initialization/dispatch path
+exists.
+
+Dedicated CTests:
+`clipboard.file-lock-unlock-wire-receipts`,
+`clipboard.file-lock-unlock-partial-send-denials`,
+`clipboard.file-lock-unlock-generation-retention`,
+`clipboard.file-contents-locked-stream-identity`, and
+`clipboard.file-lock-capability-prerequisite-denials`.
+
+Exact-SHA hosted run
+https://github.com/k1moradi/RDP-server/actions/runs/38897188955 validated
+`9938faf3`: Linux/GCC Debug and Release **PASS** (384/384 each),
+macOS/Clang Debug and Release **PASS** (331/331 each), Windows/MSVC Debug and
+Release **PASS** (356/356 each), R9 ASan/UBSan clipboard coverage **PASS**
+(36/36, including all five new R8 cases), and downstream SDK/package consumer
+checks **PASS**. The run's documentation-policy job alone **FAIL**ed because
+the production commit intentionally omitted Markdown while concurrent roads
+were editing the same documents; this documentation receipt supplies that
+required co-change without overwriting those concurrent receipts.
+
+Local owner build/CTest remains **NOT RUN** because this connector environment
+does not expose the synchronized `~/rdp-server` checkout and project policy
+forbids creating a second build root. Authenticated CLIPRDR, live
+Microsoft-client file copy and native Windows/macOS clipboard acceptance
+remain **OPEN**.
+
 ## R4 duplicate ACK-pending frame-ID pre-encode gate (2026-10-16; exact-SHA CI pending)
 
 Starting inspected `main`: `7a83947d7876574f573ac393d3e1311d40eea80f`.

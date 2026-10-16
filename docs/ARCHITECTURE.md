@@ -1,3 +1,43 @@
+### R8 bounded locked-generation clipboard stream ownership (2026-10-16)
+
+`RemoteTransfer` remains the sole clipboard generation and remote file-stream
+metadata owner. One fully delivered `CB_LOCK_CLIPDATA` snapshots only the
+existing fixed-capacity 64-entry FILEDESCRIPTORW metadata for its exact
+generation and assigns a monotonic nonzero `clipDataId`; no file payload is
+retained. The live clipboard may advance independently, and locked
+FileContents lookups use only the retained metadata/ID so an old file index
+cannot borrow a new offer's descriptor.
+
+Lock and Unlock are complete 12-byte CLIPRDR PDUs (8-byte header plus
+4-byte `clipDataId`, `msgFlags=0`) wrapped by the existing R3-owned
+static-VC/MCS framing path. Full cumulative writer acceptance makes an
+operation locally delivered; it does not fabricate peer acknowledgement.
+Completely unwritten frames can be cancelled. Partial/uncertain abandonment
+poisons the owner until disconnect. Disconnect revokes retained metadata while
+monotonic receipt and `clipDataId` identities continue, preventing stale
+callback ABA/reuse.
+
+A locked `CB_FILECONTENTS_REQUEST` carries the optional trailing
+`clipDataId`, growing from a 24-byte to 28-byte payload and from a 32-byte
+to 36-byte complete CLIPRDR PDU. Current requests remain the original 32-byte
+form. Both preserve one-outstanding-stream ownership, SIZE/RANGE and huge-file
+validation, stream-ID response correlation and partial-send poison behavior.
+
+Temporary Directory is accepted only after capabilities and before the first
+Format List; its fixed 520-byte UTF-16 field is validated for a nonempty,
+well-formed NUL-terminated value and is never retained or dereferenced.
+Raw peer/local lock offers are retained only for deterministic offline
+prerequisite tests. `kSupportedGeneralFlags` remains `0x2e`.
+
+R3's `authorizeR3JoinedClipboardChannel` gives a transient protected
+R2-revalidated role observation, not clipboard payload dispatch, licensing or
+Share authority. The portable R8 owner therefore does not depend on the
+Linux-only security broker or treat a joined channel/Boolean as authorization.
+A production caller must revalidate the authoritative R2/R3 session/channel
+state before invoking R8 and before each R3 write. Until that protected
+dispatcher and the complete Clipboard Initialization Sequence exist,
+`CB_CAN_LOCK_CLIPDATA` stays disabled.
+
 ### R4 ACK-pending frame-ID reservation before stateful encode (2026-10-16)
 
 The single `GfxPresentationLifecycle` exposes

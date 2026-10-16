@@ -1,3 +1,29 @@
+## R6 DXGI denial publication receipt (2026-10-16; exact-SHA workflow queued)
+
+Implementation commit: `527977bfe3fbb167dc14d6273006f1b802edc170`
+(`fix(r6): verify DXGI pre-map cancellation lifecycle`), published directly
+to `main` from reconciled parent
+`f1718fa601c12e9ff10f9be3bba281acd0a57e90` by expected-head non-force
+update. Exact workflow: Actions `38885699857`, currently **QUEUED** for
+implementation SHA `527977bfe3fbb167dc14d6273006f1b802edc170`.
+
+All five hosted jobs are **NOT RUN yet**: Windows/MSVC, Linux/GCC,
+macOS/Clang, documentation-policy, and R9 sanitizer coverage are queued.
+Accordingly there is no exact-SHA Debug/Release PASS claim yet. The owner
+Windows MSYS2 CLANG64/Clang23 acceptance check is separately **NOT RUN** in
+this environment.
+
+The implementation changes only the existing R6 pointer-shape denial fixture,
+its CTest timeout, and lifecycle documentation. It confirms pre-map terminal
+paths acquire one DXGI frame, perform zero D3D11 maps/unmaps, and release the
+frame once; mapped teardown remains unmap-before-`ReleaseFrame`. Native
+Windows input remains unreachable without genuine R2/R3 admission and M4
+remains OPEN.
+
+**Next gate:** complete Actions `38885699857` and record exact failing test
+names/logs if any, then obtain the owner CLANG64/Clang23 receipt before the next
+R6 production increment.
+
 ## R5 X11 lifecycle fixture post-publication validation (2026-10-16)
 
 **Implementation:** `f1718fa601c12e9ff10f9be3bba281acd0a57e90`.

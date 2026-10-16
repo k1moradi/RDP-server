@@ -299,6 +299,27 @@ the native producer validates DXGI metadata byte lengths and releases
 the frame before changing the session. This increment owns no COM
 objects, authorization, queue, capture polling or graphics scheduler.
 
+### R4 RDPGFX server segmented-data envelope
+
+MS-RDPEGFX requires every server-to-client Graphics DVC message to be
+encapsulated in one `RDP_SEGMENTED_DATA`. The portable
+`gfx_segmented_data.{h,cpp}` layer wraps one or more already-complete
+RDPGFX messages without owning them. Payloads up to 65,535 bytes emit
+SINGLE (0xE0) with an uncompressed RDP8 bulk-data header
+(`PACKET_COMPR_TYPE_RDP8=0x04`, compressed flag clear). Larger payloads
+emit MULTIPART (0xE1) with segment count/uncompressed size and 32-bit
+per-segment encoded sizes. Reverse copies permit exact in-place
+expansion without allocations; other overlap is rejected atomically.
+This deliberately does not implement the RDP8 compressor yet.
+
+R3 alone owns the reliable `Microsoft::Windows::RDS::Graphics` dynamic
+virtual channel, DRDYNVC framing/fragmentation and actual full-send
+completion. R4 segmentation cannot authorize a session and cannot mark
+a frame delivered. Graphics PDUs must not span separate
+`RDP_SEGMENTED_DATA` structures. Normative: MS-RDPEGFX 2.1 and
+2.2.5.1–3; Microsoft's sample decompressor verifies that a bulk header
+without `PACKET_COMPRESSED` carries raw bytes.
+
 ### R4 AVC420 visible-surface crop and coded macroblocks
 
 MS-RDPEGFX AVC420 requires an H.264 bitstream with 16-pixel

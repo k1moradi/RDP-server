@@ -3208,6 +3208,25 @@ actually run; another parser CTest alone is not a complete session.
   authorized R3 DVC, real x264, client and benchmarks.
   **Next R4:** actual authorized R3 DVC full-send callback then
   integrate the existing H.264 frame owner/x264. Gate B NOT ACCEPTED.
+  **R4 RDPGFX segmented-data envelope (2026-10-15; focused source
+  validated before integration):** Portable `RDP_SEGMENTED_DATA`
+  server framing wraps complete graphics-message sequences without
+  allocation. <=65,535 bytes uses SINGLE (0xE0) plus uncompressed
+  RDP8 header 0x04; larger payloads use MULTIPART (0xE1), uint16
+  segment count, uint32 uncompressed size and bounded
+  RDP_DATA_SEGMENT entries. Exact in-place expansion is supported;
+  other overlap, empty/oversized input and short output fail before
+  mutation. R3 still owns `Microsoft::Windows::RDS::Graphics`
+  DRDYNVC creation, fragmentation and full-send completion.
+  Dedicated CTests: `graphics.segmented-data-single`,
+  `graphics.segmented-data-multipart`,
+  `graphics.segmented-data-denials-inplace`.
+  **Focused PASS:** GCC 14.2 and Clang 17 strict C++23 ASan/UBSan
+  3/3 each under `~/rdp-server/build/r4_segment_stage`.
+  **NOT RUN at authoring:** full local CTest, owner Linux/X11,
+  Windows CLANG64/Clang23, macOS27, live R3 DVC/client/x264/benchmarks.
+  **Next R4:** compose mapped AVC420 output with this envelope at
+  the R3 full-send boundary; then integrate reviewed static x264.
   **R4 AVC420 visible/coded picture crop (2026-10-15, source parent a604ab9ab1aa77caeb5fb74feb8fbeac0afde94a):**
   distinguish 16-aligned H.264 codedGeometry from actual mapped
   RDPGFX visibleGeometry and region mask, preserving zero/zero

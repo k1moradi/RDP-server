@@ -6088,3 +6088,34 @@ revocation, live credentials, authenticated desktop, listener and
 M1–M6 acceptance. Next: exact hosted matrix and owner CTests,
 then trust/validity policy and continuity into a future authorized
 live TLS loader.
+
+## R4 RDPGFX segmented-data server envelope (2026-10-15)
+
+**Integrated parent main:** `6369d8622057aa3f315af55011b52c1d74325d5b`. Production
+`gfx_segmented_data.{h,cpp}` emits standards-defined server
+RDP_SEGMENTED_DATA around already-complete RDPGFX messages using
+uncompressed RDP8 bulk-data segments. SINGLE is descriptor 0xE0,
+bulk header 0x04, raw graphics bytes. MULTIPART is descriptor 0xE1,
+little-endian segmentCount/uncompressedSize, then each uint32 encoded
+segment size, 0x04 bulk header and raw data, with at most 65,535
+uncompressed bytes per segment. Exact in-place expansion is implemented
+back-to-front; partial overlap, zero/uint32-overflow input, short output
+and unrepresentable segment count fail without mutation. R3 remains
+the sole DRDYNVC owner.
+
+**Focused production-code PASS before integration:** GCC 14.2 and
+Clang 17 compiled the exact production/test source with strict C++23,
+ASan and UBSan under `~/rdp-server/build/r4_segment_stage`; all
+three cases PASS per compiler: `segmented-data-single`,
+`segmented-data-multipart`, `segmented-data-denials-inplace`.
+The earlier accidental staging path was deleted and validation rerun
+under the mandated build root.
+
+**Normative:** MS-RDPEGFX 2.1 and 2.2.5.1–3. Microsoft's sample
+decompressor confirms type 0x04 with PACKET_COMPRESSED clear copies
+the raw segment data.
+
+**NOT RUN at authoring:** full local repo CTest, exact-source Actions
+until publication, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS27, authorized R3 Graphics DVC and DVC fragmentation/send receipt,
+real x264, Microsoft client or graphics benchmark. Gate B/M3–M5 OPEN.

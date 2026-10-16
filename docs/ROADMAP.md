@@ -1,3 +1,45 @@
+## R1 HYBRID + owner-aware CredSSP hosted acceptance receipt (2026-10-16)
+
+R1 fixture correction `8dc5cfd962f9432d4aaf3ac3c552ddb8fed172d7`
+completed [Actions 38897048825](https://github.com/k1moradi/RDP-server/actions/runs/38897048825)
+with **SUCCESS** across every hosted job. Linux/GCC full Debug and Release
+CTest passed, macOS/AppleClang full **326/326 Debug and 326/326 Release**
+passed, and Windows/MSVC full **351/351 Debug and 351/351 Release** passed.
+Documentation policy, R9 ASan/UBSan selection, installed SDK consumer and
+package publication checks also passed.
+
+The R1-specific production-backed cases all pass on the same source:
+`transport.tcp-owned-hybrid-nla-negotiation`,
+`transport.credssp-r1-owned-framing`,
+`transport.credssp-r1-owned-reply`,
+`transport.tcp-owned-runtime-tls-handshake`, and
+`transport.tcp-owned-runtime-tls-identity-continuity`. The immediately
+following R2 owner-driven CredSSP integration
+`0f5fcd6f55e0a674671927609a78bd841d58405c` likewise completed
+[Actions 38898173843](https://github.com/k1moradi/RDP-server/actions/runs/38898173843)
+with all hosted protocol, sanitizer and documentation jobs passing. This
+closes the previously missing hosted evidence for R1's genuine HYBRID
+selection and R1-owned CredSSP application-I/O seam; it does **not** prove
+real Kerberos/native admission or M2.
+
+A later descendant `e028aa5652636e82218eed85a49e675be5d322d3`,
+[Actions 38902568449](https://github.com/k1moradi/RDP-server/actions/runs/38902568449),
+again passes the R9 bounded R1/R3 selection **25/25**, including HYBRID,
+both owner-aware CredSSP cases and both R10→R1 TLS cases; Windows and macOS
+full jobs pass. Its sole Ubuntu failure is
+`runtime.linux-connection-credssp-owner-framing`, outside R1 transport:
+R2 can return `NeedWrite` with nonzero `plaintextBytesRead` after consuming
+the final DER bytes and queueing provider output, while R10
+`LinuxRuntimeConnection::onCredSspIoReady()` currently drops those byte
+receipts when mapping `NeedWrite`/ `NeedRead`. The resulting accounting
+assertion is tracked on R10 issue #19. R1 transport code is unchanged.
+
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS 27 exact-source
+commands, genuine Kerberos/logind admission, a current Microsoft-client NLA
+session and full M2 remain **NOT RUN / NOT ACCEPTED**. The next production
+listener/event-loop composition remains R10-owned; R1 must not introduce a
+second listener/session controller merely to advance that gate.
+
 ## R8 Windows ready-data clipboard hosted validation receipt (2026-10-16)
 
 Repair commit `e028aa5652636e82218eed85a49e675be5d322d3`, Actions

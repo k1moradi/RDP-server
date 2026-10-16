@@ -1,3 +1,38 @@
+## R1 HYBRID/CredSSP exact-SHA hosted validation receipt (2026-10-16)
+
+**Validated R1 SHA:** `8dc5cfd962f9432d4aaf3ac3c552ddb8fed172d7`.
+**Actions:** 38897048825, overall **SUCCESS**.
+
+- Windows/MSVC: **351/351 Debug PASS**, **351/351 Release PASS**.
+- macOS/AppleClang: **326/326 Debug PASS**, **326/326 Release PASS**.
+- Linux/GCC: full Debug/Release protocol CTests, downstream SDK consumer,
+  package and SHA-256 artifact steps **PASS**.
+- R9 sanitizer job and documentation-policy job **PASS**.
+- R1-specific hosted cases
+  `transport.tcp-owned-hybrid-nla-negotiation`,
+  `transport.credssp-r1-owned-framing`,
+  `transport.credssp-r1-owned-reply`,
+  `transport.tcp-owned-runtime-tls-handshake`, and
+  `transport.tcp-owned-runtime-tls-identity-continuity` all **PASS**.
+- Descendant R2 production owner integration
+  `0f5fcd6f55e0a674671927609a78bd841d58405c` / Actions 38898173843 is
+  also overall **SUCCESS**, confirming the R2 consumer compiles/tests against
+  the same R1 seam.
+
+**Descendant triage:** `e028aa5652636e82218eed85a49e675be5d322d3` /
+Actions 38902568449 keeps the R9 bounded R1/R3 sanitizer selection **25/25
+PASS** and Windows/macOS full jobs PASS. Ubuntu fails only
+`runtime.linux-connection-credssp-owner-framing`: R10 discards
+`OwnedCredSspHandshakeResult::plaintextBytesRead` when mapping a
+`NeedWrite` result, even though R2 may consume the final DER bytes and queue
+a provider reply in the same bounded progression call. That receipt-loss
+explains the test's `totalRead == request.size()` assertion and is reported
+on R10 issue #19; no R1 production correction is indicated.
+
+**Still NOT RUN:** owner Linux/X11, owner Windows MSYS2 CLANG64/Clang23,
+owner macOS 27, genuine Kerberos/logind admission and current Microsoft RDP
+client M2 acceptance.
+
 ## R8 Windows ready-data clipboard repair validation (2026-10-16)
 
 **Repair SHA:** `e028aa5652636e82218eed85a49e675be5d322d3`.

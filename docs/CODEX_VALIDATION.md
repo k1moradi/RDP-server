@@ -1,3 +1,20 @@
+## R2 licensing service-credential non-authority authoring validation (2026-10-16)
+
+**Reconciled parent:** `66220b8dbcb9a0a4247bcc508c1a07b92ba1d2ea`.
+
+Source review **PASS**: no production authorization code changed. The existing
+Linux Server License Request and client-licensing contract test now rejects
+`RdpLicensingServiceCredential` as a substitute for
+`LinuxConsoleAdmissionLease` at compile time while preserving the required
+credential parameter in its distinct protocol-continuity position. Existing
+runtime denial coverage still closes unadmitted licensing-shaped traffic and
+the two contract behaviors remain selected by the R9 native-GSS sanitizer
+regex.
+
+Canonical owner-local build and genuine positive Kerberos/final-CredSSP +
+NSS/logind admission are **NOT RUN**. Exact-SHA hosted matrix and sanitizer
+evidence for this hardening commit are **PENDING**.
+
 ## R1 orderly-EOF accept visibility fixture correction (2026-10-16)
 
 **Starting inspected main:** `045d8074bf949ae725347fd32f871585d6d549d1`.

@@ -1,3 +1,18 @@
+## R2 boundary for licensing service credentials (2026-10-16)
+
+`RdpLicensingServiceCredential` is cryptographic continuity material, not an
+R2 admission capability. Its validated certificate chain, matching private key
+and non-secret certificate fingerprint may be consumed only after the concrete
+`LinuxConsoleAdmissionLease` and exact R1 owner have passed the normal
+protected-transition gate.
+
+The existing protected Server License Request and first client licensing
+methods retain the lease as the authority-bearing argument and the credential
+as a separate protocol input. Compile-time contracts explicitly reject placing
+the credential in the lease slot. R2 therefore does not infer native
+authorization from licensing key possession, certificate validity, premaster
+capability or derived key material.
+
 ## R2 boundary for licensing key material (2026-10-16)
 
 R3's licensing parsers and `deriveRdpLicensingKeys` are protocol/cryptographic

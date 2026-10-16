@@ -1,3 +1,42 @@
+## R2 licensing service-credential non-authority fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `66220b8dbcb9a0a4247bcc508c1a07b92ba1d2ea`.
+
+R3 now requires a cryptographically validated
+`RdpLicensingServiceCredential` for protected Server License Request
+publication and first client licensing intake, and binds its non-secret
+certificate fingerprint into the R3 session. Per the existing R2 roadmap this
+does **not** justify a new authorization API: no server licensing decision,
+challenge/issuance or activation publication/completion exists yet.
+
+R2 therefore hardens the two existing Linux protected-route contracts in place.
+Compile-time invocation checks now prove the service credential itself cannot
+occupy the `LinuxConsoleAdmissionLease` authority slot for either
+`authorizeR3ServerLicenseRequestWrite` or
+`authorizeR3ClientLicensingMessage`. The credential remains required as
+licensing-key continuity input *after* the concrete move-only native admission
+lease; it never becomes admission authority merely because its certificate
+chain/private-key binding is valid.
+
+No production R1/R2/R3 API changes, synthetic lease, GSS success, logind
+session, licensing result, listener or activation path are added. The existing
+`security.gssapi-r3-server-license-request-write-contract` and
+`security.gssapi-r3-client-licensing-route-contract` names remain centrally
+registered and already selected by the R9 native-GSS ASan/UBSan job.
+
+Canonical owner-local `~/rdp-server/build/` remains **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted Linux/GCC, macOS/Clang,
+Windows/MSVC, R9 sanitizer, documentation-policy and SDK/package evidence are
+**PENDING**.
+
+**Next R2:** keep the production authorization API unchanged until R3 exposes
+a real server licensing decision, challenge/issuance, or activation
+publication/completion boundary. Then require the same fresh concrete lease +
+exact R1 owner authorization immediately before publication and again before
+any asynchronous accepted-byte completion. Genuine
+Kerberos/final-CredSSP + NSS/logind positive admission and M2/M3 remain
+**NOT RUN / OPEN**.
+
 ## R1 orderly-EOF accept visibility regression (2026-10-16; exact-SHA CI pending)
 
 **Starting shared `main`:** `045d8074bf949ae725347fd32f871585d6d549d1`. The repository is fully green at

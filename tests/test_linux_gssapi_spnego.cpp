@@ -1564,6 +1564,9 @@ void testR3ServerLicenseRequestWriteContract()
         PrepareMethod, Broker, bool, Acceptor, Connection, Session,
         Identity, Credential>);
     static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, Credential, Acceptor, Connection, Session,
+        Identity, Credential>);
+    static_assert(!std::is_invocable_v<
         PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
         Acceptor, Connection, Session, Fields, Credential>);
     static_assert(std::is_invocable_r_v<
@@ -1670,6 +1673,9 @@ void testR3ClientLicensingRouteContract()
         Acceptor, Connection, Session, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, bool, Acceptor, Connection, Session,
+        Credential, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, Credential, Acceptor, Connection, Session,
         Credential, Bytes>);
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, const LinuxConsoleAdmissionLease &,

@@ -127,7 +127,7 @@ X11DesktopResources::nativeConnection() const noexcept
 xcb_window_t
 X11DesktopResources::rootWindow() const noexcept
 {
-    return valid() ? display_.rootWindow() : XCB_WINDOW_NONE;
+    return valid() ? display_.rootWindow() : xcb_window_t{};
 }
 
 PixelSize

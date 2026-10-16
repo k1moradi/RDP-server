@@ -4085,9 +4085,13 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   `clipboard.x11-selection-owner-loss`.
   Isolated GCC 14.2 and Clang 17 strict C++23 native-source compilation PASS;
   deterministic fake-XCB behavior 4/4 PASS and Clang ASan+UBSan+LSan 4/4
-  PASS. Canonical repository CMake/CTest and exact-SHA hosted CI are pending
-  at authoring; owner Linux/X11, Windows CLANG64/Clang23, macOS27, live
-  clipboard, Microsoft client/Firefox and performance are NOT RUN. Genuine
+  PASS. Initial implementation `047e4ffc9ce93faeee1a05ecc9eb6e75079f84cc`
+  Actions **38876114364** passed docs policy and compiled the new clipboard
+  target, but Linux stopped before CTest on a GCC 13.3 `-Werror=extra`
+  enum/integral conditional in R5's new borrowed `rootWindow()` fallback.
+  The behavior-neutral typed-zero correction is pending exact-SHA CI.
+  Owner Linux/X11, Windows CLANG64/Clang23, macOS27, live clipboard,
+  Microsoft client/Firefox and performance are NOT RUN. Genuine
   R3 CLIPRDR-role activation remains external. **INCR is NOT IMPLEMENTED and
   is the immediate next R8 increment.**
 - [ ] **Native clipboard file streaming, never whole-file prefetch**:

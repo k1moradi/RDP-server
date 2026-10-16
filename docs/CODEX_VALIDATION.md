@@ -177,12 +177,20 @@ Clang ASan+UBSan with leak detection also passed **4/4**. The isolated harness
 used a local behavioral stand-in for `RemoteTransfer`; therefore it is not
 canonical repository or end-to-end evidence.
 
-**NOT RUN at authoring:** canonical full repository CMake/CTest in
-`~/rdp-server/build`, exact-SHA GitHub Actions, owner Linux/X11, Windows
-MSYS2 CLANG64/Clang23 and macOS27, live clipboard/clipboard-manager behavior,
-Microsoft-client/Firefox paste, genuine R2/R3 CLIPRDR authorization and
-performance. Runtime activation remains disabled until genuine R3 role
-authority exists. **Next R8:** complete bounded X11 INCR with
+**Initial exact-SHA CI:** implementation `047e4ffc9ce93faeee1a05ecc9eb6e75079f84cc`,
+Actions **38876114364** passed documentation policy and compiled the new
+`rdp-server-linux-x11-clipboard` production target, but the Linux protocol
+job stopped before CTest: GCC 13.3 `-Werror=extra` rejected the new R5
+borrowed `rootWindow()` fallback because `XCB_WINDOW_NONE` is enum-typed
+while `xcb_window_t` is integral. The correction uses an explicit
+`xcb_window_t{}` zero with no behavior change; correction exact-SHA CI is
+pending.
+
+**NOT RUN:** canonical owner `~/rdp-server/build` CMake/CTest, owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27, live
+clipboard/clipboard-manager behavior, Microsoft-client/Firefox paste, genuine
+R2/R3 CLIPRDR authorization and performance. Runtime activation remains
+disabled until genuine R3 role authority exists. **Next R8:** complete bounded X11 INCR with
 PropertyDelete-driven progression and generation/owner/requester-safe
 cancellation, then Windows/macOS native adapters and bounded FileContents.
 

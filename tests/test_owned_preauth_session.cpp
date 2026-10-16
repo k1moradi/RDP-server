@@ -3408,9 +3408,13 @@ void testR3ServerLicenseRequestSliceThroughOwnedTls()
     scope.fill(static_cast<std::uint8_t>('s'));
     scope.back() = 0U;
 
+    // Opaque serializer fixture only; real licensing credentials and their
+    // matching private key remain service provisioning, not an R1 concern.
+    constexpr std::array<std::uint8_t, 4> certificate{
+        0xde, 0xad, 0xbe, 0xef};
     RdpServerLicenseIdentity identity;
     assert(identity.configure(
-        0x00060001U, company, product, scope));
+        0x00060001U, company, product, certificate, scope));
 
     RdpLicensingLifecycle lifecycle;
     RdpServerLicenseRequestWriteGate gate{lifecycle};

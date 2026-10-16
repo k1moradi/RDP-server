@@ -183,6 +183,7 @@ bool RdpServerLicenseIdentity::configure(
     std::uint32_t productVersion,
     std::span<const std::uint8_t> companyNameUtf16,
     std::span<const std::uint8_t> productIdUtf16,
+    std::span<const std::uint8_t> serverCertificate,
     std::span<const std::uint8_t> scopeAnsi) noexcept
 {
     if (attempted_)
@@ -196,6 +197,8 @@ bool RdpServerLicenseIdentity::configure(
         scopeAnsi.size() < 2U ||
         companyNameUtf16.size() > companyNameUtf16_.size() ||
         productIdUtf16.size() > productIdUtf16_.size() ||
+        serverCertificate.empty() ||
+        serverCertificate.size() > serverCertificate_.size() ||
         scopeAnsi.size() > scopeAnsi_.size() ||
         !validNullTerminatedUtf16Le(companyNameUtf16) ||
         !validNullTerminatedUtf16Le(productIdUtf16) ||
@@ -207,11 +210,14 @@ bool RdpServerLicenseIdentity::configure(
     productVersion_ = productVersion;
     companyNameUtf16Length_ = companyNameUtf16.size();
     productIdUtf16Length_ = productIdUtf16.size();
+    serverCertificateLength_ = serverCertificate.size();
     scopeAnsiLength_ = scopeAnsi.size();
     std::copy(companyNameUtf16.begin(), companyNameUtf16.end(),
               companyNameUtf16_.begin());
     std::copy(productIdUtf16.begin(), productIdUtf16.end(),
               productIdUtf16_.begin());
+    std::copy(serverCertificate.begin(), serverCertificate.end(),
+              serverCertificate_.begin());
     std::copy(scopeAnsi.begin(), scopeAnsi.end(), scopeAnsi_.begin());
     configured_ = true;
     return true;
@@ -241,6 +247,13 @@ encodeEnhancedSecurityServerLicenseRequest(
     {
         return {0U, RdpServerLicenseRequestEncodeError::InvalidProductInfo};
     }
+    if (fields.serverCertificate.empty() ||
+        fields.serverCertificate.size() >
+            kMaximumRdpServerLicenseCertificateBytes)
+    {
+        return {0U,
+                RdpServerLicenseRequestEncodeError::InvalidServerCertificate};
+    }
     if (!validNullTerminatedAnsi(fields.scopeAnsi))
         return {0U, RdpServerLicenseRequestEncodeError::InvalidScope};
 
@@ -248,6 +261,8 @@ encodeEnhancedSecurityServerLicenseRequest(
             std::numeric_limits<std::uint32_t>::max() ||
         fields.productIdUtf16.size() >
             std::numeric_limits<std::uint32_t>::max() ||
+        fields.serverCertificate.size() >
+            std::numeric_limits<std::uint16_t>::max() ||
         fields.scopeAnsi.size() > std::numeric_limits<std::uint16_t>::max())
     {
         return {0U, RdpServerLicenseRequestEncodeError::Oversized};
@@ -260,6 +275,7 @@ encodeEnhancedSecurityServerLicenseRequest(
     const std::size_t variableBytes =
         fields.companyNameUtf16.size() +
         fields.productIdUtf16.size() +
+        fields.serverCertificate.size() +
         fields.scopeAnsi.size();
     if (variableBytes >
         kMaximumRdpServerLicenseRequestBytes - fixedBytes)
@@ -306,10 +322,17 @@ encodeEnhancedSecurityServerLicenseRequest(
     writeLe32(output, offset, kKeyExchangeAlgRsa);
     offset += keyExchangePayloadBytes;
 
-    // Enhanced RDP Security already protects this connection.
+    // Enhanced RDP Security protects transport confidentiality, but its
+    // SC_SECURITY block deliberately carries no server certificate. The
+    // licensing certificate must therefore be present here for RSA exchange.
     writeLe16(output, offset, kBlobServerCertificate);
-    writeLe16(output, offset + 2U, 0U);
+    writeLe16(
+        output, offset + 2U,
+        static_cast<std::uint16_t>(fields.serverCertificate.size()));
     offset += blobHeaderBytes;
+    std::copy(fields.serverCertificate.begin(),
+              fields.serverCertificate.end(), output.begin() + offset);
+    offset += fields.serverCertificate.size();
 
     writeLe32(output, offset, 1U);
     offset += scopeCountBytes;
@@ -396,6 +419,7 @@ bool RdpServerLicenseRequestWriteGate::queue(
         identity.productVersion(),
         identity.companyNameUtf16(),
         identity.productIdUtf16(),
+        identity.serverCertificate(),
         identity.scopeAnsi()};
     const auto encoded = encodeEnhancedSecurityServerLicenseRequest(
         fields, pending_);

@@ -4629,6 +4629,10 @@ constexpr std::array<std::uint8_t, 8> kServerLicenseCompany{
     0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00};
 constexpr std::array<std::uint8_t, 8> kServerLicenseProduct{
     0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00};
+// Opaque serializer fixture only. It is deliberately not presented as a
+// genuine licensing certificate/private-key pair.
+constexpr std::array<std::uint8_t, 4> kServerLicenseCertificate{
+    0xde,0xad,0xbe,0xef};
 constexpr std::array<std::uint8_t, 6> kServerLicenseScope{
     0x73,0x63,0x6f,0x70,0x65,0x00};
 
@@ -4639,6 +4643,7 @@ constexpr std::array<std::uint8_t, 6> kServerLicenseScope{
         0x00060001U,
         kServerLicenseCompany,
         kServerLicenseProduct,
+        kServerLicenseCertificate,
         kServerLicenseScope};
 }
 
@@ -4649,6 +4654,7 @@ constexpr std::array<std::uint8_t, 6> kServerLicenseScope{
         0x00060001U,
         kServerLicenseCompany,
         kServerLicenseProduct,
+        kServerLicenseCertificate,
         kServerLicenseScope);
 }
 
@@ -4672,8 +4678,8 @@ constexpr std::array<std::uint8_t, 6> kServerLicenseScope{
 
 void testRdpServerLicenseRequestWire()
 {
-    constexpr std::array<std::uint8_t, 90> expected{
-        0x01,0x83,0x5a,0x00,
+    constexpr std::array<std::uint8_t, 94> expected{
+        0x01,0x83,0x5e,0x00,
         0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
         0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x10,
         0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,
@@ -4684,7 +4690,7 @@ void testRdpServerLicenseRequestWire()
         0x08,0x00,0x00,0x00,
         0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00,
         0x0d,0x00,0x04,0x00,0x01,0x00,0x00,0x00,
-        0x03,0x00,0x00,0x00,
+        0x03,0x00,0x04,0x00,0xde,0xad,0xbe,0xef,
         0x01,0x00,0x00,0x00,
         0x0e,0x00,0x06,0x00,0x73,0x63,0x6f,0x70,0x65,0x00};
 
@@ -4707,11 +4713,12 @@ void testRdpServerLicenseIdentityConfiguration()
 {
     auto company = kServerLicenseCompany;
     auto product = kServerLicenseProduct;
+    auto certificate = kServerLicenseCertificate;
     auto scope = kServerLicenseScope;
 
     RdpServerLicenseIdentity identity;
     assert(identity.configure(
-        0x00060001U, company, product, scope));
+        0x00060001U, company, product, certificate, scope));
     assert(identity.configured());
     assert(identity.productVersion() == 0x00060001U);
     assert(std::equal(
@@ -4723,6 +4730,10 @@ void testRdpServerLicenseIdentityConfiguration()
         identity.productIdUtf16().end(),
         kServerLicenseProduct.begin()));
     assert(std::equal(
+        identity.serverCertificate().begin(),
+        identity.serverCertificate().end(),
+        kServerLicenseCertificate.begin()));
+    assert(std::equal(
         identity.scopeAnsi().begin(),
         identity.scopeAnsi().end(),
         kServerLicenseScope.begin()));
@@ -4730,29 +4741,35 @@ void testRdpServerLicenseIdentityConfiguration()
     // Caller storage is not retained and cannot mutate live provisioning.
     company[0] = 0xffU;
     product[0] = 0xeeU;
+    certificate[0] = 0xccU;
     scope[0] = 0xddU;
     assert(identity.companyNameUtf16().front() ==
            kServerLicenseCompany.front());
     assert(identity.productIdUtf16().front() ==
            kServerLicenseProduct.front());
+    assert(identity.serverCertificate().front() ==
+           kServerLicenseCertificate.front());
     assert(identity.scopeAnsi().front() == kServerLicenseScope.front());
 
     assert(!identity.configure(
         0x00070001U, kServerLicenseCompany,
-        kServerLicenseProduct, kServerLicenseScope));
+        kServerLicenseProduct, kServerLicenseCertificate,
+        kServerLicenseScope));
     assert(identity.productVersion() == 0x00060001U);
 
     RdpServerLicenseIdentity zeroVersion;
     assert(!zeroVersion.configure(
         0U, kServerLicenseCompany,
-        kServerLicenseProduct, kServerLicenseScope));
+        kServerLicenseProduct, kServerLicenseCertificate,
+        kServerLicenseScope));
 
     RdpServerLicenseIdentity oddCompany;
     assert(!oddCompany.configure(
         0x00060001U,
         std::span(kServerLicenseCompany).first(
             kServerLicenseCompany.size() - 1U),
-        kServerLicenseProduct, kServerLicenseScope));
+        kServerLicenseProduct, kServerLicenseCertificate,
+        kServerLicenseScope));
 
     auto embeddedZeroCompany = kServerLicenseCompany;
     embeddedZeroCompany[2] = 0U;
@@ -4760,11 +4777,13 @@ void testRdpServerLicenseIdentityConfiguration()
     RdpServerLicenseIdentity embeddedZero;
     assert(!embeddedZero.configure(
         0x00060001U, embeddedZeroCompany,
-        kServerLicenseProduct, kServerLicenseScope));
+        kServerLicenseProduct, kServerLicenseCertificate,
+        kServerLicenseScope));
 
     RdpServerLicenseIdentity missingScopeTerminator;
     assert(!missingScopeTerminator.configure(
         0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        kServerLicenseCertificate,
         std::span(kServerLicenseScope).first(
             kServerLicenseScope.size() - 1U)));
 
@@ -4776,7 +4795,42 @@ void testRdpServerLicenseIdentityConfiguration()
     RdpServerLicenseIdentity oversized;
     assert(!oversized.configure(
         0x00060001U, oversizedCompany,
-        kServerLicenseProduct, kServerLicenseScope));
+        kServerLicenseProduct, kServerLicenseCertificate,
+        kServerLicenseScope));
+}
+
+void testRdpServerLicenseRequestCertificateRequired()
+{
+    std::array<std::uint8_t, 128> output{};
+    output.fill(0xa5U);
+    auto fields = serverLicenseFields();
+    fields.serverCertificate = {};
+    assert(encodeEnhancedSecurityServerLicenseRequest(fields, output).error ==
+           RdpServerLicenseRequestEncodeError::InvalidServerCertificate);
+    assert(std::all_of(
+        output.begin(), output.end(),
+        [](std::uint8_t value) { return value == 0xa5U; }));
+
+    // In this Enhanced-Security path SC_SECURITY contains no certificate, so
+    // live provisioning may not rely on an absent fallback certificate.
+    RdpServerLicenseIdentity missingCertificate;
+    assert(!missingCertificate.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        {}, kServerLicenseScope));
+    assert(!missingCertificate.configured());
+
+    RdpLicensingLifecycle lifecycle;
+    RdpServerLicenseRequestWriteGate writer{lifecycle};
+    assert(!writer.queue(missingCertificate));
+    assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseCertificateBytes + 1U>
+        oversizedCertificate{};
+    RdpServerLicenseIdentity oversized;
+    assert(!oversized.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        oversizedCertificate, kServerLicenseScope));
 }
 
 void testRdpServerLicenseRequestGeneratedRandom()
@@ -4789,7 +4843,7 @@ void testRdpServerLicenseRequestGeneratedRandom()
     assert(writer.queue(identity));
     const auto pending = writer.pendingWrite();
     assert(pending);
-    assert(pending.bytes.size() == 90U);
+    assert(pending.bytes.size() == 94U);
 
     const auto parsed = parseRdpLicensingMessage(pending.bytes);
     assert(parsed);
@@ -4821,7 +4875,7 @@ void testRdpServerLicenseRequestWriteReceipts()
 
     const auto first = writer.pendingWrite();
     assert(first);
-    assert(first.bytes.size() == 90U);
+    assert(first.bytes.size() == 94U);
 
     assert(writer.onBytesWritten(
                first.replySequence, first.writeSliceSequence, 0U) ==
@@ -5108,7 +5162,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 81> kMcsTestCases{{
+constexpr std::array<McsTestCase, 82> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -5154,6 +5208,7 @@ constexpr std::array<McsTestCase, 81> kMcsTestCases{{
     {"mcs-session-domain-failure-boundaries", &testMcsSessionDomainFailureBoundaries},
     {"licensing-server-request-wire", &testRdpServerLicenseRequestWire},
     {"licensing-server-identity-configuration", &testRdpServerLicenseIdentityConfiguration},
+    {"licensing-server-request-certificate-required", &testRdpServerLicenseRequestCertificateRequired},
     {"licensing-server-request-generated-random", &testRdpServerLicenseRequestGeneratedRandom},
     {"licensing-server-request-write-receipts", &testRdpServerLicenseRequestWriteReceipts},
     {"licensing-server-request-write-denials", &testRdpServerLicenseRequestWriteDenials},

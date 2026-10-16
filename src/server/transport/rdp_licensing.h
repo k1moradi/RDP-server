@@ -64,16 +64,20 @@ struct RdpLicensingParseResult
 [[nodiscard]] RdpLicensingParseResult parseRdpLicensingMessage(
     std::span<const std::uint8_t> completeMessage) noexcept;
 
-// Enhanced-Security SERVER_LICENSE_REQUEST omits the redundant licensing
-// certificate, but still requires genuine random and provisioned identity.
-// Bound the one owned connection-sequence write independently of peer limits.
-inline constexpr std::size_t kMaximumRdpServerLicenseRequestBytes = 2048U;
+// Under Enhanced RDP Security, SC_SECURITY carries no server certificate.
+// SERVER_LICENSE_REQUEST therefore has to carry the explicitly provisioned
+// licensing certificate needed by the client's RSA key exchange. Keep the
+// complete owned request below R1's existing 18 KiB TLS application boundary.
+inline constexpr std::size_t kMaximumRdpServerLicenseRequestBytes = 16U * 1024U;
+inline constexpr std::size_t kMaximumRdpServerLicenseCertificateBytes =
+    14U * 1024U;
 
 enum class RdpServerLicenseRequestEncodeError : std::uint8_t
 {
     None,
     InvalidRandom,
     InvalidProductInfo,
+    InvalidServerCertificate,
     InvalidScope,
     Oversized,
     OutputTooSmall,
@@ -89,6 +93,9 @@ struct RdpServerLicenseRequestFields
     // Complete null-terminated UTF-16LE strings, terminators included.
     std::span<const std::uint8_t> companyNameUtf16{};
     std::span<const std::uint8_t> productIdUtf16{};
+    // Opaque caller-provisioned BB_CERTIFICATE_BLOB payload. The serializer
+    // bounds/copies it but cannot prove chain validity or private-key binding.
+    std::span<const std::uint8_t> serverCertificate{};
     // Complete null-terminated ANSI issuer scope.
     std::span<const std::uint8_t> scopeAnsi{};
 };
@@ -114,6 +121,7 @@ public:
         std::uint32_t productVersion,
         std::span<const std::uint8_t> companyNameUtf16,
         std::span<const std::uint8_t> productIdUtf16,
+        std::span<const std::uint8_t> serverCertificate,
         std::span<const std::uint8_t> scopeAnsi) noexcept;
 
     [[nodiscard]] bool configured() const noexcept { return configured_; }
@@ -138,6 +146,14 @@ public:
             : std::span<const std::uint8_t>{};
     }
     [[nodiscard]] std::span<const std::uint8_t>
+    serverCertificate() const noexcept
+    {
+        return configured_
+            ? std::span<const std::uint8_t>{
+                  serverCertificate_.data(), serverCertificateLength_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
     scopeAnsi() const noexcept
     {
         return configured_
@@ -151,11 +167,14 @@ private:
         companyNameUtf16_{};
     std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
         productIdUtf16_{};
+    std::array<std::uint8_t, kMaximumRdpServerLicenseCertificateBytes>
+        serverCertificate_{};
     std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
         scopeAnsi_{};
     std::uint32_t productVersion_{};
     std::size_t companyNameUtf16Length_{};
     std::size_t productIdUtf16Length_{};
+    std::size_t serverCertificateLength_{};
     std::size_t scopeAnsiLength_{};
     bool attempted_{};
     bool configured_{};
@@ -175,10 +194,11 @@ struct RdpServerLicenseRequestEncodeResult
 
 // MS-RDPELE 2.2.2.1 SERVER_LICENSE_REQUEST for Enhanced RDP Security.
 // Allocation-free; output is untouched on failure. The key-exchange BLOB is
-// KEY_EXCHANGE_ALG_RSA, the certificate BLOB is empty as permitted when TLS
-// protects RDP traffic, and exactly one caller-provisioned scope is emitted.
-// This function never invents random bytes, product/scope identity, licensing
-// authority, certificate material, or authorization.
+// KEY_EXCHANGE_ALG_RSA and the nonempty BB_CERTIFICATE_BLOB is copied from
+// explicit provisioning because Enhanced-Security SC_SECURITY contains no
+// certificate fallback. Exactly one caller-provisioned scope is emitted.
+// This function never invents random bytes, product/scope identity, certificate
+// material, private-key binding, licensing authority, or authorization.
 [[nodiscard]] RdpServerLicenseRequestEncodeResult
 encodeEnhancedSecurityServerLicenseRequest(
     const RdpServerLicenseRequestFields &fields,

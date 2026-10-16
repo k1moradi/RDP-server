@@ -1571,10 +1571,13 @@ void testR3ServerLicenseRequestWriteContract()
         0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00};
     constexpr std::array<std::uint8_t, 8> product{
         0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 4> certificate{
+        0xde,0xad,0xbe,0xef};
     constexpr std::array<std::uint8_t, 6> scope{
         0x73,0x63,0x6f,0x70,0x65,0x00};
     RdpServerLicenseIdentity identity;
-    assert(identity.configure(0x00060001U, company, product, scope));
+    assert(identity.configure(
+        0x00060001U, company, product, certificate, scope));
 
     // A real production licensing writer obtains its own CSPRNG random and can
     // produce valid receipt integers. Those integers remain non-transferable.

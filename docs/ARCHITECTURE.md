@@ -4428,3 +4428,66 @@ Credentialed execution is **NOT RUN** in this connector environment. Canonical
 owner `~/rdp-server/build` is also **NOT RUN** because no checkout is mounted.
 M2/M3 remain **OPEN** and positive native admission remains **BLOCKED on R2**
 until a reviewed positive final-credential authorization contract exists.
+
+## R3 Enhanced-Security licensing certificate source correction (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `8e9040f198982e1e7b52c8597dbbb9b47730ba2e`.
+
+The next cryptographic licensing step exposed a prerequisite interoperability
+bug in the earlier Server License Request authoring. This server negotiates
+Enhanced RDP Security, so MS-RDPBCGR 2.2.1.4.3 requires SC_SECURITY
+`encryptionMethod=0` and `encryptionLevel=0`; the existing MCS response
+correctly emits no `serverRandom` or `serverCertificate` fields there.
+MS-RDPELE 2.2.2.1 permits an empty `ServerCertificate` BLOB only when the
+client can use the public key from Server Security Data. That fallback does not
+exist on this Enhanced-Security path. The prior empty licensing-certificate
+encoding is therefore superseded for live R3 sessions.
+
+`RdpServerLicenseIdentity` now requires and owns a nonempty explicitly
+provisioned `BB_CERTIFICATE_BLOB` payload in addition to product/scope
+identity. The protocol layer treats those bytes as bounded opaque credential
+material: it does not invent a certificate, parse or bless a certificate
+chain, or claim that a matching private key is available. Missing or oversized
+certificate material fails the one-shot identity configuration and live request
+writer closed.
+
+The complete `SERVER_LICENSE_REQUEST` owner grows from a 2 KiB ceiling to a
+16 KiB ceiling, still below R1's existing 18 KiB TLS application-I/O boundary.
+The certificate itself is capped at 14 KiB, leaving bounded room for the fixed
+licensing fields and the existing three 512-byte identity strings. The
+deterministic serializer now writes the nonzero certificate BLOB length and
+bytes and reports `InvalidServerCertificate` without modifying caller output
+when the certificate is absent. CSPRNG ServerRandom generation and receipt
+accounting are unchanged.
+
+Portable production-linked coverage strengthens
+`transport.licensing-server-request-wire` and
+`transport.licensing-server-identity-configuration`, and adds
+`transport.licensing-server-request-certificate-required`. The R1
+`transport.tcp-owned-r3-license-request-slice` fixture is updated only with
+opaque certificate bytes so its short-write/receipt invariant remains the same.
+R9's bounded sanitizer selector now directly includes the identity,
+certificate-required and generated-random cases in addition to the existing
+request wire/receipt/denial coverage.
+
+This is a standards prerequisite, **not** a licensing decision. The test
+certificate bytes are explicitly opaque serializer fixtures, not a fabricated
+valid credential. No private key is introduced, no client premaster secret is
+decrypted, no licensing keys or MAC are derived or verified, and no
+`STATUS_VALID_CLIENT`, Platform Challenge, New License, Demand Active, Share,
+graphics, input, clipboard or desktop authority can advance.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer, documentation-policy and
+SDK/package evidence are pending.
+
+**Next R3:** add a bounded credential/key-processing boundary for the accepted
+client licensing response: retain/extract the exact 32-byte ClientRandom and
+encrypted premaster BLOB, require an explicitly provisioned private key that
+matches the advertised licensing certificate, perform the specified RSA
+premaster decryption and MS-RDPELE 5.1.2 licensing-key derivation, and still
+stop before any positive client decision until the relevant MAC/license
+material is cryptographically verified. R10 remains responsible for real
+service credential provisioning. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

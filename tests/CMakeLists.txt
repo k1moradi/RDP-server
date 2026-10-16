@@ -62,6 +62,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-session-domain-failure-boundaries
                 licensing-server-request-wire
                 licensing-server-identity-configuration
+                licensing-server-request-certificate-required
                 licensing-server-request-generated-random
                 licensing-server-request-write-receipts
                 licensing-server-request-write-denials

@@ -15,6 +15,58 @@
 
 namespace rdp::macos
 {
+namespace
+{
+
+[[nodiscard]] bool isHexDigit(const char character) noexcept
+{
+    return (character >= '0' && character <= '9') ||
+           (character >= 'a' && character <= 'f') ||
+           (character >= 'A' && character <= 'F');
+}
+
+[[nodiscard]] bool validLocalFileUrl(
+    const std::string_view url) noexcept
+{
+    constexpr std::string_view kLocalFilePrefix{"file:///"};
+    if (url.empty())
+    {
+        return true;
+    }
+    if (url.size() <= kLocalFilePrefix.size() ||
+        url.size() >
+            MacClipboardFileDestination::kMaximumLocalFileUrlBytes ||
+        !url.starts_with(kLocalFilePrefix))
+    {
+        return false;
+    }
+
+    for (std::size_t index = kLocalFilePrefix.size();
+         index < url.size(); ++index)
+    {
+        const unsigned char byte =
+            static_cast<unsigned char>(url[index]);
+        if (byte <= 0x20U || byte >= 0x7fU ||
+            url[index] == '\\' || url[index] == '?' ||
+            url[index] == '#')
+        {
+            return false;
+        }
+        if (url[index] == '%')
+        {
+            if (index + 2U >= url.size() ||
+                !isHexDigit(url[index + 1U]) ||
+                !isHexDigit(url[index + 2U]))
+            {
+                return false;
+            }
+            index += 2U;
+        }
+    }
+    return true;
+}
+
+} // namespace
 
 MacClipboardFileDestination::MacClipboardFileDestination(
     RemoteTransfer &remoteTransfer,
@@ -82,6 +134,8 @@ void MacClipboardFileDestination::discardPartial(
         closeDestination();
     }
     activeRequest_ = {};
+    localFileUrl_.fill(0);
+    localFileUrlLength_ = 0;
     status_ = discarded ? terminalStatus : Status::NativeError;
 }
 
@@ -132,8 +186,41 @@ bool MacClipboardFileDestination::begin(
     const std::size_t fileIndex,
     const MacClipboardFileDescriptorToken destinationDescriptor) noexcept
 {
+    return beginInternal(fileIndex, destinationDescriptor, {});
+}
+
+bool MacClipboardFileDestination::begin(
+    const std::size_t fileIndex,
+    const MacClipboardFileDescriptorToken destinationDescriptor,
+    const std::string_view localFileUrl) noexcept
+{
+    if (localFileUrl.empty())
+    {
+        return false;
+    }
+    return beginInternal(
+        fileIndex, destinationDescriptor, localFileUrl);
+}
+
+std::optional<std::string_view>
+MacClipboardFileDestination::completedFileUrl() const noexcept
+{
+    if (status_ != Status::Complete || localFileUrlLength_ == 0)
+    {
+        return std::nullopt;
+    }
+    return std::string_view{
+        localFileUrl_.data(), localFileUrlLength_};
+}
+
+bool MacClipboardFileDestination::beginInternal(
+    const std::size_t fileIndex,
+    const MacClipboardFileDescriptorToken destinationDescriptor,
+    const std::string_view localFileUrl) noexcept
+{
     if (closed_ || status_ != Status::Idle ||
         destinationDescriptor < 0 ||
+        !validLocalFileUrl(localFileUrl) ||
         !remoteTransfer_.synchronized() ||
         !remoteTransfer_.fileStreamingAvailable())
     {
@@ -171,6 +258,11 @@ bool MacClipboardFileDestination::begin(
         file->name.begin(), file->name.end(),
         sourceName_.begin());
     sourceNameLength_ = file->name.size();
+    localFileUrl_.fill(0);
+    localFileUrlLength_ = localFileUrl.size();
+    std::copy(
+        localFileUrl.begin(), localFileUrl.end(),
+        localFileUrl_.begin());
     sourceGeneration_ = remoteTransfer_.generation();
     fileIndex_ = fileIndex;
     expectedSizeKnown_ = file->sizeKnown;

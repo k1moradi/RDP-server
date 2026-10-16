@@ -1,3 +1,32 @@
+## R8 macOS completed-file pasteboard handoff (2026-10-16)
+
+The existing `MacClipboardFileDestination` now optionally binds one
+caller-selected strict local `file:///` URL to the same descriptor capability
+used for materialization. This local URL is fixed-capacity metadata, never a
+path derived from remote FILEDESCRIPTORW. It is erased on partial failure or
+cancellation and is observable only after the destination reaches `Complete`.
+
+`MacClipboardAdapter` remains the only macOS pasteboard presentation owner.
+Its completed-file publication accepts a `MacClipboardFileDestination`, not an
+arbitrary "complete" Boolean or raw URL. It requires destination
+`Status::Complete`, a bound completed URL, current synchronized
+`RemoteTransfer`, and exact generation equality before entering the native
+seam. Thus a partial or stale file cannot be made visible merely by caller
+assertion.
+
+The AppKit callback converts the bounded UTF-8 `file:///` string to an
+`NSURL`, requires `isFileURL`, clears the currently owned pasteboard and
+writes the URL object via `writeObjects:`. Apple documents `NSURL` as
+implementing `NSPasteboardWriting` and recommends object-based URL writes in
+place of the deprecated URL pasteboard type. No file bytes are recopied into
+the pasteboard.
+
+File URLs share the existing pasteboard `changeCount` owner fence with text
+and PNG. A detected local takeover yields the generation before any replacement
+can occur; same-generation reclaim is refused. Remote generation replacement
+and disconnect clear only while the recorded count still proves R8 owns the
+pasteboard. There is still one clipboard owner and one FileContents owner.
+
 ## R8 macOS file-descriptor destination boundary (2026-10-16)
 
 `MacClipboardFileDestination` mirrors the validated Linux/Windows native sink

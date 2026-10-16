@@ -1,3 +1,23 @@
+## Completed native file handoff must consume a completion capability
+
+Do not let a caller publish an arbitrary local path/URL by passing a Boolean
+that says a transfer finished. Native file-manager/pasteboard publication must
+consume the concrete completed destination object that owns the materialization
+lifecycle and verify its source generation still matches the one
+`RemoteTransfer` owner.
+
+Caller-selected local URL/path metadata must be bound to the native destination
+capability before transfer and must never be derived from remote
+FILEDESCRIPTORW names. Hide and erase that metadata while materialization is
+partial or failed. Only exact-size, flushed, closed completion may expose it.
+
+On macOS, write completed file URLs as `NSURL` objects through
+`NSPasteboard.writeObjects:`; do not resurrect deprecated URL pasteboard
+types or copy the file body into pasteboard memory. Reuse the existing
+`MacClipboardAdapter` change-count ownership fence so file handoff cannot
+become a second clipboard controller or steal a generation back after local
+takeover.
+
 ## macOS clipboard file destinations are explicit descriptor capabilities
 
 For R8 macOS file materialization, never derive a local filesystem path from a

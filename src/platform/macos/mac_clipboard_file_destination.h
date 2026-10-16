@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 
 namespace rdp::macos
 {
@@ -52,6 +53,10 @@ class MacClipboardFileDestination final
 public:
     using RemoteTransfer =
         rdp_server::server::clipboard::RemoteTransfer;
+
+    // Caller-selected local file URL metadata for completed Finder/pasteboard
+    // handoff. Non-ASCII path bytes must be percent-encoded by the caller.
+    static constexpr std::size_t kMaximumLocalFileUrlBytes = 4096U;
 
     enum class Status : std::uint8_t
     {
@@ -101,6 +106,20 @@ public:
         std::size_t fileIndex,
         MacClipboardFileDescriptorToken destinationDescriptor) noexcept;
 
+    // Optional handoff-aware overload. localFileUrl is caller-selected local
+    // metadata bound to this exact destination capability; it is never
+    // constructed from the remote FILEDESCRIPTORW name. Only strict file:///
+    // URLs are retained.
+    [[nodiscard]] bool begin(
+        std::size_t fileIndex,
+        MacClipboardFileDescriptorToken destinationDescriptor,
+        std::string_view localFileUrl) noexcept;
+
+    // Available only after exact-size completion, flush and duplicate close.
+    // The returned view borrows this destination object.
+    [[nodiscard]] std::optional<std::string_view>
+    completedFileUrl() const noexcept;
+
     [[nodiscard]] std::optional<RequestIntent>
     nextRequestIntent() noexcept;
 
@@ -144,6 +163,10 @@ public:
     }
 
 private:
+    [[nodiscard]] bool beginInternal(
+        std::size_t fileIndex,
+        MacClipboardFileDescriptorToken destinationDescriptor,
+        std::string_view localFileUrl) noexcept;
     [[nodiscard]] bool nativeOperationsValid() const noexcept;
     [[nodiscard]] bool ensureSourceCurrent() noexcept;
     [[nodiscard]] bool finishComplete() noexcept;
@@ -153,7 +176,9 @@ private:
     RemoteTransfer &remoteTransfer_;
     MacClipboardFileNativeOperations nativeOperations_{};
     std::array<char16_t, 260> sourceName_{};
+    std::array<char, kMaximumLocalFileUrlBytes> localFileUrl_{};
     std::size_t sourceNameLength_{};
+    std::size_t localFileUrlLength_{};
     RemoteTransfer::FileContentsRequestReceipt activeRequest_{};
     std::uint64_t sourceGeneration_{};
     std::uint64_t expectedSize_{};

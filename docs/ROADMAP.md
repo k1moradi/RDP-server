@@ -1,3 +1,56 @@
+## R8 macOS completed-file URL handoff (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `94813489bd8986932b5fe09310c80ad24c77eb76`. The bounded macOS descriptor
+destination from `d0116485e53118c5312cd0a9f0d72a928510a7f6` is exact-SHA
+hosted validated by Actions `38972938206` (**SUCCESS**). Linux descriptor
+streaming/completed-file X11 handoff and Windows descriptor streaming retain
+their existing validated state.
+
+This increment adds the macOS **completed-only Finder/pasteboard handoff**
+without creating another clipboard owner. A caller may bind one strict local
+`file:///` URL to `MacClipboardFileDestination::begin` together with the
+already caller-selected destination descriptor. The URL is local capability
+metadata only: it is never constructed from the remote FILEDESCRIPTORW leaf
+name, is fixed at begin time, remains hidden while the file is partial, and is
+exposed only after exact-size materialization, final resize, `fsync`, and
+duplicate close.
+
+The existing `MacClipboardAdapter` remains the sole AppKit pasteboard owner.
+It can publish one completed destination only when the destination's source
+generation still equals the current synchronized `RemoteTransfer` generation.
+The native AppKit bridge converts the validated local URL string to `NSURL`
+and writes that URL object through `NSPasteboard.writeObjects:`, matching
+Apple's current recommendation for URL pasteboard publication. It does not
+advertise the deprecated URL pasteboard type directly and performs no CLIPRDR
+request or file I/O.
+
+Pasteboard publication retains the existing `changeCount` ownership fence.
+If another application has taken the pasteboard, the current remote generation
+is yielded and same-generation file-URL publication cannot steal it back.
+Generation replacement clears an R8-owned URL only while the recorded change
+count still proves ownership. A stale completed destination from an older
+generation is refused.
+
+The new production-backed CTest
+`clipboard.macos-completed-file-url-handoff` uses the real destination state
+machine plus injected native descriptor/pasteboard seams. It proves partial
+files are not publishable, exact completion reveals the caller URL, publication
+contains file URL only, local owner takeover prevents reclaim, and a later
+remote generation rejects the stale completed destination. Existing destination
+denials additionally reject nonlocal/malformed URL metadata before descriptor
+duplication. Ordinary CTest never touches the host pasteboard or a user's file.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate build root was created.
+Exact-publication-SHA hosted Linux/GCC, macOS/AppleClang, Windows/MSVC,
+R9 ASan/UBSan clipboard, documentation policy and SDK/package evidence are
+**PENDING**. Live Finder paste, owner macOS 27, authenticated Microsoft-client
+file copy and performance remain **NOT RUN/OPEN**.
+
+**Next R8 after hosted validation:** add the equivalent completed-only Windows
+file-manager/Explorer handoff, then directory-tree materialization and
+real-client file-copy acceptance. R3 remains the sole authorized CLIPRDR writer.
+
 ## R6 coordinated Windows native session retirement (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `5f00b101ea4e47f1ac60c5fe7ebb25b2f9b353c2`.

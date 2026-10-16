@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "clipboard/clipboard_protocol.h"
 #include "server/clipboard/remote_transfer.h"
+#include "platform/macos/mac_clipboard_adapter.h"
 #include "platform/macos/mac_clipboard_file_destination.h"
 
 #include <algorithm>
@@ -306,6 +307,72 @@ struct FakeNative final
     }
 };
 
+struct FakePasteboard final
+{
+    std::uint64_t changeCount{31U};
+    std::string fileUrl{};
+    unsigned readCalls{};
+    unsigned replaceCalls{};
+    unsigned clearCalls{};
+    bool hasFileUrl{};
+    bool failReplace{};
+
+    static bool readChangeCount(
+        void *context, std::uint64_t &value) noexcept
+    {
+        auto &self = *static_cast<FakePasteboard *>(context);
+        ++self.readCalls;
+        value = self.changeCount;
+        return true;
+    }
+
+    static bool replaceContents(
+        void *context,
+        const MacClipboardNativeContent &content) noexcept
+    {
+        auto &self = *static_cast<FakePasteboard *>(context);
+        ++self.replaceCalls;
+        if (self.failReplace || !content.hasFileUrl ||
+            content.fileUrl.empty() ||
+            content.hasText || content.hasPng)
+        {
+            return false;
+        }
+
+        ++self.changeCount;
+        self.hasFileUrl = true;
+        self.fileUrl = std::string{content.fileUrl};
+        return true;
+    }
+
+    static bool clearContents(void *context) noexcept
+    {
+        auto &self = *static_cast<FakePasteboard *>(context);
+        ++self.clearCalls;
+        ++self.changeCount;
+        self.hasFileUrl = false;
+        self.fileUrl.clear();
+        return true;
+    }
+
+    [[nodiscard]] MacClipboardNativeOperations operations() noexcept
+    {
+        return {
+            this,
+            &readChangeCount,
+            &replaceContents,
+            &clearContents,
+        };
+    }
+
+    void localTakeover()
+    {
+        ++changeCount;
+        hasFileUrl = true;
+        fileUrl = "file:///tmp/local-owner.txt";
+    }
+};
+
 std::vector<std::uint8_t> makeChunk(
     const std::uint64_t offset,
     const std::size_t bytes)
@@ -467,6 +534,21 @@ void macosFileDestinationDenials()
 {
     {
         RemoteTransfer owner;
+        installSingleFileOffer(owner, u"url.bin", true, 4U);
+        FakeNative native;
+        MacClipboardFileDestination destination{
+            owner, native.operations()};
+        assert(!destination.begin(
+            0, native.sourceToken, "https://example.test/url.bin"));
+        assert(!destination.begin(
+            0, native.sourceToken, "file:///tmp/has space.bin"));
+        assert(destination.status() ==
+               MacClipboardFileDestination::Status::Idle);
+        assert(native.duplicateCalls == 0U);
+    }
+
+    {
+        RemoteTransfer owner;
         installSingleFileOffer(owner, u"replace.bin", true, 8U);
         FakeNative native;
         MacClipboardFileDestination destination{
@@ -539,6 +621,61 @@ void macosFileDestinationDenials()
                MacClipboardFileDestination::Status::NativeError);
         assert(native.bytes.empty());
     }
+}
+
+void macosCompletedFileUrlHandoff()
+{
+    constexpr std::string_view kLocalFileUrl{
+        "file:///tmp/rdp-server-macos-complete.bin"};
+
+    RemoteTransfer owner;
+    installSingleFileOffer(owner, u"remote-name.bin", true, 4U);
+
+    FakeNative fileNative;
+    MacClipboardFileDestination destination{
+        owner, fileNative.operations()};
+    assert(destination.begin(
+        0, fileNative.sourceToken, kLocalFileUrl));
+    assert(!destination.completedFileUrl());
+
+    FakePasteboard pasteboard;
+    MacClipboardAdapter adapter{owner, pasteboard.operations()};
+    assert(!adapter.publishCompletedFileDestination(destination));
+    assert(pasteboard.replaceCalls == 0U);
+
+    const auto intent = destination.nextRequestIntent();
+    assert(intent && intent->requestedBytes == 4U);
+    const auto bytes = makeChunk(0U, 4U);
+    receiveRange(owner, destination, *intent, bytes);
+    assert(destination.status() ==
+           MacClipboardFileDestination::Status::Complete);
+    const auto completedUrl = destination.completedFileUrl();
+    assert(completedUrl && *completedUrl == kLocalFileUrl);
+
+    assert(adapter.publishCompletedFileDestination(destination));
+    assert(adapter.ownsPasteboard());
+    assert(adapter.publicationGeneration() == owner.generation());
+    assert(pasteboard.hasFileUrl);
+    assert(pasteboard.fileUrl == kLocalFileUrl);
+
+    // A local owner wins the change-count race. R8 must not steal the same
+    // generation back even though the completed local file still exists.
+    pasteboard.localTakeover();
+    const unsigned replacementsBeforeTakeover =
+        pasteboard.replaceCalls;
+    const unsigned clearsBeforeTakeover = pasteboard.clearCalls;
+    assert(!adapter.observePasteboardChange());
+    assert(!adapter.publishCompletedFileDestination(destination));
+    assert(pasteboard.replaceCalls == replacementsBeforeTakeover);
+    assert(pasteboard.clearCalls == clearsBeforeTakeover);
+    assert(pasteboard.fileUrl == "file:///tmp/local-owner.txt");
+
+    // A completed materialization is generation-bound and cannot be handed
+    // off after a newer remote clipboard offer replaces its source.
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(!adapter.publishCompletedFileDestination(destination));
 }
 
 #if defined(__APPLE__)
@@ -640,6 +777,11 @@ int main(int argc, char **argv)
     if (behavior == "macos-file-destination-denials")
     {
         macosFileDestinationDenials();
+        return 0;
+    }
+    if (behavior == "macos-completed-file-url-handoff")
+    {
+        macosCompletedFileUrlHandoff();
         return 0;
     }
 #if defined(__APPLE__)

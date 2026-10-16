@@ -1,3 +1,27 @@
+## R8 macOS completed-file URL handoff authoring validation (2026-10-16)
+
+**Base:** `94813489bd8986932b5fe09310c80ad24c77eb76`. Predecessor macOS descriptor implementation
+`d0116485e53118c5312cd0a9f0d72a928510a7f6`, Actions
+`38972938206`, is **SUCCESS**. Current Apple AppKit documentation was checked
+for `NSPasteboard.writeObjects:`, `NSPasteboardWriting`, URL pasteboard
+guidance and item string semantics before authoring.
+
+The new handoff reuses the existing production `MacClipboardFileDestination`
+and `MacClipboardAdapter`; no new transport owner or file cache is added.
+The dedicated ordinary CTest
+`clipboard.macos-completed-file-url-handoff` exercises partial-file denial,
+exact completion, URL-only publication, `changeCount` owner takeover and stale
+generation denial through deterministic native seams. URL validation is also
+covered before descriptor duplication. On Apple, the existing Objective-C++
+target compile/link now includes the real `NSURL` + `writeObjects:` path,
+but ordinary tests do not invoke `generalPasteboard`.
+
+Canonical local `~/rdp-server/build` execution is **NOT RUN** because this
+connector environment has no owner checkout and project policy forbids a second
+build root. Exact publication-SHA hosted matrix and ASan/UBSan clipboard
+evidence are **PENDING**. Live Finder/file-manager behavior, owner macOS 27,
+Microsoft-client file copy and performance remain **NOT RUN/OPEN**.
+
 ## R6 coordinated native session-retirement authoring receipt (2026-10-16)
 
 **Starting/reconciled shared main:** `5f00b101ea4e47f1ac60c5fe7ebb25b2f9b353c2`.

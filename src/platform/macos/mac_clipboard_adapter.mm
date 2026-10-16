@@ -40,8 +40,10 @@ namespace
 [[nodiscard]] bool nativeReplaceContents(
     void *context, const MacClipboardNativeContent &content) noexcept
 {
-    if ((!content.hasText && !content.hasPng) ||
-        (content.hasPng && content.pngBytes.empty()))
+    if ((!content.hasText && !content.hasPng && !content.hasFileUrl) ||
+        (content.hasPng && content.pngBytes.empty()) ||
+        (content.hasFileUrl &&
+         (content.fileUrl.empty() || content.hasText || content.hasPng)))
     {
         return false;
     }
@@ -52,6 +54,28 @@ namespace
         if (pasteboard == nil)
         {
             return false;
+        }
+
+        if (content.hasFileUrl)
+        {
+            NSString *urlString = [[NSString alloc]
+                initWithBytes:content.fileUrl.data()
+                       length:content.fileUrl.size()
+                     encoding:NSUTF8StringEncoding];
+            NSURL *fileUrl =
+                urlString != nil ? [NSURL URLWithString:urlString] : nil;
+            if (fileUrl == nil || !fileUrl.isFileURL)
+            {
+                return false;
+            }
+
+            (void)[pasteboard clearContents];
+            if (![pasteboard writeObjects:@[ fileUrl ]])
+            {
+                (void)[pasteboard clearContents];
+                return false;
+            }
+            return true;
         }
 
         NSPasteboardItem *item = [[NSPasteboardItem alloc] init];

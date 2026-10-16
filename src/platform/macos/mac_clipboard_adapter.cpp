@@ -54,6 +54,7 @@ void MacClipboardAdapter::clearPublicationState() noexcept
     publicationChangeCount_ = 0;
     textPublished_ = false;
     pngPublished_ = false;
+    fileUrlPublished_ = false;
     ownsPasteboard_ = false;
 }
 
@@ -148,6 +149,7 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
 
     if (success && ownsPasteboard_ &&
         publicationGeneration_ == generation &&
+        !fileUrlPublished_ &&
         textPublished_ == textReady && pngPublished_ == pngReady)
     {
         operationInProgress_ = false;
@@ -217,6 +219,106 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
                     publicationChangeCount_ = changeCount;
                     textPublished_ = textReady;
                     pngPublished_ = pngReady;
+                    fileUrlPublished_ = false;
+                    ownsPasteboard_ = true;
+                }
+            }
+        }
+    }
+
+    operationInProgress_ = false;
+    finishDeferredActions();
+    return success && !closed_;
+}
+
+bool MacClipboardAdapter::publishCompletedFileDestination(
+    const MacClipboardFileDestination &destination) noexcept
+{
+    const auto completedFileUrl = destination.completedFileUrl();
+    if (closed_ || operationInProgress_ ||
+        !remoteTransfer_.synchronized() ||
+        destination.status() !=
+            MacClipboardFileDestination::Status::Complete ||
+        !completedFileUrl)
+    {
+        return false;
+    }
+
+    const std::uint64_t generation = remoteTransfer_.generation();
+    if (generation == 0U ||
+        destination.generation() != generation ||
+        generation == yieldedGeneration_)
+    {
+        return false;
+    }
+
+    operationInProgress_ = true;
+    bool success = true;
+    if (ownsPasteboard_)
+    {
+        const bool stillOwner = refreshNativeOwnership();
+        if (closed_)
+        {
+            success = false;
+        }
+        else if (!stillOwner)
+        {
+            // refreshNativeOwnership records this generation as yielded after
+            // a local takeover; never immediately steal the pasteboard back.
+            success = false;
+        }
+        else if (publicationGeneration_ != generation)
+        {
+            success = clearOwnedPublication();
+        }
+    }
+
+    if (success)
+    {
+        MacClipboardNativeContent content{};
+        content.fileUrl = *completedFileUrl;
+        content.hasFileUrl = true;
+        success = nativeOperations_.replaceContents(
+            nativeOperations_.context, content);
+        if (success)
+        {
+            std::uint64_t changeCount{};
+            success = nativeOperations_.readChangeCount(
+                nativeOperations_.context, changeCount);
+            if (!success)
+            {
+                // Replacement may have succeeded, but ownership is ambiguous.
+                clearPublicationState();
+                closed_ = true;
+            }
+            else
+            {
+                const auto currentFileUrl =
+                    destination.completedFileUrl();
+                const bool sourceStillCurrent =
+                    remoteTransfer_.synchronized() &&
+                    remoteTransfer_.generation() == generation &&
+                    destination.generation() == generation &&
+                    destination.status() ==
+                        MacClipboardFileDestination::Status::Complete &&
+                    currentFileUrl.has_value();
+                if (!sourceStillCurrent)
+                {
+                    if (!nativeOperations_.clearContents(
+                            nativeOperations_.context))
+                    {
+                        closed_ = true;
+                    }
+                    clearPublicationState();
+                    success = false;
+                }
+                else
+                {
+                    publicationGeneration_ = generation;
+                    publicationChangeCount_ = changeCount;
+                    textPublished_ = false;
+                    pngPublished_ = false;
+                    fileUrlPublished_ = true;
                     ownsPasteboard_ = true;
                 }
             }

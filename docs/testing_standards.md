@@ -1,3 +1,19 @@
+## Completed-file handoff tests must prove partial invisibility
+
+For native file-manager/pasteboard handoff, construct the real destination
+state machine and prove its local handoff metadata is unavailable before exact
+completion. Then complete the file through genuine `RemoteTransfer`
+FileContents receipts/results and verify only the completed local capability is
+published. Negative coverage must include malformed/nonlocal local metadata,
+generation replacement, local clipboard-owner takeover and same-generation
+reclaim denial.
+
+Ordinary tests must inject pasteboard/file-manager operations rather than touch
+the user's live desktop. Apple builds should still compile/link the real
+AppKit URL-object path. Synthetic URL publication proves only the completed-file
+handoff boundary; Finder acceptance and Microsoft-client clipboard file copy
+remain separate live acceptance gates.
+
 ## R6 coordinated Windows session-retirement coverage (2026-10-16)
 
 A native Windows session-change retirement test must compose the real

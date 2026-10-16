@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "mac_clipboard_file_destination.h"
 #include "server/clipboard/remote_transfer.h"
 
 #include <cstddef>
@@ -16,9 +17,11 @@ namespace rdp::macos
 struct MacClipboardNativeContent final
 {
     std::string_view utf8Text{};
+    std::string_view fileUrl{};
     std::span<const std::byte> pngBytes{};
     bool hasText{};
     bool hasPng{};
+    bool hasFileUrl{};
 };
 
 // Allocation-free native pasteboard seam. Production callbacks are backed by
@@ -66,6 +69,12 @@ public:
     // generation so repeated publication cannot immediately steal it back.
     [[nodiscard]] bool publishReadyRemoteGeneration() noexcept;
 
+    // Publish exactly one completed caller-selected local file URL. The
+    // destination must be Complete and still belong to the current remote
+    // generation. Partial files and stale completed generations are refused.
+    [[nodiscard]] bool publishCompletedFileDestination(
+        const MacClipboardFileDestination &destination) noexcept;
+
     // Compare the native pasteboard change count with the count recorded after
     // publication. A mismatch means another owner took the pasteboard.
     [[nodiscard]] bool observePasteboardChange() noexcept;
@@ -93,6 +102,7 @@ private:
     std::uint64_t publicationChangeCount_{};
     bool textPublished_{};
     bool pngPublished_{};
+    bool fileUrlPublished_{};
     bool ownsPasteboard_{};
     bool operationInProgress_{};
     bool generationChangeRequested_{};

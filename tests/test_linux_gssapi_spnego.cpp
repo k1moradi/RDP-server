@@ -769,7 +769,9 @@ void testR3InitialNlaOwnerFence()
     // Response or Erect Domain after the sole R3 owner has been retired.
     session.revokeUnlessAdmissionBindingMatches(UINT64_MAX, UINT64_MAX);
     assert(session.phase() == McsSessionPhase::Closed);
-    assert(session.pendingConnectResponse().empty());
+    assert(session.allocatedGccNodeId() == 0U);
+    assert(session.allocatedIoChannelId() == 0U);
+    assert(session.allocatedStaticChannelIds().empty());
     broker.revokeR3Session(acceptor, session);
     assert(session.phase() == McsSessionPhase::Closed);
 }

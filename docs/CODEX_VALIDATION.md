@@ -9114,3 +9114,19 @@ Exact-SHA hosted ASan/UBSan/LSan and ordinary matrix evidence is required after
 publication. Positive Attach User/Join progression, genuine Kerberos/logind
 admission, authorized R3 virtual-channel/desktop routes, owner platform checks,
 Microsoft-client interoperability and performance remain **NOT RUN/BLOCKED**.
+
+
+### R9 sanitizer compile-blocker correction (2026-10-16; CI pending)
+
+The immediately preceding shared sanitizer run on `fa79a916fbdda240a8df9601858989ede5e4ca92`
+failed while compiling the Linux GSS test executable because an older R2/R3
+fixture still called removed diagnostic
+`McsSessionLifecycle::pendingConnectResponse()`. Production R3 intentionally
+no longer exposes that writer state publicly. R9 does not restore the API.
+
+The fixture now verifies the same terminal-close intent only through supported
+public state: phase is `Closed`, GCC node and I/O channel allocation are zero,
+and the static-channel allocation span is empty. This is test-only and does not
+weaken the existing R2/R3 revocation or writer contract. Exact-SHA hosted
+sanitizer evidence is required before the new Attach User replay result is
+claimed.

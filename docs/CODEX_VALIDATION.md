@@ -14561,3 +14561,54 @@ fresh R2 authorization and receipt-bound R1 delivery. Do not emit
 `STATUS_VALID_CLIENT` or activation before those checks. **M2/M3 remain
 OPEN / NOT ACCEPTED.**
 
+## R3 bound client licensing-key preparation exact-SHA validation (2026-10-16)
+
+**Implementation:** `4c8a9cf8a6ebb6efac7a7d293aa815a99ad7e7d7`. **Actions:** `38963581094` — **SUCCESS**.
+
+The exact implementation SHA is green across every hosted gate. Ubuntu/GCC
+full CTest is **463/463 PASS Debug** and **463/463 PASS Release**.
+macOS/Clang is **389/389 PASS Debug** and **389/389 PASS Release**.
+Windows/MSVC focused native preflight is **46/46 PASS Debug** and **46/46
+PASS Release**; the full Windows suite is **418/418 PASS Debug** and
+**418/418 PASS Release**.
+
+The new
+`transport.licensing-initial-crypto-preparation` and
+`transport.licensing-initial-crypto-denials` cases pass in all six hosted
+Debug/Release platform configurations. The positive case composes the
+production key-exchange parser, bound service-credential RSA unwrap and
+MS-RDPELE 5.1.2 derivation, then compares the result with the independent
+derivation oracle. The denial case remains fail-closed for invalid
+ServerRandom, malformed/unexpected client messages, absent credential and
+invalid encrypted-premaster padding.
+
+R9 Clang ASan/UBSan is **PASS**. Its bounded R1/R3
+transport/security/licensing selection is **54/54 PASS**, and the registry
+preflight explicitly finds both new crypto cases; each executes under
+ASan/UBSan and passes. The other configured sanitizer groups also pass:
+clipboard **50/50**, R4 x264/BGRA **20/20**, native R2/R3 GSS **27/27**,
+R10 Linux runtime CredSSP **5/5**, native R5 X11 **25/25**, and bounded
+fuzzer **1/1**. The dedicated R7 session sanitizer side gate and
+documentation policy both pass.
+
+Installed SDK downstream consumer is **1/1 PASS** and ZIP package/artifact
+creation/upload succeeds on Linux, macOS and Windows. No unrelated hosted
+failure is present on this exact R3 SHA.
+
+This validates only bound premaster decryption, key derivation, ownership and
+terminal secret cleansing. CAL/HWID/MAC validation, RC4 licensing payload
+processing, `STATUS_VALID_CLIENT`, Platform Challenge, New/Upgrade License,
+Demand Active, Share activation and Microsoft-client desktop acceptance are
+still **NOT IMPLEMENTED / NOT RUN**. Canonical owner-local
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS 27, genuine Kerberos/NSS/logind positive admission and real service
+licensing credentials remain **NOT RUN / OPEN**. **M2/M3 remain OPEN / NOT
+ACCEPTED.**
+
+**Next R3:** implement cryptographic validation for the
+`CLIENT_LICENSE_INFO` CAL/HWID/MAC path using the session-owned derived keys,
+or the standards-required Platform Challenge/New License path for a
+`CLIENT_NEW_LICENSE_REQUEST`. Any outbound licensing decision must first
+gain the existing fresh R2 authorization and then use receipt-bound R1
+application delivery; activation remains later.
+

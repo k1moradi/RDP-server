@@ -318,8 +318,8 @@ public:
 
     // Start or resume the sole R3-owned SERVER_LICENSE_REQUEST write only
     // after fresh view permission plus exact R1 HYBRID/TLS/GSS/native-session
-    // reauthorization. The fields supply serialization input only: they are
-    // not proof of entropy provenance, licensing authority or R2 admission.
+    // reauthorization. The immutable identity supplies service provisioning;
+    // R3 generates ServerRandom internally. Neither is R2/license authority.
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpServerLicenseRequestWriteView>
     authorizeR3ServerLicenseRequestWrite(
@@ -345,6 +345,20 @@ public:
         std::uint64_t replySequence,
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
+
+    // Consume exactly one complete client licensing response only after the
+    // server request's full receipt and another fresh authorization of the
+    // same native lease/R1 owner. R3 validates global-I/O/segmentation and
+    // SEC_LICENSE_PKT before the licensing lifecycle sees the message.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpLicensingIntake>
+    authorizeR3ClientLicensingMessage(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
 
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.

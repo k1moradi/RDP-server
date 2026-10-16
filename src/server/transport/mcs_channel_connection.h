@@ -163,6 +163,43 @@ struct RdpClientInfoEnvelopeParseResult
 parseEnhancedSecurityClientInfoEnvelope(
     std::span<const std::uint8_t> mcsUserData) noexcept;
 
+// Enhanced RDP Security licensing envelope: the 4-byte Basic Security Header
+// remains mandatory even though TLS already protects the transport. This
+// parser accepts only SEC_LICENSE_PKT plus the spec-ignored sequence/flagsHi
+// bits. Standard-Security encryption/exchange and competing packet-kind flags
+// fail closed before licensing bytes reach the stateful lifecycle.
+enum class RdpLicensingEnvelopeError : std::uint8_t
+{
+    None,
+    TruncatedSecurityHeader,
+    InvalidSecurityFlags,
+    TruncatedLicensingMessage,
+};
+
+struct RdpLicensingEnvelopeView
+{
+    std::uint16_t flags{};
+    std::uint16_t flagsHi{};
+    // Borrowed complete TS_LICENSING_PDU after the Basic Security Header.
+    std::span<const std::uint8_t> licensingMessage{};
+};
+
+struct RdpLicensingEnvelopeParseResult
+{
+    RdpLicensingEnvelopeView value{};
+    RdpLicensingEnvelopeError error{
+        RdpLicensingEnvelopeError::TruncatedSecurityHeader};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpLicensingEnvelopeError::None;
+    }
+};
+
+[[nodiscard]] RdpLicensingEnvelopeParseResult
+parseEnhancedSecurityLicensingEnvelope(
+    std::span<const std::uint8_t> mcsUserData) noexcept;
+
 // Bounded structural validation for MS-RDPBCGR TS_INFO_PACKET plus optional
 // TS_EXTENDED_INFO_PACKET. Sensitive Domain/UserName/Password/Shell/WorkingDir
 // bytes are never returned, copied or logged. Only scalar shape metadata is
@@ -597,6 +634,7 @@ enum class McsSessionPhase : std::uint8_t
     AwaitChannelJoin,
     AwaitServerLicenseRequest,
     AwaitClientLicenseResponse,
+    AwaitServerLicenseDecision,
     Closed,
 };
 
@@ -785,6 +823,16 @@ private:
         std::uint64_t replySequence,
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
+
+    // First client licensing response after the request has been fully
+    // delivered. The concrete R2 broker reauthorizes the same lease/R1 owner;
+    // R3 then proves joined global-I/O MCS routing, complete begin|end
+    // segmentation and SEC_LICENSE_PKT before invoking the bounded licensing
+    // lifecycle. No client license cryptography is decided here.
+    [[nodiscard]] std::optional<RdpLicensingIntake>
+    acceptVerifiedR2ClientLicensingMessage(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
 
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};

@@ -81,8 +81,9 @@ enum class RdpServerLicenseRequestEncodeError : std::uint8_t
 
 struct RdpServerLicenseRequestFields
 {
-    // Borrowed only for encode/queue. The caller must establish CSPRNG
-    // provenance; structural serialization cannot prove entropy quality.
+    // Borrowed only by the deterministic offline serializer. Live R3 writers
+    // do not accept this structure: they generate ServerRandom internally
+    // from the CSPRNG-backed RdpServerLicenseIdentity path.
     std::span<const std::uint8_t> serverRandom{};
     std::uint32_t productVersion{};
     // Complete null-terminated UTF-16LE strings, terminators included.

@@ -327,6 +327,44 @@ RdpClientInfoEnvelopeParseResult parseEnhancedSecurityClientInfoEnvelope(
     return {{flags, flagsHi, info}, RdpClientInfoEnvelopeError::None};
 }
 
+RdpLicensingEnvelopeParseResult parseEnhancedSecurityLicensingEnvelope(
+    std::span<const std::uint8_t> mcsUserData) noexcept
+{
+    constexpr std::size_t kBasicSecurityHeaderBytes = 4U;
+    constexpr std::size_t kLicensePreambleBytes = 4U;
+    constexpr std::uint16_t kSecLicensePkt = 0x0080U;
+    constexpr std::uint16_t kSecResetSeqNo = 0x0010U;
+    constexpr std::uint16_t kSecIgnoreSeqNo = 0x0020U;
+    constexpr std::uint16_t kSecFlagsHiValid = 0x8000U;
+    constexpr std::uint16_t kAllowed =
+        kSecLicensePkt | kSecResetSeqNo | kSecIgnoreSeqNo | kSecFlagsHiValid;
+
+    if (mcsUserData.size() < kBasicSecurityHeaderBytes)
+        return {{}, RdpLicensingEnvelopeError::TruncatedSecurityHeader};
+
+    const std::uint16_t flags =
+        static_cast<std::uint16_t>(mcsUserData[0]) |
+        (static_cast<std::uint16_t>(mcsUserData[1]) << 8U);
+    const std::uint16_t flagsHi =
+        static_cast<std::uint16_t>(mcsUserData[2]) |
+        (static_cast<std::uint16_t>(mcsUserData[3]) << 8U);
+
+    // PROTOCOL_HYBRID already provides encryption/authentication through R1
+    // TLS. SEC_ENCRYPT/SEC_EXCHANGE_PKT/SEC_INFO_PKT and every other packet
+    // kind would describe a different security/connection-sequence path.
+    if ((flags & kSecLicensePkt) == 0U ||
+        (flags & static_cast<std::uint16_t>(~kAllowed)) != 0U)
+        return {{}, RdpLicensingEnvelopeError::InvalidSecurityFlags};
+
+    const auto licensingMessage =
+        mcsUserData.subspan(kBasicSecurityHeaderBytes);
+    if (licensingMessage.size() < kLicensePreambleBytes)
+        return {{}, RdpLicensingEnvelopeError::TruncatedLicensingMessage};
+
+    return {{flags, flagsHi, licensingMessage},
+            RdpLicensingEnvelopeError::None};
+}
+
 RdpClientInfoPacketParseResult parseRdpClientInfoPacket(
     std::span<const std::uint8_t> infoPacket) noexcept
 {
@@ -1230,6 +1268,65 @@ McsSessionLifecycle::completeServerLicenseRequestWrite(
         phase_ = McsSessionPhase::AwaitClientLicenseResponse;
     }
     return outcome;
+}
+
+std::optional<RdpLicensingIntake>
+McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitClientLicenseResponse ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() != RdpLicensingPhase::AwaitClientLicenseResponse ||
+        completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    if (!joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed ||
+        !joins_.matchesJoinedInboundSendData(parsed.request) ||
+        parsed.request.channelId != connectResponseAllocation_.ioChannelId ||
+        parsed.request.segmentation != 3U)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto envelope =
+        parseEnhancedSecurityLicensingEnvelope(parsed.request.userData);
+    if (!envelope)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto intake =
+        licensing_.onClientMessage(envelope.value.licensingMessage);
+    if (intake != RdpLicensingIntake::ClientLicenseInfoAccepted &&
+        intake != RdpLicensingIntake::ClientNewLicenseRequestAccepted)
+    {
+        close();
+        return std::nullopt;
+    }
+    if (licensing_.phase() != RdpLicensingPhase::AwaitServerDecision)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    phase_ = McsSessionPhase::AwaitServerLicenseDecision;
+    return intake;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(

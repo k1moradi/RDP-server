@@ -4524,6 +4524,102 @@ makeClientLicenseInfo()
     return message;
 }
 
+[[nodiscard]] std::vector<std::uint8_t>
+makeEnhancedSecurityClientLicensingEnvelope(
+    std::span<const std::uint8_t> licensingMessage,
+    std::uint16_t flags = 0x0080U,
+    std::uint16_t flagsHi = 0U)
+{
+    std::vector<std::uint8_t> envelope{
+        static_cast<std::uint8_t>(flags),
+        static_cast<std::uint8_t>(flags >> 8U),
+        static_cast<std::uint8_t>(flagsHi),
+        static_cast<std::uint8_t>(flagsHi >> 8U)};
+    envelope.insert(
+        envelope.end(), licensingMessage.begin(), licensingMessage.end());
+    return envelope;
+}
+
+void testRdpClientLicensingEnvelopeWire()
+{
+    const auto newRequest = makeClientNewLicenseRequest();
+    const auto newEnvelope =
+        makeEnhancedSecurityClientLicensingEnvelope(newRequest, 0x0080U, 0x5aa5U);
+    const auto parsed = parseEnhancedSecurityLicensingEnvelope(newEnvelope);
+    assert(parsed);
+    assert(parsed.value.flags == 0x0080U);
+    assert(parsed.value.flagsHi == 0x5aa5U);
+    assert(parsed.value.licensingMessage.size() == newRequest.size());
+    assert(parsed.value.licensingMessage.data() == newEnvelope.data() + 4U);
+    const auto parsedRequest =
+        parseRdpLicensingMessage(parsed.value.licensingMessage);
+    assert(parsedRequest);
+    assert(parsedRequest.value.type ==
+           RdpLicensingMessageType::ClientNewLicenseRequest);
+
+    const auto licenseInfo = makeClientLicenseInfo();
+    const auto infoEnvelope =
+        makeEnhancedSecurityClientLicensingEnvelope(licenseInfo);
+    const auto parsedInfo =
+        parseEnhancedSecurityLicensingEnvelope(infoEnvelope);
+    assert(parsedInfo);
+    assert(parseRdpLicensingMessage(parsedInfo.value.licensingMessage)
+               .value.type == RdpLicensingMessageType::ClientLicenseInfo);
+
+    // RESET/IGNORE and FLAGSHI_VALID are permitted/ignored by the Basic
+    // Security Header rules; flagsHi remains opaque.
+    const auto ignored = makeEnhancedSecurityClientLicensingEnvelope(
+        newRequest, 0x80b0U, 0xcafeU);
+    const auto parsedIgnored =
+        parseEnhancedSecurityLicensingEnvelope(ignored);
+    assert(parsedIgnored);
+    assert(parsedIgnored.value.flags == 0x80b0U);
+    assert(parsedIgnored.value.flagsHi == 0xcafeU);
+}
+
+void testRdpClientLicensingEnvelopeDenials()
+{
+    const auto request = makeClientNewLicenseRequest();
+    const auto valid = makeEnhancedSecurityClientLicensingEnvelope(request);
+
+    for (std::size_t size = 0U; size < 4U; ++size)
+    {
+        const auto parsed = parseEnhancedSecurityLicensingEnvelope(
+            std::span(valid).first(size));
+        assert(!parsed);
+        assert(parsed.error ==
+               RdpLicensingEnvelopeError::TruncatedSecurityHeader);
+    }
+    for (std::size_t size = 4U; size < 8U; ++size)
+    {
+        const auto parsed = parseEnhancedSecurityLicensingEnvelope(
+            std::span(valid).first(size));
+        assert(!parsed);
+        assert(parsed.error ==
+               RdpLicensingEnvelopeError::TruncatedLicensingMessage);
+    }
+
+    const auto rejectsFlags = [&](std::uint16_t flags)
+    {
+        const auto envelope =
+            makeEnhancedSecurityClientLicensingEnvelope(request, flags);
+        const auto parsed =
+            parseEnhancedSecurityLicensingEnvelope(envelope);
+        assert(!parsed);
+        assert(parsed.error ==
+               RdpLicensingEnvelopeError::InvalidSecurityFlags);
+    };
+
+    rejectsFlags(0x0000U); // missing SEC_LICENSE_PKT
+    rejectsFlags(0x0040U); // SEC_INFO_PKT instead of licensing
+    rejectsFlags(0x00c0U); // conflicting INFO + LICENSE packet kinds
+    rejectsFlags(0x0088U); // Standard-Security SEC_ENCRYPT
+    rejectsFlags(0x0081U); // Security Exchange mixed with licensing
+    rejectsFlags(0x0280U); // client licensing-encryption ability is not a PDU flag
+    rejectsFlags(0x0480U); // redirection/competing packet kind
+    rejectsFlags(0x0880U); // secure-checksum path is unsupported here
+}
+
 constexpr std::array<std::uint8_t, 32> kServerLicenseRandom{
     0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
     0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x10,
@@ -5012,7 +5108,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 79> kMcsTestCases{{
+constexpr std::array<McsTestCase, 81> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -5061,6 +5157,8 @@ constexpr std::array<McsTestCase, 79> kMcsTestCases{{
     {"licensing-server-request-generated-random", &testRdpServerLicenseRequestGeneratedRandom},
     {"licensing-server-request-write-receipts", &testRdpServerLicenseRequestWriteReceipts},
     {"licensing-server-request-write-denials", &testRdpServerLicenseRequestWriteDenials},
+    {"licensing-client-envelope-wire", &testRdpClientLicensingEnvelopeWire},
+    {"licensing-client-envelope-denials", &testRdpClientLicensingEnvelopeDenials},
     {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},
     {"licensing-length-bounds", &testRdpLicensingLengthBounds},
     {"licensing-ordering-denials", &testRdpLicensingOrderingDenials},

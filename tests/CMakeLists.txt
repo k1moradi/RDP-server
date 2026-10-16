@@ -65,6 +65,8 @@ function(add_rdp_test source_file suite behavior)
                 licensing-server-request-generated-random
                 licensing-server-request-write-receipts
                 licensing-server-request-write-denials
+                licensing-client-envelope-wire
+                licensing-client-envelope-denials
                 licensing-preamble-and-state
                 licensing-length-bounds
                 licensing-ordering-denials
@@ -218,6 +220,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-r3-joined-clipboard-role-contract
                 gssapi-r3-client-info-route-contract
                 gssapi-r3-server-license-request-write-contract
+                gssapi-r3-client-licensing-route-contract
                 gssapi-r3-attach-user-terminal-replay-fence
                 gssapi-r3-protected-transition-terminal-replay-fence
                 gssapi-r3-native-change-revocation

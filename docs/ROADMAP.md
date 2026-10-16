@@ -12032,3 +12032,92 @@ this connector environment. Genuine authenticated R3
 `Microsoft::Windows::RDS::Graphics` DVC/full-send integration, native capture
 performance and Microsoft-client visible graphics acceptance remain
 **BLOCKED/NOT RUN**. Gate B and M3/M4/M5 remain **OPEN**.
+
+## R3 CSPRNG licensing identity exact-SHA validation receipt (2026-10-16)
+
+**Implementation:** `e9042e3d3e2910f3d34fc3a75f60ae9d1261df45`.
+**Actions:** `38914000119` — **SUCCESS**.
+
+Ubuntu/GCC full CTest is **438/438 PASS Debug** and **438/438 PASS
+Release**; macOS/Clang is **366/366 PASS Debug** and **366/366 PASS
+Release**; Windows/MSVC is **395/395 PASS Debug** and **395/395 PASS
+Release**, with the focused Windows native preflight **44/44 PASS** in both
+configurations. The new
+`transport.licensing-server-identity-configuration` and
+`transport.licensing-server-request-generated-random` cases pass in all six
+hosted Debug/Release configurations. The strengthened
+`security.gssapi-r3-server-license-request-write-contract` also passes in
+Linux Debug/Release.
+
+R9 Clang ASan/UBSan is **PASS**: clipboard **49/49**, R4 x264/BGRA **19/19**,
+bounded R1/R3 transport/security/licensing **33/33**, native R2/R3 GSS
+**26/26**, R10 Linux CredSSP **4/4**, native R5 X11 **24/24**, and bounded
+fuzzer **1/1**. The strengthened GSS licensing contract ran under sanitizers.
+The two newly added portable identity/CSPRNG tests were not selected by the
+then-current bounded transport regex, so sanitizer-specific execution of those
+two is **NOT RUN** and is not claimed.
+
+Documentation policy, installed SDK downstream consumer and package
+creation/upload all **PASS** on Linux, macOS and Windows. Canonical owner-local
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27, genuine positive Kerberos/logind admission and Microsoft-client
+licensing/Share/desktop acceptance remain **NOT RUN**. M2/M3 remain
+**OPEN / NOT ACCEPTED**.
+
+## R3 protected first client licensing response intake (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `dd5786fe60d823668056892671aaa98270ef2e45`.
+
+After complete Server License Request delivery, R3 now recognizes only the
+Enhanced-Security licensing envelope that Microsoft requires: a 4-byte Basic
+Security Header containing `SEC_LICENSE_PKT`, followed by one complete
+licensing message. `SEC_RESET_SEQNO`, `SEC_IGNORE_SEQNO` and
+`SEC_FLAGSHI_VALID` are tolerated as the specification requires; competing
+packet-kind flags, Standard-Security `SEC_ENCRYPT`/exchange paths and
+licensing-encryption capability bits are rejected before any licensing body is
+exposed. The syntax parser is allocation-free and returns only a borrowed
+licensing span.
+
+The sole `McsSessionLifecycle` accepts this response only from
+`AwaitClientLicenseResponse`, with the same bound HYBRID provenance,
+allocated user, complete joined-channel state, exact client initiator, global
+I/O channel and begin|end MCS segmentation. Only then is the existing bounded
+`RdpLicensingLifecycle::onClientMessage` invoked. Exactly one structurally
+valid `CLIENT_LICENSE_INFO` or `CLIENT_NEW_LICENSE_REQUEST` can advance
+both owners to their explicit server-decision state. Malformed, duplicated,
+wrong-channel, wrong-security-header or wrong-order traffic closes the R3
+owner; no client payload is retained.
+
+Positive intake remains private to
+`LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage`, which
+freshly reauthorizes the same move-only native lease and exact R1
+HYBRID/TLS/GSS owner before the packet reaches R3. Ordinary CI does not
+fabricate a positive NSS/logind lease; the Linux contract therefore proves
+the unforgeable method signature and denial boundary rather than synthetic
+admission.
+
+New production-linked CTests:
+`transport.licensing-client-envelope-wire`,
+`transport.licensing-client-envelope-denials`, and Linux-only
+`security.gssapi-r3-client-licensing-route-contract`. The R9 bounded
+transport and native-GSS selectors are extended to run all three under
+ASan/UBSan.
+
+This increment performs **no cryptographic license validation or issuance**.
+A structurally accepted client response stops at
+`RdpLicensingPhase::AwaitServerDecision` /
+`McsSessionPhase::AwaitServerLicenseDecision`. It grants no Share, graphics,
+input, clipboard or desktop authority. R10 still owns eventual service
+configuration/listener composition and R1 remains the only TLS/application
+I/O owner.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer,
+documentation-policy and SDK/package evidence are pending.
+
+**Next R3:** implement a real, standards-correct server licensing decision
+with cryptographic verification/key handling before any License Error
+(valid-client), New License, Platform Challenge or Demand Active path can
+advance. Until that exists, **M2/M3 remain OPEN / NOT ACCEPTED**.
+

@@ -34,6 +34,7 @@ using rdp_server::server::transport::McsSessionPhase;
 using rdp_server::server::transport::NativeTcpIo;
 using rdp_server::server::transport::OwnedNativeTcpSocket;
 using rdp_server::server::transport::OwnedPreauthTcpConnection;
+using rdp_server::server::transport::RdpLicensingIntake;
 using rdp_server::server::transport::RdpLicensingLifecycle;
 using rdp_server::server::transport::RdpLicensingPhase;
 using rdp_server::server::transport::RdpServerLicenseIdentity;
@@ -1633,6 +1634,35 @@ void testR3ServerLicenseRequestWriteContract()
     assert(session.licensingPhase() == RdpLicensingPhase::Closed);
 }
 
+void testR3ClientLicensingRouteContract()
+{
+    using RouteMethod =
+        decltype(&LinuxConsoleAdmissionBroker::
+                     authorizeR3ClientLicensingMessage);
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Session = McsSessionLifecycle &;
+    using Bytes = std::span<const std::uint8_t>;
+
+    static_assert(std::is_invocable_r_v<
+        std::optional<RdpLicensingIntake>,
+        RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, bool, Acceptor, Connection, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, const SSL *, Session, Bytes>);
+
+    // Ordinary hosted CI has no positive native lease. Merely constructing
+    // the R3 owner and a plausible packet cannot skip Client Info/request
+    // delivery or make licensing intake public.
+    McsSessionLifecycle session;
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
+}
+
 void testR3NativeChangeRevocation()
 {
     ConsoleIdentityPolicy policy;
@@ -1879,6 +1909,11 @@ int main(int argc, char **argv)
             testR3ServerLicenseRequestWriteContract();
             return 0;
         }
+        if (name == "gssapi-r3-client-licensing-route-contract")
+        {
+            testR3ClientLicensingRouteContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -1918,6 +1953,7 @@ int main(int argc, char **argv)
     testR3JoinedClipboardRoleContract();
     testR3ClientInfoRouteContract();
     testR3ServerLicenseRequestWriteContract();
+    testR3ClientLicensingRouteContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

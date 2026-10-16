@@ -16144,3 +16144,63 @@ acceptance remain **NOT RUN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
 **Next R1:** add no transport surface unless R3's eventual protected New
 License / Upgrade License publication or later Share activation demonstrates
 a concrete bounded TCP/TLS mismatch.
+
+## R3 Client Platform Challenge Response exact-SHA validation receipt (2026-10-16)
+
+**Implementation:** `cd10f34e10c8676543adbeecd4b52a848a03c1ce`.
+**Actions:** `38972322799` — **SUCCESS**.
+
+Ubuntu/GCC full CTest is **485/485 PASS Debug** and **485/485 PASS Release**;
+macOS/Clang is **409/409 PASS Debug** and **409/409 PASS Release**; Windows/MSVC
+focused native preflight is **48/48 PASS Debug** and **48/48 PASS Release**,
+with full CTest **439/439 PASS Debug** and **439/439 PASS Release**. The two
+new portable challenge-response cases pass in all six hosted configurations;
+Linux `security.gssapi-r3-client-platform-challenge-response-route-contract`
+also passes in Debug/Release. R9 bounded R1/R3 is **69/69 PASS** and native
+R2/R3 GSS is **29/29 PASS**, including all new R3 cases. Documentation policy,
+SDK consumer/package checks and the R7 macOS-session sanitizer job pass.
+
+This proves the protected challenge-response proof only. It adds no CAL
+issuance authority, `STATUS_VALID_CLIENT`, Share activation or desktop
+authority. Owner-local/native-client gates remain **NOT RUN / OPEN**.
+
+## R3 bounded NEW_LICENSE_INFO plaintext serializer (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `d0116485e53118c5312cd0a9f0d72a928510a7f6`.
+
+The live New/Upgrade License decision remains blocked on legitimate
+license-server issuance material and policy. The terminal-server licensing
+certificate/private key remains only the RSA key-exchange credential and is
+not repurposed as a CAL issuer.
+
+R3 adds allocation-free `encodeRdpNewLicenseInformation` for MS-RDPELE
+2.2.2.6.1. It serializes the immutable licensing identity's version, issuer
+scope, company and product indexing values plus one opaque caller-provided CAL.
+The CAL is capped at **16 KiB**; together with the existing 512-byte indexing
+bounds and later wrapper overhead, a future encrypted grant remains below R1's
+existing 18 KiB TLS application-write ceiling. All validation occurs before the
+first write, so unconfigured identity, empty/oversized CAL and short output fail
+without modifying caller storage.
+
+This helper does not parse, trust, sign, issue, encrypt or MAC the CAL; it
+does not mutate licensing state, create a receipt, invoke R2 or publish network
+bytes. The byte-exact test CAL is explicitly synthetic opaque serialization
+data, not a claimed valid license.
+
+New central CTests:
+`transport.licensing-new-license-info-wire` and
+`transport.licensing-new-license-info-denials`. Both are selected by R9's
+bounded R1/R3 ASan/UBSan gate.
+
+Canonical owner-local `~/rdp-server/build/` validation is **NOT RUN** in
+this connector environment. Exact-publication-SHA hosted Debug/Release,
+sanitizer, documentation-policy and SDK/package evidence are pending.
+
+**Next R3:** add a pure SERVER_NEW_LICENSE / SERVER_UPGRADE_LICENSE
+encryption+MAC wrapper around caller-supplied authority-produced
+NEW_LICENSE_INFO, still with no live transition. A receipt-bound live grant
+must remain blocked until an explicit service owner supplies real
+license-server issuance material/policy. Existing CLIENT_LICENSE_INFO remains
+blocked on CAL signature/trust, product/version/expiration and HWID validation
+before `STATUS_VALID_CLIENT`. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

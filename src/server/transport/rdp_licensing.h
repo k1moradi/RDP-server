@@ -508,6 +508,33 @@ struct RdpServerLicenseRequestFields
 // This is protocol identity only, never authentication or license authority.
 inline constexpr std::size_t kMaximumRdpServerLicenseIdentityTextBytes = 512U;
 
+// Local plaintext bound for NEW_LICENSE_INFO. Combined with the existing
+// 512-byte scope/company/product bounds and later licensing wrapper overhead,
+// this keeps a future encrypted grant below R1's 18 KiB application-write cap.
+// CAL bytes are opaque here and MUST come from a real licensing authority.
+inline constexpr std::size_t kMaximumRdpIssuedCalBytes = 16U * 1024U;
+
+enum class RdpNewLicenseInfoEncodeError : std::uint8_t
+{
+    None,
+    IdentityNotConfigured,
+    InvalidLicense,
+    Oversized,
+    OutputTooSmall,
+};
+
+struct RdpNewLicenseInfoEncodeResult
+{
+    std::size_t bytesWritten{};
+    RdpNewLicenseInfoEncodeError error{
+        RdpNewLicenseInfoEncodeError::IdentityNotConfigured};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpNewLicenseInfoEncodeError::None;
+    }
+};
+
 class RdpServerLicenseIdentity final
 {
 public:
@@ -582,6 +609,16 @@ private:
     bool attempted_{};
     bool configured_{};
 };
+
+// MS-RDPELE 2.2.2.6.1 NEW_LICENSE_INFO plaintext serializer. It reuses the
+// immutable request identity for version/scope/company/product indexing and
+// copies one caller-provided opaque CAL. It does NOT validate/sign/issue the
+// CAL, encrypt the structure, generate MACData, mutate licensing state, or
+// authorize publication. Output remains untouched on every rejected input.
+[[nodiscard]] RdpNewLicenseInfoEncodeResult encodeRdpNewLicenseInformation(
+    const RdpServerLicenseIdentity &identity,
+    std::span<const std::uint8_t> issuedCal,
+    std::span<std::uint8_t> output) noexcept;
 
 struct RdpServerLicenseRequestEncodeResult
 {

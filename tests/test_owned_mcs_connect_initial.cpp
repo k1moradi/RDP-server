@@ -4890,6 +4890,86 @@ void testRdpServerLicenseRequestCertificateRequired()
         oversizedCertificate, kServerLicenseScope));
 }
 
+void testRdpNewLicenseInformationWire()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    constexpr std::array<std::uint8_t, 5> issuedCal{
+        0x30,0x03,0x02,0x01,0x01};
+    constexpr std::array<std::uint8_t, 47> expected{
+        0x01,0x00,0x06,0x00,
+        0x06,0x00,0x00,0x00,
+        0x73,0x63,0x6f,0x70,0x65,0x00,
+        0x08,0x00,0x00,0x00,
+        0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00,
+        0x08,0x00,0x00,0x00,
+        0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00,
+        0x05,0x00,0x00,0x00,
+        0x30,0x03,0x02,0x01,0x01};
+
+    std::array<std::uint8_t, 64> output{};
+    output.fill(0xa5U);
+    const auto encoded =
+        encodeRdpNewLicenseInformation(identity, issuedCal, output);
+    assert(encoded);
+    assert(encoded.bytesWritten == expected.size());
+    assert(std::equal(expected.begin(), expected.end(), output.begin()));
+    assert(std::all_of(
+        output.begin() + static_cast<std::ptrdiff_t>(expected.size()),
+        output.end(),
+        [](std::uint8_t value) { return value == 0xa5U; }));
+}
+
+void testRdpNewLicenseInformationDenials()
+{
+    constexpr std::array<std::uint8_t, 5> issuedCal{
+        0x30,0x03,0x02,0x01,0x01};
+    std::array<std::uint8_t, 64> output{};
+    output.fill(0xa5U);
+
+    RdpServerLicenseIdentity unconfigured;
+    assert(encodeRdpNewLicenseInformation(
+               unconfigured, issuedCal, output).error ==
+           RdpNewLicenseInfoEncodeError::IdentityNotConfigured);
+    assert(std::all_of(
+        output.begin(), output.end(),
+        [](std::uint8_t value) { return value == 0xa5U; }));
+
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    assert(encodeRdpNewLicenseInformation(
+               identity, {}, output).error ==
+           RdpNewLicenseInfoEncodeError::InvalidLicense);
+
+    std::vector<std::uint8_t> oversized(
+        kMaximumRdpIssuedCalBytes + 1U, 0x42U);
+    assert(encodeRdpNewLicenseInformation(
+               identity, oversized, output).error ==
+           RdpNewLicenseInfoEncodeError::Oversized);
+
+    std::array<std::uint8_t, 46> tooSmall{};
+    tooSmall.fill(0x5aU);
+    assert(encodeRdpNewLicenseInformation(
+               identity, issuedCal, tooSmall).error ==
+           RdpNewLicenseInfoEncodeError::OutputTooSmall);
+    assert(std::all_of(
+        tooSmall.begin(), tooSmall.end(),
+        [](std::uint8_t value) { return value == 0x5aU; }));
+
+    // The serializer deliberately treats CAL bytes as opaque authority output.
+    // Structural packaging must neither reinterpret nor manufacture them.
+    constexpr std::array<std::uint8_t, 5> opaqueWithZeros{
+        0x00,0xff,0x00,0x7f,0x00};
+    const auto opaque =
+        encodeRdpNewLicenseInformation(identity, opaqueWithZeros, output);
+    assert(opaque);
+    assert(std::equal(
+        opaqueWithZeros.begin(), opaqueWithZeros.end(),
+        output.begin() +
+            static_cast<std::ptrdiff_t>(
+                opaque.bytesWritten - opaqueWithZeros.size())));
+}
+
 void testRdpServerLicenseRequestGeneratedRandom()
 {
     RdpServerLicenseIdentity identity;
@@ -6943,7 +7023,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 105> kMcsTestCases{{
+constexpr std::array<McsTestCase, 107> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -7011,6 +7091,8 @@ constexpr std::array<McsTestCase, 105> kMcsTestCases{{
     {"licensing-server-platform-challenge-write-denials", &testRdpServerPlatformChallengeWriteDenials},
     {"licensing-client-platform-challenge-response-proof", &testRdpClientPlatformChallengeResponseProof},
     {"licensing-client-platform-challenge-response-denials", &testRdpClientPlatformChallengeResponseDenials},
+    {"licensing-new-license-info-wire", &testRdpNewLicenseInformationWire},
+    {"licensing-new-license-info-denials", &testRdpNewLicenseInformationDenials},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
     {"licensing-runtime-context-ownership", &testRuntimeLicensingContextOwnership},

@@ -1177,6 +1177,56 @@ bool RdpServerLicenseIdentity::configure(
     return true;
 }
 
+RdpNewLicenseInfoEncodeResult encodeRdpNewLicenseInformation(
+    const RdpServerLicenseIdentity &identity,
+    std::span<const std::uint8_t> issuedCal,
+    std::span<std::uint8_t> output) noexcept
+{
+    if (!identity.configured())
+        return {0U, RdpNewLicenseInfoEncodeError::IdentityNotConfigured};
+    if (issuedCal.empty())
+        return {0U, RdpNewLicenseInfoEncodeError::InvalidLicense};
+    if (issuedCal.size() > kMaximumRdpIssuedCalBytes)
+        return {0U, RdpNewLicenseInfoEncodeError::Oversized};
+
+    const auto scope = identity.scopeAnsi();
+    const auto company = identity.companyNameUtf16();
+    const auto product = identity.productIdUtf16();
+    constexpr std::size_t fixedLengthBytes = 20U;
+    const std::size_t variableBytes =
+        scope.size() + company.size() + product.size() + issuedCal.size();
+    if (variableBytes >
+        std::numeric_limits<std::uint32_t>::max() - fixedLengthBytes)
+        return {0U, RdpNewLicenseInfoEncodeError::Oversized};
+    const std::size_t totalBytes = fixedLengthBytes + variableBytes;
+    if (output.size() < totalBytes)
+        return {0U, RdpNewLicenseInfoEncodeError::OutputTooSmall};
+
+    // All validation is complete before the first write, so rejection is
+    // transactional without a second packet-sized scratch buffer.
+    std::size_t offset = 0U;
+    writeLe32(output, offset, identity.productVersion());
+    offset += 4U;
+    writeLe32(output, offset, static_cast<std::uint32_t>(scope.size()));
+    offset += 4U;
+    std::copy(scope.begin(), scope.end(), output.begin() + offset);
+    offset += scope.size();
+    writeLe32(output, offset, static_cast<std::uint32_t>(company.size()));
+    offset += 4U;
+    std::copy(company.begin(), company.end(), output.begin() + offset);
+    offset += company.size();
+    writeLe32(output, offset, static_cast<std::uint32_t>(product.size()));
+    offset += 4U;
+    std::copy(product.begin(), product.end(), output.begin() + offset);
+    offset += product.size();
+    writeLe32(output, offset, static_cast<std::uint32_t>(issuedCal.size()));
+    offset += 4U;
+    std::copy(issuedCal.begin(), issuedCal.end(), output.begin() + offset);
+    offset += issuedCal.size();
+
+    return {offset, RdpNewLicenseInfoEncodeError::None};
+}
+
 RdpServerLicenseRequestEncodeResult
 encodeEnhancedSecurityServerLicenseRequest(
     const RdpServerLicenseRequestFields &fields,

@@ -1,3 +1,56 @@
+## R2 CLIENT_LICENSE_INFO HWID-proof authority exact-SHA validation (2026-10-16)
+
+**R2 hardening:** `09ac1e1759970c03fd0e5d57eb94bf43ed61491d`.  
+**Validated descendant:** `0d333f3d4baabd12417878baea5f5741e08d899c`.  
+**Actions:** [38968793787](https://github.com/k1moradi/RDP-server/actions/runs/38968793787) — **SUCCESS**.
+
+The R2 change is test/docs-only and leaves the production authorization API
+unchanged. The existing
+`security.gssapi-r3-client-licensing-route-contract` now proves at compile
+time that neither parsed `RdpClientLicenseInfoView` nor
+`RdpClientLicenseInfoHardwareIdResult` can substitute for the concrete
+move-only `LinuxConsoleAdmissionLease`. A success-shaped HWID verification
+status remains protocol data only and cannot alter a fresh unadmitted R3 owner
+or licensing lifecycle. Existing exclusions for service credentials,
+key-exchange views, derived key material, raw SSL pointers, strings, generation
+integers and nullable lease substitutes remain intact.
+
+Validation required repairing an inherited malformed workflow from concurrent
+R10 commit `df67d3012440a59cd67dd2e53b85aea8f4355c39`: it had both an
+unterminated sanitizer-selection shell string and a duplicated sanitizer/job
+block after prerelease publication. Commits
+`019602a8bff080078b1d1edbcb5fad0958d2c130` and
+`f7058fccd45ae5a9fa7841b9911ea91b7151f56e` restore the workflow to the
+last valid structure while preserving R10's intended secure-file snapshot
+sanitizer selection. The first two R2 exact-SHA workflow attempts failed before
+job creation and are not counted as test failures.
+
+On the final validation SHA, Linux/GCC passes **472/472 Debug + 472/472
+Release**; macOS/AppleClang passes **398/398 Debug + 398/398 Release**;
+Windows/MSVC passes focused native preflight **47/47 Debug + 47/47 Release**
+and full **427/427 Debug + 427/427 Release**. Installed SDK consumer is **1/1
+PASS** on all three platforms. Documentation policy and the independent R7
+sanitizer job pass.
+
+R9 Clang ASan/UBSan is **PASS**: clipboard **50/50**, R4 x264/BGRA **20/20**,
+RDPGFX capability **4/4**, bounded R1/R3 transport/CredSSP/licensing **62/62**,
+native R2/R3 GSSAPI **27/27**, R10 pre-admission **5/5**, native X11 **26/26**
+and bounded fuzzer **1/1**. The strengthened
+`security.gssapi-r3-client-licensing-route-contract` executes as test 23 of
+the native R2/R3 group and passes in **0.02 s**.
+
+Canonical owner-local `~/rdp-server/build/`, genuine
+Kerberos/final-CredSSP + NSS/logind positive admission, CAL
+trust/product/expiry validation, a protected server licensing
+decision/challenge/issuance/activation publication boundary, Microsoft-client
+licensing/Share/desktop acceptance and M2/M3 remain **NOT RUN / OPEN**.
+
+**Next R2:** per the roadmap, do not add a speculative authorization API.
+When R3 exposes a real server licensing decision, challenge/issuance or
+activation publication/completion boundary, require fresh concrete lease +
+exact R1 owner authorization immediately before state/write publication and
+again before asynchronous accepted-byte completion.
+
 ## R9 licensing credential-path replacement freshness authoring (2026-10-16)
 
 **Parent:** `7b2426144d1bab893a67dc21971b6036b089f012`.

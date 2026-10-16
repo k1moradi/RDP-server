@@ -56,6 +56,19 @@ jobs:
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
             -DRDP_SERVER_TEST_LINUX_GSSAPI="$linux_gssapi_tests"
+      # R6 native-adapter validation must remain observable even when an
+      # unrelated test target later fails the full repository compile.
+      # This builds only the existing production-backed Windows fixture, then
+      # the ordinary full build below still runs and remains authoritative.
+      - name: Preflight Windows R6 native adapter tests
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Debug --target test_windows_desktop_geometry --parallel 2
+          ctest --test-dir build --build-config Debug --timeout 20 -L windows --output-on-failure
+          cmake --build build --config Release --target test_windows_desktop_geometry --parallel 2
+          ctest --test-dir build --build-config Release --timeout 20 -L windows --output-on-failure
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
       - name: Run Debug protocol and project-policy tests

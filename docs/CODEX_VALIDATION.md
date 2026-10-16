@@ -1,3 +1,30 @@
+## R6 exact-SHA CI triage and focused Windows preflight (2026-10-16)
+
+Actions `38885699857` for implementation SHA
+`527977bfe3fbb167dc14d6273006f1b802edc170` completed **FAIL** before
+CTest. Windows/MSVC Debug nevertheless built the R6 production native library
+and linked `test_windows_desktop_geometry.exe`, including the changed
+`windows_dxgi_pointer_shape_cases.cpp`. The first repository-wide blocker was
+R8 `test_owned_remote_transfer.cpp:1634-1655`: a braced
+`std::u16string_view{pointer, size}` inside `assert(...)` exposes its comma
+to the macro and causes compile errors. Linux, macOS and R9 sanitizer builds
+failed at the same source. Documentation-policy passed.
+
+Because the full compile can legitimately be blocked by another owner before
+R6 CTest starts, CI now adds a Windows-only focused preflight before the full
+compile. It builds only the existing `test_windows_desktop_geometry` target
+for MSVC Debug and Release and runs `ctest -L windows` for each configuration
+with a 20-second timeout. This covers the registered R6 DXGI duplication/frame
+lease/staging/capture/generation/session/cursor/input/metadata cases through
+their existing production classes and injected seams. The normal full compile
+and full CTest remain mandatory and unchanged after the preflight.
+
+**Status before this CI change:** R6 MSVC Debug compile/link **PASS**;
+R6 Debug/Release focused CTest **NOT RUN**; full Windows/Linux/macOS and
+sanitizer gates **FAIL** on the unrelated R8 compile blocker; owner Windows
+MSYS2 CLANG64/Clang23 **NOT RUN**. No native desktop or `SendInput` action was
+performed.
+
 ## R6 DXGI denial publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Implementation commit: `527977bfe3fbb167dc14d6273006f1b802edc170`

@@ -1,3 +1,36 @@
+## R6 Windows native-adapter CI preflight (2026-10-16; exact-SHA CI pending)
+
+Post-publication validation of R6 implementation
+`527977bfe3fbb167dc14d6273006f1b802edc170` completed as Actions
+`38885699857` with overall **FAIL**, but the failure occurred before any
+CTest ran. Windows/MSVC Debug successfully compiled
+`windows_dxgi_capture_cycle.cpp`, `windows_input_controller.cpp`,
+`rdp-server-windows-desktop.lib`, and linked
+`test_windows_desktop_geometry.exe`. The full build then stopped on the
+unrelated R8 `tests/test_owned_remote_transfer.cpp` braced
+`std::u16string_view` expression being split by the C `assert` macro.
+Linux/GCC, macOS/Clang and the R9 sanitizer job stopped on the same R8 test
+source. Documentation-policy **PASS**. Release compilation/CTest and all R6
+CTest execution were therefore **NOT RUN**.
+
+To keep R6 validation observable without weakening the authoritative full
+matrix, Windows CI now performs one focused preflight immediately after
+configuration: build the existing `test_windows_desktop_geometry` target in
+Debug, run every test carrying the `windows` label, then build the same target
+in Release and run the same labeled tests. Both use the existing checkout-local
+`build/` and a 20-second per-test cap. The ordinary full Debug/Release builds
+and CTests remain unchanged afterward, so unrelated repository failures still
+fail CI rather than being hidden.
+
+No production R6 behavior, native desktop access, admission, or input exposure
+changes in this increment. The preflight executes only the existing synthetic
+production-backed R6 fixture; no new test runner or branch is introduced.
+
+**Next gate:** exact-SHA Windows preflight PASS for Debug and Release, then
+record the still-authoritative full-matrix outcome and obtain the owner Windows
+MSYS2 CLANG64/Clang23 receipt. M4 remains OPEN; genuine R2/R3 Windows admission
+is still required before any native runtime binding.
+
 ## R6 DXGI denial publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Implementation commit: `527977bfe3fbb167dc14d6273006f1b802edc170`

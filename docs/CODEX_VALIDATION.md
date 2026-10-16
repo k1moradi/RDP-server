@@ -1,5 +1,32 @@
 ## R8 bounded X11 INCR transfer (2026-10-16; exact-SHA CI NOT RUN at authoring)
 
+## R6 native Windows input controller authoring (2026-10-16)
+
+**Starting inspected main:** `132b1d5e7ed81809f163cce108acf79c93e53fc6`;
+the final commit is rebased onto the then-current shared `main`. Added
+`src/windows/windows_input_controller.{h,cpp}` to the existing Windows native
+target and `tests/windows_input_controller_cases.cpp` to the existing R6
+behavior executable. Added dedicated `windows.input-sendinput-lifecycle` and
+`windows.input-sendinput-revocation-denials` CTests. The production seam
+uses user32 `SendInput`; tests inject a synthetic callback and never alter
+host keyboard or pointer state.
+
+**PASS (isolated authoring seam):** GCC C++23 with
+`-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror`; Clang
+C++23 with the same warnings plus ASan+UBSan and leak detection. The fixture
+exercises canonical/gapped desktop geometry, exact absolute normalization,
+scan-code and X-button lifetime, horizontal wheel, duplicate suppression,
+short-send teardown, reentry/deferred cancellation and stale-generation
+denial.
+
+**NOT RUN before publication:** canonical full repository CMake/CTest, native
+Windows SDK/MSVC, owner Windows MSYS2 CLANG64/Clang23, live `SendInput`,
+genuine Windows R2/R3 authorization, R3 RDP-input routing, Microsoft-client M4
+acceptance and performance. The adapter is intentionally not runtime-wired;
+generation checks are revocation-only and do not authorize a caller.
+Exact-SHA GitHub Actions is the next automated gate. M4 remains OPEN.
+
+
 **Authoring parent main:** `95c79fbb610c007431b1227bc5a5cc05816dea45`. This increment completes the next
 approved R8 X11 step without changing clipboard-generation ownership.
 `RemoteTransfer` remains the sole generation, verified-content and

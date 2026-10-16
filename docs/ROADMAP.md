@@ -1,5 +1,48 @@
 ## R10 reusable live TLS context owner (2026-10-16; R10 hosted tests PASS, unrelated full-suite blocker)
 
+## R6 generation-pinned native Windows input adapter (2026-10-16; exact-SHA CI pending)
+
+Starting main inspected before authoring: `132b1d5e7ed81809f163cce108acf79c93e53fc6`;
+publication is rebased onto the current shared `main`. New
+`windows_input_controller.{h,cpp}` adds the focused native R6 input boundary
+after DXGI cursor ownership. It accepts Windows-native scan-code, absolute
+pointer, five-button and vertical/horizontal wheel events only after the caller
+supplies an already-pinned nonzero Windows session/device generation. The
+generation reader is **revocation-only** and is not authentication or OS
+admission. The production callback maps commands to `SendInput`; the runtime
+does not construct or route this controller because genuine Windows R2/R3
+admission is still unavailable.
+
+Pointer coordinates reuse the canonical `WindowsDesktopLayout`, reject
+virtual-desktop gaps, and normalize the complete virtual desktop to Win32's
+0..65535 absolute range with `MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK`.
+Keyboard input uses scan codes and the extended-key bit rather than
+layout-dependent virtual keys. Duplicate make/button transitions are
+idempotent. Wheel input is bounded to 16 detents per event. Button+position
+and wheel+position pairs are submitted in one callback batch. A short native
+insertion, malformed event, reentry or callback cancellation closes the
+controller. Explicit cancellation best-effort releases held keys/buttons only
+while the pinned generation is still current; a stale generation clears local
+state without injecting cleanup into a different desktop.
+
+**Dedicated Windows offline CTests:** `windows.input-sendinput-lifecycle`
+and `windows.input-sendinput-revocation-denials`. They exercise exact
+coordinate endpoints, scan-code/extended-key state, X buttons, horizontal
+wheel, duplicate suppression, monitor-gap rejection, invalid scan/wheel/enum
+values, short insertion, deferred cancellation/reentry, generation changes,
+and inert invalid construction. Ordinary CTest uses injected callbacks and
+never calls real `SendInput`.
+
+**Authoring validation:** isolated GCC C++23 high-warning fixture PASS;
+isolated Clang C++23 high-warning ASan+UBSan fixture PASS. Full repository
+Windows/MSVC, owner Windows MSYS2 CLANG64/Clang23, live input injection,
+genuine R2/R3 Windows authorization, Microsoft-client M4 and performance are
+**NOT RUN** before publication. `SendInput` remains subject to Windows UIPI,
+and a short return is terminal rather than retried. **Next:** exact-SHA hosted
+Windows validation and owner CLANG64; then bind this adapter only to the sole
+R3 input route after R2 exposes genuine Windows OS-session admission. M4 OPEN.
+
+
 Starting `main`: `9331ec040819b7156a24ea24ab9cc5973a8d891f`. R10 now has a runtime-only
 `RuntimeServerTlsContext` that owns exactly one RAII `SSL_CTX`. Its
 production factory performs the existing secure native certificate/private-key

@@ -36,6 +36,8 @@ void windowsDxgiDuplicationOwnerSelectionDenials();
 void windowsDxgiDuplicationOwnerEpochRevocation();
 void windowsDxgiPointerShapeOwnedLifetime();
 void windowsDxgiPointerShapeGenerationDenials();
+void windowsInputSendInputLifecycle();
+void windowsInputSendInputRevocationDenials();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
 void windowsCaptureCycleLifecycleDenials();
@@ -812,6 +814,14 @@ int main(int argc, char **argv)
     else if (behavior == "cursor-dxgi-shape-generation-denials")
     {
         windowsDxgiPointerShapeGenerationDenials();
+    }
+    else if (behavior == "sendinput-lifecycle")
+    {
+        windowsInputSendInputLifecycle();
+    }
+    else if (behavior == "sendinput-revocation-denials")
+    {
+        windowsInputSendInputRevocationDenials();
     }
     else if (behavior == "cursor-snapshot-visible-and-hidden")
     {

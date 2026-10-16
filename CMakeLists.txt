@@ -157,6 +157,7 @@ if(WIN32)
         src/windows/windows_d3d11_staging_map.cpp
         src/windows/windows_dxgi_capture_cycle.cpp
         src/windows/windows_capture_session_guard.cpp
+        src/windows/windows_input_controller.cpp
         src/windows/windows_cursor_snapshot.cpp)
     target_compile_features(rdp-server-windows-desktop PUBLIC cxx_std_23)
     target_include_directories(rdp-server-windows-desktop PUBLIC

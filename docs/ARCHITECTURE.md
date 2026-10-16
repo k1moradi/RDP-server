@@ -1,5 +1,37 @@
 ### R10 runtime TLS-context ownership (2026-10-16)
 
+### R6 generation-pinned Windows SendInput controller
+
+`WindowsInputController` is a native R6 state owner for keyboard/pointer
+injection, not an authentication decision, RDP input parser, session router or
+scheduler. The future sole R3 session owner may construct/invoke it only after
+R2 independently authenticates and authorizes the exact Windows desktop. Its
+`WindowsCaptureGenerationReader` is reused solely to revoke stale native
+state; fabricated session/device numbers grant no capability.
+
+The controller accepts scan-code make/break state, absolute pointer movement,
+left/right/middle/X1/X2 buttons and bounded vertical/horizontal wheel deltas.
+It validates a canonical existing `WindowsDesktopLayout`; points in monitor
+gaps are rejected. Portable desktop coordinates are normalized to 0..65535
+and production emits `MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK`.
+Keyboard production packets use `KEYEVENTF_SCANCODE`, optional
+`KEYEVENTF_EXTENDEDKEY`, and `KEYEVENTF_KEYUP`; no keyboard-layout virtual
+key lookup is introduced. Pointer move+button and move+wheel are submitted as
+one `SendInput` array so Windows inserts each pair serially.
+
+The controller tracks at most 512 scan-code/extended slots and five mouse
+buttons in contiguous fixed arrays. Duplicate transitions do not issue native
+input. Any malformed request or short native insertion terminally cancels the
+owner. Cancellation is deferred across a synchronous native callback and
+best-effort releases held input only if the pinned generation still matches.
+Once generation observation fails or changes, local held state is discarded
+without sending key/button releases into the new desktop generation. The
+runtime currently creates no such controller, so ordinary builds/tests cannot
+inject host input. `SendInput` can be blocked by UIPI and reports the count
+of inserted events; R6 treats a short return as failure rather than retrying
+or claiming authorization.
+
+
 `RuntimeServerTlsContext` is the sole R10 owner of the reusable server
 `SSL_CTX`. Construction is one continuous credential-snapshot pipeline:
 secure native open → metadata/identity policy → exact bounded read → PEM parse

@@ -415,6 +415,7 @@ if(TARGET rdp-server-windows-desktop)
         windows_capture_session_guard_cases.cpp
         windows_dxgi_duplication_owner_cases.cpp
         windows_dxgi_pointer_shape_cases.cpp
+        windows_input_controller_cases.cpp
         windows_cursor_snapshot_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop)
@@ -537,6 +538,16 @@ if(TARGET rdp-server-windows-desktop)
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.${case_name}" PROPERTIES
             LABELS "windows;desktop-cursor;desktop-capture;security;offline")
+    endforeach()
+    # R6 generation-pinned SendInput controller. Synthetic callbacks exercise
+    # command/state logic only; ordinary CTest never injects host input.
+    foreach(case_name IN ITEMS
+            sendinput-lifecycle
+            sendinput-revocation-denials)
+        add_test(NAME "windows.input-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.input-${case_name}" PROPERTIES
+            LABELS "windows;desktop-input;security;offline")
     endforeach()
     # R6 read-only cursor metadata snapshot. Synthetic callbacks only; the
     # production Win32 observer is compiled but no CTest reads the live cursor.

@@ -3813,3 +3813,49 @@ existing R10 CredSSP aggregate CTests under ASan/UBSan while retaining every
 pre-existing R9 clipboard, R1/R3, native R2/R3, X11 and fuzzer selection.
 Production source, CTest semantics, admission authority and listener state are
 unchanged. Exact correction-SHA CI is required before sanitizer PASS is claimed.
+
+
+## R10 CredSSP progress-accounting sanitizer validation receipt (2026-10-16)
+
+Production fix `0a07d096626cad58576d14de72ff52c6d333439c`,
+Actions `38903827001`, remains the exact R10 behavior validation: Ubuntu/GCC
+full CTest **402/402 PASS Debug + Release**, macOS/Clang **343/343 PASS
+Debug + Release**, Windows/MSVC **368/368 PASS Debug + Release** with focused
+native preflight **39/39 PASS** in both configurations, documentation policy
+and installed SDK consumer/package validation all **PASS**. The dedicated
+`runtime.linux-connection-credssp-progress-accounting` case and the three
+neighboring R10 CredSSP aggregate cases pass in both Linux configurations.
+
+The attempted sanitizer-extension commits
+`75631de64ac8375d02e2b7a29d7d656402088825` (Actions `38905072552`) and
+`3b7a32e120a6e4e537b07701d1ce74ed41db3fa9` (Actions `38905403688`)
+created **zero jobs** due malformed generated workflow text. They are retained
+as historical FAIL receipts and provide no test evidence.
+
+Shared workflow repair `0abf1e5de12517817a70973be3740ac56ff1d522`,
+Actions `38906102171`, completed **SUCCESS** and directly closes the R10
+sanitizer gap. Its Clang ASan/UBSan job builds
+`test_runtime_linux_security` and runs the four aggregate cases:
+`runtime.linux-connection-credssp-owner-framing`,
+`runtime.linux-connection-credssp-progress-accounting`,
+`runtime.linux-connection-credssp-revocation-order`, and
+`runtime.linux-connection-credssp-authorization-denials`: **4/4 PASS**.
+The same sanitizer job also passes **41/41 clipboard**, **18/18 R4 x264**,
+**25/25 bounded R1/R3 transport/security**, **23/23 native R2/R3 GSS**,
+**16/16 R5 X11**, and **1/1 bounded fuzzer**. Normal hosted validation on the
+same repair SHA is Ubuntu/GCC **407/407 Debug + Release**, macOS/Clang
+**349/349 Debug + Release**, and Windows/MSVC **373/373 Debug + Release** plus
+**39/39 focused native preflight** in both configurations; downstream SDK
+consumer/package and documentation policy also pass.
+
+This validates the R10 owned CredSSP framing/reply, progress accounting,
+denial and revocation paths under normal hosted Debug/Release and direct
+ASan/UBSan coverage. It does **not** establish positive Kerberos, NSS/logind
+admission, an authenticated R3 session or Microsoft-client interoperability.
+R2's opt-in `security.gssapi-real-kerberos-owned-binding` compiles in hosted
+CI but remains **NOT RUN** without explicit credentials. Canonical owner
+`~/rdp-server/build`, owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS 27 remain **NOT RUN**. No listener or service is enabled; M2/M3 remain
+**OPEN**. The next R10 gate is an opt-in real-Kerberos exchange through
+`LinuxRuntimeConnection` reaching R2 `BindingVerified`, followed separately
+by current NSS/logind native admission on the same exact R1 owner.

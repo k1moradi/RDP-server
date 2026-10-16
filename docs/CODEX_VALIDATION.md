@@ -1,3 +1,29 @@
+## R1 R10-to-owned-transport TLS integration authoring (2026-10-16)
+
+**Starting inspected main:** `20dd5e7de5b90ec4a5ae52a43144549203d88459`.
+
+**Production:** unchanged. Existing R1 ownership/order/readiness/application
+I/O/cancellation behavior already satisfies the live R10 composition contract.
+
+**Dedicated CTests:** `transport.tcp-owned-runtime-tls-handshake` and
+`transport.tcp-owned-runtime-tls-identity-continuity`, both dispatched by
+the existing `test_owned_preauth_session` executable and provisioned by the
+existing secure R10 fixture script. The first drives a genuine R10-created SSL
+through R1's native loopback, verifies the client-observed certificate and
+X.224 provenance, exact encrypted application-data accounting/short progress,
+premature/incomplete denial, close-notify, abrupt disconnect and cancellation
+revocation. The second replaces validated credential pathnames with invalid
+files before SSL creation and proves the original certificate through a fresh
+network handshake while R3 remains unadmitted.
+
+**Authoring validation:** source/ownership review **PASS**. Checkout-local
+configure/build/full CTest and focused CTests are **BLOCKED / NOT RUN** here:
+there is no synchronized `~/rdp-server` checkout and shell GitHub DNS
+resolution fails. R9 sanitizer selection includes both new cases. Exact-SHA
+hosted CI is required after publication. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, real Kerberos/native admission and Microsoft
+client milestone validation are **NOT RUN**.
+
 ## R4 AVC420 metadata preflight authoring (2026-10-16)
 
 **Starting main:** `95a3c3d1da9aa440a94d8275d61560ceda00bd3b`;

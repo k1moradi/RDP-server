@@ -342,6 +342,10 @@ add_rdp_test(test_owned_security_negotiation.cpp transport security-negotiation)
 add_rdp_test(test_owned_mcs_connect_initial.cpp transport mcs-connect-initial)
 add_rdp_test(test_owned_gcc_conference_create.cpp transport gcc-conference-create)
 add_rdp_test(test_owned_preauth_session.cpp transport preauth-session)
+# Test-only cross-road composition: R1 remains in the exported protocol target;
+# only this existing executable links R10's noninstalled runtime TLS owner.
+target_link_libraries(test_owned_preauth_session PRIVATE
+    rdp-server-runtime-tls)
 if(TARGET rdp-server-linux-gssapi)
     # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
     # in-memory TLS fixture; no duplicate certificate/test implementation.
@@ -635,6 +639,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(x11.capture-layout-bounds PROPERTIES
         LABELS "x11;linux-adapter")
 endif()
+
+# R1/R10 live ownership integration. Reuse the existing preauth executable and
+# the exact secure R10 credential fixture writer; only loopback is bound.
+foreach(runtime_transport_case IN ITEMS
+        tcp-owned-runtime-tls-handshake
+        tcp-owned-runtime-tls-identity-continuity)
+    add_test(NAME "transport.${runtime_transport_case}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_TLS_CONTEXT_TEST=$<TARGET_FILE:test_owned_preauth_session>"
+            "-DRDP_RUNTIME_TLS_CONTEXT_CASE=${runtime_transport_case}"
+            "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-tls-context-fixtures"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_tls_context.cmake")
+    set_tests_properties("transport.${runtime_transport_case}" PROPERTIES
+        LABELS "protocol;transport;runtime;security;offline"
+        TIMEOUT 30)
+endforeach()
 
 # R10 production TLS-context ownership. These tests exercise the runtime-only
 # component directly; they never bind/listen and use only synthetic credentials.

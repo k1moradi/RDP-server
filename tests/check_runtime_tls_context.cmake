@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Exercise the production R10 TLS-context owner without opening a listener.
+# Provision the secure production R10 TLS fixture. Direct R10 cases do not
+# listen; R1/R10 integration cases bind only an ephemeral loopback listener.
 foreach(required_argument IN ITEMS
         RDP_RUNTIME_TLS_CONTEXT_TEST
         RDP_RUNTIME_TLS_CONTEXT_CASE
@@ -84,7 +85,9 @@ set(test_arguments
     "${certificate_file}"
     "${private_key_file}")
 if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
-   "tls-context-survives-credential-path-replacement")
+       "tls-context-survives-credential-path-replacement"
+   OR RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+       "tcp-owned-runtime-tls-identity-continuity")
     file(WRITE "${replacement_certificate_file}" "REPLACED_CERTIFICATE\n")
     file(WRITE "${replacement_private_key_file}" "REPLACED_PRIVATE_KEY\n")
     if(UNIX)

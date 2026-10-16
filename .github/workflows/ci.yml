@@ -154,7 +154,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^(transport\.(tcp-owned-(security-negotiation-provenance|r3-connect-response-slice)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(preamble-and-state|length-bounds|ordering-denials))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$' --output-on-failure
+            -R '^(transport\.(tcp-owned-(security-negotiation-provenance|r3-connect-response-slice|runtime-tls-(handshake|identity-continuity))|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(preamble-and-state|length-bounds|ordering-denials))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$' --output-on-failure
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1

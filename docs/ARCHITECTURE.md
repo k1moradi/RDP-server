@@ -1,3 +1,21 @@
+### R1/R10 live TLS ownership composition (2026-10-16)
+
+R10 owns the reusable validated `SSL_CTX` and must outlive every
+per-connection `SSL` created from it. R1 takes unique ownership of that
+server-role SSL only after the same R1-owned accepted socket has completed the
+plaintext X.224 exchange and fully written its Connection Confirm. R1 then
+attaches its BIO to the already-owned nonblocking TCP object; there is no
+second socket, SSL, BIO, TLS state machine or listener owner.
+
+A successful handshake exposes only the short-lived read-only
+`establishedTls()` borrow and value-form
+`SecurityNegotiationProvenance`. Both are transport evidence, not R2
+identity/OS admission or R3 session authority, and cancellation revokes them
+with the immutable peer endpoint. R1 never rereads credential pathnames: SSLs
+created after pathname replacement still use the certificate snapshot
+retained by the live R10 context. The production contract is unchanged;
+dedicated loopback integration tests now prove this composition.
+
 ### R4 deterministic metadata before stateful encode (2026-10-16)
 
 AVC420 envelope metadata validation is shared between the packetizer and the

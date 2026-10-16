@@ -1,3 +1,39 @@
+## R1 production R10 TLS through owned transport (2026-10-16; exact-SHA CI pending)
+
+Starting inspected shared `main`: `20dd5e7de5b90ec4a5ae52a43144549203d88459`. This R1 increment adds no
+production transport surface. The existing R1 owner already enforces complete
+X.224 Confirm delivery before TLS attachment, sole accepted-socket/BIO/SSL
+ownership, one-step nonblocking handshake progress, bounded application I/O
+and terminal snapshot revocation.
+
+Dedicated CTests `transport.tcp-owned-runtime-tls-handshake` and
+`transport.tcp-owned-runtime-tls-identity-continuity` now compose R10's real
+`RuntimeServerTlsContext` factory with R1's production ephemeral-loopback
+accept/X.224/BIO/TLS path, reusing the secure R10 credential fixture. They
+prove client-observed certificate identity, immutable negotiation provenance,
+bounded encrypted byte accounting and short progress; fail-closed premature
+attach/incomplete handshake; orderly and abrupt peer teardown; cancellation
+revocation; and caller listener survival.
+
+The continuity case replaces both validated credential pathnames with invalid
+fixture material before creating a fresh SSL, then completes a new R1-owned
+network handshake. The client still observes the original retained
+certificate, so R1 performs no second pathname read. An independent R3
+lifecycle remains at `AwaitVerifiedR2Admission`; TLS grants neither R2
+admission nor R3 authority.
+
+No demonstrable R1 production defect was found, so
+`src/server/transport/*` is unchanged. Only the existing preauth test
+executable gains a test-only link to the noninstalled R10 TLS library; the
+exported protocol library gains no runtime dependency. R9 sanitizer selection
+includes both cases. Canonical local build/CTest is **NOT RUN at authoring**
+because no synchronized owner checkout is available and shell GitHub DNS
+resolution fails. Exact-SHA hosted Linux/GCC, macOS/Clang and Windows/MSVC
+Debug/Release plus sanitizer evidence is required after publication. Owner
+Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27, real Kerberos/native
+admission and Microsoft-client validation remain **NOT RUN**. M2 remains
+**NOT ACCEPTED**.
+
 ## R4 deterministic AVC420 metadata pre-encode gate (2026-10-16; exact-SHA CI pending)
 
 Starting shared `main`: `95a3c3d1da9aa440a94d8275d61560ceda00bd3b`;

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "server/runtime/runtime_tls_context.h"
 #include "transport/preauth_session.h"
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/mcs_connect_response.h"
@@ -22,6 +23,7 @@
 #include <cstdint>
 #include <limits>
 #include <fstream>
+#include <filesystem>
 #include <memory>
 
 #include <openssl/crypto.h>
@@ -57,6 +59,7 @@
 
 using namespace rdp_server::server::transport;
 using namespace rdp_server::server::security;
+using rdp_server::server::runtime::RuntimeServerTlsContext;
 
 namespace
 {
@@ -188,6 +191,25 @@ struct TlsHandshakeFixture final
         assert(SSL_is_init_finished(client.get()) == 1);
         assert(SSL_is_init_finished(server.get()) == 1);
         assert(SSL_version(server.get()) >= TLS1_2_VERSION);
+    }
+};
+
+struct RuntimeTlsClientFixture final
+{
+    ContextPointer context{SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
+    SslPointer connection{nullptr, SSL_free};
+
+    RuntimeTlsClientFixture()
+    {
+        assert(context);
+        assert(SSL_CTX_set_min_proto_version(context.get(),
+                                             TLS1_2_VERSION) == 1);
+        // This loopback client verifies the server identity explicitly with
+        // X509_cmp after the handshake; no CA store or external trust exists.
+        SSL_CTX_set_verify(context.get(), SSL_VERIFY_NONE, nullptr);
+        connection.reset(SSL_new(context.get()));
+        assert(connection);
+        SSL_set_connect_state(connection.get());
     }
 };
 
@@ -2177,6 +2199,627 @@ void testOwnedSecurityNegotiationProvenance()
         assert(!owner.active());
         assert(!owner.securityNegotiationProvenance().has_value());
     }
+}
+
+
+using RuntimeTlsServer = RuntimeServerTlsContext::ServerTls;
+using RuntimeClock = std::chrono::steady_clock;
+
+[[nodiscard]] RuntimeClock::time_point runtimeTlsFixtureDeadline()
+{
+    return RuntimeClock::now() + std::chrono::seconds{5};
+}
+
+void nativeSendAllBefore(TcpNonblockingIo &io,
+                         std::span<const std::uint8_t> payload,
+                         RuntimeClock::time_point deadline)
+{
+    std::size_t total = 0;
+    while (total < payload.size() && RuntimeClock::now() < deadline)
+    {
+        const auto sent = io.send(payload.subspan(total));
+        if (sent.outcome == TcpIoOutcome::WouldBlock)
+        {
+            assert(sent.bytes == 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            continue;
+        }
+        assert(sent.outcome == TcpIoOutcome::Progress);
+        assert(sent.bytes > 0 && sent.bytes <= payload.size() - total);
+        total += sent.bytes;
+    }
+    assert(total == payload.size());
+}
+
+void nativeReadAllBefore(TcpNonblockingIo &io,
+                         std::span<std::uint8_t> output,
+                         RuntimeClock::time_point deadline)
+{
+    std::size_t total = 0;
+    while (total < output.size() && RuntimeClock::now() < deadline)
+    {
+        const auto received = io.receive(output.subspan(total));
+        if (received.outcome == TcpIoOutcome::WouldBlock)
+        {
+            assert(received.bytes == 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            continue;
+        }
+        assert(received.outcome == TcpIoOutcome::Progress);
+        assert(received.bytes > 0 &&
+               received.bytes <= output.size() - total);
+        total += received.bytes;
+    }
+    assert(total == output.size());
+}
+
+[[nodiscard]] OwnedNativeTcpSocket acceptRuntimeLoopbackWithDeadline(
+    LoopbackSocketPair &pair)
+{
+    struct Capture final
+    {
+        OwnedNativeTcpSocket socket{};
+    } capture{};
+
+    const auto onAccepted = +[](OwnedNativeTcpSocket accepted,
+                                void *context) noexcept -> bool
+    {
+        auto &state = *static_cast<Capture *>(context);
+        assert(accepted.valid());
+        assert(!state.socket.valid());
+        state.socket = std::move(accepted);
+        return false;
+    };
+
+    const auto deadline = runtimeTlsFixtureDeadline();
+    while (!capture.socket.valid() && RuntimeClock::now() < deadline)
+    {
+        const auto polled = pollNonblockingTcpAcceptBatch(
+            static_cast<std::uintptr_t>(pair.listener.value),
+            1, onAccepted, &capture, deadline, kMaximumTcpPollWait);
+        if (polled.outcome == TcpListenerPollOutcome::BatchCompleted)
+        {
+            assert(polled.batch.outcome ==
+                   TcpAcceptBatchOutcome::CallbackStopped);
+            assert(polled.batch.accepted == 1);
+            break;
+        }
+        assert(polled.outcome == TcpListenerPollOutcome::NoEvent);
+        assert(polled.batch.accepted == 0);
+    }
+
+    assert(capture.socket.valid());
+    assert(pair.listener.value != kInvalidLocalSocket);
+    return std::move(capture.socket);
+}
+
+void completeOwnedRuntimeX224(OwnedPreauthTcpConnection &owner,
+                              NativeTcpIo &clientIo)
+{
+    using Interest = TcpConnectionIoInterest;
+    const auto request = tlsAndHybridRequestWire();
+    const auto parsed = parseConnectionRequest(request);
+    assert(parsed);
+    const auto expectedReply = negotiateDiagnosticTls(parsed);
+    assert(expectedReply.decision == SecurityDecision::Tls);
+    assert(expectedReply.selectedProtocol == kRdpProtocolSsl);
+
+    const auto deadline = runtimeTlsFixtureDeadline();
+    nativeSendAllBefore(clientIo, request, deadline);
+    while (owner.ioInterest() != Interest::ConfigureTls &&
+           RuntimeClock::now() < deadline)
+    {
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+               polled.outcome == TcpConnectionPollOutcome::NoEvent);
+        assert(polled.nextInterest == Interest::Read ||
+               polled.nextInterest == Interest::Write ||
+               polled.nextInterest == Interest::ConfigureTls);
+    }
+
+    assert(owner.ioInterest() == Interest::ConfigureTls);
+    assert(owner.stage() == PreauthStage::AwaitTls);
+    assert(owner.establishedTls() == nullptr);
+    assert(!owner.securityNegotiationProvenance().has_value());
+
+    // The client must receive the complete Confirm before any SSL is attached.
+    std::array<std::uint8_t, 19> confirm{};
+    nativeReadAllBefore(clientIo, confirm, deadline);
+    assert(confirm == expectedReply.packet);
+}
+
+void establishOwnedRuntimeTls(
+    OwnedPreauthTcpConnection &owner,
+    NativeTcpIo &clientIo,
+    RuntimeTlsClientFixture &clientTls,
+    RuntimeTlsServer serverTls,
+    const X509 *expectedCertificate,
+    bool forceShortServerWrites = false)
+{
+    using Interest = TcpConnectionIoInterest;
+    assert(serverTls);
+    assert(expectedCertificate != nullptr);
+    assert(SSL_is_server(serverTls.get()) == 1);
+    assert(SSL_get_certificate(serverTls.get()) != nullptr);
+    assert(X509_cmp(SSL_get_certificate(serverTls.get()),
+                    expectedCertificate) == 0);
+
+    if (forceShortServerWrites)
+        assert(SSL_set_max_send_fragment(serverTls.get(), 1024) == 1);
+
+    assert(owner.attachServerTls(std::move(serverTls)));
+    assert(!serverTls);
+    assert(attachNonblockingTcpBio(clientTls.connection.get(), clientIo));
+    assert(owner.establishedTls() == nullptr);
+    assert(!owner.securityNegotiationProvenance().has_value());
+
+    // One server step without a ClientHello must expose provider backpressure;
+    // R1 must not spin internally or publish an established TLS snapshot.
+    const auto initialServerStep = owner.onTlsIoReady();
+    assert(initialServerStep == TlsHandshakeStatus::NeedRead ||
+           initialServerStep == TlsHandshakeStatus::NeedWrite);
+    assert(owner.establishedTls() == nullptr);
+
+    bool clientEstablished = false;
+    const auto deadline = runtimeTlsFixtureDeadline();
+    while (RuntimeClock::now() < deadline)
+    {
+        if (!clientEstablished)
+        {
+            const int result = SSL_do_handshake(clientTls.connection.get());
+            if (result == 1)
+            {
+                clientEstablished = true;
+            }
+            else
+            {
+                const int error =
+                    SSL_get_error(clientTls.connection.get(), result);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+
+        if (owner.establishedTls() == nullptr)
+        {
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome == TcpConnectionPollOutcome::NoEvent);
+            assert(polled.nextInterest == Interest::Read ||
+                   polled.nextInterest == Interest::Write);
+        }
+
+        if (clientEstablished && owner.establishedTls() != nullptr)
+            break;
+    }
+
+    assert(clientEstablished);
+    assert(SSL_is_init_finished(clientTls.connection.get()) == 1);
+    assert(owner.establishedTls() != nullptr);
+    assert(owner.stage() == PreauthStage::AwaitMcsConnectInitial);
+    assert(owner.ioInterest() == Interest::Read);
+
+    const CertificatePointer observedCertificate{
+        SSL_get1_peer_certificate(clientTls.connection.get()), X509_free};
+    assert(observedCertificate);
+    assert(X509_cmp(observedCertificate.get(), expectedCertificate) == 0);
+
+    const auto provenance = owner.securityNegotiationProvenance();
+    assert(provenance.has_value());
+    assert(provenance->clientRequestedProtocols ==
+           (kRdpProtocolSsl | kRdpProtocolHybrid));
+    assert(provenance->serverSelectedProtocol == kRdpProtocolSsl);
+}
+
+void writeRuntimeTlsClientAll(SSL *client,
+                              std::span<const std::uint8_t> payload)
+{
+    assert(client != nullptr);
+    const auto deadline = runtimeTlsFixtureDeadline();
+    std::size_t total = 0;
+    while (total < payload.size() && RuntimeClock::now() < deadline)
+    {
+        std::size_t bytes = 0;
+        const int result = SSL_write_ex(
+            client, payload.data() + total, payload.size() - total, &bytes);
+        if (result == 1)
+        {
+            assert(bytes > 0 && bytes <= payload.size() - total);
+            total += bytes;
+            continue;
+        }
+        assert(bytes == 0);
+        const int error = SSL_get_error(client, result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    assert(total == payload.size());
+}
+
+void readRuntimeTlsClientAll(SSL *client, std::span<std::uint8_t> output)
+{
+    assert(client != nullptr);
+    const auto deadline = runtimeTlsFixtureDeadline();
+    std::size_t total = 0;
+    while (total < output.size() && RuntimeClock::now() < deadline)
+    {
+        std::size_t bytes = 0;
+        const int result = SSL_read_ex(
+            client, output.data() + total, output.size() - total, &bytes);
+        if (result == 1)
+        {
+            assert(bytes > 0 && bytes <= output.size() - total);
+            total += bytes;
+            continue;
+        }
+        assert(bytes == 0);
+        const int error = SSL_get_error(client, result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    assert(total == output.size());
+}
+
+void readOwnedRuntimeTlsAll(OwnedPreauthTcpConnection &owner,
+                            std::span<std::uint8_t> output)
+{
+    using Outcome = TlsApplicationIoOutcome;
+    const auto deadline = runtimeTlsFixtureDeadline();
+    std::size_t total = 0;
+    while (total < output.size() && RuntimeClock::now() < deadline)
+    {
+        const auto remaining = output.subspan(total);
+        const auto result = owner.readTlsApplicationData(remaining);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0 && result.bytes <= remaining.size());
+            total += result.bytes;
+            continue;
+        }
+
+        assert(result.bytes == 0);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+               polled.outcome == TcpConnectionPollOutcome::NoEvent);
+    }
+    assert(total == output.size());
+}
+
+void writeOwnedRuntimeTlsAll(OwnedPreauthTcpConnection &owner,
+                             std::span<const std::uint8_t> payload,
+                             bool &observedShortProgress)
+{
+    using Outcome = TlsApplicationIoOutcome;
+    const auto deadline = runtimeTlsFixtureDeadline();
+    std::size_t total = 0;
+    while (total < payload.size() && RuntimeClock::now() < deadline)
+    {
+        const auto remaining = payload.subspan(total);
+        const auto result = owner.writeTlsApplicationData(remaining);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0 && result.bytes <= remaining.size());
+            if (result.bytes < remaining.size())
+                observedShortProgress = true;
+            total += result.bytes;
+            continue;
+        }
+
+        assert(result.bytes == 0);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+               polled.outcome == TcpConnectionPollOutcome::NoEvent);
+    }
+    assert(total == payload.size());
+}
+
+void assertRuntimeTransportRevoked(OwnedPreauthTcpConnection &owner,
+                                   LoopbackSocketPair &pair)
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    assert(!owner.active());
+    assert(owner.stage() == PreauthStage::Closed);
+    assert(owner.establishedTls() == nullptr);
+    assert(!owner.securityNegotiationProvenance().has_value());
+    assert(!owner.peerEndpoint().valid());
+    assert(owner.ioInterest() == Interest::Closed);
+    assert(owner.onTlsIoReady() == TlsHandshakeStatus::Closed);
+    assert(owner.onSocketReady(true, true) == Interest::Closed);
+
+    std::array<std::uint8_t, 1> byte{};
+    assert(owner.readTlsApplicationData(byte).outcome ==
+           Outcome::TransportClosed);
+    assert(owner.writeTlsApplicationData(byte).outcome ==
+           Outcome::TransportClosed);
+
+    assert(pair.listener.value != kInvalidLocalSocket);
+    const auto idle = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(idle.outcome == TcpAcceptOutcome::WouldBlock);
+    assert(!idle.connection.valid());
+}
+
+void replaceRuntimeTlsCredentialPath(const char *configuredPath,
+                                     const char *replacementPath)
+{
+    std::error_code error;
+    const bool removed = std::filesystem::remove(configuredPath, error);
+    assert(removed && !error);
+    std::filesystem::rename(replacementPath, configuredPath, error);
+    assert(!error);
+}
+
+void testOwnedRuntimeTlsHandshake(const char *certificatePath,
+                                  const char *privateKeyPath)
+{
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            certificatePath, privateKeyPath);
+    assert(context);
+    assert(context.certificate() != nullptr);
+
+    // A missing R10 context cannot manufacture a per-connection TLS owner.
+    {
+        RuntimeServerTlsContext missingContext{};
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        completeOwnedRuntimeX224(owner, clientIo);
+        assert(!missingContext.createServerTls());
+        assert(!owner.attachServerTls(missingContext.createServerTls()));
+        assertRuntimeTransportRevoked(owner, pair);
+    }
+
+    // Attaching a genuine R10 SSL while Confirm bytes are still pending is
+    // terminal. The caller-owned listener remains independent of R1 teardown.
+    {
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        const auto request = tlsAndHybridRequestWire();
+        const auto deadline = runtimeTlsFixtureDeadline();
+        nativeSendAllBefore(clientIo, request, deadline);
+        while (owner.ioInterest() == TcpConnectionIoInterest::Read &&
+               RuntimeClock::now() < deadline)
+        {
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome ==
+                       TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome == TcpConnectionPollOutcome::NoEvent);
+        }
+        assert(owner.ioInterest() == TcpConnectionIoInterest::Write);
+        assert(!owner.attachServerTls(context.createServerTls()));
+        assertRuntimeTransportRevoked(owner, pair);
+    }
+
+    // An attached SSL that has not received a ClientHello exposes one WANT
+    // step, never establishedTls/provenance, and remains safely cancellable.
+    {
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        completeOwnedRuntimeX224(owner, clientIo);
+        assert(owner.attachServerTls(context.createServerTls()));
+        const auto status = owner.onTlsIoReady();
+        assert(status == TlsHandshakeStatus::NeedRead ||
+               status == TlsHandshakeStatus::NeedWrite);
+        assert(owner.establishedTls() == nullptr);
+        assert(!owner.securityNegotiationProvenance().has_value());
+        owner.cancel();
+        assertRuntimeTransportRevoked(owner, pair);
+    }
+
+    // Complete R10 -> R1 ownership, encrypted I/O and explicit cancellation.
+    {
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        const auto peer = accepted.peerEndpoint();
+        assert(peer.valid());
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        assert(owner.peerEndpoint() == peer);
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        completeOwnedRuntimeX224(owner, clientIo);
+
+        RuntimeTlsClientFixture clientTls{};
+        establishOwnedRuntimeTls(
+            owner, clientIo, clientTls, context.createServerTls(),
+            context.certificate(), true);
+        assert(owner.peerEndpoint() == peer);
+
+        std::array<std::uint8_t, 257> inbound{};
+        for (std::size_t index = 0; index < inbound.size(); ++index)
+            inbound[index] =
+                static_cast<std::uint8_t>((index * 13U + 7U) & 0xffU);
+        std::array<std::uint8_t, 257> received{};
+        const auto blocked = owner.readTlsApplicationData(received);
+        assert(blocked.outcome == TlsApplicationIoOutcome::NeedRead);
+        assert(blocked.bytes == 0);
+        writeRuntimeTlsClientAll(clientTls.connection.get(), inbound);
+        readOwnedRuntimeTlsAll(owner, received);
+        assert(received == inbound);
+
+        std::array<std::uint8_t, 4096> outbound{};
+        for (std::size_t index = 0; index < outbound.size(); ++index)
+            outbound[index] =
+                static_cast<std::uint8_t>((index * 29U + 3U) & 0xffU);
+        bool observedShortProgress = false;
+        writeOwnedRuntimeTlsAll(owner, outbound, observedShortProgress);
+        assert(observedShortProgress);
+        std::array<std::uint8_t, 4096> delivered{};
+        readRuntimeTlsClientAll(clientTls.connection.get(), delivered);
+        assert(delivered == outbound);
+
+        assert(owner.establishedTls() != nullptr);
+        assert(owner.securityNegotiationProvenance().has_value());
+        owner.cancel();
+        // Do not dereference the previously borrowed SSL after cancellation.
+        assertRuntimeTransportRevoked(owner, pair);
+    }
+
+    // Recognize a genuine peer close_notify through the same R10-backed SSL.
+    {
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        completeOwnedRuntimeX224(owner, clientIo);
+        RuntimeTlsClientFixture clientTls{};
+        establishOwnedRuntimeTls(
+            owner, clientIo, clientTls, context.createServerTls(),
+            context.certificate());
+
+        const auto deadline = runtimeTlsFixtureDeadline();
+        bool closeNotifySent = false;
+        while (!closeNotifySent && RuntimeClock::now() < deadline)
+        {
+            const int result = SSL_shutdown(clientTls.connection.get());
+            if (result >= 0)
+            {
+                closeNotifySent = true;
+                break;
+            }
+            const int error =
+                SSL_get_error(clientTls.connection.get(), result);
+            assert(error == SSL_ERROR_WANT_READ ||
+                   error == SSL_ERROR_WANT_WRITE);
+        }
+        assert(closeNotifySent);
+
+        std::array<std::uint8_t, 16> buffer{};
+        TlsApplicationIoResult result{};
+        while (owner.active() && RuntimeClock::now() < deadline)
+        {
+            result = owner.readTlsApplicationData(buffer);
+            if (result.outcome == TlsApplicationIoOutcome::TlsClosed)
+                break;
+            assert(result.bytes == 0);
+            assert(result.outcome == TlsApplicationIoOutcome::NeedRead ||
+                   result.outcome == TlsApplicationIoOutcome::NeedWrite);
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome ==
+                       TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome == TcpConnectionPollOutcome::NoEvent);
+        }
+        assert(result.outcome == TlsApplicationIoOutcome::TlsClosed);
+        assertRuntimeTransportRevoked(owner, pair);
+    }
+
+    // Abrupt peer loss is transport closure, never successful TLS/session state.
+    {
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+        completeOwnedRuntimeX224(owner, clientIo);
+        RuntimeTlsClientFixture clientTls{};
+        establishOwnedRuntimeTls(
+            owner, clientIo, clientTls, context.createServerTls(),
+            context.certificate());
+        pair.client.close();
+
+        const auto deadline = runtimeTlsFixtureDeadline();
+        std::array<std::uint8_t, 16> buffer{};
+        TlsApplicationIoResult result{};
+        while (owner.active() && RuntimeClock::now() < deadline)
+        {
+            result = owner.readTlsApplicationData(buffer);
+            if (result.outcome ==
+                TlsApplicationIoOutcome::TransportClosed)
+                break;
+            assert(result.bytes == 0);
+            assert(result.outcome == TlsApplicationIoOutcome::NeedRead ||
+                   result.outcome == TlsApplicationIoOutcome::NeedWrite);
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome ==
+                       TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome == TcpConnectionPollOutcome::NoEvent);
+        }
+        assert(result.outcome == TlsApplicationIoOutcome::TransportClosed);
+        assertRuntimeTransportRevoked(owner, pair);
+    }
+}
+
+void testOwnedRuntimeTlsIdentityContinuity(
+    const char *certificatePath,
+    const char *privateKeyPath,
+    const char *replacementCertificatePath,
+    const char *replacementPrivateKeyPath)
+{
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            certificatePath, privateKeyPath);
+    assert(context);
+    const CertificatePointer expectedCertificate{
+        X509_dup(context.certificate()), X509_free};
+    assert(expectedCertificate);
+
+    // R10 has already validated and retained its identity. Replace both
+    // configured pathnames with invalid material before creating this SSL.
+    replaceRuntimeTlsCredentialPath(
+        certificatePath, replacementCertificatePath);
+    replaceRuntimeTlsCredentialPath(
+        privateKeyPath, replacementPrivateKeyPath);
+
+    RuntimeTlsServer serverTls = context.createServerTls();
+    assert(serverTls);
+    assert(SSL_get_certificate(serverTls.get()) != nullptr);
+    assert(X509_cmp(SSL_get_certificate(serverTls.get()),
+                    expectedCertificate.get()) == 0);
+
+    McsSessionLifecycle r3Session{};
+    assert(r3Session.phase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    LoopbackSocketPair pair{false};
+    OwnedNativeTcpSocket accepted =
+        acceptRuntimeLoopbackWithDeadline(pair);
+    const auto peer = accepted.peerEndpoint();
+    assert(peer.valid());
+    OwnedPreauthTcpConnection owner{std::move(accepted)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    completeOwnedRuntimeX224(owner, clientIo);
+    RuntimeTlsClientFixture clientTls{};
+    establishOwnedRuntimeTls(
+        owner, clientIo, clientTls, std::move(serverTls),
+        expectedCertificate.get());
+
+    const CertificatePointer observedCertificate{
+        SSL_get1_peer_certificate(clientTls.connection.get()), X509_free};
+    assert(observedCertificate);
+    assert(X509_cmp(observedCertificate.get(),
+                    expectedCertificate.get()) == 0);
+    assert(owner.peerEndpoint() == peer);
+
+    // TLS establishment and X.224 provenance are transport facts only.
+    // Without an R2 lease, the independent R3 owner cannot advance.
+    assert(r3Session.phase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    owner.cancel();
+    assertRuntimeTransportRevoked(owner, pair);
 }
 
 void establishOwnedApplicationTls(
@@ -6228,6 +6871,27 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
 
 int main(int argc, char **argv)
 {
+    if (argc >= 2 && argv[1] != nullptr)
+    {
+        const std::string_view fixtureCase{argv[1]};
+        if (fixtureCase == "tcp-owned-runtime-tls-handshake")
+        {
+            if (argc != 4 || argv[2] == nullptr || argv[3] == nullptr)
+                return 2;
+            testOwnedRuntimeTlsHandshake(argv[2], argv[3]);
+            return 0;
+        }
+        if (fixtureCase == "tcp-owned-runtime-tls-identity-continuity")
+        {
+            if (argc != 6 || argv[2] == nullptr || argv[3] == nullptr ||
+                argv[4] == nullptr || argv[5] == nullptr)
+                return 2;
+            testOwnedRuntimeTlsIdentityContinuity(
+                argv[2], argv[3], argv[4], argv[5]);
+            return 0;
+        }
+    }
+
     if (argc == 1)
     {
         for (const auto &test : kPreauthTestCases)

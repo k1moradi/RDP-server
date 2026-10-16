@@ -4970,6 +4970,9 @@ void testRdpNewLicenseInformationDenials()
                 opaque.bytesWritten - opaqueWithZeros.size())));
 }
 
+[[nodiscard]] RdpLicensingKeyMaterial
+platformChallengeKeys() noexcept;
+
 void testRdpServerLicenseGrantWire()
 {
     constexpr std::array<std::uint8_t, 47> plaintext{

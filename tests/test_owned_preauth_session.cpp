@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "transport/preauth_session.h"
 #include "transport/nonblocking_tcp_adapter.h"
+#include "transport/mcs_connect_response.h"
 #include "transport/tpkt_x224.h"
 #include "security/credssp_tsrequest.h"
 #include "security/credssp_tls_certificate.h"
@@ -2475,6 +2476,108 @@ void testOwnedTlsApplicationPartialWrite()
     assert(completed.outcome == Outcome::Progress);
     assert(completed.bytes == retryPayload.size());
     assert(pendingRead == retryPayload);
+    owner.cancel();
+}
+
+void testR3ConnectResponseSliceThroughOwnedTls()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using WriteOutcome = McsConnectResponseWriteOutcome;
+
+    static_assert(kMaximumMcsResponseBytes <=
+                  kMaximumTlsApplicationIoBytes);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+
+    TlsHandshakeFixture tls{false, false};
+    assert(SSL_set_max_send_fragment(tls.server.get(), 1024) == 1);
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    // Byte/receipt compatibility only. This synthetic response is never an
+    // R2 authorization or permission to publish an R3 Connect Response.
+    McsConnectResponse response{};
+    response.length = response.packet.size();
+    for (std::size_t index = 0; index < response.length; ++index)
+        response.packet[index] =
+            static_cast<std::uint8_t>((index * 37U + 19U) & 0xffU);
+
+    McsConnectResponseWriteGate gate;
+    assert(gate.queue(response));
+    auto view = gate.pendingWrite();
+    assert(view);
+    assert(view.bytes.size() == kMaximumMcsResponseBytes);
+    assert(view.bytes.size() <= kMaximumTlsApplicationIoBytes);
+
+    bool observedShortProgress = false;
+    WriteOutcome completion = WriteOutcome::Pending;
+    for (int attempt = 0;
+         attempt < 2048 && completion == WriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto replySequence = view.replySequence;
+        const auto sliceSequence = view.writeSliceSequence;
+        const auto offered = view.bytes;
+        const auto write = owner.writeTlsApplicationData(offered);
+
+        if (write.outcome == Outcome::Progress)
+        {
+            assert(write.bytes > 0 && write.bytes <= offered.size());
+            if (offered.size() == kMaximumMcsResponseBytes)
+            {
+                assert(write.bytes <= 1024U);
+                assert(write.bytes < offered.size());
+                observedShortProgress = true;
+            }
+
+            completion = gate.onBytesWritten(
+                replySequence, sliceSequence, write.bytes);
+            if (completion == WriteOutcome::Pending)
+            {
+                const auto next = gate.pendingWrite();
+                assert(next);
+                assert(next.replySequence == replySequence);
+                assert(next.writeSliceSequence != sliceSequence);
+                assert(next.bytes.size() ==
+                       offered.size() - write.bytes);
+                view = next;
+            }
+            continue;
+        }
+
+        assert(write.bytes == 0);
+        assert(write.outcome == Outcome::NeedRead ||
+               write.outcome == Outcome::NeedWrite);
+        const auto expected = write.outcome == Outcome::NeedRead
+            ? Interest::Read
+            : Interest::Write;
+        assert(owner.ioInterest() == expected);
+        assert(gate.onBytesWritten(
+                   replySequence, sliceSequence, 0U) ==
+               WriteOutcome::Pending);
+        const auto retry = gate.pendingWrite();
+        assert(retry.replySequence == replySequence);
+        assert(retry.writeSliceSequence == sliceSequence);
+        assert(retry.bytes.data() == offered.data());
+        assert(retry.bytes.size() == offered.size());
+        assert(owner.onSocketReady(true, true) == expected);
+        view = retry;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(observedShortProgress);
+    assert(completion == WriteOutcome::Delivered);
+    assert(!gate.pendingWrite());
+
+    std::array<std::uint8_t, kMaximumMcsResponseBytes> delivered{};
+    readNativeTlsClientAll(tls.client.get(), delivered);
+    assert(std::equal(delivered.begin(), delivered.end(),
+                      response.packet.begin(), response.packet.end()));
     owner.cancel();
 }
 
@@ -6073,6 +6176,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-security-negotiation-provenance", &testOwnedSecurityNegotiationProvenance},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
+    {"tcp-owned-r3-connect-response-slice", &testR3ConnectResponseSliceThroughOwnedTls},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},

@@ -1,5 +1,36 @@
 ## R5 RandR stale-damage generation fence exact-SHA hosted validation (2026-10-16)
 
+## R2 Linux PAM verifier exact-SHA validation (2026-10-16)
+
+Validated SHA `d2a1ac10ac3c5ecd64b7d34b3777e2121119f678`, Actions
+`38978066830`: **SUCCESS**.
+
+Linux/GCC Debug and Release are **521/521 PASS**; the real-provider denial
+behavior `security.linux-pam-password-verifier-denials` is test **#319** and
+passes in both. macOS/AppleClang is **442/442 PASS** in Debug and Release with
+no PAM dependency. Windows/MSVC native preflight is **51/51 PASS** in Debug and
+Release and full suites are **472/472 PASS** in both. SDK consumer validation
+is **1/1 PASS** on all three platforms.
+
+R9 Clang ASan/UBSan compiled the production PAM target and the exact PAM
+selection is **1/1 PASS** (test #319, 1.73 s). Native GSS/R2/R3 is **29/29
+PASS**, direct Linux runtime security **10/10 PASS**, native X11 **32/32 PASS**,
+and the bounded fuzzer **1/1 PASS**. Documentation policy and R7 sanitizer pass;
+untagged prerelease publication is correctly skipped.
+
+Earlier PAM workflow SHAs `506408ff00617fa86643dcf0cfe832ae108e0b32` and
+`8733cc9c1fa4925755d7bf311db883f9c5e7f57e` failed before job creation due
+to CI YAML authoring corruption and are not compiler/test evidence.
+
+R2 remains fail closed: the private final-credential completion latch is still
+false and PAM cannot mint admission. The next implementation boundary is
+authenticated extraction of the confidential password-credential username and
+exact immutable Kerberos-principal-to-local-account policy matching before PAM
+is invoked. Positive Kerberos/PAM/NSS/logind admission and M2 remain
+**BLOCKED / NOT RUN**. Canonical owner-local `~/rdp-server/build/` remains
+**NOT RUN** in this connector environment.
+
+
 ## R2 PAM workflow full reconstruction receipt (2026-10-16)
 
 The first PAM publication `506408ff00617fa86643dcf0cfe832ae108e0b32`

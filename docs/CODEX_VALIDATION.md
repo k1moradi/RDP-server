@@ -1,5 +1,28 @@
 ## R7 macOS session-watch consumer-retirement authoring receipt (2026-10-16)
 
+## R2 strict CredSSP parser CI correction receipt (2026-10-16)
+
+The implementation commit `a5651588b1b8b2697c63305515bc58807917c519`
+correctly published the production parser hardening, but Actions
+`38974042241` failed during Debug compilation on Linux, Windows, macOS and
+the R9 sanitizer job because the generated test-source edit contained a
+literal `\\n` between two `#include` directives. The production parser was
+not the reported compiler boundary.
+
+Commit `b44d117f93a001ab055ca25c10443155672ac050` replaces only that malformed
+include line with two real source lines. Its documentation-policy job
+correctly reports the one-line implementation fix as missing a same-commit
+Markdown co-change; this receipt records that correction without altering the
+production authorization model.
+
+The current final-CredSSP behavior remains fail closed: password credentials
+are syntax-inspected only, `ownedCredSspCredentialAuthorizationComplete_`
+remains false, no PAM/OS verifier is yet configured, and no
+`LinuxConsoleAdmissionLease` can be minted from final authInfo alone.
+Platform, R9 sanitizer and documentation results must be taken from the
+exact-SHA run for the commit containing this receipt.
+
+
 **Parent:** `a5651588b1b8b2697c63305515bc58807917c519`. Publication SHA and hosted Actions result: **PENDING**.
 
 The initial R7 publication exposed a malformed CI YAML edit during immediate diff review. This follow-up repairs only the R7 sanitizer workflow block on current shared `main`; the production/session-retirement semantics and dedicated CTests are unchanged. The malformed SHA is not treated as validation evidence.

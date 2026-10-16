@@ -9734,3 +9734,36 @@ the new Apple test is **NOT RUN** at authoring; exact-SHA hosted AppleClang
 Debug/Release plus the full cross-platform matrix are required after
 publication. **Next R7** remains a genuine R2/R3 macOS authorization
 capability; M5 remains open.
+
+
+## R7 capture consumer-cancellation exact-SHA hosted receipt (2026-10-16)
+
+Test-only implementation `93f9e5980b4cbadc9309dc676c45be558dcbda17`,
+Actions `38900557422`, validates the synchronous close-from-consumer lifetime
+boundary without changing production code or native authorization reachability.
+
+macOS/AppleClang full CTest is **338/338 PASS** in both Debug and Release.
+The new `macos.capture-stream-consumer-cancellation` case passes in both
+configurations and proves that closing the stream from inside
+`MacCaptureFrameConsumer::consume()` makes the in-flight callback return
+`RetireStream`, closes the injected backend exactly once, rejects a later
+callback through retained `MacScreenCaptureState`, and keeps repeated close
+idempotent. The macOS installed SDK consumer is **1/1 PASS** and packaging
+completes.
+
+Windows/MSVC full CTest is **361/361 PASS** in both Debug and Release, with
+the installed SDK consumer **1/1 PASS** and packaging complete. Documentation
+policy and the R9 ASan/UBSan/fuzzer job **PASS**.
+
+Ubuntu/GCC Debug runs **394/395**: the only failure is unrelated R10
+`runtime.linux-connection-credssp-owner-framing`, which aborts at
+`tests/test_runtime_linux_security.cpp:648` on
+`step.plaintextBytesWritten == 0`. Release/package steps are skipped after
+that Debug failure. No R7 source or test is implicated, and the new case is
+Apple-only.
+
+The roadmap dependency remains unchanged: no non-forgeable macOS R2/R3
+admission capability and no R4 cursor-consumer contract exist. Native
+ScreenCaptureKit construction, AppKit cursor sampling and Quartz input remain
+quarantined. Owner macOS 27 live desktop evidence and M5 remain
+**NOT RUN/BLOCKED**.

@@ -11128,3 +11128,38 @@ rejection and native-echo suppression at the actual injected coordinate. No
 new queue, XTEST path, RDP parser or capability is added; the R5 sanitizer
 selection remains **23** behavior-named cases. Exact correction-SHA hosted CI
 is pending.
+
+
+## R7 session-watch destructor retirement regression (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `973ad903e77206c8ab6592ccc56829f992783078`.
+
+The process-scoped macOS session-change watch already retires native coverage
+from its destructor, but the dedicated regression previously exercised only
+explicit `stop()`. New offline CTest
+`macos.desktop-session-watch-destructor-retirement` invokes the production
+destructor path with the existing injected registration backend. Successful
+destruction must remove the observer once, make coverage unavailable, keep a
+queued scalar-epoch callback inert after the C++ owner is gone, and allow a
+fresh replacement watch to register and retire normally.
+
+The same subprocess then exercises the terminal ambiguous-retirement path:
+observer removal fails during destruction, coverage remains unavailable, and
+the process registration reservation remains held so a replacement registration
+is denied. The case deliberately ends with that reservation held; callbacks
+carry no watch-object pointer, so this is a fail-closed lifetime assertion
+rather than a recoverable restart path.
+
+Production source and native reachability are unchanged. Ordinary CTest still
+installs no AppKit observer, requests no TCC permission, reads no live desktop
+and performs no capture/input action. Source/registry/documentation review is
+**PASS**. Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN**
+in this connector environment; exact-SHA hosted Linux/GCC, macOS/AppleClang,
+Windows/MSVC, R9 sanitizer and documentation-policy results are **PENDING**
+after publication.
+
+The roadmap blocker is unchanged: R7 still requires a genuine non-forgeable
+macOS R2/R3 admission capability before exposing native capture/input/cursor
+construction, while R4 still owns any future cursor publication contract.
+Owner macOS 27 live fast-user-switch delivery and Microsoft-client M5
+acceptance remain **NOT RUN**. **M5 remains OPEN/BLOCKED**.

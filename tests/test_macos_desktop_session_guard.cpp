@@ -523,6 +523,55 @@ void testWatchRegistrationRetirement() {
     assert(blockedWatch.stop());
 }
 
+void testWatchDestructorRetirement() {
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend retiredBackend;
+    {
+        NativeSessionChangeWatch watch;
+        startSessionWatch(watch, retiredBackend);
+        assert(NativeSessionChangeWatch::coveredRevision());
+    }
+    assert(retiredBackend.removals == 1);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    // The native callback carries only the scalar registration epoch. A
+    // notification that was already queued may therefore arrive after the
+    // owning watch has been destroyed, but it must remain inert.
+    retiredBackend.notifyDelayed();
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend replacementBackend;
+    {
+        NativeSessionChangeWatch replacement;
+        startSessionWatch(replacement, replacementBackend);
+    }
+    assert(replacementBackend.removals == 1);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    // If observer retirement is ambiguous during destruction, the process
+    // registration stays reserved and coverage stays unavailable. There is no
+    // surviving C++ owner to retry removal, so replacement registration must
+    // fail closed for the remainder of this process.
+    FakeSessionWatchBackend failedBackend;
+    failedBackend.removeSucceeds = false;
+    {
+        NativeSessionChangeWatch failedWatch;
+        startSessionWatch(failedWatch, failedBackend);
+    }
+    assert(failedBackend.removals == 1);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend blockedBackend;
+    NativeSessionChangeWatch blockedWatch;
+    const auto blocked =
+        blockedWatch.startWithCallbacks(blockedBackend.callbacks());
+    assert(!blocked);
+    assert(blocked.error() ==
+           NativeSessionChangeWatchError::AlreadyRegistered);
+    assert(blockedBackend.installs == 0);
+}
+
 void testWatchUnavailableDenial() {
     NativeDisplayGeometryRefresh geometry;
     DisplayFixture display;
@@ -575,6 +624,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testMidOperationEpochChange();
     } else if (testCase == "watch-registration-retirement") {
         testWatchRegistrationRetirement();
+    } else if (testCase == "watch-destructor-retirement") {
+        testWatchDestructorRetirement();
     } else if (testCase == "watch-unavailable-denial") {
         testWatchUnavailableDenial();
     } else {

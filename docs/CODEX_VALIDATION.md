@@ -11811,3 +11811,30 @@ position rejects an INT32_MAX remote request because XTEST would inject the
 same position, and a recorded INT32_MAX remote request suppresses a subsequent
 XI2 echo at (32767,32767). This is a bounds/echo correction within the existing
 behavior, so no duplicate CTest or sanitizer selector entry is added.
+
+
+## R7 session-watch destructor retirement authoring receipt (2026-10-16; CI pending)
+
+Authoring base is `973ad903e77206c8ab6592ccc56829f992783078`. R7 adds one production-backed, permission-free
+CTest: `macos.desktop-session-watch-destructor-retirement`. It exercises
+`NativeSessionChangeWatch::~NativeSessionChangeWatch()` rather than calling
+`stop()` explicitly. The successful path verifies one removal, unavailable
+coverage after destruction, inert delayed delivery through the production
+scalar-epoch recorder, and successful replacement registration.
+
+A final subprocess-local case makes observer removal fail during destruction
+and verifies that coverage stays unavailable while the process registration
+reservation remains held, so a new watch receives
+`AlreadyRegistered`. This intentionally leaves the reservation terminal for
+that CTest process and proves the late native callback never needs a destroyed
+C++ watch object.
+
+No production source, AppKit registration path, authentication/admission state,
+capture factory, cursor sampler or Quartz input reachability changes. Source
+and central CTest registry review are **PASS**. The canonical owner-local
+`~/rdp-server/build/` configure/build/full CTest is **NOT RUN** because this
+connector environment does not expose that checkout; no alternate build root,
+branch or worktree is created. Exact publication-SHA hosted Debug/Release,
+sanitizer, documentation and SDK/package evidence is **PENDING**. Owner macOS
+27 notification delivery, genuine R2/R3 macOS admission and Microsoft-client
+M5 acceptance remain **NOT RUN/OPEN**.

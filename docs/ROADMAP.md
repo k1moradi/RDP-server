@@ -1,3 +1,31 @@
+## R9 licensing key-material terminal replay fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `bb913860a0f7dde8a2a174b7b938fb70c8d90bdc`.
+R3 key-material implementation `64f91607a1346258c5a843fb10a717e91747518a`,
+Actions `38922835577`, is fully green and already places its key-exchange
+view/denial and deterministic key-derivation cases in the bounded R9 sanitizer
+selector. Its sanitizer groups pass clipboard **49/49**, x264/BGRA **20/20**,
+bounded R1/R3 **46/46**, native GSS/R2/R3 **27/27**, runtime CredSSP **4/4**,
+native X11 **25/25**, and fuzzer **1/1**.
+
+R9 adds one independent production-backed regression,
+`transport.licensing-key-material-terminal-replay`, in the existing
+`test_owned_mcs_connect_initial` binary. It proves the retained ServerRandom
+is not exposed after queue/partial delivery, cancellation plus stale completion
+cannot publish it, exact full delivery publishes the wire random, duplicate
+completion erases it, malformed or duplicate client intake erases it, and a
+fresh replacement lifecycle begins with no inherited key material. The test
+does not perform RSA, synthesize authentication/admission, or create a positive
+license decision.
+
+The central CTest registry and fail-closed R9 sanitizer selection assertion are
+updated together; bounded R1/R3 selection is expected to grow **46 to 47**.
+No production source or ownership API changes. Canonical owner-local
+`~/rdp-server/build/` configure/build/full CTest and local sanitizer
+execution remain **NOT RUN** in this connector environment. Exact-publication-
+SHA hosted evidence is required. Genuine Kerberos/NSS/logind admission,
+Microsoft-client licensing, Share activation and M2/M3 remain **NOT RUN/OPEN**.
+
 ## R6 invalid-consumer release-revocation exact-SHA validation (2026-10-16)
 
 **Implementation:** `1084b706e3dd6ea993028976c61c423620f24128`.  

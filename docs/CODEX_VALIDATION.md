@@ -1,3 +1,24 @@
+## R9 licensing key-material terminal replay authoring (2026-10-16)
+
+**Parent:** `bb913860a0f7dde8a2a174b7b938fb70c8d90bdc`.
+Source review of R3's retained ServerRandom boundary found ordinary receipt
+coverage for successful publication and explicit close, but no independent
+behavior-named test for terminal replay/failure erasure. R9 adds
+`transport.licensing-key-material-terminal-replay` using only production
+`RdpServerLicenseRequestWriteGate` and `RdpLicensingLifecycle`.
+
+The case covers partial-write cancellation, stale completion after close,
+duplicate completion after delivery, malformed client intake, duplicate valid
+client intake after first consumption, and a fresh replacement lifecycle. It
+asserts ServerRandom is inaccessible until complete request delivery and empty
+after every terminal path. It intentionally does not duplicate R3's key-
+derivation oracle or fabricate positive licensing/authentication.
+
+CTest registration and the bounded sanitizer selector assertion are updated in
+the same commit; expected R1/R3 sanitizer count is **47**. Local canonical
+owner testing is **NOT RUN** here; exact-SHA hosted matrix/sanitizer evidence
+is pending.
+
 ## R6 invalid-consumer release-revocation hosted receipt (2026-10-16)
 
 Implementation `1084b706e3dd6ea993028976c61c423620f24128`, Actions `38924775313`: **SUCCESS**.

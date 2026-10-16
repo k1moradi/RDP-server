@@ -5301,6 +5301,129 @@ void testRdpLicensingKeyDerivation()
            RdpLicensingKeyDerivationError::InvalidInput);
 }
 
+void testRdpLicensingKeyMaterialTerminalReplay()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    const auto clientResponse = makeClientNewLicenseRequest();
+
+    // A queued/partially written request owns a private random, but that
+    // material is not decision-visible until every request byte is accepted.
+    RdpLicensingLifecycle cancelledLifecycle;
+    RdpServerLicenseRequestWriteGate cancelledWriter{cancelledLifecycle};
+    assert(cancelledLifecycle.serverRandom().empty());
+    assert(cancelledWriter.queue(identity));
+    assert(cancelledLifecycle.serverRandom().empty());
+
+    const auto initial = cancelledWriter.pendingWrite();
+    assert(initial);
+    constexpr std::size_t acceptedBytes = 11U;
+    assert(initial.bytes.size() > acceptedBytes);
+    assert(cancelledWriter.onBytesWritten(
+               initial.replySequence, initial.writeSliceSequence,
+               acceptedBytes) == RdpServerLicenseRequestWriteOutcome::Pending);
+    const auto remainder = cancelledWriter.pendingWrite();
+    assert(remainder);
+    assert(cancelledLifecycle.serverRandom().empty());
+
+    const auto cancelledReplySequence = remainder.replySequence;
+    const auto cancelledSliceSequence = remainder.writeSliceSequence;
+    const auto cancelledRemainingBytes = remainder.bytes.size();
+    cancelledWriter.close();
+    assert(cancelledLifecycle.phase() == RdpLicensingPhase::Closed);
+    assert(cancelledLifecycle.serverRandom().empty());
+    assert(cancelledWriter.onBytesWritten(
+               cancelledReplySequence, cancelledSliceSequence,
+               cancelledRemainingBytes) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(cancelledLifecycle.serverRandom().empty());
+    assert(cancelledLifecycle.onClientMessage(clientResponse) ==
+           RdpLicensingIntake::Closed);
+
+    // Full delivery publishes exactly the wire random. Replaying the completed
+    // receipt is terminal and must erase that retained key-derivation input.
+    RdpLicensingLifecycle deliveredLifecycle;
+    RdpServerLicenseRequestWriteGate deliveredWriter{deliveredLifecycle};
+    assert(deliveredWriter.queue(identity));
+    const auto deliveredPending = deliveredWriter.pendingWrite();
+    assert(deliveredPending);
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> deliveredRandom{};
+    std::copy_n(
+        deliveredPending.bytes.begin() + 4U, deliveredRandom.size(),
+        deliveredRandom.begin());
+    const auto deliveredReplySequence = deliveredPending.replySequence;
+    const auto deliveredSliceSequence = deliveredPending.writeSliceSequence;
+    const auto deliveredBytes = deliveredPending.bytes.size();
+    assert(deliveredLifecycle.serverRandom().empty());
+    assert(deliveredWriter.onBytesWritten(
+               deliveredReplySequence, deliveredSliceSequence,
+               deliveredBytes) == RdpServerLicenseRequestWriteOutcome::Delivered);
+    assert(deliveredLifecycle.phase() ==
+           RdpLicensingPhase::AwaitClientLicenseResponse);
+    assert(std::equal(
+        deliveredLifecycle.serverRandom().begin(),
+        deliveredLifecycle.serverRandom().end(),
+        deliveredRandom.begin()));
+    assert(deliveredWriter.onBytesWritten(
+               deliveredReplySequence, deliveredSliceSequence, 0U) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(deliveredLifecycle.phase() == RdpLicensingPhase::Closed);
+    assert(deliveredLifecycle.serverRandom().empty());
+
+    // Malformed client intake after a completed request is terminal and clears
+    // the retained random before any later valid replay can be considered.
+    RdpLicensingLifecycle malformedLifecycle;
+    RdpServerLicenseRequestWriteGate malformedWriter{malformedLifecycle};
+    assert(malformedWriter.queue(identity));
+    const auto malformedPending = malformedWriter.pendingWrite();
+    assert(malformedPending);
+    assert(malformedWriter.onBytesWritten(
+               malformedPending.replySequence,
+               malformedPending.writeSliceSequence,
+               malformedPending.bytes.size()) ==
+           RdpServerLicenseRequestWriteOutcome::Delivered);
+    assert(!malformedLifecycle.serverRandom().empty());
+    assert(malformedLifecycle.onClientMessage(
+               std::span(clientResponse).first(clientResponse.size() - 1U)) ==
+           RdpLicensingIntake::MalformedMessage);
+    assert(malformedLifecycle.phase() == RdpLicensingPhase::Failed);
+    assert(malformedLifecycle.serverRandom().empty());
+    assert(malformedLifecycle.onClientMessage(clientResponse) ==
+           RdpLicensingIntake::Failed);
+    assert(malformedLifecycle.serverRandom().empty());
+
+    // A legitimate first client response may retain the random for the future
+    // server decision, but a duplicate response is terminal and erases it.
+    RdpLicensingLifecycle replayLifecycle;
+    RdpServerLicenseRequestWriteGate replayWriter{replayLifecycle};
+    assert(replayWriter.queue(identity));
+    const auto replayPending = replayWriter.pendingWrite();
+    assert(replayPending);
+    assert(replayWriter.onBytesWritten(
+               replayPending.replySequence, replayPending.writeSliceSequence,
+               replayPending.bytes.size()) ==
+           RdpServerLicenseRequestWriteOutcome::Delivered);
+    assert(replayLifecycle.onClientMessage(clientResponse) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(replayLifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(!replayLifecycle.serverRandom().empty());
+    assert(replayLifecycle.onClientMessage(clientResponse) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(replayLifecycle.phase() == RdpLicensingPhase::Failed);
+    assert(replayLifecycle.serverRandom().empty());
+
+    // Replacement ownership starts with no inherited key material.
+    RdpLicensingLifecycle replacementLifecycle;
+    RdpServerLicenseRequestWriteGate replacementWriter{replacementLifecycle};
+    assert(replacementLifecycle.phase() == RdpLicensingPhase::NotStarted);
+    assert(replacementLifecycle.serverRandom().empty());
+    assert(replacementWriter.queue(identity));
+    assert(replacementLifecycle.serverRandom().empty());
+    replacementWriter.close();
+    assert(replacementLifecycle.phase() == RdpLicensingPhase::Closed);
+    assert(replacementLifecycle.serverRandom().empty());
+}
+
 void testRdpLicensingPreambleAndState()
 {
     const auto newRequest = makeClientNewLicenseRequest();
@@ -5459,7 +5582,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 88> kMcsTestCases{{
+constexpr std::array<McsTestCase, 89> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -5517,6 +5640,7 @@ constexpr std::array<McsTestCase, 88> kMcsTestCases{{
     {"licensing-key-exchange-wire", &testRdpClientLicensingKeyExchangeViews},
     {"licensing-key-exchange-denials", &testRdpClientLicensingKeyExchangeDenials},
     {"licensing-key-derivation", &testRdpLicensingKeyDerivation},
+    {"licensing-key-material-terminal-replay", &testRdpLicensingKeyMaterialTerminalReplay},
     {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},
     {"licensing-length-bounds", &testRdpLicensingLengthBounds},
     {"licensing-ordering-denials", &testRdpLicensingOrderingDenials},

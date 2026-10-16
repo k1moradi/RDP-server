@@ -74,6 +74,7 @@ function(add_rdp_test source_file suite behavior)
                 licensing-key-exchange-wire
                 licensing-key-exchange-denials
                 licensing-key-derivation
+                licensing-key-material-terminal-replay
                 licensing-preamble-and-state
                 licensing-length-bounds
                 licensing-ordering-denials

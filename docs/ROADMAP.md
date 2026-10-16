@@ -1,3 +1,39 @@
+## R1 accept-batch callback visibility exact-SHA hosted validation (2026-10-16; PASS)
+
+**Implementation:** `2ccfce7e0ed0a939eaa2bef9f8c3da2d3a97beed`.  
+**Actions:** `38934408706` — **SUCCESS**.
+
+The R1 test-only correction is fully hosted-validated with no production
+transport change. Linux/GCC passes **458/458** registered CTests in both Debug
+and Release. macOS/AppleClang passes **385/385** in both Debug and Release.
+Windows/MSVC passes the native-adapter preflight **46/46** in both
+configurations and the complete suite **414/414** in both Debug and Release.
+
+`transport.tcp-native-accept-batch-budget-handoff` is test 108 in all three
+hosted protocol jobs and passes in every Debug/Release configuration. This
+closes the macOS failure from Actions `38930150408`: when a callback connects
+a third peer, the immediately following nonblocking accept may legitimately
+observe would-block, making `Drained` after one transfer correct. The test
+now accepts that documented result and retries only from its bounded external
+fixture caller; production `acceptNonblockingTcpBatch` remains retry-free.
+
+R9 Clang ASan+UBSan also **PASS**. The central-registry preflight explicitly
+selects the batch case; it runs as test 108 and the bounded R1/R3 group passes
+**49/49**. Clipboard, x264/BGRA, native R2/R3 GSSAPI, R10 runtime CredSSP,
+native X11 and the bounded fuzzer groups also pass. The independent R7
+sanitizer and documentation-policy jobs pass. Staged SDK install, downstream
+consumer **1/1**, package generation, digest and artifact upload pass on all
+hosted protocol platforms; untagged prerelease publication is correctly
+skipped.
+
+This validates the portable batch contract without adding a listener owner,
+socket retry loop, queue, authentication, R2 admission or R3 session state.
+Canonical owner-local `~/rdp-server/build`, Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27 and real Microsoft-client acceptance remain
+**NOT RUN**. **Next R1:** continue to add no transport surface unless a later
+protected licensing/Share transition demonstrates a concrete bounded TCP/TLS
+mismatch. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
 ## R1 accept-batch callback visibility regression (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `4be6e17ed741be198bf0d15e7921af66340904ac`.

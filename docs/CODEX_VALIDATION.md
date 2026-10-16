@@ -1,3 +1,27 @@
+## R1 accept-batch callback visibility hosted receipt (2026-10-16)
+
+Implementation `2ccfce7e0ed0a939eaa2bef9f8c3da2d3a97beed`, Actions
+`38934408706`: **SUCCESS**.
+
+- Linux/GCC: **458/458 Debug PASS**, **458/458 Release PASS**.
+- macOS/AppleClang: **385/385 Debug PASS**, **385/385 Release PASS**.
+- Windows/MSVC native preflight: **46/46 Debug + 46/46 Release PASS**.
+- Windows/MSVC full suite: **414/414 Debug + 414/414 Release PASS**.
+- `transport.tcp-native-accept-batch-budget-handoff`: test 108, PASS in every
+  hosted Debug/Release configuration.
+- R9 Clang ASan+UBSan: bounded R1/R3 selection **49/49 PASS**, explicitly
+  including the batch case; complete sanitizer job PASS.
+- R7 sanitizer and documentation-policy: **PASS**.
+- Installed SDK consumer **1/1**, packaging, SHA-256 digest and artifact upload:
+  **PASS** on Linux, macOS and Windows.
+- Untagged prerelease: correctly **SKIPPED**.
+
+The exact-SHA evidence confirms the defect was only the loopback test's
+synchronous accept-visibility assumption. Production batch semantics and
+ownership are unchanged. Owner-local one-root testing and required owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27 and Microsoft-client
+acceptance remain **NOT RUN**.
+
 ## R1 accept-batch callback visibility correction authoring (2026-10-16)
 
 **Parent:** `4be6e17ed741be198bf0d15e7921af66340904ac`.

@@ -1,3 +1,40 @@
+## R4 reset-stable NV12 scratch exact-SHA hosted CI (2026-10-16)
+
+**Source commit:** [`39443e93b45bdf5b01575a9066f0232f48b8bcdb`](https://github.com/k1moradi/RDP-server/commit/39443e93b45bdf5b01575a9066f0232f48b8bcdb).
+[Exact-SHA workflow 38896116551](https://github.com/k1moradi/RDP-server/actions/runs/38896116551)
+completed with **overall FAILURE** from separate R1/R3 and R6 regressions,
+not from a demonstrated R4 regression:
+
+- **Linux/GCC Debug:** **374/374 PASS**, including new
+  `graphics.bgra-nv12-reset-scratch-reuse` and five previous BGRA tests.
+  **Linux/GCC Release:** **374/374 PASS**, including the same R4 coverage.
+  Downstream installed portable SDK consumer/package checks **PASS**.
+- **macOS/Clang Debug:** **321/322 PASS**. The only failing case is
+  R1/R3 `transport.credssp-r1-owned-framing` at
+  `tests/test_owned_preauth_session.cpp:5708`, unchanged from the preceding
+  BGRA CI; new `graphics.bgra-nv12-reset-scratch-reuse` **PASS** at test 320.
+  macOS Release and downstream packaging **NOT RUN** because the job stopped
+  after the failed Debug CTest.
+- **Windows/MSVC:** **FAIL before complete Debug build/full CTest** in the
+  independent R6 native preflight: `test_windows_desktop_geometry.cpp:491`
+  errors C2676 because `WindowsDxgiFrameInfo` has no equality operator.
+  No claim of R4 Windows compile/CTest or Windows Release on this SHA;
+  these are **NOT RUN** after that preflight.
+- **R9 selected ASan/UBSan job:** **PASS** for its configured scope; the
+  converter tests were not among the explicitly reported sanitizer CTests.
+  **Documentation-policy:** **PASS**.
+- **Owner-local canonical one-root build/full CTest:** **NOT RUN** in this
+  connector environment, which has no `~/rdp-server` checkout. Owner
+  Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27, native capture, and
+  Microsoft-client rendering remain **NOT RUN**.
+
+This validates scratch reuse/reset behavior on hosted Linux and macOS while
+preserving R4 generation, surface, backpressure, codec reference and full-send
+receipt semantics. Next R4 evidence requires clean Windows/MSVC after the
+R6 owner fixes preflight and macOS/Clang after the R1/R3 owner fixes framing,
+plus independent owner-native matrix runs. Authenticated R3 Graphics DVC and
+real client-visible desktop remain dependencies. **Gate B, M3/M4/M5 OPEN.**
+
 ## R1 explicit genuine HYBRID/NLA negotiation policy (2026-10-16; exact-SHA CI pending)
 
 Starting reconciled shared `main`: `b31d910a7c5f17f16676469bee7e7c8ba1bd69fe`. R2 already requires immutable

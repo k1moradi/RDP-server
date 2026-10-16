@@ -38,6 +38,16 @@ replacement regression constructs the context first, replaces both credential
 paths deterministically, then creates a fresh server SSL and verifies that its
 certificate is still the originally validated identity.
 
+**First hosted integration result:** implementation commit
+`22d6641f0fbf5f92ce4d1327c1dbcd4fc0a1e11b`, Actions
+`38877885057`, failed during Debug compilation on Linux and macOS because
+the new test translation unit used a same-directory runtime-header include
+from `tests/`. The production runtime TLS target itself compiled before that
+test failure. The test now includes
+`server/runtime/runtime_tls_context.h` through the target's existing
+`src/` include root; this is an integration-path correction only, with no
+TLS ownership or policy change. Exact-SHA CI for the correction is pending.
+
 **Authoring validation:** OpenSSL 3.5.5 / GCC 14.2 C++23
 `-Wall -Wextra -Wpedantic -Werror` compile of the production TLS component:
 **PASS**. A focused synthetic fixture harness covering context construction,

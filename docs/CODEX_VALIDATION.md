@@ -20,6 +20,18 @@ non-serving.
 `runtime.rejects-live-tls-context-invalid-material`, and
 `runtime.rejects-live-tls-context-extra-certificate-material`.
 
+**First exact-SHA hosted result:** implementation SHA
+`22d6641f0fbf5f92ce4d1327c1dbcd4fc0a1e11b`, Actions
+`38877885057`: documentation policy PASS; Linux/GCC and macOS/Clang Debug
+configure PASS, then both failed while compiling
+`tests/test_runtime_tls_context.cpp` because it included the runtime header
+as `"runtime_tls_context.h"` from the tests directory. The production
+`rdp-server-runtime-tls` target compiled before that failure. The correction
+uses `"server/runtime/runtime_tls_context.h"`, matching the existing
+`${PROJECT_SOURCE_DIR}/src` include root. No TLS policy/ownership behavior
+changed. Windows and later matrix steps from that failed SHA are not accepted
+as completion evidence.
+
 **Authoring PASS:** OpenSSL 3.5.5, GCC 14.2, C++23 high-warning compile of
 the production component. Focused synthetic behavior harness: **4/4 PASS**,
 including context creation, TLS 1.2 minimum/options, server-role `SSL_new`,

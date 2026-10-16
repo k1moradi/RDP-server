@@ -5840,3 +5840,30 @@ full RDP session/credential cryptography/M1–M6 acceptance OPEN.
 **PASS:** Linux/GCC **252/252 Debug and Release**, macOS/AppleClang **234/234 Debug and Release**. Both named R1 CTests `transport.tcp-native-listener-role-and-mode-denials` and `transport.tcp-native-wrong-socket-type-denials` PASS in hosted Linux/macOS Debug and Release plus Windows/MSVC Debug. Documentation-policy and R9 security-protocol sanitizer PASS. Linux/macOS downstream installed SDK consumer PASS.
 **FAIL (unrelated R10):** Windows/MSVC full Debug **250/251**; only `runtime.validates-tls-files-private-regular` fails at `tests/check_runtime_entrypoint.cmake:317` (runtime exit status 3 versus expected 0), reported [Issue #14](https://github.com/k1moradi/RDP-server/issues/14). Windows Release and downstream SDK consumer **NOT RUN** because workflow stopped at Debug failure; do not infer Windows full-pass from the R1 cases.
 **Owner-local** Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS27 exact-head CTest **NOT RUN**. Live Microsoft RDP client, OS certificate/identity authorization, R3 channel/session and desktop **NOT RUN**. This is an R1 transport-precondition improvement, not M2 acceptance.
+
+## R10 TLS-file metadata cross-platform CI acceptance (2026-10-15)
+
+**Exact tested SHA:** `2ccc1a384306359fc01a35ddfbefd89d3cbbc13b`;
+[GitHub Actions 38857862786](https://github.com/k1moradi/RDP-server/actions/runs/38857862786)
+**completed SUCCESS**. Linux/GCC complete Debug and Release
+CTest **252/252 each**, macOS/Clang **234/234 each**,
+Windows/MSVC **251/251 each**. All new R10 TLS-file positive and
+security-negative cases pass where registered. Windows
+`runtime.validates-tls-files-private-regular` and
+`runtime.rejects-tls-files-windows-key-public-read` explicitly
+PASS Debug and Release after setting the synthetic TLS fixture
+file owner SID to the granted test-account SID. No production
+DACL or POSIX permission requirement was reduced.
+R1 native TCP accept cases PASS on macOS on this SHA after
+R1's independent accept fix. R9 hosted sanitizer job,
+documentation-policy, protocol SDK install/downstream consumer
+(**1/1** per OS), ZIP/SHA256 and artifact uploads PASS.
+Untagged protocol prerelease SKIPPED. This is **hosted CI**,
+not independently run owner acceptance on Linux/X11, Windows
+MSYS2 CLANG64/Clang23 and macOS27. Actual X.509 certificate
+contents, private key correspondence, secure filesystem
+parent-chain, authenticated OS admission and Microsoft-client
+live desktop are **NOT RUN**. R10 startup remains disabled,
+M1–M6 unaccepted. Next R10: path-component security review
+and opt-in cryptographic key/certificate validation,
+keeping syntax-only `--check-config` stable.

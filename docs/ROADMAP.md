@@ -340,6 +340,27 @@ weakened. R1 separately published a native accept correction.
 Owner 3-platform one-root CTest, real credentials and M1–M6
 acceptance remain NOT RUN / OPEN.
 
+**R10 TLS metadata exact-SHA integrated CI PASS (2026-10-15):**
+Corrected fixture commit [`2ccc1a384306359fc01a35ddfbefd89d3cbbc13b`](https://github.com/k1moradi/RDP-server/commit/2ccc1a384306359fc01a35ddfbefd89d3cbbc13b)
+passed [Actions 38857862786](https://github.com/k1moradi/RDP-server/actions/runs/38857862786)
+across ALL hosted platforms: Linux/GCC **252/252**, macOS/Clang
+**234/234**, Windows/MSVC **251/251** full registered CTests
+in EACH Debug and Release. Windows positive private-file fixture
+and public-read private-key denial explicitly PASS in both modes,
+as do the POSIX identity, permission, size and symlink cases.
+R1 native TCP accept regressions no longer fail in this tested SHA.
+R9 sanitizer job and documentation-policy PASS; downstream installed
+protocol SDK consumer **1/1 PASS** per OS; SDK ZIP/digest packaging
+and artifact upload PASS. Protocol prerelease SKIPPED (no tag).
+**Security and acceptance limits:** metadata/ACL snapshots only,
+no cryptographic PEM parsing, X.509 expiry/key match, directory
+ancestor reparse/ACL checks, OS admission, NLA, listener, or live
+desktop. Owner's Linux/X11, Windows MSYS2 CLANG64 Clang23,
+macOS27 same-SHA terminal commands NOT RUN. M1–M6 OPEN.
+Next R10: credentials' parent-path confinement and real
+certificate/key cryptographic provisioning checks behind a
+separate offline, non-activating gate.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

@@ -418,7 +418,15 @@ foreach(runtime_case IN ITEMS
         rejects-configuration-fifo
         rejects-configuration-group-writable
         rejects-configuration-directory
+        validates-configuration-windows-regular
+        rejects-configuration-windows-directory
+        rejects-configuration-windows-relative-file
+        rejects-windows-device-namespace
         )
+    if(NOT WIN32 AND runtime_case MATCHES
+       "^(validates-configuration-windows-regular|rejects-configuration-windows-(directory|relative-file)|rejects-windows-device-namespace)$")
+        continue()
+    endif()
     # POSIX descriptor-identity/permissions tests are not applicable to
     # Windows native file handles; retain the original Windows CTests.
     if(NOT UNIX AND runtime_case MATCHES

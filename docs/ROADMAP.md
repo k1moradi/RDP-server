@@ -136,6 +136,26 @@ M1–M6 acceptance remains OPEN. **Next integration step:** R5/R1
 owners correct their failures and verify new exact-SHA CI; R10 follows
 with Windows native file-handle/ACL checks.
 
+**R10 Windows-native offline file-handle gate (2026-10-15; CI NOT RUN at authoring):**
+`rdp-server --check-config` now requires drive-absolute Windows
+configuration file paths and opens via `CreateFileA` with
+`FILE_FLAG_OPEN_REPARSE_POINT`. An opened handle must be disk-backed,
+not a directory or a final-component reparse point; handle ownership
+transfers exactly once via `_open_osfhandle`, `_fdopen` and RAII.
+Four new Windows-only `runtime.*` CTests exercise ordinary file
+acceptance, directory and existing-relative-file denials, and device
+namespace rejection using synthetic data. No listener, credentials,
+OS session or desktop are activated. The existing Windows and POSIX
+test cases are retained. **NOT RUN at authoring:** native Windows
+compiler/full CTest, current exact-SHA GitHub Actions, owner's
+Linux/X11, MSYS2 CLANG64 Clang23 and macOS27 checkpoints, and live
+client. This gate does NOT inspect the Windows DACL, intermediate
+junctions, or real TLS key/certificate permissions; those remain
+separate blockers and the server still refuses startup.
+**Next:** validate exact-SHA hosted Windows Debug/Release plus
+cross-platform CI and implement DACL policy with its own CTest.
+M1–M6 remain open.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

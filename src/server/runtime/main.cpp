@@ -6,6 +6,12 @@
 #include <cstdio>
 #include <memory>
 #include <string_view>
+#if defined(_WIN32)
+#include <windows.h>
+#include <fcntl.h>
+#include <io.h>
+#include <cstdint>
+#endif
 
 #if !defined(_WIN32)
 #include <fcntl.h>
@@ -187,10 +193,42 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
         return false;
     }
 #else
-    // Windows file identity/reparse-point and ACL policy are a separate
-    // native adapter gate; syntax checking never activates the server.
-    std::unique_ptr<std::FILE, FileCloser> file{std::fopen(path, "rb")};
+    // Reject relative, UNC and device namespaces before native file opening.
+    // The DACL and intermediate reparse components require separate review.
+    if (!isAbsoluteConfigurationPath(path)) {
+        return false;
+    }
+    struct NativeHandleCloser {
+        void operator()(void* nativeHandle) const noexcept {
+            (void)::CloseHandle(nativeHandle);
+        }
+    };
+    const HANDLE openedHandle = ::CreateFileA(
+        path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (openedHandle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    std::unique_ptr<void, NativeHandleCloser> nativeHandle{openedHandle};
+    FILE_ATTRIBUTE_TAG_INFO attributes{};
+    if (::GetFileType(nativeHandle.get()) != FILE_TYPE_DISK ||
+        !::GetFileInformationByHandleEx(nativeHandle.get(), FileAttributeTagInfo,
+                                        &attributes, sizeof(attributes)) ||
+        (attributes.FileAttributes &
+         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0) {
+        return false;
+    }
+    // Exactly one owner across HANDLE -> CRT descriptor -> FILE.
+    const int descriptor = ::_open_osfhandle(
+        reinterpret_cast<std::intptr_t>(nativeHandle.get()),
+        _O_RDONLY | _O_BINARY);
+    if (descriptor < 0) {
+        return false;
+    }
+    (void)nativeHandle.release();
+    std::unique_ptr<std::FILE, FileCloser> file{::_fdopen(descriptor, "rb")};
     if (!file) {
+        (void)::_close(descriptor);
         return false;
     }
 #endif

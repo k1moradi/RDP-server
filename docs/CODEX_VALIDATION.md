@@ -4104,3 +4104,25 @@ real macOS active display enumeration, ScreenCaptureKit permissions, client
 input/cursor, live capture, any performance benchmarks.
 **Next:** check exact-SHA CI, then integrate safe authorized graphical
 session and R4-owned physical compositor mapping without bypassing TCC.
+
+## R10 Windows config-file native handle gate (2026-10-15)
+
+**Road:** R10 runtime security. **Parent main:** `3274b39c85b817ef2a56215390bf19cc8aa0e5b4`.
+This atomic code/test/docs increment uses Win32 `CreateFileA`
+with `FILE_FLAG_OPEN_REPARSE_POINT`, rejects non-disk,
+directory and final reparse objects using native HANDLE queries,
+requires drive-absolute config filenames, and transfers ownership
+to RAII FILE via CRT with explicit failure cleanup.
+The four new Windows-only CTests are
+`runtime.validates-configuration-windows-regular`,
+`runtime.rejects-configuration-windows-directory`,
+`runtime.rejects-configuration-windows-relative-file`, and
+`runtime.rejects-windows-device-namespace`; existing offline
+runtime CTests are preserved. Syntax acceptance cannot start a listener.
+**NOT RUN at authoring:** Windows native compile, full project CTest,
+exact-SHA hosted CI, owner Linux/X11, Windows CLANG64/Clang23,
+macOS27, real NLA/OS authorization and Microsoft-client desktop.
+Agent's local environment lacks Win32 compilation and GitHub
+checkout DNS. No DACL, intermediate-reparse or TLS key-permission
+acceptance is claimed; M1–M6 remain open.
+**Next:** exact-SHA CI, then Windows DACL permission-policy gates.

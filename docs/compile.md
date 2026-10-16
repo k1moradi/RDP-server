@@ -185,3 +185,13 @@ TLS certificate/private-key provisioning or OS authorization.
 Five extra `runtime.*` CTests run only on POSIX and exercise the
 actual runtime executable. The owner's established one-line
 configure/build/CTest command is unchanged.
+
+## R10 Windows native offline configuration handle (2026-10-15)
+
+Windows `rdp-server --check-config FILE` accepts only drive-absolute
+paths to disk-backed regular files without a final reparse point.
+Four additional Windows-only `runtime.*` CTests use existing
+`build/runtime-fixtures` data without accessing real credentials.
+The owner's existing one-line CMake/CTest workflow is unchanged.
+DACL and TLS private-key file permissions are NOT yet verified;
+`--check-config` does not activate a service.

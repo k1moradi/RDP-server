@@ -7,6 +7,7 @@ foreach(required_argument IN ITEMS RDP_RUNTIME_EXECUTABLE RDP_RUNTIME_VERSION RD
 endforeach()
 
 set(runtime_arguments)
+set(runtime_working_directory "${CMAKE_CURRENT_BINARY_DIR}")
 if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-unconfigured-startup")
     set(expected_exit_code 2)
 elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-unrecognized-options")
@@ -86,6 +87,12 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         if(NOT WIN32)
             string(REPLACE "\n" "\r\n" config_text "${config_text}")
         endif()
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-windows-regular")
+        # Existing disk-backed synthetic fixture must be accepted.
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
+        # Replace the fixture with a directory before invocation.
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-relative-file")
+        # A real existing file must be rejected when opened relatively.
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-owner-only")
         # A private regular file must remain valid on POSIX hosts.
     elseif(RDP_RUNTIME_TEST_CASE MATCHES "^rejects-configuration-(symlink|fifo|group-writable|directory)$")
@@ -107,7 +114,10 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         # This case deliberately leaves the generated fixture absent.
     else()
         file(WRITE "${config_file}" "${config_text}")
-        if(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-owner-only")
+        if(WIN32 AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
+            file(REMOVE "${config_file}")
+            file(MAKE_DIRECTORY "${config_file}")
+        elseif(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-owner-only")
             file(CHMOD "${config_file}" PERMISSIONS OWNER_READ OWNER_WRITE)
         elseif(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-group-writable")
             file(CHMOD "${config_file}" PERMISSIONS OWNER_READ OWNER_WRITE GROUP_WRITE)
@@ -142,11 +152,19 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         endif()
     endif()
     set(runtime_arguments "--check-config" "${config_file}")
+    if(WIN32 AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-relative-file")
+        set(runtime_working_directory "${RDP_RUNTIME_FIXTURE_DIRECTORY}")
+        get_filename_component(relative_config_file "${config_file}" NAME)
+        set(runtime_arguments "--check-config" "${relative_config_file}")
+    endif()
     if(RDP_RUNTIME_TEST_CASE MATCHES "^validates-configuration-")
         set(expected_exit_code 0)
     else()
         set(expected_exit_code 3)
     endif()
+elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-windows-device-namespace")
+    set(runtime_arguments "--check-config" "//./NUL")
+    set(expected_exit_code 3)
 elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-config-option-smuggling")
     set(runtime_arguments "--check-config" "R10_SENTINEL_MUST_NOT_APPEAR" "--help")
     set(expected_exit_code 2)
@@ -156,6 +174,7 @@ endif()
 
 execute_process(
     COMMAND "${RDP_RUNTIME_EXECUTABLE}" ${runtime_arguments}
+    WORKING_DIRECTORY "${runtime_working_directory}"
     RESULT_VARIABLE runtime_exit_code
     OUTPUT_VARIABLE runtime_stdout
     ERROR_VARIABLE runtime_stderr)

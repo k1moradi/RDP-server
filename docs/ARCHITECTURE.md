@@ -349,6 +349,18 @@ publish a GitHub **protocol SDK prerelease**. This is an artifact
 delivery mechanism only: it does not introduce an RDP listener,
 service installation, authentication or desktop deployment.
 
+### R10 Windows native configuration-file descriptor guard (2026-10-15)
+
+The non-installable runtime uses Win32 `CreateFileA`,
+`FILE_FLAG_OPEN_REPARSE_POINT`, `GetFileType` and
+`GetFileInformationByHandleEx(FileAttributeTagInfo)` to reject
+non-disk, directory and final-component reparse handles. Drive
+absolute paths are required. Ownership moves from HANDLE to CRT
+descriptor and then RAII FILE without overlapping owners. This
+does not verify Windows DACL, intermediate directory junctions,
+private key permissions, NLA or native OS admission. The service
+remains disabled.
+
 ### R10 POSIX configuration-descriptor guard (2026-10-15)
 
 The non-installable `rdp-server --check-config` syntax checker now

@@ -1134,6 +1134,29 @@ actually run; another parser CTest alone is not a complete session.
   invalid accounts, altered certificates, downgrade, expiry, denial,
   cleanup and replay. Fail closed rather than bypassing NLA or
   accepting synthetic credentials as proof of admission.
+  **R2 GSS-to-OS candidate-evidence provenance gate (2026-10-15;
+  new implementation CI pending):** add the existing
+  `ConsoleAdmissionGate`, `ConsoleIdentityPolicy`, and
+  `ConsoleOsEvidenceInspector` to the optional Linux GSS
+  target rather than leaving the bridge unlinked. Its new
+  `requestWithOsEvidence` requires the GSS provider's live
+  TLS/X.509-bound `verifiedPrincipal()` to equal the proposed
+  Kerberos identity BEFORE it samples independently observed
+  OS account/physical-console facts. Even CandidateOnly never
+  yields a token or session; the acceptor is terminally rejected.
+  The legacy caller-attested snapshot API is deny-only and
+  no longer even evaluates a candidate policy match.
+  Dedicated new default Linux provider CTest
+  `security.gssapi-console-provenance-before-os-read` proves
+  an artificial evidence source could match policy, yet the
+  unverified, failed-keytab, replayed and raw-snapshot gate
+  must not perform ANY account/session/time reads.
+  **PASS:** source/CTest registration static review.
+  **NOT RUN at authoring:** local single-root CTest (checkout
+  unavailable), exact-SHA new CI, real Kerberos/TLS positive,
+  independent audited native OS admission, R3 or owner platforms.
+  **Next:** verify full hosted CTests and establish revocable
+  genuine GSS+OS admission, without trusting fake candidates.
   **R2 TLS-provenant delegated-credential handoff (2026-10-15;
   CI pending):** optional Linux GSS now accepts protected authInfo
   only from the existing complete TLS-derived `TsRequestFrameReader`.

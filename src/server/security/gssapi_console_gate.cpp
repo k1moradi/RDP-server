@@ -8,18 +8,37 @@ void ConsoleAdmissionGate::request(
     GssapiSpnegoAcceptor &acceptor,
     const ConsoleIdentityRequest &snapshot) noexcept
 {
-    // Evaluate for audit/testability, but NEVER issue a session token on
-    // this milestone. The provided snapshot is not independently attested:
-    // no logind/X11/PAM/NSS ownership adapter exists, and M1.13 denies
-    // all delegated credentials. Fabricated attributes cannot bypass it.
+    // A caller-constructed snapshot provides neither a GSS identity
+    // nor an OS-attested login session. Never evaluate it as policy
+    // evidence, even if a different, real GSS provider was configured.
+    (void)snapshot;
+    acceptor.reject();
+    state_ = ConsoleAdmissionState::Denied;
+}
+
+void ConsoleAdmissionGate::requestWithOsEvidence(
+    GssapiSpnegoAcceptor &acceptor,
+    const ConsoleEvidenceRequest &request,
+    ConsoleOsEvidenceSource &source) noexcept
+{
+    // Only the real GSS provider can disclose this principal; its
+    // accessor rechecks CredSSP public-key proof and the selected
+    // active TLS X.509 on every call. Never trust the caller's claim.
+    const std::string_view proven = acceptor.verifiedPrincipal();
     if (state_ != ConsoleAdmissionState::Denied &&
-        acceptor.stage() == SpnegoStage::ServerBindingPrepared)
+        !proven.empty() && proven == request.kerberosPrincipal)
     {
-        const auto match = policy_.matchCandidate(snapshot);
-        (void)match;
+        // A fresh, independent OS sample is a *candidate* only.
+        // No result (even CandidateOnly) may escape this gate or
+        // become an OS-admission, MCS or desktop capability.
+        const auto candidate =
+            ConsoleOsEvidenceInspector{}.inspect(policy_, request, source);
+        (void)candidate;
     }
 
-    acceptor.reject(); // terminal cleanup of any GSS context/credential.
+    // Tear down GSS for success, failure, mismatch, timeout or
+    // repeated use. No replay or reconfiguration after this point.
+    acceptor.reject();
     state_ = ConsoleAdmissionState::Denied;
 }
 

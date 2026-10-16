@@ -1110,6 +1110,34 @@ The portable SDK remains independent of GSSAPI; no real
 Kerberos authentication, OS session admission or live RDP
 listener is enabled.
 
+### Linux GSS-to-OS candidate inspection without authorization (2026-10-15)
+
+The optional Linux GSS library now compiles the existing
+`ConsoleAdmissionGate`, `ConsoleIdentityPolicy` and
+`ConsoleOsEvidenceInspector` into one provider-side
+authentication-to-OS *candidate inspection* boundary.
+`requestWithOsEvidence()` first borrows the sole real GSS
+acceptor's `verifiedPrincipal()`, which requires a completed
+v5/v6 CredSSP TLS public-key proof on the unchanged selected
+server certificate. It rejects empty or mismatched principal
+claims without even sampling NSS/logind evidence. Only an
+exact match can trigger the existing inspector to read
+account, physical seat, display, session generation and
+monotonic freshness for a CandidateOnly comparison.
+
+The result is intentionally discarded and cannot grant
+OS authorization, desktop access, clipboard/input permissions,
+MCS or a session capability; fabricated OS sources can also
+report matching candidates. Both success and failure
+terminally reject the provider and leave the gate Denied.
+The historical caller-attested snapshot method never matches
+policy and is strictly terminal deny-only. Never issue
+blocking OS provider reads from an event-loop thread; the
+existing isolation/quarantine and revocation contracts
+remain separate. Positive real GSS plus an audited,
+privileged OS authority still must be validated before
+R2 Gate A and R3 admission.
+
 ### Provider-derived Kerberos identity visibility gate (2026-10-15)
 
 The optional Linux `GssapiSpnegoAcceptor` owns the only authenticated

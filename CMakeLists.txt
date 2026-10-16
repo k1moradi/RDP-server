@@ -258,7 +258,13 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     add_library(rdp-server-linux-gssapi STATIC
         src/server/security/gssapi_spnego_acceptor.cpp
         src/server/security/gssapi_credssp_binding.cpp
-        src/server/security/gssapi_credssp_credentials.cpp)
+        src/server/security/gssapi_credssp_credentials.cpp
+        # The ONLY Linux GSS-to-OS candidate bridge: combine the
+        # existing bounded policy and stateless read-only inspector.
+        # No credential authorization or OS session activation.
+        src/server/security/gssapi_console_gate.cpp
+        src/server/security/console_identity_policy.cpp
+        src/server/security/console_os_evidence.cpp)
     target_compile_features(rdp-server-linux-gssapi PUBLIC cxx_std_23)
     target_include_directories(rdp-server-linux-gssapi PRIVATE
         "${RDP_SERVER_GSSAPI_INCLUDE_DIR}")

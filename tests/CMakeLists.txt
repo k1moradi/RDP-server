@@ -157,7 +157,8 @@ function(add_rdp_test source_file suite behavior)
     elseif(test_target STREQUAL "test_linux_gssapi_spnego")
         foreach(case_name IN ITEMS
                 gssapi-configuration-rejections
-                gssapi-framed-handoff)
+                gssapi-framed-handoff
+                gssapi-console-provenance-before-os-read)
             add_test(NAME "security.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("security.${case_name}" PROPERTIES

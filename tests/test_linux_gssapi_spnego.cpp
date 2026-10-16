@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "security/gssapi_spnego_acceptor.h"
+#include "security/gssapi_console_gate.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -133,6 +134,114 @@ void testFramedGssHandoffFailClosed()
     assert(malformed.stage() == SpnegoStage::Failed);
 }
 
+// This intentionally controllable source can produce a policy-matching
+// candidate from synthetic inputs. It CANNOT authenticate Kerberos or the
+// OS. The GSS-to-OS gate must refuse even reading this source when no
+// independently TLS-bound provider name exists.
+class CountingConsoleEvidenceSource final : public ConsoleOsEvidenceSource
+{
+public:
+    int accountReads{};
+    int sessionReads{};
+    int clockReads{};
+
+    [[nodiscard]] ConsoleAccountObservation readUnixAccount(
+        std::string_view account) noexcept override
+    {
+        ++accountReads;
+        return {ConsoleEvidenceReadStatus::Observed, account, 1001};
+    }
+
+    [[nodiscard]] ConsoleSessionObservation readActiveConsole() noexcept override
+    {
+        ++sessionReads;
+        return {ConsoleEvidenceReadStatus::Observed,
+                "c2", "seat0", ":0", 1001, 4, 1000, true, true};
+    }
+
+    [[nodiscard]] std::optional<std::uint64_t>
+    readMonotonicMilliseconds() noexcept override
+    {
+        ++clockReads;
+        return 1001;
+    }
+
+    void reset() noexcept
+    {
+        accountReads = 0;
+        sessionReads = 0;
+        clockReads = 0;
+    }
+
+    [[nodiscard]] bool untouched() const noexcept
+    {
+        return accountReads == 0 && sessionReads == 0 && clockReads == 0;
+    }
+};
+
+void testConsoleGssProvenanceBeforeOsRead()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    const ConsoleEvidenceRequest request{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+    CountingConsoleEvidenceSource fakeSource;
+    // A fake source can report policy-consistent values, proving why
+    // CandidateOnly must NEVER be treated as admission authority.
+    assert(ConsoleOsEvidenceInspector{}.inspect(
+        policy, request, fakeSource) == ConsoleEvidenceMatch::CandidateOnly);
+    assert(fakeSource.accountReads == 1 &&
+           fakeSource.sessionReads == 1 && fakeSource.clockReads == 1);
+    fakeSource.reset();
+
+    // A plausible caller identity with no GSS/TLS proof cannot even
+    // trigger a read-only OS sample, let alone grant access.
+    GssapiSpnegoAcceptor noKerberos;
+    ConsoleAdmissionGate gate(policy);
+    assert(gate.state() == ConsoleAdmissionState::NotRequested);
+    assert(noKerberos.verifiedPrincipal().empty());
+    gate.requestWithOsEvidence(noKerberos, request, fakeSource);
+    assert(gate.state() == ConsoleAdmissionState::Denied);
+    assert(noKerberos.stage() == SpnegoStage::Failed);
+    assert(noKerberos.verifiedPrincipal().empty());
+    assert(fakeSource.untouched());
+
+    // The terminal gate and rejected provider may not be replayed, even
+    // with different caller identity and a source that would match.
+    const ConsoleEvidenceRequest forged{
+        "bob@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+    gate.requestWithOsEvidence(noKerberos, forged, fakeSource);
+    assert(gate.state() == ConsoleAdmissionState::Denied);
+    assert(fakeSource.untouched());
+
+    // Even a genuinely attempted but failed explicit-keytab provider
+    // must never sample OS data or return a candidate.
+    GssapiSpnegoAcceptor missingProvider;
+    assert(!missingProvider.configure(
+        "TERMSRV/rdp.example.test@EXAMPLE.TEST",
+        "FILE:/__rdp_server_gssapi_ci_nonexistent__/missing.keytab"));
+    ConsoleAdmissionGate failedGate(policy);
+    failedGate.requestWithOsEvidence(missingProvider, request, fakeSource);
+    assert(failedGate.state() == ConsoleAdmissionState::Denied);
+    assert(missingProvider.stage() == SpnegoStage::Failed);
+    assert(fakeSource.untouched());
+
+    // The historical caller-constructed policy snapshot is permanently
+    // deny-only, even when its rule fields are otherwise consistent.
+    GssapiSpnegoAcceptor snapshotProvider;
+    ConsoleAdmissionGate snapshotGate(policy);
+    snapshotGate.request(
+        snapshotProvider, {"alice@EXAMPLE.TEST", "alice", "seat0",
+                           ":0", 1001, 1001, kConsoleViewPermission});
+    assert(snapshotGate.state() == ConsoleAdmissionState::Denied);
+    assert(snapshotProvider.stage() == SpnegoStage::Failed);
+    assert(fakeSource.untouched());
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -149,6 +258,11 @@ int main(int argc, char **argv)
             testFramedGssHandoffFailClosed();
             return 0;
         }
+        if (name == "gssapi-console-provenance-before-os-read")
+        {
+            testConsoleGssProvenanceBeforeOsRead();
+            return 0;
+        }
         return 2;
     };
     if (argc == 2)
@@ -161,5 +275,6 @@ int main(int argc, char **argv)
     }
     testConfigurationRejections();
     testFramedGssHandoffFailClosed();
+    testConsoleGssProvenanceBeforeOsRead();
     return 0;
 }

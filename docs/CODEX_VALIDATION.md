@@ -4946,3 +4946,38 @@ share progression, graphics and desktop. Synthetic X.224/TLS
 accept handoff alone does not accept Gate A or M2.
 **Next R1:** R10's bounded live listener schedule and R2/R3
 authorization integration under existing one-owner contracts.
+
+
+
+
+
+
+
+## R2 GSS-to-OS evidence provenance deny-only gate (2026-10-15)
+
+**R2 main-only source+test+docs increment; exact parent** is
+the publication HEAD. The optional Linux GSS target now compiles
+the preexisting `ConsoleAdmissionGate`, `ConsoleIdentityPolicy`
+and `ConsoleOsEvidenceInspector`. The new
+`ConsoleAdmissionGate::requestWithOsEvidence` demands a
+genuinely verified GSS principal with the unchanged selected
+TLS X.509 before it can sample even read-only candidate OS
+account/console facts. It never exports CandidateOnly or
+authorizes a session and always closes/rejects its GSS provider.
+The legacy caller-constructed policy snapshot cannot query
+policy, grant access or avoid terminal rejection.
+
+**New dedicated Linux GSS CTest:**
+`security.gssapi-console-provenance-before-os-read` in the
+existing `test_linux_gssapi_spnego` executable; it confirms
+a fake source directly yields CandidateOnly while the real gate
+performs ZERO OS reads on unconfigured, failed-keytab, replay
+or caller-snapshot requests. No real login, keytab or desktop.
+
+**PASS at authoring:** production-source/registry/source-build
+linkage review. **NOT RUN at authoring:** owner checkout
+focused/full CTest (unavailable); exact commit Actions
+(until published); approved isolated positive Kerberos,
+independent OS login-session authorization and owner's three
+platforms. R2 Gate A remains OPEN; next verify hosted CI and
+audited, revocable OS identity/session capability for R3.

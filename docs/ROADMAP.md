@@ -3628,8 +3628,24 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   macOS R8 CTest PASS but full Debug suite FAIL 15/220
   `transport.tcp-*` CTests (first: native accept ownership);
   macOS Release NOT RUN. Owner machines and live paste NOT RUN.
-  **Remaining:** validated PNG/DIB readiness, native
-  prefetch scheduling/conversion and actual OS paste acceptance.
+  **R8 validated image readiness (2026-10-16):** `RemoteTransfer` now
+  accepts only a current-generation successful response for the advertised
+  registered PNG ID, CF_DIBV5 (17) or CF_DIB (8), validates it through the
+  existing first-party PNG/DIB rules, and owns the original wire bytes.
+  Registered PNG name resolution wins over numeric fallback IDs. CF_DIBV5
+  requires a 124-byte BITMAPV5HEADER. Retained payload is bounded by the
+  existing 8-MiB CLIPRDR PDU limit, while width/height must also fit a
+  256-MiB prospective 32-bpp decoded working set. PNG remains compressed
+  and DIB remains packed; there is no eager bitmap expansion. A new offer,
+  disconnect or poisoned channel makes cached image readiness unavailable,
+  and an obsolete-generation response cannot repopulate it. DIB structural
+  validation is now allocation-free and reused by BMP wrapping. Dedicated
+  `clipboard.verified-image-readiness` CTest. **At authoring:** local
+  CMake/CTest unavailable in this sandbox; exact-SHA hosted CI, owner
+  Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, native publication
+  and real-client Firefox paste are NOT RUN.
+  **Remaining:** native prefetch scheduling/conversion and actual OS paste
+  acceptance; R3 authenticated writer authority remains external.
 - [ ] **Nonblocking clipboard paste readiness**: register a pending OS paste
   request and deadline; process RDP/desktop events while remote transfer or
   image conversion completes, then satisfy the *same* request or reject on

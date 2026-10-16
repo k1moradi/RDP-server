@@ -1589,6 +1589,157 @@ void testVerifiedUnicodeTextReadiness()
     assert(!owner.verifiedUnicodeText());
 }
 
+
+// R8: cache only structurally valid, bounded current-generation image bytes.
+// Keep PNG compressed and DIB packed; native conversion/publication is later.
+void testVerifiedImageReadiness()
+{
+    using namespace rdp_server::clipboard;
+    using ImageFormat = RemoteTransfer::VerifiedImageFormat;
+    constexpr std::array<std::uint8_t, 70> kValidPng{
+        0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,
+        0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,
+        0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,
+        0x08,0x06,0x00,0x00,0x00,0x1f,0x15,0xc4,0x89,
+        0x00,0x00,0x00,0x0d,0x49,0x44,0x41,0x54,
+        0x78,0x9c,0x63,0xf8,0xcf,0xc0,0xf0,0x1f,0x00,
+        0x05,0x00,0x01,0xff,0x89,0x99,0x3d,0x1d,
+        0x00,0x00,0x00,0x00,0x49,0x45,0x4e,0x44,
+        0xae,0x42,0x60,0x82};
+    const auto put16 = [](std::vector<std::uint8_t> &bytes,
+                          std::size_t offset, std::uint16_t value) {
+        bytes[offset] = static_cast<std::uint8_t>(value);
+        bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    };
+    const auto put32 = [](std::vector<std::uint8_t> &bytes,
+                          std::size_t offset, std::uint32_t value) {
+        for (unsigned shift = 0; shift < 32; shift += 8)
+        {
+            bytes[offset + shift / 8U] =
+                static_cast<std::uint8_t>(value >> shift);
+        }
+    };
+    const auto makeDib = [&](std::uint32_t headerBytes) {
+        std::vector<std::uint8_t> dib(headerBytes + 4U, 0);
+        put32(dib, 0, headerBytes);
+        put32(dib, 4, 1);
+        put32(dib, 8, 1);
+        put16(dib, 12, 1);
+        put16(dib, 14, 32);
+        put32(dib, 16, 0); // BI_RGB.
+        put32(dib, 20, 4);
+        dib[headerBytes] = 0x11;
+        dib[headerBytes + 1U] = 0x22;
+        dib[headerBytes + 2U] = 0x33;
+        dib[headerBytes + 3U] = 0xff;
+        return dib;
+    };
+
+    RemoteTransfer owner;
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(formats, 0xc001, "PNG");
+    appendLongFormat(formats, 17, "");
+    appendLongFormat(formats, 8, "");
+    assert(owner.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(!owner.verifiedImage());
+    std::vector<std::uint8_t> request;
+    const std::uint8_t *lastBorrowedPayload = nullptr;
+    const auto receiveAndStore = [&](std::uint32_t formatId,
+                                     std::span<const std::uint8_t> payload) {
+        assert(owner.beginRequest(formatId, request));
+        const auto complete = responsePdu(kResponseOk, payload);
+        const auto response = owner.receiveResponse(complete);
+        assert(response.status == RemoteTransfer::ResponseStatus::Received);
+        lastBorrowedPayload = response.payload.data();
+        return owner.storeVerifiedImage(response);
+    };
+
+    assert(receiveAndStore(0xc001, kValidPng));
+    auto ready = owner.verifiedImage();
+    assert(ready && ready->format == ImageFormat::Png);
+    assert(ready->generation == 1 && ready->sourceFormatId == 0xc001);
+    assert(std::equal(ready->bytes.begin(), ready->bytes.end(),
+                      kValidPng.begin(), kValidPng.end()));
+    assert(ready->bytes.data() != lastBorrowedPayload);
+
+    auto corruptPng = std::vector<std::uint8_t>(
+        kValidPng.begin(), kValidPng.end());
+    corruptPng[48] ^= 0x01U;
+    assert(!receiveAndStore(0xc001, corruptPng));
+    assert(owner.synchronized());
+    // A rejected candidate cannot replace an already verified same-generation
+    // snapshot. Generation replacement below remains authoritative.
+    ready = owner.verifiedImage();
+    assert(ready && ready->format == ImageFormat::Png);
+
+    const auto dibV5 = makeDib(124);
+    assert(receiveAndStore(17, dibV5));
+    ready = owner.verifiedImage();
+    assert(ready && ready->format == ImageFormat::DibV5 &&
+           ready->sourceFormatId == 17 && ready->bytes.size() == dibV5.size());
+
+    const auto dib = makeDib(40);
+    assert(validateDib(dib));
+    // CF_DIBV5 requires BITMAPV5HEADER; a valid BITMAPINFOHEADER is not V5.
+    assert(!receiveAndStore(17, dib));
+    assert(owner.verifiedImage()->format == ImageFormat::DibV5);
+    assert(receiveAndStore(8, dib));
+    assert(owner.verifiedImage()->format == ImageFormat::Dib);
+
+    // A tiny compressed payload with dimensions above the prospective
+    // 256-MiB 32-bpp working-set bound is structurally a DIB but not ready.
+    std::vector<std::uint8_t> oversizedDecode(41, 0);
+    put32(oversizedDecode, 0, 40);
+    put32(oversizedDecode, 4, 8193);
+    put32(oversizedDecode, 8, 8192);
+    put16(oversizedDecode, 12, 1);
+    put16(oversizedDecode, 14, 0);
+    put32(oversizedDecode, 16, 5); // BI_PNG.
+    put32(oversizedDecode, 20, 1);
+    assert(validateDib(oversizedDecode));
+    assert(!receiveAndStore(8, oversizedDecode));
+    assert(owner.verifiedImage()->format == ImageFormat::Dib);
+
+    // A new clipboard generation invalidates owned image readiness, and an
+    // old response is drained rather than republished for that generation.
+    assert(owner.beginRequest(8, request));
+    assert(owner.receiveFormatList(std::array<std::uint32_t, 1>{8}));
+    assert(!owner.verifiedImage());
+    const auto obsoleteWire = responsePdu(kResponseOk, dib);
+    const auto obsolete = owner.receiveResponse(obsoleteWire);
+    assert(obsolete.status ==
+           RemoteTransfer::ResponseStatus::DiscardedPreviousGeneration);
+    assert(!owner.storeVerifiedImage(obsolete));
+    assert(!owner.verifiedImage());
+
+    // Registered PNG IDs are not globally fixed: name resolution wins even
+    // if this generation assigns PNG the numeric CF_DIBV5 value 17.
+    RemoteTransfer collision;
+    formats.clear();
+    appendLongFormat(formats, 17, "PNG");
+    appendLongFormat(formats, 8, "");
+    assert(collision.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(collision.beginRequest(17, request));
+    const auto collisionWire = responsePdu(kResponseOk, kValidPng);
+    const auto collisionResponse = collision.receiveResponse(collisionWire);
+    assert(collision.storeVerifiedImage(collisionResponse));
+    const auto collisionReady = collision.verifiedImage();
+    assert(collisionReady && collisionReady->format == ImageFormat::Png &&
+           collisionReady->sourceFormatId == 17);
+
+    collision.resetAfterDisconnect();
+    assert(!collision.verifiedImage());
+    assert(collision.receiveFormatList(std::array<std::uint32_t, 1>{8}));
+    assert(collision.beginRequest(8, request));
+    const auto validDibWire = responsePdu(kResponseOk, dib);
+    const auto validDibResponse = collision.receiveResponse(validDibWire);
+    assert(collision.storeVerifiedImage(validDibResponse));
+    assert(collision.beginRequest(8, request));
+    collision.abandonRequest();
+    assert(!collision.synchronized());
+    assert(!collision.verifiedImage());
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -1609,6 +1760,11 @@ int main(int argumentCount, char **arguments)
         if (caseName == "verified-unicode-text-readiness")
         {
             testVerifiedUnicodeTextReadiness();
+            return 0;
+        }
+        if (caseName == "verified-image-readiness")
+        {
+            testVerifiedImageReadiness();
             return 0;
         }
         if (caseName == "format-data-request-joined-mcs-envelope")

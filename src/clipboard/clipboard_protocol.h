@@ -70,6 +70,10 @@ struct DibInfo
                                PngInfo &info,
                                PngValidationError *error = nullptr) noexcept;
 
+// Validate a complete packed DIB without allocating or copying its payload.
+// Conversion helpers should reuse this boundary rather than reparsing input.
+[[nodiscard]] bool validateDib(std::span<const std::uint8_t> dib) noexcept;
+
 [[nodiscard]] bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
                                 std::vector<std::uint8_t> &bmp,
                                 DibInfo *info = nullptr) noexcept;

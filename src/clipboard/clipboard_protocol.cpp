@@ -323,11 +323,21 @@ bool validatePng(std::span<const std::uint8_t> bytes,
     return true;
 }
 
-bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
-                  std::vector<std::uint8_t> &bmp, DibInfo *info) noexcept
+namespace
 {
-    bmp.clear();
-    if (dib.size() < 40U || dib.size() > std::numeric_limits<std::uint32_t>::max() - 14U)
+struct DibLayout
+{
+    std::size_t pixelOffset{};
+    std::uint16_t bitCount{};
+    std::uint32_t compression{};
+};
+
+[[nodiscard]] bool inspectDib(std::span<const std::uint8_t> dib,
+                              DibLayout &layout) noexcept
+{
+    layout = {};
+    if (dib.size() < 40U ||
+        dib.size() > std::numeric_limits<std::uint32_t>::max() - 14U)
     {
         return false;
     }
@@ -336,14 +346,15 @@ bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
     {
         return false;
     }
-    // This function wraps a complete packed DIB, not just its header.
-    // A signed negative height is a valid top-down uncompressed bitmap.
+    // Validate a complete packed DIB, not just its header. A signed negative
+    // height is a valid top-down uncompressed bitmap.
     const std::uint32_t width = read32(dib.data() + 4U);
     const std::uint32_t rawHeight = read32(dib.data() + 8U);
     const std::uint16_t planes = read16(dib.data() + 12U);
     const std::uint16_t bitCount = read16(dib.data() + 14U);
     if (width == 0U ||
-        width > static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) ||
+        width > static_cast<std::uint32_t>(
+                    std::numeric_limits<std::int32_t>::max()) ||
         rawHeight == 0U || planes != 1U)
     {
         return false;
@@ -376,16 +387,16 @@ bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
     {
         return false;
     }
-    std::size_t dibPixelOffset = headerBytes;
+    std::size_t pixelOffset = headerBytes;
     if (headerBytes == 40U && compression == 3U)
     {
-        dibPixelOffset += 12U;
+        pixelOffset += 12U;
     }
     else if (headerBytes == 40U && compression == 6U)
     {
-        dibPixelOffset += 16U;
+        pixelOffset += 16U;
     }
-    if (dibPixelOffset > dib.size())
+    if (pixelOffset > dib.size())
     {
         return false;
     }
@@ -393,18 +404,18 @@ bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
         (compression == 4U || compression == 5U) ? 0U :
         (colorsUsed != 0U ? colorsUsed :
          (bitCount != 0U && bitCount <= 8U ? (1ULL << bitCount) : 0U));
-    if (paletteEntries > (dib.size() - dibPixelOffset) / 4U)
+    if (paletteEntries > (dib.size() - pixelOffset) / 4U)
     {
         return false;
     }
-    dibPixelOffset += paletteEntries * 4U;
-    if (dibPixelOffset > dib.size() ||
-        dibPixelOffset > std::numeric_limits<std::uint32_t>::max() - 14U)
+    pixelOffset += paletteEntries * 4U;
+    if (pixelOffset > dib.size() ||
+        pixelOffset > std::numeric_limits<std::uint32_t>::max() - 14U)
     {
         return false;
     }
 
-    const std::size_t availablePixels = dib.size() - dibPixelOffset;
+    const std::size_t availablePixels = dib.size() - pixelOffset;
     if (uncompressed)
     {
         // DWORD-aligned scanlines; divide before multiplying by the number
@@ -432,6 +443,29 @@ bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
     {
         return false;
     }
+
+    layout.pixelOffset = pixelOffset;
+    layout.bitCount = bitCount;
+    layout.compression = compression;
+    return true;
+}
+} // namespace
+
+bool validateDib(std::span<const std::uint8_t> dib) noexcept
+{
+    DibLayout layout{};
+    return inspectDib(dib, layout);
+}
+
+bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
+                  std::vector<std::uint8_t> &bmp, DibInfo *info) noexcept
+{
+    bmp.clear();
+    DibLayout layout{};
+    if (!inspectDib(dib, layout))
+    {
+        return false;
+    }
     try
     {
         bmp.resize(14U + dib.size());
@@ -441,13 +475,14 @@ bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
         write16(bmp.data() + 6U, 0);
         write16(bmp.data() + 8U, 0);
         write32(bmp.data() + 10U,
-                static_cast<std::uint32_t>(14U + dibPixelOffset));
+                static_cast<std::uint32_t>(14U + layout.pixelOffset));
         std::copy(dib.begin(), dib.end(), bmp.begin() + 14U);
         if (info != nullptr)
         {
-            info->pixelOffset = static_cast<std::uint32_t>(14U + dibPixelOffset);
-            info->bitCount = bitCount;
-            info->compression = compression;
+            info->pixelOffset =
+                static_cast<std::uint32_t>(14U + layout.pixelOffset);
+            info->bitCount = layout.bitCount;
+            info->compression = layout.compression;
         }
         return true;
     }
@@ -457,7 +492,6 @@ bool wrapDibAsBmp(std::span<const std::uint8_t> dib,
         return false;
     }
 }
-
 bool decodePdu(std::span<const std::uint8_t> bytes, PduView &pdu) noexcept
 {
     if (bytes.size() < 8 || bytes.size() > kMaximumPduBytes)

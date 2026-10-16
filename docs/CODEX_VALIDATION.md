@@ -9,6 +9,31 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R8 validated image readiness (2026-10-16; CI pending)
+
+**Starting main SHA:** `a1ae1e7aef0ca67bd155271fc760a6cff70d9a9a`. The existing R8 `RemoteTransfer`
+owner now validates and owns current-generation registered PNG, CF_DIBV5
+and CF_DIB response bytes without eager image expansion. Registered PNG
+name resolution precedes numeric 17/8 interpretation; CF_DIBV5 requires a
+124-byte BITMAPV5HEADER. The retained wire payload stays below the existing
+8-MiB CLIPRDR PDU boundary, and advertised dimensions must fit a 256-MiB
+prospective 32-bpp decoded working set. `validateDib` provides an
+allocation-free structural path reused by `wrapDibAsBmp`.
+
+**Changed:** `src/clipboard/clipboard_protocol.{h,cpp}`,
+`src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, and this ledger.
+**Dedicated CTest:** `clipboard.verified-image-readiness` covers valid
+named PNG, corrupt PNG rejection, valid DIBV5/DIB, non-V5 header rejection,
+decoded-size bound, generation invalidation/stale response drain, registered
+PNG numeric-ID collision, disconnect and poison hiding. **NOT RUN at
+authoring:** local compile/full CTest (sandbox has no GitHub DNS checkout),
+exact-SHA hosted Actions, owner Linux/X11 / Windows MSYS2 CLANG64 Clang23 /
+macOS27 one-root commands, genuine R2/R3 authorization, native clipboard,
+Microsoft-client/Firefox image paste and performance. Next R8 gate is native
+nonblocking presentation/conversion over the authorized R3 writer lifecycle.
+
 ## R8 verified Unicode text exact-SHA hosted CI (2026-10-16)
 
 **Implementation SHA:** `8f5e194a5662ae2f70a849c0e451c8bbb60f87b0`.

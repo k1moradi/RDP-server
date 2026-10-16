@@ -232,6 +232,20 @@ public:
     [[nodiscard]] std::optional<std::string_view>
     verifiedUnicodeText() const noexcept;
 
+    // A verified image remains in its negotiated wire representation: named
+    // PNG stays compressed PNG; CF_DIBV5/CF_DIB stay packed DIB. The returned
+    // span borrows owner storage and is invalidated by a new offer/disconnect.
+    enum class VerifiedImageFormat : std::uint8_t { Png, DibV5, Dib };
+    struct VerifiedImage
+    {
+        VerifiedImageFormat format{VerifiedImageFormat::Png};
+        std::uint64_t generation{};
+        std::uint32_t sourceFormatId{};
+        std::span<const std::uint8_t> bytes{};
+    };
+    [[nodiscard]] bool storeVerifiedImage(const Response &response) noexcept;
+    [[nodiscard]] std::optional<VerifiedImage> verifiedImage() const noexcept;
+
     // A lost, timed-out or ambiguous response cannot be correlated with
     // subsequent traffic. Fail closed until an actual channel disconnect.
     void abandonRequest() noexcept;
@@ -252,6 +266,11 @@ private:
 
     std::string verifiedTextUtf8_{};
     bool verifiedTextReady_{};
+    std::vector<std::uint8_t> verifiedImageBytes_{};
+    VerifiedImageFormat verifiedImageFormat_{VerifiedImageFormat::Png};
+    std::uint64_t verifiedImageGeneration_{};
+    std::uint32_t verifiedImageSourceFormatId_{};
+    bool verifiedImageReady_{};
     std::array<std::uint8_t, 8> lastFormatListResponse_{};
     bool lastFormatListResponseValid_{};
     std::array<std::uint32_t, kMaximumFormats> advertisedFormats_{};

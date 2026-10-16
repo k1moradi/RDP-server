@@ -25,6 +25,34 @@ constexpr std::uint16_t kAsciiNamesFlag = 0x0004;
 constexpr std::uint16_t kGeneralCapabilityType = 1;
 constexpr std::size_t kGeneralCapabilityBytes = 12;
 constexpr std::size_t kCapabilityHeaderBytes = 4;
+// Bound retained wire bytes separately from a prospective 32-bpp decode.
+constexpr std::size_t kMaximumStoredImageBytes =
+    rdp_server::clipboard::kMaximumPduBytes - 8U;
+constexpr std::uint64_t kMaximumDecodedImageBytes =
+    256ULL * 1024ULL * 1024ULL;
+
+[[nodiscard]] bool decodedImageFits(std::uint32_t width,
+                                    std::uint64_t height) noexcept
+{
+    constexpr std::uint64_t kBytesPerPixel = 4U;
+    if (width == 0U || height == 0U)
+    {
+        return false;
+    }
+    const std::uint64_t rowBytes =
+        static_cast<std::uint64_t>(width) * kBytesPerPixel;
+    return rowBytes <= kMaximumDecodedImageBytes &&
+           height <= kMaximumDecodedImageBytes / rowBytes;
+}
+
+[[nodiscard]] std::uint64_t absoluteDibHeight(
+    std::uint32_t rawHeight) noexcept
+{
+    return rawHeight <= static_cast<std::uint32_t>(
+                            std::numeric_limits<std::int32_t>::max())
+               ? rawHeight
+               : (std::uint64_t{1} << 32U) - rawHeight;
+}
 
 [[nodiscard]] std::uint16_t read16(std::span<const std::uint8_t> bytes,
                                    std::size_t offset) noexcept
@@ -121,6 +149,10 @@ bool RemoteTransfer::receiveFormatList(
     lastFormatListResponseValid_ = false;
     verifiedTextUtf8_.clear();
     verifiedTextReady_ = false;
+    verifiedImageBytes_.clear();
+    verifiedImageGeneration_ = 0;
+    verifiedImageSourceFormatId_ = 0;
+    verifiedImageReady_ = false;
     if (poisoned_ || generation_ == std::numeric_limits<std::uint64_t>::max() ||
         advertisedFormatIds.size() > kMaximumFormats)
     {
@@ -914,6 +946,99 @@ RemoteTransfer::verifiedUnicodeText() const noexcept
     return std::string_view{verifiedTextUtf8_};
 }
 
+bool RemoteTransfer::storeVerifiedImage(const Response &response) noexcept
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t kDibFormatId = 8;
+    constexpr std::uint32_t kDibV5FormatId = 17;
+    constexpr std::uint32_t kBitmapV5HeaderBytes = 124;
+    const auto wire = response.payload;
+    if (poisoned_ || generation_ == 0 || pendingValid_ ||
+        response.status != ResponseStatus::Received ||
+        response.generation != generation_ || !advertises(response.formatId) ||
+        wire.empty() || wire.size() > kMaximumStoredImageBytes)
+    {
+        return false;
+    }
+
+    VerifiedImageFormat candidateFormat{};
+    std::uint32_t width = 0;
+    std::uint64_t height = 0;
+    // Registered PNG is generation-scoped and may numerically collide with a
+    // standard format. Resolve the advertised name before numeric fallbacks.
+    if (pngFormatId_ != 0 && response.formatId == pngFormatId_)
+    {
+        PngInfo info{};
+        if (!validatePng(wire, info))
+        {
+            return false;
+        }
+        candidateFormat = VerifiedImageFormat::Png;
+        width = info.width;
+        height = info.height;
+    }
+    else if (response.formatId == kDibV5FormatId)
+    {
+        if (wire.size() < kBitmapV5HeaderBytes ||
+            read32(wire, 0) != kBitmapV5HeaderBytes || !validateDib(wire))
+        {
+            return false;
+        }
+        candidateFormat = VerifiedImageFormat::DibV5;
+        width = read32(wire, 4);
+        height = absoluteDibHeight(read32(wire, 8));
+    }
+    else if (response.formatId == kDibFormatId)
+    {
+        if (!validateDib(wire))
+        {
+            return false;
+        }
+        candidateFormat = VerifiedImageFormat::Dib;
+        width = read32(wire, 4);
+        height = absoluteDibHeight(read32(wire, 8));
+    }
+    else
+    {
+        return false;
+    }
+    if (!decodedImageFits(width, height))
+    {
+        return false;
+    }
+
+    std::vector<std::uint8_t> candidate;
+    try
+    {
+        candidate.assign(wire.begin(), wire.end());
+    }
+    catch (...)
+    {
+        return false;
+    }
+    verifiedImageBytes_.swap(candidate);
+    verifiedImageFormat_ = candidateFormat;
+    verifiedImageGeneration_ = response.generation;
+    verifiedImageSourceFormatId_ = response.formatId;
+    verifiedImageReady_ = true;
+    return true;
+}
+
+std::optional<RemoteTransfer::VerifiedImage>
+RemoteTransfer::verifiedImage() const noexcept
+{
+    if (poisoned_ || !verifiedImageReady_ ||
+        verifiedImageGeneration_ != generation_)
+    {
+        return std::nullopt;
+    }
+    return VerifiedImage{
+        verifiedImageFormat_, verifiedImageGeneration_,
+        verifiedImageSourceFormatId_,
+        std::span<const std::uint8_t>{verifiedImageBytes_.data(),
+                                      verifiedImageBytes_.size()}};
+}
+
 void RemoteTransfer::abandonRequest() noexcept
 {
     if (pendingValid_)
@@ -926,6 +1051,10 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
 {
     verifiedTextUtf8_.clear();
     verifiedTextReady_ = false;
+    verifiedImageBytes_.clear();
+    verifiedImageGeneration_ = 0;
+    verifiedImageSourceFormatId_ = 0;
+    verifiedImageReady_ = false;
     lastFormatListResponse_.fill(0);
     lastFormatListResponseValid_ = false;
     advertisedFormats_.fill(0);

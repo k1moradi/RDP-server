@@ -286,7 +286,8 @@ function(add_rdp_test source_file suite behavior)
                 prefetch-unicode-png-dib-single-flight
                 format-data-request-joined-mcs-envelope
                 format-data-request-generation-cancellation
-                verified-unicode-text-readiness)
+                verified-unicode-text-readiness
+                verified-image-readiness)
             add_test(NAME "clipboard.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("clipboard.${case_name}" PROPERTIES

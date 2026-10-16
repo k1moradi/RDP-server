@@ -482,6 +482,23 @@ Raw `Response.payload` remains borrowed, unvalidated wire data.
 R3 authentication and native OS clipboard publication are not
 supplied by this offline readiness boundary.
 
+### R8 owned verified image clipboard readiness (offline)
+
+The same generation-owning `RemoteTransfer` can validate and retain a
+successful current-generation registered PNG, CF_DIBV5 or CF_DIB response.
+Registered PNG is resolved by the current Format List name before numeric
+17/8 fallbacks, because registered format IDs are generation-local. CF_DIBV5
+requires a 124-byte BITMAPV5HEADER. PNG chunk/CRC/order checks and packed-DIB
+layout checks reuse `clipboard_protocol`; DIB validation is allocation-free
+and BMP wrapping consumes that same checked layout rather than copying just
+to validate. Stored wire content stays compressed PNG or packed DIB and is
+bounded below the 8-MiB CLIPRDR PDU ceiling. Dimensions must additionally fit
+a 256-MiB prospective 32-bpp decoded working set before readiness. New offers
+and disconnect clear owned image state, channel poison hides it, and obsolete
+responses never become current image data. This boundary does not decode an
+image, perform native clipboard publication, schedule background work or
+authorize a channel.
+
 ### Independence test
 
 The top-level CMake project enables **CXX only**, targets C++23, and links

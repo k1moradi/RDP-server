@@ -2957,6 +2957,26 @@ actually run; another parser CTest alone is not a complete session.
   authorized R3 DVC, real x264, client and benchmarks.
   **Next R4:** actual authorized R3 DVC full-send callback then
   integrate the existing H.264 frame owner/x264. Gate B NOT ACCEPTED.
+  **R4 mapped AVC420 delivery preparation + CMake recovery (2026-10-15;
+  parent `6d5422f82dc9e644e8fa058e30e22deedb76bd84`):** Restore the previously committed picture
+  packetizer and three existing AVC420 picture CTests to the normal
+  protocol build/test registry after their registrations were dropped.
+  `GfxPresentationLifecycle::prepareAvc420Picture` composes the one
+  mapped-surface lifecycle, production Annex-B packetizer and exact
+  frame-delivery receipt. Only matching R3 generation, mapped surface,
+  coded dimensions and unblocked ACK/frame-ID state permit encoding.
+  Rejection never publishes a receipt or ACK; R3 still must transmit
+  the entire frame and call `completeFrameDelivery`, or terminally
+  abort partial delivery. Three new registered behavior CTests are
+  `graphics.avc420-mapped-frame-wire`,
+  `graphics.avc420-mapped-frame-denials` and
+  `graphics.avc420-mapped-frame-reconnect`.
+  **NOT RUN at authoring:** owner Linux/X11, Windows MSYS2 CLANG64/
+  Clang 23 and macOS 27, local full checkout CTest, real R2/R3
+  graphics channel, pinned static x264, real H.264 desktop or
+  benchmarks. Synthetic Annex-B fixture proves framing only.
+  **Next R4:** integrate reviewed static x264 producing decodable
+  pictures and R3's authorized DVC full-send writer. Gate B OPEN.
   **R4 AVC420 Annex-B picture transport frame (2026-10-15):**
   The compiled portable graphics protocol SDK now has the first
   correctly sized START_FRAME, WIRE_TO_SURFACE_1 with AVC420

@@ -7,6 +7,7 @@
 #include <span>
 
 #include "gfx_avc420_capabilities.h"
+#include "gfx_avc420_picture.h"
 #include "gfx_frame_acknowledge.h"
 #include "gfx_surface_lifecycle.h"
 
@@ -102,6 +103,13 @@ public:
     [[nodiscard]] bool beginFrameDelivery(
         std::uint64_t generation, std::uint32_t frameId,
         std::size_t frameBytes, GfxFrameDeliveryReceipt &receipt) noexcept;
+    // Serialize one already-encoded AVC420 picture for THIS mapped surface,
+    // and reserve the existing full-frame delivery receipt. No transport,
+    // x264 encoding, session authorization or ACK publication occurs here.
+    // On rejection neither caller output nor receipt/state is changed.
+    [[nodiscard]] bool prepareAvc420Picture(
+        std::uint64_t generation, const GfxAvc420Picture &picture,
+        std::span<std::byte> output, GfxFrameDeliveryReceipt &receipt) noexcept;
     // R3 MUST call only after the whole matching frame has been sent.
     [[nodiscard]] bool completeFrameDelivery(
         const GfxFrameDeliveryReceipt &receipt,

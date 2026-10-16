@@ -13,6 +13,17 @@ namespace
 using Receipt = GfxPresentationReceipt;
 using Buffer = std::array<std::byte, 24>;
 
+constexpr std::array<std::byte, 7> kAvc420Nal{
+    std::byte{}, std::byte{}, std::byte{}, std::byte{1},
+    std::byte{0x65}, std::byte{0xA1}, std::byte{0xB2}};
+constexpr std::array<Rectangle, 1> kAvc420Region{
+    Rectangle{0, 0, 640, 480}};
+constexpr std::array<GfxAvc420QuantQuality, 1> kAvc420Quant{{{22, 80}}};
+GfxAvc420Picture picture(std::uint32_t id = 41)
+{
+    return {7, id, {640, 480}, kAvc420Region, kAvc420Quant, kAvc420Nal};
+}
+
 std::array<std::byte, 22> advertisement(std::byte flags = std::byte{0x10})
 {
     return {std::byte{0x12}, {}, {}, {}, std::byte{22}, {}, {}, {},
@@ -256,6 +267,115 @@ void frameAbort()
     assert(lifecycle.onFrameAcknowledge(902, ack(7), result));
     assert(result == GfxFrameAckWindowResult::Acknowledged);
 }
+
+void mappedPictureWire()
+{
+    GfxPresentationLifecycle lifecycle;
+    const auto p = picture();
+    std::array<std::byte, 128> bytes{}; bytes.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt ticket{17, 18, 19, 20};
+    const auto unchanged = ticket;
+    assert(!lifecycle.prepareAvc420Picture(601, p, bytes, ticket));
+    assert(lifecycle.open(601));
+    assert(!lifecycle.prepareAvc420Picture(601, p, bytes, ticket));
+    assert(lifecycle.acceptCapabilities(601, advertisement()));
+    assert(!lifecycle.prepareAvc420Picture(601, p, bytes, ticket));
+    assert(lifecycle.completeCommand(emit(lifecycle, 601, std::byte{19}, 20), 20));
+    assert(lifecycle.configureSurface(601, 7, {640, 480}));
+    assert(!lifecycle.prepareAvc420Picture(601, p, bytes, ticket));
+    assert(lifecycle.completeCommand(emit(lifecycle, 601, std::byte{9}, 15), 15));
+    assert(!lifecycle.prepareAvc420Picture(601, p, bytes, ticket));
+    assert(lifecycle.completeCommand(emit(lifecycle, 601, std::byte{15}, 20), 20));
+    assert(ticket == unchanged);
+    for (auto b : bytes) assert(b == std::byte{0xA5});
+
+    assert(lifecycle.prepareAvc420Picture(601, p, bytes, ticket));
+    assert(ticket.frameId == 41 && ticket.generation == 601 &&
+           ticket.bytes == 74 && ticket.serial != 0);
+    assert(bytes[0] == std::byte{0x0B} && bytes[16] == std::byte{0x01});
+    assert(bytes[24] == std::byte{7} && bytes[26] == std::byte{0x0B});
+    for (std::size_t n=0; n<kAvc420Nal.size(); ++n)
+        assert(bytes[55+n] == kAvc420Nal[n]);
+    assert(bytes[62] == std::byte{0x0C});
+    for (std::size_t n=74; n<bytes.size(); ++n)
+        assert(bytes[n] == std::byte{0xA5});
+    assert(lifecycle.outstandingFrames() == 0);
+    assert(!lifecycle.requestSurfaceDelete(601));
+    assert(!lifecycle.completeFrameDelivery(ticket, 73));
+    assert(lifecycle.outstandingFrames() == 0);
+    assert(lifecycle.completeFrameDelivery(ticket, 74));
+    assert(!lifecycle.completeFrameDelivery(ticket, 74));
+    assert(lifecycle.outstandingFrames() == 1);
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(601, ack(41), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+}
+
+void mappedPictureDenials()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, 602);
+    const auto good = picture();
+    std::array<std::byte, 128> bytes{};
+    GfxFrameDeliveryReceipt ticket{5, 6, 7, 8};
+    const auto initial = ticket;
+    const auto denied = [&](const GfxAvc420Picture &p,
+                            std::uint64_t gen, std::size_t cap) {
+        bytes.fill(std::byte{0xA5});
+        assert(!lifecycle.prepareAvc420Picture(
+            gen, p, std::span<std::byte>(bytes).first(cap), ticket));
+        assert(ticket == initial);
+        for (auto b : bytes) assert(b == std::byte{0xA5});
+        assert(lifecycle.outstandingFrames() == 0);
+    };
+    denied(good, 603, bytes.size());
+    { auto p=good; p.surfaceId=8; denied(p,602,bytes.size()); }
+    { auto p=good; p.codedGeometry={32,16}; denied(p,602,bytes.size()); }
+    { auto p=good; p.regions={}; denied(p,602,bytes.size()); }
+    { auto p=good; p.annexBPicture={}; denied(p,602,bytes.size()); }
+    for (std::size_t n=0; n<74; ++n) denied(good,602,n);
+    bytes.fill(std::byte{0xA5});
+    assert(lifecycle.prepareAvc420Picture(602, good, bytes, ticket));
+    GfxFrameDeliveryReceipt other{};
+    assert(!lifecycle.prepareAvc420Picture(
+        602, picture(42), bytes, other));
+    assert(lifecycle.completeFrameDelivery(ticket, ticket.bytes));
+    bytes.fill(std::byte{0xA5});
+    assert(!lifecycle.prepareAvc420Picture(602, good, bytes, other));
+    for (auto b : bytes) assert(b == std::byte{0xA5});
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(602, ack(41), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.prepareAvc420Picture(602, picture(42), bytes, other));
+    assert(lifecycle.abortFrameDelivery(other));
+    assert(!lifecycle.canSubmitFrame(602));
+}
+
+void mappedPictureReconnect()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, 603);
+    std::array<std::byte, 128> bytes{};
+    GfxFrameDeliveryReceipt old{};
+    assert(lifecycle.prepareAvc420Picture(603,picture(55),bytes,old));
+    lifecycle.disconnect();
+    assert(!lifecycle.completeFrameDelivery(old,old.bytes));
+    assert(!lifecycle.open(603));
+    mapped(lifecycle,604);
+    GfxFrameDeliveryReceipt current{};
+    assert(!lifecycle.prepareAvc420Picture(603,picture(55),bytes,current));
+    assert(lifecycle.prepareAvc420Picture(604,picture(55),bytes,current));
+    assert(current.serial>old.serial);
+    assert(!lifecycle.completeFrameDelivery(old,old.bytes));
+    assert(lifecycle.completeFrameDelivery(current,current.bytes));
+    GfxFrameAckWindowResult result{};
+    assert(!lifecycle.onFrameAcknowledge(603,ack(55),result));
+    assert(lifecycle.outstandingFrames()==1);
+    assert(lifecycle.onFrameAcknowledge(604,ack(55),result));
+    assert(result==GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.requestSurfaceDelete(604));
+    assert(!lifecycle.prepareAvc420Picture(604,picture(56),bytes,current));
+}
 } // namespace
 
 int main(int argc, char **argv)
@@ -268,5 +388,8 @@ int main(int argc, char **argv)
     if (mode == "frame-publication-backpressure") { backpressure(); return 0; }
     if (mode == "frame-delivery-receipt-ordering") { frameReceipts(); return 0; }
     if (mode == "frame-delivery-abort-revocation") { frameAbort(); return 0; }
+    if (mode == "avc420-mapped-frame-wire") { mappedPictureWire(); return 0; }
+    if (mode == "avc420-mapped-frame-denials") { mappedPictureDenials(); return 0; }
+    if (mode == "avc420-mapped-frame-reconnect") { mappedPictureReconnect(); return 0; }
     return 2;
 }

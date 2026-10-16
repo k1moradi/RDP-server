@@ -255,6 +255,24 @@ the native producer validates DXGI metadata byte lengths and releases
 the frame before changing the session. This increment owns no COM
 objects, authorization, queue, capture polling or graphics scheduler.
 
+### R4 mapped AVC420 picture composition and receipt boundary
+
+The existing `GfxPresentationLifecycle` now composes
+`gfx_avc420_picture` with the same R4 capabilities, mapped surface,
+and fixed ACK window. `prepareAvc420Picture` verifies the R3-provided
+generation, negotiated/mapped stage, surface ID, matching coded frame
+geometry and preflight frame-ID/backpressure before encoding caller
+provided Annex-B bytes and atomically reserving the one full-send
+receipt. The R3 sender retains the full output until transport
+completion; successful serialization is NOT permission to dispatch
+graphics and does not mark frame delivered. A denied call leaves
+receipt/output/ACK state unchanged. Old-generation callbacks cannot
+publish frames after reconnect; terminal partial sends revoke the
+channel using the existing abort path. The previously lost picture
+module/three CTests are restored to the canonical build registry.
+This offline boundary is neither a real x264 encoder nor an authorized
+graphics DVC or a real Microsoft-client display.
+
 ### R4 graphics presentation lifecycle and wire delivery receipts
 
 `rdp/gfx_presentation_lifecycle.{h,cpp}` is the R4-side

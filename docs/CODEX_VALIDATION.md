@@ -5538,3 +5538,34 @@ Windows CLANG64/Clang23 and macOS27, real client, R2
 identity/OS admission and R3 authorized session.
 **Next:** exact-SHA hosted validation, then R10 runtime
 integration gated by independent R2/R3 authorization.
+
+## R4 AVC420 mapped surface/full-send receipt integration (2026-10-15)
+
+**Parent `main`:** `6d5422f82dc9e644e8fa058e30e22deedb76bd84`. The production
+`gfx_avc420_picture.cpp` and its existing three dedicated
+`graphics.avc420-picture-*` CTests are restored to the normal
+single protocol archive/CTest registry after a concurrent CMake
+registration loss. `GfxPresentationLifecycle` now exposes
+`prepareAvc420Picture` to gate that same production packetizer
+behind its confirmed AVC420 capability, fully delivered surface
+create/map, matching geometry and channel generation, and the
+one `GfxFrameAckWindow` frame-ID/bounded queue. Only R3's
+whole-frame delivery receipt commits pending ACK state.
+
+**New dedicated CTests:** `graphics.avc420-mapped-frame-wire`,
+`graphics.avc420-mapped-frame-denials`, and
+`graphics.avc420-mapped-frame-reconnect`, using the already
+production-linked `test_gfx_presentation_lifecycle` binary.
+Synthetic Annex-B prefix/payload is only a framing fixture, not
+a valid H.264 picture or encoder verification. Normative graphics
+framing and ACK ordering: MS-RDPEGFX §§2.2.2.1, 2.2.2.11–13
+and 3.2.1.2/3.2.5.13.
+
+**NOT RUN at authoring:** local full-repository CTest because
+the sandbox has no complete checkout and Github DNS is unavailable;
+owner independent Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS27 command; actual R2-authorized OS session, R3 admitted
+DRDYNVC writer, pinned license-reviewed x264 static build, live
+H.264 Microsoft-client desktop and performance benchmarks.
+Verify the exact commit's hosted cross-platform CI and preserve
+Gate B/M3–M5 as OPEN.

@@ -208,6 +208,28 @@ bool GfxPresentationLifecycle::beginFrameDelivery(
     return true;
 }
 
+bool GfxPresentationLifecycle::prepareAvc420Picture(
+    std::uint64_t generation, const GfxAvc420Picture &picture,
+    std::span<std::byte> output, GfxFrameDeliveryReceipt &receipt) noexcept
+{
+    // R3 must have separately authorized this graphics DVC. Opening R4's
+    // offline lifecycle cannot authorize a peer, capture or transport.
+    if (!canSubmitFrame(generation) ||
+        picture.surfaceId != surfaceId_ ||
+        picture.codedGeometry != geometry_ ||
+        lastSerial_ == std::numeric_limits<std::uint64_t>::max() ||
+        !acknowledgements_.canRecordFrame(generation, picture.frameId))
+    {
+        return false;
+    }
+    const std::size_t written = buildGfxAvc420Picture(picture, output);
+    if (written == 0)
+        return false; // Builder validates before writing any output.
+    // No concurrent state mutation is possible on this single-owner
+    // synchronous path between preflight and reservation.
+    return beginFrameDelivery(generation, picture.frameId, written, receipt);
+}
+
 bool GfxPresentationLifecycle::completeFrameDelivery(
     const GfxFrameDeliveryReceipt &receipt,
     std::size_t deliveredBytes) noexcept

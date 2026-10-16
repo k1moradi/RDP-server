@@ -13188,3 +13188,54 @@ this connector environment. Genuine authenticated R3
 capture performance and Microsoft-client visible graphics acceptance remain
 **BLOCKED/NOT RUN**. R4 must not fabricate a second channel/session authority;
 Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R4 zero-valued surface ID hosted validation receipt (2026-10-16)
+
+**Production implementation:** `4ac92d9717d751b62c7268d4fd800ed0210246d8`.
+**Stale-test correction:** `3d77a024b0150cb93058f5ac52f84cff639d3a88`.
+**Correction Actions:** `38922487647`.
+
+The first implementation run correctly exposed two obsolete test-only
+expectations that still treated surface ID zero as invalid. The follow-up
+removed only those stale assertions and added direct positive
+`graphics.avc420-zero-surface-id-wire` coverage; production source is
+unchanged by the follow-up.
+
+R4-owned evidence on the corrected SHA is **PASS**:
+- **Linux/GCC:** full Debug **453/453 PASS**, Release **453/453 PASS**.
+  `graphics.surface-zero-id-wire` is #220,
+  `graphics.avc420-zero-surface-id-wire` is #244, and
+  `graphics.x264-segmented-zero-surface-id-delivery` is #446; all three pass
+  in both configurations. SDK consumer/package gates pass.
+- **Windows/MSVC:** native preflight **45/45 PASS** in Debug and Release;
+  full Debug **409/409 PASS**, Release **409/409 PASS**. The three R4 cases are
+  #205, #229 and #402 in both full suites. SDK consumer/package gates pass.
+- **macOS/Clang:** Debug **379/379 PASS**. In Release, all three R4 cases pass
+  again as #205, #229 and #372; the complete suite finishes **378/379** only
+  because unrelated R1
+  `transport.tcp-owned-tls-application-cancellation` aborts. A later
+  descendant run reproduces that same R1-only Release failure while all three
+  R4 cases pass again, so it is not attributed to this R4 increment.
+- **Clang ASan+UBSan R4 x264/BGRA:** **20/20 PASS**. The real-x264
+  `graphics.x264-segmented-zero-surface-id-delivery` runs under sanitizer and
+  passes. The shared sanitizer job on the corrected SHA is otherwise
+  **SUCCESS** across its configured groups.
+- **Documentation policy PASS**; the separate R7 sanitizer gate also PASS.
+
+Validated R4 invariant: `surfaceId` uses the complete uint16 wire domain,
+including zero. Explicit lifecycle stage carries configuredness; generation and
+nonzero delivery receipt serial carry publication validity. Zero does not reset
+codec reference history, and CREATE/MAP/AVC420/ACK behavior stays on the one
+existing R4 owner.
+
+The repository-wide corrected-SHA workflow is therefore **FAIL due to an
+unrelated R1 macOS Release test**, not due to R4. Do not record a fully clean
+whole-repository exact-SHA matrix until that R1 boundary is corrected and a
+descendant rerun passes.
+
+Canonical owner `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 remain **NOT RUN** here. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC/full-send integration, native capture
+performance and Microsoft-client visible graphics remain **BLOCKED/NOT RUN**.
+Gate B and M3/M4/M5 remain **OPEN**.

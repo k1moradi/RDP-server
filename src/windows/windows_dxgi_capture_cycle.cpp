@@ -195,11 +195,12 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
                     closed_ = true;
                     outcome = WindowsCaptureCycleResult::failed;
                 }
-                else if (closed_)
+                else if (outcome == WindowsCaptureCycleResult::notReady &&
+                         closed_)
                 {
                     // A synchronous ReleaseFrame callback may revoke this
-                    // cycle. Do not report a retryable GPU-not-ready result
-                    // after terminal cancellation was requested.
+                    // cycle. Only override the retryable GPU-not-ready result;
+                    // earlier terminal map errors keep their failed outcome.
                     outcome = WindowsCaptureCycleResult::closed;
                 }
             }

@@ -13120,3 +13120,29 @@ documentation policy and SDK/package evidence are **PENDING** after
 publication. Owner macOS 27 fast-user-switch delivery, genuine non-forgeable
 R2/R3 macOS admission and Microsoft-client M5 acceptance remain
 **NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.
+
+## R6 release-revocation result-classification correction (2026-10-16; exact-SHA rerun pending)
+
+First hosted execution of implementation `233dc7e8f40243650f32fd0771df8f5e1e73b468`,
+Actions `38920538959`, compiled the Windows R6 target and the new
+`windows.capture-frame-release-callback-revocation` case **PASS** in Debug.
+The focused preflight nevertheless failed **44/45** because the existing
+`windows.capture-frame-cancel-and-topology-rejections` malformed-map assertion
+expected terminal `failed`; the first correction had converted that pre-existing
+error to `closed`. The assertion failure then remained under the Windows debug
+runtime until the explicit 20-second CTest timeout.
+
+Root cause was an overbroad post-release `closed_` check. A malformed staging
+map sets the cycle closed *before* DXGI lease retirement and must retain its
+`failed` classification. Only the retryable GPU-not-ready path needs terminal
+release-callback revocation to override its result. The correction therefore
+normalizes to `closed` only when the pending outcome is still `notReady` and
+the synchronous release callback has closed the cycle. Existing invalid-map,
+access-loss and native-release failure result classes remain unchanged.
+
+No fixture assertion is weakened or removed. The new callback-revocation case
+and the pre-existing malformed-map denial jointly cover both sides of the
+boundary. Exact-SHA hosted rerun is required before this increment is accepted;
+owner MSYS2 CLANG64/Clang23, genuine Windows R2/R3 authorization, live DXGI/
+SendInput and Microsoft-client M4 remain **NOT RUN/BLOCKED**.
+

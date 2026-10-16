@@ -15488,3 +15488,45 @@ delivery, genuine non-forgeable macOS per-user admission, live
 capture/input/cursor publication and Microsoft-client M5 acceptance remain
 **NOT RUN/OPEN**. The next authority-bearing R7 gate remains the genuine macOS
 R2/R3 capability. **M5 remains OPEN/BLOCKED**.
+
+## R6 repeated-output COM reference provenance exact-SHA validation (2026-10-16)
+
+**Implementation:** `823a7f5d2c668a32de58e1fba163d05c0f42fa02`.  
+**Actions:** `38969361895` — **SUCCESS**.
+
+Windows/MSVC focused R6 preflight is **48/48 PASS Debug + 48/48 PASS
+Release**. New
+`windows.capture-dxgi-duplication-owner-repeated-output-reference` is test
+#268 and passes in **0.01 s** in both configurations; the immediately preceding
+repeated-adapter-reference case also remains green. Full Windows CTest is
+**429/429 PASS Debug + 429/429 PASS Release**, with the new case passing again
+in both full suites. Installed Windows SDK consumer is **1/1 PASS** and the
+package/digest/artifact path passes.
+
+Linux/GCC full CTest is **473/473 PASS Debug + 473/473 PASS Release**.
+macOS/AppleClang is **400/400 PASS Debug + 400/400 PASS Release**. Installed
+SDK consumers are **1/1 PASS** on both. Documentation-policy and the dedicated
+R7 macOS sanitizer job pass.
+
+R9 Clang ASan/UBSan is fully green in its configured scope: clipboard
+**50/50**, R4 x264/BGRA **20/20**, R4 RDPGFX capability **4/4**, bounded
+R1/R3 MCS/CredSSP/licensing **63/63**, native R2/R3 GSSAPI **27/27**, R10
+Linux pre-admission **5/5**, native R5 X11 **26/26**, and bounded fuzzer
+**1/1**. The Windows-only R6 executable is not selected by those Linux
+sanitizer groups, so direct sanitizer execution of the new R6 case is
+**NOT RUN** and is not claimed. Untagged prerelease publication is correctly
+**SKIPPED**.
+
+Validated invariant: COM pointer identity is not reference ownership
+provenance for output enumeration either. A later `outputAt` return can own a
+second reference while exposing the exact selected-output address; ambiguous
+selection retires that candidate separately from the retained selected-output
+reference, and final fixture accounting returns every reference count to zero.
+This increment changes no production source or authorization/runtime surface.
+
+Canonical owner-local `~/rdp-server/build` and owner Windows MSYS2
+CLANG64/Clang23 remain **NOT RUN** in this connector environment. Genuine
+Windows R2/R3 native admission, live DXGI/SendInput, Microsoft-client M4 and
+native performance remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT
+ACCEPTED.**
+

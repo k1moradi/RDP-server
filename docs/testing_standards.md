@@ -1818,7 +1818,10 @@ for the original listener to be readable via
 `pollNonblockingTcpAcceptBatch` (128 attempts, 25ms maximum each)
 before asserting the *same* callback count, one accepted descriptor,
 `Drained` outcome and listener preservation. Do not change
-production socket behavior or weaken rejection/RAII assertions.
+production socket behavior or weaken rejection/RAII assertions. Owner-level
+loopback fixtures that are not specifically testing the one-step
+`WouldBlock` result must use the shared bounded accept fixture rather than
+assuming a completed `connect()` is immediately observable by `accept`.
 
 ## R1 native listener role/mode denial CTest (2026-10-15)
 

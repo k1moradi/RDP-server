@@ -6126,3 +6126,48 @@ contract. Genuine positive R2/R3 admission, authorized R3->R8 runtime routing,
 owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, Microsoft-client
 interoperability and performance remain **NOT RUN/BLOCKED** as applicable.
 M1-M6 remain unaccepted.
+
+
+## R1 immutable X.224 security negotiation provenance (2026-10-16)
+
+**Starting main:** `a00454ab30e4c3d7708befaee2d7f452901163eb`.
+Concrete R3 integration feedback identified the next bounded R1 hook:
+`matchesMcsSecurityNegotiationReplay` requires the client's complete original
+X.224 `requestedProtocols` mask and the server-selected protocol from that
+same exchange; a later caller-supplied scalar is not sufficient provenance.
+
+R1 now records those two values in fixed-size
+`SecurityNegotiationProvenance` owned by the existing
+`PreauthConnectionStream`. `SecurityReply` carries its selected protocol
+explicitly on successful RDP_NEG_RSP, avoiding any confusion with the
+NEG_FAILURE failure-code DWORD. The sole
+`OwnedPreauthTcpConnection` returns a copy only after the exact attached
+SSL/BIO/socket has completed TLS. Provenance is absent before the full X.224
+reply, during TLS handshake, on rejected negotiation, and after every
+terminal close/cancellation. No raw request bytes, caller views, mutable SSL,
+descriptor, authentication result, OS admission capability or R3 state are
+exported.
+
+New central CTest
+`transport.tcp-owned-security-negotiation-provenance` uses a real ephemeral
+loopback socket and real OpenSSL handshake. It proves a TLS+HYBRID client
+offer is preserved exactly while R1 selects PROTOCOL_SSL, caller-copy
+mutation cannot change the stored snapshot, premature/rejected access is
+empty, and cancellation revokes it. The underlying security-negotiation unit
+test also distinguishes successful `selectedProtocol` from the failure
+packet's unrelated failure code.
+
+The same R1 test change applies the already documented bounded loopback-accept
+fixture to the older owned TLS lifecycle/cancellation cases. Cross-road hosted
+CI had again reproduced the immediate-accept assumption on macOS in
+`transport.tcp-owned-connection-cancellation`; production accept semantics
+are unchanged.
+
+**Authoring validation:** local one-root build/CTest is **NOT RUN** in this
+agent sandbox because there is no mounted clonable repository. Exact-SHA
+hosted Debug/Release CI is **PENDING** after publication. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang 23, macOS 27 and real Microsoft-client validation
+remain **NOT RUN**. M2 remains **NOT ACCEPTED**.
+**Next R1 dependency:** R3 may consume this immutable replay provenance
+together with fresh R2 authorization; add no further R1 transport surface
+unless that integration demonstrates another concrete missing hook.

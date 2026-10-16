@@ -2541,12 +2541,16 @@ currently implemented Enhanced Security bits PROTOCOL_SSL and
 PROTOCOL_HYBRID, separately or combined, and serializes that exact mask.
 Unsupported RDSTLS/HYBRID_EX/RDS-AAD/unknown bits remain fail-closed.
 
-No runtime response publication is enabled. Current R1 still selects its
-diagnostic PROTOCOL_SSL path and does not expose immutable original request
-plus selected-protocol provenance to R3. A caller-supplied scalar is not an
-authority. R3 therefore remains in `AwaitConnectResponse` until that R1
-provenance exists and R2 can freshly revalidate the bound admission/session
-generations immediately before writer ownership.
+No runtime response publication is enabled. R1 still selects its diagnostic
+PROTOCOL_SSL path, but the sole accepted/TLS owner now exposes immutable
+`SecurityNegotiationProvenance` by value only after the exact attached TLS
+has established. The snapshot contains the complete parsed
+`requestedProtocols` mask from the original X.224 request and the exact
+server-selected protocol produced by that same R1 negotiation. It is revoked
+with connection teardown. A caller-supplied scalar is still not authority.
+R3 therefore remains in `AwaitConnectResponse` until it consumes this R1
+provenance and R2 freshly revalidates the bound admission/session generations
+immediately before writer ownership.
 
 
 ## R7 ScreenCaptureKit stream lifecycle and CoreVideo handoff (2026-10-16)
@@ -2558,3 +2562,26 @@ A binding comes from the existing `NativeDisplayGeometryRefresh` epoch and carri
 The output queue is a private serial dispatch queue and ScreenCaptureKit queue depth is three; R7 creates no additional frame queue. A complete screen sample is converted only to its `CVPixelBufferRef`, then passed through the existing `LockedBgraPixelBuffer` RAII lock. The consumer receives that locked BGRA frame synchronously and must copy into explicitly bounded owned storage before returning if asynchronous R4 work is needed. Neither x264/RDPGFX scheduling nor RDP session admission moves into R7.
 
 Screen Recording preflight remains macOS TCC evidence only. Successful preflight, shareable-content enumeration, or stream start never substitutes for R2 authentication or R3 session admission. Live runtime wiring remains intentionally absent until those contracts are genuine.
+
+
+## R1 immutable X.224 security negotiation provenance (2026-10-16)
+
+The one preauthentication stream retains only two fixed-size scalars from its
+successful Enhanced Security exchange: the client's complete parsed
+`requestedProtocols` mask and the protocol actually selected by
+`negotiateDiagnosticTls`. `SecurityReply::selectedProtocol` is explicit so
+the selection is never reconstructed from the response packet; in a
+NEG_FAILURE the same wire DWORD is a failure code, not a selected protocol.
+
+`OwnedPreauthTcpConnection::securityNegotiationProvenance()` returns this
+pair by value only while the exact attached SSL/BIO/socket has completed TLS
+and the underlying stream is in `AwaitMcsConnectInitial`. The snapshot is
+unavailable while X.224 response bytes are pending, while TLS is incomplete,
+for rejected negotiation, or after cancellation/close. No original packet
+buffer, caller span, mutable SSL/BIO, native descriptor, principal, admission
+lease or R3 state is exposed.
+
+This is the R1 transport half of R3's Enhanced Security replay correlation.
+R3 still owns GCC/MCS replay validation and response state; R2 still owns
+identity and independent OS authorization. The existence of the snapshot
+cannot publish a Connect Response by itself.

@@ -1,3 +1,49 @@
+## R5 XShm retirement correction exact-SHA hosted validation (2026-10-16)
+
+**Implementation/correction:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.  
+**Actions:** `38975257195` — overall **SUCCESS**.
+
+The registration-order correction is green across the complete hosted workflow.
+Ubuntu/GCC full CTest passed **503/503** in Debug and **503/503** in Release.
+The production-linked `x11.capture-native-destructor-retirement` behavior ran
+as test **#387** and passed in **0.83 s Debug / 0.03 s Release**. macOS/Clang
+full CTest passed **426/426** in Debug and **426/426** in Release.
+Windows/MSVC native preflight passed **51/51** in both configurations, and full
+CTest passed **456/456** in Debug and **456/456** in Release. Installed SDK
+consumer, package, digest/artifact upload and documentation-policy gates passed
+on the applicable hosted jobs; the untagged prerelease publication was
+correctly skipped.
+
+The R9 Clang ASan/UBSan job is **SUCCESS**. Its fail-closed R5 registry
+preflight now discovers all **31** selected native-X11 behaviors, including
+`x11.capture-native-destructor-retirement`. That case passed as **5/31** in
+**0.55 s**, and the complete R5 native-X11 selection is **31/31 PASS** with no
+reported ASan/UBSan failure. The preceding capture-fidelity behaviors also ran
+directly on this same validated descendant:
+`x11.desktop-resource-capture-pixel-parity` **PASS**,
+`x11.desktop-resource-randr-capture-generation` **PASS**, and
+`x11.desktop-resource-capture-terminal-denial` **PASS**. This is descendant
+execution evidence for the earlier `9ff9e7cd6ff057568696c8be954f505acd680599`
+increment, not a retroactive exact-SHA claim for that publication.
+
+This closes the hosted XShm successful-retirement/same-owner-replacement gate
+and the registration defect exposed by Actions `38974611308`. No production
+XShm code changed for either the behavior or its correction: the existing
+destructor/idempotent disconnect implementation is now exercised through real
+MIT-SHM attach/GetImage/detach lifetime under ephemeral Xvfb and sanitizer
+instrumentation.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 remain **NOT RUN**. Synthetic Xvfb does not prove
+genuine Kerberos/logind-authorized desktop access or Microsoft-client M3
+acceptance. A fresh current-source audit still finds R5's stateless
+`X11AuthorizedInputRoute` ready to consume an already-typed
+`X11InputEvent`, but no R3-owned authenticated Share/Input or Fast-Path Input
+decoded-event handoff exists yet. Therefore the next functional R5 input
+translation remains **BLOCKED ON R3**; R5 must not add a competing RDP parser,
+session owner or authorization token. M1/M2/M3 remain **OPEN / NOT ACCEPTED**
+where owner-machine or real-client evidence is required.
+
 ## R9 Windows file-destination retirement exact-SHA validation (2026-10-16)
 
 **Implementation:** `11009883c7adc33b9c2fc3c479ac7712e49b7f8b`.  

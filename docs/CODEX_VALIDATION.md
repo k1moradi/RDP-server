@@ -1,3 +1,45 @@
+## R5 XShm retirement correction exact-SHA validation receipt (2026-10-16)
+
+**Validated SHA:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.  
+**GitHub Actions:** `38975257195` — **SUCCESS**.
+
+The prior failed integration `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`
+proved the first R5 boundary accurately: XCB/XShm/Xvfb dependencies installed,
+configure and `test_x11_capture_disconnect` compilation succeeded, but the
+R5 registry listed only 30 tests because
+`RDP_SERVER_XVFB_RUN_EXECUTABLE` had been consumed before its first
+`find_program`. The corrected SHA resolves Xvfb before that first gated
+registration and restores the concurrently required R2 strict-CredSSP sanitizer
+selection without changing production R5/R2/R3 source or the XShm test body.
+
+Exact hosted evidence:
+- Linux/GCC: **503/503 Debug PASS** and **503/503 Release PASS**.
+  `x11.capture-native-destructor-retirement` passes as test #387 in
+  **0.83 s / 0.03 s**.
+- macOS/Clang: **426/426 Debug PASS** and **426/426 Release PASS**.
+- Windows/MSVC: focused native preflight **51/51 PASS** in Debug and Release;
+  full CTest **456/456 PASS** in Debug and **456/456 PASS** in Release.
+- R9 Clang ASan/UBSan: the exact R5 selector enumerates **31** tests and
+  completes **31/31 PASS**. The new XShm destructor case is **5/31 PASS** in
+  **0.55 s**. The earlier pixel-parity, RandR capture-generation and terminal
+  capture-denial behaviors all pass in the same instrumented selection.
+- Documentation policy, the independent R7 sanitizer side job, installed SDK
+  consumer, package generation, digest and artifact upload pass. Untagged
+  prerelease publication is skipped as intended.
+
+The validated behavior proves successful real XShm server attachment, GetImage,
+destructor-driven detach/local SysV retirement, immediate replacement on the
+same borrowed XCB owner, idempotent explicit disconnect and another fresh
+replacement generation under isolated Xvfb. It remains native lifetime evidence,
+not live user-desktop authorization or RDP graphics/input acceptance.
+
+Canonical owner-local one-root testing is **NOT RUN** in this connector
+environment. Current-source review still shows no R3 authoritative decoded
+Share/Input or Fast-Path Input event surface feeding R5. The existing
+`X11AuthorizedInputRoute` remains the correct stateless authorization boundary
+once such a typed event exists, so R5 protocol integration stays **BLOCKED**
+rather than creating a second parser or session owner.
+
 ## R9 Windows file-destination retirement exact-SHA validation (2026-10-16)
 
 **Implementation:** `11009883c7adc33b9c2fc3c479ac7712e49b7f8b`.  

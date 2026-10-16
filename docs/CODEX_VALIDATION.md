@@ -11276,3 +11276,38 @@ opt-in aggregate-level real Kerberos run reaching `BindingVerified` before
 positive native admission or listener work. No listener/service, fabricated
 principal, synthetic lease or authentication bypass is added. M2/M3 remain
 **OPEN**.
+
+
+## R7 native capture single-stop exact-SHA hosted receipt (2026-10-16)
+
+Implementation `94e2a450c31346a3eaee94143fd4f73e49fd4d1c`, Actions
+`38904721033`, completed **SUCCESS**. The production change serializes all
+ScreenCaptureKit stop submissions through the one-shot
+`MacScreenCaptureState::claimNativeStopRequest()` fence, preventing explicit
+owner stop/close, start-completion retirement and output-callback retirement
+from submitting duplicate native stop requests.
+
+macOS/AppleClang full CTest is **349/349 PASS** in Debug and **349/349 PASS**
+in Release. New
+`macos.capture-stream-native-stop-single-ownership` is test #323 and passes in
+both configurations, proving owner `stop()` from inside the synchronous
+frame consumer wins the one native-stop claim, the returning output callback
+cannot claim another, later close cannot claim another, and retained callback
+state cannot publish after stop completion. The modified Objective-C++
+ScreenCaptureKit source compiles in this job. Installed SDK consumer is
+**1/1 PASS** and packaging succeeds.
+
+Ubuntu/GCC full CTest is **407/407 PASS** in both Debug and Release, including
+`runtime.linux-connection-credssp-owner-framing`; installed SDK consumer is
+**1/1 PASS** and packaging succeeds. Windows/MSVC focused native preflight is
+**39/39 PASS** in both configurations, full CTest is **373/373 PASS** in Debug
+and Release, and installed SDK consumer is **1/1 PASS**. R9
+security/protocol sanitizers and documentation policy both **PASS**.
+Untagged prerelease publication is correctly **SKIPPED**.
+
+Canonical owner-local `~/rdp-server/build` and owner macOS 27 live desktop
+fast-user-switch/capture/cursor/input acceptance remain **NOT RUN** in this
+connector environment. The roadmap blocker is unchanged: R7 still requires a
+genuine non-forgeable macOS R2/R3 admission capability before exposing native
+capture/input/cursor construction, and R4 still has no portable cursor-consumer
+contract. M5 remains **OPEN/BLOCKED** on those dependencies.

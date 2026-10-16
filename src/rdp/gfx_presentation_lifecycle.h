@@ -134,6 +134,22 @@ public:
     {
         return acknowledgements_.outstandingFrames();
     }
+    // MS-RDPEGFX queueDepth is client-buffered graphics bytes, not a frame
+    // count. Zero means unavailable. These observations expose the existing
+    // ACK owner to the one R4 scheduler without imposing a throttle policy.
+    [[nodiscard]] bool expectingFrameAcknowledgements() const noexcept
+    {
+        return acknowledgements_.expectingAcknowledgements();
+    }
+    [[nodiscard]] bool clientQueueDepthAvailable() const noexcept
+    {
+        return expectingFrameAcknowledgements() &&
+               acknowledgements_.clientQueueDepthBytes() != 0U;
+    }
+    [[nodiscard]] std::uint32_t clientQueueDepthBytes() const noexcept
+    {
+        return acknowledgements_.clientQueueDepthBytes();
+    }
     [[nodiscard]] std::uint16_t surfaceId() const noexcept { return surfaceId_; }
 
 private:

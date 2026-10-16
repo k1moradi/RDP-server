@@ -2345,3 +2345,14 @@ segmented AVC420 delivery/ACK. Keep this group separate from the existing
 4-case capability selector and 20-case x264/BGRA label so failures remain
 attributable and one R4 group cannot hide later road evidence. No native X11,
 Windows or macOS graphics test belongs in this portable selection.
+
+
+## R4 FRAME_ACKNOWLEDGE backlog observation (2026-10-16)
+
+Scheduler-facing RDPGFX backpressure tests must preserve three distinct
+`queueDepth` states: positive finite values are available buffered-byte
+counts, zero means depth unavailable while ACKs continue, and `0xFFFFFFFF`
+suspends ACK expectation and clears outstanding-frame waiting. Malformed or
+stale-generation ACKs must not mutate these observations. Test the
+lifecycle-facing observation boundary as well as the parser so later
+scheduling code cannot reinterpret zero as an empty queue or bytes as frames.

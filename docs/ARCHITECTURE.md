@@ -6139,3 +6139,14 @@ product/version/expiration and HWID validation before any
 `STATUS_VALID_CLIENT` or Share activation. **M2/M3 remain OPEN / NOT
 ACCEPTED.**
 
+
+
+## R4 client decode-backlog observation boundary (2026-10-16)
+
+`GfxFrameAckWindow` remains the sole RDPGFX ACK-state owner.
+`GfxPresentationLifecycle` exposes read-only
+`expectingFrameAcknowledgements()`, `clientQueueDepthAvailable()` and
+`clientQueueDepthBytes()`. The value is the most recent valid finite client
+`queueDepth`; zero explicitly means unavailable, while suspension clears the
+value and disables ACK expectation. These are facts for R4's one future frame
+scheduler, not a second scheduler or a throttle policy.

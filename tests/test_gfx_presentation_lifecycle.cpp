@@ -203,6 +203,63 @@ void backpressure()
     assert(lifecycle.outstandingFrames() == 1);
 }
 
+
+void backpressureObservation()
+{
+    constexpr std::uint64_t generation = 502;
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, generation);
+
+    assert(lifecycle.expectingFrameAcknowledgements());
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 0U);
+
+    delivered(lifecycle, generation, 11U);
+    GfxFrameAckWindowResult result{};
+    auto malformed = ack(11U, 4096U);
+    malformed[2] = std::byte{1};
+    assert(!lifecycle.onFrameAcknowledge(generation, malformed, result));
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 0U);
+    assert(!lifecycle.onFrameAcknowledge(
+        generation - 1U, ack(11U, 4096U), result));
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 0U);
+
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(11U, 4096U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.expectingFrameAcknowledgements());
+    assert(lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 4096U);
+
+    delivered(lifecycle, generation, 12U);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(12U, kGfxSuspendFrameAcknowledgement), result));
+    assert(result == GfxFrameAckWindowResult::Suspended);
+    assert(!lifecycle.expectingFrameAcknowledgements());
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 0U);
+    assert(lifecycle.outstandingFrames() == 0U);
+
+    assert(lifecycle.onFrameAcknowledge(generation, ack(12U, 0U), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.expectingFrameAcknowledgements());
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 0U);
+
+    delivered(lifecycle, generation, 13U);
+    assert(lifecycle.onFrameAcknowledge(generation, ack(13U, 1U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 1U);
+
+    lifecycle.disconnect();
+    assert(!lifecycle.expectingFrameAcknowledgements());
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 0U);
+}
+
 void frameReceipts()
 {
     GfxPresentationLifecycle lifecycle;
@@ -421,6 +478,7 @@ int main(int argc, char **argv)
     if (mode == "channel-lifecycle-denials") { denials(); return 0; }
     if (mode == "surface-resize-revocation") { revocation(); return 0; }
     if (mode == "frame-publication-backpressure") { backpressure(); return 0; }
+    if (mode == "frame-ack-backpressure-observation") { backpressureObservation(); return 0; }
     if (mode == "frame-delivery-receipt-ordering") { frameReceipts(); return 0; }
     if (mode == "frame-delivery-abort-revocation") { frameAbort(); return 0; }
     if (mode == "avc420-mapped-frame-wire") { mappedPictureWire(); return 0; }

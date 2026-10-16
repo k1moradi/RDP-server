@@ -17264,3 +17264,30 @@ product/version/expiration and HWID validation before any
 `STATUS_VALID_CLIENT` or Share activation. **M2/M3 remain OPEN / NOT
 ACCEPTED.**
 
+
+
+## R4 client decode-backlog observation boundary (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `1043df050bedcf0a0e8da900967489fefcdcd3ee`.
+
+MS-RDPEGFX FRAME_ACKNOWLEDGE `queueDepth` is an unprocessed graphics-byte
+count. Zero means the depth is unavailable and `0xFFFFFFFF` suspends frame
+acknowledgements; positive finite values are intended to inform server-side
+graphics throttling. R4 already parses, generation-fences and stores this value
+in the authoritative `GfxFrameAckWindow`, but the enclosing
+`GfxPresentationLifecycle` did not expose it to the one R4 scheduler owner.
+
+The lifecycle now provides allocation-free read-only observations for ACK
+expectation, queue-depth availability and exact client buffered bytes. This
+adds **no throttle threshold, timer, queue, scheduler or R3 authority**.
+Dedicated CTest `graphics.frame-ack-backpressure-observation` proves positive
+depth, zero/unavailable semantics, suspend/resume, stale/malformed ACK
+non-mutation and disconnect reset. The existing portable R4 ASan/UBSan selector
+is extended to require and run the case.
+
+Canonical owner `~/rdp-server/build` validation is **NOT RUN** in this
+connector environment. Exact publication-SHA hosted Debug/Release, sanitizer,
+documentation and SDK/package gates are required. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC admission/full-send remains
+**BLOCKED/NOT RUN**; live throttling cannot be wired until that seam exists.
+Gate B and M3/M4/M5 remain **OPEN**.

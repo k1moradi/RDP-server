@@ -17165,3 +17165,21 @@ product/version/expiration and HWID validation before any
 `STATUS_VALID_CLIENT` or Share activation. **M2/M3 remain OPEN / NOT
 ACCEPTED.**
 
+
+
+## R4 client decode-backlog observation authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `1043df050bedcf0a0e8da900967489fefcdcd3ee`.
+
+The existing FRAME_ACKNOWLEDGE owner already preserves queue-depth bytes,
+zero/unavailable semantics and suspension/resume. The missing boundary was
+read-only visibility through the sole `GfxPresentationLifecycle`. New CTest
+`graphics.frame-ack-backpressure-observation` covers positive depth,
+zero/unavailable, suspension/resume, stale/malformed non-mutation and
+disconnect reset, and is explicitly selected by the portable R4 sanitizer
+group. No scheduling threshold or new owner is introduced.
+
+Canonical local execution is **NOT RUN** because this connector does not expose
+`~/rdp-server`. Exact publication-SHA hosted CI is the first executable gate.
+Real R3 Graphics DVC/full-send and Microsoft-client graphics remain
+**BLOCKED/NOT RUN**.

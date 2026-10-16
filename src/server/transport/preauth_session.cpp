@@ -77,6 +77,7 @@ void PreauthConnectionStream::close() noexcept
     pendingReply_ = {};
     replyBytesWritten_ = 0;
     replyPending_ = false;
+    securityNegotiationProvenance_.reset();
     activeServerTls_ = nullptr;
     handshakingServerTls_ = nullptr;
     // Keep the pin strictly scoped to this connection diagnostic.
@@ -302,6 +303,21 @@ ConnectionIntakeResult PreauthConnectionStream::consumeConnectionRequest(
     }
 
     const auto reply = session_.onConnectionRequest(parsed);
+    if (reply.decision == SecurityDecision::Tls)
+    {
+        // Keep the replay values sourced from the SAME parser and selection
+        // that produced the wire reply. Never reconstruct either scalar from
+        // a later caller argument or from the NEG_FAILURE failureCode field.
+        if (reply.selectedProtocol == 0U ||
+            (parsed.request.requestedProtocols & reply.selectedProtocol) == 0U)
+        {
+            close();
+            return {bytesConsumed, ConnectionIntakeStatus::Invalid, {}};
+        }
+        securityNegotiationProvenance_ = SecurityNegotiationProvenance{
+            parsed.request.requestedProtocols,
+            reply.selectedProtocol};
+    }
     clearIntakeBuffer();
     pendingReply_ = reply;
     replyBytesWritten_ = 0;

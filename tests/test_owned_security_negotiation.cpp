@@ -17,15 +17,19 @@ int main()
     request.request.requestedProtocols = 0x01;
     const auto tls = negotiateDiagnosticTls(request);
     assert(tls.decision == SecurityDecision::Tls);
+    assert(tls.selectedProtocol == kRdpProtocolSsl);
     assert((tls.packet == std::array<std::uint8_t, 19>{
         3, 0, 0, 19, 14, 0xd0, 0, 0, 0x12, 0x34, 0,
         2, 0, 8, 0, 1, 0, 0, 0}));
     request.request.requestedProtocols = 0x03; // TLS + HYBRID offer
-    assert(negotiateDiagnosticTls(request).decision == SecurityDecision::Tls);
+    const auto tlsFromCombinedOffer = negotiateDiagnosticTls(request);
+    assert(tlsFromCombinedOffer.decision == SecurityDecision::Tls);
+    assert(tlsFromCombinedOffer.selectedProtocol == kRdpProtocolSsl);
 
     request.request.requestedProtocols = 0x02; // HYBRID only
     const auto rejected = negotiateDiagnosticTls(request);
     assert(rejected.decision == SecurityDecision::Reject);
+    assert(rejected.selectedProtocol == 0U);
     assert((rejected.packet == std::array<std::uint8_t, 19>{
         3, 0, 0, 19, 14, 0xd0, 0, 0, 0x12, 0x34, 0,
         3, 0, 8, 0, 1, 0, 0, 0}));

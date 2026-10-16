@@ -8,6 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 #include <openssl/types.h>
@@ -138,6 +139,22 @@ public:
         return session_.stage();
     }
 
+    // Snapshot the exact Enhanced Security request/selection pair captured
+    // from this stream's own X.224 exchange. It is unavailable until the
+    // SAME server SSL has completed TLS and is revoked on close. Returning
+    // by value exposes no packet buffer, SSL/BIO or mutable socket capability.
+    [[nodiscard]] std::optional<SecurityNegotiationProvenance>
+    securityNegotiationProvenance(const SSL *serverTls) const noexcept
+    {
+        if (serverTls == nullptr ||
+            stage() != PreauthStage::AwaitMcsConnectInitial ||
+            activeServerTls_ != serverTls ||
+            !selectedTlsCertificatePinned_ ||
+            !securityNegotiationProvenance_)
+            return std::nullopt;
+        return securityNegotiationProvenance_;
+    }
+
     [[nodiscard]] ConnectionIntakeResult consumeConnectionRequest(
         std::span<const std::uint8_t> receivedBytes) noexcept;
 
@@ -209,6 +226,10 @@ private:
     bool replyPending_{};
     // True only after every byte of X.224 Confirm is acknowledged.
     bool connectionReplySent_{};
+    // Fixed-size copy of only the parsed protocol-offer scalar plus the
+    // server's actual selection. No X.224 packet bytes or caller views survive.
+    std::optional<SecurityNegotiationProvenance>
+        securityNegotiationProvenance_{};
     // Borrowed identity only: the caller must keep this SSL alive until
     // the diagnostic closes. No TLS or OS session ownership is duplicated.
     const SSL *activeServerTls_{};

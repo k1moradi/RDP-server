@@ -212,6 +212,15 @@ validRequestWire() noexcept
     return parseConnectionRequest(validRequestWire());
 }
 
+[[nodiscard]] constexpr std::array<std::uint8_t, 19>
+tlsAndHybridRequestWire() noexcept
+{
+    auto request = validRequestWire();
+    request[15] = static_cast<std::uint8_t>(
+        kRdpProtocolSsl | kRdpProtocolHybrid);
+    return request;
+}
+
 [[nodiscard]] bool acknowledgeCompleteReply(
     PreauthConnectionStream &connection)
 {
@@ -1834,6 +1843,8 @@ void testNativeTcpAcceptOrderlyPeerDisconnect()
 }
 
 
+[[nodiscard]] TcpAcceptResult waitForAcceptedLoopbackConnection(
+    std::uintptr_t listener);
 
 void testOwnedTcpConnectionTlsLifecycle()
 {
@@ -1841,7 +1852,7 @@ void testOwnedTcpConnectionTlsLifecycle()
     static_assert(!std::is_copy_constructible_v<OwnedPreauthTcpConnection>);
 
     LoopbackSocketPair pair{false};
-    auto accepted = acceptNonblockingTcpConnection(
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -1959,7 +1970,7 @@ void testOwnedTcpConnectionCancellation()
     // Cancel during an incomplete plaintext X.224 Connection Request.
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         const auto native = accepted.connection.nativeSocket();
@@ -1993,7 +2004,7 @@ void testOwnedTcpConnectionCancellation()
     // Cancel after attaching SSL but before a ClientHello arrives.
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2042,6 +2053,130 @@ void testOwnedTcpConnectionCancellation()
     return owner.ioInterest();
 }
 
+
+
+void testOwnedSecurityNegotiationProvenance()
+{
+    using Interest = TcpConnectionIoInterest;
+
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        assert(!owner.securityNegotiationProvenance().has_value());
+
+        auto request = tlsAndHybridRequestWire();
+        const auto parsed = parseConnectionRequest(request);
+        assert(parsed);
+        const auto expectedReply = negotiateDiagnosticTls(parsed);
+        assert(expectedReply.decision == SecurityDecision::Tls);
+        assert(expectedReply.selectedProtocol == kRdpProtocolSsl);
+
+        nativeSendAll(clientIo, request);
+        assert(waitForOwnedTcpReply(owner) == Interest::Write);
+        assert(!owner.securityNegotiationProvenance().has_value());
+        assert(owner.onSocketReady(false, true) == Interest::ConfigureTls);
+        assert(!owner.securityNegotiationProvenance().has_value());
+
+        std::array<std::uint8_t, 19> confirm{};
+        nativeReadAll(clientIo, confirm);
+        assert(confirm == expectedReply.packet);
+
+        // The later provenance snapshot must not borrow this caller copy.
+        request[15] = 0;
+
+        TlsHandshakeFixture tls{false, false};
+        OwnedPreauthTcpConnection::ServerTls server{
+            tls.server.release(), SSL_free};
+        assert(owner.attachServerTls(std::move(server)));
+        assert(!server);
+        assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
+        assert(owner.onTlsIoReady() == TlsHandshakeStatus::NeedRead);
+        assert(!owner.securityNegotiationProvenance().has_value());
+
+        bool clientEstablished = false;
+        bool serverEstablished = false;
+        for (int pass = 0; pass < 16384; ++pass)
+        {
+            if (!clientEstablished)
+            {
+                const int result = SSL_do_handshake(tls.client.get());
+                if (result == 1)
+                    clientEstablished = true;
+                else
+                {
+                    const int error =
+                        SSL_get_error(tls.client.get(), result);
+                    assert(error == SSL_ERROR_WANT_READ ||
+                           error == SSL_ERROR_WANT_WRITE);
+                }
+            }
+            if (!serverEstablished)
+            {
+                const auto result = owner.onTlsIoReady();
+                assert(result == TlsHandshakeStatus::NeedRead ||
+                       result == TlsHandshakeStatus::NeedWrite ||
+                       result == TlsHandshakeStatus::Established);
+                serverEstablished =
+                    result == TlsHandshakeStatus::Established;
+            }
+            if (clientEstablished && serverEstablished) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(clientEstablished && serverEstablished);
+        assert(owner.establishedTls() != nullptr);
+
+        const auto provenance = owner.securityNegotiationProvenance();
+        assert(provenance.has_value());
+        assert(provenance->clientRequestedProtocols ==
+               (kRdpProtocolSsl | kRdpProtocolHybrid));
+        assert(provenance->serverSelectedProtocol == kRdpProtocolSsl);
+
+        auto callerCopy = *provenance;
+        callerCopy.clientRequestedProtocols = 0;
+        callerCopy.serverSelectedProtocol = 0;
+        const auto reread = owner.securityNegotiationProvenance();
+        assert(reread.has_value());
+        assert(reread->clientRequestedProtocols ==
+               (kRdpProtocolSsl | kRdpProtocolHybrid));
+        assert(reread->serverSelectedProtocol == kRdpProtocolSsl);
+
+        owner.cancel();
+        assert(!owner.active());
+        assert(!owner.securityNegotiationProvenance().has_value());
+    }
+
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        auto rejectedRequest = validRequestWire();
+        rejectedRequest[15] = 0;
+        const auto parsed = parseConnectionRequest(rejectedRequest);
+        assert(parsed);
+        const auto expectedFailure = negotiateDiagnosticTls(parsed);
+        assert(expectedFailure.decision == SecurityDecision::Reject);
+        assert(expectedFailure.selectedProtocol == 0U);
+
+        nativeSendAll(clientIo, rejectedRequest);
+        assert(waitForOwnedTcpReply(owner) == Interest::Write);
+        assert(!owner.securityNegotiationProvenance().has_value());
+        assert(owner.onSocketReady(false, true) == Interest::Closed);
+        std::array<std::uint8_t, 19> failure{};
+        nativeReadAll(clientIo, failure);
+        assert(failure == expectedFailure.packet);
+        assert(!owner.active());
+        assert(!owner.securityNegotiationProvenance().has_value());
+    }
+}
 
 void establishOwnedApplicationTls(
     OwnedPreauthTcpConnection &owner,
@@ -5935,6 +6070,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-deadline-cancellation", &testOwnedTcpDeadlineCancellation},
     {"tcp-owned-bounded-poll-loopback-tls", &testOwnedTcpBoundedPollLoopbackTls},
     {"tcp-owned-bounded-poll-timeout-eof", &testOwnedTcpBoundedPollTimeoutAndDisconnect},
+    {"tcp-owned-security-negotiation-provenance", &testOwnedSecurityNegotiationProvenance},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},

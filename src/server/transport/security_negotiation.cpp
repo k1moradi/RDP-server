@@ -30,6 +30,7 @@ SecurityReply negotiateDiagnosticTls(
     {
         result.decision = SecurityDecision::Tls;
         result.packet[11] = 0x02; // TYPE_RDP_NEG_RSP
+        result.selectedProtocol = kRdpProtocolSsl;
         // selectedProtocol = PROTOCOL_SSL (1), LE, already in [15..18].
     }
     // Otherwise TYPE_RDP_NEG_FAILURE and SSL_REQUIRED_BY_SERVER (1).

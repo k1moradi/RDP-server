@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <utility>
 
@@ -484,6 +485,19 @@ private:
      // this borrow across cancellation or advance SSL outside R1.
      // TLS establishment itself is NOT user identity or OS authorization.
      [[nodiscard]] const SSL *establishedTls() const noexcept;
+
+     // R1-owned immutable X.224 Enhanced Security replay provenance for R3.
+     // Available only while the exact attached SSL/BIO/socket is established;
+     // returns a value snapshot and is revoked by every terminal close.
+     // This is correlation metadata, never an R2 admission capability.
+     [[nodiscard]] std::optional<SecurityNegotiationProvenance>
+     securityNegotiationProvenance() const noexcept
+     {
+         if (!establishedApplicationTls()) return std::nullopt;
+         return adapter_.connection().securityNegotiationProvenance(
+             serverTls_.get());
+     }
+
      // Terminal, idempotent cancellation: free SSL/BIO before socket close.
      void cancel() noexcept;
 

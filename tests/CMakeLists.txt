@@ -115,6 +115,7 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-deadline-cancellation
                 tcp-owned-bounded-poll-loopback-tls
                 tcp-owned-bounded-poll-timeout-eof
+                tcp-owned-security-negotiation-provenance
                 tcp-owned-tls-application-io
                 tcp-owned-tls-application-partial-write
                 tcp-owned-tls-application-cancellation

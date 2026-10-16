@@ -21,6 +21,22 @@ struct SecurityReply
 {
     SecurityDecision decision{SecurityDecision::Reject};
     std::array<std::uint8_t, 19> packet{};
+    // Meaningful only for a successful RDP_NEG_RSP. A NEG_FAILURE packet's
+    // final DWORD is a failureCode and must never be mistaken for selection.
+    std::uint32_t selectedProtocol{};
+};
+
+// Immutable anti-tamper provenance captured by R1 from the one original
+// X.224 negotiation exchange. It is transport metadata only: these scalars
+// do not authenticate a principal, authorize an OS session or admit R3.
+struct SecurityNegotiationProvenance
+{
+    std::uint32_t clientRequestedProtocols{};
+    std::uint32_t serverSelectedProtocol{};
+
+    friend constexpr bool operator==(
+        const SecurityNegotiationProvenance &,
+        const SecurityNegotiationProvenance &) noexcept = default;
 };
 
 // RFC 1006 + MS-RDPBCGR 2.2.1.2, with X.224 Connection Confirm (CC)

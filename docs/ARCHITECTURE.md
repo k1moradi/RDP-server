@@ -1395,6 +1395,21 @@ admitted authenticated desktop. An audited native account/session
 authority, credential provenance and revocable admission decision
 remain necessary. Normal CTests never load default host keytabs.
 
+### CredSSP completed-frame release certificate continuity (2026-10-16)
+
+A completed `TsRequestFrameReader` frame that originated from
+`readOneTlsStep()` remains bound to both the exact borrowed server
+`SSL*` and the selected server X.509 fingerprint through the release
+boundary. `releaseFrame()` reuses `completedFrameServerTls()` immediately
+before success; a missing or changed selected certificate on the same SSL
+closes the reader, cleanses retained DER, clears TLS/certificate provenance
+and prevents later release/read/replay from reactivating it. With unchanged
+TLS identity, release wipes only the previous frame and permits the next
+CredSSP frame on that same connection. A reader populated only by manual
+offline `consume()` has no TLS provenance and retains its existing release
+semantics. This framing guarantee does not authenticate GSS or authorize an
+OS/R3 session.
+
 ### TLS-owned delegated credential denial boundary (2026-10-15)
 
 After the server has verified GSS/SPNEGO and an active CredSSP v5/v6

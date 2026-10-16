@@ -453,6 +453,14 @@ bool TsRequestFrameReader::releaseFrame() noexcept
 {
     if (status_ != TsRequestFrameStatus::Complete)
         return false;
+    // Manual/offline frames have no TLS provenance to revalidate. A frame
+    // completed through TLS must still belong to the same selected server
+    // certificate at the exact release boundary.
+    if (boundServerTls_ != nullptr && completedFrameServerTls() == nullptr)
+    {
+        close();
+        return false;
+    }
     clear();
     status_ = TsRequestFrameStatus::NeedMore;
     return true;

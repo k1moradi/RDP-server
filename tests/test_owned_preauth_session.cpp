@@ -3518,6 +3518,76 @@ void substituteCredSspReplyCertificate(
     assert(actual == expected);
 }
 
+void testTlsCredSspReleaseCertificateContinuity()
+{
+    // Stable TLS provenance remains reusable across released frames.
+    TlsHandshakeFixture stable;
+    TsRequestFrameReader reusable;
+    for (int iteration = 0; iteration < 2; ++iteration)
+    {
+        writeTlsClientApplicationData(stable.client.get(), kTestCredSspDer);
+        assert(drainCredSspFromTls(
+            reusable, stable.server.get(), TsRequestTlsReadStatus::Complete) ==
+               kTestCredSspDer.size());
+        assert(reusable.completedFrameServerTls() == stable.server.get());
+        assert(reusable.releaseFrame());
+        assert(reusable.status() == TsRequestFrameStatus::NeedMore);
+        assert(reusable.completeDer().empty());
+        assert(reusable.completedFrameServerTls() == nullptr);
+    }
+
+    // A selected-certificate substitution on the SAME SSL* must fail at
+    // release itself, wipe the retained DER and make the reader inert.
+    TlsHandshakeFixture changed;
+    TlsHandshakeFixture replacementSource;
+    TsRequestFrameReader denied;
+    SSL *const pinnedServer = changed.server.get();
+    writeTlsClientApplicationData(changed.client.get(), kTestCredSspDer);
+    assert(drainCredSspFromTls(
+        denied, pinnedServer, TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size());
+    assert(denied.completedFrameServerTls() == pinnedServer);
+    assert(denied.completeDer().size() == kTestCredSspDer.size());
+
+    substituteCredSspReplyCertificate(
+        changed.server.get(), replacementSource.server.get());
+    assert(changed.server.get() == pinnedServer);
+    assert(denied.completedFrameServerTls() == nullptr);
+    assert(!denied.releaseFrame());
+    assert(denied.status() == TsRequestFrameStatus::Closed);
+    assert(denied.completeDer().empty());
+    assert(denied.bytesNeeded() == 0);
+    assert(denied.completedFrameServerTls() == nullptr);
+    assert(!denied.releaseFrame());
+
+    writeTlsClientApplicationData(changed.client.get(), kTestCredSspDer);
+    const auto replay = denied.readOneTlsStep(pinnedServer);
+    assert(replay.status == TsRequestTlsReadStatus::Closed);
+    assert(replay.plaintextBytesRead == 0);
+    assert(replay.error == TsRequestError::None);
+    const auto injectedReplay = denied.consume(kTestCredSspDer);
+    assert(injectedReplay.status == TsRequestFrameStatus::Closed);
+    assert(injectedReplay.bytesConsumed == 0);
+
+    // Offline/manual framing has no TLS certificate provenance and keeps its
+    // established release semantics. Explicit close remains terminal.
+    TsRequestFrameReader offline;
+    const auto firstOffline = offline.consume(kTestCredSspDer);
+    assert(firstOffline.status == TsRequestFrameStatus::Complete);
+    assert(firstOffline.bytesConsumed == kTestCredSspDer.size());
+    assert(offline.completedFrameServerTls() == nullptr);
+    assert(offline.releaseFrame());
+    assert(offline.status() == TsRequestFrameStatus::NeedMore);
+
+    const auto secondOffline = offline.consume(kTestCredSspDer);
+    assert(secondOffline.status == TsRequestFrameStatus::Complete);
+    offline.close();
+    assert(offline.status() == TsRequestFrameStatus::Closed);
+    assert(offline.completeDer().empty());
+    assert(offline.bytesNeeded() == 0);
+    assert(!offline.releaseFrame());
+}
+
 void testMcsTlsSelectedCertificateContinuity()
 {
     // The selected server certificate must remain pinned across a
@@ -5365,6 +5435,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-rejections", &testTlsCredSspRejections},
     {"credssp-tls-provenance", &testTlsCredSspProvenance},
     {"credssp-tls-certificate-pinning", &testTlsCredSspCertificatePinning},
+    {"credssp-tls-release-certificate-denial", &testTlsCredSspReleaseCertificateContinuity},
     {"credssp-active-tls-binding-positive", &testLiveTlsCertificateBindingPositive},
     {"credssp-active-tls-binding-rejections", &testLiveTlsCertificateBindingRejections},
     {"credssp-tls-reply-wire", &testTlsCredSspReplyWire},

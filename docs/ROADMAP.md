@@ -1551,6 +1551,28 @@ actually run; another parser CTest alone is not a complete session.
   invalid accounts, altered certificates, downgrade, expiry, denial,
   cleanup and replay. Fail closed rather than bypassing NLA or
   accepting synthetic credentials as proof of admission.
+  **R2 CredSSP release-time certificate continuity (2026-10-16;
+  parent main `a603976a07d5a525aee20f75ba74e40f77ec9314`):**
+  `TsRequestFrameReader::releaseFrame()` now reuses the existing
+  `completedFrameServerTls()` certificate check before releasing any
+  TLS-derived complete frame. A same-`SSL*` selected-certificate
+  substitution therefore terminally closes the reader, wipes retained
+  DER and TLS/certificate provenance, and leaves release/read/replay inert.
+  Unchanged TLS identity can release and receive the next frame; manual
+  offline `consume()` framing keeps its prior release behavior.
+  Dedicated default CTest
+  `security.credssp-tls-release-certificate-denial` reuses the existing
+  real memory-BIO TLS fixture for stable reuse, same-SSL substitution
+  denial, terminal cleanup/replay denial and offline compatibility.
+  **PASS at authoring:** current-main source/registry review.
+  **NOT RUN at authoring:** local single-root focused/full CTest because
+  this agent sandbox has no repository checkout and cannot resolve
+  github.com; exact-SHA hosted CI until publication; real Kerberos,
+  independent native OS admission and owner Linux/X11, Windows
+  MSYS2 CLANG64/Clang23, macOS27 remain NOT RUN.
+  **Next:** verify exact-SHA hosted CI, then implement the smallest
+  nonforgeable revocable native-OS-backed admission capability for R3;
+  fake evidence sources must remain incapable of positive authorization.
   **R2 GSS-to-OS candidate-evidence provenance gate (2026-10-15;
   new implementation CI pending):** add the existing
   `ConsoleAdmissionGate`, `ConsoleIdentityPolicy`, and

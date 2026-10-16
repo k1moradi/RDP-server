@@ -153,12 +153,13 @@ function(add_rdp_test source_file suite behavior)
             transport.tcp-listener-poll-budget-handoff
             transport.tcp-listener-poll-deadline-denials
             PROPERTIES TIMEOUT 20)
-        # Live server-cert binding belongs to the existing real TLS
-        # fixture, but exposes separate positive and negative security
-        # contracts rather than hiding them under transport CTest.
+        # Live server-cert binding and release-time certificate continuity
+        # belong to the existing real TLS fixture and remain explicit
+        # security contracts rather than transport-only coverage.
         foreach(case_name IN ITEMS
                 credssp-active-tls-binding-positive
-                credssp-active-tls-binding-rejections)
+                credssp-active-tls-binding-rejections
+                credssp-tls-release-certificate-denial)
             add_test(NAME "security.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("security.${case_name}" PROPERTIES

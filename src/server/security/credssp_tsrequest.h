@@ -206,7 +206,9 @@ public:
     // of transport provenance, never of user/GSS authentication.
     [[nodiscard]] const SSL *completedFrameServerTls() const noexcept;
     // Only after a synchronous GSS/DER handoff; wipes all buffered bytes.
-    // This permits receiving the next CredSSP message but authorizes nothing.
+    // TLS-derived frames revalidate the pinned SSL/certificate first and
+    // close terminally on stale provenance. Offline consume() frames retain
+    // their existing release behavior. Releasing authorizes nothing.
     [[nodiscard]] bool releaseFrame() noexcept;
     void close() noexcept;
 

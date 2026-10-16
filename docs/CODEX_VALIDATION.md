@@ -5340,6 +5340,36 @@ authorization integration under existing one-owner contracts.
 
 
 
+## R2 CredSSP TLS release certificate continuity (2026-10-16)
+
+**Starting main:** `a603976a07d5a525aee20f75ba74e40f77ec9314`.
+Changed `credssp_tsrequest.{h,cpp}`, the existing
+`test_owned_preauth_session.cpp` fixture/dispatcher,
+`tests/CMakeLists.txt`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`
+and this ledger. `TsRequestFrameReader::releaseFrame()` now checks
+`completedFrameServerTls()` before releasing a TLS-derived complete
+frame. Same-`SSL*` certificate substitution closes and cleanses the
+reader instead of releasing stale bytes; stable certificate identity can
+release/reuse normally. Manual offline parser release remains compatible.
+
+**Dedicated CTest:** `security.credssp-tls-release-certificate-denial`.
+It exercises a real OpenSSL memory-BIO handshake, two stable released
+frames on one unchanged SSL/certificate, same-SSL selected-certificate
+substitution at the completed-frame release boundary, terminal DER/
+provenance cleanup and replay denial, plus offline `consume()` release
+and explicit-close behavior. No real credentials, login or desktop.
+
+**PASS at authoring:** current-main source/test-registration review.
+**NOT RUN at authoring:** local focused/full CTest because this sandbox
+has no repository checkout and github.com DNS is unavailable; exact-SHA
+hosted Actions until publication; real positive Kerberos; independent
+native OS admission; owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS27. `ConsoleAdmissionGate` remains deny-only/CandidateOnly and R3
+still has no genuine revocable admission capability. Gate A and M2 remain
+OPEN/NOT ACCEPTED. **Next:** exact-SHA CI, then the smallest audited native
+OS authorization broker/lease boundary that cannot be minted by fake
+`ConsoleOsEvidenceSource` implementations.
+
 ## R2 GSS-to-OS evidence provenance deny-only gate (2026-10-15)
 
 **R2 main-only source+test+docs increment; exact parent** is

@@ -14886,3 +14886,38 @@ persistent build root, branch or worktree is created. Exact-publication-SHA
 hosted matrix/sanitizer/docs/SDK evidence is **PENDING**. Owner macOS 27 real
 callback coverage, genuine R2/R3 macOS admission and Microsoft-client M5
 acceptance remain **NOT RUN/OPEN**.
+
+
+## R5 XDamage destructor-retirement exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `7f3a51776ee7446c710793368b57388d6d91e2d8`.
+**Actions:** `38964596028` — overall **SUCCESS**.
+
+Ubuntu/GCC full CTest passed **464/464** in Debug and **464/464** in
+Release. The new production-linked
+`x11.damage-native-destructor-retirement` case passed in both configurations.
+macOS/Clang full CTest passed **389/389** in Debug and **389/389** in
+Release. Windows/MSVC native preflight passed **46/46** in Debug and Release;
+full CTest passed **418/418** in Debug and **418/418** in Release.
+
+The shared Clang ASan/UBSan job completed **SUCCESS**. Its complete R5
+native-X11 selection is now **26/26 PASS**, directly including
+`x11.damage-native-destructor-retirement` plus the prior XI2 and XFixes
+destructor-retirement cases. Clipboard **50/50**, R4 x264/BGRA **20/20**,
+R4 RDPGFX capability **4/4**, bounded R1/R3 **54/54**, native R2/R3 GSS
+**27/27**, R10 pre-admission **5/5**, and bounded fuzzer **1/1** also pass.
+The separate R7 macOS-session sanitizer job, documentation policy,
+installed-SDK consumer **1/1** and package/digest/upload stages pass; untagged
+prerelease publication is correctly skipped.
+
+This closes the R5 native-lifetime evidence gap for server-side XDamage
+destruction while the borrowed XCB owner remains alive. No R5 production code
+changed in this increment because the existing destructor/disconnect cleanup was
+already correct.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, genuine positive Kerberos/logind/XTEST operation and
+Microsoft-client M3 acceptance remain **NOT RUN/OPEN**. The next functional R5
+input-PDU integration remains **BLOCKED** until R3 exposes its authoritative
+authenticated Share/Input or Fast-Path Input translation boundary; R5 must not
+invent that parser or another session/input controller.

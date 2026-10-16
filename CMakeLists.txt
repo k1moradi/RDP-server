@@ -539,6 +539,7 @@ if(APPLE)
         src/platform/macos/mac_cursor_snapshot.mm
         src/platform/macos/mac_input_controller.cpp
         src/platform/macos/mac_input_controller.mm
+        src/platform/macos/mac_desktop_session_guard.cpp
         src/platform/macos/screen_capture_stream.cpp
         src/platform/macos/screen_capture_stream.mm)
     set_source_files_properties(

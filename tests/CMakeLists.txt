@@ -958,6 +958,38 @@ foreach(case_name IN ITEMS lifecycle validation-denials revocation-cleanup)
         LABELS "macos;input;offline")
 endforeach()
 
+# R7 macOS desktop session/permission guard. Ordinary tests use synthetic
+# session observations and permission probes; Apple compile/links the native
+# read-only Quartz session reader through rdp-server-macos-capture.
+add_executable(test_macos_desktop_session_guard
+    test_macos_desktop_session_guard.cpp)
+target_include_directories(test_macos_desktop_session_guard PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
+if(APPLE)
+    target_link_libraries(test_macos_desktop_session_guard PRIVATE
+        rdp-server-macos-capture)
+else()
+    target_sources(test_macos_desktop_session_guard PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/desktop_display_geometry.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/mac_desktop_session_guard.cpp")
+endif()
+if(MSVC)
+    target_compile_options(test_macos_desktop_session_guard PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_macos_desktop_session_guard PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS lifecycle validation-denials revocation-reentry)
+    add_test(NAME "macos.desktop-session-${case_name}"
+        COMMAND test_macos_desktop_session_guard "${case_name}")
+    set_tests_properties("macos.desktop-session-${case_name}" PROPERTIES
+        LABELS "macos;session;security;offline")
+endforeach()
+
 if(APPLE)
     foreach(case_name IN ITEMS ownership native-denials native-move-replacement)
         add_test(NAME "macos.capture-bgra-buffer-${case_name}"

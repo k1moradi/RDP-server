@@ -1,3 +1,13 @@
+## Synthetic service-keytab test boundary
+
+A generated build-root-only Kerberos keytab may test exact service-credential
+acquisition, file permission/path denials and retained-descriptor continuity
+without a KDC or client ticket. Such a fixture proves only that the server can
+load an acceptor credential. It must never be reported as a successful
+Kerberos client authentication, CredSSP identity proof, native OS admission or
+RDP session. Positive authentication acceptance still requires explicitly
+authorized external client-ticket/KDC evidence plus the normal R2/R3 gates.
+
 # Testing standards — reusable RDP correctness and acceptance
 
 Read [AGENTS.md](../AGENTS.md), [VISION.md](VISION.md), and

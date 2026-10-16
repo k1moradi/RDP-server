@@ -471,6 +471,25 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     endif()
     # Not installed or exported; requires an actual Linux Kerberos provider
     # and independently authorized OS admission in a future service.
+
+    # R10 Linux pre-listener security provisioning. It retains one securely
+    # opened keytab object and one immutable native identity policy, then
+    # configures the existing R2 acceptor from that exact descriptor. No
+    # listener, client ticket, user authentication or R3 session is created.
+    add_library(rdp-server-linux-runtime-security STATIC
+        src/server/runtime/linux_runtime_security.cpp)
+    target_compile_features(rdp-server-linux-runtime-security PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-linux-runtime-security PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+        "${RDP_SERVER_GSSAPI_INCLUDE_DIR}")
+    target_link_libraries(rdp-server-linux-runtime-security PUBLIC
+        rdp-server-linux-gssapi)
+    target_link_libraries(rdp-server PRIVATE
+        rdp-server-linux-runtime-security)
+    target_compile_definitions(rdp-server PRIVATE
+        RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY=1)
+    target_compile_options(rdp-server-linux-runtime-security PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 # R5 stateless authorized-input route. Build only where the concrete native

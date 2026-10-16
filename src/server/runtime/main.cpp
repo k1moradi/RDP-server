@@ -3,6 +3,9 @@
 // constructed until R2 admission and R3 authoritative live sessions exist.
 // An explicit offline configuration check does not authenticate or start a user.
 #include "runtime_tls_context.h"
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+#include "linux_runtime_security.h"
+#endif
 
 #include <algorithm>
 #include <array>
@@ -34,9 +37,28 @@ constexpr int kSecureStartupUnavailableExitCode = 2;
 constexpr int kInvalidConfigurationExitCode = 3;
 constexpr std::size_t kMaximumConfigurationBytes = 4096;
 
+constexpr std::size_t kBaseConfigurationFieldCount = 7;
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+constexpr std::array<std::string_view, 15> kConfigurationFields{
+    "listen_address", "listen_port", "tls_certificate", "tls_private_key",
+    "authentication", "os_authorization", "max_connections",
+    "gss_service_principal", "gss_keytab",
+    "authorized_kerberos_principal", "authorized_unix_account",
+    "authorized_seat", "authorized_display", "authorized_uid",
+    "authorized_permissions"};
+constexpr std::size_t kGssServicePrincipalField = 7;
+constexpr std::size_t kGssKeytabField = 8;
+constexpr std::size_t kAuthorizedKerberosPrincipalField = 9;
+constexpr std::size_t kAuthorizedUnixAccountField = 10;
+constexpr std::size_t kAuthorizedSeatField = 11;
+constexpr std::size_t kAuthorizedDisplayField = 12;
+constexpr std::size_t kAuthorizedUidField = 13;
+constexpr std::size_t kAuthorizedPermissionsField = 14;
+#else
 constexpr std::array<std::string_view, 7> kConfigurationFields{
     "listen_address", "listen_port", "tls_certificate", "tls_private_key",
     "authentication", "os_authorization", "max_connections"};
+#endif
 
 [[nodiscard]] constexpr std::string_view trimWhitespace(std::string_view value) noexcept {
     while (!value.empty() && (value.front() == ' ' || value.front() == '\t')) {
@@ -48,13 +70,13 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
     return value;
 }
 
-[[nodiscard]] constexpr bool isDecimalWithin(std::string_view value,
-                                              unsigned minimum,
-                                              unsigned maximum) noexcept {
+[[nodiscard]] constexpr bool parseDecimalWithin(
+    std::string_view value, unsigned minimum, unsigned maximum,
+    unsigned& parsedValue) noexcept {
     if (value.empty()) {
         return false;
     }
-    unsigned parsedValue = 0;
+    parsedValue = 0;
     for (const char digit : value) {
         if (digit < '0' || digit > '9') {
             return false;
@@ -66,6 +88,12 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
         parsedValue = parsedValue * 10U + numericDigit;
     }
     return parsedValue >= minimum;
+}
+
+[[nodiscard]] constexpr bool isDecimalWithin(
+    std::string_view value, unsigned minimum, unsigned maximum) noexcept {
+    unsigned parsedValue = 0;
+    return parseDecimalWithin(value, minimum, maximum, parsedValue);
 }
 
 [[nodiscard]] bool isAbsoluteConfigurationPath(std::string_view path) noexcept {
@@ -154,11 +182,24 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
             return false;
         }
     }
-    for (const bool seen : fieldSeen) {
-        if (!seen) {
+    for (std::size_t index = 0;
+         index < kBaseConfigurationFieldCount; ++index) {
+        if (!fieldSeen[index]) {
             return false;
         }
     }
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+    bool anyLinuxSecurityField = false;
+    bool allLinuxSecurityFields = true;
+    for (std::size_t index = kBaseConfigurationFieldCount;
+         index < fieldSeen.size(); ++index) {
+        anyLinuxSecurityField = anyLinuxSecurityField || fieldSeen[index];
+        allLinuxSecurityFields = allLinuxSecurityFields && fieldSeen[index];
+    }
+    if (anyLinuxSecurityField && !allLinuxSecurityFields) {
+        return false;
+    }
+#endif
     const bool valid =
         (fieldValues[0] == "127.0.0.1" || fieldValues[0] == "::1") &&
         isDecimalWithin(fieldValues[1], 1, 65535) &&
@@ -247,12 +288,61 @@ struct FileCloser {
     }
 };
 
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+[[nodiscard]] bool checkLinuxSecurityConfiguration(
+    const std::array<std::string_view, kConfigurationFields.size()>&
+        validatedFields) noexcept {
+    for (std::size_t index = kBaseConfigurationFieldCount;
+         index < validatedFields.size(); ++index) {
+        if (validatedFields[index].empty()) {
+            return false;
+        }
+    }
+
+    unsigned localUid = 0;
+    unsigned permissions = 0;
+    if (!parseDecimalWithin(
+            validatedFields[kAuthorizedUidField], 1U, 0xfffffffeU,
+            localUid) ||
+        !parseDecimalWithin(
+            validatedFields[kAuthorizedPermissionsField], 1U,
+            rdp_server::server::security::kConsoleAllowedPermissions,
+            permissions)) {
+        return false;
+    }
+
+    const rdp_server::server::security::ConsoleIdentityRuleInput rule{
+        validatedFields[kAuthorizedKerberosPrincipalField],
+        validatedFields[kAuthorizedUnixAccountField],
+        validatedFields[kAuthorizedSeatField],
+        validatedFields[kAuthorizedDisplayField],
+        static_cast<std::uint32_t>(localUid),
+        static_cast<std::uint32_t>(permissions)};
+
+    rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration
+        linuxSecurity;
+    if (!linuxSecurity.configure(
+            validatedFields[kGssServicePrincipalField],
+            validatedFields[kGssKeytabField], rule)) {
+        return false;
+    }
+
+    const auto tlsContext =
+        rdp_server::server::runtime::RuntimeServerTlsContext::
+            fromCredentialFiles(validatedFields[2], validatedFields[3]);
+    return tlsContext && linuxSecurity.policy() != nullptr;
+}
+#endif
+
 // Offline checks do not establish certificate trust, hostname, revocation,
 // R2 admission, an R3 session decision or permission to listen.
 enum class ConfigurationCheckMode {
     Syntax,
     TlsMetadata,
     TlsCredentials,
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+    LinuxSecurity,
+#endif
 };
 
 [[nodiscard]] bool checkConfigurationFile(
@@ -344,15 +434,27 @@ enum class ConfigurationCheckMode {
     case ConfigurationCheckMode::TlsCredentials:
         return rdp_server::server::runtime::validateTlsCredentialContents(
             validatedFields[2], validatedFields[3]);
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+    case ConfigurationCheckMode::LinuxSecurity:
+        return checkLinuxSecurityConfiguration(validatedFields);
+#endif
     }
     return false;
 }
 
 void printUsage() noexcept {
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+    std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-linux-security FILE]\n"
+               "--check-config validates syntax. --check-tls-files checks file metadata.\n"
+               "--check-tls-credentials verifies certificate validity, server purpose and private-key match.\n"
+               "--check-linux-security additionally acquires the explicit Linux GSS acceptor credential and validates one native identity-policy rule.\n"
+               "No command starts a listener or authorizes an RDP session.\n", stdout);
+#else
     std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE]\n"
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"
                "--check-tls-credentials additionally verifies the current certificate validity window and private-key match.\n"
                "Trust, hostname, revocation, OS authorization and server startup are not verified.\n", stdout);
+#endif
 }
 } // namespace
 
@@ -367,14 +469,31 @@ int main(int argumentCount, char* argumentValues[]) noexcept {
             std::printf("rdp-server %s\n", RDP_SERVER_VERSION);
             return 0;
         }
-        if (argumentCount == 3 &&
-            (option == "--check-config" || option == "--check-tls-files" ||
-             option == "--check-tls-credentials")) {
-            const ConfigurationCheckMode mode =
-                option == "--check-config" ? ConfigurationCheckMode::Syntax :
-                option == "--check-tls-files" ? ConfigurationCheckMode::TlsMetadata :
-                                                ConfigurationCheckMode::TlsCredentials;
+        bool configurationCheckOption =
+            option == "--check-config" || option == "--check-tls-files" ||
+            option == "--check-tls-credentials";
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+        configurationCheckOption =
+            configurationCheckOption || option == "--check-linux-security";
+#endif
+        if (argumentCount == 3 && configurationCheckOption) {
+            ConfigurationCheckMode mode = ConfigurationCheckMode::Syntax;
+            if (option == "--check-tls-files") {
+                mode = ConfigurationCheckMode::TlsMetadata;
+            } else if (option == "--check-tls-credentials") {
+                mode = ConfigurationCheckMode::TlsCredentials;
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+            } else if (option == "--check-linux-security") {
+                mode = ConfigurationCheckMode::LinuxSecurity;
+#endif
+            }
             if (checkConfigurationFile(argumentValues[2], mode)) {
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+                if (mode == ConfigurationCheckMode::LinuxSecurity) {
+                    std::fputs("rdp-server: TLS identity, explicit Linux GSS acceptor credential and native identity policy accepted; no user authenticated or session authorized; service remains disabled.\n",
+                               stdout);
+                } else
+#endif
                 if (mode == ConfigurationCheckMode::TlsCredentials) {
                     std::fputs("rdp-server: TLS certificate is currently valid and matches the private key; "
                                "trust, hostname, revocation and OS authorization not verified; service remains disabled.\n",

@@ -1,3 +1,39 @@
+## R10 Linux GSS/keytab provisioning authoring validation (2026-10-16)
+
+**Starting inspected main:** `1818324f3095069fe2597d9dd9469590fd47ab9b`.
+Shared test/documentation files were reconciled through publication candidate
+`b009c43bc6913513937b89c9de16a0abbc5a6a50`.
+
+**Production boundary:** new
+`src/server/runtime/linux_runtime_security.{h,cpp}` securely opens and
+retains one explicit Linux service keytab, validates one existing
+`ConsoleIdentityPolicy` rule, probes the existing real MIT
+`GssapiSpnegoAcceptor`, and configures later acceptors through
+`FILE:/proc/self/fd/<n>` so keytab pathname replacement cannot redirect
+credential acquisition. `src/server/runtime/main.cpp` gains Linux-GSS-build-
+only `--check-linux-security FILE` and eight all-or-none security fields;
+that preflight also constructs the existing live R10 TLS context. No listener,
+client authentication, R2 admission lease or R3 session is created.
+
+**Dedicated tests:** generated synthetic MIT keytab acquisition and retained-
+descriptor continuity, secure keytab/policy denials, plus process-level missing-
+provisioning rejection. Test key material exists only under the one build root
+and is not a production credential.
+
+**Authoring provider probes PASS:** from
+`~/rdp-server/build/r10-probe/`, `./keytab_probe` returned
+`acquire 0 0` for an explicit generated keytab; `./procfd_probe` then
+opened the keytab, removed/replaced its pathname, and returned
+`FILE:/proc/self/fd/3 acquire=0 minor=0`. The host reports MIT
+Kerberos/GSSAPI **1.21.3**. These are provider/API continuity probes, not a
+full project build or authenticated client.
+
+**NOT RUN at authoring:** repository configure/build/CTest (no local GitHub-
+resolvable checkout), exact-SHA hosted matrix, KDC/client ticket exchange,
+positive CredSSP user authentication, native logind admission lease, live R3
+session, listener/service, owner Linux/X11, MSYS2 CLANG64/Clang23, macOS27,
+Microsoft client or desktop. Exact-SHA Linux CI is the next automated gate.
+
 ## R8 bounded X11 INCR transfer (2026-10-16; exact-SHA CI NOT RUN at authoring)
 
 ## R6 native Windows input controller authoring (2026-10-16)

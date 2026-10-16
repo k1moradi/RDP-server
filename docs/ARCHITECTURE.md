@@ -1,3 +1,35 @@
+### R10 Linux runtime security provisioning ownership (2026-10-16)
+
+`LinuxRuntimeSecurityConfiguration` is a service-lifetime R10 owner, not a
+new authentication state machine. It owns one native keytab descriptor, the
+exact `TERMSRV/host@REALM` service-principal text, and one existing
+`ConsoleIdentityPolicy`. It is noncopyable/nonmovable and one-shot so a
+running configuration cannot silently replace its keytab or policy.
+
+Linux keytab resolution is object-first. R10 component-walks the configured
+`FILE:/absolute/path` without following symlinks and accepts only a bounded
+private regular file owned by the effective uid. It retains that descriptor,
+then supplies `FILE:/proc/self/fd/<descriptor>` to the already-existing R2
+`GssapiSpnegoAcceptor::configure`. The provider may open that procfd URI, but
+it still names the retained kernel file object; changing the original pathname
+does not change the service credential source. The configuration object must
+outlive all R2 acceptors configured from it.
+
+A temporary R2 acceptor is used during provisioning solely to prove that MIT
+GSS can acquire the exact acceptor credential. `gss_acquire_cred_from`
+success here is **service credential provisioning**, not client
+authentication. Client identity still requires the existing TLS-bound
+CredSSP/SPNEGO transcript; native authorization still requires
+`LinuxConsoleAdmissionBroker` to revalidate concrete NSS/logind/session-watch
+facts and mint its move-only lease. R3 remains the only session state owner.
+
+The offline Linux preflight composes this owner with
+`RuntimeServerTlsContext` and one immutable identity rule. It destroys all
+temporary owners before returning and never binds a socket. A future serving
+runtime must instead retain both R10 owners for the full connection population,
+create one R1 SSL per connection, one R2 GSS acceptor/broker per connection,
+and revoke R3→R2 before releasing R1/R10 ownership.
+
 ### R10 runtime TLS-context ownership (2026-10-16)
 
 ### R6 generation-pinned Windows SendInput controller

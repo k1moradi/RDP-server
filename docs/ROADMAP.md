@@ -1,3 +1,68 @@
+## R10 Linux explicit GSS/keytab and native identity-policy provisioning (2026-10-16; exact-SHA CI pending)
+
+Starting inspected `main`: `1818324f3095069fe2597d9dd9469590fd47ab9b`;
+shared files were reconciled through publication candidate
+`b009c43bc6913513937b89c9de16a0abbc5a6a50`. This R10 increment remains strictly pre-listener. On Linux under
+the existing `RDP_SERVER_TEST_LINUX_GSSAPI=ON` build gate, new
+`LinuxRuntimeSecurityConfiguration` owns one securely opened service keytab
+descriptor and one immutable `ConsoleIdentityPolicy`. The configured keytab
+must be an explicit `FILE:/` absolute path, is component-walked with
+`openat` + `O_NOFOLLOW`, and must resolve to a nonempty regular file owned
+by the effective service uid, owner-readable, and inaccessible to group/other.
+The runtime retains that descriptor for the configuration lifetime and gives
+the existing R2 `GssapiSpnegoAcceptor` the provider URI
+`FILE:/proc/self/fd/<n>`. Therefore a later pathname replacement cannot
+redirect GSS credential acquisition to a different keytab object.
+
+Configuration is one-shot and fail-closed. R10 first validates the existing
+R2 `ConsoleIdentityPolicy` rule, then uses a temporary real MIT-GSS acceptor
+to prove that the requested exact `TERMSRV/host@REALM` credential can be
+acquired from the retained keytab. Future per-connection R2 acceptors are
+configured through the same retained descriptor. R10 does not duplicate
+SPNEGO, CredSSP, NSS/logind authorization or R3 state ownership.
+
+The Linux-enabled executable recognizes an offline
+`--check-linux-security FILE` preflight. Eight all-or-none settings extend
+the original seven-field syntax:
+`gss_service_principal`, `gss_keytab`,
+`authorized_kerberos_principal`, `authorized_unix_account`,
+`authorized_seat`, `authorized_display`, `authorized_uid`, and
+`authorized_permissions`. The preflight additionally constructs the existing
+live `RuntimeServerTlsContext`, acquires the explicit GSS acceptor credential,
+and validates the native identity rule. Success still authenticates **no**
+client, issues **no** `LinuxConsoleAdmissionLease`, opens **no** listener and
+starts **no** R3 session.
+
+Dedicated Linux CTests use a generated, build-root-only MIT keytab with a
+random synthetic service key (no KDC/client ticket):
+`runtime.linux-security-explicit-keytab-continuity`,
+`runtime.linux-security-keytab-policy-denials`, and
+`runtime.rejects-linux-security-missing-provisioning`. The continuity case
+configures R10, replaces the original configured keytab pathname with invalid
+bytes, and then requires a fresh real R2 GSS acceptor to acquire the original
+service credential through the retained descriptor. Denials cover group-readable
+keytabs, symlink final components, wrong service class, root policy mapping,
+relative keytab URI and missing keytab.
+
+**Authoring validation:** within the mandatory
+`~/rdp-server/build/r10-probe/` root, MIT Kerberos/GSSAPI 1.21.3 standalone
+provider probes PASS: explicit synthetic keytab acquisition returned
+`GSS_S_COMPLETE`, and after unlink/path replacement
+`FILE:/proc/self/fd/3` acquisition also returned `GSS_S_COMPLETE`.
+Commands: `./keytab_probe` and `./procfd_probe`. Full repository
+CMake/build/CTest is **NOT RUN at authoring** because this environment has no
+GitHub-resolvable checkout. Exact-SHA hosted Linux compilation/CTest is the
+next gate; owner Linux/X11, MSYS2 CLANG64/Clang23, macOS27, real client
+tickets/KDC, genuine R2 positive admission and external RDP clients are
+**NOT RUN**.
+
+**Next R10 gate:** after exact-SHA Linux validation, promote this provisioning
+boundary out of the developer GSS build gate into the eventual Linux runtime
+composition and add only the minimal loopback listener/event loop once one
+connection can retain R10 TLS/keytab/policy ownership, R1 transport, genuine
+R2 admission and the sole R3 session with ordered revocation. No listener is
+permitted before that aggregate exists.
+
 ## R10 reusable live TLS context owner (2026-10-16; R10 hosted tests PASS, unrelated full-suite blocker)
 
 ## R6 generation-pinned native Windows input adapter (2026-10-16; exact-SHA CI pending)

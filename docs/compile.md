@@ -1,3 +1,43 @@
+## R10 Linux explicit service-keytab provisioning (2026-10-16)
+
+The pre-listener Linux runtime security component is currently built only when
+the existing `RDP_SERVER_TEST_LINUX_GSSAPI=ON` gate is enabled. This keeps
+MIT GSS/Kerberos out of the portable SDK and non-Linux builds while R10
+validates the runtime composition. Linux CI already enables that gate for
+Debug.
+
+A configured keytab URI must be `FILE:/absolute/path`. R10 opens the path
+component-by-component without following symlinks and requires a nonempty
+regular file owned by the effective uid with no group/other permissions.
+After opening, the runtime retains the descriptor and configures MIT GSS via
+`FILE:/proc/self/fd/<n>`; the original pathname is not trusted again for
+connection acceptors.
+
+When built with the Linux GSS gate, `rdp-server --check-linux-security FILE`
+accepts the original seven runtime fields plus these eight all-or-none fields:
+
+```text
+gss_service_principal=TERMSRV/rdp.example.test@EXAMPLE.TEST
+gss_keytab=FILE:/absolute/private/service.keytab
+authorized_kerberos_principal=alice@EXAMPLE.TEST
+authorized_unix_account=alice
+authorized_seat=seat0
+authorized_display=:0
+authorized_uid=1001
+authorized_permissions=7
+```
+
+The command also validates the configured TLS server context and confirms that
+the explicit GSS acceptor credential can be acquired. It does not need a
+client ticket or KDC for that acquisition and it does not start a listener,
+authenticate a client or grant OS/session access. Ordinary non-GSS builds keep
+the prior CLI surface unchanged.
+
+Default Linux CTests create only synthetic keytab material under
+`build/runtime-linux-security-fixtures/`; no host keytab or ticket cache is
+read. Production service/keytab installation permissions and lifecycle remain
+a later R10 release/service gate.
+
 # Compile standards — one persistent and reusable build directory
 
 ## R6 native Windows SendInput build note (2026-10-16)

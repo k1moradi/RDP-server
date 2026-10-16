@@ -34,6 +34,25 @@ elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-option-smuggling")
 elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-option-smuggling")
     set(runtime_arguments "--check-tls-credentials" "R10_SENTINEL_MUST_NOT_APPEAR" "--help")
     set(expected_exit_code 2)
+elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-linux-security-missing-provisioning")
+    if(NOT DEFINED RDP_RUNTIME_FIXTURE_DIRECTORY OR
+       RDP_RUNTIME_FIXTURE_DIRECTORY STREQUAL "")
+        message(FATAL_ERROR "Missing RDP_RUNTIME_FIXTURE_DIRECTORY")
+    endif()
+    file(MAKE_DIRECTORY "${RDP_RUNTIME_FIXTURE_DIRECTORY}")
+    set(config_file
+        "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TEST_CASE}.conf")
+    file(WRITE "${config_file}"
+        "listen_address=127.0.0.1\nlisten_port=3389\n"
+        "tls_certificate=/synthetic-r10/test.crt\n"
+        "tls_private_key=/synthetic-r10/test.key\n"
+        "authentication=required\nos_authorization=required\n"
+        "max_connections=4\n")
+    if(UNIX)
+        file(CHMOD "${config_file}" PERMISSIONS OWNER_READ OWNER_WRITE)
+    endif()
+    set(runtime_arguments "--check-linux-security" "${config_file}")
+    set(expected_exit_code 3)
 elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-files|tls-credentials)-")
     if(NOT DEFINED RDP_RUNTIME_FIXTURE_DIRECTORY OR
        RDP_RUNTIME_FIXTURE_DIRECTORY STREQUAL "")

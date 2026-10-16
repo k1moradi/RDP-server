@@ -1,3 +1,19 @@
+## Linux provider credential-file continuity
+
+When a native provider API accepts a filename but R10 has already security-
+validated a concrete credential file object, do not validate by pathname and
+later let the provider reopen that mutable pathname. On Linux, retain the
+opened descriptor and, where the provider supports ordinary FILE semantics,
+hand it a `FILE:/proc/self/fd/<n>` reference while the descriptor remains
+alive. The runtime owner must outlive every provider object configured through
+that reference. Keep the original path only as configuration input, not as the
+post-validation authority.
+
+This continuity mechanism does not upgrade provider credential acquisition
+into user authentication: acquiring a service keytab only proves the server
+can load that acceptor identity. User identity and authorization still require
+their existing TLS/GSS transcript and native OS policy owners.
+
 # Coding standards — native C++23 RDP server
 
 **Mandatory on every agent prompt:** [AGENTS.md](../AGENTS.md),

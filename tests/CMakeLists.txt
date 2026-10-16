@@ -405,6 +405,44 @@ if(TARGET rdp-server-linux-gssapi)
         rdp-server-linux-gssapi)
 endif()
 
+if(TARGET rdp-server-linux-runtime-security)
+    find_path(RDP_SERVER_TEST_KRB5_INCLUDE_DIR NAMES krb5.h REQUIRED)
+    find_library(RDP_SERVER_TEST_KRB5_LIBRARY NAMES krb5 REQUIRED)
+    find_library(RDP_SERVER_TEST_K5CRYPTO_LIBRARY NAMES k5crypto REQUIRED)
+    add_executable(test_runtime_linux_security
+        test_runtime_linux_security.cpp)
+    target_compile_features(test_runtime_linux_security PRIVATE cxx_std_23)
+    target_include_directories(test_runtime_linux_security PRIVATE
+        "${RDP_SERVER_TEST_KRB5_INCLUDE_DIR}")
+    target_link_libraries(test_runtime_linux_security PRIVATE
+        rdp-server-linux-runtime-security
+        "${RDP_SERVER_TEST_KRB5_LIBRARY}"
+        "${RDP_SERVER_TEST_K5CRYPTO_LIBRARY}")
+    target_compile_options(test_runtime_linux_security PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    foreach(runtime_linux_security_case IN ITEMS
+            linux-security-explicit-keytab-continuity
+            linux-security-keytab-policy-denials)
+        add_test(NAME "runtime.${runtime_linux_security_case}"
+            COMMAND test_runtime_linux_security
+                "${runtime_linux_security_case}"
+                "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+        set_tests_properties("runtime.${runtime_linux_security_case}" PROPERTIES
+            LABELS "runtime;security;linux-provider;offline")
+    endforeach()
+
+    add_test(NAME runtime.rejects-linux-security-missing-provisioning
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
+            "-DRDP_RUNTIME_VERSION=${PROJECT_VERSION}"
+            "-DRDP_RUNTIME_TEST_CASE=rejects-linux-security-missing-provisioning"
+            "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-fixtures"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
+    set_tests_properties(
+        runtime.rejects-linux-security-missing-provisioning
+        PROPERTIES LABELS "runtime;security;linux-provider;offline")
+endif()
+
 # R6 fixture-only checks: do not enumerate a real desktop, capture pixels,
 # or inject input during an ordinary Windows CTest run.
 if(TARGET rdp-server-windows-desktop)

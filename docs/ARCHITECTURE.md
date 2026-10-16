@@ -1058,6 +1058,9 @@ callbacks are both reentry-guarded. Cancellation during acquisition is
 terminal but deferred with respect to callback-owned outputs: if the callback
 returns a new lease after cancellation, the owner releases it exactly once
 before returning `closed` and never publishes its resource or metadata.
+A malformed timeout/error that nevertheless returns a resource is likewise
+cleaned through the owner's guarded `releaseFrame` path after the owner is
+terminal, so release-callback reentry cannot start a new acquisition.
 Cancellation and destruction release any already-held frame once. The
 underlying frame resource is only
 borrowed by synchronous consumers while the lease exists, never

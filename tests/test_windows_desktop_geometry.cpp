@@ -498,6 +498,24 @@ void dxgiFrameLeaseAcquireCallbackRevocation()
         assert(cancelled.releases == 1);
     }
     assert(cancelled.releases == 1);
+
+    // A malformed callback that reports timeout while returning a native
+    // resource is terminal. Its cleanup must use the guarded release path so
+    // release-callback reentry cannot begin another acquisition.
+    FakeDxgiFrameSource malformed{};
+    malformed.nextAcquire = WindowsDxgiAcquireResult::timeout;
+    malformed.returnUnexpectedResource = true;
+    WindowsDxgiFrameOwner malformedOwner(malformed.callbacks());
+    malformed.reentrantOwner = &malformedOwner;
+    malformed.reenterDuringRelease = true;
+    assert(malformedOwner.acquireFrame(0) == WindowsDxgiAcquireResult::failed);
+    assert(malformedOwner.closed());
+    assert(malformedOwner.resource() == nullptr);
+    assert(malformed.releases == 1);
+    assert(malformed.reentrantAcquire == WindowsDxgiAcquireResult::closed);
+    assert(malformed.acquisitions == 1);
+    malformedOwner.cancel();
+    assert(malformed.releases == 1);
 }
 
 void dxgiFrameLeaseDenials()

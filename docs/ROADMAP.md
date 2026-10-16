@@ -1,3 +1,33 @@
+## R6 malformed-acquire guarded cleanup (2026-10-16; exact-SHA CI pending)
+
+Exact-SHA validation of `c31c07f87152f8bd8c536c77abb7f5511871a6e8`,
+Actions `38895979261`, did not reach the new Windows CTest because MSVC
+rejected its fixture assertion: `WindowsDxgiFrameInfo` intentionally has no
+equality operator. Ubuntu/GCC, documentation-policy and the R9 sanitizer job
+passed; macOS/Clang again hit the unrelated R1
+`transport.credssp-r1-owned-framing` assertion.
+
+The fixture now checks empty frame metadata field-by-field rather than
+expanding the production API solely for testing. The same lifecycle audit also
+found that a malformed acquire callback returning a native resource together
+with `timeout`/error bypassed `WindowsDxgiFrameOwner::releaseFrame` and
+invoked the release callback directly. That skipped the owner's release
+reentrancy guard.
+
+Malformed returned resources now enter the owner's normal single-release path:
+the resource is installed only for cleanup, metadata is zeroed, the owner is
+marked terminal before release, and `releaseFrame()` invalidates the borrowed
+pointer before invoking the callback. The existing dedicated
+`windows.capture-dxgi-frame-lease-acquire-callback-revocation` CTest is
+strengthened so release-callback reentry must observe `closed`, with one
+backend acquisition, one release, no retained resource and idempotent cancel.
+
+Canonical owner-local CMake/CTest is **NOT RUN** in this connector environment.
+Exact-SHA hosted Windows/MSVC Debug+Release preflight/full matrix is required
+after publication. Owner Windows MSYS2 CLANG64/Clang23 and genuine Windows
+R2/R3 admission remain **NOT RUN/BLOCKED**. Native runtime capture/input binding
+remains blocked and M4 remains OPEN.
+
 ## R4 reset-stable NV12 scratch exact-SHA hosted CI (2026-10-16)
 
 **Source commit:** [`39443e93b45bdf5b01575a9066f0232f48b8bcdb`](https://github.com/k1moradi/RDP-server/commit/39443e93b45bdf5b01575a9066f0232f48b8bcdb).

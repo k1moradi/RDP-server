@@ -77,8 +77,14 @@ WindowsDxgiAcquireResult WindowsDxgiFrameOwner::acquireFrame(
     // Even a claimed timeout or error with a returned resource is terminal.
     if (acquiredResource != nullptr)
     {
-        (void)callbacks_.release(callbacks_.context, acquiredResource);
+        // Treat a resource returned alongside timeout/error as a terminal
+        // malformed acquisition, but clean it through the same guarded owner
+        // path as every other held lease. This prevents release-callback
+        // reentry from starting a fresh acquisition during cleanup.
+        resource_ = acquiredResource;
+        frameInfo_ = {};
         closed_ = true;
+        (void)releaseFrame();
         return WindowsDxgiAcquireResult::failed;
     }
     if (result == WindowsDxgiAcquireResult::timeout)

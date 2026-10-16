@@ -1,3 +1,29 @@
+## R6 frame-owner malformed-acquire cleanup authoring (2026-10-16)
+
+Prior frame-owner commit `c31c07f87152f8bd8c536c77abb7f5511871a6e8`,
+Actions `38895979261`: Ubuntu/GCC **PASS**, R9 sanitizer **PASS**,
+documentation-policy **PASS**. Windows/MSVC stopped compiling
+`test_windows_desktop_geometry.cpp:491` because the new test compared
+`WindowsDxgiFrameInfo` with `==`; the intended new Windows frame-lease CTest
+was therefore **NOT RUN**. macOS/Clang reached CTest and failed the unrelated
+R1 `transport.credssp-r1-owned-framing` assertion.
+
+The correction keeps the production struct API unchanged and verifies empty
+metadata by its five fields. It also closes an adjacent production reentrancy
+hole: malformed acquire results that return a resource now mark the owner
+closed and route cleanup through `releaseFrame()` instead of calling the
+backend release callback directly. The strengthened existing
+`windows.capture-dxgi-frame-lease-acquire-callback-revocation` behavior makes
+the release callback reenter `acquireFrame` and requires `closed`, exactly
+one acquisition, exactly one release, no retained resource and idempotent
+cancel.
+
+Authoring source/ownership review **PASS**. Canonical
+`~/rdp-server/build` build/CTest **NOT RUN**. Exact-SHA Windows/MSVC
+Debug+Release and the full hosted matrix are **PENDING**. Owner Windows MSYS2
+CLANG64/Clang23, live DXGI, Microsoft-client M4 and genuine R2/R3 Windows
+admission remain **NOT RUN/BLOCKED**.
+
 ## R4 reset-stable NV12 scratch exact-SHA hosted CI (2026-10-16)
 
 **Source commit:** [`39443e93b45bdf5b01575a9066f0232f48b8bcdb`](https://github.com/k1moradi/RDP-server/commit/39443e93b45bdf5b01575a9066f0232f48b8bcdb).

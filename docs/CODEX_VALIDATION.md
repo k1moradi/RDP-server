@@ -15447,3 +15447,44 @@ SDK/package validation are **PENDING**. Genuine Windows R2/R3 admission,
 owner MSYS2 CLANG64/Clang23, live DXGI/SendInput and Microsoft-client M4 remain
 **NOT RUN/BLOCKED**.
 
+
+
+## R7 Quartz display-watch lifecycle exact-SHA hosted validation (2026-10-16)
+
+Corrected implementation `b0a439898976d2c64719fe5ae6fefbbc8d639f84`,
+GitHub Actions `38969197292`, completed **SUCCESS**. The preceding
+implementation `7b2426144d1bab893a67dc21971b6036b089f012`, Actions
+`38968973698`, failed only while compiling the new Apple test fixture because
+four nested `NativeDisplayReconfigurationWatch` test-seam types lacked their
+`rdp::macos` qualification; production R7 code had compiled. The correction
+is test-only.
+
+The new Apple-only
+`macos.desktop-native-reconfiguration-registration-retirement` CTest is
+**PASS** in both macOS/AppleClang Debug and Release. macOS full CTest is
+**400/400 PASS** in each configuration. The test exercises the production
+process-global display-watch reservation/coverage owner through injected
+install/remove callbacks: registration-time delivery, duplicate registration
+denial, failed-removal fail-closed coverage, retry cleanup, destructor
+retirement, delayed callback safety, and native-refresh denial before live
+CoreGraphics enumeration while coverage is unavailable.
+
+Cross-platform regressions are green: Ubuntu/GCC full CTest is **473/473 PASS**
+in Debug and Release; Windows/MSVC full CTest is **428/428 PASS** in Debug and
+Release with focused Windows native preflight **47/47 PASS** in both
+configurations. Installed SDK consumer is **1/1 PASS** on Linux, macOS and
+Windows.
+
+The dedicated R7 GCC ASan/UBSan session-watch job and the shared R9 Clang
+ASan/UBSan job both **PASS**. Documentation policy **PASS**; untagged
+prerelease publication is correctly **SKIPPED**. The new Apple-only display
+watch lifecycle case is not claimed as Linux sanitizer execution.
+
+Real `startNative()` remains the sole CoreGraphics registration route; no
+ScreenCaptureKit factory, AppKit cursor sampler, Quartz input callback or
+macOS R2/R3 admission capability is exposed. Canonical owner-local
+`~/rdp-server/build/`, owner macOS 27 real display/session notification
+delivery, genuine non-forgeable macOS per-user admission, live
+capture/input/cursor publication and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**. The next authority-bearing R7 gate remains the genuine macOS
+R2/R3 capability. **M5 remains OPEN/BLOCKED**.

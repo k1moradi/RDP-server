@@ -7246,3 +7246,34 @@ successfully. macOS Debug failed independently in the R1 fixture
 `test_owned_preauth_session.cpp:1964` because a loopback accept was assumed
 immediately visible; R9 does not modify that R1 boundary. Windows was still
 running when this correction was authored.
+
+## R5 transactional RandR rebuild exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `4fb615a7f5e726d278c9a7793d16103dc109ac37`,
+[Actions 38874824167](https://github.com/k1moradi/RDP-server/actions/runs/38874824167).
+
+**R5/native result:** Linux/GCC Debug and Release each passed **294/294**
+registered CTests. `x11.desktop-resource-randr-rebuild` passed in both:
+the test disables only the ephemeral Xvfb CRTC, performs a real XCB/RandR
+root resize from 1280x720 to 1024x600, drives the production event route,
+requires the aggregate to remain valid on the same XCB descriptor, then
+generates a new root update and requires the newly constructed XDamage
+tracker to receive it. Existing native event-routing and deferred-teardown
+cases also passed. macOS/Clang full CTest was **266/266 PASS** Debug and
+Release; Windows/MSVC **289/289 PASS** Debug and Release. Documentation
+policy and installed-SDK consumer/package stages passed.
+
+**Workflow-level exception:** run 38874824167 concluded **FAIL** because
+`r9-security-protocol-sanitizers` failed while compiling the concurrent R9
+native logind expansion with Clang `-Werror,-Wunused-private-field` for
+`sessionIdBytes_`, `displayBytes_`, and `monitor_`. The immediate parent
+`f99a2ad3efefb03b2316cc940cc625f77d3699eb`,
+[Actions 38874696875](https://github.com/k1moradi/RDP-server/actions/runs/38874696875),
+reproduces those same sanitizer compile errors without the R5 change. The R9
+sanitizer failure therefore does not invalidate the native R5 compile/CTest
+receipt, but whole-workflow success is not claimed.
+
+**NOT RUN:** owner's Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+same-SHA commands; genuine positive R2/R3 admitted desktop routing; live
+XTEST input; R4 synchronous capture/Damage/cursor consumption;
+Microsoft-client M3 acceptance; performance benchmarks.

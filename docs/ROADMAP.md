@@ -3576,6 +3576,28 @@ actually run; another parser CTest alone is not a complete session.
   owner for R4, then bind only R3-authorized typed input; do not create a
   second graphics scheduler. M3 remains OPEN.
 
+  **R5 transactional RandR rebuild exact-SHA hosted receipt (2026-10-16):**
+  implementation `4fb615a7f5e726d278c9a7793d16103dc109ac37`,
+  [Actions 38874824167](https://github.com/k1moradi/RDP-server/actions/runs/38874824167).
+  Linux/GCC compiled the real native X11 aggregate in Debug and Release and
+  full CTest was **294/294 PASS** in both. New
+  `x11.desktop-resource-randr-rebuild` passed in both configurations,
+  proving an actual ephemeral-Xvfb RandR resize 1280x720 -> 1024x600 rebuilt
+  XShm/XDamage/XTEST while retaining the same XCB descriptor, followed by
+  successful post-resize XDamage delivery. macOS/Clang full CTest was
+  **266/266 PASS** Debug/Release; Windows/MSVC **289/289 PASS**
+  Debug/Release. Documentation policy and installed-SDK consumer/package
+  stages passed.
+  The workflow conclusion is **FAIL**, solely because the concurrent parent
+  R9 sanitizer expansion fails strict Clang compile on unused private
+  logind-evidence fields; parent `f99a2ad3efefb03b2316cc940cc625f77d3699eb`
+  [Actions 38874696875](https://github.com/k1moradi/RDP-server/actions/runs/38874696875)
+  reproduces the same sanitizer compile errors before this R5 change.
+  **NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+  one-root commands; genuine R2/R3 admitted desktop routing; live XTEST
+  input; R4 capture/cursor consumption; Microsoft-client M3 acceptance;
+  performance benchmarks. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

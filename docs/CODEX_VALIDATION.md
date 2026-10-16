@@ -1,3 +1,26 @@
+## R5 X11 lifecycle fixture post-publication validation (2026-10-16)
+
+**Implementation:** `f1718fa601c12e9ff10f9be3bba281acd0a57e90`.
+**Actions:** `38885619241` is **QUEUED** at this snapshot;
+therefore exact-SHA hosted compile/CTest is **NOT RUN yet**, not PASS.
+
+A repeated local fixture-only probe on Debian 13 with Xvfb/Xserver
+`2:21.1.16-1.3+deb13u1` ran **25** old-argument cycles and observed the
+last-client reset **25/25**, then **25** otherwise identical `-noreset` cycles
+and retained server state **25/25**. Combined elapsed time was approximately
+**1.19 s**. The probe accesses only an ephemeral Xvfb root property; it does
+not build the repository, touch a logged-in desktop, capture pixels or inject
+input.
+
+This strengthens the root-cause evidence for the Release-only historical
+lifecycle failure while keeping the historical child reason honest: Actions
+`38873727660` did not print `failureReason()`, so that exact one-run child
+failure remains unavailable. The repaired test will print its bounded phase
+and aggregate reason if a healthy construction ever fails again. The canonical
+owner-local command, exact implementation CI result, full R5/R8 matrix, owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and live admitted-client
+acceptance remain pending/NOT RUN as applicable.
+
 ## R6 DXGI pre-map cursor denial regression validation (2026-10-16)
 
 **Initial inspected main:** `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`.

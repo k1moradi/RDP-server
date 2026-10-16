@@ -1,3 +1,29 @@
+## R5 X11 lifecycle fixture publication receipt (2026-10-16; exact-SHA workflow queued)
+
+Implementation commit: `f1718fa601c12e9ff10f9be3bba281acd0a57e90`
+(`fix(r5): stabilize X11 desktop lifecycle fixture`), published directly to
+`main` with an expected-head fast-forward update. Exact implementation
+workflow: Actions `38885619241`, currently **QUEUED**;
+no hosted Debug/Release result is claimed yet.
+
+Reliability probe environment: Debian GNU/Linux 13 (trixie), x86-64, Xvfb/
+Xserver `2:21.1.16-1.3+deb13u1`. Across **25** independent property-set/read
+cycles with the lifecycle fixture's prior
+`-screen 0 1280x720x24 -nolisten tcp` arguments, the last-client reset was
+observed **25/25** times. With only `-noreset` added, continuity was retained
+**25/25** times. The two bounded 25-cycle groups completed together in about
+**1.19 s**. This is fixture-mechanism evidence, not a substitute for the real
+production-backed CTest.
+
+The implementation changes no production X11 source and adds no new CTest:
+`x11.desktop-resource-owner-lifecycle` remains the behavior-named regression,
+now with deterministic same-server continuity plus fail-only aggregate
+construction diagnostics. Canonical owner-local CMake/build/full CTest remains
+**NOT RUN** in this connector environment. Historical Actions `38873727660`
+attempt 2 also remains queued. R5 acceptance stays open until exact-SHA hosted
+Linux/GCC Debug+Release and the existing native/R8 regression matrix actually
+run; owner-platform and Microsoft-client gates remain **NOT RUN**.
+
 ## R6 DXGI pre-map cursor denial lifecycle regression (2026-10-16; exact-SHA CI pending)
 
 Initial inspected `main`: `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`;

@@ -21,6 +21,7 @@ enum class LinuxCredSspStepStatus : std::uint8_t
     Progress,
     NeedRead,
     NeedWrite,
+    BindingVerified,
     Invalid,
     Closed,
 };
@@ -57,7 +58,7 @@ public:
 
     // True while this aggregate can make bounded protocol progress. A
     // provider-generated terminal CredSSP failure may remain writable after
-    // R2/R3 authority is already revoked. This is never user admission.
+    // GSS has failed but before aggregate teardown. This is never admission.
     [[nodiscard]] bool ready() const noexcept;
 
     [[nodiscard]] rdp_server::server::transport::TcpConnectionIoInterest
@@ -76,11 +77,10 @@ public:
     [[nodiscard]] rdp_server::server::transport::TlsHandshakeStatus
     onTlsIoReady() noexcept;
 
-    // Advance at most one owner-aware CredSSP TLS application-I/O step.
-    // R1 remains the sole SSL_read_ex/SSL_write_ex owner. Complete frames are
-    // synchronously consumed by the existing R2 GSS/CredSSP owner; only its
-    // provider-generated reply bytes may be queued. Progress may be advanced
-    // immediately, while NeedRead/NeedWrite require matching readiness.
+    // Delegate one bounded event-loop step to R2's owner-driven CredSSP/GSS
+    // progression. R1 remains the sole SSL_read_ex/SSL_write_ex owner; R10
+    // maps readiness and owns lifetimes only. BindingVerified is transport/GSS
+    // evidence, not native desktop admission.
     [[nodiscard]] LinuxCredSspStepResult onCredSspIoReady() noexcept;
 
     // Positive R2 issuance is possible only after the existing CredSSP/GSS
@@ -123,10 +123,6 @@ public:
 
 private:
     [[nodiscard]] bool credSspReplyPending() const noexcept;
-    [[nodiscard]] LinuxCredSspStepResult advanceCredSspReply() noexcept;
-    [[nodiscard]] LinuxCredSspStepResult consumeCompletedCredSspFrame(
-        std::size_t plaintextBytesRead) noexcept;
-    void revokeAdmissionAuthority() noexcept;
 
     LinuxRuntimeSecurityConfiguration &securityConfiguration_;
 
@@ -144,7 +140,6 @@ private:
     // Retired explicitly before the exact borrowed R1 TLS owner is canceled.
     rdp_server::server::security::TsRequestFrameReader credSspFrameReader_{};
     rdp_server::server::security::TsRequestTlsReplyWriter credSspReplyWriter_{};
-    bool terminalCredSspFailureReplyPending_{};
     bool provisioned_{};
 };
 

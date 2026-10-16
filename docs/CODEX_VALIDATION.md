@@ -10425,3 +10425,52 @@ records the R10 test as **NOT RUN**, not FAIL behavior. Exact correction-SHA
 hosted CI is required before claiming the new aggregate CTests PASS. Owner-local
 canonical `~/rdp-server/build` remains **NOT RUN** in this connector
 environment.
+
+
+
+## R10 delegates owned CredSSP progression to the R2 authority (2026-10-16; exact-SHA CI pending)
+
+R2's validated owner-driven API landed concurrently with the first R10
+provider/reply composition. R10 now removes its temporary stage-by-stage GSS
+dispatch and calls exactly
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(connection, reader, writer)`.
+This restores the intended authority split: R1 alone owns TLS application I/O,
+R2 alone owns DER/GSS/binding/reply sequencing, and R10 owns only event-loop
+status mapping plus aggregate lifetimes.
+
+`LinuxCredSspStepStatus` adds `BindingVerified` to surface R2's explicit
+boundary without converting it into authorization. Native lease issuance still
+requires the existing R2 broker, the exact R1 HYBRID/TLS owner and
+`SpnegoStage::ServerBindingPrepared`; no caller Boolean or raw TLS pointer can
+substitute. A provider-generated terminal v6 failure remains entirely inside
+R2 until its reply is actually written/released; only then does R10 perform
+ordered R3 -> R2 -> framer/writer -> R1 teardown. Explicit cancellation while
+that reply is pending performs the same terminal ordering immediately.
+
+The existing R10 loopback tests continue to cover split DER retention,
+provider rejection/failure reply delivery, pending-frame cancellation,
+pending-reply cancellation, stale callbacks and absence of any admission
+lease. Their pre-flush assertions now distinguish failed GSS from aggregate
+teardown: native admission/R3 are unreachable, while R2 retains only the
+terminal reply state until it is flushed or the caller revokes.
+
+Validation immediately before this authority-consolidation commit: correction
+SHA `06e4793eb7a78ea86bfb7f072b8642f1ec90d1d7`, Actions
+`38899285708`, Ubuntu/GCC full Debug **395/395 PASS** and Release
+**395/395 PASS**, including
+`runtime.linux-connection-credssp-owner-framing`,
+`runtime.linux-connection-credssp-revocation-order` and
+`runtime.linux-connection-credssp-authorization-denials`; R9 sanitizer job
+**PASS** and documentation policy **PASS**. macOS Debug compiled but failed
+only the unrelated R1
+`transport.tcp-native-listener-role-and-mode-denials`; macOS Release and its
+package stages were therefore **NOT RUN**. Windows was still running when this
+follow-up was authored. Canonical owner-local `~/rdp-server/build` remains
+**NOT RUN** in this connector environment.
+
+No listener/service, synthetic positive GSS result, fabricated native lease or
+second TLS/session owner is introduced. M2/M3 remain **OPEN**. The next R10
+acceptance gate is an opt-in real client Kerberos exchange reaching R2
+`BindingVerified`, followed independently by current NSS/logind admission
+through the existing broker; delegated TSCredentials remain denial-only until
+R2 defines an audited positive credential contract.

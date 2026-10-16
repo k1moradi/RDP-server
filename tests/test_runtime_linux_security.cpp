@@ -659,8 +659,9 @@ void testConnectionCredSspOwnerFraming(
     }
     assert(failureReplyQueued);
     assert(connection.gssStage() == SpnegoStage::Failed);
-    assert(connection.admissionState() == LinuxConsoleAdmissionState::Revoked);
-    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(connection.admissionState() == LinuxConsoleAdmissionState::Ready);
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
     assert(!connection.hasAdmissionLease());
 
     std::size_t totalWritten = 0;
@@ -670,7 +671,7 @@ void testConnectionCredSspOwnerFraming(
         const auto step = connection.onCredSspIoReady();
         totalWritten += step.plaintextBytesWritten;
         assert(step.plaintextBytesRead == 0);
-        if (step.status == LinuxCredSspStepStatus::Closed)
+        if (step.status == LinuxCredSspStepStatus::Invalid)
         {
             terminalReplyFlushed = true;
             break;
@@ -687,6 +688,8 @@ void testConnectionCredSspOwnerFraming(
     assert(readTlsClientAll(clientTls.get(), received));
     assert(received == kV6LogonFailure);
     assert(!connection.ready());
+    assert(connection.admissionState() == LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
     assert(connection.onCredSspIoReady().status ==
            LinuxCredSspStepStatus::Closed);
     assert(::close(clientDescriptor) == 0);
@@ -780,8 +783,10 @@ void testConnectionCredSspRevocationOrder(
         assert(failureReplyQueued);
         assert(connection.gssStage() == SpnegoStage::Failed);
         assert(connection.admissionState() ==
-               LinuxConsoleAdmissionState::Revoked);
-        assert(connection.mcsPhase() == McsSessionPhase::Closed);
+               LinuxConsoleAdmissionState::Ready);
+        assert(connection.mcsPhase() ==
+               McsSessionPhase::AwaitVerifiedR2Admission);
+        assert(!connection.hasAdmissionLease());
 
         connection.revoke();
         assert(!connection.ready());

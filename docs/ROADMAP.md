@@ -17385,3 +17385,45 @@ CLANG64/Clang 23, macOS 27, genuine positive R2 native admission, real license
 authority/client acceptance and Share activation remain **NOT RUN / OPEN**.
 M1 owner-machine evidence and M2/M3 remain **OPEN / NOT ACCEPTED**.
 
+## R3 licensing-authority grant snapshot exact-SHA validation (2026-10-16)
+
+**Implementation:** `1043df050bedcf0a0e8da900967489fefcdcd3ee`.  
+**Actions:** `38976097160` — **SUCCESS**.
+
+The exact implementation SHA passes every hosted build/test gate. Ubuntu/GCC
+full CTest is **508/508 PASS Debug** and **508/508 PASS Release**.
+macOS/Clang is **431/431 PASS Debug** and **431/431 PASS Release**.
+Windows/MSVC is **461/461 PASS Debug** and **461/461 PASS Release**, with the
+focused native preflight **51/51 PASS** in both configurations. The new
+`transport.licensing-authority-grant-boundary` case is test #70 and passes in
+all six platform/configuration runs.
+
+R9 Clang ASan/UBSan is **PASS**. Its registered groups pass as follows:
+clipboard **60/60**, portable R4 RDPGFX wire/lifecycle **33/33**, R4 x264/BGRA
+**20/20**, RDPGFX capabilities **4/4**, bounded R1/R3
+transport/CredSSP/licensing **81/81**, native R2/R3 GSSAPI **29/29**, direct R10
+Linux runtime security **10/10**, native R5 X11 **31/31**, and bounded fuzzer
+**1/1**. The new authority-boundary test is explicitly required by the bounded
+R1/R3 selector and passes there as test #70 (**0.02 s**). The independent R7
+macOS sanitizer gate also passes **10/10**, plus its **1/1** registration check.
+
+Documentation policy **PASS**. Installed SDK downstream consumer is **1/1
+PASS** and ZIP package creation/upload succeeds on Linux, macOS, and Windows.
+The untagged prerelease publication job is correctly **SKIPPED**, not counted as
+a passing release stage.
+
+This evidence validates only the non-live authority-result snapshot,
+correlation checks and fail-closed bounds. It does **not** prove a real
+licensing authority, CAL issuance/trust, live New/Upgrade publication,
+`STATUS_VALID_CLIENT`, Share activation, genuine positive Kerberos/logind
+admission, or Microsoft-client acceptance. Canonical owner-local
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, and
+macOS owner commands remain **NOT RUN** here. **M2/M3 remain OPEN / NOT
+ACCEPTED.**
+
+**Next R3:** wait for a concrete R10 authority owner to supply a freshly
+correlated `RdpLicensingAuthorityGrant`; then add the receipt-bound live
+New/Upgrade writer behind fresh R2 authorization. In parallel,
+`CLIENT_LICENSE_INFO` still needs real CAL signature/trust,
+product/version/expiry and HWID authorization before any valid-client result.
+

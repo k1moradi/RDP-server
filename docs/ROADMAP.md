@@ -2548,6 +2548,27 @@ actually run; another parser CTest alone is not a complete session.
   authorized R3 DVC, real x264, client and benchmarks.
   **Next R4:** actual authorized R3 DVC full-send callback then
   integrate the existing H.264 frame owner/x264. Gate B NOT ACCEPTED.
+  **R4 AVC420 Annex-B picture transport frame (2026-10-15):**
+  The compiled portable graphics protocol SDK now has the first
+  correctly sized START_FRAME, WIRE_TO_SURFACE_1 with AVC420
+  METABLOCK/region mask/quant-quality entries and borrowed Annex-B
+  bitstream, and matching END_FRAME serializer. It reuses R4's
+  mapped-surface and full-delivery receipt contracts; this is an
+  offline wire boundary, not a second graphics schedule or x264
+  encoder. The legacy uncompiled gfx_avc420_frame.cpp builder
+  lacked any encoded H.264 bytes and must NOT be used for live
+  graphics. New central CTests `graphics.avc420-picture-wire`,
+  `graphics.avc420-picture-rejections`,
+  `graphics.avc420-picture-overlap` cover full wire lengths and
+  endianness, region clipping, quant values, Annex-B presence,
+  buffer failure atomicity and overlap-safe bitstream copying.
+  Actual x264 Annex-B picture generation and profile validation,
+  R3 authorized DVC fragmentation/write completion, human
+  Microsoft-client rendering, owner three-platform tests and
+  benchmarks remain NOT RUN. Gate B/M3 remain OPEN.
+  **Next R4:** connect this production picture builder to the
+  single R4 frame delivery receipt via the R3-authorized writer;
+  source and statically link a reviewed pinned x264 encoder.
   **R4 frame delivery receipt and lifecycle-build recovery
   (2026-10-15):** Restore first-party R4 presentation lifecycle source
   and its four existing graphics CTests to the central CMake registry

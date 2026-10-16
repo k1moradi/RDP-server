@@ -4612,3 +4612,38 @@ live authenticated R2/R3 admission, physical clipboard,
 Microsoft RDP client and desktop. **Next:** inspect first
 ASan/UBSan CI failure if any and repair at the true
 production/test boundary, then record exact-SHA PASS/FAIL.
+
+## R4 first compiled AVC420 picture and Annex-B wire packetization (2026-10-15)
+
+**Parent `main`:** `9e4d33b60ca87606cd66625c4212b326d98b5204`. The production portable
+`gfx_avc420_picture.{h,cpp}` emits one
+RDPGFX_START_FRAME_PDU (16), one WIRE_TO_SURFACE_PDU_1 with AVC420
+RFX_AVC420_METABLOCK/quant qualities and a complete borrower-supplied
+H.264 Annex-B bitstream, and one END_FRAME_PDU (12), using checked
+wire sizes and output spans. Regions are RECT16 left/top/right/bottom;
+quant qualities correspond 1:1 to the mask rectangles. Minimum
+Annex-B prefix and NAL header are syntax preflight only; a real
+x264 encoder remains a necessary producer. Source data is moved
+before writing headers to allow overlap. The older unlinked
+`gfx_avc420_frame.cpp` packet builder did not contain H.264 bytes
+and cannot be used for live transmission.
+
+The sole central `tests/CMakeLists.txt` registers three new
+production-backed CTests: `graphics.avc420-picture-wire`,
+`graphics.avc420-picture-rejections`,
+`graphics.avc420-picture-overlap`. Golden PDU field assertions,
+bounds/metadata/input denials, buffer atomicity and NAL overlap
+are validated offline. Normative: MS-RDPEGFX §§2.2.2.1,
+2.2.2.11-12, 2.2.4.4-4.4.2.
+
+**NOT RUN at authoring:** local full canonical repository CMake/CTest
+(no complete checkout and `git ls-remote` fails DNS), owner's
+Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS 27 one-root
+tests, real x264 encoding, authenticated R2/R3 graphics channel,
+Microsoft-client desktop and graphics benchmarks.
+Verify exact commit hosted CI after publication; do not claim
+that deterministic synthetic Annex-B fixture is a valid H.264
+picture or accepted real-client graphics.
+**Next R4:** wire production AVC420 packetization through R4's
+existing single frame receipt and R3's authorized DVC writer,
+then statically integrate a license-reviewed pinned x264 encoder.

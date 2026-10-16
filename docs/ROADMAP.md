@@ -11811,3 +11811,40 @@ SDK/package checks are required after publication. Genuine authenticated R3
 Graphics DVC/full-send integration, owner three-OS commands, native capture
 performance and Microsoft-client rendering remain **NOT RUN/BLOCKED**.
 Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R7 partial session-watch install retirement exact-SHA hosted receipt (2026-10-16)
+
+Implementation `086fd092dd92c06d0a50aab08790db996b855ce0`, Actions
+`38912615828`, completed **SUCCESS**. The new production-backed
+`macos.desktop-session-watch-partial-install-retirement` CTest passed in both
+Debug and Release on every hosted compiler. Ubuntu/GCC full CTest is
+**431/431 PASS** in each configuration, macOS/AppleClang is **363/363 PASS**
+in each configuration, and Windows/MSVC is **392/392 PASS** in each
+configuration. Windows focused native preflight is **44/44 PASS** in Debug and
+Release.
+
+The regression exercises the existing potentially-partial installation path:
+the injected backend retains the scalar registration epoch, records an event,
+reports install failure, and initially cannot retire its native registration.
+The production watch correctly exposes no coverage, retains its process
+reservation, denies a replacement watch, and ignores delayed old-epoch
+delivery. After removal becomes available, retrying `stop()` releases the
+reservation, a replacement registers normally, and another delayed old callback
+cannot perturb the replacement revision.
+
+No production source or native macOS capability changed. Ordinary CTest creates
+no real AppKit observer, reads no live desktop, requests no TCC prompt, and
+performs no capture, cursor sampling or Quartz input. The Apple job still
+compile/links the actual Objective-C++ session-watch implementation; that is
+SDK/API evidence, not proof of real fast-user-switch notification delivery.
+
+Documentation policy and the shared R9 Clang ASan/UBSan job both **PASS**.
+Installed SDK consumer is **1/1 PASS** on Linux, macOS and Windows, packaging
+completes, and untagged prerelease publication is correctly **SKIPPED**.
+
+Canonical owner-local `~/rdp-server/build/`, owner macOS 27 live
+fast-user-switch delivery, genuine non-forgeable macOS R2/R3 admission, native
+capture/input/cursor publication and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**. The authority boundary is unchanged and **M5 remains
+OPEN/BLOCKED**.

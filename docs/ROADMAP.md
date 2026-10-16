@@ -5599,3 +5599,34 @@ and moving static-channel/node allocation into this same R3 owner. Require a
 fresh broker authorization matching the stored admission/session generations
 immediately before response publication, and bind partial TLS writes to stable
 monotonic receipts. Then proceed in order to Erect/Attach/Join.
+
+
+### R1 loopback accept visibility final hosted result (2026-10-16)
+
+Correction SHA `45dc57878bcc741a87bd2ba8b9b9edf15588f062`,
+[Actions 38873727660](https://github.com/k1moradi/RDP-server/actions/runs/38873727660).
+The bounded accept fixture correction is verified across the exact R1 cases:
+macOS/AppleClang **265/265 Debug and 265/265 Release PASS**;
+Windows/MSVC **288/288 Debug and 288/288 Release PASS**;
+Linux/GCC **289/289 Debug PASS**. Linux Release compiled successfully and
+every R1 transport test passed, including
+`transport.tcp-native-accepted-peer-endpoint`,
+`transport.tcp-owned-tls-application-io`,
+`transport.tcp-owned-tls-application-partial-write`, and
+`transport.tcp-owned-tls-application-cancellation`, but the full suite was
+**288/289** because unrelated
+`x11.desktop-resource-owner-lifecycle` failed at
+`tests/test_x11_desktop_resources.cpp:115` on
+`assert(resources.valid())`. That X11 failure is outside R1 and is not
+modified here. R9 sanitizer and documentation-policy jobs **PASS**; the
+overall workflow conclusion is therefore **FAIL** solely because of the
+Linux Release X11 failure.
+
+No production R1 source changed in this correction. The immutable accepted
+peer endpoint, bounded post-TLS application I/O, sole socket/BIO/SSL
+ownership, R2/R3 authorization separation and R10 listener ownership remain
+unchanged. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and
+real Microsoft-client validation remain **NOT RUN**; M2 remains
+**NOT ACCEPTED**. **Next R1 dependency:** consume concrete R2/R3 integration
+feedback; do not add another transport surface without a demonstrated
+missing hook.

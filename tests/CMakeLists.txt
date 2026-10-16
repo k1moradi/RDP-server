@@ -919,6 +919,39 @@ foreach(case_name IN ITEMS owned-shape validation-denials topology-revocation)
     set_tests_properties("macos.cursor-${case_name}" PROPERTIES
         LABELS "macos;cursor;offline")
 endforeach()
+
+# R7 macOS input state/translation tests are permission-free on every OS.
+# Apple compile/links the dormant Quartz emitter, but ordinary CTest reaches
+# only the injected callback seam and synthetic display geometry.
+add_executable(test_macos_input_controller
+    test_macos_input_controller.cpp)
+target_include_directories(test_macos_input_controller PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
+if(APPLE)
+    target_link_libraries(test_macos_input_controller PRIVATE
+        rdp-server-macos-capture)
+else()
+    target_sources(test_macos_input_controller PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/desktop_display_geometry.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/mac_input_controller.cpp")
+endif()
+if(MSVC)
+    target_compile_options(test_macos_input_controller PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_macos_input_controller PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS lifecycle validation-denials revocation-cleanup)
+    add_test(NAME "macos.input-controller-${case_name}"
+        COMMAND test_macos_input_controller "${case_name}")
+    set_tests_properties("macos.input-controller-${case_name}" PROPERTIES
+        LABELS "macos;input;offline")
+endforeach()
+
 if(APPLE)
     foreach(case_name IN ITEMS ownership native-denials native-move-replacement)
         add_test(NAME "macos.capture-bgra-buffer-${case_name}"

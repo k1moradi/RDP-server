@@ -521,6 +521,7 @@ if(APPLE)
     find_library(RDP_SERVER_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
     find_library(RDP_SERVER_FOUNDATION_FRAMEWORK Foundation REQUIRED)
     find_library(RDP_SERVER_APPKIT_FRAMEWORK AppKit REQUIRED)
+    find_library(RDP_SERVER_APPLICATIONSERVICES_FRAMEWORK ApplicationServices REQUIRED)
     find_library(RDP_SERVER_COREMEDIA_FRAMEWORK CoreMedia REQUIRED)
     find_library(RDP_SERVER_SCREENCAPTUREKIT_FRAMEWORK ScreenCaptureKit REQUIRED)
     add_library(rdp-server-macos-capture STATIC
@@ -534,6 +535,8 @@ if(APPLE)
         src/platform/macos/native_display_reconfiguration.cpp
         src/platform/macos/mac_cursor_snapshot.cpp
         src/platform/macos/mac_cursor_snapshot.mm
+        src/platform/macos/mac_input_controller.cpp
+        src/platform/macos/mac_input_controller.mm
         src/platform/macos/screen_capture_stream.cpp
         src/platform/macos/screen_capture_stream.mm)
     set_source_files_properties(
@@ -553,6 +556,7 @@ if(APPLE)
         "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}"
         "${RDP_SERVER_FOUNDATION_FRAMEWORK}"
         "${RDP_SERVER_APPKIT_FRAMEWORK}"
+        "${RDP_SERVER_APPLICATIONSERVICES_FRAMEWORK}"
         "${RDP_SERVER_COREMEDIA_FRAMEWORK}"
         "${RDP_SERVER_SCREENCAPTUREKIT_FRAMEWORK}")
     target_compile_options(rdp-server-macos-capture PRIVATE

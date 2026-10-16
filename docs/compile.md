@@ -480,3 +480,10 @@ measurement and must not silently change frame ordering or ownership.
 The Apple-only `rdp-server-macos-capture` target now also compiles `mac_cursor_snapshot.mm` with ARC and links AppKit in addition to the existing ScreenCaptureKit/CoreGraphics/CoreVideo stack. AppKit is not linked into the portable protocol SDK or non-Apple builds. Deprecated system-wide cursor introspection calls are locally warning-suppressed only in this translation unit; the target otherwise retains `-Wall -Wextra -Wpedantic -Werror`.
 
 The existing `test_macos_capture_pixel_buffer` executable gains three synthetic cursor cases on every OS. Non-Apple builds compile only `mac_cursor_snapshot.cpp`; Apple additionally compile/links the real AppKit bridge through `rdp-server-macos-capture`, but ordinary CTest never invokes `queryNativeMacCursorSnapshot`. No TCC prompt, live cursor read or input event is part of the standard test command.
+
+
+## R7 generation-pinned macOS input controller (2026-10-16)
+
+The Apple-only `rdp-server-macos-capture` target also compiles `mac_input_controller.mm` and links ApplicationServices for the non-prompting Accessibility trust query; CoreGraphics already supplies Quartz event construction/posting. The native posting callback remains private to that translation unit and is not runtime-wired. No extra framework dependency reaches the installed portable protocol SDK or non-Apple builds.
+
+`test_macos_input_controller` is registered on every OS with three ordinary cases: `macos.input-controller-lifecycle`, `macos.input-controller-validation-denials`, and `macos.input-controller-revocation-cleanup`. Non-Apple builds compile the portable controller plus synthetic geometry sources directly. Apple links the production macOS target, which compile/links the real Quartz/ApplicationServices bridge, but the tests inject their own callback and never query Accessibility or post native events.

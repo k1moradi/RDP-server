@@ -95,6 +95,11 @@ bool X264Avc420SegmentedFrameProducer::prepare(
         return false;
     }
 
+    // Bad NV12 pitch/extent is a deterministic caller denial, not an x264
+    // failure. Preserve delivered reference history (no recovery IDR).
+    if (!encoder_.canEncodePicture(request.picture))
+        return false;
+
     X264EncodedPicture encoded;
     if (!encoder_.encode(request.picture, encoded))
     {

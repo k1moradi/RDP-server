@@ -678,6 +678,86 @@ void duplicatePendingFrameIdPreservesReferences()
     }
 }
 
+
+void malformedNv12PreflightPreservesReferences()
+{
+    constexpr std::uint64_t generation = 6301;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+
+    const auto initialPixels = makeFrame(kCoded, 9);
+    const auto laterPixels = makeFrame(kCoded, 24);
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepare(
+        lifecycle, generation, request(70, initialPixels, 0), first));
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+
+    GfxFrameAckWindowResult acknowledged{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(70), acknowledged));
+    assert(acknowledged == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0);
+
+    // Each malformed span or stride is rejected by the real encoder's
+    // shared extent validator before x264 can consume a reference picture.
+    const auto valid = request(71, laterPixels, 1);
+    const auto reject = [&](const X264Nv12PictureView &invalidPicture)
+    {
+        X264Avc420FrameRequest invalid = valid;
+        invalid.picture = invalidPicture;
+        GfxAvc420SegmentedFrame rejected;
+        assert(!producer.prepare(lifecycle, generation, invalid, rejected));
+        assert(!rejected.valid());
+        assert(producer.valid());
+        assert(lifecycle.canReserveFrame(generation, 71));
+        assert(lifecycle.outstandingFrames() == 0);
+    };
+
+    {
+        auto malformed = valid.picture;
+        malformed.yPlane = malformed.yPlane.first(malformed.yPlane.size() - 1U);
+        reject(malformed);
+    }
+    {
+        auto malformed = valid.picture;
+        malformed.uvPlane =
+            malformed.uvPlane.first(malformed.uvPlane.size() - 1U);
+        reject(malformed);
+    }
+    {
+        auto malformed = valid.picture;
+        malformed.yStrideBytes = kCoded.widthPixels - 1U;
+        reject(malformed);
+    }
+    {
+        auto malformed = valid.picture;
+        malformed.uvStrideBytes =
+            std::numeric_limits<std::size_t>::max();
+        reject(malformed);
+    }
+    {
+        auto malformed = valid.picture;
+        malformed.codedGeometry = {kCoded.widthPixels + 16U,
+                                   kCoded.heightPixels};
+        reject(malformed);
+    }
+    {
+        auto malformed = valid.picture;
+        malformed.yPlane = {};
+        reject(malformed);
+    }
+
+    // No deterministic denial may force an IDR in the next valid frame.
+    GfxAvc420SegmentedFrame second;
+    assert(producer.prepare(lifecycle, generation, valid, second));
+    assert(hasNalType(second.wireBytes(), 1));
+    assert(!hasNalType(second.wireBytes(), 5));
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -698,6 +778,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-metadata-preflight")
     {
         metadataPreflightPreservesReferences();
+        return 0;
+    }
+    if (behavior == "x264-segmented-malformed-nv12-reference-continuity")
+    {
+        malformedNv12PreflightPreservesReferences();
         return 0;
     }
     if (behavior == "x264-segmented-duplicate-id-reference-continuity")

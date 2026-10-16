@@ -1,3 +1,53 @@
+## R4 deterministic malformed-NV12 preflight before x264 references (2026-10-16; hosted CI pending)
+
+Starting inspected shared `main`: `06e4793eb7a78ea86bfb7f072b8642f1ec90d1d7`.
+Previous R4 ACK-pending frame-ID gate landed at
+[`f5e19b8d997ba31501f856e68ec90e61c7c01535`](https://github.com/k1moradi/RDP-server/commit/f5e19b8d997ba31501f856e68ec90e61c7c01535);
+[exact-SHA Actions 38897649670](https://github.com/k1moradi/RDP-server/actions/runs/38897649670)
+completed **SUCCESS**: Linux/GCC Debug+Release 387/387 each,
+macOS/Clang Debug+Release 333/333 each, Windows/MSVC Debug+Release
+358/358 each. The new duplicate-ID regression **PASS** on all six
+hosted configurations; documentation policy and R9 selected sanitizers
+**PASS**. Hosted SDK downstream checks **PASS**. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23, macOS27 and real client acceptance
+remain **NOT RUN**.
+
+The subsequent R4 maintenance audit found a distinct, deterministic
+pre-encode source denial. `X264Avc420Encoder::encode()` already refuses
+incorrect coded geometry, truncated Y/UV rows, too-short or out-of-range
+strides and arithmetic overflow **before invoking x264**. However, the
+existing `X264Avc420SegmentedFrameProducer::prepare()` treated every
+`encode()` failure as uncertain codec state and rebuilt x264, forcing
+an unnecessary IDR on the next valid frame. Invalid caller-owned
+NV12 bytes cannot corrupt a codec that was never called.
+
+The existing noninstalled x264 encoder now exposes an allocation-free
+`canEncodePicture()` predicate, sharing exactly the same plane/stride
+validation with `encode()` (no duplicated validator). The one R4 producer
+preflights NV12 geometry and storage using this predicate before stateful
+encode, without resetting the encoder on deterministic denial. All
+post-x264 failures still conservatively rebuild the reference chain;
+presentation generation, RDPGFX metadata/ACK authority, BGRA scratch,
+transport full-send and R2/R3 authorization remain unchanged.
+
+New production-linked ordinary CTest
+`graphics.x264-segmented-malformed-nv12-reference-continuity`
+establishes a genuinely encoded/delivered/ACKed IDR, rejects truncated
+Y/UV planes, under-width Y pitch, oversized UV pitch, mismatched coded
+geometry and empty Y plane while keeping the existing ACK state unchanged,
+then requires the next valid picture to remain a non-IDR P-slice.
+It runs in the existing segmented producer executable and centralized
+CTest registry; no new runner or graphics owner.
+
+**Authoring gate:** source/tests/central registry/docs written; canonical
+owner-local `~/rdp-server/build` configure/build/full CTest **NOT RUN**
+because this connector session lacks the home checkout. New exact-final-SHA
+hosted Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release, R9 selected
+sanitizers, documentation-policy and SDK consumer must be inspected after
+publication. Owner three-OS, actual authenticated Graphics DVC, live
+desktop/native capture, Microsoft-client rendering and performance
+remain **NOT RUN/BLOCKED**. Gate B, M3/M4/M5 remain **OPEN**.
+
 ## R9 Client Info / NLA sanitizer coverage reconciliation (2026-10-16; exact-SHA CI pending)
 
 **Publication parent after concurrent reconciliation:** `92a0820d88312de8f7a0a1ae7e733cfc0c2532f8`.

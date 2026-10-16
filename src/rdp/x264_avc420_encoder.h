@@ -58,6 +58,12 @@ public:
     [[nodiscard]] PixelSize codedGeometry() const noexcept;
     [[nodiscard]] PixelSize visibleGeometry() const noexcept;
 
+    // Check all deterministic NV12 plane extents/strides without touching
+    // x264 reference state. The producer uses this before stateful encode;
+    // encode() enforces the same predicate for direct callers.
+    [[nodiscard]] bool canEncodePicture(
+        const X264Nv12PictureView &picture) const noexcept;
+
     [[nodiscard]] bool encode(const X264Nv12PictureView &picture,
                               X264EncodedPicture &output) noexcept;
 

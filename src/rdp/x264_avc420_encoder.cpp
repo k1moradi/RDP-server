@@ -157,16 +157,22 @@ PixelSize X264Avc420Encoder::visibleGeometry() const noexcept
     return valid() ? impl_->visible : PixelSize{};
 }
 
+bool X264Avc420Encoder::canEncodePicture(
+    const X264Nv12PictureView &picture) const noexcept
+{
+    return valid() && picture.codedGeometry == impl_->coded &&
+           planeExtentValid(picture.yPlane, picture.yStrideBytes,
+                            picture.codedGeometry.widthPixels,
+                            picture.codedGeometry.heightPixels) &&
+           planeExtentValid(picture.uvPlane, picture.uvStrideBytes,
+                            picture.codedGeometry.widthPixels,
+                            picture.codedGeometry.heightPixels / 2U);
+}
+
 bool X264Avc420Encoder::encode(const X264Nv12PictureView &picture,
                                X264EncodedPicture &output) noexcept
 {
-    if (!valid() || picture.codedGeometry != impl_->coded ||
-        !planeExtentValid(picture.yPlane, picture.yStrideBytes,
-                          picture.codedGeometry.widthPixels,
-                          picture.codedGeometry.heightPixels) ||
-        !planeExtentValid(picture.uvPlane, picture.uvStrideBytes,
-                          picture.codedGeometry.widthPixels,
-                          picture.codedGeometry.heightPixels / 2U))
+    if (!canEncodePicture(picture))
         return false;
 
     x264_picture_t input{};

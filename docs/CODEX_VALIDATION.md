@@ -1,3 +1,42 @@
+## R4 malformed NV12 pre-encode reference continuity (2026-10-16)
+
+**Starting inspected `main`:**
+`06e4793eb7a78ea86bfb7f072b8642f1ec90d1d7`.
+**Baseline R4 CI:** [Actions 38897649670](https://github.com/k1moradi/RDP-server/actions/runs/38897649670)
+for `f5e19b8d997ba31501f856e68ec90e61c7c01535` **SUCCESS**.
+Linux/GCC Debug+Release each **387/387 PASS**, macOS/Clang Debug+Release
+each **333/333 PASS**, Windows/MSVC Debug+Release each **358/358 PASS**;
+the new duplicate-ID preflight regression, documentation policy and
+selected R9 sanitizer job **PASS**. Hosted downstream SDK **PASS**.
+This is offline protocol evidence only.
+
+**New R4 production:** `X264Avc420Encoder::canEncodePicture()` reuses
+existing deterministic NV12 geometry/plane/stride checks before x264;
+`encode()` also delegates to it for consistent validation.
+`X264Avc420SegmentedFrameProducer::prepare()` now rejects malformed
+NV12 before calling stateful x264, keeping the previous reference
+chain for the next valid P-frame. Unexpected actual encoder failure
+or post-encode reservation failure still forces recovery IDR.
+No public installed SDK ABI, wire format, platform capture or channel
+authorization change.
+
+**Dedicated regression added:**
+`graphics.x264-segmented-malformed-nv12-reference-continuity` in the
+existing production-linked x264 segmented producer and central
+`tests/CMakeLists.txt`. Verify one delivered/ACKed IDR, six malformed
+NV12 views denied with unchanged ACK/producer state, and a later
+valid P-slice without IDR.
+
+**New-change validation:** source review/CTest registration **PASS**;
+owner-machine canonical one-root build/full CTest **NOT RUN** (the
+connector-only host lacks `~/rdp-server`); hosted exact-final-SHA
+Linux/GCC, Windows/MSVC, macOS/Clang Debug/Release, R9 selected sanitizer,
+docs policy, installed SDK consumer **NOT RUN** at authoring. Command:
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`.
+Owner Windows MSYS2 CLANG64/Clang23, Linux/X11, macOS27, live Microsoft
+client, authenticated R3 Graphics DVC/full-send and M3/M4/M5 are
+**NOT RUN/OPEN**. No real client acceptance is inferred from offline tests.
+
 ## R9 sanitizer registry-drift reconciliation (2026-10-16)
 
 **Reconciled publication parent:** `92a0820d88312de8f7a0a1ae7e733cfc0c2532f8`.

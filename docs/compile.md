@@ -473,3 +473,10 @@ The first integration deliberately uses x264's portable C implementation with
 one encoder thread and no assembly optimizations. This is a correctness-first
 cross-platform build contract; SIMD/thread tuning requires later R4/R9
 measurement and must not silently change frame ordering or ownership.
+
+
+## R7 generation-safe macOS cursor snapshot boundary (2026-10-16)
+
+The Apple-only `rdp-server-macos-capture` target now also compiles `mac_cursor_snapshot.mm` with ARC and links AppKit in addition to the existing ScreenCaptureKit/CoreGraphics/CoreVideo stack. AppKit is not linked into the portable protocol SDK or non-Apple builds. Deprecated system-wide cursor introspection calls are locally warning-suppressed only in this translation unit; the target otherwise retains `-Wall -Wextra -Wpedantic -Werror`.
+
+The existing `test_macos_capture_pixel_buffer` executable gains three synthetic cursor cases on every OS. Non-Apple builds compile only `mac_cursor_snapshot.cpp`; Apple additionally compile/links the real AppKit bridge through `rdp-server-macos-capture`, but ordinary CTest never invokes `queryNativeMacCursorSnapshot`. No TCC prompt, live cursor read or input event is part of the standard test command.

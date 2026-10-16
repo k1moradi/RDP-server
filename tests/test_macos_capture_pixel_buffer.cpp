@@ -5,6 +5,7 @@
 #include "platform/macos/native_display_refresh.h"
 #include "platform/macos/native_display_reconfiguration.h"
 #include "platform/macos/native_display_geometry.h"
+#include "platform/macos/mac_cursor_snapshot.h"
 #include "platform/macos/screen_capture_preflight.h"
 
 #if defined(__APPLE__)
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -807,6 +809,149 @@ void testNativeReconfigurationSignalRevision() {
     assert(NativeDisplayReconfigurationWatch::changedSince(secondRevision));
 }
 
+
+void testMacCursorOwnedShape() {
+    using namespace rdp::macos;
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto generation = geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(generation && geometry.usable(*generation));
+
+    auto storage = std::make_unique_for_overwrite<std::byte[]>(16);
+    for (std::size_t index = 0; index < 16; ++index) {
+        storage[index] = static_cast<std::byte>(index);
+    }
+    auto* const ownedAddress = storage.get();
+    MacNativeCursorObservation observation{
+        true, {0.5, 0.5}, 2, 2, 1, 1, 8};
+    auto snapshot = makeMacCursorSnapshot(
+        geometry, *generation, observation, std::move(storage), 16);
+    assert(snapshot && snapshot->valid());
+    assert(storage == nullptr);
+    assert(snapshot->visible);
+    assert(snapshot->position.displayId == 100);
+    assert(snapshot->position.absoluteX == 1 &&
+           snapshot->position.absoluteY == 1);
+    assert(snapshot->position.virtualX == 1 &&
+           snapshot->position.virtualY == 1);
+    assert(snapshot->widthPixels == 2 && snapshot->heightPixels == 2);
+    assert(snapshot->hotspotX == 1 && snapshot->hotspotY == 1);
+    assert(snapshot->bytesPerRow == 8 && snapshot->pixels().size() == 16);
+    assert(snapshot->pixels().data() == ownedAddress);
+    assert(snapshot->geometryGeneration == *generation);
+    assert(snapshot->topologyRevision != 0);
+
+    auto moved = std::move(*snapshot);
+    assert(moved.valid() && moved.pixels().data() == ownedAddress);
+    assert(snapshot->pixels().empty());
+}
+
+void testMacCursorValidationDenials() {
+    using namespace rdp::macos;
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto generation = geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(generation);
+
+    auto hidden = makeMacCursorSnapshot(
+        geometry, *generation, MacNativeCursorObservation{}, {}, 0);
+    assert(hidden && hidden->valid() && !hidden->visible);
+    assert(hidden->pixels().empty());
+
+    MacNativeCursorObservation hiddenWithShape{};
+    hiddenWithShape.widthPixels = 1;
+    const auto invalidHidden = makeMacCursorSnapshot(
+        geometry, *generation, hiddenWithShape, {}, 0);
+    assert(!invalidHidden &&
+           invalidHidden.error() == MacCursorSnapshotError::InvalidObservation);
+
+    const MacNativeCursorObservation visible{
+        true, {1.0, 1.0}, 2, 2, 1, 1, 8};
+    const auto missingStorage = makeMacCursorSnapshot(
+        geometry, *generation, visible, {}, 16);
+    assert(!missingStorage &&
+           missingStorage.error() == MacCursorSnapshotError::InvalidObservation);
+
+    auto oversized = visible;
+    oversized.widthPixels = kMaximumMacCursorDimension + 1;
+    const auto oversizedResult = makeMacCursorSnapshot(
+        geometry, *generation, oversized,
+        std::make_unique_for_overwrite<std::byte[]>(16), 16);
+    assert(!oversizedResult &&
+           oversizedResult.error() == MacCursorSnapshotError::InvalidObservation);
+
+    auto invalidHotspot = visible;
+    invalidHotspot.hotspotX = invalidHotspot.widthPixels;
+    const auto hotspotResult = makeMacCursorSnapshot(
+        geometry, *generation, invalidHotspot,
+        std::make_unique_for_overwrite<std::byte[]>(16), 16);
+    assert(!hotspotResult &&
+           hotspotResult.error() == MacCursorSnapshotError::InvalidObservation);
+
+    auto invalidStride = visible;
+    invalidStride.bytesPerRow = 9;
+    const auto strideResult = makeMacCursorSnapshot(
+        geometry, *generation, invalidStride,
+        std::make_unique_for_overwrite<std::byte[]>(16), 16);
+    assert(!strideResult &&
+           strideResult.error() == MacCursorSnapshotError::InvalidObservation);
+
+    const auto shortBuffer = makeMacCursorSnapshot(
+        geometry, *generation, visible,
+        std::make_unique_for_overwrite<std::byte[]>(15), 15);
+    assert(!shortBuffer &&
+           shortBuffer.error() == MacCursorSnapshotError::InvalidObservation);
+
+    auto outside = visible;
+    outside.position = {1512.0, 0.0};
+    const auto outsideResult = makeMacCursorSnapshot(
+        geometry, *generation, outside,
+        std::make_unique_for_overwrite<std::byte[]>(16), 16);
+    assert(!outsideResult &&
+           outsideResult.error() == MacCursorSnapshotError::PositionOutsideDesktop);
+
+    const auto zeroGeneration = makeMacCursorSnapshot(
+        geometry, 0, MacNativeCursorObservation{}, {}, 0);
+    assert(!zeroGeneration &&
+           zeroGeneration.error() == MacCursorSnapshotError::InvalidGeneration);
+    const auto staleGeneration = makeMacCursorSnapshot(
+        geometry, *generation + 1, MacNativeCursorObservation{}, {}, 0);
+    assert(!staleGeneration &&
+           staleGeneration.error() ==
+               MacCursorSnapshotError::StaleGeometryGeneration);
+}
+
+void testMacCursorTopologyRevocation() {
+    using namespace rdp::macos;
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto oldGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(oldGeneration && geometry.usable(*oldGeneration));
+    const auto oldRevision = geometry.topologyRevision(*oldGeneration);
+    assert(oldRevision && *oldRevision != 0);
+
+    NativeDisplayReconfigurationWatch::recordTopologyChange();
+    const auto staleTopology = makeMacCursorSnapshot(
+        geometry, *oldGeneration, MacNativeCursorObservation{}, {}, 0);
+    assert(!staleTopology &&
+           staleTopology.error() == MacCursorSnapshotError::StaleTopology);
+
+    fixture = nativeDisplayFixture();
+    const auto newGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(newGeneration && *newGeneration > *oldGeneration);
+    const auto staleGeneration = makeMacCursorSnapshot(
+        geometry, *oldGeneration, MacNativeCursorObservation{}, {}, 0);
+    assert(!staleGeneration &&
+           staleGeneration.error() ==
+               MacCursorSnapshotError::StaleGeometryGeneration);
+    const auto freshHidden = makeMacCursorSnapshot(
+        geometry, *newGeneration, MacNativeCursorObservation{}, {}, 0);
+    assert(freshHidden && freshHidden->valid() && !freshHidden->visible);
+    assert(freshHidden->topologyRevision != *oldRevision);
+}
+
 } // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -844,6 +989,12 @@ int main(const int argument_count, const char* const arguments[]) {
         testNativeReconfigurationDuringRead();
     } else if (test_case == "native-reconfiguration-revision-sequence") {
         testNativeReconfigurationSignalRevision();
+    } else if (test_case == "cursor-owned-shape") {
+        testMacCursorOwnedShape();
+    } else if (test_case == "cursor-validation-denials") {
+        testMacCursorValidationDenials();
+    } else if (test_case == "cursor-topology-revocation") {
+        testMacCursorTopologyRevocation();
     } else if (test_case == "geometry-native-single-retina") {
         testNativeGeometrySingleRetina();
     } else if (test_case == "geometry-native-uniform-multi-display") {

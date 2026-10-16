@@ -1,3 +1,33 @@
+## R10 sealed-keytab seal-query fail-closed correction (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main`: `f9704cacd236f2d2344fa20508570c44e2a2bbdd`. Post-publication review of
+`14ba20d89ec784241ec451eaeb1fdc371f751fba` found one error-path bug in
+the immutable keytab snapshot verification: `fcntl(F_GET_SEALS)` returns
+`-1` on failure, and masking that value directly makes every required seal
+bit appear set. The snapshot creation itself still required successful
+`F_ADD_SEALS`, but the verification expression was not fail-closed.
+
+Production now records the `F_GET_SEALS` result and requires it to be
+nonnegative before comparing `F_SEAL_WRITE | F_SEAL_GROW |
+F_SEAL_SHRINK | F_SEAL_SEAL`. A seal-query error therefore closes the
+snapshot and rejects configuration. The one-byte source-growth probe now
+reuses the existing cleansed copy buffer rather than a separate stack byte.
+
+The dedicated
+`runtime.linux-security-keytab-snapshot-mutation-continuity` CTest and all
+prior R10 Linux provisioning/process tests remain registered; no listener,
+authentication success or R3 path is added.
+
+**Authoring PASS:** exact seal-verification probe under
+`~/rdp-server/build/r10-probe/` compiled with GCC C++23
+`-Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion` and with
+Clang ASan+UBSan using the same warning set. Both runs report
+`verified=1 seals=0xf pwrite=-1 errno=1`; post-seal writes fail with
+`EPERM` and no sanitizer finding is reported.
+
+**Next gate remains unchanged:** exact-SHA Linux compilation and all R10
+Linux-security CTests before provisioning promotion or any listener.
+
 ## R2 R1-owned HYBRID provenance gate (2026-10-16; exact-SHA CI pending)
 
 Initial inspected shared `main`:

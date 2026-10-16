@@ -221,9 +221,10 @@ struct SensitiveCopyBuffer final
         offset += static_cast<off_t>(count);
     }
 
-    unsigned char extraByte = 0;
     const ssize_t extraRead = copied
-        ? preadRetry(sourceDescriptor, &extraByte, 1U, before.st_size)
+        ? preadRetry(
+              sourceDescriptor, copyBuffer.bytes.data(), 1U,
+              before.st_size)
         : -1;
     struct stat after {};
     const bool sourceStable =
@@ -233,12 +234,15 @@ struct SensitiveCopyBuffer final
 
     constexpr int requiredSeals =
         F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
-    const bool sealed =
+    const bool sealsAdded =
         sourceStable &&
         ::fchmod(snapshotDescriptor, S_IRUSR) == 0 &&
-        ::fcntl(snapshotDescriptor, F_ADD_SEALS, requiredSeals) == 0 &&
-        (::fcntl(snapshotDescriptor, F_GET_SEALS) & requiredSeals) ==
-            requiredSeals;
+        ::fcntl(snapshotDescriptor, F_ADD_SEALS, requiredSeals) == 0;
+    const int observedSeals =
+        sealsAdded ? ::fcntl(snapshotDescriptor, F_GET_SEALS) : -1;
+    const bool sealed =
+        observedSeals >= 0 &&
+        (observedSeals & requiredSeals) == requiredSeals;
     if (!sealed)
     {
         (void)::close(snapshotDescriptor);

@@ -1,3 +1,65 @@
+## R2 R1-owned HYBRID provenance gate (2026-10-16; exact-SHA CI pending)
+
+Initial inspected shared `main`:
+`23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`; implementation was reconciled
+through concurrent work onto `8132e5ab2fd85161f6ffef559f28d5b11bc51531`
+before publication.
+
+R2 positive Linux console admission no longer accepts a caller-selected TLS
+object as sufficient connection provenance. The positive
+`LinuxConsoleAdmissionBroker::issue` overload now consumes the exact
+R1-owned `OwnedPreauthTcpConnection`, synchronously derives
+`establishedTls()` plus immutable `securityNegotiationProvenance()`, and
+requires both a genuine client `PROTOCOL_HYBRID` offer and an actual server
+`PROTOCOL_HYBRID` selection before any logind monitor, NSS/logind sampling or
+lease creation. The existing GSS provider principal/TLS pointer, selected
+certificate, native policy/session fingerprint, permissions, one-shot broker
+state and generation/expiry checks remain unchanged. The historical raw
+`SSL*` issuance overload remains only for source compatibility and is now
+terminal deny-only.
+
+The same owner fence now applies to R2 revalidation and every positive
+protected R3 handoff, including the first MCS Connect Initial. R3 generation
+matching is still revocation-only, R3 remains the sole MCS state owner, and
+protected denial closes R3 before revoking R2/GSS. No caller-supplied protocol
+mask, selected-protocol scalar, authenticated flag or standalone SSL pointer
+can substitute for R1's stored negotiation snapshot.
+
+A small `hasHybridNlaNegotiationProvenance()` predicate exists only to test
+the protocol shape. It cannot mint a lease or authorize R3 and is positive
+only for offered+selected HYBRID. Dedicated Linux CTests reuse the existing
+GSS executable:
+`security.gssapi-native-admission-r1-nla-provenance-denials` and
+`security.gssapi-r3-initial-nla-owner-fence`. The first drives genuine R1
+loopback X.224/TCP/OpenSSL ownership and covers inactive ownership, incomplete
+TLS, established diagnostic SSL, HYBRID offered while SSL is selected,
+cancelled ownership, legacy raw-SSL denial and terminal replay. The second
+enforces compile-time owner-only initial/protected R3 APIs and terminal
+R3→R2/GSS cleanup without fabricating a lease.
+
+Current R1 production negotiation still intentionally selects diagnostic
+`PROTOCOL_SSL`, including when the client offers HYBRID. Therefore this R2
+increment strengthens the denial boundary and does **not** create a positive
+authenticated session. The required dependency remains:
+
+**R1 genuine PROTOCOL_HYBRID negotiation → R2 TLS-bound GSS/CredSSP and
+independent native OS admission → R3 sole authenticated session.**
+
+This gate does not complete the first item. R1 must add genuine production
+HYBRID negotiation under the appropriate serving configuration, and R10 must
+later compose the live listener/service ownership, before M2 can become
+positive.
+
+**Authoring validation:** source/test/docs review completed against the
+reconciled shared head. The canonical owner command in
+`~/rdp-server/build/` is **NOT RUN** in this execution environment because
+the owner checkout is not available locally; no alternate build root was
+created. Exact-SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC,
+documentation-policy and focused/full CTest evidence is required after
+publication. Genuine Kerberos client-ticket exchange, logind-positive
+admission, Microsoft-client M2 acceptance, owner Linux/X11, owner Windows
+MSYS2 CLANG64/Clang23 and owner macOS27 are **NOT RUN**.
+
 ## R10 sealed-keytab publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Implementation commit: `14ba20d89ec784241ec451eaeb1fdc371f751fba`

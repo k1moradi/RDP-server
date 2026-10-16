@@ -27,6 +27,32 @@ namespace
 inline constexpr std::int64_t kAdmissionValidityMilliseconds = 1000;
 std::atomic<std::uint64_t> nextAdmissionGeneration{1};
 
+struct R1HybridNlaSecurityView
+{
+    const SSL *activeServerTls{};
+    rdp_server::server::transport::SecurityNegotiationProvenance provenance{};
+};
+
+[[nodiscard]] std::optional<R1HybridNlaSecurityView>
+r1HybridNlaSecurityView(
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection) noexcept
+{
+    if (!connection.active())
+    {
+        return std::nullopt;
+    }
+
+    const SSL *activeServerTls = connection.establishedTls();
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (activeServerTls == nullptr ||
+        !hasHybridNlaNegotiationProvenance(provenance))
+    {
+        return std::nullopt;
+    }
+    return R1HybridNlaSecurityView{activeServerTls, *provenance};
+}
+
 [[nodiscard]] std::optional<std::int64_t> steadyMilliseconds() noexcept
 {
     const auto count = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -310,7 +336,8 @@ ConsoleEvidenceRequest LinuxConsoleAdmissionBroker::requestView(
 std::optional<LinuxConsoleAdmissionLease>
 LinuxConsoleAdmissionBroker::issue(
     GssapiSpnegoAcceptor &acceptor,
-    const SSL *activeServerTls,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
     const ConsoleEvidenceRequest &request) noexcept
 {
     if (state_ != LinuxConsoleAdmissionState::Ready)
@@ -318,6 +345,18 @@ LinuxConsoleAdmissionBroker::issue(
         deny(acceptor);
         return std::nullopt;
     }
+
+    // Reject invalid protocol/transport provenance before constructing a
+    // native change monitor or sampling NSS/logind. R1 currently selects
+    // diagnostic PROTOCOL_SSL, so production admission remains intentionally
+    // negative until R1 implements genuine HYBRID negotiation.
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (!r1Security)
+    {
+        deny(acceptor);
+        return std::nullopt;
+    }
+    const SSL *activeServerTls = r1Security->activeServerTls;
 
     const std::uint64_t policyGeneration = policy_.generation();
     const std::string_view proven =
@@ -404,7 +443,22 @@ LinuxConsoleAdmissionBroker::issue(
     return std::optional<LinuxConsoleAdmissionLease>{std::move(lease)};
 }
 
-bool LinuxConsoleAdmissionBroker::revalidate(
+std::optional<LinuxConsoleAdmissionLease>
+LinuxConsoleAdmissionBroker::issue(
+    GssapiSpnegoAcceptor &acceptor,
+    const SSL *activeServerTls,
+    const ConsoleEvidenceRequest &request) noexcept
+{
+    // Compatibility only: an arbitrary SSL* cannot establish that the same
+    // R1-owned connection selected NLA/HYBRID. Never sample native evidence
+    // or preserve GSS state through this route.
+    (void)activeServerTls;
+    (void)request;
+    deny(acceptor);
+    return std::nullopt;
+}
+
+bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,
     const SSL *activeServerTls) noexcept
@@ -417,7 +471,6 @@ bool LinuxConsoleAdmissionBroker::revalidate(
         changes_ == nullptr ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
-        deny(acceptor);
         return false;
     }
 
@@ -436,41 +489,76 @@ bool LinuxConsoleAdmissionBroker::revalidate(
         acceptor.verifiedPrincipalForTls(activeServerTls) != leasePrincipal ||
         !refreshDeadline(lease.admissionGeneration_))
     {
-        deny(acceptor);
         return false;
     }
     return !lease.isRevoked();
 }
 
-bool LinuxConsoleAdmissionBroker::authorizes(
+bool LinuxConsoleAdmissionBroker::authorizationChecksPass(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,
     const SSL *activeServerTls,
     std::uint32_t requiredPermissions) noexcept
 {
-    if (requiredPermissions == 0 ||
-        (requiredPermissions & ~kConsoleAllowedPermissions) != 0 ||
-        (lease.permissions_ & requiredPermissions) != requiredPermissions)
+    return requiredPermissions != 0 &&
+           (requiredPermissions & ~kConsoleAllowedPermissions) == 0 &&
+           (lease.permissions_ & requiredPermissions) == requiredPermissions &&
+           revalidationChecksPass(lease, acceptor, activeServerTls);
+}
+
+bool LinuxConsoleAdmissionBroker::revalidate(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection) noexcept
+{
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (r1Security &&
+        revalidationChecksPass(
+            lease, acceptor, r1Security->activeServerTls))
     {
-        deny(acceptor);
-        return false;
+        return true;
     }
-    return revalidate(lease, acceptor, activeServerTls);
+    deny(acceptor);
+    return false;
+}
+
+bool LinuxConsoleAdmissionBroker::authorizes(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
+    std::uint32_t requiredPermissions) noexcept
+{
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (r1Security &&
+        authorizationChecksPass(
+            lease, acceptor, r1Security->activeServerTls,
+            requiredPermissions))
+    {
+        return true;
+    }
+    deny(acceptor);
+    return false;
 }
 
 rdp_server::server::transport::McsSessionIntake
 LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,
-    const SSL *activeServerTls,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     using rdp_server::server::transport::McsSessionIntake;
-    if (!authorizes(
-            lease, acceptor, activeServerTls, kConsoleViewPermission))
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (!r1Security ||
+        !authorizationChecksPass(
+            lease, acceptor, r1Security->activeServerTls,
+            kConsoleViewPermission))
     {
-        session.close();
+        revokeR3Session(acceptor, session);
         return McsSessionIntake::AdmissionDenied;
     }
 
@@ -486,16 +574,16 @@ LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     return result;
 }
 
-bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
+bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransitionForEstablishedTls(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,
     const SSL *activeServerTls,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint32_t requiredPermissions) noexcept
 {
-    // Fence the R3 owner against this exact nonforgeable lease before any
-    // potentially blocking native evidence sampling. Scalars are never used
-    // as positive authority: the session method can only retain or revoke.
+    // This private helper is reachable only after the caller derived an
+    // established TLS pointer plus genuine HYBRID provenance from one live
+    // R1 owner. Fence R3 before any potentially blocking native sampling.
     session.revokeUnlessAdmissionBindingMatches(
         lease.admissionGeneration_, lease.sessionGeneration_);
     if (session.phase() ==
@@ -505,12 +593,11 @@ bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
         return false;
     }
 
-    if (!authorizes(
+    if (!authorizationChecksPass(
             lease, acceptor, activeServerTls, requiredPermissions))
     {
-        // authorizes() already revokes R2/GSS. Drop R3 state in the same
-        // serialized call so stale protocol state cannot survive that denial.
-        session.close();
+        // Preserve ordered R3 -> R2/GSS teardown on every protected denial.
+        revokeR3Session(acceptor, session);
         return false;
     }
 
@@ -518,6 +605,25 @@ bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
     // exactly one protected transition after this synchronous authorization;
     // it must call back here again before the next one.
     return true;
+}
+
+bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint32_t requiredPermissions) noexcept
+{
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (!r1Security)
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    return authorizeR3ProtectedTransitionForEstablishedTls(
+        lease, acceptor, r1Security->activeServerTls, session,
+        requiredPermissions);
 }
 
 
@@ -528,20 +634,26 @@ LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite(
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
-    const SSL *activeServerTls = connection.establishedTls();
-    const auto provenance = connection.securityNegotiationProvenance();
-    if (activeServerTls == nullptr || !provenance ||
-        !authorizeR3ProtectedTransition(
-            lease, acceptor, activeServerTls, session,
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (!r1Security ||
+        !authorizeR3ProtectedTransitionForEstablishedTls(
+            lease, acceptor, r1Security->activeServerTls, session,
             kConsoleViewPermission))
     {
         if (session.phase() !=
             rdp_server::server::transport::McsSessionPhase::Closed)
+        {
             revokeR3Session(acceptor, session);
+        }
+        else
+        {
+            revoke(acceptor);
+        }
         return std::nullopt;
     }
 
-    const auto pending = session.prepareConnectResponseWrite(*provenance);
+    const auto pending =
+        session.prepareConnectResponseWrite(r1Security->provenance);
     if (!pending)
     {
         revokeR3Session(acceptor, session);
@@ -567,11 +679,10 @@ LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite(
     // authorization. Do not let a late callback turn those bytes into durable
     // R3 writer/phase progress after policy, native session, GSS or TLS
     // provenance has gone stale.
-    const SSL *activeServerTls = connection.establishedTls();
-    if (lease == nullptr || activeServerTls == nullptr ||
-        !connection.securityNegotiationProvenance() ||
-        !authorizeR3ProtectedTransition(
-            *lease, acceptor, activeServerTls, session,
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (lease == nullptr || !r1Security ||
+        !authorizeR3ProtectedTransitionForEstablishedTls(
+            *lease, acceptor, r1Security->activeServerTls, session,
             kConsoleViewPermission))
     {
         if (session.phase() !=
@@ -602,15 +713,21 @@ LinuxConsoleAdmissionBroker::authorizeR3ErectDomain(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     using rdp_server::server::transport::McsSessionIntake;
-    const SSL *activeServerTls = connection.establishedTls();
-    if (activeServerTls == nullptr ||
-        !authorizeR3ProtectedTransition(
-            lease, acceptor, activeServerTls, session,
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (!r1Security ||
+        !authorizeR3ProtectedTransitionForEstablishedTls(
+            lease, acceptor, r1Security->activeServerTls, session,
             kConsoleViewPermission))
     {
         if (session.phase() !=
             rdp_server::server::transport::McsSessionPhase::Closed)
+        {
             revokeR3Session(acceptor, session);
+        }
+        else
+        {
+            revoke(acceptor);
+        }
         return McsSessionIntake::AdmissionDenied;
     }
 

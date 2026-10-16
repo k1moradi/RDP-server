@@ -184,6 +184,8 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-framed-handoff
                 gssapi-console-provenance-before-os-read
                 gssapi-native-os-admission-capability-denials
+                gssapi-native-admission-r1-nla-provenance-denials
+                gssapi-r3-initial-nla-owner-fence
                 gssapi-r3-mcs-admission-contract
                 gssapi-r3-protected-transition-generation-fence
                 gssapi-r3-connect-response-write-contract

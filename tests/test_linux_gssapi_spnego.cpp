@@ -10,15 +10,40 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <span>
 #include <string_view>
+#include <thread>
 #include <type_traits>
+#include <utility>
+
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <openssl/evp.h>
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
 
 using namespace rdp_server::server::security;
 using rdp_server::server::transport::McsSessionIntake;
 using rdp_server::server::transport::McsSessionLifecycle;
 using rdp_server::server::transport::McsSessionPhase;
+using rdp_server::server::transport::NativeTcpIo;
+using rdp_server::server::transport::OwnedNativeTcpSocket;
+using rdp_server::server::transport::OwnedPreauthTcpConnection;
 using rdp_server::server::transport::RdpLicensingPhase;
+using rdp_server::server::transport::SecurityNegotiationProvenance;
+using rdp_server::server::transport::TcpAcceptOutcome;
+using rdp_server::server::transport::TcpIoOutcome;
+using rdp_server::server::transport::TcpPreauthEvent;
+using rdp_server::server::transport::TlsHandshakeStatus;
+using rdp_server::server::transport::acceptNonblockingTcpConnection;
+using rdp_server::server::transport::attachNonblockingTcpBio;
+using rdp_server::server::transport::kRdpProtocolHybrid;
+using rdp_server::server::transport::kRdpProtocolSsl;
 
 namespace
 {
@@ -27,6 +52,310 @@ constexpr std::array<std::uint8_t, 21> kInitialTsRequest{
     0x30, 0x13, 0xa0, 0x03, 0x02, 0x01, 0x06,
     0xa1, 0x0c, 0x30, 0x0a, 0x30, 0x08,
     0xa0, 0x06, 0x04, 0x04, 0x60, 0x82, 0x01, 0x00};
+
+constexpr std::array<std::uint8_t, 19> kDiagnosticSslRequest{
+    0x03, 0x00, 0x00, 0x13, 0x0e, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00};
+
+[[nodiscard]] constexpr std::array<std::uint8_t, 19>
+diagnosticSslAndHybridRequest() noexcept
+{
+    auto request = kDiagnosticSslRequest;
+    request[15] = static_cast<std::uint8_t>(
+        kRdpProtocolSsl | kRdpProtocolHybrid);
+    return request;
+}
+
+inline constexpr auto kDiagnosticSslAndHybridRequest =
+    diagnosticSslAndHybridRequest();
+
+class LocalSocket final
+{
+public:
+    LocalSocket() noexcept = default;
+    LocalSocket(const LocalSocket &) = delete;
+    LocalSocket &operator=(const LocalSocket &) = delete;
+    ~LocalSocket()
+    {
+        if (value_ >= 0)
+        {
+            (void)::close(value_);
+        }
+    }
+
+    [[nodiscard]] int value() const noexcept { return value_; }
+
+    void reset(int value) noexcept
+    {
+        if (value_ >= 0)
+        {
+            (void)::close(value_);
+        }
+        value_ = value;
+    }
+
+private:
+    int value_{-1};
+};
+
+void setNonblocking(int socket)
+{
+    const int flags = ::fcntl(socket, F_GETFL, 0);
+    assert(flags >= 0);
+    assert(::fcntl(socket, F_SETFL, flags | O_NONBLOCK) == 0);
+}
+
+void sendAll(NativeTcpIo &io, std::span<const std::uint8_t> bytes)
+{
+    std::size_t offset = 0;
+    for (std::size_t attempt = 0;
+         attempt < 16384 && offset < bytes.size(); ++attempt)
+    {
+        const auto result = io.send(bytes.subspan(offset));
+        if (result.outcome == TcpIoOutcome::Progress)
+        {
+            assert(result.bytes > 0 &&
+                   result.bytes <= bytes.size() - offset);
+            offset += result.bytes;
+            continue;
+        }
+        assert(result.outcome == TcpIoOutcome::WouldBlock);
+        assert(result.bytes == 0);
+        std::this_thread::yield();
+    }
+    assert(offset == bytes.size());
+}
+
+void receiveAll(NativeTcpIo &io, std::span<std::uint8_t> bytes)
+{
+    std::size_t offset = 0;
+    for (std::size_t attempt = 0;
+         attempt < 16384 && offset < bytes.size(); ++attempt)
+    {
+        const auto result = io.receive(bytes.subspan(offset));
+        if (result.outcome == TcpIoOutcome::Progress)
+        {
+            assert(result.bytes > 0 &&
+                   result.bytes <= bytes.size() - offset);
+            offset += result.bytes;
+            continue;
+        }
+        assert(result.outcome == TcpIoOutcome::WouldBlock);
+        assert(result.bytes == 0);
+        std::this_thread::yield();
+    }
+    assert(offset == bytes.size());
+}
+
+using ContextPointer = std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)>;
+using SslPointer = std::unique_ptr<SSL, decltype(&SSL_free)>;
+using KeyPointer = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
+using CertificatePointer = std::unique_ptr<X509, decltype(&X509_free)>;
+using X509NamePointer = std::unique_ptr<X509_NAME, decltype(&X509_NAME_free)>;
+
+class R1DiagnosticTlsFixture final
+{
+public:
+    explicit R1DiagnosticTlsFixture(
+        std::span<const std::uint8_t> request,
+        bool completeTlsHandshake)
+    {
+        listener_.reset(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
+        assert(listener_.value() >= 0);
+
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        address.sin_port = 0;
+        assert(::bind(
+                   listener_.value(),
+                   reinterpret_cast<const sockaddr *>(&address),
+                   sizeof(address)) == 0);
+        assert(::listen(listener_.value(), 1) == 0);
+        setNonblocking(listener_.value());
+
+        socklen_t addressLength = sizeof(address);
+        assert(::getsockname(
+                   listener_.value(),
+                   reinterpret_cast<sockaddr *>(&address),
+                   &addressLength) == 0);
+
+        client_.reset(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
+        assert(client_.value() >= 0);
+        assert(::connect(
+                   client_.value(),
+                   reinterpret_cast<const sockaddr *>(&address),
+                   sizeof(address)) == 0);
+        setNonblocking(client_.value());
+
+        rdp_server::server::transport::TcpAcceptResult accepted{};
+        for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+        {
+            accepted = acceptNonblockingTcpConnection(
+                static_cast<std::uintptr_t>(listener_.value()));
+            if (accepted.outcome == TcpAcceptOutcome::Accepted)
+            {
+                break;
+            }
+            assert(accepted.outcome == TcpAcceptOutcome::WouldBlock);
+            std::this_thread::yield();
+        }
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        assert(accepted.connection.valid());
+
+        connection_ = std::make_unique<OwnedPreauthTcpConnection>(
+            std::move(accepted.connection));
+        clientIo_ = std::make_unique<NativeTcpIo>(
+            static_cast<std::uintptr_t>(client_.value()));
+        assert(connection_->active());
+        sendAll(*clientIo_, request);
+
+        TcpPreauthEvent preauth = TcpPreauthEvent::NeedRead;
+        for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+        {
+            preauth = connection_->onReadable();
+            if (preauth != TcpPreauthEvent::NeedRead)
+            {
+                break;
+            }
+            std::this_thread::yield();
+        }
+        assert(preauth == TcpPreauthEvent::NeedWrite);
+
+        for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+        {
+            preauth = connection_->onWritable();
+            if (preauth != TcpPreauthEvent::NeedWrite)
+            {
+                break;
+            }
+            std::this_thread::yield();
+        }
+        assert(preauth == TcpPreauthEvent::ReadyForTls);
+
+        std::array<std::uint8_t, 19> response{};
+        receiveAll(*clientIo_, response);
+        assert(response[11] == 0x02);
+        assert(response[15] ==
+               static_cast<std::uint8_t>(kRdpProtocolSsl));
+        assert(response[16] == 0 && response[17] == 0 && response[18] == 0);
+
+        createTlsObjects();
+        OwnedPreauthTcpConnection::ServerTls server{
+            serverTls_.release(), SSL_free};
+        assert(connection_->attachServerTls(std::move(server)));
+        assert(attachNonblockingTcpBio(clientTls_.get(), *clientIo_));
+
+        if (completeTlsHandshake)
+        {
+            completeHandshake();
+        }
+    }
+
+    [[nodiscard]] OwnedPreauthTcpConnection &connection() noexcept
+    {
+        return *connection_;
+    }
+
+private:
+    void createTlsObjects()
+    {
+        serverContext_.reset(SSL_CTX_new(TLS_server_method()));
+        clientContext_.reset(SSL_CTX_new(TLS_client_method()));
+        assert(serverContext_ && clientContext_);
+        assert(SSL_CTX_set_min_proto_version(
+                   serverContext_.get(), TLS1_2_VERSION) == 1);
+        assert(SSL_CTX_set_min_proto_version(
+                   clientContext_.get(), TLS1_2_VERSION) == 1);
+
+        const KeyPointer key{EVP_EC_gen("prime256v1"), EVP_PKEY_free};
+        const CertificatePointer certificate{X509_new(), X509_free};
+        assert(key && certificate);
+        assert(X509_set_version(certificate.get(), 2) == 1);
+        assert(ASN1_INTEGER_set(
+                   X509_get_serialNumber(certificate.get()), 1) == 1);
+        assert(X509_gmtime_adj(
+            X509_getm_notBefore(certificate.get()), -60));
+        assert(X509_gmtime_adj(
+            X509_getm_notAfter(certificate.get()), 3600));
+        assert(X509_set_pubkey(certificate.get(), key.get()) == 1);
+
+        const X509NamePointer name{X509_NAME_new(), X509_NAME_free};
+        assert(name);
+        assert(X509_NAME_add_entry_by_txt(
+                   name.get(), "CN", MBSTRING_ASC,
+                   reinterpret_cast<const unsigned char *>(
+                       "rdp-r2-provenance-test"),
+                   -1, -1, 0) == 1);
+        assert(X509_set_subject_name(certificate.get(), name.get()) == 1);
+        assert(X509_set_issuer_name(certificate.get(), name.get()) == 1);
+        assert(X509_sign(certificate.get(), key.get(), EVP_sha256()) > 0);
+        assert(SSL_CTX_use_certificate(
+                   serverContext_.get(), certificate.get()) == 1);
+        assert(SSL_CTX_use_PrivateKey(
+                   serverContext_.get(), key.get()) == 1);
+        assert(SSL_CTX_check_private_key(serverContext_.get()) == 1);
+
+        serverTls_.reset(SSL_new(serverContext_.get()));
+        clientTls_.reset(SSL_new(clientContext_.get()));
+        assert(serverTls_ && clientTls_);
+        SSL_set_accept_state(serverTls_.get());
+        SSL_set_connect_state(clientTls_.get());
+    }
+
+    void completeHandshake()
+    {
+        bool clientEstablished = false;
+        bool serverEstablished = false;
+        for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+        {
+            if (!clientEstablished)
+            {
+                const int result = SSL_do_handshake(clientTls_.get());
+                if (result == 1)
+                {
+                    clientEstablished = true;
+                }
+                else
+                {
+                    const int error =
+                        SSL_get_error(clientTls_.get(), result);
+                    assert(error == SSL_ERROR_WANT_READ ||
+                           error == SSL_ERROR_WANT_WRITE);
+                }
+            }
+
+            if (!serverEstablished)
+            {
+                const auto result = connection_->onTlsIoReady();
+                assert(result == TlsHandshakeStatus::NeedRead ||
+                       result == TlsHandshakeStatus::NeedWrite ||
+                       result == TlsHandshakeStatus::Established);
+                serverEstablished =
+                    result == TlsHandshakeStatus::Established;
+            }
+
+            if (clientEstablished && serverEstablished)
+            {
+                break;
+            }
+            std::this_thread::yield();
+        }
+        assert(clientEstablished && serverEstablished);
+        assert(connection_->establishedTls() != nullptr);
+    }
+
+    LocalSocket listener_{};
+    LocalSocket client_{};
+    ContextPointer serverContext_{nullptr, SSL_CTX_free};
+    ContextPointer clientContext_{nullptr, SSL_CTX_free};
+    // The client BIO borrows clientIo_, so destroy client SSL first.
+    std::unique_ptr<NativeTcpIo> clientIo_{};
+    SslPointer serverTls_{nullptr, SSL_free};
+    SslPointer clientTls_{nullptr, SSL_free};
+    std::unique_ptr<OwnedPreauthTcpConnection> connection_{};
+};
+
 
 void testConfigurationRejections()
 {
@@ -185,7 +514,18 @@ public:
     }
 };
 
-using NativeAdmissionIssue = decltype(&LinuxConsoleAdmissionBroker::issue);
+using PositiveNativeAdmissionIssue =
+    std::optional<LinuxConsoleAdmissionLease> (
+        LinuxConsoleAdmissionBroker::*)(
+            GssapiSpnegoAcceptor &,
+            const OwnedPreauthTcpConnection &,
+            const ConsoleEvidenceRequest &) noexcept;
+using LegacyNativeAdmissionIssue =
+    std::optional<LinuxConsoleAdmissionLease> (
+        LinuxConsoleAdmissionBroker::*)(
+            GssapiSpnegoAcceptor &,
+            const SSL *,
+            const ConsoleEvidenceRequest &) noexcept;
 using R3McsAdmission =
     decltype(&LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial);
 using R3NativeChange =
@@ -203,26 +543,37 @@ static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_assignable_v<LinuxConsoleAdmissionLease>);
 static_assert(std::is_move_constructible_v<LinuxConsoleAdmissionLease>);
-static_assert(!std::is_invocable_v<
-              NativeAdmissionIssue,
+static_assert(std::is_invocable_v<
+              PositiveNativeAdmissionIssue,
+              LinuxConsoleAdmissionBroker &,
+              GssapiSpnegoAcceptor &,
+              const OwnedPreauthTcpConnection &,
+              const ConsoleEvidenceRequest &>);
+static_assert(std::is_invocable_v<
+              LegacyNativeAdmissionIssue,
               LinuxConsoleAdmissionBroker &,
               GssapiSpnegoAcceptor &,
               const SSL *,
-              const ConsoleEvidenceRequest &,
-              CountingConsoleEvidenceSource &>);
+              const ConsoleEvidenceRequest &>);
+static_assert(!std::is_invocable_v<
+              PositiveNativeAdmissionIssue,
+              LinuxConsoleAdmissionBroker &,
+              GssapiSpnegoAcceptor &,
+              const SSL *,
+              const ConsoleEvidenceRequest &>);
 static_assert(std::is_invocable_r_v<
               McsSessionIntake,
               R3McsAdmission,
               LinuxConsoleAdmissionBroker &,
               const LinuxConsoleAdmissionLease &,
               GssapiSpnegoAcceptor &,
-              const SSL *,
+              const OwnedPreauthTcpConnection &,
               McsSessionLifecycle &,
               std::span<const std::uint8_t>>);
 static_assert(!std::is_invocable_v<
               R3McsAdmission,
               LinuxConsoleAdmissionBroker &,
-              bool,
+              const LinuxConsoleAdmissionLease &,
               GssapiSpnegoAcceptor &,
               const SSL *,
               McsSessionLifecycle &,
@@ -239,13 +590,13 @@ static_assert(std::is_invocable_r_v<
               LinuxConsoleAdmissionBroker &,
               const LinuxConsoleAdmissionLease &,
               GssapiSpnegoAcceptor &,
-              const SSL *,
+              const OwnedPreauthTcpConnection &,
               McsSessionLifecycle &,
               std::uint32_t>);
 static_assert(!std::is_invocable_v<
               R3ProtectedTransition,
               LinuxConsoleAdmissionBroker &,
-              bool,
+              const LinuxConsoleAdmissionLease &,
               GssapiSpnegoAcceptor &,
               const SSL *,
               McsSessionLifecycle &,
@@ -255,14 +606,7 @@ static_assert(std::is_invocable_v<
               LinuxConsoleAdmissionBroker &,
               const LinuxConsoleAdmissionLease &,
               GssapiSpnegoAcceptor &,
-              const rdp_server::server::transport::OwnedPreauthTcpConnection &,
-              McsSessionLifecycle &>);
-static_assert(!std::is_invocable_v<
-              R3ConnectResponseWrite,
-              LinuxConsoleAdmissionBroker &,
-              bool,
-              GssapiSpnegoAcceptor &,
-              const rdp_server::server::transport::SecurityNegotiationProvenance &,
+              const OwnedPreauthTcpConnection &,
               McsSessionLifecycle &>);
 static_assert(std::is_invocable_r_v<
               rdp_server::server::transport::McsConnectResponseWriteOutcome,
@@ -270,13 +614,7 @@ static_assert(std::is_invocable_r_v<
               LinuxConsoleAdmissionBroker &,
               const LinuxConsoleAdmissionLease *,
               GssapiSpnegoAcceptor &,
-              const rdp_server::server::transport::OwnedPreauthTcpConnection &,
-              McsSessionLifecycle &,
-              std::uint64_t, std::uint64_t, std::size_t>);
-static_assert(!std::is_invocable_v<
-              R3ConnectResponseCompletion,
-              LinuxConsoleAdmissionBroker &,
-              GssapiSpnegoAcceptor &,
+              const OwnedPreauthTcpConnection &,
               McsSessionLifecycle &,
               std::uint64_t, std::uint64_t, std::size_t>);
 static_assert(std::is_invocable_r_v<
@@ -285,17 +623,156 @@ static_assert(std::is_invocable_r_v<
               LinuxConsoleAdmissionBroker &,
               const LinuxConsoleAdmissionLease &,
               GssapiSpnegoAcceptor &,
-              const rdp_server::server::transport::OwnedPreauthTcpConnection &,
+              const OwnedPreauthTcpConnection &,
               McsSessionLifecycle &,
               std::span<const std::uint8_t>>);
-static_assert(!std::is_invocable_v<
-              R3ErectDomain,
-              LinuxConsoleAdmissionBroker &,
-              bool,
-              GssapiSpnegoAcceptor &,
-              const SSL *,
-              McsSessionLifecycle &,
-              std::span<const std::uint8_t>>);
+
+
+void testNativeAdmissionR1NlaProvenanceDenials()
+{
+    const std::optional<SecurityNegotiationProvenance> missing{};
+    assert(!hasHybridNlaNegotiationProvenance(missing));
+    assert(!hasHybridNlaNegotiationProvenance(
+        SecurityNegotiationProvenance{kRdpProtocolSsl, kRdpProtocolSsl}));
+    assert(!hasHybridNlaNegotiationProvenance(
+        SecurityNegotiationProvenance{
+            kRdpProtocolSsl | kRdpProtocolHybrid, kRdpProtocolSsl}));
+    assert(!hasHybridNlaNegotiationProvenance(
+        SecurityNegotiationProvenance{
+            kRdpProtocolSsl, kRdpProtocolHybrid}));
+    // This predicate is deliberately not a capability. No caller-supplied
+    // provenance reaches issue(); only the exact live R1 owner can do so.
+    assert(hasHybridNlaNegotiationProvenance(
+        SecurityNegotiationProvenance{
+            kRdpProtocolSsl | kRdpProtocolHybrid, kRdpProtocolHybrid}));
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    const ConsoleEvidenceRequest request{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+
+    // Null/inactive ownership is rejected before a native session-change
+    // monitor or any NSS/logind evidence can become part of a capability.
+    OwnedPreauthTcpConnection inactive{OwnedNativeTcpSocket{}};
+    GssapiSpnegoAcceptor inactiveAcceptor;
+    LinuxConsoleAdmissionBroker inactiveBroker(policy);
+    assert(!inactiveBroker.issue(inactiveAcceptor, inactive, request));
+    assert(inactiveBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(inactiveBroker.nativeChangeFd() == -1);
+    assert(inactiveBroker.nativeChangeEvents() == -1);
+    assert(inactiveAcceptor.stage() == SpnegoStage::Failed);
+    assert(!inactiveBroker.issue(inactiveAcceptor, inactive, request));
+
+    // A real accepted R1 connection with its server SSL attached but with
+    // TLS unfinished has neither establishedTls() nor immutable provenance.
+    R1DiagnosticTlsFixture incomplete{
+        kDiagnosticSslAndHybridRequest, false};
+    assert(incomplete.connection().active());
+    assert(incomplete.connection().establishedTls() == nullptr);
+    assert(!incomplete.connection().securityNegotiationProvenance());
+    GssapiSpnegoAcceptor incompleteAcceptor;
+    LinuxConsoleAdmissionBroker incompleteBroker(policy);
+    assert(!incompleteBroker.issue(
+        incompleteAcceptor, incomplete.connection(), request));
+    assert(incompleteBroker.nativeChangeFd() == -1);
+    assert(incompleteBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(incompleteAcceptor.stage() == SpnegoStage::Failed);
+
+    // A genuine established TLS owner is still denial-only when R1 selected
+    // diagnostic PROTOCOL_SSL. TLS success is not NLA admission evidence.
+    R1DiagnosticTlsFixture sslOnly{kDiagnosticSslRequest, true};
+    const auto sslOnlyProvenance =
+        sslOnly.connection().securityNegotiationProvenance();
+    assert(sslOnly.connection().establishedTls() != nullptr);
+    assert(sslOnlyProvenance);
+    assert(sslOnlyProvenance->clientRequestedProtocols == kRdpProtocolSsl);
+    assert(sslOnlyProvenance->serverSelectedProtocol == kRdpProtocolSsl);
+    assert(!hasHybridNlaNegotiationProvenance(sslOnlyProvenance));
+    GssapiSpnegoAcceptor sslAcceptor;
+    LinuxConsoleAdmissionBroker sslBroker(policy);
+    assert(!sslBroker.issue(sslAcceptor, sslOnly.connection(), request));
+    assert(sslBroker.nativeChangeFd() == -1);
+    assert(sslBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(sslAcceptor.stage() == SpnegoStage::Failed);
+
+    // A client HYBRID offer is also insufficient: current R1 genuinely
+    // replies with PROTOCOL_SSL, and the exact stored pair must deny R2.
+    R1DiagnosticTlsFixture hybridOffered{
+        kDiagnosticSslAndHybridRequest, true};
+    const auto offeredProvenance =
+        hybridOffered.connection().securityNegotiationProvenance();
+    assert(hybridOffered.connection().establishedTls() != nullptr);
+    assert(offeredProvenance);
+    assert((offeredProvenance->clientRequestedProtocols &
+            kRdpProtocolHybrid) != 0);
+    assert(offeredProvenance->serverSelectedProtocol == kRdpProtocolSsl);
+    assert(!hasHybridNlaNegotiationProvenance(offeredProvenance));
+    GssapiSpnegoAcceptor offeredAcceptor;
+    LinuxConsoleAdmissionBroker offeredBroker(policy);
+    assert(!offeredBroker.issue(
+        offeredAcceptor, hybridOffered.connection(), request));
+    assert(offeredBroker.nativeChangeFd() == -1);
+    assert(offeredBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(offeredAcceptor.stage() == SpnegoStage::Failed);
+    assert(!offeredBroker.issue(
+        offeredAcceptor, hybridOffered.connection(), request));
+
+    // The legacy raw-SSL route is terminal deny-only even with the exact
+    // established SSL object owned by a genuine R1 connection.
+    GssapiSpnegoAcceptor legacyAcceptor;
+    LinuxConsoleAdmissionBroker legacyBroker(policy);
+    assert(!legacyBroker.issue(
+        legacyAcceptor, hybridOffered.connection().establishedTls(), request));
+    assert(legacyBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(legacyAcceptor.stage() == SpnegoStage::Failed);
+
+    // Cancellation revokes TLS and provenance together; neither stale R1
+    // state nor a fresh broker can replay the old connection into admission.
+    hybridOffered.connection().cancel();
+    assert(!hybridOffered.connection().active());
+    assert(hybridOffered.connection().establishedTls() == nullptr);
+    assert(!hybridOffered.connection().securityNegotiationProvenance());
+    GssapiSpnegoAcceptor cancelledAcceptor;
+    LinuxConsoleAdmissionBroker cancelledBroker(policy);
+    assert(!cancelledBroker.issue(
+        cancelledAcceptor, hybridOffered.connection(), request));
+    assert(cancelledBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(cancelledAcceptor.stage() == SpnegoStage::Failed);
+}
+
+void testR3InitialNlaOwnerFence()
+{
+    // The static assertions above prove the initial and generic protected R3
+    // authorization APIs require OwnedPreauthTcpConnection and cannot be
+    // invoked using an independently supplied SSL pointer.
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+
+    // Ordinary CI has no genuine HYBRID+Kerberos+logind lease, so exercise
+    // the real terminal ordering barrier rather than constructing one.
+    broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(session.pendingJoinConfirmation().empty());
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    // Late/replayed transition attempts cannot advance toward Connect
+    // Response or Erect Domain after the sole R3 owner has been retired.
+    session.revokeUnlessAdmissionBindingMatches(UINT64_MAX, UINT64_MAX);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.pendingConnectResponse().empty());
+    broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+}
 
 void testNativeAdmissionCapabilityDenials()
 {
@@ -705,6 +1182,16 @@ int main(int argc, char **argv)
             testNativeAdmissionCapabilityDenials();
             return 0;
         }
+        if (name == "gssapi-native-admission-r1-nla-provenance-denials")
+        {
+            testNativeAdmissionR1NlaProvenanceDenials();
+            return 0;
+        }
+        if (name == "gssapi-r3-initial-nla-owner-fence")
+        {
+            testR3InitialNlaOwnerFence();
+            return 0;
+        }
         if (name == "gssapi-r3-mcs-admission-contract")
         {
             testR3McsAdmissionContract();
@@ -759,6 +1246,8 @@ int main(int argc, char **argv)
     testFramedGssHandoffFailClosed();
     testConsoleGssProvenanceBeforeOsRead();
     testNativeAdmissionCapabilityDenials();
+    testNativeAdmissionR1NlaProvenanceDenials();
+    testR3InitialNlaOwnerFence();
     testR3McsAdmissionContract();
     testR3ProtectedTransitionGenerationFence();
     testR3ConnectResponseWriteContract();

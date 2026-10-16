@@ -19,6 +19,22 @@
 namespace rdp_server::server::security
 {
 
+// Protocol-shape validation only. A true result is never an admission
+// capability: positive R2 use accepts this snapshot only when it was obtained
+// directly from the same live R1 OwnedPreauthTcpConnection that owns the
+// established TLS object used by the GSS/CredSSP transcript.
+[[nodiscard]] constexpr bool hasHybridNlaNegotiationProvenance(
+    const std::optional<
+        rdp_server::server::transport::SecurityNegotiationProvenance>
+        &provenance) noexcept
+{
+    return provenance.has_value() &&
+           (provenance->clientRequestedProtocols &
+            rdp_server::server::transport::kRdpProtocolHybrid) != 0 &&
+           provenance->serverSelectedProtocol ==
+               rdp_server::server::transport::kRdpProtocolHybrid;
+}
+
 class LinuxConsoleAdmissionControl;
 
 enum class LinuxConsoleAdmissionState : std::uint8_t
@@ -107,6 +123,18 @@ public:
     LinuxConsoleAdmissionBroker(const LinuxConsoleAdmissionBroker &) = delete;
     LinuxConsoleAdmissionBroker &operator=(const LinuxConsoleAdmissionBroker &) = delete;
 
+    // Positive issuance consumes the exact R1 connection owner. TLS and
+    // immutable X.224 negotiation provenance are borrowed synchronously from
+    // that owner; neither can be supplied independently by the caller.
+    [[nodiscard]] std::optional<LinuxConsoleAdmissionLease> issue(
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        const ConsoleEvidenceRequest &request) noexcept;
+
+    // Legacy compatibility path is intentionally terminal deny-only. A raw
+    // SSL pointer, even when genuinely established, cannot prove which X.224
+    // security protocol the owning R1 connection actually selected.
     [[nodiscard]] std::optional<LinuxConsoleAdmissionLease> issue(
         GssapiSpnegoAcceptor &acceptor,
         const SSL *activeServerTls,
@@ -115,7 +143,8 @@ public:
     [[nodiscard]] bool revalidate(
         const LinuxConsoleAdmissionLease &lease,
         GssapiSpnegoAcceptor &acceptor,
-        const SSL *activeServerTls) noexcept;
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection) noexcept;
 
     // Required R3 consumption gate. Permission checks and all current
     // provenance checks happen immediately before a protected transition.
@@ -124,7 +153,8 @@ public:
     [[nodiscard]] bool authorizes(
         const LinuxConsoleAdmissionLease &lease,
         GssapiSpnegoAcceptor &acceptor,
-        const SSL *activeServerTls,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
         std::uint32_t requiredPermissions) noexcept;
 
     // R3 Basic Settings handoff. This is the only positive entry into the
@@ -136,7 +166,8 @@ public:
     authorizeR3McsConnectInitial(
         const LinuxConsoleAdmissionLease &lease,
         GssapiSpnegoAcceptor &acceptor,
-        const SSL *activeServerTls,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
@@ -149,7 +180,8 @@ public:
     [[nodiscard]] bool authorizeR3ProtectedTransition(
         const LinuxConsoleAdmissionLease &lease,
         GssapiSpnegoAcceptor &acceptor,
-        const SSL *activeServerTls,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::uint32_t requiredPermissions) noexcept;
 
@@ -219,6 +251,21 @@ private:
     void clearRequest() noexcept;
     void deny(GssapiSpnegoAcceptor &acceptor) noexcept;
     [[nodiscard]] bool refreshDeadline(std::uint64_t generation) noexcept;
+    [[nodiscard]] bool revalidationChecksPass(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const SSL *activeServerTls) noexcept;
+    [[nodiscard]] bool authorizationChecksPass(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const SSL *activeServerTls,
+        std::uint32_t requiredPermissions) noexcept;
+    [[nodiscard]] bool authorizeR3ProtectedTransitionForEstablishedTls(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const SSL *activeServerTls,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint32_t requiredPermissions) noexcept;
     [[nodiscard]] bool ownsActiveLease(
         const LinuxConsoleAdmissionLease &lease) const noexcept;
     [[nodiscard]] ConsoleEvidenceRequest requestView(

@@ -1,3 +1,43 @@
+## R2 R1-owned HYBRID provenance gate authoring validation (2026-10-16)
+
+**Initial inspected main:** `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`.
+Concurrent shared work advanced `main`; the implementation was reconciled
+against `8132e5ab2fd85161f6ffef559f28d5b11bc51531` before publication.
+
+**Production boundary:** `LinuxConsoleAdmissionBroker::issue` has an
+owner-based positive overload taking
+`const OwnedPreauthTcpConnection&`. It obtains `establishedTls()` and
+`securityNegotiationProvenance()` from that owner and requires offered plus
+selected `PROTOCOL_HYBRID` before native session monitoring/evidence.
+Existing GSS TLS-pointer/certificate pinning and native authorization checks
+then execute unchanged. The legacy `issue(GssapiSpnegoAcceptor&, const SSL*,
+...)` overload is terminal deny-only. R2 revalidation, first MCS handoff and
+later protected R3 transitions also consume the exact R1 owner, preserving
+ordered R3→R2/GSS teardown.
+
+**Dedicated CTests registered in the existing Linux GSS executable:**
+- `security.gssapi-native-admission-r1-nla-provenance-denials`: real R1
+  loopback TCP/X.224/OpenSSL fixtures prove inactive owner, unfinished TLS,
+  SSL-only selection, HYBRID-offered/SSL-selected, cancellation, raw-SSL
+  legacy denial and terminal replay cannot mint a lease. Invalid protocol
+  preconditions leave no native change monitor/capability.
+- `security.gssapi-r3-initial-nla-owner-fence`: compile-time API checks reject
+  raw-SSL-only initial/protected R3 authorization and runtime denial cleanup
+  remains terminal without constructing a fake lease.
+
+**Authoring status:** canonical local configure/build/full CTest is
+**NOT RUN** because this tool environment has no owner
+`~/rdp-server/` checkout; no alternate build directory was created.
+Hosted exact-SHA CI is required after publication. The current production R1
+negotiator still selects diagnostic `PROTOCOL_SSL`, so a genuine positive
+R2 lease is intentionally unavailable in ordinary CI.
+
+**NOT RUN:** real KDC/client ticket and Kerberos logon, positive NSS/logind
+console admission, owner Linux/X11, owner Windows MSYS2 CLANG64/Clang23,
+owner macOS27, Microsoft-client M2 acceptance and R10 live listener/service
+composition. These remain separate gates and must not be inferred from the
+offline fail-closed regressions.
+
 ## R10 sealed-keytab publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Implementation commit: `14ba20d89ec784241ec451eaeb1fdc371f751fba`

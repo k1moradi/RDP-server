@@ -1,3 +1,31 @@
+### R2 R1-owned NLA provenance and R3 admission ownership (2026-10-16)
+
+R1 remains the sole accepted-socket/TLS/X.224 negotiation owner. R2 may borrow
+the active server TLS pointer and copy the immutable
+`SecurityNegotiationProvenance` only synchronously from the exact live
+`OwnedPreauthTcpConnection`; it retains neither pointer nor provenance past
+that owner's validity. Positive Linux admission requires the client HYBRID bit
+and exact server `PROTOCOL_HYBRID` selection from that snapshot before any
+native authorization work. TLS handshake completion, a HYBRID offer by itself,
+or caller-constructed negotiation fields are not authorization.
+
+The same R1 owner is supplied again immediately before protected R3
+transitions. R2 derives the current TLS/provenance pair, repeats its existing
+GSS/TLS/certificate, permission, NSS/logind, native-session and generation
+checks, then permits only the existing R3 owner to advance. On denial R3 is
+closed first, R2/GSS is revoked second, and R1 transport lifetime remains with
+its caller until that serialized denial returns. A raw `SSL*` positive R3
+route no longer exists; the retained raw-SSL `issue` overload is explicitly
+deny-only compatibility.
+
+`hasHybridNlaNegotiationProvenance()` is intentionally a non-authorizing
+value predicate used to centralize offered+selected HYBRID validation. It
+cannot construct the private move-only `LinuxConsoleAdmissionLease`.
+Current R1 diagnostic negotiation selects only `PROTOCOL_SSL`, so ordinary
+composition remains fail-closed until R1 implements genuine HYBRID. R10 still
+owns service TLS/keytab configuration and the future listener; R3 still owns
+all MCS progression.
+
 ### R10 immutable service-keytab snapshot ownership (2026-10-16)
 
 The R10 Linux security configuration owns a **sealed anonymous keytab

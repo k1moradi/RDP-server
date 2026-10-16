@@ -16305,3 +16305,48 @@ acceptance remain **NOT RUN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
 **Next R1:** add no transport surface unless R3's eventual protected New
 License / Upgrade License publication or later Share activation demonstrates a
 concrete bounded TCP/TLS mismatch.
+
+
+## R4 portable RDPGFX sanitizer exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `2688e6ec63cc882f054a903b0b62c7eb56c4a30f`.  
+**Actions:** `38971093272` — **SUCCESS**.
+
+The existing shared Linux/Clang sanitizer job now directly compiles and
+executes the remaining portable R4 RDPGFX production boundaries rather than
+leaving them covered only by ordinary Debug/Release CTest.
+
+Exact sanitizer evidence:
+- **Portable R4 RDPGFX wire/lifecycle:** **33/33 PASS**. The selector is
+  registry-backed and covers surface lifecycle (including surface ID zero),
+  frame-ACK parsing/window correlation/backpressure/stale generations,
+  presentation/full-send receipt ordering and abort revocation, AVC420 picture
+  construction/denials/overlap, segmented-data framing/denials and segmented
+  AVC420 frame publication/ACK.
+- **R4 x264/BGRA:** **20/20 PASS**.
+- **R4 capability negotiation:** **4/4 PASS**.
+- The remaining configured sanitizer/fuzzer groups also PASS; the independent
+  R7 macOS-session sanitizer side gate is **PASS**. No sanitizer suppression or
+  production graphics behavior was changed.
+
+Normal exact-SHA hosted matrix:
+- **Linux/GCC:** Debug **474/474 PASS**, Release **474/474 PASS**.
+- **macOS/Clang:** Debug **400/400 PASS**, Release **400/400 PASS**.
+- **Windows/MSVC:** focused native preflight **48/48 PASS** in Debug and
+  Release; full Debug **429/429 PASS**, Release **429/429 PASS**.
+- Installed SDK consumer/package/digest/upload gates PASS on all three hosted
+  platforms. **Documentation policy PASS**; untagged prerelease publication is
+  correctly **SKIPPED**.
+
+This closes the sanitizer-specific **NOT RUN** item for the portable R4
+RDPGFX lifecycle/wire layer. The canonical owner-local
+`~/rdp-server/build` command on Linux/X11, Windows MSYS2 CLANG64/Clang 23 and
+macOS 27 remains **NOT RUN** in this connector environment.
+
+A fresh search of current shared `main` still finds no implementation of the
+authenticated `Microsoft::Windows::RDS::Graphics` dynamic virtual channel,
+DRDYNVC routing or an R3-owned complete-send receipt boundary. Therefore the
+next R4 production integration gate remains **BLOCKED on R3**; R4 must not
+fabricate a parallel channel/session owner. Native capture performance and
+Microsoft-client visible graphics acceptance also remain **NOT RUN/BLOCKED**.
+Gate B and M3/M4/M5 remain **OPEN**.

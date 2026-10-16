@@ -205,12 +205,17 @@ development packages: `libxcb1-dev` and `libxcb-damage0-dev`.
 Linux hosted CI installs them. The target compiles the actual
 `src/x11/x11_damage_tracker.cpp` plus the existing bounded
 `src/core/damage_region.cpp`, with strict C++23 warnings. Its
-dedicated `x11.damage-native-connection-denials-and-cancellation`
-CTest requires no X server, logged-in session or live capture.
-If headers/libs are unavailable, this native target/test are not
-built and must be marked NOT RUN (not PASS). The owner's existing
-one-root configure/build/CTest command is unchanged, and XCB
-remains excluded from installed portable protocol headers.
+headless `x11.damage-native-connection-denials-and-cancellation`
+CTest requires no X server. When `xvfb-run` is available, the same
+production-linked executable also registers
+`x11.damage-native-destructor-retirement` against an ephemeral synthetic
+display and proves the server-side Damage resource is retired while the
+borrowed owner remains alive. If headers/libs are unavailable, these native
+cases are not built and must be marked NOT RUN (not PASS); without Xvfb only
+the synthetic-display retirement case is NOT RUN. No logged-in session, live
+capture or credentials are required. The owner's existing one-root
+configure/build/CTest command is unchanged, and XCB remains excluded from
+installed portable protocol headers.
 
 ## Linux native XTEST and one-XCB owner dependencies (R5)
 

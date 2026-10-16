@@ -1243,6 +1243,19 @@ if(TARGET rdp-server-linux-xdamage)
     set_tests_properties(
         x11.damage-native-connection-denials-and-cancellation
         PROPERTIES LABELS "x11;linux-adapter;native")
+
+    find_program(RDP_SERVER_XVFB_RUN_EXECUTABLE NAMES xvfb-run)
+    if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
+        add_test(NAME x11.damage-native-destructor-retirement
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_native_damage>
+                destructor-retirement)
+        set_tests_properties(
+            x11.damage-native-destructor-retirement
+            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
+                       TIMEOUT 20)
+    endif()
 endif()
 
 # R5 native XTEST input lifetime: the test uses an already-failed XCB

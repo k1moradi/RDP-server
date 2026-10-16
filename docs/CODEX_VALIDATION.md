@@ -14630,3 +14630,75 @@ or build-root policy changes. Canonical local execution is **NOT RUN** because
 the owner checkout is unavailable in this connector environment. Exact-SHA
 hosted CI is required before claiming sanitizer PASS for the capability
 negotiation cases.
+
+
+## R5 XFixes cursor observer retirement hosted validation (2026-10-16)
+
+**Implementation:** `8e9040f198982e1e7b52c8597dbbb9b47730ba2e`.
+**Exact-SHA Actions:** `38920041740`.
+
+The implementation SHA's normal hosted matrix is green. Ubuntu/GCC full CTest
+passed **445/445** in Debug and **445/445** in Release, including
+`x11.cursor-native-destructor-retirement` in both. macOS/Clang passed
+**371/371** Debug and Release. Windows/MSVC native preflight passed **44/44**
+Debug and Release and full CTest passed **400/400** Debug and Release.
+Documentation policy, installed-SDK consumer **1/1**, package/digest/upload and
+the platform build stages passed.
+
+The exact-SHA workflow conclusion is **FAIL**, solely because the shared
+sanitizer compile stops in the unrelated macOS session-guard target where that
+runner's Clang/libstdc++ combination reports no `std::expected`. Immediate
+parent `5bdd5430bd143d24822c74a8c1301a5349ff2598`, Actions
+`38919749966`, reproduces the same compile failure before this R5 change.
+
+A later descendant with the R5 cursor sources unchanged,
+`f89482f395e095fb8fe5bcf6c9d9f71f7fc8513d`, Actions `38962858093`,
+completed **SUCCESS** after the shared sanitizer/toolchain correction. Its
+Clang ASan/UBSan native-X11 selection is **25/25 PASS**, directly including
+`x11.cursor-native-destructor-retirement` and all prior R5 cases. This closes
+the R5 sanitizer evidence gap without weakening or bypassing the shared job.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, positive Kerberos/logind/XTEST operation and
+Microsoft-client M3 acceptance remain **NOT RUN/OPEN**.
+
+## R5 XDamage destructor retirement coverage (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:**
+`56fddfcc155a0fea2f0aa98ff19c2013bff308d7`.
+
+The existing `X11DamageTracker` already uses RAII correctly: its destructor
+calls the idempotent `disconnect()` path, and that path destroys the
+server-side XDamage resource with a checked request while the borrowed XCB
+owner is healthy. The dedicated native test, however, only exercised a failed
+XCB descriptor and therefore could not prove that the server-side resource is
+actually retired while the owner remains alive.
+
+The existing production-linked `test_x11_native_damage` executable now gains
+behavior `x11.damage-native-destructor-retirement`. Under ephemeral Xvfb it
+keeps the owner XCB connection alive, uses one helper connection only to issue
+bounded 32x32 synthetic-root clears, proves a real Damage notification while
+the tracker exists, destroys the tracker by ordinary scope exit, then proves a
+later clear produces no stale Damage notification for that client. It also
+constructs a replacement tracker on the same owner, proves notification
+delivery resumes, explicitly disconnects it, and proves retirement again.
+Checked requests plus an owner round trip establish ordering; the test uses no
+sleep, retry loop, XTEST input, logged-in desktop, credential, RDP parser or
+graphics scheduler.
+
+No production correction is required by this increment; it closes a native
+lifetime-evidence gap against already-correct R5 cleanup. The shared Clang
+ASan/UBSan native-X11 selector expands from **25** to **26** behavior-named
+cases.
+
+**Authoring validation:** affected production/source/registry review **PASS**.
+Canonical owner
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+is **NOT RUN** because this connector environment does not expose the required
+owner checkout/build root; no alternate persistent build root was created.
+Exact-SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC, R9 ASan/UBSan,
+documentation-policy and SDK/package validation are the next executable gate.
+The next functional R5 input-PDU integration remains **BLOCKED** on R3 exposing
+its authoritative authenticated Share/Input or Fast-Path Input translation
+boundary. R5 does not create a parallel parser/session owner. M3 remains
+**OPEN / NOT ACCEPTED**.

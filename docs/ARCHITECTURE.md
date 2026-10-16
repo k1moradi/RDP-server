@@ -1056,10 +1056,14 @@ is rejected before XDamage extension negotiation. The dedicated
 noninstalled Linux `rdp-server-linux-xdamage` target links only
 `xcb`, `xcb-damage` and the existing bounded `DamageRegion`;
 the portable protocol engine, SDK and macOS/Windows builds remain
-unaffected. The native CTest uses a deliberately failed XCB descriptor
-and never authorizes or observes a real desktop. R2 and R3 must grant
-independent access before any protected capture or input; R4 alone
-schedules graphics transmission.
+unaffected. The headless native CTest uses a deliberately failed XCB
+descriptor. A second production-linked lifecycle case runs only under
+ephemeral Xvfb: it proves one real root Damage notification while the tracker
+is alive, destroys the tracker while the borrowed owner stays healthy, then
+proves later synthetic root rendering produces no stale notification and a
+replacement Damage resource can register normally. Neither case authorizes or
+observes a real desktop. R2 and R3 must grant independent access before any
+protected capture or input; R4 alone schedules graphics transmission.
 
 ### R5 native XFixes cursor lifetime (Linux only)
 

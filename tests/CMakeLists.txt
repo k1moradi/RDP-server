@@ -1111,6 +1111,13 @@ foreach(case_name IN ITEMS
 endforeach()
 
 if(APPLE)
+    add_test(NAME "macos.desktop-native-refresh-requires-topology-coverage"
+        COMMAND test_macos_capture_pixel_buffer
+                "native-refresh-requires-topology-coverage")
+    set_tests_properties(
+        "macos.desktop-native-refresh-requires-topology-coverage"
+        PROPERTIES LABELS "macos;geometry;security;offline")
+
     foreach(case_name IN ITEMS ownership native-denials native-move-replacement)
         add_test(NAME "macos.capture-bgra-buffer-${case_name}"
             COMMAND test_macos_capture_pixel_buffer "${case_name}")

@@ -2166,3 +2166,15 @@ dependency and does not prove an authenticated Graphics DVC, live client
 negotiation or R3 admission. As with other shared sanitizer groups, later
 roads must still run under `always() && compile-success` if this R4 group
 fails.
+
+
+## R7 native macOS geometry refresh requires notification coverage (2026-10-16)
+
+Ordinary tests must not register the real CoreGraphics display-reconfiguration
+callback or enumerate live display state. The Apple-only denial regression may
+call `NativeDisplayGeometryRefresh::refreshNative()` only while native coverage
+is known inactive; production must reject with
+`TopologyCoverageUnavailable` before any CoreGraphics enumeration. The test
+should first install a synthetic geometry epoch and verify the denied native
+refresh still invalidates that old epoch. Positive native coverage and real
+display-change delivery remain owner-macOS acceptance, not hosted CTest.

@@ -17,6 +17,7 @@ namespace {
 std::atomic<std::uint64_t> s_revision{1};
 #if defined(__APPLE__)
 std::atomic<bool> s_registrationReserved{false};
+std::atomic<bool> s_nativeCoverageActive{false};
 
 void quartzDisplayChanged(CGDirectDisplayID,
                           CGDisplayChangeSummaryFlags, void*) noexcept {
@@ -78,6 +79,7 @@ NativeDisplayReconfigurationWatch::startNative() noexcept {
         return std::unexpected(NativeDisplayWatchError::RegistrationFailed);
     }
     registered_ = true;
+    s_nativeCoverageActive.store(true, std::memory_order_release);
     recordTopologyChange(); // Old geometry predates notification coverage.
     return {};
 }
@@ -87,6 +89,11 @@ NativeDisplayReconfigurationWatch::stopNative() noexcept {
     if (!registered_) {
         return {};
     }
+
+    // Coverage becomes unavailable before callback retirement. If removal is
+    // ambiguous, the reservation stays held but no fresh native geometry may
+    // treat that observer as reliable coverage.
+    s_nativeCoverageActive.store(false, std::memory_order_release);
     recordTopologyChange(); // Retire geometry before removing coverage.
     if (CGDisplayRemoveReconfigurationCallback(
             &quartzDisplayChanged, nullptr) != kCGErrorSuccess) {
@@ -95,6 +102,11 @@ NativeDisplayReconfigurationWatch::stopNative() noexcept {
     registered_ = false;
     s_registrationReserved.store(false, std::memory_order_release);
     return {};
+}
+
+bool NativeDisplayReconfigurationWatch::nativeCoverageActive() noexcept {
+    return s_nativeCoverageActive.load(std::memory_order_acquire) &&
+           revision() != 0;
 }
 #endif
 

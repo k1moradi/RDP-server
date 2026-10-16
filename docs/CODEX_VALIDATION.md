@@ -14846,3 +14846,28 @@ Server Platform Challenge branch for `CLIENT_NEW_LICENSE_REQUEST`.
 Only after the full relevant branch is cryptographically valid may a protected
 server licensing result be serialized. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R7 native geometry coverage-gate authoring receipt (2026-10-16; CI pending)
+
+Authoring base is `aa371286b8a706a888fdf5f9234089ece8f5d0df`. Production R7 native geometry refresh now
+requires the already-existing process-scoped Quartz display reconfiguration
+watch to report active coverage. Coverage is cleared before observer removal;
+an ambiguous failed removal keeps the registration reservation fail-closed but
+cannot permit another native geometry snapshot. Synthetic geometry refresh
+behavior is unchanged.
+
+New centrally registered Apple-only
+`macos.desktop-native-refresh-requires-topology-coverage` calls the production
+native refresh entry point only with coverage inactive and expects
+`TopologyCoverageUnavailable`; because the check precedes
+`queryNativeDisplaySnapshot`, ordinary CTest performs no live CoreGraphics
+enumeration. It also verifies the attempted native refresh invalidates a prior
+synthetic geometry epoch.
+
+Canonical owner-local `~/rdp-server/build/` build/full CTest is **NOT RUN**
+because that checkout is unavailable in this connector; no alternate
+persistent build root, branch or worktree is created. Exact-publication-SHA
+hosted matrix/sanitizer/docs/SDK evidence is **PENDING**. Owner macOS 27 real
+callback coverage, genuine R2/R3 macOS admission and Microsoft-client M5
+acceptance remain **NOT RUN/OPEN**.

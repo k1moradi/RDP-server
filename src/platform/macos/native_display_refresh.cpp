@@ -61,6 +61,10 @@ NativeDisplayGeometryRefresh::refreshNative() noexcept {
     if (!advance()) {
         return std::unexpected(NativeDisplayRefreshError::GenerationExhausted);
     }
+    if (!NativeDisplayReconfigurationWatch::nativeCoverageActive()) {
+        return std::unexpected(
+            NativeDisplayRefreshError::TopologyCoverageUnavailable);
+    }
     const auto revision = NativeDisplayReconfigurationWatch::revision();
     return install(queryNativeDisplaySnapshot(generation_), revision);
 }

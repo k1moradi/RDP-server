@@ -1865,15 +1865,20 @@ via the matching CoreGraphics API; ordinary CTests do neither. Callback
 so an already executing callback during removal never dereferences a
 retired session/geometry object. Only one Quartz registration is permitted
 per process; registration failure releases its reservation, while removal
-failure retains it to avoid duplicate observers. Both start and stop retire
-previous revision tokens. The signal saturates to an invalid zero on
-uint64 exhaustion rather than reuse generations.
+failure retains it to avoid duplicate observers. Active notification coverage
+is tracked separately from that reservation and becomes unavailable before
+removal is attempted, so ambiguous teardown cannot authorize a fresh native
+geometry sample. Both start and stop retire previous revision tokens. The signal
+saturates to an invalid zero on uint64 exhaustion rather than reuse generations.
 
-The existing `NativeDisplayGeometryRefresh` now records a topology signal
-revision around each synchronous two-read sample and geometry conversion.
-A notification during sampling rejects publication; later begin/complete
-notifications cause `usable`, pointer conversion, and virtual-canvas
-queries to fail until a fresh refresh. The CoreGraphics callback NEVER
+The existing `NativeDisplayGeometryRefresh` records a topology signal revision
+around each synchronous two-read sample and geometry conversion. The injected
+reader seam remains authorization-neutral for deterministic tests, but
+`refreshNative()` now requires already-active Quartz notification coverage and
+fails before CoreGraphics enumeration when coverage is absent. A notification
+during sampling rejects publication; later begin/complete notifications cause
+`usable`, pointer conversion, and virtual-canvas queries to fail until a fresh
+covered refresh. The CoreGraphics callback NEVER
 calls into the mutable geometry owner; the future R2/R3 session owner must
 serialize start/stop/refresh and check generation immediately before
 native input/capture, including any later R4 scheduling. This is NOT an

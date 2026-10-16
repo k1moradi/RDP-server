@@ -42,6 +42,28 @@ static_assert(!std::is_copy_constructible_v<rdp::macos::NativeDisplayGeometryRef
 static_assert(!std::is_move_constructible_v<rdp::macos::NativeDisplayGeometryRefresh>);
 
 #if defined(__APPLE__)
+void testNativeRefreshRequiresTopologyCoverage() {
+    using namespace rdp::macos;
+
+    assert(!NativeDisplayReconfigurationWatch::nativeCoverageActive());
+
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto syntheticGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(syntheticGeneration && geometry.usable(*syntheticGeneration));
+
+    // Native refresh retires the old epoch but must fail before querying live
+    // CoreGraphics display state when notification coverage is unavailable.
+    const auto denied = geometry.refreshNative();
+    assert(!denied);
+    assert(denied.error() ==
+           NativeDisplayRefreshError::TopologyCoverageUnavailable);
+    assert(geometry.generation() > *syntheticGeneration);
+    assert(!geometry.usable(*syntheticGeneration));
+    assert(!geometry.usable(geometry.generation()));
+}
+
 void onPixelBufferReleased(void* const context, const void* const base_address) {
     assert(context != nullptr);
     assert(base_address != nullptr);
@@ -1071,6 +1093,8 @@ int main(const int argument_count, const char* const arguments[]) {
     } else if (test_case == "geometry-native-generation-refresh") {
         testNativeGeometryGenerationRefresh();
 #if defined(__APPLE__)
+    } else if (test_case == "native-refresh-requires-topology-coverage") {
+        testNativeRefreshRequiresTopologyCoverage();
     } else if (test_case == "ownership") {
         testRetainedPaddedBufferLifetime();
     } else if (test_case == "native-denials") {

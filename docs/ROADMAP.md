@@ -14598,3 +14598,40 @@ Server Platform Challenge branch for `CLIENT_NEW_LICENSE_REQUEST`.
 Only after the full relevant branch is cryptographically valid may a protected
 server licensing result be serialized. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R7 native geometry notification-coverage gate (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `aa371286b8a706a888fdf5f9234089ece8f5d0df`.
+
+Review of the current R7 quarantine found that
+`NativeDisplayGeometryRefresh::refreshNative()` could enumerate and publish a
+CoreGraphics geometry epoch even when the process-scoped Quartz display
+reconfiguration watch had never been started (or had entered ambiguous
+retirement). That is a revocation-coverage gap, not an authorization feature.
+
+R7 now tracks active native display-notification coverage separately from the
+single process registration reservation. Successful watch start marks coverage
+active before retiring pre-watch geometry; stop marks coverage unavailable
+before unregistering, so a failed/ambiguous removal keeps the reservation but
+cannot be treated as reliable coverage. `refreshNative()` still invalidates
+any previous geometry generation first, then returns
+`TopologyCoverageUnavailable` before live CoreGraphics enumeration unless
+coverage is active. The injected `refresh(reader, context)` path is unchanged
+for deterministic cross-platform tests.
+
+New Apple-only CTest
+`macos.desktop-native-refresh-requires-topology-coverage` establishes a
+synthetic geometry epoch, invokes the native path with no registered Quartz
+watch, verifies the explicit denial and proves the prior epoch was retired.
+The case registers no real callback, performs no live display enumeration, asks
+for no TCC permission, and performs no capture/input/cursor action.
+
+Source/registry/architecture/testing-standard review is **PASS**. Canonical
+owner-local `~/rdp-server/build/` execution is **NOT RUN** in this connector
+environment. Exact-publication-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC,
+R7/R9 sanitizer, documentation-policy and SDK/package evidence are **PENDING**
+after publication. Genuine non-forgeable macOS R2/R3 admission, owner macOS 27
+positive display-reconfiguration delivery/live desktop validation and
+Microsoft-client M5 acceptance remain **NOT RUN/OPEN**. **M5 remains
+OPEN/BLOCKED**.

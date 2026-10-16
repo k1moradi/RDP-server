@@ -15,6 +15,7 @@ enum class NativeDisplayRefreshError : std::uint8_t {
     DisplayUnavailable,
     GeometryUnsupported,
     TopologyChanged,
+    TopologyCoverageUnavailable,
 };
 
 // A synchronous R7 geometry epoch guard, NOT an RDP session, capture stream,
@@ -37,6 +38,8 @@ public:
 
 #if defined(__APPLE__)
     // Caller-approved read-only CoreGraphics enumeration, not screen capture.
+    // Native Quartz reconfiguration coverage must already be active; unlike
+    // the injected refresh seam this path cannot publish an uncovered epoch.
     [[nodiscard]] std::expected<std::uint64_t, NativeDisplayRefreshError>
     refreshNative() noexcept;
 #endif

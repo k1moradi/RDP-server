@@ -39,6 +39,9 @@ public:
     // register from CTest or implicitly from geometry construction.
     [[nodiscard]] std::expected<void, NativeDisplayWatchError> startNative() noexcept;
     [[nodiscard]] std::expected<void, NativeDisplayWatchError> stopNative() noexcept;
+    // Coverage is a revocation precondition only, never authentication or
+    // authorization. False also covers terminal topology-revision exhaustion.
+    [[nodiscard]] static bool nativeCoverageActive() noexcept;
     [[nodiscard]] bool registered() const noexcept { return registered_; }
 #endif
 

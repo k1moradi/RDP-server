@@ -13541,3 +13541,41 @@ hosted Debug/Release, sanitizer, documentation and SDK/package evidence
 **PENDING** after publication. Owner macOS 27 live fast-user-switch and native
 capture, genuine R2/R3 admission, and Microsoft-client M5 acceptance
 **NOT RUN**. **M5 remains OPEN/BLOCKED**.
+
+
+## R7 deferred native capture stop exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `8feab0e5323fde40ffc5020b2ddf1c2af75b78fc`.
+**GitHub Actions:** `38929437619` — **SUCCESS**, exact implementation SHA.
+
+The `macos.capture-stream-start-retirement-after-completion` regression is
+**PASS** on macOS/AppleClang in both Debug and Release, within the full
+**384/384 PASS** suite in each configuration. Its production C++ state test
+covers close-before-start-success, close-before-start-failure, successful
+start-before-close and one-shot native stop ownership; the same Apple job
+compiles and links the changed real Objective-C++ ScreenCaptureKit bridge.
+
+Portable regression suites and SDK/package gates also remain green:
+Ubuntu/GCC full Debug **457/457 PASS**, Release **457/457 PASS**;
+Windows/MSVC native preflight **46/46 PASS** in both modes, full Debug
+**413/413 PASS**, Release **413/413 PASS**. Installed downstream SDK consumers
+are **1/1 PASS** on Linux, macOS and Windows. Documentation policy,
+the bounded R9 Clang ASan/UBSan job and the separate R7 session-watch
+sanitizer job (**10/10 PASS**) all **PASS**. The new Apple-only capture test
+itself is **NOT** executed under the Linux sanitizer jobs: those sanitizer
+results validate their own configured selections, not live ScreenCaptureKit
+start/stop. Untagged prerelease publishing is correctly **SKIPPED**.
+
+The bridge now waits for actual successful asynchronous native start before
+owner close claims a stop. If close preceded success, the subsequent native
+completion records that success even though the C++ state is closed, then
+retains the one available native stop claim and submits retirement. Failure
+does not cause speculative native stop. No native capture factory, Quartz
+input callback, live AppKit cursor sampler, session admission or R4 publication
+path was made reachable.
+
+Canonical owner `~/rdp-server/build/` validation, owner macOS 27 real
+ScreenCaptureKit and fast-user-switch delivery, independently authenticated
+R2/R3 macOS user/session admission, real input/cursor/graphics integration and
+Microsoft-client M5 acceptance remain **NOT RUN/OPEN**.
+**M5 remains OPEN/BLOCKED**.

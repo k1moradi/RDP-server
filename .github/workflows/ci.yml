@@ -118,7 +118,11 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libkrb5-dev libsystemd-dev libxcb1-dev pkg-config
+          sudo apt-get install -y --no-install-recommends \
+            libkrb5-dev libsystemd-dev pkg-config \
+            libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev \
+            libxcb-xfixes0-dev libxcb-damage0-dev libxcb-xtest0-dev \
+            xvfb xauth
       - name: Configure first-party protocol tests with ASan and UBSan
         shell: bash
         run: |
@@ -134,21 +138,23 @@ jobs:
         run: |
           cmake --build build --config Debug --parallel 2 --target \
             test_owned_remote_transfer test_clipboard_protocol \
-            test_owned_mcs_connect_initial test_owned_credssp_tsrequest \
+            test_owned_mcs_connect_initial test_owned_preauth_session \
+            test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_linux_gssapi_spnego \
-            test_x11_clipboard_adapter fuzz_mcs_cliprdr
+            test_x11_clipboard_adapter test_x11_authorized_input_route \
+            fuzz_mcs_cliprdr
       - name: Run all registered clipboard CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --build-config Debug -L clipboard --output-on-failure
-      - name: Run bounded MCS, CredSSP and licensing CTests with sanitizers
+      - name: Run bounded R1/R3 MCS, CredSSP and licensing CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           ctest --test-dir build --build-config Debug \
-            -R '^(transport\.(mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(preamble-and-state|length-bounds|ordering-denials))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$' --output-on-failure
+            -R '^(transport\.(tcp-owned-(security-negotiation-provenance|r3-connect-response-slice)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(preamble-and-state|length-bounds|ordering-denials))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$' --output-on-failure
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -159,7 +165,15 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           ctest --test-dir build --build-config Debug --verbose \
-            -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
+            -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
+
+      - name: Run native authorized X11 input denial with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --build-config Debug \
+            -R '^x11\.input-r3-admission-route-denials-and-revocation$' --output-on-failure
 
       - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
         env:

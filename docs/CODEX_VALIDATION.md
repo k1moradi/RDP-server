@@ -8233,3 +8233,47 @@ TPKT and authorization remain R2/R3 responsibilities. Inspection therefore
 shows no new bounded R1 TCP/TLS hook is required for Erect. Owner Linux/X11,
 Windows MSYS2 CLANG64/Clang 23, macOS 27, genuine positive native admission
 and Microsoft-client evidence remain **NOT RUN**. M2 remains **NOT ACCEPTED**.
+
+
+## R9 protected-transition/native-input sanitizer authoring (2026-10-16; CI pending)
+
+**Starting inspection:** `86b5c32aa0318ab96a3e5e30ddda57a84f54b3b3`;
+reconciled onto `08797bea5447fbadabf306ff216fcdb72a7d81c2`. Current production includes R1 negotiation
+provenance and response-slice compatibility, R2/R3 protected Connect Response
+preparation/completion and Erect progression, R5's concrete R2/R3-authorized
+X11 input route, and R8 bounded X11 INCR clipboard transfers.
+
+R9 corrects sanitizer integration without modifying production. The registered
+`security.gssapi-r3-connect-response-write-contract` was absent from the
+workflow regex; the newer completion-reauthorization and Erect contracts were
+also not selected. The existing R1
+`transport.tcp-owned-r3-connect-response-slice` registration is retained and
+now runs under sanitizers.
+
+The existing sanitizer job now builds `test_owned_preauth_session` and
+`test_x11_authorized_input_route`. Unsuppressed ASan/UBSan runs cover R1
+provenance and TLS response-slice compatibility, R3 security replay/write
+receipt denials, the prior MCS/CredSSP/licensing cases, and
+`x11.input-r3-admission-route-denials-and-revocation`. The GSS step adds the
+Connect Response preparation contract, completion reauthorization contract,
+Erect Domain contract, and independent R9
+`security.gssapi-r3-protected-transition-terminal-replay-fence`.
+
+The R9 replay fence uses only public production denial/teardown APIs and the
+documented null-lease completion path. A guessed completion before any private
+positive handoff must close R3 and revoke R2/GSS. Late Erect work, altered
+receipts/byte counts, public generation guesses, replacing only R3, and replay
+against fully fresh owners all remain terminal. No synthetic lease, Boolean
+admission, test-only friend, second session owner, or production authorization
+surface is added.
+
+The full clipboard label is still the R9 clipboard gate, so all eight native
+X11 clipboard cases, including the three new INCR cases, join the portable
+coverage automatically.
+
+**Authoring validation:** source/CTest/workflow consistency was inspected
+through GitHub; local project build/CTest is **NOT RUN** because this agent has
+no synchronized shell checkout. Expected exact-SHA sanitizer scope is
+clipboard **27**, unsuppressed R1/R3 MCS + CredSSP + licensing **18**, native
+R2/R3 GSS **12**, authorized-input denial **1**, and fuzzer **1**. Exact-SHA
+Actions is **PENDING**.

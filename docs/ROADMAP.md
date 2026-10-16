@@ -6737,3 +6737,56 @@ TPKT and authorization remain R2/R3 responsibilities. Inspection therefore
 shows no new bounded R1 TCP/TLS hook is required for Erect. Owner Linux/X11,
 Windows MSYS2 CLANG64/Clang 23, macOS 27, genuine positive native admission
 and Microsoft-client evidence remain **NOT RUN**. M2 remains **NOT ACCEPTED**.
+
+
+## R9 protected-transition/native-input sanitizer integration (2026-10-16; CI pending)
+
+**Starting inspection:** `86b5c32aa0318ab96a3e5e30ddda57a84f54b3b3`.
+**Reconciled authoring base:** `08797bea5447fbadabf306ff216fcdb72a7d81c2`. R3 now protects Connect Response
+preparation, accepted-byte completion, and Erect Domain progression using the
+concrete R2 lease plus exact R1 transport/provenance. R5 also exposes one
+stateless X11 input route that requires the same concrete R2/R3 authority and
+input permission immediately before XTEST. R8 has additionally landed bounded
+X11 INCR clipboard transfer tests. Genuine positive native admission remains
+unavailable in hosted CI, so R9 adds no synthetic lease or bypass.
+
+The existing single Linux sanitizer job is expanded in place. It installs the
+same XCB/Xvfb development dependencies used by the normal Ubuntu matrix,
+builds `test_owned_preauth_session` and
+`test_x11_authorized_input_route`, and preserves all prior sanitizer
+coverage. Unsuppressed transport coverage adds
+`transport.tcp-owned-security-negotiation-provenance`,
+`transport.tcp-owned-r3-connect-response-slice`,
+`transport.mcs-response-security-replay`,
+`transport.mcs-response-write-receipts`, and
+`transport.mcs-response-write-denials`.
+
+The native GSS/R2/R3 sanitizer set now includes the previously omitted
+`security.gssapi-r3-connect-response-write-contract`, plus
+`security.gssapi-r3-connect-response-completion-reauthorization` and
+`security.gssapi-r3-erect-domain-contract`. R9 independently adds
+`security.gssapi-r3-protected-transition-terminal-replay-fence`: with no
+positive lease or established R1 transport, a guessed Connect Response
+completion must close R3 and revoke R2/GSS; late Erect input, changed/zero
+receipts, public generation guesses, an R3-only replacement, and a completely
+fresh owner set must never turn receipt values into authority.
+
+The production-backed
+`x11.input-r3-admission-route-denials-and-revocation` Xvfb case is also run
+under ASan/UBSan without the MIT GSS leak suppression. It deliberately passes
+no admission lease, so a real native desktop plus an input-capable policy must
+still fail closed before XTEST and terminally revoke native/R3/R2 state.
+
+Because the sanitizer job executes the full `clipboard` label, all eight
+X11 clipboard cases are included, including R8's new bounded INCR progression
+and cancellation cases plus R9's disconnect/late-paste fence.
+
+Expected exact-SHA sanitizer scope is clipboard **27**, unsuppressed R1/R3 MCS
++ CredSSP + licensing **18**, native R2/R3 GSS **12**, authorized-input denial
+**1**, and bounded fuzzer **1**. The scoped `krb5_copy_principal` LSan
+suppression remains GSS-only. Local synchronized build/CTest is **NOT RUN** in
+this connector-only environment; exact-SHA GitHub Actions is required after
+publication. Positive Kerberos/logind admission, actual protected
+writes/completion/Erect/input injection, Attach/Join, authorized R3->R8
+runtime routing, owner-platform commands, Microsoft-client interoperability
+and performance remain **NOT RUN/BLOCKED**. M1-M6 remain unaccepted.

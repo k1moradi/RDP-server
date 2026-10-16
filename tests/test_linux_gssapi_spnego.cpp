@@ -441,6 +441,81 @@ void testR3ConnectResponseCompletionReauthorization()
     assert(broker.state()==LinuxConsoleAdmissionState::Revoked);
 }
 
+
+void testR3ProtectedTransitionTerminalReplayFence()
+{
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+    using rdp_server::server::transport::OwnedNativeTcpSocket;
+    using rdp_server::server::transport::OwnedPreauthTcpConnection;
+
+    constexpr std::array<std::uint8_t, 12> erect{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x04, 0x01, 0x00, 0x01, 0x00};
+    constexpr std::uint64_t guessedReply = 17U;
+    constexpr std::uint64_t guessedSlice = 29U;
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+    // No positive lease or established R1 transport exists. A guessed
+    // completion must retire R3 and revoke R2/GSS before receipt state moves.
+    assert(broker.completeR3ConnectResponseWrite(
+               nullptr, acceptor, connection, session,
+               guessedReply, guessedSlice, 0U) == Outcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    // Late Erect work, changed receipts and public generation guesses cannot
+    // revive the same terminal owner.
+    assert(session.onDomainPdu(erect) == McsSessionIntake::Closed);
+    session.revokeUnlessAdmissionBindingMatches(UINT64_MAX, UINT64_MAX);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(broker.completeR3ConnectResponseWrite(
+               nullptr, acceptor, connection, session,
+               guessedReply, guessedSlice, 1U) == Outcome::Rejected);
+    assert(broker.completeR3ConnectResponseWrite(
+               nullptr, acceptor, connection, session,
+               0U, 0U, 0U) == Outcome::Rejected);
+
+    // Replacing only R3 cannot cross an already revoked R2/GSS boundary.
+    McsSessionLifecycle replacement;
+    assert(replacement.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(broker.completeR3ConnectResponseWrite(
+               nullptr, acceptor, connection, replacement,
+               guessedReply, guessedSlice, 0U) == Outcome::Rejected);
+    assert(replacement.phase() == McsSessionPhase::Closed);
+    assert(replacement.onDomainPdu(erect) == McsSessionIntake::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    // A full reconnect has fresh owners, but receipt values alone are still
+    // not authority and cannot manufacture the missing lease/R1 state.
+    GssapiSpnegoAcceptor freshAcceptor;
+    LinuxConsoleAdmissionBroker freshBroker(policy);
+    McsSessionLifecycle freshSession;
+    OwnedPreauthTcpConnection freshConnection{OwnedNativeTcpSocket{}};
+    assert(freshBroker.state() == LinuxConsoleAdmissionState::Ready);
+    assert(freshSession.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(freshBroker.completeR3ConnectResponseWrite(
+               nullptr, freshAcceptor, freshConnection, freshSession,
+               guessedReply, guessedSlice, 0U) == Outcome::Rejected);
+    assert(freshSession.phase() == McsSessionPhase::Closed);
+    assert(freshSession.onDomainPdu(erect) == McsSessionIntake::Closed);
+    assert(freshSession.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(freshBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(freshAcceptor.stage() == SpnegoStage::Failed);
+}
+
 void testR3ErectDomainContract()
 {
     constexpr std::array<std::uint8_t, 12> erect{
@@ -655,6 +730,11 @@ int main(int argc, char **argv)
             testR3ErectDomainContract();
             return 0;
         }
+        if (name == "gssapi-r3-protected-transition-terminal-replay-fence")
+        {
+            testR3ProtectedTransitionTerminalReplayFence();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -684,6 +764,7 @@ int main(int argc, char **argv)
     testR3ConnectResponseWriteContract();
     testR3ConnectResponseCompletionReauthorization();
     testR3ErectDomainContract();
+    testR3ProtectedTransitionTerminalReplayFence();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

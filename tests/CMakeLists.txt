@@ -189,6 +189,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-r3-connect-response-write-contract
                 gssapi-r3-connect-response-completion-reauthorization
                 gssapi-r3-erect-domain-contract
+                gssapi-r3-protected-transition-terminal-replay-fence
                 gssapi-r3-native-change-revocation
                 gssapi-r3-mcs-disconnect-revocation-fence)
             add_test(NAME "security.${case_name}"

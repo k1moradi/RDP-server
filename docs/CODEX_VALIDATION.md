@@ -1,3 +1,31 @@
+## R2 first client licensing intake authoring validation (2026-10-16)
+
+**Reconciled parent:** `f0b43eaf374a38ee75814ef7e72d349c7311ce43`.
+
+Source review **PASS**: R3's new
+`authorizeR3ClientLicensingMessage` enters through the existing
+`authorizeR3ProtectedTransition` path before packet parsing and therefore
+inherits the nonzero generation match, exact R1 HYBRID/TLS owner, GSS identity,
+view permission, policy epoch, NSS/logind fingerprint, deadline and native
+session-watch checks. On any later provenance or R3 intake failure it performs
+the established ordered R3 -> R2/GSS revocation.
+
+The existing Linux contract is strengthened to reject pointer/null lease,
+scalar-generation, principal-string and raw-SSL substitutes at compile time. A
+runtime licensing-shaped TPKT is independently proven to parse as client
+SendData, Enhanced-Security licensing and a complete
+`CLIENT_NEW_LICENSE_REQUEST` preamble, yet the public unadmitted R3 entry
+returns `ValidButNotAdmitted` and closes both R3 and licensing state. This
+executes the credential-free denial path without minting positive native
+authority.
+
+Canonical owner-local build/CTest is **NOT RUN / BLOCKED** in this connector
+environment; no alternate persistent build root is created. Exact-publication
+SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC, R9 sanitizers,
+documentation-policy and downstream package/consumer validation are
+**PENDING**. Positive Kerberos/final-CredSSP authorization, NSS/logind
+admission, licensing cryptography and Microsoft-client M2 remain **NOT RUN**.
+
 ## R8 Linux file-descriptor destination exact-SHA hosted validation (2026-10-16)
 
 Implementation `a7c0cb9d4b9bbb03d35fac50fbba28c25e59e3f9`; Actions `38913256703`: **SUCCESS**.

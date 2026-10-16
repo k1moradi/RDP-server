@@ -1,3 +1,47 @@
+## R2 client licensing intake authority fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `f0b43eaf374a38ee75814ef7e72d349c7311ce43`.
+
+R3 has now landed the first protected client licensing response transition that
+R2's prior roadmap explicitly awaited. Positive intake remains private to
+`LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage`, which takes
+the concrete move-only native admission lease, exact R1
+`OwnedPreauthTcpConnection`, GSS acceptor and sole R3 lifecycle before any
+client licensing packet reaches the stateful licensing owner. The production
+path still runs the common generation/TLS/GSS/policy/NSS/logind/session-watch
+reauthorization immediately before R3 parses or mutates licensing state.
+
+R2 strengthens the dedicated Linux contract without weakening that production
+API. The route is compile-time non-invocable with a lease pointer (including
+null), scalar generation, principal string or raw `SSL *` substitute. The
+runtime test also constructs a complete MCS SendDataRequest carrying a valid
+Enhanced-Security `SEC_LICENSE_PKT` header and complete licensing preamble,
+then sends it only through R3's public unadmitted domain entry. It is classified
+as valid-but-not-admitted, closes both R3 and licensing state, and cannot reach
+the private licensing lifecycle. No synthetic positive lease, GSS identity,
+logind session, licensing result or protocol progression is fabricated.
+
+The existing
+`security.gssapi-r3-client-licensing-route-contract` remains centrally
+registered and selected by R9's native R2/R3 GSS ASan/UBSan group; no new test
+executable is introduced. Canonical owner-local `~/rdp-server/build/` is
+**NOT RUN** because this connector environment has no synchronized checkout.
+Exact-publication-SHA hosted Debug/Release, sanitizer, documentation-policy and
+SDK/package evidence are **PENDING**.
+
+This closes R2's credential-free authorization review for the first client
+licensing intake only. It does **not** validate client-license cryptography,
+server licensing decisions, positive final-CredSSP authorization, NSS/logind
+lease issuance or Microsoft-client acceptance. **M2/M3 remain OPEN / NOT
+ACCEPTED.**
+
+**Next R2:** when R3 adds any server licensing decision, challenge/issuance or
+activation publication, require the same fresh lease + exact R1 owner
+authorization immediately before state/write publication and again at any
+asynchronous accepted-byte completion boundary. Separately execute genuine
+Kerberos/final-CredSSP + NSS/logind acceptance when external credentials and a
+real console session are available.
+
 ## R8 Linux file-descriptor destination exact-SHA hosted validation (2026-10-16)
 
 Implementation `a7c0cb9d4b9bbb03d35fac50fbba28c25e59e3f9`; Actions `38913256703`: **SUCCESS**.

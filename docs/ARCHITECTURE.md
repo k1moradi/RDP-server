@@ -1,3 +1,22 @@
+## R2 first client licensing intake authority boundary (2026-10-16)
+
+The first client licensing response is not a public R3 capability. Only
+`LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage` may enter the
+private R3 licensing intake, after the common protected-transition gate proves
+the stored R3 admission/session generations still match the concrete move-only
+lease and freshly revalidates exact R1 HYBRID/TLS/GSS identity, permission,
+policy, NSS/logind fingerprint, freshness and native-change watch state.
+
+A syntactically valid MCS SendDataRequest, `SEC_LICENSE_PKT` header or
+licensing preamble is never authority by itself. The public
+`McsSessionLifecycle::onDomainPdu` path remains denial-only before admission
+and closes the owner even for licensing-shaped traffic. The R2 API accepts
+neither raw `SSL *`, principal strings, generation scalars nor a nullable
+lease substitute. Positive licensing parsing remains behind the exact
+lease/R1-owner boundary and stops at the R3 server-decision phase; no Share,
+graphics, input, clipboard or desktop authority follows from structural
+licensing intake.
+
 ## R8 Linux file-descriptor destination boundary (2026-10-16)
 
 `LinuxClipboardFileDestination` is a native materialization child of

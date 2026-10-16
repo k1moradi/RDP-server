@@ -1654,13 +1654,54 @@ void testR3ClientLicensingRouteContract()
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
         Acceptor, const SSL *, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const LinuxConsoleAdmissionLease *,
+        Acceptor, Connection, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, std::uint64_t,
+        Acceptor, Connection, Session, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, std::string_view,
+        Acceptor, Connection, Session, Bytes>);
 
-    // Ordinary hosted CI has no positive native lease. Merely constructing
-    // the R3 owner and a plausible packet cannot skip Client Info/request
-    // delivery or make licensing intake public.
+    // This is a complete client SendDataRequest carrying a valid Enhanced
+    // Security licensing header and a complete licensing preamble. It is
+    // deliberately not a full positive client-license body: the public R3
+    // surface must reject before any private licensing lifecycle can matter.
+    constexpr std::array<std::uint8_t, 22> licensingShapedPacket{
+        0x03,0x00,0x00,0x16,0x02,0xf0,0x80,
+        0x64,0x00,0x01,0x03,0xeb,0x70,0x08,
+        0x80,0x00,0x00,0x00,0x13,0x03,0x04,0x00};
+
+    const auto parsed =
+        rdp_server::server::transport::parseMcsChannelRequest(
+            licensingShapedPacket);
+    assert(parsed);
+    assert(parsed.request.kind ==
+           rdp_server::server::transport::McsChannelRequestKind::
+               SendDataRequest);
+    const auto envelope =
+        rdp_server::server::transport::parseEnhancedSecurityLicensingEnvelope(
+            parsed.request.userData);
+    assert(envelope);
+    const auto licensing =
+        rdp_server::server::transport::parseRdpLicensingMessage(
+            envelope.value.licensingMessage);
+    assert(licensing);
+    assert(licensing.value.type ==
+           rdp_server::server::transport::RdpLicensingMessageType::
+               ClientNewLicenseRequest);
+
+    // Ordinary hosted CI has no positive native lease. Even a fully framed
+    // licensing-shaped packet cannot skip Client Info/request delivery or make
+    // the private R2-authorized licensing intake reachable.
     McsSessionLifecycle session;
     assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
     assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
+    assert(session.onDomainPdu(licensingShapedPacket) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
 }
 
 void testR3NativeChangeRevocation()

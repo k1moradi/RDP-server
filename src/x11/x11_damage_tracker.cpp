@@ -5,6 +5,23 @@
 #include <algorithm>
 #include <cstdlib>
 
+namespace
+{
+
+[[nodiscard]] constexpr bool
+sequenceAtOrAfter(std::uint32_t sequence, std::uint32_t floor) noexcept
+{
+    // XCB expands the wire's 16-bit event sequence to a full 32-bit serial.
+    // Serial arithmetic is unambiguous for the bounded queue distance here;
+    // reject the exact half-range boundary conservatively.
+    constexpr std::uint32_t kHalfSequenceRange =
+        std::uint32_t{1} << 31U;
+    return static_cast<std::uint32_t>(sequence - floor) <
+           kHalfSequenceRange;
+}
+
+} // namespace
+
 X11DamageTracker::X11DamageTracker(xcb_connection_t &connection,
                                    xcb_window_t drawable,
                                    PixelSize bounds) noexcept
@@ -84,6 +101,7 @@ X11DamageTracker::X11DamageTracker(xcb_connection_t &connection,
         fail("initial XDamage region clear failed");
         return;
     }
+    generationSequenceFloor_ = initialSubtractCookie.sequence;
     if (xcb_connection_has_error(connection_) != 0 || xcb_flush(connection_) <= 0)
     {
         if (damage_ != XCB_NONE)
@@ -123,6 +141,7 @@ X11DamageTracker::disconnect() noexcept
     drawable_ = XCB_WINDOW_NONE;
     bounds_ = {};
     firstEvent_ = 0;
+    generationSequenceFloor_ = 0;
     pendingAcknowledgement_ = false;
     pendingDamageRegion_.clear();
     interactionNotifications_ = {};
@@ -234,6 +253,14 @@ X11DamageTracker::handles(const xcb_generic_event_t &event) const noexcept
     }
     if (!valid())
     {
+        return false;
+    }
+    if (!sequenceAtOrAfter(event.full_sequence, generationSequenceFloor_))
+    {
+        // A RandR rebuild can leave an already-received old-generation
+        // DamageNotify queued in XCB while the replacement tracker is
+        // constructed. Do not let resource/type identity alone cross that
+        // geometry generation boundary.
         return false;
     }
 

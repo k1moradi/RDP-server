@@ -63,6 +63,9 @@ private:
     xcb_window_t drawable_{XCB_NONE};
     PixelSize bounds_{};
     std::uint8_t firstEvent_{0};
+    // X resource IDs and event types are not sufficient generation identity.
+    // Reject queued notifications older than this tracker's initialization.
+    std::uint32_t generationSequenceFloor_{0};
     bool pendingAcknowledgement_{false};
     DamageRegion pendingDamageRegion_{};
     std::array<InteractionDamageNotification,

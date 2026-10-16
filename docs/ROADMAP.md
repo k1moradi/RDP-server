@@ -1,3 +1,40 @@
+## R5 RandR stale-damage sequence-fence correction (2026-10-16; exact-SHA CI pending)
+
+**Correction parent:** `83d05e8076982545e57b75b78f5f5b212ddde865`.  
+**First test publication:** `c1d5296dcd2b1cc50126188970a6cb4a50658898`.  
+**First Actions:** `38976824134`.
+
+The new `x11.desktop-resource-randr-stale-damage-isolation` case exposed the
+intended generation boundary instead of passing immediately. Ubuntu/GCC Debug
+built the real X11 target and ran **518** CTests; **517/518 passed**. The sole
+failure was the new R5 case at
+`tests/test_x11_desktop_resources.cpp:878`: after the aggregate had published
+the resized generation and before any deliberate post-rebuild drawing,
+`damageNotificationCount()` was already nonzero. The adjacent existing
+pixel-parity, RandR capture-generation, capture-terminal-denial and other X11
+cases passed. This is executable evidence that resource/event identity alone
+does not provide the generation fence the event-budget contract requires.
+
+The smallest R5 production correction stays inside the existing
+`X11DamageTracker`. Successful construction records the request sequence of
+the initial checked `XDamageSubtract`, which is the point after earlier
+server-side damage is intentionally cleared. `handles()` now rejects a queued
+Damage event whose XCB `full_sequence` predates that generation floor using
+bounded 32-bit serial arithmetic before checking the native Damage XID. Normal
+post-initialization events remain eligible; disconnect clears the floor with the
+rest of the borrowed native state.
+
+No second XCB owner, event loop, RDP parser, scheduler or authorization surface
+is added. The already-registered dedicated CTest and R9 exact-name sanitizer
+preflight remain unchanged. Canonical owner-local `~/rdp-server/build/`
+execution is still **NOT RUN** in this connector environment; no alternate
+persistent build root was created. Exact correction-SHA Linux/GCC
+Debug+Release, macOS/AppleClang Debug+Release, Windows/MSVC Debug+Release, R9
+ASan/UBSan native X11, documentation policy and SDK/package validation are
+**PENDING**. Functional R5 input translation remains **BLOCKED ON R3** pending
+R3's authenticated already-decoded Share/Input or Fast-Path Input event
+contract.
+
 ## R8 Windows completed-file Explorer handoff exact-SHA validation (2026-10-16)
 
 **Implementation:** `74b5fb33484e961479a652204d35864ecfc77fd8`. **Actions:** `38975977794` — **SUCCESS**.

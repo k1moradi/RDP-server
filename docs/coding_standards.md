@@ -1,3 +1,13 @@
+## Native X11 resource IDs are not generation provenance (2026-10-16)
+
+When an X11 child resource is retired and replaced on the same XCB connection,
+do not use extension event type plus XID as the sole generation test for
+already-queued events. Record a request-sequence floor after replacement
+initialization and compare XCB's reconstructed `full_sequence` with bounded
+32-bit serial arithmetic before accepting the event. This is especially
+important across RandR geometry rebuilds where old native events may already be
+in XCB's local queue when the new resource becomes valid.
+
 ## Windows standard-library limit calls must be macro-safe
 
 A translation unit that includes `windows.h` may inherit function-like

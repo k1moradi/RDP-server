@@ -1,3 +1,33 @@
+## R5 RandR stale-damage sequence-fence correction authoring (2026-10-16)
+
+**Correction parent:** `83d05e8076982545e57b75b78f5f5b212ddde865`.  
+**Failing implementation:** `c1d5296dcd2b1cc50126188970a6cb4a50658898`.  
+**Failing Actions:** `38976824134`.
+
+Hosted Ubuntu/GCC Debug provided the first executable result for the new native
+generation-isolation case: **517/518 PASS**, with only
+`x11.desktop-resource-randr-stale-damage-isolation` failing. The assertion at
+line 878 observed a nonzero replacement `damageNotificationCount()` after the
+real 1280x720 -> 1024x600 RandR transaction had committed and before the test
+issued its deliberate post-rebuild draw. The surrounding existing R5
+pixel-fidelity/RandR/terminal-denial cases passed, so the first boundary is
+specifically queued XDamage generation isolation rather than XShm capture or
+aggregate reconstruction.
+
+The correction adds no new owner or public API. `X11DamageTracker` records
+the sequence of its successful initial checked `XDamageSubtract`; XCB events
+whose reconstructed 32-bit `full_sequence` is older than that floor are not
+handled by the replacement tracker. The comparison uses bounded serial
+arithmetic so ordinary sequence wrap does not turn a recently stale event into
+a new-generation notification. The dedicated native CTest remains the oracle
+and still requires a fresh post-rebuild Damage event plus exact B/G/R capture.
+
+Canonical local one-root testing is **NOT RUN** because the synchronized owner
+checkout is unavailable here and project policy forbids another persistent
+build root. Exact correction-SHA hosted validation is **PENDING**. R3 still
+owns Share/Input parsing and authentication/session authority; the functional
+R5 input handoff remains blocked rather than being duplicated.
+
 ## R8 Windows completed-file Explorer handoff exact-SHA validation (2026-10-16)
 
 **Implementation:** `74b5fb33484e961479a652204d35864ecfc77fd8`. **Actions:** `38975977794` — **SUCCESS**.

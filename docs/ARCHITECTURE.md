@@ -1,3 +1,20 @@
+## R5 XDamage event generation fence (2026-10-16)
+
+A geometry rebuild may occur while XCB still holds events generated for the
+retiring XDamage resource. Resource ID plus extension event type are not treated
+as sufficient generation provenance. Each `X11DamageTracker` records the full
+request sequence of the successful initial `XDamageSubtract` that completes
+its generation initialization. `handles()` accepts a Damage notification only
+when XCB's reconstructed `full_sequence` is at or after that floor using
+bounded 32-bit serial arithmetic.
+
+This fence is local to the existing tracker and one XCB owner. It does not add
+an event queue, display connection or graphics scheduler. RandR still stops the
+bounded display batch at the geometry transition, the aggregate still cancels
+old geometry-bound children before constructing replacements, and later queued
+events are then offered to the replacement objects with their own generation
+floor.
+
 ## R10 administrator licensing provisioning boundary (2026-10-16)
 
 R10 owns the administrator-facing configuration boundary for the existing R3

@@ -1045,6 +1045,26 @@ actually run; another parser CTest alone is not a complete session.
   gates **NOT RUN**. Continue R10 listener/runtime integration
   separately without duplicating R1 connection state authority.
 
+  **R1 Darwin listener guard final all-host CI receipt (2026-10-15):**
+  Darwin compatibility repair [`c78a745aaa5180007a00a35a2858072974c2ad17`](https://github.com/k1moradi/RDP-server/commit/c78a745aaa5180007a00a35a2858072974c2ad17),
+  carried into docs/report SHA [`01a9dd001dc8111668635511208a0a6a93bff622`](https://github.com/k1moradi/RDP-server/commit/01a9dd001dc8111668635511208a0a6a93bff622).
+  [Exact source GitHub Actions 38858078854](https://github.com/k1moradi/RDP-server/actions/runs/38858078854)
+  **SUCCESS**: Linux/GCC **252/252 Debug + 252/252 Release**,
+  macOS/AppleClang **234/234 Debug + 234/234 Release**,
+  Windows/MSVC **251/251 Debug + 251/251 Release**.
+  Both new R1 `transport.tcp-native-listener-role-and-mode-denials`
+  and `transport.tcp-native-wrong-socket-type-denials` PASS on
+  ALL hosted platforms in both configurations; documentation-policy,
+  R9 security-protocol sanitizers, per-platform SDK consumer and ZIP
+  packaging PASS. Previous unrelated Windows private-TLS-file
+  runtime failure corrected independently by R10, and [Issue #14](https://github.com/k1moradi/RDP-server/issues/14)
+  closed with both Windows modes PASS.
+  **NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64 Clang23,
+  macOS27 on this exact SHA; real RDP client, TLS/NLA
+  authentication and independent OS identity/authorization,
+  R3 channel/session and desktop. Runtime listener activation
+  remains R10-owned and requires separate approval.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

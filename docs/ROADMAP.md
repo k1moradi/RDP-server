@@ -1,3 +1,64 @@
+## R9 Windows file-destination retirement exact-SHA validation (2026-10-16)
+
+**Implementation:** `11009883c7adc33b9c2fc3c479ac7712e49b7f8b`.  
+**Implementation Actions:** `38974729792` — overall **FAIL** only because a
+concurrent R5 XShm CTest registration defect tripped R9's fail-closed X11
+preflight after all earlier R9 selections had completed.  
+**Shared integration correction:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.  
+**Correction Actions:** `38975257195` — **SUCCESS**.
+
+The R9-owned Windows lifetime regression is validated directly at the
+implementation SHA. `clipboard.windows-file-destination-destructor-retirement`
+is discovered by the clipboard preflight as test **464**, passes under
+Clang ASan/UBSan in **0.01 s**, and the complete clipboard sanitizer group is
+**59/59 PASS**. Ordinary hosted suites also pass the case:
+Linux/GCC **500/500 Debug + 501/501 Release**, macOS/AppleClang
+**424/424 Debug + 424/424 Release**, and Windows/MSVC focused native preflight
+**51/51 Debug + 51/51 Release** followed by full **454/454 Debug +
+454/454 Release**. Installed SDK consumer **1/1** and package/artifact stages
+pass on all three hosted platforms; documentation policy and the independent R7
+sanitizer gate pass. Untagged prerelease publication is correctly **SKIPPED**.
+
+The only implementation-SHA R9 sanitizer failure occurs later in the native-X11
+preflight: `x11.capture-native-destructor-retirement` was required but absent
+from the configured registry because R5 checked
+`RDP_SERVER_XVFB_RUN_EXECUTABLE` before its first
+`find_program(... xvfb-run)`. The sanitizer image already contained Xvfb, so
+this was registration ordering rather than a missing package or production XShm
+failure.
+
+R5 correction `53a426c...` changes no R9 clipboard source and repairs that
+shared registration while restoring concurrent R2 strict-CredSSP sanitizer
+selection. Its exact Actions run is fully green. The R9 sanitizer job discovers
+`x11.capture-native-destructor-retirement` as test **387**, reports
+**Total Tests: 31**, executes the new XShm case successfully in **0.55 s**, and
+finishes the native-X11 selection **31/31 PASS**. The same repaired run retains
+the R9 Windows destructor case as test **467**, passing under ASan/UBSan in
+**0.01 s** with clipboard **59/59 PASS**. Other sanitizer selections are also
+green, including portable graphics **33/33**, x264/BGRA **20/20**, RDPGFX
+capabilities **4/4**, bounded transport/security/licensing **76/76**, native
+GSS/R2/R3 **29/29**, direct R10 Linux runtime security **10/10**, and bounded
+fuzzer **1/1**.
+
+Validated invariant: ordinary scope loss of an active partial
+`WindowsClipboardFileDestination` is terminal cancellation. Its owned
+duplicate is truncated to zero before close, closed exactly once, never flushed,
+and never exposed as a completed file. The corresponding fail-closed sanitizer
+registry now also proves R5's intended XShm lifetime coverage is actually
+registered rather than silently omitted.
+
+Current R3 encrypted New/Upgrade License correction
+`fb63d5873057145d8a22a38d56645be5397bf940` already replaces the earlier coarse grant tests with five
+dedicated wire/denial/transactional/no-live-publication cases and places all
+five in the bounded R9 licensing sanitizer preflight. R9 does not duplicate
+those freshly landed R3 cases.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution remain **NOT RUN** in this connector environment.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27, genuine positive
+Kerberos/NSS/logind admission, live Explorer/Finder file handoff,
+authenticated Microsoft-client file copy and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R6 pre-invalidated guard coordinated retirement coverage (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.

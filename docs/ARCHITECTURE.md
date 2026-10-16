@@ -1,3 +1,13 @@
+## R8 Windows file-handle destination boundary (2026-10-16)
+
+The Windows file destination is a native materialization child of `RemoteTransfer`, not a second clipboard controller. It retains only one duplicated native destination handle, a copied remote leaf name for metadata, and sequential byte progress. The portable clipboard owner keeps all remote generation, descriptor, streamId, response and writer-receipt authority.
+
+A caller supplies the destination HANDLE as a local capability. Production Win32 operations require a disk, non-directory handle and duplicate it with `DUPLICATE_SAME_ACCESS`; no remote name is opened or converted to a local path. Each existing FileContents receipt must exactly match the destination's current intent before a response may be consumed. Parsed range bytes are written synchronously and are not retained after return.
+
+The production bridge truncates through `SetFileInformationByHandle(FileEndOfFileInfo)`, positions the duplicate for each sequential bounded range, writes with `WriteFile`, then requires exact final size plus `FlushFileBuffers` before marking completion. The original caller handle remains owned by its caller. Because duplicated Win32 handles alias the same underlying file object's position, the caller must avoid concurrent file-position-sensitive I/O until the destination reaches a terminal state.
+
+Cancellation, generation replacement and errors best-effort truncate partial content before duplicate close. No shell data object, File Explorer handoff, directory-tree materializer, whole-file cache, CLIPRDR writer or session authorization is created here.
+
 ## R2 boundary for CLIENT_LICENSE_INFO HWID verification (2026-10-16)
 
 A successful `verifyRdpClientLicenseInfoHardwareId` result proves only the

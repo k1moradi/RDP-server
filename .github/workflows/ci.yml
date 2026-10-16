@@ -157,6 +157,7 @@ jobs:
           cmake --build build --config Debug --parallel 2 --target \
             test_owned_remote_transfer test_clipboard_protocol \
             test_windows_clipboard_adapter test_macos_clipboard_adapter \
+            test_windows_clipboard_file_destination \
             test_linux_clipboard_file_destination \
             test_gfx_surface_lifecycle test_gfx_frame_acknowledge \
             test_gfx_presentation_lifecycle test_gfx_avc420_picture \

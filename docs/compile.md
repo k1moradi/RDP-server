@@ -1,3 +1,16 @@
+## R8 Windows file destination build boundary (2026-10-16)
+
+`src/windows/windows_clipboard_file_destination.cpp` is part of the existing
+noninstalled `rdp-server-windows-clipboard` target. Its receipt/progress state
+and injected operation seam compile on every hosted CI OS; the real HANDLE
+callbacks compile only under `_WIN32` and add no new external dependency.
+
+`test_windows_clipboard_file_destination` likewise builds on every hosted OS
+for deterministic state-machine coverage. Windows registers one additional
+real-HANDLE build-root file case. The R9 Linux sanitizer compile list names the
+target explicitly before `ctest -L clipboard`. The portable installed SDK
+does not export the Windows native header.
+
 ## R8 completed-file X11 handoff build boundary (2026-10-16)
 
 The existing Linux-only `rdp-server-linux-x11-clipboard` target now links the

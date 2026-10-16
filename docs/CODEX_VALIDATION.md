@@ -1,3 +1,11 @@
+## R8 Windows file-handle destination authoring validation (2026-10-16)
+
+**Base:** `3cdaa4d1b2355f26d6e1e33e95077b911d8515ae`. No MS-RDPECLIP wire codec changed; this increment consumes the already-reviewed FileContents receipt/result surface. Microsoft Win32 documentation was checked for synchronous `WriteFile` file-position behavior and `SetFileInformationByHandle(FileEndOfFileInfo)` truncation semantics.
+
+Three cross-platform deterministic CTests cover a >64-KiB two-range transfer, unknown-size discovery plus cancel/truncate, generation replacement, remote failure and native write failure. A fourth Windows-only case creates an ordinary build-root file, exercises the real DuplicateHandle / SetFileInformationByHandle / WriteFile / FlushFileBuffers / CloseHandle path, then verifies exact bytes through the caller-owned HANDLE. No test accesses a live clipboard or user document.
+
+Canonical local `~/rdp-server/build` is **NOT RUN** because this connector environment has no owner checkout. Exact-SHA hosted Debug/Release, sanitizer, documentation and packaging evidence is **PENDING**. Live File Explorer, Microsoft-client copy, owner Windows CLANG64/Clang23, macOS native destination and performance remain **NOT RUN/OPEN**.
+
 ## R9 complete Linux runtime-security sanitizer authoring (2026-10-16)
 
 **Parent:** `06ebfa7897b305b2b65eba85b29e0610779f6c00`.

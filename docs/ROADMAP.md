@@ -1,3 +1,19 @@
+## R8 Windows bounded file-handle destination (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `3cdaa4d1b2355f26d6e1e33e95077b911d8515ae`. The hosted-validated Linux descriptor sink and completed-file X11 handoff remain unchanged. This increment implements the roadmap's next native file-destination gate on Windows while `RemoteTransfer` remains the sole generation, FileContents stream and receipt owner.
+
+`WindowsClipboardFileDestination` owns only a duplicate of one caller-selected writable regular-file HANDLE plus sequential local progress. Remote FILEDESCRIPTORW names remain metadata and are never resolved into local paths. The child exposes bounded SIZE/RANGE intents and accepts only the exact existing `FileContentsRequestReceipt`; it emits no RDP bytes and grants no R2/R3/session authority. RANGE bytes are copied synchronously before their borrowed response PDU expires and no whole-file cache or second chunk queue is introduced.
+
+The native seam is compiled on every CI platform for sanitizer coverage. Windows production callbacks validate a disk/non-directory handle, `DuplicateHandle` it with the same access, truncate through `FileEndOfFileInfo`, write each at-most-64-KiB range at its protocol offset, `FlushFileBuffers` on exact-size completion, and close only the duplicate. The caller retains the original HANDLE and must not perform concurrent file-position-sensitive I/O while the destination is active.
+
+Generation replacement, cancel, remote failure, receipt mismatch or native I/O failure invalidates and truncates the partial destination when possible. Directory trees and shell/File Explorer publication are not added. The first Windows destination is current-generation/unlocked only; the already-existing R8 lock owner remains separate.
+
+Dedicated production-backed CTests `clipboard.windows-file-destination-streaming`, `clipboard.windows-file-destination-size-cancel`, and `clipboard.windows-file-destination-denials` use the injected seam on every hosted OS. Windows additionally runs `clipboard.windows-file-destination-native-handle` against a build-root temporary file through the real Win32 callbacks. R9's clipboard sanitizer compile list explicitly builds the new executable.
+
+Canonical owner-local `~/rdp-server/build` is **NOT RUN** in this connector environment; no alternate build root was created. Exact publication-SHA hosted matrix, R9 sanitizer, documentation policy and package evidence are **PENDING**. Live File Explorer paste, authenticated Microsoft-client file copy, owner Windows MSYS2 CLANG64/Clang23, macOS file destination and performance remain **NOT RUN/OPEN**.
+
+**Next R8 after hosted validation:** add the equivalent bounded macOS file destination, then connect completed Windows/macOS materializations to their native file-manager handoff APIs without exposing partial files or introducing another CLIPRDR writer.
+
 ## R9 complete Linux runtime-security sanitizer gate (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `06ebfa7897b305b2b65eba85b29e0610779f6c00`.

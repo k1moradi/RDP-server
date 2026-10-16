@@ -1,3 +1,23 @@
+## Windows clipboard file destinations are handle capabilities
+
+For R8 Windows file materialization, never create a local path from a remote
+FILEDESCRIPTORW name. The caller must supply a destination HANDLE selected by
+the native UI/shell layer. Validate it as a disk, non-directory object and own
+only a duplicate with the same access.
+
+Keep `RemoteTransfer` authoritative for generation, FileContents stream IDs
+and response receipts. A native destination may expose bounded SIZE/RANGE
+intents and bind the exact receipt, but it must not serialize or send CLIPRDR.
+Consume borrowed RANGE bytes synchronously and write directly to the native
+destination; do not add a whole-file cache or second queue.
+
+On Windows, duplicated handles share the underlying file object's position.
+Confine the destination to one serialized thread and require the caller not to
+perform concurrent file-position-sensitive I/O through the original HANDLE.
+Use handle-based truncate/write/flush operations; never reopen by a remote name.
+Until exact-size completion plus flush and duplicate close, the file is partial
+and must not be published to a consumer.
+
 ## Native pointer identity is not ownership provenance
 
 For COM and other reference-counted native APIs, decide cleanup from the

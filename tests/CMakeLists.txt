@@ -1474,6 +1474,40 @@ foreach(case_name IN ITEMS
         LABELS "protocol;clipboard;apple-clipboard-adapter;offline")
 endforeach()
 
+# R8 Windows file destination. The state machine uses injected native
+# operations on every CI OS; Windows additionally runs one real HANDLE-backed
+# build-root file case. No case derives a local path from remote metadata.
+add_executable(test_windows_clipboard_file_destination
+    test_windows_clipboard_file_destination.cpp)
+target_link_libraries(test_windows_clipboard_file_destination PRIVATE
+    rdp-server-windows-clipboard)
+if(MSVC)
+    target_compile_options(
+        test_windows_clipboard_file_destination PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(
+        test_windows_clipboard_file_destination PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        windows-file-destination-streaming
+        windows-file-destination-size-cancel
+        windows-file-destination-denials)
+    add_test(NAME "clipboard.${case_name}"
+        COMMAND test_windows_clipboard_file_destination "${case_name}")
+    set_tests_properties("clipboard.${case_name}" PROPERTIES
+        LABELS "protocol;clipboard;win32-file-destination;offline")
+endforeach()
+if(WIN32)
+    add_test(NAME clipboard.windows-file-destination-native-handle
+        COMMAND test_windows_clipboard_file_destination
+            windows-file-destination-native-handle)
+    set_tests_properties(
+        clipboard.windows-file-destination-native-handle
+        PROPERTIES LABELS
+            "protocol;clipboard;win32-file-destination;native;offline")
+endif()
+
 # R8 Windows clipboard presentation. Every case uses deterministic injected
 # native operations; no ordinary CTest opens or mutates the host clipboard.
 # The same production source compiles the dormant Win32 bridge on Windows.

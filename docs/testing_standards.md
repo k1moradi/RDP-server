@@ -1,3 +1,9 @@
+## Windows clipboard file-destination coverage
+
+Test the Windows file-destination state machine through injected native operations on every hosted OS so ASan/UBSan can cover receipt binding, generation replacement, short-range continuation, cancellation and native failure. Include a payload larger than the 64-KiB FileContents range ceiling.
+
+On hosted Windows, additionally exercise the production Win32 callbacks against an ordinary test file created in CTest's build-root working directory. Verify exact final bytes through the caller-owned HANDLE after the destination closes its duplicate. Tests must not access a live clipboard, File Explorer state or user document. Keep broad `windows` labels off this R8 executable so R6's target-only preflight does not select an executable it intentionally has not built.
+
 ## R9 complete direct Linux runtime-security sanitizer selection (2026-10-16)
 
 The shared Linux/Clang ASan+UBSan gate must execute every direct offline

@@ -86,6 +86,28 @@ must not be equated to full CTest PASS or the RDP product acceptance.
 three-platform same-SHA CTest, then R3/R8 joined authorization and
 lifecycle fuzzing once a production admitted-session boundary exists.
 
+## R6 exact-commit generation-revocation hosted CI (2026-10-15)
+
+Code/test/docs commit `fdedf92bb8e40a0626a866dfdca6210ccc3fcbc5`,
+[Actions 38857611907](https://github.com/k1moradi/RDP-server/actions/runs/38857611907),
+overall **FAIL**, with failures outside the R6 source:
+Linux/GCC Debug and Release CTest **251/251 PASS** each;
+Windows/MSVC Debug compiles the native R6 backend and executes both
+new CTests **2/2 PASS**, but full Debug CTest **249/250 FAIL**
+at `runtime.validates-tls-files-private-regular` (R10 runtime);
+macOS/Clang Debug CTest **218/233 FAIL**, 15 native
+`transport.tcp-*` aborts on expected TCP accept (R1 transport).
+Windows/macOS Release and related downstream SDK/package steps were
+**NOT RUN** due to their Debug test failures.
+The documentation-policy and R9 security-protocol sanitizer jobs PASS.
+R1 subsequently authored a separate transport correction
+`c78a745aaa5180007a00a35a2858072974c2ad17` (not tested as
+part of the R6 SHA; its CI must be checked independently).
+No Windows CLANG64/Clang23 owner validation, real R2/R3 admission,
+live desktop/client acceptance or performance benchmark has run.
+R6-specific regressions observed in this exact-SHA CI: **none**.
+M4 is still open.
+
 ## R6 capture generation revocation checks (2026-10-15)
 
 **Authoring parent main:** `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`. Existing

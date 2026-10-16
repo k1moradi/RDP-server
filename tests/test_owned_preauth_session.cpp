@@ -3370,6 +3370,144 @@ void testR3ConnectResponseSliceThroughOwnedTls()
     owner.cancel();
 }
 
+
+void testR3ServerLicenseRequestSliceThroughOwnedTls()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using WriteOutcome = RdpServerLicenseRequestWriteOutcome;
+
+    static_assert(kMaximumRdpServerLicenseRequestBytes <=
+                  kMaximumTlsApplicationIoBytes);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+
+    TlsHandshakeFixture tls{false, false};
+    assert(SSL_set_max_send_fragment(tls.server.get(), 1024) == 1);
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    // Build valid near-maximum immutable R3 licensing identity fields so the
+    // serialized request spans more than one forced TLS record. This proves
+    // slice accounting through R1; it is not licensing or R2 authorization.
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseIdentityTextBytes> company{};
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseIdentityTextBytes> product{};
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseIdentityTextBytes> scope{};
+    for (std::size_t index = 0; index + 2U < company.size(); index += 2U)
+    {
+        company[index] = static_cast<std::uint8_t>('R');
+        product[index] = static_cast<std::uint8_t>('P');
+    }
+    scope.fill(static_cast<std::uint8_t>('s'));
+    scope.back() = 0U;
+
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, company, product, scope));
+
+    RdpLicensingLifecycle lifecycle;
+    RdpServerLicenseRequestWriteGate gate{lifecycle};
+    assert(gate.queue(identity));
+    auto view = gate.pendingWrite();
+    assert(view);
+    assert(view.bytes.size() > 1024U);
+    assert(view.bytes.size() <= kMaximumRdpServerLicenseRequestBytes);
+    assert(view.bytes.size() <= kMaximumTlsApplicationIoBytes);
+
+    std::array<std::uint8_t, kMaximumRdpServerLicenseRequestBytes>
+        expected{};
+    const std::size_t expectedLength = view.bytes.size();
+    std::copy(view.bytes.begin(), view.bytes.end(), expected.begin());
+
+    bool observedShortProgress = false;
+    WriteOutcome completion = WriteOutcome::Pending;
+    for (int attempt = 0;
+         attempt < 2048 && completion == WriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto replySequence = view.replySequence;
+        const auto sliceSequence = view.writeSliceSequence;
+        const auto offered = view.bytes;
+        const auto write = owner.writeTlsApplicationData(offered);
+
+        if (write.outcome == Outcome::Progress)
+        {
+            assert(write.bytes > 0 && write.bytes <= offered.size());
+            if (offered.size() == expectedLength)
+            {
+                assert(write.bytes <= 1024U);
+                assert(write.bytes < offered.size());
+                observedShortProgress = true;
+            }
+
+            completion = gate.onBytesWritten(
+                replySequence, sliceSequence, write.bytes);
+            if (completion == WriteOutcome::Pending)
+            {
+                const auto next = gate.pendingWrite();
+                assert(next);
+                assert(next.replySequence == replySequence);
+                assert(next.writeSliceSequence != sliceSequence);
+                assert(next.bytes.size() ==
+                       offered.size() - write.bytes);
+                view = next;
+            }
+            continue;
+        }
+
+        assert(write.bytes == 0);
+        assert(write.outcome == Outcome::NeedRead ||
+               write.outcome == Outcome::NeedWrite);
+        const auto expectedInterest =
+            write.outcome == Outcome::NeedRead
+                ? Interest::Read
+                : Interest::Write;
+        assert(owner.ioInterest() == expectedInterest);
+        assert(gate.onBytesWritten(
+                   replySequence, sliceSequence, 0U) ==
+               WriteOutcome::Pending);
+        const auto retry = gate.pendingWrite();
+        assert(retry);
+        assert(retry.replySequence == replySequence);
+        assert(retry.writeSliceSequence == sliceSequence);
+        assert(retry.bytes.data() == offered.data());
+        assert(retry.bytes.size() == offered.size());
+        assert(owner.onSocketReady(true, true) == expectedInterest);
+        view = retry;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(observedShortProgress);
+    assert(completion == WriteOutcome::Delivered);
+    assert(!gate.pendingWrite());
+    assert(lifecycle.phase() ==
+           RdpLicensingPhase::AwaitClientLicenseResponse);
+
+    std::array<std::uint8_t, kMaximumRdpServerLicenseRequestBytes>
+        delivered{};
+    readNativeTlsClientAll(
+        tls.client.get(), std::span(delivered).first(expectedLength));
+    assert(std::equal(
+        delivered.begin(),
+        delivered.begin() + static_cast<std::ptrdiff_t>(expectedLength),
+        expected.begin()));
+
+    const auto parsed = parseRdpLicensingMessage(
+        std::span(delivered).first(expectedLength));
+    assert(parsed);
+    assert(parsed.value.type ==
+           RdpLicensingMessageType::ServerLicenseRequest);
+
+    owner.cancel();
+}
+
 void testOwnedTlsApplicationCancellation()
 {
     using Outcome = TlsApplicationIoOutcome;
@@ -8811,6 +8949,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
     {"tcp-owned-r3-connect-response-slice", &testR3ConnectResponseSliceThroughOwnedTls},
+    {"tcp-owned-r3-license-request-slice", &testR3ServerLicenseRequestSliceThroughOwnedTls},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},

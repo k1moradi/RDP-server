@@ -1,3 +1,18 @@
+## R1/R3 licensing transport compatibility boundary (2026-10-16)
+
+R3's `RdpServerLicenseRequestWriteGate` owns licensing serialization and
+monotonic delivery receipts; R1 owns only the accepted socket/BIO/SSL and exact
+plaintext progress. Since a complete server licensing request is at most 2 KiB,
+one pending R3 slice always fits within R1's existing 18 KiB application-write
+boundary. Positive short R1 progress is fed back to R3 as the accepted-byte
+count, while OpenSSL WANT produces a zero-byte receipt and preserves the same
+logical pending suffix. Neither layer retries the other's state internally.
+
+The composition does not change authority. R2 remains responsible for fresh
+lease/R1-owner reauthorization before exposing a slice or consuming its
+completion receipt, and R3 alone decides licensing phase progression. R1
+never interprets licensing bytes and gains no licensing/session state.
+
 ## R2 first client licensing intake authority boundary (2026-10-16)
 
 The first client licensing response is not a public R3 capability. Only

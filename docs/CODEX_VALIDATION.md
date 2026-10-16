@@ -1,3 +1,29 @@
+## R1 R3 licensing slice integration authoring (2026-10-16)
+
+**Starting inspected main:** `eeac4cbdc51ca9e424d2bea1dae22d6f6580569f`.
+
+**Production change:** none. Static bounds show
+`kMaximumRdpServerLicenseRequestBytes <= kMaximumTlsApplicationIoBytes`;
+the existing R1 writer is sufficient for R3's new licensing publication
+boundary.
+
+**Dedicated CTest:** `transport.tcp-owned-r3-license-request-slice` in the
+existing `test_owned_preauth_session` executable. It establishes genuine
+loopback TLS under `OwnedPreauthTcpConnection`, queues a production
+CSPRNG-backed R3 Server License Request using valid near-maximum identity
+fields, forces short TLS progress, correlates every R3 reply/slice receipt to
+R1's exact accepted plaintext count, verifies zero-byte WANT retention,
+requires full-delivery phase advancement, and reads/parses byte-identical
+plaintext at the TLS peer. No R2 admission is fabricated.
+
+The case is added to the existing bounded R1/R3 ASan/UBSan selector. Source
+review is **PASS**. Canonical local configure/build/CTest is **NOT RUN /
+BLOCKED** because this environment does not expose the synchronized owner
+checkout; no alternate persistent build root is created. Exact-SHA hosted
+matrix validation is required after publication. Owner Linux/X11, Windows
+MSYS2 CLANG64/Clang23, macOS 27, genuine Kerberos/native admission,
+licensing cryptography and Microsoft-client acceptance remain **NOT RUN**.
+
 ## R2 first client licensing intake authoring validation (2026-10-16)
 
 **Reconciled parent:** `f0b43eaf374a38ee75814ef7e72d349c7311ce43`.

@@ -1,3 +1,37 @@
+## R1 R3 Server License Request slice compatibility (2026-10-16; exact-SHA CI pending)
+
+**Starting inspected shared main:** `eeac4cbdc51ca9e424d2bea1dae22d6f6580569f`.
+
+R3 has advanced to a production `RdpServerLicenseRequestWriteGate` whose
+stable CSPRNG-backed `SERVER_LICENSE_REQUEST` bytes and reply/slice receipts
+are exposed only behind R2's exact lease + original R1 owner authorization.
+The wire object is bounded to 2 KiB, well below R1's existing 18 KiB
+`writeTlsApplicationData()` ceiling, so no new transport API or writer is
+justified.
+
+New dedicated CTest `transport.tcp-owned-r3-license-request-slice` reuses
+the existing native loopback/OpenSSL R1 fixture and the production R3 licensing
+gate. A valid near-maximum immutable license identity makes the generated
+request exceed 1 KiB; a forced 1 KiB TLS send fragment therefore proves
+caller-visible short progress. Each positive R1 plaintext byte count rotates
+only R3's write-slice receipt and shrinks the same pending suffix; zero-byte
+WANT preserves the exact reply/slice receipt and stable span until the caller
+retries. Full accepted-byte delivery alone advances the licensing lifecycle to
+`AwaitClientLicenseResponse`, and the TLS peer receives byte-for-byte parity
+that reparses as `ServerLicenseRequest`.
+
+This is compatibility evidence only. The test constructs no R2 lease, native
+OS admission, licensed session, client-license cryptography, listener,
+Microsoft-client authority or R3 activation. Production R1/R2/R3 code is
+unchanged. The existing R9 bounded R1/R3 ASan/UBSan selector now includes the
+new case. Canonical owner-local `~/rdp-server/build/` validation is **NOT
+RUN** in this connector environment; exact-SHA hosted Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, sanitizer and documentation-policy
+evidence is required after publication. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+**Next R1:** continue adding no transport surface unless later protected
+licensing/Share integration demonstrates a concrete bounded TCP/TLS gap.
+
 ## R2 client licensing intake authority fence (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `f0b43eaf374a38ee75814ef7e72d349c7311ce43`.

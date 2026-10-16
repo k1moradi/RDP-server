@@ -1,5 +1,16 @@
 # Compile standards — one persistent and reusable build directory
 
+## R6 native Desktop Duplication build note (2026-10-16)
+
+The existing Windows-only `rdp-server-windows-desktop` target now also
+compiles `windows_dxgi_duplication_owner.cpp` under the ordinary
+project command. It reuses SDK `d3d11` and `dxgi` libraries already
+linked by that target; no new package, build directory, test option or
+service permission is required. Native resource creation is never run
+by default CTests; Windows/MSVC and owner MSYS2 CLANG64/Clang23 both
+remain required independent compiler evidence.
+
+
 **Mandatory:** Follow [AGENTS.md](../AGENTS.md), [VISION.md](VISION.md),
 [testing_standards.md](testing_standards.md) and the living
 [roadmap/TODO](ROADMAP.md). New verified compilation lessons

@@ -152,6 +152,7 @@ if(WIN32)
         src/windows/windows_bgra_frame.cpp
         src/windows/windows_dxgi_damage.cpp
         src/windows/windows_dxgi_frame_owner.cpp
+        src/windows/windows_dxgi_duplication_owner.cpp
         src/windows/windows_d3d11_staging_map.cpp
         src/windows/windows_dxgi_capture_cycle.cpp
         src/windows/windows_capture_session_guard.cpp

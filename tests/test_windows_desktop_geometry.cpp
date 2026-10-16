@@ -31,6 +31,9 @@ void windowsCaptureSessionGenerationActiveLifetime();
 void windowsCaptureSessionRevocationDenials();
 void windowsCaptureSessionChangeRevocation();
 void windowsCaptureSessionChangeDenials();
+void windowsDxgiDuplicationOwnerLifecycle();
+void windowsDxgiDuplicationOwnerSelectionDenials();
+void windowsDxgiDuplicationOwnerEpochRevocation();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
 void windowsCaptureCycleLifecycleDenials();
@@ -785,6 +788,18 @@ int main(int argc, char **argv)
     else if (behavior == "capture-session-change-denials")
     {
         windowsCaptureSessionChangeDenials();
+    }
+    else if (behavior == "dxgi-duplication-owner-lifecycle")
+    {
+        windowsDxgiDuplicationOwnerLifecycle();
+    }
+    else if (behavior == "dxgi-duplication-owner-selection-denials")
+    {
+        windowsDxgiDuplicationOwnerSelectionDenials();
+    }
+    else if (behavior == "dxgi-duplication-owner-epoch-revocation")
+    {
+        windowsDxgiDuplicationOwnerEpochRevocation();
     }
     else if (behavior == "cursor-snapshot-visible-and-hidden")
     {

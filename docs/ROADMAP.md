@@ -1,5 +1,41 @@
 # RDP-server protocol roadmap and acceptance gates
 
+## R6 native DXGI owner increment (2026-10-16; validation pending)
+
+The Windows-only `WindowsDxgiDuplicationOwner` now provides an explicit
+factory/adapter/output/ID3D11Device/immediate-context/IDXGIOutput1/
+IDXGIOutputDuplication lifecycle, with SDK-backed enumeration and an
+injected deterministic offline seam. Output selection requires the selected
+native monitor handle **and** exact signed desktop rectangle, attached state,
+nonempty bounds and identity rotation. A second matching output, a stale
+descriptor, unsupported device/output, or missing COM reference fails closed;
+there is no output-zero fallback or software rendering fallback. Creation
+uses the selected adapter with `D3D_DRIVER_TYPE_UNKNOWN`, BGRA support,
+and D3D feature level 11.0. Duplication failures distinguish access denial,
+access loss, unsupported configuration, and duplication-client pressure.
+
+`close()` terminally revokes the nonzero native device epoch and cancels
+any attached existing capture cycle before dropping its staging context,
+duplication, output1, immediate context, device, output, adapter, and factory.
+The optional capture-cycle binding uses the original frame-owner and native
+staging-map callbacks, with revocation-only session generation observation.
+No new scheduler, capture admission, automatic reconstruction, service
+notification registration, cursor bitmap, or input injection is introduced.
+R2/R3 must independently authorize/bind a Windows interactive desktop
+before calling `open` or `attachCaptureCycle`; native monitor IDs and WTS
+session IDs do **not** authorize a user. The runtime is NOT wired for capture.
+
+**Dedicated Windows offline CTests:** `windows.capture-dxgi-duplication-owner-lifecycle`,
+`windows.capture-dxgi-duplication-owner-selection-denials`, and
+`windows.capture-dxgi-duplication-owner-epoch-revocation`.
+Their injected callbacks do not enumerate or capture a real desktop.
+**NOT RUN at authoring:** actual Windows/MSVC and owner MSYS2 CLANG64/Clang23
+build/CTest, live DuplicateOutput, R2/R3 admission, R4 real-time graphics,
+Microsoft-client M4 acceptance. Exact-SHA CI is required following publication.
+**Next:** verify Windows exact-SHA CI, owner CLANG64, then bounded
+generation-safe DXGI pointer shapes; M4 remains OPEN.
+
+
 ## Target
 
 Develop an independently maintained, secure, standards-compliant C++23 RDP
@@ -5463,49 +5499,3 @@ independent local Clang 17 ASan+UBSan+LeakSanitizer focused run of
 Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 remain **NOT RUN**.
 No real credentials, OS admission, Microsoft RDP client or desktop were used.
 M2 remains **NOT ACCEPTED**.
-
-
-## R3 concrete R2 admission -> MCS Connect Initial handoff (2026-10-16)
-
-**Starting main inspected:** `e540be81f297c7f880c6b03db6ffc1a3ad8998ad`. **Publication parent after
-concurrent R10/R5 reconciliation:** `ba59c94c7ab07c688d6b19ee8d440ddcd98acee8`. R2 implementation
-`03f2edbbfaa9049e7d6a22f22c11c94d9ad91213` introduced the concrete,
-move-only Linux native admission lease. Its hosted Linux and Windows protocol
-jobs, sanitizer job and documentation policy passed; its macOS job failed in
-unrelated R10 OpenSSL-4 deprecation code, since corrected on main. R3 therefore
-consumes the new R2 boundary instead of continuing to build a disconnected
-licensing path.
-
-The sole `McsSessionLifecycle` now has a private positive transition that
-only `LinuxConsoleAdmissionBroker` can invoke. The broker's new
-`authorizeR3McsConnectInitial` hard-requires current
-`kConsoleViewPermission` and runs the existing native `authorizes()`
-revalidation immediately before R3 sees the complete Connect Initial. R3
-validates its existing parser/domain/GCC boundaries, binds the nonzero R2
-admission and native session generations, and advances exactly to
-`AwaitConnectResponse`. Public `onConnectInitial` remains denial-only.
-No new public admission token, bool, fake evidence source, user ID, channel
-allocation, TLS writer or response bytes are introduced.
-
-Any authorization failure closes R3. Any malformed/wrong-order admitted MCS
-input closes R3 and revokes the broker/GSS capability, preventing replay.
-A valid Disconnect Provider Ultimatum remains legal teardown while waiting for
-Connect Response; other DomainMCSPDUs are terminal ordering failures.
-`revokeR3Session` provides the ordered disconnect barrier:
-R3 state -> R2/GSS revocation -> caller-owned R1 TLS/socket teardown.
-Dedicated Linux GSS CTest
-`security.gssapi-r3-mcs-admission-contract` checks the exact broker-only
-method shape, rejects a Boolean in place of the native lease, and executes
-idempotent R3-before-R2 teardown without manufacturing a positive lease.
-
-**Positive native admission is NOT RUN in ordinary CI:** no test-only path can
-mint `LinuxConsoleAdmissionLease`; genuine Kerberos/TLS plus a real active
-physical logind session is still required. A positive R3 transition must be
-validated on the owner Linux/X11 environment. M2 remains **NOT ACCEPTED**.
-
-**Next R3:** extend `AwaitConnectResponse` only after updating the existing
-Connect Response encoder for the real CredSSP/PROTOCOL_HYBRID settings replay
-and moving static-channel/node allocation into this same R3 owner. Require a
-fresh broker authorization matching the stored admission/session generations
-immediately before response publication, and bind partial TLS writes to stable
-monotonic receipts. Then proceed in order to Erect/Attach/Join.

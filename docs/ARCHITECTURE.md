@@ -1,5 +1,41 @@
 # RDP-server architecture
 
+### R6 native D3D11/DXGI duplication ownership (offline integration)
+
+`WindowsDxgiDuplicationOwner` is the native R6 COM RAII boundary, not
+an authorization capability or another capture scheduler. After R2/R3
+authorizes one desktop target, the caller supplies an HMONITOR identity
+and expected signed monitor rectangle from the same display generation.
+The owner enumerates DXGI adapters and outputs (bounded to 32 each),
+selecting exactly one attached, identity-rotation output with matching
+HMONITOR and desktop coordinates. Detached, empty, mismatched, duplicated,
+changed, or unsupported outputs fail closed without substituting the
+primary adapter or first output. The selected adapter is passed to
+`D3D11CreateDevice` with `D3D_DRIVER_TYPE_UNKNOWN`, BGRA support
+and required feature level 11.0; no WARP fallback. `IDXGIOutput1`
+`DuplicateOutput` creates one owned duplication per owner.
+
+The owner holds one reference to the DXGI factory, selected adapter and
+output, output1, D3D11 device and immediate context, and duplication.
+All failed construction paths release returned partial native references.
+`close` is terminal; destruction first cancels/destroys the existing
+`WindowsDxgiCaptureCycle` (unmap before ReleaseFrame), then drops native
+staging context, duplication, output1, context, device, output, adapter,
+factory. A nonzero monotonic process-local device epoch is invalidated
+before native teardown. Stale session epochs revoke through the existing
+generation observer; R10 owns WTS event delivery and the session guard
+remains revocation-only. There is no automatic recreation on unlock.
+
+The optional `attachCaptureCycle` composes the already-existing frame
+owner/staging map/capture cycle with borrowed callbacks and a revocation
+reader. It does not expose owned D3D interfaces or pixel data to R4.
+All native calls are serialized on the capture owner thread, with no
+callback still in progress during destruction. R4 must synchronously
+consume or copy into independently owned bytes. Ordinary Windows CTests
+inject synthetic COM-like resources, never call live `DuplicateOutput`,
+and do not prove real desktop capture or OS authorization.
+
+
 **Armada:** RDP protocol first. Fast native C++23 implementation. No
 workarounds when a standards-compliant RDP mechanism already solves the problem.
 
@@ -2321,41 +2357,3 @@ segmentation/reassembly, direction and licensing phase. The common licensing
 parser returns only an immutable borrowed body span whose lifetime is the
 caller's unchanged input. It never allocates from `wMsgSize` or nested BLOB
 lengths and never logs opaque licensing material.
-
-
-## R3 native R2 admission handoff into MCS Basic Settings (2026-10-16)
-
-R2 now has a concrete Linux-only admission lease, so R3 no longer treats
-"admission unavailable" as a permanent architectural condition. The public
-`McsSessionLifecycle::onConnectInitial` remains deliberately denial-only.
-The only current positive entry is
-`LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial`: the concrete
-broker first calls its existing native `authorizes` path with
-`kConsoleViewPermission`, rechecking exact TLS/GSS identity, policy epoch,
-NSS/logind session identity, native change watch and lease freshness, then
-immediately invokes a private friend transition on the sole R3 owner.
-
-No caller-visible bool, scalar token, principal string, user ID or synthetic
-evidence object can invoke that private transition. On success, R3 validates
-the complete bounded MCS Connect Initial, T.125 DomainParameters and GCC Client
-Data while the input span is live, stores only the R2 admission/session
-generation numbers, and advances to `AwaitConnectResponse`. It emits no
-bytes and does not yet allocate user/static channel IDs. Malformed or
-wrong-order input closes R3 and revokes the same broker/GSS admission so it
-cannot be replayed on a fresh protocol owner.
-
-Disconnect ordering is explicit through
-`LinuxConsoleAdmissionBroker::revokeR3Session`: close R3 protocol/licensing/
-channel state first, revoke R2/GSS second, and only then may the caller release
-R1 TLS/socket ownership. The method is idempotent. A valid peer Disconnect
-Provider Ultimatum is still recognized as teardown while R3 waits for Connect
-Response; any other DomainMCSPDU in that phase is terminal ordering failure.
-The native logind check/use race documented by R2 remains: the service must
-monitor the broker's native change fd and repeat broker authorization
-immediately before each later protected R3 transition.
-
-The existing MCS Connect Response encoder remains offline because it currently
-accepts only its diagnostic PROTOCOL_SSL input and caller-supplied channel IDs.
-The live CredSSP/Hybrid path therefore stops at `AwaitConnectResponse` rather
-than emitting a response with invented or mismatched protocol/allocation
-semantics.

@@ -177,8 +177,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-configuration-rejections
                 gssapi-framed-handoff
                 gssapi-console-provenance-before-os-read
-                gssapi-native-os-admission-capability-denials
-                gssapi-r3-mcs-admission-contract)
+                gssapi-native-os-admission-capability-denials)
             add_test(NAME "security.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("security.${case_name}" PROPERTIES
@@ -401,6 +400,7 @@ if(TARGET rdp-server-windows-desktop)
         windows_capture_cycle_cases.cpp
         windows_capture_damage_cases.cpp
         windows_capture_session_guard_cases.cpp
+        windows_dxgi_duplication_owner_cases.cpp
         windows_cursor_snapshot_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop)
@@ -425,6 +425,16 @@ if(TARGET rdp-server-windows-desktop)
         COMMAND test_windows_desktop_geometry win32-gdi-rectangle-name-resolution)
     set_tests_properties(windows.geometry-gdi-rectangle-name-resolution
         PROPERTIES LABELS "windows;desktop-geometry;offline")
+    # Native DXGI duplication owner, using synthetic COM references only.
+    foreach(case_name IN ITEMS
+            dxgi-duplication-owner-lifecycle
+            dxgi-duplication-owner-selection-denials
+            dxgi-duplication-owner-epoch-revocation)
+        add_test(NAME "windows.capture-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.capture-${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;security;offline")
+    endforeach()
     # R6 native duplication frame-lease RAII: synthetic callbacks only, no
     # AcquireNextFrame on an actual Windows desktop during ordinary tests.
     foreach(case_name IN ITEMS

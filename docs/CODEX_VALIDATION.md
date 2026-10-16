@@ -6823,3 +6823,23 @@ independent local Clang 17 ASan+UBSan+LeakSanitizer focused run of
 Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 remain **NOT RUN**.
 No real credentials, OS admission, Microsoft RDP client or desktop were used.
 M2 remains **NOT ACCEPTED**.
+
+## R5 one-XCB owner exact-SHA hosted CI PASS (2026-10-16)
+
+Implementation `754e681a503a11c06ea60082103c3d95eb834919`,
+[Actions 38871605559](https://github.com/k1moradi/RDP-server/actions/runs/38871605559):
+**SUCCESS**. Linux/GCC compiled the real restored
+`rdp-server-linux-xtest-input` and new `rdp-server-linux-x11-desktop`
+in Debug/Release; full CTests **284/284 PASS** each. The restored
+`x11.input-native-connection-denials-and-cancellation`,
+`x11.desktop-resource-owner-connection-denial`, and ephemeral-Xvfb
+`x11.desktop-resource-owner-lifecycle` all PASS in both. macOS/Clang full
+CTest **263/263 PASS** Debug/Release; Windows/MSVC **283/283 PASS**
+Debug/Release. Documentation-policy and R9 sanitizer jobs PASS; downstream
+SDK consumer/package stages PASS. X11-specific tests are Linux-only.
+
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+one-root commands; genuine R2/R3 admitted desktop routing; live XTEST input;
+RandR geometry child reconstruction; R4 frame/cursor consumption; Microsoft
+client M3 acceptance; performance benchmarks. The aggregate remains
+noninstalled and unlinked from the server runtime.

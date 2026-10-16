@@ -3371,6 +3371,19 @@ actually run; another parser CTest alone is not a complete session.
   reconstruct geometry-bound children on RandR change before authorized
   input/frame/cursor integration. M3 remains OPEN.
 
+  **R5 one-XCB owner exact-SHA hosted CI PASS (2026-10-16):**
+  implementation `754e681a503a11c06ea60082103c3d95eb834919`,
+  [Actions 38871605559](https://github.com/k1moradi/RDP-server/actions/runs/38871605559)
+  completed **SUCCESS**. Ubuntu/GCC built the restored XTEST target and
+  `rdp-server-linux-x11-desktop`; Debug/Release CTests were **284/284
+  PASS** each, including restored XTEST denial plus both new resource-owner
+  cases (ephemeral Xvfb lifecycle included). macOS/Clang was **263/263
+  PASS** twice; Windows/MSVC **283/283 PASS** twice. Documentation-policy,
+  R9 sanitizer, SDK consumer/package stages PASS. **NOT RUN:** owner
+  Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, genuine R2/R3 desktop
+  admission/routing, live input, RandR reconstruction, R4 consumption,
+  Microsoft client and benchmarks. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

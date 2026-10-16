@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "rdp/gfx_avc420_segmented_frame.h"
+#include "rdp/gfx_segmented_data.h"
+
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
+#include <vector>
+
+using namespace rdp_server::rdp;
+
+namespace
+{
+
+using CommandReceipt = GfxPresentationReceipt;
+
+std::array<std::byte, 22> advertisement()
+{
+    return {std::byte{0x12}, {}, {}, {}, std::byte{22}, {}, {}, {},
+            std::byte{1}, {}, std::byte{5}, std::byte{1}, std::byte{8}, {},
+            std::byte{4}, {}, {}, {}, std::byte{0x10}, {}, {}, {}};
+}
+
+CommandReceipt emit(GfxPresentationLifecycle &lifecycle,
+                    std::uint64_t generation)
+{
+    std::array<std::byte, 24> bytes{};
+    CommandReceipt receipt{};
+    assert(lifecycle.prepareCommand(generation, bytes, receipt));
+    return receipt;
+}
+
+void mapSurface(GfxPresentationLifecycle &lifecycle, std::uint64_t generation)
+{
+    assert(lifecycle.open(generation));
+    assert(lifecycle.acceptCapabilities(generation, advertisement()));
+    auto receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.configureSurface(generation, 7, {640, 480}));
+    receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+}
+
+std::array<std::byte, 20> acknowledge(std::uint32_t frameId)
+{
+    std::array<std::byte, 20> pdu{
+        std::byte{13}, {}, {}, {}, std::byte{20}, {}, {}, {}};
+    for (unsigned index = 0; index != 4; ++index)
+        pdu[12U + index] =
+            static_cast<std::byte>(frameId >> (8U * index));
+    return pdu;
+}
+
+constexpr std::array<std::byte, 7> kAnnexB{
+    std::byte{}, std::byte{}, std::byte{}, std::byte{1},
+    std::byte{0x65}, std::byte{0xA1}, std::byte{0xB2}};
+constexpr std::array<Rectangle, 1> kRegion{
+    Rectangle{0, 0, 640, 480}};
+constexpr std::array<GfxAvc420QuantQuality, 1> kQuality{{{22, 80}}};
+
+GfxAvc420Picture picture(std::uint32_t frameId,
+                         std::span<const std::byte> annexB = kAnnexB)
+{
+    return {7, frameId, {640, 480}, kRegion, kQuality, annexB};
+}
+
+void singleWire()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, 3001);
+    const auto source = picture(41);
+    const std::size_t graphicsBytes =
+        gfxAvc420PictureBytes(source.regions.size(),
+                              source.annexBPicture.size());
+    assert(graphicsBytes == 74);
+
+    GfxAvc420SegmentedFrame frame;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, 3001, source, frame));
+    assert(frame.valid());
+    assert(frame.generation() == 3001);
+    assert(frame.frameId() == 41);
+    assert(frame.wireBytes().size() == gfxSegmentedDataBytes(graphicsBytes));
+    assert(frame.wireBytes()[0] == std::byte{0xE0});
+    assert(frame.wireBytes()[1] == std::byte{0x04});
+    assert(frame.wireBytes()[2] == std::byte{0x0B});
+    assert(frame.wireBytes()[18] == std::byte{0x01});
+    assert(lifecycle.outstandingFrames() == 0);
+
+    assert(!completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, frame, frame.wireBytes().size() - 1U));
+    assert(lifecycle.outstandingFrames() == 0);
+    assert(completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, frame, frame.wireBytes().size()));
+    assert(lifecycle.outstandingFrames() == 1);
+}
+
+void multipartWire()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, 3002);
+
+    std::vector<std::byte> annexB(kGfxRdp8MaximumRawSegmentBytes,
+                                  std::byte{0x55});
+    annexB[0] = std::byte{};
+    annexB[1] = std::byte{};
+    annexB[2] = std::byte{};
+    annexB[3] = std::byte{1};
+    annexB[4] = std::byte{0x65};
+    const auto source = picture(42, annexB);
+    const std::size_t graphicsBytes =
+        gfxAvc420PictureBytes(source.regions.size(), annexB.size());
+    assert(graphicsBytes > kGfxRdp8MaximumRawSegmentBytes);
+
+    GfxAvc420SegmentedFrame frame;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, 3002, source, frame));
+    assert(frame.wireBytes()[0] == std::byte{0xE1});
+    assert(frame.wireBytes().size() == gfxSegmentedDataBytes(graphicsBytes));
+    assert(completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, frame, frame.wireBytes().size()));
+}
+
+void denialsAndReconnect()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, 3003);
+
+    GfxAvc420SegmentedFrame untouched;
+    auto invalid = picture(51);
+    invalid.surfaceId = 8;
+    assert(!prepareGfxAvc420SegmentedFrame(
+        lifecycle, 3003, invalid, untouched));
+    assert(!untouched.valid());
+    assert(lifecycle.canSubmitFrame(3003));
+
+    assert(!prepareGfxAvc420SegmentedFrame(
+        lifecycle, 3004, picture(51), untouched));
+    assert(!untouched.valid());
+    assert(lifecycle.canSubmitFrame(3003));
+
+    GfxAvc420SegmentedFrame old;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, 3003, picture(51), old));
+    assert(!lifecycle.canSubmitFrame(3003));
+    lifecycle.disconnect();
+    assert(!completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, old, old.wireBytes().size()));
+    assert(!abortGfxAvc420SegmentedFrameDelivery(lifecycle, old));
+
+    mapSurface(lifecycle, 3004);
+    GfxAvc420SegmentedFrame current;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, 3004, picture(51), current));
+    assert(!completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, old, old.wireBytes().size()));
+    assert(abortGfxAvc420SegmentedFrameDelivery(lifecycle, current));
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+}
+
+void deliveryAcknowledgement()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, 3005);
+    GfxAvc420SegmentedFrame frame;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, 3005, picture(61), frame));
+    assert(completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, frame, frame.wireBytes().size()));
+
+    GfxFrameAckWindowResult result{};
+    const auto ack = acknowledge(61);
+    assert(lifecycle.onFrameAcknowledge(3005, ack, result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0);
+    assert(!completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, frame, frame.wireBytes().size()));
+}
+
+} // namespace
+
+int main(int argc, char **argv)
+{
+    if (argc != 2)
+        return 2;
+    const std::string_view behavior{argv[1]};
+    if (behavior == "avc420-segmented-frame-single")
+    {
+        singleWire();
+        return 0;
+    }
+    if (behavior == "avc420-segmented-frame-multipart")
+    {
+        multipartWire();
+        return 0;
+    }
+    if (behavior == "avc420-segmented-frame-denials-reconnect")
+    {
+        denialsAndReconnect();
+        return 0;
+    }
+    if (behavior == "avc420-segmented-frame-delivery-ack")
+    {
+        deliveryAcknowledgement();
+        return 0;
+    }
+    return 2;
+}

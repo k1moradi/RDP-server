@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <vector>
+
+#include "gfx_avc420_picture.h"
+#include "gfx_presentation_lifecycle.h"
+
+namespace rdp_server::rdp
+{
+
+// Stable R4-owned bytes for one already-encoded AVC420 frame after RDP8
+// segmented-data framing. This is not a DVC, transport, scheduler or
+// authorization object. R3 must retain it until its authorized full-send
+// callback reports completion or failure.
+class GfxAvc420SegmentedFrame final
+{
+public:
+    GfxAvc420SegmentedFrame() = default;
+    ~GfxAvc420SegmentedFrame() = default;
+
+    GfxAvc420SegmentedFrame(const GfxAvc420SegmentedFrame &) = delete;
+    GfxAvc420SegmentedFrame &operator=(const GfxAvc420SegmentedFrame &) = delete;
+    GfxAvc420SegmentedFrame(GfxAvc420SegmentedFrame &&) noexcept = default;
+    GfxAvc420SegmentedFrame &
+    operator=(GfxAvc420SegmentedFrame &&) noexcept = default;
+
+    [[nodiscard]] std::span<const std::byte> wireBytes() const noexcept
+    {
+        return wireBytes_;
+    }
+    [[nodiscard]] std::uint64_t generation() const noexcept
+    {
+        return receipt_.generation;
+    }
+    [[nodiscard]] std::uint32_t frameId() const noexcept
+    {
+        return receipt_.frameId;
+    }
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return !wireBytes_.empty() && graphicsBytes_ != 0 &&
+               receipt_.serial != 0;
+    }
+
+private:
+    friend bool prepareGfxAvc420SegmentedFrame(
+        GfxPresentationLifecycle &, std::uint64_t,
+        const GfxAvc420Picture &, GfxAvc420SegmentedFrame &) noexcept;
+    friend bool completeGfxAvc420SegmentedFrameDelivery(
+        GfxPresentationLifecycle &, const GfxAvc420SegmentedFrame &,
+        std::size_t) noexcept;
+    friend bool abortGfxAvc420SegmentedFrameDelivery(
+        GfxPresentationLifecycle &, const GfxAvc420SegmentedFrame &) noexcept;
+
+    std::vector<std::byte> wireBytes_{};
+    GfxFrameDeliveryReceipt receipt_{};
+    std::size_t graphicsBytes_{};
+};
+
+// Serialize through the existing mapped-surface lifecycle, then wrap the
+// complete START_FRAME..END_FRAME graphics bytes in RDP8 segmented data.
+// On ordinary rejection, output remains unchanged and no frame is reserved.
+// Any impossible post-reservation framing inconsistency is terminally aborted.
+[[nodiscard]] bool prepareGfxAvc420SegmentedFrame(
+    GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
+    const GfxAvc420Picture &picture,
+    GfxAvc420SegmentedFrame &output) noexcept;
+
+// R3 calls this only after the entire wireBytes() span has been delivered on
+// its independently authorized Graphics DVC. The outer segmented byte count
+// is checked here before publishing the existing inner frame receipt/ACK.
+[[nodiscard]] bool completeGfxAvc420SegmentedFrameDelivery(
+    GfxPresentationLifecycle &lifecycle,
+    const GfxAvc420SegmentedFrame &frame,
+    std::size_t deliveredWireBytes) noexcept;
+
+// R3 calls this after terminal/partial transport failure. The existing
+// presentation lifecycle revokes the active generation.
+[[nodiscard]] bool abortGfxAvc420SegmentedFrameDelivery(
+    GfxPresentationLifecycle &lifecycle,
+    const GfxAvc420SegmentedFrame &frame) noexcept;
+
+} // namespace rdp_server::rdp

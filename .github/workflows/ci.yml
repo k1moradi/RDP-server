@@ -1,0 +1,260 @@
+name: C++23 protocol CI and prerelease delivery
+
+on:
+  push:
+    branches: [main]
+    tags: ['protocol-v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protocol:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenSSL (macOS)
+        if: runner.os == 'macOS'
+        run: brew install openssl@3
+      - name: Locate or install Windows OpenSSL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dirs = @('C:\Program Files\OpenSSL-Win64',
+                    'C:\Program Files\OpenSSL',
+                    'C:\Program Files (x86)\OpenSSL-Win32')
+          $found = $dirs | Where-Object { Test-Path (Join-Path $_ 'include/openssl/ssl.h') } | Select-Object -First 1
+          if (-not $found) {
+            choco install openssl --no-progress -y
+            $found = $dirs | Where-Object { Test-Path (Join-Path $_ 'include/openssl/ssl.h') } | Select-Object -First 1
+          }
+          if (-not $found) { throw 'OpenSSL headers are unavailable on the Windows runner' }
+          Add-Content -Path $env:GITHUB_ENV -Value "OPENSSL_ROOT_DIR=$found"
+      - name: Install Linux GSSAPI development headers
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libkrb5-dev libxcb1-dev libxcb-randr0-dev \
+            pkg-config libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb-damage0-dev libxcb-xtest0-dev \
+            xvfb xauth
+      - name: Configure Debug protocol and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          fi
+          linux_gssapi_tests=OFF
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            linux_gssapi_tests=ON
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_TEST_LINUX_GSSAPI="$linux_gssapi_tests"
+      # R6 native-adapter validation must remain observable even when an
+      # unrelated test target later fails the full repository compile.
+      # This builds only the existing production-backed Windows fixture, then
+      # the ordinary full build below still runs and remains authoritative.
+      - name: Preflight Windows R6 native adapter tests
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Debug --target test_windows_desktop_geometry --parallel 2
+          ctest --test-dir build --build-config Debug --timeout 20 -L windows --output-on-failure
+          cmake --build build --config Release --target test_windows_desktop_geometry --parallel 2
+          ctest --test-dir build --build-config Release --timeout 20 -L windows --output-on-failure
+      - name: Compile Debug
+        run: cmake --build build --config Debug --parallel 2
+      - name: Run Debug protocol and project-policy tests
+        run: ctest --test-dir build --build-config Debug --timeout 60 --output-on-failure
+
+      # Reconfigure the SAME build root for the release artifact. Never
+      # create a parallel local or CI top-level build directory.
+      - name: Reconfigure Release in same build root
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Compile Release
+        run: cmake --build build --config Release --parallel 2
+      - name: Run Release protocol tests
+        run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
+      - name: Stage installable protocol SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --install build --config Release --prefix "$GITHUB_WORKSPACE/build/stage"
+      - name: Verify downstream CMake package, link and execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S tests/consumer -B build/consumer \
+            "-DCMAKE_PREFIX_PATH=$GITHUB_WORKSPACE/build/stage" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/consumer --config Release --parallel 2
+          ctest --test-dir build/consumer --build-config Release --timeout 60 --output-on-failure
+      - name: Package ZIP protocol SDK
+        run: cmake --build build --config Release --target package
+      - name: Generate reproducible artifact digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build
+          cmake -E sha256sum rdp-server-protocol-*.zip > "SHA256SUMS-${{ matrix.os }}.txt"
+      - name: Upload verified protocol SDK package
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-package-${{ matrix.os }}
+          path: |
+            build/rdp-server-protocol-*.zip
+            build/SHA256SUMS-${{ matrix.os }}.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  # R9: one bounded sanitizer job across existing first-party CLIPRDR/X11,
+  # MCS/CredSSP, native R2->R3 admission/revocation and R3 licensing contracts.
+  r9-security-protocol-sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Clang sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v clang++
+          clang++ --version
+      - name: Install credential-free Linux GSSAPI build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libkrb5-dev libsystemd-dev pkg-config \
+            libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev \
+            libxcb-xfixes0-dev libxcb-damage0-dev libxcb-xtest0-dev \
+            xvfb xauth
+      - name: Configure first-party protocol tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_TEST_LINUX_GSSAPI=ON \
+            -DRDP_SERVER_TEST_REAL_KERBEROS=OFF \
+            -DRDP_SERVER_BUILD_FUZZERS=ON \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile existing production-linked protocol test targets
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_owned_remote_transfer test_clipboard_protocol \
+            test_owned_mcs_connect_initial test_owned_preauth_session \
+            test_owned_credssp_tsrequest \
+            test_owned_credssp_binding test_linux_gssapi_spnego \
+            test_x11_clipboard_adapter test_x11_display_events \
+            test_x11_desktop_resources test_x11_authorized_input_route \
+            fuzz_mcs_cliprdr
+      - name: Run all registered clipboard CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --build-config Debug --timeout 60 -L clipboard --output-on-failure
+      - name: Run bounded R1/R3 MCS, CredSSP and licensing CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^(transport\.(tcp-owned-(security-negotiation-provenance|r3-connect-response-slice|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(preamble-and-state|length-bounds|ordering-denials))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$' --output-on-failure
+      - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          # MIT krb5 1.20.1 and 1.21.3 both leak an unreachable internal
+          # principal copy when gss_acquire_cred_from fails with no output
+          # credential. Keep the suppression scoped to these GSS tests only.
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 --verbose \
+            -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-channel-join-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
+
+      - name: Run R5 one-XCB lifecycle and authorized-input CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^x11\.(display-event-failure-defers-owner-teardown|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary)|input-r3-admission-route-denials-and-revocation)$' --output-on-failure
+
+      - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --build-config Debug --timeout 60 -R '^fuzz\.mcs-cliprdr-bounded$' --output-on-failure
+
+  documentation-policy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."

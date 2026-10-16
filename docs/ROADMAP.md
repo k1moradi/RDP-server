@@ -1,3 +1,40 @@
+## R9 licensing credential-path replacement freshness fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `7b2426144d1bab893a67dc21971b6036b089f012`.
+
+R10's `runtime.licensing-context-secure-file-snapshots` proves one successful
+`RuntimeLicensingContext` retains exact owned certificate/private-key
+snapshots after both source pathname contents are overwritten. R9 adds the
+converse freshness boundary: a **new** context created after that overwrite
+must reopen the current files and fail closed rather than inherit or replay the
+previous context's successful snapshot.
+
+New production-backed CTest
+`runtime.licensing-context-replacement-freshness` reuses the same generated
+RSA/X.509 fixture and the existing secure-file path proof. After both credential
+paths are replaced with garbage, a distinct `RuntimeLicensingContext` calls
+`configureFromCredentialFiles` on those same paths and must remain
+unconfigured with null identity/credential borrows. Replay on that failed
+one-shot context remains terminal.
+
+The shared CMake fixture driver now takes an explicit case name; the new test
+uses a distinct fixture directory so parallel CTest execution cannot race the
+original secure-file case. R9's fail-closed Clang ASan/UBSan licensing selector
+requires and executes both cases. No production source, public API, R1/R2/R3
+authority, CAL decision, listener or Share activation changes.
+
+R10 commit `df67d3012440a59cd67dd2e53b85aea8f4355c39` initially produced
+zero-job Actions `38968057232` because the sanitizer workflow was malformed;
+shared repairs `019602a8bff080078b1d1edbcb5fad0958d2c130` and
+`f7058fccd45ae5a9fa7841b9911ea91b7151f56e` restore the workflow before this
+increment. Canonical owner-local `~/rdp-server/build/` configure/build/full
+CTest and local sanitizer execution remain **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted platform, sanitizer,
+documentation-policy and SDK/package evidence are required. Genuine
+Kerberos/NSS/logind admission, CAL trust/product/expiry validation,
+Microsoft-client licensing/Share/desktop acceptance and M2/M3 remain
+**NOT RUN / OPEN**.
+
 ## R2 CI restoration for HWID-proof fence validation (2026-10-16)
 
 R2 test commit `09ac1e1759970c03fd0e5d57eb94bf43ed61491d`

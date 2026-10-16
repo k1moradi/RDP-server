@@ -1,3 +1,24 @@
+## R9 licensing credential-path replacement freshness authoring (2026-10-16)
+
+**Parent:** `7b2426144d1bab893a67dc21971b6036b089f012`.
+
+Added `runtime.licensing-context-replacement-freshness` as an independent
+central CTest. It reuses R10's secure credential-file fixture, first executes
+the retained-snapshot proof that replaces both source paths with garbage, then
+constructs a fresh `RuntimeLicensingContext`. The fresh context must re-open
+the current files, reject them, expose neither identity nor credential, and
+remain terminal on replay.
+
+The CMake fixture driver now accepts the exact binary mode as an argument; the
+new test uses a distinct fixture directory to avoid cross-test pathname races.
+The R9 bounded licensing sanitizer regex and fail-closed registry preflight both
+explicitly include the new case. No production code or authorization contract
+changes. Canonical local one-root execution is **NOT RUN** because this
+connector exposes no synchronized owner checkout. Exact publication-SHA
+platform/sanitizer/package evidence is pending; positive admission, CAL trust,
+Microsoft-client licensing/Share/desktop acceptance and M2/M3 remain
+**OPEN / NOT RUN**.
+
 ## R2 CI restoration for HWID-proof fence validation (2026-10-16)
 
 R2 test commit `09ac1e1759970c03fd0e5d57eb94bf43ed61491d`

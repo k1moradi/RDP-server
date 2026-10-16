@@ -5882,6 +5882,36 @@ void testRuntimeLicensingContextSecureFiles(
         serverCertificatePath, kServerLicenseScope, privateKeyPath));
 }
 
+void testRuntimeLicensingContextReplacementFreshness(
+    const char *serverCertificatePath,
+    const char *privateKeyPath,
+    const char *encryptedPreMasterPath)
+{
+    // The existing secure-file case intentionally leaves both credential
+    // pathnames replaced with garbage after proving the first context retained
+    // its owned snapshots. A distinct context must reopen the CURRENT files;
+    // no process/global cache may replay the earlier successful snapshot.
+    testRuntimeLicensingContextSecureFiles(
+        serverCertificatePath, privateKeyPath, encryptedPreMasterPath);
+
+    RuntimeLicensingContext freshContext;
+    assert(!freshContext.configureFromCredentialFiles(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        serverCertificatePath, kServerLicenseScope, privateKeyPath));
+    assert(!freshContext.configured());
+    assert(freshContext.identity() == nullptr);
+    assert(freshContext.credential() == nullptr);
+
+    // Failed provisioning is one-shot as well; repeating the stale pathname
+    // pair cannot revive or partially publish credential state.
+    assert(!freshContext.configureFromCredentialFiles(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        serverCertificatePath, kServerLicenseScope, privateKeyPath));
+    assert(!freshContext.configured());
+    assert(freshContext.identity() == nullptr);
+    assert(freshContext.credential() == nullptr);
+}
+
 void testRuntimeLicensingContextOwnership()
 {
     LicensingCryptoFixture fixture;
@@ -6631,6 +6661,12 @@ int main(int argc, char **argv)
         if (mode == "licensing-runtime-context-secure-files")
         {
             testRuntimeLicensingContextSecureFiles(
+                argv[2], argv[3], argv[4]);
+            return 0;
+        }
+        if (mode == "licensing-runtime-context-replacement-freshness")
+        {
+            testRuntimeLicensingContextReplacementFreshness(
                 argv[2], argv[3], argv[4]);
             return 0;
         }

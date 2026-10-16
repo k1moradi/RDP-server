@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 foreach(required_argument IN ITEMS
         RDP_RUNTIME_LICENSING_TEST
+        RDP_RUNTIME_LICENSING_CASE
         RDP_RUNTIME_FIXTURE_DIRECTORY)
     if(NOT DEFINED ${required_argument} OR "${${required_argument}}" STREQUAL "")
         message(FATAL_ERROR "Missing ${required_argument}")
@@ -64,7 +65,7 @@ endif()
 
 execute_process(
     COMMAND "${RDP_RUNTIME_LICENSING_TEST}"
-        licensing-runtime-context-secure-files
+        "${RDP_RUNTIME_LICENSING_CASE}"
         "${certificate_file}" "${private_key_file}"
         "${encrypted_premaster_file}"
     RESULT_VARIABLE test_result

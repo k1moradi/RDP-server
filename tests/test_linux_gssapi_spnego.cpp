@@ -6,6 +6,7 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -1776,6 +1777,8 @@ void testR3ClientLicensingRouteContract()
             envelope.value.licensingMessage);
     assert(keyExchange);
     assert(keyExchange.value.clientRandom.size() == 32U);
+    assert(keyExchange.value.encryptedPreMasterSecret.size() ==
+           encryptedPreMaster.size());
     assert(std::equal(
         keyExchange.value.encryptedPreMasterSecret.begin(),
         keyExchange.value.encryptedPreMasterSecret.end(),

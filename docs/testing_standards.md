@@ -2096,9 +2096,10 @@ The one Linux/Clang sanitizer job must compile both existing R4 graphics test
 executables, `test_x264_avc420_encoder` and
 `test_x264_avc420_segmented_frame_producer`, then run the complete
 `x264` CTest label as its own failure-isolated group. The label currently
-contains 18 production-backed cases covering the pinned x264 encoder,
+contains 20 production-backed cases covering the pinned x264 encoder,
 NV12 validation/reference continuity, BGRA-to-NV12 conversion, segmented
-RDP8 publication, ACK/backpressure and fixed-CFR PTS behavior.
+RDP8 publication, ACK/backpressure, zero-valued wire identifiers and fixed-CFR
+PTS behavior.
 
 Configure **both** C and C++ with Clang and the same
 `-fsanitize=address,undefined -fno-omit-frame-pointer
@@ -2145,3 +2146,23 @@ START/END_FRAME `frameId` spans uint32 including zero, and surface-management
 must be asserted through explicit stage/generation/receipt state rather than by
 treating a legal wire identifier as an implicit "unset" value. Keep
 duplicate-ID and stale-generation tests independent from scalar-domain tests.
+
+
+### R4 capability negotiation sanitizer selection (2026-10-16)
+
+The shared Linux/Clang sanitizer job must also build
+`test_gfx_avc420_capabilities` and execute the complete
+`^graphics\.avc420-capabilities-` CTest family as its own
+failure-isolated R4 group. This directly instruments the production
+CAPS_ADVERTISE parser / CAPS_CONFIRM serializer for supported selection,
+highest-supported selection, malformed/unsupported rejection and
+variable-length header bounds. The job must assert that
+`graphics.avc420-capabilities-highest-supported-selection` is present in the
+selected central registry before execution so a missing registration cannot be
+mistaken for sanitizer PASS.
+
+Keep this portable wire group separate from the x264 label: it has no codec
+dependency and does not prove an authenticated Graphics DVC, live client
+negotiation or R3 admission. As with other shared sanitizer groups, later
+roads must still run under `always() && compile-success` if this R4 group
+fails.

@@ -158,6 +158,7 @@ jobs:
             test_owned_remote_transfer test_clipboard_protocol \
             test_windows_clipboard_adapter test_macos_clipboard_adapter \
             test_linux_clipboard_file_destination \
+            test_gfx_avc420_capabilities \
             test_x264_avc420_encoder \
             test_x264_avc420_segmented_frame_producer \
             test_owned_mcs_connect_initial test_owned_preauth_session \
@@ -182,6 +183,20 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --build-config Debug --timeout 60 -L x264 --output-on-failure
+
+      - name: Run R4 RDPGFX capability CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          capability_selection='^graphics\.avc420-capabilities-'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$capability_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'graphics.avc420-capabilities-highest-supported-selection' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$capability_selection" --output-on-failure
 
       - name: Run bounded R1/R3 MCS, CredSSP and licensing CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

@@ -14340,3 +14340,36 @@ or the standards-required Platform Challenge/New License path for a
 gain the existing fresh R2 authorization and then use receipt-bound R1
 application delivery; activation remains later.
 
+
+
+## R4 capability negotiation ASan/UBSan coverage (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `9ffd905fa67df0f71c09cd8a80551eadbc2645fd`.
+
+The hosted receipt for
+`graphics.avc420-capabilities-highest-supported-selection` explicitly
+recorded that the new production-linked capability regression was **not**
+selected by the bounded sanitizer job. Current CI builds the x264 R4
+executables under Clang ASan/UBSan but does not build
+`test_gfx_avc420_capabilities`, so none of the four capability-negotiation
+wire cases receive direct sanitizer execution.
+
+This increment changes CI/testing policy only. The existing shared
+`r9-security-protocol-sanitizers` job now builds
+`test_gfx_avc420_capabilities` and runs the complete
+`^graphics\.avc420-capabilities-` family as an independent
+`always() && compile-success` group with the same leak detection,
+halt-on-error and fail-on-UB settings. The selection is enumerated first and
+must contain
+`graphics.avc420-capabilities-highest-supported-selection` before execution.
+Production negotiation, codec, scheduler, frame/ACK state and R3 channel
+authority are unchanged.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest is **NOT
+RUN** in this connector environment. Exact publication-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release, the new capability
+sanitizer group, the existing 20-case x264/BGRA sanitizer group,
+documentation policy and SDK/package gates are required after publication.
+Genuine authenticated R3 Graphics DVC/full-send integration, owner three-OS
+commands, native capture performance and Microsoft-client visible graphics
+remain **NOT RUN/BLOCKED**. Gate B and M3/M4/M5 remain **OPEN**.

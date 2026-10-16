@@ -14612,3 +14612,21 @@ or the standards-required Platform Challenge/New License path for a
 gain the existing fresh R2 authorization and then use receipt-bound R1
 application delivery; activation remains later.
 
+
+
+## R4 capability negotiation sanitizer authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `9ffd905fa67df0f71c09cd8a80551eadbc2645fd`.
+
+The shared Linux/Clang ASan+UBSan job now explicitly builds the existing
+production-linked `test_gfx_avc420_capabilities` executable and selects all
+registered `graphics.avc420-capabilities-*` cases in a dedicated
+failure-isolated group. The selector first verifies that
+`graphics.avc420-capabilities-highest-supported-selection` is present, then
+executes the group with leak detection and fail-on-UB unchanged.
+
+No production source, wire behavior, graphics authority, CTest registration
+or build-root policy changes. Canonical local execution is **NOT RUN** because
+the owner checkout is unavailable in this connector environment. Exact-SHA
+hosted CI is required before claiming sanitizer PASS for the capability
+negotiation cases.

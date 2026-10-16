@@ -1814,3 +1814,18 @@ NOT assert that the OS backlog is empty. Native would-block and
 post-progress native failures are explicit. R10 still owns listener
 configuration, scheduling, connection limits and admission routing;
 this does not activate a listener or authorize an RDP session.
+
+## R1 borrowed listener readiness before bounded accept (2026-10-15)
+
+`pollNonblockingTcpAcceptBatch` is a one-step **borrowed** native
+listener readiness helper: POSIX `poll` or Winsock `select` for
+the read side of a listening socket, bounded to 25ms and a caller-owned
+steady-clock deadline. It never configures a port or creates a
+listener, blocks indefinitely, or accepts while idle/expired.
+When ready it delegates exactly one 1..16 budgeted batch to the
+existing first-party nonblocking acceptor; the only accepted socket
+owner remains `OwnedNativeTcpSocket` and then (if adopted by
+the callback) `OwnedPreauthTcpConnection`. It never closes the
+borrowed listener even on poll error. R10 owns process/listener
+policy, fairness and timeout selection; R2/R3 still own
+authenticated session authorization and activation.

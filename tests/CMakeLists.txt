@@ -97,6 +97,8 @@ function(add_rdp_test source_file suite behavior)
                 tcp-native-accept-orderly-eof
                 tcp-native-accept-batch-budget-handoff
                 tcp-native-accept-batch-stops-denials
+                tcp-listener-poll-budget-handoff
+                tcp-listener-poll-deadline-denials
                 tcp-owned-connection-tls-lifecycle
                 tcp-owned-connection-cancellation
                 tcp-owned-readiness-dispatch
@@ -142,6 +144,8 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             transport.tcp-native-accept-batch-budget-handoff
             transport.tcp-native-accept-batch-stops-denials
+            transport.tcp-listener-poll-budget-handoff
+            transport.tcp-listener-poll-deadline-denials
             PROPERTIES TIMEOUT 20)
         # Live server-cert binding belongs to the existing real TLS
         # fixture, but exposes separate positive and negative security

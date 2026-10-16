@@ -5272,3 +5272,36 @@ desktop, and release security gates. The likely owner umask cause
 is supported by a local 666-to-600 probe but not conclusively
 established for the owner's machine from a two-line failure list.
 M1–M6 remain OPEN.
+
+## R1 listener-readiness bounded accept gate (2026-10-15)
+
+**Integration parent:** `a0c39e4a612c740949c05e4a9699f711061c21d0`; nine-file atomic increment
+updates existing `nonblocking_tcp_adapter.h/.cpp`, the original
+preauth fixture and CTest registry, ROADMAP, ARCHITECTURE, coding
+and testing standards and this validation ledger.
+**Implemented:** `pollNonblockingTcpAcceptBatch`: single POSIX
+`poll`/Winsock `select` on a borrowed already-listening
+nonblocking native socket, upper wait bound 25ms and external
+monotonic deadline, followed by exactly one bounded native
+accept-batch and move-only callback handoff when readable.
+Return explicit invalid-input, idle, expired, completed-batch
+and failure outcomes; no listener closure, process daemon,
+authenticated identity or MCS/session state.
+**New dedicated registered CTests:**
+`transport.tcp-listener-poll-budget-handoff` and
+`transport.tcp-listener-poll-deadline-denials`.
+**Prior R1 baseline PASS:** [Actions 38849575634](https://github.com/k1moradi/RDP-server/actions/runs/38849575634)
+at `2d03a9bd0bebf7697231322c07d0fa594ef6b0d1`,
+Linux 218/218, macOS 202/202 and Windows 220/220 full Debug
+and Release CTests, including all R1 socket batch regressions.
+**NOT RUN at authoring:** new-code full hosted CI (the previous
+workflow no-job syntax issue R9/R10 [Issue #13](https://github.com/k1moradi/RDP-server/issues/13)
+was repaired; baseline [Actions 38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646)
+at `a0c39e4a612c740949c05e4a9699f711061c21d0` SUCCESS),
+local checkout build (worker has no clone and github.com DNS
+unavailable), owner Linux/X11, Windows MSYS2 CLANG64 Clang23,
+macOS27, live Microsoft client, OS-authenticated identity and R3
+admitted channel/desktop.
+**Next:** R9/R10 restore CI workflow startup, then R1 verify
+exact new source SHA with dedicated/full CTests; R10 may wire
+listener readiness to runtime only when R2/R3 gates are ready.

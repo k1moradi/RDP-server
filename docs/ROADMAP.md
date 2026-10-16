@@ -792,6 +792,40 @@ actually run; another parser CTest alone is not a complete session.
   eventual production listener fairness without introducing a
   second session controller or bypassing authenticated gates.
 
+  **R1 borrowed native listener readiness gate (2026-10-15;
+  integration parent `a0c39e4a612c740949c05e4a9699f711061c21d0`; exact new-code hosted CI pending at authoring; restored
+  baseline CI PASS):**
+  `pollNonblockingTcpAcceptBatch` performs exactly ONE bounded
+  0..25ms readiness wait on the caller's existing nonblocking listener
+  (POSIX `poll(POLLIN)`; Windows Winsock `select(readfds)` for
+  compatible listening-socket semantics), then delegates at most ONE
+  caller-budgeted batch to the already sole `acceptNonblockingTcpBatch`.
+  It validates the 1..16 budget and callback BEFORE touching any socket;
+  honors a caller-owned monotonic deadline; never consumes pending
+  clients when expired, never owns/closes the listener, never retries
+  silently on EINTR, and never creates another connection queue,
+  background thread, listener or RDP state authority.
+  New `transport.tcp-listener-poll-budget-handoff` CTest validates
+  real ephemeral loopback listener readiness, exact X.224 Confirm via
+  `OwnedPreauthTcpConnection`, no-event idle, and one-connection
+  post-progress drain without a two-deep backlog assumption.
+  `transport.tcp-listener-poll-deadline-denials` verifies input
+  rejection, expired pending connection preservation, callback
+  refusal/RAII close, clamped excessive wait and error from a closed
+  borrowed listener. Both in existing central CTest registry, with
+  20s per-case timeout; no live server/admission.
+  **PASS (prior implementation):** `2d03a9bd0bebf7697231322c07d0fa594ef6b0d1`
+  hosted Linux/GCC 218/218, macOS/Clang 202/202 and Windows/MSVC
+  220/220 Debug+Release CTests (Actions 38849575634).
+  **NOT RUN:** new-code CTest/full suite in this agent environment
+  (no local GitHub-clonable checkout), exact new-SHA CI (prior workflow parse issue #13
+  corrected before this publication; baseline Actions 38850747646
+  at `a0c39e4a612c740949c05e4a9699f711061c21d0` SUCCESS), owner's Linux/X11/Windows CLANG64/macOS27 commands,
+  authenticated R2/R3 handoff and live Microsoft client.
+  **Next:** R10 integrate listener readiness into its process scheduler,
+  keeping R2 identity and independent OS authorization and R3
+  authoritative channel/session progression separate.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

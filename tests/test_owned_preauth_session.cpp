@@ -2584,6 +2584,176 @@ void testNativeTcpAcceptBatchStopsAndDenials()
     assert(drainedPair.listener.value != kInvalidLocalSocket);
 }
 
+
+void testNativeTcpListenerPollBudgetAndOwnerHandoff()
+{
+    using Outcome = TcpListenerPollOutcome;
+    using BatchOutcome = TcpAcceptBatchOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    nativeSendAll(clientIo, validRequestWire());
+
+    struct Handoff
+    {
+        NativeTcpIo &client;
+        std::size_t received{};
+    } state{clientIo};
+    const auto callback = +[](OwnedNativeTcpSocket accepted,
+                              void *context) noexcept -> bool
+    {
+        auto &state = *static_cast<Handoff *>(context);
+        assert(accepted.valid());
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        assert(!accepted.valid());
+        assert(owner.active());
+        assert(owner.ioInterest() == Interest::Read);
+        if (state.received == 0)
+        {
+            assert(waitForOwnedTcpReply(owner) == Interest::Write);
+            assert(owner.onSocketReady(false, true) ==
+                   Interest::ConfigureTls);
+            std::array<std::uint8_t, 19> confirm{};
+            nativeReadAll(state.client, confirm);
+            assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
+            assert(owner.establishedTls() == nullptr);
+        }
+        ++state.received;
+        owner.cancel();
+        assert(!owner.active());
+        return true;
+    };
+
+    const auto deadline = Clock::now() + std::chrono::seconds{10};
+    const auto listener = static_cast<std::uintptr_t>(pair.listener.value);
+    const auto first = pollNonblockingTcpAcceptBatch(
+        listener, 1, callback, &state, deadline,
+        std::chrono::milliseconds{0});
+    assert(first.outcome == Outcome::BatchCompleted);
+    assert(first.batch.outcome == BatchOutcome::BudgetReached);
+    assert(first.batch.accepted == 1 && state.received == 1);
+
+    // The poll gate does not invoke the callback on an idle listener.
+    const auto idle = pollNonblockingTcpAcceptBatch(
+        listener, 2, callback, &state, deadline,
+        std::chrono::milliseconds{0});
+    assert(idle.outcome == Outcome::NoEvent);
+    assert(idle.batch.accepted == 0 && state.received == 1);
+
+    // No more than one pending client at a time: portable across
+    // Windows and POSIX without depending on a backlog of two.
+    LocalSocket secondClient{};
+    connectAdditionalLoopbackClient(secondClient, pair.listener.value);
+    const auto second = pollNonblockingTcpAcceptBatch(
+        listener, 2, callback, &state, deadline,
+        kMaximumTcpPollWait);
+    assert(second.outcome == Outcome::BatchCompleted);
+    assert(second.batch.outcome == BatchOutcome::Drained);
+    assert(second.batch.accepted == 1 && state.received == 2);
+    assert(pair.listener.value != kInvalidLocalSocket);
+    assert(acceptNonblockingTcpConnection(listener).outcome ==
+           TcpAcceptOutcome::WouldBlock);
+}
+
+void testNativeTcpListenerPollDeadlineAndDenials()
+{
+    using Outcome = TcpListenerPollOutcome;
+    using BatchOutcome = TcpAcceptBatchOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    const auto listener = static_cast<std::uintptr_t>(pair.listener.value);
+    struct StopState
+    {
+        std::size_t called{};
+        std::uintptr_t acceptedSocket{OwnedNativeTcpSocket::kInvalidSocket};
+    } state{};
+    const auto stop = +[](OwnedNativeTcpSocket accepted,
+                          void *context) noexcept -> bool
+    {
+        auto &state = *static_cast<StopState *>(context);
+        assert(accepted.valid());
+        state.acceptedSocket = accepted.nativeSocket();
+        ++state.called;
+        return false; // RAII auto-closes the incoming handle.
+    };
+    const auto future = Clock::now() + std::chrono::seconds{10};
+    assert(pollNonblockingTcpAcceptBatch(
+        listener, 0, stop, &state, future).outcome ==
+        Outcome::InvalidInput);
+    assert(pollNonblockingTcpAcceptBatch(
+        listener, kMaximumTcpAcceptBatch + 1, stop, &state,
+        future).outcome == Outcome::InvalidInput);
+    assert(pollNonblockingTcpAcceptBatch(
+        listener, 1, nullptr, &state, future).outcome ==
+        Outcome::InvalidInput);
+    assert(pollNonblockingTcpAcceptBatch(
+        OwnedNativeTcpSocket::kInvalidSocket, 1, stop, &state,
+        future).outcome == Outcome::InvalidInput);
+#ifndef _WIN32
+    if constexpr (sizeof(std::uintptr_t) > sizeof(int))
+    {
+        assert(pollNonblockingTcpAcceptBatch(
+            static_cast<std::uintptr_t>(
+                (std::numeric_limits<int>::max)()) + 1U,
+            1, stop, &state, future).outcome ==
+            Outcome::InvalidInput);
+    }
+#endif
+    assert(state.called == 0);
+
+    // Expiration is checked BEFORE touching an actually queued peer.
+    const auto expired = pollNonblockingTcpAcceptBatch(
+        listener, 1, stop, &state,
+        Clock::now() - std::chrono::nanoseconds{1});
+    assert(expired.outcome == Outcome::Expired);
+    assert(state.called == 0);
+    assert(pair.listener.value != kInvalidLocalSocket);
+
+    const auto once = pollNonblockingTcpAcceptBatch(
+        listener, kMaximumTcpAcceptBatch, stop, &state, future,
+        std::chrono::milliseconds{0});
+    assert(once.outcome == Outcome::BatchCompleted);
+    assert(once.batch.outcome == BatchOutcome::CallbackStopped);
+    assert(once.batch.accepted == 1 && state.called == 1);
+#ifdef _WIN32
+    int error = 0;
+    int length = sizeof(error);
+    assert(::getsockopt(static_cast<SOCKET>(state.acceptedSocket),
+                        SOL_SOCKET, SO_ERROR,
+                        reinterpret_cast<char *>(&error),
+                        &length) == SOCKET_ERROR);
+    assert(WSAGetLastError() == WSAENOTSOCK);
+#else
+    errno = 0;
+    assert(::fcntl(static_cast<int>(state.acceptedSocket), F_GETFD) == -1);
+    assert(errno == EBADF);
+#endif
+
+    // An excessive caller wait is clamped to 25ms even without a
+    // connection; callback count remains unchanged.
+    const auto before = Clock::now();
+    const auto idle = pollNonblockingTcpAcceptBatch(
+        listener, 1, stop, &state,
+        before + std::chrono::seconds{5}, std::chrono::hours{1});
+    const auto elapsed = Clock::now() - before;
+    assert(idle.outcome == Outcome::NoEvent);
+    assert(idle.batch.accepted == 0 && state.called == 1);
+    assert(elapsed < std::chrono::seconds{2});
+
+    // A closed native listening descriptor reports a hard error and
+    // cannot be closed again by this borrowed-listener API.
+    const auto native = pair.listener.value;
+    pair.listener.close();
+    const auto failed = pollNonblockingTcpAcceptBatch(
+        static_cast<std::uintptr_t>(native), 1, stop, &state,
+        future, std::chrono::milliseconds{0});
+    assert(failed.outcome == Outcome::Failure);
+    assert(failed.batch.accepted == 0 && state.called == 1);
+}
+
 void testNativeTcpChunkBounds()
 {
     // Real OS sockets, loopback only. The caller provides buffers much
@@ -5016,6 +5186,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-native-accept-orderly-eof", &testNativeTcpAcceptOrderlyPeerDisconnect},
     {"tcp-native-accept-batch-budget-handoff", &testNativeTcpAcceptBatchBudgetAndHandoff},
     {"tcp-native-accept-batch-stops-denials", &testNativeTcpAcceptBatchStopsAndDenials},
+    {"tcp-listener-poll-budget-handoff", &testNativeTcpListenerPollBudgetAndOwnerHandoff},
+    {"tcp-listener-poll-deadline-denials", &testNativeTcpListenerPollDeadlineAndDenials},
     {"tcp-owned-connection-tls-lifecycle", &testOwnedTcpConnectionTlsLifecycle},
     {"tcp-owned-connection-cancellation", &testOwnedTcpConnectionCancellation},
     {"tcp-owned-readiness-dispatch", &testOwnedTcpReadinessDispatch},

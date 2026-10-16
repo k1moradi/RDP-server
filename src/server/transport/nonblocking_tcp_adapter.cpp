@@ -374,6 +374,94 @@ TcpAcceptBatchResult acceptNonblockingTcpBatch(
     return {Outcome::BudgetReached, transferred};
 }
 
+
+TcpListenerPollResult pollNonblockingTcpAcceptBatch(
+    std::uintptr_t listenerSocket, std::size_t budget,
+    TcpAcceptedSocketCallback onAccepted, void *context,
+    std::chrono::steady_clock::time_point deadline,
+    std::chrono::milliseconds maxWait) noexcept
+{
+    using Outcome = TcpListenerPollOutcome;
+    if (listenerSocket == OwnedNativeTcpSocket::kInvalidSocket ||
+        budget == 0 || budget > kMaximumTcpAcceptBatch ||
+        onAccepted == nullptr)
+        return {Outcome::InvalidInput, {}};
+
+#ifndef _WIN32
+    // Never truncate a caller-provided unsigned socket identifier.
+    if (listenerSocket > static_cast<std::uintptr_t>(
+            (std::numeric_limits<int>::max)()))
+        return {Outcome::InvalidInput, {}};
+#endif
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) return {Outcome::Expired, {}};
+
+    // Even an arbitrarily large requested wait cannot starve the
+    // caller's other sockets. Each invocation contains at most one
+    // native wait and one bounded accept batch, with no hidden retry.
+    const auto requested = (std::max)(maxWait, std::chrono::milliseconds{0});
+    const auto left =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - now);
+    const auto bounded = (std::min)(
+        (std::min)(requested, kMaximumTcpPollWait), left);
+    const int timeoutMillis = static_cast<int>(bounded.count()); // 0..25
+
+#ifdef _WIN32
+    const SOCKET listener = static_cast<SOCKET>(listenerSocket);
+    fd_set readable{};
+    fd_set exceptional{};
+    FD_ZERO(&readable);
+    FD_ZERO(&exceptional);
+    FD_SET(listener, &readable);
+    FD_SET(listener, &exceptional);
+    timeval timeout{};
+    timeout.tv_usec = timeoutMillis * 1000L;
+    // Winsock select supports a listening socket; no fd-number bound
+    // or POSIX descriptor conversion is involved.
+    const int count = ::select(0, &readable, nullptr, &exceptional,
+                               &timeout);
+    const bool interrupted = count < 0 &&
+                             WSAGetLastError() == WSAEINTR;
+#else
+    pollfd ready{};
+    ready.fd = static_cast<int>(listenerSocket);
+    ready.events = POLLIN;
+    const int count = ::poll(&ready, static_cast<nfds_t>(1),
+                             timeoutMillis);
+    const bool interrupted = count < 0 && errno == EINTR;
+#endif
+    if (count < 0 && !interrupted)
+        return {Outcome::Failure, {}};
+
+    // Return control after EINTR rather than restarting the timeout.
+    if (count <= 0)
+        return {std::chrono::steady_clock::now() >= deadline
+                    ? Outcome::Expired : Outcome::NoEvent, {}};
+
+#ifdef _WIN32
+    if (FD_ISSET(listener, &exceptional))
+        return {Outcome::Failure, {}};
+    if (!FD_ISSET(listener, &readable))
+        return {Outcome::NoEvent, {}};
+#else
+    if ((ready.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0)
+        return {Outcome::Failure, {}};
+    if ((ready.revents & POLLIN) == 0)
+        return {Outcome::NoEvent, {}};
+#endif
+
+    // Do not independently accept, poll or create a second owner:
+    // the first-party bounded acceptor alone determines connection
+    // ownership, per-platform flags and eventual handoff/stop.
+    auto result = acceptNonblockingTcpBatch(
+        listenerSocket, budget, onAccepted, context);
+    return {result.outcome == TcpAcceptBatchOutcome::Failure
+                ? Outcome::Failure : Outcome::BatchCompleted,
+            result};
+}
+
 TcpConnectionPollResult OwnedPreauthTcpConnection::pollSocketOnce(
     std::chrono::steady_clock::time_point deadline,
     std::chrono::milliseconds maxWait) noexcept

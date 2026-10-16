@@ -291,6 +291,39 @@ private:
  // timeout is split into bounded steps by the EXTERNAL runtime scheduler.
  inline constexpr std::chrono::milliseconds kMaximumTcpPollWait{25};
 
+
+ // A single readiness wait on an EXTERNALLY configured nonblocking
+ // listener followed by exactly ONE call to acceptNonblockingTcpBatch.
+ // There is no listening socket owner, queue, service activation or
+ // authenticated session in this helper. An expired deadline does NOT
+ // steal a queued client or close the caller-owned listener.
+ enum class TcpListenerPollOutcome : std::uint8_t
+ {
+     InvalidInput,
+     NoEvent,
+     Expired,
+     BatchCompleted,
+     Failure,
+ };
+
+ struct TcpListenerPollResult
+ {
+     TcpListenerPollOutcome outcome{TcpListenerPollOutcome::InvalidInput};
+     // Meaningful only for BatchCompleted or Failure after readiness.
+     TcpAcceptBatchResult batch{};
+ };
+
+ // Supply a monotonic deadline and one-step maxWait; clamped to 25ms.
+ // POSIX: poll(POLLIN). Winsock: select(readfds) for listener
+ // compatibility. EINTR returns NoEvent without hidden retry.
+ // An OS error does not close the listener. If ready, accept at most
+ // budget connections and transfer each to the caller callback.
+ [[nodiscard]] TcpListenerPollResult pollNonblockingTcpAcceptBatch(
+     std::uintptr_t listenerSocket, std::size_t budget,
+     TcpAcceptedSocketCallback onAccepted, void *context,
+     std::chrono::steady_clock::time_point deadline,
+     std::chrono::milliseconds maxWait = kMaximumTcpPollWait) noexcept;
+
  // R1: one event-loop-affine owner of an accepted socket, preauth and SSL.
  // Never move: the attached SSL/BIO borrows the embedded NativeTcpIo.
  // There is no additional protocol/session state machine or listener here.

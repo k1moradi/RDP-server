@@ -1338,3 +1338,16 @@ outcomes for would-block, budget reached, post-progress drain,
 invalid input and failure. Caller/R10 owns listener policy and
 fairness; R1 must not add any new queue, authentication or RDP
 state controller.
+
+## R1 one-step borrowed-listener readiness (2026-10-15)
+
+Treat listener polling and per-connection polling as separate
+borrowed versus owned resources, without allocating another
+controller. Bound each listener readiness step to a single
+POSIX poll or Winsock select with at most 25ms wait; reuse the
+same 1..16 nonblocking batch acceptor only after a real readable
+result. Validate callback/budget first, check a monotonic
+deadline before socket operations, and do not silently retry
+interrupts. Never close a borrowed listener on poll error or
+deadline; neither the presence of a pending connection nor a
+successful X.224/TLS diagnostic implies R2/R3 authorization.

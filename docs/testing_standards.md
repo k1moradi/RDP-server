@@ -1767,3 +1767,18 @@ CTest TIMEOUT in the existing central list. The limit is a test
 diagnostic for platform-dependent socket/listen backlog stalls,
 NOT a production timeout or a relaxation of any assertion. Do not
 declare an incomplete/hung Windows job PASS or FAIL without its logs.
+
+## R1 listener readiness/deadline CTests (2026-10-15)
+
+`transport.tcp-listener-poll-budget-handoff` and
+`transport.tcp-listener-poll-deadline-denials` register in the
+existing preauth test executable and central CTest list, each
+with a 20-second watchdog. The former drives native read-ready
+accept handoff on an ephemeral loopback listener into the sole
+`OwnedPreauthTcpConnection`, verifies exact X.224 Confirm and
+idle/drained outcomes, and never assumes a backlog depth beyond
+one. The latter checks invalid budgets/socket/callback, an
+expired deadline while a real connection remains pending,
+callback-stop RAII closure, 25ms wait clamp, and a closed
+borrowed listener's error. All tests are offline and require
+no service, OS session, desktop or credentials.

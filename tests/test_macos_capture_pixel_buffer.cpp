@@ -869,8 +869,8 @@ void testNativeReconfigurationSignalRevision() {
 
 #if defined(__APPLE__)
 struct FakeDisplayWatchBackend final {
-    NativeDisplayReconfigurationWatch::ChangeRecorder recorder{};
-    NativeDisplayReconfigurationWatch::ChangeRecorder lastRecorder{};
+    rdp::macos::NativeDisplayReconfigurationWatch::ChangeRecorder recorder{};
+    rdp::macos::NativeDisplayReconfigurationWatch::ChangeRecorder lastRecorder{};
     std::size_t installs{};
     std::size_t removals{};
     bool installSucceeds{true};
@@ -880,7 +880,7 @@ struct FakeDisplayWatchBackend final {
 
     static bool install(
         void* const context,
-        const NativeDisplayReconfigurationWatch::ChangeRecorder recorder) noexcept {
+        const rdp::macos::NativeDisplayReconfigurationWatch::ChangeRecorder recorder) noexcept {
         auto& self = *static_cast<FakeDisplayWatchBackend*>(context);
         ++self.installs;
         if (!self.installSucceeds) {
@@ -907,7 +907,7 @@ struct FakeDisplayWatchBackend final {
         return true;
     }
 
-    [[nodiscard]] NativeDisplayReconfigurationWatch::Callbacks
+    [[nodiscard]] rdp::macos::NativeDisplayReconfigurationWatch::Callbacks
     callbacks() noexcept {
         return {this, &install, &remove};
     }

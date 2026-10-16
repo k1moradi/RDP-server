@@ -15142,3 +15142,27 @@ sanitizer, documentation-policy and SDK/package evidence are **PENDING** after
 publication. Owner macOS 27 real display/session notification delivery,
 non-forgeable macOS R2/R3 admission and Microsoft-client M5 acceptance remain
 **NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.
+
+
+## R7 Quartz display-watch first exact-SHA failure and namespace correction (2026-10-16)
+
+Implementation `7b2426144d1bab893a67dc21971b6036b089f012`, Actions
+`38968973698`, reached the Apple production target successfully but failed
+while compiling the new CTest fixture. AppleClang reported four undeclared
+`NativeDisplayReconfigurationWatch` references in
+`tests/test_macos_capture_pixel_buffer.cpp` because the Apple-only fake backend
+was declared outside `rdp::macos` and those nested test-seam types were not
+namespace-qualified.
+
+The correction is test-only: fully qualify the four nested type references with
+`rdp::macos::NativeDisplayReconfigurationWatch`. Production display-watch
+logic, CoreGraphics callback wiring, coverage/reservation semantics, CTest
+registration and native reachability are unchanged.
+
+On the failed SHA, the dedicated R7 GCC ASan/UBSan session-watch job **PASS**
+and documentation policy **PASS**. macOS is **FAIL at test compile**, so no
+functional PASS is claimed for the new display-watch lifecycle regression until
+the corrected exact SHA completes hosted CI. Canonical owner-local
+`~/rdp-server/build/`, owner macOS 27 live display/session notification
+delivery, genuine non-forgeable R2/R3 macOS admission and Microsoft-client M5
+acceptance remain **NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.

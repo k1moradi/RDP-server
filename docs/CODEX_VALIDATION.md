@@ -2926,6 +2926,11 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 authoritative first MCS intake-size denial (2026-10-15)
 
+**Second test-only portability correction:** size-test initializer-list
+values in `mcs-preauth-first-envelope-size-bound` now use `std::size_t`
+throughout. Initial CI exposed mixed unsigned integer widths on Linux,
+macOS and Windows. No production behavior or assertion is weakened.
+
 **Test-only correction:** ensure every braced initializer-list element in
 `mcs-session-first-envelope-size-bounds` has `std::size_t` type;
 this avoids platform-width-dependent deduction errors under C++23.

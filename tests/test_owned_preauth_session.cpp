@@ -4895,7 +4895,8 @@ void testMcsPreauthFirstEnvelopeSizeBound()
     const auto valid = validMcsPacket();
 
     for (const std::size_t size : {
-             0U, 7U, kMaximumInitialMcsTpktBytes,
+             std::size_t{0}, std::size_t{7},
+             kMaximumInitialMcsTpktBytes,
              kMaximumInitialMcsTpktBytes + 1U})
     {
         std::vector<std::uint8_t> frame(size, 0);

@@ -175,6 +175,15 @@ bool RemoteTransfer::receiveFormatList(
         }
     }
 
+    // A successfully validated new offer supersedes the native paste request
+    // for the old generation. Keep the terminal receipt until the adapter
+    // polls it; an in-flight wire reply is still drained by pending_ below.
+    if (pasteRequestPresent_ &&
+        pasteRequestStatus_ == PasteStatus::Pending)
+    {
+        pasteRequestStatus_ = PasteStatus::ClipboardReplaced;
+    }
+
     std::copy(advertisedFormatIds.begin(), advertisedFormatIds.end(),
               advertisedFormats_.begin());
     advertisedCount_ = advertisedFormatIds.size();
@@ -775,7 +784,8 @@ bool RemoteTransfer::beginNextPrefetch(
     output.clear();
     // Without a wire request ID, a pending format-data reply cannot be
     // overtaken even if a new offer replaced the current generation.
-    if (poisoned_ || generation_ == 0 || pendingValid_)
+    if (poisoned_ || generation_ == 0 || pendingValid_ ||
+        hasPendingPasteRequest())
         return false;
 
     constexpr std::uint32_t kDibV5FormatId = 17;
@@ -1039,6 +1049,134 @@ RemoteTransfer::verifiedImage() const noexcept
                                       verifiedImageBytes_.size()}};
 }
 
+std::optional<RemoteTransfer::PasteRequestReceipt>
+RemoteTransfer::beginPasteRequest(
+    PasteKind kind, PasteClock::time_point now,
+    PasteClock::time_point deadline) noexcept
+{
+    using rdp_server::clipboard::kFormatUnicodeText;
+    if (poisoned_ || generation_ == 0 || pasteRequestPresent_ ||
+        pasteRequestSequence_ == UINT64_MAX || deadline <= now)
+    {
+        return std::nullopt;
+    }
+
+    constexpr std::uint32_t kDibFormatId = 8;
+    constexpr std::uint32_t kDibV5FormatId = 17;
+    const bool contentOffered =
+        kind == PasteKind::UnicodeText
+            ? advertises(kFormatUnicodeText)
+            : ((pngFormatId_ != 0 && advertises(pngFormatId_)) ||
+               advertises(kDibV5FormatId) || advertises(kDibFormatId));
+    if (!contentOffered)
+    {
+        return std::nullopt;
+    }
+
+    ++pasteRequestSequence_;
+    pasteRequestActiveSequence_ = pasteRequestSequence_;
+    pasteRequestGeneration_ = generation_;
+    pasteRequestDeadline_ = deadline;
+    pasteRequestKind_ = kind;
+    pasteRequestStatus_ = PasteStatus::Pending;
+    pasteRequestPresent_ = true;
+    return PasteRequestReceipt{pasteRequestActiveSequence_,
+                               pasteRequestGeneration_};
+}
+
+RemoteTransfer::PasteResult RemoteTransfer::pollPasteRequest(
+    std::uint64_t sequence, PasteClock::time_point now) noexcept
+{
+    PasteResult result{};
+    if (!pasteRequestPresent_ || sequence == 0 ||
+        sequence != pasteRequestActiveSequence_)
+    {
+        return result;
+    }
+
+    if (pasteRequestStatus_ == PasteStatus::Pending)
+    {
+        if (poisoned_)
+        {
+            pasteRequestStatus_ = PasteStatus::ChannelError;
+        }
+        else if (pasteRequestGeneration_ != generation_)
+        {
+            pasteRequestStatus_ = PasteStatus::ClipboardReplaced;
+        }
+        else if (now >= pasteRequestDeadline_)
+        {
+            pasteRequestStatus_ = PasteStatus::TimedOut;
+        }
+        else if (pasteRequestKind_ == PasteKind::UnicodeText)
+        {
+            if (verifiedUnicodeText())
+            {
+                pasteRequestStatus_ = PasteStatus::ReadyUnicodeText;
+            }
+        }
+        else if (verifiedImage())
+        {
+            pasteRequestStatus_ = PasteStatus::ReadyImage;
+        }
+    }
+
+    result.status = pasteRequestStatus_;
+    result.sequence = pasteRequestActiveSequence_;
+    result.generation = pasteRequestGeneration_;
+    if (pasteRequestStatus_ == PasteStatus::Pending)
+    {
+        return result;
+    }
+    if (pasteRequestStatus_ == PasteStatus::ReadyUnicodeText)
+    {
+        const auto text = verifiedUnicodeText();
+        if (!text)
+        {
+            result.status = PasteStatus::ChannelError;
+        }
+        else
+        {
+            result.text = *text;
+        }
+    }
+    else if (pasteRequestStatus_ == PasteStatus::ReadyImage)
+    {
+        result.image = verifiedImage();
+        if (!result.image)
+        {
+            result.status = PasteStatus::ChannelError;
+        }
+    }
+
+    // Terminal outcomes are delivered exactly once. The underlying verified
+    // payload remains owned by this generation until replacement/disconnect.
+    pasteRequestPresent_ = false;
+    pasteRequestActiveSequence_ = 0;
+    pasteRequestGeneration_ = 0;
+    pasteRequestDeadline_ = {};
+    pasteRequestStatus_ = PasteStatus::InvalidSequence;
+    return result;
+}
+
+bool RemoteTransfer::cancelPasteRequestForOwnerLoss(
+    std::uint64_t sequence) noexcept
+{
+    if (!pasteRequestPresent_ || pasteRequestStatus_ != PasteStatus::Pending ||
+        sequence == 0 || sequence != pasteRequestActiveSequence_)
+    {
+        return false;
+    }
+    pasteRequestStatus_ = PasteStatus::OwnerLost;
+    return true;
+}
+
+bool RemoteTransfer::hasPendingPasteRequest() const noexcept
+{
+    return pasteRequestPresent_ &&
+           pasteRequestStatus_ == PasteStatus::Pending;
+}
+
 void RemoteTransfer::abandonRequest() noexcept
 {
     if (pendingValid_)
@@ -1049,6 +1187,11 @@ void RemoteTransfer::abandonRequest() noexcept
 
 void RemoteTransfer::resetAfterDisconnect() noexcept
 {
+    if (pasteRequestPresent_ &&
+        pasteRequestStatus_ == PasteStatus::Pending)
+    {
+        pasteRequestStatus_ = PasteStatus::Disconnected;
+    }
     verifiedTextUtf8_.clear();
     verifiedTextReady_ = false;
     verifiedImageBytes_.clear();

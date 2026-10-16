@@ -3712,7 +3712,26 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   X11 asynchronous SelectionRequest/SelectionNotify and INCR for large data;
   use native asynchronous data offers on Wayland/macOS/Windows adapters.
   Never return a success or an empty image before required bytes are ready.
-  **Status: NOT RUN.**
+  **R8 portable pending-paste receipt (2026-10-16): PARTIAL.**
+  The existing `RemoteTransfer` event-loop owner now registers one native
+  text/image paste receipt with a monotonic caller-supplied deadline and a
+  sequence that never resets across disconnect. Polling is nonblocking:
+  current verified text/image completes the same receipt; exact-deadline
+  expiry rejects it; a valid new Format List records `ClipboardReplaced`;
+  disconnect records `Disconnected`; native owner loss is an explicit
+  stale-sequence-checked cancellation; channel poison records
+  `ChannelError`. Terminal outcomes are delivered once. While a paste is
+  pending, `beginNextPrefetch` cannot start further speculative work, but
+  an already-sent request still drains before the live paste can reuse the
+  one ordinary Format Data Response slot. This portable boundary does not
+  block, sleep, start threads, publish an OS clipboard, convert image bytes
+  or grant R3 channel authority. Dedicated
+  `clipboard.nonblocking-paste-readiness` CTest. **At authoring:** exact-SHA
+  hosted CI, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and live
+  native paste are NOT RUN.
+  **Remaining:** bind this receipt to R5/R6/R7 asynchronous native clipboard
+  requests and bounded lazy image conversion/INCR, then real-client paste
+  acceptance.
 - [ ] **OS clipboard ownership without competition**: one native adapter per
   OS; on X11 use the `CLIPBOARD` selection (not `PRIMARY`), XFixes owner-change
   events, timestamps, TARGETS and selection-clear rules. Claim ownership on

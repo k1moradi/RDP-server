@@ -530,6 +530,31 @@ responses never become current image data. This boundary does not decode an
 image, perform native clipboard publication, schedule background work or
 authorize a channel.
 
+### R8 nonblocking native paste receipt boundary (offline)
+
+`RemoteTransfer` remains event-loop confined and owns at most one pending
+native paste receipt. The adapter supplies `std::chrono::steady_clock`
+timestamps and a future deadline; the core never sleeps, waits on a condition
+variable, starts a worker or polls an OS clipboard. Receipt sequence numbers
+stay monotonic across disconnect so stale native callbacks cannot complete a
+later request. Polling returns Pending until current-generation verified text
+or image exists, or produces one terminal result: timeout, clipboard
+replacement, explicit native owner loss, disconnect or channel error. A
+terminal result is consumed once. A valid replacement marks the old receipt
+before advancing generation; a malformed replacement poisons the channel and
+therefore resolves as channel error instead. Disconnect preserves the terminal
+receipt long enough for the adapter to observe it while clearing clipboard
+wire/readiness state.
+
+A pending live paste prevents `beginNextPrefetch` from launching another
+speculative Format Data Request. It does not cancel a request that may already
+have reached the peer: because ordinary Format Data Responses have no request
+ID, that reply must still complete or drain before the live paste reuses the
+single-flight slot. The native adapter may then use the existing
+`beginRequest`/joined-writer lifecycle for the demanded format. This boundary
+does not itself choose an R3 channel, send bytes, convert images, publish X11/
+Windows/macOS clipboard ownership, implement X11 INCR, or prove a real paste.
+
 ### Independence test
 
 The top-level CMake project enables **CXX only**, targets C++23, and links

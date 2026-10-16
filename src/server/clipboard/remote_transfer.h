@@ -2,6 +2,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -246,6 +247,57 @@ public:
     [[nodiscard]] bool storeVerifiedImage(const Response &response) noexcept;
     [[nodiscard]] std::optional<VerifiedImage> verifiedImage() const noexcept;
 
+    // Native clipboard adapters register at most one waiting paste on this
+    // session event loop. Time is caller-supplied from a monotonic clock:
+    // RemoteTransfer never sleeps, waits, starts a thread, or polls the OS.
+    using PasteClock = std::chrono::steady_clock;
+    enum class PasteKind : std::uint8_t { UnicodeText, Image };
+    enum class PasteStatus : std::uint8_t
+    {
+        InvalidSequence,
+        Pending,
+        ReadyUnicodeText,
+        ReadyImage,
+        TimedOut,
+        ClipboardReplaced,
+        OwnerLost,
+        Disconnected,
+        ChannelError,
+    };
+    struct PasteRequestReceipt
+    {
+        std::uint64_t sequence{};
+        std::uint64_t generation{};
+    };
+    struct PasteResult
+    {
+        PasteStatus status{PasteStatus::InvalidSequence};
+        std::uint64_t sequence{};
+        std::uint64_t generation{};
+        std::string_view text{};
+        std::optional<VerifiedImage> image{};
+    };
+
+    // Register the SAME native paste request that must later be completed or
+    // rejected. This does no transport I/O. A valid current offer for the
+    // requested content kind is required, but already-verified data may make
+    // the next poll immediately ready. The deadline must be strictly future.
+    [[nodiscard]] std::optional<PasteRequestReceipt> beginPasteRequest(
+        PasteKind kind, PasteClock::time_point now,
+        PasteClock::time_point deadline) noexcept;
+
+    // Event-loop poll/dispatch point. Pending is nonterminal. Every other
+    // returned status consumes this receipt exactly once; ready views borrow
+    // RemoteTransfer-owned current-generation storage.
+    [[nodiscard]] PasteResult pollPasteRequest(
+        std::uint64_t sequence, PasteClock::time_point now) noexcept;
+
+    // Native adapter owner loss rejects the same waiting request but does not
+    // poison the CLIPRDR session. Stale receipt callbacks are ignored.
+    [[nodiscard]] bool cancelPasteRequestForOwnerLoss(
+        std::uint64_t sequence) noexcept;
+    [[nodiscard]] bool hasPendingPasteRequest() const noexcept;
+
     // A lost, timed-out or ambiguous response cannot be correlated with
     // subsequent traffic. Fail closed until an actual channel disconnect.
     void abandonRequest() noexcept;
@@ -271,6 +323,13 @@ private:
     std::uint64_t verifiedImageGeneration_{};
     std::uint32_t verifiedImageSourceFormatId_{};
     bool verifiedImageReady_{};
+    PasteClock::time_point pasteRequestDeadline_{};
+    std::uint64_t pasteRequestSequence_{}; // Never reset: no native receipt ABA.
+    std::uint64_t pasteRequestActiveSequence_{};
+    std::uint64_t pasteRequestGeneration_{};
+    PasteKind pasteRequestKind_{PasteKind::UnicodeText};
+    PasteStatus pasteRequestStatus_{PasteStatus::InvalidSequence};
+    bool pasteRequestPresent_{};
     std::array<std::uint8_t, 8> lastFormatListResponse_{};
     bool lastFormatListResponseValid_{};
     std::array<std::uint32_t, kMaximumFormats> advertisedFormats_{};

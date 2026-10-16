@@ -117,6 +117,20 @@ across reconnect to reject stale callbacks, and drain old
 generation's replies without handing them to a newer format.
 No second clipboard controller, writer, or packet queue.
 
+## R8 nonblocking paste receipt lifecycle (2026-10-16)
+
+Keep native paste waiting state in the same generation-owning
+`RemoteTransfer`, not in a second clipboard state machine. Use a monotonic
+caller-supplied deadline and receipt sequence that remains monotonic across
+disconnect. Event-loop code must never sleep, wait on a condition variable or
+poll an OS clipboard. A live paste blocks *new* speculative prefetch, but an
+already-sent ordinary Format Data Request cannot be cancelled or overtaken
+after ambiguous delivery because its response carries no request ID. Drain it
+first, then service the live request. Preserve the exact native receipt across
+ready, timeout, replacement, owner loss, disconnect and channel-error outcomes;
+reject stale native callbacks by sequence. Terminal native outcomes do not by
+themselves grant R3 channel authority or poison sound CLIPRDR state.
+
 ## Native clipboard implementation rules (2026-10-14; design, NOT RUN)
 
 Use [MS-RDPECLIP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/8bb14d95-fcfa-45e9-b822-f97b129ff208)

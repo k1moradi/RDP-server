@@ -10,6 +10,7 @@
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <span>
@@ -1740,6 +1741,184 @@ void testVerifiedImageReadiness()
     assert(!collision.verifiedImage());
 }
 
+
+void testNonblockingPasteReadiness()
+{
+    using namespace rdp_server::clipboard;
+    using Clock = RemoteTransfer::PasteClock;
+    using Kind = RemoteTransfer::PasteKind;
+    using Status = RemoteTransfer::PasteStatus;
+    const Clock::time_point start{std::chrono::seconds{1}};
+    const auto deadline = start + std::chrono::milliseconds{100};
+
+    RemoteTransfer owner;
+    assert(!owner.beginPasteRequest(Kind::UnicodeText, start, deadline));
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 3>{kFormatUnicodeText, 17, 8}));
+    assert(!owner.beginPasteRequest(Kind::UnicodeText, deadline, deadline));
+    assert(!owner.beginPasteRequest(
+        Kind::UnicodeText, deadline, deadline - std::chrono::milliseconds{1}));
+
+    // A live paste can register while one speculative image request is
+    // already in flight. That unavoidable response must drain first.
+    std::uint32_t selectedFormatId = 0;
+    std::vector<std::uint8_t> request;
+    assert(owner.beginNextPrefetch(
+        RemoteTransfer::PrefetchKind::Image, selectedFormatId, request));
+    assert(selectedFormatId == 17);
+    const auto textReceipt =
+        owner.beginPasteRequest(Kind::UnicodeText, start, deadline);
+    assert(textReceipt && textReceipt->sequence != 0 &&
+           textReceipt->generation == owner.generation());
+    assert(owner.hasPendingPasteRequest());
+    assert(owner.pollPasteRequest(
+               textReceipt->sequence, start + std::chrono::milliseconds{1})
+               .status == Status::Pending);
+
+    const auto failedPrefetch = responsePdu(kResponseFail);
+    assert(owner.receiveResponse(failedPrefetch).status ==
+           RemoteTransfer::ResponseStatus::RemoteFailure);
+
+    // With the paste still pending, speculative fallback to DIB is withheld.
+    selectedFormatId = 999;
+    request.assign(3, 0xff);
+    assert(!owner.beginNextPrefetch(
+        RemoteTransfer::PrefetchKind::Image, selectedFormatId, request));
+    assert(selectedFormatId == 0 && request.empty());
+
+    // The same paste receipt becomes ready only after verified current-
+    // generation text arrives; no sleep or synchronous wait is involved.
+    assert(owner.beginRequest(kFormatUnicodeText, request));
+    const std::array<std::uint8_t, 6> textWire{'O', 0, 'K', 0, 0, 0};
+    const auto textPdu = responsePdu(kResponseOk, textWire);
+    const auto textResponse = owner.receiveResponse(textPdu);
+    assert(textResponse.status == RemoteTransfer::ResponseStatus::Received);
+    assert(owner.storeVerifiedUnicodeText(textResponse));
+    const auto readyText = owner.pollPasteRequest(
+        textReceipt->sequence, start + std::chrono::milliseconds{2});
+    assert(readyText.status == Status::ReadyUnicodeText);
+    assert(readyText.sequence == textReceipt->sequence);
+    assert(readyText.generation == textReceipt->generation);
+    assert(readyText.text == "OK");
+    assert(!readyText.image);
+    assert(!owner.hasPendingPasteRequest());
+    assert(owner.pollPasteRequest(
+               textReceipt->sequence, start + std::chrono::milliseconds{3})
+               .status == Status::InvalidSequence);
+
+    // Already-verified image data completes a newly registered native request
+    // immediately, but still under the receipt/deadline contract.
+    assert(owner.receiveFormatList(std::array<std::uint32_t, 1>{8}));
+    std::array<std::uint8_t, 44> dib{};
+    dib[0] = 40;  // BITMAPINFOHEADER
+    dib[4] = 1;   // width
+    dib[8] = 1;   // height
+    dib[12] = 1;  // planes
+    dib[14] = 32; // bits per pixel
+    dib[20] = 4;  // image bytes
+    dib[40] = 0x11;
+    dib[41] = 0x22;
+    dib[42] = 0x33;
+    dib[43] = 0xff;
+    assert(owner.beginRequest(8, request));
+    const auto imagePdu = responsePdu(kResponseOk, dib);
+    const auto imageResponse = owner.receiveResponse(imagePdu);
+    assert(owner.storeVerifiedImage(imageResponse));
+    const auto imageStart = start + std::chrono::milliseconds{10};
+    const auto imageReceipt = owner.beginPasteRequest(
+        Kind::Image, imageStart, imageStart + std::chrono::milliseconds{50});
+    assert(imageReceipt);
+    const auto readyImage = owner.pollPasteRequest(
+        imageReceipt->sequence, imageStart + std::chrono::milliseconds{1});
+    assert(readyImage.status == Status::ReadyImage && readyImage.image);
+    assert(readyImage.image->format ==
+           RemoteTransfer::VerifiedImageFormat::Dib);
+    assert(readyImage.image->sourceFormatId == 8);
+    assert(std::equal(readyImage.image->bytes.begin(),
+                      readyImage.image->bytes.end(),
+                      dib.begin(), dib.end()));
+
+    // Deadline expiry and native owner loss reject only the waiting paste,
+    // not the synchronized CLIPRDR transfer state.
+    const auto timeoutStart = start + std::chrono::milliseconds{20};
+    const auto timeoutReceipt = owner.beginPasteRequest(
+        Kind::Image, timeoutStart,
+        timeoutStart + std::chrono::milliseconds{10});
+    assert(timeoutReceipt);
+    const auto timedOut = owner.pollPasteRequest(
+        timeoutReceipt->sequence,
+        timeoutStart + std::chrono::milliseconds{10});
+    assert(timedOut.status == Status::TimedOut);
+    assert(owner.synchronized());
+
+    const auto ownerLossStart = start + std::chrono::milliseconds{40};
+    const auto ownerLossReceipt = owner.beginPasteRequest(
+        Kind::Image, ownerLossStart,
+        ownerLossStart + std::chrono::milliseconds{20});
+    assert(ownerLossReceipt);
+    assert(!owner.cancelPasteRequestForOwnerLoss(
+        ownerLossReceipt->sequence + 1));
+    assert(owner.cancelPasteRequestForOwnerLoss(ownerLossReceipt->sequence));
+    assert(!owner.hasPendingPasteRequest());
+    const auto ownerLost = owner.pollPasteRequest(
+        ownerLossReceipt->sequence,
+        ownerLossStart + std::chrono::milliseconds{1});
+    assert(ownerLost.status == Status::OwnerLost);
+    assert(owner.synchronized());
+
+    // A valid replacement terminalizes the old generation's same native
+    // request without poisoning it.
+    const auto replaceStart = start + std::chrono::milliseconds{60};
+    const auto replacedReceipt = owner.beginPasteRequest(
+        Kind::Image, replaceStart,
+        replaceStart + std::chrono::milliseconds{20});
+    assert(replacedReceipt);
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 1>{kFormatUnicodeText}));
+    const auto replaced = owner.pollPasteRequest(
+        replacedReceipt->sequence,
+        replaceStart + std::chrono::milliseconds{1});
+    assert(replaced.status == Status::ClipboardReplaced);
+    assert(replaced.generation == replacedReceipt->generation);
+    assert(owner.synchronized());
+
+    // Disconnect rejects a waiting request but keeps the monotonic receipt
+    // observable once; reconnect must never reuse its sequence.
+    const auto disconnectStart = start + std::chrono::milliseconds{80};
+    const auto disconnectedReceipt = owner.beginPasteRequest(
+        Kind::UnicodeText, disconnectStart,
+        disconnectStart + std::chrono::milliseconds{20});
+    assert(disconnectedReceipt);
+    owner.resetAfterDisconnect();
+    assert(!owner.hasPendingPasteRequest());
+    const auto disconnected = owner.pollPasteRequest(
+        disconnectedReceipt->sequence,
+        disconnectStart + std::chrono::milliseconds{1});
+    assert(disconnected.status == Status::Disconnected);
+    assert(owner.synchronized());
+
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 1>{kFormatUnicodeText}));
+    const auto reconnectStart = start + std::chrono::milliseconds{120};
+    const auto reconnectReceipt = owner.beginPasteRequest(
+        Kind::UnicodeText, reconnectStart,
+        reconnectStart + std::chrono::milliseconds{20});
+    assert(reconnectReceipt &&
+           reconnectReceipt->sequence > disconnectedReceipt->sequence);
+
+    // Ambiguous channel/request failure rejects the waiting native request as
+    // a channel error. A genuine disconnect is still required for wire reuse.
+    assert(owner.beginRequest(kFormatUnicodeText, request));
+    owner.abandonRequest();
+    const auto channelError = owner.pollPasteRequest(
+        reconnectReceipt->sequence,
+        reconnectStart + std::chrono::milliseconds{1});
+    assert(channelError.status == Status::ChannelError);
+    assert(!owner.synchronized());
+    owner.resetAfterDisconnect();
+    assert(owner.synchronized());
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -1765,6 +1944,11 @@ int main(int argumentCount, char **arguments)
         if (caseName == "verified-image-readiness")
         {
             testVerifiedImageReadiness();
+            return 0;
+        }
+        if (caseName == "nonblocking-paste-readiness")
+        {
+            testNonblockingPasteReadiness();
             return 0;
         }
         if (caseName == "format-data-request-joined-mcs-envelope")

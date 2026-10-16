@@ -43,6 +43,37 @@ independently authorized target session's native window/service WTS events
 onto the existing serialized R6 owner, then bind authorized D3D11/DXGI
 device/output lifetime.
 
+## R8 nonblocking pending-paste receipt (2026-10-16; CI pending)
+
+**Authoring parent main:** `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`. The existing event-loop-confined
+`RemoteTransfer` now owns one portable native paste receipt in addition to
+its CLIPRDR generation/request state. The caller supplies monotonic
+`steady_clock` time and a future deadline. Receipt sequences never reset on
+disconnect. Polling completes only from current-generation verified Unicode
+text/image data or returns one terminal rejection for timeout, a valid
+clipboard replacement, explicit native owner loss, disconnect or channel
+poison. A pending live paste blocks new `beginNextPrefetch` speculation;
+an already-sent ambiguous Format Data Request still must drain before the live
+paste can reuse the no-request-ID response slot. No sleeps, worker thread,
+condition-variable wait, OS clipboard API, image conversion or R3 authority is
+introduced.
+
+**Changed:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/coding_standards.md`, and this ledger.
+**Dedicated CTest:** `clipboard.nonblocking-paste-readiness` covers
+registration denial without an offer/with expired deadlines, live paste during
+an already-in-flight speculative image request, suppression of speculative
+fallback, ready Unicode and DIB completion, exact-deadline timeout, stale and
+valid owner-loss cancellation, valid Format List replacement, disconnect,
+monotonic reconnect receipts and channel poison. **NOT RUN at authoring:**
+local canonical CMake/CTest in this tool environment, exact-SHA hosted CI,
+owner Linux/X11 / Windows MSYS2 CLANG64 Clang23 / macOS27, native clipboard
+ownership/INCR, Microsoft-client/Firefox paste and performance. Next R8 gate:
+bind the receipt to one R5/R6/R7 native asynchronous clipboard adapter path
+with bounded lazy conversion while preserving R3 writer authority.
+
 ## R8 validated image readiness exact-SHA hosted CI (2026-10-16)
 
 **Starting main SHA:** `a1ae1e7aef0ca67bd155271fc760a6cff70d9a9a`. The existing R8 `RemoteTransfer`

@@ -3978,6 +3978,8 @@ The tracker is geometry-bound because its clipping and pending position belong
 to one desktop generation. RandR rebuild disconnects it before replacement;
 disconnect clears the XI2 mask while the borrowed connection is live,
 invalidates the XCB/root identity and clears every pending/echo field. The
+tracker destructor invokes the same idempotent barrier, so ordinary scope exit
+also retires native observation before the borrowed owner is released. The
 connection-bound XFixes cursor child remains unchanged.
 
 ## R3 Server License Request serializer and receipt fence (2026-10-16; hosted CI pending)

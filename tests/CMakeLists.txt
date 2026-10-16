@@ -1136,7 +1136,8 @@ if(TARGET rdp-server-linux-xinput-pointer)
     if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
         foreach(case_name IN ITEMS
                 motion-coalescing remote-echo-suppression
-                disconnect-cancellation malformed-event-bounds)
+                disconnect-cancellation destructor-retirement
+                malformed-event-bounds)
             add_test(NAME "x11.pointer-xi2-${case_name}"
                 COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                     "-screen 0 1280x720x24 -nolisten tcp -noreset"

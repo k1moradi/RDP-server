@@ -24,6 +24,7 @@ public:
     X11PointerPositionTracker(xcb_connection_t &connection,
                               xcb_window_t rootWindow,
                               PixelSize sourceGeometry) noexcept;
+    ~X11PointerPositionTracker() noexcept;
 
     X11PointerPositionTracker(const X11PointerPositionTracker &) = delete;
     X11PointerPositionTracker &operator=(

@@ -111,6 +111,41 @@ clearInitialPosition(X11PointerPositionTracker &tracker) noexcept
     assert(!tracker.pendingPosition(initial));
 }
 
+bool
+motionSelectionActive(xcb_connection_t &connection, xcb_window_t rootWindow)
+{
+    xcb_generic_error_t *error = nullptr;
+    const xcb_input_xi_get_selected_events_cookie_t cookie =
+        xcb_input_xi_get_selected_events(&connection, rootWindow);
+    xcb_input_xi_get_selected_events_reply_t *reply =
+        xcb_input_xi_get_selected_events_reply(&connection, cookie, &error);
+    assert(error == nullptr);
+    assert(reply != nullptr);
+
+    bool active = false;
+    xcb_input_event_mask_iterator_t iterator =
+        xcb_input_xi_get_selected_events_masks_iterator(reply);
+    while (iterator.rem > 0)
+    {
+        assert(iterator.data != nullptr);
+        const int maskLength =
+            xcb_input_event_mask_mask_length(iterator.data);
+        const std::uint32_t *mask =
+            xcb_input_event_mask_mask(iterator.data);
+        if (maskLength > 0 && mask != nullptr &&
+            (mask[0] & XCB_INPUT_XI_EVENT_MASK_MOTION) != 0)
+        {
+            active = true;
+            break;
+        }
+        xcb_input_event_mask_next(&iterator);
+    }
+
+    std::free(error);
+    std::free(reply);
+    return active;
+}
+
 struct LiveTrackerFixture
 {
     int screenNumber{-1};
@@ -174,6 +209,32 @@ disconnectCancellation()
     assert(replacement.valid());
     replacement.disconnect();
     assert(xcb_connection_has_error(fixture.connection.get()) == 0);
+}
+
+void
+destructorRetirement()
+{
+    LiveTrackerFixture fixture;
+    assert(!motionSelectionActive(*fixture.connection, fixture.screen->root));
+
+    {
+        X11PointerPositionTracker tracker(
+            *fixture.connection, fixture.screen->root, fixture.geometry);
+        assert(tracker.valid());
+        assert(motionSelectionActive(*fixture.connection,
+                                     fixture.screen->root));
+    }
+
+    // Scope exit must retire XI2 observation while the borrowed owner is still
+    // live; otherwise stale native motion events can escape the child lifetime.
+    assert(!motionSelectionActive(*fixture.connection, fixture.screen->root));
+    assert(xcb_connection_has_error(fixture.connection.get()) == 0);
+
+    X11PointerPositionTracker replacement(
+        *fixture.connection, fixture.screen->root, fixture.geometry);
+    assert(replacement.valid());
+    replacement.disconnect();
+    assert(!motionSelectionActive(*fixture.connection, fixture.screen->root));
 }
 
 void
@@ -436,6 +497,11 @@ main(int argc, char **argv)
     if (behavior == "disconnect-cancellation")
     {
         disconnectCancellation();
+        return 0;
+    }
+    if (behavior == "destructor-retirement")
+    {
+        destructorRetirement();
         return 0;
     }
     if (behavior == "motion-coalescing")

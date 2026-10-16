@@ -116,6 +116,11 @@ X11PointerPositionTracker::X11PointerPositionTracker(
     failureReason_ = nullptr;
 }
 
+X11PointerPositionTracker::~X11PointerPositionTracker() noexcept
+{
+    disconnect();
+}
+
 bool
 X11PointerPositionTracker::valid() const noexcept
 {

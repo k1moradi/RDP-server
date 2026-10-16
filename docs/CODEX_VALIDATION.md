@@ -12090,3 +12090,37 @@ documentation-policy and SDK/package validation are **PENDING**. Windows MSYS2
 CLANG64/Clang23, live Desktop Duplication/SendInput, genuine Windows R2/R3
 authorization and Microsoft-client M4 acceptance remain **NOT RUN/BLOCKED**.
 
+
+
+## R5 pointer echo-authority rollover exact-SHA hosted receipt (2026-10-16)
+
+Implementation `3a5180ef5f3bcb387a2c6ee161aba2fa7a7e77d6`, Actions
+`38910706437`, completed **SUCCESS**. Linux/GCC, macOS/Clang and
+Windows/MSVC protocol jobs all completed successfully together with
+documentation policy and installed-SDK/package gates. The shared Clang
+ASan/UBSan R5 selection passed **23/23**, including
+`x11.pointer-xi2-remote-echo-suppression`; the R10 CredSSP sanitizer group
+also passed **4/4**. Untagged prerelease publication was correctly skipped.
+
+This validates the remote/local echo-authority rollover correction under the
+hosted matrix. Canonical owner `~/rdp-server/build`, owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23, macOS 27 and Microsoft-client M3 acceptance
+remain **NOT RUN/OPEN**.
+
+## R5 XI2 destructor retirement (2026-10-16; exact-SHA CI pending)
+
+Lifecycle review found that `X11PointerPositionTracker` had an explicit
+idempotent `disconnect()` but a default destructor. Destroying a live
+standalone tracker while its borrowed XCB owner remained valid could therefore
+leave the client's XI2 root-motion selection installed after the C++ observer
+was gone.
+
+The tracker destructor now calls the existing cancellation barrier. New
+production-linked CTest `x11.pointer-xi2-destructor-retirement` queries the
+real XI2 selected-event mask under ephemeral Xvfb, proves motion selection is
+present while the tracker lives, proves scope exit removes it while the same
+XCB connection remains healthy, and proves a replacement tracker can subscribe
+and retire normally. No event loop, connection, RDP input path or scheduler is
+added. The shared R5 ASan/UBSan selector expands from **23** to **24** cases.
+Exact-SHA hosted CI is the next gate; canonical owner-platform tests remain
+**NOT RUN**.

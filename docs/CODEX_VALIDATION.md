@@ -5195,3 +5195,19 @@ remain. **NOT RUN at authoring:** restored GitHub Actions, owner's
 full CTest rerun and first failing stderr for owner's two R10 cases.
 No production security behavior changed. Next: exact-SHA workflow
 and CTest verification; M1–M6 remain OPEN.
+
+## R10 correction to synthetic POSIX fixture chmod keyword (2026-10-15)
+
+**Parent main:** `4d24b8b3b9857370fef8608cf7d7782f644df3ea`. Restored [Actions 38850617229](https://github.com/k1moradi/RDP-server/actions/runs/38850617229)
+reached hosted macOS full Debug CTest. Both originally owner-reported
+R10 cases `runtime.validates-configuration-syntax` and
+`runtime.validates-configuration-comments-crlf` **PASS** on the
+hosted macOS runner. New R10
+`runtime.validates-configuration-mode-normalization` failed at
+CMake fixture setup because `OTHERS_WRITE` is not a supported
+`file(CHMOD)` keyword. Replaced it with `WORLD_WRITE`, leaving
+all production security checks unchanged. **PASS** local CMake
+3.31.6 script: explicit permissive 622 becomes restrictive 600.
+**NOT RUN at authoring:** exact-SHA hosted CTest following this
+test-only correction and owner Linux/X11/Windows CLANG64/macOS27
+acceptance. Next: exact CI and original owner one-liner.

@@ -261,6 +261,22 @@ Actions/CTest, owner's platform test; original two owner test
 failure diagnostics have not been supplied. M1–M6 remain OPEN.
 Next: verify the restored exact-SHA workflow and the fixture regression.
 
+**R10 macOS fixture mode normalization correction (2026-10-15):**
+[CI 38850617229](https://github.com/k1moradi/RDP-server/actions/runs/38850617229)
+started correctly after the restored workflow and macOS/Clang Debug
+reported **PASS** for both owner-reported runtime regressions:
+`runtime.validates-configuration-syntax` and
+`runtime.validates-configuration-comments-crlf`.
+The new `runtime.validates-configuration-mode-normalization` itself
+**FAILED before invocation** because its synthetic fixture used invalid
+CMake `OTHERS_WRITE` instead of supported `WORLD_WRITE`.
+This follow-up corrects the test keyword only. Local CMake 3.31.6
+probe **PASS**: explicit group/world writable mode 622, then
+normalized owner-only mode 600; previously established production
+group-writable denial is unchanged. Exact-SHA CI for this correction
+**NOT RUN at authoring**; owner's original terminal outcome after
+pull remains NOT RUN. No RDP runtime production code changed.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

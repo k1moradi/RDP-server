@@ -125,7 +125,7 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
             # CMake file(WRITE) preserves permissions on an existing file.
             file(WRITE "${config_file}" "${config_text}")
             file(CHMOD "${config_file}" PERMISSIONS
-                OWNER_READ OWNER_WRITE GROUP_WRITE OTHERS_WRITE)
+                OWNER_READ OWNER_WRITE GROUP_WRITE WORLD_WRITE)
         endif()
         file(WRITE "${config_file}" "${config_text}")
         if(UNIX)

@@ -515,3 +515,18 @@ already-running AppKit main event-loop context. Hosted Apple compilation proves
 SDK/API linkage only; it does not prove real fast-user-switch notifications
 were delivered. Owner macOS 27 remains the separate delivery/desktop acceptance
 gate.
+
+
+## R7 portable framebuffer bridge build wiring (2026-10-16)
+
+`capture_framebuffer_view.cpp` is compiled into the Apple-only
+`rdp-server-macos-capture` target. On non-Apple hosts the standard synthetic
+macOS fixture compiles that portable source directly beside
+`capture_pixel_layout.cpp`, so stride/storage contract regressions are caught
+without CoreVideo or ScreenCaptureKit headers.
+
+The bridge is header-only with respect to R4 ownership: it consumes
+`core/framebuffer_view.h` but does not link `rdp-server-graphics`, x264 or
+any protocol transport target. Apple `test_macos_capture_stream` continues to
+link the private macOS capture target only for SDK/lifecycle compile coverage;
+the public native ScreenCaptureKit factory remains absent.

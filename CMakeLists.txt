@@ -529,6 +529,7 @@ if(APPLE)
     find_library(RDP_SERVER_SCREENCAPTUREKIT_FRAMEWORK ScreenCaptureKit REQUIRED)
     add_library(rdp-server-macos-capture STATIC
         src/platform/macos/capture_pixel_layout.cpp
+        src/platform/macos/capture_framebuffer_view.cpp
         src/platform/macos/capture_pixel_buffer.cpp
         src/platform/macos/desktop_display_geometry.cpp
         src/platform/macos/screen_capture_preflight.cpp

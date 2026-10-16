@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "platform/macos/capture_framebuffer_view.h"
 #include "platform/macos/capture_pixel_layout.h"
 
 #include <CoreVideo/CoreVideo.h>
@@ -31,6 +32,9 @@ public:
     [[nodiscard]] const BgraPixelLayout& layout() const noexcept { return layout_; }
     // The full span includes native row padding; never transmit padding as pixels.
     [[nodiscard]] std::span<const std::byte> pixels() const noexcept;
+    // Portable R4 borrow-only envelope. The returned view is valid only while
+    // this CoreVideo owner remains locked and alive; no pixel copy occurs.
+    [[nodiscard]] FramebufferView framebufferView() const noexcept;
     // Only the width * 4 initialized pixel bytes of a valid row.
     // Returns empty for moved-from owners or out-of-range rows.
     [[nodiscard]] std::span<const std::byte> pixelRow(std::size_t row_index) const noexcept;

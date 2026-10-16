@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "platform/macos/capture_framebuffer_view.h"
 #include "platform/macos/capture_pixel_layout.h"
 #include "platform/macos/desktop_display_geometry.h"
 #include "platform/macos/native_display_snapshot.h"
@@ -369,6 +370,53 @@ void testScreenCapturePermissionPreflightRevocation() {
     assert(evaluateScreenCapturePreflight(&fakeScreenCapturePreflight,
                                            &permission_is_granted) ==
            ScreenCapturePreflightStatus::Granted);
+}
+
+void testFramebufferViewContract() {
+    using rdp::macos::BgraPixelLayout;
+    using rdp::macos::makeMacBgraFramebufferView;
+
+    alignas(64) std::array<std::byte, 64> storage{};
+    FramebufferView output{
+        std::span<const std::byte>(storage.data() + 48, 4), 1, 1, 4};
+    const auto sentinelPixels = output.pixels.data();
+
+    const BgraPixelLayout padded{3, 2, 16, 32};
+    assert(makeMacBgraFramebufferView(padded, storage, output));
+    assert(output.valid());
+    assert(output.pixels.data() == storage.data());
+    assert(output.pixels.size() == 32);
+    assert(output.widthPixels == 3 && output.heightPixels == 2);
+    assert(output.strideBytes == 16);
+
+    const auto resetSentinel = [&]() {
+        output = {std::span<const std::byte>(storage.data() + 48, 4),
+                  1, 1, 4};
+    };
+    const auto outputIsSentinel = [&]() {
+        return output.pixels.data() == sentinelPixels &&
+               output.pixels.size() == 4 && output.widthPixels == 1 &&
+               output.heightPixels == 1 && output.strideBytes == 4;
+    };
+
+    resetSentinel();
+    assert(!makeMacBgraFramebufferView(
+        BgraPixelLayout{3, 2, 16, 31}, storage, output));
+    assert(outputIsSentinel());
+
+    resetSentinel();
+    assert(!makeMacBgraFramebufferView(
+        padded, std::span<const std::byte>(storage).first(31), output));
+    assert(outputIsSentinel());
+
+    resetSentinel();
+    assert(!makeMacBgraFramebufferView(
+        BgraPixelLayout{3, 2, 11, 22}, storage, output));
+    assert(outputIsSentinel());
+
+    resetSentinel();
+    assert(!makeMacBgraFramebufferView(BgraPixelLayout{}, storage, output));
+    assert(outputIsSentinel());
 }
 
 void testLayoutBounds() {
@@ -976,6 +1024,8 @@ int main(const int argument_count, const char* const arguments[]) {
     const std::string_view test_case = arguments[1];
     if (test_case == "layout") {
         testLayoutBounds();
+    } else if (test_case == "framebuffer-view-contract") {
+        testFramebufferViewContract();
     } else if (test_case == "retina-points") {
         testRetinaPointToPhysicalPixel();
     } else if (test_case == "multi-display-invalid") {

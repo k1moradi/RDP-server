@@ -195,6 +195,12 @@ MacScreenCaptureFrameDisposition MacScreenCaptureState::consumeFrame(
                              : MacScreenCaptureFrameDrop::LockFailed;
         return MacScreenCaptureFrameDisposition::Dropped;
     }
+    const FramebufferView framebuffer = frame->framebufferView();
+    if (!framebuffer.valid()) {
+        std::scoped_lock lock(mutex_);
+        lastFrameDrop_ = MacScreenCaptureFrameDrop::InvalidFramebuffer;
+        return MacScreenCaptureFrameDisposition::Dropped;
+    }
 
     {
         std::scoped_lock lock(mutex_);
@@ -209,7 +215,9 @@ MacScreenCaptureFrameDisposition MacScreenCaptureState::consumeFrame(
         }
     }
 
-    consumer->consume(*frame, binding_.geometryGeneration);
+    // The LockedBgraPixelBuffer remains alive across this synchronous call,
+    // so FramebufferView cannot outlive its retained/read-locked CoreVideo bytes.
+    consumer->consume(framebuffer, binding_.geometryGeneration);
 
     std::scoped_lock lock(mutex_);
     if (!topologyCurrentLocked()) {

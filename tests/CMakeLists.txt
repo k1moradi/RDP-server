@@ -875,6 +875,7 @@ if(APPLE)
 else()
     target_sources(test_macos_capture_pixel_buffer PRIVATE
         "${PROJECT_SOURCE_DIR}/src/platform/macos/capture_pixel_layout.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/capture_framebuffer_view.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/desktop_display_geometry.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/screen_capture_preflight.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp"
@@ -891,10 +892,13 @@ else()
 endif()
 add_test(NAME macos.capture-bgra-layout-bounds
     COMMAND test_macos_capture_pixel_buffer layout)
+add_test(NAME macos.capture-framebuffer-view-contract
+    COMMAND test_macos_capture_pixel_buffer framebuffer-view-contract)
 add_test(NAME macos.capture-permission-preflight-revocation
     COMMAND test_macos_capture_pixel_buffer permission-preflight)
 set_tests_properties(
     macos.capture-bgra-layout-bounds
+    macos.capture-framebuffer-view-contract
     macos.capture-permission-preflight-revocation
     PROPERTIES LABELS "macos;capture;offline")
 foreach(case_name IN ITEMS
@@ -1047,7 +1051,7 @@ if(APPLE)
     endif()
     foreach(case_name IN ITEMS
             lifecycle stale-generation-denials callback-retirement
-            native-factory-quarantine)
+            native-factory-quarantine framebuffer-contract)
         add_test(NAME "macos.capture-stream-${case_name}"
             COMMAND test_macos_capture_stream "${case_name}")
         set_tests_properties("macos.capture-stream-${case_name}" PROPERTIES

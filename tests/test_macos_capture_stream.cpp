@@ -102,13 +102,20 @@ struct PixelBufferOwner {
 
 class RecordingConsumer final : public MacCaptureFrameConsumer {
 public:
-    void consume(const LockedBgraPixelBuffer& frame,
+    void consume(const FramebufferView& frame,
                  const std::uint64_t generation) noexcept override {
         ++calls;
+        assert(frame.valid());
         lastGeneration = generation;
-        lastWidth = frame.layout().width_pixels;
-        lastHeight = frame.layout().height_pixels;
-        assert(frame.pixelRow(0).size() == lastWidth * 4U);
+        lastWidth = frame.widthPixels;
+        lastHeight = frame.heightPixels;
+        lastStride = frame.strideBytes;
+        lastByteCount = frame.pixels.size();
+        lastPixels = frame.pixels.data();
+        assert(lastStride >= lastWidth * 4U);
+        if (expectedPixels != nullptr) {
+            assert(lastPixels == expectedPixels);
+        }
         if (changeTopologyDuringConsume) {
             NativeDisplayReconfigurationWatch::recordTopologyChange();
         }
@@ -118,6 +125,10 @@ public:
     std::uint64_t lastGeneration{};
     std::size_t lastWidth{};
     std::size_t lastHeight{};
+    std::size_t lastStride{};
+    std::size_t lastByteCount{};
+    const std::byte* lastPixels{};
+    const std::byte* expectedPixels{};
     bool changeTopologyDuringConsume{};
 };
 
@@ -225,6 +236,7 @@ void testLifecycle() {
            MacScreenCaptureFrameDisposition::Published);
     assert(fixture.consumer->calls == 1 && fixture.consumer->lastGeneration == generation);
     assert(fixture.consumer->lastWidth == 2 && fixture.consumer->lastHeight == 2);
+    assert(fixture.consumer->lastStride == 8 && fixture.consumer->lastByteCount == 16);
 
     assert(fixture.backend->state->consumeFrame(
                pixelBuffer.value, MacScreenCaptureFrameStatus::Idle) ==
@@ -382,6 +394,30 @@ void testNativeFactoryQuarantine() {
     assert(!ExposesNativeCaptureFactory<MacScreenCaptureStream>);
 }
 
+void testFramebufferContract() {
+    GeometryFixture geometry;
+    const auto generation = geometry.refresh();
+    auto fixture = makeStream(geometry.bindingFor(100, generation));
+    prepareAndStart(fixture);
+
+    alignas(64) std::array<std::byte, 32> bytes{};
+    fixture.consumer->expectedPixels = bytes.data();
+    auto pixelBuffer = makePixelBuffer(
+        bytes, 2, 2, kCVPixelFormatType_32BGRA, 16);
+
+    assert(fixture.backend->state->consumeFrame(
+               pixelBuffer.value, MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Published);
+    assert(fixture.consumer->calls == 1);
+    assert(fixture.consumer->lastGeneration == generation);
+    assert(fixture.consumer->lastPixels == bytes.data());
+    assert(fixture.consumer->lastWidth == 2 &&
+           fixture.consumer->lastHeight == 2);
+    assert(fixture.consumer->lastStride == 16);
+    assert(fixture.consumer->lastByteCount == bytes.size());
+    assert(fixture.stream->lastFrameDrop() == MacScreenCaptureFrameDrop::None);
+}
+
 void testCallbackRetirement() {
     GeometryFixture geometry;
     const auto oldGeneration = geometry.refresh();
@@ -439,6 +475,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testCallbackRetirement();
     } else if (testCase == "native-factory-quarantine") {
         testNativeFactoryQuarantine();
+    } else if (testCase == "framebuffer-contract") {
+        testFramebufferContract();
     } else {
         return 2;
     }

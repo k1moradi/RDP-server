@@ -68,6 +68,7 @@ enum class MacScreenCaptureFrameDrop : std::uint8_t {
     UnsupportedFormat,
     InvalidDimensions,
     LockFailed,
+    InvalidFramebuffer,
     StaleTopology,
 };
 
@@ -77,13 +78,15 @@ enum class MacScreenCaptureFrameDisposition : std::uint8_t {
     RetireStream,
 };
 
-// Synchronous R7 -> R4 boundary. The frame and all row spans borrowed from it
-// are valid only for the duration of consume(). Consumers needing asynchronous
-// work must copy into their own explicitly bounded storage before returning.
+// Synchronous R7 -> R4 boundary using the same portable FramebufferView
+// contract as Windows/X11. The view borrows the locked CoreVideo storage only
+// for consume(); consumers needing asynchronous work must copy into their own
+// explicitly bounded storage before returning. R7 owns no frame ID, damage
+// schedule, encoder queue, presentation state, or transport authority here.
 class MacCaptureFrameConsumer {
 public:
     virtual ~MacCaptureFrameConsumer() = default;
-    virtual void consume(const LockedBgraPixelBuffer& frame,
+    virtual void consume(const FramebufferView& frame,
                          std::uint64_t generation) noexcept = 0;
 };
 

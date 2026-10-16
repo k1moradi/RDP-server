@@ -68,6 +68,17 @@ std::span<const std::byte> LockedBgraPixelBuffer::pixels() const noexcept {
     return {base_address_, layout_.byte_count};
 }
 
+FramebufferView LockedBgraPixelBuffer::framebufferView() const noexcept {
+    if (retained_buffer_ == nullptr) {
+        return {};
+    }
+    FramebufferView output{};
+    if (!makeMacBgraFramebufferView(layout_, pixels(), output)) {
+        return {};
+    }
+    return output;
+}
+
 std::span<const std::byte> LockedBgraPixelBuffer::pixelRow(
     const std::size_t row_index) const noexcept {
     if (retained_buffer_ == nullptr || row_index >= layout_.height_pixels) {

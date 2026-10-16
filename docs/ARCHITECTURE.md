@@ -3406,3 +3406,14 @@ display generation, topology revision, session-watch revision and portable
 cursor/capture objects remain revocation or data facts only. A future R2/R3
 macOS capability must be the single authority-bearing route that can invoke
 these native implementations and must still revalidate the R7 session guard.
+
+
+## R7 macOS portable framebuffer boundary (2026-10-16)
+
+The macOS adapter now ends platform-specific pixel ownership at
+`FramebufferView`. The helper performs no allocation or color conversion;
+it validates exact pitched storage and publishes a borrow-only view. During
+the synchronous consumer callback, `LockedBgraPixelBuffer` keeps CoreVideo
+retained/read-locked. The envelope contains only pixels, dimensions and stride,
+not presentation generation, frame ID, damage, scheduler, codec, ACK, channel
+or authorization state. Those remain R4/R3 responsibilities.

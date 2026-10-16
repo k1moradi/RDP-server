@@ -10088,3 +10088,21 @@ connector environment. Exact-SHA hosted validation for the cursor change is
 required after publication; owner macOS 27 live cursor/session behavior,
 genuine macOS R2/R3 admission, R4 cursor publication and client acceptance
 remain **NOT RUN**.
+
+
+## R7 portable framebuffer handoff (2026-10-16; CI pending)
+
+Base: `4ce39c4b7bf98bd47b7eb934cc5ce5bc5af4da57`. Production now includes
+`makeMacBgraFramebufferView()` and the ScreenCaptureKit state publishes the
+shared `FramebufferView` envelope while retaining the CoreVideo lock for the
+entire synchronous callback.
+
+Focused authoring PASS: GCC 14.2 C++23 with
+`-Wall -Wextra -Wpedantic -Werror`, and Clang 17 ASan+UBSan+LSan. Cases cover
+padded stride, exact span size, mismatched byte count, short storage,
+undersized stride and unchanged output on failure.
+
+New CTests are `macos.capture-framebuffer-view-contract` (portable) and
+`macos.capture-stream-framebuffer-contract` (Apple-only synthetic CoreVideo).
+Neither exposes quarantined native desktop entry points nor performs TCC,
+encoding, scheduling or transport. Exact-SHA hosted validation is pending.

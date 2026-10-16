@@ -9006,3 +9006,24 @@ publication and Microsoft-client M5 acceptance remain **NOT RUN/BLOCKED**.
 **Next R7:** expose neither live cursor sampling nor native capture/input until a
 non-forgeable macOS R2/R3 capability exists; consume R4's cursor contract only
 if R4 publishes one.
+
+
+## R7 portable macOS BGRA framebuffer handoff (2026-10-16; exact-SHA CI pending)
+
+R7 now converges ScreenCaptureKit callback data with R4's existing
+`FramebufferView` contract, matching Windows/X11. Allocation-free
+`makeMacBgraFramebufferView()` revalidates `BgraPixelLayout`, requires exact
+pitched storage and transactional publication. `LockedBgraPixelBuffer`
+continues to retain/read-lock CoreVideo while a synchronous
+`MacCaptureFrameConsumer` receives only the borrowed portable view.
+
+No frame IDs, damage inference, queues, scheduling, encoding, ACKs, R3 channel
+authority or native authorization are added. The native ScreenCaptureKit
+factory, AppKit cursor sampler and Quartz input route remain quarantined while
+R2 positive admission is Linux-specific.
+
+New CTests: `macos.capture-framebuffer-view-contract` and
+`macos.capture-stream-framebuffer-contract`. Focused helper checks pass strict
+GCC 14.2 C++23 and Clang 17 ASan+UBSan+LSan. Exact-SHA hosted Apple/full matrix
+is pending. Next R7 remains a genuine non-forgeable macOS R2/R3 capability;
+M5 remains open.

@@ -11254,3 +11254,42 @@ The existing `x11.pointer-xi2-remote-echo-suppression` production-linked CTest
 now proves both rollover directions. This remains one latest-position observer
 under the sole XCB owner; it adds no timeout, queue, XTEST path, RDP parser,
 scheduler, or client-publication owner. Exact-SHA hosted CI is pending.
+
+
+## R4 RDPGFX highest-supported capability exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `27ba58477a0c730c32e2bd65d2c2f66deee8572c`.
+**Actions:** `38910472878` — **SUCCESS**.
+
+The production capability selector required no correction: it continues to
+confirm only the Version 8.1 AVC420 capability set R4 actually implements,
+regardless of newer advertised capability versions. New dedicated CTest
+`graphics.avc420-capabilities-highest-supported-selection` proves a
+published Version 10.7 set and an unknown future set cannot displace Version
+8.1 when ordered before or after it, and that unsupported-only advertisements
+produce no CAPS_CONFIRM.
+
+- **Linux/GCC:** Debug **425/425 PASS**, Release **425/425 PASS**; the new
+  capability case is test **#208** in both configurations. Installed SDK
+  consumer/package gates PASS.
+- **macOS/Clang:** Debug **359/359 PASS**, Release **359/359 PASS**; the new
+  case is test **#194** in both configurations. SDK consumer/package gates
+  PASS.
+- **Windows/MSVC:** focused native preflight **39/39 PASS** in Debug and
+  Release; full Debug **383/383 PASS**, Release **383/383 PASS**; the new case
+  is test **#194** in both full suites. SDK consumer/package gates PASS.
+- **Configured Clang ASan/UBSan groups:** **PASS**, including the existing
+  fully instrumented R4 x264/BGRA group **18/18 PASS**. The new capability
+  regression itself is not selected by that bounded sanitizer job, so this
+  receipt does **not** claim direct sanitizer execution for the new case.
+  **Documentation policy PASS**; untagged prerelease publication is correctly
+  **SKIPPED**.
+
+This is a standards-conformance regression only; no production parser, codec,
+scheduler, channel authority or wire-format behavior changed. The owner-local
+`~/rdp-server/build` command and owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 runs remain **NOT RUN** here. Genuine
+authenticated R3 `Microsoft::Windows::RDS::Graphics` DVC/full-send
+integration, native capture performance and Microsoft-client visible graphics
+acceptance remain **BLOCKED/NOT RUN**. R4 must not fabricate a parallel channel
+or authorization owner; Gate B and M3/M4/M5 remain **OPEN**.

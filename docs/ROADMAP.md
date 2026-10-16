@@ -2785,6 +2785,14 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   downstream SDK consumers PASS. Ubuntu CTest was not executed
   due to the unrelated build failure. Owner-local Windows
   MSYS2 CLANG64/Clang 23 and live M4 remain NOT RUN.
+  **R6 capture-cycle exact-SHA hosted CI evidence:** Commit
+  `fd08bd8b5ef07b3a5b8499b1f917eeadc57ca284`, [Actions 38844961028](https://github.com/k1moradi/RDP-server/actions/runs/38844961028)
+  SUCCESS: Ubuntu Linux CTests 205/205 Debug and Release;
+  Windows/MSVC 201/201 Debug and Release (both new R6 cases PASS);
+  macOS 191/191 Debug and Release; documentation policy,
+  installed SDK consumer tests and ZIP packaging PASS. Owner
+  Windows MSYS2 CLANG64/Clang 23, Linux/X11, macOS 27, native
+  authorized DXGI capture and Microsoft-client acceptance NOT RUN.
   **R6 capture-cycle ordered ownership (2026-10-16; parent
   `643d62ae3758ba17494767603141a98abc3dc7b6`):** The nonmoving Windows-only
   `windows_dxgi_capture_cycle.{h,cpp}` composes the existing

@@ -4291,3 +4291,23 @@ ACL checks are **NOT RUN**. The above is developer SDK/runtime CI,
 not M1–M6 acceptance. Next R10: per-HANDLE Windows DACL screening
 with a new dedicated CTest; intermediate path reparse restrictions
 remain outstanding.
+
+## R6 capture-cycle exact-SHA hosted CI receipt (2026-10-16)
+
+Implementation `fd08bd8b5ef07b3a5b8499b1f917eeadc57ca284`,
+[Actions run 38844961028](https://github.com/k1moradi/RDP-server/actions/runs/38844961028)
+**SUCCESS**. Exact job logs: Ubuntu Linux Debug/Release
+**205/205 CTests PASS** each, Windows/MSVC Debug/Release
+**201/201 PASS** each (including the new
+`windows.capture-frame-ordered-lifetime` and
+`windows.capture-frame-cancel-and-topology-rejections`),
+macOS Debug/Release **191/191 PASS** each. Documentation-policy,
+SDK install/downstream consumer **1/1 per platform**, package
+generation and uploads PASS; prerelease publication SKIPPED
+(no tag). **NOT RUN:** owner three-platform exact-SHA tests
+(especially Windows MSYS2 CLANG64 Clang 23), real independent
+Windows session authorization, DXGI hardware frame acquisition,
+Microsoft-client desktop/input, graphics presentation, and
+performance. R6 M4 remains unaccepted. **Next:** use an agreed
+R2/R3-authorized native session and R4's single graphics owner
+for synchronous captured-frame transfer and disconnect tests.

@@ -12248,3 +12248,29 @@ PASS is to drive the existing R2 final-`authInfo`
 `UnsupportedFinalCredentials` denial through this same aggregate, then keep
 native NSS/logind admission blocked until R2 defines a reviewed positive final
 credential authorization contract.
+
+
+## R5 XI2 destructor-retirement exact-SHA hosted receipt (2026-10-16)
+
+Implementation `a158d9ce12504fc9efbdd7feb9ab31dabee3effb`, Actions
+`38911816382`, completed **SUCCESS**. Ubuntu/GCC full CTest passed
+**430/430** in Debug and **430/430** in Release; the new
+`x11.pointer-xi2-destructor-retirement` case passed in both configurations.
+The shared Clang ASan/UBSan R5 native-X11 selector expanded to **24/24 PASS**
+and directly executed the new destructor-retirement case.
+
+macOS/Clang full CTest passed **362/362** in Debug and **362/362** in Release.
+Windows/MSVC native preflight passed **44/44** in Debug and Release, and full
+CTest passed **391/391** in Debug and **391/391** in Release. Documentation
+policy, installed-SDK consumer **1/1**, package/digest/upload gates, all other
+sanitizer groups and the bounded fuzzer passed; untagged prerelease publication
+was correctly skipped.
+
+This validates that XI2 root-motion selection is retired by normal tracker
+destruction while the borrowed XCB owner remains healthy, without adding a
+second connection, event loop or input owner. Canonical owner
+`~/rdp-server/build`, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS 27, genuine positive Kerberos/logind/XTEST input and Microsoft-client M3
+acceptance remain **NOT RUN/OPEN**. The roadmap's next functional R5 step
+remains blocked on R3 exposing its authoritative real input-PDU translation
+boundary.

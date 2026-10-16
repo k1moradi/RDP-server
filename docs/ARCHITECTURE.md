@@ -1,3 +1,31 @@
+### R2 owner-driven CredSSP/GSS progression ownership (2026-10-16)
+
+R2 owns CredSSP/GSS semantics but never R1 application I/O.
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake` binds one exact
+`OwnedPreauthTcpConnection`, `TsRequestFrameReader`, and
+`TsRequestTlsReplyWriter` for the handshake. Before any application read or
+write it requires the immutable R1 negotiation snapshot to show both a client
+HYBRID offer and exact server `PROTOCOL_HYBRID` selection. The established
+SSL remains inspection-only to R2; all plaintext progress goes through R1's
+bounded application-I/O methods.
+
+Each progression call performs at most one R1 TLS application read or write.
+It may synchronously parse DER, call the existing MIT GSS acceptor, verify the
+existing certificate/nonce public-key binding, queue provider output, or
+release a fully transmitted reply. Only a reply produced by that progression
+may be emitted; externally prequeued canonical DER is not an authority input.
+A genuine provider v6 rejection may still flush the existing canonical
+terminal failure reply, after which the exchange is rejected.
+
+The final `BindingVerified` state is deliberately narrower than admission:
+it proves the provider-derived Kerberos principal and CredSSP public-key proof
+on the exact R1 TLS transcript, after full server-binding delivery. R2 native
+NSS/logind policy and its move-only lease remain independent, R3 remains the
+sole session owner, and R10 remains the future serving event-loop/listener
+owner. R1 can now produce genuine HYBRID provenance, but R10 must explicitly
+select that policy and compose this R2 progression before a serving path can
+reach it.
+
 ### R8 bounded locked-generation clipboard stream ownership (2026-10-16)
 
 `RemoteTransfer` remains the sole clipboard generation and remote file-stream

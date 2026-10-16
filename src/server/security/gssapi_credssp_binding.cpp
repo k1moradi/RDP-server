@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gssapi_spnego_acceptor.h"
 
+#include "transport/nonblocking_tcp_adapter.h"
+
 #include <openssl/crypto.h>
 
 #include <cstddef>
@@ -137,23 +139,26 @@ CredSspProtectedReply GssapiSpnegoAcceptor::processFinalFramedNegoAndBinding(
 bool GssapiSpnegoAcceptor::processFinalFramedNegoAndQueueBindingReply(
     TsRequestFrameReader &reader, TsRequestTlsReplyWriter &writer) noexcept
 {
-    return queueFramedProtectedReply(reader, writer, true);
+    return queueFramedProtectedReply(reader, writer, true, nullptr);
 }
 
 bool GssapiSpnegoAcceptor::processFramedProtectedBindingAndQueueReply(
     TsRequestFrameReader &reader, TsRequestTlsReplyWriter &writer) noexcept
 {
-    return queueFramedProtectedReply(reader, writer, false);
+    return queueFramedProtectedReply(reader, writer, false, nullptr);
 }
 
 bool GssapiSpnegoAcceptor::queueFramedProtectedReply(
     TsRequestFrameReader &reader,
     TsRequestTlsReplyWriter &writer,
-    bool combinedFinal) noexcept
+    bool combinedFinal,
+    const transport::OwnedPreauthTcpConnection *connection) noexcept
 {
     const SSL *sourceTls = reader.completedFrameServerTls();
     if (sourceTls == nullptr ||
-        writer.status() != TsRequestTlsWriteStatus::Idle)
+        writer.status() != TsRequestTlsWriteStatus::Idle ||
+        (connection != nullptr &&
+         connection->establishedTls() != sourceTls))
     {
         reader.close();
         writer.close();
@@ -176,11 +181,17 @@ bool GssapiSpnegoAcceptor::queueFramedProtectedReply(
     {
         // The only reply source is this exact GSS context's confidential
         // gss_wrap result, after same-TLS client binding verification.
-        queued = writer.queueReply(
-            const_cast<SSL *>(sourceTls),
-            static_cast<std::uint8_t>(negotiatedVersion_),
-            CredSspServerReplyField::EncryptedServerBinding,
-            result.encryptedServerBinding);
+        queued = connection != nullptr
+            ? writer.queueReply(
+                *connection,
+                static_cast<std::uint8_t>(negotiatedVersion_),
+                CredSspServerReplyField::EncryptedServerBinding,
+                result.encryptedServerBinding)
+            : writer.queueReply(
+                const_cast<SSL *>(sourceTls),
+                static_cast<std::uint8_t>(negotiatedVersion_),
+                CredSspServerReplyField::EncryptedServerBinding,
+                result.encryptedServerBinding);
     }
     if (!result.encryptedServerBinding.empty())
     {

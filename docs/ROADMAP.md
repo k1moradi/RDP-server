@@ -1,3 +1,59 @@
+## R2 owner-driven CredSSP/GSS handshake boundary (2026-10-16; exact-SHA CI pending)
+
+Starting inspected shared `main`: `35df03319d0a1cf4ac667f1715e7408958b78d74`. R1 now has explicit
+`SecurityNegotiationPolicy::HybridNla`, so R2 can consume genuine immutable
+HYBRID selection instead of a caller-supplied protocol scalar. This increment
+completes the R2 half of issue #17 without taking R1 socket/TLS ownership or
+adding a second authentication/session controller.
+
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake` is the single bounded
+production progression call. It consumes the exact nonmoving R1
+`OwnedPreauthTcpConnection` plus the existing R2 frame reader/reply writer,
+requires immutable client-offered + server-selected `PROTOCOL_HYBRID` before
+any TLS application byte is read or written, and performs at most one bounded
+R1 application read or write per invocation. Existing GSS provider, CredSSP
+DER, selected-certificate, nonce/public-key binding, failure-reply and
+round-trip rules remain authoritative. Provider-generated replies are queued
+against the same R1 owner; caller-prequeued output cannot enter this production
+progression path.
+
+The progression pins the exact connection/reader/writer tuple for its lifetime.
+Owner/object substitution, raw-SSL API substitution, missing/SSL-only
+negotiation provenance, R1 cancellation, stale reply state and malformed/order
+errors are terminal. `BindingVerified` means only that genuine Kerberos GSS
+and the CredSSP public-key proof have completed and the server binding reply was
+fully sent; it is not native OS admission and grants no R3 capability.
+
+Dedicated existing-binary Linux GSS CTests:
+`security.gssapi-r1-owned-credssp-provenance-fence` and
+`security.gssapi-r1-owned-credssp-cancellation-fence`. The provenance test
+uses real loopback R1 TLS for SSL-only, HYBRID-offered/SSL-selected and genuine
+HYBRID-selected connections. Invalid provenance consumes/emits zero application
+bytes and leaves the client TSRequest byte-for-byte pending in R1. Genuine
+HYBRID selection drives that frame through owner-backed R1 reads and then
+reaches the existing semantic rejection because ordinary CI supplies no
+configured service keytab. The same test proves caller-prequeued output cannot
+be written even with valid HYBRID provenance. The cancellation case destroys
+R1 TLS before a queued write and requires terminal callbacks without stale SSL
+dereference. Compile-time coverage rejects a raw `SSL*` substitute. Both
+cases join the existing R9 sanitizer GSS selection.
+
+R1 now supplies the required positive transport provenance, but R10's current
+aggregate retains the source-compatible diagnostic policy and does not yet
+drive this R2 API. Ordinary CI also has no real client Kerberos ticket in this
+fixture, so this increment does **not** claim Kerberos login, NSS/logind
+admission or M2 acceptance. The next integration dependency is R10 choosing
+`HybridNla` for serving connections and invoking this exact R2 progression;
+genuine client-ticket/native-admission acceptance remains separate.
+
+**Authoring validation:** canonical `~/rdp-server/build/` configure/build/full
+CTest is **NOT RUN** in this connector environment because the owner checkout
+is unavailable; no alternate build root/worktree was created. Exact-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC, R9 ASan/UBSan and documentation-policy
+evidence is required after publication. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, genuine KDC/client-ticket + NSS/logind admission and
+Microsoft-client acceptance remain **NOT RUN**. M2 remains **NOT ACCEPTED**.
+
 ## R9 Channel Join terminal replay exact-SHA hosted receipt (2026-10-16)
 
 **Validated implementation:** `d5a129f2d28e0100cb5d173463a081a83a8a133b`, Actions `38897266092`.

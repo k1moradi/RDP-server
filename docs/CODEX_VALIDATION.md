@@ -1,3 +1,40 @@
+## R2 owner-driven CredSSP/GSS integration authoring (2026-10-16)
+
+**Starting inspected main:** `35df03319d0a1cf4ac667f1715e7408958b78d74`.
+
+**Production:** the existing `GssapiSpnegoAcceptor` now exposes one
+`advanceOwnedCredSspHandshake` event-loop step. It accepts only the exact R1
+`OwnedPreauthTcpConnection` plus existing reader/writer objects, validates
+offered+selected HYBRID before I/O, and maps one owner-backed frame read or
+reply write into the existing GSS/CredSSP semantic transitions. Internal
+continuation/failure/binding queues use the owner-aware writer overloads.
+The exact connection/reader/writer tuple is pinned so a caller cannot swap
+transport or queue arbitrary output between steps. No R10 aggregate/listener
+or R3 state is added.
+
+**Dedicated CTests:**
+`security.gssapi-r1-owned-credssp-provenance-fence` and
+`security.gssapi-r1-owned-credssp-cancellation-fence`, reusing
+`test_owned_preauth_session`. Real loopback TCP/OpenSSL/R1 coverage now
+includes a genuine `HybridNla` selected connection. Invalid diagnostic
+provenance leaves a client TSRequest wholly pending; valid HYBRID provenance
+drives the frame through the new R2 owner path and reaches the existing silent
+unconfigured-GSS rejection only after exact plaintext intake. Prequeued output
+is denied even with valid HYBRID provenance. Cancellation is checked before
+stale TLS/certificate use, and compile-time checks reject a raw `SSL*`
+substitute. The cases are added to the existing R9 sanitizer GSS set.
+
+**Authoring status:** source/test/docs construction completed against the
+inspected shared head. Canonical local `~/rdp-server/build/` configure/build/
+full CTest is **NOT RUN** because this execution environment has no owner
+checkout; no alternate root/worktree was created. Exact-SHA hosted matrix and
+sanitizers are required after publication.
+
+**Still NOT RUN:** configured service keytab + real client Kerberos ticket
+through this owner-driven path, positive CredSSP binding, NSS/logind admission
+lease, R3 admitted session, R10 serving composition, owner Linux/X11, Windows
+MSYS2 CLANG64/Clang23, macOS27 and Microsoft-client M2 acceptance.
+
 ## R9 Channel Join terminal replay exact-SHA hosted receipt (2026-10-16)
 
 **Validated implementation:** `d5a129f2d28e0100cb5d173463a081a83a8a133b`, Actions `38897266092`.

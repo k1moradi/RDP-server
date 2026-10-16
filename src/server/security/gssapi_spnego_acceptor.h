@@ -83,6 +83,28 @@ struct CredSspProtectedReply
     std::vector<std::uint8_t> encryptedServerBinding{};
 };
 
+// One bounded event-loop step for the production R1-owned CredSSP/GSS path.
+// BindingVerified means the Kerberos mechanism and CredSSP public-key proof
+// completed on the exact TLS transcript and its server reply was fully sent.
+// It is NOT native desktop/session authorization and grants no R3 capability.
+enum class OwnedCredSspHandshakeStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    BindingVerified,
+    Rejected,
+    TransportClosed,
+};
+
+struct OwnedCredSspHandshakeResult
+{
+    OwnedCredSspHandshakeStatus status{
+        OwnedCredSspHandshakeStatus::Rejected};
+    std::size_t plaintextBytesRead{};
+    std::size_t plaintextBytesWritten{};
+};
+
 inline constexpr std::size_t kMaximumSpnegoInputBytes = 8192;
 inline constexpr std::size_t kMaximumSpnegoOutputBytes = 8192;
 inline constexpr std::size_t kMaximumSpnegoRoundTrips = 16;
@@ -148,6 +170,22 @@ public:
     // local errors and an unexpected complete SPNEGO exchange remain
     // silent terminal rejection, without an error record.
     [[nodiscard]] SpnegoStatus acceptFramedNegoAndQueueReply(
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer) noexcept;
+
+    // Production R2 event-loop boundary. The exact R1 owner supplies both
+    // immutable HYBRID negotiation provenance and all TLS application I/O.
+    // Each call performs at most one bounded R1 application read OR write;
+    // GSS/DER processing and queue/release bookkeeping may complete in the
+    // same call but never advance OpenSSL directly. The same connection,
+    // reader and writer must outlive the exchange and remain unchanged.
+    //
+    // No CredSSP bytes are consumed or emitted unless the client offered
+    // PROTOCOL_HYBRID and R1 actually selected PROTOCOL_HYBRID.
+    // BindingVerified proves only the TLS-bound GSS/public-key handshake;
+    // native authorization and R3 admission remain separate.
+    [[nodiscard]] OwnedCredSspHandshakeResult advanceOwnedCredSspHandshake(
+        transport::OwnedPreauthTcpConnection &connection,
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer) noexcept;
 
@@ -257,16 +295,28 @@ private:
         const SSL *activeServerTls,
         const TsRequestResult &request,
         bool combinedFinal) noexcept;
+    [[nodiscard]] SpnegoStatus acceptFramedNegoAndQueueReplyImpl(
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer,
+        const transport::OwnedPreauthTcpConnection *connection) noexcept;
     [[nodiscard]] bool queueFramedProtectedReply(
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer,
-        bool combinedFinal) noexcept;
+        bool combinedFinal,
+        const transport::OwnedPreauthTcpConnection *connection) noexcept;
     void deleteContext() noexcept;
     [[nodiscard]] bool keepAuthenticatedPrincipal(gss_name_t name) noexcept;
     // A caller may replace the frame reader while retaining the SAME SSL*.
     // Pin the selected server X.509 independently for this GSS transcript.
     [[nodiscard]] bool matchesNegotiatedCertificate(
         const SSL *serverTls) const noexcept;
+
+    // Borrowed only while advanceOwnedCredSspHandshake is active. These
+    // pointers fence object/owner substitution; no object is owned here.
+    const transport::OwnedPreauthTcpConnection *ownedCredSspConnection_{};
+    TsRequestFrameReader *ownedCredSspReader_{};
+    TsRequestTlsReplyWriter *ownedCredSspWriter_{};
+    bool ownedCredSspReplyPending_{};
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
     // Borrowed from the one TLS-bound framing owner, never owning SSL.

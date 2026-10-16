@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gssapi_spnego_acceptor.h"
 
+#include "transport/nonblocking_tcp_adapter.h"
+#include "transport/tpkt_x224.h"
+
 #include <gssapi/gssapi_ext.h>
 #include <gssapi/gssapi_krb5.h>
 
@@ -96,6 +99,20 @@ constexpr std::array<std::uint8_t, 9> kKerberosOid{
                        kKerberosOid.size()) == 0;
 }
 
+[[nodiscard]] bool hasOwnedHybridNlaProvenance(
+    const transport::OwnedPreauthTcpConnection &connection) noexcept
+{
+    if (!connection.active() || connection.establishedTls() == nullptr)
+        return false;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    return provenance.has_value() &&
+           (provenance->clientRequestedProtocols &
+            transport::kRdpProtocolHybrid) != 0 &&
+           provenance->serverSelectedProtocol ==
+               transport::kRdpProtocolHybrid;
+}
+
 } // namespace
 
 bool isInitialSpnegoToken(
@@ -167,6 +184,10 @@ void GssapiSpnegoAcceptor::deleteContext() noexcept
 
 void GssapiSpnegoAcceptor::reject() noexcept
 {
+    ownedCredSspConnection_ = nullptr;
+    ownedCredSspReader_ = nullptr;
+    ownedCredSspWriter_ = nullptr;
+    ownedCredSspReplyPending_ = false;
     deleteContext();
     if (credentials_ != GSS_C_NO_CREDENTIAL)
     {
@@ -377,11 +398,21 @@ SpnegoStep GssapiSpnegoAcceptor::acceptFramedNegoRequest(
 SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply(
     TsRequestFrameReader &reader, TsRequestTlsReplyWriter &writer) noexcept
 {
+    return acceptFramedNegoAndQueueReplyImpl(reader, writer, nullptr);
+}
+
+SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReplyImpl(
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer,
+    const transport::OwnedPreauthTcpConnection *connection) noexcept
+{
     const SSL *sourceTls = reader.completedFrameServerTls();
     // The previous server reply must be completely sent and released;
     // do not accept another peer token while outgoing TLS is pending.
     if (sourceTls == nullptr ||
-        writer.status() != TsRequestTlsWriteStatus::Idle)
+        writer.status() != TsRequestTlsWriteStatus::Idle ||
+        (connection != nullptr &&
+         connection->establishedTls() != sourceTls))
     {
         reader.close();
         writer.close();
@@ -423,10 +454,15 @@ SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply(
     {
         // The only source of the outgoing token is a real
         // gss_accept_sec_context output in this exact TLS transcript.
-        queued = writer.queueReply(
-            const_cast<SSL *>(sourceTls),
-            static_cast<std::uint8_t>(negotiatedVersion_),
-            CredSspServerReplyField::NegoToken, result.outputToken);
+        queued = connection != nullptr
+            ? writer.queueReply(
+                *connection,
+                static_cast<std::uint8_t>(negotiatedVersion_),
+                CredSspServerReplyField::NegoToken, result.outputToken)
+            : writer.queueReply(
+                const_cast<SSL *>(sourceTls),
+                static_cast<std::uint8_t>(negotiatedVersion_),
+                CredSspServerReplyField::NegoToken, result.outputToken);
     }
     if (!result.outputToken.empty())
     {
@@ -447,9 +483,12 @@ SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply(
         OPENSSL_cleanse(after.data(), after.size());
         if (sameCertificate)
         {
-            queued = writer.queueFailureReply(
-                const_cast<SSL *>(sourceTls), 6,
-                CredSspServerFailure::LogonFailure);
+            queued = connection != nullptr
+                ? writer.queueFailureReply(
+                    *connection, 6, CredSspServerFailure::LogonFailure)
+                : writer.queueFailureReply(
+                    const_cast<SSL *>(sourceTls), 6,
+                    CredSspServerFailure::LogonFailure);
             if (queued)
             {
                 OPENSSL_cleanse(before.data(), before.size());
@@ -467,6 +506,183 @@ SpnegoStatus GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply(
         return SpnegoStatus::Rejected;
     }
     return SpnegoStatus::Continue;
+}
+
+
+OwnedCredSspHandshakeResult
+GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
+    transport::OwnedPreauthTcpConnection &connection,
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer) noexcept
+{
+    auto fail = [&](OwnedCredSspHandshakeStatus status,
+                    std::size_t bytesRead = 0,
+                    std::size_t bytesWritten = 0) noexcept
+        -> OwnedCredSspHandshakeResult
+    {
+        reader.close();
+        writer.close();
+        reject();
+        return {status, bytesRead, bytesWritten};
+    };
+
+    // R1 lifetime/provenance is checked before any retained TLS borrow or
+    // application I/O. Offered HYBRID without actual HYBRID selection fails.
+    if (!connection.active())
+        return fail(OwnedCredSspHandshakeStatus::TransportClosed);
+    if (!hasOwnedHybridNlaProvenance(connection))
+        return fail(OwnedCredSspHandshakeStatus::Rejected);
+
+    if (ownedCredSspConnection_ == nullptr)
+    {
+        if (ownedCredSspReader_ != nullptr ||
+            ownedCredSspWriter_ != nullptr ||
+            ownedCredSspReplyPending_ ||
+            writer.status() != TsRequestTlsWriteStatus::Idle)
+        {
+            return fail(OwnedCredSspHandshakeStatus::Rejected);
+        }
+        ownedCredSspConnection_ = &connection;
+        ownedCredSspReader_ = &reader;
+        ownedCredSspWriter_ = &writer;
+    }
+    else if (ownedCredSspConnection_ != &connection ||
+             ownedCredSspReader_ != &reader ||
+             ownedCredSspWriter_ != &writer)
+    {
+        return fail(OwnedCredSspHandshakeStatus::Rejected);
+    }
+
+    // Only a reply queued by this R2 progression may enter R1.
+    if (ownedCredSspReplyPending_)
+    {
+        if (writer.status() == TsRequestTlsWriteStatus::Idle ||
+            writer.status() == TsRequestTlsWriteStatus::Closed)
+        {
+            return fail(OwnedCredSspHandshakeStatus::Rejected);
+        }
+
+        const auto written = writer.writeOneTlsStep(connection);
+        switch (written.status)
+        {
+        case TsRequestTlsWriteStatus::Progress:
+            return {OwnedCredSspHandshakeStatus::Progress, 0,
+                    written.plaintextBytesWritten};
+        case TsRequestTlsWriteStatus::NeedRead:
+            return {OwnedCredSspHandshakeStatus::NeedRead, 0, 0};
+        case TsRequestTlsWriteStatus::NeedWrite:
+            return {OwnedCredSspHandshakeStatus::NeedWrite, 0, 0};
+        case TsRequestTlsWriteStatus::Complete:
+            if (!writer.releaseReply())
+            {
+                return fail(OwnedCredSspHandshakeStatus::Rejected, 0,
+                            written.plaintextBytesWritten);
+            }
+            ownedCredSspReplyPending_ = false;
+            if (stage_ == SpnegoStage::ServerBindingPrepared)
+            {
+                return {OwnedCredSspHandshakeStatus::BindingVerified, 0,
+                        written.plaintextBytesWritten};
+            }
+            if (stage_ == SpnegoStage::Failed)
+            {
+                reader.close();
+                ownedCredSspConnection_ = nullptr;
+                ownedCredSspReader_ = nullptr;
+                ownedCredSspWriter_ = nullptr;
+                return {OwnedCredSspHandshakeStatus::Rejected, 0,
+                        written.plaintextBytesWritten};
+            }
+            if (stage_ != SpnegoStage::ContinueNeeded)
+            {
+                return fail(OwnedCredSspHandshakeStatus::Rejected, 0,
+                            written.plaintextBytesWritten);
+            }
+            return {OwnedCredSspHandshakeStatus::Progress, 0,
+                    written.plaintextBytesWritten};
+        case TsRequestTlsWriteStatus::Invalid:
+            return fail(OwnedCredSspHandshakeStatus::Rejected);
+        case TsRequestTlsWriteStatus::Closed:
+            return fail(connection.active()
+                    ? OwnedCredSspHandshakeStatus::Rejected
+                    : OwnedCredSspHandshakeStatus::TransportClosed);
+        case TsRequestTlsWriteStatus::Idle:
+            return fail(OwnedCredSspHandshakeStatus::Rejected);
+        }
+    }
+
+    if (writer.status() != TsRequestTlsWriteStatus::Idle)
+        return fail(OwnedCredSspHandshakeStatus::Rejected);
+    if (stage_ == SpnegoStage::ServerBindingPrepared)
+        return {OwnedCredSspHandshakeStatus::BindingVerified, 0, 0};
+    if (stage_ == SpnegoStage::Failed)
+        return fail(OwnedCredSspHandshakeStatus::Rejected);
+
+    std::size_t bytesRead = 0;
+    if (reader.status() == TsRequestFrameStatus::NeedMore)
+    {
+        const auto read = reader.readOneTlsStep(connection);
+        bytesRead = read.plaintextBytesRead;
+        switch (read.status)
+        {
+        case TsRequestTlsReadStatus::Progress:
+            return {OwnedCredSspHandshakeStatus::Progress, bytesRead, 0};
+        case TsRequestTlsReadStatus::NeedRead:
+            return {OwnedCredSspHandshakeStatus::NeedRead, 0, 0};
+        case TsRequestTlsReadStatus::NeedWrite:
+            return {OwnedCredSspHandshakeStatus::NeedWrite, 0, 0};
+        case TsRequestTlsReadStatus::Complete:
+            break;
+        case TsRequestTlsReadStatus::Closed:
+            return fail(connection.active()
+                    ? OwnedCredSspHandshakeStatus::Rejected
+                    : OwnedCredSspHandshakeStatus::TransportClosed,
+                bytesRead, 0);
+        case TsRequestTlsReadStatus::Invalid:
+            return fail(OwnedCredSspHandshakeStatus::Rejected,
+                        bytesRead, 0);
+        }
+    }
+    else if (reader.status() != TsRequestFrameStatus::Complete)
+    {
+        return fail(OwnedCredSspHandshakeStatus::Rejected);
+    }
+
+    const auto request = parseCredSspTsRequest(reader.completeDer());
+    if (!request)
+        return fail(OwnedCredSspHandshakeStatus::Rejected, bytesRead, 0);
+
+    bool queued = false;
+    if (request.value.initialNegoTokenOnly())
+    {
+        const auto status = acceptFramedNegoAndQueueReplyImpl(
+            reader, writer, &connection);
+        queued = status == SpnegoStatus::Continue ||
+                 status == SpnegoStatus::FailureQueued;
+    }
+    else if (request.value.finalNegoAndBindingOnly())
+    {
+        queued = queueFramedProtectedReply(
+            reader, writer, true, &connection);
+    }
+    else if (request.value.hasPubKeyAuth &&
+             request.value.tokenCount == 0)
+    {
+        queued = queueFramedProtectedReply(
+            reader, writer, false, &connection);
+    }
+
+    if (!queued || writer.status() != TsRequestTlsWriteStatus::NeedWrite)
+        return fail(OwnedCredSspHandshakeStatus::Rejected, bytesRead, 0);
+
+    // A genuine provider rejection clears acceptor state before its v6
+    // terminal failure is queued. Rebind only after the queue above proves
+    // this exact production exchange produced the pending reply.
+    ownedCredSspConnection_ = &connection;
+    ownedCredSspReader_ = &reader;
+    ownedCredSspWriter_ = &writer;
+    ownedCredSspReplyPending_ = true;
+    return {OwnedCredSspHandshakeStatus::NeedWrite, bytesRead, 0};
 }
 
 SpnegoStep GssapiSpnegoAcceptor::accept(

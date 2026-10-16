@@ -2946,18 +2946,22 @@ void testOwnedHybridNlaNegotiation()
     }
 }
 
-void establishOwnedApplicationTls(
+void establishOwnedApplicationTlsForRequest(
     OwnedPreauthTcpConnection &owner,
     NativeTcpIo &clientIo,
-    TlsHandshakeFixture &tls)
+    TlsHandshakeFixture &tls,
+    std::span<const std::uint8_t> request,
+    SecurityNegotiationPolicy policy)
 {
     using Interest = TcpConnectionIoInterest;
-    nativeSendAll(clientIo, validRequestWire());
+    const auto parsed = parseConnectionRequest(request);
+    assert(parsed);
+    nativeSendAll(clientIo, request);
     assert(waitForOwnedTcpReply(owner) == Interest::Write);
     assert(owner.onSocketReady(false, true) == Interest::ConfigureTls);
     std::array<std::uint8_t, 19> confirm{};
     nativeReadAll(clientIo, confirm);
-    assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
+    assert(confirm == negotiateSecurity(parsed, policy).packet);
 
     OwnedPreauthTcpConnection::ServerTls server{
         tls.server.release(), SSL_free};
@@ -2996,6 +3000,17 @@ void establishOwnedApplicationTls(
     assert(clientEstablished && serverEstablished);
     assert(owner.establishedTls() != nullptr);
     assert(owner.ioInterest() == Interest::Read);
+}
+
+void establishOwnedApplicationTls(
+    OwnedPreauthTcpConnection &owner,
+    NativeTcpIo &clientIo,
+    TlsHandshakeFixture &tls)
+{
+    const auto request = validRequestWire();
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, request,
+        SecurityNegotiationPolicy::DiagnosticTlsOnly);
 }
 
 void writeNativeTlsClientAll(
@@ -6213,6 +6228,218 @@ void assertNoGssReplyDelivered(SSL *client)
     assert(count == 0);
 }
 
+
+using OwnedCredSspAdvance =
+    OwnedCredSspHandshakeResult (GssapiSpnegoAcceptor::*)(
+        OwnedPreauthTcpConnection &,
+        TsRequestFrameReader &,
+        TsRequestTlsReplyWriter &) noexcept;
+
+static_assert(std::is_invocable_r_v<
+              OwnedCredSspHandshakeResult,
+              OwnedCredSspAdvance,
+              GssapiSpnegoAcceptor &,
+              OwnedPreauthTcpConnection &,
+              TsRequestFrameReader &,
+              TsRequestTlsReplyWriter &>);
+static_assert(!std::is_invocable_v<
+              OwnedCredSspAdvance,
+              GssapiSpnegoAcceptor &,
+              SSL *,
+              TsRequestFrameReader &,
+              TsRequestTlsReplyWriter &>);
+
+void testGssapiOwnedCredSspProvenanceFence()
+{
+    // Diagnostic TLS-only selection rejects before consuming peer plaintext.
+    const auto rejectBeforeRead =
+        [](std::span<const std::uint8_t> connectionRequest)
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTlsForRequest(
+            owner, clientIo, tls, connectionRequest,
+            SecurityNegotiationPolicy::DiagnosticTlsOnly);
+
+        const auto provenance = owner.securityNegotiationProvenance();
+        assert(provenance.has_value());
+        assert(provenance->serverSelectedProtocol == kRdpProtocolSsl);
+
+        writeNativeTlsClientAll(tls.client.get(), kTestCredSspDer);
+        GssapiSpnegoAcceptor acceptor;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        const auto denied = acceptor.advanceOwnedCredSspHandshake(
+            owner, reader, writer);
+        assert(denied.status == OwnedCredSspHandshakeStatus::Rejected);
+        assert(denied.plaintextBytesRead == 0);
+        assert(denied.plaintextBytesWritten == 0);
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(owner.active());
+
+        std::array<std::uint8_t, kTestCredSspDer.size()> preserved{};
+        readOwnedRuntimeTlsAll(owner, preserved);
+        assert(preserved == kTestCredSspDer);
+        owner.cancel();
+    };
+
+    const auto sslOnly = validRequestWire();
+    rejectBeforeRead(sslOnly);
+    const auto hybridOfferedButDowngraded = tlsAndHybridRequestWire();
+    rejectBeforeRead(hybridOfferedButDowngraded);
+
+    // Genuine R1 HYBRID selection passes the provenance fence and drives the
+    // frame through owner-backed TLS I/O. With no configured service keytab,
+    // the existing GSS semantic gate then rejects silently after exact intake.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        const auto request = tlsAndHybridRequestWire();
+        establishOwnedApplicationTlsForRequest(
+            owner, clientIo, tls, request,
+            SecurityNegotiationPolicy::HybridNla);
+
+        const auto provenance = owner.securityNegotiationProvenance();
+        assert(provenance.has_value());
+        assert(provenance->serverSelectedProtocol == kRdpProtocolHybrid);
+
+        writeNativeTlsClientAll(tls.client.get(), kTestCredSspDer);
+        GssapiSpnegoAcceptor acceptor;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        std::size_t bytesRead = 0;
+        OwnedCredSspHandshakeStatus finalStatus{
+            OwnedCredSspHandshakeStatus::NeedRead};
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{5};
+        while (std::chrono::steady_clock::now() < deadline)
+        {
+            const auto step = acceptor.advanceOwnedCredSspHandshake(
+                owner, reader, writer);
+            bytesRead += step.plaintextBytesRead;
+            assert(step.plaintextBytesWritten == 0);
+            finalStatus = step.status;
+            if (finalStatus == OwnedCredSspHandshakeStatus::Rejected)
+                break;
+            assert(finalStatus == OwnedCredSspHandshakeStatus::Progress ||
+                   finalStatus == OwnedCredSspHandshakeStatus::NeedRead ||
+                   finalStatus == OwnedCredSspHandshakeStatus::NeedWrite);
+            if (finalStatus == OwnedCredSspHandshakeStatus::NeedRead ||
+                finalStatus == OwnedCredSspHandshakeStatus::NeedWrite)
+            {
+                const auto polled = owner.pollSocketOnce(
+                    deadline, kMaximumTcpPollWait);
+                assert(polled.outcome ==
+                           TcpConnectionPollOutcome::Dispatched ||
+                       polled.outcome == TcpConnectionPollOutcome::NoEvent);
+            }
+        }
+        assert(finalStatus == OwnedCredSspHandshakeStatus::Rejected);
+        assert(bytesRead == kTestCredSspDer.size());
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assertNoGssReplyDelivered(tls.client.get());
+        assert(owner.active());
+        owner.cancel();
+    }
+
+    // Valid HYBRID provenance still cannot authorize caller-prequeued output.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        const auto request = tlsAndHybridRequestWire();
+        establishOwnedApplicationTlsForRequest(
+            owner, clientIo, tls, request,
+            SecurityNegotiationPolicy::HybridNla);
+
+        constexpr std::array<std::uint8_t, 2> syntheticReply{0x41, 0x42};
+        GssapiSpnegoAcceptor acceptor;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(
+            owner, 6, CredSspServerReplyField::NegoToken, syntheticReply));
+        const auto denied = acceptor.advanceOwnedCredSspHandshake(
+            owner, reader, writer);
+        assert(denied.status == OwnedCredSspHandshakeStatus::Rejected);
+        assert(denied.plaintextBytesRead == 0);
+        assert(denied.plaintextBytesWritten == 0);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assertNoGssReplyDelivered(tls.client.get());
+        assert(owner.active());
+        owner.cancel();
+    }
+}
+
+void testGssapiOwnedCredSspCancellationFence()
+{
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    const auto request = tlsAndHybridRequestWire();
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, request,
+        SecurityNegotiationPolicy::HybridNla);
+
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    constexpr std::array<std::uint8_t, 2> syntheticReply{0x51, 0x52};
+    assert(writer.queueReply(
+        owner, 6, CredSspServerReplyField::NegoToken, syntheticReply));
+
+    GssapiSpnegoAcceptor acceptor;
+    owner.cancel();
+    assert(!owner.active());
+    assert(owner.establishedTls() == nullptr);
+    assert(!owner.securityNegotiationProvenance());
+
+    const auto first = acceptor.advanceOwnedCredSspHandshake(
+        owner, reader, writer);
+    assert(first.status == OwnedCredSspHandshakeStatus::TransportClosed);
+    assert(first.plaintextBytesRead == 0);
+    assert(first.plaintextBytesWritten == 0);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+
+    const auto replay = acceptor.advanceOwnedCredSspHandshake(
+        owner, reader, writer);
+    assert(replay.status == OwnedCredSspHandshakeStatus::TransportClosed);
+    assert(replay.plaintextBytesRead == 0);
+    assert(replay.plaintextBytesWritten == 0);
+}
+
 void testGssapiFailureReplyWithoutCredentialsDenied()
 {
     // A real completed in-memory TLS exchange is NOT enough to
@@ -7293,6 +7520,10 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-tls-failure-reply-wire", &testTlsCredSspFailureReplyWire},
     {"credssp-tls-failure-reply-rejections", &testTlsCredSspFailureReplyRejections},
 #ifdef RDP_TEST_LINUX_GSSAPI
+    {"gssapi-r1-owned-credssp-provenance-fence",
+     &testGssapiOwnedCredSspProvenanceFence},
+    {"gssapi-r1-owned-credssp-cancellation-fence",
+     &testGssapiOwnedCredSspCancellationFence},
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
     {"gssapi-principal-tls-proof-gate", &testGssapiPrincipalTlsProofGate},
     {"gssapi-tls-framed-credential-denials", &testGssapiTlsFramedCredentialDenials},

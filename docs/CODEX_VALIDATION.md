@@ -1,3 +1,29 @@
+## R6 invalid-consumer release-revocation authoring receipt (2026-10-16)
+
+Starting shared main: `f7025624166518f3729eb32700eb88fd6b9ce9fb`; reconciled publication parent: `67b6ff0ebe478d5abe37fe9bf86266ce11c2c002`. Source/ownership audit **PASS**.
+
+The discovered R6 defect is a classification error, not an ownership leak:
+`consumeFrame({})` used the public Boolean `releaseFrame()` wrapper for
+invalid-consumer cleanup. That wrapper intentionally returns false when a
+successful native release callback revokes the cycle, which made the caller
+misreport `releaseFailed`. The correction centralizes mapped-frame teardown in
+a private three-state release helper so synchronous callers can distinguish
+native release failure from successful retirement followed by terminal
+revocation.
+
+Dedicated CTest:
+`windows.capture-capture-cycle-invalid-consumer-release-revocation`. Expected
+contract: mapped frame acquired once; invalid consumer callback never invoked;
+staging unmap once; DXGI release once; release-callback nested capture returns
+`busy`; callback cancellation is deferred; outer result is `closed`; later
+cancel and capture attempts do not release or acquire again.
+
+Canonical local one-root build/CTest **NOT RUN** because this connector does not
+expose the owner checkout. Exact publication-SHA hosted CI is **PENDING**.
+Owner Windows MSYS2 CLANG64/Clang23, live Desktop Duplication/SendInput,
+Microsoft-client M4 and genuine Windows R2/R3 native admission remain
+**NOT RUN/BLOCKED**.
+
 ## R8 completed-file X11 handoff exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `af52796a380bb9400cdfcc7ad2dac5b604f91087`.

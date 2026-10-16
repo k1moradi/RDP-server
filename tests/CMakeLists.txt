@@ -645,7 +645,8 @@ if(TARGET rdp-server-windows-desktop)
     # live after returning, including cancellation and sink rejection.
     foreach(case_name IN ITEMS
             capture-cycle-synchronous-consume-lifetime
-            capture-cycle-synchronous-consume-denials)
+            capture-cycle-synchronous-consume-denials
+            capture-cycle-invalid-consumer-release-revocation)
         add_test(NAME "windows.capture-${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.capture-${case_name}" PROPERTIES

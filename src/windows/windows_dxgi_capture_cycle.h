@@ -165,6 +165,18 @@ public:
     [[nodiscard]] bool closed() const noexcept;
 
 private:
+    enum class FrameReleaseOutcome
+    {
+        released,
+        failed,
+        closed,
+    };
+
+    // Release the currently mapped frame while operationInProgress_ is set.
+    // Distinguish native ReleaseFrame failure from successful retirement that
+    // synchronously revoked this cycle.
+    [[nodiscard]] FrameReleaseOutcome releaseHeldFrame() noexcept;
+
     // In-flight native callbacks can call cancel() synchronously. Deferring
     // actual teardown until the outer method returns prevents a release
     // while a staging callback still uses the acquired DXGI resource.

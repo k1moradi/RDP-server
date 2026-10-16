@@ -22,7 +22,9 @@ void windowsCaptureCycleOrderedLifetime();
 void windowsCaptureCycleReleaseCallbackRevocation();
 
 void windowsCaptureCycleSynchronousConsumeLifetime();
-void windowsCaptureCycleSynchronousConsumeDenials();void windowsCapturePackedCopyLifetime();
+void windowsCaptureCycleSynchronousConsumeDenials();
+void windowsCaptureCycleInvalidConsumerReleaseRevocation();
+void windowsCapturePackedCopyLifetime();
 void windowsCapturePackedCopyDenials();
 void windowsCaptureNativeDamageReadLifetime();
 void windowsCaptureNativeDamageReadDenials();
@@ -842,6 +844,10 @@ int main(int argc, char **argv)
     else if (behavior == "capture-cycle-synchronous-consume-denials")
     {
         windowsCaptureCycleSynchronousConsumeDenials();
+    }
+    else if (behavior == "capture-cycle-invalid-consumer-release-revocation")
+    {
+        windowsCaptureCycleInvalidConsumerReleaseRevocation();
     }
     else if (behavior == "capture-packed-copy-lifetime")
     {

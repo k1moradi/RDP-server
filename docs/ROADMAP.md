@@ -1,3 +1,38 @@
+## R6 invalid-consumer release-revocation classification (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `f7025624166518f3729eb32700eb88fd6b9ce9fb`; publication reconciled onto `67b6ff0ebe478d5abe37fe9bf86266ce11c2c002`.
+
+Follow-up audit of the hosted-validated capture-cycle release-revocation boundary
+found one remaining result-classification collapse in
+`WindowsDxgiCaptureCycle::consumeFrame`. An invalid consumer is rejected
+before its callback can run, but the cycle must still unmap and retire the
+already-acquired DXGI lease. That path called the public Boolean
+`releaseFrame()` wrapper. A synchronous successful ReleaseFrame callback can
+terminally `cancel()` the cycle, causing the wrapper to return false even
+though native release succeeded; `consumeFrame({})` therefore reported
+`releaseFailed` instead of terminal `closed`.
+
+The cycle now has one private release-outcome helper used by both public frame
+release and synchronous consumption cleanup. It preserves three states:
+successful release/live cycle, native release failure, and successful release
+followed by terminal cycle revocation. No public API, native owner, release
+order, scheduling or authorization surface changes.
+
+New dedicated production-linked CTest
+`windows.capture-capture-cycle-invalid-consumer-release-revocation` reuses the
+existing R6 executable and synthetic DXGI/staging callbacks. It requires an
+invalid consumer to unmap once, release once, deny nested capture as `busy`
+during ReleaseFrame, defer cancellation until callback return, report
+`closed` rather than `releaseFailed`, and remain exact-once/idempotent
+after later cancel/reacquire attempts.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment. Exact publication-SHA Windows/MSVC focused/full
+Debug+Release plus hosted Linux/GCC, macOS/Clang, sanitizer,
+documentation-policy and SDK/package validation are **PENDING**. Owner Windows
+MSYS2 CLANG64/Clang23, genuine Windows R2/R3 authorization, live DXGI/SendInput
+and Microsoft-client M4 remain **NOT RUN/BLOCKED**. **M4 remains OPEN.**
+
 ## R8 completed-file X11 handoff exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `af52796a380bb9400cdfcc7ad2dac5b604f91087`.

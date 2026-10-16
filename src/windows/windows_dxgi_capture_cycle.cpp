@@ -316,9 +316,21 @@ WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::consumeFrame(
     }
     if (consumer.context == nullptr || consumer.consume == nullptr)
     {
-        // Reject the sink but do not strand an acquired desktop frame.
-        return releaseFrame() ? WindowsCaptureConsumeResult::invalidConsumer
-                              : WindowsCaptureConsumeResult::releaseFailed;
+        // Reject the sink but do not strand an acquired desktop frame. Keep
+        // native release failure distinct from a successful release whose
+        // synchronous callback terminally revoked the enclosing cycle.
+        operationInProgress_ = true;
+        const auto releaseOutcome = releaseHeldFrame();
+        operationInProgress_ = false;
+        if (releaseOutcome == FrameReleaseOutcome::failed)
+        {
+            return WindowsCaptureConsumeResult::releaseFailed;
+        }
+        if (releaseOutcome == FrameReleaseOutcome::closed)
+        {
+            return WindowsCaptureConsumeResult::closed;
+        }
+        return WindowsCaptureConsumeResult::invalidConsumer;
     }
 
     operationInProgress_ = true;
@@ -337,24 +349,14 @@ WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::consumeFrame(
         (void)generationUnchanged();
     }
     const bool revoked = closed_;
-    staging_.unmap();
-    const bool released =
-        duplication_.releaseFrame() == WindowsDxgiReleaseResult::released;
-    if (!released || duplication_.closed() || staging_.closed())
-    {
-        closed_ = true;
-    }
-    if (closed_)
-    {
-        finishCancellation();
-    }
+    const auto releaseOutcome = releaseHeldFrame();
     operationInProgress_ = false;
 
-    if (!released)
+    if (releaseOutcome == FrameReleaseOutcome::failed)
     {
         return WindowsCaptureConsumeResult::releaseFailed;
     }
-    if (revoked || closed_)
+    if (revoked || releaseOutcome == FrameReleaseOutcome::closed)
     {
         return WindowsCaptureConsumeResult::closed;
     }
@@ -545,19 +547,15 @@ WindowsCapturePointerResult WindowsDxgiCaptureCycle::readFramePointerUpdate(
     return WindowsCapturePointerResult::ready;
 }
 
-bool WindowsDxgiCaptureCycle::releaseFrame() noexcept
+WindowsDxgiCaptureCycle::FrameReleaseOutcome
+WindowsDxgiCaptureCycle::releaseHeldFrame() noexcept
 {
-    if (operationInProgress_ || !staging_.mapped())
-    {
-        return false;
-    }
-    operationInProgress_ = true;
     // The frame view must be invalid before DXGI ReleaseFrame. The
     // staging native hook unmaps and drops its staging texture first.
     staging_.unmap();
-    const bool success =
+    const bool released =
         duplication_.releaseFrame() == WindowsDxgiReleaseResult::released;
-    if (!success || duplication_.closed() || staging_.closed())
+    if (!released || duplication_.closed() || staging_.closed())
     {
         closed_ = true;
     }
@@ -565,8 +563,24 @@ bool WindowsDxgiCaptureCycle::releaseFrame() noexcept
     {
         finishCancellation();
     }
+    if (!released)
+    {
+        return FrameReleaseOutcome::failed;
+    }
+    return closed_ ? FrameReleaseOutcome::closed
+                   : FrameReleaseOutcome::released;
+}
+
+bool WindowsDxgiCaptureCycle::releaseFrame() noexcept
+{
+    if (operationInProgress_ || !staging_.mapped())
+    {
+        return false;
+    }
+    operationInProgress_ = true;
+    const auto outcome = releaseHeldFrame();
     operationInProgress_ = false;
-    return success && !closed_;
+    return outcome == FrameReleaseOutcome::released;
 }
 
 bool WindowsDxgiCaptureCycle::topologyUnchanged(

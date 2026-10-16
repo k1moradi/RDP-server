@@ -336,6 +336,31 @@ void windowsCaptureCycleSynchronousConsumeDenials()
            lost.releases == 1 && lost.viewClearedOnUnmap);
 }
 
+void windowsCaptureCycleInvalidConsumerReleaseRevocation()
+{
+    FakeCaptureCycle source{};
+    source.cancelDuringRelease = true;
+    source.reenterDuringRelease = true;
+
+    WindowsDxgiCaptureCycle cycle(
+        sampleLayout(), source.frameCallbacks(), source.stagingCallbacks());
+    source.cycle = &cycle;
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(cycle.consumeFrame({}) == WindowsCaptureConsumeResult::closed);
+    assert(cycle.closed());
+    assert(source.releaseReentrantResult == WindowsCaptureCycleResult::busy);
+    assert(source.teardownDeferredDuringRelease);
+    assert(source.unmaps == 1 && source.releases == 1);
+    assert(source.viewClearedOnUnmap);
+    assert(cycle.frame().pixels.empty());
+
+    cycle.cancel();
+    assert(source.unmaps == 1 && source.releases == 1);
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
+    assert(source.acquisitions == 1);
+}
+
 void windowsCapturePackedCopyLifetime()
 {
     FakeCaptureCycle source{};

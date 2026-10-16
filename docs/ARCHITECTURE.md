@@ -1322,8 +1322,12 @@ reentrant cancellation invalidate the cycle; one staging mapping is
 unmapped before the original DXGI lease releases exactly once. A
 guarded cycle does not expose an unchecked raw borrowed view through
 `frame()`; consumers must use checked synchronous
-`consumeFrame`/`copyFrameTo`. Independently owned output is
-published only if its generation is still current on return.
+`consumeFrame`/`copyFrameTo`. Mapped-frame teardown preserves
+native release failure separately from successful lease retirement that
+synchronously revokes the enclosing cycle; invalid-consumer cleanup therefore
+returns terminal `closed` rather than fabricating a release failure.
+Independently owned output is published only if its generation is still current
+on return.
 An asynchronously side-effecting consumer cannot have its work
 rolled back, so R4 must use the owned-copy path before enqueueing.
 This guards reuse of stale capture resources but **does not grant

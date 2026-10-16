@@ -654,6 +654,19 @@ arbitrary domain groups, intermediate directory reparse points and
 TLS key permissions still require explicit native auditing. No
 network/desktop access or R2/R3 session is created.
 
+### R10 Windows-safe PEM parsing buffer boundary (2026-10-15)
+
+Credential metadata and file identity are established on one native
+open object. For cryptographic parsing, the runtime reads exactly
+the bounded size from that same `FILE*` using its own C runtime,
+then parses an OpenSSL memory BIO. It does not pass the application's
+`FILE*` across the OpenSSL library/CRT boundary on Windows and
+does not reopen the path. Short reads or content growth past the
+validated size fail closed. Memory allocation is bounded by the
+existing 1 MiB certificate and 256 KiB key limits and uses
+nothrow ownership. The trust/expiry/admission limitations below
+remain unchanged.
+
 ### R10 offline TLS PEM parse/key-match preflight (2026-10-15)
 
 A third explicit diagnostic, `--check-tls-credentials`, first applies

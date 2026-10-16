@@ -6145,3 +6145,24 @@ the raw segment data.
 until publication, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
 macOS27, authorized R3 Graphics DVC and DVC fragmentation/send receipt,
 real x264, Microsoft client or graphics benchmark. Gate B/M3–M5 OPEN.
+
+## R10 Windows-safe memory-BIO PEM parser correction (2026-10-15)
+
+**Parent main:** `22866e58870f3642ae2535ebbc5cb8c9b0cacaf6`. Initial R10 crypto SHA
+`0a673075a3532249cf1a53439994537e165631fa`,
+[Actions 38864141629](https://github.com/k1moradi/RDP-server/actions/runs/38864141629):
+Linux/macOS all six new credential cases PASS; full jobs stop on
+R3's pre-existing `transport.mcs-session-unverified-ordering`,
+also reproduced at exact parent SHA `1f82be913b2ad7ae09134d939542ec22b3656d63`.
+Windows build succeeds but the five cases entering PEM parsing
+return status 1; CLI smuggling PASSes. This correction avoids
+passing an application-CRT `FILE*` into OpenSSL on Windows.
+After native security checks on the same open object, exactly the
+validated file size is copied into bounded nothrow storage and
+parsed with `BIO_new_mem_buf` +
+`PEM_read_bio_X509`/`PEM_read_bio_PrivateKey`. Short reads or
+growth are rejected, file identity stays held open throughout,
+and the no-password callback/key-match test is unchanged.
+**NOT RUN at authoring:** corrected exact-SHA CI and owner's
+Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27 one-root tests.
+No service/listener/R2/R3 desktop activation. M1–M6 remain OPEN.

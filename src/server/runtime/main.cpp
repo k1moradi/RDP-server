@@ -7,8 +7,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <new>
 #include <string_view>
 
+#include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
@@ -321,7 +323,8 @@ struct TlsFileIdentity {
 // a pathname after a security decision.
 [[nodiscard]] OwnedFile openTlsFile(
     std::string_view path, bool privateKey,
-    TlsFileIdentity& identity) noexcept {
+    TlsFileIdentity& identity, std::size_t& openedBytes) noexcept {
+    openedBytes = 0;
     constexpr std::size_t kMaximumCertificateBytes = 1024U * 1024U;
     constexpr std::size_t kMaximumPrivateKeyBytes = 256U * 1024U;
     const std::size_t maximumBytes =
@@ -341,22 +344,23 @@ struct TlsFileIdentity {
     }
     FILE_ATTRIBUTE_TAG_INFO attributes{};
     BY_HANDLE_FILE_INFORMATION information{};
-    const std::uint64_t fileBytes =
-        (static_cast<std::uint64_t>(information.nFileSizeHigh) << 32U) |
-        information.nFileSizeLow;
+    const bool haveAttributes = ::GetFileInformationByHandleEx(
+        handle, FileAttributeTagInfo, &attributes, sizeof(attributes)) != FALSE;
+    const bool haveInformation =
+        ::GetFileInformationByHandle(handle, &information) != FALSE;
+    const std::uint64_t fileBytes = haveInformation
+        ? ((static_cast<std::uint64_t>(information.nFileSizeHigh) << 32U) |
+           information.nFileSizeLow)
+        : 0U;
     const bool safe =
         ::GetFileType(handle) == FILE_TYPE_DISK &&
-        ::GetFileInformationByHandleEx(
-            handle, FileAttributeTagInfo, &attributes, sizeof(attributes)) &&
+        haveAttributes &&
         (attributes.FileAttributes &
          (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) == 0 &&
-        ::GetFileInformationByHandle(handle, &information) &&
-        ((static_cast<std::uint64_t>(information.nFileSizeHigh) << 32U) |
-         information.nFileSizeLow) > 0 &&
-        ((static_cast<std::uint64_t>(information.nFileSizeHigh) << 32U) |
-         information.nFileSizeLow) <= maximumBytes &&
+        haveInformation &&
+        fileBytes > 0 &&
+        fileBytes <= maximumBytes &&
         hasRestrictedConfigurationDacl(handle, privateKey);
-    (void)fileBytes;
     if (!safe) {
         (void)::CloseHandle(handle);
         return OwnedFile{};
@@ -364,15 +368,18 @@ struct TlsFileIdentity {
     identity.volume = information.dwVolumeSerialNumber;
     identity.indexHigh = information.nFileIndexHigh;
     identity.indexLow = information.nFileIndexLow;
+    openedBytes = static_cast<std::size_t>(fileBytes);
     const int descriptor = ::_open_osfhandle(
         reinterpret_cast<std::intptr_t>(handle), _O_RDONLY | _O_BINARY);
     if (descriptor < 0) {
         (void)::CloseHandle(handle);
+        openedBytes = 0;
         return OwnedFile{};
     }
     OwnedFile file{::_fdopen(descriptor, "rb")};
     if (!file) {
         (void)::_close(descriptor);
+        openedBytes = 0;
         return OwnedFile{};
     }
     return file;
@@ -397,9 +404,11 @@ struct TlsFileIdentity {
     }
     identity.device = information.st_dev;
     identity.inode = information.st_ino;
+    openedBytes = static_cast<std::size_t>(information.st_size);
     OwnedFile file{::fdopen(fd, "rb")};
     if (!file) {
         (void)::close(fd);
+        openedBytes = 0;
         return OwnedFile{};
     }
     return file;
@@ -410,11 +419,14 @@ struct TlsFileIdentity {
     std::string_view certificatePath, std::string_view privateKeyPath) noexcept {
     TlsFileIdentity certificateIdentity{};
     TlsFileIdentity privateKeyIdentity{};
-    OwnedFile certificate =
-        openTlsFile(certificatePath, false, certificateIdentity);
-    OwnedFile privateKey =
-        openTlsFile(privateKeyPath, true, privateKeyIdentity);
+    std::size_t certificateBytes = 0;
+    std::size_t privateKeyBytes = 0;
+    OwnedFile certificate = openTlsFile(
+        certificatePath, false, certificateIdentity, certificateBytes);
+    OwnedFile privateKey = openTlsFile(
+        privateKeyPath, true, privateKeyIdentity, privateKeyBytes);
     return certificate && privateKey &&
+           certificateBytes > 0 && privateKeyBytes > 0 &&
            !sameTlsFileIdentity(certificateIdentity, privateKeyIdentity);
 }
 
@@ -422,6 +434,11 @@ int rejectPrivateKeyPassword(char*, int, int, void*) noexcept {
     return 0; // Never prompt or accept encrypted key material offline.
 }
 
+struct BioCloser {
+    void operator()(BIO* bio) const noexcept {
+        ::BIO_free(bio);
+    }
+};
 struct X509Closer {
     void operator()(X509* certificate) const noexcept {
         ::X509_free(certificate);
@@ -433,24 +450,64 @@ struct PkeyCloser {
     }
 };
 
+[[nodiscard]] bool readOpenedFileExactly(
+    std::FILE* file, std::size_t bytes,
+    std::unique_ptr<unsigned char[]>& output) noexcept {
+    if (file == nullptr || bytes == 0) {
+        return false;
+    }
+    std::unique_ptr<unsigned char[]> buffer{
+        new (std::nothrow) unsigned char[bytes]};
+    if (!buffer) {
+        return false;
+    }
+    if (std::fread(buffer.get(), 1, bytes, file) != bytes ||
+        std::ferror(file) != 0 || std::fgetc(file) != EOF) {
+        return false;
+    }
+    output = std::move(buffer);
+    return true;
+}
+
 [[nodiscard]] bool checkTlsCredentialContents(
     std::string_view certificatePath, std::string_view privateKeyPath) noexcept {
     TlsFileIdentity certificateIdentity{};
     TlsFileIdentity privateKeyIdentity{};
-    OwnedFile certificateFile =
-        openTlsFile(certificatePath, false, certificateIdentity);
-    OwnedFile privateKeyFile =
-        openTlsFile(privateKeyPath, true, privateKeyIdentity);
+    std::size_t certificateBytes = 0;
+    std::size_t privateKeyBytes = 0;
+    OwnedFile certificateFile = openTlsFile(
+        certificatePath, false, certificateIdentity, certificateBytes);
+    OwnedFile privateKeyFile = openTlsFile(
+        privateKeyPath, true, privateKeyIdentity, privateKeyBytes);
     if (!certificateFile || !privateKeyFile ||
         sameTlsFileIdentity(certificateIdentity, privateKeyIdentity)) {
         return false;
     }
 
+    std::unique_ptr<unsigned char[]> certificateData;
+    std::unique_ptr<unsigned char[]> privateKeyData;
+    if (!readOpenedFileExactly(
+            certificateFile.get(), certificateBytes, certificateData) ||
+        !readOpenedFileExactly(
+            privateKeyFile.get(), privateKeyBytes, privateKeyData)) {
+        return false;
+    }
+
+    std::unique_ptr<BIO, BioCloser> certificateBio{
+        ::BIO_new_mem_buf(certificateData.get(),
+                          static_cast<int>(certificateBytes))};
+    std::unique_ptr<BIO, BioCloser> privateKeyBio{
+        ::BIO_new_mem_buf(privateKeyData.get(),
+                          static_cast<int>(privateKeyBytes))};
+    if (!certificateBio || !privateKeyBio) {
+        return false;
+    }
+
     std::unique_ptr<X509, X509Closer> certificate{
-        ::PEM_read_X509(certificateFile.get(), nullptr, nullptr, nullptr)};
+        ::PEM_read_bio_X509(certificateBio.get(), nullptr, nullptr, nullptr)};
     std::unique_ptr<EVP_PKEY, PkeyCloser> privateKey{
-        ::PEM_read_PrivateKey(
-            privateKeyFile.get(), nullptr, rejectPrivateKeyPassword, nullptr)};
+        ::PEM_read_bio_PrivateKey(
+            privateKeyBio.get(), nullptr, rejectPrivateKeyPassword, nullptr)};
     return certificate && privateKey &&
            ::X509_check_private_key(certificate.get(), privateKey.get()) == 1;
 }

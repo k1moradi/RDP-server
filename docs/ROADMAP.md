@@ -433,6 +433,27 @@ M1–M6 remain OPEN. **Next:** hosted CI and owner full CTest, then
 certificate trust/expiry policy and live-loader handle continuity
 without enabling a listener prematurely.
 
+**R10 Windows PEM parser CRT-boundary correction (2026-10-15; exact-SHA CI NOT RUN at authoring):**
+Initial crypto implementation
+[`0a673075a3532249cf1a53439994537e165631fa`](https://github.com/k1moradi/RDP-server/commit/0a673075a3532249cf1a53439994537e165631fa),
+[Actions 38864141629](https://github.com/k1moradi/RDP-server/actions/runs/38864141629):
+all six new TLS-credential CTests PASS on Linux and macOS; those two
+full jobs fail only a parent-SHA-reproduced R3
+`transport.mcs-session-unverified-ordering` assertion. Windows
+compiles, but five content-parsing cases return process status 1
+while option-smuggling PASSes. A later descendant Windows run
+reproduces the same R10 pattern. The cross-platform parser had
+passed the application CRT's `FILE*` directly into OpenSSL.
+This follow-up keeps the security-validated file object open,
+reads exactly its already-bounded native file size into a
+nothrow-owned buffer, rejects short/growing reads, then gives
+OpenSSL a memory BIO. OpenSSL no longer consumes a foreign CRT
+`FILE*` on Windows; there is still no pathname reopen between
+metadata and content checks. Metadata/DACL/mode/identity policy
+and all CLI semantics remain unchanged. **NOT RUN at authoring:**
+corrected hosted CI and owner three-platform command. R3 blocker
+was reported on issue #5 with exact parent evidence. M1–M6 OPEN.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

@@ -3512,6 +3512,262 @@ void testR3ServerLicenseRequestSliceThroughOwnedTls()
     owner.cancel();
 }
 
+
+[[nodiscard]] std::array<std::uint8_t, kMaximumInitialMcsTpktBytes>
+makeMaximumClientLicensingTpkt()
+{
+    constexpr std::size_t kTpktAndX224Bytes = 7U;
+    constexpr std::size_t kMcsHeaderBytes = 8U;
+    constexpr std::size_t kUserDataBytes =
+        kMaximumInitialMcsTpktBytes - kTpktAndX224Bytes - kMcsHeaderBytes;
+    constexpr std::size_t kSecurityHeaderBytes = 4U;
+    constexpr std::size_t kLicensingMessageBytes =
+        kUserDataBytes - kSecurityHeaderBytes;
+    constexpr std::size_t kLicensingFixedBytes =
+        4U + 40U + (3U * 4U);
+    constexpr std::size_t kEncryptedPreMasterSecretBytes = 8000U;
+    constexpr std::size_t kUserNameBytes = 58U;
+    constexpr std::size_t kMachineNameBytes =
+        kLicensingMessageBytes - kLicensingFixedBytes -
+        kEncryptedPreMasterSecretBytes - kUserNameBytes;
+
+    static_assert(kMaximumInitialMcsTpktBytes <= UINT16_MAX);
+    static_assert(kUserDataBytes > 127U && kUserDataBytes <= 0x3fffU);
+    static_assert(kLicensingMessageBytes <= UINT16_MAX);
+    static_assert(kMachineNameBytes > 1U &&
+                  kMachineNameBytes <= UINT16_MAX);
+
+    std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> packet{};
+    std::size_t offset = 0U;
+    const auto appendByte = [&](std::uint8_t value)
+    {
+        assert(offset < packet.size());
+        packet[offset++] = value;
+    };
+    const auto appendLe16 = [&](std::uint16_t value)
+    {
+        appendByte(static_cast<std::uint8_t>(value));
+        appendByte(static_cast<std::uint8_t>(value >> 8U));
+    };
+    const auto appendLe32 = [&](std::uint32_t value)
+    {
+        appendLe16(static_cast<std::uint16_t>(value));
+        appendLe16(static_cast<std::uint16_t>(value >> 16U));
+    };
+    const auto appendBlob = [&](std::uint16_t type, std::size_t bytes,
+                                std::uint8_t fill, bool terminate)
+    {
+        assert(bytes > 0U && bytes <= UINT16_MAX);
+        assert(offset <= packet.size() &&
+               bytes + 4U <= packet.size() - offset);
+        appendLe16(type);
+        appendLe16(static_cast<std::uint16_t>(bytes));
+        std::fill_n(packet.begin() + static_cast<std::ptrdiff_t>(offset),
+                    static_cast<std::ptrdiff_t>(bytes), fill);
+        if (terminate)
+            packet[offset + bytes - 1U] = 0U;
+        offset += bytes;
+    };
+
+    // RFC 1006 TPKT + X.224 Data TPDU.
+    appendByte(0x03U);
+    appendByte(0x00U);
+    appendByte(static_cast<std::uint8_t>(packet.size() >> 8U));
+    appendByte(static_cast<std::uint8_t>(packet.size()));
+    appendByte(0x02U);
+    appendByte(0xf0U);
+    appendByte(0x80U);
+
+    // T.125 SendDataRequest: user 1001, global I/O channel 1003,
+    // high priority value 0, complete begin|end segmentation.
+    appendByte(0x64U);
+    appendByte(0x00U);
+    appendByte(0x00U);
+    appendByte(0x03U);
+    appendByte(0xebU);
+    appendByte(0x30U);
+    appendByte(static_cast<std::uint8_t>(
+        0x80U | ((kUserDataBytes >> 8U) & 0x3fU)));
+    appendByte(static_cast<std::uint8_t>(kUserDataBytes));
+
+    // Enhanced Security Basic Security Header: SEC_LICENSE_PKT.
+    appendByte(0x80U);
+    appendByte(0x00U);
+    appendByte(0x00U);
+    appendByte(0x00U);
+
+    // CLIENT_NEW_LICENSE_REQUEST with a deliberately large but valid random
+    // blob so the complete protected-R3 envelope reaches the exact 8 KiB cap.
+    appendByte(0x13U);
+    appendByte(0x83U);
+    appendLe16(static_cast<std::uint16_t>(kLicensingMessageBytes));
+    appendLe32(1U);          // KEY_EXCHANGE_ALG_RSA
+    appendLe32(0x04010000U); // Microsoft WinNT platform
+    for (std::uint8_t value = 0U; value < 32U; ++value)
+        appendByte(value);
+
+    appendBlob(0x0002U, kEncryptedPreMasterSecretBytes, 0xa5U, false);
+    appendBlob(0x000fU, kUserNameBytes,
+               static_cast<std::uint8_t>('u'), true);
+    appendBlob(0x0010U, kMachineNameBytes,
+               static_cast<std::uint8_t>('m'), true);
+
+    assert(offset == packet.size());
+    return packet;
+}
+
+void testR3ClientLicensingReadThroughOwnedTls()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    static_assert(kMaximumInitialMcsTpktBytes <=
+                  kMaximumTlsApplicationIoBytes);
+
+    const auto packet = makeMaximumClientLicensingTpkt();
+    assert(packet.size() == kMaximumInitialMcsTpktBytes);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+
+    TlsHandshakeFixture tls{false, false};
+    // Force several real TLS records while retaining the one caller-owned
+    // 8 KiB R3 envelope buffer. R1 still performs one SSL_read_ex per call.
+    assert(SSL_set_max_send_fragment(tls.client.get(), 1024U) == 1);
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> received{};
+    const auto initiallyBlocked = owner.readTlsApplicationData(received);
+    assert(initiallyBlocked.outcome == Outcome::NeedRead);
+    assert(initiallyBlocked.bytes == 0U);
+
+    constexpr std::array<std::uint8_t, 9> followingApplicationBytes{
+        0x52, 0x31, 0x2d, 0x6e, 0x65, 0x78, 0x74, 0x00, 0x7f};
+    writeNativeTlsClientAll(tls.client.get(), packet);
+    writeNativeTlsClientAll(tls.client.get(), followingApplicationBytes);
+
+    std::size_t receivedBytes = 0U;
+    std::size_t progressSteps = 0U;
+    bool observedShortProgress = false;
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    for (int attempt = 0;
+         attempt < 4096 && receivedBytes < received.size();
+         ++attempt)
+    {
+        const auto destination =
+            std::span(received).subspan(receivedBytes);
+        const auto result = owner.readTlsApplicationData(destination);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0U &&
+                   result.bytes <= destination.size());
+            observedShortProgress =
+                observedShortProgress ||
+                result.bytes < destination.size();
+            receivedBytes += result.bytes;
+            ++progressSteps;
+            continue;
+        }
+
+        assert(result.bytes == 0U);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(Clock::now() < deadline);
+    }
+
+    assert(receivedBytes == received.size());
+    assert(progressSteps > 1U);
+    assert(observedShortProgress);
+    assert(received == packet);
+
+    // R1 returns exact plaintext progress only. The caller-owned complete
+    // TPKT can therefore be handed directly to the existing R3 syntax and
+    // licensing layers without a second TLS reader or an enlarged R1 API.
+    const auto request = parseMcsChannelRequest(received);
+    assert(request);
+    assert(request.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(request.request.initiator == 1001U);
+    assert(request.request.channelId == 1003U);
+    assert(request.request.segmentation == 3U);
+    const auto envelope =
+        parseEnhancedSecurityLicensingEnvelope(request.request.userData);
+    assert(envelope);
+    const auto licensing =
+        parseRdpLicensingMessage(envelope.value.licensingMessage);
+    assert(licensing);
+    assert(licensing.value.type ==
+           RdpLicensingMessageType::ClientNewLicenseRequest);
+
+    constexpr std::array<std::uint8_t, 8> company{
+        0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 8> product{
+        0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 4> certificate{
+        0xde,0xad,0xbe,0xef};
+    constexpr std::array<std::uint8_t, 6> scope{
+        0x73,0x63,0x6f,0x70,0x65,0x00};
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, company, product, certificate, scope));
+    RdpLicensingLifecycle lifecycle;
+    RdpServerLicenseRequestWriteGate writer{lifecycle};
+    assert(writer.queue(identity));
+    const auto serverRequest = writer.pendingWrite();
+    assert(serverRequest);
+    assert(writer.onBytesWritten(
+               serverRequest.replySequence,
+               serverRequest.writeSliceSequence,
+               serverRequest.bytes.size()) ==
+           RdpServerLicenseRequestWriteOutcome::Delivered);
+    assert(lifecycle.phase() ==
+           RdpLicensingPhase::AwaitClientLicenseResponse);
+    assert(lifecycle.onClientMessage(envelope.value.licensingMessage) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+
+    // Bytes after the complete 8 KiB caller span remain available for the
+    // next logical application read instead of being consumed as licensing.
+    std::array<std::uint8_t, followingApplicationBytes.size()> following{};
+    std::size_t followingBytes = 0U;
+    for (int attempt = 0;
+         attempt < 2048 && followingBytes < following.size();
+         ++attempt)
+    {
+        const auto destination =
+            std::span(following).subspan(followingBytes);
+        const auto result = owner.readTlsApplicationData(destination);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0U &&
+                   result.bytes <= destination.size());
+            followingBytes += result.bytes;
+            continue;
+        }
+        assert(result.bytes == 0U);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(Clock::now() < deadline);
+    }
+    assert(followingBytes == following.size());
+    assert(following == followingApplicationBytes);
+
+    owner.cancel();
+}
+
+
 void testOwnedTlsApplicationCancellation()
 {
     using Outcome = TlsApplicationIoOutcome;
@@ -9026,6 +9282,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
     {"tcp-owned-r3-connect-response-slice", &testR3ConnectResponseSliceThroughOwnedTls},
     {"tcp-owned-r3-license-request-slice", &testR3ServerLicenseRequestSliceThroughOwnedTls},
+    {"tcp-owned-r3-client-license-read", &testR3ClientLicensingReadThroughOwnedTls},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},

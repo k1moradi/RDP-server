@@ -1,3 +1,19 @@
+### R1 bounded client-licensing intake compatibility (2026-10-16)
+
+R1's post-handshake application seam deliberately remains a bounded byte
+stream, not an RDP PDU owner. The current R3 protected client-licensing route
+requires a complete TPKT no larger than 8 KiB, while one R1 application read
+accepts up to 18 KiB. Therefore the caller can retain one bounded R3 envelope
+buffer and resubmit only its remaining suffix after each explicit R1 progress
+receipt; no larger TLS buffer, hidden read loop or second framing controller is
+required.
+
+R1 does not infer licensing boundaries from TLS records. Multiple TLS records
+may contribute to one caller-owned 8-KiB TPKT, and bytes following that span
+remain in OpenSSL until a later explicit application read. R2 still owns fresh
+native/GSS authorization and R3 still owns MCS membership, segmentation,
+`SEC_LICENSE_PKT`, licensing order and session transitions.
+
 ## R1/R3 licensing transport compatibility boundary (2026-10-16)
 
 R3's `RdpServerLicenseRequestWriteGate` owns licensing serialization and

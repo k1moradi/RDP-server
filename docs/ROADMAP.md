@@ -1,3 +1,41 @@
+## R1 protected client-licensing read compatibility (2026-10-16; exact-SHA CI pending)
+
+**Starting inspected shared main:** `bc10b90571139a6e692e201744c8e6962616d4ab`;
+publication is reconciled onto shared parent `03df6ea7cb834359820adb0d27fc0d083a65f5f2`.
+
+R3's protected first-client licensing route accepts one complete
+SendDataRequest only after the Server License Request has been fully delivered
+and R2 has freshly reauthorized the same lease/R1 owner. No new R1 transport
+surface is required: R3 caps the complete TPKT at
+`kMaximumInitialMcsTpktBytes` (**8 KiB**), below R1's existing
+`kMaximumTlsApplicationIoBytes` (**18 KiB**) ceiling.
+
+Dedicated CTest `transport.tcp-owned-r3-client-license-read` sends a valid
+exact-8-KiB client licensing TPKT through the existing real loopback/OpenSSL
+R1 owner with 1-KiB TLS records. The caller reassembles only from exact
+positive `readTlsApplicationData()` receipts and externally retries
+WANT_READ/WANT_WRITE through the bounded poll path. The resulting caller-owned
+TPKT is accepted by the existing MCS, Enhanced Security and licensing
+parsers/lifecycle, while following TLS application bytes remain for the next
+explicit read.
+
+This is byte-stream compatibility evidence only: no R2 lease, protected broker
+call, licensing grant, authenticated R3 advancement or listener is created.
+Production R1/R2/R3 source is unchanged. R9's repaired bounded sanitizer
+selector includes the new case without changing R2's restored licensing
+selection.
+
+Canonical owner-local `~/rdp-server/build` validation is **NOT RUN** in this
+connector environment. Exact-SHA hosted Linux/GCC, macOS/AppleClang,
+Windows/MSVC Debug/Release, sanitizer, documentation, SDK-consumer and package
+evidence is required after publication. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, genuine native admission/licensing cryptography and
+Microsoft-client acceptance remain **NOT RUN**. M2/M3 remain **OPEN / NOT
+ACCEPTED**.
+
+**Next R1:** add no new transport surface unless later protected licensing or
+Share publication demonstrates another concrete bounded TCP/TLS mismatch.
+
 ## R2 combined-head licensing sanitizer selector repair (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `4ac92d9717d751b62c7268d4fd800ed0210246d8`.

@@ -1,3 +1,24 @@
+## R1 protected client-licensing read compatibility authoring (2026-10-16)
+
+**Starting inspected shared main:** `bc10b90571139a6e692e201744c8e6962616d4ab`;
+publication is reconciled onto shared parent `03df6ea7cb834359820adb0d27fc0d083a65f5f2`.
+
+**Production:** unchanged; R3's protected licensing-input cap is 8 KiB, below
+R1's existing 18 KiB application-read boundary.
+
+**Test:** `transport.tcp-owned-r3-client-license-read` uses the existing
+production-linked preauth executable and real loopback/OpenSSL transport. It
+transmits an exact-8-KiB valid SendDataRequest / SEC_LICENSE_PKT /
+CLIENT_NEW_LICENSE_REQUEST, observes multi-step R1 plaintext progress, validates
+the caller-owned bytes with production MCS/security/licensing parsers, and
+proves following application bytes remain unread until the next operation.
+No R2/R3 authority is synthesized. The current repaired sanitizer selector
+includes this case.
+
+**Authoring validation:** ownership/source review **PASS**. Checkout-local
+configure/build/full CTest is **NOT RUN** because no synchronized owner checkout
+is available here. Exact-SHA hosted CI is required after publication.
+
 ## R2 combined-head licensing sanitizer selector repair (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `4ac92d9717d751b62c7268d4fd800ed0210246d8`.

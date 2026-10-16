@@ -119,6 +119,10 @@ public:
         if (changeTopologyDuringConsume) {
             NativeDisplayReconfigurationWatch::recordTopologyChange();
         }
+        if (stopDuringConsume && streamToStop != nullptr) {
+            stopDuringConsume = false;
+            stopSucceeded = streamToStop->stop().has_value();
+        }
         if (closeDuringConsume && streamToClose != nullptr) {
             closeDuringConsume = false;
             streamToClose->close();
@@ -133,8 +137,11 @@ public:
     std::size_t lastByteCount{};
     const std::byte* lastPixels{};
     const std::byte* expectedPixels{};
+    MacScreenCaptureStream* streamToStop{};
     MacScreenCaptureStream* streamToClose{};
     bool changeTopologyDuringConsume{};
+    bool stopDuringConsume{};
+    bool stopSucceeded{};
     bool closeDuringConsume{};
 };
 
@@ -168,12 +175,14 @@ public:
         ++stopCalls;
         state = receivedState;
         if (stopRequestError) return std::unexpected(*stopRequestError);
+        claimNativeStop(receivedState);
         return {};
     }
 
     void close(const std::shared_ptr<MacScreenCaptureState>& receivedState) noexcept override {
         ++closeCalls;
         state = receivedState;
+        claimNativeStop(receivedState);
     }
 
     ScreenCapturePreflightStatus preflightStatus{ScreenCapturePreflightStatus::Granted};
@@ -182,11 +191,26 @@ public:
     std::optional<MacScreenCaptureError> stopRequestError{};
     std::shared_ptr<MacScreenCaptureState> state{};
     MacScreenCaptureBinding lastBinding{};
+    bool claimNativeStopRequests{};
     std::size_t preflightCalls{};
     std::size_t prepareCalls{};
     std::size_t startCalls{};
     std::size_t stopCalls{};
     std::size_t closeCalls{};
+    std::size_t nativeStopClaimAttempts{};
+    std::size_t nativeStopClaims{};
+
+private:
+    void claimNativeStop(
+        const std::shared_ptr<MacScreenCaptureState>& receivedState) noexcept {
+        if (!claimNativeStopRequests || !receivedState) {
+            return;
+        }
+        ++nativeStopClaimAttempts;
+        if (receivedState->claimNativeStopRequest()) {
+            ++nativeStopClaims;
+        }
+    }
 };
 
 struct StreamFixture {
@@ -458,6 +482,48 @@ void testConsumerCancellation() {
     assert(fixture.backend->closeCalls == 1);
 }
 
+void testNativeStopSingleOwnership() {
+    GeometryFixture geometry;
+    const auto generation = geometry.refresh();
+    auto fixture = makeStream(geometry.bindingFor(100, generation));
+    prepareAndStart(fixture);
+    fixture.backend->claimNativeStopRequests = true;
+
+    alignas(64) std::array<std::byte, 16> bytes{};
+    auto pixelBuffer = makePixelBuffer(
+        bytes, 2, 2, kCVPixelFormatType_32BGRA, 8);
+    auto callbackState = fixture.backend->state;
+    fixture.consumer->streamToStop = fixture.stream.get();
+    fixture.consumer->stopDuringConsume = true;
+
+    // The owner submits the graceful native stop from inside consume(). The
+    // callback then asks to retire its in-flight frame, but must not win a
+    // second ScreenCaptureKit stop submission.
+    assert(callbackState->consumeFrame(
+               pixelBuffer.value, MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::RetireStream);
+    assert(fixture.consumer->calls == 1);
+    assert(fixture.consumer->stopSucceeded);
+    assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Stopping);
+    assert(fixture.backend->stopCalls == 1);
+    assert(fixture.backend->nativeStopClaimAttempts == 1);
+    assert(fixture.backend->nativeStopClaims == 1);
+    assert(!callbackState->claimNativeStopRequest());
+
+    // Whichever native path owns the one request also owns the completion.
+    // Closing the already-stopped one-shot stream must not claim another.
+    callbackState->stopCompleted(true);
+    assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Closed);
+    fixture.stream->close();
+    assert(fixture.backend->closeCalls == 1);
+    assert(fixture.backend->nativeStopClaimAttempts == 2);
+    assert(fixture.backend->nativeStopClaims == 1);
+    assert(callbackState->consumeFrame(
+               pixelBuffer.value, MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Dropped);
+    assert(fixture.consumer->calls == 1);
+}
+
 void testCallbackRetirement() {
     GeometryFixture geometry;
     const auto oldGeneration = geometry.refresh();
@@ -515,6 +581,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testCallbackRetirement();
     } else if (testCase == "consumer-cancellation") {
         testConsumerCancellation();
+    } else if (testCase == "native-stop-single-ownership") {
+        testNativeStopSingleOwnership();
     } else if (testCase == "native-factory-quarantine") {
         testNativeFactoryQuarantine();
     } else if (testCase == "framebuffer-contract") {

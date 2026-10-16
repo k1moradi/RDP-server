@@ -89,11 +89,16 @@ using RdpMacCaptureDisposition = rdp::macos::MacScreenCaptureFrameDisposition;
         pixelBuffer, rdp::macos::detail::frameStatus(sampleBuffer));
     if (disposition == RdpMacCaptureDisposition::RetireStream && stream != nil) {
         auto state = _state;
-        [stream stopCaptureWithCompletionHandler:^(NSError* error) {
-            if (error != nil) {
-                state->nativeFailed();
-            }
-        }];
+        if (state->claimNativeStopRequest()) {
+            [stream stopCaptureWithCompletionHandler:^(NSError* error) {
+                if (state->lifecycleState() ==
+                    rdp::macos::MacScreenCaptureLifecycleState::Stopping) {
+                    state->stopCompleted(error == nil);
+                } else if (error != nil) {
+                    state->nativeFailed();
+                }
+            }];
+        }
     }
 }
 
@@ -259,9 +264,13 @@ using RdpMacCaptureDisposition = rdp::macos::MacScreenCaptureFrameDisposition;
             state->startCompleted(error == nil);
             if (error == nil &&
                 state->lifecycleState() !=
-                    rdp::macos::MacScreenCaptureLifecycleState::Capturing) {
+                    rdp::macos::MacScreenCaptureLifecycleState::Capturing &&
+                state->claimNativeStopRequest()) {
                 [stream stopCaptureWithCompletionHandler:^(NSError* stopError) {
-                    if (stopError != nil) {
+                    if (state->lifecycleState() ==
+                        rdp::macos::MacScreenCaptureLifecycleState::Stopping) {
+                        state->stopCompleted(stopError == nil);
+                    } else if (stopError != nil) {
                         state->nativeFailed();
                     }
                 }];
@@ -284,6 +293,9 @@ using RdpMacCaptureDisposition = rdp::macos::MacScreenCaptureFrameDisposition;
         state = _state;
     }
     if (@available(macOS 12.3, *)) {
+        if (!state->claimNativeStopRequest()) {
+            return YES;
+        }
         [stream stopCaptureWithCompletionHandler:^(NSError* error) {
             state->stopCompleted(error == nil);
         }];
@@ -311,9 +323,10 @@ using RdpMacCaptureDisposition = rdp::macos::MacScreenCaptureFrameDisposition;
         _state.reset();
     }
     if (@available(macOS 12.3, *)) {
-        if (stream != nil && stopSubmitted) {
+        if (stream != nil && stopSubmitted && state &&
+            state->claimNativeStopRequest()) {
             [stream stopCaptureWithCompletionHandler:^(NSError* error) {
-                if (error != nil && state) {
+                if (error != nil) {
                     state->nativeFailed();
                 }
             }];

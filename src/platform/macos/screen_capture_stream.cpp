@@ -152,6 +152,15 @@ void MacScreenCaptureState::invalidateTopology() noexcept {
     }
 }
 
+bool MacScreenCaptureState::claimNativeStopRequest() noexcept {
+    std::scoped_lock lock(mutex_);
+    if (nativeStopRequested_) {
+        return false;
+    }
+    nativeStopRequested_ = true;
+    return true;
+}
+
 MacScreenCaptureFrameDisposition MacScreenCaptureState::consumeFrame(
     CVPixelBufferRef const pixelBuffer,
     const MacScreenCaptureFrameStatus frameStatus) noexcept {

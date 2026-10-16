@@ -1065,7 +1065,8 @@ if(APPLE)
     endif()
     foreach(case_name IN ITEMS
             lifecycle stale-generation-denials callback-retirement
-            consumer-cancellation native-factory-quarantine framebuffer-contract)
+            consumer-cancellation native-stop-single-ownership
+            native-factory-quarantine framebuffer-contract)
         add_test(NAME "macos.capture-stream-${case_name}"
             COMMAND test_macos_capture_stream "${case_name}")
         set_tests_properties("macos.capture-stream-${case_name}" PROPERTIES

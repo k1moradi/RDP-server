@@ -11194,3 +11194,29 @@ Windows MSYS2 CLANG64/Clang 23 and macOS 27; real R4 x264/BGRA sanitizer
 execution; genuine authenticated R3 Graphics DVC/full-send integration;
 native capture performance; and Microsoft-client graphics rendering.
 Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R7 ScreenCaptureKit single-stop ownership (2026-10-16; CI pending)
+
+Starting base `695dd90b80cf105d7bdeb90576168801ffaf011b`. Production capture state adds one monotonic
+`claimNativeStopRequest()` fence shared by all ScreenCaptureKit stop sites.
+The native output delegate, start-completion retirement, explicit backend stop,
+and backend close each submit `stopCaptureWithCompletionHandler` only after
+winning that claim. A claimant whose completion observes lifecycle
+`Stopping` completes the existing state transition; later close/failure
+callbacks remain fail-closed and cannot reset the one-shot claim.
+
+New CTest `macos.capture-stream-native-stop-single-ownership` drives the
+production C++ state owner with the injected backend and a synthetic 2x2 BGRA
+CoreVideo buffer. During synchronous `consume()` it calls owner `stop()`,
+asserts the backend wins the sole native-stop claim, confirms the returning
+`RetireStream` cannot claim a second request, then verifies successful stop
+completion, later close, and retained callback-state delivery remain one-shot.
+The test performs no live ScreenCaptureKit/TCC/desktop/input operation.
+
+Canonical owner-local `~/rdp-server/build` build/CTest is **NOT RUN** in this
+connector environment. Exact publication-SHA hosted macOS compile/Debug/Release
+CTest is the primary execution gate; Linux/Windows, sanitizer and documentation
+jobs remain required regression evidence. Genuine macOS R2/R3 admission and an
+R4 cursor-consumer contract are still absent, so this change does not expose a
+native capture factory or grant desktop authority.

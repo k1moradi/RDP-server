@@ -1478,3 +1478,17 @@ Never infer getsockopt support from a defined option constant.
 macOS SO_ACCEPTCONN returns ENOPROTOOPT: check SO_TYPE and peer
 state on Darwin, retain read-only O_NONBLOCK and native accept
 rejection. Do not configure borrowed listeners or add a controller.
+
+
+## R7 one-shot ScreenCaptureKit stop ownership (2026-10-16)
+
+A one-shot native capture stream can reach `SCStream::stopCapture` from several
+concurrent retirement paths: explicit owner stop/close, startup cancellation,
+or an output callback that detects an unowned revocation. These paths MUST share
+one callback-state stop-submission claim before touching ScreenCaptureKit. The
+first claimant owns the asynchronous native request; later claimants observe it
+and do not submit a duplicate stop. A completion that races an owner transition
+to `Stopping` must still complete that state, while completion after terminal
+`Closed`/`Failed` retirement is inert except for fail-closed native errors.
+The claim is lifecycle coordination only: it grants no capture permission,
+identity, session admission, graphics scheduling or transport authority.

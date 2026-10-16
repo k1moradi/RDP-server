@@ -121,6 +121,11 @@ public:
     void close() noexcept;
     void invalidateTopology() noexcept;
 
+    // ScreenCaptureKit stop requests can originate from owner stop/close,
+    // startup retirement, or an output callback. Claim exactly one native
+    // stop submission across those paths for this one-shot stream.
+    [[nodiscard]] bool claimNativeStopRequest() noexcept;
+
     [[nodiscard]] MacScreenCaptureFrameDisposition
     consumeFrame(CVPixelBufferRef pixelBuffer,
                  MacScreenCaptureFrameStatus frameStatus) noexcept;
@@ -140,6 +145,7 @@ private:
     std::optional<MacScreenCaptureError> lastError_{};
     MacScreenCaptureFrameDrop lastFrameDrop_{MacScreenCaptureFrameDrop::None};
     std::shared_ptr<MacCaptureFrameConsumer> consumer_;
+    bool nativeStopRequested_{};
 };
 
 // Apple implementation is private Objective-C++; tests inject this C++ seam.

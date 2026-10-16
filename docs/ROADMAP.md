@@ -10376,3 +10376,38 @@ Windows MSYS2 CLANG64/Clang 23 and macOS 27; real R4 x264/BGRA sanitizer
 execution; genuine authenticated R3 Graphics DVC/full-send integration;
 native capture performance; and Microsoft-client graphics rendering.
 Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R7 ScreenCaptureKit single-stop ownership (2026-10-16; CI pending)
+
+Starting shared-main base: `695dd90b80cf105d7bdeb90576168801ffaf011b`. R7 found a native lifecycle ownership
+race in the quarantined ScreenCaptureKit backend. An in-flight output callback
+can return `RetireStream` after its synchronous consumer has already invoked
+owner `stop()` or `close()`. The owner path can therefore submit
+`stopCaptureWithCompletionHandler` and the output delegate can immediately
+submit the same native stop a second time; startup retirement and later close
+have the same duplicate-submission risk.
+
+The shared `MacScreenCaptureState` now carries a one-shot native-stop claim.
+Every native ScreenCaptureKit stop site must win that claim before submitting
+`stopCapture`: output retirement, start-completion retirement, explicit stop,
+and close. The winner's completion also completes a concurrently entered
+`Stopping` state when applicable. No restart path is added and the claim never
+resets for the one-shot stream.
+
+New Apple-only CTest `macos.capture-stream-native-stop-single-ownership`
+uses the injected backend and synthetic CoreVideo frame. Its consumer calls
+owner `stop()` synchronously while the borrowed framebuffer is live, then it
+verifies exactly one native-stop claim, rejects the output-callback's second
+claim, completes the graceful stop, rejects a later close claim, and prevents a
+retained callback state from publishing again. No ScreenCaptureKit stream is
+enumerated or started, no TCC prompt is requested, and no desktop pixels leave
+the synthetic fixture.
+
+Canonical owner-local `~/rdp-server/build` configure/build/CTest is **NOT RUN**
+because that checkout is unavailable in this connector environment. Hosted
+exact-SHA AppleClang Debug/Release plus the ordinary cross-platform matrix are
+required after publication. The authorization dependency is unchanged: there
+is still no non-forgeable macOS R2/R3 admission capability and no R4 cursor
+consumer contract, so native construction/input/cursor publication remain
+quarantined and M5 remains **OPEN/BLOCKED** on those dependencies.

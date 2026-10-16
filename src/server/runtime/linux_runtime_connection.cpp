@@ -97,6 +97,138 @@ LinuxRuntimeConnection::ioInterest() const noexcept
     return ready() ? connection_.ioInterest() : Interest::Closed;
 }
 
+LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
+    bool readable, bool writable,
+    const RuntimeServerTlsContext &tlsContext) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using Stage = rdp_server::server::transport::PreauthStage;
+    using Step = LinuxPreAdmissionStepStatus;
+
+    if (!ready())
+    {
+        return {0, 0, Step::Closed};
+    }
+
+    const auto required = ioInterest();
+    if (required == Interest::Closed)
+    {
+        revoke();
+        return {0, 0, Step::Closed};
+    }
+
+    // TLS configuration is not socket readiness. It is one explicit ownership
+    // transfer after R1 proves the entire X.224 response has drained.
+    if (required == Interest::ConfigureTls)
+    {
+        if (connection_.stage() != Stage::AwaitTls ||
+            !attachServerTls(tlsContext))
+        {
+            return {0, 0, Step::Invalid};
+        }
+        return {0, 0, Step::Progress};
+    }
+
+    if (required == Interest::Read && !readable)
+    {
+        return {0, 0, Step::NeedRead};
+    }
+    if (required == Interest::Write && !writable)
+    {
+        return {0, 0, Step::NeedWrite};
+    }
+
+    const auto stageBefore = connection_.stage();
+    switch (stageBefore)
+    {
+    case Stage::AwaitConnectionRequest:
+    case Stage::AwaitTls:
+    {
+        // R1 owns pending X.224 reply bytes and TLS network records. Its
+        // bounded readiness dispatcher knows whether an AwaitTls write is
+        // still the X.224 Confirm or an OpenSSL WANT_WRITE.
+        const auto next = connection_.onSocketReady(readable, writable);
+        if (!connection_.active() || next == Interest::Closed)
+        {
+            revoke();
+            return {0, 0, Step::Closed};
+        }
+
+        if (next == Interest::ConfigureTls)
+        {
+            if (!attachServerTls(tlsContext))
+            {
+                return {0, 0, Step::Invalid};
+            }
+            return {0, 0, Step::Progress};
+        }
+
+        if (stageBefore == Stage::AwaitTls &&
+            connection_.stage() == Stage::AwaitCredSsp)
+        {
+            return {0, 0, Step::TlsEstablished};
+        }
+
+        if (next == Interest::Read)
+        {
+            return {0, 0, Step::NeedRead};
+        }
+        if (next == Interest::Write)
+        {
+            return {0, 0, Step::NeedWrite};
+        }
+
+        revoke();
+        return {0, 0, Step::Invalid};
+    }
+
+    case Stage::AwaitCredSsp:
+    {
+        const auto step = onCredSspIoReady();
+        switch (step.status)
+        {
+        case LinuxCredSspStepStatus::Progress:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::Progress};
+        case LinuxCredSspStepStatus::NeedRead:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::NeedRead};
+        case LinuxCredSspStepStatus::NeedWrite:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::NeedWrite};
+        case LinuxCredSspStepStatus::BindingVerified:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::BindingVerified};
+        case LinuxCredSspStepStatus::UnsupportedFinalCredentials:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::UnsupportedFinalCredentials};
+        case LinuxCredSspStepStatus::Invalid:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::Invalid};
+        case LinuxCredSspStepStatus::Closed:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::Closed};
+        }
+        revoke();
+        return {0, 0, Step::Invalid};
+    }
+
+    case Stage::AwaitMcsConnectInitial:
+        // This API ends at the R2 admission boundary. Never fall through to
+        // R1's legacy syntax-only MCS reader or create a second R3 path.
+        revoke();
+        return {0, 0, Step::Invalid};
+
+    case Stage::Closed:
+        revoke();
+        return {0, 0, Step::Closed};
+    }
+
+    revoke();
+    return {0, 0, Step::Invalid};
+}
+
 rdp_server::server::transport::TcpPreauthEvent
 LinuxRuntimeConnection::onReadable() noexcept
 {

@@ -13995,3 +13995,54 @@ ScreenCaptureKit and fast-user-switch delivery, independently authenticated
 R2/R3 macOS user/session admission, real input/cursor/graphics integration and
 Microsoft-client M5 acceptance remain **NOT RUN/OPEN**.
 **M5 remains OPEN/BLOCKED**.
+
+
+
+## R10 unified pre-admission readiness dispatcher (2026-10-16; hosted CI pending)
+
+Starting reconciled shared `main`: `394a17d930044fcbbd247747c05b7a9174997d22`. Review of the existing
+non-listening aggregate found a scheduler seam rather than an authentication
+gap: after R1 completes a genuine HYBRID TLS handshake,
+`LinuxRuntimeConnection::ioInterest()` correctly exposes application read or
+write readiness, while the legacy phase-specific `onReadable()` /
+`onWritable()` methods still target the plaintext X.224 adapter. A future
+event loop that mechanically paired those APIs could repeatedly receive
+`ReadyForTls` without advancing R2 CredSSP.
+
+R10 now exposes one bounded `advancePreAdmission(readable, writable,
+tlsContext)` dispatcher. It derives all phase from the existing R1 owner and
+all pending CredSSP write direction from the existing R2 writer; it adds no
+parallel state machine. Wrong-direction readiness returns `NeedRead` or
+`NeedWrite` with zero plaintext progress and touches no socket. R1's own
+bounded readiness dispatcher drains X.224 reply bytes and advances TLS. Only
+after the complete X.224 response may R10 transfer one fresh SSL from the
+service-owned TLS context into R1. Once R1 reaches `AwaitCredSsp`, the same
+R10 call delegates exactly one step to R2's owner-driven CredSSP/GSS path and
+preserves its exact read/write accounting.
+
+The dispatcher is deliberately pre-admission only. If R1 ever exposes its
+legacy `AwaitMcsConnectInitial` diagnostic on this HYBRID aggregate, R10
+revokes instead of invoking that reader. Positive MCS remains reachable only
+through the existing R2 lease/broker path. The old phase-specific methods
+remain for focused tests/compatibility but are documented as unsuitable for a
+general pre-admission scheduler.
+
+New production-backed CTest
+`runtime.linux-connection-pre-admission-dispatch` drives one accepted loopback
+connection through wrong-direction X.224 readiness, HYBRID negotiation, the
+production R10 TLS context, nonblocking TLS, wrong-direction post-TLS
+readiness, and a real R2-owned rejected CredSSP token. It requires read/write
+mutual exclusion, exact request/reply byte accounting, the canonical v6
+provider failure reply, terminal ordered revocation and inert stale callbacks.
+The R9 Clang ASan/UBSan R10 selector is expanded to include this fifth
+aggregate case.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** because the checkout is unavailable in this connector environment.
+Exact-publication-SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC,
+documentation-policy, SDK/package and sanitizer evidence are required before
+PASS is claimed. Positive native admission remains **BLOCKED on R2** because
+final CredSSP credentials are still deny-only. R3 licensing credential
+provisioning is not invented here because its reviewed certificate/private-key
+service contract is not yet defined. No listener/service is enabled and M2/M3
+remain **OPEN**.

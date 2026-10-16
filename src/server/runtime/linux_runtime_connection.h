@@ -34,6 +34,25 @@ struct LinuxCredSspStepResult
     LinuxCredSspStepStatus status{LinuxCredSspStepStatus::Closed};
 };
 
+enum class LinuxPreAdmissionStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    TlsEstablished,
+    BindingVerified,
+    UnsupportedFinalCredentials,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPreAdmissionStepResult
+{
+    std::size_t plaintextBytesRead{};
+    std::size_t plaintextBytesWritten{};
+    LinuxPreAdmissionStepStatus status{LinuxPreAdmissionStepStatus::Closed};
+};
+
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.
 // It does NOT bind/listen and it does not invent protocol/authentication state:
 // R1 remains the sole socket/BIO/SSL owner, R2 remains the sole native
@@ -65,7 +84,19 @@ public:
     [[nodiscard]] rdp_server::server::transport::TcpConnectionIoInterest
     ioInterest() const noexcept;
 
-    // R1 preauth/readiness delegation. These never authenticate or authorize.
+    // One bounded pre-admission scheduler step derived from the existing R1
+    // phase/interest plus R2 CredSSP writer readiness. Wrong-direction
+    // readiness returns the required direction with zero I/O. The method may
+    // attach one fresh R10 server TLS object only after the X.224 reply is
+    // completely delivered. It never invokes R1's legacy MCS reader: positive
+    // MCS remains reachable only through R2 admission.
+    [[nodiscard]] LinuxPreAdmissionStepResult advancePreAdmission(
+        bool readable, bool writable,
+        const RuntimeServerTlsContext &tlsContext) noexcept;
+
+    // Phase-specific compatibility delegates. A production pre-admission
+    // scheduler should prefer advancePreAdmission(), because these methods do
+    // not dispatch CredSSP after HYBRID TLS. They never authenticate/authorize.
     [[nodiscard]] rdp_server::server::transport::TcpPreauthEvent
     onReadable() noexcept;
     [[nodiscard]] rdp_server::server::transport::TcpPreauthEvent

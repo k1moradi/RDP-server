@@ -33,6 +33,7 @@
 namespace
 {
 using rdp_server::server::runtime::LinuxCredSspStepStatus;
+using rdp_server::server::runtime::LinuxPreAdmissionStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
 using rdp_server::server::runtime::RuntimeServerTlsContext;
@@ -50,6 +51,7 @@ using rdp_server::server::security::kConsoleViewPermission;
 using rdp_server::server::transport::McsSessionPhase;
 using rdp_server::server::transport::OwnedNativeTcpSocket;
 using rdp_server::server::transport::TcpAcceptOutcome;
+using rdp_server::server::transport::TcpConnectionIoInterest;
 using rdp_server::server::transport::TcpPreauthEvent;
 using rdp_server::server::transport::TlsHandshakeStatus;
 using rdp_server::server::transport::kRdpProtocolHybrid;
@@ -760,6 +762,201 @@ void testConnectionCredSspProgressAccounting(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPreAdmissionDispatch(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPreAdmissionStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-pre-admission-dispatch.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "pre-admission-dispatch");
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    assert(setNonblocking(clientDescriptor));
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Read);
+
+    // Wrong-direction readiness is a bounded no-op. In particular, it must
+    // not call the legacy plaintext adapter and must not mutate R1/R2/R3.
+    auto step = connection.advancePreAdmission(false, true, tlsContext);
+    assert(step.status == Step::NeedRead);
+    assert(step.plaintextBytesRead == 0);
+    assert(step.plaintextBytesWritten == 0);
+    assert(connection.ready());
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Read);
+
+    assert(sendSocketAll(clientDescriptor, kHybridNlaRequest));
+    step = connection.advancePreAdmission(true, false, tlsContext);
+    assert(step.status == Step::NeedWrite);
+    assert(step.plaintextBytesRead == 0);
+    assert(step.plaintextBytesWritten == 0);
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Write);
+
+    // A readable callback while the X.224 Confirm is pending cannot consume
+    // ClientHello/CredSSP bytes or repeatedly redispatch the pre-TLS reader.
+    step = connection.advancePreAdmission(true, false, tlsContext);
+    assert(step.status == Step::NeedWrite);
+    assert(step.plaintextBytesRead == 0);
+    assert(step.plaintextBytesWritten == 0);
+
+    step = connection.advancePreAdmission(false, true, tlsContext);
+    assert(step.status == Step::Progress);
+    std::array<std::uint8_t, 19> confirm{};
+    assert(receiveSocketAll(clientDescriptor, confirm));
+    assert(confirm[11] == 0x02);
+    assert(confirm[15] == kRdpProtocolHybrid);
+
+    const TestSslContext clientContext{
+        SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
+    assert(clientContext);
+    assert(SSL_CTX_set_min_proto_version(
+               clientContext.get(), TLS1_2_VERSION) == 1);
+    SSL_CTX_set_verify(clientContext.get(), SSL_VERIFY_NONE, nullptr);
+    TestSsl clientTls{SSL_new(clientContext.get()), SSL_free};
+    assert(clientTls);
+    SSL_set_connect_state(clientTls.get());
+    assert(SSL_set_fd(clientTls.get(), clientDescriptor) == 1);
+
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+    {
+        if (!clientEstablished)
+        {
+            const int result = SSL_do_handshake(clientTls.get());
+            if (result == 1)
+            {
+                clientEstablished = true;
+            }
+            else
+            {
+                const int sslError = SSL_get_error(clientTls.get(), result);
+                assert(sslError == SSL_ERROR_WANT_READ ||
+                       sslError == SSL_ERROR_WANT_WRITE);
+            }
+        }
+
+        if (!serverEstablished)
+        {
+            step = connection.advancePreAdmission(true, true, tlsContext);
+            assert(step.status == Step::NeedRead ||
+                   step.status == Step::NeedWrite ||
+                   step.status == Step::TlsEstablished);
+            if (step.status == Step::TlsEstablished)
+            {
+                serverEstablished = true;
+            }
+        }
+
+        if (clientEstablished && serverEstablished)
+        {
+            break;
+        }
+        std::this_thread::yield();
+    }
+    assert(clientEstablished && serverEstablished);
+    assert(connection.ready());
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Read);
+    assert(connection.gssStage() == SpnegoStage::AwaitInitialToken);
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // This is the key HYBRID scheduler fence: R1 advertises readable
+    // application readiness, but only R2's owner-driven CredSSP step may
+    // consume it. Wrong-direction readiness remains zero-progress.
+    step = connection.advancePreAdmission(false, true, tlsContext);
+    assert(step.status == Step::NeedRead);
+    assert(step.plaintextBytesRead == 0);
+    assert(step.plaintextBytesWritten == 0);
+    assert(connection.gssStage() == SpnegoStage::AwaitInitialToken);
+
+    const auto request = encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::NegoToken, kRejectedInitialSpnego);
+    assert(writeTlsClientAll(clientTls.get(), request));
+
+    std::size_t totalRead = 0;
+    std::size_t totalWritten = 0;
+    bool providerFailureObserved = false;
+    bool wrongWriteDirectionObserved = false;
+    bool terminal = false;
+    for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+    {
+        const auto interest = connection.ioInterest();
+        assert(interest == TcpConnectionIoInterest::Read ||
+               interest == TcpConnectionIoInterest::Write);
+
+        if (!wrongWriteDirectionObserved &&
+            interest == TcpConnectionIoInterest::Write)
+        {
+            const auto wrong =
+                connection.advancePreAdmission(true, false, tlsContext);
+            assert(wrong.status == Step::NeedWrite);
+            assert(wrong.plaintextBytesRead == 0);
+            assert(wrong.plaintextBytesWritten == 0);
+            assert(connection.ioInterest() == TcpConnectionIoInterest::Write);
+            wrongWriteDirectionObserved = true;
+            continue;
+        }
+
+        step = connection.advancePreAdmission(
+            interest == TcpConnectionIoInterest::Read,
+            interest == TcpConnectionIoInterest::Write,
+            tlsContext);
+        assert(step.plaintextBytesRead == 0 ||
+               step.plaintextBytesWritten == 0);
+        totalRead += step.plaintextBytesRead;
+        totalWritten += step.plaintextBytesWritten;
+        assert(totalRead <= request.size());
+        assert(totalWritten <= kV6LogonFailure.size());
+
+        if (connection.gssStage() == SpnegoStage::Failed)
+        {
+            providerFailureObserved = true;
+            assert(totalRead == request.size());
+            assert(!connection.hasAdmissionLease());
+        }
+
+        if (step.status == Step::Invalid)
+        {
+            terminal = true;
+            break;
+        }
+        assert(step.status == Step::Progress ||
+               step.status == Step::NeedRead ||
+               step.status == Step::NeedWrite);
+        std::this_thread::yield();
+    }
+
+    assert(providerFailureObserved);
+    assert(wrongWriteDirectionObserved);
+    assert(terminal);
+    assert(totalRead == request.size());
+    assert(totalWritten == kV6LogonFailure.size());
+
+    std::array<std::uint8_t, kV6LogonFailure.size()> received{};
+    assert(readTlsClientAll(clientTls.get(), received));
+    assert(received == kV6LogonFailure);
+    assert(!connection.ready());
+    assert(connection.admissionState() ==
+           LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    const auto stale =
+        connection.advancePreAdmission(true, true, tlsContext);
+    assert(stale.status == Step::Closed);
+    assert(stale.plaintextBytesRead == 0);
+    assert(stale.plaintextBytesWritten == 0);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionCredSspRevocationOrder(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1074,6 +1271,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-credssp-progress-accounting")
     {
         testConnectionCredSspProgressAccounting(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-pre-admission-dispatch")
+    {
+        testConnectionPreAdmissionDispatch(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

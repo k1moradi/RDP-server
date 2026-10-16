@@ -2486,6 +2486,27 @@ actually run; another parser CTest alone is not a complete session.
   Clang23 and macOS27 exact-SHA tests; real R2/R3 authorization,
   Microsoft-client desktop, R4 cursor delivery and benchmarks.
   M1/M3 remain unaccepted.
+  **R5 native XDamage ownership and cancellation (2026-10-15;
+  based on `4d091d3d41ac74e1bf7692721c425f52317c5373`, exact new-SHA CI pending):** Add the
+  real `X11DamageTracker` and first-party bounded `DamageRegion`
+  to a Linux-only noninstalled `rdp-server-linux-xdamage` target
+  when pkg-config finds `xcb` and `xcb-damage`; Ubuntu CI installs
+  `libxcb-damage0-dev`. Reject failed XCB connections before native
+  extension negotiations. Explicit idempotent `disconnect()` releases
+  the Damage resource when connected and clears its borrowed native
+  pointer, pending regions, interaction history, and counters before
+  the display owner is destroyed. Existing destructor calls the same
+  teardown. New Linux-native headless CTest
+  `x11.damage-native-connection-denials-and-cancellation` exercises
+  actual tracker behavior with an invalid XCB fd, snapshot rejection,
+  observation reset, repeated disconnect, and post-owner-destruction
+  denials. No live DISPLAY or desktop is accessed.
+  **NOT RUN locally:** native XDamage compilation/CTest (this authoring
+  environment lacks xcb/damage.h and full project checkout), new exact
+  hosted CI, owner three-platform acceptance, authorized client
+  desktop and benchmarks. **Next R5:** coordinate one XCB owner with
+  capture/damage/cursor teardown and resize, then R2/R3 admission
+  and R4 frame/cursor consumption. M3 remains NOT ACCEPTED.
   **R5 Linux XCB-SHM native compile increment (2026-10-15;
   base `aa15209c67d74814cac8c859997e623cd096691c`, exact-SHA CI pending):**
   Add separate, noninstalled `rdp-server-linux-xshm` native Linux

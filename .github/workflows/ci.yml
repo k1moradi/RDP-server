@@ -41,7 +41,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libkrb5-dev libxcb1-dev libxcb-randr0-dev \
-            pkg-config libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
+            pkg-config libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb-damage0-dev
       - name: Configure Debug protocol and tests
         shell: bash
         run: |

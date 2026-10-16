@@ -10,6 +10,11 @@ X11DamageTracker::X11DamageTracker(xcb_connection_t &connection,
                                    PixelSize bounds) noexcept
     : connection_(&connection), drawable_(drawable), bounds_(bounds)
 {
+    if (xcb_connection_has_error(connection_) != 0)
+    {
+        fail("XDamage connection is already failed");
+        return;
+    }
     const xcb_query_extension_reply_t *extension =
         xcb_get_extension_data(connection_, &xcb_damage_id);
     if (extension == nullptr || !extension->present)
@@ -95,19 +100,42 @@ X11DamageTracker::X11DamageTracker(xcb_connection_t &connection,
 
 X11DamageTracker::~X11DamageTracker() noexcept
 {
-    if (connection_ == nullptr ||
-        damage_ == XCB_NONE ||
-        xcb_connection_has_error(connection_) != 0)
-    {
-        return;
-    }
+    disconnect();
+}
 
-    const xcb_void_cookie_t destroyCookie =
-        xcb_damage_destroy_checked(connection_, damage_);
-    xcb_generic_error_t *destroyError =
-        xcb_request_check(connection_, destroyCookie);
-    std::free(destroyError);
+void
+X11DamageTracker::disconnect() noexcept
+{
+    // Damage resource and borrowed connection share one lifetime owner.
+    // Do not touch the XCB pointer after cancellation, including the
+    // destructor that may execute after xcb_disconnect().
+    if (connection_ != nullptr && damage_ != XCB_NONE &&
+        xcb_connection_has_error(connection_) == 0)
+    {
+        const xcb_void_cookie_t cookie =
+            xcb_damage_destroy_checked(connection_, damage_);
+        xcb_generic_error_t *error =
+            xcb_request_check(connection_, cookie);
+        std::free(error);
+    }
+    connection_ = nullptr;
     damage_ = XCB_NONE;
+    drawable_ = XCB_WINDOW_NONE;
+    bounds_ = {};
+    firstEvent_ = 0;
+    pendingAcknowledgement_ = false;
+    pendingDamageRegion_.clear();
+    interactionNotifications_ = {};
+    interactionNotificationCount_ = 0;
+    interactionNotificationNext_ = 0;
+    interactionNotificationOverflowCount_ = 0;
+    interactionSequenceAtArm_ = 0;
+    interactionObservationActive_ = false;
+    notificationCount_ = 0;
+    damagedPixelCount_ = 0;
+    snapshotRectangleCount_ = 0;
+    snapshotPixelCount_ = 0;
+    failureReason_ = "XDamage tracker is disconnected";
 }
 
 bool
@@ -151,6 +179,10 @@ void
 X11DamageTracker::beginInteractionObservation(
     std::uint64_t sequenceAtArm) noexcept
 {
+    if (!valid())
+    {
+        return;
+    }
     interactionSequenceAtArm_ = sequenceAtArm;
     interactionNotificationCount_ = 0;
     interactionNotificationNext_ = 0;

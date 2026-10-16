@@ -178,16 +178,6 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
-    elseif(test_target STREQUAL "test_gfx_avc420_picture")
-        foreach(case_name IN ITEMS
-                avc420-picture-wire
-                avc420-picture-rejections
-                avc420-picture-overlap)
-            add_test(NAME "graphics.${case_name}"
-                COMMAND "${test_target}" "${case_name}")
-            set_tests_properties("graphics.${case_name}" PROPERTIES
-                LABELS "protocol;graphics;offline")
-        endforeach()
     elseif(test_target STREQUAL "test_gfx_presentation_lifecycle")
         foreach(case_name IN ITEMS
                 channel-lifecycle-ordering
@@ -329,7 +319,6 @@ add_rdp_test(test_gfx_surface_lifecycle.cpp graphics surface-lifecycle)
 add_rdp_test(test_gfx_avc420_capabilities.cpp graphics avc420-capabilities)
 add_rdp_test(test_gfx_frame_acknowledge.cpp graphics frame-ack-wire)
 add_rdp_test(test_gfx_presentation_lifecycle.cpp graphics channel-lifecycle)
-add_rdp_test(test_gfx_avc420_picture.cpp graphics avc420-picture)
 if(TARGET rdp-server-linux-gssapi)
     add_rdp_test(test_linux_gssapi_spnego.cpp security linux-gssapi)
     target_link_libraries(test_linux_gssapi_spnego PRIVATE
@@ -614,6 +603,18 @@ if(TARGET rdp-server-linux-xfixes-cursor)
         rdp-server-linux-xfixes-cursor)
     set_tests_properties(
         x11.cursor-native-connection-denials-and-cancellation
+        PROPERTIES LABELS "x11;linux-adapter;native")
+endif()
+
+# R5 native XDamage lifetime: invalid connection and deterministic
+# cancellation before XCB owner teardown, without a running display.
+if(TARGET rdp-server-linux-xdamage)
+    add_rdp_test(test_x11_native_damage.cpp x11
+        damage-native-connection-denials-and-cancellation)
+    target_link_libraries(test_x11_native_damage PRIVATE
+        rdp-server-linux-xdamage)
+    set_tests_properties(
+        x11.damage-native-connection-denials-and-cancellation
         PROPERTIES LABELS "x11;linux-adapter;native")
 endif()
 

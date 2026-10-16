@@ -50,6 +50,11 @@ public:
     // rectangles into damageRegion at the presentation boundary.
     [[nodiscard]] bool snapshot(DamageRegion &damageRegion) noexcept;
 
+    // Cancel before the XCB connection owner disconnects. Release the
+    // server-side Damage resource while connected, invalidate the borrowed
+    // pointer, then discard queued local regions/observations. Idempotent.
+    void disconnect() noexcept;
+
 private:
     void fail(const char *reason) noexcept;
 

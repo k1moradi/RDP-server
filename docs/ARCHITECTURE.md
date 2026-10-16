@@ -35,6 +35,24 @@ target nor this test authorizes an OS session or delivers R4 frames.
 Other imported algorithms not
 listed in CMake are under porting review and are not silently shipped.
 
+### R5 native XDamage cancellation boundary (Linux only)
+
+`X11DamageTracker` borrows the existing XCB connection rather than
+owning or closing it. The owner must invoke its idempotent
+`disconnect()` before destroying the XCB connection. While the
+transport is healthy, cancellation releases its XDamage server-side
+resource; in every case it clears the borrowed pointer, pending
+regions, observations and counters. The destructor reuses this path
+and never needs to touch XCB after cancellation. A failed connection
+is rejected before XDamage extension negotiation. The dedicated
+noninstalled Linux `rdp-server-linux-xdamage` target links only
+`xcb`, `xcb-damage` and the existing bounded `DamageRegion`;
+the portable protocol engine, SDK and macOS/Windows builds remain
+unaffected. The native CTest uses a deliberately failed XCB descriptor
+and never authorizes or observes a real desktop. R2 and R3 must grant
+independent access before any protected capture or input; R4 alone
+schedules graphics transmission.
+
 ### R5 native XFixes cursor lifetime (Linux only)
 
 The existing `X11CursorTracker` borrows a native `xcb_connection_t`
@@ -222,27 +240,6 @@ Input metadata must come from the same acquired, R2/R3-authorized frame;
 the native producer validates DXGI metadata byte lengths and releases
 the frame before changing the session. This increment owns no COM
 objects, authorization, queue, capture polling or graphics scheduler.
-
-### R4 production AVC420 Annex-B wire picture boundary
-
-`rdp/gfx_avc420_picture.{h,cpp}` is a compiled, allocation-free
-MS-RDPEGFX START_FRAME + WIRE_TO_SURFACE_1(AVC420) + END_FRAME
-encoder. The wire-to-surface bitmap data includes exactly one
-RFX_AVC420_METABLOCK (region mask, equal-sized quant-quality list)
-followed by a borrowed H.264 Annex-B picture supplied by a future
-x264 encoder. Surfaces/geometry are 16-bit bounded and coded picture
-dimensions must be 16-aligned; rectangle fields are left/top/right/
-bottom, not rectangle widths. Complete PDU lengths, bitstream bounds,
-quant-quality ranges, and output capacity are validated before any
-write. Bitstream bytes are copied before headers, allowing overlap.
-No synthetic NALs originate in production and the helper does not
-authorize R3 graphics, attest x264 validity, own frame buffers or
-issue completion receipts. The historical uncompiled
-`gfx_avc420_frame.cpp` command builder lacks H.264 payload and is
-not a valid substitute for this first-party wire packetizer.
-The R4 presentation owner and R3 authoritative transport must
-eventually compose this picture with exact full-frame send receipts.
-Microsoft: MS-RDPEGFX 2.2.2.1, 2.2.2.11-12, 2.2.4.4-4.4.2.
 
 ### R4 graphics presentation lifecycle and wire delivery receipts
 

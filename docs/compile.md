@@ -52,6 +52,21 @@ headers means native source/test NOT RUN, not PASS. No running X server,
 live desktop, or credentials are needed for ordinary tests. The
 owner's single `build/` command and portable SDK remain unchanged.
 
+## Linux-only native XDamage dependencies (R5)
+
+The first-party `rdp-server-linux-xdamage` target is built when
+`pkg-config` finds `xcb` and `xcb-damage`. Debian/Ubuntu
+development packages: `libxcb1-dev` and `libxcb-damage0-dev`.
+Linux hosted CI installs them. The target compiles the actual
+`src/x11/x11_damage_tracker.cpp` plus the existing bounded
+`src/core/damage_region.cpp`, with strict C++23 warnings. Its
+dedicated `x11.damage-native-connection-denials-and-cancellation`
+CTest requires no X server, logged-in session or live capture.
+If headers/libs are unavailable, this native target/test are not
+built and must be marked NOT RUN (not PASS). The owner's existing
+one-root configure/build/CTest command is unchanged, and XCB
+remains excluded from installed portable protocol headers.
+
 ## Owner's required daily test from the latest GitHub main
 
 Agents commit production code, its dedicated, registered behavior-named

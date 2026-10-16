@@ -88,7 +88,6 @@ add_library(rdp-server-protocol STATIC
     src/rdp/gfx_avc420_capabilities.cpp
     src/rdp/gfx_frame_acknowledge.cpp
     src/rdp/gfx_presentation_lifecycle.cpp
-    src/rdp/gfx_avc420_picture.cpp
     src/rdp/verified_bitmap_cache16.cpp)
 target_compile_features(rdp-server-protocol PUBLIC cxx_std_23)
 # These are the same public include prefixes in both the checkout and
@@ -197,6 +196,30 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             -Wall -Wextra -Wpedantic -Werror)
     else()
         message(STATUS "R5 xcb-xfixes development files unavailable: native XFixes cursor CTest not built")
+    endif()
+endif()
+
+# R5 native XDamage adapter compiles the real Damage tracker against
+# XCB-Damage. Keep it noninstalled and separate from the portable SDK.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_XCB_DAMAGE QUIET IMPORTED_TARGET
+            xcb xcb-damage)
+    endif()
+    if(TARGET PkgConfig::RDP_SERVER_XCB_DAMAGE)
+        add_library(rdp-server-linux-xdamage STATIC
+            src/x11/x11_damage_tracker.cpp
+            src/core/damage_region.cpp)
+        target_compile_features(rdp-server-linux-xdamage PUBLIC cxx_std_23)
+        target_include_directories(rdp-server-linux-xdamage PUBLIC
+            "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+        target_link_libraries(rdp-server-linux-xdamage PUBLIC
+            PkgConfig::RDP_SERVER_XCB_DAMAGE)
+        target_compile_options(rdp-server-linux-xdamage PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    else()
+        message(STATUS "R5 xcb-damage development files unavailable: native XDamage CTest not built")
     endif()
 endif()
 

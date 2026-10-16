@@ -4647,3 +4647,43 @@ picture or accepted real-client graphics.
 **Next R4:** wire production AVC420 packetization through R4's
 existing single frame receipt and R3's authorized DVC writer,
 then statically integrate a license-reviewed pinned x264 encoder.
+
+## R5 native XDamage denial and teardown integration (2026-10-15)
+
+**Baseline main:** `4d091d3d41ac74e1bf7692721c425f52317c5373`; new exact implementation SHA and
+hosted CI result pending publication. Source: existing
+`src/x11/x11_damage_tracker.{h,cpp}`, new
+`tests/test_x11_native_damage.cpp`, noninstalled Linux-native
+`rdp-server-linux-xdamage` CMake target with existing
+`src/core/damage_region.cpp`, one dedicated CTest in the shared
+`tests/CMakeLists.txt`, `libxcb-damage0-dev` in existing Linux CI,
+and canonical roadmap, architecture, compilation and this ledger.
+No new RDP process, X11 connection owner, capture engine or scheduler.
+
+**Implementation:** reject failed XCB objects before querying
+XDamage extensions. Provide `disconnect()` with deterministic
+server-side XDamage resource release on healthy XCB connections,
+invalidate borrowed XCB connection and local resource IDs, clear
+pending/coalesced rectangles and observation history, and make
+repeated teardown and subsequent handler/snapshot calls fail closed.
+Destructor calls `disconnect()`. Offline test constructs tracker
+against `xcb_connect_to_fd(-1,nullptr)`, checks failure reason,
+snapshot rejection and no observations, calls disconnect before
+`xcb_disconnect`, then verifies repeat cancellation and method
+calls after the connection owner's destruction. It does not connect
+to an X11 display or invoke any protected desktop operation.
+
+**NOT RUN locally:** native `xcb/damage.h` translation-unit
+compilation and full canonical project CMake/CTest (no full checkout
+and missing XCB-Damage development packages); exact-new-SHA hosted
+CI, owner's independent Linux/X11, MSYS2 CLANG64/Clang23, macOS 27,
+real licensed Microsoft client desktop, R2 OS admission, R3 input
+routing, R4 frame consumer and repeatable performance benchmarks.
+Earlier published native R5 XFixes commit
+`c4aedf8d4dbc2e0732b43bd7df273dea47e94d85` completed
+[Actions 38845314257](https://github.com/k1moradi/RDP-server/actions/runs/38845314257)
+SUCCESS but does not validate this new XDamage source.
+**Next:** verify real native XDamage build and CTest on exact-SHA
+Linux hosted CI, plus Windows/macOS regressions; then implement
+connection-owner teardown and resize ordering across damage,
+cursor and XShm without activating protected desktop access.

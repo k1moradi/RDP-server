@@ -5242,3 +5242,62 @@ Canonical owner-local `~/rdp-server/build` and real credential/client gates
 are **NOT RUN** here. Exact-publication-SHA hosted Linux/GCC, macOS/Clang,
 Windows/MSVC, sanitizer, documentation-policy and SDK/package evidence are
 required before PASS is claimed. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+## R10 secure credential snapshot exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `df67d3012440a59cd67dd2e53b85aea8f4355c39`.
+Its own Actions run `38968057232` is retained as **FAIL / zero jobs**:
+the implementation publication accidentally left the shared sanitizer
+`licensing_selection` shell regex unterminated and duplicated the following
+workflow tail. GitHub therefore created no jobs, so that run supplies no C++
+or CTest evidence.
+
+The first clean validated descendant used for R10 implementation evidence is
+`0d333f3d4baabd12417878baea5f5741e08d899c`, Actions
+`38968793787`, completed **SUCCESS**. Every R10 implementation/test blob from
+the original publication is byte-identical on that descendant:
+`CMakeLists.txt`,
+`src/server/runtime/runtime_credential_file.cpp`,
+`src/server/runtime/runtime_credential_file_internal.h`,
+`src/server/runtime/runtime_licensing_context.cpp/.h`,
+`src/server/runtime/runtime_tls_context.cpp`,
+`tests/CMakeLists.txt`,
+`tests/check_runtime_licensing_context.cmake`, and
+`tests/test_owned_mcs_connect_initial.cpp`.
+
+Hosted validation on that clean descendant is Ubuntu/GCC **472/472 Debug
+PASS** and **472/472 Release PASS**, macOS/AppleClang **398/398 Debug PASS**
+and **398/398 Release PASS**, and Windows/MSVC native preflight **47/47 Debug
+PASS** plus **47/47 Release PASS** with full **427/427 Debug PASS** and
+**427/427 Release PASS**. The dedicated
+`runtime.licensing-context-secure-file-snapshots` case passes in all six full
+platform configurations. Installed SDK consumer **1/1**, package generation
+and artifact upload pass on Linux, macOS and Windows; documentation policy
+passes.
+
+The Clang ASan/UBSan job is also **PASS**. The bounded
+R1/R3 transport/security/licensing selector is **62/62 PASS** and explicitly
+registers and executes
+`runtime.licensing-context-secure-file-snapshots` under sanitizers. The other
+configured groups remain green: clipboard **50/50**, R4 x264/BGRA **20/20**,
+R4 capability **4/4**, native R2/R3 GSSAPI **27/27**, R10 Linux
+pre-admission **5/5**, native R5 X11 **26/26**, and bounded fuzzer **1/1**.
+The independent R7 sanitizer side gate also passes.
+
+Validated invariant: R10 reads TLS/licensing credential paths through one
+opened-object identity, applies the platform security checks before exact
+bounded reads, retains immutable snapshots independent of later pathname
+replacement, and keeps private-key bytes inside noninstalled runtime/R3 owners.
+No validate-then-reopen pathname window, listener, authentication proof, native
+lease, licensing decision or Share activation is introduced.
+
+Later shared-main R9 work adds
+`runtime.licensing-context-replacement-freshness`; that is additional
+freshness coverage and does not alter this receipt's implementation identity.
+Positive live composition remains **BLOCKED on R2** because final CredSSP
+credential authorization remains deny-only. Canonical owner-local
+`~/rdp-server/build`, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS 27, genuine Kerberos/NSS/logind positive admission, real production
+licensing credential files and Microsoft-client licensing/Share/desktop
+acceptance remain **NOT RUN / OPEN**. No listener/service is enabled.
+**M2/M3 remain OPEN / NOT ACCEPTED.**

@@ -1,3 +1,52 @@
+## R9 CredSSP completed-frame cancellation and licensing sanitizer exact-SHA validation (2026-10-16)
+
+**Implementation:** `9c4888a088bb71ad30e04cfeeaf09d159c38550f`  
+**GitHub Actions:** `38911169939` — **SUCCESS**  
+**Validation-receipt parent:** `a158d9ce12504fc9efbdd7feb9ab31dabee3effb`
+
+Exact implementation-SHA hosted results:
+
+- Linux/GCC Debug: **429/429 PASS**.
+- Linux/GCC Release: **429/429 PASS**.
+- macOS/Clang Debug: **362/362 PASS**.
+- macOS/Clang Release: **362/362 PASS**.
+- Windows/MSVC focused native-adapter Debug: **39/39 PASS**.
+- Windows/MSVC focused native-adapter Release: **39/39 PASS**.
+- Windows/MSVC full Debug: **386/386 PASS**.
+- Windows/MSVC full Release: **386/386 PASS**.
+- Documentation policy: **PASS**.
+- R9 ASan/UBSan sanitizer selections: clipboard **46/46**, x264 **18/18**,
+  bounded R1/R3 transport/CredSSP/licensing **33/33**, native GSS/R2/R3
+  **25/25**, R10 Linux runtime CredSSP **4/4**, native X11 **23/23**, bounded
+  MCS/CLIPRDR fuzzer **1/1**.
+- The new
+  `security.gssapi-r1-owned-completed-frame-cancellation-fence` executed from
+  the production-linked `test_owned_preauth_session` binary and passed under
+  ASan/UBSan/LSan.
+- R3's newly landed
+  `transport.licensing-server-request-wire`,
+  `transport.licensing-server-request-write-receipts`, and
+  `transport.licensing-server-request-write-denials` all executed in the
+  bounded sanitizer group and passed.
+- Linux, macOS and Windows installable SDK staging, downstream CMake
+  package/link/execution, ZIP packaging, reproducible digest generation and
+  artifact upload all **PASS**; each downstream consumer CTest is **1/1 PASS**.
+- `publish-protocol-prerelease` is **SKIPPED**, not a passing Release stage.
+
+The cancellation regression proves a completed owner-bound TSRequest cannot
+retain usable TLS provenance after the exact R1 owner is cancelled:
+`completedFrameServerTls()` returns null before stale SSL use, R2 returns
+`TransportClosed`, retained DER/reader/writer/GSS state is wiped/failed, and
+replay remains terminal. No positive GSS identity, final-credential
+authorization, native admission lease, logind authorization or R3 capability
+is fabricated.
+
+Canonical owner-local `~/rdp-server/build/` execution remains **NOT RUN** in
+this connector environment because no synchronized owner checkout is exposed.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27, real
+Kerberos/logind admission and Microsoft-client acceptance remain separately
+required **NOT RUN/OPEN** gates. **M2/M3 remain OPEN.**
+
 ## R9 post-landing CredSSP cancellation and licensing authoring receipt (2026-10-16)
 
 **Reconciled authoring parent:** `5316531a451be9d5454cf43621b83089e18f0aaa`.

@@ -413,8 +413,4 @@ private:
 
 } // namespace
 
-std::unique_ptr<MacScreenCaptureBackend> makeNativeMacScreenCaptureBackend() {
-    return std::make_unique<ScreenCaptureKitBackend>();
-}
-
 } // namespace rdp::macos::detail

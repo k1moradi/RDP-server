@@ -21,6 +21,16 @@ using namespace rdp::macos;
 using rdp::macos::detail::MacScreenCaptureBackend;
 using rdp::macos::detail::MacScreenCaptureState;
 
+template <typename Stream>
+concept ExposesNativeCaptureFactory =
+    requires(MacScreenCaptureBinding binding,
+             std::shared_ptr<MacCaptureFrameConsumer> consumer) {
+        Stream::createNative(binding, consumer);
+    };
+
+static_assert(!ExposesNativeCaptureFactory<MacScreenCaptureStream>,
+              "native ScreenCaptureKit factory must remain quarantined");
+
 struct SnapshotFixture {
     NativeDisplayObservation display{100, 0, 0, 2, 2, 2, 2, 0, 0};
     std::size_t calls{};
@@ -365,6 +375,13 @@ void testDenials() {
     }
 }
 
+void testNativeFactoryQuarantine() {
+    // The compile-time assertion above is the behavior under test. Runtime
+    // execution keeps the case visible in CTest and proves no native setup is
+    // attempted while exercising this policy boundary.
+    assert(!ExposesNativeCaptureFactory<MacScreenCaptureStream>);
+}
+
 void testCallbackRetirement() {
     GeometryFixture geometry;
     const auto oldGeneration = geometry.refresh();
@@ -420,6 +437,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testDenials();
     } else if (testCase == "callback-retirement") {
         testCallbackRetirement();
+    } else if (testCase == "native-factory-quarantine") {
+        testNativeFactoryQuarantine();
     } else {
         return 2;
     }

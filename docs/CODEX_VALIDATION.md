@@ -9794,3 +9794,29 @@ publication, Microsoft-client M5 acceptance and performance remain **NOT RUN**.
 R7's next production dependency is the concrete R2/R3 authorized per-user
 desktop binding; the new revision remains revocation-only and cannot mint
 capture/input authority.
+
+
+## R7 native ScreenCaptureKit factory quarantine (2026-10-16; exact-SHA pending)
+
+Source audit found no authorized caller of
+`MacScreenCaptureStream::createNative()`; existing Apple lifecycle CTests use
+only `createForTesting()` with an injected fake backend. Because no macOS
+R2/R3 authorization lease exists yet, retaining a public native factory would
+leave a construction path whose only prerequisites were display metadata and
+later TCC preflight. R7 removes that factory and the native-backend factory
+declaration/definition without changing the ScreenCaptureKit backend state
+machine itself.
+
+A dependent `requires` check in `test_macos_capture_stream.cpp` now
+`static_assert`s that `MacScreenCaptureStream` does not expose
+`createNative`. The behavior-named
+`macos.capture-stream-native-factory-quarantine` case is registered alongside
+the existing Apple capture-stream lifecycle cases and performs no
+ScreenCaptureKit enumeration/start or TCC prompt.
+
+Authoring in this connector environment is source-level only; canonical
+`~/rdp-server/build` is unavailable. Exact-SHA hosted AppleClang compile/link
+is the primary regression gate, followed by Linux/Windows full CTest,
+documentation policy, sanitizer scope and downstream SDK/package checks. Owner
+macOS 27 live capture and genuine R2/R3 authorized composition remain **NOT
+RUN**.

@@ -264,14 +264,6 @@ MacScreenCaptureStream::~MacScreenCaptureStream() noexcept {
 }
 
 std::expected<std::unique_ptr<MacScreenCaptureStream>, MacScreenCaptureError>
-MacScreenCaptureStream::createNative(
-    const MacScreenCaptureBinding binding,
-    std::shared_ptr<MacCaptureFrameConsumer> consumer) {
-    return createForTesting(binding, std::move(consumer),
-                            detail::makeNativeMacScreenCaptureBackend());
-}
-
-std::expected<std::unique_ptr<MacScreenCaptureStream>, MacScreenCaptureError>
 MacScreenCaptureStream::createForTesting(
     const MacScreenCaptureBinding binding,
     std::shared_ptr<MacCaptureFrameConsumer> consumer,

@@ -156,8 +156,6 @@ public:
     virtual void close(const std::shared_ptr<MacScreenCaptureState>& state) noexcept = 0;
 };
 
-[[nodiscard]] std::unique_ptr<MacScreenCaptureBackend> makeNativeMacScreenCaptureBackend();
-
 } // namespace detail
 
 // One-shot ScreenCaptureKit owner. There is deliberately no restart path:
@@ -172,12 +170,10 @@ public:
     MacScreenCaptureStream& operator=(MacScreenCaptureStream&&) = delete;
     ~MacScreenCaptureStream() noexcept;
 
-    [[nodiscard]] static std::expected<std::unique_ptr<MacScreenCaptureStream>,
-                                       MacScreenCaptureError>
-    createNative(MacScreenCaptureBinding binding,
-                 std::shared_ptr<MacCaptureFrameConsumer> consumer);
-
-    // Deterministic production seam used by permission-free CTests.
+    // Deterministic production state-machine seam used by permission-free
+    // CTests. The repository intentionally exposes no native ScreenCaptureKit
+    // backend/factory until a concrete R2/R3 macOS authorization capability
+    // exists; callers cannot turn a display binding or TCC grant into capture.
     [[nodiscard]] static std::expected<std::unique_ptr<MacScreenCaptureStream>,
                                        MacScreenCaptureError>
     createForTesting(MacScreenCaptureBinding binding,

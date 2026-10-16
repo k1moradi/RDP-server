@@ -3286,3 +3286,20 @@ UID/session mismatch, topology change, permission denial, reentry or callback
 cancellation closes the guard permanently. The revision never constitutes
 authentication, R2/R3 admission, ScreenCaptureKit authority, Quartz input
 authority or R4 scheduling permission.
+
+
+## R7 native capture capability quarantine (2026-10-16)
+
+The ScreenCaptureKit implementation is deliberately compiled but no longer
+constructible through the public R7 C++ surface. Until R2/R3 provides a
+non-forgeable macOS per-user authorization capability, neither a validated
+display binding nor a positive Screen Recording preflight may create a native
+capture owner. `MacScreenCaptureStream` therefore exposes only the injected
+backend constructor used by deterministic lifecycle tests; the native backend
+factory is absent from headers and has no exported construction function.
+
+This is symmetric with native input: the Quartz posting translator may compile,
+but its callback factory is private. Future authorized composition must add one
+single capability-consuming entry point rather than reviving independent
+capture/input factories. Geometry, TCC state and the R7 session-watch revision
+remain revocation/precondition facts, never authorization tokens.

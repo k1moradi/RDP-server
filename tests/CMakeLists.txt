@@ -1020,8 +1020,9 @@ if(APPLE)
 endif()
 
 # The ScreenCaptureKit lifecycle CTests use the production C++ state owner with
-# an injected backend and synthetic CoreVideo buffers. They never enumerate
-# SCShareableContent, start SCStream, or request Screen Recording permission.
+# an injected backend and synthetic CoreVideo buffers. The public header exposes
+# no native backend/factory before real R2/R3 macOS authorization; ordinary
+# tests never enumerate SCShareableContent, start SCStream, or request TCC.
 if(APPLE)
     add_executable(test_macos_capture_stream test_macos_capture_stream.cpp)
     target_include_directories(test_macos_capture_stream PRIVATE
@@ -1035,7 +1036,9 @@ if(APPLE)
         target_compile_options(test_macos_capture_stream PRIVATE
             -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     endif()
-    foreach(case_name IN ITEMS lifecycle stale-generation-denials callback-retirement)
+    foreach(case_name IN ITEMS
+            lifecycle stale-generation-denials callback-retirement
+            native-factory-quarantine)
         add_test(NAME "macos.capture-stream-${case_name}"
             COMMAND test_macos_capture_stream "${case_name}")
         set_tests_properties("macos.capture-stream-${case_name}" PROPERTIES

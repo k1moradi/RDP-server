@@ -8633,3 +8633,35 @@ publication, Microsoft-client M5 acceptance and performance remain **NOT RUN**.
 R7's next production dependency is the concrete R2/R3 authorized per-user
 desktop binding; the new revision remains revocation-only and cannot mint
 capture/input authority.
+
+
+## R7 native ScreenCaptureKit factory quarantine (2026-10-16; CI pending)
+
+The R2/R3 macOS authorization dependency remains unresolved: current positive
+native admission is Linux-specific and there is no macOS lease/capability that
+can legitimately mint desktop capture authority. R4 still has no portable
+cursor-consumer contract. R7 therefore hardens the existing boundary instead
+of fabricating either dependency.
+
+`MacScreenCaptureStream::createNative()` and the declared
+`detail::makeNativeMacScreenCaptureBackend()` escape hatch are removed from
+the macOS header; the backend factory definition is removed as well. The
+ScreenCaptureKit backend implementation remains compiled in the private
+Objective-C++ translation unit so its SDK/lifetime code continues to receive
+Apple compiler coverage, but no repository API can instantiate it before a
+future concrete R2/R3 macOS authorization route. The existing
+`createForTesting()` seam remains for deterministic injected backends only and
+does not expose ScreenCaptureKit capability.
+
+Apple CTest `macos.capture-stream-native-factory-quarantine` carries a
+compile-time concept assertion that the stream type has no `createNative`
+member and executes no native setup. Existing capture lifecycle tests continue
+using synthetic CoreVideo buffers and injected backends. This matches the input
+side, where the Quartz posting callback was already intentionally private.
+
+Exact-SHA AppleClang Debug/Release compile and full matrix validation are
+required after publication. Genuine macOS R2/R3 per-user authorization, owner
+macOS 27 notification delivery/live capture, R4 cursor publication and
+Microsoft-client M5 acceptance remain **NOT RUN/BLOCKED**. **Next R7:** consume
+a non-forgeable macOS authorization capability if R2 publishes one; otherwise
+do not restore the native capture factory or export native input posting.

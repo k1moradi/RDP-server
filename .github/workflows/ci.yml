@@ -200,7 +200,10 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           ctest --test-dir build --build-config Debug --timeout 60 --verbose \
-            -R '^runtime\.linux-connection-credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)
+            -R '^runtime\.linux-connection-credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)$' --output-on-failure
+
+      - name: Run all R5 native X11 CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1

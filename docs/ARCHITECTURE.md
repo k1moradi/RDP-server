@@ -3796,3 +3796,20 @@ opt-in aggregate-level real Kerberos run reaching `BindingVerified` before
 positive native admission or listener work. No listener/service, fabricated
 principal, synthetic lease or authentication bypass is added. M2/M3 remain
 **OPEN**.
+
+
+## R10 sanitizer workflow syntax correction (2026-10-16; exact-SHA CI pending)
+
+Sanitizer-selection commit `75631de64ac8375d02e2b7a29d7d656402088825`,
+Actions `38905072552`, is **FAIL** before job creation: the generated workflow
+text truncated the new R10 `ctest -R` command and swallowed the following R5
+step header, so GitHub created **0 jobs**. No build or test result can be
+inferred from that run.
+
+The correction restores the complete R10 regex and the unchanged R5 step name,
+condition, environment and command. The intended sanitizer scope remains
+additive only: compile `test_runtime_linux_security` and execute the four
+existing R10 CredSSP aggregate CTests under ASan/UBSan while retaining every
+pre-existing R9 clipboard, R1/R3, native R2/R3, X11 and fuzzer selection.
+Production source, CTest semantics, admission authority and listener state are
+unchanged. Exact correction-SHA CI is required before sanitizer PASS is claimed.

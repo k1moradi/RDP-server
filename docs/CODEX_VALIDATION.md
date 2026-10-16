@@ -1,3 +1,61 @@
+## R9 complete Linux runtime-security sanitizer exact-SHA receipt (2026-10-16)
+
+**Implementation:** `3cdaa4d1b2355f26d6e1e33e95077b911d8515ae`.  
+**Actions:** `38971777913` — **SUCCESS**.
+
+The R9 runtime-security sanitizer gate now enumerates and executes all ten
+direct offline `test_runtime_linux_security` CTests. Fail-closed `ctest -N`
+preflight lists them as tests **299–308**, including the five previously
+omitted cases:
+`runtime.linux-security-explicit-keytab-continuity`,
+`runtime.linux-security-keytab-snapshot-mutation-continuity`,
+`runtime.linux-security-keytab-policy-denials`,
+`runtime.linux-connection-aggregate-ordered-revocation`, and
+`runtime.linux-connection-aggregate-premature-admission-denial`.
+All ten pass under Clang ASan/UBSan with the existing GSS-only LSan suppression;
+individual runtimes are **0.02–0.05 s** and the group is **10/10 PASS**.
+
+The complete exact-SHA R9 sanitizer job is green:
+clipboard **50/50**, portable R4 RDPGFX wire/lifecycle **33/33**, x264/BGRA
+**20/20**, RDPGFX capability **4/4**, bounded R1/R3
+transport/CredSSP/licensing **66/66**, native R2/R3 GSSAPI **28/28**, direct
+R10 Linux runtime security **10/10**, native R5 X11 **27/27**, and bounded
+MCS/CLIPRDR fuzzer **1/1**. The same run includes R3's Server Platform
+Challenge transport and native-GSS cases present at the implementation SHA.
+
+Hosted platform evidence on the exact implementation SHA is fully green:
+Linux/GCC **478/478 Debug + 478/478 Release**, macOS/AppleClang
+**403/403 Debug + 403/403 Release**, and Windows/MSVC focused native preflight
+**48/48 Debug + 48/48 Release** followed by full **432/432 Debug + 432/432
+Release**. Installed SDK consumer **1/1 PASS** on all three platforms.
+Documentation policy, the independent R7 sanitizer gate, package generation,
+digest generation and artifact upload all pass. Untagged
+`publish-protocol-prerelease` is correctly **SKIPPED**.
+
+Post-implementation shared-main audit found no new R9 omission in immediate
+R8/R1/R3/R10 descendants. R8's Windows clipboard file-destination target is
+added to the existing clipboard sanitizer build/label. R1's Platform Challenge
+write and Client Platform Challenge Response read CTests are explicitly added
+to the bounded licensing selector and fail-closed registry check. R3's Client
+Platform Challenge Response proof/denial cases and Linux route contract are
+likewise added to the bounded licensing/native-GSS selectors. R10's
+`runtime.licensing-context-secure-file-denials` is explicitly selected and
+fail-closed checked by the bounded licensing sanitizer gate. Those descendant
+changes are not part of the `3cdaa4d...` exact-SHA evidence and retain their
+own road validation requirements.
+
+Validated R9 invariant: service-keytab snapshot/provisioning lifetimes,
+keytab/path/policy denials, pre-admission CredSSP scheduling, aggregate teardown
+order, idempotent revocation and premature-admission denial all execute under
+the same bounded sanitizer gate. This creates no positive R2 admission,
+listener/service, CAL decision, Share activation or desktop authority.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution remain **NOT RUN** in this connector environment.
+Genuine KDC/client-ticket authentication, NSS/logind positive admission,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27, Microsoft-client
+licensing/Share/desktop acceptance and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R8 Windows file-handle destination exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `e9df0e305f149758553e0a564f72d995262fe791`.  

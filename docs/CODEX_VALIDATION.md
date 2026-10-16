@@ -1,3 +1,58 @@
+## R5 RandR stale-damage generation fence exact-SHA hosted validation (2026-10-16)
+
+**Production correction:** `741015795132a623033fabfff624a2a4794088e1`.  
+**Actions:** `38977250042` — workflow overall **FAIL** only because the
+concurrently expanded R1/R3 licensing sanitizer selector is rejected by CTest
+before execution with `RegularExpression::compile(): Too many parentheses`.
+The R5 sanitizer step runs later in the same job and is independently green.
+
+The first test-only publication
+`c1d5296dcd2b1cc50126188970a6cb4a50658898` correctly exposed the missing
+generation fence: Ubuntu/GCC Debug ran **518** tests with **517/518 PASS** and
+only `x11.desktop-resource-randr-stale-damage-isolation` failed because the
+replacement damage tracker observed a queued notification before any deliberate
+post-rebuild draw. The correction records the successful initial
+`XDamageSubtract` request sequence and rejects older XCB `full_sequence`
+notifications with bounded 32-bit serial arithmetic.
+
+Exact correction-SHA evidence:
+- **Linux/GCC:** **520/520 PASS** in Debug and **520/520 PASS** in Release.
+  `x11.desktop-resource-randr-stale-damage-isolation` passes in both modes as
+  test #462. Installed SDK consumer **1/1 PASS**, ZIP package, digest and
+  artifact upload pass.
+- **macOS/AppleClang:** **442/442 PASS** in Debug and **442/442 PASS** in
+  Release. Installed SDK consumer **1/1 PASS**, package/digest/upload pass.
+  Native X11 execution is intentionally absent on this host.
+- **Windows/MSVC:** native preflight **51/51 PASS** in both configurations;
+  full CTest **472/472 PASS** in Debug and **472/472 PASS** in Release.
+  Installed SDK consumer **1/1 PASS**, package/digest/upload pass. Native X11
+  execution is intentionally absent on this host.
+- **R9 Clang ASan/UBSan native X11:** the fail-closed selector discovers
+  exactly **32** R5 cases and completes **32/32 PASS**. The new stale-damage
+  case is **27/32 PASS** in 0.04 s; pixel parity, RandR capture generation,
+  terminal capture denial and XShm lifetime cases remain green.
+- **Documentation policy:** PASS. The independent R7 sanitizer side job also
+  passes. Untagged prerelease publication is skipped as intended.
+
+The new native oracle uses the existing independently checked helper XCB drawing
+path and the deterministic `kFirstPixelPattern`/`kSecondPixelPattern`.
+It resizes real Xvfb geometry from **1280x720 to 1024x600**, retains the same
+production XCB connection identity, drains the pre-rebuild Damage event without
+publishing replacement-generation damage, captures the already-drawn first
+pattern through the rebuilt XShm child, then requires a fresh real XDamage
+observation and exact little-endian B/G/R bytes for the second pattern. Packed
+row stride remains four bytes per captured pixel; the padding lane is not used
+as alpha. No borrowed framebuffer span crosses capture, rebuild or disconnect.
+
+Canonical owner-local `~/rdp-server/build/` testing remains **NOT RUN** in
+this connector environment; no alternate persistent build root was created.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 evidence required
+for M1 remains outstanding. No live Microsoft-client desktop, M2/M3 acceptance
+or R4 graphics delivery is claimed. Functional R5 input integration remains
+**BLOCKED ON R3** until R3 exports its authenticated already-decoded bounded
+Share/Input or Fast-Path Input event contract; R5 continues to consume only its
+existing typed native input boundary and does not add protocol authority.
+
 ## R5 RandR stale-damage sequence-fence correction authoring (2026-10-16)
 
 ## R2 PAM workflow correction receipt (2026-10-16)

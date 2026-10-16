@@ -470,6 +470,8 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-security-explicit-keytab-continuity
             linux-security-keytab-snapshot-mutation-continuity
             linux-security-keytab-policy-denials
+            linux-connection-credssp-owner-framing
+            linux-connection-credssp-revocation-order
             linux-connection-credssp-authorization-denials
             linux-connection-aggregate-ordered-revocation
             linux-connection-aggregate-premature-admission-denial)

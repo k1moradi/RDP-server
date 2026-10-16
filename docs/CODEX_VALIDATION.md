@@ -10301,3 +10301,62 @@ provides no non-forgeable macOS native-admission lease/capability. R7 therefore
 does not expose ScreenCaptureKit construction, cursor sampling or Quartz input.
 Owner macOS 27 live capture/cursor/input, real per-user R2/R3 admission,
 Microsoft-client M5 acceptance and performance remain **NOT RUN/BLOCKED**.
+
+
+## R10 framed GSS handoff and provider-failure reply orchestration (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main` for this increment: `b30a0ba2fc1d5ba55fe3afb19a329ba9bde4c5c7`. Follow-up source review
+supersedes the prior R10 note's blocker statement: R2 already exposes
+`GssapiSpnegoAcceptor::acceptFramedNegoAndQueueReply`,
+`processFinalFramedNegoAndQueueBindingReply` and
+`processFramedProtectedBindingAndQueueReply`. R10 now consumes those genuine
+R2 APIs instead of terminally rejecting every complete DER frame.
+
+The single non-listening `LinuxRuntimeConnection::onCredSspIoReady()` remains
+bounded to at most one R1 TLS application-I/O operation per call. R1 alone
+executes application `SSL_read_ex`/`SSL_write_ex`; R2's
+`TsRequestFrameReader` retains split DER bytes, the existing R2 GSS acceptor
+synchronously consumes each complete borrowed frame, and
+`TsRequestTlsReplyWriter::writeOneTlsStep(OwnedPreauthTcpConnection&)`
+advances only provider-generated continuation/binding/failure replies.
+`Progress` permits immediate bounded re-entry; `NeedRead`/`NeedWrite`
+defer to socket readiness. No queued byte is counted as written until the
+R1-owned write reports actual plaintext progress.
+
+A genuine version-6 backend GSS rejection may queue R2's canonical
+STATUS_LOGON_FAILURE. On that path R10 closes R3 and retires native
+lease/broker/GSS authority first, closes the completed frame, retains only the
+R2 failure writer plus exact R1 transport long enough to flush that reply, then
+retires writer/reader before R1 SSL/BIO/socket cancellation. Explicit revoke
+while a frame or reply is pending remains terminal and idempotent.
+
+New centrally registered CTests are
+`runtime.linux-connection-credssp-owner-framing` and
+`runtime.linux-connection-credssp-revocation-order`. They use a real accepted
+loopback socket, R1 `HybridNla` X.224 selection, the production R10 TLS
+context, real OpenSSL handshake, a synthetic service keytab and a
+syntactically initial but provider-rejected SPNEGO token. The framing test
+splits one TSRequest across two encrypted client writes, proves exact retained
+plaintext progress, exercises real R2 provider rejection, verifies the
+canonical 15-byte v6 failure reply through the same R1 owner, and never creates
+an admission lease. The revocation test covers cancellation with incomplete
+DER and with a provider-generated reply still pending, plus repeated revoke and
+late callbacks.
+
+A dedicated aggregate short-write success-reply test is still **BLOCKED**:
+ordinary deterministic CTest cannot manufacture a legitimate GSS continuation
+output, and the 15-byte provider-failure reply is too small to guarantee a
+portable short write/WANT. Existing lower-level
+`transport.credssp-r1-owned-reply` and R2 reply-order tests retain that
+transport coverage. Genuine positive Kerberos continuation, TLS public-key
+binding, current NSS/logind admission and R3 progression remain **NOT RUN** in
+ordinary CTest and require the explicit real-KDC/native acceptance gates.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** in this connector environment because that checkout is unavailable.
+Exact-final-SHA hosted CI is **PENDING** after publication; no platform PASS is
+claimed here. No listener, service, daemon, fabricated principal, synthetic
+lease or alternate TLS/GSS/R3 owner was added. M2/M3 remain **OPEN**. Next R10
+gate after hosted compilation is the opt-in genuine Kerberos path through this
+same aggregate to a provider-generated continuation/final binding reply, then
+independent native console admission before any listener work.

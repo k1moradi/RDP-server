@@ -8,12 +8,29 @@
 #include "server/transport/mcs_channel_connection.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
 
 namespace rdp_server::server::runtime
 {
+
+enum class LinuxCredSspStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Invalid,
+    Closed,
+};
+
+struct LinuxCredSspStepResult
+{
+    std::size_t plaintextBytesRead{};
+    std::size_t plaintextBytesWritten{};
+    LinuxCredSspStepStatus status{LinuxCredSspStepStatus::Closed};
+};
 
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.
 // It does NOT bind/listen and it does not invent protocol/authentication state:
@@ -38,8 +55,9 @@ public:
     LinuxRuntimeConnection(LinuxRuntimeConnection &&) = delete;
     LinuxRuntimeConnection &operator=(LinuxRuntimeConnection &&) = delete;
 
-    // True only when R10 provisioned a fresh per-connection R2 acceptor and
-    // the transferred R1 socket is still active. This is not user admission.
+    // True while this aggregate can make bounded protocol progress. A
+    // provider-generated terminal CredSSP failure may remain writable after
+    // R2/R3 authority is already revoked. This is never user admission.
     [[nodiscard]] bool ready() const noexcept;
 
     [[nodiscard]] rdp_server::server::transport::TcpConnectionIoInterest
@@ -58,11 +76,12 @@ public:
     [[nodiscard]] rdp_server::server::transport::TlsHandshakeStatus
     onTlsIoReady() noexcept;
 
-    // Advance at most one owner-aware R2 TLS/DER frame-read step. WANT
-    // directions are returned to the event loop; a completed frame is
-    // denied until the genuine R2 GSS handoff becomes callable.
-    [[nodiscard]] rdp_server::server::security::TsRequestTlsReadResult
-    onCredSspIoReady() noexcept;
+    // Advance at most one owner-aware CredSSP TLS application-I/O step.
+    // R1 remains the sole SSL_read_ex/SSL_write_ex owner. Complete frames are
+    // synchronously consumed by the existing R2 GSS/CredSSP owner; only its
+    // provider-generated reply bytes may be queued. Progress may be advanced
+    // immediately, while NeedRead/NeedWrite require matching readiness.
+    [[nodiscard]] LinuxCredSspStepResult onCredSspIoReady() noexcept;
 
     // Positive R2 issuance is possible only after the existing CredSSP/GSS
     // acceptor has established its TLS-bound principal and R1 exposes genuine
@@ -103,6 +122,12 @@ public:
     }
 
 private:
+    [[nodiscard]] bool credSspReplyPending() const noexcept;
+    [[nodiscard]] LinuxCredSspStepResult advanceCredSspReply() noexcept;
+    [[nodiscard]] LinuxCredSspStepResult consumeCompletedCredSspFrame(
+        std::size_t plaintextBytesRead) noexcept;
+    void revokeAdmissionAuthority() noexcept;
+
     LinuxRuntimeSecurityConfiguration &securityConfiguration_;
 
     // Declaration order is deliberate. Explicit revoke() performs the
@@ -118,6 +143,8 @@ private:
     rdp_server::server::transport::McsSessionLifecycle session_{};
     // Retired explicitly before the exact borrowed R1 TLS owner is canceled.
     rdp_server::server::security::TsRequestFrameReader credSspFrameReader_{};
+    rdp_server::server::security::TsRequestTlsReplyWriter credSspReplyWriter_{};
+    bool terminalCredSspFailureReplyPending_{};
     bool provisioned_{};
 };
 

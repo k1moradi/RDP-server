@@ -36,20 +36,65 @@ LinuxRuntimeConnection::~LinuxRuntimeConnection()
 
 bool LinuxRuntimeConnection::ready() const noexcept
 {
-    return provisioned_ && connection_.active() &&
-           broker_.has_value() &&
+    if (!provisioned_ || !connection_.active())
+    {
+        return false;
+    }
+    if (terminalCredSspFailureReplyPending_)
+    {
+        return credSspReplyPending();
+    }
+    return broker_.has_value() &&
            acceptor_.stage() !=
                rdp_server::server::security::SpnegoStage::Failed &&
            session_.phase() !=
                rdp_server::server::transport::McsSessionPhase::Closed;
 }
 
+bool LinuxRuntimeConnection::credSspReplyPending() const noexcept
+{
+    using rdp_server::server::security::TsRequestTlsWriteStatus;
+    switch (credSspReplyWriter_.status())
+    {
+    case TsRequestTlsWriteStatus::Progress:
+    case TsRequestTlsWriteStatus::NeedRead:
+    case TsRequestTlsWriteStatus::NeedWrite:
+    case TsRequestTlsWriteStatus::Complete:
+        return true;
+    case TsRequestTlsWriteStatus::Idle:
+    case TsRequestTlsWriteStatus::Invalid:
+    case TsRequestTlsWriteStatus::Closed:
+        return false;
+    }
+    return false;
+}
+
 rdp_server::server::transport::TcpConnectionIoInterest
 LinuxRuntimeConnection::ioInterest() const noexcept
 {
-    return ready()
-        ? connection_.ioInterest()
-        : rdp_server::server::transport::TcpConnectionIoInterest::Closed;
+    using rdp_server::server::security::TsRequestTlsWriteStatus;
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+
+    if (!provisioned_ || !connection_.active())
+    {
+        return Interest::Closed;
+    }
+    switch (credSspReplyWriter_.status())
+    {
+    case TsRequestTlsWriteStatus::Progress:
+    case TsRequestTlsWriteStatus::NeedWrite:
+        return Interest::Write;
+    case TsRequestTlsWriteStatus::NeedRead:
+        return Interest::Read;
+    case TsRequestTlsWriteStatus::Invalid:
+    case TsRequestTlsWriteStatus::Closed:
+        return Interest::Closed;
+    case TsRequestTlsWriteStatus::Idle:
+    case TsRequestTlsWriteStatus::Complete:
+        break;
+    }
+    return ready() ? connection_.ioInterest() : Interest::Closed;
 }
 
 rdp_server::server::transport::TcpPreauthEvent
@@ -121,13 +166,36 @@ LinuxRuntimeConnection::onTlsIoReady() noexcept
     return result;
 }
 
-rdp_server::server::security::TsRequestTlsReadResult
-LinuxRuntimeConnection::onCredSspIoReady() noexcept
+LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
 {
     using rdp_server::server::security::TsRequestTlsReadStatus;
+    using rdp_server::server::security::TsRequestTlsWriteStatus;
+
+    if (!provisioned_ || !connection_.active())
+    {
+        return {0, 0, LinuxCredSspStepStatus::Closed};
+    }
+
+    const auto writerStatus = credSspReplyWriter_.status();
+    if (writerStatus != TsRequestTlsWriteStatus::Idle)
+    {
+        if (writerStatus == TsRequestTlsWriteStatus::Closed)
+        {
+            revoke();
+            return {0, 0, LinuxCredSspStepStatus::Closed};
+        }
+        if (writerStatus == TsRequestTlsWriteStatus::Invalid)
+        {
+            revoke();
+            return {0, 0, LinuxCredSspStepStatus::Invalid};
+        }
+        return advanceCredSspReply();
+    }
 
     if (!ready())
-        return {0, TsRequestTlsReadStatus::Closed};
+    {
+        return {0, 0, LinuxCredSspStepStatus::Closed};
+    }
 
     // Only the original R1 owner supplies selected HYBRID provenance.
     // A TLS handshake, principal string, or valid DER cannot substitute.
@@ -135,35 +203,165 @@ LinuxRuntimeConnection::onCredSspIoReady() noexcept
             connection_.securityNegotiationProvenance()))
     {
         revoke();
-        return {0, TsRequestTlsReadStatus::Invalid};
+        return {0, 0, LinuxCredSspStepStatus::Invalid};
     }
 
     const auto result = credSspFrameReader_.readOneTlsStep(connection_);
     switch (result.status)
     {
     case TsRequestTlsReadStatus::Progress:
+        return {result.plaintextBytesRead, 0,
+                LinuxCredSspStepStatus::Progress};
     case TsRequestTlsReadStatus::NeedRead:
+        return {0, 0, LinuxCredSspStepStatus::NeedRead};
     case TsRequestTlsReadStatus::NeedWrite:
-        return result;
+        return {0, 0, LinuxCredSspStepStatus::NeedWrite};
     case TsRequestTlsReadStatus::Complete:
-        // R2 owns GSS and authentic CredSSP replies, neither of which is
-        // aggregate-callable yet. Reject instead of granting admission.
-        [[fallthrough]];
+        return consumeCompletedCredSspFrame(result.plaintextBytesRead);
     case TsRequestTlsReadStatus::Invalid:
+        revoke();
+        return {result.plaintextBytesRead, 0,
+                LinuxCredSspStepStatus::Invalid};
     case TsRequestTlsReadStatus::Closed:
         revoke();
-        return {result.plaintextBytesRead, TsRequestTlsReadStatus::Invalid,
-                result.error};
+        return {0, 0, LinuxCredSspStepStatus::Closed};
     }
     revoke();
-    return {0, TsRequestTlsReadStatus::Invalid};
+    return {0, 0, LinuxCredSspStepStatus::Invalid};
+}
+
+LinuxCredSspStepResult LinuxRuntimeConnection::consumeCompletedCredSspFrame(
+    std::size_t plaintextBytesRead) noexcept
+{
+    using rdp_server::server::security::SpnegoStage;
+    using rdp_server::server::security::SpnegoStatus;
+    using rdp_server::server::security::TsRequestTlsWriteStatus;
+
+    const auto parsed = rdp_server::server::security::parseCredSspTsRequest(
+        credSspFrameReader_.completeDer());
+    if (!parsed)
+    {
+        revoke();
+        return {plaintextBytesRead, 0, LinuxCredSspStepStatus::Invalid};
+    }
+
+    const auto queuedReply = [this, &parsed]() noexcept {
+        switch (acceptor_.stage())
+        {
+        case SpnegoStage::AwaitInitialToken:
+            return acceptor_.acceptFramedNegoAndQueueReply(
+                credSspFrameReader_, credSspReplyWriter_);
+        case SpnegoStage::ContinueNeeded:
+            if (parsed.value.finalNegoAndBindingOnly())
+            {
+                return acceptor_.processFinalFramedNegoAndQueueBindingReply(
+                           credSspFrameReader_, credSspReplyWriter_)
+                    ? SpnegoStatus::Continue
+                    : SpnegoStatus::Rejected;
+            }
+            return acceptor_.acceptFramedNegoAndQueueReply(
+                credSspFrameReader_, credSspReplyWriter_);
+        case SpnegoStage::MechanismVerified:
+            return acceptor_.processFramedProtectedBindingAndQueueReply(
+                       credSspFrameReader_, credSspReplyWriter_)
+                ? SpnegoStatus::Continue
+                : SpnegoStatus::Rejected;
+        case SpnegoStage::ServerBindingPrepared:
+            acceptor_.consumeFramedAndDenyDelegatedCredentials(
+                credSspFrameReader_);
+            return SpnegoStatus::Rejected;
+        case SpnegoStage::Unconfigured:
+        case SpnegoStage::Failed:
+            return SpnegoStatus::Rejected;
+        }
+        return SpnegoStatus::Rejected;
+    }();
+
+    if (queuedReply == SpnegoStatus::FailureQueued)
+    {
+        if (credSspReplyWriter_.status() !=
+            TsRequestTlsWriteStatus::NeedWrite)
+        {
+            revoke();
+            return {plaintextBytesRead, 0, LinuxCredSspStepStatus::Invalid};
+        }
+
+        // Authentication has already failed. Retire R3/native authority
+        // before retaining the provider-generated terminal R2 reply long
+        // enough for the exact R1 owner to flush it.
+        revokeAdmissionAuthority();
+        credSspFrameReader_.close();
+        terminalCredSspFailureReplyPending_ = true;
+        return {plaintextBytesRead, 0, LinuxCredSspStepStatus::NeedWrite};
+    }
+
+    if (queuedReply != SpnegoStatus::Continue ||
+        credSspReplyWriter_.status() != TsRequestTlsWriteStatus::NeedWrite)
+    {
+        revoke();
+        return {plaintextBytesRead, 0, LinuxCredSspStepStatus::Invalid};
+    }
+    return {plaintextBytesRead, 0, LinuxCredSspStepStatus::NeedWrite};
+}
+
+LinuxCredSspStepResult LinuxRuntimeConnection::advanceCredSspReply() noexcept
+{
+    using rdp_server::server::security::TsRequestTlsWriteStatus;
+
+    const auto result = credSspReplyWriter_.writeOneTlsStep(connection_);
+    switch (result.status)
+    {
+    case TsRequestTlsWriteStatus::Progress:
+        return {0, result.plaintextBytesWritten,
+                LinuxCredSspStepStatus::Progress};
+    case TsRequestTlsWriteStatus::NeedRead:
+        return {0, 0, LinuxCredSspStepStatus::NeedRead};
+    case TsRequestTlsWriteStatus::NeedWrite:
+        return {0, 0, LinuxCredSspStepStatus::NeedWrite};
+    case TsRequestTlsWriteStatus::Complete:
+    {
+        const bool terminalFailure = terminalCredSspFailureReplyPending_;
+        if (!credSspReplyWriter_.releaseReply())
+        {
+            revoke();
+            return {0, result.plaintextBytesWritten,
+                    LinuxCredSspStepStatus::Invalid};
+        }
+        if (terminalFailure)
+        {
+            revoke();
+            return {0, result.plaintextBytesWritten,
+                    LinuxCredSspStepStatus::Closed};
+        }
+
+        // Reply completion is real R1 transport progress. Re-enter once
+        // without waiting so already-buffered peer plaintext cannot stall;
+        // that next bounded step will report WANT if no frame is available.
+        return {0, result.plaintextBytesWritten,
+                LinuxCredSspStepStatus::Progress};
+    }
+    case TsRequestTlsWriteStatus::Invalid:
+        revoke();
+        return {0, 0, LinuxCredSspStepStatus::Invalid};
+    case TsRequestTlsWriteStatus::Closed:
+        revoke();
+        return {0, 0, LinuxCredSspStepStatus::Closed};
+    case TsRequestTlsWriteStatus::Idle:
+        revoke();
+        return {0, 0, LinuxCredSspStepStatus::Invalid};
+    }
+    revoke();
+    return {0, 0, LinuxCredSspStepStatus::Invalid};
 }
 
 bool LinuxRuntimeConnection::issueAdmission(
     const rdp_server::server::security::ConsoleEvidenceRequest &request)
     noexcept
 {
-    if (!ready() || !broker_ || lease_)
+    if (!ready() || terminalCredSspFailureReplyPending_ || !broker_ ||
+        lease_ ||
+        acceptor_.stage() !=
+            rdp_server::server::security::SpnegoStage::ServerBindingPrepared)
     {
         revoke();
         return false;
@@ -220,7 +418,7 @@ bool LinuxRuntimeConnection::onNativeSessionChangeReady() noexcept
     return remainsAuthorized;
 }
 
-void LinuxRuntimeConnection::revoke() noexcept
+void LinuxRuntimeConnection::revokeAdmissionAuthority() noexcept
 {
     if (broker_)
     {
@@ -234,9 +432,17 @@ void LinuxRuntimeConnection::revoke() noexcept
 
     lease_.reset();
     broker_.reset();
+}
 
-    // R2 framing borrows the exact R1 owner; retire before R1 cancellation.
+void LinuxRuntimeConnection::revoke() noexcept
+{
+    revokeAdmissionAuthority();
+
+    // R2 framing/reply state borrows the exact R1 owner; retire both before
+    // R1 releases SSL/BIO/socket ownership.
+    credSspReplyWriter_.close();
     credSspFrameReader_.close();
+    terminalCredSspFailureReplyPending_ = false;
 
     // R1 is deliberately last: its SSL/BIO/socket may be borrowed
     // synchronously by every R2 check above.

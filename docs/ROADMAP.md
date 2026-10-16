@@ -5186,3 +5186,16 @@ licensing output/write-receipt step needed to drive the accepted initial client
 response toward the required challenge/license decision. Do not integrate a
 positive Connect Response or licensing path until R2 publishes a real
 revocable admission capability.
+
+
+**Initial exact-SHA compile correction:** implementation
+`d4682e71e76d55dd923a8ae1e7b970e558e02f6d`,
+[Actions 38870971854](https://github.com/k1moradi/RDP-server/actions/runs/38870971854)
+passed documentation policy but the sanitizer job stopped while compiling
+`nonblocking_tcp_adapter.cpp`. The new peer parser used POSIX
+`sockaddr_in`/`sockaddr_in6` without including `<netinet/in.h>`, Windows
+needs `<ws2tcpip.h>` for the IPv6 socket types, and the POSIX accept branch
+redeclared the shared `sockaddr_storage`. The correction is compile-only:
+add the platform socket-address headers and keep one shared peer-address
+storage object. Endpoint capture, ownership, fail-closed address-family
+handling and the dedicated CTest semantics are unchanged.

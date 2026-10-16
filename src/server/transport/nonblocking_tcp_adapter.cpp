@@ -17,10 +17,12 @@
 #define NOMINMAX
 #endif
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #else
 #include <cerrno>
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -421,7 +423,6 @@ TcpAcceptResult acceptNonblockingTcpConnection(
             (std::numeric_limits<int>::max)()))
         return {};
 
-    sockaddr_storage peerAddress{};
     socklen_t peerAddressLength = sizeof(peerAddress);
 #ifdef __linux__
     // Atomic descriptor flags avoid an inheritable or blocking window

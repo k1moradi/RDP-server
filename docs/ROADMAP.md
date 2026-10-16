@@ -5897,6 +5897,32 @@ hosted CI, genuine positive Kerberos/TLS/logind admission, actual Connect
 Response publication, owner platform trio or Microsoft client. The current
 R3 implementation still stops at `AwaitConnectResponse`; this increment
 does not invent writer ownership or protocol progression.
+**Exact-SHA hosted validation:** implementation
+`3a0500077b6eedc30c656825daaf3fd7545d5d5d`,
+[Actions 38877137287](https://github.com/k1moradi/RDP-server/actions/runs/38877137287).
+The new Linux provider CTest
+`security.gssapi-r3-protected-transition-generation-fence` **PASS** in
+Ubuntu/GCC Debug after the production Linux GSS/logind target compiled.
+Documentation-policy and the R9 ASan/UBSan/LSan job **PASS**. The sanitizer
+selection on this exact SHA predates R9's later regex expansion, so no
+sanitizer PASS is claimed for this new CTest itself.
+
+The full Ubuntu Debug suite is **299/300** and macOS Debug **269/270**,
+both failing only the inherited R3
+`transport.gcc-conference-create` assertion
+`earlyCapabilityFlags == 0x0001U`. Parent
+`9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`,
+[Actions 38876792846](https://github.com/k1moradi/RDP-server/actions/runs/38876792846),
+reproduces the same failure before this R2 change. Release did not run on
+those two jobs after Debug failure. Windows/MSVC Debug remained **IN
+PROGRESS** at receipt authoring. Therefore whole-workflow PASS is not
+claimed, but no R2-introduced failure is observed.
+
+**Still NOT RUN:** genuine positive Kerberos/TLS/logind admission, live use
+of this gate before Connect Response/Attach/Join/licensing, owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23, macOS27 and Microsoft client. Gate A/M2
+remain **OPEN/NOT ACCEPTED**.
+
 **Next R2:** require R3's eventual Connect Response, Attach/Join, licensing,
 activation, clipboard/input and desktop transitions to invoke this gate with
 their required permission immediately before state/write publication, while

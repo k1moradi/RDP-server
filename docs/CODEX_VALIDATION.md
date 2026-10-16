@@ -5725,6 +5725,31 @@ agent environment has no repository checkout; exact-SHA hosted CI until
 publication; genuine positive Kerberos/TLS/native-logind admission; live
 Connect Response/Attach/Join/licensing use of the gate; R1 runtime teardown;
 owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27; Microsoft client.
+**Exact-SHA hosted result:** implementation
+`3a0500077b6eedc30c656825daaf3fd7545d5d5d`,
+[Actions 38877137287](https://github.com/k1moradi/RDP-server/actions/runs/38877137287).
+Ubuntu/GCC compiled the production Linux GSS/logind target and the dedicated
+`security.gssapi-r3-protected-transition-generation-fence` **PASS** in
+Debug. Documentation-policy and the R9 security sanitizer job **PASS**.
+That exact sanitizer selection contains the prior seven GSS boundary cases;
+R9 added this new case to its sanitizer regex only on a descendant, so this
+receipt does not overstate sanitizer coverage.
+
+Full Ubuntu Debug was **299/300** and macOS Debug **269/270**. Their sole
+failure is the unrelated inherited R3
+`transport.gcc-conference-create` fixture assertion
+`earlyCapabilityFlags == 0x0001U`. The exact parent
+`9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd` in
+[Actions 38876792846](https://github.com/k1moradi/RDP-server/actions/runs/38876792846)
+fails at that same assertion without this R2 increment. Ubuntu/macOS Release
+did not run after Debug failure. Windows/MSVC Debug was still **IN PROGRESS**
+when this receipt was authored. Whole-workflow PASS is therefore not claimed;
+the first failing protocol boundary is inherited R3/GCC, not R2.
+
+Genuine positive Kerberos/TLS/native-logind admission, protected runtime
+Connect Response/Attach/Join/licensing calls, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27 and Microsoft client remain **NOT RUN**.
+
 Gate A/M2 remain **OPEN/NOT ACCEPTED**. **Next:** R3's eventual protected
 transition owners must call this gate immediately before state/write
 publication with their permission scope.

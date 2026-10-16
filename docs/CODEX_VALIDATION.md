@@ -1,3 +1,43 @@
+## R9 macOS file-destination destructor retirement exact-SHA receipt (2026-10-16)
+
+**Implementation:** `86f400b9730bebfcf9465c59fec56bbad6df5a84`.  
+**Actions:** `38973446211` — **SUCCESS**.
+
+The new production-backed
+`clipboard.macos-file-destination-destructor-retirement` executes in the
+ordinary hosted suites and under the shared Clang ASan/UBSan clipboard gate.
+The fail-closed `ctest -N -L clipboard` preflight discovers the case as test
+**452** in the sanitizer build; it passes in **0.01 s**, and the complete
+clipboard sanitizer label is **57/57 PASS**.
+
+Exact implementation-SHA hosted results:
+- Linux/GCC: **496/496 Debug + 496/496 Release PASS**; downstream installed SDK
+  consumer **1/1 PASS**, package/digest/artifact upload **PASS**.
+- macOS/AppleClang: **418/418 Debug + 418/418 Release PASS**; the new case is
+  test **382**, **0.01 s** in both configurations; downstream consumer and
+  package/digest/artifact upload **PASS**.
+- Windows/MSVC: focused native preflight **48/48 Debug + 48/48 Release PASS**;
+  full **447/447 Debug + 447/447 Release PASS**; the new portable case is test
+  **411**, **0.01 s** in both configurations; downstream consumer and
+  package/digest/artifact upload **PASS**.
+- R9 Clang ASan/UBSan groups: clipboard **57/57**, portable R4 RDPGFX
+  **33/33**, x264/BGRA **20/20**, RDPGFX capability **4/4**, bounded
+  R1/R3/security/licensing **73/73**, native GSS/R2/R3 **29/29**, direct R10
+  Linux runtime security **10/10**, native R5 X11 **30/30**, bounded fuzzer
+  **1/1** — all **PASS**.
+- Documentation policy and the independent R7 sanitizer gate **PASS**.
+  Untagged prerelease publication is correctly **SKIPPED**.
+
+Validated R9 invariant: destroying an active macOS file destination after a
+short RANGE has materialized must retire the partial duplicate through RAII:
+truncate to zero, close once, never flush, and never expose completion. No
+production R8 state or authorization behavior changed.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution remain **NOT RUN** in this connector environment.
+Owner macOS 27, live Finder handoff, authenticated Microsoft-client file copy,
+genuine positive admission and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R8 macOS completed-file URL handoff authoring validation (2026-10-16)
 
 **Base:** `94813489bd8986932b5fe09310c80ad24c77eb76`. Predecessor macOS descriptor implementation

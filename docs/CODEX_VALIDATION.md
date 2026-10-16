@@ -1,3 +1,42 @@
+## R4 malformed NV12 preflight exact-SHA hosted CI (2026-10-16)
+
+**Implementation SHA:** [`3c8baa7a02b61879d541bd845fdbecbf26ff6d76`](https://github.com/k1moradi/RDP-server/commit/3c8baa7a02b61879d541bd845fdbecbf26ff6d76).
+[Exact-SHA GitHub Actions 38900695904](https://github.com/k1moradi/RDP-server/actions/runs/38900695904)
+completed **overall FAILURE**, solely from one R10-owned Linux Debug
+runtime assertion, not an R4 test failure:
+
+- **Linux/GCC Debug:** **395/396 PASS**. The newly registered
+  `graphics.x264-segmented-malformed-nv12-reference-continuity`
+  (test 388) **PASS**. Only
+  `runtime.linux-connection-credssp-owner-framing` (test 254)
+  fails in `tests/test_runtime_linux_security.cpp:648` at
+  `step.plaintextBytesWritten == 0`; R10 CredSSP owner/framing semantics
+  are unaffected by the R4 change. Linux Release and downstream SDK
+  package/consumer **NOT RUN** at this SHA after the Debug stop.
+- **macOS/Clang:** Debug **338/338 PASS**, Release **338/338 PASS**,
+  including the new R4 test (test 330) in both builds; installed
+  portable SDK consumer and package verification **PASS**.
+- **Windows/MSVC:** Debug **362/362 PASS**, Release **362/362 PASS**,
+  including the new R4 test (test 354) in both builds; native R6
+  preflight and downstream portable SDK consumer/package checks **PASS**.
+- **R9 selected ASan/UBSan job:** **PASS** in its configured scope.
+  This does not prove the R4 x264/BGRA executable itself ran under
+  sanitizers. **Documentation-policy:** **PASS**. Prerelease
+  publication correctly **SKIPPED** for an ordinary development commit.
+- **Owner machine:** canonical `~/rdp-server/build` configure/build/full
+  CTest, Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, external
+  Microsoft/FreeRDP graphics client and performance gates **NOT RUN**.
+
+The R4 producer now preflights all deterministic caller-owned NV12
+plane/stride errors before invoking x264; an IDR followed by malformed
+inputs and the next valid P-slice is production-tested on all three
+hosted platforms. Actual x264/post-publication failures still require
+recovery IDR. No R3 graphics-channel authority or desktop listener was
+introduced. **Next R4:** take final-SHA hosted Linux Release after the
+R10 owner fixes its failing test; run owner three-OS commands; integrate
+only with genuinely admitted R3 Graphics DVC/full-send provenance.
+**Gate B / M3 / M4 / M5 remain OPEN.**
+
 ## R6 capture-cycle attach bounds authoring validation (2026-10-16)
 
 Source audit of `WindowsDxgiDuplicationOwner::attachCaptureCycle` found that

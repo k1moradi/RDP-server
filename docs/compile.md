@@ -104,6 +104,16 @@ For Release, **reconfigure the same root** with
 it replaces prior configuration. Multi-config generators use
 `--config Debug`/`--config Release` inside the same root.
 
+## R6 Windows session-state linkage (2026-10-15; CI pending)
+
+The noninstalled `rdp-server-windows-desktop` target now links
+`wtsapi32` for read-only `WTSQuerySessionInformationW` session-state
+observation, in addition to its existing `user32`, `d3d11` and
+`dxgi` dependencies. The portable protocol SDK, Linux and macOS do
+not gain WTS headers or libraries. This must compile under both hosted
+Windows/MSVC and the owner's MSYS2 CLANG64/Clang 23; those toolchains
+remain separate evidence gates.
+
 ## R6 native DXGI metadata linkage (2026-10-15; CI pending)
 
 The noninstalled Windows-only `rdp-server-windows-desktop` adapter

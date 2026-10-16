@@ -175,6 +175,27 @@ authority. Live Windows capture remains disabled until R2/R3
 supplies independently verified session/device lifecycle and
 R4 owns asynchronous frame scheduling.
 
+### R6 active Windows session revocation guard
+
+`WindowsCaptureSessionGenerationGuard` is a Windows-adapter safety
+boundary layered in front of the existing capture generation reader.
+The future R2/R3 owner supplies a target session identifier and the
+existing nonzero session/device epochs. The native observer verifies
+that the current process belongs to that exact session with
+`ProcessIdToSessionId` and queries its WTS connection state with
+`WTSQuerySessionInformationW(WTSConnectState)`; only `WTSActive`
+allows the existing epoch observation to proceed. Read failure,
+process/target mismatch, inactive state, zero generation or reentrant
+observation terminally closes the guard. A new guard/capture cycle is
+required after revocation.
+
+This layer grants no rights: a caller can fabricate the target ID and
+synthetic callbacks, so R2/R3 must independently authenticate the user,
+authorize the native session and own its lifetime. WTS active state is
+also not a complete lock/unlock authority; a later session-change
+notification boundary must revoke capture on lock, switch, logoff and
+disconnect. Ordinary CTests execute synthetic callbacks only.
+
 ### R6 bounded native DXGI move/dirty metadata on active lease
 
 `WindowsDxgiCaptureCycle::readFrameDamage` samples metadata only

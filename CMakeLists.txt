@@ -139,11 +139,13 @@ if(WIN32)
         src/windows/windows_dxgi_damage.cpp
         src/windows/windows_dxgi_frame_owner.cpp
         src/windows/windows_d3d11_staging_map.cpp
-        src/windows/windows_dxgi_capture_cycle.cpp)
+        src/windows/windows_dxgi_capture_cycle.cpp
+        src/windows/windows_capture_session_guard.cpp)
     target_compile_features(rdp-server-windows-desktop PUBLIC cxx_std_23)
     target_include_directories(rdp-server-windows-desktop PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
-    target_link_libraries(rdp-server-windows-desktop PRIVATE user32 d3d11 dxgi)
+    target_link_libraries(rdp-server-windows-desktop PRIVATE
+        user32 d3d11 dxgi wtsapi32)
     if(MSVC)
         target_compile_options(rdp-server-windows-desktop PRIVATE /W4)
     else()

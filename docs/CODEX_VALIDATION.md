@@ -86,6 +86,31 @@ must not be equated to full CTest PASS or the RDP product acceptance.
 three-platform same-SHA CTest, then R3/R8 joined authorization and
 lifecycle fuzzing once a production admitted-session boundary exists.
 
+## R6 native active-session revocation guard (2026-10-15)
+
+**Authoring parent main:** `43953fd5aa05b9bb913430825313caf41e2ebdd5`. **Changed files:**
+`src/windows/windows_capture_session_guard.{h,cpp}` (new),
+`tests/windows_capture_session_guard_cases.cpp` (new),
+`tests/test_windows_desktop_geometry.cpp`, `tests/CMakeLists.txt`,
+`CMakeLists.txt`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/compile.md`, and this ledger.
+The guard composes native/synthetic WTS-session observation with the
+existing R6 `WindowsCaptureGenerationReader`: current-process session
+must equal the caller-selected target, target state must be active, and
+the existing session/device epochs must be nonzero. Any failure is
+terminal for that guard. This is NOT an R2/R3 authorization capability.
+
+**New registered Windows CTests:**
+`windows.capture-session-generation-active-lifetime`,
+`windows.capture-session-revocation-denials`.
+They use only synthetic session/generation callbacks and a synthetic
+one-pixel frame pipeline; the native WTS function is compiled on
+Windows but is never invoked by ordinary CTest.
+**NOT RUN at authoring:** complete exact-SHA hosted matrix,
+owner Windows MSYS2 CLANG64 Clang23/Linux X11/macOS27, live WTS
+session/lock state, real DXGI desktop, Microsoft client and benchmark.
+M4 remains OPEN.
+
 ## R6 exact-commit generation-revocation hosted CI (2026-10-15)
 
 Code/test/docs commit `fdedf92bb8e40a0626a866dfdca6210ccc3fcbc5`,

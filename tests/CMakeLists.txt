@@ -376,7 +376,8 @@ if(TARGET rdp-server-windows-desktop)
         test_windows_desktop_geometry.cpp
         windows_geometry_gdi_type_probe.cpp
         windows_capture_cycle_cases.cpp
-        windows_capture_damage_cases.cpp)
+        windows_capture_damage_cases.cpp
+        windows_capture_session_guard_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop)
     if(MSVC)
@@ -466,6 +467,16 @@ if(TARGET rdp-server-windows-desktop)
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
+    endforeach()
+    # R6 target-session revocation guard. Synthetic observations only:
+    # no CTest queries a real logged-on Windows session.
+    foreach(case_name IN ITEMS
+            capture-session-generation-active-lifetime
+            capture-session-revocation-denials)
+        add_test(NAME "windows.${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;security;offline")
     endforeach()
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.

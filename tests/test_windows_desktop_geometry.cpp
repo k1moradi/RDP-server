@@ -27,6 +27,8 @@ void windowsCaptureNativeDamageReadLifetime();
 void windowsCaptureNativeDamageReadDenials();
 void windowsCaptureGenerationPinnedLifetime();
 void windowsCaptureGenerationRevocationDenials();
+void windowsCaptureSessionGenerationActiveLifetime();
+void windowsCaptureSessionRevocationDenials();
 void windowsCaptureCycleLifecycleDenials();
 
 using namespace rdp_server::windows;
@@ -763,6 +765,14 @@ int main(int argc, char **argv)
     else if (behavior == "capture-generation-revocation-denials")
     {
         windowsCaptureGenerationRevocationDenials();
+    }
+    else if (behavior == "capture-session-generation-active-lifetime")
+    {
+        windowsCaptureSessionGenerationActiveLifetime();
+    }
+    else if (behavior == "capture-session-revocation-denials")
+    {
+        windowsCaptureSessionRevocationDenials();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

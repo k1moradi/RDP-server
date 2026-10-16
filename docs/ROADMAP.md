@@ -3817,6 +3817,32 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   R4 graphics presentation and M4 Microsoft-client desktop acceptance.
   **Next:** consume an R2/R3 authorization-bound native capture
   lifecycle, then hand synchronous frame bytes to the sole R4 owner.
+  **R6 native active-session revocation guard (2026-10-15; authored
+  against parent `43953fd5aa05b9bb913430825313caf41e2ebdd5`; exact-SHA CI pending):**
+  Add Windows-only `WindowsCaptureSessionGenerationGuard`, which
+  composes a caller-selected target WTS session with the EXISTING
+  `WindowsCaptureGenerationReader`. The native read path uses
+  `ProcessIdToSessionId(GetCurrentProcessId())` plus
+  `WTSQuerySessionInformationW(..., WTSConnectState, ...)` and
+  permits the epoch observation only while the process is in the exact
+  target session and that target reports `WTSActive`. Any mismatch,
+  inactive/disconnected state, query failure, zero epoch or reentrant
+  observation terminally revokes the guard; a fresh R2/R3 binding is
+  required. **This is revocation only:** the target session ID remains
+  caller-supplied and matching WTS state is NOT authentication,
+  authorization, an OS capability, or proof that the desktop is
+  unlocked. No token acquisition, desktop switching, service mutation,
+  capture, or input occurs.
+  **Dedicated Windows-only CTests:** `windows.capture-session-generation-active-lifetime`
+  and `windows.capture-session-revocation-denials`, reusing the
+  existing R6 executable with fully synthetic session/epoch sources.
+  Native WTS calls are compiled but never executed by ordinary CTest.
+  **NOT RUN at authoring:** exact-SHA hosted matrix, owner MSYS2
+  CLANG64/Clang23, Linux/X11/macOS27 owner checks, live WTS/session,
+  lock/unlock notification, Desktop Duplication, Microsoft client and
+  performance. **Next:** bind this revocation guard only after R2/R3
+  issues real OS-authorized Windows session evidence; add explicit
+  lock/unlock/session-change notification invalidation before live M4.
   **R6 capture session/device generation revocation (2026-10-15;
   authored against parent `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`; exact-SHA CI pending):**
   The existing `WindowsDxgiCaptureCycle` accepts an OPTIONAL,

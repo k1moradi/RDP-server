@@ -8015,3 +8015,20 @@ field only when the complete legal Client Core prefix is present. The CTest now
 asserts the fixture's actual `0x0018` value. This is a regression-fixture
 correction, not a capability negotiation or admission policy change. Exact-SHA
 hosted validation is required on the descendant commit.
+
+
+### R3 borrowed-fixture lifetime correction (2026-10-16)
+
+The first protected Connect Response SHA exposed a macOS-only failure in the
+three new transport cases because the tests passed a temporary
+`publishedFixture()` vector directly to `parseMcsConnectInitial`. The
+returned `McsConnectInitial::gccUserData` is intentionally a borrowed
+`std::span`, so the temporary vector was destroyed at the end of that
+expression. Linux happened to observe unchanged freed storage; macOS aborted
+the assertions. Production parsing/lifetime rules are unchanged.
+
+The correction keeps the fixture vector alive for the complete parse/plan/
+encode assertion scope in both new helpers. No parser, allocator, writer,
+authorization, or wire behavior changes. The original SHA's Linux/GCC new R3
+tests and sanitizer coverage passed; the corrected descendant must provide
+cross-platform confirmation.

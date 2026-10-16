@@ -410,7 +410,8 @@ void testMcsResponseSecurityReplay()
 
 void testMcsResponseSessionAllocationPlan()
 {
-    const auto parsed = parseMcsConnectInitial(publishedFixture());
+    const auto fixture = publishedFixture();
+    const auto parsed = parseMcsConnectInitial(fixture);
     assert(parsed);
     const auto domain = mergeMcsDomainParameters(parsed.value);
     const auto gcc = parseGccConferenceCreate(parsed.value.gccUserData);
@@ -445,7 +446,8 @@ void testMcsResponseSessionAllocationPlan()
 
 [[nodiscard]] McsConnectResponse testPlannedConnectResponse()
 {
-    const auto parsed=parseMcsConnectInitial(publishedFixture());
+    const auto fixture=publishedFixture();
+    const auto parsed=parseMcsConnectInitial(fixture);
     assert(parsed);
     const auto plan=planMcsConnectResponseAllocation(parsed.value);
     assert(plan);

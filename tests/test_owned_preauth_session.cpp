@@ -6802,6 +6802,71 @@ void testGssapiOwnedCredSspCancellationFence()
     assert(replay.plaintextBytesWritten == 0);
 }
 
+void testGssapiOwnedCompletedFrameCancellationFence()
+{
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, tlsAndHybridRequestWire(),
+        SecurityNegotiationPolicy::HybridNla);
+
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    writeNativeTlsClientAll(tls.client.get(), kTestCredSspDer);
+    assert(drainCredSspFromOwnedTls(
+               reader, owner, TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size());
+    assert(reader.status() == TsRequestFrameStatus::Complete);
+    const SSL *const retiredServerTls = reader.completedFrameServerTls();
+    assert(retiredServerTls != nullptr);
+    assert(retiredServerTls == owner.establishedTls());
+    assert(owner.securityNegotiationProvenance().has_value());
+
+    // R1 cancellation destroys the live SSL owner after the reader has
+    // completed a frame. The reader may retain only an internal borrowed
+    // address; its public provenance accessor must reject that retired
+    // identity before dereferencing it.
+    GssapiSpnegoAcceptor acceptor;
+    owner.cancel();
+    assert(!owner.active());
+    assert(owner.establishedTls() == nullptr);
+    assert(!owner.securityNegotiationProvenance().has_value());
+    assert(reader.status() == TsRequestFrameStatus::Complete);
+    assert(reader.completedFrameServerTls() == nullptr);
+
+    // R2 checks the exact R1 owner before parsing the retained frame. The
+    // terminal result closes and wipes every child object, and replay cannot
+    // revive the completed DER or its former TLS identity.
+    const auto denied = acceptor.advanceOwnedCredSspHandshake(
+        owner, reader, writer);
+    assert(denied.status == OwnedCredSspHandshakeStatus::TransportClosed);
+    assert(denied.plaintextBytesRead == 0);
+    assert(denied.plaintextBytesWritten == 0);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(reader.completeDer().empty());
+    assert(reader.bytesNeeded() == 0);
+    assert(reader.completedFrameServerTls() == nullptr);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    assert(!reader.releaseFrame());
+
+    const auto replay = acceptor.advanceOwnedCredSspHandshake(
+        owner, reader, writer);
+    assert(replay.status == OwnedCredSspHandshakeStatus::TransportClosed);
+    assert(replay.plaintextBytesRead == 0);
+    assert(replay.plaintextBytesWritten == 0);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+}
+
 void testGssapiFailureReplyWithoutCredentialsDenied()
 {
     // A real completed in-memory TLS exchange is NOT enough to
@@ -8360,6 +8425,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testGssapiOwnedCredSspAuthInfoTerminalDenials},
     {"gssapi-r1-owned-credssp-cancellation-fence",
      &testGssapiOwnedCredSspCancellationFence},
+    {"gssapi-r1-owned-completed-frame-cancellation-fence",
+     &testGssapiOwnedCompletedFrameCancellationFence},
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
     {"gssapi-principal-tls-proof-gate", &testGssapiPrincipalTlsProofGate},
     {"gssapi-tls-framed-credential-denials", &testGssapiTlsFramedCredentialDenials},

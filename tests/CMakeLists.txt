@@ -407,6 +407,7 @@ if(TARGET rdp-server-linux-gssapi)
             gssapi-r1-owned-binding-delivery-fence
             gssapi-credssp-authinfo-terminal-denials
             gssapi-r1-owned-credssp-cancellation-fence
+            gssapi-r1-owned-completed-frame-cancellation-fence
             gssapi-tls-ownership
             gssapi-principal-tls-proof-gate
             gssapi-tls-framed-credential-denials

@@ -1,3 +1,38 @@
+## R9 post-landing CredSSP cancellation and licensing authoring receipt (2026-10-16)
+
+**Reconciled authoring parent:** `5316531a451be9d5454cf43621b83089e18f0aaa`.
+
+R9 verified that the requested Channel Join terminal replay regression is
+already landed and sanitizer-executed, then audited newer cross-road changes.
+Two distinct verification gaps remain without transferring production
+ownership to R9.
+
+First, new CTest
+`security.gssapi-r1-owned-completed-frame-cancellation-fence` completes a real
+R1-owned HYBRID/TLS TSRequest before cancelling the exact R1 owner. It verifies
+that `completedFrameServerTls()` becomes null and negotiation provenance is
+revoked before any stale SSL dereference, then drives production
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake`. R2 returns
+`TransportClosed`, closes/wipes reader and writer state, fails the acceptor,
+and a repeated advance cannot revive the frame. No positive GSS identity,
+final-credential authorization or native lease is fabricated.
+
+Second, R3's newly landed production tests
+`transport.licensing-server-request-wire`,
+`transport.licensing-server-request-write-receipts`, and
+`transport.licensing-server-request-write-denials` were registered in CTest
+but not yet selected by the single R9 sanitizer job. The existing bounded
+licensing regex now selects all three; no R3 behavior is changed.
+
+The latest pre-authoring combined-state Actions baseline is `38909145581` at
+`fb265c38abcd020e233b6202b0ff0d7f6c7fd5c2`, where all R9 sanitizer groups
+passed. The revised registry predicts bounded transport **33** and native GSS
+**25** executions, pending exact-publication-SHA evidence. Local canonical
+build/CTest is **NOT RUN** because this connector has no synchronized
+`~/rdp-server` checkout. M2/M3, owner native-platform validation,
+real Kerberos/logind admission and Microsoft-client acceptance remain
+**OPEN / NOT RUN**.
+
 ## R8 macOS ready-data pasteboard exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `4da8d0deab5e3d7a251fdd4c180a6380c1e4e978`.

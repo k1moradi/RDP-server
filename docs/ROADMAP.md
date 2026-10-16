@@ -1,3 +1,50 @@
+## R9 post-landing CredSSP cancellation and licensing sanitizer fence (2026-10-16; exact-SHA CI pending)
+
+**Starting/reconciled main:** `5316531a451be9d5454cf43621b83089e18f0aaa`. The latest completed combined-state
+hosted baseline inspected before authoring is `fb265c38abcd020e233b6202b0ff0d7f6c7fd5c2`,
+Actions `38909145581`: R9 sanitizer groups pass clipboard **46/46**, x264
+**18/18**, bounded R1/R3 transport/CredSSP/licensing **30/30**, native
+GSS/R2/R3 **24/24**, R10 Linux runtime CredSSP **4/4**, native X11 **23/23**
+and the bounded fuzzer **1/1**.
+
+R9 re-audited the completed Channel Join terminal replay work and the newer R1
+HYBRID/R2 final-CredSSP seam. The existing R1 cancellation fence cancels before
+R2 holds a completed owner-bound TSRequest. A distinct lifetime boundary
+remained unnamed: R1 may be cancelled after `TsRequestFrameReader` has already
+completed a TLS-derived frame and retained its borrowed SSL identity. New
+production-backed CTest
+`security.gssapi-r1-owned-completed-frame-cancellation-fence` reuses
+`test_owned_preauth_session`, a real loopback HYBRID/TLS
+`OwnedPreauthTcpConnection`, `TsRequestFrameReader`,
+`TsRequestTlsReplyWriter` and `GssapiSpnegoAcceptor`.
+
+After `OwnedPreauthTcpConnection::cancel()`, the live SSL and immutable
+negotiation provenance are gone. The completed reader must report no
+`completedFrameServerTls()` rather than dereference the retired SSL; the next
+R2 owner-driven advance must return `TransportClosed`, close/wipe the retained
+DER, reader, writer and GSS acceptor, and repeated advance remains terminal.
+No GSS success, public-key binding, delegated credential, native admission
+lease, logind authorization or R3 capability is fabricated.
+
+R3 commit `c80febfbb0a46327d637b541bb10abf96cf77837` also landed three
+production-linked `SERVER_LICENSE_REQUEST` cases after the last R9 sanitizer
+receipt: `transport.licensing-server-request-wire`,
+`transport.licensing-server-request-write-receipts`, and
+`transport.licensing-server-request-write-denials`. They were centrally
+registered but absent from the bounded R1/R3 licensing sanitizer regex. R9 adds
+all three to that existing selector without changing R3 production behavior.
+Relative to the completed baseline, the bounded transport selection is expected
+to grow from **30 to 33** and the native GSS selection from **24 to 25**; these
+counts are registration expectations until exact-SHA execution confirms them.
+
+The existing ASan/UBSan settings, 60-second CTest cap, and GSS-only MIT krb5
+LSan suppression are unchanged. Canonical owner-local `~/rdp-server/build/`
+configure/build/full CTest is **NOT RUN** in this connector environment because
+no synchronized checkout is available; exact-publication-SHA hosted validation
+is required before recording a pass. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, real Kerberos/logind admission and Microsoft-client
+acceptance remain separate **NOT RUN/OPEN** gates. **M2/M3 remain OPEN.**
+
 ## R8 macOS ready-data pasteboard exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `4da8d0deab5e3d7a251fdd4c180a6380c1e4e978`.

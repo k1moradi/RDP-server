@@ -6396,3 +6396,17 @@ CTest, owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27, R2/R3
 authorized input routing, live Microsoft-client desktop and performance
 measurements. Hosted exact-SHA CI must provide the native Linux compile/test
 receipt. M3 remains unaccepted.
+
+
+**Initial exact-SHA CI / const-safe test correction:** implementation
+`e6504314c87fadbb9fcf1cde7f09f9fa5b9de010`,
+[Actions 38865843371](https://github.com/k1moradi/RDP-server/actions/runs/38865843371)
+compiled the production protocol library successfully on Linux and macOS,
+and its sanitizer plus documentation-policy jobs passed. The ordinary
+protocol jobs then stopped while compiling the new partial-write CTest
+because `establishedTls()` intentionally returns `const SSL*`, whereas
+OpenSSL 4's `SSL_get_mode` macro takes mutable `SSL*`. The correction
+removes only those two test-introspection assertions; it does not cast away
+constness, broaden SSL ownership, or alter production behavior. The existing
+1 KiB test send fragment and required short-progress assertion remain the
+behavioral proof of `SSL_MODE_ENABLE_PARTIAL_WRITE`.

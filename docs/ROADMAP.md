@@ -5653,6 +5653,23 @@ without fabricating a positive native lease.
 **NOT RUN at authoring:** local full CTest, exact-SHA hosted CI, genuine
 Kerberos/TLS admission followed by a real logind switch/logout, live R1
 disconnect composition, owner platform trio and Microsoft client.
+**Exact-SHA hosted CI:** implementation
+`3a350fa386563182872600d55769a4314c0e9b78`,
+[Actions 38874417036](https://github.com/k1moradi/RDP-server/actions/runs/38874417036)
+completed **SUCCESS**. Linux/GCC full CTest passed **292/292** in Debug and
+**292/292** in Release; both
+`security.gssapi-r3-mcs-admission-contract` and
+`security.gssapi-r3-native-change-revocation` passed in both
+configurations. macOS/Clang passed **266/266** Debug and Release;
+Windows/MSVC passed **289/289** Debug and Release. R9 sanitizer,
+documentation-policy, installed SDK consumer, package/digest and artifact
+upload stages passed; prerelease publication was correctly skipped without
+a tag. The two R2/R3 GSS tests are Linux-provider-only; macOS/Windows cover
+the portable R3 surfaces.
+**Still NOT RUN:** genuine positive Kerberos/TLS/native-logind admission
+followed by a real switch/logout, live R1 disconnect composition, owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and Microsoft-client
+desktop. Gate A/M2 remain **OPEN/NOT ACCEPTED**.
 **Next R2:** require the same lease generations and fresh broker
 authorization immediately before R3 Connect Response publication and later
 Attach/Join/licensing transitions; outer runtime teardown must preserve

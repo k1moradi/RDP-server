@@ -5577,10 +5577,27 @@ late/repeated callback replay denial. The existing
 agent environment), exact-SHA hosted CI until publication, genuine positive
 Kerberos/TLS/native-logind admission followed by a real session-change
 event, R1 runtime disconnect composition, owner Linux/X11, Windows MSYS2
-CLANG64/Clang23, macOS27 and Microsoft client. Gate A/M2 remain
-**OPEN/NOT ACCEPTED**. **Next:** re-authorize the same admission/session
-generations immediately before R3 Connect Response write ownership and later
-protected transitions, and preserve R3 -> R2/GSS -> R1 teardown ordering.
+CLANG64/Clang23, macOS27 and Microsoft client.
+
+**Exact-SHA hosted CI:** implementation
+`3a350fa386563182872600d55769a4314c0e9b78`,
+[Actions 38874417036](https://github.com/k1moradi/RDP-server/actions/runs/38874417036)
+completed **SUCCESS**. Linux/GCC full CTest passed **292/292** in Debug and
+Release; both `security.gssapi-r3-mcs-admission-contract` and
+`security.gssapi-r3-native-change-revocation` passed in both. macOS/Clang
+passed **266/266** Debug and Release; Windows/MSVC passed **289/289** Debug
+and Release. R9 sanitizer and documentation-policy jobs passed, as did
+installed SDK consumer, package/digest and artifact upload stages;
+prerelease publication skipped without a tag. Linux is the only hosted
+platform that builds/runs the GSS-provider-specific cases.
+
+Genuine positive Kerberos/TLS/native-logind admission followed by a real
+session change, live R1 disconnect composition, owner Linux/X11, Windows
+MSYS2 CLANG64/Clang23, macOS27 and Microsoft client remain **NOT RUN**.
+Gate A/M2 remain **OPEN/NOT ACCEPTED**. **Next:** re-authorize the same
+admission/session generations immediately before R3 Connect Response write
+ownership and later protected transitions, preserving
+R3 -> R2/GSS -> R1 teardown ordering.
 
 ## R2 Linux native admission lease boundary (2026-10-16)
 

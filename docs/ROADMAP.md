@@ -35,18 +35,6 @@ ASan/UBSan native X11, documentation policy and SDK/package validation are
 R3's authenticated already-decoded Share/Input or Fast-Path Input event
 contract.
 
-## R8 Windows completed-file Explorer handoff exact-SHA validation (2026-10-16)
-
-**Implementation:** `74b5fb33484e961479a652204d35864ecfc77fd8`. **Actions:** `38975977794` — **SUCCESS**.
-
-Exact hosted evidence: Linux/GCC **507/507 Debug + 507/507 Release PASS**; macOS/AppleClang **430/430 Debug + 430/430 Release PASS**; Windows/MSVC focused native preflight **51/51 Debug + 51/51 Release PASS** and full CTest **460/460 Debug + 460/460 Release PASS**. `clipboard.windows-completed-file-hdrop-handoff` passes on every hosted OS. SDK consumer, packaging/artifacts and documentation policy pass.
-
-R9 Clang ASan/UBSan: clipboard **60/60 PASS**, including the required handoff registry preflight; portable R4 RDPGFX **33/33**, x264/BGRA **20/20**, RDPGFX capability **4/4**, bounded R1/R3/security/licensing **80/80**, native GSS/R2/R3 **29/29**, direct R10 runtime security **10/10**, native R5 X11 **31/31**, and bounded fuzzer **1/1** all PASS. Independent R7 macOS-session sanitizers PASS.
-
-Validated invariant: only a completed current-generation caller-selected local path becomes `CF_HDROP`; partial files, relative/device paths, stale generations, and same-generation reclaim after local takeover are denied. Hosted MSVC compiles/links the real `GlobalAlloc(GMEM_MOVEABLE)` / `SetClipboardData` branch; ordinary CTest never opens the host clipboard.
-
-Owner-local `~/rdp-server/build`, Windows MSYS2 CLANG64/Clang23, live Explorer paste, authenticated Microsoft-client file copy, directory trees and performance remain **NOT RUN/OPEN**. **Next R8:** bounded directory-tree materialization/handoff without whole-tree prefetch, remote-path-to-local-path derivation, or a second CLIPRDR writer; then real-client file-copy acceptance.
-
 ## R10 Windows licensing-preflight portability correction (2026-10-16; exact-SHA CI pending)
 
 R10 implementation `35cfda594f45c15e14966579f05cadb4bc5db8f1` reached

@@ -322,6 +322,61 @@ void testR3NativeChangeRevocation()
     assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
 }
 
+
+void testR3McsDisconnectRevocationFence()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+
+    constexpr std::array<std::uint8_t, 12> lateJoin{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x06, 0x03, 0xeb};
+    constexpr std::array<std::uint8_t, 9> lateDisconnect{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80, 0x21, 0x80};
+
+    const auto parsedJoin =
+        rdp_server::server::transport::parseMcsChannelRequest(lateJoin);
+    assert(parsedJoin);
+    assert(parsedJoin.request.kind ==
+           rdp_server::server::transport::McsChannelRequestKind::ChannelJoin);
+    const auto parsedDisconnect =
+        rdp_server::server::transport::parseMcsChannelRequest(lateDisconnect);
+    assert(parsedDisconnect);
+    assert(parsedDisconnect.request.kind ==
+           rdp_server::server::transport::McsChannelRequestKind::
+               DisconnectProviderUltimatum);
+
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // Model R1 disconnect using the real R2->R3 cancellation barrier. Once
+    // R3 closes, syntactically valid queued/late MCS work cannot revive it or
+    // produce a join confirmation, even if a readiness callback arrives late.
+    broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(broker.nativeChangeFd() == -1);
+    assert(broker.nativeChangeEvents() == -1);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    assert(session.onDomainPdu(lateJoin) == McsSessionIntake::Closed);
+    assert(session.onDomainPdu(lateDisconnect) == McsSessionIntake::Closed);
+    assert(session.pendingJoinConfirmation().empty());
+    assert(!session.channelJoinConfirmed(1003U));
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+
+    // Duplicate teardown after late work remains terminal and idempotent.
+    broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+}
+
 void testConsoleGssProvenanceBeforeOsRead()
 {
     ConsoleIdentityPolicy policy;
@@ -421,6 +476,11 @@ int main(int argc, char **argv)
             testR3NativeChangeRevocation();
             return 0;
         }
+        if (name == "gssapi-r3-mcs-disconnect-revocation-fence")
+        {
+            testR3McsDisconnectRevocationFence();
+            return 0;
+        }
         return 2;
     };
     if (argc == 2)
@@ -437,5 +497,6 @@ int main(int argc, char **argv)
     testNativeAdmissionCapabilityDenials();
     testR3McsAdmissionContract();
     testR3NativeChangeRevocation();
+    testR3McsDisconnectRevocationFence();
     return 0;
 }

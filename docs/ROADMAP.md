@@ -5672,3 +5672,48 @@ real Microsoft-client validation remain **NOT RUN**; M2 remains
 **NOT ACCEPTED**. **Next R1 dependency:** consume concrete R2/R3 integration
 feedback; do not add another transport surface without a demonstrated
 missing hook.
+
+
+## R9 integrated admission/revocation sanitizer gate (2026-10-16; CI pending)
+
+**Starting HEAD:** `45dc57878bcc741a87bd2ba8b9b9edf15588f062`. **Reconciled authoring base:**
+`3a350fa386563182872600d55769a4314c0e9b78`. R3 now consumes the genuine move-only R2
+`LinuxConsoleAdmissionLease` through
+`LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial`, and R2 also
+provides the production native-session-change revocation callback. R9 therefore
+targets this real R2->R3 boundary instead of building a synthetic positive
+authorization path.
+
+One independent production-backed regression is added to the existing
+`test_linux_gssapi_spnego` executable:
+`security.gssapi-r3-mcs-disconnect-revocation-fence`. It invokes the real
+`revokeR3Session` R3->R2/GSS cancellation barrier, then submits independently
+validated late Channel Join and Disconnect Provider PDUs to the sole
+`McsSessionLifecycle`. Both remain terminal `Closed`; licensing stays
+closed and no join confirmation/channel membership survives. This is distinct
+from the existing admission-contract and native-change tests and uses no fake
+lease, injected positive evidence, authorization Boolean or second session
+owner.
+
+The existing single `r9-security-protocol-sanitizers` job is expanded in the
+same checkout-local `build/`. It installs only `libkrb5-dev` and
+`pkg-config`, configures `RDP_SERVER_TEST_LINUX_GSSAPI=ON` and
+`RDP_SERVER_TEST_REAL_KERBEROS=OFF`, and adds
+`test_linux_gssapi_spnego` to the production-linked targets. The bounded
+selection preserves the prior 10 MCS/CredSSP cases and adds four R2 admission
+cases, the R3 admission contract, R2 native-change/R3 revocation, the new R9
+disconnect fence, and all three R3 licensing cases (**20 selected
+security/protocol CTests**). Clipboard label coverage and the 5,000-run
+`fuzz.mcs-cliprdr-bounded` remain unchanged. ASan leak detection,
+`halt_on_error`, UBSan stack traces, frame pointers and
+`-fno-sanitize-recover=all` remain enabled.
+
+**Authoring validation:** local configure/build/CTest is **NOT RUN** because
+this agent container cannot obtain a synchronized checkout (direct
+`github.com` DNS resolution failed). Exact-SHA hosted sanitizer and full
+Linux/macOS/Windows Debug+Release outcomes are **PENDING** publication. Real
+Kerberos and a genuine positive native admission remain **NOT RUN**; authorized
+R3->R8 routing remains **BLOCKED**. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, Microsoft-client interoperability and
+performance/reliability acceptance are **NOT RUN**. No temporary patch/diff
+file was created. M1-M6 remain unaccepted pending their full evidence.

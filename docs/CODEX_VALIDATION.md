@@ -7139,3 +7139,36 @@ real Microsoft-client validation remain **NOT RUN**; M2 remains
 **NOT ACCEPTED**. **Next R1 dependency:** consume concrete R2/R3 integration
 feedback; do not add another transport surface without a demonstrated
 missing hook.
+
+
+## R9 integrated R2->R3 sanitizer authoring evidence (2026-10-16; CI pending)
+
+**Starting HEAD:** `45dc57878bcc741a87bd2ba8b9b9edf15588f062`; reconciled over concurrent
+main through `3a350fa386563182872600d55769a4314c0e9b78`. Inspection confirms the production R2 lease is
+consumed by the sole R3 MCS owner and that native-session-change readiness has
+a revocation-only R2->R3 callback. Positive lease minting remains
+credential/native-session gated.
+
+R9 adds
+`security.gssapi-r3-mcs-disconnect-revocation-fence` to the existing Linux
+GSSAPI test executable. The regression calls the production
+`revokeR3Session` ordering barrier and proves syntactically valid late Join
+and Disconnect Provider PDUs cannot revive R3, licensing, joined-channel state
+or R2/GSS authority. No positive lease is fabricated.
+
+The one existing sanitizer job now enables the Linux GSSAPI production target
+with real Kerberos explicitly OFF, builds `test_linux_gssapi_spnego`, and
+runs **20 selected** MCS/CredSSP/R2/R3/licensing CTests in addition to the
+unchanged clipboard label suite and bounded libFuzzer test. Added build
+packages are only `libkrb5-dev` and `pkg-config`; systemd/logind linkage
+remains optional under the existing CMake detection. Sanitizer configuration
+remains `-fsanitize=address,undefined -fno-omit-frame-pointer
+-fno-sanitize-recover=all`,
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1`, and
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+
+**Local:** NOT RUN because direct GitHub DNS is unavailable to this container.
+**Hosted exact-SHA:** PENDING publication. **Real Kerberos / positive R3
+admission:** NOT RUN. **R3->R8 authorized routing:** BLOCKED. **Owner platform
+trio, Microsoft client, performance/reliability:** NOT RUN. No temporary patch
+or diff file was created.

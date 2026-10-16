@@ -6590,6 +6590,37 @@ is no longer invocable. **NOT RUN at authoring:** local full CTest,
 exact-SHA hosted CI, genuine Kerberos/logind mid-write revocation, owner
 platform trio or Microsoft client. Gate A/M2 remain OPEN.
 
+## R1 R3 Connect Response slice compatibility (2026-10-16)
+
+**Starting main:** `372ad95ebe4d93c8c4c476eae10e6064209577aa`.
+R2/R3 now consume R1's immutable X.224 negotiation provenance for the
+protected Connect Response contract. No new R1 transport surface is required:
+R3's current `kMaximumMcsResponseBytes` is 2048 bytes, strictly below R1's
+18 KiB `kMaximumTlsApplicationIoBytes` one-step write ceiling.
+
+A new independently registered
+`transport.tcp-owned-r3-connect-response-slice` regression proves that
+contract through the existing production types. It queues a maximum-sized
+`McsConnectResponse` in R3's receipt-owning
+`McsConnectResponseWriteGate`, establishes a real OpenSSL TLS session over
+an ephemeral loopback socket owned by `OwnedPreauthTcpConnection`, and feeds
+each borrowed R3 write view directly to
+`OwnedPreauthTcpConnection::writeTlsApplicationData`. A forced 1 KiB TLS
+record fragment proves caller-visible short progress; positive progress rotates
+the R3 slice receipt, while zero-byte OpenSSL WANT preserves the exact receipt
+and borrowed span until explicit retry. The peer receives exact byte parity.
+
+This is transport-compatibility coverage only. The synthetic response is not
+authorized for publication and creates no R2 lease, OS admission, R3 phase
+advance, listener, session controller or authentication success. Production
+R1/R2/R3 code is unchanged. Local repository CMake/CTest is **NOT RUN** in
+this agent environment; exact-SHA hosted Debug/Release CI is required after
+publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and
+real Microsoft-client validation remain **NOT RUN**; M2 remains
+**NOT ACCEPTED**. **Next R1:** no new surface unless protected
+Erect/Attach/Join integration demonstrates a concrete bounded TCP/TLS gap.
+
+
 ## R3 protected Erect Domain progression (2026-10-16)
 
 **Authoring base:** `86b5c32aa0318ab96a3e5e30ddda57a84f54b3b3`; reconciled onto

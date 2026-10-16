@@ -29,7 +29,8 @@ struct FakeDamageReader
         order[orderCount++] = value;
     }
     static WindowsDxgiAcquireResult acquire(
-        void *raw, std::uint32_t, void *&resource) noexcept
+        void *raw, std::uint32_t, void *&resource,
+        WindowsDxgiFrameInfo &) noexcept
     {
         auto &f = *static_cast<FakeDamageReader *>(raw);
         f.record('A');

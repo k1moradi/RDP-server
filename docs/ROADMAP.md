@@ -1,5 +1,62 @@
 # RDP-server protocol roadmap and acceptance gates
 
+## R6 generation-safe DXGI pointer shape ownership (2026-10-16; exact-SHA CI pending)
+
+Starting main inspected: `b8c04fe1242d0d7b1a52009311df876b6f6f4739`;
+shared files are reconciled against the current publication parent immediately
+before commit. The existing `WindowsDxgiFrameOwner` now retains only the
+pointer facts returned atomically by its existing `AcquireNextFrame` lease:
+independent position-change state, output-relative position/visibility, and
+`PointerShapeBufferSize`. It still owns exactly one frame lease and clears
+that metadata before `ReleaseFrame`.
+
+New `windows_dxgi_pointer_shape.{h,cpp}` provides the bounded native
+`GetFramePointerShape` seam and move-only owned shape bytes. A shape is
+limited to 256x256 logical pixels and 512 KiB, with checked pitch, byte count,
+hotspot and type. Monochrome data preserves the DXGI AND/XOR planes and halves
+the reported scanline count to its logical height; color retains native BGRA
+bytes; masked-color requires the documented binary alpha mask (0 or 0xff).
+No borrowed DXGI buffer escapes the callback.
+
+The existing `WindowsDxgiCaptureCycle`, not a second cursor scheduler, copies
+shape data immediately after acquisition and before D3D11 staging can return
+GPU-not-ready. Position and shape timestamps are independent: shape-only and
+position-only frames are merged with any unread same-generation state so
+neither can erase the other. Output-relative visible positions are converted
+to checked Win32 virtual-screen coordinates using the already-selected output
+rectangle. The owned update carries the existing pinned session/device
+generation and is revalidated immediately before publication; revocation
+clears unpublished cursor state and releases the native frame through the
+existing unmap-before-`ReleaseFrame` teardown. The duplication owner supplies
+the shape callback only to its already-owned capture cycle. R4 may move the
+owned bytes but remains the sole graphics/cursor scheduler.
+
+**Dedicated Windows offline CTests:**
+`windows.cursor-dxgi-shape-owned-lifetime` and
+`windows.cursor-dxgi-shape-generation-denials`. Coverage includes color,
+monochrome and masked-color shape ownership, shape-only/position-only merging,
+GPU-map deferral, source-buffer independence, same-frame reentry denial,
+oversize/malformed pitch/hotspot/type/alpha rejection, `MORE_DATA`,
+access loss, cancellation deferral, signed position overflow, stale generation
+discard and required generation/output binding. Tests use synthetic callbacks;
+ordinary CTest never calls a live `AcquireNextFrame` or captures the desktop.
+
+**Authoring validation:** source/test review against the current C++23
+high-warning contracts; full hosted build/CTest is **NOT RUN before
+publication** and must be taken from exact-SHA Actions. Owner Windows MSYS2
+CLANG64/Clang23, live Desktop Duplication, genuine Windows R2/R3 admission,
+R4 runtime cursor delivery, Microsoft-client M4 and performance are **NOT RUN**.
+No authentication, service event registrar, input injection or second R4
+schedule is added. **Next:** exact-SHA Windows/MSVC + owner CLANG64 validation,
+then a focused native Windows input increment only behind genuine R2/R3
+authorization; M4 remains OPEN.
+
+
+
+
+
+
+
 ## R10 TLS server-certificate purpose gate (2026-10-16; exact-SHA CI pending)
 
 Starting `main`: `d4669a0a612bf916c6f406d42f26d1174d7130c8`. The two owner-reported configuration-positive
@@ -23,7 +80,7 @@ R2/R3 admission, service lifecycle and release packaging remain OPEN.
 build/CTest and owner platform tests are **NOT RUN** in this network-isolated
 workspace; exact-SHA GitHub Actions is required after publication.
 
-## R6 native DXGI owner increment (2026-10-16; validation pending)
+## R6 native DXGI owner increment (2026-10-16; exact-SHA hosted CI PASS)
 
 The Windows-only `WindowsDxgiDuplicationOwner` now provides an explicit
 factory/adapter/output/ID3D11Device/immediate-context/IDXGIOutput1/
@@ -52,11 +109,14 @@ session IDs do **not** authorize a user. The runtime is NOT wired for capture.
 `windows.capture-dxgi-duplication-owner-selection-denials`, and
 `windows.capture-dxgi-duplication-owner-epoch-revocation`.
 Their injected callbacks do not enumerate or capture a real desktop.
-**NOT RUN at authoring:** actual Windows/MSVC and owner MSYS2 CLANG64/Clang23
-build/CTest, live DuplicateOutput, R2/R3 admission, R4 real-time graphics,
-Microsoft-client M4 acceptance. Exact-SHA CI is required following publication.
-**Next:** verify Windows exact-SHA CI, owner CLANG64, then bounded
-generation-safe DXGI pointer shapes; M4 remains OPEN.
+**Exact-SHA hosted CI:** implementation `f42145a44c041510013d9da07a5d27652137db7f`,
+Actions 38873520825 completed **SUCCESS**. Windows/MSVC passed **288/288**
+registered CTests in Debug and Release, including all three new owner cases;
+Linux/GCC passed **289/289** and macOS/Clang **265/265** in both configurations.
+Documentation policy and sanitizer jobs passed. **NOT RUN:** owner MSYS2
+CLANG64/Clang23, live `DuplicateOutput`, genuine R2/R3 Windows admission,
+R4 real-time graphics and Microsoft-client M4. The next R6 increment is the
+generation-safe pointer ownership described above; M4 remains OPEN.
 
 
 ## Target

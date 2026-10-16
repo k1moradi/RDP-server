@@ -34,6 +34,8 @@ void windowsCaptureSessionChangeDenials();
 void windowsDxgiDuplicationOwnerLifecycle();
 void windowsDxgiDuplicationOwnerSelectionDenials();
 void windowsDxgiDuplicationOwnerEpochRevocation();
+void windowsDxgiPointerShapeOwnedLifetime();
+void windowsDxgiPointerShapeGenerationDenials();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
 void windowsCaptureCycleLifecycleDenials();
@@ -360,14 +362,16 @@ struct FakeDxgiFrameSource
     bool returnUnexpectedResource{};
     WindowsDxgiFrameOwner *reentrantOwner{};
     WindowsDxgiAcquireResult reentrantAcquire{WindowsDxgiAcquireResult::failed};
+    WindowsDxgiFrameInfo acquiredFrameInfo{};
 
     static WindowsDxgiAcquireResult acquire(
         void *context, std::uint32_t timeoutMilliseconds,
-        void *&resource) noexcept
+        void *&resource, WindowsDxgiFrameInfo &frameInfo) noexcept
     {
         auto &source = *static_cast<FakeDxgiFrameSource *>(context);
         ++source.acquisitions;
         source.lastWait = timeoutMilliseconds;
+        frameInfo = source.acquiredFrameInfo;
         if ((source.nextAcquire == WindowsDxgiAcquireResult::acquired &&
              !source.returnNull) || source.returnUnexpectedResource)
         {
@@ -800,6 +804,14 @@ int main(int argc, char **argv)
     else if (behavior == "dxgi-duplication-owner-epoch-revocation")
     {
         windowsDxgiDuplicationOwnerEpochRevocation();
+    }
+    else if (behavior == "cursor-dxgi-shape-owned-lifetime")
+    {
+        windowsDxgiPointerShapeOwnedLifetime();
+    }
+    else if (behavior == "cursor-dxgi-shape-generation-denials")
+    {
+        windowsDxgiPointerShapeGenerationDenials();
     }
     else if (behavior == "cursor-snapshot-visible-and-hidden")
     {

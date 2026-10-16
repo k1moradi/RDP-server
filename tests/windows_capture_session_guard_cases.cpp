@@ -96,7 +96,8 @@ struct FakeFramePipeline final
     unsigned releases{};
 
     static WindowsDxgiAcquireResult acquire(
-        void *context, std::uint32_t, void *&resource) noexcept
+        void *context, std::uint32_t, void *&resource,
+        WindowsDxgiFrameInfo &) noexcept
     {
         auto &self = *static_cast<FakeFramePipeline *>(context);
         ++self.acquisitions;

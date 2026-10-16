@@ -5,6 +5,7 @@
 #include "windows_d3d11_staging_map.h"
 #include "windows_desktop_geometry.h"
 #include "windows_dxgi_frame_owner.h"
+#include "windows_dxgi_pointer_shape.h"
 
 #include <span>
 #include <cstdint>
@@ -49,6 +50,19 @@ enum class WindowsCaptureConsumeResult
     releaseFailed,
 };
 
+enum class WindowsCapturePointerResult
+{
+    ready,
+    noUpdate,
+    noFrame,
+    unavailable,
+    invalid,
+    accessLost,
+    failed,
+    busy,
+    closed,
+};
+
 // A REVOCATION-ONLY source of session and graphics-device generations.
 // R2/R3 must independently authenticate and authorize the interactive
 // session. Matching numbers, or a callback returning true, grant NO access.
@@ -68,6 +82,28 @@ struct WindowsCaptureGenerationReader
     bool (*read)(void *context, WindowsCaptureGeneration &current) noexcept{};
 };
 
+// Independently owned pointer update for the currently acquired DXGI frame.
+// nativeTopLeft is the top-left of the DXGI shape in Win32 virtual-screen
+// coordinates and is meaningful only when positionChanged && visible.
+// Shape and position updates are independent; a position-only update
+// leaves shapeChanged false so R4 retains its prior same-generation shape.
+// When shapeChanged is true, shape owns every byte needed after ReleaseFrame.
+struct WindowsCapturePointerUpdate final
+{
+    WindowsCaptureGeneration generation{};
+    bool positionChanged{};
+    bool visible{};
+    WindowsNativePoint nativeTopLeft{};
+    bool shapeChanged{};
+    WindowsDxgiPointerShape shape{};
+
+    WindowsCapturePointerUpdate() noexcept = default;
+    WindowsCapturePointerUpdate(const WindowsCapturePointerUpdate &) = delete;
+    WindowsCapturePointerUpdate &operator=(const WindowsCapturePointerUpdate &) = delete;
+    WindowsCapturePointerUpdate(WindowsCapturePointerUpdate &&) noexcept = default;
+    WindowsCapturePointerUpdate &operator=(WindowsCapturePointerUpdate &&) noexcept = default;
+};
+
 // Coordinates the two existing native RAII owners, NOT the R4 graphics
 // scheduler or the R2/R3 authorization decision. The caller must already
 // own an authorized duplication + D3D11 context, and must serialize calls
@@ -82,7 +118,9 @@ public:
         WindowsD3D11StagingCallbacks stagingCallbacks,
         WindowsDxgiDamageReadCallbacks damageCallbacks = {},
         WindowsCaptureGenerationReader generationReader = {},
-        WindowsCaptureGeneration pinnedGeneration = {}) noexcept;
+        WindowsCaptureGeneration pinnedGeneration = {},
+        WindowsDxgiPointerShapeReadCallbacks pointerShapeCallbacks = {},
+        PortableRectangle capturedOutputBounds = {}) noexcept;
     ~WindowsDxgiCaptureCycle() noexcept;
 
     WindowsDxgiCaptureCycle(const WindowsDxgiCaptureCycle &) = delete;
@@ -110,6 +148,12 @@ public:
     [[nodiscard]] WindowsCaptureDamageResult readFrameDamage(
         std::span<PortableRectangle> destination,
         std::size_t &writtenCount) noexcept;
+    // Consume the latest independently owned pointer state captured from
+    // AcquireNextFrame. Shape bytes are copied while that native lease is held,
+    // so this remains available even if staging was GPU-not-ready or the frame
+    // has since been released. Generation changes leave output unchanged.
+    [[nodiscard]] WindowsCapturePointerResult readFramePointerUpdate(
+        WindowsCapturePointerUpdate &output) noexcept;
     [[nodiscard]] bool releaseFrame() noexcept;
     // Compare caller-sampled, validated geometry with the pinned snapshot.
     // A changed topology revokes the cycle; no Win32 enumeration is done.
@@ -126,6 +170,7 @@ private:
     // while a staging callback still uses the acquired DXGI resource.
     // Called only with operationInProgress_ set; false terminally revokes.
     [[nodiscard]] bool generationUnchanged() noexcept;
+    [[nodiscard]] WindowsCapturePointerResult capturePointerUpdate() noexcept;
     void finishCancellation() noexcept;
 
     WindowsDesktopLayout layout_{};
@@ -134,6 +179,10 @@ private:
     WindowsDxgiDamageReadCallbacks damage_{};
     WindowsCaptureGenerationReader generationReader_{};
     WindowsCaptureGeneration pinnedGeneration_{};
+    WindowsDxgiPointerShapeReadCallbacks pointerShape_{};
+    PortableRectangle capturedOutputBounds_{};
+    WindowsCapturePointerUpdate pendingPointerUpdate_{};
+    bool pointerUpdatePending_{};
     bool operationInProgress_{};
     bool closed_{};
 };

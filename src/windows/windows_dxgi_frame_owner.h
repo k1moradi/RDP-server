@@ -33,17 +33,33 @@ enum class WindowsDxgiReleaseResult
     notHeld,
 };
 
+// Pointer facts returned atomically with AcquireNextFrame. The position is
+// relative to the selected adapter output and is meaningful only when
+// pointerPositionUpdated && pointerVisible. A nonzero pointerShapeBufferSize means
+// the same acquired frame owns a new shape retrievable with
+// IDXGIOutputDuplication::GetFramePointerShape.
+struct WindowsDxgiFrameInfo final
+{
+    bool pointerPositionUpdated{};
+    bool pointerVisible{};
+    std::int32_t pointerX{};
+    std::int32_t pointerY{};
+    std::uint32_t pointerShapeBufferSize{};
+};
+
 // Callback seam used by the real IDXGIOutputDuplication adapter and by
 // deterministic CTests. An acquired token represents one IDXGIResource COM
 // reference AND the outstanding duplication-frame lease. release must drop
 // the reference and call ReleaseFrame once, in that order. The context and
 // callbacks must outlive this owner; calls are confined to the same thread.
+// frameInfo is committed only when acquire returns acquired with a resource.
 struct WindowsDxgiFrameCallbacks
 {
     void *context{};
     WindowsDxgiAcquireResult (*acquire)(void *context,
                                         std::uint32_t timeoutMilliseconds,
-                                        void *&resource) noexcept{};
+                                        void *&resource,
+                                        WindowsDxgiFrameInfo &frameInfo) noexcept{};
     WindowsDxgiReleaseResult (*release)(void *context,
                                         void *resource) noexcept{};
 };
@@ -70,11 +86,15 @@ public:
     void cancel() noexcept;
 
     [[nodiscard]] void *resource() const noexcept;
+    // Returns zeroed metadata when no frame is held. Copy by value so callers
+    // cannot retain a reference into this lease beyond ReleaseFrame.
+    [[nodiscard]] WindowsDxgiFrameInfo frameInfo() const noexcept;
     [[nodiscard]] bool closed() const noexcept;
 
 private:
     WindowsDxgiFrameCallbacks callbacks_{};
     void *resource_{};
+    WindowsDxgiFrameInfo frameInfo_{};
     bool releaseInProgress_{};
     bool closed_{};
 };

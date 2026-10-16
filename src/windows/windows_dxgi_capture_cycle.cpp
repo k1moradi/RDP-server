@@ -5,7 +5,9 @@
 #include <array>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <span>
+#include <utility>
 #include "windows_dxgi_capture_cycle.h"
 
 namespace rdp_server::windows
@@ -16,10 +18,13 @@ WindowsDxgiCaptureCycle::WindowsDxgiCaptureCycle(
     WindowsD3D11StagingCallbacks stagingCallbacks,
     WindowsDxgiDamageReadCallbacks damageCallbacks,
     WindowsCaptureGenerationReader generationReader,
-    WindowsCaptureGeneration pinnedGeneration) noexcept
+    WindowsCaptureGeneration pinnedGeneration,
+    WindowsDxgiPointerShapeReadCallbacks pointerShapeCallbacks,
+    PortableRectangle capturedOutputBounds) noexcept
     : layout_(layout), duplication_(frameCallbacks), staging_(stagingCallbacks),
       damage_(damageCallbacks), generationReader_(generationReader),
-      pinnedGeneration_(pinnedGeneration),
+      pinnedGeneration_(pinnedGeneration), pointerShape_(pointerShapeCallbacks),
+      capturedOutputBounds_(capturedOutputBounds),
       closed_(layout.monitorCount == 0 ||
               layout.monitorCount > kMaximumWindowsDesktopMonitors ||
               layout.virtualBounds.widthPixels == 0 ||
@@ -35,6 +40,40 @@ WindowsDxgiCaptureCycle::WindowsDxgiCaptureCycle(
                 pinnedGeneration.session == 0 ||
                 pinnedGeneration.device == 0)))
 {
+    const bool pointerIntegrationRequested =
+        pointerShape_.context != nullptr || pointerShape_.read != nullptr ||
+        capturedOutputBounds_.widthPixels != 0 ||
+        capturedOutputBounds_.heightPixels != 0;
+    if (closed_ || !pointerIntegrationRequested)
+    {
+        return;
+    }
+
+    // Pointer updates become asynchronously retainable R4 data, so this path
+    // is available only with the same nonzero revocation generation already
+    // used for pixels/damage and an exact selected monitor rectangle.
+    if (pointerShape_.context == nullptr || pointerShape_.read == nullptr ||
+        capturedOutputBounds_.widthPixels == 0 ||
+        capturedOutputBounds_.heightPixels == 0 ||
+        generationReader_.context == nullptr || generationReader_.read == nullptr ||
+        pinnedGeneration_.session == 0 || pinnedGeneration_.device == 0)
+    {
+        closed_ = true;
+        return;
+    }
+
+    std::size_t matchingOutputs = 0;
+    for (std::size_t index = 0; index < layout_.monitorCount; ++index)
+    {
+        if (layout_.monitors[index] == capturedOutputBounds_)
+        {
+            ++matchingOutputs;
+        }
+    }
+    if (matchingOutputs != 1)
+    {
+        closed_ = true;
+    }
 }
 
 WindowsDxgiCaptureCycle::~WindowsDxgiCaptureCycle() noexcept
@@ -107,32 +146,55 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
     }
     else if (acquired == WindowsDxgiAcquireResult::acquired)
     {
-        const auto mapped = staging_.mapFrame(duplication_.resource());
-        if (closed_)
+        // Copy pointer position/shape before staging can return notReady and
+        // force this native frame lease to be released. Pointer bytes are
+        // independently owned and remain pending until R4 consumes them.
+        const auto pointerResult = capturePointerUpdate();
+        if (pointerResult == WindowsCapturePointerResult::accessLost)
         {
-            outcome = WindowsCaptureCycleResult::closed;
+            closed_ = true;
+            outcome = WindowsCaptureCycleResult::accessLost;
         }
-        else if (mapped == WindowsD3D11MapResult::mapped)
+        else if (pointerResult == WindowsCapturePointerResult::invalid ||
+                 pointerResult == WindowsCapturePointerResult::failed ||
+                 pointerResult == WindowsCapturePointerResult::closed)
         {
-            outcome = WindowsCaptureCycleResult::mapped;
+            closed_ = true;
+            outcome = pointerResult == WindowsCapturePointerResult::closed
+                          ? WindowsCaptureCycleResult::closed
+                          : WindowsCaptureCycleResult::failed;
         }
         else
         {
-            if (mapped == WindowsD3D11MapResult::notReady)
+            const auto mapped = staging_.mapFrame(duplication_.resource());
+            if (closed_)
             {
-                outcome = WindowsCaptureCycleResult::notReady;
+                outcome = WindowsCaptureCycleResult::closed;
+            }
+            else if (mapped == WindowsD3D11MapResult::mapped)
+            {
+                outcome = WindowsCaptureCycleResult::mapped;
             }
             else
             {
-                closed_ = true;
-            }
-            // Even a GPU-not-ready result must not retain the duplication
-            // lease while the caller waits for the next capture attempt.
-            staging_.unmap();
-            if (duplication_.releaseFrame() != WindowsDxgiReleaseResult::released)
-            {
-                closed_ = true;
-                outcome = WindowsCaptureCycleResult::failed;
+                if (mapped == WindowsD3D11MapResult::notReady)
+                {
+                    outcome = WindowsCaptureCycleResult::notReady;
+                }
+                else
+                {
+                    closed_ = true;
+                }
+                // Even a GPU-not-ready result must not retain the duplication
+                // lease while the caller waits for the next capture attempt.
+                // Any cursor update is already independently owned above.
+                staging_.unmap();
+                if (duplication_.releaseFrame() !=
+                    WindowsDxgiReleaseResult::released)
+                {
+                    closed_ = true;
+                    outcome = WindowsCaptureCycleResult::failed;
+                }
             }
         }
     }
@@ -348,6 +410,133 @@ WindowsCaptureDamageResult WindowsDxgiCaptureCycle::readFrameDamage(
     return WindowsCaptureDamageResult::ready;
 }
 
+WindowsCapturePointerResult WindowsDxgiCaptureCycle::capturePointerUpdate() noexcept
+{
+    if (pointerShape_.context == nullptr || pointerShape_.read == nullptr)
+    {
+        return WindowsCapturePointerResult::unavailable;
+    }
+    if (!generationUnchanged())
+    {
+        return WindowsCapturePointerResult::closed;
+    }
+
+    const WindowsDxgiFrameInfo frameInfo = duplication_.frameInfo();
+    if (!frameInfo.pointerPositionUpdated &&
+        frameInfo.pointerShapeBufferSize == 0)
+    {
+        return WindowsCapturePointerResult::noUpdate;
+    }
+
+    WindowsCapturePointerUpdate candidate{};
+    candidate.generation = pinnedGeneration_;
+    candidate.positionChanged = frameInfo.pointerPositionUpdated;
+    candidate.visible =
+        candidate.positionChanged && frameInfo.pointerVisible;
+    if (candidate.positionChanged && candidate.visible)
+    {
+        const std::int64_t nativeX =
+            static_cast<std::int64_t>(capturedOutputBounds_.x) +
+            frameInfo.pointerX;
+        const std::int64_t nativeY =
+            static_cast<std::int64_t>(capturedOutputBounds_.y) +
+            frameInfo.pointerY;
+        if (nativeX < std::numeric_limits<std::int32_t>::min() ||
+            nativeX > std::numeric_limits<std::int32_t>::max() ||
+            nativeY < std::numeric_limits<std::int32_t>::min() ||
+            nativeY > std::numeric_limits<std::int32_t>::max())
+        {
+            return WindowsCapturePointerResult::invalid;
+        }
+        candidate.nativeTopLeft = {
+            static_cast<std::int32_t>(nativeX),
+            static_cast<std::int32_t>(nativeY)};
+    }
+
+    if (frameInfo.pointerShapeBufferSize != 0)
+    {
+        const auto shapeResult = readWindowsDxgiPointerShape(
+            pointerShape_, frameInfo.pointerShapeBufferSize, candidate.shape);
+        if (closed_)
+        {
+            return WindowsCapturePointerResult::closed;
+        }
+        if (shapeResult != WindowsDxgiPointerShapeReadResult::ready)
+        {
+            if (shapeResult == WindowsDxgiPointerShapeReadResult::accessLost)
+                return WindowsCapturePointerResult::accessLost;
+            if (shapeResult == WindowsDxgiPointerShapeReadResult::invalid ||
+                shapeResult == WindowsDxgiPointerShapeReadResult::moreData)
+                return WindowsCapturePointerResult::invalid;
+            return WindowsCapturePointerResult::failed;
+        }
+        candidate.shapeChanged = true;
+    }
+
+    if (pointerUpdatePending_)
+    {
+        // Shape and position timestamps are independent. Merge any unread
+        // half of the prior state only when this frame has no newer value for
+        // that half, so shape-only and position-only frames cannot erase one
+        // another before R4 consumes the owned update.
+        if (!candidate.positionChanged &&
+            pendingPointerUpdate_.positionChanged)
+        {
+            candidate.positionChanged = true;
+            candidate.visible = pendingPointerUpdate_.visible;
+            candidate.nativeTopLeft = pendingPointerUpdate_.nativeTopLeft;
+        }
+        if (!candidate.shapeChanged && pendingPointerUpdate_.shapeChanged)
+        {
+            candidate.shapeChanged = true;
+            candidate.shape = std::move(pendingPointerUpdate_.shape);
+        }
+    }
+
+    // A session/device change during GetFramePointerShape invalidates both
+    // metadata and independently copied bytes before they can become pending.
+    if (!generationUnchanged())
+    {
+        return WindowsCapturePointerResult::closed;
+    }
+
+    pendingPointerUpdate_ = std::move(candidate);
+    pointerUpdatePending_ = true;
+    return WindowsCapturePointerResult::ready;
+}
+
+WindowsCapturePointerResult WindowsDxgiCaptureCycle::readFramePointerUpdate(
+    WindowsCapturePointerUpdate &output) noexcept
+{
+    if (closed_)
+        return WindowsCapturePointerResult::closed;
+    if (operationInProgress_)
+        return WindowsCapturePointerResult::busy;
+    if (pointerShape_.context == nullptr || pointerShape_.read == nullptr ||
+        capturedOutputBounds_.widthPixels == 0 ||
+        capturedOutputBounds_.heightPixels == 0 ||
+        generationReader_.context == nullptr || generationReader_.read == nullptr)
+    {
+        return WindowsCapturePointerResult::unavailable;
+    }
+    if (!pointerUpdatePending_)
+        return WindowsCapturePointerResult::noUpdate;
+
+    operationInProgress_ = true;
+    if (!generationUnchanged())
+    {
+        finishCancellation();
+        operationInProgress_ = false;
+        return WindowsCapturePointerResult::closed;
+    }
+
+    output = std::move(pendingPointerUpdate_);
+    pendingPointerUpdate_ = {};
+    pointerUpdatePending_ = false;
+    operationInProgress_ = false;
+    return WindowsCapturePointerResult::ready;
+}
+
 bool WindowsDxgiCaptureCycle::releaseFrame() noexcept
 {
     if (operationInProgress_ || !staging_.mapped())
@@ -398,6 +587,10 @@ void WindowsDxgiCaptureCycle::cancel() noexcept
 
 void WindowsDxgiCaptureCycle::finishCancellation() noexcept
 {
+    // A generation/device/session revocation invalidates even independently
+    // copied but not-yet-published cursor state.
+    pendingPointerUpdate_ = {};
+    pointerUpdatePending_ = false;
     staging_.cancel();
     duplication_.cancel();
 }

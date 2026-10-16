@@ -44,13 +44,15 @@ WindowsDxgiAcquireResult WindowsDxgiFrameOwner::acquireFrame(
     }
 
     void *acquiredResource = nullptr;
-    const auto result = callbacks_.acquire(callbacks_.context,
-                                           timeoutMilliseconds,
-                                           acquiredResource);
+    WindowsDxgiFrameInfo acquiredFrameInfo{};
+    const auto result = callbacks_.acquire(
+        callbacks_.context, timeoutMilliseconds,
+        acquiredResource, acquiredFrameInfo);
     if (result == WindowsDxgiAcquireResult::acquired &&
         acquiredResource != nullptr)
     {
         resource_ = acquiredResource;
+        frameInfo_ = acquiredFrameInfo;
         return result;
     }
 
@@ -80,10 +82,12 @@ WindowsDxgiReleaseResult WindowsDxgiFrameOwner::releaseFrame() noexcept
     {
         return WindowsDxgiReleaseResult::notHeld;
     }
-    // Invalidate the borrowed pointer before calling the potentially
-    // re-entrant native release hook. No second release can observe it.
+    // Invalidate the borrowed pointer and per-frame metadata before calling
+    // the potentially re-entrant native release hook. No second release or
+    // pointer-shape read can observe the old lease after this point.
     void *const resourceToRelease = resource_;
     resource_ = nullptr;
+    frameInfo_ = {};
     releaseInProgress_ = true;
     const auto outcome = callbacks_.release(callbacks_.context,
                                             resourceToRelease);
@@ -106,6 +110,11 @@ void *WindowsDxgiFrameOwner::resource() const noexcept
     return resource_;
 }
 
+WindowsDxgiFrameInfo WindowsDxgiFrameOwner::frameInfo() const noexcept
+{
+    return resource_ != nullptr ? frameInfo_ : WindowsDxgiFrameInfo{};
+}
+
 bool WindowsDxgiFrameOwner::closed() const noexcept
 {
     return closed_;
@@ -117,7 +126,7 @@ namespace
 
 WindowsDxgiAcquireResult acquireNativeFrame(
     void *context, std::uint32_t timeoutMilliseconds,
-    void *&resource) noexcept
+    void *&resource, WindowsDxgiFrameInfo &portableFrameInfo) noexcept
 {
     auto &duplication = *static_cast<IDXGIOutputDuplication *>(context);
     DXGI_OUTDUPL_FRAME_INFO frameInfo{};
@@ -149,6 +158,21 @@ WindowsDxgiAcquireResult acquireNativeFrame(
         (void)duplication.ReleaseFrame();
         return WindowsDxgiAcquireResult::failed;
     }
+
+    const bool pointerPositionUpdated =
+        frameInfo.LastMouseUpdateTime.QuadPart != 0;
+    const bool pointerVisible =
+        pointerPositionUpdated && frameInfo.PointerPosition.Visible != FALSE;
+    portableFrameInfo = {
+        pointerPositionUpdated,
+        pointerVisible,
+        pointerVisible
+            ? static_cast<std::int32_t>(frameInfo.PointerPosition.Position.x)
+            : 0,
+        pointerVisible
+            ? static_cast<std::int32_t>(frameInfo.PointerPosition.Position.y)
+            : 0,
+        frameInfo.PointerShapeBufferSize};
     resource = nativeResource;
     return WindowsDxgiAcquireResult::acquired;
 }

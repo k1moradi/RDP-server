@@ -405,6 +405,7 @@ if(TARGET rdp-server-windows-desktop)
         windows_capture_damage_cases.cpp
         windows_capture_session_guard_cases.cpp
         windows_dxgi_duplication_owner_cases.cpp
+        windows_dxgi_pointer_shape_cases.cpp
         windows_cursor_snapshot_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop)
@@ -517,6 +518,16 @@ if(TARGET rdp-server-windows-desktop)
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;security;offline")
+    endforeach()
+    # R6 DXGI pointer position/shape ownership. Synthetic callbacks exercise
+    # the same acquired-frame/generation path; no CTest captures a live cursor.
+    foreach(case_name IN ITEMS
+            cursor-dxgi-shape-owned-lifetime
+            cursor-dxgi-shape-generation-denials)
+        add_test(NAME "windows.${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.${case_name}" PROPERTIES
+            LABELS "windows;desktop-cursor;desktop-capture;security;offline")
     endforeach()
     # R6 read-only cursor metadata snapshot. Synthetic callbacks only; the
     # production Win32 observer is compiled but no CTest reads the live cursor.

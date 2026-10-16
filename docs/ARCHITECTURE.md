@@ -1,5 +1,47 @@
 # RDP-server architecture
 
+### R6 acquired-frame DXGI pointer ownership
+
+Pointer metadata stays inside the existing Desktop Duplication frame lifecycle.
+`WindowsDxgiFrameOwner` copies the position timestamp/visibility/coordinates
+and shape-buffer size from the same `DXGI_OUTDUPL_FRAME_INFO` returned by
+`AcquireNextFrame`; it owns no second lease. Position change and shape change
+are deliberately separate because DXGI can report a new shape without a mouse
+move. The per-frame metadata is invalidated before `ReleaseFrame`.
+
+`WindowsDxgiPointerShape` is a move-only, independently owned native-shape
+record. `GetFramePointerShape` executes only while the duplication still owns
+that acquired image. Reads are bounded to 512 KiB and 256x256 logical pixels
+and validate exact pitch/byte layout, hotspot and the three DXGI shape types.
+Monochrome data contains vertically paired AND then XOR planes, so the native
+scanline height is even and the logical height is half. Color and masked-color
+keep their native 32-bpp bytes; masked-color alpha is accepted only as the
+DXGI-defined 0/0xff replace/XOR mask. This adapter does not convert shapes into
+an RDP pointer PDU.
+
+The existing `WindowsDxgiCaptureCycle` copies a new shape before attempting
+the nonblocking D3D11 staging map. Therefore a GPU-not-ready frame can release
+its DXGI lease without losing the cursor update. One pending owned update
+coalesces independent position-only and shape-only changes without allocating
+for position-only motion; a newer value replaces only its own half. A visible
+DXGI output-relative top-left is checked and translated through the selected
+output's signed desktop origin. The pending record carries the already-pinned
+session/device generation. Generation failure before publication clears it;
+cancellation during the native shape callback is deferred until callback
+return, then follows the existing staging-unmap/frame-release order.
+
+`WindowsDxgiDuplicationOwner::attachCaptureCycle` supplies this borrowed
+shape callback and exact selected-output rectangle to the same capture cycle it
+already owns. R2/R3 must independently authorize and bind the Windows desktop;
+an HMONITOR, WTS ID, successful duplication or cursor bytes are not admission.
+R4 remains the sole scheduler and may retain only the independently owned
+cursor update. Live desktop capture and input injection remain outside ordinary
+CTest and outside this increment.
+
+
+
+
+
 ### R10 TLS server-certificate purpose gate (2026-10-16)
 
 After native credential-file identity/permission checks, exact bounded reads,

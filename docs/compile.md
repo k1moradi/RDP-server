@@ -1,5 +1,19 @@
 # Compile standards — one persistent and reusable build directory
 
+## R6 DXGI pointer-shape build note (2026-10-16)
+
+The noninstalled Windows-only `rdp-server-windows-desktop` target now also
+compiles `windows_dxgi_pointer_shape.cpp`. It uses
+`IDXGIOutputDuplication::GetFramePointerShape` through the SDK `dxgi`
+library already linked for Desktop Duplication; there is no new package,
+import library, CMake option or build root. Ordinary CTests use injected
+callbacks and do not require a logged-in desktop. Hosted Windows/MSVC and
+the owner's MSYS2 CLANG64/Clang23 remain separate compiler gates.
+
+
+
+
+
 ## R6 native Desktop Duplication build note (2026-10-16)
 
 The existing Windows-only `rdp-server-windows-desktop` target now also

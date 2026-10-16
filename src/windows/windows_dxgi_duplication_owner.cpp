@@ -291,7 +291,10 @@ bool WindowsDxgiDuplicationOwner::attachCaptureCycle(
         layout, frameCallbacks(), stagingContext_->callbacks(),
         WindowsDxgiDamageReadCallbacks{},
         WindowsCaptureGenerationReader{this, &observeGeneration},
-        WindowsCaptureGeneration{pinnedSessionEpoch, deviceEpoch_});
+        WindowsCaptureGeneration{pinnedSessionEpoch, deviceEpoch_},
+        windowsDxgiPointerShapeReadCallbacks(
+            *static_cast<IDXGIOutputDuplication *>(duplication_)),
+        selected_.expectedBounds);
     return !captureCycle_->closed();
 }
 

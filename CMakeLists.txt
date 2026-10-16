@@ -151,6 +151,7 @@ if(WIN32)
         src/windows/windows_desktop_geometry.cpp
         src/windows/windows_bgra_frame.cpp
         src/windows/windows_dxgi_damage.cpp
+        src/windows/windows_dxgi_pointer_shape.cpp
         src/windows/windows_dxgi_frame_owner.cpp
         src/windows/windows_dxgi_duplication_owner.cpp
         src/windows/windows_d3d11_staging_map.cpp

@@ -1,5 +1,40 @@
 # CODEX_VALIDATION.md — validation ledger and agent contract
 
+## R6 DXGI pointer shape ownership authoring (2026-10-16)
+
+**Starting main inspected:** `b8c04fe1242d0d7b1a52009311df876b6f6f4739`.
+The increment extends the existing frame lease/capture cycle rather than
+creating another cursor or graphics owner. `DXGI_OUTDUPL_FRAME_INFO` pointer
+position metadata is retained only for the held frame, while
+`windows_dxgi_pointer_shape.{h,cpp}` copies bounded
+`GetFramePointerShape` bytes into move-only storage before a staging-map
+deferral can release the frame. Position-only and shape-only updates remain
+independent and unread same-generation state is merged transactionally.
+The owned update is tagged with the existing pinned session/device generation;
+revocation discards pending cursor data.
+
+**Dedicated Windows-only CTests:**
+`windows.cursor-dxgi-shape-owned-lifetime` and
+`windows.cursor-dxgi-shape-generation-denials`, added to the existing R6
+executable/central registry. They use synthetic frame/staging/generation/shape
+callbacks and cover independent shape ownership after frame release,
+GPU-not-ready retention, shape/position merging, color/monochrome/masked-color
+validation, malformed/oversize/native-error paths, callback reentry and
+cancellation, generation replacement and checked output-coordinate overflow.
+
+**Authoring status:** full repository CMake/CTest, Windows SDK/MSVC,
+owner Windows MSYS2 CLANG64/Clang23, live `AcquireNextFrame`/
+`GetFramePointerShape`, genuine R2/R3 Windows admission, R4 runtime cursor
+delivery, Microsoft-client M4 and performance are **NOT RUN before
+publication**. Exact-SHA GitHub Actions is the next automated gate. No runtime
+capture authorization or input injection is introduced.
+
+
+
+
+
+
+
 ## R10 TLS server-certificate purpose authoring (2026-10-16)
 
 **Starting main:** `d4669a0a612bf916c6f406d42f26d1174d7130c8`. Current source includes the previous Windows
@@ -23,7 +58,7 @@ Linux/X11, Windows CLANG64/Clang23, macOS27 and live TLS/server admission:
 **NOT RUN** here. Exact-SHA hosted CI is pending. Trust/hostname/revocation and
 secure listener/service lifecycle remain OPEN.
 
-## R6 native duplication owner (2026-10-16; exact-SHA CI pending)
+## R6 native duplication owner (2026-10-16; exact-SHA CI PASS)
 
 **Inspected starting main:** `e540be81f297c7f880c6b03db6ffc1a3ad8998ad`.
 Added `src/windows/windows_dxgi_duplication_owner.{h,cpp}` to the
@@ -41,14 +76,14 @@ cleanup order, terminal close and monotonic device epochs.
 `windows.capture-dxgi-duplication-owner-epoch-revocation`.
 These are offline tests; no real desktop is captured.
 
-**NOT RUN at authoring:** native Windows build/CTest (no Windows SDK
-or owner CLANG64 toolchain in this workspace), full canonical CMake/
-CTest (no GitHub checkout over container network), live duplication,
-owner MSYS2 CLANG64 Clang23, independently authorized R2/R3 admission,
-R4 hardware capture delivery, real Microsoft-client M4 acceptance.
-The GitHub connector is used for atomic direct-to-main publication;
-exact-SHA Actions evidence must be inspected separately. M4 OPEN.
-Next R6 task: generation-safe bounded DXGI pointer shape ownership.
+**Implementation SHA:** `f42145a44c041510013d9da07a5d27652137db7f`.
+**Actions 38873520825: PASS.** Windows/MSVC **288/288** registered CTests
+passed in Debug and Release, including the three dedicated duplication-owner
+cases. Linux/GCC passed **289/289** and macOS/Clang **265/265** in both
+configurations; documentation policy and R9 sanitizer jobs passed.
+**NOT RUN:** owner MSYS2 CLANG64/Clang23, live duplication, independently
+authorized R2/R3 Windows admission, R4 hardware capture and Microsoft-client
+M4 acceptance. M4 remains OPEN.
 
 
 Read **[AGENTS.md](../AGENTS.md)** on every prompt together with

@@ -36,7 +36,8 @@ struct FakeCaptureCycle final
     }
 
     static WindowsDxgiAcquireResult acquire(
-        void *context, std::uint32_t, void *&resource) noexcept
+        void *context, std::uint32_t, void *&resource,
+        WindowsDxgiFrameInfo &) noexcept
     {
         auto &self = *static_cast<FakeCaptureCycle *>(context);
         self.record('A');

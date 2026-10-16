@@ -1,3 +1,20 @@
+## R10 Windows licensing-preflight portability correction (2026-10-16; exact-SHA CI pending)
+
+R10 implementation `35cfda594f45c15e14966579f05cadb4bc5db8f1` reached
+Actions `38976348381`. Linux/GCC passed **515/515 Debug + 515/515 Release**
+and installed SDK consumer **1/1**; macOS/AppleClang passed **438/438 Debug +
+438/438 Release** and consumer **1/1**. Documentation policy and the independent
+R7 sanitizer passed. Windows/MSVC failed Debug compilation before CTest because
+`windows.h` expanded the function-like `max` macro in the bounded
+product-version parser.
+
+This correction changes no licensing/configuration semantics: the parser caches
+the same `uint32_t` limit via macro-safe
+`(std::numeric_limits<std::uint32_t>::max)()`. Existing six licensing CLI
+CTests remain the behavior gate. Owner-local `~/rdp-server/build/` remains
+**NOT RUN** here. Exact-correction-SHA hosted platform, R9 sanitizer, docs and
+SDK/package validation are **PENDING**.
+
 ## R5 RandR stale-damage generation isolation (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `fd1b6a687718f3887c3169a2b4b0bcda129d2d40`.

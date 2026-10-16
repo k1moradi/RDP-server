@@ -1,3 +1,12 @@
+## Windows standard-library limit calls must be macro-safe
+
+A translation unit that includes `windows.h` may inherit function-like
+`min` / `max` macros. Do not write unguarded
+`std::numeric_limits<T>::max()` or `min()` there. Use
+`(std::numeric_limits<T>::max)()` / `(std::numeric_limits<T>::min)()`,
+preferably cached in a descriptive `constexpr` when reused. Do not change
+global Windows-header macro policy merely to fix one call site.
+
 ## Windows completed files publish as CF_HDROP, never remote paths
 
 When a fully materialized R8 Windows destination is handed to Explorer, bind the caller-selected fully qualified local UTF-16 path to the same destination capability at begin time. Never derive, append or resolve a local path from the remote FILEDESCRIPTORW name. Keep that local path hidden until exact-size materialization, final resize, flush and duplicate close have completed.

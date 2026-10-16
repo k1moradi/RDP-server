@@ -1,3 +1,15 @@
+## R10 Windows portability failure and correction (2026-10-16; revalidation pending)
+
+Actions `38976348381` for `35cfda594f45c15e14966579f05cadb4bc5db8f1`
+found Windows/MSVC C2589/C2059/C2143 where Win32 `max` expanded
+`std::numeric_limits<std::uint32_t>::max()`. Linux/GCC **515/515 Debug +
+515/515 Release PASS**, macOS/AppleClang **438/438 Debug + 438/438 Release
+PASS**, both consumers **1/1 PASS**, docs policy **PASS**, R7 sanitizer
+**PASS**. The correction is syntax-only: cache the same limit with
+`(std::numeric_limits<std::uint32_t>::max)()`. Exact correction-SHA
+revalidation and R9 licensing sanitizer evidence are **PENDING**; local
+`~/rdp-server/build/` is **NOT RUN**.
+
 ## R5 RandR stale-damage generation-isolation authoring validation (2026-10-16)
 
 **Reconciled parent:** `fd1b6a687718f3887c3169a2b4b0bcda129d2d40`.

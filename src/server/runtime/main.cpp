@@ -125,6 +125,8 @@ constexpr std::array<std::string_view, 13> kConfigurationFields{
         return false;
     }
     parsedValue = 0U;
+    constexpr std::uint32_t maximumValue =
+        (std::numeric_limits<std::uint32_t>::max)();
     for (const char digit : value) {
         if (digit < '0' || digit > '9') {
             return false;
@@ -132,7 +134,7 @@ constexpr std::array<std::string_view, 13> kConfigurationFields{
         const auto numericDigit =
             static_cast<std::uint32_t>(static_cast<unsigned>(digit - '0'));
         if (parsedValue >
-            (std::numeric_limits<std::uint32_t>::max() - numericDigit) / 10U) {
+            (maximumValue - numericDigit) / 10U) {
             return false;
         }
         parsedValue = parsedValue * 10U + numericDigit;

@@ -55,6 +55,14 @@ void mapped(GfxPresentationLifecycle &lifecycle, std::uint64_t gen)
     assert(lifecycle.stage() == GfxPresentationStage::Mapped);
 }
 
+void delivered(GfxPresentationLifecycle &lifecycle, std::uint64_t gen,
+               std::uint32_t id)
+{
+    GfxFrameDeliveryReceipt ticket{};
+    assert(lifecycle.beginFrameDelivery(gen, id, 128, ticket));
+    assert(lifecycle.completeFrameDelivery(ticket, 128));
+}
+
 void ordering()
 {
     GfxPresentationLifecycle lifecycle;
@@ -76,14 +84,14 @@ void ordering()
     assert(!lifecycle.completeCommand(confirm, 20));
     assert(lifecycle.configureSurface(7, 1, {640, 480}));
     const Receipt create = emit(lifecycle, 7, std::byte{9}, 15);
-    assert(!lifecycle.noteFrameDelivered(7, 1));
+    { GfxFrameDeliveryReceipt denied{}; assert(!lifecycle.beginFrameDelivery(7, 1, 128, denied)); }
     assert(!lifecycle.completeCommand(create, 14));
     assert(lifecycle.completeCommand(create, 15));
     const Receipt map = emit(lifecycle, 7, std::byte{15}, 20);
     assert(!lifecycle.canSubmitFrame(7));
     assert(lifecycle.completeCommand(map, 20));
     assert(lifecycle.canSubmitFrame(7));
-    assert(lifecycle.noteFrameDelivered(7, 1));
+    delivered(lifecycle, 7, 1);
     GfxFrameAckWindowResult result{};
     assert(lifecycle.onFrameAcknowledge(7, ack(1), result));
     assert(result == GfxFrameAckWindowResult::Acknowledged);
@@ -128,7 +136,7 @@ void revocation()
 {
     GfxPresentationLifecycle lifecycle;
     mapped(lifecycle, 100);
-    assert(lifecycle.noteFrameDelivered(100, 5));
+    delivered(lifecycle, 100, 5);
     assert(lifecycle.requestSurfaceDelete(100));
     assert(!lifecycle.canSubmitFrame(100));
     assert(lifecycle.outstandingFrames() == 0);
@@ -151,7 +159,7 @@ void revocation()
     assert(lifecycle.configureSurface(101, 7, {800, 600}));
     assert(lifecycle.completeCommand(emit(lifecycle, 101, std::byte{9}, 15), 15));
     assert(lifecycle.completeCommand(emit(lifecycle, 101, std::byte{15}, 20), 20));
-    assert(lifecycle.noteFrameDelivered(101, 5));
+    delivered(lifecycle, 101, 5);
     GfxFrameAckWindowResult result{};
     assert(!lifecycle.onFrameAcknowledge(100, ack(5), result));
     assert(lifecycle.outstandingFrames() == 1);
@@ -164,25 +172,89 @@ void backpressure()
     GfxPresentationLifecycle lifecycle;
     mapped(lifecycle, 501);
     for (std::uint32_t id = 1; id <= 64; ++id)
-        assert(lifecycle.noteFrameDelivered(501, id));
+        delivered(lifecycle, 501, id);
     assert(lifecycle.outstandingFrames() == 64);
     assert(!lifecycle.canSubmitFrame(501));
-    assert(!lifecycle.noteFrameDelivered(501, 65));
+    { GfxFrameDeliveryReceipt denied{}; assert(!lifecycle.beginFrameDelivery(501, 65, 128, denied)); }
     GfxFrameAckWindowResult result{};
     assert(lifecycle.onFrameAcknowledge(501, ack(32, 10), result));
     assert(result == GfxFrameAckWindowResult::Acknowledged);
-    assert(lifecycle.noteFrameDelivered(501, 65));
-    assert(!lifecycle.noteFrameDelivered(501, 65));
+    delivered(lifecycle, 501, 65);
+    { GfxFrameDeliveryReceipt denied{}; assert(!lifecycle.beginFrameDelivery(501, 65, 128, denied)); }
     assert(lifecycle.outstandingFrames() == 64);
     assert(lifecycle.onFrameAcknowledge(501,
         ack(99, kGfxSuspendFrameAcknowledgement), result));
     assert(result == GfxFrameAckWindowResult::Suspended);
     assert(lifecycle.outstandingFrames() == 0);
-    assert(lifecycle.noteFrameDelivered(501, 1000));
+    delivered(lifecycle, 501, 1000);
     assert(lifecycle.outstandingFrames() == 0);
     assert(lifecycle.onFrameAcknowledge(501, ack(1000, 1), result));
-    assert(lifecycle.noteFrameDelivered(501, 1001));
+    delivered(lifecycle, 501, 1001);
     assert(lifecycle.outstandingFrames() == 1);
+}
+
+void frameReceipts()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, 801);
+    GfxFrameDeliveryReceipt ticket{55, 66, 77, 88};
+    const auto original = ticket;
+    assert(!lifecycle.beginFrameDelivery(801, 4, 0, ticket));
+    assert(!lifecycle.beginFrameDelivery(800, 4, 90, ticket));
+    assert(ticket == original);
+    assert(lifecycle.beginFrameDelivery(801, 4, 90, ticket));
+    assert(ticket.generation == 801 && ticket.frameId == 4 &&
+           ticket.bytes == 90 && ticket.serial != 0);
+    assert(!lifecycle.canSubmitFrame(801));
+    assert(lifecycle.outstandingFrames() == 0);
+    assert(!lifecycle.requestSurfaceDelete(801));
+    GfxFrameDeliveryReceipt other{};
+    assert(!lifecycle.beginFrameDelivery(801, 5, 91, other));
+    assert(!lifecycle.completeFrameDelivery(ticket, 89));
+    auto forged = ticket; ++forged.serial;
+    assert(!lifecycle.completeFrameDelivery(forged, 90));
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(801, ack(4), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.completeFrameDelivery(ticket, 90));
+    assert(!lifecycle.completeFrameDelivery(ticket, 90));
+    assert(lifecycle.outstandingFrames() == 1);
+    assert(!lifecycle.beginFrameDelivery(801, 4, 90, other));
+    assert(lifecycle.beginFrameDelivery(801, 5, 91, other));
+    assert(lifecycle.completeFrameDelivery(other, 91));
+    assert(lifecycle.outstandingFrames() == 2);
+    assert(lifecycle.onFrameAcknowledge(801, ack(4), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.onFrameAcknowledge(801, ack(5), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+}
+
+void frameAbort()
+{
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, 901);
+    GfxFrameDeliveryReceipt ticket{};
+    assert(lifecycle.beginFrameDelivery(901, 7, 256, ticket));
+    auto forged = ticket; ++forged.frameId;
+    assert(!lifecycle.abortFrameDelivery(forged));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(!lifecycle.completeFrameDelivery(ticket, 255));
+    assert(lifecycle.abortFrameDelivery(ticket));
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+    assert(!lifecycle.abortFrameDelivery(ticket));
+    assert(!lifecycle.completeFrameDelivery(ticket, 256));
+    assert(!lifecycle.open(901));
+    mapped(lifecycle, 902);
+    assert(!lifecycle.completeFrameDelivery(ticket, 256));
+    GfxFrameDeliveryReceipt fresh{};
+    assert(lifecycle.beginFrameDelivery(902, 7, 256, fresh));
+    assert(fresh.serial > ticket.serial);
+    assert(!lifecycle.abortFrameDelivery(ticket));
+    assert(lifecycle.completeFrameDelivery(fresh, 256));
+    GfxFrameAckWindowResult result{};
+    assert(!lifecycle.onFrameAcknowledge(901, ack(7), result));
+    assert(lifecycle.onFrameAcknowledge(902, ack(7), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
 }
 } // namespace
 
@@ -194,5 +266,7 @@ int main(int argc, char **argv)
     if (mode == "channel-lifecycle-denials") { denials(); return 0; }
     if (mode == "surface-resize-revocation") { revocation(); return 0; }
     if (mode == "frame-publication-backpressure") { backpressure(); return 0; }
+    if (mode == "frame-delivery-receipt-ordering") { frameReceipts(); return 0; }
+    if (mode == "frame-delivery-abort-revocation") { frameAbort(); return 0; }
     return 2;
 }

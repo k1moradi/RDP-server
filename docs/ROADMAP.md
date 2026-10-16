@@ -2412,6 +2412,25 @@ actually run; another parser CTest alone is not a complete session.
   authorized R3 DVC, real x264, client and benchmarks.
   **Next R4:** actual authorized R3 DVC full-send callback then
   integrate the existing H.264 frame owner/x264. Gate B NOT ACCEPTED.
+  **R4 frame delivery receipt and lifecycle-build recovery
+  (2026-10-15):** Restore first-party R4 presentation lifecycle source
+  and its four existing graphics CTests to the central CMake registry
+  after a concurrent integration dropped those registrations. Extend
+  that one graphics lifecycle with a single in-flight complete-frame
+  receipt (R3 generation, monotonic serial, frame ID, byte count);
+  ACK tracking starts ONLY when R3 attests the full logical
+  START_FRAME..END_FRAME was delivered. Reject duplicate or full
+  outstanding IDs before delivery using the existing ACK authority.
+  Partial, forged and stale delivery receipts cannot publish a frame.
+  Abort on terminal transport failure revokes the channel; block
+  surface deletion while a logical frame is being sent.
+  Two new behavior CTests are `graphics.frame-delivery-receipt-ordering`
+  and `graphics.frame-delivery-abort-revocation`, reusing the four
+  existing lifecycle cases and executable. Full project and owner
+  three-platform exact-SHA validation **NOT RUN at authoring**.
+  Real R3-admitted DVC, static x264 and Microsoft-client graphics
+  remain **NOT IMPLEMENTED / NOT RUN**. Next: R3 owner supplies a
+  genuinely authorized graphics-channel writer and full-send receipt.
   **R4 bounded frame ACK/window (2026-10-15, implemented):**
   parse one reassembled MS-RDPEGFX FRAME_ACKNOWLEDGE command and
   maintain at most 64 exact outstanding frame IDs in the R4 owner.

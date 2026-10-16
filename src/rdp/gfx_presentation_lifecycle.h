@@ -56,6 +56,18 @@ struct GfxPresentationReceipt final
                            const GfxPresentationReceipt &) = default;
 };
 
+// R3-owned full START_FRAME..END_FRAME send completion, never an
+// encoder result or partial transport-write progress.
+struct GfxFrameDeliveryReceipt final
+{
+    std::uint64_t generation{};
+    std::uint64_t serial{};
+    std::uint32_t frameId{};
+    std::size_t bytes{};
+    friend bool operator==(const GfxFrameDeliveryReceipt &,
+                           const GfxFrameDeliveryReceipt &) = default;
+};
+
 class GfxPresentationLifecycle final
 {
 public:
@@ -86,9 +98,17 @@ public:
     [[nodiscard]] bool requestSurfaceDelete(std::uint64_t generation) noexcept;
 
     [[nodiscard]] bool canSubmitFrame(std::uint64_t generation) const noexcept;
-    // Call only after the entire START_FRAME..END_FRAME was sent by R3.
-    [[nodiscard]] bool noteFrameDelivered(std::uint64_t generation,
-                                          std::uint32_t frameId) noexcept;
+    // Reserve exactly one outbound complete frame at a time; no ACK yet.
+    [[nodiscard]] bool beginFrameDelivery(
+        std::uint64_t generation, std::uint32_t frameId,
+        std::size_t frameBytes, GfxFrameDeliveryReceipt &receipt) noexcept;
+    // R3 MUST call only after the whole matching frame has been sent.
+    [[nodiscard]] bool completeFrameDelivery(
+        const GfxFrameDeliveryReceipt &receipt,
+        std::size_t deliveredBytes) noexcept;
+    // Terminal/partial send failure revokes the generation and surface.
+    [[nodiscard]] bool abortFrameDelivery(
+        const GfxFrameDeliveryReceipt &receipt) noexcept;
     // Only accept ACKs on R3's admitted generation with mapped surface.
     [[nodiscard]] bool onFrameAcknowledge(
         std::uint64_t generation, std::span<const std::byte> pdu,
@@ -111,6 +131,7 @@ private:
     std::uint64_t latestGeneration_{};
     std::uint64_t lastSerial_{};
     GfxPresentationReceipt pending_{};
+    GfxFrameDeliveryReceipt pendingFrame_{};
     std::uint16_t surfaceId_{};
     PixelSize geometry_{};
     std::uint32_t originX_{};

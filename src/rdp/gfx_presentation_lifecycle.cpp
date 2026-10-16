@@ -33,6 +33,7 @@ void GfxPresentationLifecycle::disconnect() noexcept
     stage_ = GfxPresentationStage::Inactive;
     generation_ = 0;
     pending_ = {};
+    pendingFrame_ = {};
     surfaceId_ = 0;
     geometry_ = {};
     originX_ = 0;
@@ -174,7 +175,8 @@ bool GfxPresentationLifecycle::completeCommand(
 bool GfxPresentationLifecycle::requestSurfaceDelete(
     std::uint64_t generation) noexcept
 {
-    if (!active(generation) || stage_ != GfxPresentationStage::Mapped)
+    if (!active(generation) || stage_ != GfxPresentationStage::Mapped ||
+        pendingFrame_.serial != 0)
     {
         return false;
     }
@@ -187,16 +189,51 @@ bool GfxPresentationLifecycle::canSubmitFrame(
     std::uint64_t generation) const noexcept
 {
     return active(generation) && stage_ == GfxPresentationStage::Mapped &&
+           pendingFrame_.serial == 0 &&
            (!acknowledgements_.expectingAcknowledgements() ||
             acknowledgements_.outstandingFrames() <
                 GfxFrameAckWindow::kMaximumPendingFrames);
 }
 
-bool GfxPresentationLifecycle::noteFrameDelivered(
-    std::uint64_t generation, std::uint32_t frameId) noexcept
+bool GfxPresentationLifecycle::beginFrameDelivery(
+    std::uint64_t generation, std::uint32_t frameId, std::size_t frameBytes,
+    GfxFrameDeliveryReceipt &receipt) noexcept
 {
-    return canSubmitFrame(generation) &&
-           acknowledgements_.noteFrameSent(generation, frameId);
+    if (!canSubmitFrame(generation) || frameBytes == 0 ||
+        lastSerial_ == std::numeric_limits<std::uint64_t>::max() ||
+        !acknowledgements_.canRecordFrame(generation, frameId))
+        return false;
+    pendingFrame_ = {generation, ++lastSerial_, frameId, frameBytes};
+    receipt = pendingFrame_;
+    return true;
+}
+
+bool GfxPresentationLifecycle::completeFrameDelivery(
+    const GfxFrameDeliveryReceipt &receipt,
+    std::size_t deliveredBytes) noexcept
+{
+    if (!active(receipt.generation) || pendingFrame_.serial == 0 ||
+        receipt != pendingFrame_ || deliveredBytes != pendingFrame_.bytes)
+        return false;
+    // Only R3's complete send receipt can publish an ACK-tracked frame.
+    if (!acknowledgements_.noteFrameSent(receipt.generation, receipt.frameId))
+    {
+        disconnect(); // ACK correlation lost after send: fail closed.
+        return false;
+    }
+    pendingFrame_ = {};
+    return true;
+}
+
+bool GfxPresentationLifecycle::abortFrameDelivery(
+    const GfxFrameDeliveryReceipt &receipt) noexcept
+{
+    if (!active(receipt.generation) || pendingFrame_.serial == 0 ||
+        receipt != pendingFrame_)
+        return false;
+    // Partial frame bytes cannot be followed by any new graphics PDU.
+    disconnect();
+    return true;
 }
 
 bool GfxPresentationLifecycle::onFrameAcknowledge(

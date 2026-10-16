@@ -55,30 +55,28 @@ void GfxFrameAckWindow::reset(std::uint64_t channelGeneration) noexcept
     expectingAcknowledgements_ = channelGeneration != 0;
 }
 
-bool GfxFrameAckWindow::noteFrameSent(
-    std::uint64_t channelGeneration, std::uint32_t frameId) noexcept
+bool GfxFrameAckWindow::canRecordFrame(
+    std::uint64_t generation, std::uint32_t frameId) const noexcept
 {
-    if (channelGeneration == 0 || channelGeneration != channelGeneration_)
-    {
+    if (generation == 0 || generation != channelGeneration_)
         return false;
-    }
     if (!expectingAcknowledgements_)
-    {
-        // MS-RDPEGFX 3.2.5.13 forbids waiting for ACKs after suspension.
-        return true;
-    }
-    for (std::size_t index = 0; index < pendingCount_; ++index)
-    {
-        if (pendingFrames_[index] == frameId)
-        {
-            return false; // Cannot correlate duplicate pending IDs.
-        }
-    }
+        return true; // Suspension clears the pending set.
     if (pendingCount_ == pendingFrames_.size())
-    {
-        return false; // Bounded backpressure; do not lose old ACK IDs.
-    }
-    pendingFrames_[pendingCount_++] = frameId;
+        return false;
+    for (std::size_t i = 0; i < pendingCount_; ++i)
+        if (pendingFrames_[i] == frameId)
+            return false;
+    return true;
+}
+
+bool GfxFrameAckWindow::noteFrameSent(
+    std::uint64_t generation, std::uint32_t frameId) noexcept
+{
+    if (!canRecordFrame(generation, frameId))
+        return false;
+    if (expectingAcknowledgements_)
+        pendingFrames_[pendingCount_++] = frameId;
     return true;
 }
 

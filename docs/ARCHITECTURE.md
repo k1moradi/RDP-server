@@ -171,8 +171,15 @@ The R3 sender reports full-PDU delivery using unique receipts
 tied to command, generation and serial. Serialization alone
 never activates a client surface. Only completed CAPS_CONFIRM
 allows CREATE, completed CREATE allows MAP, and completed MAP
-allows frame delivery and acknowledgement. Exact outgoing frame
-completion triggers the existing ACK window; no second scheduler
+allows frame delivery and acknowledgement. The R4 owner additionally reserves an exact generation/serial/frame-ID
+receipt when a complete encoded logical frame enters R3's authorized
+outbound writer. Only R3's complete START_FRAME..END_FRAME send callback
+adds the frame ID to the existing ACK window. Preflight checks the same
+ACK set for duplicates/full capacity; a partially delivered frame
+cannot be followed by another frame or surface command and revokes the
+channel on abort. Surface deletion cannot race an in-flight frame.
+Exact outgoing frame completion triggers the existing ACK window;
+no second scheduler
 or frame store is introduced. DELETE completion gates surface ID
 reuse; disconnect and generation changes revoke old callbacks.
 Live graphics, H.264/x264 and real-client acceptance remain

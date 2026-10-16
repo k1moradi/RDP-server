@@ -174,6 +174,19 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
+    elseif(test_target STREQUAL "test_gfx_presentation_lifecycle")
+        foreach(case_name IN ITEMS
+                channel-lifecycle-ordering
+                channel-lifecycle-denials
+                surface-resize-revocation
+                frame-publication-backpressure
+                frame-delivery-receipt-ordering
+                frame-delivery-abort-revocation)
+            add_test(NAME "graphics.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("graphics.${case_name}" PROPERTIES
+                LABELS "protocol;graphics")
+        endforeach()
     elseif(test_target STREQUAL "test_gfx_frame_acknowledge")
         # One production-backed graphics executable, six behavior CTests.
         foreach(case_name IN ITEMS
@@ -294,6 +307,7 @@ add_rdp_test(test_base64_codec.cpp security base64-codec)
 add_rdp_test(test_gfx_surface_lifecycle.cpp graphics surface-lifecycle)
 add_rdp_test(test_gfx_avc420_capabilities.cpp graphics avc420-capabilities)
 add_rdp_test(test_gfx_frame_acknowledge.cpp graphics frame-ack-wire)
+add_rdp_test(test_gfx_presentation_lifecycle.cpp graphics channel-lifecycle)
 if(TARGET rdp-server-linux-gssapi)
     add_rdp_test(test_linux_gssapi_spnego.cpp security linux-gssapi)
     target_link_libraries(test_linux_gssapi_spnego PRIVATE

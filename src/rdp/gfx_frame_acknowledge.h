@@ -67,6 +67,10 @@ public:
     // Call ONLY once START_FRAME through END_FRAME is successfully submitted.
     // A full pending set denies publication; callers must defer the frame.
     // Suspended mode never waits for client ACKs and does not record IDs.
+    // Check the ONE authoritative ACK window before dispatching an
+    // already-encoded frame to R3. Reject duplicate and full IDs early.
+    [[nodiscard]] bool canRecordFrame(
+        std::uint64_t channelGeneration, std::uint32_t frameId) const noexcept;
     [[nodiscard]] bool noteFrameSent(std::uint64_t channelGeneration,
                                      std::uint32_t frameId) noexcept;
 

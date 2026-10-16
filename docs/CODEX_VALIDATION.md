@@ -4017,3 +4017,29 @@ authorized native OS session or Microsoft client acceptance.
 **Next gate:** exact-SHA hosted CI then genuine GSS/TLS-bound
 credential provenance plus separately audited OS-session authorization,
 before any R3 authenticated session output.
+
+## R4 full logical-frame delivery receipts and lifecycle CMake restoration
+
+**Parent main:** `063bcaa1c3cb5b49fbb4be4b84230736fcd6bf7f`. Restored the previously published
+`gfx_presentation_lifecycle.cpp` to the portable protocol target
+and its four `graphics.channel-lifecycle-*` /
+`graphics.surface-resize-revocation` /
+`graphics.frame-publication-backpressure` CTests to the single
+registry after newer CMake changes lost them.
+New dedicated `graphics.frame-delivery-receipt-ordering` and
+`graphics.frame-delivery-abort-revocation` execute the same
+production R4 lifecycle. Fixed `GfxFrameAckWindow` remains the
+single ACK authority; new `canRecordFrame` preflight prevents
+duplicate frame IDs and full-window sends before transmission.
+R4's generation/serial-bound complete-frame receipt commits ACK
+state ONLY after R3 attests the entire START_FRAME..END_FRAME send;
+partial callbacks leave the frame pending and terminal abandonment
+revokes the graphical channel. MS-RDPEGFX §§2.2.2.11–13 and
+3.2.1.2/3.2.5.13 inform frame/ACK ordering.
+
+**NOT RUN at authoring:** canonical full local repo CMake/CTest
+(no complete local checkout; GitHub raw/clone DNS inaccessible);
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+tests, authenticated R3 DVC writer, pinned x264, genuine H.264
+NAL transmission, real Microsoft clients and benchmarks.
+After publication examine exact-commit hosted Actions.

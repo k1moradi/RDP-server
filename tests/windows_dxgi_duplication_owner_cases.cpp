@@ -39,6 +39,8 @@ struct FakeDxgiBackend
     Token *closeOnRelease{};
     bool detached{}, empty{}, rotated{}, wrongMonitor{}, ambiguous{};
     bool sameAdapterAmbiguous{};
+    bool repeatSelectedAdapterReference{};
+    bool enumeratingRepeatedAdapter{};
     bool assignFailureResource{};
     bool reenterOpen{};
     bool closeOnEveryRelease{};
@@ -70,6 +72,12 @@ struct FakeDxgiBackend
     {
         assert(token.outstanding == 0);
         token.outstanding = 1;
+        out = &token;
+    }
+    static void retain(void *&out, Token &token) noexcept
+    {
+        assert(token.outstanding != 0);
+        ++token.outstanding;
         out = &token;
     }
     void closeOwner() noexcept
@@ -114,8 +122,17 @@ struct FakeDxgiBackend
                 assign(out, self.adapters[0]);
             return WindowsDxgiEnumerationResult::failed;
         }
+        self.enumeratingRepeatedAdapter = false;
+        if (self.repeatSelectedAdapterReference && index == 2)
+        {
+            assert(self.adapterCount == 3);
+            self.enumeratingRepeatedAdapter = true;
+            retain(out, self.adapters[1]);
+            return WindowsDxgiEnumerationResult::item;
+        }
         if (index >= self.adapterCount)
             return WindowsDxgiEnumerationResult::end;
+        assert(index < std::size(self.adapters));
         assign(out, self.adapters[index]);
         self.closeIf(ReentryPhase::adapter);
         return WindowsDxgiEnumerationResult::item;
@@ -133,6 +150,11 @@ struct FakeDxgiBackend
             if (self.assignFailureResource)
                 assign(out, self.outputs[adapterIndex][0]);
             return WindowsDxgiEnumerationResult::failed;
+        }
+        if (self.enumeratingRepeatedAdapter &&
+            adapter == &self.adapters[1])
+        {
+            return WindowsDxgiEnumerationResult::end;
         }
         if (self.reentryPhase == ReentryPhase::selectedAdapterEnd &&
             adapter == &self.adapters[1] && index >= self.outputCount)
@@ -237,8 +259,8 @@ struct FakeDxgiBackend
             self.releaseReentryIssued = true;
             self.owner->close();
         }
-        assert(token.outstanding == 1);
-        token.outstanding = 0;
+        assert(token.outstanding != 0);
+        --token.outstanding;
         ++token.releases;
         ++self.releaseSequence;
         switch (kind)
@@ -410,6 +432,29 @@ void windowsDxgiDuplicationOwnerSameAdapterAmbiguity()
     assert(backend.outputs[1][0].releases == 1);
     assert(backend.outputs[1][1].releases == 1);
     assert(backend.adapters[1].releases == 1);
+}
+
+void windowsDxgiDuplicationOwnerRepeatedAdapterReference()
+{
+    FakeDxgiBackend backend{};
+    backend.repeatSelectedAdapterReference = true;
+    backend.adapterCount = 3;
+    {
+        WindowsDxgiDuplicationOwner owner(backend.callbacks());
+        assert(owner.open(selectedTarget) ==
+               WindowsDxgiDuplicationResult::ready);
+        assert(owner.ready());
+
+        // adapterAt returned adapter 1 twice. The interface address is the
+        // same, but the second callback return owns a separate reference and
+        // must already have been released after its empty output scan.
+        assert(backend.adapters[1].outstanding == 1);
+        assert(backend.adapters[1].releases == 1);
+
+        owner.close();
+    }
+    backend.assertReleased();
+    assert(backend.adapters[1].releases == 2);
 }
 
 void windowsDxgiDuplicationOwnerCaptureCycleSingleAttach()

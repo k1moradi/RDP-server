@@ -1,3 +1,39 @@
+## R6 explicit DXGI adapter-reference transfer ownership (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `38eba71c68a0eb1c51e0be909a1dacf430cc298d`.
+
+Ownership audit of `WindowsDxgiDuplicationOwner::open` found one remaining
+COM-reference provenance bug in adapter enumeration. The callback contract says
+each successful `adapterAt` result transfers one owned reference. Cleanup
+nevertheless used raw interface-address equality with the already-retained
+`adapter_` to decide whether a later candidate needed release. COM identity
+does not encode reference ownership: a later callback can return the same
+interface address while transferring a distinct reference. In that case the
+later reference could be skipped and leaked.
+
+The enumeration loop now tracks whether the **current adapterAt reference** was
+transferred into `adapter_`. Same-adapter output scanning still transfers one
+reference once, so duplicate matching outputs on that scan do not double
+release it. A later enumeration result is independently released unless that
+specific reference is transferred, even when its pointer value equals the
+retained adapter.
+
+New dedicated CTest
+`windows.capture-dxgi-duplication-owner-repeated-adapter-reference` extends
+the existing reference-counting DXGI fixture. It returns adapter 1 again from a
+later adapter index at the same interface address with another owned reference,
+gives that later enumeration an empty output scan, and requires the second
+reference to be released before `open` returns ready while the retained first
+reference remains live until terminal `close`. Final release count must be two
+with zero outstanding references.
+
+Canonical owner-local `~/rdp-server/build` execution is **NOT RUN** in this
+connector environment. Exact publication-SHA Windows/MSVC R6 preflight/full
+Debug+Release plus hosted Linux/GCC, macOS/Clang, sanitizer,
+documentation-policy and SDK/package evidence are **PENDING**. Owner Windows
+MSYS2 CLANG64/Clang23, genuine Windows R2/R3 admission, live DXGI/SendInput and
+Microsoft-client M4 remain **NOT RUN/BLOCKED**. **M4 remains OPEN.**
+
 ## R2 licensing service-credential non-authority exact-SHA validation (2026-10-16)
 
 **Implementation:** `f89482f395e095fb8fe5bcf6c9d9f71f7fc8513d`.  

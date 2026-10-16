@@ -1,3 +1,30 @@
+## R6 adapter-reference provenance authoring verification (2026-10-16)
+
+Starting/reconciled parent: `38eba71c68a0eb1c51e0be909a1dacf430cc298d`.
+
+Source audit confirms the native callback contract owns one reference per
+successful enumeration return, while current cleanup inferred transfer from raw
+pointer equality. The correction replaces those pointer-equality ownership
+decisions with one per-enumeration `candidateAdapterTransferred` flag. The
+flag becomes true only when that exact candidate reference is installed as the
+owner's selected adapter.
+
+The existing deterministic DXGI backend is strengthened to count multiple
+outstanding references on one token. New behavior
+`windows.capture-dxgi-duplication-owner-repeated-adapter-reference` returns
+the retained adapter pointer again with a second reference, then terminates that
+later adapter's output enumeration. Required invariant: one later reference is
+released during enumeration, one selected reference remains, terminal close
+releases that remaining reference, and no reference remains outstanding.
+The pre-existing same-adapter ambiguity case continues to prove that one
+reference reused across multiple output scans is not double released.
+
+Authoring source/ownership review **PASS**. Canonical one-root compile/CTest is
+**NOT RUN** because the owner checkout is unavailable in this connector
+environment. Exact-SHA hosted matrix is **PENDING**. Owner Windows MSYS2
+CLANG64/Clang23 and genuine Windows R2/R3 native admission remain
+**NOT RUN/BLOCKED**; no live desktop or input action is performed.
+
 ## R2 licensing service-credential non-authority exact-SHA validation (2026-10-16)
 
 **Implementation:** `f89482f395e095fb8fe5bcf6c9d9f71f7fc8513d`.  

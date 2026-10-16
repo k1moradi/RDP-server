@@ -167,6 +167,10 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
             return fail(WindowsDxgiDuplicationResult::failed);
         }
 
+        // Ownership follows the reference returned by this adapterAt call,
+        // not the interface address. COM may return the same address for a
+        // later call while still transferring another reference.
+        bool candidateAdapterTransferred = false;
         bool outputEnumerationEnded = false;
         for (std::uint32_t outputIndex = 0;
              outputIndex < kMaximumOutputsPerAdapter; ++outputIndex)
@@ -179,7 +183,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
             {
                 releaseResource(WindowsDxgiNativeResource::output,
                                 candidateOutput);
-                if (candidateAdapter != adapter_)
+                if (!candidateAdapterTransferred)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
                 return cancelled();
@@ -191,7 +195,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                                 candidateOutput);
                 if (closed_)
                 {
-                    if (candidateAdapter != adapter_)
+                    if (!candidateAdapterTransferred)
                         releaseResource(WindowsDxgiNativeResource::adapter,
                                         candidateAdapter);
                     return cancelled();
@@ -201,7 +205,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                     outputEnumerationEnded = true;
                     break;
                 }
-                if (candidateAdapter != adapter_)
+                if (!candidateAdapterTransferred)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
                 if (closed_)
@@ -216,7 +220,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
             {
                 releaseResource(WindowsDxgiNativeResource::output,
                                 candidateOutput);
-                if (candidateAdapter != adapter_)
+                if (!candidateAdapterTransferred)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
                 return cancelled();
@@ -225,7 +229,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
             {
                 releaseResource(WindowsDxgiNativeResource::output,
                                 candidateOutput);
-                if (candidateAdapter != adapter_)
+                if (!candidateAdapterTransferred)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
                 if (closed_)
@@ -240,7 +244,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                 // with a different physical output.
                 releaseResource(WindowsDxgiNativeResource::output,
                                 candidateOutput);
-                if (candidateAdapter != adapter_)
+                if (!candidateAdapterTransferred)
                     releaseResource(WindowsDxgiNativeResource::adapter,
                                     candidateAdapter);
                 if (closed_)
@@ -253,10 +257,11 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                 {
                     releaseResource(WindowsDxgiNativeResource::output,
                                     candidateOutput);
-                    // candidateAdapter can alias the adapter retained by the
-                    // first matching output. That retained reference belongs
-                    // to adapter_ and terminal teardown releases it once.
-                    if (candidateAdapter != adapter_)
+                    // A second match within this same adapter scan shares
+                    // the one adapterAt reference already transferred to
+                    // adapter_. A reference from a later adapterAt call must
+                    // still be released even if its interface address matches.
+                    if (!candidateAdapterTransferred)
                     {
                         releaseResource(WindowsDxgiNativeResource::adapter,
                                         candidateAdapter);
@@ -267,6 +272,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                 }
                 output_ = candidateOutput;
                 adapter_ = candidateAdapter;
+                candidateAdapterTransferred = true;
             }
             else
             {
@@ -274,7 +280,7 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                                 candidateOutput);
                 if (closed_)
                 {
-                    if (candidateAdapter != adapter_)
+                    if (!candidateAdapterTransferred)
                         releaseResource(WindowsDxgiNativeResource::adapter,
                                         candidateAdapter);
                     return cancelled();
@@ -284,14 +290,14 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
 
         if (!outputEnumerationEnded)
         {
-            if (candidateAdapter != adapter_)
+            if (!candidateAdapterTransferred)
                 releaseResource(WindowsDxgiNativeResource::adapter,
                                 candidateAdapter);
             if (closed_)
                 return cancelled();
             return fail(WindowsDxgiDuplicationResult::failed);
         }
-        if (candidateAdapter != adapter_)
+        if (!candidateAdapterTransferred)
             releaseResource(WindowsDxgiNativeResource::adapter,
                             candidateAdapter);
         if (closed_)

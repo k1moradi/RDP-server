@@ -1,3 +1,17 @@
+## Native pointer identity is not ownership provenance
+
+For COM and other reference-counted native APIs, decide cleanup from the
+ownership event that produced a reference, not from pointer-value equality.
+Two callback/API returns can own distinct references while exposing the same
+interface address. Conversely, one reference transferred into an owner may be
+reused under multiple local names without creating another release obligation.
+
+Track transfer state explicitly for each returned reference. Release a candidate
+unless that exact reference was transferred to the authoritative owner; do not
+infer transfer from `candidate == retained`. Native fixtures should be able to
+represent multiple outstanding references to one address and require the final
+reference count to return to zero.
+
 ## Completed X11 file handoff never derives a path from remote metadata
 
 For R8 X11 file-manager handoff, bind any local file URI at the same native

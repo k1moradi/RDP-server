@@ -2,6 +2,8 @@
 
 **Parent:** `a5651588b1b8b2697c63305515bc58807917c519`. Publication SHA and hosted Actions result: **PENDING**.
 
+The initial R7 publication exposed a malformed CI YAML edit during immediate diff review. This follow-up repairs only the R7 sanitizer workflow block on current shared `main`; the production/session-retirement semantics and dedicated CTests are unchanged. The malformed SHA is not treated as validation evidence.
+
 Production changes pin the existing `NativeSessionChangeWatch` revision in
 `MacInputController` and `MacScreenCaptureBinding/State`. Input session loss
 is terminal without held-state cleanup posting; capture session loss is checked

@@ -1,3 +1,36 @@
+## R6 invalid-consumer release-revocation exact-SHA validation (2026-10-16)
+
+**Implementation:** `1084b706e3dd6ea993028976c61c423620f24128`.  
+**Actions:** `38924775313` — **SUCCESS**.
+
+Windows/MSVC focused native R6 preflight is **46/46 PASS Debug** and **46/46
+PASS Release**. New
+`windows.capture-capture-cycle-invalid-consumer-release-revocation` passes in
+**0.01 s** in both configurations. The authoritative full Windows suite is
+**413/413 PASS Debug** and **413/413 PASS Release**, with the same new case
+passing again in each full run. The installed SDK consumer is **1/1 PASS**;
+Windows package, SHA-256 digest and artifact upload also pass.
+
+Linux/GCC full CTest is **457/457 PASS Debug** and **457/457 PASS Release**.
+macOS/AppleClang full CTest is **382/382 PASS Debug** and **382/382 PASS
+Release**. Documentation-policy, the R9 Clang ASan/UBSan job and the dedicated
+R7 sanitizer job all **PASS**. The Windows-only R6 executable is not selected by
+the Linux sanitizer groups, so direct sanitizer execution of this new R6 case
+is **NOT RUN** and is not claimed. Untagged prerelease publication is correctly
+**SKIPPED**.
+
+Validated invariant: invalid-consumer cleanup never strands a mapped frame.
+Native release failure remains `releaseFailed`; successful lease retirement
+whose synchronous release callback revokes the cycle returns terminal
+`closed`. The staging mapping is invalidated before release, nested capture is
+denied while cleanup is active, and cancellation/destruction remain exact-once.
+
+Canonical owner-local `~/rdp-server/build/` and owner Windows MSYS2
+CLANG64/Clang23 remain **NOT RUN** here. Genuine Windows R2/R3 native admission
+is still absent, so no runtime DXGI or SendInput route is authorized. Live
+Desktop Duplication, Microsoft-client M4 acceptance and native performance
+remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT ACCEPTED.**
+
 ## R6 invalid-consumer release-revocation classification (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `f7025624166518f3729eb32700eb88fd6b9ce9fb`; publication reconciled onto `67b6ff0ebe478d5abe37fe9bf86266ce11c2c002`.

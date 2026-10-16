@@ -1,3 +1,28 @@
+## R6 invalid-consumer release-revocation hosted receipt (2026-10-16)
+
+Implementation `1084b706e3dd6ea993028976c61c423620f24128`, Actions `38924775313`: **SUCCESS**.
+
+- Windows/MSVC R6 preflight: **46/46 Debug + 46/46 Release**.
+- New `windows.capture-capture-cycle-invalid-consumer-release-revocation`:
+  **PASS 0.01 s** in both preflight configurations and again in both full
+  Windows suites.
+- Windows full CTest: **413/413 Debug + 413/413 Release**; installed SDK
+  consumer **1/1 PASS**; package/digest/artifact upload **PASS**.
+- Linux/GCC full CTest: **457/457 Debug + 457/457 Release**.
+- macOS/AppleClang full CTest: **382/382 Debug + 382/382 Release**.
+- Documentation-policy, R9 Clang ASan/UBSan and R7 sanitizer jobs: **PASS**.
+- Direct sanitizer execution of this Windows-only R6 case: **NOT RUN**.
+
+The three-state internal release result is now hosted-validated: native
+ReleaseFrame failure is distinct from successful release that terminally
+revokes the enclosing cycle. Invalid consumers therefore cannot manufacture a
+`releaseFailed` result after successful lease retirement. Release ordering,
+exact-once teardown, and the existing authorization boundary are unchanged.
+
+Owner-local one-root validation and Windows MSYS2 CLANG64/Clang23 remain
+**NOT RUN** in this connector environment. Genuine Windows R2/R3 admission,
+live DXGI/SendInput and Microsoft-client M4 remain **BLOCKED/NOT RUN**.
+
 ## R6 invalid-consumer release-revocation authoring receipt (2026-10-16)
 
 Starting shared main: `f7025624166518f3729eb32700eb88fd6b9ce9fb`; reconciled publication parent: `67b6ff0ebe478d5abe37fe9bf86266ce11c2c002`. Source/ownership audit **PASS**.

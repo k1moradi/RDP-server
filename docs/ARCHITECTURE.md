@@ -612,6 +612,20 @@ arbitrary domain groups, intermediate directory reparse points and
 TLS key permissions still require explicit native auditing. No
 network/desktop access or R2/R3 session is created.
 
+### R10 offline TLS PEM parse/key-match preflight (2026-10-15)
+
+A third explicit diagnostic, `--check-tls-credentials`, first applies
+the established syntax and native credential-file metadata/identity
+policy. It retains the opened certificate and private-key file
+objects, then parses PEM directly from those same handles with
+OpenSSL. The private key must be unencrypted and match the
+certificate public key through `X509_check_private_key`; the
+password callback is noninteractive and always rejects encrypted
+keys. This eliminates a path reopen between metadata validation
+and content parsing. It does not validate a trust chain, hostname,
+revocation, certificate validity dates, NLA, R2 admission, R3
+authority or permit server startup.
+
 ### R10 offline TLS file metadata preflight (2026-10-15)
 
 A separate `--check-tls-files FILE` command retains the existing

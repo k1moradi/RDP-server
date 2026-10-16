@@ -6028,3 +6028,29 @@ macOS27 one-root CTest, real x264 SPS crop or Microsoft-client decode,
 R3 admitted dynamic virtual channel and frame-send receipt, benchmark.
 Inspect exact source GitHub CI after publication; Gate B remains open.
 
+
+## R10 offline PEM certificate/private-key consistency (2026-10-15)
+
+**Parent main:** `1f82be913b2ad7ae09134d939542ec22b3656d63`. R10 adds opt-in
+`--check-tls-credentials FILE` while keeping `--check-config`
+syntax-only and `--check-tls-files` metadata-only. Production
+retains each already security-validated TLS file handle and parses
+PEM directly from that open object using OpenSSL. One X.509
+certificate and one unencrypted private key must parse and
+`X509_check_private_key` must return success. A custom password
+callback always returns zero so encrypted key input cannot trigger
+an interactive prompt. No path is reopened after metadata acceptance.
+
+**New dedicated central CTests:** `runtime.validates-tls-credentials-matching-pair`,
+`runtime.rejects-tls-credentials-mismatched-key`,
+`runtime.rejects-tls-credentials-malformed-certificate`,
+`runtime.rejects-tls-credentials-malformed-key`,
+`runtime.rejects-tls-credentials-encrypted-key`, and
+`runtime.rejects-tls-credentials-option-smuggling`. Fixtures are
+fixed test-only P-256 material; encrypted-key case has a 10-second
+CTest timeout. **NOT RUN at authoring:** exact-SHA hosted CI, owner's
+three required platform one-root commands, real PKI trust/expiry/
+revocation, live credentials, authenticated desktop, listener and
+M1–M6 acceptance. Next: exact hosted matrix and owner CTests,
+then trust/validity policy and continuity into a future authorized
+live TLS loader.

@@ -409,6 +409,30 @@ still **NOT RUN** here, and M1–M6 remain OPEN. Offline acceptance
 cannot authorize live RDP sessions or guarantee a later separately
 opened TLS file's identity.
 
+**R10 offline PEM certificate/private-key parse and match gate (2026-10-15; exact-SHA CI NOT RUN at authoring):**
+A new explicit `rdp-server --check-tls-credentials FILE` layers on
+the existing syntax and TLS-file metadata gates without changing
+either command's contract. Certificate/key files are opened once
+through the existing native secure-path/type/size/permission policy,
+kept open, parsed directly from those same `FILE*` objects using
+OpenSSL PEM APIs, and required to satisfy `X509_check_private_key`.
+There is no second pathname reopen after metadata acceptance.
+Encrypted private keys fail noninteractively through a password
+callback that always returns zero; the checker never prompts or
+accepts a passphrase. Certificate trust, hostname, chain, revocation
+and validity time are NOT evaluated. Six new cross-platform dedicated
+runtime CTests use fixed synthetic test-only EC material: matching
+pair success; mismatched key, malformed cert, malformed key,
+encrypted key and option-smuggling rejection. Encrypted-key CTest has
+a 10-second timeout to prove no prompt/hang. Existing metadata tests
+and unconditional startup refusal remain. **NOT RUN at authoring:**
+full exact-SHA hosted matrix, owner Linux/X11 / Windows MSYS2
+CLANG64 Clang23 / macOS27 one-root tests, real provisioned TLS
+credentials, R2/R3 authorization and Microsoft-client desktop.
+M1–M6 remain OPEN. **Next:** hosted CI and owner full CTest, then
+certificate trust/expiry policy and live-loader handle continuity
+without enabling a listener prematurely.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

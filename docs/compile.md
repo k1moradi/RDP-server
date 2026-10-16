@@ -276,3 +276,15 @@ files under `build/runtime-fixtures`, including two parent-symlink
 denials. The unchanged owner configure/build/CTest one-liner runs
 these without genuine PEM data or a listener. Windows CLANG64
 and real TLS contents remain separately unverified.
+
+## R10 offline PEM credential consistency check (2026-10-15)
+
+`rdp-server --check-tls-credentials FILE` runs the existing config
+syntax and TLS-file metadata checks, then parses the already-open
+certificate and private key as PEM and requires the key to match the
+certificate. It never prompts for a password; encrypted private keys
+are rejected. A passing result does not establish certificate trust,
+hostname, chain, revocation, validity dates, user authentication or
+permission to start the RDP service. Ordinary CTests use fixed
+test-only EC material under `build/runtime-fixtures`; no real
+credential is installed or read.

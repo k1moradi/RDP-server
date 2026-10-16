@@ -31,7 +31,10 @@ elseif(RDP_RUNTIME_TEST_CASE STREQUAL "reports-version-without-startup")
 elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-option-smuggling")
     set(runtime_arguments "--check-tls-files" "R10_SENTINEL_MUST_NOT_APPEAR" "--help")
     set(expected_exit_code 2)
-elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-files)-")
+elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-option-smuggling")
+    set(runtime_arguments "--check-tls-credentials" "R10_SENTINEL_MUST_NOT_APPEAR" "--help")
+    set(expected_exit_code 2)
+elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-files|tls-credentials)-")
     if(NOT DEFINED RDP_RUNTIME_FIXTURE_DIRECTORY OR
        RDP_RUNTIME_FIXTURE_DIRECTORY STREQUAL "")
         message(FATAL_ERROR "Missing RDP_RUNTIME_FIXTURE_DIRECTORY")
@@ -39,8 +42,12 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
     file(MAKE_DIRECTORY "${RDP_RUNTIME_FIXTURE_DIRECTORY}")
     set(config_file "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TEST_CASE}.conf")
     set(check_tls_metadata FALSE)
-    if(RDP_RUNTIME_TEST_CASE MATCHES "-tls-files-")
+    set(check_tls_credentials FALSE)
+    if(RDP_RUNTIME_TEST_CASE MATCHES "-tls-(files|credentials)-")
         set(check_tls_metadata TRUE)
+    endif()
+    if(RDP_RUNTIME_TEST_CASE MATCHES "-tls-credentials-")
+        set(check_tls_credentials TRUE)
     endif()
     # Absolute path syntax is host-specific; no real credentials are accessed.
     if(check_tls_metadata)
@@ -60,6 +67,41 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
         "authentication=required\nos_authorization=required\n"
         "max_connections=4\n")
     string(JOIN "" config_text ${config_text})
+    if(check_tls_credentials)
+        set(valid_certificate [=[-----BEGIN CERTIFICATE-----
+MIIBkjCCATegAwIBAgIUWuuRJpgcrq2vX5lyIBLc5ce7i0gwCgYIKoZIzj0EAwIw
+HjEcMBoGA1UEAwwTcmRwLXNlcnZlci1yMTAtdGVzdDAeFw0yNjEwMTYwNjU0MDRa
+Fw0zNjEwMTMwNjU0MDRaMB4xHDAaBgNVBAMME3JkcC1zZXJ2ZXItcjEwLXRlc3Qw
+WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARHlTXWKfJwyoq97RvREwXY+oNRVA+F
+HgJYQIdBtjbv6sWLmmdwo6RPEqW1uVkqb8d1wwZ2HWkbjuRfauYQgOmDo1MwUTAd
+BgNVHQ4EFgQUtaVxIkarAzc4CC4Ul+SKp8thI9AwHwYDVR0jBBgwFoAUtaVxIkar
+Azc4CC4Ul+SKp8thI9AwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNJADBG
+AiEA8LIabrlyY1C2PQ++AmWKf0CHHNSpGkQvW+FxP1EFrF8CIQDcsbW7oN831QgX
+c/Ooo5Hees+Av4vHcPglHbYa3hOYnQ==
+-----END CERTIFICATE-----
+]=])
+        set(valid_private_key [=[-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEILZ+dgVxkAWBXTPZaP7sTQWMDNkkzFDB89nbT9jsSb/joAoGCCqGSM49
+AwEHoUQDQgAER5U11inycMqKve0b0RMF2PqDUVQPhR4CWECHQbY27+rFi5pncKOk
+TxKltblZKm/HdcMGdh1pG47kX2rmEIDpgw==
+-----END EC PRIVATE KEY-----
+]=])
+        set(other_private_key [=[-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIIQWmj/2/ggsRmYIjESBt/O9Qq/dPpl3dlZr5RUQLwUfoAoGCCqGSM49
+AwEHoUQDQgAE1hlUpXLs0O3Y5+S6y7a17EIFMQk8UqNmwiaOiV3HI+nFS2KK6hA/
+ufkKgFPh5YDLhRJU8AW202oUdLHcAJjy6g==
+-----END EC PRIVATE KEY-----
+]=])
+        set(encrypted_private_key [=[-----BEGIN ENCRYPTED PRIVATE KEY-----
+MIH0MF8GCSqGSIb3DQEFDTBSMDEGCSqGSIb3DQEFDDAkBBAya3YSvnZsZQjIcn5z
+VcltAgIIADAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQAR5zW2DLx2NbFRgy
+rXiNtQSBkJueSanmNwrcL+X4rQrUAi7hY6kLZcnkVFaWGlKY9drPnJSrQhCFsWJ3
+gR9TgiOjFmEaQeWZ+Z7vJHaBKwa3IlHieq2rGoUrGYR7DE0Et1FzFpMvNgaC2Px6
+bbojipfqEY16R35hsd2MROgBIQ3NaPHt0Lnlp3r2TFPAvJ0kgKikZxduf24WleuP
+E0U+IoGqDg==
+-----END ENCRYPTED PRIVATE KEY-----
+]=])
+    endif()
     if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-public-listener")
         string(REPLACE "127.0.0.1" "0.0.0.0" config_text "${config_text}")
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-missing-auth")
@@ -210,8 +252,13 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
                     file(REMOVE "${material}")
                 endif()
             endforeach()
-            file(WRITE "${certificate_file}" "SYNTHETIC_CERTIFICATE_METADATA_ONLY")
-            file(WRITE "${private_key_file}" "SYNTHETIC_KEY_METADATA_ONLY")
+            if(check_tls_credentials)
+                file(WRITE "${certificate_file}" "${valid_certificate}")
+                file(WRITE "${private_key_file}" "${valid_private_key}")
+            else()
+                file(WRITE "${certificate_file}" "SYNTHETIC_CERTIFICATE_METADATA_ONLY")
+                file(WRITE "${private_key_file}" "SYNTHETIC_KEY_METADATA_ONLY")
+            endif()
             if(UNIX)
                 file(CHMOD "${certificate_file}" PERMISSIONS
                     OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
@@ -235,7 +282,15 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
                     endif()
                 endforeach()
             endif()
-            if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-missing-certificate")
+            if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-mismatched-key")
+                file(WRITE "${private_key_file}" "${other_private_key}")
+            elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-malformed-certificate")
+                file(WRITE "${certificate_file}" "NOT_A_PEM_CERTIFICATE")
+            elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-malformed-key")
+                file(WRITE "${private_key_file}" "NOT_A_PEM_PRIVATE_KEY")
+            elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-encrypted-key")
+                file(WRITE "${private_key_file}" "${encrypted_private_key}")
+            elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-missing-certificate")
                 file(REMOVE "${certificate_file}")
             elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-missing-key")
                 file(REMOVE "${private_key_file}")
@@ -313,7 +368,9 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
             endif()
         endif()
     endif()
-    if(check_tls_metadata)
+    if(check_tls_credentials)
+        set(runtime_arguments "--check-tls-credentials" "${config_file}")
+    elseif(check_tls_metadata)
         set(runtime_arguments "--check-tls-files" "${config_file}")
     else()
         set(runtime_arguments "--check-config" "${config_file}")
@@ -323,7 +380,7 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
         get_filename_component(relative_config_file "${config_file}" NAME)
         set(runtime_arguments "--check-config" "${relative_config_file}")
     endif()
-    if(RDP_RUNTIME_TEST_CASE MATCHES "^validates-(configuration|tls-files)-")
+    if(RDP_RUNTIME_TEST_CASE MATCHES "^validates-(configuration|tls-files|tls-credentials)-")
         set(expected_exit_code 0)
     else()
         set(expected_exit_code 3)
@@ -386,5 +443,10 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^validates-tls-files-")
     if(NOT runtime_stderr STREQUAL "" OR NOT runtime_stdout STREQUAL
         "rdp-server: TLS file metadata accepted; cryptographic contents and OS authorization not verified; service remains disabled.\n")
         message(FATAL_ERROR "Offline TLS metadata success must not imply authenticated service")
+    endif()
+elseif(RDP_RUNTIME_TEST_CASE MATCHES "^validates-tls-credentials-")
+    if(NOT runtime_stderr STREQUAL "" OR NOT runtime_stdout STREQUAL
+        "rdp-server: TLS certificate and private key parsed and match; trust, expiry and OS authorization not verified; service remains disabled.\n")
+        message(FATAL_ERROR "Offline TLS credential success must not imply trusted service")
     endif()
 endif()

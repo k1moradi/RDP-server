@@ -543,6 +543,12 @@ foreach(runtime_case IN ITEMS
         validates-tls-files-nested-real-parent
         rejects-tls-files-key-parent-symlink
         rejects-tls-files-certificate-parent-symlink
+        validates-tls-credentials-matching-pair
+        rejects-tls-credentials-mismatched-key
+        rejects-tls-credentials-malformed-certificate
+        rejects-tls-credentials-malformed-key
+        rejects-tls-credentials-encrypted-key
+        rejects-tls-credentials-option-smuggling
         )
     # A real nested directory is valid; either parent symlink is rejected
     # by the production openat component walk on POSIX.
@@ -576,7 +582,8 @@ foreach(runtime_case IN ITEMS
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
     set_tests_properties("runtime.${runtime_case}" PROPERTIES
         LABELS "runtime;offline")
-    if(runtime_case STREQUAL "rejects-configuration-fifo")
+    if(runtime_case STREQUAL "rejects-configuration-fifo" OR
+       runtime_case STREQUAL "rejects-tls-credentials-encrypted-key")
         set_tests_properties("runtime.${runtime_case}" PROPERTIES TIMEOUT 10)
     endif()
 endforeach()

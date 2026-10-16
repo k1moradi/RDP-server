@@ -297,6 +297,34 @@ remains provisional until original `ctest --output-on-failure`
 diagnostics are provided. Real TLS private-key permissions,
 R2/R3 admission, Microsoft client and M1–M6 acceptance OPEN.
 
+**R10 offline TLS credential-file identity and permission preflight (2026-10-15; exact-SHA CI NOT RUN at authoring):**
+The noninstallable `rdp-server` gains explicit
+`--check-tls-files FILE` independent from the existing syntax-only
+`--check-config`. After the same seven-setting syntax validation,
+a bounded metadata-only preflight opens the configured certificate
+and private-key paths without following the final symlink, rejecting
+missing, empty, nonregular, oversized or aliased (same file identity)
+objects. Limits: certificate ≤1 MiB, private key ≤256 KiB.
+POSIX checks the opened descriptor with `fstat`, rejects group/world
+write on the certificate and all group/world access to a key, and
+requires the key owner to match the effective UID. Windows uses
+the existing `CreateFileA` no-final-reparse/handle identity gates,
+and the opened HANDLE's DACL; private-key read grants are restricted
+to the actual owner, SYSTEM and Administrators. Existing config-file
+size/DACL/syntax checks continue unchanged. Paths and secrets are not
+logged. **New behavior CTests:** ordinary private metadata success;
+missing cert/key, empty/oversized key, hard-link identity alias,
+POSIX group-readable key, group-writable certificate, final-component
+symlinks, nonregular directory key, and Windows public-read key; plus
+CLI smuggling rejection. All are deterministic synthetic files
+under the existing build fixture root. No real certificate or private
+key is read or cryptographically parsed; key/cert correspondence,
+expiry, OS admission, TLS/NLA, desktop and listener **NOT VERIFIED**.
+**NOT RUN at authoring:** exact-SHA hosted CI, owner's three-platform
+same-SHA command, external Microsoft client. M1–M6 remain open.
+Next R10: exact CI, full owner CTests, native parent-path/reparse
+and genuine private-key provisioning checks before any service.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

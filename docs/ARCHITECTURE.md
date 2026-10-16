@@ -549,6 +549,21 @@ arbitrary domain groups, intermediate directory reparse points and
 TLS key permissions still require explicit native auditing. No
 network/desktop access or R2/R3 session is created.
 
+### R10 offline TLS file metadata preflight (2026-10-15)
+
+A separate `--check-tls-files FILE` command retains the existing
+syntax-only `--check-config` contract. It borrows validated certificate
+and key path views while the bounded configuration input buffer lives,
+opens each actual path without following its final symlink, checks
+native file identity, regular/disk type, finite size, and permissions,
+and rejects hard-linked aliases. POSIX requires a private same-eUID
+key and no world/group-writable certificate. Windows permits key
+read grants only to the file owner, SYSTEM and Administrators based
+on the opened HANDLE DACL; the general config-file DACL gate remains
+separate. This is FILE METADATA only: no PEM parsing, private key
+loading, certificate matching, NLA, listener or desktop activation.
+Intermediate directory reparse/ACL analysis remains open.
+
 ### R10 Windows native configuration-file descriptor guard (2026-10-15)
 
 The non-installable runtime uses Win32 `CreateFileA`,

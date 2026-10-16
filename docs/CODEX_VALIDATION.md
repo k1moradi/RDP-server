@@ -5618,3 +5618,32 @@ DISPLAY session or positive XShm capture/resize lifecycle.
 **NOT RUN:** owner Linux/X11, Windows CLANG64/Clang23, macOS27 native
 platform checkpoints; authorized R2/R3 desktop/Microsoft client,
 full R4 graphics delivery, performance. M3/Gate B remains OPEN.
+
+## R10 offline TLS credential-file metadata gate (2026-10-15)
+
+**Parent main:** `8f5e194a5662ae2f70a849c0e451c8bbb60f87b0`. New explicit offline CLI
+`--check-tls-files FILE` uses existing validated bounded config
+syntax, then checks configured cert/key file identities and modes.
+Existing `--check-config` stays syntax-only. POSIX `O_NOFOLLOW`,
+`O_NONBLOCK`, `fstat`, eUID and 0600-like key protections; Windows
+`CreateFileA` with no-final-reparse, opened HANDLE metadata,
+restricted private-key read DACL and file ID. Reject missing, empty,
+oversized, nonregular, aliased and insecure objects; do not read
+private-key bytes or reveal paths. Limit cert to 1 MiB, key 256 KiB.
+**Dedicated CTests:** `runtime.validates-tls-files-private-regular`;
+`runtime.rejects-tls-files-missing-certificate`,
+`-missing-key`, `-empty-key`, `-oversized-key`,
+`-aliased-identity`, `-key-group-readable`,
+`-certificate-group-writable`, `-key-symlink`,
+`-certificate-symlink`, `-key-directory`,
+`-windows-key-public-read` and `-option-smuggling`.
+Tests use synthetic fixture files and never start a listener.
+POSIX/Windows-specific cases register conditionally; others remain
+default-enabled on all three OSes. **NOT RUN at authoring:**
+complete local repository CMake/CTest (Git clone DNS unavailable),
+exact-commit hosted Actions, owner's Linux/X11,
+Windows MSYS2 CLANG64/Clang23 and macOS27 one-root command,
+real TLS certificate/key contents, trusted OS identity,
+Microsoft RDP client and human desktop. M1–M6 remain OPEN.
+**Next:** exact-SHA matrix CI and owner one-root validation,
+then real certificate/key provisioning and end-to-end admission.

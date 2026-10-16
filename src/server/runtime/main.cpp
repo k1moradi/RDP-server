@@ -2,7 +2,9 @@
 // R10 process entry point. No listener, session controller or OS adapter is
 // constructed until R2 admission and R3 authoritative live sessions exist.
 // An explicit offline configuration check does not authenticate or start a user.
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <memory>
 #include <string_view>
@@ -102,7 +104,9 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
     return true;
 }
 
-[[nodiscard]] bool isValidConfiguration(std::string_view text) noexcept {
+[[nodiscard]] bool isValidConfiguration(
+    std::string_view text,
+    std::array<std::string_view, kConfigurationFields.size()>* validatedFields = nullptr) noexcept {
     std::array<std::string_view, kConfigurationFields.size()> fieldValues{};
     std::array<bool, kConfigurationFields.size()> fieldSeen{};
 
@@ -152,21 +156,27 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
             return false;
         }
     }
-    return (fieldValues[0] == "127.0.0.1" || fieldValues[0] == "::1") &&
-           isDecimalWithin(fieldValues[1], 1, 65535) &&
-           isAbsoluteConfigurationPath(fieldValues[2]) &&
-           isAbsoluteConfigurationPath(fieldValues[3]) &&
-           fieldValues[2] != fieldValues[3] &&
-           fieldValues[4] == "required" &&
-           fieldValues[5] == "required" &&
-           isDecimalWithin(fieldValues[6], 1, 64);
+    const bool valid =
+        (fieldValues[0] == "127.0.0.1" || fieldValues[0] == "::1") &&
+        isDecimalWithin(fieldValues[1], 1, 65535) &&
+        isAbsoluteConfigurationPath(fieldValues[2]) &&
+        isAbsoluteConfigurationPath(fieldValues[3]) &&
+        fieldValues[2] != fieldValues[3] &&
+        fieldValues[4] == "required" &&
+        fieldValues[5] == "required" &&
+        isDecimalWithin(fieldValues[6], 1, 64);
+    if (valid && validatedFields != nullptr) {
+        *validatedFields = fieldValues; // Borrowed only while config buffer lives.
+    }
+    return valid;
 }
 
 #if defined(_WIN32)
 // Conservative file DACL gate: broad principals may read configuration,
 // but must not be granted write, delete or permission-changing rights.
 // Evaluate the opened HANDLE, not a second (racy) path lookup.
-[[nodiscard]] bool hasRestrictedConfigurationDacl(HANDLE fileHandle) noexcept {
+[[nodiscard]] bool hasRestrictedConfigurationDacl(
+    HANDLE fileHandle, bool privateKey = false) noexcept {
     PSID owner = nullptr;
     PACL dacl = nullptr;
     PSECURITY_DESCRIPTOR rawDescriptor = nullptr;
@@ -223,12 +233,119 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
         if (broadPrincipal && (allow->Mask & unsafeRights) != 0) {
             return false;
         }
+        if (privateKey && !::EqualSid(principal, owner) &&
+            !::IsWellKnownSid(principal, WinLocalSystemSid) &&
+            !::IsWellKnownSid(principal, WinBuiltinAdministratorsSid)) {
+            return false; // A readable private key must not be public.
+        }
     }
     return true;
 }
 #endif
 
-[[nodiscard]] bool checkConfigurationFile(const char* path) noexcept {
+
+struct TlsFileIdentity {
+#if defined(_WIN32)
+    DWORD volume = 0;
+    DWORD indexHigh = 0;
+    DWORD indexLow = 0;
+#else
+    dev_t device = 0;
+    ino_t inode = 0;
+#endif
+};
+
+[[nodiscard]] bool inspectTlsFile(std::string_view path,
+                                  bool privateKey,
+                                  TlsFileIdentity& identity) noexcept {
+    constexpr std::size_t kMaximumCertificateBytes = 1024U * 1024U;
+    constexpr std::size_t kMaximumPrivateKeyBytes = 256U * 1024U;
+    const std::size_t maximumBytes =
+        privateKey ? kMaximumPrivateKeyBytes : kMaximumCertificateBytes;
+    if (!isAbsoluteConfigurationPath(path)) {
+        return false;
+    }
+    std::array<char, 1025> terminatedPath{};
+    std::copy(path.begin(), path.end(), terminatedPath.begin());
+#if defined(_WIN32)
+    const HANDLE handle = ::CreateFileA(
+        terminatedPath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+        OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+        nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    FILE_ATTRIBUTE_TAG_INFO attributes{};
+    BY_HANDLE_FILE_INFORMATION information{};
+    const bool safe =
+        ::GetFileType(handle) == FILE_TYPE_DISK &&
+        ::GetFileInformationByHandleEx(
+            handle, FileAttributeTagInfo, &attributes, sizeof(attributes)) &&
+        (attributes.FileAttributes &
+         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) == 0 &&
+        ::GetFileInformationByHandle(handle, &information) &&
+        (static_cast<std::uint64_t>(information.nFileSizeHigh) << 32U |
+         information.nFileSizeLow) > 0 &&
+        (static_cast<std::uint64_t>(information.nFileSizeHigh) << 32U |
+         information.nFileSizeLow) <= maximumBytes &&
+        hasRestrictedConfigurationDacl(handle, privateKey);
+    (void)::CloseHandle(handle);
+    if (!safe) {
+        return false;
+    }
+    identity.volume = information.dwVolumeSerialNumber;
+    identity.indexHigh = information.nFileIndexHigh;
+    identity.indexLow = information.nFileIndexLow;
+#else
+    // Check identity/mode on the same descriptor without following the
+    // final symlink, blocking on a FIFO or opening any TLS material content.
+    const int fd = ::open(
+        terminatedPath.data(), O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) {
+        return false;
+    }
+    struct stat information {};
+    const bool safe = ::fstat(fd, &information) == 0 &&
+        S_ISREG(information.st_mode) &&
+        information.st_size > 0 &&
+        information.st_size <= static_cast<off_t>(maximumBytes) &&
+        (information.st_mode & (S_IWGRP | S_IWOTH)) == 0 &&
+        (!privateKey ||
+         (information.st_uid == ::geteuid() &&
+          (information.st_mode & (S_IRWXG | S_IRWXO)) == 0 &&
+          (information.st_mode & S_IRUSR) != 0));
+    (void)::close(fd);
+    if (!safe) {
+        return false;
+    }
+    identity.device = information.st_dev;
+    identity.inode = information.st_ino;
+#endif
+    return true;
+}
+
+[[nodiscard]] bool checkTlsFileReferences(
+    std::string_view certificatePath, std::string_view privateKeyPath) noexcept {
+    TlsFileIdentity certificate{};
+    TlsFileIdentity privateKey{};
+    if (!inspectTlsFile(certificatePath, false, certificate) ||
+        !inspectTlsFile(privateKeyPath, true, privateKey)) {
+        return false;
+    }
+#if defined(_WIN32)
+    return certificate.volume != privateKey.volume ||
+           certificate.indexHigh != privateKey.indexHigh ||
+           certificate.indexLow != privateKey.indexLow;
+#else
+    return certificate.device != privateKey.device ||
+           certificate.inode != privateKey.inode;
+#endif
+}
+
+// Offline metadata acceptance is not certificate parsing, key matching,
+// expiry verification, an R2 admission decision or permission to listen.
+[[nodiscard]] bool checkConfigurationFile(
+    const char* path, bool checkTlsFiles = false) noexcept {
     if (path == nullptr || *path == '\0') {
         return false;
     }
@@ -307,13 +424,19 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
         bytesRead > kMaximumConfigurationBytes) {
         return false;
     }
-    return isValidConfiguration(std::string_view{bytes.data(), bytesRead});
+    std::array<std::string_view, kConfigurationFields.size()> validatedFields{};
+    if (!isValidConfiguration(std::string_view{bytes.data(), bytesRead},
+                              &validatedFields)) {
+        return false;
+    }
+    return !checkTlsFiles ||
+           checkTlsFileReferences(validatedFields[2], validatedFields[3]);
 }
 
 void printUsage() noexcept {
-    std::fputs("Usage: rdp-server [--help | --version | --check-config FILE]\n"
-               "--check-config validates syntax only; it does not verify\n"
-               "TLS credentials, OS authorization or start a service.\n"
+    std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE]\n"
+               "--check-config validates syntax only. --check-tls-files checks\n"
+               "file metadata, not cryptographic contents or OS authorization.\n"
                "Secure desktop service startup is not implemented.\n", stdout);
 }
 } // namespace
@@ -329,11 +452,19 @@ int main(int argumentCount, char* argumentValues[]) noexcept {
             std::printf("rdp-server %s\n", RDP_SERVER_VERSION);
             return 0;
         }
-        if (argumentCount == 3 && option == "--check-config") {
-            if (checkConfigurationFile(argumentValues[2])) {
-                std::fputs("rdp-server: configuration syntax accepted; credentials and "
-                           "OS authorization not verified; service remains disabled.\n",
-                           stdout);
+        if (argumentCount == 3 &&
+            (option == "--check-config" || option == "--check-tls-files")) {
+            const bool verifyTls = option == "--check-tls-files";
+            if (checkConfigurationFile(argumentValues[2], verifyTls)) {
+                if (verifyTls) {
+                    std::fputs("rdp-server: TLS file metadata accepted; cryptographic contents "
+                               "and OS authorization not verified; service remains disabled.\n",
+                               stdout);
+                } else {
+                    std::fputs("rdp-server: configuration syntax accepted; credentials and "
+                               "OS authorization not verified; service remains disabled.\n",
+                               stdout);
+                }
                 return 0;
             }
             // Never reveal configuration contents, paths or secrets in logs.

@@ -246,3 +246,20 @@ run only against files generated under `build/runtime-fixtures/`,
 never a real credential or system file. The owner's normal CMake/
 CTest one-liner is unchanged. No complete effective-access, TLS
 private-key permissions or OS-admission claim is implied.
+
+## R10 offline TLS-file metadata preflight (2026-10-15)
+
+Use `rdp-server --check-config FILE` to validate syntax without
+looking up TLS files. Use `rdp-server --check-tls-files FILE` to
+add an offline metadata-only check of the configured actual cert/key
+file paths. Accepted certificate files must be regular, nonempty,
+at most 1 MiB, and not group/world writable on POSIX. Private keys
+must be regular, nonempty, at most 256 KiB and owner-private
+(`chmod 600`) on POSIX; the key owner must match the running eUID.
+Windows checks non-reparse HANDLE identity and restricts key read
+grants to owner/SYSTEM/Administrators. The cert and key may not
+refer to the same underlying file (including via hard links).
+A successful preflight does **not** validate X.509, PEM key
+contents, private-key matching, expiry or service authorization,
+and cannot start the server. Dedicated `runtime.*tls-files*`
+CTests use synthetic content in `build/runtime-fixtures`.

@@ -507,7 +507,27 @@ foreach(runtime_case IN ITEMS
         rejects-configuration-windows-everyone-write
         rejects-configuration-windows-authenticated-write
         rejects-configuration-windows-users-write
+        validates-tls-files-private-regular
+        rejects-tls-files-missing-certificate
+        rejects-tls-files-missing-key
+        rejects-tls-files-empty-key
+        rejects-tls-files-oversized-key
+        rejects-tls-files-aliased-identity
+        rejects-tls-files-key-group-readable
+        rejects-tls-files-certificate-group-writable
+        rejects-tls-files-key-symlink
+        rejects-tls-files-certificate-symlink
+        rejects-tls-files-key-directory
+        rejects-tls-files-windows-key-public-read
+        rejects-tls-files-option-smuggling
         )
+    if(NOT WIN32 AND runtime_case STREQUAL "rejects-tls-files-windows-key-public-read")
+        continue()
+    endif()
+    if(NOT UNIX AND runtime_case MATCHES
+       "^rejects-tls-files-(key-group-readable|certificate-group-writable|key-symlink|certificate-symlink|key-directory)$")
+        continue()
+    endif()
     if(NOT WIN32 AND runtime_case MATCHES
        "^(validates-configuration-windows-(regular|private-dacl)|rejects-configuration-windows-(directory|relative-file|everyone-write|authenticated-write|users-write)|rejects-windows-device-namespace)$")
         continue()

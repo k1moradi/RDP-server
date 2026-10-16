@@ -4817,3 +4817,32 @@ and repeatable capture/performance benchmarks. M1/M3 NOT ACCEPTED.
 **Next R5:** bring one XCB owner, XShm, XFixes and XDamage
 through ordered invalidation/resize using deterministic tests,
 without allowing protected operations before OS authorization.
+
+## R10 Windows DACL exact-SHA hosted CI acceptance (2026-10-15)
+
+**Implementation:** `9dedd0b6608ec826e850dc8d8706f0af46d2b287`.
+[GitHub Actions 38849455579](https://github.com/k1moradi/RDP-server/actions/runs/38849455579)
+**COMPLETED SUCCESS**. Hosted Ubuntu/GCC Debug **217/217**
+and Release **217/217** full CTests; hosted macOS/Clang Debug
+**201/201** and Release **201/201**; hosted Windows/MSVC Debug
+**219/219** and Release **219/219**. Windows runtime DACL
+behavior cases `validates-configuration-windows-private-dacl`,
+`rejects-configuration-windows-everyone-write`,
+`rejects-configuration-windows-authenticated-write` and
+`rejects-configuration-windows-users-write` explicitly
+PASSed in both Windows configurations. Each OS's SDK install/
+downstream consumer **1/1 PASS**, ZIP/SHA256 packaging and
+artifact upload PASS. Documentation-policy PASS and R9
+clipboard sanitizer job PASS. Protocol prerelease SKIPPED
+because no matching version tag was created.
+
+**NOT RUN:** owner's Linux/X11, Windows MSYS2 CLANG64 with
+Clang 23 and macOS 27 same-SHA command, native authenticated
+Microsoft-client/OS desktop access, TLS key/certificate file
+authorization, independent R2/R3 identity/session and complete
+Windows DACL effective access for unknown principals. Windows
+hosted MSVC CI is not owner Clang23 acceptance.
+M1–M6 remain OPEN and protocol-only SDK ZIPs are not a
+deployable server. **Next R10:** secure actual certificate/
+private-key files and directory-reparse/ACL boundaries with
+new dedicated CTests, while startup stays disabled.

@@ -196,6 +196,26 @@ access evaluation, TLS private-key file protection and OS admission
 remain unverified; M1–M6 remain open. **Next:** exact-commit CI,
 then comprehensive ACL policy and credentials-file permissions.
 
+**R10 Windows DACL security exact-SHA CI PASS (2026-10-15):**
+Code commit [`9dedd0b6608ec826e850dc8d8706f0af46d2b287`](https://github.com/k1moradi/RDP-server/commit/9dedd0b6608ec826e850dc8d8706f0af46d2b287)
+passed [Actions 38849455579](https://github.com/k1moradi/RDP-server/actions/runs/38849455579).
+Hosted Linux/GCC **217/217**, macOS/Clang **201/201**, and
+Windows/MSVC **219/219** CTests all PASS in **each Debug and Release**
+configuration. The new four DACL-positive/negative Windows runtime
+CTests explicitly PASS in both configurations. Installed downstream
+SDK consumer **1/1 PASS** per OS, artifact ZIP/SHA256 and
+documentation-policy checks PASS; R9 clipboard sanitizer job PASS.
+Protocol prerelease publication SKIPPED (no release tag).
+These results prove only the hosted native/offline build and test
+boundary. Owner's separate Linux/X11, Windows MSYS2 CLANG64/Clang23
+and macOS27 same-SHA one-liner, full Windows effective DACL rights,
+intermediate reparse paths, TLS certificate/private-key ACLs,
+actual R2/R3 admission, Microsoft-client desktop and M1–M6
+convergence are **NOT RUN / NOT ACCEPTED**.
+**Next R10:** audit real certificate/private-key file identities,
+permissions and lifecycle, with dedicated security-negative CTests,
+without activating any listener.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

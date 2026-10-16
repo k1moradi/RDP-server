@@ -74,9 +74,10 @@ after DXGI cursor ownership. It accepts Windows-native scan-code, absolute
 pointer, five-button and vertical/horizontal wheel events only after the caller
 supplies an already-pinned nonzero Windows session/device generation. The
 generation reader is **revocation-only** and is not authentication or OS
-admission. The production callback maps commands to `SendInput`; the runtime
-does not construct or route this controller because genuine Windows R2/R3
-admission is still unavailable.
+admission. The Win32 command-to-`SendInput` translation is compiled but
+deliberately has no exported callback factory while genuine Windows R2/R3
+admission is unavailable. The runtime therefore cannot turn forgeable
+generation numbers into a native input capability.
 
 Pointer coordinates reuse the canonical `WindowsDesktopLayout`, reject
 virtual-desktop gaps, and normalize the complete virtual desktop to Win32's
@@ -94,8 +95,8 @@ state without injecting cleanup into a different desktop.
 and `windows.input-sendinput-revocation-denials`. They exercise exact
 coordinate endpoints, scan-code/extended-key state, X buttons, horizontal
 wheel, duplicate suppression, monitor-gap rejection, invalid scan/wheel/enum
-values, short insertion, deferred cancellation/reentry, generation changes,
-and inert invalid construction. Ordinary CTest uses injected callbacks and
+values, short insertion, native-callback and generation-reader reentry,
+deferred cancellation, generation changes, and inert invalid construction. Ordinary CTest uses injected callbacks and
 never calls real `SendInput`.
 
 **Authoring validation:** isolated GCC C++23 high-warning fixture PASS;

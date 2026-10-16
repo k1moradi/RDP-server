@@ -150,15 +150,14 @@ private:
     WindowsCaptureGeneration pinnedGeneration_{};
     std::array<bool, kScanCodeSlots> pressedKeys_{};
     std::array<bool, kButtonCount> pressedButtons_{};
+    bool generationReadInProgress_{};
     bool operationInProgress_{};
     bool cancellationRequested_{};
     bool closed_{};
 };
 
-#ifdef _WIN32
-// Thin production bridge to user32!SendInput. It performs no authorization,
-// session switch, desktop selection, message-window registration or retry loop.
-[[nodiscard]] WindowsInputCallbacks windowsSendInputCallbacks() noexcept;
-#endif
+// The Win32 SendInput translation is deliberately NOT exposed here. A future
+// R2/R3-authorized Windows input route must own the capability that makes the
+// native bridge callable; generation numbers alone are revocation facts.
 
 } // namespace rdp_server::windows

@@ -43,9 +43,11 @@ a later R10 release/service gate.
 ## R6 native Windows SendInput build note (2026-10-16)
 
 The existing Windows-only `rdp-server-windows-desktop` target now also
-compiles `windows_input_controller.cpp`. Production input uses
-`user32!SendInput`, so no new library or package is required beyond the
-target's existing `user32` linkage. Ordinary CTests use the injected
+compiles `windows_input_controller.cpp`. The Win32 translation compiles
+against `user32!SendInput`, so no new library or package is required beyond
+the target's existing `user32` linkage. Its callback factory remains
+unexported until genuine R2/R3 Windows admission is available. Ordinary CTests
+use the injected
 callback seam and never call `SendInput`; no service permission, interactive
 desktop, credentials or additional build option is required. Windows/MSVC and
 owner MSYS2 CLANG64/Clang23 remain required compiler evidence.

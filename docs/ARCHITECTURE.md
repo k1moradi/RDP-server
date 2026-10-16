@@ -58,10 +58,15 @@ owner. Cancellation is deferred across a synchronous native callback and
 best-effort releases held input only if the pinned generation still matches.
 Once generation observation fails or changes, local held state is discarded
 without sending key/button releases into the new desktop generation. The
-runtime currently creates no such controller, so ordinary builds/tests cannot
-inject host input. `SendInput` can be blocked by UIPI and reports the count
-of inserted events; R6 treats a short return as failure rather than retrying
-or claiming authorization.
+Win32 translation to `SendInput` is compiled in the native translation unit,
+but its callback factory is intentionally not exported while no genuine R2/R3
+Windows admission capability exists. Thus generation numbers alone cannot make
+the R6 API call native input. The runtime creates no such controller, so
+ordinary builds/tests cannot inject host input. `SendInput` can be blocked by
+UIPI and reports the count of inserted events; R6 treats a short return as
+failure rather than retrying or claiming authorization. Generation-reader
+callbacks are also reentry-guarded; cancellation requested inside a generation
+observation completes before any new native input.
 
 
 `RuntimeServerTlsContext` is the sole R10 owner of the reusable server

@@ -16,11 +16,25 @@ struct FakeGeneration final
     WindowsCaptureGeneration current{11, 23};
     unsigned reads{};
     bool fail{};
+    bool cancelDuringRead{};
+    bool reenterDuringRead{};
+    WindowsInputController *controller{};
+    bool reentrantResult{true};
 
     static bool read(void *context, WindowsCaptureGeneration &output) noexcept
     {
         auto &self = *static_cast<FakeGeneration *>(context);
         ++self.reads;
+        if (self.reenterDuringRead && self.controller != nullptr)
+        {
+            self.reentrantResult =
+                self.controller->handle(WindowsKeyInput{0x21, false, true});
+        }
+        if (self.cancelDuringRead && self.controller != nullptr)
+        {
+            self.cancelDuringRead = false;
+            self.controller->cancel();
+        }
         if (self.fail)
         {
             return false;
@@ -194,6 +208,32 @@ void windowsInputSendInputRevocationDenials()
                                           generation.reader(), {11, 23});
         assert(!controller.handle(WindowsScrollInput{
             {100, 50}, 120, static_cast<WindowsScrollAxis>(99)}));
+        assert(controller.closed() && backend.commandCount == 0);
+    }
+
+
+    // Generation-reader reentry is denied; cancellation requested while a
+    // generation callback executes is honored before any native input.
+    {
+        FakeGeneration generation{};
+        FakeInputBackend backend{};
+        WindowsInputController controller(sampleInputLayout(), backend.callbacks(),
+                                          generation.reader(), {11, 23});
+        generation.controller = &controller;
+        generation.reenterDuringRead = true;
+        assert(controller.handle(WindowsKeyInput{0x20, false, true}));
+        assert(!generation.reentrantResult);
+        assert(backend.commandCount == 1);
+        controller.cancel();
+    }
+    {
+        FakeGeneration generation{};
+        FakeInputBackend backend{};
+        WindowsInputController controller(sampleInputLayout(), backend.callbacks(),
+                                          generation.reader(), {11, 23});
+        generation.controller = &controller;
+        generation.cancelDuringRead = true;
+        assert(!controller.handle(WindowsKeyInput{0x20, false, true}));
         assert(controller.closed() && backend.commandCount == 0);
     }
 

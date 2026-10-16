@@ -88,13 +88,17 @@ std::size_t WindowsInputController::buttonSlot(WindowsPointerButton button) noex
 
 bool WindowsInputController::generationUnchanged() noexcept
 {
-    if (closed_)
+    if (closed_ || generationReadInProgress_)
     {
         return false;
     }
     WindowsCaptureGeneration current{};
-    if (!generationReader_.read(generationReader_.context, current) ||
-        current != pinnedGeneration_ || current.session == 0 || current.device == 0)
+    generationReadInProgress_ = true;
+    const bool observed =
+        generationReader_.read(generationReader_.context, current);
+    generationReadInProgress_ = false;
+    if (!observed || current != pinnedGeneration_ ||
+        current.session == 0 || current.device == 0)
     {
         // Never inject cleanup into a different/revoked desktop generation.
         invalidateWithoutNativeInput();
@@ -133,9 +137,14 @@ bool WindowsInputController::sendCommands(
 
 bool WindowsInputController::handle(const WindowsInputEvent &event) noexcept
 {
-    if (closed_ || operationInProgress_ || cancellationRequested_ ||
-        !generationUnchanged())
+    if (closed_ || generationReadInProgress_ || operationInProgress_ ||
+        cancellationRequested_ || !generationUnchanged())
     {
+        return false;
+    }
+    if (cancellationRequested_)
+    {
+        finishDeferredCancellation();
         return false;
     }
 
@@ -347,7 +356,7 @@ void WindowsInputController::cancel() noexcept
     {
         return;
     }
-    if (operationInProgress_)
+    if (operationInProgress_ || generationReadInProgress_)
     {
         cancellationRequested_ = true;
         return;
@@ -441,13 +450,12 @@ std::size_t sendNativeInput(
     return static_cast<std::size_t>(
         ::SendInput(requested, native.data(), static_cast<int>(sizeof(INPUT))));
 }
-} // namespace
-
-WindowsInputCallbacks windowsSendInputCallbacks() noexcept
+[[maybe_unused]] WindowsInputCallbacks dormantWindowsSendInputCallbacks() noexcept
 {
     static int callbackContext{};
     return {&callbackContext, &sendNativeInput};
 }
+} // namespace
 #endif
 
 } // namespace rdp_server::windows

@@ -43,17 +43,18 @@ the final commit is rebased onto the then-current shared `main`. Added
 `src/windows/windows_input_controller.{h,cpp}` to the existing Windows native
 target and `tests/windows_input_controller_cases.cpp` to the existing R6
 behavior executable. Added dedicated `windows.input-sendinput-lifecycle` and
-`windows.input-sendinput-revocation-denials` CTests. The production seam
-uses user32 `SendInput`; tests inject a synthetic callback and never alter
-host keyboard or pointer state.
+`windows.input-sendinput-revocation-denials` CTests. The Win32 translation
+compiles against user32 `SendInput`, but no native callback factory is
+exported until a genuine R2/R3 Windows admission route exists; tests inject a
+synthetic callback and never alter host keyboard or pointer state.
 
 **PASS (isolated authoring seam):** GCC C++23 with
 `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror`; Clang
 C++23 with the same warnings plus ASan+UBSan and leak detection. The fixture
 exercises canonical/gapped desktop geometry, exact absolute normalization,
 scan-code and X-button lifetime, horizontal wheel, duplicate suppression,
-short-send teardown, reentry/deferred cancellation and stale-generation
-denial.
+short-send teardown, native/generation-reader reentry, deferred cancellation
+and stale-generation denial.
 
 **NOT RUN before publication:** canonical full repository CMake/CTest, native
 Windows SDK/MSVC, owner Windows MSYS2 CLANG64/Clang23, live `SendInput`,

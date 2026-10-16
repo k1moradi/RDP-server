@@ -10516,3 +10516,20 @@ acceptance gate is an opt-in real client Kerberos exchange reaching R2
 `BindingVerified`, followed independently by current NSS/logind admission
 through the existing broker; delegated TSCredentials remain denial-only until
 R2 defines an audited positive credential contract.
+
+
+## R7 capture consumer-cancellation regression (2026-10-16; CI pending)
+
+Starting reconciled base: `f59f3e89b02925d6d91a5ce35c312830918c0fe8`. This test-only increment registers
+`macos.capture-stream-consumer-cancellation` in the existing Apple capture
+test executable. The synthetic consumer calls `MacScreenCaptureStream::close()`
+while a complete borrowed `FramebufferView` is being consumed, then asserts
+terminal `RetireStream`, one backend close, no second consumer callback from
+the retained `MacScreenCaptureState`, and idempotent repeated close.
+
+Production source and the authorization quarantine are unchanged. The fixture
+does not start ScreenCaptureKit, read a live desktop/cursor, request TCC, post
+input, encode graphics or write transport. Local canonical CMake/CTest is
+**NOT RUN** because the required `~/rdp-server` checkout is unavailable in
+this environment; hosted exact-SHA AppleClang compile/CTest is the first
+execution gate.

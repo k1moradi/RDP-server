@@ -119,6 +119,10 @@ public:
         if (changeTopologyDuringConsume) {
             NativeDisplayReconfigurationWatch::recordTopologyChange();
         }
+        if (closeDuringConsume && streamToClose != nullptr) {
+            closeDuringConsume = false;
+            streamToClose->close();
+        }
     }
 
     std::size_t calls{};
@@ -129,7 +133,9 @@ public:
     std::size_t lastByteCount{};
     const std::byte* lastPixels{};
     const std::byte* expectedPixels{};
+    MacScreenCaptureStream* streamToClose{};
     bool changeTopologyDuringConsume{};
+    bool closeDuringConsume{};
 };
 
 class FakeBackend final : public MacScreenCaptureBackend {
@@ -418,6 +424,40 @@ void testFramebufferContract() {
     assert(fixture.stream->lastFrameDrop() == MacScreenCaptureFrameDrop::None);
 }
 
+void testConsumerCancellation() {
+    GeometryFixture geometry;
+    const auto generation = geometry.refresh();
+    auto fixture = makeStream(geometry.bindingFor(100, generation));
+    prepareAndStart(fixture);
+
+    alignas(64) std::array<std::byte, 16> bytes{};
+    auto pixelBuffer = makePixelBuffer(
+        bytes, 2, 2, kCVPixelFormatType_32BGRA, 8);
+    auto callbackState = fixture.backend->state;
+    fixture.consumer->streamToClose = fixture.stream.get();
+    fixture.consumer->closeDuringConsume = true;
+
+    // close() is allowed from the synchronous consumer callback. The local
+    // shared consumer/state ownership must survive consumer_.reset(), and the
+    // in-flight frame must retire rather than publish after cancellation.
+    assert(callbackState->consumeFrame(
+               pixelBuffer.value, MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::RetireStream);
+    assert(fixture.consumer->calls == 1);
+    assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Closed);
+    assert(fixture.stream->lastFrameDrop() ==
+           MacScreenCaptureFrameDrop::NotCapturing);
+    assert(fixture.backend->closeCalls == 1);
+
+    // A retained native callback state cannot revive the closed consumer.
+    assert(callbackState->consumeFrame(
+               pixelBuffer.value, MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Dropped);
+    assert(fixture.consumer->calls == 1);
+    fixture.stream->close();
+    assert(fixture.backend->closeCalls == 1);
+}
+
 void testCallbackRetirement() {
     GeometryFixture geometry;
     const auto oldGeneration = geometry.refresh();
@@ -473,6 +513,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testDenials();
     } else if (testCase == "callback-retirement") {
         testCallbackRetirement();
+    } else if (testCase == "consumer-cancellation") {
+        testConsumerCancellation();
     } else if (testCase == "native-factory-quarantine") {
         testNativeFactoryQuarantine();
     } else if (testCase == "framebuffer-contract") {

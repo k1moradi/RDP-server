@@ -9503,3 +9503,28 @@ acceptance gate is an opt-in real client Kerberos exchange reaching R2
 `BindingVerified`, followed independently by current NSS/logind admission
 through the existing broker; delegated TSCredentials remain denial-only until
 R2 defines an audited positive credential contract.
+
+
+## R7 ScreenCaptureKit consumer-cancellation regression (2026-10-16; CI pending)
+
+The macOS native-authorization dependency remains unchanged: R2 still has no
+non-forgeable macOS admission lease/capability, and R4 still exposes no cursor
+consumer contract. R7 therefore adds lifecycle coverage only, without exposing
+native ScreenCaptureKit, cursor sampling or Quartz input.
+
+New Apple-only CTest `macos.capture-stream-consumer-cancellation` closes the
+existing `MacScreenCaptureStream` synchronously from inside its borrowed
+`MacCaptureFrameConsumer::consume()` callback. It verifies that callback-local
+shared ownership survives `consumer_.reset()`, the in-flight frame returns
+`RetireStream` instead of `Published`, the backend closes exactly once, a
+retained callback-state handle cannot deliver another frame, and repeated
+owner close is idempotent. The fixture uses a synthetic CoreVideo buffer and
+the injected backend; it does not enumerate or start ScreenCaptureKit or query
+TCC.
+
+No production source is changed by this increment. Canonical owner-local
+`~/rdp-server/build` remains unavailable in this connector environment, so
+the new Apple test is **NOT RUN** at authoring; exact-SHA hosted AppleClang
+Debug/Release plus the full cross-platform matrix are required after
+publication. **Next R7** remains a genuine R2/R3 macOS authorization
+capability; M5 remains open.

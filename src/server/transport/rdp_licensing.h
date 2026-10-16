@@ -853,6 +853,7 @@ enum class RdpLicensingPhase : std::uint8_t
     AwaitClientLicenseResponse,
     AwaitServerDecision,
     AwaitClientPlatformChallengeResponse,
+    Licensed,
     Failed,
     Closed,
 };
@@ -934,6 +935,7 @@ public:
 private:
     friend class RdpServerLicenseRequestWriteGate;
     friend class RdpServerPlatformChallengeWriteGate;
+    friend class RdpServerLicenseGrantWriteGate;
 
     // Only the receipt gate may advance this transition after every byte of
     // its stable owned SERVER_LICENSE_REQUEST has been accepted.
@@ -941,6 +943,8 @@ private:
         std::span<const std::uint8_t> serverRandom) noexcept;
     [[nodiscard]] bool onServerPlatformChallengeWritten(
         std::span<const std::uint8_t> plaintextChallenge) noexcept;
+    [[nodiscard]] bool onServerLicenseGrantWritten(
+        RdpServerLicenseGrantKind kind) noexcept;
     void fail() noexcept
     {
         serverRandom_.fill(0U);
@@ -1090,6 +1094,77 @@ private:
     std::array<std::uint8_t, kRdpServerPlatformChallengeBytes> pending_{};
     std::array<std::uint8_t, kRdpPlatformChallengePlaintextBytes>
         plaintextChallenge_{};
+    RdpLicensingLifecycle *lifecycle_{};
+    std::size_t pendingLength_{};
+    std::size_t bytesWritten_{};
+    std::uint64_t replySequence_{};
+    std::uint64_t writeSliceSequence_{};
+    bool delivered_{};
+    bool closed_{};
+};
+
+struct RdpServerLicenseGrantWriteView
+{
+    std::span<const std::uint8_t> bytes{};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return !bytes.empty() && replySequence != 0U &&
+               writeSliceSequence != 0U;
+    }
+};
+
+enum class RdpServerLicenseGrantWriteOutcome : std::uint8_t
+{
+    Pending,
+    Delivered,
+    Rejected,
+};
+
+// Receipt owner for an already-authority-issued New License. This is still
+// not a live publication capability: no R2 broker/session entry exposes it.
+// queue() requires an exact authority generation/fingerprint match, the
+// existing immutable product identity, and already-derived licensing keys.
+// Upgrade License remains offline until CLIENT_LICENSE_INFO trust validation
+// exists. Full accepted-byte delivery alone moves the licensing lifecycle to
+// Licensed; stale/duplicate/over-reported receipts close it.
+class RdpServerLicenseGrantWriteGate final
+{
+public:
+    explicit RdpServerLicenseGrantWriteGate(
+        RdpLicensingLifecycle &lifecycle) noexcept
+        : lifecycle_(&lifecycle)
+    {
+    }
+    RdpServerLicenseGrantWriteGate(
+        const RdpServerLicenseGrantWriteGate &) = delete;
+    RdpServerLicenseGrantWriteGate &operator=(
+        const RdpServerLicenseGrantWriteGate &) = delete;
+    RdpServerLicenseGrantWriteGate(
+        RdpServerLicenseGrantWriteGate &&) = delete;
+    RdpServerLicenseGrantWriteGate &operator=(
+        RdpServerLicenseGrantWriteGate &&) = delete;
+
+    [[nodiscard]] bool queue(
+        const RdpLicensingAuthorityGrant &grant,
+        const RdpServerLicenseIdentity &identity,
+        const RdpLicensingKeyMaterial &keyMaterial,
+        std::uint64_t authorityGeneration,
+        std::span<const std::uint8_t> authorityFingerprint) noexcept;
+    [[nodiscard]] RdpServerLicenseGrantWriteView pendingWrite() const noexcept;
+    [[nodiscard]] RdpServerLicenseGrantWriteOutcome onBytesWritten(
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    void close() noexcept;
+
+private:
+    [[nodiscard]] bool advanceReplySequence() noexcept;
+    [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
+
+    std::array<std::uint8_t, kMaximumRdpServerLicenseGrantBytes> pending_{};
     RdpLicensingLifecycle *lifecycle_{};
     std::size_t pendingLength_{};
     std::size_t bytesWritten_{};

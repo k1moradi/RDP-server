@@ -162,3 +162,63 @@ Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 commands remain
 `Microsoft::Windows::RDS::Graphics` DVC admission/full-send, native capture
 performance and Microsoft-client visible graphics acceptance remain
 **BLOCKED/NOT RUN**. Gate B and M3/M4/M5 remain **OPEN**.
+
+## R3 authority-correlated New License receipt gate (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `4ec2b8c5ece830e28427c8501b98ff943465372b`.
+
+R3 now has the receipt owner needed for a future live authority-issued New
+License without prematurely treating a caller-provided snapshot as licensing
+authority. `RdpServerLicenseGrantWriteGate` is intentionally **not** embedded
+in `McsSessionLifecycle` and has no R2 broker entry point in this increment.
+It can therefore exercise the production packet/receipt/lifecycle boundary
+without creating a live publication capability before R10 owns a real licensing
+authority.
+
+The gate accepts only an already-configured
+`RdpLicensingAuthorityGrant` whose nonzero generation and fixed 32-byte
+fingerprint exactly match the caller's current authority correlation. It also
+requires the immutable server-license identity, already-derived licensing keys,
+and a lifecycle that has cryptographically reached
+`NewLicenseIssuanceRequired`. The current live-eligible branch is
+`NewLicense` only; `UpgradeLicense` remains offline because the parallel
+`CLIENT_LICENSE_INFO` trust/signature/product/expiration decision is still
+unimplemented.
+
+One stable contiguous encrypted/MACed SERVER_NEW_LICENSE packet is retained
+through zero-byte backpressure and positive partial writes. Reply and
+write-slice receipts remain nonzero and monotonic; positive partial progress
+rotates only the slice receipt. Stale/duplicate receipts, over-report, wrong
+phase, wrong grant kind, stale authority correlation or invalid encoding close
+the lifecycle. Only exact full accepted-byte delivery invokes the private
+lifecycle transition and moves `RdpLicensingPhase` to `Licensed`; merely
+queueing or partially sending a grant never licenses the connection.
+
+Dedicated central CTests:
+`transport.licensing-server-license-grant-write-receipts` and
+`transport.licensing-server-license-grant-write-denials`. Both are selected
+by the bounded R1/R3 ASan/UBSan licensing gate. They cover stable WANT
+resubmission, partial-slice rollover, exact completion, stale authority
+fingerprint, Upgrade-on-New branch denial, wrong phase, stale receipt,
+over-report and duplicate completion.
+
+This is still **not live publication**. R10 currently provides administrator
+licensing credential/product preflight but not a CAL-issuing authority owner;
+R2 therefore receives no new API and cannot publish this gate. The existing
+authority snapshot is correlation evidence only and remains insufficient by
+itself to mint a licensed session.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/AppleClang, Windows/MSVC Debug/Release, R9 sanitizer,
+documentation-policy and SDK/package evidence are pending.
+
+**Next R3:** once R10 exposes a concrete licensing-authority owner that returns
+the snapshot together with freshly verifiable generation/fingerprint, embed
+this gate in the sole R3 session and let R2 freshly authorize every grant slice
+and accepted-byte completion. Separately, `CLIENT_LICENSE_INFO` still needs
+real CAL trust/signature, product/version/expiration and HWID validation before
+any STATUS_VALID_CLIENT path. Share activation remains blocked until one of
+those standards-correct licensing completions is live. **M2/M3 remain OPEN /
+NOT ACCEPTED.**
+

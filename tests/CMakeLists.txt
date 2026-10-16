@@ -85,6 +85,8 @@ function(add_rdp_test source_file suite behavior)
                 licensing-client-platform-challenge-response-proof
                 licensing-client-platform-challenge-response-denials
                 licensing-authority-grant-boundary
+                licensing-server-license-grant-write-receipts
+                licensing-server-license-grant-write-denials
                 licensing-new-license-info-wire
                 licensing-new-license-info-denials
                 licensing-server-new-license-wire

@@ -1834,6 +1834,128 @@ void RdpServerPlatformChallengeWriteGate::close() noexcept
         lifecycle_->close();
 }
 
+bool RdpServerLicenseGrantWriteGate::advanceReplySequence() noexcept
+{
+    if (replySequence_ == std::numeric_limits<std::uint64_t>::max())
+        return false;
+    ++replySequence_;
+    return replySequence_ != 0U;
+}
+
+bool RdpServerLicenseGrantWriteGate::advanceWriteSliceSequence() noexcept
+{
+    if (writeSliceSequence_ == std::numeric_limits<std::uint64_t>::max())
+        return false;
+    ++writeSliceSequence_;
+    return writeSliceSequence_ != 0U;
+}
+
+bool RdpServerLicenseGrantWriteGate::queue(
+    const RdpLicensingAuthorityGrant &grant,
+    const RdpServerLicenseIdentity &identity,
+    const RdpLicensingKeyMaterial &keyMaterial,
+    std::uint64_t authorityGeneration,
+    std::span<const std::uint8_t> authorityFingerprint) noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ != 0U ||
+        lifecycle_ == nullptr ||
+        lifecycle_->phase() != RdpLicensingPhase::AwaitServerDecision ||
+        lifecycle_->decisionBranch() !=
+            RdpLicensingDecisionBranch::NewLicenseIssuanceRequired ||
+        !grant.configured() ||
+        grant.kind() != RdpServerLicenseGrantKind::NewLicense ||
+        !grant.matchesAuthority(
+            authorityGeneration, authorityFingerprint))
+    {
+        close();
+        return false;
+    }
+
+    const auto encoded = encodeRdpServerLicenseGrant(
+        grant.kind(), identity, grant.issuedCal(), keyMaterial, pending_);
+    if (!encoded || !advanceReplySequence() ||
+        !advanceWriteSliceSequence())
+    {
+        close();
+        return false;
+    }
+
+    pendingLength_ = encoded.bytesWritten;
+    bytesWritten_ = 0U;
+    return true;
+}
+
+RdpServerLicenseGrantWriteView
+RdpServerLicenseGrantWriteGate::pendingWrite() const noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ == 0U ||
+        bytesWritten_ >= pendingLength_)
+        return {};
+    return {
+        std::span(pending_).first(pendingLength_).subspan(bytesWritten_),
+        replySequence_,
+        writeSliceSequence_};
+}
+
+RdpServerLicenseGrantWriteOutcome
+RdpServerLicenseGrantWriteGate::onBytesWritten(
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ == 0U ||
+        lifecycle_ == nullptr ||
+        lifecycle_->phase() != RdpLicensingPhase::AwaitServerDecision ||
+        lifecycle_->decisionBranch() !=
+            RdpLicensingDecisionBranch::NewLicenseIssuanceRequired ||
+        replySequence == 0U || replySequence != replySequence_ ||
+        writeSliceSequence == 0U ||
+        writeSliceSequence != writeSliceSequence_ ||
+        acceptedBytes > pendingLength_ - bytesWritten_)
+    {
+        close();
+        return RdpServerLicenseGrantWriteOutcome::Rejected;
+    }
+
+    if (acceptedBytes == 0U)
+        return RdpServerLicenseGrantWriteOutcome::Pending;
+
+    bytesWritten_ += acceptedBytes;
+    if (bytesWritten_ != pendingLength_)
+    {
+        if (!advanceWriteSliceSequence())
+        {
+            close();
+            return RdpServerLicenseGrantWriteOutcome::Rejected;
+        }
+        return RdpServerLicenseGrantWriteOutcome::Pending;
+    }
+
+    if (!lifecycle_->onServerLicenseGrantWritten(
+            RdpServerLicenseGrantKind::NewLicense))
+    {
+        close();
+        return RdpServerLicenseGrantWriteOutcome::Rejected;
+    }
+
+    OPENSSL_cleanse(pending_.data(), pending_.size());
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    delivered_ = true;
+    return RdpServerLicenseGrantWriteOutcome::Delivered;
+}
+
+void RdpServerLicenseGrantWriteGate::close() noexcept
+{
+    OPENSSL_cleanse(pending_.data(), pending_.size());
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    delivered_ = false;
+    closed_ = true;
+    if (lifecycle_ != nullptr)
+        lifecycle_->close();
+}
+
 bool RdpLicensingLifecycle::onServerLicenseRequestWritten(
     std::span<const std::uint8_t> serverRandom) noexcept
 {
@@ -1876,6 +1998,29 @@ bool RdpLicensingLifecycle::onServerPlatformChallengeWritten(
     decisionBranch_ =
         RdpLicensingDecisionBranch::AwaitPlatformChallengeResponse;
     phase_ = RdpLicensingPhase::AwaitClientPlatformChallengeResponse;
+    return true;
+}
+
+bool RdpLicensingLifecycle::onServerLicenseGrantWritten(
+    RdpServerLicenseGrantKind kind) noexcept
+{
+    if (phase_ == RdpLicensingPhase::Closed)
+        return false;
+    if (phase_ != RdpLicensingPhase::AwaitServerDecision ||
+        decisionBranch_ !=
+            RdpLicensingDecisionBranch::NewLicenseIssuanceRequired ||
+        kind != RdpServerLicenseGrantKind::NewLicense)
+    {
+        fail();
+        return false;
+    }
+
+    serverRandom_.fill(0U);
+    platformChallenge_.fill(0U);
+    serverRandomReady_ = false;
+    platformChallengeReady_ = false;
+    decisionBranch_ = RdpLicensingDecisionBranch::None;
+    phase_ = RdpLicensingPhase::Licensed;
     return true;
 }
 

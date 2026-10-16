@@ -5090,6 +5090,220 @@ void testRdpLicensingAuthorityGrantBoundary()
            RdpLicensingAuthorityGrantError::InvalidLicense);
 }
 
+[[nodiscard]] bool advanceToNewLicenseIssuance(
+    RdpLicensingLifecycle &lifecycle,
+    const RdpLicensingKeyMaterial &keys)
+{
+    if (!deliverServerLicenseRequest(lifecycle) ||
+        lifecycle.onClientMessage(makeClientNewLicenseRequest()) !=
+            RdpLicensingIntake::ClientNewLicenseRequestAccepted)
+        return false;
+
+    RdpServerPlatformChallengeWriteGate challengeWriter{lifecycle};
+    if (!challengeWriter.queue(keys))
+        return false;
+    const auto challengeWrite = challengeWriter.pendingWrite();
+    if (!challengeWrite ||
+        challengeWriter.onBytesWritten(
+            challengeWrite.replySequence,
+            challengeWrite.writeSliceSequence,
+            challengeWrite.bytes.size()) !=
+            RdpServerPlatformChallengeWriteOutcome::Delivered)
+        return false;
+
+    const auto response = makeClientPlatformChallengeResponse(
+        lifecycle.platformChallenge(), keys);
+    return lifecycle.onClientPlatformChallengeResponse(response, keys) ==
+               RdpLicensingIntake::ClientPlatformChallengeResponseAccepted &&
+           lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision &&
+           lifecycle.decisionBranch() ==
+               RdpLicensingDecisionBranch::NewLicenseIssuanceRequired;
+}
+
+void testRdpServerLicenseGrantWriteReceipts()
+{
+    constexpr std::uint64_t authorityGeneration = 9U;
+    std::array<std::uint8_t, kRdpLicensingAuthorityFingerprintBytes>
+        authorityFingerprint{};
+    for (std::size_t index = 0U; index < authorityFingerprint.size(); ++index)
+        authorityFingerprint[index] =
+            static_cast<std::uint8_t>(0x20U + index);
+    constexpr std::array<std::uint8_t, 5> issuedCal{
+        0x30,0x03,0x02,0x01,0x01};
+
+    RdpLicensingAuthorityGrant grant;
+    assert(grant.configure(
+               RdpServerLicenseGrantKind::NewLicense,
+               authorityGeneration,
+               authorityFingerprint,
+               issuedCal) ==
+           RdpLicensingAuthorityGrantError::None);
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    auto keys = platformChallengeKeys();
+
+    RdpLicensingLifecycle lifecycle;
+    assert(advanceToNewLicenseIssuance(lifecycle, keys));
+    RdpServerLicenseGrantWriteGate writer{lifecycle};
+    assert(writer.queue(
+        grant, identity, keys,
+        authorityGeneration, authorityFingerprint));
+
+    const auto first = writer.pendingWrite();
+    assert(first);
+    const auto parsed = parseRdpLicensingMessage(first.bytes);
+    assert(parsed);
+    assert(parsed.value.type == RdpLicensingMessageType::ServerNewLicense);
+
+    assert(writer.onBytesWritten(
+               first.replySequence, first.writeSliceSequence, 0U) ==
+           RdpServerLicenseGrantWriteOutcome::Pending);
+    const auto afterWant = writer.pendingWrite();
+    assert(afterWant.bytes.data() == first.bytes.data());
+    assert(afterWant.bytes.size() == first.bytes.size());
+    assert(afterWant.replySequence == first.replySequence);
+    assert(afterWant.writeSliceSequence == first.writeSliceSequence);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+
+    constexpr std::size_t firstAccepted = 13U;
+    assert(writer.onBytesWritten(
+               first.replySequence,
+               first.writeSliceSequence,
+               firstAccepted) ==
+           RdpServerLicenseGrantWriteOutcome::Pending);
+    const auto remainder = writer.pendingWrite();
+    assert(remainder);
+    assert(remainder.replySequence == first.replySequence);
+    assert(remainder.writeSliceSequence != first.writeSliceSequence);
+    assert(remainder.bytes.data() == first.bytes.data() + firstAccepted);
+    assert(remainder.bytes.size() == first.bytes.size() - firstAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+
+    assert(writer.onBytesWritten(
+               remainder.replySequence,
+               remainder.writeSliceSequence,
+               remainder.bytes.size()) ==
+           RdpServerLicenseGrantWriteOutcome::Delivered);
+    assert(!writer.pendingWrite());
+    assert(lifecycle.phase() == RdpLicensingPhase::Licensed);
+    assert(lifecycle.decisionBranch() == RdpLicensingDecisionBranch::None);
+
+    cleanseRdpLicensingKeyMaterial(keys);
+}
+
+void testRdpServerLicenseGrantWriteDenials()
+{
+    constexpr std::uint64_t authorityGeneration = 11U;
+    std::array<std::uint8_t, kRdpLicensingAuthorityFingerprintBytes>
+        authorityFingerprint{};
+    for (std::size_t index = 0U; index < authorityFingerprint.size(); ++index)
+        authorityFingerprint[index] =
+            static_cast<std::uint8_t>(0x60U + index);
+    constexpr std::array<std::uint8_t, 5> issuedCal{
+        0x30,0x03,0x02,0x01,0x01};
+
+    RdpLicensingAuthorityGrant grant;
+    assert(grant.configure(
+               RdpServerLicenseGrantKind::NewLicense,
+               authorityGeneration,
+               authorityFingerprint,
+               issuedCal) ==
+           RdpLicensingAuthorityGrantError::None);
+    RdpLicensingAuthorityGrant upgradeGrant;
+    assert(upgradeGrant.configure(
+               RdpServerLicenseGrantKind::UpgradeLicense,
+               authorityGeneration,
+               authorityFingerprint,
+               issuedCal) ==
+           RdpLicensingAuthorityGrantError::None);
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    auto keys = platformChallengeKeys();
+
+    // A snapshot is not authority unless the current owner correlation matches.
+    RdpLicensingLifecycle staleAuthority;
+    assert(advanceToNewLicenseIssuance(staleAuthority, keys));
+    RdpServerLicenseGrantWriteGate staleAuthorityWriter{staleAuthority};
+    auto wrongFingerprint = authorityFingerprint;
+    wrongFingerprint[0] ^= 0x80U;
+    assert(!staleAuthorityWriter.queue(
+        grant, identity, keys,
+        authorityGeneration, wrongFingerprint));
+    assert(staleAuthority.phase() == RdpLicensingPhase::Closed);
+
+    // Upgrade License cannot use the New-License issuance branch.
+    RdpLicensingLifecycle wrongKind;
+    assert(advanceToNewLicenseIssuance(wrongKind, keys));
+    RdpServerLicenseGrantWriteGate wrongKindWriter{wrongKind};
+    assert(!wrongKindWriter.queue(
+        upgradeGrant, identity, keys,
+        authorityGeneration, authorityFingerprint));
+    assert(wrongKind.phase() == RdpLicensingPhase::Closed);
+
+    // A plausible authority result cannot skip the licensing decision state.
+    RdpLicensingLifecycle wrongPhase;
+    RdpServerLicenseGrantWriteGate wrongPhaseWriter{wrongPhase};
+    assert(!wrongPhaseWriter.queue(
+        grant, identity, keys,
+        authorityGeneration, authorityFingerprint));
+    assert(wrongPhase.phase() == RdpLicensingPhase::Closed);
+
+    // Positive progress rotates the slice receipt; stale reuse is terminal.
+    RdpLicensingLifecycle staleReceipt;
+    assert(advanceToNewLicenseIssuance(staleReceipt, keys));
+    RdpServerLicenseGrantWriteGate staleWriter{staleReceipt};
+    assert(staleWriter.queue(
+        grant, identity, keys,
+        authorityGeneration, authorityFingerprint));
+    const auto first = staleWriter.pendingWrite();
+    assert(staleWriter.onBytesWritten(
+               first.replySequence, first.writeSliceSequence, 1U) ==
+           RdpServerLicenseGrantWriteOutcome::Pending);
+    const auto remainder = staleWriter.pendingWrite();
+    assert(remainder.writeSliceSequence != first.writeSliceSequence);
+    assert(staleWriter.onBytesWritten(
+               first.replySequence, first.writeSliceSequence, 1U) ==
+           RdpServerLicenseGrantWriteOutcome::Rejected);
+    assert(staleReceipt.phase() == RdpLicensingPhase::Closed);
+
+    RdpLicensingLifecycle overReport;
+    assert(advanceToNewLicenseIssuance(overReport, keys));
+    RdpServerLicenseGrantWriteGate overWriter{overReport};
+    assert(overWriter.queue(
+        grant, identity, keys,
+        authorityGeneration, authorityFingerprint));
+    const auto overPending = overWriter.pendingWrite();
+    assert(overWriter.onBytesWritten(
+               overPending.replySequence,
+               overPending.writeSliceSequence,
+               overPending.bytes.size() + 1U) ==
+           RdpServerLicenseGrantWriteOutcome::Rejected);
+    assert(overReport.phase() == RdpLicensingPhase::Closed);
+
+    // Completion is one-shot; copied receipts cannot license twice.
+    RdpLicensingLifecycle duplicate;
+    assert(advanceToNewLicenseIssuance(duplicate, keys));
+    RdpServerLicenseGrantWriteGate duplicateWriter{duplicate};
+    assert(duplicateWriter.queue(
+        grant, identity, keys,
+        authorityGeneration, authorityFingerprint));
+    const auto complete = duplicateWriter.pendingWrite();
+    assert(duplicateWriter.onBytesWritten(
+               complete.replySequence,
+               complete.writeSliceSequence,
+               complete.bytes.size()) ==
+           RdpServerLicenseGrantWriteOutcome::Delivered);
+    assert(duplicate.phase() == RdpLicensingPhase::Licensed);
+    assert(duplicateWriter.onBytesWritten(
+               complete.replySequence,
+               complete.writeSliceSequence,
+               0U) ==
+           RdpServerLicenseGrantWriteOutcome::Rejected);
+    assert(duplicate.phase() == RdpLicensingPhase::Closed);
+
+    cleanseRdpLicensingKeyMaterial(keys);
+}
+
 constexpr std::array<std::uint8_t, 5> kSyntheticIssuedCal{
     0x30,0x03,0x02,0x01,0x01};
 
@@ -7466,7 +7680,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 113> kMcsTestCases{{
+constexpr std::array<McsTestCase, 115> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -7535,6 +7749,8 @@ constexpr std::array<McsTestCase, 113> kMcsTestCases{{
     {"licensing-client-platform-challenge-response-proof", &testRdpClientPlatformChallengeResponseProof},
     {"licensing-client-platform-challenge-response-denials", &testRdpClientPlatformChallengeResponseDenials},
     {"licensing-authority-grant-boundary", &testRdpLicensingAuthorityGrantBoundary},
+    {"licensing-server-license-grant-write-receipts", &testRdpServerLicenseGrantWriteReceipts},
+    {"licensing-server-license-grant-write-denials", &testRdpServerLicenseGrantWriteDenials},
     {"licensing-new-license-info-wire", &testRdpNewLicenseInformationWire},
     {"licensing-new-license-info-denials", &testRdpNewLicenseInformationDenials},
     {"licensing-server-new-license-wire", &testRdpServerNewLicenseWire},

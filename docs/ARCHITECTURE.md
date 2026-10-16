@@ -4508,3 +4508,47 @@ may report `notReady` and be retried. The existing staging-before-DXGI release
 order, single lease owner, generation reader, and authorization boundary are
 unchanged.
 
+## R10 binding-is-not-native-admission exact-SHA hosted validation receipt (2026-10-16)
+
+Implementation `bdf9c5a95f8567ad5e3d2f77eb8c64a7a234ef87`,
+GitHub Actions `38919442800`, completed **SUCCESS**. This validates the
+third R10 opt-in real-provider aggregate case,
+`runtime.linux-connection-real-kerberos-binding-not-native-admission`, at
+compile/regression level while preserving its explicit external-credential
+execution gate.
+
+The exact SHA passed Ubuntu/GCC **444/444 Debug** and **444/444 Release**,
+macOS/Clang **371/371 Debug** and **371/371 Release**, Windows/MSVC native
+preflight **44/44 Debug** and **44/44 Release**, and full Windows
+**400/400 Debug** and **400/400 Release**. Installed SDK consumer checks and
+package generation passed on Linux, macOS and Windows. Documentation policy
+passed.
+
+The Clang ASan/UBSan job also completed **SUCCESS**: **49/49 clipboard**,
+**19/19 R4 x264/BGRA**, **36/36 bounded R1/R3 transport/security/licensing**,
+**27/27 native R2/R3 GSS**, **4/4 R10 Linux runtime CredSSP**,
+**24/24 R5 X11**, and **1/1 bounded fuzzer**. The production-linked Linux GSS
+test target containing all three R10 real-Kerberos aggregate cases compiled
+under sanitizers.
+
+The three `opt-in-kerberos` aggregate CTests themselves remain **NOT RUN** in
+hosted CI because the workflow intentionally configures
+`RDP_SERVER_TEST_REAL_KERBEROS=OFF` and supplies no external service keytab
+or client credential cache. Therefore no credentialed claim is made for
+`BindingVerified`, final `UnsupportedFinalCredentials`, or the
+binding-not-native-admission call to `issueAdmission()`.
+
+Current R2 source still makes positive native admission unreachable by design:
+final CredSSP `authInfo` is consumed only by the reviewed deny-only path,
+`ownedCredSspCredentialAuthorizationComplete_` remains false with no public
+setter, and `LinuxConsoleAdmissionBroker::issue()` requires the corresponding
+private native-admission principal before constructing a logind monitor or
+sampling NSS/logind. R10 therefore remains **BLOCKED on R2** for positive
+native admission and must not synthesize that proof.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, explicit real KDC/keytab/cache execution, positive
+NSS/logind admission and Microsoft-client acceptance remain **NOT RUN**.
+R3's emerging licensing identity/configuration work does not remove this
+authentication blocker and is not sufficient reason to enable a listener.
+M2/M3 remain **OPEN / NOT ACCEPTED**.

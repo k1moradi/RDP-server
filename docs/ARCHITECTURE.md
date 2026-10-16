@@ -282,6 +282,23 @@ desktop capture stream, performs native input or prompts for TCC consent.
 Live graphics, cursor, input and independent OS session binding are still
 unimplemented and must respect the R2/R3/R4/R8 ownership boundaries.
 
+### R7 native CoreGraphics display sampling (2026-10-15)
+
+The macOS-only `native_display_snapshot` translation unit calls read-only
+`CGGetActiveDisplayList`, `CGDisplayBounds`, `CGDisplayPixelsWide/High` and
+`CGDisplayMirrorsDisplay`. It returns at most 16 bounded, owning
+observations (32,768 pixel dimension and 512 MiB equivalent BGRA cap per
+display). Native display bounds use Quartz's main-display-relative top-left
+global logical points; per-display backing size is in *physical pixels*.
+No fabricated global physical origins are emitted: mixed Retina scales
+require a separately agreed R4 composition/layout policy. A synchronous
+borrowed provider is sampled twice, validates format, uniqueness, logical
+intersection, capacity and ordering, and rejects differing observations;
+this best-effort consistency check is NOT a display configuration lock.
+Regular CTests inject samples and never query an actual user display.
+Physical availability, authorized graphical session identity and screen
+privacy permissions remain independent R2/R3 and native TCC concerns.
+
 ### Implementation principles
 
 - Portable wire parsers reject malformed lengths/flags and ambiguous states.

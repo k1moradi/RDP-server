@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "platform/macos/capture_pixel_layout.h"
 #include "platform/macos/desktop_display_geometry.h"
+#include "platform/macos/native_display_snapshot.h"
 #include "platform/macos/screen_capture_preflight.h"
 
 #if defined(__APPLE__)
 #include "platform/macos/capture_pixel_buffer.h"
 #endif
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -391,6 +393,153 @@ void testNativeDenials() {
 }
 #endif
 
+
+using rdp::macos::NativeDisplayObservation;
+using rdp::macos::NativeDisplaySnapshot;
+using rdp::macos::NativeDisplaySnapshotError;
+using rdp::macos::NativeDisplayReadStatus;
+
+constexpr NativeDisplayObservation kNativePrimary{
+    100, 0, 0, 1512, 982, 3024, 1964, 0};
+constexpr NativeDisplayObservation kNativeLeft{
+    200, -1920, -100, 1920, 1080, 1920, 1080, 0};
+
+struct NativeDisplayFixture {
+    std::array<NativeDisplayObservation, 17> first{};
+    std::array<NativeDisplayObservation, 17> second{};
+    std::size_t firstCount{1};
+    std::size_t secondCount{1};
+    std::size_t calls{};
+    std::size_t failingCall{};
+};
+
+[[nodiscard]] NativeDisplayReadStatus readSyntheticNativeDisplays(
+    void* const context, std::span<NativeDisplayObservation> destination,
+    std::size_t& count) noexcept {
+    auto& fixture = *static_cast<NativeDisplayFixture*>(context);
+    ++fixture.calls;
+    if (fixture.calls == fixture.failingCall) {
+        return NativeDisplayReadStatus::Unavailable;
+    }
+    count = fixture.calls == 1 ? fixture.firstCount : fixture.secondCount;
+    const auto& sample = fixture.calls == 1 ? fixture.first : fixture.second;
+    for (std::size_t index = 0;
+         index < (std::min)(count, destination.size()); ++index) {
+        destination[index] = sample[index];
+    }
+    return NativeDisplayReadStatus::Ok;
+}
+
+[[nodiscard]] NativeDisplayFixture nativeDisplayFixture() noexcept {
+    NativeDisplayFixture fixture;
+    fixture.first[0] = kNativePrimary;
+    fixture.second[0] = kNativePrimary;
+    return fixture;
+}
+
+void testNativeDisplayStableMultiRetina() {
+    auto fixture = nativeDisplayFixture();
+    fixture.firstCount = fixture.secondCount = 2;
+    fixture.first[0] = kNativeLeft;
+    fixture.first[1] = kNativePrimary;
+    fixture.second[0] = kNativePrimary; // Reordered enumeration is stable.
+    fixture.second[1] = kNativeLeft;
+    const auto observed = NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 9);
+    assert(observed && fixture.calls == 2 && observed->generation() == 9);
+    assert(observed->displays().size() == 2);
+    assert(observed->displays()[0] == kNativePrimary);
+    assert(observed->displays()[1] == kNativeLeft);
+    assert(observed->displays()[0].backingWidthPixels == 3024);
+    assert(observed->displays()[0].widthPoints == 1512);
+}
+
+void testNativeDisplaySnapshotDenials() {
+    auto fixture = nativeDisplayFixture();
+    assert(NativeDisplaySnapshot::read(nullptr, nullptr, 1).error() ==
+           NativeDisplaySnapshotError::Unavailable);
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 0).error() ==
+           NativeDisplaySnapshotError::InvalidGeneration);
+    assert(fixture.calls == 0);
+    fixture.firstCount = 0;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::Unavailable);
+    fixture = nativeDisplayFixture();
+    fixture.firstCount = 17;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::TooManyDisplays);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].widthPoints = std::numeric_limits<double>::infinity();
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::InvalidGeometry);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].backingHeightPixels = 0;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::InvalidGeometry);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].mirrorsDisplayId = 100;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::InvalidGeometry);
+    fixture = nativeDisplayFixture();
+    fixture.firstCount = 2;
+    fixture.first[1] = fixture.first[0];
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::InvalidGeometry);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].backingWidthPixels = 32769;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::InvalidGeometry);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].widthPoints = 1e308;
+    fixture.first[0].xPoints = 1e308; // Positive extent overflows.
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::InvalidGeometry);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].widthPoints = 1;
+    fixture.first[0].xPoints = 1e300; // Positive extent loses precision.
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::InvalidGeometry);
+    fixture = nativeDisplayFixture();
+    fixture.failingCall = 1;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 1).error() ==
+           NativeDisplaySnapshotError::Unavailable);
+}
+
+void testNativeDisplayChangedDuringRead() {
+    auto fixture = nativeDisplayFixture();
+    fixture.second[0].backingWidthPixels = 2880;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 7).error() ==
+           NativeDisplaySnapshotError::ChangedDuringRead);
+    assert(fixture.calls == 2);
+    fixture = nativeDisplayFixture();
+    fixture.second[0].xPoints = 1;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 7).error() ==
+           NativeDisplaySnapshotError::ChangedDuringRead);
+    fixture = nativeDisplayFixture();
+    fixture.secondCount = 0;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 7).error() ==
+           NativeDisplaySnapshotError::Unavailable);
+    fixture = nativeDisplayFixture();
+    fixture.failingCall = 2;
+    assert(NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 7).error() ==
+           NativeDisplaySnapshotError::Unavailable);
+}
+
 } // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -410,6 +559,12 @@ int main(const int argument_count, const char* const arguments[]) {
         testVirtualDesktopPointerCoordinates();
     } else if (test_case == "permission-preflight") {
         testScreenCapturePermissionPreflightRevocation();
+    } else if (test_case == "display-snapshot-stable-multi-retina") {
+        testNativeDisplayStableMultiRetina();
+    } else if (test_case == "display-snapshot-geometry-denials") {
+        testNativeDisplaySnapshotDenials();
+    } else if (test_case == "display-snapshot-changed-during-read") {
+        testNativeDisplayChangedDuringRead();
 #if defined(__APPLE__)
     } else if (test_case == "ownership") {
         testRetainedPaddedBufferLifetime();

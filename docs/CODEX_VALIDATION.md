@@ -4076,3 +4076,31 @@ credentialed Microsoft RDP client, authorized OS desktop/clipboard.
 for this exact new implementation SHA, repair introduced failures
 without hiding tests, and then extend testing to R3's
 production-authenticated R8 routing when available.
+
+## R7 native CoreGraphics display observation (2026-10-15)
+
+**Native implementation:** `src/platform/macos/native_display_snapshot.{h,cpp}`,
+separate from the installed C++23 protocol SDK; Apple `CGGetActiveDisplayList`
+and associated CoreGraphics global logical bounds/backing pixel dimensions
+are sampled without desktop capture, prompts, input or new callbacks.
+A fixed-capacity owning two-read observation rejects changes/denials,
+mirrored and intersecting displays, duplicate IDs, malformed or oversize
+physical sizes, nonfinite/precision-lost logical bounds, and stale or zero
+generation. It does NOT synthesize multi-display physical pixel origins.
+**Changed:** top-level and tests CMake, reused
+`tests/test_macos_capture_pixel_buffer.cpp`, existing R7 roadmap,
+architecture and this validation ledger.
+**New dedicated CTests:** `macos.display-snapshot-stable-multi-retina`,
+`macos.display-snapshot-geometry-denials`, and
+`macos.display-snapshot-changed-during-read` (registered on all OS).
+**PASS (isolated Linux C++23 fixture, NOT full repository):** one-root
+GCC14.2 CMake build and CTest 3/3; GCC14.2 optimized strict build
+3/3; Clang17 strict ASan/UBSan build 3/3. The initial isolated
+malformed-test fixture incorrectly treated finite 1e300+1e300 as overflow;
+corrected to true infinity and separately tested precision-loss rejection.
+**NOT RUN at authoring:** this increment's hosted exact-commit CI, owner
+macOS27 native Apple Clang, Linux/X11, Windows MSYS2 CLANG64 Clang23,
+real macOS active display enumeration, ScreenCaptureKit permissions, client
+input/cursor, live capture, any performance benchmarks.
+**Next:** check exact-SHA CI, then integrate safe authorized graphical
+session and R4-owned physical compositor mapping without bypassing TCC.

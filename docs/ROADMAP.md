@@ -2655,6 +2655,23 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 native display enumeration (2026-10-15):** Added an allocation-free
+  CoreGraphics active-display read-only snapshot (at most 16 displays),
+  preserving global top-left logical-point bounds separately from backing
+  physical-pixel dimensions. A paired synthetic read rejects changed
+  displays mid-sample, unavailable displays, duplicate/overlapping IDs,
+  mirrored outputs, malformed extents and oversize backing images; any
+  app/session admission remains R2/R3-owned. Added three behavior-named
+  portable CTests `macos.display-snapshot-stable-multi-retina`,
+  `macos.display-snapshot-geometry-denials`,
+  `macos.display-snapshot-changed-during-read` using the existing R7
+  executable. **PASS:** Linux GCC14.2 isolated CTest 3/3, GCC14.2 -O2
+  3/3 and Clang17 ASan/UBSan 3/3. **NOT RUN at authoring:** complete
+  canonical full repository CTest, exact-SHA GitHub Actions, macOS27
+  owner/Windows CLANG64 Clang23, live TCC/screens/keyboard/cursor/client
+  and native latency benchmarks. **Next:** integrate approved per-user
+  ScreenCaptureKit lifecycle and safely choose R4 physical-frame placement;
+  do not infer a multi-monitor pixel origin from per-display Retina scale.
   **R7 corrected exact-commit hosted CI PASS:** Code
   `0b248c67f8c62ac31d2f94ff4c091bb527f10766`,
   [Actions 38800167816](https://github.com/k1moradi/RDP-server/actions/runs/38800167816):

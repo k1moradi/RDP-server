@@ -481,7 +481,8 @@ else()
     target_sources(test_macos_capture_pixel_buffer PRIVATE
         "${PROJECT_SOURCE_DIR}/src/platform/macos/capture_pixel_layout.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/desktop_display_geometry.cpp"
-        "${PROJECT_SOURCE_DIR}/src/platform/macos/screen_capture_preflight.cpp")
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/screen_capture_preflight.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp")
 endif()
 if(MSVC)
     target_compile_options(test_macos_capture_pixel_buffer PRIVATE /W4 /UNDEBUG)
@@ -504,6 +505,15 @@ foreach(case_name IN ITEMS
         COMMAND test_macos_capture_pixel_buffer "${case_name}")
     set_tests_properties("macos.desktop-${case_name}"
         PROPERTIES LABELS "macos;geometry;offline")
+endforeach()
+# CoreGraphics display enumeration is exercised only through synthetic
+# injected observations here: no real display read or privacy interaction.
+foreach(case_name IN ITEMS
+        stable-multi-retina geometry-denials changed-during-read)
+    add_test(NAME "macos.display-snapshot-${case_name}"
+        COMMAND test_macos_capture_pixel_buffer "display-snapshot-${case_name}")
+    set_tests_properties("macos.display-snapshot-${case_name}" PROPERTIES
+        LABELS "macos;geometry;offline")
 endforeach()
 if(APPLE)
     foreach(case_name IN ITEMS ownership native-denials native-move-replacement)

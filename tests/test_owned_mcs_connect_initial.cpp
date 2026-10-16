@@ -5090,6 +5090,14 @@ void testRdpLicensingAuthorityGrantBoundary()
            RdpLicensingAuthorityGrantError::InvalidLicense);
 }
 
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientPlatformChallengeResponse(
+    std::span<const std::uint8_t> challenge,
+    const RdpLicensingKeyMaterial &keys,
+    std::uint16_t version,
+    std::uint16_t clientType,
+    std::uint16_t detailLevel);
+
 [[nodiscard]] bool advanceToNewLicenseIssuance(
     RdpLicensingLifecycle &lifecycle,
     const RdpLicensingKeyMaterial &keys)
@@ -5112,7 +5120,8 @@ void testRdpLicensingAuthorityGrantBoundary()
         return false;
 
     const auto response = makeClientPlatformChallengeResponse(
-        lifecycle.platformChallenge(), keys);
+        lifecycle.platformChallenge(), keys,
+        0x0100U, 0x0100U, 0x0003U);
     return lifecycle.onClientPlatformChallengeResponse(response, keys) ==
                RdpLicensingIntake::ClientPlatformChallengeResponseAccepted &&
            lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision &&

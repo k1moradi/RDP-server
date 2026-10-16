@@ -15067,3 +15067,41 @@ Canonical owner-local `~/rdp-server/build` and real credential/client gates
 are **NOT RUN** here. Exact-publication-SHA hosted Linux/GCC, macOS/Clang,
 Windows/MSVC, sanitizer, documentation-policy and SDK/package evidence are
 required before PASS is claimed. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+
+## R7 Quartz display-watch lifecycle injection and retirement hardening (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `0d333f3d4baabd12417878baea5f5741e08d899c`.
+
+The process-scoped `NativeDisplayReconfigurationWatch` already separated its
+single registration reservation from active native notification coverage, but
+its register/remove lifetime could only be exercised through live CoreGraphics.
+R7 now factors those two calls behind an Apple-only injected lifecycle seam.
+`startNative()` and `stopNative()` remain the only real CoreGraphics route;
+the seam grants no display, capture, input, cursor, authentication or session
+authority.
+
+New centrally registered Apple-only
+`macos.desktop-native-reconfiguration-registration-retirement` covers invalid
+callbacks, registration-time topology delivery, duplicate-owner denial,
+coverage publication, failed removal, reservation retention, retry retirement,
+destructor retirement and delayed post-retirement callback delivery. During
+ambiguous removal it also creates a synthetic geometry epoch and verifies that
+`refreshNative()` returns `TopologyCoverageUnavailable` before live
+CoreGraphics enumeration. Numeric revision exhaustion is now rejected before
+registration and, if reached during registration retirement, forces native
+coverage down before cleanup.
+
+The architecture wording is corrected so CoreGraphics callback registration is
+no longer described as future work, and the testing standard records the
+host-display-free lifecycle rule. No public ScreenCaptureKit factory, AppKit
+cursor sampler, Quartz input callback or macOS R2/R3 admission capability is
+exposed.
+
+Source/CTest/documentation review is **PASS**. Canonical owner-local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment.
+Exact-publication-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC, R7/R9
+sanitizer, documentation-policy and SDK/package evidence are **PENDING** after
+publication. Owner macOS 27 real display/session notification delivery,
+non-forgeable macOS R2/R3 admission and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.

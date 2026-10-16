@@ -1868,8 +1868,9 @@ to zero or permits reuse. A provider/context is borrowed only during the
 refresh call, never retained. Default CTests use a deterministic provider;
 `refreshNative()` is Apple-only and read-only, with NO implicit capture,
 privacy prompt, input permission or authenticated OS admission. Native
-CoreGraphics callback registration and actual StreamCaptureKit integration
-remain future authorized R7 work.
+CoreGraphics callback registration is explicit and coverage-gated through the
+process-scoped watch below; actual ScreenCaptureKit integration remains future
+authorized R7 work.
 
 ### R7 Quartz reconfiguration revision fence (2026-10-16)
 
@@ -1884,7 +1885,10 @@ per process; registration failure releases its reservation, while removal
 failure retains it to avoid duplicate observers. Active notification coverage
 is tracked separately from that reservation and becomes unavailable before
 removal is attempted, so ambiguous teardown cannot authorize a fresh native
-geometry sample. Both start and stop retire previous revision tokens. The signal
+geometry sample. The Apple-only lifecycle seam used by CTest injects only
+register/remove functions; the real `startNative()` path still exclusively
+binds those operations to CoreGraphics. Both start and stop retire previous
+revision tokens. The signal
 saturates to an invalid zero on uint64 exhaustion rather than reuse generations.
 
 The existing `NativeDisplayGeometryRefresh` records a topology signal revision

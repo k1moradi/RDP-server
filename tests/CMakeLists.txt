@@ -1125,6 +1125,13 @@ foreach(case_name IN ITEMS
 endforeach()
 
 if(APPLE)
+    add_test(NAME "macos.desktop-native-reconfiguration-registration-retirement"
+        COMMAND test_macos_capture_pixel_buffer
+                "native-reconfiguration-registration-retirement")
+    set_tests_properties(
+        "macos.desktop-native-reconfiguration-registration-retirement"
+        PROPERTIES LABELS "macos;geometry;security;offline")
+
     add_test(NAME "macos.desktop-native-refresh-requires-topology-coverage"
         COMMAND test_macos_capture_pixel_buffer
                 "native-refresh-requires-topology-coverage")

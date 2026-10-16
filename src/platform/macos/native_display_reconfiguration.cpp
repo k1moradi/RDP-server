@@ -25,6 +25,20 @@ void quartzDisplayChanged(CGDirectDisplayID,
     // on an OS reconfiguration callback.
     NativeDisplayReconfigurationWatch::recordTopologyChange();
 }
+
+bool installQuartzDisplayWatch(
+    void*, const NativeDisplayReconfigurationWatch::ChangeRecorder recorder) noexcept {
+    if (recorder == nullptr) {
+        return false;
+    }
+    return CGDisplayRegisterReconfigurationCallback(
+               &quartzDisplayChanged, nullptr) == kCGErrorSuccess;
+}
+
+bool removeQuartzDisplayWatch(void*) noexcept {
+    return CGDisplayRemoveReconfigurationCallback(
+               &quartzDisplayChanged, nullptr) == kCGErrorSuccess;
+}
 #endif
 
 } // namespace
@@ -34,7 +48,7 @@ NativeDisplayReconfigurationWatch::~NativeDisplayReconfigurationWatch() noexcept
     if (registered_) {
         // On removal error the static callback remains memory-safe and the
         // reservation remains held, deliberately preventing duplicate owners.
-        (void)stopNative();
+        (void)stopWithCallbacks();
     }
 #endif
 }
@@ -64,28 +78,52 @@ void NativeDisplayReconfigurationWatch::recordTopologyChange() noexcept {
 
 #if defined(__APPLE__)
 std::expected<void, NativeDisplayWatchError>
-NativeDisplayReconfigurationWatch::startNative() noexcept {
+NativeDisplayReconfigurationWatch::startWithCallbacks(
+    const Callbacks callbacks) noexcept {
     if (registered_) {
         return std::unexpected(NativeDisplayWatchError::AlreadyRegistered);
     }
+    if (callbacks.install == nullptr || callbacks.remove == nullptr) {
+        return std::unexpected(NativeDisplayWatchError::InvalidCallbacks);
+    }
+    if (revision() == 0) {
+        return std::unexpected(NativeDisplayWatchError::RevisionExhausted);
+    }
+
     bool expected = false;
     if (!s_registrationReserved.compare_exchange_strong(
             expected, true, std::memory_order_acq_rel)) {
         return std::unexpected(NativeDisplayWatchError::AlreadyRegistered);
     }
-    if (CGDisplayRegisterReconfigurationCallback(
-            &quartzDisplayChanged, nullptr) != kCGErrorSuccess) {
+
+    callbacks_ = callbacks;
+    if (!callbacks_.install(callbacks_.context, &recordTopologyChange)) {
+        callbacks_ = {};
         s_registrationReserved.store(false, std::memory_order_release);
         return std::unexpected(NativeDisplayWatchError::RegistrationFailed);
     }
+
     registered_ = true;
     s_nativeCoverageActive.store(true, std::memory_order_release);
     recordTopologyChange(); // Old geometry predates notification coverage.
-    return {};
+    if (revision() != 0) {
+        return {};
+    }
+
+    // Numeric exhaustion is terminal. Retire native coverage and the installed
+    // callback before reporting failure; ambiguous removal remains fail-closed.
+    s_nativeCoverageActive.store(false, std::memory_order_release);
+    if (!callbacks_.remove(callbacks_.context)) {
+        return std::unexpected(NativeDisplayWatchError::RemovalFailed);
+    }
+    registered_ = false;
+    callbacks_ = {};
+    s_registrationReserved.store(false, std::memory_order_release);
+    return std::unexpected(NativeDisplayWatchError::RevisionExhausted);
 }
 
 std::expected<void, NativeDisplayWatchError>
-NativeDisplayReconfigurationWatch::stopNative() noexcept {
+NativeDisplayReconfigurationWatch::stopWithCallbacks() noexcept {
     if (!registered_) {
         return {};
     }
@@ -95,13 +133,24 @@ NativeDisplayReconfigurationWatch::stopNative() noexcept {
     // treat that observer as reliable coverage.
     s_nativeCoverageActive.store(false, std::memory_order_release);
     recordTopologyChange(); // Retire geometry before removing coverage.
-    if (CGDisplayRemoveReconfigurationCallback(
-            &quartzDisplayChanged, nullptr) != kCGErrorSuccess) {
+    if (!callbacks_.remove(callbacks_.context)) {
         return std::unexpected(NativeDisplayWatchError::RemovalFailed);
     }
     registered_ = false;
+    callbacks_ = {};
     s_registrationReserved.store(false, std::memory_order_release);
     return {};
+}
+
+std::expected<void, NativeDisplayWatchError>
+NativeDisplayReconfigurationWatch::startNative() noexcept {
+    return startWithCallbacks({
+        nullptr, &installQuartzDisplayWatch, &removeQuartzDisplayWatch});
+}
+
+std::expected<void, NativeDisplayWatchError>
+NativeDisplayReconfigurationWatch::stopNative() noexcept {
+    return stopWithCallbacks();
 }
 
 bool NativeDisplayReconfigurationWatch::nativeCoverageActive() noexcept {

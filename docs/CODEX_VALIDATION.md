@@ -15245,3 +15245,29 @@ Canonical owner-local `~/rdp-server/build` and real credential/client gates
 are **NOT RUN** here. Exact-publication-SHA hosted Linux/GCC, macOS/Clang,
 Windows/MSVC, sanitizer, documentation-policy and SDK/package evidence are
 required before PASS is claimed. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+
+## R7 Quartz display-watch lifecycle authoring receipt (2026-10-16; CI pending)
+
+Authoring base is `0d333f3d4baabd12417878baea5f5741e08d899c`. Production `NativeDisplayReconfigurationWatch`
+now exposes an Apple-only deterministic install/remove seam used solely to
+exercise the existing process-global registration reservation and notification
+coverage state. Real `startNative()` still binds that seam to
+`CGDisplayRegisterReconfigurationCallback` and the matching remove API.
+
+The new
+`macos.desktop-native-reconfiguration-registration-retirement` CTest is
+host-display free and verifies duplicate registration denial, callback-driven
+revision change, failed-removal fail-closed coverage, retry cleanup, destructor
+retirement and delayed callback safety. It additionally proves that
+`refreshNative()` denies during ambiguous removal before querying live
+CoreGraphics state.
+
+No live display callback is registered by ordinary CTest; no TCC prompt,
+ScreenCaptureKit stream, cursor read or Quartz input action occurs. Source and
+central CTest registry review are **PASS**. Owner-local
+`~/rdp-server/build/` is **NOT RUN** in this connector environment; hosted
+exact-SHA Debug/Release, sanitizer, documentation-policy and SDK/package
+evidence are **PENDING**. Genuine macOS R2/R3 admission, owner macOS 27 live
+notification delivery and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**.

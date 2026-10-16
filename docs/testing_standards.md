@@ -1,3 +1,16 @@
+
+
+## R7 Quartz display-watch lifecycle tests are host-display free (2026-10-16)
+
+Exercise `NativeDisplayReconfigurationWatch` registration ownership through
+its Apple-only injected install/remove callbacks. Ordinary CTest may model
+registration-time notifications, duplicate-owner denial, failed removal,
+retry retirement, destructor retirement, and delayed callbacks, but must never
+call the real CoreGraphics registration functions. When testing ambiguous
+removal, prove `nativeCoverageActive()` is already false and
+`refreshNative()` returns `TopologyCoverageUnavailable` before live display
+enumeration. Hosted Apple compilation of `startNative()` remains SDK/API
+evidence, not proof that display-change notifications were delivered.
 ## R1 nonblocking accept-batch visibility fixtures
 
 A test must not infer that synchronous client `connect()` completion makes a

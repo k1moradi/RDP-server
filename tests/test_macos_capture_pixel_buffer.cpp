@@ -868,6 +868,143 @@ void testNativeReconfigurationSignalRevision() {
 }
 
 #if defined(__APPLE__)
+struct FakeDisplayWatchBackend final {
+    NativeDisplayReconfigurationWatch::ChangeRecorder recorder{};
+    NativeDisplayReconfigurationWatch::ChangeRecorder lastRecorder{};
+    std::size_t installs{};
+    std::size_t removals{};
+    bool installSucceeds{true};
+    bool removeSucceeds{true};
+    bool eventDuringInstall{};
+    bool eventDuringRemove{};
+
+    static bool install(
+        void* const context,
+        const NativeDisplayReconfigurationWatch::ChangeRecorder recorder) noexcept {
+        auto& self = *static_cast<FakeDisplayWatchBackend*>(context);
+        ++self.installs;
+        if (!self.installSucceeds) {
+            return false;
+        }
+        self.recorder = recorder;
+        self.lastRecorder = recorder;
+        if (self.eventDuringInstall) {
+            recorder();
+        }
+        return true;
+    }
+
+    static bool remove(void* const context) noexcept {
+        auto& self = *static_cast<FakeDisplayWatchBackend*>(context);
+        ++self.removals;
+        if (self.eventDuringRemove && self.recorder != nullptr) {
+            self.recorder();
+        }
+        if (!self.removeSucceeds) {
+            return false;
+        }
+        self.recorder = nullptr;
+        return true;
+    }
+
+    [[nodiscard]] NativeDisplayReconfigurationWatch::Callbacks
+    callbacks() noexcept {
+        return {this, &install, &remove};
+    }
+
+    void notifyDelayed() noexcept {
+        assert(lastRecorder != nullptr);
+        lastRecorder();
+    }
+};
+
+void testNativeReconfigurationRegistrationRetirement() {
+    using namespace rdp::macos;
+
+    assert(!NativeDisplayReconfigurationWatch::nativeCoverageActive());
+
+    {
+        NativeDisplayReconfigurationWatch invalid;
+        const auto result = invalid.startWithCallbacks({});
+        assert(!result);
+        assert(result.error() == NativeDisplayWatchError::InvalidCallbacks);
+    }
+
+    FakeDisplayWatchBackend backend;
+    backend.eventDuringInstall = true;
+    NativeDisplayReconfigurationWatch watch;
+    const auto beforeStart = NativeDisplayReconfigurationWatch::revision();
+    const auto started = watch.startWithCallbacks(backend.callbacks());
+    assert(started);
+    assert(watch.registered());
+    assert(backend.installs == 1);
+    assert(NativeDisplayReconfigurationWatch::nativeCoverageActive());
+    assert(NativeDisplayReconfigurationWatch::changedSince(beforeStart));
+
+    FakeDisplayWatchBackend duplicateBackend;
+    NativeDisplayReconfigurationWatch duplicate;
+    const auto duplicateResult =
+        duplicate.startWithCallbacks(duplicateBackend.callbacks());
+    assert(!duplicateResult);
+    assert(duplicateResult.error() ==
+           NativeDisplayWatchError::AlreadyRegistered);
+    assert(duplicateBackend.installs == 0);
+
+    auto fixture = nativeDisplayFixture();
+    NativeDisplayGeometryRefresh geometry;
+    const auto generation =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(generation && geometry.usable(*generation));
+
+    backend.eventDuringRemove = true;
+    backend.removeSucceeds = false;
+    const auto failedStop = watch.stopWithCallbacks();
+    assert(!failedStop);
+    assert(failedStop.error() == NativeDisplayWatchError::RemovalFailed);
+    assert(watch.registered());
+    assert(backend.removals == 1);
+    assert(!NativeDisplayReconfigurationWatch::nativeCoverageActive());
+    assert(!geometry.usable(*generation));
+
+    // Ambiguous observer retirement cannot authorize another native geometry
+    // snapshot. refreshNative() must deny before touching CoreGraphics state.
+    fixture = nativeDisplayFixture();
+    const auto replacementSynthetic =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(replacementSynthetic && geometry.usable(*replacementSynthetic));
+    const auto denied = geometry.refreshNative();
+    assert(!denied);
+    assert(denied.error() ==
+           NativeDisplayRefreshError::TopologyCoverageUnavailable);
+    assert(!geometry.usable(*replacementSynthetic));
+
+    const auto blocked =
+        duplicate.startWithCallbacks(duplicateBackend.callbacks());
+    assert(!blocked);
+    assert(blocked.error() == NativeDisplayWatchError::AlreadyRegistered);
+    assert(duplicateBackend.installs == 0);
+
+    backend.removeSucceeds = true;
+    assert(watch.stopWithCallbacks());
+    assert(!watch.registered());
+    assert(backend.removals == 2);
+    assert(!NativeDisplayReconfigurationWatch::nativeCoverageActive());
+
+    FakeDisplayWatchBackend replacementBackend;
+    {
+        NativeDisplayReconfigurationWatch replacement;
+        assert(replacement.startWithCallbacks(replacementBackend.callbacks()));
+        assert(NativeDisplayReconfigurationWatch::nativeCoverageActive());
+    }
+    assert(replacementBackend.removals == 1);
+    assert(!NativeDisplayReconfigurationWatch::nativeCoverageActive());
+
+    // A callback already queued before clean retirement may conservatively
+    // advance the process revision, but it cannot restore native coverage.
+    replacementBackend.notifyDelayed();
+    assert(!NativeDisplayReconfigurationWatch::nativeCoverageActive());
+}
+
 void testNativeRefreshRequiresTopologyCoverage() {
     using namespace rdp::macos;
 
@@ -1096,6 +1233,8 @@ int main(const int argument_count, const char* const arguments[]) {
     } else if (test_case == "geometry-native-generation-refresh") {
         testNativeGeometryGenerationRefresh();
 #if defined(__APPLE__)
+    } else if (test_case == "native-reconfiguration-registration-retirement") {
+        testNativeReconfigurationRegistrationRetirement();
     } else if (test_case == "native-refresh-requires-topology-coverage") {
         testNativeRefreshRequiresTopologyCoverage();
     } else if (test_case == "ownership") {

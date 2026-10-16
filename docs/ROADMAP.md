@@ -1,3 +1,44 @@
+## R2 opt-in owner-driven real Kerberos binding receipt (2026-10-16; exact-SHA CI pending)
+
+R2 implementation `5400566af551b6b5715a23d76569a3e838bcd8bd` plus
+warning-clean correction `f2c363b27f20e047b31611861e585a63b3076703`
+compiled on hosted Linux, macOS and Windows. Exact correction workflow
+`38901685430` passed documentation policy, macOS Debug/Release, Windows
+Debug/Release and the R9 ASan/UBSan job. Ubuntu/GCC Debug compiled and reached
+**395/396 PASS**; its sole failure was R10
+`runtime.linux-connection-credssp-owner-framing`, not an R2 GSS case. Linux
+Release was therefore not run at that SHA. R9 later selected
+`security.gssapi-r1-owned-binding-delivery-fence` explicitly.
+
+This increment adds opt-in
+`security.gssapi-real-kerberos-owned-binding` to the existing preauth/GSS
+test binary. With caller-provisioned explicit `FILE:` service keytab and
+client credential cache, it uses MIT `gss_init_sec_context` and the production
+R2 `advanceOwnedCredSspHandshake()` over one genuine R1
+`SecurityNegotiationPolicy::HybridNla` loopback connection. Continuation
+tokens and replies cross the exact owner-backed TLS path. The final real GSS
+client token is combined with the CredSSP public-key binding and nonce; the
+test requires the provider principal to remain non-authorizing while the server
+binding reply is merely queued, then requires the explicit
+`BindingVerified` result and `verifiedPrincipalForOwnedConnection()` only
+after that reply is fully written and released through the same R1 owner.
+The real initiator GSS-unwraps the server proof and compares it with the
+expected server-to-client TLS binding.
+
+This remains authentication-proof coverage, **not** native desktop admission:
+no NSS/logind lease, R3 capability, delegated credential, listener or desktop
+is created. Default hosted CI remains credential-free and compiles this code
+through `RDP_TEST_LINUX_GSSAPI`, but does not register/run the case unless
+`RDP_SERVER_TEST_REAL_KERBEROS=ON` with explicit credentials. Therefore
+positive real-Kerberos execution, positive native admission, Microsoft-client
+M2 acceptance, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and
+canonical `~/rdp-server/build/` remain **NOT RUN** here.
+
+**Next R2 gate after clean compilation:** execute the opt-in case with a real
+client cache/service keytab. Only after that exact owner-driven
+`BindingVerified` receipt is demonstrated should R2 exercise positive
+NSS/logind lease issuance on the same principal and R1 owner.
+
 ## R6 capture-cycle single-ownership + focused-selector hosted receipt (2026-10-16)
 
 R6 test commit `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f` added

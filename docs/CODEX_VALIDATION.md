@@ -1,3 +1,31 @@
+## R2 opt-in owner-driven real Kerberos binding authoring (2026-10-16)
+
+**Starting reconciled main:** `f032e4c434642dc788a56e48616e1e72d429935c`.
+
+Added `security.gssapi-real-kerberos-owned-binding` to the existing
+`test_owned_preauth_session` opt-in Kerberos registry. The test uses explicit
+`RDP_TEST_KRB5_SERVICE`, `RDP_TEST_KRB5_KEYTAB` and
+`RDP_TEST_KRB5_CCACHE`; no default credential source is permitted. It drives
+real MIT initiator tokens through a genuine HYBRID-selected
+`OwnedPreauthTcpConnection` and the production R2 owner-driven CredSSP API,
+then proves the owner-bound principal is hidden before reply completion and
+visible only after `BindingVerified`. The real initiator unwraps and verifies
+the server public-key proof. No native lease or R3 authority is minted.
+
+Prior R2 receipt: correction `f2c363b27f20e047b31611861e585a63b3076703`,
+Actions `38901685430`: macOS Debug/Release **PASS**, Windows Debug/Release
+**PASS**, R9 sanitizer **PASS**, documentation-policy **PASS**; Ubuntu Debug
+compiled and finished **395/396 PASS** with only the unrelated R10
+`runtime.linux-connection-credssp-owner-framing` failure. R2 GSS cases passed;
+Ubuntu Release did not run. R9 later added the ordinary binding-delivery fence
+to its native-GSS sanitizer selection.
+
+**NOT RUN at authoring:** the new positive opt-in Kerberos case itself,
+canonical owner-local `~/rdp-server/build/`, positive NSS/logind admission,
+owner three-OS commands and Microsoft-client M2. Default exact-SHA hosted CI
+can validate compilation/ordinary credential-free regressions only because
+`RDP_SERVER_TEST_REAL_KERBEROS` remains off there.
+
 ## R6 single-attachment + selector exact-SHA receipt (2026-10-16)
 
 **Test commit:** `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`.

@@ -1,3 +1,23 @@
+### R2 real-provider owner-driven CredSSP acceptance test
+
+The authentication boundary has an opt-in test for the transition between
+Kerberos/CredSSP proof and native authorization. It reuses the real MIT GSS
+initiator, the existing native loopback `OwnedPreauthTcpConnection`, R1
+HYBRID negotiation and
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake()`; no second TLS or
+CredSSP state machine is introduced.
+
+The same `TsRequestFrameReader` and `TsRequestTlsReplyWriter` stay pinned to
+one R1 owner for the entire exchange. Token-only continuation messages may
+advance only while the provider is continuing. The final provider token is
+carried in the same TSRequest as `pubKeyAuth` and the client nonce.
+`ServerBindingPrepared` alone exposes no owner-authorizing principal. Only
+completion and release of the provider-generated server binding reply through
+that exact owner may produce `BindingVerified`, after which
+`verifiedPrincipalForOwnedConnection()` can expose the provider name. The
+client independently GSS-unwraps that server proof. NSS/logind admission
+remains a separate subsequent R2 authority boundary.
+
 ## R8 Windows clipboard presentation boundary (2026-10-16)
 
 `WindowsClipboardAdapter` is a native presentation child of the existing

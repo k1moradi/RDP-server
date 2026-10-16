@@ -382,6 +382,7 @@ if(TARGET rdp-server-linux-gssapi)
         target_compile_definitions(test_owned_preauth_session PRIVATE
             RDP_TEST_REAL_KERBEROS=1)
         foreach(case_name IN ITEMS
+                gssapi-real-kerberos-owned-binding
                 gssapi-real-kerberos-tls-mechanism
                 gssapi-real-kerberos-tls-failure)
             add_test(NAME "security.${case_name}"

@@ -1,3 +1,18 @@
+## R2 CI restoration for HWID-proof fence validation (2026-10-16)
+
+R2 test commit `09ac1e1759970c03fd0e5d57eb94bf43ed61491d`
+landed on an inherited malformed CI workflow from concurrent R10 commit
+`df67d3012440a59cd67dd2e53b85aea8f4355c39`. GitHub rejected that workflow
+before creating jobs. A first quote-only repair exposed the larger defect:
+the sanitizer/job block had also been duplicated after the prerelease job.
+
+Commit `f7058fccd45ae5a9fa7841b9911ea91b7151f56e` restores the last valid
+workflow structure and reapplies only R10's intended
+`runtime.licensing-context-secure-file-snapshots` sanitizer selection and
+registry assertion. No R2 production or test semantics change in that repair.
+Its platform/sanitizer jobs are the validation vehicle for the unchanged R2
+HWID-proof authority fence.
+
 ## R2 licensing HWID-proof authority authoring validation (2026-10-16)
 
 **Reconciled parent:** `df67d3012440a59cd67dd2e53b85aea8f4355c39`.

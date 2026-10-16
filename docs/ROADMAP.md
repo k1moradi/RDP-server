@@ -13443,3 +13443,35 @@ The next R4 production integration gate remains genuine authenticated R3
 R4 must not create a parallel channel/session owner. Native capture performance
 and Microsoft-client visible graphics acceptance remain **BLOCKED/NOT RUN**.
 Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R7 macOS capture backend callback retirement (2026-10-16; exact-SHA CI pending)
+
+Starting reconciled shared `main`: `7dd0ece64657e32fcc3773a2c52a78f9ba717d79`. The R7
+`MacScreenCaptureStream` owner previously held `ownerMutex_` while calling
+backend preflight/prepare/start/stop/close. A backend callback reentering
+`close()` or topology invalidation could deadlock on the nonrecursive mutex.
+The R7 owner now uses an in-flight operation fence, releases that mutex around
+backend calls, and defers backend retirement while synchronous submission is in
+flight. Reentrant close/topology invalidation revokes shared frame state at
+once; returning backend submission fails with `IllegalTransition` rather
+than reporting a usable capture after cancellation. The backend is retained
+until callback return and native `close` is marked terminal *before* calling
+the callback, preventing double retirement.
+
+New centrally registered Apple-only, synthetic
+`macos.capture-stream-backend-callback-reentry-retirement` covers preflight,
+prepare, start, stop, topology revocation and close-callback recursion. This
+extends the production owner, not a duplicate stream/controller, and does not
+expose the quarantined native ScreenCaptureKit factory. The ordinary CTest
+uses only the existing injected backend; no live desktop or TCC access.
+
+Source, registry and documentation authoring review: **PASS**.
+Canonical owner-local `~/rdp-server/build/` full configure/build/CTest:
+**NOT RUN** (checkout absent from this connector). Exact-publication-SHA
+hosted Linux/GCC, AppleClang, Windows/MSVC, R7/R9 sanitizers,
+documentation-policy and SDK/package evidence: **PENDING**. R2/R3 still
+must provide non-forgeable macOS per-user admission; R4 retains graphics/
+cursor publication authority. Owner macOS 27 live capture/session-switch
+and Microsoft-client M5 acceptance remain **NOT RUN/OPEN**.
+**M5 remains OPEN/BLOCKED**.

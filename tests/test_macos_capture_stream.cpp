@@ -147,8 +147,19 @@ public:
 
 class FakeBackend final : public MacScreenCaptureBackend {
 public:
+    enum class ReentryStage : std::uint8_t {
+        None,
+        Preflight,
+        Prepare,
+        Start,
+        Stop,
+        Close,
+    };
+    enum class ReentryAction : std::uint8_t { Close, InvalidateTopology };
+
     ScreenCapturePreflightStatus preflight() noexcept override {
         ++preflightCalls;
+        reenterOwner(ReentryStage::Preflight);
         return preflightStatus;
     }
 
@@ -158,6 +169,7 @@ public:
         ++prepareCalls;
         lastBinding = receivedBinding;
         state = receivedState;
+        reenterOwner(ReentryStage::Prepare);
         if (prepareRequestError) return std::unexpected(*prepareRequestError);
         return {};
     }
@@ -166,6 +178,7 @@ public:
     start(const std::shared_ptr<MacScreenCaptureState>& receivedState) noexcept override {
         ++startCalls;
         state = receivedState;
+        reenterOwner(ReentryStage::Start);
         if (startRequestError) return std::unexpected(*startRequestError);
         return {};
     }
@@ -174,6 +187,7 @@ public:
     stop(const std::shared_ptr<MacScreenCaptureState>& receivedState) noexcept override {
         ++stopCalls;
         state = receivedState;
+        reenterOwner(ReentryStage::Stop);
         if (stopRequestError) return std::unexpected(*stopRequestError);
         claimNativeStop(receivedState);
         return {};
@@ -182,6 +196,7 @@ public:
     void close(const std::shared_ptr<MacScreenCaptureState>& receivedState) noexcept override {
         ++closeCalls;
         state = receivedState;
+        reenterOwner(ReentryStage::Close);
         claimNativeStop(receivedState);
     }
 
@@ -192,6 +207,11 @@ public:
     std::shared_ptr<MacScreenCaptureState> state{};
     MacScreenCaptureBinding lastBinding{};
     bool claimNativeStopRequests{};
+    MacScreenCaptureStream* owner{};
+    ReentryStage reentryStage{ReentryStage::None};
+    ReentryAction reentryAction{ReentryAction::Close};
+    bool backendRetirementDeferred{};
+    bool nestedOperationDenied{};
     std::size_t preflightCalls{};
     std::size_t prepareCalls{};
     std::size_t startCalls{};
@@ -201,6 +221,24 @@ public:
     std::size_t nativeStopClaims{};
 
 private:
+    void reenterOwner(const ReentryStage stage) noexcept {
+        if (owner == nullptr || reentryStage != stage) {
+            return;
+        }
+        reentryStage = ReentryStage::None;
+        if (reentryAction == ReentryAction::Close) {
+            owner->close();
+        } else {
+            owner->invalidateTopology();
+        }
+        if (stage != ReentryStage::Close) {
+            backendRetirementDeferred = closeCalls == 0;
+            const auto nested = owner->start();
+            nestedOperationDenied =
+                !nested && nested.error() == MacScreenCaptureError::IllegalTransition;
+        }
+    }
+
     void claimNativeStop(
         const std::shared_ptr<MacScreenCaptureState>& receivedState) noexcept {
         if (!claimNativeStopRequests || !receivedState) {
@@ -524,6 +562,82 @@ void testNativeStopSingleOwnership() {
     assert(fixture.consumer->calls == 1);
 }
 
+void testBackendCallbackReentryRetirement() {
+    using ReentryStage = FakeBackend::ReentryStage;
+    using ReentryAction = FakeBackend::ReentryAction;
+
+    auto assertRetired = [](const StreamFixture& fixture,
+                            const MacScreenCaptureLifecycleState expectedState) {
+        assert(fixture.backend->backendRetirementDeferred);
+        assert(fixture.backend->nestedOperationDenied);
+        assert(fixture.backend->closeCalls == 1);
+        assert(fixture.stream->state() == expectedState);
+        assert(!fixture.stream->start());
+        fixture.stream->close();
+        assert(fixture.backend->closeCalls == 1);
+    };
+
+    // A synchronous preflight callback can request close. Preparation must
+    // not be submitted after that callback and backend retirement is deferred.
+    {
+        auto fixture = makeStream();
+        fixture.backend->owner = fixture.stream.get();
+        fixture.backend->reentryStage = ReentryStage::Preflight;
+        const auto prepared = fixture.stream->prepare();
+        assert(!prepared &&
+               prepared.error() == MacScreenCaptureError::IllegalTransition);
+        assert(fixture.backend->prepareCalls == 0);
+        assertRetired(fixture, MacScreenCaptureLifecycleState::Closed);
+    }
+    {
+        auto fixture = makeStream();
+        fixture.backend->owner = fixture.stream.get();
+        fixture.backend->reentryStage = ReentryStage::Prepare;
+        const auto prepared = fixture.stream->prepare();
+        assert(!prepared &&
+               prepared.error() == MacScreenCaptureError::IllegalTransition);
+        assert(fixture.backend->prepareCalls == 1);
+        assertRetired(fixture, MacScreenCaptureLifecycleState::Closed);
+    }
+    {
+        auto fixture = makeStream();
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        fixture.backend->owner = fixture.stream.get();
+        fixture.backend->reentryStage = ReentryStage::Start;
+        fixture.backend->reentryAction = ReentryAction::InvalidateTopology;
+        const auto started = fixture.stream->start();
+        assert(!started &&
+               started.error() == MacScreenCaptureError::IllegalTransition);
+        assert(fixture.backend->startCalls == 1);
+        assert(fixture.stream->lastError() == MacScreenCaptureError::StaleTopology);
+        assertRetired(fixture, MacScreenCaptureLifecycleState::Failed);
+    }
+    {
+        auto fixture = makeStream();
+        prepareAndStart(fixture);
+        fixture.backend->owner = fixture.stream.get();
+        fixture.backend->reentryStage = ReentryStage::Stop;
+        const auto stopped = fixture.stream->stop();
+        assert(!stopped &&
+               stopped.error() == MacScreenCaptureError::IllegalTransition);
+        assert(fixture.backend->stopCalls == 1);
+        assertRetired(fixture, MacScreenCaptureLifecycleState::Closed);
+    }
+    // Backend close itself can reenter close without a recursive lock or a
+    // second backend retirement request.
+    {
+        auto fixture = makeStream();
+        fixture.backend->owner = fixture.stream.get();
+        fixture.backend->reentryStage = ReentryStage::Close;
+        fixture.stream->close();
+        assert(fixture.backend->closeCalls == 1);
+        assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Closed);
+        fixture.stream->close();
+        assert(fixture.backend->closeCalls == 1);
+    }
+}
+
 void testCallbackRetirement() {
     GeometryFixture geometry;
     const auto oldGeneration = geometry.refresh();
@@ -583,6 +697,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testConsumerCancellation();
     } else if (testCase == "native-stop-single-ownership") {
         testNativeStopSingleOwnership();
+    } else if (testCase == "backend-callback-reentry-retirement") {
+        testBackendCallbackReentryRetirement();
     } else if (testCase == "native-factory-quarantine") {
         testNativeFactoryQuarantine();
     } else if (testCase == "framebuffer-contract") {

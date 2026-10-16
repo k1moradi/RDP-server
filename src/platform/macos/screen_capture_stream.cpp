@@ -294,78 +294,139 @@ MacScreenCaptureStream::createForTesting(
         new MacScreenCaptureStream(binding, std::move(consumer), std::move(backend)));
 }
 
-std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::prepare() noexcept {
-    std::scoped_lock ownerLock(ownerMutex_);
+void MacScreenCaptureStream::retireBackend(
+    std::unique_lock<std::mutex>& ownerLock) noexcept {
     if (backendClosed_) {
+        return;
+    }
+    if (backendOperationInProgress_) {
+        backendRetirementPending_ = true;
+        return;
+    }
+
+    backendClosed_ = true;
+    backendRetirementPending_ = false;
+    // A backend close callback may reenter the owner; the closed flag prevents
+    // duplicate retirement while the backend object stays owned by this stream.
+    ownerLock.unlock();
+    backend_->close(state_);
+}
+
+void MacScreenCaptureStream::finishBackendOperation(
+    std::unique_lock<std::mutex>& ownerLock) noexcept {
+    backendOperationInProgress_ = false;
+    if (backendRetirementPending_) {
+        retireBackend(ownerLock);
+    }
+}
+
+std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::prepare() noexcept {
+    std::unique_lock ownerLock(ownerMutex_);
+    if (backendClosed_ || backendOperationInProgress_) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
     if (auto began = state_->beginPrepare(); !began) {
         return began;
     }
+
+    backendOperationInProgress_ = true;
+    ownerLock.unlock();
     const auto preflight = backend_->preflight();
+    ownerLock.lock();
+    if (backendRetirementPending_) {
+        finishBackendOperation(ownerLock);
+        return std::unexpected(MacScreenCaptureError::IllegalTransition);
+    }
     if (preflight != ScreenCapturePreflightStatus::Granted) {
         const auto error = preflight == ScreenCapturePreflightStatus::NotGranted
                                ? MacScreenCaptureError::PermissionNotGranted
                                : MacScreenCaptureError::PermissionUnavailable;
         state_->prepareFailed(error);
+        finishBackendOperation(ownerLock);
         return std::unexpected(error);
     }
+    // A native failure reported by a synchronous preflight callback cannot
+    // be followed by fresh ScreenCaptureKit preparation.
+    if (state_->lifecycleState() != MacScreenCaptureLifecycleState::Preparing) {
+        finishBackendOperation(ownerLock);
+        return std::unexpected(MacScreenCaptureError::IllegalTransition);
+    }
+
+    ownerLock.unlock();
     auto submitted = backend_->prepare(state_->binding(), state_);
-    if (!submitted) {
+    ownerLock.lock();
+    const bool revoked = backendRetirementPending_;
+    if (!submitted && !revoked) {
         state_->prepareFailed(submitted.error());
+    }
+    finishBackendOperation(ownerLock);
+    if (revoked) {
+        return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
     return submitted;
 }
 
 std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::start() noexcept {
-    std::scoped_lock ownerLock(ownerMutex_);
-    if (backendClosed_) {
+    std::unique_lock ownerLock(ownerMutex_);
+    if (backendClosed_ || backendOperationInProgress_) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
     if (auto began = state_->beginStart(); !began) {
         return began;
     }
+
+    backendOperationInProgress_ = true;
+    ownerLock.unlock();
     auto submitted = backend_->start(state_);
-    if (!submitted) {
+    ownerLock.lock();
+    const bool revoked = backendRetirementPending_;
+    if (!submitted && !revoked) {
         state_->fail(submitted.error());
-        return submitted;
     }
-    return {};
+    finishBackendOperation(ownerLock);
+    if (revoked) {
+        return std::unexpected(MacScreenCaptureError::IllegalTransition);
+    }
+    return submitted;
 }
 
 std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::stop() noexcept {
-    std::scoped_lock ownerLock(ownerMutex_);
-    if (backendClosed_) {
+    std::unique_lock ownerLock(ownerMutex_);
+    if (backendClosed_ || backendOperationInProgress_) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
     if (auto began = state_->beginStop(); !began) {
         return began;
     }
+
+    backendOperationInProgress_ = true;
+    ownerLock.unlock();
     auto submitted = backend_->stop(state_);
-    if (!submitted) {
+    ownerLock.lock();
+    const bool revoked = backendRetirementPending_;
+    if (!submitted && !revoked) {
         state_->fail(submitted.error());
-        return submitted;
     }
-    return {};
+    finishBackendOperation(ownerLock);
+    if (revoked) {
+        return std::unexpected(MacScreenCaptureError::IllegalTransition);
+    }
+    return submitted;
 }
 
 void MacScreenCaptureStream::invalidateTopology() noexcept {
-    std::scoped_lock ownerLock(ownerMutex_);
+    std::unique_lock ownerLock(ownerMutex_);
     state_->invalidateTopology();
-    if (!backendClosed_) {
-        backend_->close(state_);
-        backendClosed_ = true;
-    }
+    retireBackend(ownerLock);
 }
 
 void MacScreenCaptureStream::close() noexcept {
-    std::scoped_lock ownerLock(ownerMutex_);
-    if (!state_ || !backend_) return;
-    state_->close();
-    if (!backendClosed_) {
-        backend_->close(state_);
-        backendClosed_ = true;
+    std::unique_lock ownerLock(ownerMutex_);
+    if (!state_ || !backend_) {
+        return;
     }
+    state_->close();
+    retireBackend(ownerLock);
 }
 
 MacScreenCaptureLifecycleState MacScreenCaptureStream::state() const noexcept {

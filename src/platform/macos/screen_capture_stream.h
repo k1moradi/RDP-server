@@ -205,9 +205,17 @@ private:
                            std::shared_ptr<MacCaptureFrameConsumer> consumer,
                            std::unique_ptr<detail::MacScreenCaptureBackend> backend);
 
+    // Never hold ownerMutex_ across an injected/native backend call: the
+    // backend may synchronously request close/topology invalidation. Defer its
+    // own retirement until that callback returns, keeping backend_ alive.
+    void retireBackend(std::unique_lock<std::mutex>& ownerLock) noexcept;
+    void finishBackendOperation(std::unique_lock<std::mutex>& ownerLock) noexcept;
+
     std::shared_ptr<detail::MacScreenCaptureState> state_;
     std::unique_ptr<detail::MacScreenCaptureBackend> backend_;
     mutable std::mutex ownerMutex_;
+    bool backendOperationInProgress_{};
+    bool backendRetirementPending_{};
     bool backendClosed_{};
 };
 

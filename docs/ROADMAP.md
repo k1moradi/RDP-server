@@ -1,3 +1,36 @@
+## R2 owner-driven real Kerberos test exact-SHA hosted validation (2026-10-16)
+
+**Test commit:** `1d218f285049b12460ccd9da844b57d7c70e3b9c`.
+**Actions:** `38904205829` — **SUCCESS**.
+
+Credential-free hosted validation is clean across the complete matrix:
+Ubuntu/GCC full CTest **405/405 PASS Debug** and **405/405 PASS Release**;
+macOS/Clang **346/346 PASS Debug** and **346/346 PASS Release**;
+Windows/MSVC **371/371 PASS Debug** and **371/371 PASS Release**, with the
+focused Windows native preflight **39/39 PASS** in both configurations.
+Installable SDK consumer/package validation also passed on all hosted
+platforms. Documentation-policy **PASS**.
+
+The R9 Clang ASan/UBSan job **PASS**. Its production-linked preauth/GSS build
+compiled the new real-provider owner-driven test body, and the selected native
+R2/R3 GSS group completed **23/23 PASS**; the remaining selected protocol,
+clipboard, X11 and fuzzer groups also passed.
+
+This does **not** claim the new
+`security.gssapi-real-kerberos-owned-binding` CTest executed. Hosted CI keeps
+`RDP_SERVER_TEST_REAL_KERBEROS=OFF` and has no explicit service keytab/client
+credential cache. The exact-SHA result proves ordinary compilation with GCC and
+Clang plus no credential-free regressions. Positive MIT Kerberos execution,
+positive NSS/logind lease issuance, Microsoft-client M2, canonical
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS27 remain **NOT RUN**.
+
+**Next R2 acceptance gate:** provision an explicit test service keytab and
+client `FILE:` cache, enable `RDP_SERVER_TEST_REAL_KERBEROS`, and require
+`security.gssapi-real-kerberos-owned-binding` to reach the exact
+owner-driven `BindingVerified` receipt. Only then proceed to positive native
+NSS/logind admission on that same principal and R1 owner.
+
 ## R3 bounded TS_INFO_PACKET acceptance boundary (2026-10-16; hosted CI pending)
 
 **Authoring base:** `3bcdb4ad2911de916aae465305f58b9f8c770918`;

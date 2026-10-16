@@ -1,3 +1,20 @@
+## R2 owner-driven real Kerberos test hosted receipt (2026-10-16)
+
+Test `1d218f285049b12460ccd9da844b57d7c70e3b9c`, Actions
+`38904205829`: overall **SUCCESS**. Ubuntu/GCC full CTest **405/405 PASS**
+in both Debug and Release; macOS/Clang **346/346 PASS** in both; Windows/MSVC
+**371/371 PASS** in both, plus focused Windows preflight **39/39 PASS** in both.
+R9 Clang ASan/UBSan **PASS**, including production-linked compilation of
+`test_owned_preauth_session` and the selected native R2/R3 GSS set
+**23/23 PASS**. Documentation-policy and downstream SDK consumer/package
+validation passed.
+
+The opt-in positive case itself is **NOT RUN** because the workflow deliberately
+uses `RDP_SERVER_TEST_REAL_KERBEROS=OFF` and supplies no keytab or client
+credential cache. Therefore this receipt validates compilation and
+credential-free regressions only; it is not a claim of positive Kerberos,
+native logind admission or M2 interoperability.
+
 ## R3 TS_INFO_PACKET structural acceptance authoring validation (2026-10-16)
 
 **Base:** `3bcdb4ad2911de916aae465305f58b9f8c770918`.

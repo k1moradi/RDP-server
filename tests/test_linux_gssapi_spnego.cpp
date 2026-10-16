@@ -190,6 +190,8 @@ using R3McsAdmission =
     decltype(&LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial);
 using R3NativeChange =
     decltype(&LinuxConsoleAdmissionBroker::onNativeSessionChangeReady);
+using R3ProtectedTransition =
+    decltype(&LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition);
 
 static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
@@ -225,6 +227,23 @@ static_assert(std::is_invocable_r_v<
               LinuxConsoleAdmissionBroker &,
               GssapiSpnegoAcceptor &,
               McsSessionLifecycle &>);
+static_assert(std::is_invocable_r_v<
+              bool,
+              R3ProtectedTransition,
+              LinuxConsoleAdmissionBroker &,
+              const LinuxConsoleAdmissionLease &,
+              GssapiSpnegoAcceptor &,
+              const SSL *,
+              McsSessionLifecycle &,
+              std::uint32_t>);
+static_assert(!std::is_invocable_v<
+              R3ProtectedTransition,
+              LinuxConsoleAdmissionBroker &,
+              bool,
+              GssapiSpnegoAcceptor &,
+              const SSL *,
+              McsSessionLifecycle &,
+              std::uint32_t>);
 
 void testNativeAdmissionCapabilityDenials()
 {
@@ -293,6 +312,30 @@ void testR3McsAdmissionContract()
     broker.revokeR3Session(acceptor, session);
     assert(session.phase() == McsSessionPhase::Closed);
     assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+}
+
+void testR3ProtectedTransitionGenerationFence()
+{
+    // Public scalar generation values are revocation-only. Before a genuine
+    // private R2 handoff no pair, including nonzero guesses, can make the sole
+    // R3 owner retain state or advance toward Connect Response.
+    McsSessionLifecycle guessed;
+    assert(guessed.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    guessed.revokeUnlessAdmissionBindingMatches(1, 1);
+    assert(guessed.phase() == McsSessionPhase::Closed);
+    assert(guessed.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(guessed.pendingJoinConfirmation().empty());
+
+    McsSessionLifecycle zero;
+    zero.revokeUnlessAdmissionBindingMatches(0, 0);
+    assert(zero.phase() == McsSessionPhase::Closed);
+    assert(zero.licensingPhase() == RdpLicensingPhase::Closed);
+
+    // Repeated or changed scalar input cannot revive a terminal owner.
+    zero.revokeUnlessAdmissionBindingMatches(UINT64_MAX, UINT64_MAX);
+    assert(zero.phase() == McsSessionPhase::Closed);
+    assert(zero.pendingJoinConfirmation().empty());
+    assert(!zero.channelJoinConfirmed(1003U));
 }
 
 void testR3NativeChangeRevocation()
@@ -471,6 +514,11 @@ int main(int argc, char **argv)
             testR3McsAdmissionContract();
             return 0;
         }
+        if (name == "gssapi-r3-protected-transition-generation-fence")
+        {
+            testR3ProtectedTransitionGenerationFence();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -496,6 +544,7 @@ int main(int argc, char **argv)
     testConsoleGssProvenanceBeforeOsRead();
     testNativeAdmissionCapabilityDenials();
     testR3McsAdmissionContract();
+    testR3ProtectedTransitionGenerationFence();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

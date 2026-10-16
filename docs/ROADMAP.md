@@ -5789,10 +5789,33 @@ the portable R3 surfaces.
 followed by a real switch/logout, live R1 disconnect composition, owner
 Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and Microsoft-client
 desktop. Gate A/M2 remain **OPEN/NOT ACCEPTED**.
-**Next R2:** require the same lease generations and fresh broker
-authorization immediately before R3 Connect Response publication and later
-Attach/Join/licensing transitions; outer runtime teardown must preserve
-R3 -> R2/GSS -> R1 TLS/socket ordering.
+**R2 generation-bound protected-transition authorization (2026-10-16;
+authoring parent `9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`):** add
+`LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition` as the
+reusable post-handoff gate for the sole R3 owner. Before any live native
+evidence read, R3's revocation-only
+`revokeUnlessAdmissionBindingMatches` requires its stored nonzero
+admission/native-session generations to equal the exact lease generations.
+Caller-supplied scalars can only close an unadmitted/mismatched owner and can
+never advance a phase. Only after that fence does R2 repeat permission scope,
+exact TLS/GSS identity, policy epoch, NSS/logind fingerprint, freshness and
+native-change-watch checks. Any denial closes R3 in the same call and revokes
+R2/GSS; success changes no R3 state and writes no bytes.
+Dedicated Linux provider CTest
+`security.gssapi-r3-protected-transition-generation-fence` checks the
+exact nonforgeable-lease API, rejects a Boolean substitute, and executes
+zero/nonzero scalar guesses plus replay on a never-admitted R3 owner; every
+case is terminal and clears licensing/join state without fabricating a
+positive lease.
+**NOT RUN at authoring:** local project build/CTest (no checkout), exact-SHA
+hosted CI, genuine positive Kerberos/TLS/logind admission, actual Connect
+Response publication, owner platform trio or Microsoft client. The current
+R3 implementation still stops at `AwaitConnectResponse`; this increment
+does not invent writer ownership or protocol progression.
+**Next R2:** require R3's eventual Connect Response, Attach/Join, licensing,
+activation, clipboard/input and desktop transitions to invoke this gate with
+their required permission immediately before state/write publication, while
+preserving R3 -> R2/GSS -> R1 teardown ordering.
 
 **Next R3:** extend `AwaitConnectResponse` only after updating the existing
 Connect Response encoder for the real CredSSP/PROTOCOL_HYBRID settings replay

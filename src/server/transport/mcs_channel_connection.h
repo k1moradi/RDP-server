@@ -499,6 +499,14 @@ public:
     [[nodiscard]] McsSessionIntake onDomainPdu(
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Revocation-only generation fence for R2. Caller-supplied scalar values
+    // can only leave a genuinely admitted matching owner unchanged or close
+    // it; they can never advance a phase, create admission, or authorize I/O.
+    // R2 invokes this immediately before each later protected transition.
+    void revokeUnlessAdmissionBindingMatches(
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept;
+
     [[nodiscard]] bool channelJoinConfirmed(
         std::uint16_t channelId) const noexcept
     {

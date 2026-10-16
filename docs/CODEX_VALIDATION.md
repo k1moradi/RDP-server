@@ -5652,6 +5652,38 @@ authorization integration under existing one-owner contracts.
 
 
 
+## R2 generation-bound R3 protected-transition authorization (2026-10-16)
+
+**Authoring parent:** `9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`.
+
+Production adds
+`LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition` plus the
+R3-owned revocation-only `revokeUnlessAdmissionBindingMatches`. The latter
+accepts scalar generations only to close stale/unadmitted state; it cannot
+advance R3 or produce authorization. The broker requires those stored
+generations to match the exact nonforgeable lease before it performs the
+existing live permission/GSS/TLS/policy/NSS/logind/watch revalidation.
+Failure closes R3 and revokes R2/GSS in the same serialized call. Success
+does not mutate R3 and does not write any protocol bytes.
+
+**Dedicated CTest:**
+`security.gssapi-r3-protected-transition-generation-fence`. Compile-time
+checks require the exact `LinuxConsoleAdmissionLease const&` broker API and
+reject a Boolean substitute. Runtime checks exercise zero and guessed
+nonzero generation values against a never-admitted R3 owner, confirm
+terminal R3/licensing/join cleanup, and prove replay cannot revive it. No
+test-only lease constructor, generic evidence injection, credential, login or
+positive synthetic authorization is added.
+
+**NOT RUN at authoring:** local single-root project build/CTest because this
+agent environment has no repository checkout; exact-SHA hosted CI until
+publication; genuine positive Kerberos/TLS/native-logind admission; live
+Connect Response/Attach/Join/licensing use of the gate; R1 runtime teardown;
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27; Microsoft client.
+Gate A/M2 remain **OPEN/NOT ACCEPTED**. **Next:** R3's eventual protected
+transition owners must call this gate immediately before state/write
+publication with their permission scope.
+
 ## R2 native-session-change R3 revocation callback (2026-10-16)
 
 **Authoring parent:** `aac9c86a17f7489a0523dc1ae4f0591b39b44817`. The R2->R3 Basic Settings handoff

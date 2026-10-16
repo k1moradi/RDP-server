@@ -2499,6 +2499,19 @@ spurious wake and does not authorize anything; the caller must still invoke
 keeps prompt revocation separate from positive authorization and preserves
 the documented non-atomic logind check/use limitation.
 
+Later R3 transitions now have a generation-bound R2 authorization contract
+even though no runtime Connect Response writer exists yet.
+`McsSessionLifecycle::revokeUnlessAdmissionBindingMatches` is deliberately
+revocation-only: caller-provided generation scalars can never create or
+advance admission. It retains state only when the owner is already in its
+private R2-admitted `AwaitConnectResponse` phase and both stored generations
+match the exact lease. `LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition`
+then repeats permission, GSS/TLS certificate continuity, policy, NSS/logind
+fingerprint, freshness and native-watch validation. Failure closes R3 and
+revokes R2/GSS synchronously; success changes no R3 phase and emits no bytes.
+R3 must call this gate immediately before every protected state/write
+transition and must call it again before the next one.
+
 The existing MCS Connect Response encoder remains offline because it currently
 accepts only its diagnostic PROTOCOL_SSL input and caller-supplied channel IDs.
 The live CredSSP/Hybrid path therefore stops at `AwaitConnectResponse` rather

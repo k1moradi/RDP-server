@@ -486,6 +486,40 @@ LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     return result;
 }
 
+bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const SSL *activeServerTls,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint32_t requiredPermissions) noexcept
+{
+    // Fence the R3 owner against this exact nonforgeable lease before any
+    // potentially blocking native evidence sampling. Scalars are never used
+    // as positive authority: the session method can only retain or revoke.
+    session.revokeUnlessAdmissionBindingMatches(
+        lease.admissionGeneration_, lease.sessionGeneration_);
+    if (session.phase() ==
+        rdp_server::server::transport::McsSessionPhase::Closed)
+    {
+        revoke(acceptor);
+        return false;
+    }
+
+    if (!authorizes(
+            lease, acceptor, activeServerTls, requiredPermissions))
+    {
+        // authorizes() already revokes R2/GSS. Drop R3 state in the same
+        // serialized call so stale protocol state cannot survive that denial.
+        session.close();
+        return false;
+    }
+
+    // No R3 phase/write mutation occurs here. The sole R3 owner may perform
+    // exactly one protected transition after this synchronous authorization;
+    // it must call back here again before the next one.
+    return true;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

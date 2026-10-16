@@ -367,6 +367,23 @@ McsSessionIntake McsSessionLifecycle::onVerifiedR2ConnectInitial(
     return McsSessionIntake::AdmittedConnectInitial;
 }
 
+void McsSessionLifecycle::revokeUnlessAdmissionBindingMatches(
+    std::uint64_t admissionGeneration,
+    std::uint64_t sessionGeneration) noexcept
+{
+    // This is deliberately denial-only. Public scalar inputs never create
+    // authority: before a genuine R2 handoff the stored generations are zero,
+    // and after teardown they are erased. At the current implementation stage
+    // AwaitConnectResponse is the sole admitted phase.
+    if (phase_ != McsSessionPhase::AwaitConnectResponse ||
+        admissionGeneration == 0 || sessionGeneration == 0 ||
+        admissionGeneration_ != admissionGeneration ||
+        sessionGeneration_ != sessionGeneration)
+    {
+        close();
+    }
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {

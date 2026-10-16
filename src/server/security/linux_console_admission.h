@@ -139,6 +139,19 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Reauthorization gate for every later protected R3 transition. The R3
+    // owner first revokes itself unless its stored admission/native-session
+    // generations still match this exact lease, then R2 repeats permission,
+    // GSS/TLS, policy, NSS/logind and native-watch validation. This method
+    // never advances R3 state or writes bytes. Any failure closes R3 and
+    // revokes R2/GSS so a stale capability cannot be retried elsewhere.
+    [[nodiscard]] bool authorizeR3ProtectedTransition(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const SSL *activeServerTls,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint32_t requiredPermissions) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

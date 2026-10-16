@@ -640,37 +640,37 @@ void testConnectionCredSspOwnerFraming(
     assert(!connection.hasAdmissionLease());
 
     assert(writeTlsClientAll(clientTls.get(), std::span(request).subspan(8)));
-    bool failureReplyQueued = false;
-    for (std::size_t attempt = 0; attempt < 16384; ++attempt)
-    {
-        const auto step = connection.onCredSspIoReady();
-        totalRead += step.plaintextBytesRead;
-        assert(step.plaintextBytesWritten == 0);
-        if (step.status == LinuxCredSspStepStatus::NeedWrite &&
-            totalRead == request.size())
-        {
-            failureReplyQueued = true;
-            break;
-        }
-        assert(step.status == LinuxCredSspStepStatus::Progress ||
-               step.status == LinuxCredSspStepStatus::NeedRead ||
-               step.status == LinuxCredSspStepStatus::NeedWrite);
-        std::this_thread::yield();
-    }
-    assert(failureReplyQueued);
-    assert(connection.gssStage() == SpnegoStage::Failed);
-    assert(connection.admissionState() == LinuxConsoleAdmissionState::Ready);
-    assert(connection.mcsPhase() ==
-           McsSessionPhase::AwaitVerifiedR2Admission);
-    assert(!connection.hasAdmissionLease());
-
     std::size_t totalWritten = 0;
+    bool providerFailureObserved = false;
     bool terminalReplyFlushed = false;
     for (std::size_t attempt = 0; attempt < 16384; ++attempt)
     {
         const auto step = connection.onCredSspIoReady();
+
+        // R2 may transition from a completed frame to an already-pending
+        // provider reply between callbacks. Scheduling must not affect the
+        // oracle: one bounded R1 step may read OR write, never both.
+        assert(step.plaintextBytesRead == 0 ||
+               step.plaintextBytesWritten == 0);
+        totalRead += step.plaintextBytesRead;
         totalWritten += step.plaintextBytesWritten;
-        assert(step.plaintextBytesRead == 0);
+        assert(totalRead <= request.size());
+        assert(totalWritten <= kV6LogonFailure.size());
+
+        // No provider output may enter R1 until the complete DER request has
+        // been consumed. A queued failure is not native/R3 admission.
+        if (step.plaintextBytesWritten != 0)
+        {
+            assert(totalRead == request.size());
+            assert(connection.gssStage() == SpnegoStage::Failed);
+        }
+        if (connection.gssStage() == SpnegoStage::Failed)
+        {
+            providerFailureObserved = true;
+            assert(totalRead == request.size());
+            assert(!connection.hasAdmissionLease());
+        }
+
         if (step.status == LinuxCredSspStepStatus::Invalid)
         {
             terminalReplyFlushed = true;
@@ -681,6 +681,8 @@ void testConnectionCredSspOwnerFraming(
                step.status == LinuxCredSspStepStatus::NeedWrite);
         std::this_thread::yield();
     }
+    assert(providerFailureObserved);
+    assert(terminalReplyFlushed);
     assert(terminalReplyFlushed);
     assert(totalWritten == kV6LogonFailure.size());
 

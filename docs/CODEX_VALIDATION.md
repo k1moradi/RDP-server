@@ -10821,3 +10821,31 @@ admission capability and no R4 cursor-consumer contract exist. Native
 ScreenCaptureKit construction, AppKit cursor sampling and Quartz input remain
 quarantined. Owner macOS 27 live desktop evidence and M5 remain
 **NOT RUN/BLOCKED**.
+
+
+## R10 CredSSP owner-framing scheduling-independent oracle (2026-10-16; CI pending)
+
+Starting reconciled shared `main`: `487e26c49b4709c031c6ef71342c5b3f202d5fb4`. Repeated hosted Linux runs
+exposed a test-only timing assumption in
+`runtime.linux-connection-credssp-owner-framing`: the fixture asserted zero
+reply bytes throughout its second request-drain loop. R2's production
+`advanceOwnedCredSspHandshake` contract instead permits the next bounded
+callback to advance an already-pending provider reply; the security invariant
+is that one callback performs at most one R1 application read **or** write,
+and no reply bytes are accepted before the entire DER request has been
+consumed.
+
+The test now records request and reply progress continuously, asserts read/write
+mutual exclusion per step, bounds both counters, requires every nonzero reply
+write to occur only after the exact complete request and genuine provider
+failure, and still requires the exact canonical 15-byte v6 failure reply,
+terminal aggregate revocation and zero admission lease. Production R1/R2/R3
+code is unchanged; provenance, GSS failure, reply contents, teardown and
+authority checks remain intact.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** because the checkout is unavailable in this connector environment.
+Exact-publication-SHA hosted Linux Debug/Release, R9 sanitizer,
+documentation-policy and cross-platform matrix are required before PASS is
+claimed. No listener, service, fabricated GSS success or native lease is added.
+M2/M3 remain **OPEN**.

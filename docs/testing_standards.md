@@ -171,23 +171,29 @@ coverage, not a claim that Nautilus/Dolphin or Wayland portals were exercised.
 
 ## R7 macOS session-watch sanitizer coverage is host-desktop free
 
-The R7 desktop-session/watch executable is deterministic on non-Apple hosts:
-it compiles the production C++ geometry, session revision and guard state
-directly and injects synthetic session/permission/registration callbacks.
-Sanitizer CI uses a dedicated Ubuntu/GCC ASan+UBSan job that explicitly builds
-`test_macos_desktop_session_guard` and selects only the anchored
-`^macos\.desktop-session-` CTest family. Keep this road-local rather than
-retuning the shared R9 Clang toolchain: hosted Clang 18 with libstdc++ does not
-expose the C++23 `std::expected` used by the R7 headers.
+The R7 desktop-session/watch and input-controller executables are deterministic
+on non-Apple hosts: they compile the production C++ geometry, session revision,
+guard and input lifetime state directly and inject synthetic
+session/permission/registration/native-command callbacks. Sanitizer CI uses a
+dedicated Ubuntu/GCC ASan+UBSan job that explicitly builds
+`test_macos_desktop_session_guard` and `test_macos_input_controller`, then
+runs the anchored `^macos\.desktop-session-` family plus
+`macos.input-controller-session-watch-revocation`. Keep this road-local
+rather than retuning the shared R9 Clang toolchain: hosted Clang 18 with
+libstdc++ does not expose the C++23 `std::expected` used by the R7 headers.
 
 The dedicated job covers registration, retirement, delayed-callback,
-partial-install, destructor, reentry and revocation lifetimes without AppKit,
-TCC, a live desktop, capture or input. Linux sanitizer PASS proves only the
-portable R7 ownership/state paths. The hosted Apple full build remains the
-compile/link evidence for the Objective-C++ NSWorkspace bridge, while owner
-macOS 27 remains the real fast-user-switch delivery gate. Do not treat either
-synthetic sanitizer coverage or Apple SDK compilation as authenticated R2/R3
-admission or live desktop acceptance.
+partial-install, destructor, reentry, guard revocation, stale held-input
+suppression and input-callback races without AppKit, TCC, a live desktop or
+native input posting. The Apple-only
+`macos.capture-stream-session-watch-frame-retirement` and
+`macos.capture-stream-session-watch-consumer-race` cases use synthetic
+CoreVideo buffers and injected backends, so do not claim them as Linux
+sanitizer execution. Hosted Apple full builds remain deterministic
+compile/link/CoreVideo evidence for those paths, while owner macOS 27 remains
+the real fast-user-switch delivery gate. Do not treat synthetic coverage or
+Apple SDK compilation as authenticated R2/R3 admission or live desktop
+acceptance.
 
 ## Linux clipboard file-destination tests use build-root files only
 

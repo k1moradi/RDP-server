@@ -199,6 +199,11 @@ public:
     ScreenCapturePreflightStatus preflight() noexcept override {
         ++preflightCalls;
         reenterOwner(ReentryStage::Preflight);
+        if (revokeSessionDuringPreflight) {
+            revokeSessionDuringPreflight = false;
+            assert(gSessionWatchFixture != nullptr);
+            gSessionWatchFixture->recordChange();
+        }
         return preflightStatus;
     }
 
@@ -209,6 +214,11 @@ public:
         lastBinding = receivedBinding;
         state = receivedState;
         reenterOwner(ReentryStage::Prepare);
+        if (revokeSessionDuringPrepare) {
+            revokeSessionDuringPrepare = false;
+            assert(gSessionWatchFixture != nullptr);
+            gSessionWatchFixture->recordChange();
+        }
         if (prepareRequestError) return std::unexpected(*prepareRequestError);
         return {};
     }
@@ -218,6 +228,11 @@ public:
         ++startCalls;
         state = receivedState;
         reenterOwner(ReentryStage::Start);
+        if (revokeSessionDuringStart) {
+            revokeSessionDuringStart = false;
+            assert(gSessionWatchFixture != nullptr);
+            gSessionWatchFixture->recordChange();
+        }
         if (startRequestError) return std::unexpected(*startRequestError);
         return {};
     }
@@ -246,6 +261,9 @@ public:
     std::shared_ptr<MacScreenCaptureState> state{};
     MacScreenCaptureBinding lastBinding{};
     bool claimNativeStopRequests{};
+    bool revokeSessionDuringPreflight{};
+    bool revokeSessionDuringPrepare{};
+    bool revokeSessionDuringStart{};
     MacScreenCaptureStream* owner{};
     ReentryStage reentryStage{ReentryStage::None};
     ReentryAction reentryAction{ReentryAction::Close};
@@ -782,6 +800,35 @@ void testSessionWatchFrameRetirement() {
         assert(fixture.backend->closeCalls == 1);
     }
 
+    // Change during synchronous preflight: once the callback returns, the
+    // stale lifetime retires before native preparation can be submitted.
+    {
+        auto fixture = makeStream();
+        fixture.backend->revokeSessionDuringPreflight = true;
+        const auto prepared = fixture.stream->prepare();
+        assert(!prepared &&
+               prepared.error() == MacScreenCaptureError::StaleSession);
+        assert(fixture.backend->preflightCalls == 1);
+        assert(fixture.backend->prepareCalls == 0);
+        assert(fixture.backend->closeCalls == 1);
+        assert(fixture.stream->state() ==
+               MacScreenCaptureLifecycleState::Failed);
+    }
+
+    // Change during an already-entered preparation submission: the submission
+    // cannot be retracted, but prepare() must retire before reporting success.
+    {
+        auto fixture = makeStream();
+        fixture.backend->revokeSessionDuringPrepare = true;
+        const auto prepared = fixture.stream->prepare();
+        assert(!prepared &&
+               prepared.error() == MacScreenCaptureError::StaleSession);
+        assert(fixture.backend->prepareCalls == 1);
+        assert(fixture.backend->closeCalls == 1);
+        assert(fixture.stream->state() ==
+               MacScreenCaptureLifecycleState::Failed);
+    }
+
     // Change after preparation but before start: prepared native resources are
     // retired and no start request is submitted.
     {
@@ -794,6 +841,22 @@ void testSessionWatchFrameRetirement() {
         assert(!started && started.error() == MacScreenCaptureError::StaleSession);
         assert(fixture.backend->startCalls == 0);
         assert(fixture.backend->closeCalls == 1);
+    }
+
+    // Change during an already-entered start submission: start() cannot
+    // report success, and close remains safe for any later native completion.
+    {
+        auto fixture = makeStream();
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        fixture.backend->revokeSessionDuringStart = true;
+        const auto started = fixture.stream->start();
+        assert(!started &&
+               started.error() == MacScreenCaptureError::StaleSession);
+        assert(fixture.backend->startCalls == 1);
+        assert(fixture.backend->closeCalls == 1);
+        assert(fixture.stream->state() ==
+               MacScreenCaptureLifecycleState::Failed);
     }
 
     // A successful asynchronous native start completing after session loss is

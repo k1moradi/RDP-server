@@ -414,17 +414,34 @@ std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::prepare() noe
         finishBackendOperation(ownerLock);
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
+    if (!NativeSessionChangeWatch::current(
+            state_->binding().sessionWatchRevision)) {
+        state_->fail(MacScreenCaptureError::StaleSession);
+        backendRetirementPending_ = true;
+        finishBackendOperation(ownerLock);
+        return std::unexpected(MacScreenCaptureError::StaleSession);
+    }
 
     ownerLock.unlock();
     auto submitted = backend_->prepare(state_->binding(), state_);
     ownerLock.lock();
     const bool revoked = backendRetirementPending_;
-    if (!submitted && !revoked) {
+    const bool staleSession =
+        !revoked &&
+        !NativeSessionChangeWatch::current(
+            state_->binding().sessionWatchRevision);
+    if (staleSession) {
+        state_->fail(MacScreenCaptureError::StaleSession);
+        backendRetirementPending_ = true;
+    } else if (!submitted && !revoked) {
         state_->prepareFailed(submitted.error());
     }
     finishBackendOperation(ownerLock);
     if (revoked) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
+    }
+    if (staleSession) {
+        return std::unexpected(MacScreenCaptureError::StaleSession);
     }
     return submitted;
 }
@@ -446,12 +463,22 @@ std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::start() noexc
     auto submitted = backend_->start(state_);
     ownerLock.lock();
     const bool revoked = backendRetirementPending_;
-    if (!submitted && !revoked) {
+    const bool staleSession =
+        !revoked &&
+        !NativeSessionChangeWatch::current(
+            state_->binding().sessionWatchRevision);
+    if (staleSession) {
+        state_->fail(MacScreenCaptureError::StaleSession);
+        backendRetirementPending_ = true;
+    } else if (!submitted && !revoked) {
         state_->fail(submitted.error());
     }
     finishBackendOperation(ownerLock);
     if (revoked) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
+    }
+    if (staleSession) {
+        return std::unexpected(MacScreenCaptureError::StaleSession);
     }
     return submitted;
 }

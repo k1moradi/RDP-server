@@ -5815,8 +5815,10 @@ display bounds, topology and TCC evidence later look identical.
 Input retirement deliberately distinguishes orderly shutdown from session
 loss: held keys/buttons may be best-effort released only while both display and
 GUI-session continuity are still current; after session loss they are discarded
-without synthetic key/button-up posting. Capture checks continuity before frame
-publication and after the synchronous R4 consumer returns. The latter fence
+without synthetic key/button-up posting. Capture rechecks continuity after
+each synchronous preflight/prepare/start backend return before allowing a
+subsequent native step or successful submission result, and checks it before
+frame publication and after the synchronous R4 consumer returns. The latter fence
 cannot undo bytes already observed inside an entered callback, but it prevents
 a successful publication disposition, rejects later callbacks and reuses the
 existing exact-once ScreenCaptureKit stop/deferred-close path. No new watcher,

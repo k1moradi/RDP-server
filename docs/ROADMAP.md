@@ -1,3 +1,37 @@
+## R7 synchronous capture session-fence completion (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `d5779a5cc96ee371b00bb470f98e4abfb8967df6`.
+
+The preceding R7 consumer-retirement increment correctly pinned the existing
+GUI-session watch in input and capture. Follow-up audit found one narrower
+ordering gap: if the watch revision changed from inside a synchronous capture
+preflight or backend submission callback, the owner could return from that
+callback and continue to the next native step (or return submission success)
+before the asynchronous state callback noticed the stale session.
+
+`MacScreenCaptureStream::prepare()` now rechecks the pinned watch immediately
+after preflight and after the already-entered prepare submission.
+`MacScreenCaptureStream::start()` rechecks after the already-entered start
+submission. A preflight-time event prevents native preparation entirely;
+events during prepare/start submission cannot retract work already entered, but
+the enclosing operation returns `StaleSession` and retires through the
+existing callback-safe backend close/deferred-stop path.
+
+The already dedicated Apple-only
+`macos.capture-stream-session-watch-frame-retirement` CTest now covers all
+three synchronous owner-boundary races in addition to before-prepare,
+between-prepare/start, late-start-completion and frame retirement. No new
+watcher, stream owner, scheduler, authorization object or test executable is
+introduced. The portable input session-watch regression and its dedicated GCC
+ASan/UBSan selection remain unchanged.
+
+Canonical owner-local `~/rdp-server/build/` remains **NOT RUN** because this
+connector environment has no synchronized owner checkout and no alternate
+persistent build root was created. Exact-SHA hosted Linux/GCC, Windows/MSVC,
+macOS/AppleClang Debug+Release, R7/R9 sanitizers, documentation policy and
+SDK/package evidence remain **PENDING** until publication. Owner macOS 27,
+live native capture/input/TCC and Microsoft-client M5 remain **NOT RUN / OPEN**.
+
 ## R5 XShm successful retirement and same-owner replacement (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `d60fd8c15ef9ff33a64a6ad004a985a285d3e24e`.

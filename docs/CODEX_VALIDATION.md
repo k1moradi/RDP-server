@@ -1,3 +1,25 @@
+## R7 synchronous capture session-fence authoring receipt (2026-10-16)
+
+**Parent:** `d5779a5cc96ee371b00bb470f98e4abfb8967df6`. Exact-SHA hosted validation: **PENDING**.
+
+Review of the newly session-bound ScreenCaptureKit owner found a callback
+ordering edge after synchronous preflight/prepare/start backend calls. The
+production owner now validates its pinned `NativeSessionChangeWatch` revision
+at each return boundary. Preflight revocation prevents the next native prepare;
+revocation during an already-entered prepare/start submission forces
+`StaleSession`, state failure and existing callback-safe backend retirement
+before the enclosing call can report success.
+
+The existing
+`macos.capture-stream-session-watch-frame-retirement` regression is extended
+with these three production-backed races. No live ScreenCaptureKit stream,
+Screen Recording prompt, real display read or Quartz input is used. The
+Apple-only capture case is not claimed as Linux sanitizer coverage.
+
+Canonical local build/full CTest and owner macOS 27 are **NOT RUN** in this
+connector environment. No positive R2/R3 macOS admission capability or
+Microsoft-client acceptance is claimed.
+
 ## R5 XShm destructor-retirement authoring validation (2026-10-16; CI pending)
 
 **Authoring base:** `d60fd8c15ef9ff33a64a6ad004a985a285d3e24e`.

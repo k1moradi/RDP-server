@@ -585,8 +585,11 @@ void selectionOwnerLoss()
 
 int main(int argc, char **argv)
 {
-    assert(argc == 2);
-    const std::string_view behavior{argv[1]};
+    // add_rdp_test registers the first behavior as the executable's default;
+    // the additional behavior-named CTests pass their case explicitly.
+    assert(argc == 1 || argc == 2);
+    const std::string_view behavior =
+        argc == 1 ? "x11-selection-ownership-generation" : argv[1];
     if (behavior == "x11-selection-ownership-generation")
     {
         selectionOwnershipGeneration();

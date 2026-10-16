@@ -217,9 +217,19 @@ Actions **38876114364** passed documentation policy and compiled the new
 `rdp-server-linux-x11-clipboard` production target, but the Linux protocol
 job stopped before CTest: GCC 13.3 `-Werror=extra` rejected the new R5
 borrowed `rootWindow()` fallback because `XCB_WINDOW_NONE` is enum-typed
-while `xcb_window_t` is integral. The correction uses an explicit
-`xcb_window_t{}` zero with no behavior change; correction exact-SHA CI is
-pending.
+while `xcb_window_t` is integral. Correction
+`24193f2548cfe847749f34dd62c32287819673e5`, Actions **38876427741**,
+uses an explicit `xcb_window_t{}` zero with no behavior change and builds
+the Linux native targets successfully. The real R8 CTests then reached
+execution: `clipboard.x11-targets-publication`,
+`clipboard.x11-selection-request-nonblocking`, and
+`clipboard.x11-selection-owner-loss` PASS. The ownership-generation CTest
+was incorrectly registered by the shared `add_rdp_test` default without its
+case argument and aborted before executing its assertions. The test driver
+correction treats that one helper registration as its documented default
+behavior; exact-SHA CI is pending. The same run also failed unrelated
+`transport.gcc-conference-create` on Linux and macOS due a concurrent GCC
+settings assertion.
 
 **NOT RUN:** canonical owner `~/rdp-server/build` CMake/CTest, owner
 Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27, live

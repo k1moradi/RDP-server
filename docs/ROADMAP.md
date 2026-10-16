@@ -4149,7 +4149,13 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   Actions **38876114364** passed docs policy and compiled the new clipboard
   target, but Linux stopped before CTest on a GCC 13.3 `-Werror=extra`
   enum/integral conditional in R5's new borrowed `rootWindow()` fallback.
-  The behavior-neutral typed-zero correction is pending exact-SHA CI.
+  Correction `24193f2548cfe847749f34dd62c32287819673e5`, Actions
+  **38876427741**, builds the Linux native targets; three new R8 CTests PASS.
+  The ownership-generation CTest aborted before its assertions because the
+  shared helper invokes its default registration without a case argument.
+  That test-driver-only correction is pending exact-SHA CI. The same run has
+  an unrelated concurrent `transport.gcc-conference-create` assertion
+  failure on Linux/macOS.
   Owner Linux/X11, Windows CLANG64/Clang23, macOS27, live clipboard,
   Microsoft client/Firefox and performance are NOT RUN. Genuine
   R3 CLIPRDR-role activation remains external. **INCR is NOT IMPLEMENTED and

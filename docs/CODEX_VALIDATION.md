@@ -12894,3 +12894,26 @@ Credentialed execution is **NOT RUN** in this connector environment. Canonical
 owner `~/rdp-server/build` is also **NOT RUN** because no checkout is mounted.
 M2/M3 remain **OPEN** and positive native admission remains **BLOCKED on R2**
 until a reviewed positive final-credential authorization contract exists.
+
+
+## R7 session-watch sanitizer authoring receipt (2026-10-16; CI pending)
+
+Authoring base is `bdf9c5a95f8567ad5e3d2f77eb8c64a7a234ef87`. The shared R9 Clang ASan/UBSan build now
+explicitly includes `test_macos_desktop_session_guard` and adds an anchored
+`^macos\.desktop-session-` execution step. At current registration this
+selects ten R7 cases: lifecycle, validation denials, revocation/reentry,
+switch-away/back revocation, mid-operation epoch change, registration
+retirement, retirement-callback race, partial-install retirement, destructor
+retirement and unavailable-watch denial.
+
+No test registration or production source is changed; this closes the prior
+receipt's direct-sanitizer **NOT RUN** gap using the already production-linked,
+permission-free executable. `docs/testing_standards.md` records that the
+Linux sanitizer path exercises portable C++ state only and is not evidence of
+real AppKit delivery or R2/R3 admission.
+
+Canonical owner-local `~/rdp-server/build/` is **NOT RUN** here. Hosted
+exact-publication-SHA Debug/Release, R7 ASan/UBSan, documentation-policy and
+SDK/package evidence are **PENDING**. Real macOS 27 fast-user-switch delivery,
+genuine macOS admission and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**.

@@ -1,3 +1,22 @@
+## R7 macOS session-watch sanitizer coverage is host-desktop free
+
+The R7 desktop-session/watch executable is deterministic on non-Apple hosts:
+it compiles the production C++ geometry, session revision and guard state
+directly and injects synthetic session/permission/registration callbacks. The
+shared Clang ASan/UBSan job must explicitly build
+`test_macos_desktop_session_guard` before selecting the anchored
+`^macos\.desktop-session-` CTest family. This keeps focused sanitizer
+selection aligned with the one built executable and covers registration,
+retirement, delayed-callback, partial-install, destructor, reentry and
+revocation lifetimes without AppKit, TCC, a live desktop, capture or input.
+
+Linux sanitizer PASS proves only the portable R7 ownership/state paths under
+ASan/UBSan. The hosted Apple full build remains the compile/link evidence for
+the Objective-C++ NSWorkspace bridge, while owner macOS 27 remains the real
+fast-user-switch delivery gate. Do not treat either synthetic sanitizer
+coverage or Apple SDK compilation as authenticated R2/R3 admission or live
+desktop acceptance.
+
 ## Linux clipboard file-destination tests use build-root files only
 
 Exercise the Linux file-descriptor destination through the real production

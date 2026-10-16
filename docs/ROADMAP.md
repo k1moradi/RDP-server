@@ -12350,3 +12350,33 @@ Credentialed execution is **NOT RUN** in this connector environment. Canonical
 owner `~/rdp-server/build` is also **NOT RUN** because no checkout is mounted.
 M2/M3 remain **OPEN** and positive native admission remains **BLOCKED on R2**
 until a reviewed positive final-credential authorization contract exists.
+
+
+## R7 session-watch ASan/UBSan selection (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `bdf9c5a95f8567ad5e3d2f77eb8c64a7a234ef87`.
+
+The latest R7 retirement-race receipt left one explicit evidence gap: the
+production-backed `test_macos_desktop_session_guard` executable was not part
+of the bounded Clang ASan/UBSan job. The sanitizer build now explicitly
+compiles that executable and runs the anchored
+`^macos\.desktop-session-` family, covering all ten centrally registered R7
+session/guard behaviors from one target.
+
+This changes CI/testing only. Production macOS source, AppKit observer wiring,
+capture/input/cursor quarantine and authorization boundaries are unchanged.
+The sanitizer job runs the portable C++ watcher/guard with injected callbacks
+on Linux and therefore performs no live desktop read, NSWorkspace observer
+registration, TCC query, capture, cursor sampling or Quartz input.
+
+Source/workflow/registry review is **PASS**. Canonical owner-local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment.
+Exact-publication-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC full suites,
+the new R7 sanitizer selection, documentation policy and SDK/package evidence
+are **PENDING** after publication.
+
+Owner macOS 27 fast-user-switch delivery, genuine non-forgeable macOS R2/R3
+admission, native capture/input/cursor publication and Microsoft-client M5
+acceptance remain **NOT RUN/OPEN**. The next authority-bearing R7 step remains
+blocked on the genuine macOS admission capability. **M5 remains
+OPEN/BLOCKED**.

@@ -11957,3 +11957,33 @@ authenticated R3 `Microsoft::Windows::RDS::Graphics` DVC/full-send
 integration, native capture performance and Microsoft-client visible graphics
 acceptance remain **BLOCKED/NOT RUN**. R4 must not fabricate a parallel channel
 or authorization owner; Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R7 session-watch destructor retirement exact-SHA hosted receipt (2026-10-16)
+
+Implementation `6a9bf3f67c09cdf1c10f4de252411579efe5eec8`, Actions
+`38910289341`, completed **SUCCESS**. The new production-backed
+`macos.desktop-session-watch-destructor-retirement` CTest passed in both
+Debug and Release on every hosted compiler: Linux/GCC full CTest is
+**424/424 PASS** in each configuration, macOS/AppleClang is **358/358 PASS**
+in each configuration, and Windows/MSVC is **382/382 PASS** in each
+configuration. Windows focused native preflight is also **39/39 PASS** in
+Debug and Release.
+
+The regression proves successful destructor-driven observer retirement,
+inert delayed scalar-epoch delivery after the C++ watch owner is gone,
+replacement registration after clean retirement, and fail-closed process
+reservation when removal is ambiguous during destruction. It installs no real
+AppKit observer and performs no live desktop, TCC, capture or input operation.
+The Apple job still compile/links the real AppKit session-watch implementation,
+which remains SDK evidence rather than proof of real fast-user-switch delivery.
+
+Documentation policy and the shared R9 sanitizer job both **PASS**. Installed
+SDK consumers are **1/1 PASS** on Linux, macOS and Windows and package steps
+complete; untagged prerelease publication is correctly **SKIPPED**.
+
+Canonical owner-local `~/rdp-server/build/`, owner macOS 27 live
+fast-user-switch notification delivery, genuine non-forgeable macOS R2/R3
+admission, live capture/input/cursor publication and Microsoft-client M5
+acceptance remain **NOT RUN/OPEN**. The R7 authority blocker is unchanged and
+**M5 remains OPEN/BLOCKED**.

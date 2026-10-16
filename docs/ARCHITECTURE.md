@@ -5895,3 +5895,65 @@ authorization. `CLIENT_LICENSE_INFO` still requires CAL trust/signature,
 product/version/expiration and HWID validation before
 `STATUS_VALID_CLIENT`. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R1 owned-TLS licensing write readiness exact validation (2026-10-16)
+
+**Implementation:** `3404d1d5b239682265f6c3ac059c7f4328d62b98`.  
+**Clean validating descendant:** `d60fd8c15ef9ff33a64a6ad004a985a285d3e24e`.  
+**Actions:** `38974469401` — **SUCCESS**.
+
+The implementation SHA itself could not start jobs because its reconciled parent
+`47cb1a6e496ff5c62a2a27612e9cdbd9666ca76e` had already published malformed
+R7 workflow YAML. Immediate R7 repairs restored workflow structure; the next
+attempt then exposed an unrelated R2 test-header compile error inherited from
+`a5651588b1b8b2697c63305515bc58807917c519`. R2 corrected that declaration
+visibility and added its documentation receipt before the clean descendant run
+above. Those failed runs are not treated as R1 validation evidence.
+
+The R1 source under test is unchanged between the implementation and clean
+validating descendant: subsequent changes touch CI/docs and other road-owned
+tests, not `tests/test_owned_preauth_session.cpp`.
+
+Hosted evidence on the clean descendant:
+- Linux/GCC: **499/499 PASS Debug** and **499/499 PASS Release**.
+  `transport.tcp-owned-r3-license-request-slice` and
+  `transport.tcp-owned-r3-platform-challenge-slice` pass as tests 150/151 in
+  both configurations.
+- macOS/AppleClang: **423/423 PASS Debug** and **423/423 PASS Release**; the
+  same two R1 cases pass as tests 150/151 in both configurations.
+- Windows/MSVC: native preflight **51/51 PASS** in Debug and Release; full
+  CTest **453/453 PASS Debug** and **453/453 PASS Release**, with the two R1
+  cases passing as tests 150/151.
+- R9 Clang ASan+UBSan bounded R1/R3 MCS, CredSSP and licensing selection:
+  **74/74 PASS**. The two hardened write cases are explicitly selected and
+  pass as selected tests 61/62 (central test IDs 150/151).
+- Other sanitizer groups also pass: clipboard **58/58**, portable R4
+  lifecycle **33/33**, R4 x264/BGRA **20/20**, R4 capability **4/4**,
+  native R2/R3 GSS **29/29**, direct R10 runtime security **10/10**, native
+  R5 X11 **30/30**, and bounded fuzzer **1/1**.
+- Documentation policy, the R7 macOS-session sanitizer job, staged SDK,
+  downstream consumer **1/1**, package generation, reproducible digest and
+  artifact upload all pass. Untagged prerelease publication is correctly
+  skipped.
+
+This validates the test-harness change: zero-byte TLS WANT in the existing R3
+license-request and platform-challenge writers now waits through R1's bounded
+monotonic socket poller and explicitly resubmits the stable caller-owned slice;
+no fixed scheduler sleep or fabricated both-directions readiness remains in
+those paths. No production R1 source or transport surface changed.
+
+Contemporaneous R3 `d2bb7f073ba796fa3eebc5352834ba0c5cf63d94` adds only the
+offline encrypted/MACed New/Upgrade License wrapper. Its maximum wrapped grant
+is **17,964 bytes**, below R1's existing 18 KiB application-write ceiling, and
+it adds no receipt owner, R2 authorization or network publication. Therefore
+it does not trigger another R1 transport increment yet.
+
+Canonical owner-local `~/rdp-server/build/`, owner native platform tests,
+real license-authority issuance and Microsoft-client acceptance remain
+**NOT RUN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R1:** when R3 adds receipt-bound live New/Upgrade License publication
+behind real authority/R2 authorization, verify the final production slice
+through the sole owned TLS writer. Otherwise wait for a live Share activation
+boundary that demonstrates a concrete bounded transport mismatch.

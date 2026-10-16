@@ -12315,3 +12315,38 @@ non-forgeable macOS R2/R3 admission, native capture/input/cursor publication
 and Microsoft-client M5 acceptance remain **NOT RUN/OPEN**. The next
 authority-bearing R7 step remains blocked on the genuine macOS admission
 capability and **M5 remains OPEN/BLOCKED**.
+
+
+
+## R10 real-Kerberos binding-is-not-native-admission aggregate gate (2026-10-16; execution pending)
+
+Starting reconciled shared `main`: `39f4b0de15f2b3ea3d60884ed53e95c0ba80df7a`. R2 remains deliberately
+deny-only for final CredSSP credentials, so this increment does not invent a
+positive native-admission path. Instead, the existing R10 real-Kerberos
+aggregate fixture now discovers the exact client principal from the explicitly
+provided GSS FILE: credential cache and uses that real principal in the
+immutable runtime identity policy.
+
+A third opt-in CTest,
+`runtime.linux-connection-real-kerberos-binding-not-native-admission`, drives
+the production `LinuxRuntimeConnection` through R1 HYBRID/TLS, real MIT
+SPNEGO and delivered CredSSP public-key binding, verifies the protected server
+proof, then calls R10 `issueAdmission()` with the exact cache principal and
+matching configured account/seat/display request. The required result is
+terminal denial: R2's private native-admission principal remains empty because
+final credential authorization has not completed.
+
+The R2 broker checks that private proof before constructing its logind change
+monitor or sampling NSS/logind, so this gate specifically demonstrates that
+`BindingVerified` cannot be promoted into native evidence. R10 must end with
+GSS failed, broker revoked, no lease, R3 closed and stale CredSSP callbacks
+closed. No listener/service, synthetic authenticated principal, native session
+sampling or R3 admission is added.
+
+The test body compiles with the ordinary Linux GSS test executable and is
+registered only under `RDP_SERVER_TEST_REAL_KERBEROS=ON` with the existing
+explicit external service principal/keytab/client-cache requirements.
+Credentialed execution is **NOT RUN** in this connector environment. Canonical
+owner `~/rdp-server/build` is also **NOT RUN** because no checkout is mounted.
+M2/M3 remain **OPEN** and positive native admission remains **BLOCKED on R2**
+until a reviewed positive final-credential authorization contract exists.

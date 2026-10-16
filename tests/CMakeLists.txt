@@ -416,6 +416,7 @@ if(TARGET rdp-server-linux-gssapi)
         # native admission or R3 session is created.
         foreach(runtime_real_kerberos_case IN ITEMS
                 linux-connection-real-kerberos-binding
+                linux-connection-real-kerberos-binding-not-native-admission
                 linux-connection-real-kerberos-authinfo-denial)
             add_test(NAME "runtime.${runtime_real_kerberos_case}"
                 COMMAND "${CMAKE_COMMAND}"

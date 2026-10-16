@@ -6481,6 +6481,26 @@ struct TestKerberosInitiator final
         if (target != GSS_C_NO_NAME)
             (void)gss_release_name(&minor, &target);
     }
+    [[nodiscard]] std::string principalName() const
+    {
+        gss_name_t name = GSS_C_NO_NAME;
+        gss_buffer_desc displayed = GSS_C_EMPTY_BUFFER;
+        OM_uint32 minor = 0;
+        assert(gss_inquire_cred(
+                   &minor, credential, &name, nullptr, nullptr, nullptr) ==
+               GSS_S_COMPLETE);
+        assert(name != GSS_C_NO_NAME);
+        assert(gss_display_name(
+                   &minor, name, &displayed, nullptr) == GSS_S_COMPLETE);
+        assert(displayed.value != nullptr && displayed.length > 0);
+
+        const std::string principal{
+            static_cast<const char *>(displayed.value), displayed.length};
+        (void)gss_release_buffer(&minor, &displayed);
+        (void)gss_release_name(&minor, &name);
+        return principal;
+    }
+
     [[nodiscard]] OM_uint32 next(
         std::span<const std::uint8_t> serverToken,
         std::vector<std::uint8_t> &clientToken)
@@ -7536,10 +7556,17 @@ void establishRuntimeAggregateHybridTls(
 // Opt-in real-provider proof for the complete non-listening R10 aggregate.
 // The externally supplied ticket/keytab are used only by MIT GSS. The test
 // stops at R2 BindingVerified and never creates native admission or R3 state.
+enum class RuntimeRealKerberosAggregateScenario : std::uint8_t
+{
+    BindingReceipt,
+    BindingNotNativeAdmission,
+    FinalAuthInfoDenied,
+};
+
 void runRuntimeRealKerberosAggregateScenario(
     const char *certificatePath,
     const char *privateKeyPath,
-    bool finalAuthInfoDenial)
+    RuntimeRealKerberosAggregateScenario scenario)
 {
     const char *serviceName = std::getenv("RDP_TEST_KRB5_SERVICE");
     const char *serviceKeytab = std::getenv("RDP_TEST_KRB5_KEYTAB");
@@ -7553,12 +7580,22 @@ void runRuntimeRealKerberosAggregateScenario(
            service.find('@') != service.npos);
     assert(keytab.starts_with("FILE:/") && cache.starts_with("FILE:/"));
 
+    // Discover the exact principal carried by the explicitly supplied client
+    // FILE: cache. This is test configuration only; production R2 still owns
+    // authenticated identity and R10 never derives it from caller text.
+    std::string clientPrincipal;
+    {
+        TestKerberosInitiator principalProbe{service, cache};
+        clientPrincipal = principalProbe.principalName();
+    }
+    assert(!clientPrincipal.empty());
+
     LinuxRuntimeSecurityConfiguration securityConfiguration;
-    const ConsoleIdentityRuleInput unusedNativeRule{
-        "runtime.probe@EXAMPLE.TEST", "rdptest", "seat0", ":0",
+    const ConsoleIdentityRuleInput nativeRule{
+        clientPrincipal, "rdptest", "seat0", ":0",
         1001U, kConsoleViewPermission};
     assert(securityConfiguration.configure(
-        service, keytab, unusedNativeRule));
+        service, keytab, nativeRule));
 
     RuntimeServerTlsContext tlsContext =
         RuntimeServerTlsContext::fromCredentialFiles(
@@ -7709,7 +7746,31 @@ void runRuntimeRealKerberosAggregateScenario(
         assert(connection.mcsPhase() ==
                McsSessionPhase::AwaitVerifiedR2Admission);
 
-        if (finalAuthInfoDenial)
+        if (scenario ==
+            RuntimeRealKerberosAggregateScenario::BindingNotNativeAdmission)
+        {
+            const ConsoleEvidenceRequest request{
+                clientPrincipal, "rdptest", "seat0", ":0",
+                kConsoleViewPermission};
+
+            // A real Kerberos identity plus a delivered TLS public-key proof
+            // is still not final credential authorization. R2 must reject
+            // before constructing its native logind monitor or sampling
+            // NSS/logind, and R10 must perform terminal ordered teardown.
+            assert(!connection.issueAdmission(request));
+            assert(!connection.ready());
+            assert(connection.gssStage() == SpnegoStage::Failed);
+            assert(connection.admissionState() ==
+                   LinuxConsoleAdmissionState::Revoked);
+            assert(connection.mcsPhase() == McsSessionPhase::Closed);
+            assert(!connection.hasAdmissionLease());
+            assert(connection.onCredSspIoReady().status ==
+                   LinuxCredSspStepStatus::Closed);
+            continue;
+        }
+
+        if (scenario ==
+            RuntimeRealKerberosAggregateScenario::FinalAuthInfoDenied)
         {
             std::array<std::uint8_t, 29> credentials{
                 0x30, 0x1b,
@@ -7799,7 +7860,17 @@ void testRuntimeRealKerberosOwnedBinding(
     const char *privateKeyPath)
 {
     runRuntimeRealKerberosAggregateScenario(
-        certificatePath, privateKeyPath, false);
+        certificatePath, privateKeyPath,
+        RuntimeRealKerberosAggregateScenario::BindingReceipt);
+}
+
+void testRuntimeRealKerberosBindingNotNativeAdmission(
+    const char *certificatePath,
+    const char *privateKeyPath)
+{
+    runRuntimeRealKerberosAggregateScenario(
+        certificatePath, privateKeyPath,
+        RuntimeRealKerberosAggregateScenario::BindingNotNativeAdmission);
 }
 
 void testRuntimeRealKerberosAuthInfoDenial(
@@ -7807,7 +7878,8 @@ void testRuntimeRealKerberosAuthInfoDenial(
     const char *privateKeyPath)
 {
     runRuntimeRealKerberosAggregateScenario(
-        certificatePath, privateKeyPath, true);
+        certificatePath, privateKeyPath,
+        RuntimeRealKerberosAggregateScenario::FinalAuthInfoDenied);
 }
 
 enum class RealKerberosOwnedCredSspScenario : std::uint8_t
@@ -9031,14 +9103,27 @@ int main(int argc, char **argv)
         }
 #ifdef RDP_TEST_REAL_KERBEROS
         if (fixtureCase == "linux-connection-real-kerberos-binding" ||
+            fixtureCase ==
+                "linux-connection-real-kerberos-binding-not-native-admission" ||
             fixtureCase == "linux-connection-real-kerberos-authinfo-denial")
         {
             if (argc != 4 || argv[2] == nullptr || argv[3] == nullptr)
                 return 2;
             if (fixtureCase == "linux-connection-real-kerberos-binding")
+            {
                 testRuntimeRealKerberosOwnedBinding(argv[2], argv[3]);
+            }
+            else if (
+                fixtureCase ==
+                "linux-connection-real-kerberos-binding-not-native-admission")
+            {
+                testRuntimeRealKerberosBindingNotNativeAdmission(
+                    argv[2], argv[3]);
+            }
             else
+            {
                 testRuntimeRealKerberosAuthInfoDenial(argv[2], argv[3]);
+            }
             return 0;
         }
 #endif

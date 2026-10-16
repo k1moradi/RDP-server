@@ -15,6 +15,10 @@
 #include <type_traits>
 
 using namespace rdp_server::server::security;
+using rdp_server::server::transport::McsSessionIntake;
+using rdp_server::server::transport::McsSessionLifecycle;
+using rdp_server::server::transport::McsSessionPhase;
+using rdp_server::server::transport::RdpLicensingPhase;
 
 namespace
 {
@@ -182,6 +186,8 @@ public:
 };
 
 using NativeAdmissionIssue = decltype(&LinuxConsoleAdmissionBroker::issue);
+using R3McsAdmission =
+    decltype(&LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial);
 
 static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
@@ -194,6 +200,23 @@ static_assert(!std::is_invocable_v<
               const SSL *,
               const ConsoleEvidenceRequest &,
               CountingConsoleEvidenceSource &>);
+static_assert(std::is_invocable_r_v<
+              McsSessionIntake,
+              R3McsAdmission,
+              LinuxConsoleAdmissionBroker &,
+              const LinuxConsoleAdmissionLease &,
+              GssapiSpnegoAcceptor &,
+              const SSL *,
+              McsSessionLifecycle &,
+              std::span<const std::uint8_t>>);
+static_assert(!std::is_invocable_v<
+              R3McsAdmission,
+              LinuxConsoleAdmissionBroker &,
+              bool,
+              GssapiSpnegoAcceptor &,
+              const SSL *,
+              McsSessionLifecycle &,
+              std::span<const std::uint8_t>>);
 
 void testNativeAdmissionCapabilityDenials()
 {
@@ -234,6 +257,34 @@ void testNativeAdmissionCapabilityDenials()
                        1002, kConsoleViewPermission}) ==
            ConsoleRuleError::None);
     assert(policy.generation() == generation + 1);
+}
+
+void testR3McsAdmissionContract()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
+
+    // No fake positive lease is constructed by this test. Exercise the
+    // production cancellation barrier that R1 must use on disconnect:
+    // R3 protocol state closes before R2/GSS is revoked.
+    broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    // Repeated readiness/disconnect callbacks cannot revive either owner.
+    broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
 }
 
 void testConsoleGssProvenanceBeforeOsRead()
@@ -325,6 +376,11 @@ int main(int argc, char **argv)
             testNativeAdmissionCapabilityDenials();
             return 0;
         }
+        if (name == "gssapi-r3-mcs-admission-contract")
+        {
+            testR3McsAdmissionContract();
+            return 0;
+        }
         return 2;
     };
     if (argc == 2)
@@ -339,5 +395,6 @@ int main(int argc, char **argv)
     testFramedGssHandoffFailClosed();
     testConsoleGssProvenanceBeforeOsRead();
     testNativeAdmissionCapabilityDenials();
+    testR3McsAdmissionContract();
     return 0;
 }

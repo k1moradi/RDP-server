@@ -6947,3 +6947,40 @@ environment, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
 CLANG64/Clang23, macOS27, a genuine RandR geometry-change notification,
 R2/R3 admitted desktop routing, R4 frame/cursor consumption, Microsoft-client
 M3 acceptance, or performance benchmarks.
+
+
+## R3 native admission handoff authoring validation (2026-10-16)
+
+**Starting main inspected:** `e540be81f297c7f880c6b03db6ffc1a3ad8998ad`; publication is rebased onto
+`ba59c94c7ab07c688d6b19ee8d440ddcd98acee8` without overwriting concurrent R10/R5 work. **Dependency review:**
+R2's native admission lease is now available on Linux. Microsoft MS-RDPBCGR
+connection sequencing places MCS Connect Initial/Response immediately after
+the external security handshake and before Erect/Attach/Join, so this
+increment changes R3 ownership/admission before adding further licensing
+output.
+
+**Changed production contract:** the concrete
+`LinuxConsoleAdmissionBroker` is the only friend able to enter positive MCS
+state. It revalidates `kConsoleViewPermission` and live native/GSS/TLS
+provenance, then calls R3 synchronously. A successful Connect Initial binds the
+lease admission generation and native session generation and stops at
+`AwaitConnectResponse`. Public MCS intake without that broker call remains
+terminal denial. Parse/order failure revokes both R3 and the R2/GSS capability;
+a valid peer Disconnect remains accepted teardown in either open phase.
+The new disconnect helper closes R3 before R2/GSS; R1 TLS/socket release
+remains the caller's following step.
+
+**Dedicated CTest:** `security.gssapi-r3-mcs-admission-contract`.
+Compile-time checks require the exact `LinuxConsoleAdmissionLease const&`
+method parameter and reject a Boolean substitute; runtime coverage verifies
+fresh R3 state plus repeatable R3-before-R2 cancellation without creating a
+fake positive capability. Existing portable
+`transport.mcs-session-unverified-*` tests continue to prove public
+Connect Initial/domain syntax cannot self-admit.
+
+**Local full build/CTest:** NOT RUN because this execution environment has no
+mounted checkout and cannot resolve github.com for cloning. Exact-SHA hosted CI
+must compile/test the synchronized repository after publication. Genuine
+positive Kerberos+logind issuance, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27 and Microsoft-client desktop remain NOT RUN.
+M2 remains **NOT ACCEPTED**.

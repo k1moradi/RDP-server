@@ -8,6 +8,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <cstdint>
 #include <span>
 
@@ -292,49 +293,78 @@ McsChannelConfirm encodeMcsChannelJoinConfirm(
     return result;
 }
 
+namespace
+{
+[[nodiscard]] std::optional<McsSessionIntake>
+validateMcsSessionConnectInitial(
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    // Independently enforce R1's fixed first-TLS-TPKT budget before BER/GCC.
+    if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+        return McsSessionIntake::OversizedEnvelope;
+    if (completeTpkt.size() < 8)
+        return McsSessionIntake::InvalidEnvelope;
+
+    // No borrowed packet/GCC view escapes this synchronous validation call.
+    const auto parsed = parseMcsConnectInitial(completeTpkt);
+    if (!parsed)
+        return McsSessionIntake::InvalidEnvelope;
+    if (!mergeMcsDomainParameters(parsed.value))
+        return McsSessionIntake::InvalidDomainParameters;
+    if (!parseGccConferenceCreate(parsed.value.gccUserData))
+        return McsSessionIntake::InvalidGccUserData;
+    return std::nullopt;
+}
+} // namespace
+
 McsSessionIntake McsSessionLifecycle::onConnectInitial(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     if (phase_ == McsSessionPhase::Closed)
         return McsSessionIntake::Closed;
-
-    // Independently enforce R1's fixed first-TLS-TPKT budget at this
-    // public R3 entry point, before BER or GCC reads. All failures
-    // irrevocably revoke the one session owner and channel membership.
-    if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    if (phase_ != McsSessionPhase::AwaitVerifiedR2Admission)
     {
         close();
-        return McsSessionIntake::OversizedEnvelope;
-    }
-    if (completeTpkt.size() < 8)
-    {
-        close();
-        return McsSessionIntake::InvalidEnvelope;
+        return McsSessionIntake::InvalidOrdering;
     }
 
-    // Classify the first rejected layer without retaining any borrowed
-    // packet/GCC view or logging peer-supplied data. These are diagnostics,
-    // NOT an R2 OS authorization decision or permission to reply.
-    const auto parsed = parseMcsConnectInitial(completeTpkt);
-    if (!parsed)
-    {
-        close();
-        return McsSessionIntake::InvalidEnvelope;
-    }
-    if (!mergeMcsDomainParameters(parsed.value))
-    {
-        close();
-        return McsSessionIntake::InvalidDomainParameters;
-    }
-    if (!parseGccConferenceCreate(parsed.value.gccUserData))
-    {
-        close();
-        return McsSessionIntake::InvalidGccUserData;
-    }
-    // Even an entirely valid Microsoft envelope cannot allocate a domain
-    // or produce an MCS response without actual R2 OS admission.
+    const auto failure = validateMcsSessionConnectInitial(completeTpkt);
     close();
-    return McsSessionIntake::ValidButNotAdmitted;
+    return failure.has_value()
+               ? *failure
+               : McsSessionIntake::ValidButNotAdmitted;
+}
+
+McsSessionIntake McsSessionLifecycle::onVerifiedR2ConnectInitial(
+    std::uint64_t admissionGeneration,
+    std::uint64_t sessionGeneration,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ == McsSessionPhase::Closed)
+        return McsSessionIntake::Closed;
+    if (phase_ != McsSessionPhase::AwaitVerifiedR2Admission)
+    {
+        close();
+        return McsSessionIntake::InvalidOrdering;
+    }
+    if (admissionGeneration == 0 || sessionGeneration == 0)
+    {
+        close();
+        return McsSessionIntake::AdmissionDenied;
+    }
+
+    if (const auto failure =
+            validateMcsSessionConnectInitial(completeTpkt);
+        failure.has_value())
+    {
+        close();
+        return *failure;
+    }
+
+    admissionGeneration_ = admissionGeneration;
+    sessionGeneration_ = sessionGeneration;
+    phase_ = McsSessionPhase::AwaitConnectResponse;
+    return McsSessionIntake::AdmittedConnectInitial;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
@@ -343,9 +373,10 @@ McsSessionIntake McsSessionLifecycle::onDomainPdu(
     if (phase_ == McsSessionPhase::Closed)
         return McsSessionIntake::Closed;
 
-    // Before R2 authorization this same R3 owner must not parse domain
-    // PDUs larger than the first decrypted MCS intake budget. A future
-    // authenticated session must instead use its negotiated domain cap.
+    const McsSessionPhase phaseAtIntake = phase_;
+    // Until Connect Response completes, keep the same conservative intake
+    // budget. A valid peer Disconnect remains legal teardown in either open
+    // phase; every other DomainMCSPDU is classified then rejected by order.
     if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
     {
         close();
@@ -372,7 +403,9 @@ McsSessionIntake McsSessionLifecycle::onDomainPdu(
     if (parsed.request.kind ==
         McsChannelRequestKind::DisconnectProviderUltimatum)
         return McsSessionIntake::PeerDisconnected;
-    return McsSessionIntake::ValidButNotAdmitted;
+    return phaseAtIntake == McsSessionPhase::AwaitVerifiedR2Admission
+               ? McsSessionIntake::ValidButNotAdmitted
+               : McsSessionIntake::InvalidOrdering;
 }
 
 std::optional<std::array<std::uint8_t, 9>>

@@ -458,6 +458,44 @@ bool LinuxConsoleAdmissionBroker::authorizes(
     return revalidate(lease, acceptor, activeServerTls);
 }
 
+rdp_server::server::transport::McsSessionIntake
+LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const SSL *activeServerTls,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using rdp_server::server::transport::McsSessionIntake;
+    if (!authorizes(
+            lease, acceptor, activeServerTls, kConsoleViewPermission))
+    {
+        session.close();
+        return McsSessionIntake::AdmissionDenied;
+    }
+
+    const auto result = session.onVerifiedR2ConnectInitial(
+        lease.admissionGeneration_, lease.sessionGeneration_, completeTpkt);
+    if (result != McsSessionIntake::AdmittedConnectInitial)
+    {
+        // A malformed/wrong-order MCS envelope terminates the same identity
+        // capability; never retain a valid lease for replay on a fresh R3
+        // owner after this connection-level protocol violation.
+        revokeR3Session(acceptor, session);
+    }
+    return result;
+}
+
+void LinuxConsoleAdmissionBroker::revokeR3Session(
+    GssapiSpnegoAcceptor &acceptor,
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    // Protocol/session state dies before authentication and before the caller
+    // releases R1 TLS/socket ownership.
+    session.close();
+    revoke(acceptor);
+}
+
 void LinuxConsoleAdmissionBroker::revoke(
     GssapiSpnegoAcceptor &acceptor) noexcept
 {

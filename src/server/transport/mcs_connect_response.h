@@ -13,8 +13,9 @@ namespace rdp_server::server::transport
 
 // A bounded OFFLINE MCS/GCC response encoder (MS-RDPBCGR 2.2.1.4).
 // It neither writes to SSL/socket nor authorizes a user, OS session,
-// MCS domain, channel allocation, or desktop. Bytes are not publishable
-// until a separate, independently trusted admission authority exists.
+// MCS domain, channel allocation, or desktop. Bytes are not publishable until
+// the sole R3 owner has a freshly revalidated R2 admission, has allocated the
+// response identifiers, and owns a stable outbound write receipt.
 inline constexpr std::size_t kMaximumMcsResponseBytes = 2048;
 
 struct McsConnectResponse

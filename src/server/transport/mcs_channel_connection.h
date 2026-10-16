@@ -10,6 +10,11 @@
 #include <optional>
 #include <span>
 
+namespace rdp_server::server::security
+{
+class LinuxConsoleAdmissionBroker;
+}
+
 namespace rdp_server::server::transport
 {
 
@@ -430,27 +435,31 @@ private:
     bool closed_{};
 };
 
-// R3 is the sole eventual MCS session owner. The current R2 runtime has
-// NO independently OS-authorized, TLS-bound admission capability, so this
-// boundary is intentionally denial-only. No caller-supplied Boolean, user ID,
-// parsed packet, or candidate identity can unlock MCS Connect Response,
-// Erect/Attach/Join, licensing, data routing or outbound TLS writes.
+// R3 is the sole MCS session owner. The public Connect-Initial entry remains
+// denial-only: syntax, a caller Boolean, a user ID or candidate identity cannot
+// unlock protected MCS state. Linux positive admission enters only through the
+// concrete R2 LinuxConsoleAdmissionBroker friend after its native lease has
+// been revalidated against the exact TLS/GSS identity, policy and logind state.
 //
-// This object can be composed in the existing R1 preauth transport owner.
-// A valid first MCS envelope is recognized for diagnostic compatibility,
-// then all session state is irrevocably revoked. A second envelope, an
-// unexpected domain PDU or a late callback cannot revive this instance.
-// When R2 provides genuine unforgeable admission, extend THIS one owner
-// with the ordered post-auth phases; do not add another MCS controller.
+// The first positive transition deliberately stops before any outbound bytes:
+// an admitted, validated Connect Initial advances to AwaitConnectResponse.
+// Every later protected transition must be re-authorized against the same R2
+// admission/session generations before state or writer progress changes.
+// A second envelope, wrong-order domain PDU, revocation or teardown closes the
+// same owner; reconnect constructs a fresh instance. No second MCS controller.
 enum class McsSessionPhase : std::uint8_t
 {
     AwaitVerifiedR2Admission,
+    AwaitConnectResponse,
     Closed,
 };
 
 enum class McsSessionIntake : std::uint8_t
 {
     ValidButNotAdmitted,
+    AdmittedConnectInitial,
+    AdmissionDenied,
+    InvalidOrdering,
     PeerDisconnected,
     InvalidEnvelope,
     OversizedEnvelope,
@@ -477,15 +486,15 @@ public:
         return licensing_.phase();
     }
 
-    // Exactly one *already decrypted* complete MCS Connect-Initial TPKT,
-    // supplied by R1's bounded TLS intake. Validate the production parser,
-    // domain merge and GCC but NEVER produce a Connect Response or admission.
+    // Denial-only diagnostic entry. Exactly one *already decrypted* complete
+    // MCS Connect-Initial TPKT from R1 is validated, but this public method can
+    // NEVER produce admission or advance toward a Connect Response.
     [[nodiscard]] McsSessionIntake onConnectInitial(
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
-    // Any Erect, Attach, Join or SendData PDU before verified R2 admission
-    // is a terminal protocol violation, regardless of valid wire syntax.
-    // A valid peer Disconnect is acknowledged only as local teardown.
+    // Any Erect, Attach, Join or SendData PDU before admission, or before the
+    // admitted Connect Response has been completely delivered, is terminal.
+    // A valid peer Disconnect is acknowledged only on the denial-only path.
     [[nodiscard]] McsSessionIntake onDomainPdu(
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
@@ -502,14 +511,28 @@ public:
 
     void close() noexcept
     {
+        admissionGeneration_ = 0;
+        sessionGeneration_ = 0;
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
     }
 
 private:
+    friend class rdp_server::server::security::LinuxConsoleAdmissionBroker;
+
+    // Private positive R2 -> R3 handoff. Only the concrete Linux broker can
+    // call this immediately after authorizes(kConsoleViewPermission) succeeds.
+    // The generation pair is bound into this R3 owner for all later checks.
+    [[nodiscard]] McsSessionIntake onVerifiedR2ConnectInitial(
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     RdpLicensingLifecycle licensing_{};
     McsChannelJoinWriteGate joins_{};
+    std::uint64_t admissionGeneration_{};
+    std::uint64_t sessionGeneration_{};
     McsSessionPhase phase_{McsSessionPhase::AwaitVerifiedR2Admission};
 };
 

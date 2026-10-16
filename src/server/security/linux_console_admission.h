@@ -5,12 +5,14 @@
 #include "gssapi_spnego_acceptor.h"
 #include "linux_logind_console_evidence.h"
 #include "linux_logind_session_change_watch.h"
+#include "transport/mcs_channel_connection.h"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string_view>
 
 namespace rdp_server::server::security
@@ -123,6 +125,26 @@ public:
         GssapiSpnegoAcceptor &acceptor,
         const SSL *activeServerTls,
         std::uint32_t requiredPermissions) noexcept;
+
+    // R3 Basic Settings handoff. This is the only positive entry into the
+    // current McsSessionLifecycle: revalidate concrete native admission with
+    // view permission immediately before letting R3 parse/retain state from
+    // Connect Initial. No caller-supplied bool/proof can invoke the private
+    // R3 transition. Any R3 parse/order failure revokes the whole lease.
+    [[nodiscard]] rdp_server::server::transport::McsSessionIntake
+    authorizeR3McsConnectInitial(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const SSL *activeServerTls,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
+    // buffers first, call this, and only then release R1 TLS/socket ownership.
+    // Idempotent and safe when no positive lease was ever issued.
+    void revokeR3Session(
+        GssapiSpnegoAcceptor &acceptor,
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
 
     // Connection/R3 teardown path: terminally invalidates the capability and
     // clears the GSS context. Idempotent.

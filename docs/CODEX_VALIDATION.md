@@ -5492,3 +5492,22 @@ identity/OS authorization and R3 admitted MCS/share/desktop.
 These are independent unaccepted gates, not inferred from CI.
 **Next R1:** R10 integrates the now bounded borrowed-listener
 readiness and sole connection owner into the process event loop.
+
+### R5 native XShm borrowed connection cancellation (2026-10-16)
+
+**Base main SHA:** `4ddf21920fbd10c0185f2d4f8d405c13600426a0`. Native implementation adds the
+idempotent `X11SharedMemoryCapture::disconnect()` contract: it releases
+the XShm segment and invalidates the borrowed XCB pointer while still
+connected; once cancelled, capture/destructor do not dereference the former
+owner. Dedicated Linux native CTest
+`x11.capture-native-disconnect-cancellation` is registered in the shared
+CTest registry only when `rdp-server-linux-xshm` is available; it tests
+failed-connection construction, explicit cancellation before parent
+teardown, repeated cancellation, failed post-disconnect capture and
+destructor after parent death. No DISPLAY or protected operation needed.
+**NOT RUN locally:** native XCB-SHM translation-unit compile (development
+headers unavailable), complete checkout/CMake/full CTest, Linux X11
+human-desktop, three owner-operated platform builds or benchmark.
+**Next:** verify exact implementation SHA on GitHub Actions Linux native
+Debug/Release and all platform CTests, then integrate R5 resources under
+the admitted display/session owner (R2/R3) and R4 graphics.

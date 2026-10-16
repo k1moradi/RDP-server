@@ -539,6 +539,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PROPERTIES LABELS "x11;linux-adapter")
 endif()
 
+# R5 XShm shared-memory and borrowed XCB owner teardown. The native test
+# intentionally starts with a failed fd and never touches a live desktop.
+if(TARGET rdp-server-linux-xshm)
+    add_rdp_test(test_x11_capture_disconnect.cpp x11
+        capture-native-disconnect-cancellation)
+    target_link_libraries(test_x11_capture_disconnect PRIVATE
+        rdp-server-linux-xshm)
+    set_tests_properties(x11.capture-native-disconnect-cancellation
+        PROPERTIES LABELS "x11;linux-adapter;native")
+endif()
+
 # R7 standard CTests are synthetic and permission-safe on every OS.
 # The Apple cases retain CoreVideo buffers only; no live ScreenCaptureKit
 # stream, real TCC query or keyboard/mouse event is exercised here.

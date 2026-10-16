@@ -212,7 +212,23 @@ X11SharedMemoryCapture::X11SharedMemoryCapture(
 
 X11SharedMemoryCapture::~X11SharedMemoryCapture() noexcept
 {
+    disconnect();
+}
+
+void
+X11SharedMemoryCapture::disconnect() noexcept
+{
+    // Cleanup may talk to XCB only before the parent destroys the borrowed
+    // connection. Once cancelled, neither repeated cancellation nor the
+    // destructor may access that pointer.
     close();
+    connection_ = nullptr;
+    drawable_ = XCB_NONE;
+    visual_ = XCB_NONE;
+    depth_ = 0;
+    bounds_ = {};
+    sharedMemoryBytes_ = 0;
+    failureReason_ = "XShm capture is disconnected";
 }
 
 bool
@@ -233,6 +249,13 @@ X11SharedMemoryCapture::failureReason() const noexcept
 FramebufferView
 X11SharedMemoryCapture::capture(Rectangle rectangle) noexcept
 {
+    // Preserve cancellation state without touching the former XCB owner or
+    // overwriting the diagnostic on later capture attempts.
+    if (connection_ == nullptr)
+    {
+        return {};
+    }
+
     const auto layout = validatedX11CaptureLayout(
         rectangle, bounds_, sharedMemoryBytes_);
     if (!valid() || !layout)

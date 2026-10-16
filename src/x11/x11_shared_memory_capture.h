@@ -30,6 +30,12 @@ public:
 
     [[nodiscard]] FramebufferView capture(Rectangle rectangle) noexcept;
 
+    // Cancel while the borrowed XCB owner is still alive. Detach the
+    // server-side XShm resource, release the local arena and clear the XCB
+    // pointer before the connection can be destroyed. Idempotent. Any
+    // previously borrowed FramebufferView must be released first.
+    void disconnect() noexcept;
+
 private:
     void fail(const char *reason) noexcept;
     void close() noexcept;

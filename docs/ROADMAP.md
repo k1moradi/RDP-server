@@ -2872,6 +2872,27 @@ actually run; another parser CTest alone is not a complete session.
   CTest, owner three-platform tests, live desktop, benchmarking.
   **Next R5:** controlled native XShm response/resource lifecycle
   and admitted R2/R3 backend frame access for R4. M3 not accepted.
+  **R5 native XShm borrowed-owner cancellation (2026-10-16;
+  base main `4ddf21920fbd10c0185f2d4f8d405c13600426a0`):**
+  Add explicit idempotent `X11SharedMemoryCapture::disconnect()`.
+  Detach the XShm server resource and release the local arena while the
+  caller still owns the XCB connection; clear its borrowed XCB pointer,
+  drawable, layout and size before the parent can be destroyed. Repeated
+  cancellation, destructor and capture attempts no longer access the
+  former connection or overwrite the disconnected diagnostic.
+  New native Linux headless CTest
+  `x11.capture-native-disconnect-cancellation` creates a deliberately
+  invalid-fd XCB connection, cancels capture, destroys the connection,
+  then checks repeated cancellation, failed post-disconnect capture and
+  destructor safety. Native CTest conditionally registers when xcb-shm
+  development headers are available. No live X server or session is used.
+  **NOT RUN at authoring:** local native XCB-SHM compile (headers absent),
+  complete local repository/CTest (no checkout), new exact-SHA hosted CI,
+  independent owner Linux/X11, Windows CLANG64/Clang23 and macOS27,
+  real authorized desktop, and performance benchmarks.
+  **Next R5:** combine parent display, cursor, damage and XShm teardown
+  under one R2/R3-authorized owner; coordinate resized capture bounds and
+  R4 frame consumption. M3 remains NOT ACCEPTED.
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

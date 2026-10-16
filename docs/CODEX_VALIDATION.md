@@ -6166,3 +6166,33 @@ and the no-password callback/key-match test is unchanged.
 **NOT RUN at authoring:** corrected exact-SHA CI and owner's
 Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27 one-root tests.
 No service/listener/R2/R3 desktop activation. M1–M6 remain OPEN.
+
+## R4 segmented-data exact-commit hosted CI (2026-10-16)
+
+**Source SHA:** `88e4c3faaff6559dea8139583890c2ef6b7694cb`.
+[GitHub Actions 38864509039](https://github.com/k1moradi/RDP-server/actions/runs/38864509039)
+has **overall FAILURE**, but the R4 segmented-data implementation and
+all three dedicated tests pass on every hosted platform that executed
+them:
+- Linux/GCC Debug and Release: **271/271 PASS** each.
+- macOS/AppleClang Debug and Release: **253/253 PASS** each.
+- Windows/MSVC Debug: **264/269 PASS**; all
+  `graphics.segmented-data-single`,
+  `graphics.segmented-data-multipart`, and
+  `graphics.segmented-data-denials-inplace` PASS.
+  Windows Release did NOT RUN because Debug CTest failed.
+
+The five Windows failures are R10 runtime TLS credential cases:
+`runtime.validates-tls-credentials-matching-pair` and four
+`runtime.rejects-tls-credentials-*` cases. They are independently
+reproduced on **parent** `6369d8622057aa3f315af55011b52c1d74325d5b`,
+[Actions 38864378401](https://github.com/k1moradi/RDP-server/actions/runs/38864378401),
+before R4 segmented-data changes. R10 Issue #15 has the corroborating
+receipt. Documentation policy and the R9 security sanitizer job PASS.
+Do not report the workflow as green.
+
+**NOT RUN:** owner's Linux/X11, Windows MSYS2 CLANG64/Clang23 and
+macOS27 same-SHA command, authenticated R2/R3 Graphics DVC and DVC
+fragmentation, real x264 H.264, Microsoft client or graphics benchmark.
+Gate B/M3–M5 remain OPEN. Next R4: combine mapped AVC420 picture output
+with RDP_SEGMENTED_DATA at the single R3 full-send boundary.

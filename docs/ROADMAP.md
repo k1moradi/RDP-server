@@ -3248,6 +3248,22 @@ actually run; another parser CTest alone is not a complete session.
   Windows CLANG64/Clang23, macOS27, live R3 DVC/client/x264/benchmarks.
   **Next R4:** compose mapped AVC420 output with this envelope at
   the R3 full-send boundary; then integrate reviewed static x264.
+  **R4 RDPGFX segmented-data exact-SHA CI (2026-10-16):**
+  source `88e4c3faaff6559dea8139583890c2ef6b7694cb`,
+  [Actions 38864509039](https://github.com/k1moradi/RDP-server/actions/runs/38864509039)
+  **FAIL overall** only because Windows/MSVC Debug has five
+  pre-existing R10 TLS credential tests failing. R4's three
+  `graphics.segmented-data-*` tests PASS on every hosted OS that
+  reached CTest. Linux/GCC **271/271 Debug + Release PASS**;
+  macOS/AppleClang **253/253 Debug + Release PASS**; Windows/MSVC
+  Debug **264/269 PASS**, segmentation tests PASS, Release NOT RUN.
+  Parent `6369d8622057aa3f315af55011b52c1d74325d5b`,
+  [Actions 38864378401](https://github.com/k1moradi/RDP-server/actions/runs/38864378401),
+  already failed the same five Windows runtime TLS cases, proving
+  they predate R4. R10 Issue #15 owns that blocker. Docs policy
+  and R9 security sanitizer jobs PASS. Owner Linux/X11, Windows
+  CLANG64/Clang23, macOS27, live R3 Graphics DVC, x264 and
+  Microsoft-client graphics remain NOT RUN. Gate B remains OPEN.
   **R4 AVC420 visible/coded picture crop (2026-10-15, source parent a604ab9ab1aa77caeb5fb74feb8fbeac0afde94a):**
   distinguish 16-aligned H.264 codedGeometry from actual mapped
   RDPGFX visibleGeometry and region mask, preserving zero/zero

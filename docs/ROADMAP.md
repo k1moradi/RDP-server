@@ -1,3 +1,40 @@
+## R2 owner-driven CredSSP/GSS exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `0f5fcd6f55e0a674671927609a78bd841d58405c`,
+Actions `38898173843`, completed **SUCCESS**. Documentation-policy,
+Ubuntu/GCC, macOS/Clang, Windows/MSVC and the R9 Clang ASan/UBSan job all
+completed successfully. All three hosted protocol jobs compiled and ran both
+Debug and Release CTests, then staged the installed SDK, ran the downstream
+consumer and generated/uploaded the ZIP/SHA-256 package. The conditional
+prerelease publication was correctly **SKIPPED** because this was not a
+protocol version tag.
+
+The sanitizer job compiled the production-linked Linux GSS target and its
+expanded native R2/R3 selection, including
+`security.gssapi-r1-owned-credssp-provenance-fence` and
+`security.gssapi-r1-owned-credssp-cancellation-fence`; that GSS step and the
+entire sanitizer job passed with no reported unsuppressed ASan/UBSan failure.
+Ubuntu/GCC full Debug and Release CTest both passed, directly executing the two
+new Linux-only cases through the ordinary central registry.
+
+This receipt also corrects one stale authoring sentence. R10 commit
+`6ff071954f6d46ade4a41ace3a7ce7b4524a3af4` had already changed the
+non-listening Linux aggregate to R1 `HybridNla` and owner-aware CredSSP frame
+intake before this R2 implementation published. R10 currently stops at a
+complete DER frame because the R2 provider/reply progression was not callable
+when that aggregate was written. The remaining composition dependency is
+therefore narrower: R10 must invoke
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake` with its exact R1 owner
+and persistent R2 reader/writer, then proceed to existing native admission only
+after `BindingVerified`. R2 does not modify that R10 owner here.
+
+**Still NOT RUN:** canonical owner `~/rdp-server/build/` commands in this
+connector environment, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS27, a configured service keytab plus real client Kerberos ticket through
+the new owner-driven exchange, positive NSS/logind admission, Microsoft-client
+authentication/desktop acceptance and a production listener/service. M2
+remains **NOT ACCEPTED**.
+
 ## R3 protected post-join Client Info routing boundary (2026-10-16; hosted CI pending)
 
 Previous R3 joined-role implementation `b31d910a7c5f17f16676469bee7e7c8ba1bd69fe`
@@ -148,13 +185,15 @@ R1 TLS before a queued write and requires terminal callbacks without stale SSL
 dereference. Compile-time coverage rejects a raw `SSL*` substitute. Both
 cases join the existing R9 sanitizer GSS selection.
 
-R1 now supplies the required positive transport provenance, but R10's current
-aggregate retains the source-compatible diagnostic policy and does not yet
-drive this R2 API. Ordinary CI also has no real client Kerberos ticket in this
-fixture, so this increment does **not** claim Kerberos login, NSS/logind
-admission or M2 acceptance. The next integration dependency is R10 choosing
-`HybridNla` for serving connections and invoking this exact R2 progression;
-genuine client-ticket/native-admission acceptance remains separate.
+R1 now supplies the required positive transport provenance. The existing R10
+non-listening aggregate already selects `HybridNla` and performs owner-aware
+CredSSP frame intake, but it predates this callable R2 provider/reply
+progression and still rejects a completed frame instead of advancing GSS.
+Ordinary CI also has no real client Kerberos ticket in this fixture, so this
+increment does **not** claim Kerberos login, NSS/logind admission or M2
+acceptance. The next integration dependency is R10 invoking this exact R2
+progression with its persistent reader/writer and existing R1 owner; genuine
+client-ticket/native-admission acceptance remains separate.
 
 **Authoring validation:** canonical `~/rdp-server/build/` configure/build/full
 CTest is **NOT RUN** in this connector environment because the owner checkout

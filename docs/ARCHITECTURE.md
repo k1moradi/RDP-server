@@ -61,9 +61,10 @@ it proves the provider-derived Kerberos principal and CredSSP public-key proof
 on the exact R1 TLS transcript, after full server-binding delivery. R2 native
 NSS/logind policy and its move-only lease remain independent, R3 remains the
 sole session owner, and R10 remains the future serving event-loop/listener
-owner. R1 can now produce genuine HYBRID provenance, but R10 must explicitly
-select that policy and compose this R2 progression before a serving path can
-reach it.
+owner. R10 already constructs its non-listening R1 connection with
+`HybridNla` and performs owner-aware frame intake; that earlier aggregate
+must now replace its complete-frame denial with this R2 progression and retain
+the matching reply writer before any serving path can reach native admission.
 
 ### R8 bounded locked-generation clipboard stream ownership (2026-10-16)
 

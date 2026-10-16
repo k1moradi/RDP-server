@@ -1,3 +1,36 @@
+## R6 capture-cycle attach bounds exact-SHA hosted validation (2026-10-16)
+
+R6 implementation `82655aee07a404bf553faf3273fce37daec51f09`,
+Actions `38901068473`, validates the bounded/transactional
+`WindowsDxgiDuplicationOwner::attachCaptureCycle` correction on hosted
+Windows/MSVC. The focused native-adapter preflight passed **38/38 Debug** and
+**38/38 Release**. The new
+`windows.capture-dxgi-duplication-owner-capture-cycle-layout-denials` case
+passed in **0.01 s** in both configurations, confirming oversized and
+non-canonical layouts fail before partial capture-cycle attachment.
+
+The authoritative full Windows suite then passed **362/362 Debug** and
+**362/362 Release**; the new R6 case again passed in **0.01 s** in both full
+runs. Windows install/downstream consumer validation passed. macOS/Clang,
+documentation-policy and the selected R9 sanitizer job also **PASS**.
+
+The exact workflow is overall **FAIL** only because Ubuntu/GCC Debug failed the
+unrelated R10 runtime test
+`runtime.linux-connection-credssp-owner-framing` at
+`tests/test_runtime_linux_security.cpp:648`
+(`step.plaintextBytesWritten == 0`). Ubuntu Release therefore did not run.
+No R6 test or Windows native-adapter build failed.
+
+Canonical owner-local CMake/CTest and owner Windows MSYS2 CLANG64/Clang23
+remain **NOT RUN** in this connector environment. Current source still exposes
+no genuine Windows R2/R3 native-admission capability, so runtime DXGI capture
+and SendInput remain **BLOCKED**. M4 remains OPEN.
+
+**Next R6 production gate:** owner Windows MSYS2 CLANG64/Clang23 evidence plus
+a concrete Windows R2/R3 authorization capability. Until both exist, continue
+only bounded R6 ownership/error-path maintenance and do not introduce a runtime
+desktop/input route.
+
 ## R2 owner-completed CredSSP binding admission fence (2026-10-16; exact-SHA CI pending)
 
 Starting inspected shared `main`: `19655e23fa992cdf7b57cd2c9f84b51971d38706`. `ServerBindingPrepared` is only a semantic GSS/CredSSP state; it does not prove the server binding reply completed through R1. R2 now sets a private completion latch only after `advanceOwnedCredSspHandshake` fully writes and releases that reply through its pinned `OwnedPreauthTcpConnection`. An idle prepared state without that receipt is rejected rather than synthesized into `BindingVerified`.

@@ -1,3 +1,31 @@
+## R6 capture-cycle attach bounds exact-SHA receipt (2026-10-16)
+
+**Commit:** `82655aee07a404bf553faf3273fce37daec51f09`.
+**Actions:** `38901068473`.
+
+Windows/MSVC focused R6 preflight: **38/38 PASS Debug**, **38/38 PASS Release**.
+`windows.capture-dxgi-duplication-owner-capture-cycle-layout-denials` passed
+in **0.01 s** in both. Full Windows CTest: **362/362 PASS Debug** and
+**362/362 PASS Release**; the same R6 denial case passed again in **0.01 s** in
+both full suites. Installed SDK/consumer validation passed.
+
+macOS/Clang **PASS**, selected R9 sanitizer **PASS**, documentation-policy
+**PASS**. Ubuntu/GCC Debug **FAIL** solely in unrelated R10
+`runtime.linux-connection-credssp-owner-framing`, where
+`test_runtime_linux_security.cpp:648` asserted
+`step.plaintextBytesWritten == 0`; Ubuntu Release was consequently
+**NOT RUN**. This is not an R6 regression.
+
+Validated R6 invariant: monitor count is bounded before fixed-array iteration;
+the supplied layout must reproduce the canonical desktop exactly and contain
+one selected output; native staging/capture subordinate ownership is committed
+only after successful construction. Rejected attachment leaves the duplication
+owner ready with `captureCycle() == nullptr`.
+
+Owner-local `~/rdp-server/build` and Windows MSYS2 CLANG64/Clang23 remain
+**NOT RUN** here. Live DXGI, SendInput, Microsoft-client M4 and genuine Windows
+R2/R3 authorization remain **NOT RUN/BLOCKED**.
+
 ## R2 owner-completed binding fence authoring (2026-10-16)
 
 Starting inspected main: `19655e23fa992cdf7b57cd2c9f84b51971d38706`. Production now requires an owner-driven server-binding reply completion receipt before R2 exposes a principal for native admission. Added `security.gssapi-r1-owned-binding-delivery-fence` to the existing preauth binary. Canonical local build/CTest, positive real-Kerberos completion, positive native lease, owner platforms and Microsoft client are **NOT RUN**; exact-SHA hosted CI is required after publication.

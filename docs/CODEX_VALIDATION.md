@@ -12274,3 +12274,28 @@ macOS 27, genuine positive Kerberos/logind/XTEST input and Microsoft-client M3
 acceptance remain **NOT RUN/OPEN**. The roadmap's next functional R5 step
 remains blocked on R3 exposing its authoritative real input-PDU translation
 boundary.
+
+
+## R7 partial session-watch install retirement authoring receipt (2026-10-16; CI pending)
+
+Authoring base is `6b45368b57ec0213212f3e3f42ff9a1ec5ee3d10`. The existing injected session-watch backend gains
+one test-only mode that retains the production scalar recorder/registration
+epoch before reporting installation failure. New centrally registered
+`macos.desktop-session-watch-partial-install-retirement` covers a
+registration-time event, failed initial cleanup, reservation blocking,
+successful later retirement, replacement registration, and inert delayed
+delivery from the old epoch.
+
+This directly exercises the production `RemovalFailed` path reached from a
+potentially partial `install()`; no production source or native macOS
+capability is exposed or modified. The same change corrects the architecture
+text that still called the already-implemented session watch a future step.
+Source and central CTest registry review are **PASS**.
+
+The canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** because this connector environment does not expose that checkout;
+no alternate persistent build root, branch or worktree is created. Hosted
+exact-publication-SHA Debug/Release, sanitizer, documentation-policy and
+SDK/package evidence is **PENDING**. Real AppKit fast-user-switch delivery,
+genuine R2/R3 macOS admission and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**.

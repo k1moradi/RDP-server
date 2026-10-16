@@ -11635,3 +11635,38 @@ macOS 27, genuine positive Kerberos/logind/XTEST input and Microsoft-client M3
 acceptance remain **NOT RUN/OPEN**. The roadmap's next functional R5 step
 remains blocked on R3 exposing its authoritative real input-PDU translation
 boundary.
+
+
+## R7 partial session-watch install retirement regression (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `6b45368b57ec0213212f3e3f42ff9a1ec5ee3d10`.
+
+The process-scoped session watch already treats a failed observer installation
+as potentially partial, but the synthetic backend previously returned failure
+before retaining any callback state. New offline CTest
+`macos.desktop-session-watch-partial-install-retirement` exercises the actual
+ambiguous branch: installation retains the scalar recorder/epoch, emits one
+registration-time event, reports failure, and its first cleanup removal also
+fails.
+
+The production watch must then expose no coverage while remaining internally
+registered, keep the sole process reservation held so a second watch receives
+`AlreadyRegistered`, and ignore delayed delivery from the partially installed
+epoch. After the backend allows removal, retrying `stop()` must retire the
+ambiguous registration, release the reservation, permit a replacement watch,
+and keep the old delayed callback inert against that replacement revision.
+
+Production source and native reachability are unchanged. The fixture change
+only models a native partial-install failure already assumed by
+`NativeSessionChangeWatch::startWithCallbacks()`. Ordinary CTest installs no
+AppKit observer, requests no TCC permission, and performs no live capture,
+cursor sampling or Quartz input. The architecture note is also corrected so it
+no longer describes the already-landed session watch as future work.
+
+Source/registry/documentation review is **PASS**. Canonical owner-local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment;
+exact-SHA hosted Linux/GCC, macOS/AppleClang, Windows/MSVC, sanitizer,
+documentation-policy and SDK/package evidence are **PENDING** after
+publication. Genuine non-forgeable macOS R2/R3 admission, owner macOS 27 live
+fast-user-switch delivery and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.

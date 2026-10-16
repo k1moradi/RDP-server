@@ -53,12 +53,13 @@ struct FakeSessionWatchBackend final {
     bool installSucceeds{true};
     bool removeSucceeds{true};
     bool eventDuringInstall{};
+    bool partialInstallOnFailure{};
 
     static bool install(void* context, const std::uint64_t epoch,
                         const NativeSessionChangeRecorder recorder) noexcept {
         auto& self = *static_cast<FakeSessionWatchBackend*>(context);
         ++self.installs;
-        if (!self.installSucceeds) {
+        if (!self.installSucceeds && !self.partialInstallOnFailure) {
             return false;
         }
         self.recorder = recorder;
@@ -68,7 +69,7 @@ struct FakeSessionWatchBackend final {
         if (self.eventDuringInstall) {
             recorder(epoch);
         }
-        return true;
+        return self.installSucceeds;
     }
 
     static bool remove(void* context) noexcept {
@@ -523,6 +524,58 @@ void testWatchRegistrationRetirement() {
     assert(blockedWatch.stop());
 }
 
+void testWatchPartialInstallRetirement() {
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend partialBackend;
+    partialBackend.installSucceeds = false;
+    partialBackend.partialInstallOnFailure = true;
+    partialBackend.eventDuringInstall = true;
+    partialBackend.removeSucceeds = false;
+
+    NativeSessionChangeWatch partialWatch;
+    const auto partial =
+        partialWatch.startWithCallbacks(partialBackend.callbacks());
+    assert(!partial);
+    assert(partial.error() ==
+           NativeSessionChangeWatchError::RemovalFailed);
+    assert(partialWatch.registered());
+    assert(partialBackend.installs == 1 &&
+           partialBackend.removals == 1);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    // A callback retained by a partially installed backend cannot restore
+    // coverage after startWithCallbacks() has retired the scalar epoch.
+    partialBackend.notifyDelayed();
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend blockedBackend;
+    NativeSessionChangeWatch replacementWatch;
+    const auto blocked =
+        replacementWatch.startWithCallbacks(blockedBackend.callbacks());
+    assert(!blocked);
+    assert(blocked.error() ==
+           NativeSessionChangeWatchError::AlreadyRegistered);
+    assert(blockedBackend.installs == 0);
+
+    // Once the ambiguous native registration can be retired successfully, the
+    // same watch releases the process reservation and a replacement may start.
+    partialBackend.removeSucceeds = true;
+    assert(partialWatch.stop());
+    assert(!partialWatch.registered());
+    assert(partialBackend.removals == 2);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    startSessionWatch(replacementWatch, blockedBackend);
+    const auto replacementRevision =
+        NativeSessionChangeWatch::coveredRevision();
+    assert(replacementRevision);
+    partialBackend.notifyDelayed();
+    const auto afterDelayed = NativeSessionChangeWatch::coveredRevision();
+    assert(afterDelayed && *afterDelayed == *replacementRevision);
+    assert(replacementWatch.stop());
+}
+
 void testWatchDestructorRetirement() {
     assert(!NativeSessionChangeWatch::coveredRevision());
 
@@ -624,6 +677,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testMidOperationEpochChange();
     } else if (testCase == "watch-registration-retirement") {
         testWatchRegistrationRetirement();
+    } else if (testCase == "watch-partial-install-retirement") {
+        testWatchPartialInstallRetirement();
     } else if (testCase == "watch-destructor-retirement") {
         testWatchDestructorRetirement();
     } else if (testCase == "watch-unavailable-denial") {

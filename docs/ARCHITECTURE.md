@@ -3536,7 +3536,7 @@ The controller consumes macOS-native virtual-key codes plus RDP scan identity, v
 
 Before each requested capture or input operation, the guard checks the pinned geometry/revision, reads the caller's Quartz GUI-session facts, checks the relevant no-prompt OS permission, reads the session a second time, and rechecks geometry. The two session samples must be identical and both must report the selected user as the WindowServer session user and the process effective UID, with console/login-complete state. Capture uses the existing Screen Recording preflight; input uses the existing Accessibility trust query. Any denial, malformed read, reentry, mid-check session change, permission loss, geometry refresh, or topology change permanently closes the guard.
 
-The native reader uses `CGSessionCopyCurrentDictionary` and documented Window Server session properties only; no username string is retained, no token is opened, no login session is switched, and no prompt is requested. The guard deliberately exposes no ScreenCaptureKit object and no Quartz event-posting callback. A future concrete macOS R2/R3 route must still provide the independently authorized target UID and invoke this guard immediately before the native child operation. Synchronous double-read cannot prove an unobserved user switch-away-and-back between separate calls; a native session-change revision/watch remains a later lifecycle hardening step.
+The native reader uses `CGSessionCopyCurrentDictionary` and documented Window Server session properties only; no username string is retained, no token is opened, no login session is switched, and no prompt is requested. The guard deliberately exposes no ScreenCaptureKit object and no Quartz event-posting callback. A future concrete macOS R2/R3 route must still provide the independently authorized target UID and invoke this guard immediately before the native child operation. Synchronous double-read alone cannot prove an unobserved user switch-away-and-back between separate calls; the process-scoped session-change revision below closes that offline lifecycle gap when native notification coverage is active, while owner macOS 27 still owns the real delivery gate.
 
 
 ## R7 monotonic macOS GUI-session revocation epoch (2026-10-16)
@@ -3556,8 +3556,10 @@ recorder performs one atomic revision transition and no allocation, identity
 lookup, TCC query, capture, input action or watch-object dereference. Observer
 retirement clears the active scalar epoch before removal. A callback already in
 flight may conservatively add a revision but cannot restore coverage; delayed
-callbacks carrying older epochs are ignored. Removal failure retains the
-process reservation so a second observer authority cannot appear.
+callbacks carrying older epochs are ignored. A failed install is treated as
+potentially partial: cleanup removal must succeed before the sole process
+reservation is released. Removal failure retains that reservation so a second
+observer authority cannot appear.
 
 Native coverage is accepted only from an already-running AppKit main-loop
 context. Successful observer creation alone is not treated as proof that a

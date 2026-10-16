@@ -282,6 +282,30 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# R5 native XInput2 pointer observer. Keep the optional XI2 dependency
+# noninstalled and outside the portable protocol SDK; the desktop aggregate
+# may still provide capture/cursor/damage/input when xcb-xinput is absent.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_XCB_XINPUT QUIET IMPORTED_TARGET
+            xcb xcb-xinput)
+    endif()
+    if(TARGET PkgConfig::RDP_SERVER_XCB_XINPUT)
+        add_library(rdp-server-linux-xinput-pointer STATIC
+            src/x11/x11_pointer_position_tracker.cpp)
+        target_compile_features(rdp-server-linux-xinput-pointer PUBLIC cxx_std_23)
+        target_include_directories(rdp-server-linux-xinput-pointer PUBLIC
+            "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+        target_link_libraries(rdp-server-linux-xinput-pointer PUBLIC
+            PkgConfig::RDP_SERVER_XCB_XINPUT)
+        target_compile_options(rdp-server-linux-xinput-pointer PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    else()
+        message(STATUS "R5 xcb-xinput development files unavailable: native pointer observation disabled")
+    endif()
+endif()
+
 # R5 native XTEST input adapter. Keep it noninstalled and separate from the
 # runtime until R2/R3 supply an authorized input-routing boundary.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -347,6 +371,12 @@ if(TARGET rdp-server-x11-connection AND
         rdp-server-linux-xfixes-cursor
         rdp-server-linux-xdamage
         rdp-server-linux-xtest-input)
+    if(TARGET rdp-server-linux-xinput-pointer)
+        target_link_libraries(rdp-server-linux-x11-desktop PUBLIC
+            rdp-server-linux-xinput-pointer)
+        target_compile_definitions(rdp-server-linux-x11-desktop PRIVATE
+            RDP_SERVER_X11_XINPUT_POINTER=1)
+    endif()
     target_compile_options(rdp-server-linux-x11-desktop PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()

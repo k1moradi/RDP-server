@@ -1110,6 +1110,39 @@ if(TARGET rdp-server-x11-connection)
     endif()
 endif()
 
+# Existing first-party XI2 pointer tracker: real XInput2 negotiation and
+# subscription use only ephemeral Xvfb; synthetic wire records exercise the
+# production parser/coalescer without XTEST or a logged-in desktop.
+if(TARGET rdp-server-linux-xinput-pointer)
+    add_executable(test_x11_pointer_position_tracker
+        test_x11_pointer_position_tracker.cpp)
+    target_link_libraries(test_x11_pointer_position_tracker PRIVATE
+        rdp-server-linux-xinput-pointer)
+    target_compile_options(test_x11_pointer_position_tracker PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+
+    find_program(RDP_SERVER_XVFB_RUN_EXECUTABLE NAMES xvfb-run)
+    if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
+        foreach(case_name IN ITEMS
+                motion-coalescing remote-echo-suppression
+                disconnect-cancellation malformed-event-bounds)
+            add_test(NAME "x11.pointer-xi2-${case_name}"
+                COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                    "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                    $<TARGET_FILE:test_x11_pointer_position_tracker>
+                    "${case_name}")
+            set_tests_properties("x11.pointer-xi2-${case_name}"
+                PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
+                           TIMEOUT 20)
+        endforeach()
+    else()
+        add_test(NAME x11.pointer-xi2-disconnect-cancellation
+            COMMAND test_x11_pointer_position_tracker disconnect-cancellation)
+        set_tests_properties(x11.pointer-xi2-disconnect-cancellation
+            PROPERTIES LABELS "x11;linux-adapter;native")
+    endif()
+endif()
+
 # First-party native XFixes cursor source: exercise failure and borrowed
 # connection cancellation without an X server or desktop access.
 if(TARGET rdp-server-linux-xfixes-cursor)
@@ -1157,6 +1190,10 @@ if(TARGET rdp-server-linux-x11-desktop)
         rdp-server-linux-x11-desktop)
     target_compile_options(test_x11_desktop_resources PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
+    if(TARGET rdp-server-linux-xinput-pointer)
+        target_compile_definitions(test_x11_desktop_resources PRIVATE
+            RDP_TEST_XINPUT_POINTER=1)
+    endif()
     set_tests_properties(
         x11.desktop-resource-owner-connection-denial
         PROPERTIES LABELS "x11;linux-adapter;native")
@@ -1181,13 +1218,38 @@ if(TARGET rdp-server-linux-x11-desktop)
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources> r4-read-boundary)
+        add_test(NAME x11.desktop-resource-pointer-capability-denials
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                pointer-capability-denials)
         set_tests_properties(
             x11.desktop-resource-owner-lifecycle
             x11.desktop-resource-event-routing
             x11.desktop-resource-randr-rebuild
             x11.desktop-resource-r4-read-boundary
+            x11.desktop-resource-pointer-capability-denials
             PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
                        TIMEOUT 20)
+
+        if(TARGET rdp-server-linux-xinput-pointer)
+            add_test(NAME x11.desktop-resource-pointer-event-routing
+                COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                    "-screen 0 1280x720x24 -nolisten tcp"
+                    $<TARGET_FILE:test_x11_desktop_resources>
+                    pointer-event-routing)
+            add_test(NAME x11.desktop-resource-pointer-randr-rebuild
+                COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                    "-screen 0 1280x720x24 -nolisten tcp"
+                    $<TARGET_FILE:test_x11_desktop_resources>
+                    pointer-randr-rebuild)
+            set_tests_properties(
+                x11.desktop-resource-pointer-event-routing
+                x11.desktop-resource-pointer-randr-rebuild
+                PROPERTIES
+                    LABELS "x11;linux-adapter;native;synthetic-display"
+                    TIMEOUT 20)
+        endif()
     else()
         message(STATUS "R5 xvfb-run unavailable: synthetic X11 owner lifecycle/event/resize CTests not built")
     endif()

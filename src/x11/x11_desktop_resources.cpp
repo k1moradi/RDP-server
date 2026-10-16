@@ -2,17 +2,25 @@
 
 #include "x11_desktop_resources.h"
 
+#include <variant>
+
 namespace
 {
 
 class X11DesktopResourceEventSink final : public X11EventSink
 {
 public:
-    X11DesktopResourceEventSink(X11CursorTracker &cursor,
-                                X11DamageTracker &damage,
-                                X11EventSink *additionalEventSink) noexcept
+    X11DesktopResourceEventSink(
+        X11CursorTracker &cursor, X11DamageTracker &damage,
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+        X11PointerPositionTracker *pointerPosition,
+#endif
+        X11EventSink *additionalEventSink) noexcept
         : cursor_(cursor),
           damage_(damage),
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+          pointerPosition_(pointerPosition),
+#endif
           additionalEventSink_(additionalEventSink)
     {
     }
@@ -21,6 +29,12 @@ public:
     {
         cursor_.handle(event);
         damage_.handle(event);
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+        if (pointerPosition_ != nullptr)
+        {
+            pointerPosition_->handle(event);
+        }
+#endif
         if (additionalEventSink_ != nullptr)
         {
             additionalEventSink_->handle(event);
@@ -30,6 +44,9 @@ public:
 private:
     X11CursorTracker &cursor_;
     X11DamageTracker &damage_;
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    X11PointerPositionTracker *pointerPosition_{};
+#endif
     X11EventSink *additionalEventSink_{};
 };
 
@@ -86,6 +103,12 @@ X11DesktopResources::X11DesktopResources(
     if (!input_->valid())
     {
         fail(input_->failureReason());
+        cancelNativeResources();
+        return;
+    }
+
+    if (!initializePointerPositionTracker(*connection, geometry))
+    {
         cancelNativeResources();
         return;
     }
@@ -272,6 +295,69 @@ X11DesktopResources::acknowledgeCursor() noexcept
 }
 
 bool
+X11DesktopResources::pointerPositionAvailable() const noexcept
+{
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    return valid() && pointerPosition_.has_value() &&
+           pointerPosition_->valid();
+#else
+    return false;
+#endif
+}
+
+const char *
+X11DesktopResources::pointerPositionFailureReason() const noexcept
+{
+    if (failureReason_ != nullptr)
+    {
+        return failureReason_;
+    }
+    return pointerPositionAvailable() ? nullptr
+                                      : pointerPositionFailureReason_;
+}
+
+bool
+X11DesktopResources::pendingPointerPosition(
+    X11PointerPosition &position) const noexcept
+{
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    return pointerPositionAvailable() &&
+           pointerPosition_->pendingPosition(position);
+#else
+    (void)position;
+    return false;
+#endif
+}
+
+bool
+X11DesktopResources::shouldForwardPointerPosition(
+    X11PointerPosition position) const noexcept
+{
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    return pointerPositionAvailable() &&
+           pointerPosition_->shouldForward(position);
+#else
+    (void)position;
+    return false;
+#endif
+}
+
+void
+X11DesktopResources::acknowledgePointerPosition(
+    X11PointerPosition position, bool forwarded) noexcept
+{
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    if (pointerPositionAvailable())
+    {
+        pointerPosition_->acknowledge(position, forwarded);
+    }
+#else
+    (void)position;
+    (void)forwarded;
+#endif
+}
+
+bool
 X11DesktopResources::handleAuthorizedInput(
     const X11InputEvent &event) noexcept
 {
@@ -279,6 +365,31 @@ X11DesktopResources::handleAuthorizedInput(
     {
         return false;
     }
+
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    if (const auto *pointerMove = std::get_if<X11PointerMoveInput>(&event);
+        pointerMove != nullptr && pointerPositionAvailable())
+    {
+        const X11PointerPosition position{pointerMove->x, pointerMove->y};
+        if (!pointerPosition_->shouldAcceptRemoteMotion(position))
+        {
+            // A locally forwarded native move can be echoed back by the RDP
+            // peer. Suppress only that motion; a distinct remote coordinate
+            // transfers authority back immediately.
+            return true;
+        }
+        if (!input_->handle(event))
+        {
+            const char *reason = input_->failureReason();
+            fail(reason);
+            cancelNativeResources();
+            return false;
+        }
+        pointerPosition_->noteRemotePointerPosition(position);
+        return true;
+    }
+#endif
+
     if (!input_->handle(event))
     {
         const char *reason = input_->failureReason();
@@ -311,7 +422,11 @@ X11DesktopResources::processEvents(std::size_t eventBudget,
     }
 
     X11DesktopResourceEventSink eventSink(
-        *cursor_, *damage_, additionalEventSink);
+        *cursor_, *damage_,
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+        pointerPosition_.has_value() ? &*pointerPosition_ : nullptr,
+#endif
+        additionalEventSink);
     const ConnectionStatus status = display_.processEvents(
         eventSink, eventBudget, workMayRemain, socketReadable);
     if (status == ConnectionStatus::Failed)
@@ -386,6 +501,13 @@ X11DesktopResources::cancelGeometryBoundResources() noexcept
         input_->disconnect();
         input_.reset();
     }
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    if (pointerPosition_)
+    {
+        pointerPosition_->disconnect();
+    }
+#endif
+    pointerPosition_.reset();
     if (damage_)
     {
         damage_->disconnect();
@@ -441,8 +563,52 @@ X11DesktopResources::rebuildGeometryBoundResources(
         return false;
     }
 
+    if (!initializePointerPositionTracker(*connection, geometry))
+    {
+        cancelNativeResources();
+        return false;
+    }
+
     resourceGeometry_ = geometry;
     return true;
+}
+
+bool
+X11DesktopResources::initializePointerPositionTracker(
+    xcb_connection_t &connection, PixelSize geometry) noexcept
+{
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    pointerPosition_.emplace(connection, display_.rootWindow(), geometry);
+    if (pointerPosition_->valid())
+    {
+        pointerPositionFailureReason_ = nullptr;
+        return true;
+    }
+
+    pointerPositionFailureReason_ = pointerPosition_->failureReason();
+    const bool sharedConnectionFailed =
+        xcb_connection_has_error(&connection) != 0;
+    pointerPosition_->disconnect();
+    pointerPosition_.reset();
+
+    // Missing XI2/version/subscription is feature-local. A failed shared XCB
+    // transport is not: the sole owner must revoke the complete aggregate.
+    if (sharedConnectionFailed)
+    {
+        fail(pointerPositionFailureReason_ != nullptr
+                 ? pointerPositionFailureReason_
+                 : "XInput2 pointer observer lost the X11 connection");
+        return false;
+    }
+    return true;
+#else
+    (void)connection;
+    (void)geometry;
+    pointerPosition_.reset();
+    pointerPositionFailureReason_ =
+        "XInput2 pointer observation is unavailable in this build";
+    return true;
+#endif
 }
 
 void

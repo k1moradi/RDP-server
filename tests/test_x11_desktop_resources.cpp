@@ -144,6 +144,73 @@ clearSyntheticRoot(xcb_connection_t &connection, xcb_window_t root) noexcept
 }
 
 void
+warpSyntheticPointer(xcb_connection_t &connection, xcb_window_t root,
+                     X11PointerPosition position) noexcept
+{
+    const xcb_void_cookie_t warpCookie = xcb_warp_pointer_checked(
+        &connection, XCB_NONE, root, 0, 0, 0, 0,
+        static_cast<std::int16_t>(position.x),
+        static_cast<std::int16_t>(position.y));
+    xcb_generic_error_t *warpError =
+        xcb_request_check(&connection, warpCookie);
+    assert(warpError == nullptr);
+    std::free(warpError);
+    assert(xcb_flush(&connection) > 0);
+}
+
+class PointerRoutingObservationSink final : public X11EventSink
+{
+public:
+    PointerRoutingObservationSink(X11DesktopResources &resources,
+                                  X11PointerPosition expected) noexcept
+        : resources_(resources), expected_(expected)
+    {
+    }
+
+    void handle(const xcb_generic_event_t &) noexcept override
+    {
+        X11PointerPosition observed{};
+        if (resources_.pendingPointerPosition(observed) &&
+            observed == expected_)
+        {
+            observedAfterPointerRoute_ = true;
+        }
+    }
+
+    [[nodiscard]] bool observedAfterPointerRoute() const noexcept
+    {
+        return observedAfterPointerRoute_;
+    }
+
+private:
+    X11DesktopResources &resources_;
+    X11PointerPosition expected_{};
+    bool observedAfterPointerRoute_{false};
+};
+
+bool
+waitForPointerPosition(X11DesktopResources &resources,
+                       X11PointerPosition expected,
+                       X11EventSink *additionalEventSink = nullptr) noexcept
+{
+    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(
+                   16, &workMayRemain, true, additionalEventSink) ==
+               ConnectionStatus::Ok);
+        X11PointerPosition observed{};
+        if (resources.pendingPointerPosition(observed) &&
+            observed == expected)
+        {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return false;
+}
+
+void
 connectionDenial()
 {
     X11DesktopResources resources("not-a-valid-x11-display", 4096);
@@ -154,6 +221,12 @@ connectionDenial()
     assert(!resources.randrAvailable());
     assert(!resources.damagePending());
     assert(resources.damageNotificationCount() == 0);
+    assert(!resources.pointerPositionAvailable());
+    assert(resources.pointerPositionFailureReason() != nullptr);
+    X11PointerPosition position{};
+    assert(!resources.pendingPointerPosition(position));
+    assert(!resources.shouldForwardPointerPosition(position));
+    resources.acknowledgePointerPosition(position, true);
 
     bool workMayRemain = true;
     assert(resources.processEvents(8, &workMayRemain, true) ==
@@ -317,6 +390,152 @@ syntheticXvfbR4ReadBoundary()
 }
 
 void
+syntheticXvfbPointerCapabilityDenials()
+{
+    X11DesktopResources rejected("not-a-valid-x11-display", 4096);
+    assert(!rejected.pointerPositionAvailable());
+    assert(rejected.pointerPositionFailureReason() != nullptr);
+    X11PointerPosition rejectedPosition{10, 20};
+    assert(!rejected.pendingPointerPosition(rejectedPosition));
+    assert(!rejected.shouldForwardPointerPosition(rejectedPosition));
+    rejected.acknowledgePointerPosition(rejectedPosition, true);
+
+    X11DesktopResources resources(syntheticDisplay(), kCaptureArenaPixels);
+    requireValidResources(resources, "pointer capability");
+#if defined(RDP_TEST_XINPUT_POINTER)
+    assert(resources.pointerPositionAvailable());
+    assert(resources.pointerPositionFailureReason() == nullptr);
+
+    X11PointerPosition first{};
+    if (resources.pendingPointerPosition(first))
+    {
+        X11PointerPosition repeated{};
+        assert(resources.pendingPointerPosition(repeated));
+        assert(repeated == first);
+        resources.acknowledgePointerPosition(first, false);
+        assert(!resources.pendingPointerPosition(repeated));
+    }
+#else
+    assert(!resources.pointerPositionAvailable());
+    assert(resources.pointerPositionFailureReason() != nullptr);
+#endif
+
+    resources.disconnect();
+    assert(!resources.pointerPositionAvailable());
+    assert(resources.pointerPositionFailureReason() != nullptr);
+    X11PointerPosition stale{5, 5};
+    assert(!resources.pendingPointerPosition(stale));
+    assert(!resources.shouldForwardPointerPosition(stale));
+    resources.acknowledgePointerPosition(stale, true);
+}
+
+#if defined(RDP_TEST_XINPUT_POINTER)
+void
+syntheticXvfbPointerEventRouting()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "pointer event routing");
+    assert(resources.pointerPositionAvailable());
+
+    X11PointerPosition initial{};
+    if (resources.pendingPointerPosition(initial))
+    {
+        resources.acknowledgePointerPosition(initial, false);
+    }
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+
+    constexpr X11PointerPosition target{321, 222};
+    PointerRoutingObservationSink observation(resources, target);
+    warpSyntheticPointer(*helper, helperScreen->root, target);
+
+    assert(waitForPointerPosition(resources, target, &observation));
+    assert(observation.observedAfterPointerRoute());
+    assert(resources.shouldForwardPointerPosition(target));
+
+    X11PointerPosition repeated{};
+    assert(resources.pendingPointerPosition(repeated));
+    assert(repeated == target);
+    resources.acknowledgePointerPosition(target, false);
+    assert(!resources.pendingPointerPosition(repeated));
+    resources.disconnect();
+}
+
+void
+syntheticXvfbPointerRandrRebuild()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "pointer RandR rebuild");
+    assert(resources.pointerPositionAvailable());
+    assert(resources.randrAvailable());
+    const int originalDescriptor = resources.fileDescriptor();
+
+    X11PointerPosition initial{};
+    if (resources.pendingPointerPosition(initial))
+    {
+        resources.acknowledgePointerPosition(initial, false);
+    }
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+
+    constexpr X11PointerPosition forwardedLocal{400, 300};
+    warpSyntheticPointer(*helper, helperScreen->root, forwardedLocal);
+    assert(waitForPointerPosition(resources, forwardedLocal));
+    assert(resources.shouldForwardPointerPosition(forwardedLocal));
+    resources.acknowledgePointerPosition(forwardedLocal, true);
+
+    constexpr X11PointerPosition staleGeneration{1200, 700};
+    warpSyntheticPointer(*helper, helperScreen->root, staleGeneration);
+    assert(waitForPointerPosition(resources, staleGeneration));
+
+    constexpr PixelSize resizedGeometry{1024, 600};
+    disableRandrCrtcsAndResize(
+        *helper, helperScreen->root, resizedGeometry);
+
+    bool rebuilt = false;
+    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(16, &workMayRemain, true) ==
+               ConnectionStatus::Ok);
+        if (resources.sourceGeometry() == resizedGeometry)
+        {
+            rebuilt = true;
+            assert(workMayRemain);
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(rebuilt);
+    assert(resources.valid());
+    assert(resources.pointerPositionAvailable());
+    assert(resources.fileDescriptor() == originalDescriptor);
+
+    X11PointerPosition current{};
+    if (resources.pendingPointerPosition(current))
+    {
+        assert(current != staleGeneration);
+        assert(current.x >= 0);
+        assert(current.y >= 0);
+        assert(static_cast<std::uint32_t>(current.x) <
+               resizedGeometry.widthPixels);
+        assert(static_cast<std::uint32_t>(current.y) <
+               resizedGeometry.heightPixels);
+        assert(resources.shouldForwardPointerPosition(current));
+        resources.acknowledgePointerPosition(current, false);
+    }
+    resources.disconnect();
+}
+#endif
+
+void
 syntheticXvfbRandrRebuild()
 {
     const char *display = syntheticDisplay();
@@ -405,6 +624,23 @@ main(int argc, char **argv)
         syntheticXvfbRandrRebuild();
         return 0;
     }
+    if (behavior == "pointer-capability-denials")
+    {
+        syntheticXvfbPointerCapabilityDenials();
+        return 0;
+    }
+#if defined(RDP_TEST_XINPUT_POINTER)
+    if (behavior == "pointer-event-routing")
+    {
+        syntheticXvfbPointerEventRouting();
+        return 0;
+    }
+    if (behavior == "pointer-randr-rebuild")
+    {
+        syntheticXvfbPointerRandrRebuild();
+        return 0;
+    }
+#endif
     if (behavior == "r4-read-boundary")
     {
         syntheticXvfbR4ReadBoundary();

@@ -5,10 +5,23 @@
 #include <algorithm>
 #include <cstdlib>
 
+#include <xcb/xinput.h>
+
 namespace
 {
 
 constexpr std::int64_t kFixedPointOne = 1LL << 16;
+static_assert(sizeof(xcb_input_motion_event_t) >=
+              sizeof(xcb_ge_generic_event_t));
+static_assert((sizeof(xcb_input_motion_event_t) -
+               sizeof(xcb_ge_generic_event_t)) %
+                  sizeof(std::uint32_t) ==
+              0);
+constexpr std::uint32_t kMinimumMotionExtraWords =
+    static_cast<std::uint32_t>(
+        (sizeof(xcb_input_motion_event_t) -
+         sizeof(xcb_ge_generic_event_t)) /
+        sizeof(std::uint32_t));
 
 bool
 checkRequest(xcb_connection_t *connection, xcb_void_cookie_t cookie) noexcept
@@ -79,6 +92,7 @@ X11PointerPositionTracker::X11PointerPositionTracker(
         failureReason_ = "XInput2 root motion subscription failed";
         return;
     }
+    subscribed_ = true;
 
     xcb_generic_error_t *pointerError = nullptr;
     const xcb_query_pointer_cookie_t pointerCookie =
@@ -105,7 +119,10 @@ bool
 X11PointerPositionTracker::valid() const noexcept
 {
     return failureReason_ == nullptr && connection_ != nullptr &&
-           xcb_connection_has_error(connection_) == 0;
+           rootWindow_ != XCB_WINDOW_NONE &&
+           sourceGeometry_.widthPixels != 0 &&
+           sourceGeometry_.heightPixels != 0 && majorOpcode_ != 0 &&
+           subscribed_ && xcb_connection_has_error(connection_) == 0;
 }
 
 const char *
@@ -118,14 +135,27 @@ bool
 X11PointerPositionTracker::handles(
     const xcb_generic_event_t &event) const noexcept
 {
-    if (event.response_type != XCB_GE_GENERIC || !valid())
+    const auto responseType =
+        static_cast<std::uint8_t>(event.response_type & 0x7fU);
+    if (responseType != XCB_GE_GENERIC || !valid())
     {
         return false;
     }
+
     const auto &generic =
         reinterpret_cast<const xcb_ge_generic_event_t &>(event);
-    return generic.extension == majorOpcode_ &&
-           generic.event_type == XCB_INPUT_MOTION;
+    if (generic.extension != majorOpcode_ ||
+        generic.event_type != XCB_INPUT_MOTION ||
+        generic.length < kMinimumMotionExtraWords)
+    {
+        return false;
+    }
+
+    // XGE length counts 32-bit words beyond the generic event header. Do not
+    // touch the XI2 motion fields until the fixed motion record is present.
+    const auto &motion =
+        reinterpret_cast<const xcb_input_motion_event_t &>(event);
+    return motion.root == rootWindow_;
 }
 
 void
@@ -145,6 +175,10 @@ void
 X11PointerPositionTracker::noteRemotePointerPosition(
     X11PointerPosition position) noexcept
 {
+    if (!valid())
+    {
+        return;
+    }
     remotePosition_ = position;
     hasRemotePosition_ = true;
 }
@@ -153,7 +187,7 @@ bool
 X11PointerPositionTracker::pendingPosition(
     X11PointerPosition &position) const noexcept
 {
-    if (!hasPendingPosition_)
+    if (!valid() || !hasPendingPosition_)
     {
         return false;
     }
@@ -165,7 +199,8 @@ bool
 X11PointerPositionTracker::shouldForward(
     X11PointerPosition position) const noexcept
 {
-    return !(hasRemotePosition_ && position == remotePosition_) &&
+    return valid() &&
+           !(hasRemotePosition_ && position == remotePosition_) &&
            !(hasForwardedPosition_ && position == lastForwardedPosition_);
 }
 
@@ -173,6 +208,10 @@ bool
 X11PointerPositionTracker::shouldAcceptRemoteMotion(
     X11PointerPosition position) noexcept
 {
+    if (!valid())
+    {
+        return false;
+    }
     if (!localPointerAuthorityActive_)
     {
         return true;
@@ -194,7 +233,7 @@ void
 X11PointerPositionTracker::acknowledge(X11PointerPosition position,
                                        bool forwarded) noexcept
 {
-    if (!hasPendingPosition_ || pendingPosition_ != position)
+    if (!valid() || !hasPendingPosition_ || pendingPosition_ != position)
     {
         return;
     }
@@ -206,6 +245,51 @@ X11PointerPositionTracker::acknowledge(X11PointerPosition position,
         localPointerAuthorityPosition_ = position;
         localPointerAuthorityActive_ = true;
     }
+}
+
+void
+X11PointerPositionTracker::disconnect() noexcept
+{
+    const char *reason = failureReason_ == nullptr
+                             ? "XInput2 pointer tracker is disconnected"
+                             : failureReason_;
+
+    // XISelectEvents replaces this client's mask for the device/window pair.
+    // A zero motion mask retires our subscription while the original borrowed
+    // connection is still valid. Cancellation failures are non-recoverable
+    // only for this observer and must not dereference the owner afterwards.
+    if (subscribed_ && connection_ != nullptr &&
+        rootWindow_ != XCB_WINDOW_NONE &&
+        xcb_connection_has_error(connection_) == 0)
+    {
+        struct
+        {
+            xcb_input_event_mask_t header{};
+            std::uint32_t mask{};
+        } selectedMask;
+        selectedMask.header.deviceid = XCB_INPUT_DEVICE_ALL_MASTER;
+        selectedMask.header.mask_len = 0;
+        selectedMask.mask = 0;
+        (void)checkRequest(
+            connection_,
+            xcb_input_xi_select_events_checked(
+                connection_, rootWindow_, 1, &selectedMask.header));
+    }
+
+    connection_ = nullptr;
+    rootWindow_ = XCB_WINDOW_NONE;
+    sourceGeometry_ = {};
+    majorOpcode_ = 0;
+    pendingPosition_ = {};
+    remotePosition_ = {};
+    lastForwardedPosition_ = {};
+    localPointerAuthorityPosition_ = {};
+    hasPendingPosition_ = false;
+    hasRemotePosition_ = false;
+    hasForwardedPosition_ = false;
+    localPointerAuthorityActive_ = false;
+    subscribed_ = false;
+    failureReason_ = reason;
 }
 
 void

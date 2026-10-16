@@ -42,7 +42,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libkrb5-dev libxcb1-dev libxcb-randr0-dev \
             pkg-config libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb-damage0-dev libxcb-xtest0-dev \
-            xvfb xauth
+            libxcb-xinput-dev xvfb xauth
       - name: Configure Debug protocol and tests
         shell: bash
         run: |
@@ -137,7 +137,7 @@ jobs:
             libkrb5-dev libsystemd-dev pkg-config \
             libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev \
             libxcb-xfixes0-dev libxcb-damage0-dev libxcb-xtest0-dev \
-            xvfb xauth
+            libxcb-xinput-dev xvfb xauth
       - name: Configure first-party protocol tests with ASan and UBSan
         shell: bash
         run: |
@@ -167,7 +167,8 @@ jobs:
             test_x11_cursor_reply test_x11_native_capture \
             test_x11_capture_disconnect test_x11_display_events \
             test_x11_native_cursor test_x11_native_damage \
-            test_x11_native_input test_x11_desktop_resources \
+            test_x11_native_input test_x11_pointer_position_tracker \
+            test_x11_desktop_resources \
             test_x11_authorized_input_route fuzz_mcs_cliprdr
       - name: Run all registered clipboard CTests with sanitizers
         env:
@@ -222,7 +223,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-disconnect-cancellation|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-connection-denials-and-cancellation|damage-native-connection-denials-and-cancellation|input-native-connection-denials-and-cancellation|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary)|input-r3-admission-route-denials-and-revocation)$' --output-on-failure
+            -R '^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-disconnect-cancellation|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-connection-denials-and-cancellation|damage-native-connection-denials-and-cancellation|input-native-connection-denials-and-cancellation|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild)|input-r3-admission-route-denials-and-revocation)$' --output-on-failure
 
       - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

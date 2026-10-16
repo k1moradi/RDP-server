@@ -5,7 +5,6 @@
 #include <cstdint>
 
 #include <xcb/xcb.h>
-#include <xcb/xinput.h>
 
 #include "../core/geometry.h"
 
@@ -44,6 +43,11 @@ public:
         X11PointerPosition position) noexcept;
     void acknowledge(X11PointerPosition position, bool forwarded) noexcept;
 
+    // Deselect root motion while the borrowed XCB owner is still valid, then
+    // invalidate all native identity and pending local/remote authority state.
+    // Idempotent; no method performs native XCB access after this returns.
+    void disconnect() noexcept;
+
 private:
     void queuePosition(std::int64_t x, std::int64_t y) noexcept;
 
@@ -61,5 +65,6 @@ private:
     bool hasRemotePosition_{false};
     bool hasForwardedPosition_{false};
     bool localPointerAuthorityActive_{false};
+    bool subscribed_{false};
     const char *failureReason_{"not initialized"};
 };

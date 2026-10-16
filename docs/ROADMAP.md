@@ -10972,3 +10972,62 @@ macOS 27 remain **NOT RUN**. No listener or service is enabled; M2/M3 remain
 **OPEN**. The next R10 gate is an opt-in real-Kerberos exchange through
 `LinuxRuntimeConnection` reaching R2 `BindingVerified`, followed separately
 by current NSS/logind native admission on the same exact R1 owner.
+
+
+## R5 XInput2 pointer observation integration (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `4da8d0deab5e3d7a251fdd4c180a6380c1e4e978`.
+
+R5 now reuses the existing first-party `X11PointerPositionTracker` as an
+optional geometry-bound child of the sole `X11DesktopResources` owner.
+`xcb-xinput` is discovered only for Linux and builds the noninstalled
+`rdp-server-linux-xinput-pointer` target when available; it is not added to
+the portable protocol SDK. Missing XI2 build/runtime capability is reported by
+the synchronous pointer capability API while XShm/XDamage/XFixes/XTEST remain
+usable. A failed shared XCB transport still revokes the complete aggregate.
+
+The existing bounded event route remains one XCB poll: cursor image tracker,
+Damage tracker, XI2 pointer tracker when available, then the caller's optional
+event sink. The pointer tracker now rejects short GenericEvent records before
+accessing XI2 motion fields, filters the owned root, coalesces into one latest
+clamped position, and provides idempotent cancellation that clears pending,
+forwarded and local/remote echo authority state. Cancellation clears the root
+motion mask only while the original borrowed connection remains valid and
+never creates another connection/thread/event queue.
+
+R4-facing reads expose capability, pending position, should-forward and
+explicit acknowledgement without allocation. Querying never acknowledges.
+A `forwarded=false` acknowledgement leaves the coordinate eligible for later
+publication, while a successful local publication activates the existing
+remote-XTEST echo fence. The existing concrete R2/R3-authorized
+`X11AuthorizedInputRoute` remains the only native injection entrance:
+same-position remote motion echoes are suppressed there and a distinct remote
+move immediately regains authority. No RDP pointer PDU, DVC write, frame ACK,
+listener or session-admission path is introduced.
+
+RandR replacement now disconnects and reconstructs the XI2 tracker with the
+other geometry-bound children, so old pending/echo state cannot cross a
+desktop generation while the sole XCB descriptor remains unchanged. Dedicated
+production-linked CTests are
+`x11.pointer-xi2-motion-coalescing`,
+`x11.pointer-xi2-remote-echo-suppression`,
+`x11.pointer-xi2-disconnect-cancellation`,
+`x11.pointer-xi2-malformed-event-bounds`,
+`x11.desktop-resource-pointer-event-routing`,
+`x11.desktop-resource-pointer-randr-rebuild`, and
+`x11.desktop-resource-pointer-capability-denials`. The shared R9
+ASan/UBSan selector is extended from 16 to 23 R5 X11 behaviors and hosted
+Linux installs `libxcb-xinput-dev`.
+
+**Validation status at authoring:** source/ownership/test registration review
+PASS. The connector environment does not expose the mandatory
+`~/rdp-server/build/` checkout and has no XInput2 development header, so the
+canonical owner configure/build/full CTest and all new native executions are
+**NOT RUN** locally. Last fully green hosted R5 baseline remains
+`f220436f0da88e6b02f2bd58f1da164826929ac6`, Actions
+`38900083125`, including R5 ASan/UBSan 16/16 and the documented full
+Linux/macOS/Windows matrix. Exact implementation-SHA hosted CI is the next
+gate. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and real
+Microsoft-client desktop acceptance remain **NOT RUN**. R3 still owns real
+RDP Input parsing/authorization and R4 still owns client cursor scheduling and
+delivery. **M3 remains OPEN / NOT ACCEPTED.**

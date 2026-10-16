@@ -13,6 +13,7 @@
 #include "x11_damage_tracker.h"
 #include "x11_display_connection.h"
 #include "x11_input_controller.h"
+#include "x11_pointer_position_tracker.h"
 #include "x11_shared_memory_capture.h"
 
 class X11AuthorizedInputRoute;
@@ -97,6 +98,17 @@ public:
     [[nodiscard]] bool takeUnsupportedCursorWarning() noexcept;
     void acknowledgeCursor() noexcept;
 
+    // Latest native pointer observation. Querying does not acknowledge it;
+    // R4 reports whether publication actually completed via acknowledge.
+    [[nodiscard]] bool pointerPositionAvailable() const noexcept;
+    [[nodiscard]] const char *pointerPositionFailureReason() const noexcept;
+    [[nodiscard]] bool pendingPointerPosition(
+        X11PointerPosition &position) const noexcept;
+    [[nodiscard]] bool shouldForwardPointerPosition(
+        X11PointerPosition position) const noexcept;
+    void acknowledgePointerPosition(X11PointerPosition position,
+                                    bool forwarded) noexcept;
+
     /**
      * Route one bounded batch of XCB events to the owned cursor/damage
      * adapters. RandR geometry changes rebuild XShm/Damage/input against the
@@ -121,6 +133,8 @@ private:
     void cancelGeometryBoundResources() noexcept;
     [[nodiscard]] bool rebuildGeometryBoundResources(
         PixelSize geometry) noexcept;
+    [[nodiscard]] bool initializePointerPositionTracker(
+        xcb_connection_t &connection, PixelSize geometry) noexcept;
     void cancelNativeResources() noexcept;
     [[nodiscard]] bool childrenValid() const noexcept;
 
@@ -130,8 +144,11 @@ private:
     std::optional<X11SharedMemoryCapture> capture_{};
     std::optional<X11CursorTracker> cursor_{};
     std::optional<X11DamageTracker> damage_{};
+    std::optional<X11PointerPositionTracker> pointerPosition_{};
     std::optional<X11InputController> input_{};
     PixelSize resourceGeometry_{};
     std::uint64_t maximumCapturePixels_{};
+    const char *pointerPositionFailureReason_{
+        "XInput2 pointer observation is unavailable in this build"};
     const char *failureReason_{"not initialized"};
 };

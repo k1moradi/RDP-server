@@ -3944,3 +3944,38 @@ macOS 27 remain **NOT RUN**. No listener or service is enabled; M2/M3 remain
 **OPEN**. The next R10 gate is an opt-in real-Kerberos exchange through
 `LinuxRuntimeConnection` reaching R2 `BindingVerified`, followed separately
 by current NSS/logind native admission on the same exact R1 owner.
+
+
+## R5 XI2 pointer observation under the single XCB owner (2026-10-16)
+
+The existing `X11PointerPositionTracker` is a subordinate observer of
+`X11DesktopResources`, never a second display owner. When Linux
+`xcb-xinput` development support is present, the desktop aggregate links the
+noninstalled XI2 tracker target and routes each borrowed XCB event in the fixed
+order **XFixes cursor -> XDamage -> XI2 pointer -> optional external sink**.
+No event pointer is retained and the existing display owner remains responsible
+for the bounded poll budget, readiness and RandR stop/rebuild boundary.
+
+XI2 is deliberately feature-local. Missing extension/version/subscription
+support disables only synchronous pointer-position observation; capture,
+damage, cursor image and authorized XTEST children retain their existing
+lifetime. A transport error on the shared XCB connection is fatal to the whole
+aggregate. The installed portable SDK contains no XInput2 headers or link
+dependency.
+
+The pointer observer owns one current-generation pending coordinate. Native
+16.16 fixed-point root coordinates are converted to integer pixels and clamped
+to the current source geometry. Queries are read-only; R4 must explicitly
+acknowledge whether a position was actually forwarded. The tracker's existing
+last-forwarded/remote/local-authority state suppresses XTEST echo loops without
+permitting R5 to parse RDP input. Only the already authenticated
+`X11AuthorizedInputRoute` can reach `X11DesktopResources::handleAuthorizedInput`;
+a matching local-authority motion is consumed there, while a distinct remote
+move transfers authority and proceeds through the existing clamping XTEST
+controller.
+
+The tracker is geometry-bound because its clipping and pending position belong
+to one desktop generation. RandR rebuild disconnects it before replacement;
+disconnect clears the XI2 mask while the borrowed connection is live,
+invalidates the XCB/root identity and clears every pending/echo field. The
+connection-bound XFixes cursor child remains unchanged.

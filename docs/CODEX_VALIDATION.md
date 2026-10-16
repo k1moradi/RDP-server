@@ -11666,3 +11666,46 @@ macOS 27 remain **NOT RUN**. No listener or service is enabled; M2/M3 remain
 **OPEN**. The next R10 gate is an opt-in real-Kerberos exchange through
 `LinuxRuntimeConnection` reaching R2 `BindingVerified`, followed separately
 by current NSS/logind native admission on the same exact R1 owner.
+
+
+## R5 XI2 pointer integration authoring receipt (2026-10-16; CI pending)
+
+**Starting reconciled main:** `4da8d0deab5e3d7a251fdd4c180a6380c1e4e978`.
+
+This increment binds the repository's existing
+`src/x11/x11_pointer_position_tracker.{h,cpp}` into the sole XCB desktop
+aggregate without adding another connection, poller, thread, graphics
+scheduler or RDP input parser. Linux optionally builds the production tracker
+against `xcb-xinput`; absent XI2 is an explicit pointer-capability denial and
+does not disable otherwise healthy capture. Event routing is
+XFixes -> XDamage -> XI2 -> optional sink, and RandR rebuild gives XI2 a fresh
+geometry generation.
+
+The lifetime correction adds idempotent XI2 deselection/cancellation, borrowed
+pointer/root invalidation and complete pending/remote/last-forwarded/local
+authority reset. The parser now checks the GenericEvent extension/type and
+minimum fixed XI2 motion length before reading motion fields, with a dedicated
+short-event sanitizer case. Synchronous aggregate reads preserve one latest
+coalesced/clamped position and require explicit forwarded/cancelled
+acknowledgement. The existing concrete R2/R3-authorized XTEST route is reused
+for remote motion; R5 gains no untrusted protocol parsing authority.
+
+Seven dedicated CTests are registered: four tracker cases for motion
+coalescing, remote-echo semantics, disconnect/reconnect and malformed-event
+bounds, plus aggregate pointer routing, RandR generation reset and capability
+denials. Hosted Linux and the existing R9 sanitizer job install
+`libxcb-xinput-dev`; the sanitizer target list includes the new tracker
+executable and the R5 regex expands from 16 to 23 cases.
+
+**Authoring checks:** project/road ownership review PASS; exact affected-source
+inspection PASS. **NOT RUN locally:** the mandated
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake
+-S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build
+build --config Debug --parallel 2 && ctest --test-dir build -C Debug
+--output-on-failure` because this connector runtime has no `~/rdp-server`
+checkout and its system XCB headers do not include XInput2. The last fully
+green hosted R5 baseline is `f220436f0da88e6b02f2bd58f1da164826929ac6`,
+Actions `38900083125` (**SUCCESS**). Exact implementation-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC, R9 ASan/UBSan, documentation and downstream SDK
+results are pending publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang
+23, macOS 27 and Microsoft-client M3 acceptance remain **NOT RUN/OPEN**.

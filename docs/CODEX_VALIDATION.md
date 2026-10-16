@@ -16778,3 +16778,20 @@ real license-authority issuance and Microsoft-client acceptance remain
 behind real authority/R2 authorization, verify the final production slice
 through the sole owned TLS writer. Otherwise wait for a live Share activation
 boundary that demonstrates a concrete bounded transport mismatch.
+
+## R3 grant-wrapper declaration correction (2026-10-16; exact-SHA CI pending)
+
+The implementation commit `d2bb7f073ba796fa3eebc5352834ba0c5cf63d94`
+introduced the pure encrypted/MACed New/Upgrade License wrapper and its
+production-linked tests. Follow-up
+`6f1f2cb7b967529c2b4946ab0d5fdb650ffeb137` only adds the missing forward
+declaration for the existing test-only `platformChallengeKeys()` helper so
+the new grant tests can call it before its later definition. There is no
+production behavior change in that correction.
+
+The follow-up's first hosted run reported only the documentation co-change
+policy failure because that tiny test declaration commit had no Markdown
+change. This note supplies the required validation co-change; the next exact
+shared-main SHA is authoritative for the complete hosted matrix. M2/M3 remain
+OPEN / NOT ACCEPTED.
+

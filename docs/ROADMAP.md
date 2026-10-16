@@ -8049,3 +8049,66 @@ R1/R3 MCS/CredSSP/licensing selection, X11 authorized-input denial, and bounded
 fuzzer. Positive Kerberos/logind admission, real Join progression, authorized
 channel roles, owner platform checks, Microsoft-client interoperability and
 performance remain **NOT RUN/BLOCKED**.
+
+
+### R9 Attach/Join protected-transition sanitizer receipt (2026-10-16)
+
+R9 QA implementation lineage:
+`07f53d3aef9162a55943cefe6c6bd513a757cc12`
+(`test(r9): fence Attach User terminal replay`),
+`b348e2708a9870b69c7e099302357a4a65cef0e5`
+(test fixture update after R3 removed the public pending-writer diagnostic),
+and final sanitizer expansion
+`f1a6dc4c45030daa7fdc47ad4935a6dd46319d3e`
+(`ci(r9): sanitize protected Channel Join contract`). The final exact workflow
+is Actions `38894157254`.
+
+The dedicated `r9-security-protocol-sanitizers` job completed **SUCCESS**
+with Ubuntu Clang **18.1.3 (1ubuntu1)**. Production-linked selected coverage:
+clipboard **31/31 PASS**; bounded R1/R3 MCS, CredSSP and licensing
+**20/20 PASS**; native R2/R3 GSS **15/15 PASS**; authorized X11 input denial
+**1/1 PASS**; bounded MCS/CLIPRDR fuzzer **1/1 PASS**.
+
+The GSS set now includes the R3 owner
+`security.gssapi-r3-attach-user-contract`,
+`security.gssapi-r3-channel-join-contract`, and R9's independently authored
+`security.gssapi-r3-attach-user-terminal-replay-fence`. The R9 replay case
+proves that a rejected Attach User confirmation completion closes the sole R3
+owner, clears allocated UserId/licensing/join state, revokes R2/GSS, rejects
+late Attach/Erect work, survives changed receipt scalars, and cannot be revived
+by replacing only R3 or by a fresh reconnect that still lacks a genuine lease
+and established R1 authority.
+
+The scoped MIT GSS LSan suppression was used exactly twice, each
+**216 bytes / 10 `krb5_copy_principal` allocations**, in the same two
+previously isolated provider acquisition failure cases. No clipboard,
+MCS/CredSSP/licensing, X11 input or fuzzer test uses that suppression. No
+unsuppressed ASan/UBSan/LSan diagnostic occurred in the R9 job.
+
+The shared FILEDESCRIPTORW fixture repair
+`2bdc77344862ee589ae3adbdbe167b4d5947bbc7` was consumed rather than
+duplicated. It corrected only test encoding of the documented high-DWORD then
+low-DWORD size fields; on the final R9 SHA both formerly failing R8 file
+metadata/response cases pass under sanitizers.
+
+Same-SHA hosted matrix evidence: Linux/GCC **362/362 Debug PASS** and
+**362/362 Release PASS**, installed consumer **1/1 PASS**; macOS/Clang
+**310/310 Debug PASS** and **310/310 Release PASS**, installed consumer
+**1/1 PASS**. Documentation policy **PASS**. Windows/MSVC full Debug is
+**332/334**: only R10
+`runtime.validates-live-tls-context-construction` and
+`runtime.tls-context-survives-credential-path-replacement` fail with
+`OPENSSL_Uplink(...): no OPENSSL_Applink`; Windows Release/package stages are
+skipped after that unrelated Debug failure. This is not an R9 sanitizer
+failure and whole-workflow PASS is not claimed.
+
+Genuine positive Kerberos/TLS plus active native OS admission remains
+**NOT RUN**, so positive Attach User/Channel Join progression and later
+authorized channel-role/licensing/desktop routing are still **NOT RUN/BLOCKED**.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, Microsoft-client
+interoperability and performance/reliability acceptance remain **NOT RUN**.
+M1-M6 are not promoted by this hosted QA evidence. **Next R9:** independently
+exercise terminal replay/reconnect behavior around protected Channel Join
+confirmation and then extend sanitizer coverage to the next real R3
+channel-role/licensing transition as it lands; continue to avoid synthetic
+positive admission.

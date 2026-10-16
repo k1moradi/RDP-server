@@ -1,3 +1,29 @@
+## R1 malformed-TLS readiness validation receipt (2026-10-16)
+
+Implementation `1235aa0593f533d13930fb90783fbbb07f99a1cd`, Actions
+`38923433928`: exact-SHA hosted CI **PASS**.
+
+- Linux/GCC: **457/457 Debug + 457/457 Release**.
+- macOS/AppleClang/OpenSSL 4.0.3: **382/382 Debug + 382/382 Release**.
+- Windows/MSVC: native preflight **45/45 Debug + 45/45 Release**; full suite
+  **412/412 Debug + 412/412 Release**.
+- `transport.tcp-owned-r3-client-license-read` (test 129) and
+  `transport.tcp-owned-tls-application-cancellation` (test 130) PASS on all
+  three hosts in both configurations.
+- R9 Clang ASan+UBSan bounded R1/R3 selection: **47/47 PASS**; registry
+  preflight explicitly includes the cancellation case.
+- Documentation policy and R7 sanitizer PASS.
+- Staged SDK, downstream consumer **1/1**, packages, digests and uploads PASS
+  on all hosted OSes. Non-tag prerelease publication is intentionally skipped.
+
+The macOS Release failure seen at Actions `38922487647` is therefore closed:
+the prior 128-`yield()` test harness was replaced with the existing bounded
+R1 readiness poll and explicit same-buffer resubmission. Production R1 source
+is unchanged.
+
+Owner-local one-root and native-client acceptance remain **NOT RUN** and are
+not inferred from hosted CI.
+
 ## R1 optimized malformed-TLS readiness correction (2026-10-16)
 
 **Reproduced:** macOS/AppleClang Release in Actions `38922487647` at

@@ -1,3 +1,48 @@
+## R1 malformed-TLS readiness exact-SHA hosted validation (2026-10-16; PASS)
+
+**Implementation:** `1235aa0593f533d13930fb90783fbbb07f99a1cd`.
+**Actions:** `38923433928`.
+**Receipt publication parent:** `e324057f1789474ebfdfc06e9949fff334448d73`.
+
+The R1 test-only readiness correction is hosted-validated with no production
+transport change. Linux/GCC passes **457/457** registered CTests in BOTH Debug
+and Release. macOS/AppleClang with Homebrew OpenSSL 4.0.3 passes **382/382**
+in BOTH Debug and Release. Windows/MSVC passes the native adapter preflight
+**45/45** in BOTH Debug and Release and the full registered suite **412/412**
+in BOTH Debug and Release.
+
+The two R1 cases relevant to this sequence are explicit PASS in every hosted
+configuration: `transport.tcp-owned-r3-client-license-read` is test 129 and
+`transport.tcp-owned-tls-application-cancellation` is test 130. In
+particular, the latter now passes macOS Release, closing the optimized
+loopback-readiness regression that reproduced at descendant
+`3d77a024b0150cb93058f5ac52f84cff639d3a88`.
+
+R9 Clang ASan+UBSan is also PASS. Its central-registry preflight lists the
+cancellation case and the bounded R1/R3 group runs **47/47 PASS**, including
+client-license-read test 129 and cancellation test 130. The complete sanitizer
+job also passes clipboard, R4 x264/BGRA, native R2/R3 GSSAPI, R10 runtime
+CredSSP, native X11 and the bounded fuzzer. The independent R7 sanitizer and
+documentation-policy jobs PASS.
+
+For each hosted OS, the staged SDK install, downstream consumer **1/1**,
+package generation, digest and artifact upload PASS. The prerelease publishing
+job is intentionally skipped because this is not a protocol version tag.
+
+This validates the existing R1 contract: one bounded application operation,
+external readiness resubmission with the same stable span, and terminal
+malformed-TLS cancellation. It does not add a listener, authentication,
+licensing authority, R3 session authority or another TLS/socket owner.
+
+Canonical owner-local `~/rdp-server/build` and required owner-platform
+acceptance (Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27), genuine
+Kerberos/NSS/logind admission, licensing cryptography and Microsoft-client
+acceptance remain **NOT RUN**. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+**Next R1:** per the live roadmap, add no new transport surface unless a later
+protected licensing/Share transition demonstrates a concrete bounded TCP/TLS
+mismatch.
+
 ## R1 optimized malformed-TLS readiness regression (2026-10-16; exact-SHA CI pending)
 
 **Reproduced on descendant integration:** `3d77a024b0150cb93058f5ac52f84cff639d3a88`,

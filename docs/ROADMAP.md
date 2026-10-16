@@ -2915,6 +2915,21 @@ actually run; another parser CTest alone is not a complete session.
   **Next R5:** combine parent display, cursor, damage and XShm teardown
   under one R2/R3-authorized owner; coordinate resized capture bounds and
   R4 frame consumption. M3 remains NOT ACCEPTED.
+  **R5 XShm cancellation exact-SHA hosted CI PASS (2026-10-16):**
+  production implementation `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`,
+  [Actions 38856920824](https://github.com/k1moradi/RDP-server/actions/runs/38856920824)
+  completed SUCCESS. The real native XCB-SHM source compiled under
+  Ubuntu GCC in Debug and Release and the new
+  `x11.capture-native-disconnect-cancellation` CTest passed.
+  Hosted Linux **230/230**, macOS **212/212**, and Windows **231/231**
+  full registered CTests PASS separately in Debug and Release.
+  Protocol sanitizer, docs policy, SDK install/consumer and ZIP package
+  checks PASS; prerelease publishing intentionally SKIPPED.
+  **NOT RUN:** owner's independent Linux/X11, Windows MSYS2 CLANG64/
+  Clang23 and macOS27 one-root tests; genuine R2 OS admission,
+  R3-authorized desktop, R4 frame delivery, live Microsoft client,
+  native resize integration, benchmarks. Gate B/M3 remain OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

@@ -5569,3 +5569,19 @@ DRDYNVC writer, pinned license-reviewed x264 static build, live
 H.264 Microsoft-client desktop and performance benchmarks.
 Verify the exact commit's hosted cross-platform CI and preserve
 Gate B/M3–M5 as OPEN.
+
+### R5 XShm borrowed XCB cancellation exact-SHA CI receipt (2026-10-16)
+
+**Production implementation:** `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`
+([Actions 38856920824](https://github.com/k1moradi/RDP-server/actions/runs/38856920824)).
+**SUCCESS** exact production SHA. Linux/GCC compiled the native
+`rdp-server-linux-xshm` target and executed
+`x11.capture-native-disconnect-cancellation` PASS; Linux **230/230**,
+macOS/Clang **212/212**, Windows/MSVC **231/231** full CTests PASS
+in BOTH Debug and Release. R9 sanitizer, docs policy, SDK downstream
+consumer and artifact packaging PASS; prerelease publication SKIPPED.
+This verifies an invalid-fd native XCB teardown regression, not a valid
+DISPLAY session or positive XShm capture/resize lifecycle.
+**NOT RUN:** owner Linux/X11, Windows CLANG64/Clang23, macOS27 native
+platform checkpoints; authorized R2/R3 desktop/Microsoft client,
+full R4 graphics delivery, performance. M3/Gate B remains OPEN.

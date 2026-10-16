@@ -5391,8 +5391,21 @@ hosted Actions until publication; real positive Kerberos; independent
 native OS admission; owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and
 macOS27. `ConsoleAdmissionGate` remains deny-only/CandidateOnly and R3
 still has no genuine revocable admission capability. Gate A and M2 remain
-OPEN/NOT ACCEPTED. **Next:** exact-SHA CI, then the smallest audited native
-OS authorization broker/lease boundary that cannot be minted by fake
+OPEN/NOT ACCEPTED.
+
+**Exact-SHA hosted CI:** implementation
+`ff72dbac77c881858279a2e7db753a1a5fac6c92`,
+[Actions 38865066667](https://github.com/k1moradi/RDP-server/actions/runs/38865066667)
+**SUCCESS**. Full ordinary CTest in both Debug and Release:
+Linux/GCC **272/272**, macOS/Clang **254/254**, Windows/MSVC **270/270**.
+The dedicated `security.credssp-tls-release-certificate-denial` passed
+in all six configurations. `r9-security-protocol-sanitizers` and
+`documentation-policy` passed; install/downstream/package verification
+also passed. Prerelease publication skipped as expected without a tag.
+Owner Linux/X11, MSYS2 CLANG64/Clang23 and macOS27, positive real Kerberos,
+independent native OS admission, R3 authenticated activation and Microsoft
+client remain **NOT RUN**. **Next:** the smallest audited native OS
+authorization broker/lease boundary that cannot be minted by fake
 `ConsoleOsEvidenceSource` implementations.
 
 ## R2 GSS-to-OS evidence provenance deny-only gate (2026-10-15)

@@ -1592,9 +1592,20 @@ actually run; another parser CTest alone is not a complete session.
   github.com; exact-SHA hosted CI until publication; real Kerberos,
   independent native OS admission and owner Linux/X11, Windows
   MSYS2 CLANG64/Clang23, macOS27 remain NOT RUN.
-  **Next:** verify exact-SHA hosted CI, then implement the smallest
-  nonforgeable revocable native-OS-backed admission capability for R3;
-  fake evidence sources must remain incapable of positive authorization.
+  **Exact-SHA hosted CI receipt:** implementation
+  `ff72dbac77c881858279a2e7db753a1a5fac6c92`,
+  [Actions 38865066667](https://github.com/k1moradi/RDP-server/actions/runs/38865066667)
+  **PASS overall**. Full registered CTest passed in both Debug and Release:
+  Linux/GCC **272/272**, macOS/Clang **254/254**, Windows/MSVC **270/270**.
+  `security.credssp-tls-release-certificate-denial` passed in all six
+  configurations. R9 ASan/UBSan and documentation-policy jobs passed;
+  SDK downstream/package checks passed and prerelease publication was
+  correctly skipped without a version tag. This does not substitute for
+  owner Linux/X11, Windows MSYS2 CLANG64/Clang23 or macOS27 runs, genuine
+  Kerberos, native OS admission, R3 activation or Microsoft-client evidence.
+  **Next:** implement the smallest nonforgeable revocable native-OS-backed
+  admission capability for R3; fake evidence sources must remain incapable
+  of positive authorization.
   **R2 GSS-to-OS candidate-evidence provenance gate (2026-10-15;
   new implementation CI pending):** add the existing
   `ConsoleAdmissionGate`, `ConsoleIdentityPolicy`, and

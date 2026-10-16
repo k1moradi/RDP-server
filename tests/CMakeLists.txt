@@ -43,6 +43,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-session-unverified-connect
                 mcs-session-unverified-ordering
                 mcs-session-first-envelope-size-bounds
+                mcs-session-unadmitted-domain-size-bounds
                 mcs-disconnect-wire
                 mcs-disconnect-rejections
                 mcs-send-data-wire

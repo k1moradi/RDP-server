@@ -2951,6 +2951,29 @@ any branch, live desktop access or input injection.
 **Next:** native frame acquisition/release with deterministic cancellation
 tests after R2/R3 session and R4 frame lifetime agreement.
 
+## R3 pre-admission oversized domain-PDU denial (2026-10-15)
+
+**Production:** `McsSessionLifecycle::onDomainPdu` uses the existing
+`kMaximumInitialMcsTpktBytes` ceiling before first-party PER parser
+invocation, closing and returning `OversizedEnvelope` on 8193+ byte
+pre-admission packets. The limit applies while the R2 session
+authorization capability is absent; it must NOT substitute for
+negotiated post-auth MCS maxMCSPDUsize. No other ownership, TLS write,
+admission path or wire encoder is changed.
+
+**Dedicated central CTest:**
+`transport.mcs-session-unadmitted-domain-size-bounds` in the existing
+`test_owned_mcs_connect_initial` executable. It constructs valid
+full-length 8191/8192/8193/16398-byte T.125 client SendDataRequest
+PDUs, checks first-party parser acceptance independently of R3
+denial, verifies over-limit priority and terminal membership cleanup,
+and covers huge malformed input and legal peer Disconnect.
+The CTest is registered in the canonical `tests/CMakeLists.txt`.
+**NOT RUN at authoring:** production-linked exact-SHA Actions,
+owner full Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27,
+genuine R2 identity plus OS admission, licensed Microsoft-client
+activation, or desktop. R3 Gate A/M2 remains NOT ACCEPTED.
+
 ## R3 authoritative first MCS intake-size denial (2026-10-15)
 
 **Second test-only portability correction:** size-test initializer-list

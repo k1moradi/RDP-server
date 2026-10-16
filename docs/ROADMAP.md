@@ -2287,6 +2287,23 @@ actually run; another parser CTest alone is not a complete session.
   OS-authorized session lease; then complete MCS Connect Response with
   R1's accepted-byte writer before admitting Erect/Attach/Join.
   Gate A/M2 remains NOT ACCEPTED.
+  **R3 pre-admission domain-PDU byte budget (2026-10-15; exact-SHA CI NOT RUN at authoring):**
+  The one denial-only `McsSessionLifecycle::onDomainPdu` now enforces
+  the same bounded 8192-byte pre-admission TPKT ceiling as its first
+  Connect-Initial, BEFORE parsing client T.125 domain PDUs. This
+  prevents a caller bypassing R1's bounded preauth intake from
+  presenting unbounded, unauthenticated SendData payloads for parsing.
+  This limit applies ONLY while R2 has issued no independently
+  OS-authorized, TLS-bound session capability; the future admitted
+  session's negotiated maxMCSPDUsize remains a distinct requirement.
+  One NEW behavior-named CTest checks valid PER SendData Requests
+  at 8191, 8192, 8193 and 16398 total bytes, exact boundary
+  classification, 65536-byte invalid input, local teardown,
+  stale reentry and 9-byte peer Disconnect. No application dispatch,
+  MCS reply, writer or OS admission was added.
+  **NOT RUN at authoring:** actual new-commit Actions and owner
+  three-platform same-SHA CTests; real Kerberos/CredSSP and OS
+  authorization, Microsoft client and desktop. Gate A/M2 remains OPEN.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

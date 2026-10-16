@@ -329,6 +329,15 @@ McsSessionIntake McsSessionLifecycle::onDomainPdu(
     if (phase_ == McsSessionPhase::Closed)
         return McsSessionIntake::Closed;
 
+    // Before R2 authorization this same R3 owner must not parse domain
+    // PDUs larger than the first decrypted MCS intake budget. A future
+    // authenticated session must instead use its negotiated domain cap.
+    if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return McsSessionIntake::OversizedEnvelope;
+    }
+
     const auto parsed = parseMcsChannelRequest(completeTpkt);
     close();
     if (!parsed)

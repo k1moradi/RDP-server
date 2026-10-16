@@ -1631,6 +1631,16 @@ means only diagnostic progress to an MCS envelope, not R2 authorization.
 No new transport, admission capability or session state machine exists.
 
 
+**R3 unadmitted-domain PDU budget (2026-10-15):**
+The same R3 `McsSessionLifecycle` now applies the project's shared
+8192-byte first-MCS pre-admission budget to unsolicited T.125 domain
+PDUs before invoking the existing parser. Oversized input closes the
+single noncopyable owner and invalidates channel membership without
+transmitting any reply. The cap applies to deny-only pre-admission
+diagnostics, not to any future authenticated session's negotiated
+maxMCSPDUsize or virtual-channel fragmentation. A valid peer
+Disconnect remains a terminal close, never an admission shortcut.
+
 **R3 first-MCS byte-budget ownership (2026-10-15):**
 The project's existing 8192-byte cap on the first decrypted MCS
 Connect-Initial TPKT now lives in the common MCS header, shared by

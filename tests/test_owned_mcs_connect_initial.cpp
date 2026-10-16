@@ -3352,6 +3352,78 @@ void testMcsSessionFirstEnvelopeSizeBounds()
     }
 }
 
+void testMcsSessionUnadmittedDomainSizeBounds()
+{
+    // The R1 first-MCS intake budget also bounds unsolicited domain PDUs
+    // before any genuine R2 OS admission. Unlike a malformed TPKT,
+    // these are VALID client SendDataRequest envelopes; the denial must
+    // happen before full PER parsing in this one R3 session owner.
+    constexpr std::size_t maximum = kMaximumInitialMcsTpktBytes;
+    static_assert(maximum == 8192U);
+    const auto makeSendData = [](std::size_t packetLength)
+    {
+        assert(packetLength >= 15U && packetLength <= 16398U);
+        const std::size_t dataLength = packetLength - 15U;
+        std::vector<std::uint8_t> packet(packetLength, 0x5a);
+        packet[0] = 0x03;
+        packet[1] = 0x00;
+        packet[2] = static_cast<std::uint8_t>(packetLength >> 8U);
+        packet[3] = static_cast<std::uint8_t>(packetLength);
+        packet[4] = 0x02;
+        packet[5] = 0xf0;
+        packet[6] = 0x80;
+        packet[7] = 0x64; // T.125 client SendDataRequest
+        packet[8] = 0x00;
+        packet[9] = 0x06; // UserId 1007 minus PER first UserId 1001
+        packet[10] = 0x03;
+        packet[11] = 0xeb; // channel 1003, not an authorized join
+        packet[12] = 0x70; // priority 1, segmentation 3, reserved 0
+        packet[13] = static_cast<std::uint8_t>(
+            0x80U | (dataLength >> 8U)); // 14-bit PER length
+        packet[14] = static_cast<std::uint8_t>(dataLength);
+        return packet;
+    };
+
+    for (const std::size_t size : std::array<std::size_t, 4>{
+             maximum - 1U, maximum, maximum + 1U, 16398U})
+    {
+        const auto wire = makeSendData(size);
+        // A complete syntactically valid PDU cannot authorize an R3
+        // channel, regardless of whether it exceeds the intake budget.
+        const auto decoded = parseMcsChannelRequest(wire);
+        assert(decoded);
+        assert(decoded.request.kind == McsChannelRequestKind::SendDataRequest);
+        assert(decoded.request.userData.size() == size - 15U);
+
+        McsSessionLifecycle session;
+        const auto outcome = session.onDomainPdu(wire);
+        assert(outcome == (size > maximum
+                              ? McsSessionIntake::OversizedEnvelope
+                              : McsSessionIntake::ValidButNotAdmitted));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(session.pendingJoinConfirmation().empty());
+        assert(!session.channelJoinConfirmed(1003));
+        assert(session.onDomainPdu(wire) == McsSessionIntake::Closed);
+        assert(session.onConnectInitial(publishedFixture()) ==
+               McsSessionIntake::Closed);
+    }
+
+    // Even a large frame with invalid TPKT syntax is rejected at the
+    // outer R3 budget boundary, not passed to the borrowed PER parser.
+    std::vector<std::uint8_t> invalidHuge(65536U, 0xff);
+    McsSessionLifecycle huge;
+    assert(huge.onDomainPdu(invalidHuge) ==
+           McsSessionIntake::OversizedEnvelope);
+    assert(huge.phase() == McsSessionPhase::Closed);
+
+    constexpr std::array<std::uint8_t, 9> disconnect{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80, 0x21, 0x80};
+    McsSessionLifecycle peer;
+    assert(peer.onDomainPdu(disconnect) ==
+           McsSessionIntake::PeerDisconnected);
+    assert(peer.onDomainPdu(disconnect) == McsSessionIntake::Closed);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -3378,7 +3450,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 54> kMcsTestCases{{
+constexpr std::array<McsTestCase, 55> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3405,6 +3477,7 @@ constexpr std::array<McsTestCase, 54> kMcsTestCases{{
     {"mcs-session-unverified-connect", &testMcsSessionUnverifiedConnectDenials},
     {"mcs-session-unverified-ordering", &testMcsSessionUnverifiedDomainOrdering},
     {"mcs-session-first-envelope-size-bounds", &testMcsSessionFirstEnvelopeSizeBounds},
+    {"mcs-session-unadmitted-domain-size-bounds", &testMcsSessionUnadmittedDomainSizeBounds},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

@@ -286,6 +286,11 @@ public:
         return verifiedPrincipal();
     }
 
+    // Positive native admission additionally requires that the server
+    // binding reply completed through this exact live R1 owner.
+    [[nodiscard]] std::string_view verifiedPrincipalForOwnedConnection(
+        const transport::OwnedPreauthTcpConnection &connection) const noexcept;
+
     void reject() noexcept;
 
 private:
@@ -317,6 +322,7 @@ private:
     TsRequestFrameReader *ownedCredSspReader_{};
     TsRequestTlsReplyWriter *ownedCredSspWriter_{};
     bool ownedCredSspReplyPending_{};
+    bool ownedCredSspBindingVerified_{};
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
     // Borrowed from the one TLS-bound framing owner, never owning SSL.

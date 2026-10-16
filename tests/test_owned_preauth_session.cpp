@@ -6395,6 +6395,71 @@ void testGssapiOwnedCredSspProvenanceFence()
     }
 }
 
+void testGssapiOwnedCredSspBindingDeliveryFence()
+{
+    using Method = decltype(
+        &GssapiSpnegoAcceptor::verifiedPrincipalForOwnedConnection);
+    static_assert(std::is_invocable_r_v<
+        std::string_view, Method, const GssapiSpnegoAcceptor &,
+        const OwnedPreauthTcpConnection &>);
+    static_assert(!std::is_invocable_v<
+        Method, const GssapiSpnegoAcceptor &, const SSL *>);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection), SecurityNegotiationPolicy::HybridNla};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, tlsAndHybridRequestWire(),
+        SecurityNegotiationPolicy::HybridNla);
+
+    GssapiSpnegoAcceptor acceptor;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    assert(acceptor.verifiedPrincipalForOwnedConnection(owner).empty());
+    writeNativeTlsClientAll(tls.client.get(), kTestCredSspDer);
+
+    OwnedCredSspHandshakeStatus finalStatus{
+        OwnedCredSspHandshakeStatus::NeedRead};
+    std::size_t totalRead = 0;
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        const auto step = acceptor.advanceOwnedCredSspHandshake(
+            owner, reader, writer);
+        totalRead += step.plaintextBytesRead;
+        assert(step.status != OwnedCredSspHandshakeStatus::BindingVerified);
+        assert(acceptor.verifiedPrincipalForOwnedConnection(owner).empty());
+        finalStatus = step.status;
+        if (finalStatus == OwnedCredSspHandshakeStatus::Rejected)
+            break;
+        assert(finalStatus == OwnedCredSspHandshakeStatus::Progress ||
+               finalStatus == OwnedCredSspHandshakeStatus::NeedRead ||
+               finalStatus == OwnedCredSspHandshakeStatus::NeedWrite);
+        if (finalStatus == OwnedCredSspHandshakeStatus::NeedRead ||
+            finalStatus == OwnedCredSspHandshakeStatus::NeedWrite)
+        {
+            const auto polled = owner.pollSocketOnce(
+                deadline, kMaximumTcpPollWait);
+            assert(polled.outcome ==
+                       TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome == TcpConnectionPollOutcome::NoEvent);
+        }
+    }
+    assert(finalStatus == OwnedCredSspHandshakeStatus::Rejected);
+    assert(totalRead == kTestCredSspDer.size());
+    assert(acceptor.verifiedPrincipalForOwnedConnection(owner).empty());
+
+    owner.cancel();
+    assert(acceptor.verifiedPrincipalForOwnedConnection(owner).empty());
+}
+
 void testGssapiOwnedCredSspCancellationFence()
 {
     LoopbackSocketPair pair{false};
@@ -7522,6 +7587,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
 #ifdef RDP_TEST_LINUX_GSSAPI
     {"gssapi-r1-owned-credssp-provenance-fence",
      &testGssapiOwnedCredSspProvenanceFence},
+    {"gssapi-r1-owned-binding-delivery-fence",
+     &testGssapiOwnedCredSspBindingDeliveryFence},
     {"gssapi-r1-owned-credssp-cancellation-fence",
      &testGssapiOwnedCredSspCancellationFence},
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},

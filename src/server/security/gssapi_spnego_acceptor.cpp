@@ -188,6 +188,7 @@ void GssapiSpnegoAcceptor::reject() noexcept
     ownedCredSspReader_ = nullptr;
     ownedCredSspWriter_ = nullptr;
     ownedCredSspReplyPending_ = false;
+    ownedCredSspBindingVerified_ = false;
     deleteContext();
     if (credentials_ != GSS_C_NO_CREDENTIAL)
     {
@@ -581,6 +582,9 @@ GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
             ownedCredSspReplyPending_ = false;
             if (stage_ == SpnegoStage::ServerBindingPrepared)
             {
+                // Preparing the binding is not admission evidence. Publish
+                // it only after this exact owner accepted and released it.
+                ownedCredSspBindingVerified_ = true;
                 return {OwnedCredSspHandshakeStatus::BindingVerified, 0,
                         written.plaintextBytesWritten};
             }
@@ -614,7 +618,14 @@ GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
     if (writer.status() != TsRequestTlsWriteStatus::Idle)
         return fail(OwnedCredSspHandshakeStatus::Rejected);
     if (stage_ == SpnegoStage::ServerBindingPrepared)
+    {
+        // Legacy framed helpers can reach this semantic state without the
+        // production owner-driven reply completion. Never promote that into
+        // BindingVerified.
+        if (!ownedCredSspBindingVerified_)
+            return fail(OwnedCredSspHandshakeStatus::Rejected);
         return {OwnedCredSspHandshakeStatus::BindingVerified, 0, 0};
+    }
     if (stage_ == SpnegoStage::Failed)
         return fail(OwnedCredSspHandshakeStatus::Rejected);
 
@@ -683,6 +694,19 @@ GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
     ownedCredSspWriter_ = &writer;
     ownedCredSspReplyPending_ = true;
     return {OwnedCredSspHandshakeStatus::NeedWrite, bytesRead, 0};
+}
+
+std::string_view GssapiSpnegoAcceptor::verifiedPrincipalForOwnedConnection(
+    const transport::OwnedPreauthTcpConnection &connection) const noexcept
+{
+    if (!ownedCredSspBindingVerified_ ||
+        ownedCredSspConnection_ != &connection ||
+        !hasOwnedHybridNlaProvenance(connection) ||
+        connection.establishedTls() != negotiatedServerTls_)
+    {
+        return {};
+    }
+    return verifiedPrincipalForTls(connection.establishedTls());
 }
 
 SpnegoStep GssapiSpnegoAcceptor::accept(

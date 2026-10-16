@@ -392,6 +392,7 @@ if(TARGET rdp-server-linux-gssapi)
     endif()
     foreach(case_name IN ITEMS
             gssapi-r1-owned-credssp-provenance-fence
+            gssapi-r1-owned-binding-delivery-fence
             gssapi-r1-owned-credssp-cancellation-fence
             gssapi-tls-ownership
             gssapi-principal-tls-proof-gate

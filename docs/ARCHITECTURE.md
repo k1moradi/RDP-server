@@ -1,3 +1,7 @@
+### R2 owner-completed CredSSP binding proof
+
+Native admission distinguishes a prepared server binding from a binding reply actually completed through R1. Only `advanceOwnedCredSspHandshake()` may set the private completion latch after exact owner-backed write completion and reply release. `verifiedPrincipalForOwnedConnection()` additionally requires the same live HYBRID owner, established TLS and selected-certificate continuity. Legacy framed helpers remain protocol-test surfaces and cannot satisfy native admission; rejection clears the latch before GSS/TLS teardown.
+
 ### R3 protected Enhanced-Security Client Info route (2026-10-16)
 
 After complete Attach User and Channel Join confirmation, the single R3

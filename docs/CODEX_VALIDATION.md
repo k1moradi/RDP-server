@@ -1,3 +1,7 @@
+## R2 owner-completed binding fence authoring (2026-10-16)
+
+Starting inspected main: `19655e23fa992cdf7b57cd2c9f84b51971d38706`. Production now requires an owner-driven server-binding reply completion receipt before R2 exposes a principal for native admission. Added `security.gssapi-r1-owned-binding-delivery-fence` to the existing preauth binary. Canonical local build/CTest, positive real-Kerberos completion, positive native lease, owner platforms and Microsoft client are **NOT RUN**; exact-SHA hosted CI is required after publication.
+
 ## R4 malformed NV12 preflight exact-SHA hosted CI (2026-10-16)
 
 **Implementation SHA:** [`3c8baa7a02b61879d541bd845fdbecbf26ff6d76`](https://github.com/k1moradi/RDP-server/commit/3c8baa7a02b61879d541bd845fdbecbf26ff6d76).

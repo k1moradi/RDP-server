@@ -360,7 +360,7 @@ LinuxConsoleAdmissionBroker::issue(
 
     const std::uint64_t policyGeneration = policy_.generation();
     const std::string_view proven =
-        acceptor.verifiedPrincipalForTls(activeServerTls);
+        acceptor.verifiedPrincipalForOwnedConnection(connection);
     if (policyGeneration == 0 || proven.empty() ||
         proven != request.kerberosPrincipal ||
         !copyBounded(seat_, seatLength_, request.seat) ||
@@ -383,7 +383,7 @@ LinuxConsoleAdmissionBroker::issue(
     }
 
     if (changes_->nativeFd() < 0 || changes_->nativeEvents() <= 0 ||
-        acceptor.verifiedPrincipalForTls(activeServerTls) != proven ||
+        acceptor.verifiedPrincipalForOwnedConnection(connection) != proven ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
         deny(acceptor);
@@ -400,7 +400,7 @@ LinuxConsoleAdmissionBroker::issue(
         request.kerberosPrincipal.size() >= 129 ||
         request.unixAccount.size() >= 33 ||
         policy_.generation() != policyGeneration ||
-        acceptor.verifiedPrincipalForTls(activeServerTls) != proven)
+        acceptor.verifiedPrincipalForOwnedConnection(connection) != proven)
     {
         deny(acceptor);
         return std::nullopt;

@@ -1,3 +1,11 @@
+## R2 owner-completed CredSSP binding admission fence (2026-10-16; exact-SHA CI pending)
+
+Starting inspected shared `main`: `19655e23fa992cdf7b57cd2c9f84b51971d38706`. `ServerBindingPrepared` is only a semantic GSS/CredSSP state; it does not prove the server binding reply completed through R1. R2 now sets a private completion latch only after `advanceOwnedCredSspHandshake` fully writes and releases that reply through its pinned `OwnedPreauthTcpConnection`. An idle prepared state without that receipt is rejected rather than synthesized into `BindingVerified`.
+
+New `verifiedPrincipalForOwnedConnection()` requires that completion receipt plus the same live HYBRID-selected R1 owner, TLS object and certificate continuity. Native lease issuance and its issuance-time continuity checks use this stricter predicate. R10 delegates CredSSP progression to the same R2 API, so its surfaced `BindingVerified` receipt—not `ServerBindingPrepared` alone—is the prerequisite for native admission.
+
+Dedicated existing-binary CTest `security.gssapi-r1-owned-binding-delivery-fence` checks the owner-only API and genuine HYBRID loopback denial path without fabricating credentials. Positive real-Kerberos binding completion, NSS/logind lease, Microsoft-client M2, owner platform commands and canonical local `~/rdp-server/build/` remain **NOT RUN** here.
+
 ## R4 malformed NV12 preflight exact-SHA hosted CI (2026-10-16)
 
 **Implementation SHA:** [`3c8baa7a02b61879d541bd845fdbecbf26ff6d76`](https://github.com/k1moradi/RDP-server/commit/3c8baa7a02b61879d541bd845fdbecbf26ff6d76).

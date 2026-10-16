@@ -1,3 +1,18 @@
+## R8 macOS file-descriptor destination build boundary (2026-10-16)
+
+The existing noninstalled `rdp-server-macos-clipboard` target now also
+compiles `src/platform/macos/mac_clipboard_file_destination.cpp` on every CI
+OS. Portable state uses an injected native operation seam; Apple alone compiles
+the guarded POSIX descriptor callbacks. No new framework or external package is
+required and the installed portable protocol SDK remains unchanged.
+
+`test_macos_clipboard_file_destination` likewise builds on every hosted OS.
+Three injected behaviors run everywhere; Apple additionally registers the real
+native descriptor case. The R9 Linux/Clang sanitizer job explicitly builds this
+target before the shared `ctest -L clipboard` selection, so the portable
+state remains sanitizer-covered even though real POSIX callbacks are exercised
+only on Apple.
+
 ## R8 Windows file destination build boundary (2026-10-16)
 
 `src/windows/windows_clipboard_file_destination.cpp` is part of the existing

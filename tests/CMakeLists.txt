@@ -1461,6 +1461,39 @@ if(TARGET rdp-server-linux-clipboard-file-destination)
     endforeach()
 endif()
 
+# R8 macOS file destination. Portable state runs through an injected native
+# seam on every hosted OS; Apple additionally exercises the production POSIX
+# descriptor callbacks against a build-root temporary file.
+add_executable(test_macos_clipboard_file_destination
+    test_macos_clipboard_file_destination.cpp)
+target_link_libraries(test_macos_clipboard_file_destination PRIVATE
+    rdp-server-macos-clipboard)
+if(MSVC)
+    target_compile_options(test_macos_clipboard_file_destination PRIVATE
+        /W4 /UNDEBUG)
+else()
+    target_compile_options(test_macos_clipboard_file_destination PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        macos-file-destination-streaming
+        macos-file-destination-size-cancel
+        macos-file-destination-denials)
+    add_test(NAME "clipboard.${case_name}"
+        COMMAND test_macos_clipboard_file_destination "${case_name}")
+    set_tests_properties("clipboard.${case_name}" PROPERTIES
+        LABELS "protocol;clipboard;apple-file-destination;offline")
+endforeach()
+if(APPLE)
+    add_test(NAME clipboard.macos-file-destination-native-descriptor
+        COMMAND test_macos_clipboard_file_destination
+            macos-file-destination-native-descriptor)
+    set_tests_properties(
+        clipboard.macos-file-destination-native-descriptor
+        PROPERTIES LABELS
+            "protocol;clipboard;apple-file-destination;native;offline")
+endif()
+
 # R8 macOS pasteboard presentation. Every case uses deterministic injected
 # native operations on every CI OS; ordinary CTest never reads or mutates the
 # host pasteboard. Apple additionally compile/links the dormant AppKit bridge.

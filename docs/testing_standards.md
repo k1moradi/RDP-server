@@ -1,3 +1,20 @@
+## macOS clipboard file-destination tests separate state from native I/O
+
+Compile the macOS file-destination state machine on every hosted OS through
+injected native operations so sanitizer coverage does not depend on Apple
+runners. Cover more than one 64-KiB range, unknown-size discovery, short-range
+continuation, generation replacement, cancellation, remote failure, receipt
+mismatch and native write failure. Keep each complete FileContents PDU alive
+until synchronous destination consumption because result RANGE bytes are
+borrowed.
+
+On Apple, additionally exercise the real descriptor callbacks against a
+temporary ordinary file created only in the existing CTest build-root working
+directory. Verify exact size and bytes after completion and remove the fixture.
+Ordinary tests must never use a live pasteboard, Finder, file promises, user
+documents or desktop state. A native-descriptor PASS proves bounded
+materialization only, not file-manager paste or Microsoft-client acceptance.
+
 ## Windows clipboard file-destination coverage
 
 Test the Windows file-destination state machine through injected native operations on every hosted OS so ASan/UBSan can cover receipt binding, generation replacement, short-range continuation, cancellation and native failure. Include a payload larger than the 64-KiB FileContents range ceiling.

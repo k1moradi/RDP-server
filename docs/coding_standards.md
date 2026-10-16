@@ -1,3 +1,25 @@
+## macOS clipboard file destinations are explicit descriptor capabilities
+
+For R8 macOS file materialization, never derive a local filesystem path from a
+remote FILEDESCRIPTORW leaf name. The native destination must be selected and
+authorized by the caller as a writable regular file descriptor. Reject
+`O_APPEND`; positional FileContents offsets must remain authoritative.
+
+Duplicate the descriptor with `F_DUPFD_CLOEXEC` and own only that duplicate.
+Write each already-validated RANGE synchronously with positional `pwrite`,
+bounded by the existing 64-KiB FileContents request ceiling. Retain only fixed
+metadata, receipt identity and progress; do not add a whole-file buffer or
+secondary chunk queue. Unknown lengths continue to use the existing SIZE
+request/result path.
+
+Treat exact completion as a native publication fence: only after the expected
+byte count is present, the file is truncated to that exact size, `fsync`
+succeeds and the duplicate is closed may a higher native layer expose the file.
+Generation replacement, cancellation, remote/protocol failure or native I/O
+failure invalidates the partial destination and should truncate it before close
+where possible. The native sink exposes request intents only and must never
+serialize CLIPRDR or bypass R3 authorization.
+
 ## Windows clipboard file destinations are handle capabilities
 
 For R8 Windows file materialization, never create a local path from a remote

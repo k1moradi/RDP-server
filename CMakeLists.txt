@@ -198,7 +198,8 @@ endif()
 # The portable state owner compiles on every CI platform through an injected
 # native seam; only Apple adds the dormant AppKit implementation below.
 add_library(rdp-server-macos-clipboard STATIC
-    src/platform/macos/mac_clipboard_adapter.cpp)
+    src/platform/macos/mac_clipboard_adapter.cpp
+    src/platform/macos/mac_clipboard_file_destination.cpp)
 target_compile_features(rdp-server-macos-clipboard PUBLIC cxx_std_23)
 target_include_directories(rdp-server-macos-clipboard PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")

@@ -1,3 +1,27 @@
+## R8 macOS file-descriptor destination authoring validation (2026-10-16)
+
+**Base:** `e868411d9c2a03190ca8b4dcb4523ddcce2a33a9`. The preceding Windows destination implementation
+`e9df0e305f149758553e0a564f72d995262fe791` is exact-SHA validated by Actions
+`38971892636` **SUCCESS**. This macOS increment reuses the already-validated
+`RemoteTransfer` FileContents request/result contract unchanged; there is no
+new wire encoding, parser or channel-authority path.
+
+The new test executable compiles the production destination state machine on
+every hosted OS through an injected seam. Deterministic cases cover a
+70,000-byte two-range stream, unknown-size SIZE discovery, short RANGE
+continuation, cancellation, generation replacement, remote failure and native
+write failure. On Apple, an additional behavior uses the real callbacks and a
+build-root temporary file to exercise
+`fstat/fcntl(F_GETFL)/F_DUPFD_CLOEXEC/ftruncate/pwrite/fsync/close`
+end-to-end. Tests do not read a live pasteboard or publish into Finder.
+
+Canonical local `~/rdp-server/build` execution is **NOT RUN** because this
+connector environment does not expose that checkout and project policy forbids
+creating an alternate persistent build root. Exact publication-SHA hosted
+Debug/Release matrix, R9 sanitizer and documentation-policy evidence are
+**PENDING**. Owner macOS 27, real Finder/file-manager handoff, authenticated
+Microsoft-client file copy and performance remain **NOT RUN/OPEN**.
+
 ## R9 complete Linux runtime-security sanitizer exact-SHA receipt (2026-10-16)
 
 **Implementation:** `3cdaa4d1b2355f26d6e1e33e95077b911d8515ae`.  

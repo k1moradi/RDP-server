@@ -1,3 +1,56 @@
+## R8 macOS bounded file-descriptor destination (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `e868411d9c2a03190ca8b4dcb4523ddcce2a33a9`. Linux descriptor streaming and
+completed-file X11 handoff are exact-SHA validated. Windows file-handle
+destination implementation `e9df0e305f149758553e0a564f72d995262fe791` and
+its validation receipt are present on this parent; Actions `38971892636`
+completed **SUCCESS**.
+
+This increment adds `MacClipboardFileDestination` as a noninstalled native
+materialization child of the existing `RemoteTransfer`. It owns only a
+duplicate of one caller-selected writable regular-file descriptor plus
+sequential local progress. Remote FILEDESCRIPTORW names remain metadata and are
+never resolved into local paths. The child exposes bounded SIZE/RANGE request
+intents and binds only the exact existing
+`RemoteTransfer::FileContentsRequestReceipt`; it sends no CLIPRDR bytes and
+grants no MCS, R2/R3, session or TLS-writer authority.
+
+The portable state machine compiles on every hosted OS through an injected
+native seam. Apple production callbacks validate a regular writable descriptor,
+reject `O_APPEND`, duplicate with `F_DUPFD_CLOEXEC`, truncate with
+`ftruncate`, write each at-most-64-KiB RANGE via positional `pwrite`,
+`fsync` on exact completion, and close only the duplicate. The caller keeps
+the original descriptor. No whole-file cache, second chunk queue, path
+derivation, Finder publication or directory-tree materializer is introduced.
+
+Generation replacement, cancel, remote failure, receipt mismatch and native I/O
+failure invalidate and truncate the partial duplicate when possible. This
+first macOS destination is current-generation/unlocked only; the existing R8
+lock owner remains separate. Borrowed RANGE bytes are consumed synchronously
+before their backing PDU expires.
+
+Dedicated production-backed CTests:
+`clipboard.macos-file-destination-streaming`,
+`clipboard.macos-file-destination-size-cancel`, and
+`clipboard.macos-file-destination-denials` run through injected native
+operations on every hosted OS. Apple additionally registers
+`clipboard.macos-file-destination-native-descriptor`, exercising the real
+POSIX callbacks against a build-root temporary file. R9's clipboard sanitizer
+compile list explicitly includes this executable.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate build root was created.
+Exact-publication-SHA Linux/GCC, macOS/Clang, Windows/MSVC, R9 ASan/UBSan,
+documentation policy and downstream package evidence are **PENDING**. Owner
+macOS 27, live Finder/file-manager paste, authenticated Microsoft-client file
+copy, Windows MSYS2 CLANG64/Clang23 and clipboard-file performance remain
+**NOT RUN/OPEN**.
+
+**Next R8 after hosted validation:** expose only completed Windows/macOS
+materializations through their native file-manager/Finder handoff APIs without
+exposing partial files or introducing another CLIPRDR writer. Directory-tree
+materialization and real-client file-copy acceptance remain later gates.
+
 ## R9 complete Linux runtime-security sanitizer exact-SHA receipt (2026-10-16)
 
 **Implementation:** `3cdaa4d1b2355f26d6e1e33e95077b911d8515ae`.  

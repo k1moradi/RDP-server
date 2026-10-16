@@ -1,3 +1,37 @@
+## R8 macOS file-descriptor destination boundary (2026-10-16)
+
+`MacClipboardFileDestination` mirrors the validated Linux/Windows native sink
+boundary while keeping `RemoteTransfer` as the single clipboard generation,
+descriptor, stream-ID, response and receipt owner. The macOS child owns only
+one duplicated local file descriptor and monotonically increasing sequential
+materialization progress for one current-generation file.
+
+The destination descriptor is an explicit capability supplied by the caller;
+R8 never converts the validated remote FILEDESCRIPTORW leaf name into a local
+path. Apple production callbacks accept only writable regular descriptors and
+reject `O_APPEND`, then duplicate with `F_DUPFD_CLOEXEC`. The caller's
+original descriptor remains caller-owned. The duplicated descriptor is
+truncated before use, written with offset-specific `pwrite`, synchronized
+with `fsync` only after the exact expected byte count is present, and closed
+by the child.
+
+The child emits request intents only. The authoritative caller creates the
+actual `RemoteTransfer` SIZE/RANGE request and supplies the exact receipt back
+to the child before any parsed result is accepted. No method owns static-VC/MCS
+framing, transport output, session authorization or TLS. RANGE bytes remain
+borrowed from the complete CLIPRDR response PDU and are copied directly to the
+native descriptor during the synchronous acceptance call; there is no
+whole-file memory cache or second payload queue.
+
+A changed clipboard generation, explicit cancellation, remote failure,
+receipt/result mismatch or native I/O failure invalidates the partial
+materialization and attempts to truncate it before closing the duplicate.
+Completion is visible only after exact-size materialization, final truncate,
+`fsync` and duplicate close. The current implementation is intentionally
+unlocked/current-generation only and performs no Finder/file-promise or other
+file-manager publication. Those handoff APIs may consume only a future
+already-complete destination.
+
 ## R8 Windows file-handle destination boundary (2026-10-16)
 
 The Windows file destination is a native materialization child of `RemoteTransfer`, not a second clipboard controller. It retains only one duplicated native destination handle, a copied remote leaf name for metadata, and sequential byte progress. The portable clipboard owner keeps all remote generation, descriptor, streamId, response and writer-receipt authority.

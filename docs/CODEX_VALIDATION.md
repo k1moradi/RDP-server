@@ -12425,3 +12425,44 @@ fast-user-switch delivery, genuine non-forgeable macOS R2/R3 admission, native
 capture/input/cursor publication and Microsoft-client M5 acceptance remain
 **NOT RUN/OPEN**. The authority boundary is unchanged and **M5 remains
 OPEN/BLOCKED**.
+
+## R10 real-Kerberos aggregate gate hosted validation receipt (2026-10-16)
+
+Validated implementation SHA
+`d57f3df6d8543e327165adf0f547aca5e54ebe74`, GitHub Actions
+`38912836625`, completed **SUCCESS**. The descendant contains both R10 opt-in
+real-provider aggregate cases:
+`runtime.linux-connection-real-kerberos-binding` and
+`runtime.linux-connection-real-kerberos-authinfo-denial`.
+
+Hosted credential-free regression evidence at that exact SHA is
+Ubuntu/GCC **430/430 Debug PASS** and **430/430 Release PASS**,
+macOS/Clang **362/362 Debug PASS** and **362/362 Release PASS**, and
+Windows/MSVC native preflight **44/44 Debug PASS** plus **44/44 Release PASS**
+with full **391/391 Debug PASS** and **391/391 Release PASS**. Linux, macOS
+and Windows installed-SDK consumer checks and package generation passed.
+Documentation policy passed. The R9 Clang ASan/UBSan job passed all configured
+groups: **46/46 clipboard**, **18/18 R4 x264**, **33/33 bounded R1/R3
+transport/security**, **25/25 native R2/R3 GSS**, **4/4 R10 Linux runtime
+CredSSP**, **24/24 R5 X11**, and **1/1 bounded fuzzer**. The sanitizer build
+compiled the R10 real-Kerberos aggregate test body through the production-linked
+Linux GSS/runtime target.
+
+The two new `opt-in-kerberos` CTests themselves are **NOT RUN** in hosted CI:
+the workflow deliberately configures
+`RDP_SERVER_TEST_REAL_KERBEROS=OFF` and has no external service keytab/client
+ticket cache. Therefore no real Kerberos `BindingVerified` or final
+`UnsupportedFinalCredentials` runtime result is claimed yet. Owner canonical
+`~/rdp-server/build`, Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27,
+real KDC/keytab/cache execution, NSS/logind positive admission and Microsoft
+RDP client acceptance remain **NOT RUN**.
+
+The implementation does not enable a listener or service and never fabricates
+a principal, final credential authorization, native lease or R3 admission.
+Current R2 intentionally treats final CredSSP `authInfo` as terminal
+`UnsupportedFinalCredentials`, so positive native NSS/logind admission is
+**BLOCKED on R2** until a reviewed positive final-credential authorization
+contract exists. M2/M3 remain **OPEN**. R10's next safe production integration
+gate is that R2 contract; after it lands, R10 must require the genuine
+owner-completed credential proof and independent current native-session
+evidence before any listener work.

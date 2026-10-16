@@ -1,3 +1,47 @@
+## R1 HYBRID CredSSP-before-MCS exact-SHA hosted validation (2026-10-16)
+
+Validated R1 implementation/fix SHA
+`010d3b6e34bb36a01cd24424a2a6474b9d279e0a`, Actions `38907600714`,
+overall **SUCCESS**. The preceding implementation SHA
+`8b80bc7d2916e80bc11af9be71070f544795c0ef` reached the R1 production
+sources on macOS but its new test translation unit failed only because the
+existing test-only `substituteCredSspReplyCertificate` helper was defined
+below its first new call. The follow-up added the matching forward declaration;
+production transport behavior was unchanged.
+
+Hosted protocol matrix on the corrected exact SHA:
+
+- Linux/GCC: **410/410 Debug PASS**, **410/410 Release PASS**; configured SDK
+  consumer, package and artifact steps PASS.
+- Windows/MSVC: native R6 preflight **39/39 PASS** before each configuration,
+  then **376/376 Debug PASS** and **376/376 Release PASS**; configured downstream
+  SDK/package steps PASS.
+- macOS/AppleClang: **352/352 Debug PASS**, **352/352 Release PASS**; configured
+  downstream SDK/package steps PASS.
+- The three new R1 cases
+  `transport.tcp-owned-hybrid-credssp-first-record`,
+  `transport.tcp-owned-hybrid-no-premature-mcs`, and
+  `transport.tcp-owned-hybrid-provenance-revocation` PASS in every hosted
+  Debug/Release matrix leg.
+- R9 sanitizer job: clipboard **41/41 PASS**, R4 x264/BGRA **18/18 PASS**,
+  bounded R1/R3 MCS/CredSSP/licensing **30/30 PASS** (including all three new
+  HYBRID cases), native R2/R3 GSSAPI **23/23 PASS**, R10 Linux runtime CredSSP
+  **4/4 PASS**, R5 X11 **16/16 PASS**, bounded fuzzer **1/1 PASS**.
+- Documentation policy PASS.
+
+The earlier P0 fixture repair remains separately validated at
+`8dc5cfd962f9432d4aaf3ac3c552ddb8fed172d7` / Actions `38897048825`.
+A subsequent R2 descendant may add stricter final-CredSSP admission denial, but
+R1 still does not expose an authenticated-to-MCS transition API or claim R2/R3
+authority.
+
+The connector environment has no owner `~/rdp-server` checkout, so the
+canonical owner-local build command was **NOT RUN** here. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23, macOS 27, genuine Kerberos/logind admission and
+a current Microsoft RDP client remain separate **NOT RUN** acceptance gates.
+HYBRID/TLS/DER success is not authentication evidence. **M2 remains OPEN /
+NOT ACCEPTED.**
+
 ## R2 final-CredSSP admission fence and owned authInfo denial (2026-10-16; exact-SHA CI pending)
 
 **Reconciled publication parent:** `010d3b6e34bb36a01cd24424a2a6474b9d279e0a`.

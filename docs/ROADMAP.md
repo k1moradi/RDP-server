@@ -291,3 +291,80 @@ section supplies the required policy receipt for the corrected-source
 descendant. Platform, sanitizer and full CTest results for the corrected source
 remain pending and must be recorded only after their exact workflow completes.
 
+
+
+## R1 owned-TLS licensing cancellation exact validation (2026-10-16)
+
+**Implementation:** \`597b2871a64096f419844aefa4a6004a9e2c2e65\`.  
+**Implementation Actions:** \`38976677537\` — R1-relevant Linux/macOS/R9 **PASS**; Windows blocked by an unrelated R10 compile failure.  
+**Clean Windows descendant:** \`4ec2b8c5ece830e28427c8501b98ff943465372b\`.  
+**Descendant Actions:** \`38976909719\` — Windows/MSVC **PASS**.
+
+The two new R1/R3 cancellation regressions are centrally registered exactly
+once and execute real production \`OwnedPreauthTcpConnection\` TLS plus the
+existing R3 receipt gates:
+
+- \`transport.tcp-owned-r3-license-request-cancel-replay\`
+- \`transport.tcp-owned-r3-platform-challenge-cancel-replay\`
+
+At the implementation SHA, Linux/GCC passed **517/517 Debug + 517/517
+Release** and macOS/AppleClang passed **440/440 Debug + 440/440 Release**.
+Both new cases passed in both configurations. The bounded R9 Clang ASan/UBSan
+licensing/security selection passed **88/88**, with the License Request
+cancellation case executing as selected test 69/88 and the Platform Challenge
+case as 71/88. Documentation policy and the independent R7 sanitizer job also
+passed. The successful Linux/macOS jobs completed their downstream SDK
+consumer/package gates.
+
+The implementation-SHA Windows job compiled the updated
+\`test_owned_preauth_session\` target, then failed before full CTest execution
+in concurrently added R10 \`src/server/runtime/main.cpp\`: Win32's \`max\`
+macro expanded a \`std::numeric_limits<std::uint32_t>::max()\` expression
+(C2589/C2059). R10 corrected that boundary in
+\`4ec2b8c5ece830e28427c8501b98ff943465372b\`. R1's test source is unchanged
+between those SHAs. On that clean descendant Windows/MSVC passed native
+preflight **51/51 Debug + 51/51 Release** and full CTest **470/470 Debug +
+470/470 Release**; both R1 cancellation cases passed in both configurations
+and the installed SDK consumer passed 1/1. The descendant's later Linux
+failure is separately attributable to the newly added R5
+\`x11.desktop-resource-randr-stale-damage-isolation\` regression and does not
+replace the implementation-SHA Linux evidence.
+
+The License Request regression proves two distinct terminal paths. Cancellation
+before the first application write leaves R3 at \`NotStarted\` until the caller
+explicitly closes its gate. The positive-partial path forces a 1024-byte TLS
+fragment ceiling and requires one actual R1 progress result in the range
+**1..1024 bytes**, strictly smaller than the pending request; that exact
+returned byte count alone is reported to R3. R3 rotates only the slice receipt
+and preserves the exact remaining suffix. Subsequent R1 cancellation makes
+future writes \`TransportClosed\`; explicit gate retirement moves licensing to
+\`Closed\`, clears the pending publication and rejects both the current and
+older receipts. Previously accepted TLS bytes are not claimed to have been
+retracted.
+
+The short Server Platform Challenge is cancelled deterministically before
+delivery. R1 teardown alone leaves R3 at \`AwaitServerDecision /
+PlatformChallengeRequired\`; explicit challenge-gate retirement then closes the
+lifecycle, clears the challenge, rejects stale completion and denies requeue.
+Duplicate R1/R3 cancellation is harmless. The cancellation fixture does not
+force a short-packet WANT; direction-exact WANT and stable caller-owned retry
+semantics remain covered by the already exact-SHA validated owned-TLS
+application, License Request and Platform Challenge readiness cases. No
+scheduler sleep, hidden retry, second TLS owner/reader or R1-to-R3 coordinator
+was introduced.
+
+Canonical owner-local \`~/rdp-server/build/\` execution remains **NOT RUN** in
+this connector environment. Same-integration-SHA owner Linux/X11, Windows
+MSYS2 CLANG64/Clang 23 and macOS 27 evidence remains **NOT RUN**, so M1 is not
+accepted. Genuine R2 final credential authorization, a concrete R10
+CAL-issuing authority, R2-authorized live grant publication and Share
+activation remain open, so M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+**Next R1:** do not enlarge or duplicate the transport for R3's new
+\`RdpServerLicenseGrantWriteGate\` yet. Its complete New License packet is
+already bounded below R1's 18 KiB application-I/O ceiling, and the gate is
+explicitly not embedded in the live MCS session or exposed through R2. Once
+R10 supplies the real authority owner and R2 exposes fresh authorization for
+the live grant slices/completion, verify that final publication through the
+sole R1-owned TLS writer. Otherwise wait for the first live Share-activation
+boundary that demonstrates a concrete bounded transport mismatch.

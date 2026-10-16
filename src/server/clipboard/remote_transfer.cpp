@@ -234,11 +234,65 @@ void write32(std::span<std::uint8_t> bytes, std::size_t offset,
                       });
 }
 
+[[nodiscard]] bool validTemporaryDirectoryPayload(
+    std::span<const std::uint8_t> bytes) noexcept
+{
+    constexpr std::size_t kTemporaryDirectoryBytes = 520U;
+    if (bytes.size() != kTemporaryDirectoryBytes)
+    {
+        return false;
+    }
+
+    bool sawCodeUnit = false;
+    bool pendingHighSurrogate = false;
+    for (std::size_t offset = 0; offset < bytes.size(); offset += 2U)
+    {
+        const std::uint16_t codeUnit = read16(bytes, offset);
+        if (codeUnit == 0)
+        {
+            return sawCodeUnit && !pendingHighSurrogate;
+        }
+        sawCodeUnit = true;
+        if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
+        {
+            if (pendingHighSurrogate)
+            {
+                return false;
+            }
+            pendingHighSurrogate = true;
+        }
+        else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
+        {
+            if (!pendingHighSurrogate)
+            {
+                return false;
+            }
+            pendingHighSurrogate = false;
+        }
+        else if (pendingHighSurrogate)
+        {
+            return false;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 bool RemoteTransfer::receiveFormatList(
     std::span<const std::uint32_t> advertisedFormatIds) noexcept
 {
+    // Partial Lock delivery is ambiguous: the peer might already have tagged
+    // this exact generation. Do not discard its metadata before disconnect.
+    if (fileLockWriteActive_ &&
+        pendingFileLockWrite_.operation == FileLockOperation::Lock &&
+        fileLockWrittenBytes_ != 0 &&
+        fileLockWrittenBytes_ < pendingFileLockWrite_.bytes)
+    {
+        poisoned_ = true;
+        return false;
+    }
+
     lastFormatListResponseValid_ = false;
     verifiedTextUtf8_.clear();
     verifiedTextReady_ = false;
@@ -573,6 +627,8 @@ bool RemoteTransfer::receiveCapabilitiesPdu(
         return false;
     }
 
+    peerGeneralFlags_ = peerGeneralFlags;
+    localAdvertisedGeneralFlags_ = localGeneralFlags;
     negotiatedGeneralFlags_ = peerGeneralFlags & localGeneralFlags &
                               kSupportedGeneralFlags;
     capabilitiesReceived_ = true;
@@ -582,6 +638,23 @@ bool RemoteTransfer::receiveCapabilitiesPdu(
 std::uint32_t RemoteTransfer::negotiatedGeneralFlags() const noexcept
 {
     return poisoned_ ? 0U : negotiatedGeneralFlags_;
+}
+
+bool RemoteTransfer::receiveTemporaryDirectoryPdu(
+    std::span<const std::uint8_t> completePdu) noexcept
+{
+    using namespace rdp_server::clipboard;
+    PduView pdu{};
+    if (poisoned_ || !capabilitiesReceived_ || temporaryDirectoryReceived_ ||
+        generation_ != 0 || !decodePdu(completePdu, pdu) ||
+        pdu.type != kTempDirectory || pdu.flags != 0 ||
+        !validTemporaryDirectoryPayload(pdu.payload))
+    {
+        poisoned_ = true;
+        return false;
+    }
+    temporaryDirectoryReceived_ = true;
+    return true;
 }
 
 bool RemoteTransfer::receiveNegotiatedFormatListWithResponse(
@@ -696,6 +769,11 @@ RemoteTransfer::receiveJoinedStaticChannelPdu(
             JoinedReceiveStatus::CapabilitiesAccepted :
             JoinedReceiveStatus::ProtocolError;
         return result;
+    case kTempDirectory:
+        result.status = receiveTemporaryDirectoryPdu(completeClipboardPdu) ?
+            JoinedReceiveStatus::TemporaryDirectoryAccepted :
+            JoinedReceiveStatus::ProtocolError;
+        return result;
     case kFormatList:
         result.status = receiveNegotiatedFormatListWithResponse(
             completeClipboardPdu, nativeOfferAccepted,
@@ -749,7 +827,8 @@ bool RemoteTransfer::beginRequest(
 {
     output.clear();
     if (poisoned_ || generation_ == 0 || pendingValid_ ||
-        pendingFileContentsValid_ || !advertises(formatId))
+        pendingFileContentsValid_ || fileLockWriteActive_ ||
+        !advertises(formatId))
     {
         return false;
     }
@@ -872,6 +951,227 @@ bool RemoteTransfer::abandonJoinedRequest(std::uint64_t sequence) noexcept
     return true;
 }
 
+bool RemoteTransfer::fileLockSessionPrerequisitesMet() const noexcept
+{
+    using namespace rdp_server::clipboard;
+    return !poisoned_ && capabilitiesReceived_ && temporaryDirectoryReceived_ &&
+           (peerGeneralFlags_ & kCanLockClipdata) != 0 &&
+           (localAdvertisedGeneralFlags_ & kCanLockClipdata) != 0 &&
+           (negotiatedGeneralFlags_ & kStreamFileclipEnabled) != 0;
+}
+
+bool RemoteTransfer::fileLockWriteSourceStillValid() const noexcept
+{
+    if (!fileLockWriteActive_)
+    {
+        return false;
+    }
+    if (pendingFileLockWrite_.operation == FileLockOperation::Lock)
+    {
+        return !fileLockPresent_ &&
+               pendingFileLockWrite_.generation == generation_ &&
+               remoteFileGeneration_ == generation_;
+    }
+    return fileLockPresent_ &&
+           pendingFileLockWrite_.clipDataId == lockedClipDataId_ &&
+           pendingFileLockWrite_.generation == lockedRemoteFileGeneration_;
+}
+
+std::optional<RemoteTransfer::JoinedFileLockReceipt>
+RemoteTransfer::prepareJoinedFileLockOperation(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    FileLockOperation operation, std::uint32_t clipDataId,
+    std::span<std::uint8_t> output) noexcept
+{
+    using namespace rdp_server::clipboard;
+    if (!fileLockSessionPrerequisitesMet() || fileLockWriteActive_ ||
+        pendingValid_ || pendingFileContentsValid_ ||
+        fileLockReceiptSequence_ == UINT64_MAX ||
+        channelId == 0 || channelId != expectedCliprdrChannelId ||
+        !joinedChannels.channelJoinConfirmed(channelId))
+    {
+        return std::nullopt;
+    }
+
+    std::uint32_t selectedClipDataId = clipDataId;
+    std::uint64_t sourceGeneration = 0;
+    if (operation == FileLockOperation::Lock)
+    {
+        if (fileLockPresent_ || generation_ == 0 ||
+            remoteFileGeneration_ != generation_ ||
+            fileGroupDescriptorFormatId_ == 0 ||
+            !advertises(fileGroupDescriptorFormatId_) ||
+            clipDataIdSequence_ >=
+                static_cast<std::uint64_t>(
+                    std::numeric_limits<std::uint32_t>::max()))
+        {
+            return std::nullopt;
+        }
+        selectedClipDataId =
+            static_cast<std::uint32_t>(clipDataIdSequence_ + 1U);
+        sourceGeneration = generation_;
+    }
+    else
+    {
+        if (!fileLockPresent_ || selectedClipDataId == 0 ||
+            selectedClipDataId != lockedClipDataId_)
+        {
+            return std::nullopt;
+        }
+        sourceGeneration = lockedRemoteFileGeneration_;
+    }
+
+    std::array<std::uint8_t, 4> payload{};
+    write32(payload, 0, selectedClipDataId);
+    std::vector<std::uint8_t> pdu;
+    const std::uint16_t pduType =
+        operation == FileLockOperation::Lock ? kLockClipdata :
+                                                kUnlockClipdata;
+    if (!encodePdu(pduType, 0, payload, pdu) || pdu.size() != 12U)
+    {
+        return std::nullopt;
+    }
+
+    std::array<std::uint8_t, 20> channelData{};
+    write32(channelData, 0, static_cast<std::uint32_t>(pdu.size()));
+    write32(channelData, 4, 3U);
+    std::copy(pdu.begin(), pdu.end(), channelData.begin() + 8U);
+    const auto framed = joinedChannels.encodeJoinedSendDataIndication(
+        channelId, 1, 3, channelData, output);
+    if (!framed)
+    {
+        return std::nullopt;
+    }
+
+    ++fileLockReceiptSequence_;
+    if (operation == FileLockOperation::Lock)
+    {
+        // A prepared ID is burned even if its fully unwritten frame is later
+        // cancelled. Reconnect/cancellation must never create clipDataId ABA.
+        clipDataIdSequence_ = selectedClipDataId;
+    }
+    pendingFileLockWrite_ = JoinedFileLockReceipt{
+        fileLockReceiptSequence_, sourceGeneration, selectedClipDataId,
+        *framed, operation};
+    fileLockWrittenBytes_ = 0;
+    fileLockWriteActive_ = true;
+    return pendingFileLockWrite_;
+}
+
+std::optional<RemoteTransfer::JoinedFileLockReceipt>
+RemoteTransfer::prepareJoinedFileLock(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    std::span<std::uint8_t> output) noexcept
+{
+    return prepareJoinedFileLockOperation(
+        joinedChannels, channelId, expectedCliprdrChannelId,
+        FileLockOperation::Lock, 0, output);
+}
+
+std::optional<RemoteTransfer::JoinedFileLockReceipt>
+RemoteTransfer::prepareJoinedFileUnlock(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    std::uint32_t clipDataId, std::span<std::uint8_t> output) noexcept
+{
+    return prepareJoinedFileLockOperation(
+        joinedChannels, channelId, expectedCliprdrChannelId,
+        FileLockOperation::Unlock, clipDataId, output);
+}
+
+bool RemoteTransfer::joinedFileLockMayWrite(
+    std::uint64_t sequence) const noexcept
+{
+    return !poisoned_ && fileLockWriteActive_ && sequence != 0 &&
+           sequence == pendingFileLockWrite_.sequence &&
+           fileLockWriteSourceStillValid() &&
+           fileLockWrittenBytes_ < pendingFileLockWrite_.bytes;
+}
+
+bool RemoteTransfer::recordJoinedFileLockWritten(
+    std::uint64_t sequence, std::size_t cumulativeBytes) noexcept
+{
+    if (poisoned_ || !fileLockWriteActive_ || sequence == 0 ||
+        sequence != pendingFileLockWrite_.sequence)
+    {
+        return false;
+    }
+    if (cumulativeBytes < fileLockWrittenBytes_ ||
+        cumulativeBytes > pendingFileLockWrite_.bytes)
+    {
+        poisoned_ = true;
+        return false;
+    }
+    if (!fileLockWriteSourceStillValid())
+    {
+        if (cumulativeBytes > fileLockWrittenBytes_)
+        {
+            poisoned_ = true;
+        }
+        return false;
+    }
+
+    fileLockWrittenBytes_ = cumulativeBytes;
+    if (fileLockWrittenBytes_ != pendingFileLockWrite_.bytes)
+    {
+        return true;
+    }
+
+    if (pendingFileLockWrite_.operation == FileLockOperation::Lock)
+    {
+        lockedRemoteFiles_ = remoteFiles_;
+        lockedRemoteFileCount_ = remoteFileCount_;
+        lockedRemoteFileGeneration_ = pendingFileLockWrite_.generation;
+        lockedClipDataId_ = pendingFileLockWrite_.clipDataId;
+        fileLockPresent_ = true;
+    }
+    else
+    {
+        lockedRemoteFiles_.fill({});
+        lockedRemoteFileCount_ = 0;
+        lockedRemoteFileGeneration_ = 0;
+        lockedClipDataId_ = 0;
+        fileLockPresent_ = false;
+    }
+
+    pendingFileLockWrite_ = {};
+    fileLockWrittenBytes_ = 0;
+    fileLockWriteActive_ = false;
+    return true;
+}
+
+bool RemoteTransfer::cancelUnwrittenJoinedFileLock(
+    std::uint64_t sequence) noexcept
+{
+    if (poisoned_ || !fileLockWriteActive_ || sequence == 0 ||
+        sequence != pendingFileLockWrite_.sequence ||
+        fileLockWrittenBytes_ != 0)
+    {
+        return false;
+    }
+    pendingFileLockWrite_ = {};
+    fileLockWrittenBytes_ = 0;
+    fileLockWriteActive_ = false;
+    return true;
+}
+
+bool RemoteTransfer::abandonJoinedFileLock(std::uint64_t sequence) noexcept
+{
+    if (!fileLockWriteActive_ || sequence == 0 ||
+        sequence != pendingFileLockWrite_.sequence)
+    {
+        return false;
+    }
+    if (fileLockWrittenBytes_ == 0)
+    {
+        return cancelUnwrittenJoinedFileLock(sequence);
+    }
+    poisoned_ = true;
+    return true;
+}
+
 bool RemoteTransfer::fileStreamingAvailable() const noexcept
 {
     using namespace rdp_server::clipboard;
@@ -987,23 +1287,47 @@ RemoteTransfer::remoteFile(std::size_t fileIndex) const noexcept
 
 std::optional<RemoteTransfer::FileContentsRequestReceipt>
 RemoteTransfer::beginFileContentsRequest(
-    FileContentsKind kind, std::size_t fileIndex,
-    std::uint64_t offset, std::size_t requestedBytes,
+    FileContentsKind kind, std::uint32_t clipDataId,
+    std::size_t fileIndex, std::uint64_t offset,
+    std::size_t requestedBytes,
     std::vector<std::uint8_t> &output) noexcept
 {
     using namespace rdp_server::clipboard;
     output.clear();
-    if (!fileStreamingAvailable() ||
-        remoteFileGeneration_ != generation_ ||
-        fileIndex >= remoteFileCount_ ||
-        pendingValid_ || pendingFileContentsValid_ ||
+    if (poisoned_ || pendingValid_ || pendingFileContentsValid_ ||
+        fileLockWriteActive_ ||
         fileContentsSequence_ >=
             std::numeric_limits<std::uint32_t>::max())
     {
         return std::nullopt;
     }
 
-    const auto &file = remoteFiles_[fileIndex];
+    const RemoteFileDescriptor *file = nullptr;
+    std::uint64_t sourceGeneration = 0;
+    if (clipDataId == 0)
+    {
+        if (!fileStreamingAvailable() ||
+            remoteFileGeneration_ != generation_ ||
+            fileIndex >= remoteFileCount_)
+        {
+            return std::nullopt;
+        }
+        file = &remoteFiles_[fileIndex];
+        sourceGeneration = generation_;
+    }
+    else
+    {
+        if (!fileLockSessionPrerequisitesMet() || !fileLockPresent_ ||
+            clipDataId != lockedClipDataId_ ||
+            lockedRemoteFileGeneration_ == 0 ||
+            fileIndex >= lockedRemoteFileCount_)
+        {
+            return std::nullopt;
+        }
+        file = &lockedRemoteFiles_[fileIndex];
+        sourceGeneration = lockedRemoteFileGeneration_;
+    }
+
     const bool hugeFiles =
         (negotiatedGeneralFlags_ & kHugeFileSupportEnabled) != 0;
     if (kind == FileContentsKind::Size)
@@ -1013,36 +1337,38 @@ RemoteTransfer::beginFileContentsRequest(
             return std::nullopt;
         }
     }
-    else
+    else if (file->directory || !file->sizeKnown || requestedBytes == 0 ||
+             requestedBytes > kMaximumFileContentsChunkBytes ||
+             offset >= file->size ||
+             requestedBytes > file->size - offset ||
+             (!hugeFiles &&
+              (file->size > std::numeric_limits<std::uint32_t>::max() ||
+               offset > static_cast<std::uint64_t>(
+                            std::numeric_limits<std::int32_t>::max()))))
     {
-        if (file.directory || !file.sizeKnown || requestedBytes == 0 ||
-            requestedBytes > kMaximumFileContentsChunkBytes ||
-            offset >= file.size ||
-            requestedBytes > file.size - offset ||
-            (!hugeFiles &&
-             (file.size > std::numeric_limits<std::uint32_t>::max() ||
-              offset > static_cast<std::uint64_t>(
-                           std::numeric_limits<std::int32_t>::max()))))
-        {
-            return std::nullopt;
-        }
+        return std::nullopt;
     }
 
     const std::uint64_t nextSequence = fileContentsSequence_ + 1U;
-    const std::uint32_t streamId =
-        static_cast<std::uint32_t>(nextSequence);
-    std::array<std::uint8_t, 24> payload{};
+    const std::uint32_t streamId = static_cast<std::uint32_t>(nextSequence);
+    std::array<std::uint8_t, 28> payload{};
     write32(payload, 0, streamId);
     write32(payload, 4, static_cast<std::uint32_t>(fileIndex));
-    write32(payload, 8,
-            kind == FileContentsKind::Size
-                ? kFileContentsSize : kFileContentsRange);
+    write32(payload, 8, kind == FileContentsKind::Size ?
+                            kFileContentsSize : kFileContentsRange);
     write32(payload, 12, static_cast<std::uint32_t>(offset));
     write32(payload, 16, static_cast<std::uint32_t>(offset >> 32U));
     write32(payload, 20, static_cast<std::uint32_t>(requestedBytes));
+    const std::size_t payloadBytes = clipDataId == 0 ? 24U : 28U;
+    if (clipDataId != 0)
+    {
+        write32(payload, 24, clipDataId);
+    }
 
     std::vector<std::uint8_t> candidate;
-    if (!encodePdu(kFileContentsRequest, 0, payload, candidate))
+    if (!encodePdu(kFileContentsRequest, 0,
+                   std::span<const std::uint8_t>{payload}.first(payloadBytes),
+                   candidate))
     {
         return std::nullopt;
     }
@@ -1050,24 +1376,12 @@ RemoteTransfer::beginFileContentsRequest(
     output.swap(candidate);
     fileContentsSequence_ = nextSequence;
     pendingFileContents_ = PendingFileContentsRequest{
-        nextSequence,
-        generation_,
-        streamId,
-        fileIndex,
-        offset,
-        requestedBytes,
-        kind,
-    };
+        nextSequence, sourceGeneration, streamId, clipDataId, fileIndex,
+        offset, requestedBytes, kind};
     pendingFileContentsValid_ = true;
     return FileContentsRequestReceipt{
-        nextSequence,
-        generation_,
-        streamId,
-        fileIndex,
-        offset,
-        requestedBytes,
-        kind,
-    };
+        nextSequence, sourceGeneration, streamId, clipDataId, fileIndex,
+        offset, requestedBytes, kind};
 }
 
 std::optional<RemoteTransfer::FileContentsRequestReceipt>
@@ -1076,7 +1390,7 @@ RemoteTransfer::beginFileSizeRequest(
     std::vector<std::uint8_t> &output) noexcept
 {
     return beginFileContentsRequest(
-        FileContentsKind::Size, fileIndex, 0, 8U, output);
+        FileContentsKind::Size, 0, fileIndex, 0, 8U, output);
 }
 
 std::optional<RemoteTransfer::FileContentsRequestReceipt>
@@ -1086,7 +1400,27 @@ RemoteTransfer::beginFileRangeRequest(
     std::vector<std::uint8_t> &output) noexcept
 {
     return beginFileContentsRequest(
-        FileContentsKind::Range, fileIndex, offset,
+        FileContentsKind::Range, 0, fileIndex, offset,
+        requestedBytes, output);
+}
+
+std::optional<RemoteTransfer::FileContentsRequestReceipt>
+RemoteTransfer::beginLockedFileSizeRequest(
+    std::uint32_t clipDataId, std::size_t fileIndex,
+    std::vector<std::uint8_t> &output) noexcept
+{
+    return beginFileContentsRequest(
+        FileContentsKind::Size, clipDataId, fileIndex, 0, 8U, output);
+}
+
+std::optional<RemoteTransfer::FileContentsRequestReceipt>
+RemoteTransfer::beginLockedFileRangeRequest(
+    std::uint32_t clipDataId, std::size_t fileIndex,
+    std::uint64_t offset, std::size_t requestedBytes,
+    std::vector<std::uint8_t> &output) noexcept
+{
+    return beginFileContentsRequest(
+        FileContentsKind::Range, clipDataId, fileIndex, offset,
         requestedBytes, output);
 }
 
@@ -1094,13 +1428,14 @@ std::optional<RemoteTransfer::JoinedFileContentsRequestReceipt>
 RemoteTransfer::prepareJoinedFileContentsRequest(
     const transport::McsChannelJoinWriteGate &joinedChannels,
     std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
-    FileContentsKind kind, std::size_t fileIndex,
-    std::uint64_t offset, std::size_t requestedBytes,
+    FileContentsKind kind, std::uint32_t clipDataId,
+    std::size_t fileIndex, std::uint64_t offset,
+    std::size_t requestedBytes,
     std::span<std::uint8_t> output) noexcept
 {
     if (poisoned_ || pendingFileContentsValid_ ||
-        joinedFileContentsActive_ || channelId == 0 ||
-        channelId != expectedCliprdrChannelId ||
+        joinedFileContentsActive_ || fileLockWriteActive_ ||
+        channelId == 0 || channelId != expectedCliprdrChannelId ||
         !joinedChannels.channelJoinConfirmed(channelId))
     {
         return std::nullopt;
@@ -1108,31 +1443,33 @@ RemoteTransfer::prepareJoinedFileContentsRequest(
 
     std::vector<std::uint8_t> pdu;
     const auto request = beginFileContentsRequest(
-        kind, fileIndex, offset, requestedBytes, pdu);
+        kind, clipDataId, fileIndex, offset, requestedBytes, pdu);
     if (!request)
     {
         return std::nullopt;
     }
 
-    // MS-RDPECLIP 2.2.3.3: the request is the 8-byte clipboard header plus
-    // the fixed 24-byte FILECONTENTS_REQUEST payload. One uncompressed static
-    // virtual-channel chunk therefore needs 8 + 32 bytes before MCS framing.
-    constexpr std::size_t kFileContentsPduBytes = 32U;
+    constexpr std::size_t kUnlockedPduBytes = 32U;
+    constexpr std::size_t kLockedPduBytes = 36U;
     constexpr std::size_t kStaticChannelHeaderBytes = 8U;
-    if (pdu.size() != kFileContentsPduBytes)
+    const std::size_t expectedPduBytes =
+        clipDataId == 0 ? kUnlockedPduBytes : kLockedPduBytes;
+    if (pdu.size() != expectedPduBytes)
     {
         (void)cancelUnsentFileContentsRequest(request->sequence);
         return std::nullopt;
     }
 
     std::array<std::uint8_t,
-               kStaticChannelHeaderBytes + kFileContentsPduBytes> channelData{};
-    write32(channelData, 0, static_cast<std::uint32_t>(pdu.size()));
-    write32(channelData, 4, 3U); // CHANNEL_FLAG_FIRST | CHANNEL_FLAG_LAST.
+               kStaticChannelHeaderBytes + kLockedPduBytes> channelData{};
+    auto channelDataView = std::span<std::uint8_t>{channelData}.first(
+        kStaticChannelHeaderBytes + pdu.size());
+    write32(channelDataView, 0, static_cast<std::uint32_t>(pdu.size()));
+    write32(channelDataView, 4, 3U);
     std::copy(pdu.begin(), pdu.end(),
-              channelData.begin() + kStaticChannelHeaderBytes);
+              channelDataView.begin() + kStaticChannelHeaderBytes);
     const auto framed = joinedChannels.encodeJoinedSendDataIndication(
-        channelId, 1, 3, channelData, output);
+        channelId, 1, 3, channelDataView, output);
     if (!framed)
     {
         (void)cancelUnsentFileContentsRequest(request->sequence);
@@ -1154,7 +1491,7 @@ RemoteTransfer::prepareJoinedFileSizeRequest(
 {
     return prepareJoinedFileContentsRequest(
         joinedChannels, channelId, expectedCliprdrChannelId,
-        FileContentsKind::Size, fileIndex, 0, 8U, output);
+        FileContentsKind::Size, 0, fileIndex, 0, 8U, output);
 }
 
 std::optional<RemoteTransfer::JoinedFileContentsRequestReceipt>
@@ -1166,7 +1503,49 @@ RemoteTransfer::prepareJoinedFileRangeRequest(
 {
     return prepareJoinedFileContentsRequest(
         joinedChannels, channelId, expectedCliprdrChannelId,
-        FileContentsKind::Range, fileIndex, offset, requestedBytes, output);
+        FileContentsKind::Range, 0, fileIndex, offset,
+        requestedBytes, output);
+}
+
+std::optional<RemoteTransfer::JoinedFileContentsRequestReceipt>
+RemoteTransfer::prepareJoinedLockedFileSizeRequest(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    std::uint32_t clipDataId, std::size_t fileIndex,
+    std::span<std::uint8_t> output) noexcept
+{
+    return prepareJoinedFileContentsRequest(
+        joinedChannels, channelId, expectedCliprdrChannelId,
+        FileContentsKind::Size, clipDataId, fileIndex, 0, 8U, output);
+}
+
+std::optional<RemoteTransfer::JoinedFileContentsRequestReceipt>
+RemoteTransfer::prepareJoinedLockedFileRangeRequest(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    std::uint32_t clipDataId, std::size_t fileIndex,
+    std::uint64_t offset, std::size_t requestedBytes,
+    std::span<std::uint8_t> output) noexcept
+{
+    return prepareJoinedFileContentsRequest(
+        joinedChannels, channelId, expectedCliprdrChannelId,
+        FileContentsKind::Range, clipDataId, fileIndex, offset,
+        requestedBytes, output);
+}
+
+bool RemoteTransfer::fileContentsRequestSourceStillValid(
+    const PendingFileContentsRequest &request) const noexcept
+{
+    if (request.clipDataId == 0)
+    {
+        return request.generation == generation_ &&
+               remoteFileGeneration_ == request.generation &&
+               request.fileIndex < remoteFileCount_;
+    }
+    return fileLockPresent_ &&
+           request.clipDataId == lockedClipDataId_ &&
+           request.generation == lockedRemoteFileGeneration_ &&
+           request.fileIndex < lockedRemoteFileCount_;
 }
 
 bool RemoteTransfer::joinedFileContentsRequestMayWrite(
@@ -1175,7 +1554,7 @@ bool RemoteTransfer::joinedFileContentsRequestMayWrite(
     return !poisoned_ && pendingFileContentsValid_ &&
            joinedFileContentsActive_ && sequence != 0 &&
            sequence == joinedFileContentsActiveSequence_ &&
-           pendingFileContents_.generation == generation_ &&
+           fileContentsRequestSourceStillValid(pendingFileContents_) &&
            joinedFileContentsWrittenBytes_ < joinedFileContentsFrameBytes_;
 }
 
@@ -1189,11 +1568,17 @@ bool RemoteTransfer::recordJoinedFileContentsRequestWritten(
         return false;
     }
     if (cumulativeBytes < joinedFileContentsWrittenBytes_ ||
-        cumulativeBytes > joinedFileContentsFrameBytes_ ||
-        (pendingFileContents_.generation != generation_ &&
-         cumulativeBytes > joinedFileContentsWrittenBytes_))
+        cumulativeBytes > joinedFileContentsFrameBytes_)
     {
         poisoned_ = true;
+        return false;
+    }
+    if (!fileContentsRequestSourceStillValid(pendingFileContents_))
+    {
+        if (cumulativeBytes > joinedFileContentsWrittenBytes_)
+        {
+            poisoned_ = true;
+        }
         return false;
     }
     joinedFileContentsWrittenBytes_ = cumulativeBytes;
@@ -1253,8 +1638,6 @@ RemoteTransfer::receiveFileContentsResponse(
         return result;
     }
 
-    // A response cannot prove that a prepared/partially submitted MCS frame
-    // reached the peer. Do not release or reuse the stream in that ambiguity.
     if (joinedFileContentsActive_ &&
         joinedFileContentsWrittenBytes_ != joinedFileContentsFrameBytes_)
     {
@@ -1264,9 +1647,12 @@ RemoteTransfer::receiveFileContentsResponse(
     }
 
     const PendingFileContentsRequest completed = pendingFileContents_;
+    const bool sourceStillValid =
+        fileContentsRequestSourceStillValid(completed);
     result.sequence = completed.sequence;
     result.generation = completed.generation;
     result.streamId = completed.streamId;
+    result.clipDataId = completed.clipDataId;
     result.fileIndex = completed.fileIndex;
     result.offset = completed.offset;
     const std::uint32_t streamId = read32(pdu.payload, 0);
@@ -1283,6 +1669,16 @@ RemoteTransfer::receiveFileContentsResponse(
     joinedFileContentsFrameBytes_ = 0;
     joinedFileContentsWrittenBytes_ = 0;
     joinedFileContentsActive_ = false;
+
+    if (completed.clipDataId != 0 && !sourceStillValid)
+    {
+        poisoned_ = true;
+        result.status = FileContentsStatus::ProtocolError;
+        return result;
+    }
+    const bool obsoleteCurrentGeneration =
+        completed.clipDataId == 0 && !sourceStillValid;
+
     if (pdu.flags == kResponseFail)
     {
         if (pdu.payload.size() != 4U)
@@ -1291,10 +1687,9 @@ RemoteTransfer::receiveFileContentsResponse(
             result.status = FileContentsStatus::ProtocolError;
             return result;
         }
-        result.status =
-            completed.generation == generation_
-                ? FileContentsStatus::RemoteFailure
-                : FileContentsStatus::DiscardedPreviousGeneration;
+        result.status = obsoleteCurrentGeneration ?
+            FileContentsStatus::DiscardedPreviousGeneration :
+            FileContentsStatus::RemoteFailure;
         return result;
     }
 
@@ -1315,20 +1710,15 @@ RemoteTransfer::receiveFileContentsResponse(
             return result;
         }
         result.fileSize = fileSize;
-        if (completed.generation != generation_)
+        if (obsoleteCurrentGeneration)
         {
-            result.status =
-                FileContentsStatus::DiscardedPreviousGeneration;
+            result.status = FileContentsStatus::DiscardedPreviousGeneration;
             return result;
         }
-        if (remoteFileGeneration_ != generation_ ||
-            completed.fileIndex >= remoteFileCount_)
-        {
-            poisoned_ = true;
-            result.status = FileContentsStatus::ProtocolError;
-            return result;
-        }
-        auto &file = remoteFiles_[completed.fileIndex];
+
+        auto &file = completed.clipDataId == 0 ?
+            remoteFiles_[completed.fileIndex] :
+            lockedRemoteFiles_[completed.fileIndex];
         file.size = fileSize;
         file.sizeKnown = true;
         result.status = FileContentsStatus::ReceivedSize;
@@ -1342,20 +1732,15 @@ RemoteTransfer::receiveFileContentsResponse(
         result.status = FileContentsStatus::ProtocolError;
         return result;
     }
-    if (completed.generation != generation_)
+    if (obsoleteCurrentGeneration)
     {
-        result.status =
-            FileContentsStatus::DiscardedPreviousGeneration;
+        result.status = FileContentsStatus::DiscardedPreviousGeneration;
         return result;
     }
-    if (remoteFileGeneration_ != generation_ ||
-        completed.fileIndex >= remoteFileCount_)
-    {
-        poisoned_ = true;
-        result.status = FileContentsStatus::ProtocolError;
-        return result;
-    }
-    const auto &file = remoteFiles_[completed.fileIndex];
+
+    const auto &file = completed.clipDataId == 0 ?
+        remoteFiles_[completed.fileIndex] :
+        lockedRemoteFiles_[completed.fileIndex];
     if (!file.sizeKnown || completed.offset >= file.size ||
         bytes.size() > file.size - completed.offset)
     {
@@ -1834,6 +2219,14 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     remoteFiles_.fill({});
     remoteFileCount_ = 0;
     remoteFileGeneration_ = 0;
+    lockedRemoteFiles_.fill({});
+    lockedRemoteFileCount_ = 0;
+    lockedRemoteFileGeneration_ = 0;
+    lockedClipDataId_ = 0;
+    fileLockPresent_ = false;
+    pendingFileLockWrite_ = {};
+    fileLockWrittenBytes_ = 0;
+    fileLockWriteActive_ = false;
     pendingFileContents_ = {};
     joinedFileContentsActiveSequence_ = 0;
     joinedFileContentsFrameBytes_ = 0;
@@ -1843,15 +2236,19 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     attemptedPrefetchIds_.fill(0);
     generation_ = 0;
     negotiatedGeneralFlags_ = 0;
+    peerGeneralFlags_ = 0;
+    localAdvertisedGeneralFlags_ = 0;
     capabilitiesReceived_ = false;
+    temporaryDirectoryReceived_ = false;
     pending_ = {};
     pendingValid_ = false;
     joinedRequestActiveSequence_ = 0;
     joinedRequestFrameBytes_ = 0;
     joinedRequestWrittenBytes_ = 0;
     joinedRequestActive_ = false;
-    // joinedRequestSequence_ and fileContentsSequence_ remain monotonic
-    // across reconnects so stale callbacks cannot acquire a fresh identity.
+    // Request/file/lock receipt sequences and clipDataIdSequence_ remain
+    // monotonic across reconnects so stale callbacks cannot acquire a fresh
+    // identity or resurrect an old locked generation.
     poisoned_ = false;
 }
 

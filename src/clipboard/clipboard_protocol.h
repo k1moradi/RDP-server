@@ -20,6 +20,7 @@ constexpr std::uint16_t kFormatList = 2;
 constexpr std::uint16_t kFormatListResponse = 3;
 constexpr std::uint16_t kFormatDataRequest = 4;
 constexpr std::uint16_t kFormatDataResponse = 5;
+constexpr std::uint16_t kTempDirectory = 6;
 constexpr std::uint16_t kClipCaps = 7;
 constexpr std::uint16_t kFileContentsRequest = 8;
 constexpr std::uint16_t kFileContentsResponse = 9;

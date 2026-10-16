@@ -33,7 +33,9 @@ public:
     static constexpr std::size_t kMaximumRemoteFiles = 64;
     static constexpr std::size_t kMaximumFileContentsChunkBytes = 64U * 1024U;
     // MS-RDPECLIP generalFlags: capability version is informational only.
-    // Do not advertise CB_CAN_LOCK_CLIPDATA until lock/unlock receipts exist.
+    // The bounded lock/unlock boundary below is intentionally offline until
+    // the server initialization/authorization route can truthfully advertise
+    // CB_CAN_LOCK_CLIPDATA.
     static constexpr std::uint32_t kSupportedGeneralFlags = 0x0000002eU;
 
     enum class ResponseStatus : std::uint8_t
@@ -96,6 +98,12 @@ public:
 
     [[nodiscard]] std::uint32_t negotiatedGeneralFlags() const noexcept;
 
+    // Consume the client's fixed-size Temporary Directory PDU after its
+    // capabilities and before the first Format List. The path is validated
+    // structurally but never retained or dereferenced by this owner.
+    [[nodiscard]] bool receiveTemporaryDirectoryPdu(
+        std::span<const std::uint8_t> completePdu) noexcept;
+
     // Select long/short names using jointly supported capabilities, not a
     // caller-supplied format mode. Native acceptance must precede CB_OK.
     [[nodiscard]] bool receiveNegotiatedFormatListWithResponse(
@@ -131,6 +139,7 @@ public:
         Denied,
         Ignored,
         CapabilitiesAccepted,
+        TemporaryDirectoryAccepted,
         FormatListAccepted,
         FormatListDeclined,
         DataReceived,
@@ -207,6 +216,42 @@ public:
     [[nodiscard]] bool abandonJoinedRequest(
         std::uint64_t sequence) noexcept;
 
+    // OFFLINE lock/unlock transport boundary. A usable lock requires the raw
+    // peer/local capability exchange to include CB_CAN_LOCK_CLIPDATA and a
+    // valid client Temporary Directory PDU. kSupportedGeneralFlags still masks
+    // the capability, so this does not claim negotiated interoperability.
+    // One fully delivered Lock snapshots only fixed-capacity descriptor
+    // metadata for its exact generation; file bodies are never cached here.
+    enum class FileLockOperation : std::uint8_t { Lock, Unlock };
+    struct JoinedFileLockReceipt
+    {
+        std::uint64_t sequence{};
+        std::uint64_t generation{};
+        std::uint32_t clipDataId{};
+        std::size_t bytes{};
+        FileLockOperation operation{FileLockOperation::Lock};
+    };
+
+    [[nodiscard]] std::optional<JoinedFileLockReceipt>
+    prepareJoinedFileLock(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] std::optional<JoinedFileLockReceipt>
+    prepareJoinedFileUnlock(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        std::uint32_t clipDataId,
+        std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] bool joinedFileLockMayWrite(
+        std::uint64_t sequence) const noexcept;
+    [[nodiscard]] bool recordJoinedFileLockWritten(
+        std::uint64_t sequence, std::size_t cumulativeBytes) noexcept;
+    [[nodiscard]] bool cancelUnwrittenJoinedFileLock(
+        std::uint64_t sequence) noexcept;
+    [[nodiscard]] bool abandonJoinedFileLock(
+        std::uint64_t sequence) noexcept;
+
     // Stream-file capability and FileGroupDescriptorW are both generation
     // scoped. Descriptor storage is fixed-capacity metadata only; no remote
     // file body is retained here.
@@ -243,6 +288,9 @@ public:
         std::uint64_t sequence{};
         std::uint64_t generation{};
         std::uint32_t streamId{};
+        // Zero selects the current generation. Nonzero identifies the exact
+        // retained generation from a completely delivered Lock PDU.
+        std::uint32_t clipDataId{};
         std::size_t fileIndex{};
         std::uint64_t offset{};
         std::size_t requestedBytes{};
@@ -254,6 +302,7 @@ public:
         std::uint64_t sequence{};
         std::uint64_t generation{};
         std::uint32_t streamId{};
+        std::uint32_t clipDataId{};
         std::size_t fileIndex{};
         std::uint64_t offset{};
         std::uint64_t fileSize{};
@@ -269,6 +318,15 @@ public:
     beginFileRangeRequest(
         std::size_t fileIndex, std::uint64_t offset,
         std::size_t requestedBytes,
+        std::vector<std::uint8_t> &output) noexcept;
+    [[nodiscard]] std::optional<FileContentsRequestReceipt>
+    beginLockedFileSizeRequest(
+        std::uint32_t clipDataId, std::size_t fileIndex,
+        std::vector<std::uint8_t> &output) noexcept;
+    [[nodiscard]] std::optional<FileContentsRequestReceipt>
+    beginLockedFileRangeRequest(
+        std::uint32_t clipDataId, std::size_t fileIndex,
+        std::uint64_t offset, std::size_t requestedBytes,
         std::vector<std::uint8_t> &output) noexcept;
 
     // OFFLINE wire-only FileContents preparation. This reuses the same
@@ -293,6 +351,19 @@ public:
         std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
         std::size_t fileIndex, std::uint64_t offset,
         std::size_t requestedBytes, std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] std::optional<JoinedFileContentsRequestReceipt>
+    prepareJoinedLockedFileSizeRequest(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        std::uint32_t clipDataId, std::size_t fileIndex,
+        std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] std::optional<JoinedFileContentsRequestReceipt>
+    prepareJoinedLockedFileRangeRequest(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        std::uint32_t clipDataId, std::size_t fileIndex,
+        std::uint64_t offset, std::size_t requestedBytes,
+        std::span<std::uint8_t> output) noexcept;
 
     [[nodiscard]] bool joinedFileContentsRequestMayWrite(
         std::uint64_t sequence) const noexcept;
@@ -437,6 +508,7 @@ private:
         std::uint64_t sequence{};
         std::uint64_t generation{};
         std::uint32_t streamId{};
+        std::uint32_t clipDataId{};
         std::size_t fileIndex{};
         std::uint64_t offset{};
         std::size_t requestedBytes{};
@@ -445,16 +517,28 @@ private:
 
     [[nodiscard]] std::optional<FileContentsRequestReceipt>
     beginFileContentsRequest(
-        FileContentsKind kind, std::size_t fileIndex,
-        std::uint64_t offset, std::size_t requestedBytes,
+        FileContentsKind kind, std::uint32_t clipDataId,
+        std::size_t fileIndex, std::uint64_t offset,
+        std::size_t requestedBytes,
         std::vector<std::uint8_t> &output) noexcept;
     [[nodiscard]] std::optional<JoinedFileContentsRequestReceipt>
     prepareJoinedFileContentsRequest(
         const transport::McsChannelJoinWriteGate &joinedChannels,
         std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
-        FileContentsKind kind, std::size_t fileIndex,
-        std::uint64_t offset, std::size_t requestedBytes,
+        FileContentsKind kind, std::uint32_t clipDataId,
+        std::size_t fileIndex, std::uint64_t offset,
+        std::size_t requestedBytes,
         std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] std::optional<JoinedFileLockReceipt>
+    prepareJoinedFileLockOperation(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        FileLockOperation operation, std::uint32_t clipDataId,
+        std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] bool fileLockSessionPrerequisitesMet() const noexcept;
+    [[nodiscard]] bool fileLockWriteSourceStillValid() const noexcept;
+    [[nodiscard]] bool fileContentsRequestSourceStillValid(
+        const PendingFileContentsRequest &request) const noexcept;
 
     std::string verifiedTextUtf8_{};
     bool verifiedTextReady_{};
@@ -479,6 +563,20 @@ private:
     std::array<RemoteFileDescriptor, kMaximumRemoteFiles> remoteFiles_{};
     std::size_t remoteFileCount_{};
     std::uint64_t remoteFileGeneration_{};
+
+    // One retained generation, fixed to the same 64-descriptor bound as the
+    // current offer. Receipt and clipDataId counters never reset or recycle.
+    std::array<RemoteFileDescriptor, kMaximumRemoteFiles> lockedRemoteFiles_{};
+    std::size_t lockedRemoteFileCount_{};
+    std::uint64_t lockedRemoteFileGeneration_{};
+    std::uint32_t lockedClipDataId_{};
+    bool fileLockPresent_{};
+    std::uint64_t fileLockReceiptSequence_{};
+    std::uint64_t clipDataIdSequence_{};
+    JoinedFileLockReceipt pendingFileLockWrite_{};
+    std::size_t fileLockWrittenBytes_{};
+    bool fileLockWriteActive_{};
+
     std::uint64_t fileContentsSequence_{}; // Never reset: no stream receipt ABA.
     PendingFileContentsRequest pendingFileContents_{};
     std::uint64_t joinedFileContentsActiveSequence_{};
@@ -489,7 +587,12 @@ private:
     std::array<std::uint32_t, 4> attemptedPrefetchIds_{};
     std::uint64_t generation_{};
     std::uint32_t negotiatedGeneralFlags_{};
+    // Keep the raw exchange only to prove the offline Lock prerequisite;
+    // negotiatedGeneralFlags_ still masks CB_CAN_LOCK_CLIPDATA.
+    std::uint32_t peerGeneralFlags_{};
+    std::uint32_t localAdvertisedGeneralFlags_{};
     bool capabilitiesReceived_{};
+    bool temporaryDirectoryReceived_{};
     PendingRequest pending_{};
     bool pendingValid_{};
     std::uint64_t joinedRequestSequence_{}; // Never reset: no receipt ABA.

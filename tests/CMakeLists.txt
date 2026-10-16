@@ -335,6 +335,11 @@ function(add_rdp_test source_file suite behavior)
                 format-data-request-joined-mcs-envelope
                 format-data-request-generation-cancellation
                 file-descriptor-metadata-validation
+                file-lock-unlock-wire-receipts
+                file-lock-unlock-partial-send-denials
+                file-lock-unlock-generation-retention
+                file-contents-locked-stream-identity
+                file-lock-capability-prerequisite-denials
                 file-contents-size-range-streaming
                 file-contents-response-rejections
                 file-contents-joined-mcs-envelope

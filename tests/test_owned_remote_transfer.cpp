@@ -334,6 +334,81 @@ std::vector<std::uint8_t> longFormatPdu(
     return wire;
 }
 
+std::vector<std::uint8_t> temporaryDirectoryPdu()
+{
+    using namespace rdp_server::clipboard;
+    std::array<std::uint8_t, 520> payload{};
+    constexpr std::u16string_view path = u"C:\\Temp\\rdp-clipboard";
+    for (std::size_t index = 0; index < path.size(); ++index)
+    {
+        const auto codeUnit = static_cast<std::uint16_t>(path[index]);
+        payload[index * 2U] = static_cast<std::uint8_t>(codeUnit);
+        payload[index * 2U + 1U] =
+            static_cast<std::uint8_t>(codeUnit >> 8U);
+    }
+    std::vector<std::uint8_t> wire;
+    assert(encodePdu(kTempDirectory, 0, payload, wire));
+    return wire;
+}
+
+void confirmJoinedClipboardChannel(
+    rdp_server::server::transport::McsChannelJoinWriteGate &gate)
+{
+    using namespace rdp_server::server::transport;
+    const std::array<std::uint16_t, 1> channels{1003};
+    assert(gate.configure(1007, channels));
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(
+        gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 15) ==
+        McsJoinWriteOutcome::Confirmed);
+}
+
+void initializeFileStreamSession(
+    RemoteTransfer &owner, std::uint32_t peerFlags = 0x3eU,
+    std::uint32_t localFlags = 0x3eU,
+    bool includeTemporaryDirectory = true)
+{
+    assert(owner.receiveCapabilitiesPdu(
+        capabilitiesPdu(peerFlags), localFlags));
+    if (includeTemporaryDirectory)
+    {
+        assert(owner.receiveTemporaryDirectoryPdu(temporaryDirectoryPdu()));
+    }
+}
+
+void installSingleFileOffer(
+    RemoteTransfer &owner, std::uint32_t fileListFormatId,
+    std::u16string_view fileName, std::uint64_t fileSize)
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::size_t kDescriptorBytes = 592U;
+    constexpr std::uint32_t kFdFileSize = 0x00000040U;
+
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(
+        formats, fileListFormatId, "FileGroupDescriptorW");
+    assert(owner.receiveLongFormatListPdu(longFormatPdu(formats)));
+
+    std::vector<std::uint8_t> request;
+    assert(owner.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> list(4U + kDescriptorBytes, 0);
+    put32(list, 0, 1);
+    auto descriptor = std::span(list).subspan(4U, kDescriptorBytes);
+    put32(descriptor, 0, kFdFileSize);
+    putDescriptorFileSize(descriptor, fileSize);
+    putFileName(descriptor, fileName);
+    const auto wire = responsePdu(kResponseOk, list);
+    assert(owner.storeFileGroupDescriptors(owner.receiveResponse(wire)));
+    assert(owner.remoteFileCount() == 1U);
+    const auto file = owner.remoteFile(0);
+    assert(file && file->sizeKnown && file->size == fileSize);
+}
+
+
 void testLongFormatListGeneration()
 {
     RemoteTransfer transfer;
@@ -2037,6 +2112,357 @@ void testFileContentsResponseRejections()
     }
 }
 
+
+void testFileLockUnlockWireReceipts()
+{
+    using namespace rdp_server::clipboard;
+    using namespace rdp_server::server::transport;
+
+    McsChannelJoinWriteGate gate;
+    confirmJoinedClipboardChannel(gate);
+    RemoteTransfer owner;
+    initializeFileStreamSession(owner);
+    installSingleFileOffer(owner, 0xc110U, u"locked.bin", 64U);
+
+    std::array<std::uint8_t, 96> output{};
+    output.fill(0xa5);
+    const auto lock = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(lock);
+    assert(lock->sequence != 0 && lock->generation == 1U);
+    assert(lock->clipDataId == 1U && lock->bytes == 34U);
+    assert(lock->operation == RemoteTransfer::FileLockOperation::Lock);
+    assert(owner.joinedFileLockMayWrite(lock->sequence));
+    assert(output[0] == 0x03U && output[3] == 0x22U);
+    assert(output[13] == 0x14U);
+    assert(output[14] == 0x0cU && output[18] == 0x03U);
+
+    PduView lockPdu{};
+    assert(decodePdu(
+        std::span<const std::uint8_t>{output}.subspan(22U, 12U),
+        lockPdu));
+    assert(lockPdu.type == kLockClipdata && lockPdu.flags == 0);
+    assert(lockPdu.payload.size() == 4U);
+    std::array<std::uint8_t, 4> clipDataIdBytes{};
+    put32(clipDataIdBytes, 0, lock->clipDataId);
+    assert(std::equal(lockPdu.payload.begin(), lockPdu.payload.end(),
+                      clipDataIdBytes.begin(), clipDataIdBytes.end()));
+
+    assert(owner.recordJoinedFileLockWritten(lock->sequence, 7U));
+    assert(owner.joinedFileLockMayWrite(lock->sequence));
+    assert(owner.recordJoinedFileLockWritten(lock->sequence, lock->bytes));
+    assert(!owner.joinedFileLockMayWrite(lock->sequence));
+    assert(!owner.recordJoinedFileLockWritten(lock->sequence, lock->bytes));
+
+    output.fill(0xa5);
+    const auto unlock = owner.prepareJoinedFileUnlock(
+        gate, 1003, 1003, lock->clipDataId, output);
+    assert(unlock);
+    assert(unlock->sequence > lock->sequence);
+    assert(unlock->generation == lock->generation);
+    assert(unlock->clipDataId == lock->clipDataId);
+    assert(unlock->bytes == 34U);
+    assert(unlock->operation == RemoteTransfer::FileLockOperation::Unlock);
+    PduView unlockPdu{};
+    assert(decodePdu(
+        std::span<const std::uint8_t>{output}.subspan(22U, 12U),
+        unlockPdu));
+    assert(unlockPdu.type == kUnlockClipdata && unlockPdu.flags == 0);
+    assert(unlockPdu.payload.size() == 4U);
+    assert(std::equal(unlockPdu.payload.begin(), unlockPdu.payload.end(),
+                      clipDataIdBytes.begin(), clipDataIdBytes.end()));
+    assert(owner.recordJoinedFileLockWritten(
+        unlock->sequence, unlock->bytes));
+    assert(!owner.recordJoinedFileLockWritten(
+        unlock->sequence, unlock->bytes));
+
+    std::vector<std::uint8_t> request;
+    assert(!owner.beginLockedFileSizeRequest(
+        lock->clipDataId, 0, request));
+}
+
+void testFileLockUnlockPartialSendDenials()
+{
+    using namespace rdp_server::server::transport;
+
+    McsChannelJoinWriteGate gate;
+    confirmJoinedClipboardChannel(gate);
+    RemoteTransfer owner;
+    const auto prepareSession = [&]() {
+        initializeFileStreamSession(owner);
+        installSingleFileOffer(owner, 0xc111U, u"receipt.bin", 32U);
+    };
+
+    prepareSession();
+    std::array<std::uint8_t, 96> output{};
+    const auto first = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(first);
+    assert(!owner.recordJoinedFileLockWritten(first->sequence + 1U, 1U));
+    assert(owner.synchronized());
+    assert(owner.cancelUnwrittenJoinedFileLock(first->sequence));
+    assert(!owner.joinedFileLockMayWrite(first->sequence));
+
+    owner.resetAfterDisconnect();
+    prepareSession();
+    const auto second = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(second && second->sequence > first->sequence);
+    assert(second->clipDataId > first->clipDataId);
+    assert(!owner.recordJoinedFileLockWritten(first->sequence, 1U));
+    assert(owner.recordJoinedFileLockWritten(second->sequence, 1U));
+    assert(!owner.cancelUnwrittenJoinedFileLock(second->sequence));
+    assert(owner.abandonJoinedFileLock(second->sequence));
+    assert(!owner.synchronized());
+
+    owner.resetAfterDisconnect();
+    prepareSession();
+    const auto third = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(third && third->clipDataId > second->clipDataId);
+    assert(!owner.recordJoinedFileLockWritten(
+        third->sequence, third->bytes + 1U));
+    assert(!owner.synchronized());
+
+    owner.resetAfterDisconnect();
+    prepareSession();
+    const auto delivered = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(delivered);
+    assert(owner.recordJoinedFileLockWritten(
+        delivered->sequence, delivered->bytes));
+    assert(!owner.prepareJoinedFileUnlock(
+        gate, 1003, 1003, delivered->clipDataId + 1U, output));
+    const auto unlock = owner.prepareJoinedFileUnlock(
+        gate, 1003, 1003, delivered->clipDataId, output);
+    assert(unlock);
+    assert(owner.recordJoinedFileLockWritten(unlock->sequence, 1U));
+    assert(!owner.cancelUnwrittenJoinedFileLock(unlock->sequence));
+    assert(owner.abandonJoinedFileLock(unlock->sequence));
+    assert(!owner.synchronized());
+    owner.resetAfterDisconnect();
+    assert(!owner.recordJoinedFileLockWritten(unlock->sequence, 1U));
+}
+
+void testFileLockUnlockGenerationRetention()
+{
+    using namespace rdp_server::server::transport;
+
+    McsChannelJoinWriteGate gate;
+    confirmJoinedClipboardChannel(gate);
+    RemoteTransfer owner;
+    initializeFileStreamSession(owner);
+    installSingleFileOffer(owner, 0xc112U, u"old.bin", 64U);
+
+    std::array<std::uint8_t, 96> output{};
+    const auto firstLock = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(firstLock);
+    assert(owner.recordJoinedFileLockWritten(
+        firstLock->sequence, firstLock->bytes));
+
+    installSingleFileOffer(owner, 0xc113U, u"new.bin", 2U);
+    assert(owner.generation() == 2U);
+    const auto current = owner.remoteFile(0);
+    assert(current && current->size == 2U);
+
+    std::vector<std::uint8_t> request;
+    assert(!owner.beginFileRangeRequest(0, 4U, 1U, request));
+    const auto lockedRange = owner.beginLockedFileRangeRequest(
+        firstLock->clipDataId, 0, 32U, 4U, request);
+    assert(lockedRange);
+    assert(lockedRange->generation == firstLock->generation);
+    assert(lockedRange->clipDataId == firstLock->clipDataId);
+    PduView lockedPdu{};
+    assert(decodePdu(request, lockedPdu));
+    assert(lockedPdu.payload.size() == 28U);
+    std::array<std::uint8_t, 4> idBytes{};
+    put32(idBytes, 0, firstLock->clipDataId);
+    assert(std::equal(lockedPdu.payload.end() - 4, lockedPdu.payload.end(),
+                      idBytes.begin(), idBytes.end()));
+    assert(owner.cancelUnsentFileContentsRequest(lockedRange->sequence));
+    assert(!owner.beginLockedFileRangeRequest(
+        firstLock->clipDataId + 1U, 0, 0, 1U, request));
+
+    const auto unlock = owner.prepareJoinedFileUnlock(
+        gate, 1003, 1003, firstLock->clipDataId, output);
+    assert(unlock);
+    assert(owner.recordJoinedFileLockWritten(
+        unlock->sequence, unlock->bytes));
+    assert(!owner.beginLockedFileSizeRequest(
+        firstLock->clipDataId, 0, request));
+
+    const auto secondLock = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(secondLock && secondLock->clipDataId > firstLock->clipDataId);
+    assert(owner.recordJoinedFileLockWritten(
+        secondLock->sequence, secondLock->bytes));
+    assert(!owner.prepareJoinedFileUnlock(
+        gate, 1003, 1003, firstLock->clipDataId, output));
+    const auto currentLocked = owner.beginLockedFileRangeRequest(
+        secondLock->clipDataId, 0, 0, 2U, request);
+    assert(currentLocked);
+    assert(owner.cancelUnsentFileContentsRequest(currentLocked->sequence));
+}
+
+void testFileContentsLockedStreamIdentity()
+{
+    using namespace rdp_server::clipboard;
+    using namespace rdp_server::server::transport;
+    using Status = RemoteTransfer::FileContentsStatus;
+
+    McsChannelJoinWriteGate gate;
+    confirmJoinedClipboardChannel(gate);
+    RemoteTransfer owner;
+    initializeFileStreamSession(owner);
+    installSingleFileOffer(owner, 0xc114U, u"retained.bin", 100U);
+
+    std::array<std::uint8_t, 128> output{};
+    const auto lock = owner.prepareJoinedFileLock(
+        gate, 1003, 1003, output);
+    assert(lock);
+    assert(owner.recordJoinedFileLockWritten(lock->sequence, lock->bytes));
+
+    installSingleFileOffer(owner, 0xc115U, u"current.bin", 2U);
+    const auto size = owner.prepareJoinedLockedFileSizeRequest(
+        gate, 1003, 1003, lock->clipDataId, 0, output);
+    assert(size);
+    assert(size->bytes == 58U);
+    assert(size->request.generation == lock->generation);
+    assert(size->request.clipDataId == lock->clipDataId);
+    PduView lockedSizePdu{};
+    assert(decodePdu(
+        std::span<const std::uint8_t>{output}.subspan(22U, 36U),
+        lockedSizePdu));
+    assert(lockedSizePdu.type == kFileContentsRequest);
+    assert(lockedSizePdu.payload.size() == 28U);
+    std::array<std::uint8_t, 4> idBytes{};
+    put32(idBytes, 0, lock->clipDataId);
+    assert(std::equal(
+        lockedSizePdu.payload.end() - 4, lockedSizePdu.payload.end(),
+        idBytes.begin(), idBytes.end()));
+    assert(owner.recordJoinedFileContentsRequestWritten(
+        size->request.sequence, size->bytes));
+
+    std::array<std::uint8_t, 8> sizeBytes{};
+    put64(sizeBytes, 0, 120U);
+    const auto sizeWire = fileContentsResponsePdu(
+        kResponseOk, size->request.streamId, sizeBytes);
+    const auto sizeResult = owner.receiveFileContentsResponse(sizeWire);
+    assert(sizeResult.status == Status::ReceivedSize);
+    assert(sizeResult.generation == lock->generation);
+    assert(sizeResult.clipDataId == lock->clipDataId);
+    assert(sizeResult.fileSize == 120U);
+
+    const auto range = owner.prepareJoinedLockedFileRangeRequest(
+        gate, 1003, 1003, lock->clipDataId, 0, 100U, 4U, output);
+    assert(range && range->bytes == 58U);
+    assert(!owner.prepareJoinedLockedFileRangeRequest(
+        gate, 1003, 1003, lock->clipDataId + 1U, 0, 0, 1U, output));
+    assert(!owner.prepareJoinedLockedFileRangeRequest(
+        gate, 1003, 1003, lock->clipDataId, 0, 120U, 1U, output));
+
+    // A current clipboard replacement cannot revoke or retarget the already
+    // locked stream; its writer receipt remains tied to retained generation 1.
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 1>{kFormatUnicodeText}));
+    assert(owner.joinedFileContentsRequestMayWrite(range->request.sequence));
+    assert(owner.recordJoinedFileContentsRequestWritten(
+        range->request.sequence, range->bytes));
+    const std::array<std::uint8_t, 4> rangeBytes{9, 8, 7, 6};
+    const auto rangeWire = fileContentsResponsePdu(
+        kResponseOk, range->request.streamId, rangeBytes);
+    const auto rangeResult = owner.receiveFileContentsResponse(rangeWire);
+    assert(rangeResult.status == Status::ReceivedRange);
+    assert(rangeResult.clipDataId == lock->clipDataId);
+    assert(std::equal(rangeResult.bytes.begin(), rangeResult.bytes.end(),
+                      rangeBytes.begin(), rangeBytes.end()));
+
+    installSingleFileOffer(owner, 0xc116U, u"latest.bin", 2U);
+    const auto unlockedSize = owner.prepareJoinedFileSizeRequest(
+        gate, 1003, 1003, 0, output);
+    assert(unlockedSize && unlockedSize->bytes == 54U);
+    assert(unlockedSize->request.clipDataId == 0U);
+    PduView unlockedPdu{};
+    assert(decodePdu(
+        std::span<const std::uint8_t>{output}.subspan(22U, 32U),
+        unlockedPdu));
+    assert(unlockedPdu.payload.size() == 24U);
+    assert(owner.cancelUnwrittenJoinedFileContentsRequest(
+        unlockedSize->request.sequence));
+}
+
+void testFileLockCapabilityPrerequisiteDenials()
+{
+    using namespace rdp_server::clipboard;
+    using namespace rdp_server::server::transport;
+    constexpr std::uint32_t kFileFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+
+    static_assert((RemoteTransfer::kSupportedGeneralFlags &
+                   kCanLockClipdata) == 0);
+    McsChannelJoinWriteGate gate;
+    confirmJoinedClipboardChannel(gate);
+    std::array<std::uint8_t, 96> output{};
+
+    {
+        RemoteTransfer owner;
+        initializeFileStreamSession(owner, 0x3eU, 0x3eU, false);
+        installSingleFileOffer(owner, 0xc117U, u"no-temp.bin", 1U);
+        assert(!owner.prepareJoinedFileLock(
+            gate, 1003, 1003, output));
+    }
+    {
+        RemoteTransfer owner;
+        initializeFileStreamSession(owner, kFileFlags, 0x3eU);
+        installSingleFileOffer(owner, 0xc118U, u"peer-no-lock.bin", 1U);
+        assert(!owner.prepareJoinedFileLock(
+            gate, 1003, 1003, output));
+    }
+    {
+        RemoteTransfer owner;
+        initializeFileStreamSession(owner, 0x3eU, kFileFlags);
+        installSingleFileOffer(owner, 0xc119U, u"local-no-lock.bin", 1U);
+        assert(!owner.prepareJoinedFileLock(
+            gate, 1003, 1003, output));
+    }
+    {
+        RemoteTransfer malformed;
+        assert(malformed.receiveCapabilitiesPdu(
+            capabilitiesPdu(0x3eU), 0x3eU));
+        auto temp = temporaryDirectoryPdu();
+        temp[2] = 1U; // Temporary Directory msgFlags MUST be zero.
+        assert(!malformed.receiveTemporaryDirectoryPdu(temp));
+        assert(!malformed.synchronized());
+    }
+    {
+        RemoteTransfer owner;
+        initializeFileStreamSession(owner);
+        assert((owner.negotiatedGeneralFlags() &
+                kCanLockClipdata) == 0);
+        // Also cover a zero-byte FILEDESCRIPTORW with the corrected
+        // nFileSizeHigh/nFileSizeLow fixture order.
+        installSingleFileOffer(owner, 0xc11aU, u"zero.bin", 0U);
+        assert(owner.remoteFile(0)->size == 0U);
+        output.fill(0xa5);
+        assert(!owner.prepareJoinedFileLock(
+            gate, 1003, 1004, output));
+        assert(std::all_of(output.begin(), output.end(),
+                           [](std::uint8_t byte) {
+                               return byte == 0xa5U;
+                           }));
+        const auto offline = owner.prepareJoinedFileLock(
+            gate, 1003, 1003, output);
+        assert(offline);
+        // This proves only the bounded serializer/receipt boundary. The
+        // negotiated capability remains disabled until the full server
+        // initialization and authoritative R3 route exists.
+        assert((owner.negotiatedGeneralFlags() &
+                kCanLockClipdata) == 0);
+    }
+}
+
 // R8: a raw, framed data response is not a native text-paste offer until
 // its UTF-16LE is verified and copied for the current clipboard generation.
 void testVerifiedUnicodeTextReadiness()
@@ -2462,6 +2888,32 @@ int main(int argumentCount, char **arguments)
         if (caseName == "file-descriptor-metadata-validation")
         {
             testFileDescriptorMetadataValidation();
+            return 0;
+        }
+
+        if (caseName == "file-lock-unlock-wire-receipts")
+        {
+            testFileLockUnlockWireReceipts();
+            return 0;
+        }
+        if (caseName == "file-lock-unlock-partial-send-denials")
+        {
+            testFileLockUnlockPartialSendDenials();
+            return 0;
+        }
+        if (caseName == "file-lock-unlock-generation-retention")
+        {
+            testFileLockUnlockGenerationRetention();
+            return 0;
+        }
+        if (caseName == "file-contents-locked-stream-identity")
+        {
+            testFileContentsLockedStreamIdentity();
+            return 0;
+        }
+        if (caseName == "file-lock-capability-prerequisite-denials")
+        {
+            testFileLockCapabilityPrerequisiteDenials();
             return 0;
         }
         if (caseName == "file-contents-size-range-streaming")

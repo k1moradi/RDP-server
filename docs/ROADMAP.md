@@ -1,3 +1,28 @@
+## R8 Windows ready-data clipboard hosted validation receipt (2026-10-16)
+
+Repair commit `e028aa5652636e82218eed85a49e675be5d322d3`, Actions
+`38902568449`, validates the Windows ready-data clipboard boundary after the
+borrowed-PDU fixture and focused-label corrections. macOS/Clang completed
+**343/343 PASS** in both Debug and Release, including all five R8 cases.
+Windows/MSVC completed the isolated R6 preflight **39/39 PASS** in both
+configurations, then full project CTest **368/368 PASS** in Debug and Release;
+all five R8 Win32-adapter cases passed in both configurations. The R9
+ASan/UBSan job passed **41/41 clipboard CTests**, including all five R8 cases,
+then passed its remaining bounded protocol/native groups and fuzzer.
+Documentation-policy also passed.
+
+Ubuntu/GCC compiled the production/test targets and all five R8 cases passed in
+full Debug CTest. The job finished **400/401 PASS** because the unrelated
+`runtime.linux-connection-credssp-owner-framing` R10 case still asserted
+`totalRead == request.size()`; Release was therefore skipped by workflow
+fail-fast. This is not counted as an R8 failure. Owner-local
+`~/rdp-server/build`, Windows MSYS2 CLANG64/Clang23, live Win32 clipboard,
+Microsoft-client interoperability and performance remain **NOT RUN**.
+
+**Next R8:** proceed with the equivalent ready-data macOS clipboard adapter
+and native file-destination integration while R3 completes the authoritative
+post-admission CLIPRDR payload writer.
+
 ## R9 sanitizer-group independence exact-SHA receipt (2026-10-16)
 
 **Implementation:** `87d529d7d64721187e3ae873da33a48f6d24c809`,

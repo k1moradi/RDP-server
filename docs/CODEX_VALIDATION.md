@@ -1,3 +1,26 @@
+## R8 Windows ready-data clipboard repair validation (2026-10-16)
+
+**Repair SHA:** `e028aa5652636e82218eed85a49e675be5d322d3`.
+**Actions:** `38902568449`.
+
+R8 hosted evidence: macOS/Clang Debug and Release **343/343 PASS**; Windows/
+MSVC isolated R6 preflight **39/39 PASS** in Debug and Release followed by
+full project Debug and Release **368/368 PASS**; R9 ASan/UBSan clipboard
+selection **41/41 PASS**, with all five new Windows clipboard cases included.
+The sanitizer job's remaining bounded protocol/native groups and fuzzer also
+passed. Documentation-policy **PASS**.
+
+Ubuntu/GCC compiled `rdp-server-windows-clipboard` and
+`test_windows_clipboard_adapter`; all five R8 cases passed. Full Debug CTest
+ended **400/401 PASS** solely on unrelated
+`runtime.linux-connection-credssp-owner-framing` (`totalRead ==
+request.size()`), so that job skipped Release. This does not establish Ubuntu
+Release R8 execution for this SHA.
+
+Canonical owner-local build/CTest, Windows MSYS2 CLANG64/Clang23, live Win32
+clipboard mutation, Microsoft-client CLIPRDR routing, authenticated desktop
+acceptance and performance remain **NOT RUN**.
+
 ## R9 sanitizer-group independence hosted verification (2026-10-16)
 
 Commit `87d529d7d64721187e3ae873da33a48f6d24c809`, Actions

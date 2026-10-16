@@ -1,3 +1,26 @@
+## R9 TS_INFO_PACKET sanitizer hosted verification (2026-10-16)
+
+Commit `d2df45e136fb7668212d7566bcd95cd96da67587`, Actions
+`38906316309`: overall **SUCCESS**. The newly selected production-backed
+`transport.mcs-client-info-packet-structure` and
+`transport.mcs-client-info-packet-denials` both pass under ASan/UBSan in
+**0.01 s**, bringing the bounded R1/R3 group to **27/27 PASS**.
+
+Other sanitizer groups are also green on the same SHA: **41/41 clipboard**,
+**18/18 R4 x264/BGRA**, **23/23 native GSS/R2/R3**, **4/4 R10 runtime
+CredSSP**, **16/16 R5 X11**, **1/1 fuzzer**. GSS-only MIT-krb5 suppression
+usage remains limited to the same two known 216-byte / 10-allocation
+`krb5_copy_principal` failure paths.
+
+Hosted full matrix: Linux/GCC **407/407 Debug + 407/407 Release PASS**;
+macOS/Clang **349/349 Debug + 349/349 Release PASS**; Windows/MSVC
+**39/39 focused preflight Debug + Release PASS** and **373/373 full Debug +
+373/373 full Release PASS**. Downstream consumer/package and documentation
+policy pass.
+
+Owner-local canonical testing, real Kerberos/logind, Microsoft-client Client
+Info/licensing/Share and desktop acceptance remain **NOT RUN/OPEN**.
+
 ## R9 TS_INFO_PACKET sanitizer selection (2026-10-16)
 
 **Parent:** `0abf1e5de12517817a70973be3740ac56ff1d522`.

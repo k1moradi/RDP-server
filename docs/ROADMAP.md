@@ -1,3 +1,33 @@
+## R9 TS_INFO_PACKET sanitizer exact-SHA receipt (2026-10-16)
+
+**Implementation:** `d2df45e136fb7668212d7566bcd95cd96da67587`,
+Actions `38906316309` — **SUCCESS**.
+
+The two R3 packet-boundary cases now execute under the existing R9 Clang
+ASan/UBSan job: `transport.mcs-client-info-packet-structure` and
+`transport.mcs-client-info-packet-denials` both **PASS** in **0.01 s**.
+The bounded R1/R3 transport/security selection is therefore **27/27 PASS**.
+The same sanitizer run also passes clipboard **41/41**, R4 x264/BGRA
+**18/18**, native GSS/R2/R3 **23/23**, R10 Linux runtime CredSSP **4/4**,
+R5 X11 **16/16**, and the bounded fuzzer **1/1**. The MIT-krb5 LSan
+suppression remains scoped to native GSS and reports only the same two known
+`krb5_copy_principal` provider-failure cases at **216 bytes / 10 allocations**
+each.
+
+Cross-platform exact-SHA evidence is fully green: Linux/GCC **407/407 PASS**
+in Debug and Release; macOS/Clang **349/349 PASS** in Debug and Release;
+Windows/MSVC focused native preflight **39/39 PASS** in Debug and Release and
+full CTest **373/373 PASS** in Debug and Release. Downstream installed SDK
+consumer/package checks and documentation policy pass. Non-tag prerelease
+publication is correctly skipped.
+
+This closes the sanitizer-specific gap called out by the R3 TS_INFO receipt;
+it does not change R3 state ownership or establish real Client Info semantics,
+positive Kerberos/logind admission, Server License Request delivery, Share
+activation or Microsoft-client acceptance. Canonical owner-local
+`~/rdp-server/build/` and owner platform commands remain **NOT RUN** here.
+**M2/M3 remain OPEN.**
+
 ## R9 TS_INFO_PACKET sanitizer coverage handoff (2026-10-16; exact-SHA CI pending)
 
 **Reconciled publication parent:** `0abf1e5de12517817a70973be3740ac56ff1d522`.

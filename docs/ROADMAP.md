@@ -4950,7 +4950,7 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   implemented in the R8 adapter; authoring parent main `95c79fbb610c007431b1227bc5a5cc05816dea45`, exact-SHA
   hosted CI and owner/live desktop tests are NOT RUN at authoring. Next R8:
   genuine R3-authorized CLIPRDR request transmission, then native Windows/macOS
-  adapters and bounded FileContents streaming.**
+  adapters and native file-destination integration.**
 - [ ] **Native clipboard file streaming, never whole-file prefetch**:
   negotiate `CB_STREAM_FILECLIP_ENABLED`, `FileGroupDescriptorW` and
   FileContents size/range requests; use `streamId` per file-content request,
@@ -4985,18 +4985,31 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   mask; the owner now advertises at most long names, stream file copy,
   no-file-paths and huge-file support.
 
+  The same stream receipt can now be prepared as one complete uncompressed
+  static-VC/MCS SendDataIndication only after the expected CLIPRDR channel is
+  confirmed in the existing R3 join gate. The caller-owned framed bytes have
+  exact cumulative-write accounting: zero submitted bytes may be cancelled,
+  partial/uncertain delivery poisons the coordinator until disconnect, and a
+  fully delivered old-generation stream drains its response as obsolete.
+  Joined membership remains necessary but explicitly does not grant R2
+  admission, CLIPRDR role authority, session-stage permission or TLS-writer
+  ownership.
+
   Dedicated CTests:
   `clipboard.file-descriptor-metadata-validation`,
-  `clipboard.file-contents-size-range-streaming`, and
-  `clipboard.file-contents-response-rejections`.
-  Authoring parent main `23d9f362283d27bee7fc7cd4646b402512934575`; full exact-SHA CI and owner machine tests
-  are NOT RUN at authoring. This increment is still an offline R8 protocol
-  boundary: genuine R3-authorized CLIPRDR framing/TLS writes for FileContents,
+  `clipboard.file-contents-size-range-streaming`,
+  `clipboard.file-contents-response-rejections`, and
+  `clipboard.file-contents-joined-mcs-envelope`.
+  The original FileContents owner authoring parent was
+  `23d9f362283d27bee7fc7cd4646b402512934575`; the joined-envelope increment
+  authoring parent is `be99fb50d0f1c7ae981a8e706ec44794a309eadc`.
+  Exact-SHA CI and owner machine tests for the joined-envelope increment are
+  NOT RUN at authoring. Genuine R3-authorized TLS emission,
   `CB_LOCK_CLIPDATA`/`CB_UNLOCK_CLIPDATA` receipts, native destination
   integration, directory-tree materialization and real-client file copy remain
-  NOT IMPLEMENTED / NOT RUN. **Next R8:** add lock/unlock lifetime receipts
-  and joined-channel FileContents framing once R3's authoritative Attach/Join
-  lifecycle exists; continue Windows/macOS native clipboard work in parallel.
+  NOT IMPLEMENTED / NOT RUN. **Next R8:** add lock/unlock lifetime receipts and
+  continue Windows/macOS native clipboard work while R3 completes the
+  authoritative post-admission virtual-channel writer contract.
 - [ ] **Real Microsoft-client clipboard acceptance**: macOS screenshot
   taken while Windows App is unfocused, delayed Format List after refocus,
   then remote paste on Linux/X11 into Firefox. Inspect the *synchronous*

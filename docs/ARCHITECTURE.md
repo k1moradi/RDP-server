@@ -547,8 +547,8 @@ requestor window/property to that generation/epoch, restores the requestor's
 previous event mask on normal completion/cancellation, skips restore after
 requester destruction, and has a five-second monotonic acknowledgement
 deadline. Runtime activation remains disabled until R2/R3 provide genuine
-admitted CLIPRDR/session authority. DIB-to-PNG, Windows/macOS adapters and file
-streaming remain later R8 increments.
+admitted CLIPRDR/session authority. DIB-to-PNG, Windows/macOS adapters and
+native file-destination integration remain later R8 increments.
 
 ### R8 bounded FileContents metadata and range owner
 
@@ -578,6 +578,19 @@ bytes borrow the caller's complete PDU and are never copied into a whole-file
 cache. Generation replacement clears descriptor metadata; a late response for
 the old generation is consumed as obsolete instead of being attached to a new
 file list.
+
+For an outbound FileContents request, R8 can additionally wrap the same exact
+32-byte CLIPRDR PDU in one 8-byte uncompressed static-VC header and delegate
+MCS SendDataIndication serialization to the existing confirmed-join gate.
+The resulting caller-owned packet has a sequence-bound cumulative write
+receipt. Before any byte is submitted, generation replacement can revoke and
+cancel it. Once any prefix may have reached the transport, abandonment is
+ambiguous and poisons the clipboard coordinator until genuine disconnect.
+Only a fully submitted frame may consume its FileContents response; a fully
+submitted retired-generation response is drained as obsolete. This is an
+offline membership/framing boundary only: the join gate is not evidence of
+R2 admission, negotiated CLIPRDR role, valid session stage, security-header
+policy or ownership of the one TLS writer.
 
 The supported general capability mask intentionally omits
 `CB_CAN_LOCK_CLIPDATA` until R8 owns lock/unlock transmission and completion

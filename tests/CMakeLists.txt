@@ -324,6 +324,7 @@ function(add_rdp_test source_file suite behavior)
                 file-descriptor-metadata-validation
                 file-contents-size-range-streaming
                 file-contents-response-rejections
+                file-contents-joined-mcs-envelope
                 verified-unicode-text-readiness
                 verified-image-readiness
                 nonblocking-paste-readiness)

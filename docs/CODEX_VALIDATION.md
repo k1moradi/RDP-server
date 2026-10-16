@@ -1,3 +1,41 @@
+## R8 joined FileContents write receipts (2026-10-16; exact-SHA CI NOT RUN at authoring)
+
+**Authoring parent main:** `be99fb50d0f1c7ae981a8e706ec44794a309eadc`.
+This increment advances the existing bounded file-copy owner without inventing
+R3 authority. `RemoteTransfer` still owns the sole file-generation,
+descriptor and `streamId` state. A SIZE/RANGE request can now be wrapped as
+one complete uncompressed static-VC/MCS SendDataIndication after the expected
+CLIPRDR channel is confirmed by the existing membership gate.
+
+The framed request retains the exact existing FileContents sequence/stream
+receipt and adds cumulative accepted-byte accounting. An unwritten packet can
+be cancelled. Partial or uncertain delivery poisons the coordinator until a
+real disconnect because the peer may later answer that stream. A completely
+written request can consume its response; if a new clipboard generation arrived
+after full delivery, the old response is drained as obsolete. A response before
+the frame is fully submitted is terminal protocol error. Raw FileContents
+cancellation cannot bypass an active joined write receipt.
+
+This API performs no TLS I/O and does not accept a caller Boolean as authority.
+Confirmed MCS membership is necessary but remains insufficient: genuine
+TLS/NLA/R2 admission, negotiated CLIPRDR role, active session stage,
+security-header policy and the single R3 writer must all be supplied by the
+future authoritative post-admission router.
+
+**Changed:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, and this ledger.
+**Dedicated CTest:** `clipboard.file-contents-joined-mcs-envelope`.
+
+**Authoring validation:** canonical local `~/rdp-server/build` compilation is
+NOT RUN because this execution environment has no owner checkout. No alternate
+build root was created. Exact-SHA hosted CI is required after publication.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, live file copy and
+Microsoft-client interoperability remain NOT RUN. **Next R8:** add bounded
+`CB_LOCK_CLIPDATA`/`CB_UNLOCK_CLIPDATA` lifetime/write receipts and continue
+Windows/macOS native clipboard adapters while waiting for R3's real authorized
+virtual-channel writer.
+
 ## R10 non-listening Linux connection aggregate authoring (2026-10-16)
 
 **Starting shared main:** `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`;

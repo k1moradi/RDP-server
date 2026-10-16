@@ -1090,6 +1090,151 @@ RemoteTransfer::beginFileRangeRequest(
         requestedBytes, output);
 }
 
+std::optional<RemoteTransfer::JoinedFileContentsRequestReceipt>
+RemoteTransfer::prepareJoinedFileContentsRequest(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    FileContentsKind kind, std::size_t fileIndex,
+    std::uint64_t offset, std::size_t requestedBytes,
+    std::span<std::uint8_t> output) noexcept
+{
+    if (poisoned_ || pendingFileContentsValid_ ||
+        joinedFileContentsActive_ || channelId == 0 ||
+        channelId != expectedCliprdrChannelId ||
+        !joinedChannels.channelJoinConfirmed(channelId))
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::uint8_t> pdu;
+    const auto request = beginFileContentsRequest(
+        kind, fileIndex, offset, requestedBytes, pdu);
+    if (!request)
+    {
+        return std::nullopt;
+    }
+
+    // MS-RDPECLIP 2.2.3.3: the request is the 8-byte clipboard header plus
+    // the fixed 24-byte FILECONTENTS_REQUEST payload. One uncompressed static
+    // virtual-channel chunk therefore needs 8 + 32 bytes before MCS framing.
+    constexpr std::size_t kFileContentsPduBytes = 32U;
+    constexpr std::size_t kStaticChannelHeaderBytes = 8U;
+    if (pdu.size() != kFileContentsPduBytes)
+    {
+        (void)cancelUnsentFileContentsRequest(request->sequence);
+        return std::nullopt;
+    }
+
+    std::array<std::uint8_t,
+               kStaticChannelHeaderBytes + kFileContentsPduBytes> channelData{};
+    write32(channelData, 0, static_cast<std::uint32_t>(pdu.size()));
+    write32(channelData, 4, 3U); // CHANNEL_FLAG_FIRST | CHANNEL_FLAG_LAST.
+    std::copy(pdu.begin(), pdu.end(),
+              channelData.begin() + kStaticChannelHeaderBytes);
+    const auto framed = joinedChannels.encodeJoinedSendDataIndication(
+        channelId, 1, 3, channelData, output);
+    if (!framed)
+    {
+        (void)cancelUnsentFileContentsRequest(request->sequence);
+        return std::nullopt;
+    }
+
+    joinedFileContentsActiveSequence_ = request->sequence;
+    joinedFileContentsFrameBytes_ = *framed;
+    joinedFileContentsWrittenBytes_ = 0;
+    joinedFileContentsActive_ = true;
+    return JoinedFileContentsRequestReceipt{*request, *framed};
+}
+
+std::optional<RemoteTransfer::JoinedFileContentsRequestReceipt>
+RemoteTransfer::prepareJoinedFileSizeRequest(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    std::size_t fileIndex, std::span<std::uint8_t> output) noexcept
+{
+    return prepareJoinedFileContentsRequest(
+        joinedChannels, channelId, expectedCliprdrChannelId,
+        FileContentsKind::Size, fileIndex, 0, 8U, output);
+}
+
+std::optional<RemoteTransfer::JoinedFileContentsRequestReceipt>
+RemoteTransfer::prepareJoinedFileRangeRequest(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    std::size_t fileIndex, std::uint64_t offset,
+    std::size_t requestedBytes, std::span<std::uint8_t> output) noexcept
+{
+    return prepareJoinedFileContentsRequest(
+        joinedChannels, channelId, expectedCliprdrChannelId,
+        FileContentsKind::Range, fileIndex, offset, requestedBytes, output);
+}
+
+bool RemoteTransfer::joinedFileContentsRequestMayWrite(
+    std::uint64_t sequence) const noexcept
+{
+    return !poisoned_ && pendingFileContentsValid_ &&
+           joinedFileContentsActive_ && sequence != 0 &&
+           sequence == joinedFileContentsActiveSequence_ &&
+           pendingFileContents_.generation == generation_ &&
+           joinedFileContentsWrittenBytes_ < joinedFileContentsFrameBytes_;
+}
+
+bool RemoteTransfer::recordJoinedFileContentsRequestWritten(
+    std::uint64_t sequence, std::size_t cumulativeBytes) noexcept
+{
+    if (poisoned_ || !pendingFileContentsValid_ ||
+        !joinedFileContentsActive_ || sequence == 0 ||
+        sequence != joinedFileContentsActiveSequence_)
+    {
+        return false;
+    }
+    if (cumulativeBytes < joinedFileContentsWrittenBytes_ ||
+        cumulativeBytes > joinedFileContentsFrameBytes_ ||
+        (pendingFileContents_.generation != generation_ &&
+         cumulativeBytes > joinedFileContentsWrittenBytes_))
+    {
+        poisoned_ = true;
+        return false;
+    }
+    joinedFileContentsWrittenBytes_ = cumulativeBytes;
+    return true;
+}
+
+bool RemoteTransfer::cancelUnwrittenJoinedFileContentsRequest(
+    std::uint64_t sequence) noexcept
+{
+    if (poisoned_ || !pendingFileContentsValid_ ||
+        !joinedFileContentsActive_ || sequence == 0 ||
+        sequence != joinedFileContentsActiveSequence_ ||
+        joinedFileContentsWrittenBytes_ != 0)
+    {
+        return false;
+    }
+    pendingFileContents_ = {};
+    pendingFileContentsValid_ = false;
+    joinedFileContentsActiveSequence_ = 0;
+    joinedFileContentsFrameBytes_ = 0;
+    joinedFileContentsWrittenBytes_ = 0;
+    joinedFileContentsActive_ = false;
+    return true;
+}
+
+bool RemoteTransfer::abandonJoinedFileContentsRequest(
+    std::uint64_t sequence) noexcept
+{
+    if (!pendingFileContentsValid_ || !joinedFileContentsActive_ ||
+        sequence == 0 || sequence != joinedFileContentsActiveSequence_)
+    {
+        return false;
+    }
+    if (joinedFileContentsWrittenBytes_ == 0)
+    {
+        return cancelUnwrittenJoinedFileContentsRequest(sequence);
+    }
+    poisoned_ = true;
+    return true;
+}
+
 RemoteTransfer::FileContentsResult
 RemoteTransfer::receiveFileContentsResponse(
     std::span<const std::uint8_t> completePdu) noexcept
@@ -1102,6 +1247,16 @@ RemoteTransfer::receiveFileContentsResponse(
         pdu.type != kFileContentsResponse ||
         (pdu.flags != kResponseOk && pdu.flags != kResponseFail) ||
         pdu.payload.size() < 4U)
+    {
+        poisoned_ = true;
+        result.status = FileContentsStatus::ProtocolError;
+        return result;
+    }
+
+    // A response cannot prove that a prepared/partially submitted MCS frame
+    // reached the peer. Do not release or reuse the stream in that ambiguity.
+    if (joinedFileContentsActive_ &&
+        joinedFileContentsWrittenBytes_ != joinedFileContentsFrameBytes_)
     {
         poisoned_ = true;
         result.status = FileContentsStatus::ProtocolError;
@@ -1124,6 +1279,10 @@ RemoteTransfer::receiveFileContentsResponse(
 
     pendingFileContents_ = {};
     pendingFileContentsValid_ = false;
+    joinedFileContentsActiveSequence_ = 0;
+    joinedFileContentsFrameBytes_ = 0;
+    joinedFileContentsWrittenBytes_ = 0;
+    joinedFileContentsActive_ = false;
     if (pdu.flags == kResponseFail)
     {
         if (pdu.payload.size() != 4U)
@@ -1212,7 +1371,8 @@ RemoteTransfer::receiveFileContentsResponse(
 bool RemoteTransfer::cancelUnsentFileContentsRequest(
     std::uint64_t sequence) noexcept
 {
-    if (poisoned_ || !pendingFileContentsValid_ || sequence == 0 ||
+    if (poisoned_ || !pendingFileContentsValid_ ||
+        joinedFileContentsActive_ || sequence == 0 ||
         sequence != pendingFileContents_.sequence)
     {
         return false;
@@ -1675,7 +1835,11 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     remoteFileCount_ = 0;
     remoteFileGeneration_ = 0;
     pendingFileContents_ = {};
+    joinedFileContentsActiveSequence_ = 0;
+    joinedFileContentsFrameBytes_ = 0;
+    joinedFileContentsWrittenBytes_ = 0;
     pendingFileContentsValid_ = false;
+    joinedFileContentsActive_ = false;
     attemptedPrefetchIds_.fill(0);
     generation_ = 0;
     negotiatedGeneralFlags_ = 0;

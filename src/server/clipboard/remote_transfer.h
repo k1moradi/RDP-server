@@ -270,6 +270,38 @@ public:
         std::size_t fileIndex, std::uint64_t offset,
         std::size_t requestedBytes,
         std::vector<std::uint8_t> &output) noexcept;
+
+    // OFFLINE wire-only FileContents preparation. This reuses the same
+    // generation-scoped stream receipt as beginFile*Request(), then adds the
+    // static-VC/MCS envelope only after the expected CLIPRDR channel is joined.
+    // A confirmed join is membership, NOT R2/R3 authorization or TLS write
+    // permission; the authoritative session owner must still gate every write.
+    struct JoinedFileContentsRequestReceipt
+    {
+        FileContentsRequestReceipt request{};
+        std::size_t bytes{};
+    };
+
+    [[nodiscard]] std::optional<JoinedFileContentsRequestReceipt>
+    prepareJoinedFileSizeRequest(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        std::size_t fileIndex, std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] std::optional<JoinedFileContentsRequestReceipt>
+    prepareJoinedFileRangeRequest(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        std::size_t fileIndex, std::uint64_t offset,
+        std::size_t requestedBytes, std::span<std::uint8_t> output) noexcept;
+
+    [[nodiscard]] bool joinedFileContentsRequestMayWrite(
+        std::uint64_t sequence) const noexcept;
+    [[nodiscard]] bool recordJoinedFileContentsRequestWritten(
+        std::uint64_t sequence, std::size_t cumulativeBytes) noexcept;
+    [[nodiscard]] bool cancelUnwrittenJoinedFileContentsRequest(
+        std::uint64_t sequence) noexcept;
+    [[nodiscard]] bool abandonJoinedFileContentsRequest(
+        std::uint64_t sequence) noexcept;
     [[nodiscard]] FileContentsResult receiveFileContentsResponse(
         std::span<const std::uint8_t> completePdu) noexcept;
     [[nodiscard]] bool cancelUnsentFileContentsRequest(
@@ -416,6 +448,13 @@ private:
         FileContentsKind kind, std::size_t fileIndex,
         std::uint64_t offset, std::size_t requestedBytes,
         std::vector<std::uint8_t> &output) noexcept;
+    [[nodiscard]] std::optional<JoinedFileContentsRequestReceipt>
+    prepareJoinedFileContentsRequest(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        FileContentsKind kind, std::size_t fileIndex,
+        std::uint64_t offset, std::size_t requestedBytes,
+        std::span<std::uint8_t> output) noexcept;
 
     std::string verifiedTextUtf8_{};
     bool verifiedTextReady_{};
@@ -442,7 +481,11 @@ private:
     std::uint64_t remoteFileGeneration_{};
     std::uint64_t fileContentsSequence_{}; // Never reset: no stream receipt ABA.
     PendingFileContentsRequest pendingFileContents_{};
+    std::uint64_t joinedFileContentsActiveSequence_{};
+    std::size_t joinedFileContentsFrameBytes_{};
+    std::size_t joinedFileContentsWrittenBytes_{};
     bool pendingFileContentsValid_{};
+    bool joinedFileContentsActive_{};
     std::array<std::uint32_t, 4> attemptedPrefetchIds_{};
     std::uint64_t generation_{};
     std::uint32_t negotiatedGeneralFlags_{};

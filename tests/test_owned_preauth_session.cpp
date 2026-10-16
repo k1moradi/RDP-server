@@ -1512,6 +1512,26 @@ void nativeReadAll(TcpNonblockingIo &io, std::span<std::uint8_t> output)
     assert(total == output.size());
 }
 
+[[nodiscard]] TcpAcceptResult waitForAcceptedLoopbackConnection(
+    std::uintptr_t listener)
+{
+    // connect() completion does not guarantee a nonblocking listener can
+    // immediately observe the queued peer on every hosted kernel. Retry only
+    // this TEST fixture boundary; production accept remains exactly one-step.
+    for (int attempt = 0; attempt < 2048; ++attempt)
+    {
+        auto accepted = acceptNonblockingTcpConnection(listener);
+        if (accepted.outcome == TcpAcceptOutcome::Accepted)
+            return accepted;
+        assert(accepted.outcome == TcpAcceptOutcome::WouldBlock);
+        assert(!accepted.connection.valid());
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(false && "loopback peer was never observable by native accept");
+    return {};
+}
+
 void waitForNativeRequest(PreauthTcpAdapter &adapter)
 {
     // A connected NONBLOCKING peer may legitimately have no readable
@@ -1632,7 +1652,7 @@ void testNativeTcpAcceptedPeerEndpointIdentity()
     assert(clientAddress.sin_family == AF_INET);
     assert(clientAddress.sin_port != 0);
 
-    auto accepted = acceptNonblockingTcpConnection(
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     const auto endpoint = accepted.connection.peerEndpoint();
@@ -2139,7 +2159,7 @@ void testOwnedTlsApplicationIo()
     using Clock = std::chrono::steady_clock;
 
     LoopbackSocketPair pair{false};
-    auto accepted = acceptNonblockingTcpConnection(
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2237,7 +2257,7 @@ void testOwnedTlsApplicationPartialWrite()
                   kMaximumTcpIoChunkBytes);
 
     LoopbackSocketPair pair{false};
-    auto accepted = acceptNonblockingTcpConnection(
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2331,7 +2351,7 @@ void testOwnedTlsApplicationCancellation()
 
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2357,7 +2377,7 @@ void testOwnedTlsApplicationCancellation()
 
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2400,7 +2420,7 @@ void testOwnedTlsApplicationCancellation()
 
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
@@ -2428,7 +2448,7 @@ void testOwnedTlsApplicationCancellation()
 
     {
         LoopbackSocketPair pair{false};
-        auto accepted = acceptNonblockingTcpConnection(
+        auto accepted = waitForAcceptedLoopbackConnection(
             static_cast<std::uintptr_t>(pair.listener.value));
         assert(accepted.outcome == TcpAcceptOutcome::Accepted);
         OwnedPreauthTcpConnection owner{std::move(accepted.connection)};

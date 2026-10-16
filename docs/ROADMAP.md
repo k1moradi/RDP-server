@@ -5517,3 +5517,28 @@ independent local Clang 17 ASan+UBSan+LeakSanitizer focused run of
 Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 remain **NOT RUN**.
 No real credentials, OS admission, Microsoft RDP client or desktop were used.
 M2 remains **NOT ACCEPTED**.
+
+
+## R1 loopback accept visibility fixture correction (2026-10-16)
+
+**Starting main:** `9cf14768fbdda1a053c80aee5d34285f63f8a0c2`.
+The immutable accepted-peer endpoint implementation itself is verified at
+`10fff1ab437b74f7065bdd4c87dd9a5095f1f050`,
+[Actions 38871271985](https://github.com/k1moradi/RDP-server/actions/runs/38871271985):
+`transport.tcp-native-accepted-peer-endpoint` **PASS** on Linux, macOS and
+Windows Debug. Linux/GCC and Windows/MSVC full Debug+Release suites each
+passed **281/281**. macOS Debug passed **262/263**; its sole failure was the
+R1 `transport.tcp-owned-tls-application-partial-write` fixture at
+`test_owned_preauth_session.cpp:2242`, where a just-connected loopback peer
+was assumed to be immediately visible to nonblocking `accept`. macOS Release
+did not run because Debug failed first. Sanitizer and documentation-policy
+jobs passed.
+
+This correction changes TEST fixtures only. A shared
+`waitForAcceptedLoopbackConnection` retries the existing one-step
+`acceptNonblockingTcpConnection` for at most 2048 one-millisecond attempts,
+accepting only `WouldBlock` until the queued peer becomes observable. It is
+used by the newly added peer-endpoint test and all post-TLS application-I/O
+fixtures. Production listener/accept behavior, ownership, deadlines, TLS,
+R2/R3 authority and byte-stream semantics are unchanged. The bounded helper
+exists solely to remove scheduler timing from the loopback oracle.

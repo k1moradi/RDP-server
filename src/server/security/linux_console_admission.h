@@ -222,6 +222,42 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Protected one-shot Attach User intake. A successful packet alone is not
+    // a joined channel; the R3-owned 11-byte confirmation must still complete.
+    [[nodiscard]] rdp_server::server::transport::McsSessionIntake
+    authorizeR3AttachUser(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Each byte slice is borrowed from the sole R3 owner only after renewed
+    // R2 and exact R1 TLS/HYBRID provenance authorization. R1 alone encrypts.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::McsConnectResponseWriteView>
+    authorizeR3AttachUserConfirmWrite(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
+    // A null lease is strictly denial-only for ordinary offline tests.
+    // Completes only bytes already accepted by R1, after fresh R2 checks.
+    [[nodiscard]]
+    rdp_server::server::transport::McsConnectResponseWriteOutcome
+    completeR3AttachUserConfirmWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

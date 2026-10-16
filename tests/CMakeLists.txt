@@ -33,6 +33,8 @@ function(add_rdp_test source_file suite behavior)
                 mcs-attach-request
                 mcs-channel-join-request
                 mcs-attach-confirm-wire
+                mcs-session-attach-confirm-write-receipts
+                mcs-session-attach-confirm-denials
                 mcs-channel-join-confirm
                 mcs-join-write-completion
                 mcs-join-write-denials
@@ -191,6 +193,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-r3-connect-response-write-contract
                 gssapi-r3-connect-response-completion-reauthorization
                 gssapi-r3-erect-domain-contract
+                gssapi-r3-attach-user-contract
                 gssapi-r3-protected-transition-terminal-replay-fence
                 gssapi-r3-native-change-revocation
                 gssapi-r3-mcs-disconnect-revocation-fence)

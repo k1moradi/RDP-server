@@ -113,6 +113,31 @@ struct McsChannelConfirm
 [[nodiscard]] McsChannelConfirm encodeMcsAttachUserConfirm(
     std::uint32_t assignedUserId) noexcept;
 
+// Fixed-size, one-shot outbound receipt owner for an Attach User Confirm.
+// This offline component never grants R2 admission or MCS membership.
+// All publication and completions are gated separately by the R2 broker.
+class McsAttachUserConfirmWriteGate final
+{
+public:
+    McsAttachUserConfirmWriteGate() noexcept = default;
+    McsAttachUserConfirmWriteGate(const McsAttachUserConfirmWriteGate &) = delete;
+    McsAttachUserConfirmWriteGate &operator=(const McsAttachUserConfirmWriteGate &) = delete;
+    [[nodiscard]] bool queue(std::uint32_t assignedUserId) noexcept;
+    [[nodiscard]] McsConnectResponseWriteView pendingWrite() const noexcept;
+    [[nodiscard]] McsConnectResponseWriteOutcome onBytesWritten(
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    void close() noexcept;
+
+private:
+    McsChannelConfirm pending_{};
+    std::size_t bytesWritten_{};
+    std::uint64_t replySequence_{};
+    std::uint64_t writeSliceSequence_{};
+    bool delivered_{};
+    bool closed_{};
+};
+
 // ChannelJoinConfirm rt-successful with optional channelId present.
 // Inputs must describe a checked Join REQUEST, matching assigned user,
 // and exactly one matching entry in a bounded caller-supplied list.
@@ -454,6 +479,8 @@ enum class McsSessionPhase : std::uint8_t
     AwaitConnectResponse,
     AwaitErectDomain,
     AwaitAttachUser,
+    AwaitAttachConfirm,
+    AwaitChannelJoin,
     Closed,
 };
 
@@ -462,6 +489,7 @@ enum class McsSessionIntake : std::uint8_t
     ValidButNotAdmitted,
     AdmittedConnectInitial,
     ErectDomainAccepted,
+    AttachUserAccepted,
     AdmissionDenied,
     InvalidOrdering,
     PeerDisconnected,
@@ -490,6 +518,9 @@ public:
     {
         return licensing_.phase();
     }
+    // Diagnostic allocation only: not an admitted user/channel permission.
+    [[nodiscard]] std::uint32_t allocatedUserId() const noexcept
+    { return allocatedUserId_; }
     [[nodiscard]] std::uint32_t allocatedGccNodeId() const noexcept
     { return connectResponseAllocation_ ? connectResponseAllocation_.gccNodeId : 0U; }
     [[nodiscard]] std::uint16_t allocatedIoChannelId() const noexcept
@@ -539,6 +570,8 @@ public:
         connectResponseDomain_ = {};
         connectResponseClientSettings_ = {};
         connectResponseAllocation_ = {};
+        allocatedUserId_ = 0;
+        attachConfirmWrite_.close();
         connectResponseBoundProvenance_ = {};
         connectResponseProvenanceBound_ = false;
         connectResponseWrite_.close();
@@ -570,12 +603,28 @@ private:
     [[nodiscard]] McsSessionIntake onVerifiedR2ErectDomain(
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Positive Attach intake and all outbound progress remain private to the
+    // concrete broker after full R1/R2 reauthorization of each transition.
+    [[nodiscard]] McsSessionIntake onVerifiedR2AttachUser(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<McsConnectResponseWriteView>
+    prepareAttachUserConfirmWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] McsConnectResponseWriteOutcome completeAttachUserConfirmWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] std::optional<std::uint32_t> allocateAttachUserId() const noexcept;
+
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
     McsConnectResponseAllocation connectResponseAllocation_{};
     SecurityNegotiationProvenance connectResponseBoundProvenance_{};
     bool connectResponseProvenanceBound_{};
     McsConnectResponseWriteGate connectResponseWrite_{};
+    McsAttachUserConfirmWriteGate attachConfirmWrite_{};
+    std::uint32_t allocatedUserId_{};
     RdpLicensingLifecycle licensing_{};
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};

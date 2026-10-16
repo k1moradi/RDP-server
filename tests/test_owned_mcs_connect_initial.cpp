@@ -758,6 +758,115 @@ void testMcsAttachConfirmWire()
     }
 }
 
+
+void testMcsSessionAttachConfirmWriteReceipts()
+{
+    using Outcome = McsConnectResponseWriteOutcome;
+    constexpr std::array<std::uint8_t, 11> expected{
+        0x03,0x00,0x00,0x0b,0x02,0xf0,0x80,0x2e,0x00,0x00,0x01};
+    for (std::size_t firstAccepted = 0; firstAccepted <= expected.size();
+         ++firstAccepted)
+    {
+        McsAttachUserConfirmWriteGate writer;
+        assert(writer.queue(1002U));
+        const auto first = writer.pendingWrite();
+        assert(first && first.bytes.size() == expected.size());
+        assert(std::equal(first.bytes.begin(), first.bytes.end(), expected.begin()));
+        assert(writer.onBytesWritten(
+            first.replySequence, first.writeSliceSequence, 0U) == Outcome::Pending);
+        const auto retry = writer.pendingWrite();
+        assert(retry.bytes.data() == first.bytes.data());
+        assert(retry.replySequence == first.replySequence);
+        assert(retry.writeSliceSequence == first.writeSliceSequence);
+        const auto result = writer.onBytesWritten(
+            first.replySequence, first.writeSliceSequence, firstAccepted);
+        if (firstAccepted == expected.size())
+        {
+            assert(result == Outcome::Delivered);
+        }
+        else
+        {
+            assert(result == Outcome::Pending);
+            const auto suffix = writer.pendingWrite();
+            assert(suffix && suffix.bytes.size() == expected.size()-firstAccepted);
+            assert(suffix.replySequence == first.replySequence);
+            assert(suffix.writeSliceSequence ==
+                   first.writeSliceSequence + (firstAccepted != 0U ? 1U : 0U));
+            assert(std::equal(suffix.bytes.begin(), suffix.bytes.end(),
+                              expected.begin() + firstAccepted));
+            assert(writer.onBytesWritten(
+                suffix.replySequence, suffix.writeSliceSequence,
+                suffix.bytes.size()) == Outcome::Delivered);
+        }
+        assert(!writer.pendingWrite());
+        assert(!writer.queue(1002U));
+    }
+    // A standalone writer cannot grant an R3 phase or user membership.
+    McsSessionLifecycle unadmitted;
+    assert(unadmitted.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(unadmitted.allocatedUserId() == 0U);
+    assert(!unadmitted.channelJoinConfirmed(1002U));
+}
+
+void testMcsSessionAttachConfirmDenials()
+{
+    using Outcome = McsConnectResponseWriteOutcome;
+    for (const auto userId : {0U,1000U,65537U,UINT32_MAX})
+    {
+        McsAttachUserConfirmWriteGate invalid;
+        assert(!invalid.queue(userId));
+        assert(!invalid.pendingWrite());
+        assert(!invalid.queue(1002U));
+    }
+    McsAttachUserConfirmWriteGate duplicate;
+    assert(duplicate.queue(1002U));
+    assert(!duplicate.queue(1002U));
+    assert(!duplicate.pendingWrite());
+
+    for (std::size_t denial = 0; denial < 4U; ++denial)
+    {
+        McsAttachUserConfirmWriteGate writer;
+        assert(writer.queue(1002U));
+        const auto pending = writer.pendingWrite();
+        const std::uint64_t reply = denial == 0 ? 0U :
+            denial == 1 ? pending.replySequence+1U : pending.replySequence;
+        const std::uint64_t slice = denial == 2 ? 0U :
+            pending.writeSliceSequence;
+        const std::size_t count = denial == 3 ? pending.bytes.size()+1U : 1U;
+        assert(writer.onBytesWritten(reply,slice,count) == Outcome::Rejected);
+        assert(!writer.pendingWrite());
+    }
+    McsAttachUserConfirmWriteGate stale;
+    assert(stale.queue(1002U));
+    const auto old = stale.pendingWrite();
+    assert(stale.onBytesWritten(old.replySequence,old.writeSliceSequence,3U) ==
+           Outcome::Pending);
+    const auto now = stale.pendingWrite();
+    assert(now.writeSliceSequence > old.writeSliceSequence);
+    assert(stale.onBytesWritten(old.replySequence,old.writeSliceSequence,1U) ==
+           Outcome::Rejected);
+
+    McsAttachUserConfirmWriteGate cancelled;
+    assert(cancelled.queue(1002U));
+    const auto initial = cancelled.pendingWrite();
+    assert(cancelled.onBytesWritten(
+        initial.replySequence,initial.writeSliceSequence,2U) == Outcome::Pending);
+    const auto suffix = cancelled.pendingWrite();
+    cancelled.close();
+    assert(!cancelled.pendingWrite());
+    assert(cancelled.onBytesWritten(
+        suffix.replySequence,suffix.writeSliceSequence,suffix.bytes.size()) ==
+        Outcome::Rejected);
+    assert(!cancelled.queue(1002U));
+
+    McsSessionLifecycle session;
+    session.revokeUnlessAdmissionBindingMatches(1U,1U);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.allocatedUserId() == 0U);
+    session.revokeUnlessAdmissionBindingMatches(UINT64_MAX,UINT64_MAX);
+    assert(session.pendingJoinConfirmation().empty());
+}
+
 void testMcsChannelJoinConfirmWireAndRejections()
 {
     // MS-RDPBCGR 4.1.8.2.1 client request and 4.1.8.2.2
@@ -4046,7 +4155,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 64> kMcsTestCases{{
+constexpr std::array<McsTestCase, 66> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -4063,6 +4172,8 @@ constexpr std::array<McsTestCase, 64> kMcsTestCases{{
     {"mcs-attach-request", &testMcsAttachUserRequest},
     {"mcs-channel-join-request", &testMcsChannelJoinRequest},
     {"mcs-attach-confirm-wire", &testMcsAttachConfirmWire},
+    {"mcs-session-attach-confirm-write-receipts", &testMcsSessionAttachConfirmWriteReceipts},
+    {"mcs-session-attach-confirm-denials", &testMcsSessionAttachConfirmDenials},
     {"mcs-channel-join-confirm", &testMcsChannelJoinConfirmWireAndRejections},
     {"mcs-join-write-completion", &testMcsJoinWriteCompletion},
     {"mcs-join-write-denials", &testMcsJoinWriteDenials},

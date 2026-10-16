@@ -1,3 +1,43 @@
+### R3 authorized Attach User and receipt-bound MCS UserId (2026-10-16)
+
+The sole `McsSessionLifecycle` owns the allocated UserId, pending 11-byte
+Attach User Confirm, receipt counters and existing channel-join gate.
+After R2-authorized Connect Initial, fully accepted Connect Response and
+R2-authorized Erect Domain, only
+`LinuxConsoleAdmissionBroker::authorizeR3AttachUser` can consume the
+single complete Attach User Request. R2 freshly checks the unforgeable
+LinuxConsoleAdmissionLease, exact R1-owned established TLS connection,
+HYBRID/NLA provenance, GSS/CredSSP certificate binding, view permission,
+policy epoch, native NSS/logind watch and both admission generations.
+The public DomainMCSPDU entry remains terminal denial-only.
+
+The deterministic checked UserId is 1002; the negotiated Connect Response
+reserves GCC node 1001, I/O channel 1003 and static channels 1004 onward.
+The single R3 owner verifies channel/user capacities and uniqueness before
+allocating once. Malformed, wrong-order, duplicate, oversized and disconnect
+input closes the same owner. Cancellation clears the UserId, pending bytes
+and join/licensing state before R2/GSS and finally R1 teardown.
+
+The production `McsAttachUserConfirmWriteGate` stores the existing
+`encodeMcsAttachUserConfirm` result in a fixed contiguous 15-byte capacity
+with 11 active bytes. Separate nonzero reply and slice receipts bind exact
+accepted-byte progress: WANT/zero-byte progress retains the identical suffix
+and receipt; a positive partial write rotates the slice receipt; complete
+progress retires the reply. Every write preparation and completion is a fresh
+R2 authorization with the original R1 connection and bound negotiation
+provenance. The event-loop writer uses R1
+`OwnedPreauthTcpConnection::writeTlsApplicationData()` and must keep
+borrowed suffix bytes stable over WANT retries. Accepted bytes alone are
+not peer receipt evidence.
+
+Only the complete authorized 11-byte write transitions
+`AwaitAttachConfirm -> AwaitChannelJoin` and configures the existing
+join gate once for user channel 1002, I/O 1003 and the checked static list.
+This is NOT a joined channel or Send Data authorization. Actual protected
+Channel Join Request intake, Channel Join Confirm delivery, licensing, Share
+Control, virtual channels, graphics/input/clipboard and Microsoft-client
+acceptance remain separate increments.
+
 ### R10 Linux connection aggregate and teardown order
 
 `LinuxRuntimeConnection` is the non-listening composition owner between

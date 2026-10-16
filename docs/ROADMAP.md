@@ -1,3 +1,45 @@
+## R3 protected Attach User / confirmation receipt increment (2026-10-16; hosted validation pending)
+
+Starting inspected main: `db5bcbd4a6415779dab713424c0c7c0e17ce6fb2`;
+reconciled with the stronger R2 NLA-provenance and concurrent main updates
+through `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`.
+The sole R3 `McsSessionLifecycle` extends
+`AwaitAttachUser -> AwaitAttachConfirm -> AwaitChannelJoin` exclusively
+through the concrete Linux R2 broker, after current native lease/GSS/CredSSP
+and exact R1-owned established TLS/HYBRID authorization with view permission.
+The admission and native-session generation fence runs again before every
+Attach User intake, confirmation write slice and accepted-byte completion.
+The public DomainMCSPDU method remains denial-only.
+
+R3 selects the checked UserId 1002 only after valid, admitted Attach User
+intake. It is distinct from GCC node 1001, I/O channel 1003 and allocated
+static channels starting at 1004. Negotiated maximum channels/users,
+allocated identifiers, and duplicates are checked before reservation.
+The existing Attach User Confirm serializer produces the exact fixed 11-byte
+response. A one-shot R3-owned bounded writer retains immutable suffix bytes,
+a nonzero reply receipt and a separately rotating write-slice receipt across
+OpenSSL zero-byte WANT and partial accepted progress. Stale/overreported,
+unsolicited, wrong-generation or post-cancellation completion closes R3.
+Only fully accepted confirmation configures the existing join gate once with
+the user channel, I/O channel and static channels; no Channel Join traffic,
+licensing, Share, graphics, clipboard or input becomes authorized here.
+R3 -> R2/GSS -> R1 teardown remains mandatory.
+
+Dedicated offline CTests:
+`transport.mcs-session-attach-confirm-write-receipts`,
+`transport.mcs-session-attach-confirm-denials` and (with Linux GSSAPI)
+`security.gssapi-r3-attach-user-contract`.
+They exercise the production serializer/receipt writer, every first-slice
+split, backpressure, cancellation, and genuine denial/compile-time R2
+authority signatures; they do NOT mint an authenticated native lease.
+Authoring environment has no synchronized `~/rdp-server` checkout and cannot
+resolve GitHub by shell: canonical local configure/build/full CTest and
+owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 are **NOT RUN**.
+Exact-SHA hosted Debug/Release Linux/GCC, macOS/Clang and Windows/MSVC,
+R9 sanitizers and real Kerberos/logind admission remain next verification
+gates. **M2 NOT ACCEPTED.** The next R3 step is protected Join Request,
+Join Confirm receipts and channel activation (not a runtime listener).
+
 ## R10 connection-aggregate publication receipt and CredSSP I/O blocker (2026-10-16)
 
 Implementation commit: `be99fb50d0f1c7ae981a8e706ec44794a309eadc`

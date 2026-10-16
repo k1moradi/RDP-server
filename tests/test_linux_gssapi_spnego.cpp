@@ -1011,6 +1011,71 @@ void testR3ErectDomainContract()
     assert(fresh.phase() == McsSessionPhase::Closed);
 }
 
+void testR3AttachUserContract()
+{
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+    using IntakeMethod =
+        decltype(&LinuxConsoleAdmissionBroker::authorizeR3AttachUser);
+    using PrepareMethod =
+        decltype(&LinuxConsoleAdmissionBroker::authorizeR3AttachUserConfirmWrite);
+    using CompletionMethod =
+        decltype(&LinuxConsoleAdmissionBroker::completeR3AttachUserConfirmWrite);
+    using Packet = std::span<const std::uint8_t>;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Session = McsSessionLifecycle &;
+    static_assert(std::is_invocable_r_v<
+        McsSessionIntake,IntakeMethod,Broker,const LinuxConsoleAdmissionLease &,
+        Acceptor,Connection,Session,Packet>);
+    static_assert(!std::is_invocable_v<
+        IntakeMethod,Broker,bool,Acceptor,Connection,Session,Packet>);
+    static_assert(!std::is_invocable_v<
+        IntakeMethod,Broker,const SSL *,Acceptor,Connection,Session,Packet>);
+    static_assert(!std::is_invocable_v<
+        IntakeMethod,Broker,std::uint64_t,Acceptor,Connection,Session,Packet>);
+    static_assert(std::is_invocable_v<
+        PrepareMethod,Broker,const LinuxConsoleAdmissionLease &,
+        Acceptor,Connection,Session>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod,Broker,bool,Acceptor,Connection,Session>);
+    static_assert(std::is_invocable_r_v<
+        Outcome,CompletionMethod,Broker,const LinuxConsoleAdmissionLease *,
+        Acceptor,Connection,Session,std::uint64_t,std::uint64_t,std::size_t>);
+    static_assert(!std::is_invocable_v<
+        CompletionMethod,Broker,bool,Acceptor,Connection,Session,
+        std::uint64_t,std::uint64_t,std::size_t>);
+
+    constexpr std::array<std::uint8_t,8> attach{
+        0x03,0x00,0x00,0x08,0x02,0xf0,0x80,0x28};
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST","alice","seat0",":0",
+                       1001,kConsoleViewPermission}) == ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+    // Offline CI cannot fabricate a positive lease, native session or TLS.
+    assert(broker.completeR3AttachUserConfirmWrite(
+        nullptr,acceptor,connection,session,1U,1U,11U) == Outcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.allocatedUserId() == 0U);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(session.pendingJoinConfirmation().empty());
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    assert(broker.completeR3AttachUserConfirmWrite(
+        nullptr,acceptor,connection,session,UINT64_MAX,UINT64_MAX,0U) ==
+        Outcome::Rejected);
+    assert(session.onDomainPdu(attach) == McsSessionIntake::Closed);
+    McsSessionLifecycle early;
+    assert(early.onDomainPdu(attach) == McsSessionIntake::ValidButNotAdmitted);
+    assert(early.phase() == McsSessionPhase::Closed);
+    assert(early.allocatedUserId() == 0U);
+    assert(early.onDomainPdu(attach) == McsSessionIntake::Closed);
+}
+
 void testR3NativeChangeRevocation()
 {
     ConsoleIdentityPolicy policy;
@@ -1222,6 +1287,11 @@ int main(int argc, char **argv)
             testR3ProtectedTransitionTerminalReplayFence();
             return 0;
         }
+        if (name == "gssapi-r3-attach-user-contract")
+        {
+            testR3AttachUserContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -1254,6 +1324,7 @@ int main(int argc, char **argv)
     testR3ConnectResponseCompletionReauthorization();
     testR3ErectDomainContract();
     testR3ProtectedTransitionTerminalReplayFence();
+    testR3AttachUserContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

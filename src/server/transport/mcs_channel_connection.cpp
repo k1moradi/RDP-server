@@ -3,6 +3,7 @@
 #include "mcs_connect_initial.h"
 #include "gcc_conference_create.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstring>
@@ -245,6 +246,83 @@ McsChannelConfirm encodeMcsAttachUserConfirm(
     return result;
 }
 
+bool McsAttachUserConfirmWriteGate::queue(std::uint32_t assignedUserId) noexcept
+{
+    if (closed_ || delivered_ || pending_ ||
+        replySequence_ == std::numeric_limits<std::uint64_t>::max() ||
+        writeSliceSequence_ == std::numeric_limits<std::uint64_t>::max())
+    {
+        close();
+        return false;
+    }
+    const auto confirmation = encodeMcsAttachUserConfirm(assignedUserId);
+    if (!confirmation || confirmation.length != 11U)
+    {
+        close();
+        return false;
+    }
+    pending_ = confirmation;
+    ++replySequence_;
+    ++writeSliceSequence_;
+    bytesWritten_ = 0;
+    return true;
+}
+
+McsConnectResponseWriteView
+McsAttachUserConfirmWriteGate::pendingWrite() const noexcept
+{
+    if (closed_ || delivered_ || !pending_)
+        return {};
+    const auto remaining = pending_.bytes().subspan(bytesWritten_);
+    return remaining.empty() ? McsConnectResponseWriteView{} :
+        McsConnectResponseWriteView{
+            remaining, replySequence_, writeSliceSequence_};
+}
+
+McsConnectResponseWriteOutcome
+McsAttachUserConfirmWriteGate::onBytesWritten(
+    std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome = McsConnectResponseWriteOutcome;
+    if (closed_ || delivered_ || !pending_ ||
+        replySequence == 0U || replySequence != replySequence_ ||
+        writeSliceSequence == 0U ||
+        writeSliceSequence != writeSliceSequence_ ||
+        acceptedBytes > pending_.length - bytesWritten_)
+    {
+        close();
+        return Outcome::Rejected;
+    }
+    bytesWritten_ += acceptedBytes;
+    if (bytesWritten_ != pending_.length)
+    {
+        if (acceptedBytes != 0U)
+        {
+            if (writeSliceSequence_ ==
+                std::numeric_limits<std::uint64_t>::max())
+            {
+                close();
+                return Outcome::Rejected;
+            }
+            ++writeSliceSequence_;
+        }
+        return Outcome::Pending;
+    }
+    pending_ = {};
+    bytesWritten_ = 0;
+    delivered_ = true;
+    return Outcome::Delivered;
+}
+
+void McsAttachUserConfirmWriteGate::close() noexcept
+{
+    pending_ = {};
+    bytesWritten_ = 0;
+    delivered_ = false;
+    closed_ = true;
+}
+
 // MS-RDPBCGR 4.1.8.2.2: 03 00 00 0f 02 f0 80 3e 00 00 06
 // 03 eb 03 eb for joined I/O channel 1003 and user 1007.
 McsChannelConfirm encodeMcsChannelJoinConfirm(
@@ -484,6 +562,167 @@ McsSessionIntake McsSessionLifecycle::onVerifiedR2ErectDomain(
     // not a zero-value rejection.
     phase_ = McsSessionPhase::AwaitAttachUser;
     return McsSessionIntake::ErectDomainAccepted;
+}
+
+std::optional<std::uint32_t>
+McsSessionLifecycle::allocateAttachUserId() const noexcept
+{
+    // Connect Response fixes GCC node 1001, leaves 1002 for the sole user,
+    // and assigns I/O 1003 plus static channels starting at 1004. Check the
+    // negotiated shared namespace and domain capacities before reserving it.
+    constexpr std::uint32_t kAssignedUserId = 1002U;
+    if (!connectResponseAllocation_ || allocatedUserId_ != 0U ||
+        connectResponseDomain_.values[0] <
+            connectResponseAllocation_.staticChannels().size() + 3U ||
+        connectResponseDomain_.values[1] < 2U ||
+        connectResponseAllocation_.gccNodeId == kAssignedUserId ||
+        connectResponseAllocation_.ioChannelId == kAssignedUserId ||
+        connectResponseAllocation_.ioChannelId ==
+            connectResponseAllocation_.gccNodeId ||
+        connectResponseAllocation_.gccNodeId < 1001U ||
+        connectResponseAllocation_.gccNodeId > 65536U ||
+        connectResponseAllocation_.ioChannelId == 0U)
+        return std::nullopt;
+
+    const auto channels = connectResponseAllocation_.staticChannels();
+    for (std::size_t index = 0; index < channels.size(); ++index)
+    {
+        if (channels[index] == 0U ||
+            channels[index] == connectResponseAllocation_.gccNodeId ||
+            channels[index] == kAssignedUserId ||
+            channels[index] == connectResponseAllocation_.ioChannelId)
+            return std::nullopt;
+        for (std::size_t previous = 0; previous < index; ++previous)
+        {
+            if (channels[index] == channels[previous])
+                return std::nullopt;
+        }
+    }
+    return kAssignedUserId;
+}
+
+McsSessionIntake McsSessionLifecycle::onVerifiedR2AttachUser(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ == McsSessionPhase::Closed)
+        return McsSessionIntake::Closed;
+    if (phase_ != McsSessionPhase::AwaitAttachUser)
+    {
+        close();
+        return McsSessionIntake::InvalidOrdering;
+    }
+    if (!connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_)
+    {
+        close();
+        return McsSessionIntake::AdmissionDenied;
+    }
+    if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return McsSessionIntake::OversizedEnvelope;
+    }
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed)
+    {
+        close();
+        switch (parsed.error)
+        {
+        case McsChannelParseError::InvalidTransport:
+            return McsSessionIntake::InvalidDomainTransport;
+        case McsChannelParseError::InvalidDomainPdu:
+            return McsSessionIntake::InvalidDomainPdu;
+        case McsChannelParseError::InvalidPerValue:
+            return McsSessionIntake::InvalidDomainPerValue;
+        case McsChannelParseError::None:
+            break;
+        }
+        return McsSessionIntake::InvalidEnvelope;
+    }
+    if (parsed.request.kind ==
+        McsChannelRequestKind::DisconnectProviderUltimatum)
+    {
+        close();
+        return McsSessionIntake::PeerDisconnected;
+    }
+    if (parsed.request.kind != McsChannelRequestKind::AttachUser)
+    {
+        close();
+        return McsSessionIntake::InvalidOrdering;
+    }
+
+    const auto assignedUserId = allocateAttachUserId();
+    if (!assignedUserId || !attachConfirmWrite_.queue(*assignedUserId))
+    {
+        close();
+        return McsSessionIntake::InvalidResourceAllocation;
+    }
+    allocatedUserId_ = *assignedUserId;
+    phase_ = McsSessionPhase::AwaitAttachConfirm;
+    return McsSessionIntake::AttachUserAccepted;
+}
+
+std::optional<McsConnectResponseWriteView>
+McsSessionLifecycle::prepareAttachUserConfirmWrite(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitAttachConfirm ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_)
+    {
+        close();
+        return std::nullopt;
+    }
+    const auto pending = attachConfirmWrite_.pendingWrite();
+    if (!pending)
+        close();
+    return pending ? std::optional{pending} : std::nullopt;
+}
+
+McsConnectResponseWriteOutcome
+McsSessionLifecycle::completeAttachUserConfirmWrite(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome = McsConnectResponseWriteOutcome;
+    if (phase_ != McsSessionPhase::AwaitAttachConfirm ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_)
+    {
+        close();
+        return Outcome::Rejected;
+    }
+    const auto result = attachConfirmWrite_.onBytesWritten(
+        replySequence, writeSliceSequence, acceptedBytes);
+    if (result == Outcome::Rejected)
+    {
+        close();
+        return result;
+    }
+    if (result == Outcome::Delivered)
+    {
+        // Only a completely accepted confirmation makes these channel IDs
+        // available for later protected joins. No join PDU is admitted here.
+        std::array<std::uint16_t, kMaximumStaticChannelCount + 2U> channels{};
+        constexpr std::size_t kFixedChannelCount = 2U;
+        channels[0] = static_cast<std::uint16_t>(allocatedUserId_);
+        channels[1] = connectResponseAllocation_.ioChannelId;
+        const auto staticChannels = connectResponseAllocation_.staticChannels();
+        std::copy(staticChannels.begin(), staticChannels.end(),
+                  channels.begin() + kFixedChannelCount);
+        if (!joins_.configure(
+                allocatedUserId_,
+                std::span(channels).first(
+                    kFixedChannelCount + staticChannels.size())))
+        {
+            close();
+            return Outcome::Rejected;
+        }
+        phase_ = McsSessionPhase::AwaitChannelJoin;
+    }
+    return result;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(

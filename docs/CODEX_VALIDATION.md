@@ -1,3 +1,35 @@
+## R3 protected Attach User confirmation validation ledger (2026-10-16)
+
+**Authoring base:** `db5bcbd4a6415779dab713424c0c7c0e17ce6fb2`.
+**Concurrent R2/R10 integration inspected:** `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`.
+**Source reviewed:** production `mcs_channel_connection` and concrete
+`linux_console_admission` owner, Connect Response allocation and receipts,
+portable MCS tests, Linux GSSAPI contracts, central CTest registration, and
+the project standards. The new positive R3 handoff only accepts the
+nonforgeable Linux R2 lease, exact R1 connection, original GSS acceptor and
+sole R3 owner; completion's nullable lease is terminal denial only.
+
+**New dedicated CTests (added, NOT RUN locally):**
+`transport.mcs-session-attach-confirm-write-receipts`,
+`transport.mcs-session-attach-confirm-denials`,
+`security.gssapi-r3-attach-user-contract` (Linux GSSAPI only).
+The offline tests assert the real fixed-size writer's exact 11 octets,
+zero-byte retries, all initial split positions, stable suffix, slice receipts,
+duplicate/stale/overreported completion and cancellation. Linux tests assert
+the protected method signatures and genuine missing-lease/GSS/TLS denials.
+They do not produce forged successful Kerberos/native admission.
+
+**Build/test matrix:** canonical `~/rdp-server/build` Debug CMake build and
+full CTest **BLOCKED / NOT RUN** because no synchronized checkout is mounted
+and shell GitHub DNS is unavailable. Standalone owner Linux/X11,
+Windows CLANG64/Clang 23 and macOS 27 **NOT RUN**. Exact-SHA hosted
+Linux/GCC, macOS/Clang and Windows/MSVC Debug/Release plus R9 ASan/UBSan
+**PENDING**, not PASS. No first failing test can yet be attributed.
+Real native NSS/logind lease issuance, R1 TLS I/O delivery and Microsoft
+client/desktop acceptance are **NOT RUN**. Join request/confirmation,
+licensing/Share/channel activation and R10 service remain deferred.
+**Gate A/M2 NOT ACCEPTED.**
+
 ## R10 connection-aggregate publication receipt and CredSSP I/O blocker (2026-10-16)
 
 Implementation commit: `be99fb50d0f1c7ae981a8e706ec44794a309eadc`

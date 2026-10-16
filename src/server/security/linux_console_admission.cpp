@@ -737,6 +737,86 @@ LinuxConsoleAdmissionBroker::authorizeR3ErectDomain(
     return result;
 }
 
+rdp_server::server::transport::McsSessionIntake
+LinuxConsoleAdmissionBroker::authorizeR3AttachUser(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using rdp_server::server::transport::McsSessionIntake;
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return McsSessionIntake::AdmissionDenied;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return McsSessionIntake::AdmissionDenied;
+    }
+    const auto result = session.onVerifiedR2AttachUser(*provenance, completeTpkt);
+    if (result != McsSessionIntake::AttachUserAccepted)
+        revokeR3Session(acceptor, session);
+    return result;
+}
+
+std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3AttachUserConfirmWrite(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+    const auto pending = session.prepareAttachUserConfirmWrite(*provenance);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+rdp_server::server::transport::McsConnectResponseWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3AttachUserConfirmWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+    if (lease == nullptr ||
+        !authorizeR3ProtectedTransition(
+            *lease, acceptor, connection, session, kConsoleViewPermission))
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+    const auto outcome = session.completeAttachUserConfirmWrite(
+        *provenance, replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

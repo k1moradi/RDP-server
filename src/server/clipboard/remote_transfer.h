@@ -161,6 +161,21 @@ public:
     [[nodiscard]] bool beginRequest(
         std::uint32_t formatId, std::vector<std::uint8_t> &output) noexcept;
 
+    // Optional bounded eager-retrieval planner for one clipboard generation.
+    // Text selects CF_UNICODETEXT only; images prefer registered PNG, then
+    // CF_DIBV5 (17) and CF_DIB (8). IDs are matched to THIS format list,
+    // never inferred from a registered name's previous-generation ID.
+    // Each candidate can be attempted once per generation. Call again only
+    // after a failed or caller-rejected response to try the next fallback.
+    // Does not cache, validate, render, publish, or perform transport I/O.
+    // The same single-flight pending reply must finish/drain before another
+    // request can begin. A live paste can use beginRequest directly.
+    enum class PrefetchKind : std::uint8_t { UnicodeText, Image };
+    [[nodiscard]] bool beginNextPrefetch(
+        PrefetchKind kind,
+        std::uint32_t &selectedFormatId,
+        std::vector<std::uint8_t> &output) noexcept;
+
     // Exactly one response is consumed for each outstanding request. A
     // response to a retired generation is drained, never reassigned.
     [[nodiscard]] Response receiveResponse(
@@ -190,6 +205,7 @@ private:
     std::size_t advertisedCount_{};
     std::uint32_t pngFormatId_{};
     std::uint32_t fileGroupDescriptorFormatId_{};
+    std::array<std::uint32_t, 4> attemptedPrefetchIds_{};
     std::uint64_t generation_{};
     std::uint32_t negotiatedGeneralFlags_{};
     bool capabilitiesReceived_{};

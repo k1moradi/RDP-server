@@ -2812,7 +2812,20 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   bitmap copies. Never publish incomplete, corrupt or superseded content.
   Client OS focus/privacy policy may delay or suppress an announcement:
   do not poll, infer unseen copies or bypass the client's policy.
-  **Status: NOT RUN; screenshot/text prefetch and conversion unimplemented.**
+  **R8 bounded prefetch selection (2026-10-15): PARTIAL.**
+  The existing `RemoteTransfer::beginNextPrefetch` selects
+  CF_UNICODETEXT for text, or registered PNG then CF_DIBV5 (17)
+  and CF_DIB (8) for image. Only formats from the current offer
+  qualify, with one attempted request per numeric ID/generation,
+  no concurrent outstanding request, and stale-response draining
+  before reuse. Reoffer/disconnect reset attempts. This method
+  does not validate media, cache bytes, claim OS clipboard ownership
+  or block the event loop; a caller tries fallback only on failed
+  or rejected data. New dedicated CTest
+  `clipboard.prefetch-unicode-png-dib-single-flight`.
+  Full CI and owner three-platform validation NOT RUN at authoring.
+  **Remaining:** bounded verified text/image readiness, native
+  prefetch scheduling/conversion and actual OS paste acceptance.
 - [ ] **Nonblocking clipboard paste readiness**: register a pending OS paste
   request and deadline; process RDP/desktop events while remote transfer or
   image conversion completes, then satisfy the *same* request or reject on

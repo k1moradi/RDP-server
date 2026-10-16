@@ -236,7 +236,8 @@ function(add_rdp_test source_file suite behavior)
                 format-list-response-native-acceptance
                 capabilities-negotiation-format-gating
                 format-list-response-joined-mcs-envelope
-                joined-static-channel-inbound-gates)
+                joined-static-channel-inbound-gates
+                prefetch-unicode-png-dib-single-flight)
             add_test(NAME "clipboard.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("clipboard.${case_name}" PROPERTIES

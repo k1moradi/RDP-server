@@ -225,6 +225,33 @@ The owner's Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
 checks remain **NOT RUN**, as do native OS paste integration,
 authenticated real-client clipboard, Firefox PNG File, and performance.
 
+## R8 bounded Unicode/image prefetch format priority (2026-10-15; CI pending)
+
+The one native `RemoteTransfer` owner now offers
+`beginNextPrefetch(PrefetchKind, selectedFormatId, output)`:
+CF_UNICODETEXT (13) for text; registered PNG by current name,
+then CF_DIBV5 (17) and CF_DIB (8) for images. Only advertised
+IDs are selected; a fixed four-ID generation-local history prevents
+duplicate requests, including registered PNG reusing a DIB numeric
+ID. Each attempt uses the existing single outstanding Format Data
+Request and cannot bypass retiring an obsolete response. Offer
+replacement and disconnect clear history, and there is no extra
+clipboard owner, cache or OS interaction.
+
+**Changed:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/coding_standards.md`,
+`docs/CODEX_VALIDATION.md`.
+**Dedicated CTest:** `clipboard.prefetch-unicode-png-dib-single-flight`
+covers missing-offer denial, Unicode ID wire, one-flight denial,
+PNG/DIBV5/DIB retry priorities, duplicate IDs, outstanding
+old-generation reply quarantine, reset and poisoned transfer.
+**NOT RUN at authoring:** complete local repo CMake/CTest, hosted
+exact-commit CI (pending), owner Linux/X11, Windows MSYS2 CLANG64
+Clang23, macOS27, real clipboard/client paste, verified PNG/DIB/
+UTF-16 conversion and performance. Actual native content readiness
+and scheduling are future R8/adapter gates.
+
 ## Local validation (one reused build root)
 
 ```sh

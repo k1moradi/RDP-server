@@ -145,6 +145,7 @@ bool RemoteTransfer::receiveFormatList(
     advertisedCount_ = advertisedFormatIds.size();
     pngFormatId_ = 0;
     fileGroupDescriptorFormatId_ = 0;
+    attemptedPrefetchIds_.fill(0);
     ++generation_;
     // pending_ deliberately survives a new format list: CLIPRDR wire
     // responses carry no request generation. A stale response must be drained.
@@ -628,6 +629,45 @@ bool RemoteTransfer::beginRequest(
     return true;
 }
 
+bool RemoteTransfer::beginNextPrefetch(
+    PrefetchKind kind,
+    std::uint32_t &selectedFormatId,
+    std::vector<std::uint8_t> &output) noexcept
+{
+    selectedFormatId = 0;
+    output.clear();
+    // Without a wire request ID, a pending format-data reply cannot be
+    // overtaken even if a new offer replaced the current generation.
+    if (poisoned_ || generation_ == 0 || pendingValid_)
+        return false;
+
+    constexpr std::uint32_t kDibV5FormatId = 17;
+    constexpr std::uint32_t kDibFormatId = 8;
+    const std::array<std::uint32_t, 3> preferences =
+        kind == PrefetchKind::UnicodeText
+            ? std::array<std::uint32_t, 3>{rdp_server::clipboard::kFormatUnicodeText, 0, 0}
+            : std::array<std::uint32_t, 3>{pngFormatId_, kDibV5FormatId,
+                                           kDibFormatId};
+    for (const auto id : preferences)
+    {
+        if (id == 0 || !advertises(id) ||
+            std::find(attemptedPrefetchIds_.begin(),
+                      attemptedPrefetchIds_.end(), id) !=
+                attemptedPrefetchIds_.end())
+            continue;
+        // Every selected ID must have one unused bookkeeping slot.
+        const auto slot = std::find(
+            attemptedPrefetchIds_.begin(), attemptedPrefetchIds_.end(), 0U);
+        if (slot == attemptedPrefetchIds_.end() ||
+            !beginRequest(id, output))
+            return false;
+        *slot = id;
+        selectedFormatId = id;
+        return true;
+    }
+    return false;
+}
+
 RemoteTransfer::Response RemoteTransfer::receiveResponse(
     std::span<const std::uint8_t> completePdu) noexcept
 {
@@ -676,6 +716,7 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     advertisedCount_ = 0;
     pngFormatId_ = 0;
     fileGroupDescriptorFormatId_ = 0;
+    attemptedPrefetchIds_.fill(0);
     generation_ = 0;
     negotiatedGeneralFlags_ = 0;
     capabilitiesReceived_ = false;

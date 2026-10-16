@@ -89,6 +89,18 @@ sufficient** for authenticated, independently OS-authorized CLIPRDR
 routing. Keep ownership of TLS send progress and cancellation in
 R3's existing connection writer; never fabricate channel permission.
 
+## R8 per-generation native clipboard prefetch candidates (2026-10-15)
+
+MS-RDPECLIP Format Data Requests carry a format ID advertised
+by the peer; ordinary responses have no request ID. Background
+text/image selection MUST reuse the single pending request owner,
+avoid unbounded repeat attempts, and drain an older generation's
+pending response before fetching a new offer. Favor CF_UNICODETEXT
+(13), named PNG, CF_DIBV5 (17), and CF_DIB (8) respectively.
+A completed fetch is not ready for OS paste until bounded media
+validation, conversion and native lifetime/ownership checks succeed.
+An actual paste must not be starved by speculative background work.
+
 ## Native clipboard implementation rules (2026-10-14; design, NOT RUN)
 
 Use [MS-RDPECLIP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/8bb14d95-fcfa-45e9-b822-f97b129ff208)

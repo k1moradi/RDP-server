@@ -1227,6 +1227,117 @@ void testJoinedStaticChannelInboundGates()
     assert(receive(parsed.request).status == Status::Denied);
 }
 
+// R8 M5 bounded eager retrieval: selection uses only current-format IDs,
+// and the existing single outstanding CLIPRDR Format Data Request slot.
+void testPrefetchUnicodePngDibFallbackSingleFlight()
+{
+    using namespace rdp_server::clipboard;
+    using Kind = RemoteTransfer::PrefetchKind;
+    using Result = RemoteTransfer::ResponseStatus;
+    RemoteTransfer transfer;
+    std::uint32_t selectedId = 77;
+    std::vector<std::uint8_t> request{0xff};
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 0 && request.empty());
+
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(formats, kFormatUnicodeText, "");
+    appendLongFormat(formats, 0xc001, "PNG");
+    appendLongFormat(formats, 17, "");
+    appendLongFormat(formats, 8, "");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(transfer.beginNextPrefetch(Kind::UnicodeText, selectedId, request));
+    assert(selectedId == kFormatUnicodeText);
+    PduView parsed{};
+    assert(decodePdu(request, parsed));
+    const std::array<std::uint8_t, 4> textId{13, 0, 0, 0};
+    assert(parsed.type == kFormatDataRequest && parsed.flags == 0);
+    assert(std::equal(parsed.payload.begin(), parsed.payload.end(),
+                      textId.begin(), textId.end()));
+
+    // A pending text request blocks all image requests and explicit paste
+    // requests. Failed speculative calls may not corrupt the wire request.
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 0 && request.empty());
+    assert(!transfer.beginRequest(0xc001, request));
+    const auto fail = responsePdu(kResponseFail);
+    assert(transfer.receiveResponse(fail).status == Result::RemoteFailure);
+    assert(!transfer.beginNextPrefetch(Kind::UnicodeText, selectedId, request));
+    assert(selectedId == 0 && request.empty());
+
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 0xc001);
+    assert(decodePdu(request, parsed));
+    const std::array<std::uint8_t, 4> pngId{1, 0xc0, 0, 0};
+    assert(std::equal(parsed.payload.begin(), parsed.payload.end(),
+                      pngId.begin(), pngId.end()));
+    assert(transfer.receiveResponse(fail).status == Result::RemoteFailure);
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 17);
+    assert(transfer.receiveResponse(fail).status == Result::RemoteFailure);
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 8);
+    const std::array<std::uint8_t, 2> imageBytes{0xaa, 0xbb};
+    const auto success = responsePdu(kResponseOk, imageBytes);
+    const auto image = transfer.receiveResponse(success);
+    assert(image.status == Result::Received && image.formatId == 8);
+    assert(image.payload.size() == imageBytes.size());
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 0 && request.empty());
+
+    // The same format ID may map to a new offer, but an obsolete reply
+    // MUST drain before any request in the new generation begins.
+    formats.clear();
+    appendLongFormat(formats, 0xc010, "PNG");
+    appendLongFormat(formats, 17, "");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 0xc010);
+    formats.clear();
+    appendLongFormat(formats, 0xc020, "PNG");
+    appendLongFormat(formats, 8, "");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 0 && request.empty());
+    assert(transfer.waitingForObsoleteResponse());
+    assert(transfer.receiveResponse(success).status ==
+           Result::DiscardedPreviousGeneration);
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 0xc020);
+    assert(transfer.receiveResponse(fail).status == Result::RemoteFailure);
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 8);
+    assert(transfer.receiveResponse(fail).status == Result::RemoteFailure);
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+
+    // A registered name can use a numeric ID otherwise known as DIBV5.
+    // Never retry a duplicate ID merely because it occupies two priorities.
+    formats.clear();
+    appendLongFormat(formats, 17, "PNG");
+    appendLongFormat(formats, 8, "");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 17);
+    assert(transfer.receiveResponse(fail).status == Result::RemoteFailure);
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 8);
+    assert(transfer.receiveResponse(fail).status == Result::RemoteFailure);
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+
+    // Disconnect revokes advertised candidates and attempted history.
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    transfer.abandonRequest();
+    assert(!transfer.synchronized());
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    transfer.resetAfterDisconnect();
+    assert(transfer.synchronized());
+    assert(!transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(transfer.beginNextPrefetch(Kind::Image, selectedId, request));
+    assert(selectedId == 17);
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -1242,6 +1353,11 @@ int main(int argumentCount, char **arguments)
         if (caseName == "mcs-joined-response-teardown")
         {
             testMcsJoinedClipboardResponseTeardown();
+            return 0;
+        }
+        if (caseName == "prefetch-unicode-png-dib-single-flight")
+        {
+            testPrefetchUnicodePngDibFallbackSingleFlight();
             return 0;
         }
         if (caseName == "joined-static-channel-inbound-gates")

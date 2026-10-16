@@ -17721,3 +17721,20 @@ R10 supplies the real authority owner and R2 exposes fresh authorization for
 the live grant slices/completion, verify that final publication through the
 sole R1-owned TLS writer. Otherwise wait for the first live Share-activation
 boundary that demonstrates a concrete bounded transport mismatch.
+
+## R3 bounded licensing sanitizer selector correction (2026-10-16)
+
+The corrected grant-gate source descendant `f41d2a4b41362bbaf7bd5d6e030ea917dabe2796`
+compiled and passed ordinary Debug coverage on Linux and macOS, but R9's
+bounded R1/R3 licensing step did not execute: CTest rejected its selector with
+`RegularExpression::compile(): Too many parentheses`. This was a selector
+construction failure, not an ASan/UBSan finding and not a production/test
+binary failure.
+
+This correction flattens only the newly added
+`license-grant-(...|write-receipts|write-denials)` alternatives, removing one
+nested regex group while preserving the exact selected test names and existing
+explicit registration greps. Production code, CTest registration, authority
+correlation, grant bytes and receipt behavior are unchanged. Exact-SHA
+sanitizer and full hosted validation remain required before acceptance.
+

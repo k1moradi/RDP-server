@@ -8086,3 +8086,34 @@ Local synchronized CMake/CTest is **NOT RUN** in this connector-only authoring
 environment. Exact-SHA hosted CI is required after publication. Owner
 Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, genuine positive native
 admission and Microsoft-client Channel Connection remain **NOT RUN**.
+
+## R5 concrete R3-authorized XTEST route (2026-10-16; CI pending)
+
+**Authoring main:** `8f86a5a25ebbdece40b3d97beb569c860d235c87`.
+
+**Production:** new noninstalled Linux-only `X11AuthorizedInputRoute` is a
+stateless composition boundary between the existing concrete R2 broker/R3
+session owner and R5's existing XTEST child. It accepts no Boolean proof and
+owns no authorization or input state. A non-null concrete
+`LinuxConsoleAdmissionLease`, live TLS-bound GSS acceptor and the sole
+`McsSessionLifecycle` are synchronously revalidated with
+`kConsoleInputPermission` by `authorizeR3ProtectedTransition` immediately
+before `X11InputController::handle`. The desktop aggregate's input method is
+private and friend-accessible only to this route. Any missing/stale admission,
+native-owner failure or XTEST failure closes the native owner and R3/R2 path.
+
+**Dedicated ordinary CTest:**
+`x11.input-r3-admission-route-denials-and-revocation` runs under ephemeral
+Xvfb when the native desktop and Linux GSSAPI targets exist. It constructs a
+real X11 resource owner and an input-capable policy, deliberately supplies no
+admission lease, and requires dispatch rejection followed by native owner,
+R3 and R2/GSS terminal revocation; a repeated late input is rejected. A
+compile-time contract requires the concrete lease pointer form and rejects a
+Boolean substitute. Because no lease exists, the test cannot reach XTEST or
+inject keyboard/pointer input.
+
+**NOT RUN at authoring:** local one-root native build/full CTest in this
+sandbox, exact-SHA hosted CI, genuine positive Kerberos/TLS plus physical
+logind admission, live XTEST input, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, Microsoft-client M3 acceptance and performance
+benchmarks.

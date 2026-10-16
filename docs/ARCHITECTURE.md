@@ -213,6 +213,16 @@ The noninstalled Linux `rdp-server-linux-xtest-input` target links only
 Its ordinary native CTest uses an already-failed XCB fd and therefore cannot
 inject real keyboard or pointer input.
 
+The stateless `X11AuthorizedInputRoute` is the only R5 boundary allowed to
+invoke the aggregate's private XTEST child. It owns no session, permission
+cache or input state. Every dispatch requires the concrete broker-issued
+`LinuxConsoleAdmissionLease` plus the live GSS/TLS and sole R3
+`McsSessionLifecycle`; immediately before XTEST it calls the existing R2
+`authorizeR3ProtectedTransition(..., kConsoleInputPermission)`. Missing or
+stale admission, generation mismatch, native-owner loss, or XTEST failure
+closes the X11 owner and the R3/R2 path. A Boolean, policy match, desktop
+handle or caller-supplied generation can never authorize input.
+
 ### R5 one-XCB desktop resource ownership (Linux only)
 
 `X11DesktopResources` owns the existing `X11DisplayConnection` together

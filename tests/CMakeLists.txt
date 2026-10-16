@@ -957,6 +957,27 @@ if(TARGET rdp-server-linux-x11-desktop)
     endif()
 endif()
 
+# R5 R2/R3-authorized XTEST route. The ordinary case uses only ephemeral Xvfb
+# and deliberately supplies no admission lease, proving policy/native desktop
+# availability alone cannot reach XTEST and terminally revokes all owners.
+if(TARGET rdp-server-linux-x11-authorized-input AND
+   RDP_SERVER_XVFB_RUN_EXECUTABLE)
+    add_executable(test_x11_authorized_input_route
+        test_x11_authorized_input_route.cpp)
+    target_link_libraries(test_x11_authorized_input_route PRIVATE
+        rdp-server-linux-x11-authorized-input)
+    target_compile_options(test_x11_authorized_input_route PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME x11.input-r3-admission-route-denials-and-revocation
+        COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+            "-screen 0 1280x720x24 -nolisten tcp"
+            $<TARGET_FILE:test_x11_authorized_input_route>)
+    set_tests_properties(
+        x11.input-r3-admission-route-denials-and-revocation
+        PROPERTIES LABELS "x11;linux-adapter;native;security;synthetic-display"
+                   TIMEOUT 20)
+endif()
+
 # R8 native X11 CLIPBOARD selection adapter. All cases use a deterministic
 # native operation seam; they compile the real adapter without DISPLAY/Xvfb.
 if(TARGET rdp-server-linux-x11-clipboard)

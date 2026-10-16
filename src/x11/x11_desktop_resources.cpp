@@ -271,6 +271,24 @@ X11DesktopResources::acknowledgeCursor() noexcept
     }
 }
 
+bool
+X11DesktopResources::handleAuthorizedInput(
+    const X11InputEvent &event) noexcept
+{
+    if (!valid())
+    {
+        return false;
+    }
+    if (!input_->handle(event))
+    {
+        const char *reason = input_->failureReason();
+        fail(reason);
+        cancelNativeResources();
+        return false;
+    }
+    return true;
+}
+
 ConnectionStatus
 X11DesktopResources::processEvents(std::size_t eventBudget,
                                   bool *workMayRemain,

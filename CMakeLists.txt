@@ -472,6 +472,23 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     # and independently authorized OS admission in a future service.
 endif()
 
+# R5 stateless authorized-input route. Build only where the concrete native
+# Linux R2/R3 broker and the one-XCB desktop owner are both present. This
+# target owns no session/input state and is never installed or linked runtime.
+if(TARGET rdp-server-linux-gssapi AND
+   TARGET rdp-server-linux-x11-desktop)
+    add_library(rdp-server-linux-x11-authorized-input STATIC
+        src/x11/x11_authorized_input_route.cpp)
+    target_compile_features(rdp-server-linux-x11-authorized-input PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-linux-x11-authorized-input PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(rdp-server-linux-x11-authorized-input PUBLIC
+        rdp-server-linux-gssapi
+        rdp-server-linux-x11-desktop)
+    target_compile_options(rdp-server-linux-x11-authorized-input PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R7 native macOS capture remains isolated from the portable protocol target.
 # Objective-C++ is enabled only on Apple for the ScreenCaptureKit bridge; the
 # owner is not wired into runtime startup before independent R2/R3 admission.

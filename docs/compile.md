@@ -117,8 +117,13 @@ frame/cursor views are consumed synchronously before teardown. None inject
 keyboard/mouse input or accesses a logged-in desktop.
 
 Hosted Ubuntu installs `xvfb` and `xauth`; local absence means those
-optional synthetic-display cases are NOT RUN, not PASS. The normal one-root
-owner command remains unchanged.
+optional synthetic-display cases are NOT RUN, not PASS. When the concrete
+Linux GSSAPI/R2 target and the one-XCB owner are both enabled, CMake also
+builds noninstalled `rdp-server-linux-x11-authorized-input`. Its ordinary
+`x11.input-r3-admission-route-denials-and-revocation` Xvfb CTest supplies no
+admission lease and therefore cannot reach XTEST; it verifies missing
+capability closes R3/R2 and the native owner. Positive input injection remains
+outside ordinary CTest. The normal one-root owner command remains unchanged.
 
 ## Linux native X11 CLIPBOARD dependencies (R8)
 

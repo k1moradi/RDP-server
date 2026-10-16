@@ -3789,6 +3789,31 @@ actually run; another parser CTest alone is not a complete session.
   input; Microsoft-client M3 acceptance; performance benchmarks. M3 remains
   OPEN.
 
+  **R5 concrete R3-authorized XTEST route (2026-10-16; based on main
+  `8f86a5a25ebbdece40b3d97beb569c860d235c87`; exact-SHA CI pending):** Add a stateless
+  `X11AuthorizedInputRoute` as the sole friend allowed to reach the private
+  XTEST child in `X11DesktopResources`. Each dispatch requires the concrete
+  broker-issued `LinuxConsoleAdmissionLease`, live GSS/TLS acceptor and sole
+  `McsSessionLifecycle`, then synchronously calls existing
+  `authorizeR3ProtectedTransition(..., kConsoleInputPermission)` immediately
+  before the typed X11 event. Missing/stale admission, generation mismatch,
+  dead native ownership or XTEST failure revokes the native owner and R3/R2
+  path; no Boolean, policy match, native handle or scalar generation can grant
+  input. Add ordinary ephemeral-Xvfb CTest
+  `x11.input-r3-admission-route-denials-and-revocation`: construct a real
+  native desktop and an input-capable policy but deliberately provide no
+  lease, verify no XTEST path is reached, and require native/R3/R2 terminal
+  revocation plus replay denial. The positive Kerberos/logind/XTEST path stays
+  NOT RUN in ordinary CTest.
+  **NOT RUN at authoring:** local one-root native build/full CTest, exact-SHA
+  hosted CI, genuine positive Kerberos/TLS + physical logind admission, live
+  XTEST injection, owner Linux/X11, Windows CLANG64/Clang23, macOS27,
+  Microsoft-client M3 and benchmarks. **Next R5:** consume real R3 input PDUs
+  into the existing typed X11 event form only after R3 share/input protocol
+  parsing exposes that authoritative boundary; keep translation and native
+  dispatch separate and do not create another session/input controller. M3
+  remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

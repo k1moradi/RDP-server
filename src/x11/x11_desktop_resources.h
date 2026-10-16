@@ -15,6 +15,8 @@
 #include "x11_input_controller.h"
 #include "x11_shared_memory_capture.h"
 
+class X11AuthorizedInputRoute;
+
 struct X11CursorImageView final
 {
     std::span<const std::byte> pixels{};
@@ -111,6 +113,10 @@ public:
     void disconnect() noexcept;
 
 private:
+    friend class X11AuthorizedInputRoute;
+
+    [[nodiscard]] bool handleAuthorizedInput(
+        const X11InputEvent &event) noexcept;
     void fail(const char *reason) noexcept;
     void cancelGeometryBoundResources() noexcept;
     [[nodiscard]] bool rebuildGeometryBoundResources(

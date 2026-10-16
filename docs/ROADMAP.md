@@ -242,6 +242,25 @@ full-repository CTest and Windows/macOS CI. No service activation,
 TLS private keys or real client. M1–M6 remain open. Next: exact-SHA
 hosted CTests and rerun the owner's two previously failing tests.
 
+**R10 integration recovery — workflow YAML duplicate jobs (2026-10-15):**
+The owner-reported POSIX config CTest failures led to R10 test-only
+fixture normalization at
+[`875033cdfb0b7b13d7842de711b54ba3d867ec8f`](https://github.com/k1moradi/RDP-server/commit/875033cdfb0b7b13d7842de711b54ba3d867ec8f).
+Its exact-SHA [Actions 38850361038](https://github.com/k1moradi/RDP-server/actions/runs/38850361038)
+failed at workflow admission with **zero jobs**, not at R10 CTest.
+The updated workflow had duplicate `documentation-policy` and
+`publish-protocol-prerelease` job identifiers plus an outdented
+stray shell line after a release command. R10 now removes the
+duplicate tail, preserving R9's legitimate separate sanitizer job,
+the first documentation-policy gate, and the original guarded SDK
+prerelease job. This is a CI configuration repair only: no production
+runtime or security check is loosened. **PASS:** exact static
+invariant inspection (one of each job, sanitizer retained).
+**NOT RUN at authoring:** restored exact-commit hosted GitHub
+Actions/CTest, owner's platform test; original two owner test
+failure diagnostics have not been supplied. M1–M6 remain OPEN.
+Next: verify the restored exact-SHA workflow and the fixture regression.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

@@ -5178,3 +5178,20 @@ workflow is runnable; owner's macOS27 and CLANG64 Clang23 terminals;
 real ScreenCaptureKit/TCC, R2/R3 admission, client input and benchmarks.
 **Next:** obtain exact-SHA hosted validation once R9 fixes CI and add
 native user-authorized Quartz topology invalidation registration.
+
+## R10 recovery of broken workflow job map (2026-10-15)
+
+**Parent main:** `b97e50834e5851c66936cf9d3ad95949b3b25aa9`. The R10 owner-failure correction
+`875033cdfb0b7b13d7842de711b54ba3d867ec8f` was committed
+but [Actions 38850361038](https://github.com/k1moradi/RDP-server/actions/runs/38850361038)
+ended **FAIL with zero jobs**, thus no full CTest validation. A
+concurrent R9 sanitizer workflow edit accidentally duplicated
+`documentation-policy` and `publish-protocol-prerelease` jobs
+and left a stray outdented shell line. Preserve the R9 sanitizer
+steps and exactly one policy and SDK tag-publish gate, remove the
+duplicate malformed tail. **PASS:** text-level assertion that
+preserved top-level job identifiers are unique and required gates
+remain. **NOT RUN at authoring:** restored GitHub Actions, owner's
+full CTest rerun and first failing stderr for owner's two R10 cases.
+No production security behavior changed. Next: exact-SHA workflow
+and CTest verification; M1–M6 remain OPEN.

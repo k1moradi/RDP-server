@@ -9,7 +9,8 @@ X11AuthorizedInputRoute::dispatch(
     rdp_server::server::security::LinuxConsoleAdmissionBroker &broker,
     const rdp_server::server::security::LinuxConsoleAdmissionLease *lease,
     rdp_server::server::security::GssapiSpnegoAcceptor &acceptor,
-    const SSL *activeServerTls,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     X11DesktopResources &desktop,
     const X11InputEvent &event) noexcept
@@ -24,11 +25,11 @@ X11AuthorizedInputRoute::dispatch(
     }
 
     // Revalidate the exact lease generation, native session generation,
-    // GSS/TLS provenance, policy and input permission immediately before
-    // native injection. The broker closes R3/R2/GSS on any denial.
+    // R1-owned GSS/TLS/NLA provenance, policy and input permission
+    // immediately before native injection. The broker closes R3/R2/GSS on
+    // any denial; a caller-selected SSL pointer is not an authority input.
     if (!broker.authorizeR3ProtectedTransition(
-            *lease, acceptor, activeServerTls, session,
-            kConsoleInputPermission))
+            *lease, acceptor, connection, session, kConsoleInputPermission))
     {
         desktop.disconnect();
         return false;

@@ -1,3 +1,14 @@
+### R2 downstream protected-input owner seam (2026-10-16)
+
+Native input routing does not receive an independent transport proof.
+`X11AuthorizedInputRoute::dispatch` carries the exact borrowed
+`OwnedPreauthTcpConnection` into R2 immediately before the protected R3
+transition and XTEST injection. R2 alone derives TLS plus immutable HYBRID
+provenance from that owner. The route cannot substitute a raw `SSL*`, cache
+authorization or create a second transport/session authority; its existing
+no-lease and native-failure teardown remains R3 → R2/GSS → native disconnect
+within the established serialized ownership boundary.
+
 ### R2 R1-owned NLA provenance and R3 admission ownership (2026-10-16)
 
 R1 remains the sole accepted-socket/TLS/X.224 negotiation owner. R2 may borrow

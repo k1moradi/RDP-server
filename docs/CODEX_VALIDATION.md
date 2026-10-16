@@ -1,3 +1,23 @@
+## R2 downstream owner-callsite repair validation (2026-10-16)
+
+Review after `2fb5ed5a832c97241d236813599b6d1e8efef985` found the existing
+`X11AuthorizedInputRoute::dispatch` call surface still accepted
+`const SSL*`. Because R2's protected transition is owner-bound, this would
+be both a Linux compile break and an obsolete raw-TLS authority seam. The
+route and its existing Xvfb regression now accept
+`const OwnedPreauthTcpConnection&`; compile-time assertions require that
+owner and reject the old raw-SSL shape. Runtime behavior is unchanged: a null
+lease terminates the path before XTEST.
+
+Intermediate exact-SHA Actions run `38884206732` was **QUEUED** when this
+source audit found the defect and is superseded for R2 acceptance. GitHub code
+search was incomplete, so the concrete admission/runtime/input-route surfaces
+were inspected directly; no additional positive broker caller needing
+conversion was found there. No alternate build root was created; the canonical
+owner checkout is unavailable in this execution environment. Final exact-SHA
+hosted CI plus owner-platform and real Kerberos/logind/Microsoft-client gates
+remain separately required.
+
 ## R10 seal-query correction publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Correction commit: `110479f382dfcbbd28343f472ba126e6c5fbef09`
@@ -55,8 +75,8 @@ Linux-security CTests before provisioning promotion or any listener.
 ## R2 R1-owned HYBRID provenance gate authoring validation (2026-10-16)
 
 **Initial inspected main:** `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`.
-Concurrent shared work advanced `main`; the implementation was reconciled
-against `8132e5ab2fd85161f6ffef559f28d5b11bc51531` before publication.
+Concurrent shared work advanced `main`; the implementation was ultimately
+published from parent `db5bcbd4a6415779dab713424c0c7c0e17ce6fb2`.
 
 **Production boundary:** `LinuxConsoleAdmissionBroker::issue` has an
 owner-based positive overload taking

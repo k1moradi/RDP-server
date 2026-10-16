@@ -1,3 +1,29 @@
+## R2 downstream R1-owner seam repair (2026-10-16; exact-SHA CI pending)
+
+Post-publication call-site audit of R2 commit
+`2fb5ed5a832c97241d236813599b6d1e8efef985` found the existing Linux X11
+input route still forwarding a caller-selected `SSL*` into the now
+owner-bound protected-transition gate. The route now carries the same
+read-only `const OwnedPreauthTcpConnection&` from R1 into
+`LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition`; no XTEST,
+R3, native-input, policy or permission semantics changed.
+
+The existing
+`x11.input-r3-admission-route-denials-and-revocation` regression now has a
+compile-time owner-only signature assertion and rejects a raw `SSL*`
+invocation. Its no-lease runtime case still proves that a native X11 desktop
+cannot reach XTEST and that denial closes R3/R2/native state. Targeted review
+of the admission/runtime/input-route surfaces found no additional positive
+broker caller needing conversion. Positive authorization remains impossible
+under current diagnostic R1 `PROTOCOL_SSL` negotiation.
+
+The first R2 implementation was ultimately published from parent
+`db5bcbd4a6415779dab713424c0c7c0e17ce6fb2`. Actions run
+`38884206732` for that intermediate exact SHA was still queued when this
+downstream compile-surface defect was found and is superseded for R2
+acceptance by the repaired exact SHA. Canonical owner-local build/CTest and
+genuine Kerberos/logind/client acceptance remain **NOT RUN**.
+
 ## R10 seal-query correction publication receipt (2026-10-16; exact-SHA workflow queued)
 
 Correction commit: `110479f382dfcbbd28343f472ba126e6c5fbef09`
@@ -56,8 +82,8 @@ Linux-security CTests before provisioning promotion or any listener.
 
 Initial inspected shared `main`:
 `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`; implementation was reconciled
-through concurrent work onto `8132e5ab2fd85161f6ffef559f28d5b11bc51531`
-before publication.
+through concurrent work onto final publication parent
+`db5bcbd4a6415779dab713424c0c7c0e17ce6fb2`.
 
 R2 positive Linux console admission no longer accepts a caller-selected TLS
 object as sufficient connection provenance. The positive

@@ -1,3 +1,34 @@
+## R2 HYBRID provenance descendant validation receipt (2026-10-16)
+
+R2 implementation `2fb5ed5a832c97241d236813599b6d1e8efef985` and its downstream
+R1-owner call-site repair `461077c612ec4370d8f943e1a2502172e4649ee3` remain present in
+current `main`. Their exact-SHA workflows both failed before authoritative R2
+CTest completion while shared-branch compile blockers were still present, so
+neither red workflow is reported as an R2 behavior failure.
+
+A later exact descendant, `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`
+(Actions `38893987860`), provides the first clean hosted evidence after those
+shared blockers were repaired. Linux/GCC configured and compiled Debug and
+Release and passed the full registered CTest suite in both configurations;
+the Ubuntu Clang ASan/UBSan job also compiled the production-linked Linux GSS
+binary and passed its selected R2/R3 GSS and X11 authorized-input denial sets.
+macOS/Clang likewise compiled and passed the full Debug and Release suites.
+Windows/MSVC compiled Debug successfully, then its full CTest run failed only
+at the two R10 live-TLS-context tests reporting OpenSSL Applink; Windows
+Release/package stages were therefore not run. The first listed failing CTest,
+`runtime.validates-live-tls-context-construction`, belongs to R10, not R2.
+Documentation-policy passed.
+
+The two R2 behavior-named regressions remain centrally registered:
+`security.gssapi-native-admission-r1-nla-provenance-denials` and
+`security.gssapi-r3-initial-nla-owner-fence`. Current R1 still selects
+diagnostic `PROTOCOL_SSL`, so the hosted evidence proves the fail-closed
+boundary only; genuine HYBRID/Kerberos/logind admission remains unavailable.
+Canonical owner `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, genuine Kerberos/logind and Microsoft-client M2
+acceptance remain **NOT RUN**. R10 live serving composition also remains a
+separate dependency.
+
 ## R1 owner-backed CredSSP framing authoring (2026-10-16)
 
 **Starting reconciled main:** `5d07e0881f8494878d7b92ace5a3ef9da64c371e`.

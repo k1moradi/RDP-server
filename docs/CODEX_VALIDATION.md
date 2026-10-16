@@ -1,3 +1,25 @@
+## R6 single-attachment + selector exact-SHA receipt (2026-10-16)
+
+**Test commit:** `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`.
+**Selector correction:** `53312ec4f07f59d603982f1a20a625bc92df081d`.
+**Actions:** `38902761330`.
+
+Windows/MSVC focused preflight: **39/39 PASS Debug**, **39/39 PASS Release**.
+`windows.capture-dxgi-duplication-owner-capture-cycle-single-attach` passed
+in **0.01 s** in both. Full Windows CTest: **368/368 PASS Debug** and
+**368/368 PASS Release**; Windows install/consumer also passed. macOS/Clang,
+R9 sanitizer and documentation-policy **PASS**.
+
+Ubuntu/GCC Debug **FAIL** only in unrelated R10
+`runtime.linux-connection-credssp-owner-framing` at
+`test_runtime_linux_security.cpp:670`, assertion
+`totalRead == request.size()`; Ubuntu Release was not reached.
+
+The focused R6 selector now matches only the behavior namespace provided by the
+single executable it builds. Canonical local build/CTest and owner Windows
+MSYS2 CLANG64/Clang23 remain **NOT RUN**; live DXGI/SendInput, genuine Windows
+R2/R3 admission and M4 remain **NOT RUN/BLOCKED**.
+
 ## R1 HYBRID/CredSSP exact-SHA hosted validation receipt (2026-10-16)
 
 **Validated R1 SHA:** `8dc5cfd962f9432d4aaf3ac3c552ddb8fed172d7`.

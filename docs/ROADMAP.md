@@ -1,3 +1,35 @@
+## R6 capture-cycle single-ownership + focused-selector hosted receipt (2026-10-16)
+
+R6 test commit `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f` added
+`windows.capture-dxgi-duplication-owner-capture-cycle-single-attach`. Its first
+exact run proved the case itself **PASS** in Windows Debug, but exposed the
+focused preflight's overly broad `-L windows` regex matching five R8
+`windows-adapter` registrations whose separate executable was not built.
+
+Selector correction `53312ec4f07f59d603982f1a20a625bc92df081d`,
+Actions `38902761330`, anchors the focused selection to
+`^windows\.(geometry|capture|cursor|input)-`. Windows/MSVC R6 preflight is
+**39/39 PASS Debug** and **39/39 PASS Release**; the new single-attach case
+passed in **0.01 s** in both. Full Windows CTest is **368/368 PASS Debug** and
+**368/368 PASS Release**, with the same test again **0.01 s** in both.
+Windows install/downstream consumer, macOS/Clang, documentation-policy and the
+selected R9 sanitizer job also **PASS**.
+
+The exact workflow remains overall **FAIL** only because Ubuntu/GCC Debug aborts
+in unrelated R10 `runtime.linux-connection-credssp-owner-framing` at
+`tests/test_runtime_linux_security.cpp:670` on
+`totalRead == request.size()`; Ubuntu Release did not run.
+
+Validated R6 invariant: one ready duplication owner owns at most one
+capture-cycle subordinate; a second attach cannot replace it or change
+readiness; terminal close clears the subordinate and is idempotent with native
+references released once. Full-suite coverage remains authoritative; the
+focused selector no longer crosses road/executable boundaries.
+
+Owner-local CMake/CTest and Windows MSYS2 CLANG64/Clang23 remain **NOT RUN**.
+Genuine Windows R2/R3 admission is still absent, so runtime DXGI capture and
+SendInput remain **BLOCKED**. M4 remains OPEN.
+
 ## R1 HYBRID + owner-aware CredSSP hosted acceptance receipt (2026-10-16)
 
 R1 fixture correction `8dc5cfd962f9432d4aaf3ac3c552ddb8fed172d7`

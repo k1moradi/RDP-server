@@ -1,3 +1,20 @@
+## R8 Linux file-descriptor destination authoring validation (2026-10-16)
+
+**Base:** `dd59f8a71ee921261b1a6346404676abb1c28750`. No new MS-RDPECLIP parser or wire encoder is added.
+The Linux-only production target reuses the existing FileContents receipt/result
+owner and exercises native `F_DUPFD_CLOEXEC`, `ftruncate`, `pwrite`,
+`fsync` and `close`.
+
+Three registered CTests cover a 70,000-byte two-range transfer, unknown-size
+discovery, short-range continuation, cancellation truncation, generation
+replacement, remote failure and `O_APPEND` rejection. Fixture files live only
+under CTest's build-root working directory and remote names are never opened as
+paths.
+
+Canonical owner-local `~/rdp-server/build` is NOT RUN here. Exact-SHA hosted
+Linux/GCC and R9 sanitizer evidence is PENDING. Real file-manager/portal
+handoff, Microsoft-client file copy and performance are NOT RUN/OPEN.
+
 ## R2 Server License Request authorization authoring validation (2026-10-16)
 
 **Reconciled parent:** `d57f3df6d8543e327165adf0f547aca5e54ebe74`.

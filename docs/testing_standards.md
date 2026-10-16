@@ -1,3 +1,20 @@
+## Linux clipboard file-destination tests use build-root files only
+
+Exercise the Linux file-descriptor destination through the real production
+native syscalls and existing `RemoteTransfer` FileContents state. Fixtures may
+create ordinary temporary test files only in CTest's existing build-root
+working directory and must remove them. They must never read or mutate a live
+clipboard, home-directory document, desktop portal or file-manager state.
+
+Cover at least: a payload larger than the 64-KiB range ceiling so more than one
+request is required; unknown-size SIZE discovery; short RANGE continuation;
+exact final size/content; cancellation truncation; clipboard-generation
+replacement; remote failure; and unsafe descriptor modes such as
+`O_APPEND`. Keep each complete FileContents PDU alive until synchronous
+destination consumption because RANGE bytes are borrowed. Passing these tests
+proves a bounded descriptor sink, not real file-manager paste or Microsoft
+client interoperability.
+
 ## R8 macOS pasteboard tests are host-pasteboard free
 
 Exercise `MacClipboardAdapter` through injected native operations under

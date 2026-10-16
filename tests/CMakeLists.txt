@@ -1309,6 +1309,27 @@ if(TARGET rdp-server-linux-x11-authorized-input AND
                    TIMEOUT 20)
 endif()
 
+# R8 Linux file-descriptor destination. These tests use ordinary files created
+# only in CTest's build-root working directory; they never access a live
+# clipboard or a user's file-manager destination.
+if(TARGET rdp-server-linux-clipboard-file-destination)
+    add_executable(test_linux_clipboard_file_destination
+        test_linux_clipboard_file_destination.cpp)
+    target_link_libraries(test_linux_clipboard_file_destination PRIVATE
+        rdp-server-linux-clipboard-file-destination)
+    target_compile_options(test_linux_clipboard_file_destination PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    foreach(case_name IN ITEMS
+            linux-file-destination-streaming
+            linux-file-destination-size-cancel
+            linux-file-destination-denials)
+        add_test(NAME "clipboard.${case_name}"
+            COMMAND test_linux_clipboard_file_destination "${case_name}")
+        set_tests_properties("clipboard.${case_name}" PROPERTIES
+            LABELS "protocol;clipboard;linux-file-destination;native;offline")
+    endforeach()
+endif()
+
 # R8 macOS pasteboard presentation. Every case uses deterministic injected
 # native operations on every CI OS; ordinary CTest never reads or mutates the
 # host pasteboard. Apple additionally compile/links the dormant AppKit bridge.

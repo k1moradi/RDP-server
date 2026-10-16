@@ -1,3 +1,25 @@
+## Linux clipboard destinations are descriptor capabilities
+
+For R8 Linux file materialization, a native destination descriptor is a
+caller-selected capability, not a path derived from remote clipboard metadata.
+Never concatenate or resolve a FILEDESCRIPTORW name into a local path. Accept
+only writable regular files and reject `O_APPEND`: Linux append semantics can
+defeat positional-write offsets even when `pwrite` is used.
+
+Duplicate the caller descriptor with CLOEXEC and own only that duplicate.
+Stream each already-validated FileContents RANGE directly with checked
+positional writes; retain only fixed metadata and progress, never a whole-file
+buffer or second range queue. Unknown sizes use the existing SIZE request.
+Do not expose the destination to a consumer until the exact declared byte count
+has been written, final size fixed, data synchronized and the duplicate closed.
+
+Generation replacement, cancel, remote failure, local I/O failure or receipt
+mismatch invalidates the partial destination. Best-effort truncate it before
+closing, while leaving any already-submitted R8 request to the one
+`RemoteTransfer` owner for cancellation/drain. A native destination exposes
+request intents only; it never owns CLIPRDR serialization, R3 authorization or
+TLS output.
+
 ## macOS pasteboard ownership is change-count fenced
 
 For R8 macOS ready-data publication, keep `RemoteTransfer` as the only RDP

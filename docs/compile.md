@@ -1,3 +1,19 @@
+## R8 Linux file-descriptor destination build boundary (2026-10-16)
+
+Linux builds the noninstalled
+`rdp-server-linux-clipboard-file-destination` target from
+`src/platform/linux/linux_clipboard_file_destination.cpp`. It links only the
+existing portable protocol target and libc/POSIX syscalls already provided by
+the platform; no XCB, FUSE, desktop-portal, D-Bus or file-manager development
+package is required.
+
+The corresponding `test_linux_clipboard_file_destination` target is
+Linux-only and uses ordinary files under the existing CTest build-root working
+directory. The R9 Linux/Clang sanitizer job explicitly builds it before the
+shared `ctest -L clipboard` selection. The new platform header remains
+noninstalled; the portable SDK and macOS/Windows builds do not gain a Linux
+native file-destination API.
+
 ## R8 macOS clipboard adapter build boundary (2026-10-16)
 
 The noninstalled `rdp-server-macos-clipboard` target compiles its portable

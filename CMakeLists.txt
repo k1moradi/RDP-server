@@ -329,6 +329,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# R8 Linux clipboard file destination: stream already-validated FileContents
+# ranges directly into one caller-selected writable regular-file descriptor.
+# It is noninstalled, owns no CLIPRDR writer, and needs no FUSE/portal package.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_library(rdp-server-linux-clipboard-file-destination STATIC
+        src/platform/linux/linux_clipboard_file_destination.cpp)
+    target_compile_features(
+        rdp-server-linux-clipboard-file-destination PUBLIC cxx_std_23)
+    target_include_directories(
+        rdp-server-linux-clipboard-file-destination PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(
+        rdp-server-linux-clipboard-file-destination PUBLIC
+        rdp-server-protocol)
+    target_compile_options(
+        rdp-server-linux-clipboard-file-destination PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R8 X11 CLIPBOARD presentation borrows R5's one XCB connection at runtime.
 # Keep it noninstalled and separate from the portable protocol archive.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -677,6 +696,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     FILES_MATCHING PATTERN "*.h"
     PATTERN "windows" EXCLUDE
     PATTERN "macos" EXCLUDE
+    PATTERN "linux" EXCLUDE
     PATTERN "x11" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake

@@ -1,3 +1,41 @@
+## R8 Linux bounded file-descriptor destination (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `dd59f8a71ee921261b1a6346404676abb1c28750`. The existing `RemoteTransfer`
+FileGroupDescriptorW/FileContents/Lock owner remains authoritative. This
+increment adds only a Linux native destination child; it does not add an RDP
+writer or authorization path.
+
+The child duplicates one caller-selected writable regular-file descriptor with
+`F_DUPFD_CLOEXEC` and streams already-parsed current-generation FileContents
+RANGE results directly with bounded `pwrite`. Remote FILEDESCRIPTORW names
+are metadata only and are never resolved into local paths. Read-only,
+non-regular and `O_APPEND` descriptors are rejected. No whole-file cache or
+second range queue is introduced.
+
+It exposes SIZE/RANGE request intents and binds the exact existing
+`FileContentsRequestReceipt`; it serializes/sends no CLIPRDR. Unknown size is
+resolved with the existing SIZE request, range intents stay at or below 64 KiB,
+and borrowed response bytes are consumed synchronously. Completion requires the
+exact byte count, final `ftruncate`, `fsync`, and closure of only the
+duplicated fd. Until then the destination must not be published to a consumer.
+Generation replacement, cancellation, remote failure and native I/O failure
+truncate the partial file before closing where possible.
+
+This first destination is current-generation/unlocked only. Directory-tree
+materialization, URI/portal/file-manager handoff, authenticated Microsoft-client
+file copy, Windows/macOS file destinations and performance remain OPEN/NOT RUN.
+
+Dedicated Linux CTests are
+`clipboard.linux-file-destination-streaming`,
+`clipboard.linux-file-destination-size-cancel`, and
+`clipboard.linux-file-destination-denials`. Canonical owner-local
+`~/rdp-server/build` execution is NOT RUN in this connector environment;
+exact-SHA hosted CI and sanitizer evidence are pending.
+
+**Next R8:** validate this descriptor sink under hosted CI, then add a real
+Linux file-manager/portal or equivalent completed-file handoff without exposing
+partial files or bypassing R3's sole authorized CLIPRDR writer.
+
 ## R2 reauthorized Server License Request publication (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `d57f3df6d8543e327165adf0f547aca5e54ebe74`.

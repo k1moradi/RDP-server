@@ -1,3 +1,25 @@
+## R8 Linux file-descriptor destination boundary (2026-10-16)
+
+`LinuxClipboardFileDestination` is a native materialization child of
+`RemoteTransfer`, not another clipboard/FileContents controller.
+`RemoteTransfer` still owns generation, metadata, stream IDs, pending replies
+and wire receipts. The Linux child owns only one CLOEXEC-duplicated destination
+fd and sequential local progress.
+
+The caller supplies the destination capability; remote names never become local
+paths. Only writable regular files without `O_APPEND` are accepted. The child
+exposes request intents, binds the exact `FileContentsRequestReceipt`, and
+writes each borrowed validated RANGE directly with positional I/O. It never
+serializes or sends CLIPRDR, retains a whole-file buffer, or grants R2/R3/TLS
+authority.
+
+Unknown sizes use the existing SIZE result. RANGE requests remain bounded by
+the existing 64-KiB limit. Exact completion requires final size, `fsync` and
+closing the duplicate; cancellation, replacement, remote failure or native I/O
+failure invalidates and truncates partial materialization where possible.
+This first boundary is current-generation/unlocked and does not enable lock
+capability, portals, URIs, directories or file-manager publication.
+
 ## R2/R3 licensing publication authorization boundary (2026-10-16)
 
 The R3 `RdpServerLicenseRequestWriteGate` is a child of the one

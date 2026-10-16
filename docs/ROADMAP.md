@@ -1,3 +1,39 @@
+## R6 pre-invalidated guard coordinated retirement coverage (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`.
+
+The coordinated Windows retirement boundary is already exact-SHA validated and
+requires no new production owner or algorithm. Follow-up audit found one
+specific branch of its fail-closed contract that was implemented but not
+directly exercised: `notifySessionChange()` returns `ignored` for a valid
+unrelated session identifier before consulting the guard's closed state, while
+`retireWindowsNativeConsumersOnSessionChange()` must still treat the
+composition as terminal when the shared guard had already failed closed.
+
+The existing
+`windows.capture-session-change-coordinated-input-revocation` CTest now
+covers that state. It leaves one synthetic frame mapped and one input key held,
+then makes the real `WindowsCaptureSessionGenerationGuard` fail closed through
+an unavailable session observation before either consumer samples the failure.
+A later valid notification for session 43 while the guard targets 42 must return
+`alreadyClosed`, close input and capture synchronously, emit no stale held-key
+cleanup, unmap once, release the DXGI frame once in that order, and remain
+idempotent on repetition.
+
+This is test-only coverage of the existing coordinator. Production R6 source,
+CTest registration, WTS behavior, DXGI ownership, input behavior and
+authorization boundaries are unchanged; the behavior remains centrally
+registered exactly once.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment. Exact publication-SHA hosted Windows/MSVC focused/full
+Debug+Release, Linux/GCC, macOS/Clang, R9 sanitizer, documentation-policy and
+SDK/package evidence are **PENDING**. Direct Windows R6 sanitizer execution,
+owner Windows MSYS2 CLANG64/Clang 23, live WTS/DXGI/`SendInput`, genuine
+Windows R2/R3 admission and Microsoft-client M4 remain **NOT RUN / OPEN**. The
+next R6 -> R10 production-composition gate is unchanged and still requires
+fresh genuine R2/R3 Windows authorization.
+
 ## R5 XShm retirement registry/shared-CI correction (2026-10-16; exact-SHA CI pending)
 
 **Correction parent:** `7a6435b0a912fe5440d6d85bf1111d10111fcfca`. The preceding R5 publication

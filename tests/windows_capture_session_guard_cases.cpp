@@ -541,6 +541,70 @@ void windowsCaptureSessionChangeCoordinatedInputRevocation()
     assert(invalidInputBackend.commandCount == 1);
     assert(!invalidInputBackend.sentAfterRevocation);
     assert(invalidNative.unmaps == 1 && invalidNative.releases == 1);
+
+    // A guard can fail closed before the session-change route runs. A later
+    // valid notification for another session must still retire both native
+    // consumers instead of treating the unrelated ID as a healthy no-op.
+    FakeSessionSource preInvalidatedSessionSource{};
+    FakeGenerationSource preInvalidatedGenerationSource{};
+    WindowsCaptureSessionGenerationGuard preInvalidatedGuard(
+        42, preInvalidatedSessionSource.callbacks(),
+        preInvalidatedGenerationSource.callbacks());
+    WindowsCaptureGeneration preInvalidatedPinned{};
+    const auto preInvalidatedReader = preInvalidatedGuard.reader();
+    assert(preInvalidatedReader.read != nullptr &&
+           preInvalidatedReader.read(
+               preInvalidatedReader.context, preInvalidatedPinned));
+
+    FakeFramePipeline preInvalidatedNative{};
+    WindowsDxgiCaptureCycle preInvalidatedCycle(
+        onePixelLayout(), preInvalidatedNative.frameCallbacks(),
+        preInvalidatedNative.stagingCallbacks(), {},
+        preInvalidatedGuard.reader(), preInvalidatedPinned);
+    FakeInputBackend preInvalidatedInputBackend{};
+    preInvalidatedInputBackend.guard = &preInvalidatedGuard;
+    WindowsInputController preInvalidatedInput(
+        onePixelLayout(), preInvalidatedInputBackend.callbacks(),
+        preInvalidatedGuard.reader(), preInvalidatedPinned);
+
+    assert(preInvalidatedCycle.captureFrame(0) ==
+           WindowsCaptureCycleResult::mapped);
+    assert(preInvalidatedInput.handle(
+        WindowsKeyInput{0x2e, false, true}));
+    assert(preInvalidatedInputBackend.commandCount == 1);
+    assert(preInvalidatedNative.unmaps == 0 &&
+           preInvalidatedNative.releases == 0);
+
+    preInvalidatedSessionSource.fail = true;
+    WindowsCaptureGeneration unchanged{7, 9};
+    assert(!preInvalidatedReader.read(
+        preInvalidatedReader.context, unchanged));
+    assert((unchanged == WindowsCaptureGeneration{7, 9}));
+    assert(preInvalidatedGuard.closed());
+    assert(!preInvalidatedCycle.closed() && !preInvalidatedInput.closed());
+
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               preInvalidatedGuard, preInvalidatedCycle,
+               preInvalidatedInput, 43) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+    assert(preInvalidatedGuard.closed() &&
+           preInvalidatedCycle.closed() &&
+           preInvalidatedInput.closed());
+    assert(preInvalidatedInputBackend.commandCount == 1);
+    assert(!preInvalidatedInputBackend.sentAfterRevocation);
+    assert(preInvalidatedNative.unmaps == 1 &&
+           preInvalidatedNative.releases == 1);
+    assert(preInvalidatedNative.retirementOrderCount == 2);
+    assert(preInvalidatedNative.retirementOrder[0] == 'U' &&
+           preInvalidatedNative.retirementOrder[1] == 'R');
+
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               preInvalidatedGuard, preInvalidatedCycle,
+               preInvalidatedInput, 43) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+    assert(preInvalidatedInputBackend.commandCount == 1);
+    assert(preInvalidatedNative.unmaps == 1 &&
+           preInvalidatedNative.releases == 1);
 }
 
 void windowsCaptureSessionChangeCallbackRevocation()

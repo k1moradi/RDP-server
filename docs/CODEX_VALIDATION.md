@@ -1,3 +1,29 @@
+## R6 pre-invalidated guard retirement authoring receipt (2026-10-16)
+
+**Parent:** `53a426cb0e3939a224397e41097aff1be5ec1dcb`. Exact publication-SHA hosted validation: **PENDING**.
+
+No R6 production change is made. The existing coordinated session-retirement
+CTest now exercises the case where the real
+`WindowsCaptureSessionGenerationGuard` has already failed closed because its
+session observation became unavailable while mapped capture and held input
+remain live. A later valid notification for a different session must still be
+terminal at `retireWindowsNativeConsumersOnSessionChange()`, despite the
+guard-level notification itself being classified `ignored`.
+
+The test requires `alreadyClosed`, no synthetic input cleanup after guard
+invalidation, one D3D11 unmap followed by one DXGI frame release, terminal
+capture/input state, and idempotency on a repeated unrelated notification. It
+uses the existing deterministic injected callbacks only; no WTS mutation, live
+Desktop Duplication, D3D11 device or host `SendInput` call is performed.
+CTest registration is unchanged because this extends the already dedicated
+`windows.capture-session-change-coordinated-input-revocation` behavior.
+
+Canonical local build/full CTest and owner Windows CLANG64 execution are
+**NOT RUN** in this connector environment. Exact-SHA hosted matrix evidence is
+pending. Direct Windows-only sanitizer execution, genuine R2/R3 Windows
+admission, live native capture/input and Microsoft-client M4 remain
+**NOT RUN / OPEN**.
+
 ## R5 XShm retirement integration correction (2026-10-16; CI pending)
 
 **Parent:** `7a6435b0a912fe5440d6d85bf1111d10111fcfca`.

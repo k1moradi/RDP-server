@@ -513,6 +513,25 @@ because Debug failed. This follow-up changes only that CMake fixture
 expectation. Production validity, key-match, file-security and startup
 denials are unchanged. Owner MSYS2 CLANG64/Clang23 remains **NOT RUN**.
 
+**R10 certificate validity-time corrected exact-SHA CI PASS (2026-10-16):**
+Fixture correction `7f6d74b4ef9b03c86ecabc7c56af6f1de071ad07`,
+[Actions 38871903394](https://github.com/k1moradi/RDP-server/actions/runs/38871903394)
+is **PASS**. Linux/GCC **286/286**, macOS/Clang **265/265**, and
+Windows/MSVC **285/285** full CTests PASS in each Debug and Release
+configuration. On every hosted OS/configuration,
+`runtime.validates-configuration-syntax`,
+`runtime.validates-configuration-comments-crlf`,
+`runtime.validates-tls-credentials-matching-pair`,
+`runtime.rejects-tls-credentials-expired-certificate`, and
+`runtime.rejects-tls-credentials-not-yet-valid-certificate` explicitly
+PASS. R9 sanitizer, documentation-policy, downstream installed SDK
+consumer **1/1**, protocol ZIP/SHA256 packaging and artifact upload all
+PASS; untagged prerelease publication is skipped as intended. Owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 same-SHA commands
+remain **NOT RUN**. Certificate chain trust, hostname/revocation,
+live-loader handle continuity, R2/R3 authorization, listener/service
+startup and M1-M6 remain OPEN.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

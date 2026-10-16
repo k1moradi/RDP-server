@@ -6506,6 +6506,22 @@ fixture's exact stdout expectation; production security behavior is
 unchanged. Hosted corrected-SHA CI and owner Windows MSYS2
 CLANG64/Clang 23 remain pending/NOT RUN respectively.
 
+**Corrected exact-SHA CI:** fixture correction
+`7f6d74b4ef9b03c86ecabc7c56af6f1de071ad07`,
+[Actions 38871903394](https://github.com/k1moradi/RDP-server/actions/runs/38871903394)
+is **PASS**. Linux/GCC **286/286**, macOS/Clang **265/265**, and
+Windows/MSVC **285/285** registered CTests PASS in each Debug and
+Release configuration. The two owner-reported configuration positives,
+the validity-aware matching-pair success, and both new temporal denial
+cases explicitly PASS on every hosted OS/configuration. R9 sanitizer,
+documentation-policy, per-OS downstream SDK consumer **1/1**, protocol
+ZIP/SHA256 packaging and artifact upload PASS. Untagged prerelease is
+skipped. This verifies the production validity-time gate introduced at
+`8dfa00a8aef833e24f6a7ad3867a16c0a37a9351` plus the test-only stdout
+expectation correction; it does not verify owner Windows MSYS2
+CLANG64/Clang 23, macOS27/Linux-X11 live environments, certificate
+trust/hostname/revocation, live-loader continuity or service activation.
+
 
 ## R1 bounded post-handshake TLS application I/O (2026-10-15)
 

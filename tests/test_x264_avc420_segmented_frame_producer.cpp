@@ -758,6 +758,97 @@ void malformedNv12PreflightPreservesReferences()
     assert(!hasNalType(second.wireBytes(), 5));
 }
 
+void fixedCfrPtsPreserveReferenceContinuity()
+{
+    // NV12: arbitrary caller PTS values must not become a second ordering
+    // authority beside frame IDs and the ACK window.
+    {
+        constexpr std::uint64_t generation = 6401;
+        GfxPresentationLifecycle lifecycle;
+        mapSurface(lifecycle, generation, kVisible);
+        X264Avc420SegmentedFrameProducer producer;
+        assert(producer.open(generation, kCoded, kVisible));
+        const auto pixels = makeFrame(kCoded, 31);
+        constexpr std::array<std::int64_t, 6> ptsValues{
+            3,
+            3,
+            -2,
+            9000,
+            std::numeric_limits<std::int64_t>::min(),
+            std::numeric_limits<std::int64_t>::max(),
+        };
+
+        for (std::size_t index = 0; index < ptsValues.size(); ++index)
+        {
+            const auto frameId = static_cast<std::uint32_t>(80U + index);
+            GfxAvc420SegmentedFrame frame;
+            assert(producer.prepare(
+                lifecycle, generation, request(frameId, pixels, ptsValues[index]),
+                frame));
+            if (index == 0)
+            {
+                assert(hasNalType(frame.wireBytes(), 5));
+            }
+            else
+            {
+                assert(hasNalType(frame.wireBytes(), 1));
+                assert(!hasNalType(frame.wireBytes(), 5));
+            }
+            assert(producer.completeDelivery(
+                lifecycle, frame, frame.wireBytes().size()));
+            GfxFrameAckWindowResult acknowledged{};
+            assert(lifecycle.onFrameAcknowledge(
+                generation, acknowledge(frameId), acknowledged));
+            assert(acknowledged == GfxFrameAckWindowResult::Acknowledged);
+            assert(lifecycle.outstandingFrames() == 0);
+        }
+    }
+
+    // BGRA uses the same contract after synchronous conversion. This also
+    // proves no timestamp history is hidden in the retained NV12 scratch.
+    {
+        constexpr std::uint64_t generation = 6402;
+        GfxPresentationLifecycle lifecycle;
+        mapSurface(lifecycle, generation, kVisible);
+        X264Avc420SegmentedFrameProducer producer;
+        assert(producer.open(generation, kCoded, kVisible));
+        auto pixels = makeBgraFrame(kVisible, 13);
+        pixels.solid(94, 121, 149, 255);
+        constexpr std::array<std::int64_t, 5> ptsValues{
+            std::numeric_limits<std::int64_t>::max(),
+            std::numeric_limits<std::int64_t>::min(),
+            std::numeric_limits<std::int64_t>::min(),
+            -17,
+            6000,
+        };
+
+        for (std::size_t index = 0; index < ptsValues.size(); ++index)
+        {
+            const auto frameId = static_cast<std::uint32_t>(90U + index);
+            GfxAvc420SegmentedFrame frame;
+            assert(producer.prepareBgra(
+                lifecycle, generation,
+                bgraRequest(frameId, pixels, ptsValues[index]), frame));
+            if (index == 0)
+            {
+                assert(hasNalType(frame.wireBytes(), 5));
+            }
+            else
+            {
+                assert(hasNalType(frame.wireBytes(), 1));
+                assert(!hasNalType(frame.wireBytes(), 5));
+            }
+            assert(producer.completeDelivery(
+                lifecycle, frame, frame.wireBytes().size()));
+            GfxFrameAckWindowResult acknowledged{};
+            assert(lifecycle.onFrameAcknowledge(
+                generation, acknowledge(frameId), acknowledged));
+            assert(acknowledged == GfxFrameAckWindowResult::Acknowledged);
+            assert(lifecycle.outstandingFrames() == 0);
+        }
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -793,6 +884,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-abort-generation-reset")
     {
         abortAndGenerationReset();
+        return 0;
+    }
+    if (behavior == "x264-segmented-cfr-pts-reference-continuity")
+    {
+        fixedCfrPtsPreserveReferenceContinuity();
         return 0;
     }
     if (behavior == "bgra-nv12-bt709-pixel-oracle")

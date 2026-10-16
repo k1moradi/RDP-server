@@ -381,6 +381,45 @@ void resetReferenceLifecycle()
     assert(hasNal(afterReset.annexB, 8));
     assert(hasNal(afterReset.annexB, 5));
 }
+void fixedCfrPtsPassthrough()
+{
+    constexpr PixelSize coded{320, 192};
+    constexpr PixelSize visible{320, 180};
+    X264Avc420Encoder encoder;
+    assert(encoder.open(coded, visible));
+    const auto frame = makeFrame(coded, coded.widthPixels, 29);
+
+    // Current CFR x264 uses frame count/fps for rate control. PTS remains an
+    // opaque label, so duplicate, decreasing, gapped and extreme values are
+    // all expected to survive the zero-delay encode unchanged.
+    constexpr std::array<std::int64_t, 6> ptsValues{
+        17,
+        17,
+        -4,
+        1000,
+        std::numeric_limits<std::int64_t>::min(),
+        std::numeric_limits<std::int64_t>::max(),
+    };
+
+    for (std::size_t index = 0; index < ptsValues.size(); ++index)
+    {
+        X264EncodedPicture encoded;
+        assert(encoder.encode(frame.view(ptsValues[index]), encoded));
+        assert(encoded.pts == ptsValues[index]);
+        if (index == 0)
+        {
+            assert(encoded.keyFrame);
+            assert(hasNal(encoded.annexB, 5));
+        }
+        else
+        {
+            assert(!encoded.keyFrame);
+            assert(hasNal(encoded.annexB, 1));
+            assert(!hasNal(encoded.annexB, 5));
+        }
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -406,6 +445,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-reset-reference-lifecycle")
     {
         resetReferenceLifecycle();
+        return 0;
+    }
+    if (behavior == "x264-cfr-pts-passthrough")
+    {
+        fixedCfrPtsPassthrough();
         return 0;
     }
     return 2;

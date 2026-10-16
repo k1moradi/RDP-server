@@ -10206,3 +10206,45 @@ hosted Linux Debug/Release, R9 sanitizer, documentation-policy and
 cross-platform regression evidence are required before PASS is claimed. No
 listener, service, synthetic GSS success or fabricated native lease is added.
 M2/M3 remain **OPEN**.
+
+
+## R4 fixed-CFR PTS contract + recovered reference CTest (2026-10-16; hosted CI pending)
+
+**Starting reconciled shared `main`:** `0a07d096626cad58576d14de72ff52c6d333439c`.
+
+Source review of pinned x264 `4613ac3c15fd75cebc4b9f65b7fb95e70a3acce1`
+found that R4's fixed-CFR configuration does not use caller PTS for rate
+control or frame duration: `b_vfr_input=0`, fps/timebase are 60/1 and 1/60,
+and B frames/lookahead are disabled. R4's AVC420 framing, presentation
+lifecycle, ACK window, latest-frame state and interaction scheduler do not
+consume PTS. A strict duplicate/backward-PTS preflight would therefore add an
+unsupported second ordering authority and reject inputs that are valid for the
+current encoder. R4 keeps PTS as opaque signed 64-bit pass-through metadata;
+gaps, duplicates, decreases and extreme values are allowed, with no internal
+counter/sentinel arithmetic.
+
+Two production-backed cases are added:
+`graphics.x264-cfr-pts-passthrough` verifies real x264 returns duplicate,
+backward, gapped and `INT64_MIN`/`INT64_MAX` PTS labels unchanged while
+maintaining the IDR -> P reference chain; and
+`graphics.x264-segmented-cfr-pts-reference-continuity` verifies the real
+NV12 and BGRA producer paths fully deliver/ACK fresh frame IDs across those
+PTS patterns without an avoidable IDR. Existing backpressure cases already
+retry the same PTS after a pre-encode denial, confirming denied work does not
+need timestamp bookkeeping.
+
+Reconciliation also found that current `main` still contained the production
+body and command dispatcher for
+`x264-segmented-malformed-nv12-reference-continuity` but had lost its
+central `tests/CMakeLists.txt` registration. This increment restores that
+previously validated R4 CTest rather than allowing reference-denial coverage
+to silently disappear.
+
+The canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** in this connector environment because the checkout is unavailable.
+Exact-SHA Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer
+scope, documentation policy and SDK/package consumer evidence must be
+inspected after publication. Real authenticated R3 Graphics DVC/full-send
+integration, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27,
+native capture performance and Microsoft-client rendering remain
+**NOT RUN/BLOCKED**. Gate B and M3/M4/M5 remain **OPEN**.

@@ -35,6 +35,13 @@ struct X264BgraFrameRequest final
 // One R4 codec producer bound to one presentation generation and geometry.
 // It does not own the presentation lifecycle, channel, scheduler, capture or
 // transport. The caller serializes all methods on the same R4 event thread.
+//
+// PTS contract: the current x264 configuration is fixed 60 fps CFR with
+// b_vfr_input=0, no B frames and no lookahead. Request PTS values are opaque
+// signed 64-bit labels forwarded to x264, not frame-order, scheduling,
+// authorization, publication or ACK state. Duplicate, decreasing, skipped and
+// extreme values are therefore valid. No PTS baseline/counter is retained.
+// Revisit this contract before enabling VFR input or frame reordering.
 class X264Avc420SegmentedFrameProducer final
 {
 public:

@@ -1311,7 +1311,8 @@ foreach(case_name IN ITEMS
         x264-nv12-annexb-picture
         x264-input-rejections
         x264-visible-crop-sequence
-        x264-reset-reference-lifecycle)
+        x264-reset-reference-lifecycle
+        x264-cfr-pts-passthrough)
     add_test(NAME "graphics.${case_name}"
         COMMAND test_x264_avc420_encoder "${case_name}")
     set_tests_properties("graphics.${case_name}" PROPERTIES
@@ -1335,8 +1336,10 @@ foreach(case_name IN ITEMS
         x264-segmented-delivery-continuity
         x264-segmented-backpressure-preflight
         x264-segmented-metadata-preflight
+        x264-segmented-malformed-nv12-reference-continuity
         x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset
+        x264-segmented-cfr-pts-reference-continuity
         bgra-nv12-bt709-pixel-oracle
         bgra-nv12-stride-padding-lifetime
         bgra-nv12-invalid-frame-denials

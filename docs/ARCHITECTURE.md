@@ -3685,3 +3685,29 @@ hosted Linux Debug/Release, R9 sanitizer, documentation-policy and
 cross-platform regression evidence are required before PASS is claimed. No
 listener, service, synthetic GSS success or fabricated native lease is added.
 M2/M3 remain **OPEN**.
+
+
+## R4 fixed-CFR x264 PTS ownership contract (2026-10-16)
+
+R4's pinned x264 revision remains configured for fixed 60 fps CFR
+(`b_vfr_input=0`, fps 60/1, effective timebase 1/60), one encoder thread,
+zero B frames, zero lookahead and one reference frame. The vendored x264
+header states that timestamps participate in rate control only for VFR input;
+the encoder's non-strict-monotonic warning and timestamp-derived frame
+durations are likewise guarded by `b_vfr_input`. With B frames disabled,
+the input PTS is copied to reordered PTS/output PTS without a reorder delay.
+
+Accordingly, R4 does **not** create a second timestamp scheduler or monotonic
+PTS gate. `X264Nv12PictureView::pts` and `X264BgraFrameRequest::pts` are
+opaque signed 64-bit caller labels forwarded through the synchronous encoder.
+Duplicate, decreasing, skipped and `INT64_MIN`/`INT64_MAX` values are
+valid under the current configuration. Presentation generation, frame ID,
+ACK/backpressure, wire publication and full-send ownership remain authoritative
+and independent. No PTS baseline, sentinel or incrementing counter exists, so
+ordinary preflight/backpressure denial cannot advance timestamp state and
+generation abort/reset has no separate timestamp history to retire.
+
+This contract must be re-audited before enabling x264 VFR input, B-frame
+reordering/lookahead, timestamp-derived rate control, or any transport/scheduler
+consumer of encoded PTS. Those changes would be the point at which a
+generation-bound ordering policy could become a correctness requirement.

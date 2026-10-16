@@ -19,6 +19,9 @@ struct X264Nv12PictureView final
     std::span<const std::byte> uvPlane{};
     std::size_t yStrideBytes{};
     std::size_t uvStrideBytes{};
+
+    // Opaque caller presentation label for the current fixed-CFR encoder.
+    // R4 forwards it to x264 verbatim; it is not a scheduling/ACK authority.
     std::int64_t pts{};
 };
 
@@ -26,6 +29,9 @@ struct X264EncodedPicture final
 {
     std::vector<std::byte> annexB{};
     bool keyFrame{};
+
+    // x264's output PTS. With the current zero-delay/no-B-frame CFR
+    // configuration this preserves the caller-provided input label exactly.
     std::int64_t pts{};
 };
 

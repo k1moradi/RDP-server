@@ -11065,3 +11065,32 @@ hosted Linux Debug/Release, R9 sanitizer, documentation-policy and
 cross-platform regression evidence are required before PASS is claimed. No
 listener, service, synthetic GSS success or fabricated native lease is added.
 M2/M3 remain **OPEN**.
+
+
+## R4 fixed-CFR x264 PTS contract authoring receipt (2026-10-16; exact-SHA CI pending)
+
+**Authoring base:** `0a07d096626cad58576d14de72ff52c6d333439c`.
+
+Vendored x264 source inspection establishes that non-strict PTS diagnostics
+and PTS-delta duration logic are VFR-only, while R4 explicitly sets
+`b_vfr_input=0`, 60 fps, timebase 1/60, zero B frames and zero lookahead.
+No R4 presentation/ACK/scheduler object consumes the encoder PTS. The chosen
+contract therefore preserves arbitrary caller `int64_t` PTS as opaque
+pass-through metadata instead of fabricating a monotonic guard or timestamp
+source. No production codec/reference state machine changes are required.
+
+Added ordinary production-linked CTests are
+`graphics.x264-cfr-pts-passthrough` and
+`graphics.x264-segmented-cfr-pts-reference-continuity`. The latter exercises
+both NV12 and BGRA -> retained NV12 scratch -> x264 -> AVC420 -> RDP8 segmented
+frame paths, completes exact wire delivery, routes Frame Acknowledge, and
+requires non-IDR P slices after the initial IDR despite duplicate, decreasing,
+gapped and extreme PTS values. The dropped central registration for existing
+`graphics.x264-segmented-malformed-nv12-reference-continuity` is restored.
+
+**Authoring execution:** canonical local build/CTest is **NOT RUN** because
+this connector environment has no `~/rdp-server` checkout and outbound clone
+is unavailable. Publication uses an expected-SHA, non-force update directly
+to `main`; hosted exact-SHA CI is the first executable gate. Owner-machine
+three-OS validation, live authenticated R3 Graphics DVC, native capture,
+Microsoft-client rendering and performance remain **NOT RUN**.

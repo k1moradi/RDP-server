@@ -1,5 +1,30 @@
 ## R9 macOS file-destination destructor retirement exact-SHA receipt (2026-10-16)
 
+## R2 strict final CredSSP password credential authoring (2026-10-16)
+
+**Parent:** `e88a56a861cd3b95f5abefbc4775eaafb5801e6e`.
+
+Production parser review found that `TSPasswordCreds` previously required
+even byte counts and nonempty user/password fields but did not reject embedded
+UTF-16 NULs or malformed surrogate sequences. The implementation now rejects
+those ambiguous/malformed strings while preserving canonical DER bounds and
+secret-free inspection results.
+
+The new central behavior test is
+`security.credssp-password-credential-strict-fields`, dispatched by the
+existing `test_owned_credssp_tsrequest` binary. It covers valid structure,
+empty mandatory fields, embedded NULs, odd lengths, invalid and valid surrogate
+pairs, oversize, field reordering, nonminimal DER and unsupported credential
+classification. It does not claim password authentication or OS admission.
+
+Local compile/full CTest and sanitizer execution are **NOT RUN** because this
+connector environment cannot materialize the required owner
+`~/rdp-server` checkout, and no alternate build root was created. Exact-SHA
+hosted matrix evidence is pending. Real Kerberos + PAM authentication and
+NSS/logind positive admission remain **NOT RUN / BLOCKED**; the private R2
+credential-authorization completion proof remains false in production.
+
+
 **Implementation:** `86f400b9730bebfcf9465c59fec56bbad6df5a84`.  
 **Actions:** `38973446211` — **SUCCESS**.
 

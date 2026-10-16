@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "security/credssp_tsrequest.h"
+#include "security/credssp_tsrequest.h"\n#include "security/credssp_credentials.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -81,6 +81,37 @@ using Bytes = std::vector<std::uint8_t>;
 {
     const auto octet = wrap(0x04, data);
     return wrap(tag, octet);
+}
+
+[[nodiscard]] Bytes utf16Le(std::u16string_view text)
+{
+    Bytes result;
+    result.reserve(text.size() * 2U);
+    for (const char16_t character : text)
+    {
+        const auto codeUnit = static_cast<std::uint16_t>(character);
+        result.push_back(static_cast<std::uint8_t>(codeUnit));
+        result.push_back(static_cast<std::uint8_t>(codeUnit >> 8U));
+    }
+    return result;
+}
+
+[[nodiscard]] Bytes passwordCredentials(
+    const Bytes &domain,
+    const Bytes &user,
+    const Bytes &password,
+    std::uint8_t credentialType = 1)
+{
+    Bytes fields = octetContext(0xa0, domain);
+    fields = append(fields, octetContext(0xa1, user));
+    fields = append(fields, octetContext(0xa2, password));
+    const Bytes passwordSequence = wrap(0x30, fields);
+
+    const Bytes typeInteger = wrap(
+        0x02, std::array<std::uint8_t, 1>{credentialType});
+    return wrap(0x30, append(
+        wrap(0xa0, typeInteger),
+        octetContext(0xa1, passwordSequence)));
 }
 
 void testBasicCredSspDer()
@@ -243,6 +274,97 @@ void testOversizeAndTokenLimit()
     assert(!response && response.value.tokenCount == 0);
 }
 
+
+void testStrictPasswordCredentialFields()
+{
+    const auto valid = passwordCredentials(
+        {}, utf16Le(u"alice"), utf16Le(u"correct horse battery staple"));
+    const auto accepted = inspectCredSspCredentials(valid);
+    assert(accepted);
+    assert(accepted.kind == CredSspCredentialKind::Password);
+    assert(accepted.error == CredSspCredentialError::None);
+
+    assert(inspectCredSspCredentials(passwordCredentials(
+        utf16Le(u"EXAMPLE"), utf16Le(u"alice"), utf16Le(u"secret"))));
+    assert(inspectCredSspCredentials(
+               passwordCredentials({}, {}, utf16Le(u"secret"))).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+    assert(inspectCredSspCredentials(
+               passwordCredentials({}, utf16Le(u"alice"), {})).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+
+    auto embeddedNulUser = utf16Le(u"alice");
+    embeddedNulUser[2] = 0;
+    embeddedNulUser[3] = 0;
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, embeddedNulUser, utf16Le(u"secret"))).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+
+    auto embeddedNulPassword = utf16Le(u"secret");
+    embeddedNulPassword[4] = 0;
+    embeddedNulPassword[5] = 0;
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, utf16Le(u"alice"), embeddedNulPassword)).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+
+    auto oddUser = utf16Le(u"alice");
+    oddUser.pop_back();
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, oddUser, utf16Le(u"secret"))).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+
+    const Bytes loneHighSurrogate{0x00, 0xd8};
+    const Bytes loneLowSurrogate{0x00, 0xdc};
+    const Bytes wrongSurrogatePair{0x00, 0xd8, 0x41, 0x00};
+    const Bytes validSurrogatePair{0x3d, 0xd8, 0x00, 0xde};
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, utf16Le(u"alice"), loneHighSurrogate)).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, utf16Le(u"alice"), loneLowSurrogate)).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, utf16Le(u"alice"), wrongSurrogatePair)).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+    assert(inspectCredSspCredentials(passwordCredentials(
+        {}, utf16Le(u"alice"), validSurrogatePair)));
+
+    Bytes oversizedPassword(4098U, 0x41);
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, utf16Le(u"alice"), oversizedPassword)).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+
+    Bytes reorderedFields = octetContext(0xa1, utf16Le(u"alice"));
+    reorderedFields = append(reorderedFields, octetContext(0xa0, Bytes{}));
+    reorderedFields = append(
+        reorderedFields, octetContext(0xa2, utf16Le(u"secret")));
+    const Bytes reorderedPassword = wrap(0x30, reorderedFields);
+    const Bytes typeInteger = wrap(
+        0x02, std::array<std::uint8_t, 1>{1});
+    const auto reordered = wrap(0x30, append(
+        wrap(0xa0, typeInteger), octetContext(0xa1, reorderedPassword)));
+    assert(inspectCredSspCredentials(reordered).error ==
+           CredSspCredentialError::InvalidPasswordFields);
+
+    auto nonCanonicalLength = valid;
+    assert(nonCanonicalLength.size() < 128U);
+    const auto encodedLength = nonCanonicalLength[1];
+    nonCanonicalLength[1] = 0x81;
+    nonCanonicalLength.insert(nonCanonicalLength.begin() + 2, encodedLength);
+    assert(inspectCredSspCredentials(nonCanonicalLength).error ==
+           CredSspCredentialError::InvalidDer);
+
+    const auto smartCard = inspectCredSspCredentials(passwordCredentials(
+        {}, utf16Le(u"alice"), utf16Le(u"secret"), 2));
+    assert(smartCard && smartCard.kind == CredSspCredentialKind::SmartCard);
+    const auto remoteGuard = inspectCredSspCredentials(passwordCredentials(
+        {}, utf16Le(u"alice"), utf16Le(u"secret"), 6));
+    assert(remoteGuard &&
+           remoteGuard.kind == CredSspCredentialKind::RemoteGuard);
+    assert(inspectCredSspCredentials(passwordCredentials(
+               {}, utf16Le(u"alice"), utf16Le(u"secret"), 3)).error ==
+           CredSspCredentialError::UnsupportedType);
+}
 
 void testStreamAllFragmentBoundaries()
 {
@@ -732,12 +854,14 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 14> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 15> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
     {"credssp-der-bounds", &testOversizeAndTokenLimit},
     {"credssp-der-mutations", &testAllByteMutationsRemainBounded},
+    {"credssp-password-credential-strict-fields",
+     &testStrictPasswordCredentialFields},
     {"credssp-stream-fragments", &testStreamAllFragmentBoundaries},
     {"credssp-stream-coalesced", &testStreamCoalescedAndLongDer},
     {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},

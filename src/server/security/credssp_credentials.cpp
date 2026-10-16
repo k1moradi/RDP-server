@@ -83,6 +83,50 @@ struct Reader
     return true;
 }
 
+[[nodiscard]] bool validUtf16Le(
+    std::span<const std::uint8_t> text,
+    bool allowEmpty) noexcept
+{
+    if (text.size() > 4096 || (text.size() % 2U) != 0U ||
+        (!allowEmpty && text.empty()))
+    {
+        return false;
+    }
+
+    for (std::size_t offset = 0; offset < text.size(); offset += 2U)
+    {
+        const std::uint16_t codeUnit =
+            static_cast<std::uint16_t>(text[offset]) |
+            (static_cast<std::uint16_t>(text[offset + 1U]) << 8U);
+        if (codeUnit == 0)
+        {
+            // Embedded NUL would make later native string conversion
+            // ambiguous even though the surrounding OCTET STRING is bounded.
+            return false;
+        }
+        if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
+        {
+            if (offset + 3U >= text.size())
+            {
+                return false;
+            }
+            const std::uint16_t trailing =
+                static_cast<std::uint16_t>(text[offset + 2U]) |
+                (static_cast<std::uint16_t>(text[offset + 3U]) << 8U);
+            if (trailing < 0xdc00U || trailing > 0xdfffU)
+            {
+                return false;
+            }
+            offset += 2U;
+        }
+        else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 [[nodiscard]] bool parsePasswordFields(
     std::span<const std::uint8_t> credentials) noexcept
 {
@@ -99,12 +143,11 @@ struct Reader
         if (!reader.read(static_cast<std::uint8_t>(0xa0U + index),
                          wrapped) ||
             !unwrap(wrapped, 0x04, text) ||
-            text.size() > 4096 ||
-            (text.size() % 2) != 0 ||
-            (index != 0 && text.empty()))
+            !validUtf16Le(text, index == 0))
         {
             // Unicode domainName may be empty; userName/password are
-            // required nonempty for this deliberately limited subset.
+            // required nonempty. Every nonempty field must be well-formed
+            // UTF-16LE without embedded NULs before any native conversion.
             return false;
         }
     }

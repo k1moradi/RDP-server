@@ -1,3 +1,46 @@
+## R2 strict final CredSSP password credential structure (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `e88a56a861cd3b95f5abefbc4775eaafb5801e6e`.
+
+R2's supported candidate for the first genuine final-credential policy remains
+CredSSP `credType=1` (`TSPasswordCreds`) on Linux only. SmartCard
+(`credType=2`) and RemoteGuard (`credType=6`) remain classification-only
+and cannot authorize native admission. The existing owner-driven
+Kerberos/TLS/public-key transcript and private final-credential completion
+latch are unchanged; no new setter, Boolean verifier, detached credential
+object, lease constructor or R3 authority path is introduced.
+
+Production `inspectCredSspCredentials()` now enforces the missing text
+invariants before any future native verifier can consume password credentials:
+the three fields remain in exact DER order, each is bounded to 4096 bytes,
+userName/password are nonempty, every nonempty value is structurally valid
+UTF-16LE, surrogate pairs are canonical, and embedded U+0000 is rejected.
+The parser still exports no domain, username, password, pointer or borrowed
+secret view.
+
+Dedicated CTest
+`security.credssp-password-credential-strict-fields` reuses the existing
+`test_owned_credssp_tsrequest` executable and exercises production parsing
+for valid bounded password credentials, empty mandatory fields, embedded NUL,
+odd UTF-16 length, lone/mismatched surrogates, a valid surrogate pair,
+oversized password, reordered fields, noncanonical DER length, unsupported
+credential type, and explicit SmartCard/RemoteGuard classification.
+
+This increment deliberately does **not** set
+`ownedCredSspCredentialAuthorizationComplete_`. A positive R2 transition
+still requires an explicit administrator-configured Linux OS credential
+verifier (the intended boundary is PAM authentication plus account-policy
+checks), an audited principal-to-local-account mapping contract, controlled
+password conversion/retirement, and opt-in real Kerberos/PAM/NSS/logind
+evidence. Until those exist, final authInfo remains deny-only and M2 remains
+**BLOCKED**.
+
+Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** in this
+connector environment because the owner checkout is unavailable and project
+policy forbids an alternate persistent build root. Hosted exact-publication-SHA
+Linux/GCC, macOS/Clang, Windows/MSVC, R9 ASan/UBSan and documentation-policy
+evidence are **PENDING**.
+
 ## R9 macOS file-destination destructor retirement exact-SHA receipt (2026-10-16)
 
 **Implementation:** `86f400b9730bebfcf9465c59fec56bbad6df5a84`.  

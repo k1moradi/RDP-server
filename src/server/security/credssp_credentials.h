@@ -41,8 +41,10 @@ struct CredSspCredentialInspection
 };
 
 // Validates a single minimal DER TSCredentials SEQUENCE and validates the
-// nested TSPasswordCreds envelope for credType=1. For types 2 and 6 the
-// encrypted credential structure is only classified, NOT interpreted;
+// nested TSPasswordCreds envelope for credType=1, including canonical field
+// order plus bounded, well-formed UTF-16LE domain/user/password strings with
+// no embedded NUL code units. For types 2 and 6 the encrypted credential
+// structure is only classified, NOT interpreted;
 // SmartCard/RemoteGuard support is explicitly deferred. No bytes, strings,
 // views, pointers or secrets escape into the result.
 [[nodiscard]] CredSspCredentialInspection inspectCredSspCredentials(

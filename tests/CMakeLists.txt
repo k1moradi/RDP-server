@@ -272,6 +272,7 @@ function(add_rdp_test source_file suite behavior)
                 credssp-der-rejections
                 credssp-der-bounds
                 credssp-der-mutations
+                credssp-password-credential-strict-fields
                 credssp-stream-fragments
                 credssp-stream-coalesced
                 credssp-stream-rejections

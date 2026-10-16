@@ -1,5 +1,32 @@
 ## R8 macOS completed-file pasteboard handoff (2026-10-16)
 
+## R2 final password-credential parsing boundary (2026-10-16)
+
+The first supported *candidate* final CredSSP credential shape is
+`TSCredentials.credType=1` / `TSPasswordCreds`. This does not itself create
+authentication authority. R2 accepts syntax only after the existing genuine
+R1-owned HYBRID/TLS, Kerberos/GSS and CredSSP public-key proof chain, and the
+current production path remains terminal deny-only after final authInfo.
+
+The portable credential inspector is deliberately metadata-only. It requires
+canonical DER and exact domainName/userName/password field ordering, bounds
+each UTF-16LE OCTET STRING, rejects embedded NUL code units, rejects odd byte
+lengths and malformed surrogate sequences, and requires nonempty userName and
+password. No plaintext name/password view escapes the parser. SmartCard and
+RemoteGuard are identified only so later policy can reject them explicitly;
+they have no native verifier.
+
+A future positive Linux implementation must keep secret extraction and
+conversion inside R2's authenticated provider boundary, compare the delegated
+account against the exact GSS principal and immutable
+`ConsoleIdentityPolicy`, invoke a real explicitly configured OS verifier
+(PAM authentication plus applicable account checks is the current intended
+provider), cleanse every R2-owned secret buffer, then set the private completion
+proof only on genuine success. The existing `LinuxConsoleAdmissionBroker`
+still performs independent NSS/logind active-session, permission, generation,
+freshness and change-watch validation before it alone can mint a lease.
+
+
 The existing `MacClipboardFileDestination` now optionally binds one
 caller-selected strict local `file:///` URL to the same descriptor capability
 used for materialization. This local URL is fixed-capacity metadata, never a

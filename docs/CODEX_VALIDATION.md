@@ -86,6 +86,32 @@ must not be equated to full CTest PASS or the RDP product acceptance.
 three-platform same-SHA CTest, then R3/R8 joined authorization and
 lifecycle fuzzing once a production admitted-session boundary exists.
 
+## R6 active-session revocation exact-SHA hosted CI (2026-10-15)
+
+Implementation commit `6369d8622057aa3f315af55011b52c1d74325d5b`,
+[Actions 38864378401](https://github.com/k1moradi/RDP-server/actions/runs/38864378401):
+overall **FAIL**, but the failing boundary is R10 runtime TLS credential
+validation, not R6. Linux/GCC full registered CTest **268/268 PASS**
+in Debug and Release. macOS/Clang full registered CTest **250/250 PASS**
+in Debug and Release. Windows/MSVC successfully compiled/linked
+`windows_capture_session_guard.cpp` with `wtsapi32`; both new cases
+`windows.capture-session-generation-active-lifetime` and
+`windows.capture-session-revocation-denials` PASS in Debug.
+Windows full Debug is **261/266 PASS**, with exactly five failures:
+`runtime.validates-tls-credentials-matching-pair`,
+`runtime.rejects-tls-credentials-mismatched-key`,
+`runtime.rejects-tls-credentials-malformed-certificate`,
+`runtime.rejects-tls-credentials-malformed-key`, and
+`runtime.rejects-tls-credentials-encrypted-key`. Windows Release and
+downstream package steps were **NOT RUN** after that Debug failure.
+Documentation-policy and R9 security/protocol sanitizer jobs PASS.
+
+No R6-specific regression is observed at this SHA. This hosted MSVC
+result does **not** establish owner MSYS2 CLANG64/Clang23 compatibility,
+R2/R3 Windows authorization, lock/unlock revocation, live Desktop
+Duplication, Microsoft-client M4 acceptance or performance. Those remain
+NOT RUN.
+
 ## R6 native active-session revocation guard (2026-10-15)
 
 **Authoring parent main:** `43953fd5aa05b9bb913430825313caf41e2ebdd5`. **Changed files:**

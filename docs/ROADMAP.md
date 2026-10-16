@@ -3836,6 +3836,21 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   R4 graphics presentation and M4 Microsoft-client desktop acceptance.
   **Next:** consume an R2/R3 authorization-bound native capture
   lifecycle, then hand synchronous frame bytes to the sole R4 owner.
+  **R6 active-session revocation exact-SHA hosted CI receipt (2026-10-15):**
+  Implementation [`6369d8622057aa3f315af55011b52c1d74325d5b`](https://github.com/k1moradi/RDP-server/commit/6369d8622057aa3f315af55011b52c1d74325d5b),
+  [Actions 38864378401](https://github.com/k1moradi/RDP-server/actions/runs/38864378401)
+  finished overall **FAIL** because five later R10 Windows runtime
+  TLS-credential CTests failed; no R6 test or build failure occurred.
+  Linux/GCC full CTest **268/268 PASS** in Debug and Release; macOS/Clang
+  **250/250 PASS** in Debug and Release. Windows/MSVC compiled and linked
+  the native WTS adapter and both new R6 CTests
+  `windows.capture-session-generation-active-lifetime` and
+  `windows.capture-session-revocation-denials` **PASS**; full Windows
+  Debug was **261/266 PASS**, with only R10 tests 241-245 failing.
+  Windows Release was **NOT RUN** because Debug CTest returned nonzero.
+  Documentation-policy and R9 security/protocol sanitizer jobs PASS.
+  Owner MSYS2 CLANG64/Clang23, live R2/R3 admission, WTS lock/unlock,
+  real DXGI capture, Microsoft client and performance remain NOT RUN.
   **R6 native active-session revocation guard (2026-10-15; authored
   against parent `43953fd5aa05b9bb913430825313caf41e2ebdd5`; exact-SHA CI pending):**
   Add Windows-only `WindowsCaptureSessionGenerationGuard`, which

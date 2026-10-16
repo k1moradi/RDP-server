@@ -1648,3 +1648,17 @@ subsequent callbacks inert; R10 retains polling, deadline policy and
 listener configuration. `establishedTls` is a short-lived read-only
 borrow after an actual TLS handshake for future R2 inspection, NOT a
 verified client identity, authenticated OS session or R3 admission.
+
+## R1 bounded borrowed-listener accept batch (2026-10-15)
+
+`acceptNonblockingTcpBatch` consumes at most 16 incoming sockets per
+caller-selected iteration on an already-configured nonblocking,
+borrowed listener. It invokes the SAME single nonblocking acceptor
+used for prior RAII tests and hands an `OwnedNativeTcpSocket` by
+value to a no-throw callback. That callback can create the existing
+nonmoving `OwnedPreauthTcpConnection`, or allow its socket to be
+closed by RAII; it may stop further intake. Budget exhaustion does
+NOT assert that the OS backlog is empty. Native would-block and
+post-progress native failures are explicit. R10 still owns listener
+configuration, scheduling, connection limits and admission routing;
+this does not activate a listener or authorize an RDP session.

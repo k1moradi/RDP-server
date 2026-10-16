@@ -1297,3 +1297,16 @@ EINTR without hidden retry and fails closed on native errors.
 Check a monotonic deadline before and after polling, pass only the
 matching ready direction to one existing bounded callback, and keep
 listener policy, process runtime and OS authorization outside R1.
+
+## R1 bounded listener intake and one accepted owner (2026-10-15)
+
+The native accept batch MUST be bounded to 1..16 successful
+accepts, perform no blocking waits or implicit retry, and call
+only the existing nonblocking one-shot acceptor for platform
+socket flags and failure closure. Transfer each accepted socket
+to one no-throw, move-only RAII callback; a callback that declines
+further intake must not leak or drop the listener. Keep explicit
+outcomes for would-block, budget reached, post-progress drain,
+invalid input and failure. Caller/R10 owns listener policy and
+fairness; R1 must not add any new queue, authentication or RDP
+state controller.

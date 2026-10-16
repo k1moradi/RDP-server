@@ -341,6 +341,39 @@ TcpAcceptResult acceptNonblockingTcpConnection(
 
 
 
+
+TcpAcceptBatchResult acceptNonblockingTcpBatch(
+    std::uintptr_t listenerSocket, std::size_t budget,
+    TcpAcceptedSocketCallback onAccepted, void *context) noexcept
+{
+    using Outcome = TcpAcceptBatchOutcome;
+    if (listenerSocket == OwnedNativeTcpSocket::kInvalidSocket ||
+        budget == 0 || budget > kMaximumTcpAcceptBatch ||
+        onAccepted == nullptr)
+        return {Outcome::InvalidInput, 0};
+
+    // The callback receives an owning RAII handle by value. If it
+    // declines or forgets to adopt it, that handle closes automatically.
+    // Reuse the ONLY native acceptor: its per-platform descriptor flags,
+    // invalid listener checks and close-on-failure stay authoritative.
+    std::size_t transferred = 0;
+    for (; transferred < budget; )
+    {
+        auto result = acceptNonblockingTcpConnection(listenerSocket);
+        if (result.outcome == TcpAcceptOutcome::WouldBlock)
+            return {transferred == 0 ? Outcome::WouldBlock
+                                     : Outcome::Drained, transferred};
+        if (result.outcome != TcpAcceptOutcome::Accepted ||
+            !result.connection.valid())
+            return {Outcome::Failure, transferred};
+
+        ++transferred;
+        if (!onAccepted(std::move(result.connection), context))
+            return {Outcome::CallbackStopped, transferred};
+    }
+    return {Outcome::BudgetReached, transferred};
+}
+
 TcpConnectionPollResult OwnedPreauthTcpConnection::pollSocketOnce(
     std::chrono::steady_clock::time_point deadline,
     std::chrono::milliseconds maxWait) noexcept

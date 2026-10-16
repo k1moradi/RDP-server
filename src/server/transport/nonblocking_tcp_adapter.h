@@ -140,6 +140,40 @@ struct TcpAcceptResult
 [[nodiscard]] TcpAcceptResult acceptNonblockingTcpConnection(
     std::uintptr_t listenerSocket) noexcept;
 
+
+ // One bounded batch of accepts on an already configured, caller-owned,
+ // NONBLOCKING listener. An accepted descriptor is moved into the callback
+ // (exactly once); the callback may adopt it in OwnedPreauthTcpConnection
+ // or let RAII close it. No binding, listening, threads or OS admission.
+ // The budget is an upper limit, not a claim that the backlog is empty.
+ inline constexpr std::size_t kMaximumTcpAcceptBatch = 16;
+
+ enum class TcpAcceptBatchOutcome : std::uint8_t
+ {
+     InvalidInput,
+     WouldBlock,       // no accepted sockets and listener would block
+     Drained,          // >=1 delivered, next native accept would block
+     BudgetReached,    // exactly budget delivered; more MAY remain
+     CallbackStopped,  // callback declined further accepts after transfer
+     Failure,          // native accept/setup failed (possibly after progress)
+ };
+
+ struct TcpAcceptBatchResult
+ {
+     TcpAcceptBatchOutcome outcome{TcpAcceptBatchOutcome::InvalidInput};
+     std::size_t accepted{};  // count transferred, even on later failure
+ };
+
+ using TcpAcceptedSocketCallback = bool (*)(
+     OwnedNativeTcpSocket accepted, void *context) noexcept;
+
+ // Exactly budget at most, bounded to 1..16; invalid inputs never
+ // consume an incoming connection. No dynamic arrays, sleep or poll.
+ // false from callback stops AFTER that descriptor transfers.
+ [[nodiscard]] TcpAcceptBatchResult acceptNonblockingTcpBatch(
+     std::uintptr_t listenerSocket, std::size_t budget,
+     TcpAcceptedSocketCallback onAccepted, void *context) noexcept;
+
 // Borrow an existing NONBLOCKING TCP transport for OpenSSL, using custom
 // BIO callbacks rather than converting a Windows SOCKET to a POSIX int.
 // SSL owns the BIO; the adapter/socket owner outlives every SSL operation.

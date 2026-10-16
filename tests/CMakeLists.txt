@@ -92,6 +92,8 @@ function(add_rdp_test source_file suite behavior)
                 tcp-native-accept-ownership
                 tcp-native-accept-move-replacement
                 tcp-native-accept-orderly-eof
+                tcp-native-accept-batch-budget-handoff
+                tcp-native-accept-batch-stops-denials
                 tcp-owned-connection-tls-lifecycle
                 tcp-owned-connection-cancellation
                 tcp-owned-readiness-dispatch

@@ -4455,3 +4455,29 @@ R4 cursor frame delivery, and performance benchmarks. M1 and M3
 remain NOT ACCEPTED. **Next R5:** integrate native capture/cursor/
 damage lifetimes with X11 connection ownership and R2/R3-approved
 R4 graphics consumption, preserving no-capture-before-admission.
+
+## R1 bounded nonblocking listener accept budget (2026-10-15)
+
+**Parent `main`:** `0914dba9cab11eb6bee928915cad1d7da5435fef`. **Production:** reuse one
+`acceptNonblockingTcpConnection` per iteration up to 16, preserve
+caller-owned nonblocking listener, transfer each move-only handle
+into a no-throw callback once, return explicit budget/drain/stop/
+failure outcomes and accepted count. Does not bind/listen, poll
+forever, allocate a queue or allow unauthenticated sessions.
+**New dedicated CTests:**
+`transport.tcp-native-accept-batch-budget-handoff` (three queued
+loopback peers, budget and exact first-connection X.224 Confirm)
+and `transport.tcp-native-accept-batch-stops-denials` (invalid
+inputs, non-listener failure, callback refusal closes one accepted
+socket, post-progress drain and listener preservation). Reuse
+`tests/test_owned_preauth_session.cpp` and the central registry.
+**PASS at baseline:** hosted Actions 38801211658 Linux,
+Windows, macOS and policy jobs at source SHA
+`991320318e681fba99ca85adf1d29039c3e3137c`.
+**NOT RUN at authoring:** new-code CMake/CTest (worker has no
+repository checkout and cannot clone github.com), new exact SHA
+GitHub CI, owner's Linux/X11, Windows MSYS2 CLANG64 Clang23 and
+macOS27 acceptance, live Microsoft RDP client, R2 authentication
+and independent OS authorization, R3 session and desktop.
+**Next:** converge the borrowed listener's fairness/budget with
+R10 runtime scheduling and separately authorized R2/R3 handoff.

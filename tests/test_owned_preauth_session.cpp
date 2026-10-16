@@ -2400,6 +2400,180 @@ void testOwnedTcpBoundedPollTimeoutAndDisconnect()
         assert(pair.listener.value != kInvalidLocalSocket);
     }
 }
+
+void connectAdditionalLoopbackClient(LocalSocket &additional,
+                                     LocalSocketId listener)
+{
+    sockaddr_in address{};
+#ifdef _WIN32
+    int addressLength = sizeof(address);
+#else
+    socklen_t addressLength = sizeof(address);
+#endif
+    assert(::getsockname(listener,
+                         reinterpret_cast<sockaddr *>(&address),
+                         &addressLength) == 0);
+    assert(address.sin_family == AF_INET);
+    assert(address.sin_addr.s_addr == htonl(INADDR_LOOPBACK));
+    additional.value = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    assert(additional.value != kInvalidLocalSocket);
+    assert(::connect(additional.value,
+                     reinterpret_cast<const sockaddr *>(&address),
+                     sizeof(address)) == 0);
+}
+
+void testNativeTcpAcceptBatchBudgetAndHandoff()
+{
+    using Outcome = TcpAcceptBatchOutcome;
+    using Interest = TcpConnectionIoInterest;
+    LoopbackSocketPair pair{false};
+    // Three connections queued against one EPHEMERAL loopback listener.
+    // The first client is the existing native fixture's connection.
+    assert(::listen(pair.listener.value, 8) == 0);
+    LocalSocket secondClient{};
+    LocalSocket thirdClient{};
+    connectAdditionalLoopbackClient(secondClient, pair.listener.value);
+    connectAdditionalLoopbackClient(thirdClient, pair.listener.value);
+
+    NativeTcpIo originalClient{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    nativeSendAll(originalClient, validRequestWire());
+
+    struct HandoffState
+    {
+        NativeTcpIo &firstClient;
+        std::size_t transferred{};
+    } state{originalClient};
+    const auto handoff = +[](OwnedNativeTcpSocket accepted,
+                             void *context) noexcept -> bool
+    {
+        auto &state = *static_cast<HandoffState *>(context);
+        assert(accepted.valid());
+        // A single sole preauth owner adopts the callback's move-only
+        // socket. It cannot move while SSL/BIO might borrow its IO.
+        OwnedPreauthTcpConnection owner{std::move(accepted)};
+        assert(!accepted.valid());
+        assert(owner.active());
+        assert(owner.ioInterest() == Interest::Read);
+        if (state.transferred == 0)
+        {
+            assert(waitForOwnedTcpReply(owner) == Interest::Write);
+            assert(owner.onSocketReady(false, true) ==
+                   Interest::ConfigureTls);
+            std::array<std::uint8_t, 19> confirm{};
+            nativeReadAll(state.firstClient, confirm);
+            assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
+            assert(owner.establishedTls() == nullptr);
+        }
+        ++state.transferred;
+        owner.cancel();
+        assert(!owner.active());
+        return true;
+    };
+
+    const auto first = acceptNonblockingTcpBatch(
+        static_cast<std::uintptr_t>(pair.listener.value),
+        1, handoff, &state);
+    assert(first.outcome == Outcome::BudgetReached);
+    assert(first.accepted == 1 && state.transferred == 1);
+    assert(pair.listener.value != kInvalidLocalSocket);
+
+    const auto next = acceptNonblockingTcpBatch(
+        static_cast<std::uintptr_t>(pair.listener.value),
+        2, handoff, &state);
+    assert(next.outcome == Outcome::BudgetReached);
+    assert(next.accepted == 2 && state.transferred == 3);
+    // BudgetReached deliberately makes no false claim that the native
+    // backlog has been fully drained. The next call observes WouldBlock.
+    const auto idle = acceptNonblockingTcpBatch(
+        static_cast<std::uintptr_t>(pair.listener.value),
+        kMaximumTcpAcceptBatch, handoff, &state);
+    assert(idle.outcome == Outcome::WouldBlock);
+    assert(idle.accepted == 0 && state.transferred == 3);
+    assert(pair.listener.value != kInvalidLocalSocket);
+}
+
+void testNativeTcpAcceptBatchStopsAndDenials()
+{
+    using Outcome = TcpAcceptBatchOutcome;
+    LoopbackSocketPair pair{false};
+    struct StopState
+    {
+        std::size_t calls{};
+        std::uintptr_t closedHandle{OwnedNativeTcpSocket::kInvalidSocket};
+    } state{};
+    const auto stop = +[](OwnedNativeTcpSocket accepted,
+                          void *context) noexcept -> bool
+    {
+        auto &state = *static_cast<StopState *>(context);
+        assert(accepted.valid());
+        state.closedHandle = accepted.nativeSocket();
+        ++state.calls;
+        // No adoption: accepted RAII handle closes on return.
+        return false;
+    };
+
+    // Invalid budgets and absent callback must NEVER steal the one
+    // queued connection, and an unrelated socket is not a listener.
+    const auto listener = static_cast<std::uintptr_t>(pair.listener.value);
+    assert(acceptNonblockingTcpBatch(
+        listener, 0, stop, &state).outcome == Outcome::InvalidInput);
+    assert(acceptNonblockingTcpBatch(
+        listener, kMaximumTcpAcceptBatch + 1, stop, &state).outcome ==
+        Outcome::InvalidInput);
+    assert(acceptNonblockingTcpBatch(
+        listener, 1, nullptr, &state).outcome == Outcome::InvalidInput);
+    assert(acceptNonblockingTcpBatch(
+        OwnedNativeTcpSocket::kInvalidSocket, 1, stop, &state).outcome ==
+        Outcome::InvalidInput);
+    assert(state.calls == 0);
+    const auto nonListener = acceptNonblockingTcpBatch(
+        static_cast<std::uintptr_t>(pair.client.value), 1,
+        stop, &state);
+    assert(nonListener.outcome == Outcome::Failure);
+    assert(nonListener.accepted == 0 && state.calls == 0);
+
+    const auto stopped = acceptNonblockingTcpBatch(listener, 8,
+                                                    stop, &state);
+    assert(stopped.outcome == Outcome::CallbackStopped);
+    assert(stopped.accepted == 1 && state.calls == 1);
+#ifdef _WIN32
+    int errorCode = 0;
+    int errorSize = sizeof(errorCode);
+    assert(::getsockopt(static_cast<SOCKET>(state.closedHandle),
+                        SOL_SOCKET, SO_ERROR,
+                        reinterpret_cast<char *>(&errorCode),
+                        &errorSize) == SOCKET_ERROR);
+    assert(WSAGetLastError() == WSAENOTSOCK);
+#else
+    errno = 0;
+    assert(::fcntl(static_cast<int>(state.closedHandle), F_GETFD) == -1);
+    assert(errno == EBADF);
+#endif
+    const auto idle = acceptNonblockingTcpBatch(listener, 8, stop, &state);
+    assert(idle.outcome == Outcome::WouldBlock);
+    assert(idle.accepted == 0 && state.calls == 1);
+    assert(pair.listener.value != kInvalidLocalSocket);
+
+    // A full handoff followed by a would-block is distinguishable from
+    // budget exhaustion, and does not close the borrowed listener.
+    LoopbackSocketPair drainedPair{false};
+    std::size_t seen = 0;
+    const auto keep = +[](OwnedNativeTcpSocket owned, void *context)
+                          noexcept -> bool
+    {
+        assert(owned.valid());
+        ++*static_cast<std::size_t *>(context);
+        return true; // RAII auto-close (no session adopted).
+    };
+    const auto drained = acceptNonblockingTcpBatch(
+        static_cast<std::uintptr_t>(drainedPair.listener.value),
+        2, keep, &seen);
+    assert(drained.outcome == Outcome::Drained);
+    assert(drained.accepted == 1 && seen == 1);
+    assert(drainedPair.listener.value != kInvalidLocalSocket);
+}
+
 void testNativeTcpChunkBounds()
 {
     // Real OS sockets, loopback only. The caller provides buffers much
@@ -4794,6 +4968,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-native-accept-ownership", &testNativeTcpAcceptOwnershipAndCancellation},
     {"tcp-native-accept-move-replacement", &testNativeTcpAcceptMoveReplacement},
     {"tcp-native-accept-orderly-eof", &testNativeTcpAcceptOrderlyPeerDisconnect},
+    {"tcp-native-accept-batch-budget-handoff", &testNativeTcpAcceptBatchBudgetAndHandoff},
+    {"tcp-native-accept-batch-stops-denials", &testNativeTcpAcceptBatchStopsAndDenials},
     {"tcp-owned-connection-tls-lifecycle", &testOwnedTcpConnectionTlsLifecycle},
     {"tcp-owned-connection-cancellation", &testOwnedTcpConnectionCancellation},
     {"tcp-owned-readiness-dispatch", &testOwnedTcpReadinessDispatch},

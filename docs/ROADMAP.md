@@ -597,6 +597,38 @@ actually run; another parser CTest alone is not a complete session.
   Next: R10 single listener/poller activation remains outside R1 and
   requires independent authorization; no full M2 acceptance is implied.
 
+
+  **R1 bounded listener-accept budget and sole owner handoff
+  (2026-10-15; parent `0914dba9cab11eb6bee928915cad1d7da5435fef`, exact-code CI pending):**
+  Add `acceptNonblockingTcpBatch` to the EXISTING first-party native
+  transport module. It borrows a caller-owned already-listening and
+  nonblocking native descriptor; a caller-selected batch budget must
+  be in **1..16** and is strictly enforced. The function reuses ONLY
+  `acceptNonblockingTcpConnection` and transfers each RAII-owned
+  nonblocking socket exactly once to a no-throw callback that may
+  immediately wrap it in `OwnedPreauthTcpConnection`. Callback
+  refusal stops after transfer; even unadopted sockets close by RAII.
+  Distinguish malformed arguments, initial would-block, drained
+  backlog, exhausted budget, callback-stop and hard native failures.
+  No socket array allocation, extra event loop, bind/listen call,
+  idle blocking, producer queue, session owner or OS privilege.
+  Dedicated `transport.tcp-native-accept-batch-budget-handoff`
+  verifies three real loopback clients, exact budget-limited
+  delivery, true X.224 Confirm using the sole accepted owner, and
+  intact listener. `transport.tcp-native-accept-batch-stops-denials`
+  covers zero/excessive budget, null sink, invalid descriptor,
+  non-listener socket, callback refusal/RAII closure and partial
+  drain after progress. Both reuse the original preauth executable
+  and central CTest list. **NOT RUN at authorship:** fresh source
+  compilation/new CTest/full suite because this worker lacks a
+  network-clonable checkout; new exact SHA hosted CI pending.
+  **Prior current-main baseline PASS:** run
+  [38801211658](https://github.com/k1moradi/RDP-server/actions/runs/38801211658)
+  and later concurrent runs. Owner Linux/X11, Windows CLANG64 Clang23
+  and macOS27 **NOT RUN**. Next R1: R10 runtime selects event-loop
+  fairness and process-owned listener policy; never let an offline
+  X.224/TLS diagnostic bypass R2 authentication and R3 session gates.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

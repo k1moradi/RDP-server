@@ -1,3 +1,34 @@
+## R6 DXGI same-adapter ambiguity ownership fix (2026-10-16; exact-SHA CI pending)
+
+Maintenance review of the existing `WindowsDxgiDuplicationOwner` found one
+terminal enumeration alias bug without changing the admission boundary. When a
+second output on the **same adapter** matched the selected HMONITOR/bounds, the
+ambiguous-output branch released `candidateAdapter` unconditionally even
+though it was the same retained reference already stored in `adapter_`.
+Terminal `close()` then released `adapter_` again. Real DXGI enumeration
+normally exposes one output per monitor, but the owner contract already treats
+duplicate matches as hostile/ambiguous and must remain correct on that path.
+
+The ambiguity branch now releases a candidate adapter only when it is distinct
+from the retained `adapter_`; terminal `close()` remains the sole releaser
+of the retained reference. Existing cross-adapter ambiguity behavior is
+unchanged. New dedicated CTest
+`windows.capture-dxgi-duplication-owner-same-adapter-ambiguity` reuses the
+existing production owner and synthetic COM-reference fixture, presents two
+matching outputs from one adapter, and requires both output references plus the
+single adapter reference to be released exactly once. The fixture's release
+callback asserts on any double release.
+
+Canonical owner-local CMake/CTest is **NOT RUN** in this connector environment.
+Exact-SHA hosted Windows/MSVC Debug+Release preflight/full-matrix validation is
+required after publication; non-Windows jobs remain regression evidence only.
+No live desktop, `DuplicateOutput`, capture, input, or fabricated R2/R3
+authorization is used.
+
+**Next R6 production gate remains unchanged:** owner Windows MSYS2
+CLANG64/Clang23 and a concrete R2/R3 Windows authorization capability. Native
+runtime capture/input binding remains **BLOCKED** and M4 remains OPEN.
+
 ## R5 one-XCB ownership sanitizer expansion (2026-10-16; exact-SHA CI pending)
 
 Starting shared `main`: `6749f43fff489eb9d9a8ee27a122bd1004b0c314`. R3 still exposes no authoritative

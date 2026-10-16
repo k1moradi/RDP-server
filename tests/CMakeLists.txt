@@ -522,6 +522,7 @@ if(TARGET rdp-server-windows-desktop)
     foreach(case_name IN ITEMS
             dxgi-duplication-owner-lifecycle
             dxgi-duplication-owner-selection-denials
+            dxgi-duplication-owner-same-adapter-ambiguity
             dxgi-duplication-owner-epoch-revocation)
         add_test(NAME "windows.capture-${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")

@@ -27,6 +27,7 @@ struct FakeDxgiBackend
     WindowsDxgiDuplicationResult duplicateResult{
         WindowsDxgiDuplicationResult::ready};
     bool detached{}, empty{}, rotated{}, wrongMonitor{}, ambiguous{};
+    bool sameAdapterAmbiguous{};
     unsigned adapterCount{2};
     unsigned outputCount{2};
     unsigned descriptions{};
@@ -89,7 +90,8 @@ struct FakeDxgiBackend
         if (self.failure == Failure::description)
             return false;
         const bool matching = output == &self.outputs[1][1] ||
-            (self.ambiguous && output == &self.outputs[0][0]);
+            (self.ambiguous && output == &self.outputs[0][0]) ||
+            (self.sameAdapterAmbiguous && output == &self.outputs[1][0]);
         description = {
             matching && !self.wrongMonitor ? 1234U : 5678U,
             {matching ? -1920 : 0, 0,
@@ -273,6 +275,26 @@ void windowsDxgiDuplicationOwnerSelectionDenials()
     assert(!invalid.ready());
     invalid.close();
     backend.assertReleased();
+}
+
+void windowsDxgiDuplicationOwnerSameAdapterAmbiguity()
+{
+    FakeDxgiBackend backend{};
+    backend.sameAdapterAmbiguous = true;
+    {
+        WindowsDxgiDuplicationOwner owner(backend.callbacks());
+        assert(owner.open(selectedTarget) ==
+               WindowsDxgiDuplicationResult::ambiguous);
+        assert(!owner.ready() && owner.deviceEpoch() == 0);
+        owner.close();
+    }
+    backend.assertReleased();
+    // Both matching outputs belong to adapter 1. The outputs are distinct
+    // owned references, but the retained adapter is one reference and must
+    // be released exactly once even though candidateAdapter aliases adapter_.
+    assert(backend.outputs[1][0].releases == 1);
+    assert(backend.outputs[1][1].releases == 1);
+    assert(backend.adapters[1].releases == 1);
 }
 
 void windowsDxgiDuplicationOwnerEpochRevocation()

@@ -1,3 +1,30 @@
+## R6 DXGI same-adapter ambiguity authoring validation (2026-10-16)
+
+Source review found an aliasing double-release path in
+`WindowsDxgiDuplicationOwner::open`: after one output retained
+`candidateAdapter` as `adapter_`, a second matching output on that same
+adapter entered the ambiguity branch, released the aliased
+`candidateAdapter`, then called terminal `close()`, which released
+`adapter_` again. The correction compares pointer identity before releasing
+the candidate adapter, preserving exactly one release for the retained native
+reference.
+
+Dedicated behavior CTest:
+`windows.capture-dxgi-duplication-owner-same-adapter-ambiguity`. It extends
+the existing deterministic DXGI fixture with two matching outputs on adapter 1.
+The backend release callback requires each token to be outstanding before
+release, and the case additionally asserts each matching output is released
+once and adapter 1 is released once. Existing
+`windows.capture-dxgi-duplication-owner-selection-denials` still covers the
+separate cross-adapter ambiguity path.
+
+Authoring source/ownership trace **PASS**. Canonical
+`~/rdp-server/build` configure/build/CTest **NOT RUN** because the owner
+checkout is unavailable in this connector environment. Hosted exact-SHA
+Windows/MSVC Debug+Release and full cross-platform CI are **PENDING** after
+publication. Owner Windows MSYS2 CLANG64/Clang23, live DXGI, Microsoft-client
+M4 and genuine Windows R2/R3 admission remain **NOT RUN/BLOCKED**.
+
 ## R5 one-XCB sanitizer expansion authoring receipt (2026-10-16)
 
 **Base:** `6749f43fff489eb9d9a8ee27a122bd1004b0c314`. Current roadmap/source review reconfirms that R3 has

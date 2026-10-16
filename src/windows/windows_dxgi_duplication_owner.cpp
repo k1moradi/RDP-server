@@ -153,8 +153,14 @@ WindowsDxgiDuplicationResult WindowsDxgiDuplicationOwner::open(
                 {
                     releaseResource(WindowsDxgiNativeResource::output,
                                     candidateOutput);
-                    releaseResource(WindowsDxgiNativeResource::adapter,
-                                    candidateAdapter);
+                    // candidateAdapter can alias the adapter retained by the
+                    // first matching output. That retained reference belongs
+                    // to adapter_ and close() must release it exactly once.
+                    if (candidateAdapter != adapter_)
+                    {
+                        releaseResource(WindowsDxgiNativeResource::adapter,
+                                        candidateAdapter);
+                    }
                     return fail(WindowsDxgiDuplicationResult::ambiguous);
                 }
                 output_ = candidateOutput;

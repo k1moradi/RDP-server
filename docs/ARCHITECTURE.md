@@ -476,7 +476,11 @@ and required feature level 11.0; no WARP fallback. `IDXGIOutput1`
 `DuplicateOutput` creates one owned duplication per owner.
 
 The owner holds one reference to the DXGI factory, selected adapter and
-output, output1, D3D11 device and immediate context, and duplication.
+output, output1, D3D11 device and immediate context, and duplication. During
+bounded enumeration a candidate adapter may alias the already-retained selected
+adapter; such an alias is not a second owned reference and is never released
+separately. Ambiguous duplicate-output denial releases each output reference
+once and leaves terminal `close()` to release the retained adapter once.
 All failed construction paths release returned partial native references.
 `close` is terminal; destruction first cancels/destroys the existing
 `WindowsDxgiCaptureCycle` (unmap before ReleaseFrame), then drops native

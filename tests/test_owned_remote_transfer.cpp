@@ -1720,6 +1720,9 @@ void testFileContentsSizeRangeStreaming()
 
     const auto sizeRequest = transfer.beginFileSizeRequest(0, request);
     assert(sizeRequest && transfer.hasOutstandingFileContentsRequest());
+    std::vector<std::uint8_t> overlappingRequest;
+    assert(!transfer.beginFileGroupDescriptorRequest(overlappingRequest));
+    assert(overlappingRequest.empty());
     PduView requestView{};
     assert(decodePdu(request, requestView));
     assert(requestView.type == kFileContentsRequest);

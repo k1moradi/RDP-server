@@ -749,7 +749,7 @@ bool RemoteTransfer::beginRequest(
 {
     output.clear();
     if (poisoned_ || generation_ == 0 || pendingValid_ ||
-        !advertises(formatId))
+        pendingFileContentsValid_ || !advertises(formatId))
     {
         return false;
     }
@@ -777,7 +777,8 @@ RemoteTransfer::prepareJoinedFormatDataRequest(
 {
     using namespace rdp_server::clipboard;
     if (poisoned_ || generation_ == 0 || pendingValid_ ||
-        joinedRequestActive_ || joinedRequestSequence_ == UINT64_MAX ||
+        pendingFileContentsValid_ || joinedRequestActive_ ||
+        joinedRequestSequence_ == UINT64_MAX ||
         channelId == 0 || channelId != expectedCliprdrChannelId ||
         !joinedChannels.channelJoinConfirmed(channelId) ||
         !advertises(formatId))
@@ -900,6 +901,7 @@ bool RemoteTransfer::storeFileGroupDescriptors(
     constexpr std::uint32_t kFileAttributeDirectory = 0x00000010U;
 
     if (!fileStreamingAvailable() || pendingValid_ ||
+        pendingFileContentsValid_ ||
         response.status != ResponseStatus::Received ||
         response.generation != generation_ ||
         response.formatId != fileGroupDescriptorFormatId_ ||
@@ -994,7 +996,7 @@ RemoteTransfer::beginFileContentsRequest(
     if (!fileStreamingAvailable() ||
         remoteFileGeneration_ != generation_ ||
         fileIndex >= remoteFileCount_ ||
-        pendingFileContentsValid_ ||
+        pendingValid_ || pendingFileContentsValid_ ||
         fileContentsSequence_ >=
             std::numeric_limits<std::uint32_t>::max())
     {

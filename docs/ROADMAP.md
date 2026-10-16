@@ -1,3 +1,51 @@
+## R7 macOS GUI-session consumer retirement (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `a5651588b1b8b2697c63305515bc58807917c519`.
+
+Current-source audit confirmed the assignment gap: the existing
+`MacDesktopSessionGuard` already pins `NativeSessionChangeWatch`, while the
+existing `MacInputController` and `MacScreenCaptureState` pinned only display
+geometry/topology. This increment binds those existing owners directly to the
+same process-scoped watch revision as a revocation-only precondition. It adds no
+second watcher, native session owner, authentication token, positive TCC claim,
+input callback factory or ScreenCaptureKit factory.
+
+Input now checks the pinned watch immediately before the injected/native send
+boundary and again through the existing post-callback lifetime fence. Session
+loss clears held key/button state without posting synthetic releases into a
+potentially different GUI session; orderly cancellation while the original
+watch revision is current retains the existing best-effort release behavior.
+A switch away/back cannot revive the old controller even when geometry is
+unchanged.
+
+Capture bindings now pin the covered session-watch revision. Preparation,
+start completion and frame publication validate it independently of display
+topology. A session event before frame delivery suppresses the consumer and
+returns terminal retirement. An event during synchronous `consume()` cannot
+retract bytes already observed by that callback, but the post-callback fence
+returns `RetireStream`, rejects later callbacks and preserves the existing
+one-shot ScreenCaptureKit stop claim/deferred-close sequencing.
+
+Dedicated centrally registered CTests:
+`macos.input-controller-session-watch-revocation` (portable),
+`macos.capture-stream-session-watch-frame-retirement` (Apple-only), and
+`macos.capture-stream-session-watch-consumer-race` (Apple-only). The R7 GCC
+ASan/UBSan job now compiles the portable input target and explicitly executes
+the new input session-watch case in addition to the desktop-session guard set.
+Ordinary tests use injected watch/native callbacks and synthetic CoreVideo;
+they do not post Quartz input, request TCC, enumerate a live desktop or start a
+real ScreenCaptureKit stream.
+
+Canonical owner-local `~/rdp-server/build/` validation is **NOT RUN** in this
+connector environment because the synchronized checkout is unavailable; no
+alternate persistent build root was created. Exact-publication-SHA hosted
+Linux/GCC, Windows/MSVC, macOS/AppleClang Debug+Release, R7 sanitizer, R9
+sanitizer, documentation-policy and SDK/package evidence are **PENDING**.
+Owner macOS 27 notification delivery/TCC/native capture, Microsoft-client M5,
+and positive R2/R3 macOS authorization remain **NOT RUN / OPEN**. R4 still owns
+future graphics scheduling/encoder integration; these borrowed CoreVideo bytes
+remain synchronous only.
+
 ## R2 strict final CredSSP password credential structure (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `e88a56a861cd3b95f5abefbc4775eaafb5801e6e`.

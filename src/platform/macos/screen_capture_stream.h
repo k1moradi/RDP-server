@@ -3,6 +3,7 @@
 
 #include "platform/macos/capture_pixel_buffer.h"
 #include "platform/macos/native_display_refresh.h"
+#include "platform/macos/native_session_change_watch.h"
 #include "platform/macos/screen_capture_preflight.h"
 
 #include <cstddef>
@@ -20,6 +21,7 @@ struct MacScreenCaptureBinding {
     std::size_t heightPixels{};
     std::uint64_t geometryGeneration{};
     std::uint64_t topologyRevision{};
+    std::uint64_t sessionWatchRevision{};
 };
 
 enum class MacScreenCaptureError : std::uint8_t {
@@ -27,6 +29,7 @@ enum class MacScreenCaptureError : std::uint8_t {
     MissingDisplay,
     StaleGeometryGeneration,
     StaleTopology,
+    StaleSession,
     PermissionUnavailable,
     PermissionNotGranted,
     IllegalTransition,
@@ -70,6 +73,7 @@ enum class MacScreenCaptureFrameDrop : std::uint8_t {
     LockFailed,
     InvalidFramebuffer,
     StaleTopology,
+    StaleSession,
 };
 
 enum class MacScreenCaptureFrameDisposition : std::uint8_t {
@@ -141,6 +145,7 @@ public:
 private:
     void failLocked(MacScreenCaptureError error) noexcept;
     [[nodiscard]] bool topologyCurrentLocked() const noexcept;
+    [[nodiscard]] bool sessionCurrentLocked() const noexcept;
 
     const MacScreenCaptureBinding binding_;
     mutable std::mutex mutex_;
@@ -172,9 +177,10 @@ public:
 } // namespace detail
 
 // One-shot ScreenCaptureKit owner. There is deliberately no restart path:
-// stop, topology invalidation, native failure, or close retires this instance.
-// A fresh validated geometry generation and fresh authorized session binding
-// are required before constructing any replacement stream.
+// stop, topology invalidation, GUI-session watch revocation, native failure,
+// or close retires this instance. A fresh validated geometry generation and
+// fresh authorized session binding are required before constructing any
+// replacement stream.
 class MacScreenCaptureStream final {
 public:
     MacScreenCaptureStream(const MacScreenCaptureStream&) = delete;

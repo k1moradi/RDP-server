@@ -2,6 +2,7 @@
 #pragma once
 
 #include "platform/macos/native_display_refresh.h"
+#include "platform/macos/native_session_change_watch.h"
 
 #include <array>
 #include <cstddef>
@@ -89,11 +90,13 @@ enum class MacInputPermissionStatus : std::uint8_t {
     NotTrusted,
 };
 
-// Single-thread-affine R7 input state owner. The geometry reference and its
-// generation are revocation facts only, never authorization. A future R2/R3
-// macOS route must authorize the concrete desktop before constructing or
-// invoking this object. The geometry owner must outlive this controller and
-// all access to both objects must remain serialized by that route.
+// Single-thread-affine R7 input state owner. The geometry generation,
+// topology revision and native GUI-session watch revision are revocation facts
+// only, never authorization. A future R2/R3 macOS route must authorize the
+// concrete desktop before constructing or invoking this object. The geometry
+// owner and process-scoped session watch must remain valid for the controller
+// lifetime, and all access to this object and geometry must remain serialized
+// by that route.
 class MacInputController final {
 public:
     MacInputController(const NativeDisplayGeometryRefresh& geometry,
@@ -121,7 +124,7 @@ private:
     static constexpr std::size_t kButtonCount = 5;
     static_assert(kScanCodeSlots + kButtonCount == kMaximumMacNativeInputBatch);
 
-    [[nodiscard]] bool generationCurrent() noexcept;
+    [[nodiscard]] bool lifetimeCurrent() noexcept;
     [[nodiscard]] bool translatePosition(std::uint32_t x, std::uint32_t y,
                                          double& xPoints,
                                          double& yPoints) const noexcept;
@@ -145,6 +148,7 @@ private:
     MacInputCallbacks callbacks_{};
     std::uint64_t pinnedGeneration_{};
     std::uint64_t pinnedTopologyRevision_{};
+    std::uint64_t pinnedSessionWatchRevision_{};
     std::array<std::uint16_t, kScanCodeSlots> activeKeyCodes_{};
     std::array<bool, kScanCodeSlots> activeKeys_{};
     std::array<bool, kButtonCount> pressedButtons_{};

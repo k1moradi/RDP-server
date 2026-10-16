@@ -5795,3 +5795,22 @@ acceptance remain **NOT RUN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
 **Next R1:** add no transport surface unless R3's eventual protected New
 License / Upgrade License publication or later Share activation demonstrates a
 concrete bounded TCP/TLS mismatch.
+
+### R7 macOS GUI-session revocation reaches native consumers
+
+The process-scoped `NativeSessionChangeWatch` remains a monotonic revocation
+signal, not an admission capability. `MacInputController` and
+`MacScreenCaptureState` now pin the covered watch revision alongside their
+existing display generation/topology facts. A changed or unavailable watch
+revision terminally invalidates the old native lifetime even if user ID,
+display bounds, topology and TCC evidence later look identical.
+
+Input retirement deliberately distinguishes orderly shutdown from session
+loss: held keys/buttons may be best-effort released only while both display and
+GUI-session continuity are still current; after session loss they are discarded
+without synthetic key/button-up posting. Capture checks continuity before frame
+publication and after the synchronous R4 consumer returns. The latter fence
+cannot undo bytes already observed inside an entered callback, but it prevents
+a successful publication disposition, rejects later callbacks and reuses the
+existing exact-once ScreenCaptureKit stop/deferred-close path. No new watcher,
+thread, scheduler, capture owner or authorization object is introduced.

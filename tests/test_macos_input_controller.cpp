@@ -2,6 +2,7 @@
 #include "platform/macos/mac_input_controller.h"
 #include "platform/macos/native_display_reconfiguration.h"
 #include "platform/macos/native_display_snapshot.h"
+#include "platform/macos/native_session_change_watch.h"
 
 #include <algorithm>
 #include <array>
@@ -29,6 +30,44 @@ using rdp::macos::NativeDisplayGeometryRefresh;
 using rdp::macos::NativeDisplayObservation;
 using rdp::macos::NativeDisplayReadStatus;
 using rdp::macos::NativeDisplayReconfigurationWatch;
+using rdp::macos::NativeSessionChangeRecorder;
+using rdp::macos::NativeSessionChangeWatch;
+using rdp::macos::NativeSessionChangeWatchCallbacks;
+
+struct SessionWatchFixture final {
+    NativeSessionChangeRecorder recorder{};
+    std::uint64_t registrationEpoch{};
+    std::size_t installCalls{};
+    std::size_t removeCalls{};
+
+    static bool install(void* const context, const std::uint64_t epoch,
+                        const NativeSessionChangeRecorder callback) noexcept {
+        auto& self = *static_cast<SessionWatchFixture*>(context);
+        ++self.installCalls;
+        self.registrationEpoch = epoch;
+        self.recorder = callback;
+        return callback != nullptr && epoch != 0;
+    }
+
+    static bool remove(void* const context) noexcept {
+        auto& self = *static_cast<SessionWatchFixture*>(context);
+        ++self.removeCalls;
+        self.recorder = nullptr;
+        self.registrationEpoch = 0;
+        return true;
+    }
+
+    [[nodiscard]] NativeSessionChangeWatchCallbacks callbacks() noexcept {
+        return {this, &install, &remove};
+    }
+
+    void recordChange() const noexcept {
+        assert(recorder != nullptr && registrationEpoch != 0);
+        recorder(registrationEpoch);
+    }
+};
+
+SessionWatchFixture* gSessionWatchFixture{};
 
 struct NativeDisplayFixture final {
     std::array<NativeDisplayObservation, 4> displays{};
@@ -84,6 +123,7 @@ struct FakeInputBackend final {
     bool cancelDuringSend{};
     bool reenterDuringSend{};
     bool revokeTopologyDuringSend{};
+    bool revokeSessionDuringSend{};
     bool reentrantResult{true};
 
     static std::size_t send(
@@ -107,6 +147,11 @@ struct FakeInputBackend final {
         if (self.revokeTopologyDuringSend) {
             self.revokeTopologyDuringSend = false;
             NativeDisplayReconfigurationWatch::recordTopologyChange();
+        }
+        if (self.revokeSessionDuringSend) {
+            self.revokeSessionDuringSend = false;
+            assert(gSessionWatchFixture != nullptr);
+            gSessionWatchFixture->recordChange();
         }
         return self.forcedAccepted == static_cast<std::size_t>(-1)
             ? input.size()
@@ -348,12 +393,68 @@ void testRevocationAndCleanup() {
     }
 }
 
+void testSessionWatchRevocation() {
+    assert(gSessionWatchFixture != nullptr);
+
+    // Session loss is independent of unchanged geometry/topology. Held input
+    // must be discarded rather than released into the potentially new user.
+    {
+        NativeDisplayGeometryRefresh geometry;
+        auto fixture = retinaFixture();
+        const auto generation = refresh(geometry, fixture);
+        FakeInputBackend backend;
+        MacInputController controller(geometry, backend.callbacks(), generation);
+        assert(controller.handle(MacKeyInput{9, 0x22, false, true}));
+        assert(controller.handle(MacPointerButtonInput{
+            20, 20, MacPointerButton::Right, true}));
+        assert(backend.commandCount == 3);
+
+        gSessionWatchFixture->recordChange();
+        assert(!controller.handle(MacPointerMoveInput{20, 20}));
+        assert(controller.closed());
+        assert(backend.commandCount == 3);
+        controller.cancel();
+        controller.cancel();
+        assert(backend.commandCount == 3);
+
+        // A later watch event with identical geometry cannot revive this owner.
+        gSessionWatchFixture->recordChange();
+        assert(!controller.handle(MacKeyInput{9, 0x22, false, false}));
+        assert(backend.commandCount == 3);
+    }
+
+    // Revocation observed while the native callback is active fences the
+    // accepted callback result before handle() can report success. No cleanup
+    // callback is submitted after continuity is lost.
+    {
+        NativeDisplayGeometryRefresh geometry;
+        auto fixture = retinaFixture();
+        const auto generation = refresh(geometry, fixture);
+        FakeInputBackend backend;
+        MacInputController controller(geometry, backend.callbacks(), generation);
+        backend.revokeSessionDuringSend = true;
+        assert(!controller.handle(MacKeyInput{11, 0x23, false, true}));
+        assert(controller.closed());
+        assert(backend.commandCount == 1);
+        assert(backend.commands[0].kind == MacNativeInputKind::KeyDown);
+        controller.cancel();
+        assert(backend.commandCount == 1);
+    }
+}
+
 } // namespace
 
 int main(const int argumentCount, const char* const arguments[]) {
     if (argumentCount != 2) {
         return 2;
     }
+    SessionWatchFixture sessionWatchFixture;
+    NativeSessionChangeWatch sessionWatch;
+    gSessionWatchFixture = &sessionWatchFixture;
+    const auto watchStarted = sessionWatch.startWithCallbacks(
+        sessionWatchFixture.callbacks());
+    assert(watchStarted);
+
     const std::string_view testCase = arguments[1];
     if (testCase == "lifecycle") {
         testLifecycle();
@@ -361,8 +462,13 @@ int main(const int argumentCount, const char* const arguments[]) {
         testValidationDenials();
     } else if (testCase == "revocation-cleanup") {
         testRevocationAndCleanup();
+    } else if (testCase == "session-watch-revocation") {
+        testSessionWatchRevocation();
     } else {
         return 2;
     }
+    assert(sessionWatch.stop());
+    assert(sessionWatchFixture.removeCalls == 1);
+    gSessionWatchFixture = nullptr;
     return 0;
 }

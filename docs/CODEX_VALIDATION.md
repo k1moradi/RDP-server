@@ -1,3 +1,24 @@
+## R7 macOS session-watch consumer-retirement authoring receipt (2026-10-16)
+
+**Parent:** `a5651588b1b8b2697c63305515bc58807917c519`. Publication SHA and hosted Actions result: **PENDING**.
+
+Production changes pin the existing `NativeSessionChangeWatch` revision in
+`MacInputController` and `MacScreenCaptureBinding/State`. Input session loss
+is terminal without held-state cleanup posting; capture session loss is checked
+before publication and again after synchronous consumer return. Existing
+ScreenCaptureKit one-shot stop ownership and callback-safe backend retirement
+remain authoritative.
+
+New tests are
+`macos.input-controller-session-watch-revocation`,
+`macos.capture-stream-session-watch-frame-retirement`, and
+`macos.capture-stream-session-watch-consumer-race`. The first is selected by
+the dedicated GCC ASan/UBSan R7 job; the CoreVideo stream cases remain
+Apple-only and must not be reported as sanitizer-covered unless separately run
+under instrumentation. Canonical local build/full CTest, owner macOS 27 and
+live Microsoft-client acceptance are **NOT RUN** in this connector environment.
+No real native input/capture authorization is claimed.
+
 ## R9 macOS file-destination destructor retirement exact-SHA receipt (2026-10-16)
 
 ## R2 strict final CredSSP password credential authoring (2026-10-16)

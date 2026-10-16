@@ -1119,6 +1119,7 @@ else()
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_session_change_watch.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/mac_input_controller.cpp")
 endif()
 if(MSVC)
@@ -1127,7 +1128,8 @@ else()
     target_compile_options(test_macos_input_controller PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
-foreach(case_name IN ITEMS lifecycle validation-denials revocation-cleanup)
+foreach(case_name IN ITEMS lifecycle validation-denials revocation-cleanup
+        session-watch-revocation)
     add_test(NAME "macos.input-controller-${case_name}"
         COMMAND test_macos_input_controller "${case_name}")
     set_tests_properties("macos.input-controller-${case_name}" PROPERTIES
@@ -1217,7 +1219,8 @@ if(APPLE)
             consumer-cancellation native-stop-single-ownership
             backend-callback-reentry-retirement
             start-retirement-after-completion
-            native-factory-quarantine framebuffer-contract)
+            native-factory-quarantine framebuffer-contract
+            session-watch-frame-retirement session-watch-consumer-race)
         add_test(NAME "macos.capture-stream-${case_name}"
             COMMAND test_macos_capture_stream "${case_name}")
         set_tests_properties("macos.capture-stream-${case_name}" PROPERTIES

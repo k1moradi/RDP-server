@@ -20,14 +20,17 @@ MacInputController::MacInputController(
     : geometry_(&geometry), callbacks_(callbacks),
       pinnedGeneration_(pinnedGeneration) {
     const auto revision = geometry.topologyRevision(pinnedGeneration);
+    const auto sessionWatchRevision = NativeSessionChangeWatch::coveredRevision();
     if (callbacks_.context == nullptr || callbacks_.send == nullptr ||
-        pinnedGeneration_ == 0 || !revision || *revision == 0) {
+        pinnedGeneration_ == 0 || !revision || *revision == 0 ||
+        !sessionWatchRevision || *sessionWatchRevision == 0) {
         closed_ = true;
         geometry_ = nullptr;
         pinnedGeneration_ = 0;
         return;
     }
     pinnedTopologyRevision_ = *revision;
+    pinnedSessionWatchRevision_ = *sessionWatchRevision;
 }
 
 MacInputController::~MacInputController() noexcept {
@@ -60,16 +63,20 @@ void MacInputController::invalidateWithoutNativeInput() noexcept {
     geometry_ = nullptr;
     pinnedGeneration_ = 0;
     pinnedTopologyRevision_ = 0;
+    pinnedSessionWatchRevision_ = 0;
     clearHeldState();
 }
 
-bool MacInputController::generationCurrent() noexcept {
+bool MacInputController::lifetimeCurrent() noexcept {
     if (closed_ || geometry_ == nullptr || pinnedGeneration_ == 0 ||
-        pinnedTopologyRevision_ == 0) {
+        pinnedTopologyRevision_ == 0 || pinnedSessionWatchRevision_ == 0) {
         return false;
     }
     const auto revision = geometry_->topologyRevision(pinnedGeneration_);
-    if (!revision || *revision != pinnedTopologyRevision_) {
+    if (!revision || *revision != pinnedTopologyRevision_ ||
+        !NativeSessionChangeWatch::current(pinnedSessionWatchRevision_)) {
+        // Session loss is terminal and deliberately clears held state without
+        // synthesizing releases into a potentially different GUI session.
         invalidateWithoutNativeInput();
         return false;
     }
@@ -96,6 +103,11 @@ bool MacInputController::sendCommands(
     const std::span<const MacNativeInputCommand> commands) noexcept {
     if (commands.empty()) {
         return true;
+    }
+    // Re-check immediately before entering the injected/native posting
+    // callback. A watch event racing the callback is fenced again by handle().
+    if (!lifetimeCurrent()) {
+        return false;
     }
     operationInProgress_ = true;
     const std::size_t accepted = callbacks_.send(callbacks_.context, commands);
@@ -241,7 +253,7 @@ bool MacInputController::handleScroll(const MacScrollInput& input) noexcept {
 
 bool MacInputController::handle(const MacInputEvent& event) noexcept {
     if (closed_ || operationInProgress_ || cancellationRequested_ ||
-        !generationCurrent()) {
+        !lifetimeCurrent()) {
         return false;
     }
 
@@ -272,7 +284,7 @@ bool MacInputController::handle(const MacInputEvent& event) noexcept {
         finishDeferredCancellation();
         return false;
     }
-    if (!generationCurrent()) {
+    if (!lifetimeCurrent()) {
         return false;
     }
     return !closed_;
@@ -309,13 +321,14 @@ void MacInputController::finishDeferredCancellation() noexcept {
         return;
     }
     cancellationRequested_ = false;
-    if (!closed_ && generationCurrent()) {
+    if (!closed_ && lifetimeCurrent()) {
         releaseHeldInput();
     }
     closed_ = true;
     geometry_ = nullptr;
     pinnedGeneration_ = 0;
     pinnedTopologyRevision_ = 0;
+    pinnedSessionWatchRevision_ = 0;
     clearHeldState();
 }
 
@@ -327,7 +340,7 @@ void MacInputController::cancel() noexcept {
         cancellationRequested_ = true;
         return;
     }
-    if (generationCurrent()) {
+    if (lifetimeCurrent()) {
         releaseHeldInput();
     }
     closed_ = true;
@@ -335,6 +348,7 @@ void MacInputController::cancel() noexcept {
     geometry_ = nullptr;
     pinnedGeneration_ = 0;
     pinnedTopologyRevision_ = 0;
+    pinnedSessionWatchRevision_ = 0;
     clearHeldState();
 }
 

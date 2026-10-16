@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "platform/macos/native_display_reconfiguration.h"
+#include "platform/macos/native_session_change_watch.h"
 #include "platform/macos/screen_capture_stream.h"
 
 #include <CoreFoundation/CoreFoundation.h>
@@ -30,6 +31,39 @@ concept ExposesNativeCaptureFactory =
 
 static_assert(!ExposesNativeCaptureFactory<MacScreenCaptureStream>,
               "native ScreenCaptureKit factory must remain quarantined");
+
+struct SessionWatchFixture final {
+    NativeSessionChangeRecorder recorder{};
+    std::uint64_t registrationEpoch{};
+    std::size_t removeCalls{};
+
+    static bool install(void* const context, const std::uint64_t epoch,
+                        const NativeSessionChangeRecorder callback) noexcept {
+        auto& self = *static_cast<SessionWatchFixture*>(context);
+        self.registrationEpoch = epoch;
+        self.recorder = callback;
+        return callback != nullptr && epoch != 0;
+    }
+
+    static bool remove(void* const context) noexcept {
+        auto& self = *static_cast<SessionWatchFixture*>(context);
+        ++self.removeCalls;
+        self.recorder = nullptr;
+        self.registrationEpoch = 0;
+        return true;
+    }
+
+    [[nodiscard]] NativeSessionChangeWatchCallbacks callbacks() noexcept {
+        return {this, &install, &remove};
+    }
+
+    void recordChange() const noexcept {
+        assert(recorder != nullptr && registrationEpoch != 0);
+        recorder(registrationEpoch);
+    }
+};
+
+SessionWatchFixture* gSessionWatchFixture{};
 
 struct SnapshotFixture {
     NativeDisplayObservation display{100, 0, 0, 2, 2, 2, 2, 0, 0};
@@ -119,6 +153,10 @@ public:
         if (changeTopologyDuringConsume) {
             NativeDisplayReconfigurationWatch::recordTopologyChange();
         }
+        if (changeSessionDuringConsume) {
+            assert(gSessionWatchFixture != nullptr);
+            gSessionWatchFixture->recordChange();
+        }
         if (stopDuringConsume && streamToStop != nullptr) {
             stopDuringConsume = false;
             stopSucceeded = streamToStop->stop().has_value();
@@ -140,6 +178,7 @@ public:
     MacScreenCaptureStream* streamToStop{};
     MacScreenCaptureStream* streamToClose{};
     bool changeTopologyDuringConsume{};
+    bool changeSessionDuringConsume{};
     bool stopDuringConsume{};
     bool stopSucceeded{};
     bool closeDuringConsume{};
@@ -726,10 +765,132 @@ void testCallbackRetirement() {
     assert(newFixture.backend->closeCalls == 1);
 }
 
+void testSessionWatchFrameRetirement() {
+    assert(gSessionWatchFixture != nullptr);
+
+    // Change before prepare: no backend operation is allowed to start.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        gSessionWatchFixture->recordChange();
+        const auto prepared = fixture.stream->prepare();
+        assert(!prepared && prepared.error() == MacScreenCaptureError::StaleSession);
+        assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Failed);
+        assert(fixture.backend->preflightCalls == 0);
+        assert(fixture.backend->prepareCalls == 0);
+        assert(fixture.backend->closeCalls == 1);
+    }
+
+    // Change after preparation but before start: prepared native resources are
+    // retired and no start request is submitted.
+    {
+        auto fixture = makeStream();
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Ready);
+        gSessionWatchFixture->recordChange();
+        const auto started = fixture.stream->start();
+        assert(!started && started.error() == MacScreenCaptureError::StaleSession);
+        assert(fixture.backend->startCalls == 0);
+        assert(fixture.backend->closeCalls == 1);
+    }
+
+    // A successful asynchronous native start completing after session loss is
+    // terminal and leaves exactly one deferred native-stop claim available.
+    {
+        auto fixture = makeStream();
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        assert(fixture.stream->start());
+        const auto state = fixture.backend->state;
+        gSessionWatchFixture->recordChange();
+        state->startCompleted(true);
+        assert(state->lifecycleState() == MacScreenCaptureLifecycleState::Failed);
+        assert(state->lastError() == MacScreenCaptureError::StaleSession);
+        assert(state->claimNativeStopAfterStarted());
+        assert(!state->claimNativeStopAfterStarted());
+    }
+
+    // Topology and pixels remain unchanged. The first frame publishes, the
+    // session event retires the old lifetime, and all later callbacks stay inert.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        prepareAndStart(fixture);
+        alignas(64) std::array<std::byte, 16> bytes{};
+        auto pixelBuffer = makePixelBuffer(
+            bytes, 2, 2, kCVPixelFormatType_32BGRA, 8);
+        const auto state = fixture.backend->state;
+        assert(state->consumeFrame(pixelBuffer.value,
+                                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::Published);
+        assert(fixture.consumer->calls == 1);
+
+        gSessionWatchFixture->recordChange();
+        assert(state->consumeFrame(pixelBuffer.value,
+                                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::RetireStream);
+        assert(fixture.consumer->calls == 1);
+        assert(state->lifecycleState() == MacScreenCaptureLifecycleState::Failed);
+        assert(state->lastError() == MacScreenCaptureError::StaleSession);
+        assert(state->lastFrameDrop() == MacScreenCaptureFrameDrop::StaleSession);
+        assert(state->claimNativeStopRequest());
+        assert(!state->claimNativeStopRequest());
+
+        gSessionWatchFixture->recordChange();
+        assert(state->consumeFrame(pixelBuffer.value,
+                                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::Dropped);
+        assert(fixture.consumer->calls == 1);
+        fixture.stream->close();
+        fixture.stream->close();
+        assert(fixture.backend->closeCalls == 1);
+    }
+}
+
+void testSessionWatchConsumerRace() {
+    assert(gSessionWatchFixture != nullptr);
+    GeometryFixture geometry;
+    const auto generation = geometry.refresh();
+    auto fixture = makeStream(geometry.bindingFor(100, generation));
+    prepareAndStart(fixture);
+
+    alignas(64) std::array<std::byte, 16> bytes{};
+    auto pixelBuffer = makePixelBuffer(
+        bytes, 2, 2, kCVPixelFormatType_32BGRA, 8);
+    const auto state = fixture.backend->state;
+    fixture.consumer->changeSessionDuringConsume = true;
+
+    // The already-entered synchronous consumer observes its borrowed bytes,
+    // but the post-callback watch fence forbids a successful publication
+    // disposition and terminally retires the old session-bound state.
+    assert(state->consumeFrame(pixelBuffer.value,
+                               MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::RetireStream);
+    assert(fixture.consumer->calls == 1);
+    assert(state->lifecycleState() == MacScreenCaptureLifecycleState::Failed);
+    assert(state->lastError() == MacScreenCaptureError::StaleSession);
+    assert(state->lastFrameDrop() == MacScreenCaptureFrameDrop::StaleSession);
+    assert(state->claimNativeStopRequest());
+    assert(!state->claimNativeStopRequest());
+    assert(state->consumeFrame(pixelBuffer.value,
+                               MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Dropped);
+    assert(fixture.consumer->calls == 1);
+    fixture.stream->close();
+    assert(fixture.backend->closeCalls == 1);
+}
+
 } // namespace
 
 int main(const int argumentCount, const char* const arguments[]) {
     if (argumentCount != 2) return 2;
+    SessionWatchFixture sessionWatchFixture;
+    NativeSessionChangeWatch sessionWatch;
+    gSessionWatchFixture = &sessionWatchFixture;
+    assert(sessionWatch.startWithCallbacks(sessionWatchFixture.callbacks()));
     const std::string_view testCase = arguments[1];
     if (testCase == "lifecycle") {
         testLifecycle();
@@ -749,8 +910,15 @@ int main(const int argumentCount, const char* const arguments[]) {
         testNativeFactoryQuarantine();
     } else if (testCase == "framebuffer-contract") {
         testFramebufferContract();
+    } else if (testCase == "session-watch-frame-retirement") {
+        testSessionWatchFrameRetirement();
+    } else if (testCase == "session-watch-consumer-race") {
+        testSessionWatchConsumerRace();
     } else {
         return 2;
     }
+    assert(sessionWatch.stop());
+    assert(sessionWatchFixture.removeCalls == 1);
+    gSessionWatchFixture = nullptr;
     return 0;
 }

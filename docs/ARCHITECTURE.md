@@ -2401,6 +2401,16 @@ The native logind check/use race documented by R2 remains: the service must
 monitor the broker's native change fd and repeat broker authorization
 immediately before every later protected R3 transition.
 
+Native session-change readiness has an explicit R2-to-R3 teardown edge:
+`LinuxConsoleAdmissionBroker::onNativeSessionChangeReady()` re-polls the
+broker-owned logind monitor. `Changed` or `Unavailable` closes R3
+protocol/licensing/join state first and then revokes the admission
+generation/GSS context. A missing watch is terminal too. `None` is only a
+spurious wake and does not authorize anything; the caller must still invoke
+`authorizes()` immediately before the next protected R3 transition. This
+keeps prompt revocation separate from positive authorization and preserves
+the documented non-atomic logind check/use limitation.
+
 The existing MCS Connect Response encoder remains offline because it currently
 accepts only its diagnostic PROTOCOL_SSL input and caller-supplied channel IDs.
 The live CredSSP/Hybrid path therefore stops at `AwaitConnectResponse` rather

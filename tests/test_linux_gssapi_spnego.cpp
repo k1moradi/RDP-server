@@ -188,6 +188,8 @@ public:
 using NativeAdmissionIssue = decltype(&LinuxConsoleAdmissionBroker::issue);
 using R3McsAdmission =
     decltype(&LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial);
+using R3NativeChange =
+    decltype(&LinuxConsoleAdmissionBroker::onNativeSessionChangeReady);
 
 static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
@@ -217,6 +219,12 @@ static_assert(!std::is_invocable_v<
               const SSL *,
               McsSessionLifecycle &,
               std::span<const std::uint8_t>>);
+static_assert(std::is_invocable_r_v<
+              bool,
+              R3NativeChange,
+              LinuxConsoleAdmissionBroker &,
+              GssapiSpnegoAcceptor &,
+              McsSessionLifecycle &>);
 
 void testNativeAdmissionCapabilityDenials()
 {
@@ -283,6 +291,33 @@ void testR3McsAdmissionContract()
 
     // Repeated readiness/disconnect callbacks cannot revive either owner.
     broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+}
+
+void testR3NativeChangeRevocation()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+
+    // A readiness callback without a successfully issued concrete native
+    // lease/watch is never ignored or promoted into authorization.
+    assert(!broker.onNativeSessionChangeReady(acceptor, session));
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(broker.nativeChangeFd() == -1);
+    assert(broker.nativeChangeEvents() == -1);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+
+    // Late/repeated event-loop delivery cannot revive any owner.
+    assert(!broker.onNativeSessionChangeReady(acceptor, session));
     assert(session.phase() == McsSessionPhase::Closed);
     assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
 }
@@ -381,6 +416,11 @@ int main(int argc, char **argv)
             testR3McsAdmissionContract();
             return 0;
         }
+        if (name == "gssapi-r3-native-change-revocation")
+        {
+            testR3NativeChangeRevocation();
+            return 0;
+        }
         return 2;
     };
     if (argc == 2)
@@ -396,5 +436,6 @@ int main(int argc, char **argv)
     testConsoleGssProvenanceBeforeOsRead();
     testNativeAdmissionCapabilityDenials();
     testR3McsAdmissionContract();
+    testR3NativeChangeRevocation();
     return 0;
 }

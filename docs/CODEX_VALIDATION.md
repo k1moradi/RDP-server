@@ -5551,6 +5551,37 @@ authorization integration under existing one-owner contracts.
 
 
 
+## R2 native-session-change R3 revocation callback (2026-10-16)
+
+**Authoring parent:** `aac9c86a17f7489a0523dc1ae4f0591b39b44817`. The R2->R3 Basic Settings handoff
+`70897645ed1f822c081747024a847a0928e18f15` already has exact-SHA hosted
+success in Actions 38873422752, and the later R3 follow-up restored its
+dedicated CTest registration on current main.
+
+This increment adds
+`LinuxConsoleAdmissionBroker::onNativeSessionChangeReady()`. It is a
+revocation-only event-loop hook for readiness on the concrete broker-owned
+logind monitor. `Changed` or `Unavailable` closes the sole R3
+`McsSessionLifecycle` before revoking R2/GSS; missing/unissued watch state
+takes the same terminal path. `None` is treated only as a spurious wake and
+does not replace the existing `authorizes()` check required before every
+protected R3 transition.
+
+**Dedicated CTest:** `security.gssapi-r3-native-change-revocation`, using
+no real Kerberos or login. It verifies missing-watch fail-closed behavior,
+R3 and licensing teardown, hidden native-fd state, GSS rejection and
+late/repeated callback replay denial. The existing
+`security.gssapi-r3-mcs-admission-contract` remains registered.
+
+**NOT RUN at authoring:** local single-root build/CTest (no checkout in this
+agent environment), exact-SHA hosted CI until publication, genuine positive
+Kerberos/TLS/native-logind admission followed by a real session-change
+event, R1 runtime disconnect composition, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27 and Microsoft client. Gate A/M2 remain
+**OPEN/NOT ACCEPTED**. **Next:** re-authorize the same admission/session
+generations immediately before R3 Connect Response write ownership and later
+protected transitions, and preserve R3 -> R2/GSS -> R1 teardown ordering.
+
 ## R2 Linux native admission lease boundary (2026-10-16)
 
 **Authoring parent:** `7f6d74b4ef9b03c86ecabc7c56af6f1de071ad07`. New production files:

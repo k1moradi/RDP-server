@@ -496,6 +496,31 @@ void LinuxConsoleAdmissionBroker::revokeR3Session(
     revoke(acceptor);
 }
 
+bool LinuxConsoleAdmissionBroker::onNativeSessionChangeReady(
+    GssapiSpnegoAcceptor &acceptor,
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    if (state_ != LinuxConsoleAdmissionState::Active ||
+        changes_ == nullptr)
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+
+    // The event loop observed readiness on the concrete broker-owned logind
+    // monitor. Reclassify it synchronously so provider failure is also a
+    // revocation event. None is only a spurious wake; it never authorizes use.
+    if (changes_->pollChange() == ConsoleSessionChange::None)
+    {
+        return true;
+    }
+
+    // Keep teardown ordering deterministic: R3 drops all protocol state before
+    // GSS/TLS-bound admission is invalidated. R1 may release TLS only later.
+    revokeR3Session(acceptor, session);
+    return false;
+}
+
 void LinuxConsoleAdmissionBroker::revoke(
     GssapiSpnegoAcceptor &acceptor) noexcept
 {

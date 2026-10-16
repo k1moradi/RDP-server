@@ -146,6 +146,15 @@ public:
         GssapiSpnegoAcceptor &acceptor,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
 
+    // Event-loop callback for readiness on nativeChangeFd(). A real logind
+    // change or monitor failure closes R3 first, then revokes R2/GSS. A
+    // spurious wake with no queued change leaves state untouched and grants
+    // no permission; the caller must still call authorizes() immediately
+    // before every later protected R3 transition.
+    [[nodiscard]] bool onNativeSessionChangeReady(
+        GssapiSpnegoAcceptor &acceptor,
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
     // Connection/R3 teardown path: terminally invalidates the capability and
     // clears the GSS context. Idempotent.
     void revoke(GssapiSpnegoAcceptor &acceptor) noexcept;

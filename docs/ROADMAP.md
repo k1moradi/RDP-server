@@ -5616,6 +5616,25 @@ active physical logind session is required. Owner Linux/X11, Windows MSYS2
 CLANG64/Clang23, macOS27 and Microsoft-client desktop remain **NOT RUN**.
 M2 remains **NOT ACCEPTED**.
 
+**R2 native-session-change revocation callback (2026-10-16; authoring
+parent `aac9c86a17f7489a0523dc1ae4f0591b39b44817`):** add `onNativeSessionChangeReady()` to the concrete
+Linux admission broker for event-loop readiness on the broker-owned logind
+monitor. A real session change or monitor failure closes the sole R3
+lifecycle first and then revokes R2/GSS; missing/unissued watch state is also
+terminal. A spurious wake leaves state unchanged but grants no authority:
+every later protected transition still requires fresh `authorizes()`.
+Dedicated Linux provider CTest
+`security.gssapi-r3-native-change-revocation` covers missing-watch
+fail-closed behavior, R3/licensing cleanup, GSS rejection and replay denial
+without fabricating a positive native lease.
+**NOT RUN at authoring:** local full CTest, exact-SHA hosted CI, genuine
+Kerberos/TLS admission followed by a real logind switch/logout, live R1
+disconnect composition, owner platform trio and Microsoft client.
+**Next R2:** require the same lease generations and fresh broker
+authorization immediately before R3 Connect Response publication and later
+Attach/Join/licensing transitions; outer runtime teardown must preserve
+R3 -> R2/GSS -> R1 TLS/socket ordering.
+
 **Next R3:** extend `AwaitConnectResponse` only after updating the existing
 Connect Response encoder for the real CredSSP/PROTOCOL_HYBRID settings replay
 and moving static-channel/node allocation into this same R3 owner. Require a

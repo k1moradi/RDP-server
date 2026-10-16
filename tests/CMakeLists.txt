@@ -220,6 +220,17 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
+    elseif(test_target STREQUAL "test_gfx_avc420_segmented_frame")
+        foreach(case_name IN ITEMS
+                avc420-segmented-frame-single
+                avc420-segmented-frame-multipart
+                avc420-segmented-frame-denials-reconnect
+                avc420-segmented-frame-delivery-ack)
+            add_test(NAME "graphics.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("graphics.${case_name}" PROPERTIES
+                LABELS "protocol;graphics;offline")
+        endforeach()
     elseif(test_target STREQUAL "test_gfx_segmented_data")
         foreach(case_name IN ITEMS
                 segmented-data-single
@@ -399,6 +410,7 @@ add_rdp_test(test_gfx_frame_acknowledge.cpp graphics frame-ack-wire)
 add_rdp_test(test_gfx_presentation_lifecycle.cpp graphics channel-lifecycle)
 add_rdp_test(test_gfx_avc420_picture.cpp graphics avc420-picture)
 add_rdp_test(test_gfx_segmented_data.cpp graphics segmented-data)
+add_rdp_test(test_gfx_avc420_segmented_frame.cpp graphics avc420-segmented-frame)
 if(TARGET rdp-server-linux-gssapi)
     add_rdp_test(test_linux_gssapi_spnego.cpp security linux-gssapi)
     target_link_libraries(test_linux_gssapi_spnego PRIVATE

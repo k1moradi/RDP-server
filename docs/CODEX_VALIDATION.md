@@ -1,3 +1,33 @@
+## R4 owned AVC420 segmented-frame handoff authoring (2026-10-16)
+
+**Starting shared main:** `0adc4682a85f6c1c888fdd03e7ecd72efd3ffe97`;
+publication is reconciled onto newer concurrent `main`. The newer baseline
+already contained the pinned static x264 R4 producer, so this increment
+implemented the roadmap fallback instead of duplicating it.
+
+**Production:** added `gfx_avc420_segmented_frame.{h,cpp}` to the portable
+R4 protocol target. The move-only `GfxAvc420SegmentedFrame` owns one complete
+RDP8 SINGLE/MULTIPART payload and keeps its lifecycle receipt private.
+Preparation calls the existing mapped-surface
+`GfxPresentationLifecycle::prepareAvc420Picture()`, then performs the
+existing segmented-data builder's exact in-place expansion. Full-delivery
+completion validates R3's outer byte count before publishing the existing
+inner frame receipt; abort delegates to the existing generation-revoking
+frame abort. No x264, DVC, scheduler, transport or authorization ownership is
+duplicated.
+
+**Dedicated CTests added:**
+`graphics.avc420-segmented-frame-single`,
+`graphics.avc420-segmented-frame-multipart`,
+`graphics.avc420-segmented-frame-denials-reconnect`, and
+`graphics.avc420-segmented-frame-delivery-ack`.
+
+**NOT RUN at authoring:** canonical CMake build/full CTest, hosted
+Linux/GCC, Windows/MSVC and macOS/Clang, owner Linux/X11, owner Windows MSYS2
+CLANG64/Clang23, owner macOS27, real R3 Graphics DVC, Microsoft client and
+performance. This environment has no owner checkout/build root. Exact-SHA
+GitHub Actions is the next automated gate. M3/Gate B remains **OPEN**.
+
 ## R10 Linux GSS/keytab provisioning authoring validation (2026-10-16)
 
 **Starting inspected main:** `1818324f3095069fe2597d9dd9469590fd47ab9b`.

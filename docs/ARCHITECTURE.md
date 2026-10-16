@@ -1,3 +1,21 @@
+### R4 stable segmented-frame handoff ownership (2026-10-16)
+
+`GfxAvc420SegmentedFrame` owns exactly one complete R4 outbound frame after
+RDP8 segmented-data framing. It is move-only and retains the contiguous wire
+bytes plus the private `GfxFrameDeliveryReceipt` created by the existing
+`GfxPresentationLifecycle`. Preparation composes, rather than replaces,
+`prepareAvc420Picture()` and `buildGfxSegmentedData()`; exact in-place
+expansion avoids a second large graphics copy.
+
+R3 remains the sole future owner of authenticated Graphics DVC routing,
+fragmentation, socket/TLS progress and the decision that all outer segmented
+bytes were delivered. R3 may borrow `wireBytes()` only while retaining the
+owning frame object. A successful full-send callback is translated back to
+the lifecycle's inner graphics-byte receipt before ACK publication. Partial
+or terminal send failure delegates to the existing lifecycle abort, revoking
+the generation. Neither the object nor its helpers can open a DVC, authorize
+capture, advance authentication or bypass R2/R3.
+
 ### R10 Linux runtime security provisioning ownership (2026-10-16)
 
 `LinuxRuntimeSecurityConfiguration` is a service-lifetime R10 owner, not a

@@ -103,6 +103,7 @@ add_library(rdp-server-protocol STATIC
     src/rdp/gfx_presentation_lifecycle.cpp
     src/rdp/gfx_avc420_picture.cpp
     src/rdp/gfx_segmented_data.cpp
+    src/rdp/gfx_avc420_segmented_frame.cpp
     src/rdp/verified_bitmap_cache16.cpp)
 target_compile_features(rdp-server-protocol PUBLIC cxx_std_23)
 # These are the same public include prefixes in both the checkout and

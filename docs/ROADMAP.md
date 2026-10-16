@@ -1,3 +1,50 @@
+## R4 owned AVC420 segmented-frame handoff (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main` for this convergence increment:
+`0adc4682a85f6c1c888fdd03e7ecd72efd3ffe97`; publication is reconciled
+onto the current shared `main`. A concurrent R4 publication already supplied
+the pinned static x264 producer, so this increment follows the roadmap's
+non-duplication fallback rather than adding a second encoder.
+
+New `GfxAvc420SegmentedFrame` is the single stable R4-owned handoff object
+between the existing mapped presentation lifecycle and future R3 Graphics DVC
+delivery. `prepareGfxAvc420SegmentedFrame()` first uses
+`GfxPresentationLifecycle::prepareAvc420Picture()` to serialize and reserve
+exactly one START_FRAME / AVC420 WIRE_TO_SURFACE / END_FRAME sequence, then
+expands that same contiguous buffer in place through
+`buildGfxSegmentedData()`. The object owns the resulting SINGLE or MULTIPART
+RDP8 segmented payload and keeps it stable across an asynchronous future R3
+write. It owns no encoder, channel, transport, scheduler or authorization
+state.
+
+The lifecycle receipt remains private inside the move-only object.
+`completeGfxAvc420SegmentedFrameDelivery()` accepts the actual outer
+segmented byte count reported by R3, requires exact full delivery, and only
+then translates to the existing inner graphics receipt so frame-ACK admission
+occurs at the established lifecycle boundary. Partial/fatal transport failure
+uses `abortGfxAvc420SegmentedFrameDelivery()`, which delegates to the
+existing terminal generation revocation. Stale generation objects cannot
+complete a newer presentation.
+
+Dedicated offline CTests:
+`graphics.avc420-segmented-frame-single`,
+`graphics.avc420-segmented-frame-multipart`,
+`graphics.avc420-segmented-frame-denials-reconnect`, and
+`graphics.avc420-segmented-frame-delivery-ack`. They cover stable owned
+SINGLE/MULTIPART payloads, outer/inner delivery-byte translation, ACK
+publication only after full delivery, ordinary rejection without reservation,
+reconnect staleness and terminal abort.
+
+**Authoring validation:** source-level construction complete; canonical
+repository build/CTest is **NOT RUN** in this tool environment because no
+owner checkout/build root is available. Exact-SHA hosted CI is required after
+publication. Real R3 authorized Graphics DVC, Microsoft-client rendering,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and performance remain
+**NOT RUN**. M3/Gate B remains **OPEN**. Next R4 step is R3 integration of
+this exact owned payload/full-send receipt boundary once R3 exposes the
+authenticated Graphics DVC authority; do not introduce another scheduler or
+authorization shortcut.
+
 ## R10 Linux explicit GSS/keytab and native identity-policy provisioning (2026-10-16; exact-SHA CI pending)
 
 Starting inspected `main`: `1818324f3095069fe2597d9dd9469590fd47ab9b`;

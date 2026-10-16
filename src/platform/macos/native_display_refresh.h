@@ -24,6 +24,11 @@ enum class NativeDisplayRefreshError : std::uint8_t {
 // mapping usable for a new input/capture operation.
 class NativeDisplayGeometryRefresh final {
 public:
+    NativeDisplayGeometryRefresh() noexcept = default;
+    NativeDisplayGeometryRefresh(const NativeDisplayGeometryRefresh&) = delete;
+    NativeDisplayGeometryRefresh& operator=(const NativeDisplayGeometryRefresh&) = delete;
+    NativeDisplayGeometryRefresh(NativeDisplayGeometryRefresh&&) = delete;
+    NativeDisplayGeometryRefresh& operator=(NativeDisplayGeometryRefresh&&) = delete;
     void invalidate() noexcept;
 
     [[nodiscard]] std::expected<std::uint64_t, NativeDisplayRefreshError>

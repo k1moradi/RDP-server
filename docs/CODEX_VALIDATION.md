@@ -5157,3 +5157,24 @@ targets, all clipboard tests and ten MCS/CredSSP cases.
 owner Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27,
 live Microsoft-client/OS admission/desktop. **Next:**
 check actual sanitizer test log for PASS or first failure.
+
+## R7 refresh-guard singular ownership and baseline CI startup (2026-10-16)
+
+**Code:** The `NativeDisplayGeometryRefresh` class is noncopyable and
+nonmovable; the existing `tests/test_macos_capture_pixel_buffer.cpp`
+contains `std::is_copy_constructible_v` and `std::is_move_constructible_v`
+compile-time checks. No native callback or runtime permission behavior was
+added. **PASS (partial Linux fixture):** reconfigured/build/CTest one-root
+GCC14.2 Debug **7/7**, including three new epoch behaviors.
+**Hosted baseline blockage:** [Actions 38850284552](https://github.com/k1moradi/RDP-server/actions/runs/38850284552)
+for implementation `19dd0e781bd558a2f9ebf4f3f76b5561d2e33e00`
+completed **FAIL, zero jobs**; the workflow blob on its parent was
+identical and contained TWO `publish-protocol-prerelease:` job keys.
+[Issue #13](https://github.com/k1moradi/RDP-server/issues/13)
+requests R9/R10 workflow syntax reconciliation. No R7 CMake/CTest
+compiler/test failure can be inferred from a zero-job Actions run.
+**NOT RUN:** corrected exact-SHA hosted full-repo CTest until the
+workflow is runnable; owner's macOS27 and CLANG64 Clang23 terminals;
+real ScreenCaptureKit/TCC, R2/R3 admission, client input and benchmarks.
+**Next:** obtain exact-SHA hosted validation once R9 fixes CI and add
+native user-authorized Quartz topology invalidation registration.

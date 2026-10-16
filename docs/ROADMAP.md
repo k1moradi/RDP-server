@@ -3076,6 +3076,19 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 refresh-owner hardening and CI startup (2026-10-16):**
+  The R7 geometry-epoch guard is explicitly noncopyable/nonmovable;
+  compile-time assertions in the existing test runner prevent duplicate
+  independent epoch owners. Sparse local GCC14.2 CMake CTest **7/7 PASS**
+  after this correction. The initial implementation SHA
+  `19dd0e781bd558a2f9ebf4f3f76b5561d2e33e00` triggered
+  [Actions 38850284552](https://github.com/k1moradi/RDP-server/actions/runs/38850284552)
+  **FAIL before any job was scheduled**, because the shared CI workflow
+  already defined `publish-protocol-prerelease` twice at the same YAML
+  job-map level on its parent (unchanged workflow blob). R9 tracking
+  [issue #13](https://github.com/k1moradi/RDP-server/issues/13).
+  **NOT RUN:** full repo hosted CTest on that exact SHA, owner macOS27,
+  Windows CLANG64 Clang23, Linux/X11, live desktop and benchmarks.
   **R7 topology epoch invalidation (2026-10-16):**
   `NativeDisplayGeometryRefresh` extends existing CoreGraphics read-only
   discovery plus `DesktopDisplayGeometry` with an explicit, bounded

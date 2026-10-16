@@ -18,9 +18,14 @@
 #include <cmath>
 #include <limits>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace {
+
+// A geometry epoch is singular within its native caller context.
+static_assert(!std::is_copy_constructible_v<rdp::macos::NativeDisplayGeometryRefresh>);
+static_assert(!std::is_move_constructible_v<rdp::macos::NativeDisplayGeometryRefresh>);
 
 #if defined(__APPLE__)
 void onPixelBufferReleased(void* const context, const void* const base_address) {

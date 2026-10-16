@@ -5831,3 +5831,12 @@ on synthetic fixtures, preserving native DACL restriction.
 **NOT RUN at authoring:** corrected exact-SHA hosted CI and
 owner's Linux/X11, Windows CLANG64/Clang23 and macOS27 runs;
 full RDP session/credential cryptography/M1–M6 acceptance OPEN.
+
+## R1 Darwin listener-role corrected hosted CI receipt (2026-10-15)
+
+**Original role/mode guard:** `6d5422f82dc9e644e8fa058e30e22deedb76bd84`
+([Actions 38857085837](https://github.com/k1moradi/RDP-server/actions/runs/38857085837)) **FAIL** macOS Debug: 15 accepted-socket CTests rejected valid Darwin listener because SO_ACCEPTCONN cannot be queried there.
+**Corrected R1 production + additional CTest:** [`c78a745aaa5180007a00a35a2858072974c2ad17`](https://github.com/k1moradi/RDP-server/commit/c78a745aaa5180007a00a35a2858072974c2ad17), [hosted Actions 38857769789](https://github.com/k1moradi/RDP-server/actions/runs/38857769789).
+**PASS:** Linux/GCC **252/252 Debug and Release**, macOS/AppleClang **234/234 Debug and Release**. Both named R1 CTests `transport.tcp-native-listener-role-and-mode-denials` and `transport.tcp-native-wrong-socket-type-denials` PASS in hosted Linux/macOS Debug and Release plus Windows/MSVC Debug. Documentation-policy and R9 security-protocol sanitizer PASS. Linux/macOS downstream installed SDK consumer PASS.
+**FAIL (unrelated R10):** Windows/MSVC full Debug **250/251**; only `runtime.validates-tls-files-private-regular` fails at `tests/check_runtime_entrypoint.cmake:317` (runtime exit status 3 versus expected 0), reported [Issue #14](https://github.com/k1moradi/RDP-server/issues/14). Windows Release and downstream SDK consumer **NOT RUN** because workflow stopped at Debug failure; do not infer Windows full-pass from the R1 cases.
+**Owner-local** Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS27 exact-head CTest **NOT RUN**. Live Microsoft RDP client, OS certificate/identity authorization, R3 channel/session and desktop **NOT RUN**. This is an R1 transport-precondition improvement, not M2 acceptance.

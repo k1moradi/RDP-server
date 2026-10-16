@@ -972,6 +972,28 @@ actually run; another parser CTest alone is not a complete session.
   Next: verify all hosted Debug+Release platforms before R10
   runtime listener integration.**
 
+  **R1 Darwin listener-role corrected exact-SHA CI receipt (2026-10-15):**
+  Original guard [`6d5422f82dc9e644e8fa058e30e22deedb76bd84`](https://github.com/k1moradi/RDP-server/commit/6d5422f82dc9e644e8fa058e30e22deedb76bd84)
+  exposed **FAIL** macOS Debug (15 accepted-socket tests) because Darwin
+  rejects `getsockopt(SO_ACCEPTCONN)` even though the macro is defined.
+  [Corrected implementation `c78a745aaa5180007a00a35a2858072974c2ad17`](https://github.com/k1moradi/RDP-server/commit/c78a745aaa5180007a00a35a2858072974c2ad17)
+  in [exact Actions 38857769789](https://github.com/k1moradi/RDP-server/actions/runs/38857769789):
+  **PASS Linux/GCC 252/252 Debug and Release**,
+  **PASS macOS/AppleClang 234/234 Debug and Release**;
+  both new `transport.tcp-native-listener-role-and-mode-denials` and
+  `transport.tcp-native-wrong-socket-type-denials` CTests PASS in
+  Windows/MSVC Debug as well. **FAIL Windows full Debug 250/251**:
+  only R10-owned `runtime.validates-tls-files-private-regular`
+  returned exit 3 instead of 0, tracked in
+  [R10 Issue #14](https://github.com/k1moradi/RDP-server/issues/14);
+  **Windows Release NOT RUN** due Debug failure.
+  Documentation-policy, R9 protocol sanitizers and installed SDK
+  consumer checks PASS where run. Owner-local Linux/X11,
+  Windows MSYS2 CLANG64 Clang23, macOS27 and live Microsoft
+  client, R2 authenticated identity/OS admission and R3 session
+  gates **NOT RUN**. Continue R10 listener/runtime integration
+  separately without duplicating R1 connection state authority.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

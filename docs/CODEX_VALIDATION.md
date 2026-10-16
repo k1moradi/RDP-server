@@ -1,3 +1,21 @@
+## R1 licensing slice exact-SHA validation (2026-10-16)
+
+**Implementation:** `92f60be80ee09ed907a65521637f5b25328f1fad`.
+**Actions:** `38918539498` — **SUCCESS**.
+
+`transport.tcp-owned-r3-license-request-slice` passes Linux/GCC
+444/444 Debug+Release, Windows/MSVC 400/400 Debug+Release, and
+macOS/AppleClang 371/371 Debug+Release. R9 ASan/UBSan runs the case in the
+bounded R1/R3 selection (28/36) and that selection passes 36/36.
+Documentation policy and all SDK consumer/package steps pass.
+
+The exact test verifies a genuine loopback TLS connection owned by
+`OwnedPreauthTcpConnection`, a production CSPRNG-backed
+`RdpServerLicenseRequestWriteGate`, forced short TLS progress, receipt/slice
+rotation, zero-byte WANT retention, exact peer plaintext parity and successful
+Server License Request reparsing. Production R1/R2/R3 sources remain
+unchanged. Owner-platform and live-client acceptance remain NOT RUN.
+
 ## R2 first client licensing intake exact-SHA validation (2026-10-16)
 
 **Implementation:** `eeac4cbdc51ca9e424d2bea1dae22d6f6580569f`.  

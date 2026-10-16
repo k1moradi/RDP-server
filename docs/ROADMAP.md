@@ -1,3 +1,31 @@
+## R1 R3 Server License Request slice exact-SHA hosted validation (2026-10-16)
+
+Implementation `92f60be80ee09ed907a65521637f5b25328f1fad`; Actions
+`38918539498` — **SUCCESS**.
+
+The new `transport.tcp-owned-r3-license-request-slice` production-backed
+compatibility case passes on every hosted configuration: Linux/GCC
+**444/444 Debug** and **444/444 Release**, Windows/MSVC **400/400 Debug** and
+**400/400 Release** after native preflight **44/44**, and macOS/AppleClang
+**371/371 Debug** and **371/371 Release**. The case ran as test 121 on all
+three platforms.
+
+R9 Clang ASan/UBSan also executes the new case inside the bounded R1/R3 group
+as test 28/36; that group passes **36/36**, and the complete sanitizer job
+passes. Documentation policy, staged SDK install, downstream consumer,
+packaging, digest and artifact upload all pass.
+
+This validates only the existing R1 TLS application-write compatibility with
+R3's bounded Server License Request receipt/slice owner. No R1 transport API,
+R2 admission authority, licensing cryptography, R3 session authority,
+listener, or Microsoft-client acceptance was added. Canonical owner-local
+Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS 27 commands remain
+**NOT RUN**. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+**Next R1:** no additional transport surface is justified unless later
+protected licensing/Share publication demonstrates a concrete bounded
+TCP/TLS gap.
+
 ## R2 first client licensing intake exact-SHA validation (2026-10-16)
 
 **Implementation:** `eeac4cbdc51ca9e424d2bea1dae22d6f6580569f`.  

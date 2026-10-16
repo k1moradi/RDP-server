@@ -5753,3 +5753,19 @@ UDP one-shot/batch/poll rejections plus bounded successful TCP handoff.
 **NOT RUN at authoring:** corrected exact-SHA CI, owner Windows
 MSYS2 CLANG64 Clang23, Linux/X11, macOS27, live credentials, R2/R3
 OS authorization/session and Microsoft client.
+
+## R10 TLS metadata initial CI/Windows file owner fixture (2026-10-15)
+
+**Parent main:** `c78a745aaa5180007a00a35a2858072974c2ad17`. First [Actions 38857433495](https://github.com/k1moradi/RDP-server/actions/runs/38857433495)
+ran R10 implementation `8a4f466c3bab9af155da623a54dba91b7cb7529d`.
+Linux full CI PASS, macOS R10 TLS-file CTests all PASS but
+15 native TCP accepts FAIL (R1-owned); Windows Debug R10 positive
+`runtime.validates-tls-files-private-regular` FAIL (3 rather
+than 0) while TLS negatives PASS. Provisional Windows issue:
+test-account SID may differ from automatic fixture owner SID,
+while production requires a private key's allow grants to refer
+to owner, SYSTEM or Administrators. Set owner via `icacls /setowner`
+on synthetic fixtures, preserving native DACL restriction.
+**NOT RUN at authoring:** corrected exact-SHA hosted CI and
+owner's Linux/X11, Windows CLANG64/Clang23 and macOS27 runs;
+full RDP session/credential cryptography/M1–M6 acceptance OPEN.

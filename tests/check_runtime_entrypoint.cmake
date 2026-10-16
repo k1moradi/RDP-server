@@ -225,6 +225,14 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
                     if(NOT acl_result STREQUAL "0")
                         message(FATAL_ERROR "Cannot set synthetic TLS-file ACL")
                     endif()
+                    # A runner account and auto-assigned file owner can be
+                    # distinct SIDs. The strict key checker requires identity.
+                    execute_process(COMMAND icacls.exe "${material}"
+                        /setowner "${runtime_account}"
+                        RESULT_VARIABLE owner_result OUTPUT_QUIET ERROR_QUIET)
+                    if(NOT owner_result STREQUAL "0")
+                        message(FATAL_ERROR "Cannot set synthetic TLS-file owner")
+                    endif()
                 endforeach()
             endif()
             if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-missing-certificate")

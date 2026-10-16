@@ -325,6 +325,21 @@ same-SHA command, external Microsoft client. M1–M6 remain open.
 Next R10: exact CI, full owner CTests, native parent-path/reparse
 and genuine private-key provisioning checks before any service.
 
+**R10 TLS-file initial CI owner-fixture correction (2026-10-15):**
+[Implementation 8a4f466c3bab9af155da623a54dba91b7cb7529d](https://github.com/k1moradi/RDP-server/commit/8a4f466c3bab9af155da623a54dba91b7cb7529d),
+[Actions 38857433495](https://github.com/k1moradi/RDP-server/actions/runs/38857433495):
+Linux full matrix PASS; macOS Debug 15 unrelated R1 TCP accept
+cases FAIL but every R10 TLS-file CTest PASS. Windows Debug
+246/247 PASS; the one failing R10 test is
+`runtime.validates-tls-files-private-regular` (exit 3). This
+test-only change explicitly sets each synthetic Windows TLS file's
+owner to the granted test-account SID via `icacls /setowner`.
+The precise Windows SID mismatch remains a hypothesis until verified
+by a passing exact-SHA run; production DACL restrictions are not
+weakened. R1 separately published a native accept correction.
+Owner 3-platform one-root CTest, real credentials and M1–M6
+acceptance remain NOT RUN / OPEN.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

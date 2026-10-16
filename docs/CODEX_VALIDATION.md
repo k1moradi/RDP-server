@@ -12022,3 +12022,40 @@ fast-user-switch notification delivery, genuine non-forgeable macOS R2/R3
 admission, live capture/input/cursor publication and Microsoft-client M5
 acceptance remain **NOT RUN/OPEN**. The R7 authority blocker is unchanged and
 **M5 remains OPEN/BLOCKED**.
+
+## R3 Server License Request receipt-fence exact-SHA validation (2026-10-16)
+
+**Implementation:** `c80febfbb0a46327d637b541bb10abf96cf77837`. **Actions:** `38910597009` — **SUCCESS**.
+
+The exact implementation SHA passed the complete hosted protocol matrix.
+Ubuntu/GCC full CTest is **428/428 PASS Debug** and **428/428 PASS Release**;
+macOS/Clang is **362/362 PASS Debug** and **362/362 PASS Release**;
+Windows/MSVC is **386/386 PASS Debug** and **386/386 PASS Release**, with
+the focused Windows native preflight **39/39 PASS** in both configurations.
+The three new production-linked R3 cases
+`transport.licensing-server-request-wire`,
+`transport.licensing-server-request-write-receipts`, and
+`transport.licensing-server-request-write-denials` each PASS in all six
+Debug/Release platform runs.
+
+The R9 Clang ASan/UBSan job is **PASS**: clipboard **46/46**, R4 x264/BGRA
+**18/18**, bounded R1/R3 transport/security/licensing **30/30**, native
+R2/R3 GSS **24/24**, R10 Linux CredSSP **4/4**, native R5 X11 **23/23**,
+and bounded fuzzer **1/1**. Its current bounded R1/R3 regex still selects the
+pre-existing licensing state/length/order cases but does **not** select the
+three new Server License Request cases, so sanitizer-specific execution of
+those three is **NOT RUN** and is not claimed.
+
+Documentation policy **PASS**. Installed SDK downstream consumer **1/1 PASS**
+and ZIP package creation/upload PASS on Linux, macOS, and Windows. No unrelated
+hosted failure is present on this exact R3 implementation SHA.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, genuine positive Kerberos/logind admission, and
+Microsoft-client licensing/Share/desktop acceptance remain **NOT RUN**.
+Production R3 still deliberately stops at `AwaitServerLicenseRequest`
+because no authoritative owner currently supplies CSPRNG server-random plus
+product/scope provisioning. The serializer and receipt fence are ready, but
+that missing provisioning/integration boundary prevents a standards-correct
+live request from being emitted. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

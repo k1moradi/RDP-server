@@ -154,6 +154,123 @@ X11DesktopResources::damageNotificationCount() const noexcept
     return valid() ? damage_->notificationCount() : 0;
 }
 
+bool
+X11DesktopResources::snapshotDamage(DamageRegion &damageRegion) noexcept
+{
+    damageRegion.clear();
+    if (!valid())
+    {
+        return false;
+    }
+    if (!damage_->snapshot(damageRegion))
+    {
+        const char *reason = damage_->failureReason();
+        damageRegion.clear();
+        fail(reason);
+        cancelNativeResources();
+        return false;
+    }
+    return true;
+}
+
+FramebufferView
+X11DesktopResources::capture(Rectangle rectangle) noexcept
+{
+    if (!valid())
+    {
+        return {};
+    }
+
+    const FramebufferView frame = capture_->capture(rectangle);
+    if (!frame.valid())
+    {
+        const char *reason = capture_->failureReason();
+        fail(reason);
+        cancelNativeResources();
+        return {};
+    }
+    return frame;
+}
+
+bool
+X11DesktopResources::cursorPending() const noexcept
+{
+    return valid() && cursor_->pending();
+}
+
+bool
+X11DesktopResources::refreshCursor() noexcept
+{
+    if (!valid())
+    {
+        return false;
+    }
+    if (!cursor_->pending())
+    {
+        return true;
+    }
+    if (!cursor_->refresh() || !cursor_->valid())
+    {
+        const char *reason = cursor_->failureReason();
+        fail(reason);
+        cancelNativeResources();
+        return false;
+    }
+    return true;
+}
+
+X11CursorImageView
+X11DesktopResources::cursorImage() const noexcept
+{
+    if (!valid() || !cursor_->hasImage())
+    {
+        return {};
+    }
+
+    X11CursorImageView view{
+        cursor_->pixels(),
+        cursor_->mask(),
+        cursor_->widthPixels(),
+        cursor_->heightPixels(),
+        cursor_->hotspotX(),
+        cursor_->hotspotY(),
+    };
+    return view.valid() ? view : X11CursorImageView{};
+}
+
+bool
+X11DesktopResources::takeCursorRefreshFailureWarning() noexcept
+{
+    return valid() && cursor_->takeRefreshFailureWarning();
+}
+
+const char *
+X11DesktopResources::cursorRefreshFailureReason() const noexcept
+{
+    return valid() ? cursor_->refreshFailureReason() : nullptr;
+}
+
+std::uint8_t
+X11DesktopResources::cursorRefreshErrorCode() const noexcept
+{
+    return valid() ? cursor_->refreshErrorCode() : 0;
+}
+
+bool
+X11DesktopResources::takeUnsupportedCursorWarning() noexcept
+{
+    return valid() && cursor_->takeUnsupportedCursorWarning();
+}
+
+void
+X11DesktopResources::acknowledgeCursor() noexcept
+{
+    if (valid())
+    {
+        cursor_->acknowledge();
+    }
+}
+
 ConnectionStatus
 X11DesktopResources::processEvents(std::size_t eventBudget,
                                   bool *workMayRemain,

@@ -109,8 +109,12 @@ an invalid unchecked core request to verify child-before-parent teardown.
 The RandR case disables only the synthetic Xvfb CRTC, resizes its root to
 1024x600 through XCB/RandR, verifies geometry-bound XShm/Damage/input
 reconstruction keeps the same XCB descriptor, then verifies a new XDamage
-notification is routed after the rebuild. None inject keyboard/mouse input
-or accesses a logged-in desktop.
+notification is routed after the rebuild. The
+`x11.desktop-resource-r4-read-boundary` case exercises the aggregate's real
+XShm capture, XDamage snapshot/acknowledgement and XFixes cursor
+refresh/image/ack path against the same ephemeral synthetic display. Borrowed
+frame/cursor views are consumed synchronously before teardown. None inject
+keyboard/mouse input or accesses a logged-in desktop.
 
 Hosted Ubuntu installs `xvfb` and `xauth`; local absence means those
 optional synthetic-display cases are NOT RUN, not PASS. The normal one-root

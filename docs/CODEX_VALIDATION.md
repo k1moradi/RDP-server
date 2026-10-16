@@ -7655,3 +7655,37 @@ remain **NOT RUN**. M2 remains **NOT ACCEPTED**.
 **Next R1 dependency:** R3 may consume this immutable replay provenance
 together with fresh R2 authorization; add no further R1 transport surface
 unless that integration demonstrates another concrete missing hook.
+
+## R5 synchronous R4 native read boundary (2026-10-16; CI pending)
+
+**Authoring main:** `c09e581ac965e79ce700ef4617a0af6d2b04adba`.
+
+**Production:** `X11DesktopResources` remains the only native X11 resource
+owner and now provides synchronous wrappers over its existing XShm, XDamage
+and XFixes children. `capture(Rectangle)` returns a borrowed
+`FramebufferView`; `snapshotDamage(DamageRegion&)` copies and acknowledges
+the bounded pending region; cursor APIs expose pending state, refresh, borrowed
+image/mask spans, retryable refresh diagnostics and explicit acknowledgement.
+No queue, frame clock, R4 scheduler, authorization cache or second native
+connection is introduced. A hard child failure during these reads enters the
+existing ordered full-owner cancellation path.
+
+Borrowed XShm bytes are valid only until another capture, RandR rebuild or
+disconnect. Borrowed cursor bytes are valid only until another cursor refresh
+or disconnect. Callers must consume them synchronously on the serialized XCB
+owner thread. This boundary is still noninstalled and not linked into the
+runtime, and it does not prove R2/R3 admission or visible RDP graphics.
+
+**Dedicated ordinary CTest:** `x11.desktop-resource-r4-read-boundary` runs
+under ephemeral 1280x720x24 Xvfb. It captures a 32x16 root rectangle through
+the real XShm adapter, triggers a checked synthetic-root update, drains the
+production event route and snapshots the resulting XDamage region, refreshes
+and reads the initial XFixes cursor before acknowledging it, then disconnects
+and verifies capture/Damage/cursor reads fail closed. It never injects
+keyboard/mouse input or accesses a logged-in desktop.
+
+**NOT RUN at authoring:** local one-root native build/full CTest in this
+environment, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23 and macOS27 commands, genuine R2/R3 admitted desktop,
+R4 client delivery, live XTEST input, Microsoft-client M3 acceptance and
+performance benchmarks.

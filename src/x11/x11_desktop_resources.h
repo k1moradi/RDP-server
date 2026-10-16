@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
+#include <span>
 #include <string_view>
 
 #include "x11_cursor_tracker.h"
@@ -12,6 +14,38 @@
 #include "x11_display_connection.h"
 #include "x11_input_controller.h"
 #include "x11_shared_memory_capture.h"
+
+struct X11CursorImageView final
+{
+    std::span<const std::byte> pixels{};
+    std::span<const std::byte> mask{};
+    std::uint32_t widthPixels{};
+    std::uint32_t heightPixels{};
+    std::int32_t hotspotX{};
+    std::int32_t hotspotY{};
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        if (widthPixels == 0 || heightPixels == 0 ||
+            hotspotX < 0 || hotspotY < 0 ||
+            static_cast<std::uint32_t>(hotspotX) >= widthPixels ||
+            static_cast<std::uint32_t>(hotspotY) >= heightPixels)
+        {
+            return false;
+        }
+        const std::uint64_t area =
+            static_cast<std::uint64_t>(widthPixels) * heightPixels;
+        if (area > std::numeric_limits<std::size_t>::max() / 4U)
+        {
+            return false;
+        }
+        const std::size_t pixelBytes =
+            static_cast<std::size_t>(area) * 4U;
+        const std::size_t maskBytes =
+            static_cast<std::size_t>(area / 8U + (area % 8U != 0 ? 1U : 0U));
+        return pixels.size() >= pixelBytes && mask.size() >= maskBytes;
+    }
+};
 
 /**
  * Own one Linux/X11 native desktop resource set under one XCB connection.
@@ -45,6 +79,21 @@ public:
     [[nodiscard]] bool randrAvailable() const noexcept;
     [[nodiscard]] bool damagePending() const noexcept;
     [[nodiscard]] std::uint64_t damageNotificationCount() const noexcept;
+
+    // Synchronous R4-facing reads. Framebuffer/cursor spans borrow storage
+    // owned by this aggregate and are valid only until the next corresponding
+    // refresh/capture, RandR rebuild, or disconnect. These methods schedule
+    // nothing and confer no R2/R3 authorization.
+    [[nodiscard]] bool snapshotDamage(DamageRegion &damageRegion) noexcept;
+    [[nodiscard]] FramebufferView capture(Rectangle rectangle) noexcept;
+    [[nodiscard]] bool cursorPending() const noexcept;
+    [[nodiscard]] bool refreshCursor() noexcept;
+    [[nodiscard]] X11CursorImageView cursorImage() const noexcept;
+    [[nodiscard]] bool takeCursorRefreshFailureWarning() noexcept;
+    [[nodiscard]] const char *cursorRefreshFailureReason() const noexcept;
+    [[nodiscard]] std::uint8_t cursorRefreshErrorCode() const noexcept;
+    [[nodiscard]] bool takeUnsupportedCursorWarning() noexcept;
+    void acknowledgeCursor() noexcept;
 
     /**
      * Route one bounded batch of XCB events to the owned cursor/damage

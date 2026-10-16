@@ -3658,6 +3658,30 @@ actually run; another parser CTest alone is not a complete session.
   input; R4 capture/cursor consumption; Microsoft-client M3 acceptance;
   performance benchmarks. M3 remains OPEN.
 
+  **R5 synchronous R4 native read boundary (2026-10-16; based on main
+  `c09e581ac965e79ce700ef4617a0af6d2b04adba`; exact-SHA CI pending):** Keep `X11DesktopResources` as the
+  sole native lifetime/event owner and expose synchronous pass-through reads
+  for the existing R4 scheduler: bounded XShm rectangle capture, XDamage
+  snapshot/acknowledgement, and XFixes cursor pending/refresh/image/ack state.
+  Returned frame and cursor spans remain borrowed from the aggregate and may
+  not survive another capture/refresh, RandR generation replacement or
+  disconnect. Capture/Damage/hard cursor child failure revokes the whole
+  native owner rather than letting R4 consume a degraded partial source;
+  retryable cursor diagnostics remain queryable without a second controller.
+  Add ordinary Xvfb CTest `x11.desktop-resource-r4-read-boundary` that uses
+  the real production aggregate to capture a bounded synthetic-root rectangle,
+  routes and snapshots XDamage, refreshes/reads/acknowledges the initial
+  XFixes cursor, then verifies all reads fail closed after disconnect.
+  No scheduling, R2/R3 authorization decision, protected desktop access or
+  input injection is added.
+  **NOT RUN at authoring:** synchronized local native build/full CTest,
+  exact-SHA hosted CI, owner Linux/X11, Windows CLANG64/Clang23, macOS27,
+  genuine admitted desktop/R4 delivery, live input, Microsoft client and
+  benchmarks. **Next R5:** bind the existing typed XTEST adapter only behind
+  the concrete R3-authorized admitted-session boundary and invalidate that
+  path on admission-generation/session revocation; do not create another
+  input or session controller. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

@@ -208,6 +208,20 @@ screen-change boundary so queued events are drained only after the new
 generation is complete. R4 still owns frame/cursor scheduling and R3 still
 owns authorized input routing.
 
+The aggregate also exposes the synchronous native read boundary that R4 can
+consume without gaining ownership of any X11 object: `snapshotDamage()`
+copies the current bounded XDamage rectangles into a caller-owned
+`DamageRegion`, `capture()` returns one borrowed XShm `FramebufferView`,
+and the cursor methods expose pending/refresh/image/ack state from the existing
+XFixes tracker. Framebuffer bytes remain valid only until the next capture,
+RandR rebuild or disconnect; cursor spans remain valid only until the next
+cursor refresh or disconnect. Native child failure during capture, Damage
+acknowledgement or cursor refresh revokes the aggregate instead of leaving R4
+with a partially failed source. Retryable cursor-image query diagnostics remain
+available through the same owner. These calls do not schedule frames, retain
+borrowed views, authorize a desktop or inject input: R4 remains the sole
+graphics scheduler and R2/R3 remain the admission/input authorities.
+
 A dispatch/protocol failure invalidates `X11DisplayConnection` readiness but
 does not immediately free its XCB allocation. The aggregate therefore gets a
 deterministic child-before-parent cancellation window even when the event

@@ -225,6 +225,78 @@ syntheticXvfbEventRouting()
 }
 
 void
+syntheticXvfbR4ReadBoundary()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    assert(resources.valid());
+
+    // R4 may synchronously borrow one bounded BGRX capture from the existing
+    // XShm arena; no frame scheduler or persistent framebuffer owner is added.
+    const FramebufferView frame = resources.capture({0, 0, 32, 16});
+    assert(frame.valid());
+    assert(frame.widthPixels == 32);
+    assert(frame.heightPixels == 16);
+    assert(frame.strideBytes == 32U * 4U);
+    assert(frame.pixels.size() == frame.strideBytes * frame.heightPixels);
+    assert(resources.valid());
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+    clearSyntheticRoot(*helper, helperScreen->root);
+
+    bool routedDamage = false;
+    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(8, &workMayRemain, true) ==
+               ConnectionStatus::Ok);
+        if (resources.damagePending())
+        {
+            routedDamage = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(routedDamage);
+
+    DamageRegion damage;
+    assert(resources.snapshotDamage(damage));
+    assert(!damage.rectangles().empty());
+    assert(damage.intersects({0, 0, 32, 32}));
+    assert(!resources.damagePending());
+    DamageRegion emptyDamage;
+    assert(resources.snapshotDamage(emptyDamage));
+    assert(emptyDamage.rectangles().empty());
+
+    // XFixes starts pending so R4 can fetch the initial cursor exactly once.
+    assert(resources.cursorPending());
+    assert(resources.refreshCursor());
+    assert(resources.cursorRefreshFailureReason() == nullptr);
+    assert(resources.cursorRefreshErrorCode() == 0);
+    assert(!resources.takeCursorRefreshFailureWarning());
+    assert(!resources.takeUnsupportedCursorWarning());
+
+    const X11CursorImageView cursor = resources.cursorImage();
+    assert(cursor.valid());
+    assert(cursor.widthPixels == 32);
+    assert(cursor.heightPixels == 32);
+    assert(cursor.pixels.size() >= 32U * 32U * 4U);
+    assert(cursor.mask.size() >= 32U * 32U / 8U);
+    resources.acknowledgeCursor();
+    assert(!resources.cursorPending());
+
+    // Borrowed views must be consumed before owner teardown.
+    resources.disconnect();
+    assert(!resources.valid());
+    assert(!resources.snapshotDamage(damage));
+    assert(!resources.capture({0, 0, 1, 1}).valid());
+    assert(!resources.refreshCursor());
+    assert(!resources.cursorImage().valid());
+}
+
+void
 syntheticXvfbRandrRebuild()
 {
     const char *display = syntheticDisplay();
@@ -311,6 +383,11 @@ main(int argc, char **argv)
     if (behavior == "randr-rebuild")
     {
         syntheticXvfbRandrRebuild();
+        return 0;
+    }
+    if (behavior == "r4-read-boundary")
+    {
+        syntheticXvfbR4ReadBoundary();
         return 0;
     }
 

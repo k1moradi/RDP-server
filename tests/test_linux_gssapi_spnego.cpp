@@ -1217,6 +1217,207 @@ void testR3ProtectedChannelJoinContract()
     assert(!unadmitted.channelJoinConfirmed(1003U));
 }
 
+void testR3ChannelJoinTerminalReplayFence()
+{
+    using Gate = rdp_server::server::transport::McsChannelJoinWriteGate;
+    using StartOutcome = rdp_server::server::transport::McsJoinStartOutcome;
+    using WriteOutcome = rdp_server::server::transport::McsJoinWriteOutcome;
+    using rdp_server::server::transport::parseMcsChannelRequest;
+
+    constexpr std::array<std::uint8_t, 12> validJoin{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x01, 0x03, 0xeb};
+    auto changedIdentityJoin = validJoin;
+    changedIdentityJoin[9] = 0x02;
+    auto unassignedJoin = validJoin;
+    unassignedJoin[10] = 0x03;
+    unassignedJoin[11] = 0xee;
+    const auto truncatedJoin = std::span(validJoin).first(6);
+
+    const auto parsedJoin = parseMcsChannelRequest(validJoin);
+    const auto parsedChangedIdentity =
+        parseMcsChannelRequest(changedIdentityJoin);
+    const auto parsedUnassigned = parseMcsChannelRequest(unassignedJoin);
+    assert(parsedJoin);
+    assert(parsedChangedIdentity);
+    assert(parsedUnassigned);
+    assert(parsedChangedIdentity.request.initiator !=
+           parsedJoin.request.initiator);
+    assert(parsedUnassigned.request.channelId != parsedJoin.request.channelId);
+    assert(!parseMcsChannelRequest(truncatedJoin));
+
+    // The standalone production write gate is bookkeeping, not authority.
+    // Retire one real pending reply so its copied receipt values can be
+    // replayed against R2/R3 without fabricating an admission lease.
+    constexpr std::array<std::uint16_t, 3> assignedChannels{
+        1002U, 1003U, 1004U};
+    Gate retiredGate;
+    assert(retiredGate.configure(1002U, assignedChannels));
+    assert(retiredGate.beginJoin(parsedJoin.request) ==
+           StartOutcome::ReplyPending);
+    const auto retiredReplySequence = retiredGate.pendingReplySequence();
+    const auto retiredSliceSequence = retiredGate.pendingWriteSliceSequence();
+    const auto retiredResponse = retiredGate.pendingBytes();
+    assert(retiredReplySequence != 0U);
+    assert(retiredSliceSequence != 0U);
+    assert(retiredResponse.size() == 15U);
+    assert(!retiredGate.channelJoinConfirmed(1002U));
+    assert(!retiredGate.channelJoinConfirmed(1003U));
+    assert(!retiredGate.channelJoinConfirmed(1004U));
+    retiredGate.close();
+    assert(retiredGate.pendingBytes().empty());
+    assert(!retiredGate.channelJoinConfirmed(1002U));
+    assert(!retiredGate.channelJoinConfirmed(1003U));
+    assert(!retiredGate.channelJoinConfirmed(1004U));
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+
+    const auto expectProtectedCompletionDenial =
+        [&](std::uint64_t replySequence,
+            std::uint64_t writeSliceSequence,
+            std::size_t acceptedBytes)
+    {
+        GssapiSpnegoAcceptor acceptor;
+        LinuxConsoleAdmissionBroker broker(policy);
+        McsSessionLifecycle session;
+        OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+        assert(broker.completeR3ChannelJoinConfirmWrite(
+                   nullptr, acceptor, connection, session,
+                   replySequence, writeSliceSequence, acceptedBytes) ==
+               WriteOutcome::Rejected);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+        assert(session.allocatedUserId() == 0U);
+        assert(session.allocatedIoChannelId() == 0U);
+        assert(session.allocatedStaticChannelIds().empty());
+        assert(session.pendingJoinConfirmation().empty());
+        assert(!session.channelJoinConfirmed(1002U));
+        assert(!session.channelJoinConfirmed(1003U));
+        assert(!session.channelJoinConfirmed(1004U));
+        assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+        assert(acceptor.stage() == SpnegoStage::Failed);
+    };
+
+    // Guessed, zero, stale, mismatched and impossible completion reports all
+    // fail at the protected completion boundary before integers can become
+    // authority.
+    expectProtectedCompletionDenial(0U, 0U, 0U);
+    expectProtectedCompletionDenial(
+        retiredReplySequence, retiredSliceSequence, 1U);
+    expectProtectedCompletionDenial(
+        retiredReplySequence + 1U, retiredSliceSequence, 1U);
+    expectProtectedCompletionDenial(
+        retiredReplySequence, retiredSliceSequence + 1U, 1U);
+    expectProtectedCompletionDenial(
+        retiredReplySequence, retiredSliceSequence, 16U);
+
+    // One owner stays terminal after the first denial. Neither repeated write
+    // completion nor late valid/malformed/changed Join input can revive it.
+    GssapiSpnegoAcceptor terminalAcceptor;
+    LinuxConsoleAdmissionBroker terminalBroker(policy);
+    McsSessionLifecycle terminalSession;
+    OwnedPreauthTcpConnection terminalConnection{OwnedNativeTcpSocket{}};
+    assert(terminalBroker.completeR3ChannelJoinConfirmWrite(
+               nullptr, terminalAcceptor, terminalConnection, terminalSession,
+               retiredReplySequence, retiredSliceSequence, 1U) ==
+           WriteOutcome::Rejected);
+    assert(terminalBroker.completeR3ChannelJoinConfirmWrite(
+               nullptr, terminalAcceptor, terminalConnection, terminalSession,
+               UINT64_MAX, UINT64_MAX, 15U) ==
+           WriteOutcome::Rejected);
+    for (const auto packet : {
+             std::span<const std::uint8_t>{validJoin},
+             std::span<const std::uint8_t>{validJoin},
+             truncatedJoin,
+             std::span<const std::uint8_t>{unassignedJoin},
+             std::span<const std::uint8_t>{changedIdentityJoin}})
+    {
+        assert(terminalSession.onDomainPdu(packet) ==
+               McsSessionIntake::Closed);
+    }
+    assert(terminalSession.pendingJoinConfirmation().empty());
+    assert(!terminalSession.channelJoinConfirmed(1003U));
+    assert(terminalSession.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(terminalBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(terminalAcceptor.stage() == SpnegoStage::Failed);
+
+    // Explicit disconnect before a late callback is the same terminal fence.
+    GssapiSpnegoAcceptor disconnectedAcceptor;
+    LinuxConsoleAdmissionBroker disconnectedBroker(policy);
+    McsSessionLifecycle disconnectedSession;
+    OwnedPreauthTcpConnection disconnectedConnection{OwnedNativeTcpSocket{}};
+    disconnectedBroker.revokeR3Session(
+        disconnectedAcceptor, disconnectedSession);
+    assert(disconnectedBroker.completeR3ChannelJoinConfirmWrite(
+               nullptr, disconnectedAcceptor, disconnectedConnection,
+               disconnectedSession, retiredReplySequence,
+               retiredSliceSequence, 15U) == WriteOutcome::Rejected);
+    assert(disconnectedSession.onDomainPdu(validJoin) ==
+           McsSessionIntake::Closed);
+    assert(disconnectedSession.pendingJoinConfirmation().empty());
+    assert(disconnectedSession.licensingPhase() ==
+           RdpLicensingPhase::Closed);
+
+    // Replacing only R3 cannot inherit authority from the already revoked R2
+    // broker/GSS owner, even when an old receipt is replayed.
+    McsSessionLifecycle replacementSession;
+    assert(terminalBroker.completeR3ChannelJoinConfirmWrite(
+               nullptr, terminalAcceptor, terminalConnection,
+               replacementSession, retiredReplySequence,
+               retiredSliceSequence, 15U) == WriteOutcome::Rejected);
+    assert(replacementSession.phase() == McsSessionPhase::Closed);
+    assert(replacementSession.pendingJoinConfirmation().empty());
+    assert(!replacementSession.channelJoinConfirmed(1003U));
+
+    // A completely fresh owner set also rejects receipt integers copied from
+    // an independent production gate. Matching syntax and plausible receipt
+    // values are insufficient without genuine R1/R2 authorization.
+    Gate independentGate;
+    assert(independentGate.configure(1002U, assignedChannels));
+    assert(independentGate.beginJoin(parsedJoin.request) ==
+           StartOutcome::ReplyPending);
+    const auto independentReplySequence =
+        independentGate.pendingReplySequence();
+    const auto independentSliceSequence =
+        independentGate.pendingWriteSliceSequence();
+    const auto independentBytes = independentGate.pendingBytes().size();
+    GssapiSpnegoAcceptor freshAcceptor;
+    LinuxConsoleAdmissionBroker freshBroker(policy);
+    McsSessionLifecycle freshSession;
+    OwnedPreauthTcpConnection freshConnection{OwnedNativeTcpSocket{}};
+    assert(freshBroker.completeR3ChannelJoinConfirmWrite(
+               nullptr, freshAcceptor, freshConnection, freshSession,
+               independentReplySequence, independentSliceSequence,
+               independentBytes) == WriteOutcome::Rejected);
+    assert(freshSession.phase() == McsSessionPhase::Closed);
+    assert(freshSession.pendingJoinConfirmation().empty());
+    assert(!freshSession.channelJoinConfirmed(1003U));
+    assert(freshBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(freshAcceptor.stage() == SpnegoStage::Failed);
+    independentGate.close();
+
+    // Caller-supplied generation guesses remain revocation-only in another
+    // fresh R3 object and cannot bootstrap a later copied completion.
+    GssapiSpnegoAcceptor guessedAcceptor;
+    LinuxConsoleAdmissionBroker guessedBroker(policy);
+    McsSessionLifecycle guessedSession;
+    OwnedPreauthTcpConnection guessedConnection{OwnedNativeTcpSocket{}};
+    guessedSession.revokeUnlessAdmissionBindingMatches(41U, 43U);
+    assert(guessedSession.phase() == McsSessionPhase::Closed);
+    assert(guessedBroker.completeR3ChannelJoinConfirmWrite(
+               nullptr, guessedAcceptor, guessedConnection, guessedSession,
+               retiredReplySequence, retiredSliceSequence, 0U) ==
+           WriteOutcome::Rejected);
+    assert(guessedSession.pendingJoinConfirmation().empty());
+    assert(guessedSession.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(guessedBroker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(guessedAcceptor.stage() == SpnegoStage::Failed);
+}
+
 void testR3JoinedClipboardRoleContract()
 {
     // The only positive role observation takes a concrete R2 lease, original
@@ -1487,6 +1688,11 @@ int main(int argc, char **argv)
             testR3ProtectedChannelJoinContract();
             return 0;
         }
+        if (name == "gssapi-r3-channel-join-terminal-replay-fence")
+        {
+            testR3ChannelJoinTerminalReplayFence();
+            return 0;
+        }
         if (name == "gssapi-r3-joined-clipboard-role-contract")
         {
             testR3JoinedClipboardRoleContract();
@@ -1527,6 +1733,7 @@ int main(int argc, char **argv)
     testR3AttachUserContract();
     testR3AttachUserTerminalReplayFence();
     testR3ProtectedChannelJoinContract();
+    testR3ChannelJoinTerminalReplayFence();
     testR3JoinedClipboardRoleContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();

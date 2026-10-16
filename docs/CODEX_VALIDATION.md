@@ -1,3 +1,51 @@
+## R9 Channel Join terminal replay authoring verification (2026-10-16)
+
+**Initial inspected main:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`.
+**Reconciled publication parent:** `9938faf3a54682b76e2d925e354f728a32981b65`.
+
+Static/source review confirms the missing R9 contract is terminal
+Channel Join completion/input replay across revocation and owner replacement,
+not another positive R3 transition. The new registered Linux CTest
+`security.gssapi-r3-channel-join-terminal-replay-fence` reuses
+`test_linux_gssapi_spnego` and actual production
+`GssapiSpnegoAcceptor`, `LinuxConsoleAdmissionBroker`,
+`OwnedPreauthTcpConnection`, `McsSessionLifecycle` and
+`McsChannelJoinWriteGate`. It uses no fabricated admission lease or
+successful GSS/native identity. Existing transport tests remain the independent
+receipt-arithmetic oracle, so no duplicate transport test is added.
+
+The single R9 sanitizer regex is extended to execute the new replay fence and
+the subsequently registered R3
+`security.gssapi-r3-joined-clipboard-role-contract`; all ASan/UBSan/LSan
+scope and the MIT-krb5 failure-path suppression remain unchanged.
+
+Historical exact-SHA verification was rechecked. Actions `38894157254` for
+R9 baseline `f1a6dc4c45030daa7fdc47ad4935a6dd46319d3e` has Linux/GCC
+**362/362 PASS** Debug+Release, macOS/Clang **310/310 PASS** Debug+Release,
+R9 sanitizer PASS, documentation policy PASS, Windows focused native-adapter
+**35/35 PASS** Debug+Release, and Windows full Debug **332/334** with only the
+two R10 TLS-context/OpenSSL failures. Overall workflow is therefore not called
+green.
+
+Actions `38894475826` for R1 CredSSP owner seam
+`e476ab5b2dd96a6595d3bfe3ac597ffe14965141` shows the sanitizer actually
+ran `transport.credssp-r1-owned-framing` and
+`transport.credssp-r1-owned-reply` as tests 123/124 inside a **22/22 PASS**
+selection. Linux ran both in Debug+Release (**364/364 PASS** each). macOS
+Debug passed both in **312/312**; Release reran both but the framing case
+aborted while reply passed. Windows Debug passed both before the unrelated
+R10 runtime TLS-context pair failed, so its Release/package stages were
+**NOT RUN**. Current source assertions independently cover owner substitution,
+raw-SSL downgrade and cancellation without stale SSL/certificate reuse.
+
+**Authoring execution:** the mandated
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+is **NOT RUN** here because `~/rdp-server` is not mounted and shell DNS cannot
+reach GitHub. No alternate build root/worktree/branch was created. Exact
+publication-SHA hosted matrix, sanitizer and package/consumer evidence is
+**PENDING**. Real KDC/client-ticket, logind admission, Microsoft-client and
+desktop acceptance remain **NOT RUN**; M2/M3 stay **OPEN**.
+
 ## R1 macOS Release CredSSP timing-fixture correction (2026-10-16)
 
 **Trigger:** exact HYBRID run `38896489005` on

@@ -1,3 +1,73 @@
+## R9 Channel Join terminal replay fence + cross-road CI verification (2026-10-16; exact-SHA CI pending)
+
+**Initial inspected main:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`.
+**Publication parent after concurrent reconciliation:** `9938faf3a54682b76e2d925e354f728a32981b65`.
+R9 independently rechecked the R3 protected Channel Join boundary, the
+production `McsChannelJoinWriteGate`, the central CTest registry, the single
+R9 sanitizer workflow and the R1-owned CredSSP transport seam. No R2 lease,
+successful GSS identity, HYBRID/NLA admission or logind authorization is
+fabricated.
+
+The existing transport regressions already cover zero-byte WANT retention,
+positive partial delivery with write-slice rotation, stable pending suffixes,
+duplicate/stale receipt rejection, overreported byte counts, pending-reply
+disconnect/replacement, no membership before complete confirmation, bounded
+single-writer queuing and old-receipt rejection on later joins. Therefore R9
+adds no redundant transport CTest.
+
+The distinct new Linux production-backed CTest is
+`security.gssapi-r3-channel-join-terminal-replay-fence`, dispatched by the
+existing `test_linux_gssapi_spnego` executable. It drives the real
+`LinuxConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite`,
+`GssapiSpnegoAcceptor`, `OwnedPreauthTcpConnection` and sole
+`McsSessionLifecycle`. Null-lease completion attempts with zero, stale,
+changed reply/slice and impossible byte counts close R3, licensing, R2 and
+GSS; repeated completion, late valid/repeated/malformed/unassigned/changed
+Join input, explicit disconnect, R3-only replacement and a completely fresh
+owner set cannot revive membership. A standalone production
+`McsChannelJoinWriteGate` supplies real pending receipt values only as
+non-authoritative bookkeeping and is explicitly retired before replay.
+
+Exact-SHA baseline `f1a6dc4c45030daa7fdc47ad4935a6dd46319d3e`,
+Actions `38894157254`, remains overall **FAIL** only because Windows full
+Debug is **332/334** on the two R10 TLS-context/OpenSSL tests; Linux/GCC is
+**362/362 PASS** Debug and Release, macOS/Clang **310/310 PASS** Debug and
+Release, documentation policy PASS, Windows focused native-adapter Debug and
+Release **35/35 PASS**, and the R9 sanitizer groups PASS at clipboard 31,
+R1/R3 transport/security 20, native GSS/R2/R3 15, authorized X11 input 1 and
+bounded fuzzer 1.
+
+R1-owned CredSSP exact commit
+`e476ab5b2dd96a6595d3bfe3ac597ffe14965141`, Actions `38894475826`,
+proves both `transport.credssp-r1-owned-framing` and
+`transport.credssp-r1-owned-reply` are centrally registered, built through
+`test_owned_preauth_session`, matched by the sanitizer regex and actually
+executed there as tests 123/124 in a **22/22 PASS** selected group. Linux ran
+both in Debug and Release within **364/364 PASS**. macOS Debug ran and passed
+both within **312/312 PASS**; Release reran both, with only the framing case
+failing at that SHA while reply passed. Windows Debug ran and passed both,
+then the two R10 runtime TLS-context tests failed, so Windows Release and SDK
+downstream stages were **NOT RUN**. Source inspection confirms owner
+substitution, direct/raw SSL downgrade and post-cancel stale SSL/certificate
+use are denied; no synthetic successful GSS/native admission is introduced.
+
+The existing R9 sanitizer job now also selects this new replay fence and the
+current R3 `security.gssapi-r3-joined-clipboard-role-contract`, which was
+registered after the prior 15-test native GSS selection but omitted by its
+regex. ASan+UBSan halt-on-error, leak detection, the MIT-krb5 LSan suppression
+scoped only to the native GSS step, Xvfb behavior, deterministic fixtures and
+the one build root remain unchanged.
+
+**Authoring validation:** canonical `~/rdp-server/build/` configure/build,
+focused CTest, full CTest and local sanitizer execution are **NOT RUN** because
+this execution environment has no mounted owner checkout and shell GitHub DNS
+is unavailable; no second build root was created. Exact-publication-SHA
+Linux/GCC, Windows/MSVC, macOS/Clang, R9 sanitizer, documentation-policy and
+SDK consumer/package jobs are **PENDING**. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23 and macOS27, real Kerberos/logind admission, Microsoft-client
+authentication and desktop acceptance remain **NOT RUN**. M2/M3 remain
+**OPEN**.
+
 ## R1 HYBRID exact-SHA hosted receipt and CredSSP fixture follow-up (2026-10-16)
 
 R1 HYBRID implementation `611c10b6973b077aeb515c75485ca39384159aa0`,

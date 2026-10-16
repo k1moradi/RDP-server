@@ -5368,3 +5368,35 @@ fuzzing, live authenticated Microsoft-client/session
 and desktop/clipboard. M1–M6 remain OPEN.
 **Next:** authorized R3→R8 routing and disconnect
 regression upon real production dispatch availability.
+
+## R1 listener readiness exact-commit all-host CI (2026-10-15)
+
+**Source SHA:** `1fb4d48e3f9a1133587d634d08ec69c5d5c19e03`
+([atomic R1 production+CTest+docs commit](https://github.com/k1moradi/RDP-server/commit/1fb4d48e3f9a1133587d634d08ec69c5d5c19e03)).
+**Exact source GitHub Actions:**
+[run 38851057291](https://github.com/k1moradi/RDP-server/actions/runs/38851057291)
+**SUCCESS** after the CI workflow-startup correction.
+- Hosted Linux/GCC Debug and Release: **228/228 PASS** each.
+- Hosted macOS/AppleClang Debug and Release: **211/211 PASS** each.
+- Hosted Windows/MSVC Debug and Release: **230/230 PASS** each.
+- Both dedicated `transport.tcp-listener-poll-budget-handoff` and
+  `transport.tcp-listener-poll-deadline-denials` PASS in all six
+  configurations; documentation-policy, R9 security-protocol
+  sanitizers, installed SDK consumer tests and package jobs PASS.
+- Commands run by hosted CI, from one `build` root:
+  `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+  `cmake --build build --config Debug --parallel 2`,
+  `ctest --test-dir build --build-config Debug --output-on-failure`;
+  reconfigure the same root for `Release`, then build and CTest
+  `--build-config Release`. This is hosted verification rather
+  than an owner-local three-platform checkpoint.
+
+**NOT RUN:** owner's Linux/X11, Windows MSYS2 CLANG64/Clang 23
+and macOS27 exact-SHA command, live Microsoft client, service
+startup, R2 credential acceptance / independent OS authorization,
+R3 admitted channels, MCS share/desktop access. Successful
+loopback X.224 Confirm, native listener readiness and TLS-only
+diagnostics do not authorize an OS session.
+**Next R1 boundary:** existing R10 runtime owns live listener
+configuration, admission budgets and fairness; R1's bounded
+listener/accepted-owner APIs are now tested building blocks.

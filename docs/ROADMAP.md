@@ -826,6 +826,23 @@ actually run; another parser CTest alone is not a complete session.
   keeping R2 identity and independent OS authorization and R3
   authoritative channel/session progression separate.
 
+  **R1 native listener readiness exact-commit CI receipt (2026-10-15)**:
+  [implementation `1fb4d48e3f9a1133587d634d08ec69c5d5c19e03`](https://github.com/k1moradi/RDP-server/commit/1fb4d48e3f9a1133587d634d08ec69c5d5c19e03),
+  [Actions run 38851057291](https://github.com/k1moradi/RDP-server/actions/runs/38851057291)
+  **SUCCESS at that exact source SHA**. Linux/GCC **228/228**
+  Debug and **228/228** Release CTests; macOS/AppleClang
+  **211/211** Debug and **211/211** Release; Windows/MSVC
+  **230/230** Debug and **230/230** Release. BOTH new
+  `transport.tcp-listener-poll-budget-handoff` and
+  `transport.tcp-listener-poll-deadline-denials` CTests
+  **PASS in all six hosted builds**. Documentation-policy,
+  R9 protocol-sanitizer and installed SDK consumer jobs
+  PASS; tagged prerelease SKIPPED because no tag.
+  **Owner-local Linux/X11, MSYS2 CLANG64 Clang23, macOS27,
+  live Microsoft RDP client, R2 authentication, independent
+  OS authorization and R3 MCS/share/session remain NOT RUN**.
+  Runtime port binding and listener scheduling remain R10-owned.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

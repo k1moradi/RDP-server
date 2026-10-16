@@ -324,7 +324,15 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          pam_selection='^security\.linux-pam-password-verifier-denials        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+          pam_selection='^security\.linux-pam-password-verifier-denials$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$pam_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'security.linux-pam-password-verifier-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$pam_selection" --output-on-failure
+
+      - name: Run all direct R10 Linux runtime security CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1

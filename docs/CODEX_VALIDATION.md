@@ -1,5 +1,19 @@
 ## R5 RandR stale-damage sequence-fence correction authoring (2026-10-16)
 
+## R2 PAM workflow correction receipt (2026-10-16)
+
+Implementation SHA `506408ff00617fa86643dcf0cfe832ae108e0b32` created Actions run
+`38977485949`, which failed before job creation because the authored YAML
+replacement treated `$'` in the anchored CTest regex as replacement-string
+syntax and spliced the following workflow text into the `pam_selection` line.
+No compiler, PAM provider or CTest result exists for that SHA.
+
+This correction rebuilds only the malformed R2 PAM sanitizer block from exact
+line boundaries, restores the pre-existing direct R10 runtime-security step,
+and changes no production verifier semantics. The next exact-SHA hosted run is
+the first valid compile/test evidence for the PAM boundary.
+
+
 ## R2 Linux PAM verifier authoring receipt (2026-10-16)
 
 **Authoring parent:** `5b5f349f96195c42eaf0e67ab5445d9887d0b195`.

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 
 namespace rdp_server::server::transport
@@ -22,7 +23,12 @@ constexpr std::uint16_t kBlobData = 0x0001U;
 constexpr std::uint16_t kBlobRandom = 0x0002U;
 constexpr std::uint16_t kBlobClientUserName = 0x000fU;
 constexpr std::uint16_t kBlobClientMachineName = 0x0010U;
+constexpr std::uint16_t kBlobServerCertificate = 0x0003U;
+constexpr std::uint16_t kBlobKeyExchangeAlgorithms = 0x000dU;
+constexpr std::uint16_t kBlobScope = 0x000eU;
 constexpr std::uint32_t kKeyExchangeAlgRsa = 0x00000001U;
+constexpr std::uint8_t kServerLicenseRequestPreambleFlags =
+    0x03U | kExtendedErrorSupported;
 
 [[nodiscard]] std::uint16_t readLe16(
     std::span<const std::uint8_t> bytes, std::size_t offset) noexcept
@@ -87,6 +93,36 @@ constexpr std::uint32_t kKeyExchangeAlgRsa = 0x00000001U;
            text.end() - 1;
 }
 
+[[nodiscard]] bool validNullTerminatedUtf16Le(
+    std::span<const std::uint8_t> text) noexcept
+{
+    if (text.size() < 2U || (text.size() & 1U) != 0U ||
+        text[text.size() - 2U] != 0U || text.back() != 0U)
+        return false;
+    for (std::size_t offset = 0; offset + 2U < text.size(); offset += 2U)
+    {
+        if (text[offset] == 0U && text[offset + 1U] == 0U)
+            return false;
+    }
+    return true;
+}
+
+void writeLe16(
+    std::span<std::uint8_t> output, std::size_t offset,
+    std::uint16_t value) noexcept
+{
+    output[offset] = static_cast<std::uint8_t>(value);
+    output[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+}
+
+void writeLe32(
+    std::span<std::uint8_t> output, std::size_t offset,
+    std::uint32_t value) noexcept
+{
+    writeLe16(output, offset, static_cast<std::uint16_t>(value));
+    writeLe16(output, offset + 2U, static_cast<std::uint16_t>(value >> 16U));
+}
+
 [[nodiscard]] bool validInitialClientPrefix(
     std::span<const std::uint8_t> body) noexcept
 {
@@ -141,6 +177,113 @@ constexpr std::uint32_t kKeyExchangeAlgRsa = 0x00000001U;
 }
 } // namespace
 
+RdpServerLicenseRequestEncodeResult
+encodeEnhancedSecurityServerLicenseRequest(
+    const RdpServerLicenseRequestFields &fields,
+    std::span<std::uint8_t> output) noexcept
+{
+    constexpr std::size_t preambleBytes = 4U;
+    constexpr std::size_t serverRandomBytes = 32U;
+    constexpr std::size_t productFixedBytes = 12U;
+    constexpr std::size_t blobHeaderBytes = 4U;
+    constexpr std::size_t keyExchangePayloadBytes = 4U;
+    constexpr std::size_t scopeCountBytes = 4U;
+
+    if (fields.serverRandom.size() != serverRandomBytes ||
+        std::all_of(fields.serverRandom.begin(), fields.serverRandom.end(),
+                    [](std::uint8_t value) { return value == 0U; }))
+    {
+        return {0U, RdpServerLicenseRequestEncodeError::InvalidRandom};
+    }
+    if (fields.productVersion == 0U ||
+        !validNullTerminatedUtf16Le(fields.companyNameUtf16) ||
+        !validNullTerminatedUtf16Le(fields.productIdUtf16))
+    {
+        return {0U, RdpServerLicenseRequestEncodeError::InvalidProductInfo};
+    }
+    if (!validNullTerminatedAnsi(fields.scopeAnsi))
+        return {0U, RdpServerLicenseRequestEncodeError::InvalidScope};
+
+    if (fields.companyNameUtf16.size() >
+            std::numeric_limits<std::uint32_t>::max() ||
+        fields.productIdUtf16.size() >
+            std::numeric_limits<std::uint32_t>::max() ||
+        fields.scopeAnsi.size() > std::numeric_limits<std::uint16_t>::max())
+    {
+        return {0U, RdpServerLicenseRequestEncodeError::Oversized};
+    }
+
+    const std::size_t fixedBytes =
+        preambleBytes + serverRandomBytes + productFixedBytes +
+        blobHeaderBytes + keyExchangePayloadBytes +
+        blobHeaderBytes + scopeCountBytes + blobHeaderBytes;
+    const std::size_t variableBytes =
+        fields.companyNameUtf16.size() +
+        fields.productIdUtf16.size() +
+        fields.scopeAnsi.size();
+    if (variableBytes >
+        kMaximumRdpServerLicenseRequestBytes - fixedBytes)
+    {
+        return {0U, RdpServerLicenseRequestEncodeError::Oversized};
+    }
+    const std::size_t totalBytes = fixedBytes + variableBytes;
+    if (totalBytes > std::numeric_limits<std::uint16_t>::max())
+        return {0U, RdpServerLicenseRequestEncodeError::Oversized};
+    if (output.size() < totalBytes)
+        return {0U, RdpServerLicenseRequestEncodeError::OutputTooSmall};
+
+    std::size_t offset = 0U;
+    output[offset++] =
+        static_cast<std::uint8_t>(
+            RdpLicensingMessageType::ServerLicenseRequest);
+    output[offset++] = kServerLicenseRequestPreambleFlags;
+    writeLe16(output, offset, static_cast<std::uint16_t>(totalBytes));
+    offset += 2U;
+
+    std::copy(fields.serverRandom.begin(), fields.serverRandom.end(),
+              output.begin() + offset);
+    offset += fields.serverRandom.size();
+
+    writeLe32(output, offset, fields.productVersion);
+    offset += 4U;
+    writeLe32(output, offset,
+              static_cast<std::uint32_t>(fields.companyNameUtf16.size()));
+    offset += 4U;
+    std::copy(fields.companyNameUtf16.begin(), fields.companyNameUtf16.end(),
+              output.begin() + offset);
+    offset += fields.companyNameUtf16.size();
+    writeLe32(output, offset,
+              static_cast<std::uint32_t>(fields.productIdUtf16.size()));
+    offset += 4U;
+    std::copy(fields.productIdUtf16.begin(), fields.productIdUtf16.end(),
+              output.begin() + offset);
+    offset += fields.productIdUtf16.size();
+
+    writeLe16(output, offset, kBlobKeyExchangeAlgorithms);
+    writeLe16(output, offset + 2U,
+              static_cast<std::uint16_t>(keyExchangePayloadBytes));
+    offset += blobHeaderBytes;
+    writeLe32(output, offset, kKeyExchangeAlgRsa);
+    offset += keyExchangePayloadBytes;
+
+    // Enhanced RDP Security already protects this connection.
+    writeLe16(output, offset, kBlobServerCertificate);
+    writeLe16(output, offset + 2U, 0U);
+    offset += blobHeaderBytes;
+
+    writeLe32(output, offset, 1U);
+    offset += scopeCountBytes;
+    writeLe16(output, offset, kBlobScope);
+    writeLe16(output, offset + 2U,
+              static_cast<std::uint16_t>(fields.scopeAnsi.size()));
+    offset += blobHeaderBytes;
+    std::copy(fields.scopeAnsi.begin(), fields.scopeAnsi.end(),
+              output.begin() + offset);
+    offset += fields.scopeAnsi.size();
+
+    return {offset, RdpServerLicenseRequestEncodeError::None};
+}
+
 RdpLicensingParseResult parseRdpLicensingMessage(
     std::span<const std::uint8_t> completeMessage) noexcept
 {
@@ -169,6 +312,113 @@ RdpLicensingParseResult parseRdpLicensingMessage(
     view.extendedErrorSupported = (flags & kExtendedErrorSupported) != 0U;
     view.body = completeMessage.subspan(kLicensePreambleBytes);
     return {view, RdpLicensingParseError::None};
+}
+
+bool RdpServerLicenseRequestWriteGate::advanceReplySequence() noexcept
+{
+    if (replySequence_ == std::numeric_limits<std::uint64_t>::max())
+        return false;
+    ++replySequence_;
+    return replySequence_ != 0U;
+}
+
+bool RdpServerLicenseRequestWriteGate::advanceWriteSliceSequence() noexcept
+{
+    if (writeSliceSequence_ == std::numeric_limits<std::uint64_t>::max())
+        return false;
+    ++writeSliceSequence_;
+    return writeSliceSequence_ != 0U;
+}
+
+bool RdpServerLicenseRequestWriteGate::queue(
+    const RdpServerLicenseRequestFields &fields) noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ != 0U ||
+        lifecycle_ == nullptr ||
+        lifecycle_->phase() != RdpLicensingPhase::NotStarted)
+    {
+        close();
+        return false;
+    }
+
+    const auto encoded = encodeEnhancedSecurityServerLicenseRequest(
+        fields, pending_);
+    if (!encoded || !advanceReplySequence() ||
+        !advanceWriteSliceSequence())
+    {
+        close();
+        return false;
+    }
+
+    pendingLength_ = encoded.bytesWritten;
+    bytesWritten_ = 0U;
+    return true;
+}
+
+RdpServerLicenseRequestWriteView
+RdpServerLicenseRequestWriteGate::pendingWrite() const noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ == 0U ||
+        bytesWritten_ >= pendingLength_)
+        return {};
+    return {
+        std::span(pending_).first(pendingLength_).subspan(bytesWritten_),
+        replySequence_,
+        writeSliceSequence_};
+}
+
+RdpServerLicenseRequestWriteOutcome
+RdpServerLicenseRequestWriteGate::onBytesWritten(
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ == 0U ||
+        lifecycle_ == nullptr ||
+        lifecycle_->phase() != RdpLicensingPhase::NotStarted ||
+        replySequence == 0U || replySequence != replySequence_ ||
+        writeSliceSequence == 0U ||
+        writeSliceSequence != writeSliceSequence_ ||
+        acceptedBytes > pendingLength_ - bytesWritten_)
+    {
+        close();
+        return RdpServerLicenseRequestWriteOutcome::Rejected;
+    }
+
+    if (acceptedBytes == 0U)
+        return RdpServerLicenseRequestWriteOutcome::Pending;
+
+    bytesWritten_ += acceptedBytes;
+    if (bytesWritten_ != pendingLength_)
+    {
+        if (!advanceWriteSliceSequence())
+        {
+            close();
+            return RdpServerLicenseRequestWriteOutcome::Rejected;
+        }
+        return RdpServerLicenseRequestWriteOutcome::Pending;
+    }
+
+    if (!lifecycle_->onServerLicenseRequestWritten())
+    {
+        close();
+        return RdpServerLicenseRequestWriteOutcome::Rejected;
+    }
+
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    delivered_ = true;
+    return RdpServerLicenseRequestWriteOutcome::Delivered;
+}
+
+void RdpServerLicenseRequestWriteGate::close() noexcept
+{
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    delivered_ = false;
+    closed_ = true;
+    if (lifecycle_ != nullptr)
+        lifecycle_->close();
 }
 
 bool RdpLicensingLifecycle::onServerLicenseRequestWritten() noexcept

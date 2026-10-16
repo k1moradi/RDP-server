@@ -11857,3 +11857,49 @@ Canonical local execution is **NOT RUN** because this connector does not expose
 the owner `~/rdp-server` checkout. Exact publication-SHA hosted CI is the
 first executable gate. Authenticated R3 Graphics DVC/full-send and real-client
 graphics remain **BLOCKED/NOT RUN**.
+
+## R3 Server License Request serializer and receipt fence (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `27ba58477a0c730c32e2bd65d2c2f66deee8572c`.
+
+The next R3 boundary is implemented without fabricating licensing authority.
+The portable licensing layer now has one bounded, allocation-free
+Enhanced-Security `SERVER_LICENSE_REQUEST` serializer. It writes the
+MS-RDPELE preamble, caller-provided 32-byte server random, PRODUCT_INFO, the
+required RSA key-exchange BLOB, the empty certificate BLOB permitted when
+Enhanced RDP Security already protects the connection, and exactly one
+caller-provisioned scope. Company/product strings are complete terminated
+UTF-16LE, scope is complete terminated ANSI, all size arithmetic is bounded by
+a 2048-byte local cap, and validation failure leaves output untouched.
+
+Entropy/provisioning remains outside this structural serializer. It cannot
+prove CSPRNG provenance and does not invent a company, product ID, issuer
+scope, certificate, or license authority. The sole `McsSessionLifecycle`
+therefore still stops at `AwaitServerLicenseRequest`; no production session
+API queues licensing bytes until legitimate random/product/scope material has
+an authoritative owner.
+
+The lifecycle shortcut is closed. `onServerLicenseRequestWritten()` is
+private and callable only by `RdpServerLicenseRequestWriteGate`. That gate
+owns stable contiguous bytes, nonzero monotonic reply/write-slice receipts,
+exact accepted-byte accounting, zero-byte backpressure stability,
+partial-write slice rollover, and full-delivery-only lifecycle advancement.
+Stale/duplicate receipts, overwrite, over-report, or abandonment close the
+licensing owner rather than advancing it.
+
+Dedicated production-linked central-registry CTests:
+`transport.licensing-server-request-wire`,
+`transport.licensing-server-request-write-receipts`, and
+`transport.licensing-server-request-write-denials`. Existing licensing
+state/length/ordering tests now enter the client-response phase only by fully
+delivering the production serializer through this receipt gate.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** because this connector environment exposes no owner checkout; no
+alternate build root was created. Exact-publication-SHA hosted Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizers, documentation policy,
+and downstream SDK/package evidence are pending. Genuine CSPRNG/product/scope
+provisioning into the R2-authorized R3 owner, client-license cryptography,
+Share activation, and Microsoft-client acceptance remain **OPEN / NOT RUN**.
+**M2/M3 remain OPEN / NOT ACCEPTED.**
+

@@ -1,3 +1,24 @@
+### R3 Client Info exact-SHA compile correction (2026-10-16)
+
+Implementation `3819cdaab6b787c037b0aed93e6c6626b9f5b8e2`,
+[Actions 38898593347](https://github.com/k1moradi/RDP-server/actions/runs/38898593347),
+passed documentation policy but Linux/GCC Debug, macOS/Clang Debug and
+the R9 sanitizer build stopped before CTest in the new portable R3 test:
+`tests/test_owned_mcs_connect_initial.cpp:581` called the existing
+`frameDomainPdu` helper before its later definition and had no prior
+declaration. GCC reported “not declared in this scope”; Clang reported
+“use of undeclared identifier”. This is an R3 test-ordering compile
+failure, not a production parser failure. Windows/MSVC remained in
+progress when classified and is not used to infer a result.
+
+The correction is test-only: add the existing helper's exact forward
+declaration in the same anonymous namespace before any new Client Info
+test uses it. No production code, wire bytes, security flags, admission,
+permissions or state transitions change. The corrected exact SHA must
+rerun the full hosted Debug/Release matrix and R9 sanitizer selections;
+no PASS is carried forward from the failed implementation SHA.
+Owner three-OS and real-client admission remain NOT RUN. M2 NOT ACCEPTED.
+
 ## R2 owner-driven CredSSP/GSS exact-SHA hosted receipt (2026-10-16)
 
 **Implementation:** `0f5fcd6f55e0a674671927609a78bd841d58405c`,

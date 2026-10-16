@@ -56,6 +56,9 @@ namespace
     return result;
 }
 
+[[nodiscard]] std::vector<std::uint8_t> frameDomainPdu(
+    std::span<const std::uint8_t> payload);
+
 void testRealMicrosoftConnectionEnvelope()
 {
     const auto packet = publishedFixture();

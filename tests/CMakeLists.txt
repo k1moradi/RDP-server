@@ -45,6 +45,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-session-first-envelope-size-bounds
                 mcs-session-unadmitted-domain-size-bounds
                 mcs-session-first-failure-boundaries
+                mcs-session-domain-failure-boundaries
                 mcs-disconnect-wire
                 mcs-disconnect-rejections
                 mcs-send-data-wire

@@ -3478,6 +3478,60 @@ void testMcsSessionFirstFailureBoundaries()
     expectTerminal(large, McsSessionIntake::OversizedEnvelope);
 }
 
+
+void testMcsSessionDomainFailureBoundaries()
+{
+    constexpr std::array<std::uint8_t, 12> validJoin{
+        0x03, 0x00, 0x00, 0x0c, 0x02, 0xf0, 0x80,
+        0x38, 0x00, 0x06, 0x03, 0xeb};
+    constexpr std::array<std::uint8_t, 9> disconnect{
+        0x03, 0x00, 0x00, 0x09, 0x02, 0xf0, 0x80, 0x21, 0x80};
+
+    const auto expectTerminal = [&](std::span<const std::uint8_t> packet,
+                                    McsSessionIntake expected)
+    {
+        McsSessionLifecycle session;
+        assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+        assert(session.onDomainPdu(packet) == expected);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(session.pendingJoinConfirmation().empty());
+        assert(!session.channelJoinConfirmed(1003));
+        assert(session.onDomainPdu(validJoin) == McsSessionIntake::Closed);
+    };
+
+    assert(parseMcsChannelRequest(validJoin));
+    expectTerminal(validJoin, McsSessionIntake::ValidButNotAdmitted);
+
+    auto badTransport = validJoin;
+    badTransport[5] = 0xe0;
+    assert(parseMcsChannelRequest(badTransport).error ==
+           McsChannelParseError::InvalidTransport);
+    expectTerminal(badTransport, McsSessionIntake::InvalidDomainTransport);
+
+    auto badDomain = validJoin;
+    badDomain[7] = 0x28;
+    assert(parseMcsChannelRequest(badDomain).error ==
+           McsChannelParseError::InvalidDomainPdu);
+    expectTerminal(badDomain, McsSessionIntake::InvalidDomainPdu);
+
+    auto badPer = validJoin;
+    badPer[8] = 0xff;
+    badPer[9] = 0xff;
+    assert(parseMcsChannelRequest(badPer).error ==
+           McsChannelParseError::InvalidPerValue);
+    expectTerminal(badPer, McsSessionIntake::InvalidDomainPerValue);
+
+    std::vector<std::uint8_t> oversized(kMaximumInitialMcsTpktBytes + 1U,
+                                        0xff);
+    expectTerminal(oversized, McsSessionIntake::OversizedEnvelope);
+
+    McsSessionLifecycle peer;
+    assert(peer.onDomainPdu(disconnect) ==
+           McsSessionIntake::PeerDisconnected);
+    assert(peer.phase() == McsSessionPhase::Closed);
+    assert(peer.onDomainPdu(validJoin) == McsSessionIntake::Closed);
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -3504,7 +3558,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 56> kMcsTestCases{{
+constexpr std::array<McsTestCase, 57> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3533,6 +3587,7 @@ constexpr std::array<McsTestCase, 56> kMcsTestCases{{
     {"mcs-session-first-envelope-size-bounds", &testMcsSessionFirstEnvelopeSizeBounds},
     {"mcs-session-unadmitted-domain-size-bounds", &testMcsSessionUnadmittedDomainSizeBounds},
     {"mcs-session-first-failure-boundaries", &testMcsSessionFirstFailureBoundaries},
+    {"mcs-session-domain-failure-boundaries", &testMcsSessionDomainFailureBoundaries},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

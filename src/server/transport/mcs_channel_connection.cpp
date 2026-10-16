@@ -355,7 +355,20 @@ McsSessionIntake McsSessionLifecycle::onDomainPdu(
     const auto parsed = parseMcsChannelRequest(completeTpkt);
     close();
     if (!parsed)
+    {
+        switch (parsed.error)
+        {
+        case McsChannelParseError::InvalidTransport:
+            return McsSessionIntake::InvalidDomainTransport;
+        case McsChannelParseError::InvalidDomainPdu:
+            return McsSessionIntake::InvalidDomainPdu;
+        case McsChannelParseError::InvalidPerValue:
+            return McsSessionIntake::InvalidDomainPerValue;
+        case McsChannelParseError::None:
+            break;
+        }
         return McsSessionIntake::InvalidEnvelope;
+    }
     if (parsed.request.kind ==
         McsChannelRequestKind::DisconnectProviderUltimatum)
         return McsSessionIntake::PeerDisconnected;

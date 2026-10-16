@@ -3264,6 +3264,27 @@ independent three-platform runs, real R2 GSS/CredSSP and independent
 OS authorization, licensed Microsoft client or desktop.
 R3 Gate A/M2 remains NOT ACCEPTED.
 
+## R3 domain-PDU first failing boundary classification (2026-10-15)
+
+**Production:** the existing deny-only `McsSessionLifecycle::onDomainPdu`
+now maps `McsChannelParseError::InvalidTransport`,
+`InvalidDomainPdu` and `InvalidPerValue` to appended
+`McsSessionIntake::InvalidDomainTransport`,
+`InvalidDomainPdu` and `InvalidDomainPerValue`.
+Existing enum values and successful/peer-disconnect behavior remain
+unchanged. Oversized pre-admission packets still fail before parsing.
+All outcomes synchronously close the sole R3 owner and revoke joins.
+
+**Dedicated central CTest:**
+`transport.mcs-session-domain-failure-boundaries` reuses the production
+parser and checks valid Join denial, X.224 Data TPDU corruption,
+AttachUser-with-trailing-bytes domain shape, out-of-range PER UserId,
+oversize precedence, terminal reentry and legal peer Disconnect.
+No second executable, parser, state owner, live TLS output or admission.
+**NOT RUN at authoring:** exact-SHA hosted full CTest, owner independent
+three-platform command, genuine R2 GSS/CredSSP + OS authorization,
+Microsoft client or desktop. Gate A/M2 remains NOT ACCEPTED.
+
 ## R3 pre-admission oversized domain-PDU denial (2026-10-15)
 
 **Exact-SHA hosted CI results (2026-10-15):**

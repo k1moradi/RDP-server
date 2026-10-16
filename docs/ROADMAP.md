@@ -2767,6 +2767,21 @@ actually run; another parser CTest alone is not a complete session.
   NOT RUN: independent owner Linux/X11, Windows CLANG64/Clang23,
   macOS27 exact-SHA command, real Kerberos/CredSSP and OS
   authorization, Microsoft client or desktop. Gate A/M2 OPEN.
+  **R3 first-failure domain-PDU classification (2026-10-15; CI NOT RUN at authoring):**
+  The sole deny-only `McsSessionLifecycle::onDomainPdu` now preserves
+  the existing parser's first failing boundary: RFC1006/X.224 transport,
+  T.125 DomainMCSPDU choice/shape, or aligned-PER value. Three new
+  appended `McsSessionIntake` error-only outcomes report those
+  distinctions while keeping all existing numeric values unchanged.
+  Every outcome still closes the same R3 owner, clears joined/pending
+  channel state, emits no response and grants no R2/OS/session authority.
+  A new central CTest independently proves valid-but-not-admitted Join,
+  invalid transport, invalid domain shape, invalid PER UserId,
+  oversize precedence, terminal stale reentry and peer Disconnect.
+  **NOT RUN at authoring:** exact new-SHA hosted full CTests, owner
+  independent Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
+  genuine R2 TLS-bound OS admission, Microsoft client or desktop.
+  Gate A/M2 remains OPEN.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

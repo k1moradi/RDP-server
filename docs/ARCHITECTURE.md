@@ -1860,6 +1860,15 @@ diagnostics, not to any future authenticated session's negotiated
 maxMCSPDUsize or virtual-channel fragmentation. A valid peer
 Disconnect remains a terminal close, never an admission shortcut.
 
+**R3 domain-PDU first-failure diagnostics (2026-10-15):**
+The one `McsSessionLifecycle` maps the existing domain parser's
+`InvalidTransport`, `InvalidDomainPdu` and `InvalidPerValue`
+outcomes to distinct appended session-intake diagnostics before
+terminal teardown. These values are observability only: they do not
+retain borrowed spans, send a response, allocate a domain, authenticate
+a principal or grant channel permission. Oversize pre-admission input
+continues to take precedence before parser invocation.
+
 **R3 first-MCS byte-budget ownership (2026-10-15):**
 The project's existing 8192-byte cap on the first decrypted MCS
 Connect-Initial TPKT now lives in the common MCS header, shared by

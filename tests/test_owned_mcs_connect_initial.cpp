@@ -6,6 +6,7 @@
 #include "transport/mcs_channel_connection.h"
 #include "transport/rdp_licensing.h"
 #include "transport/gcc_conference_create.h"
+#include "server/runtime/runtime_licensing_context.h"
 
 #include <algorithm>
 #include <array>
@@ -30,6 +31,7 @@
 #include <vector>
 
 using namespace rdp_server::server::transport;
+using rdp_server::server::runtime::RuntimeLicensingContext;
 
 namespace
 {
@@ -5787,6 +5789,90 @@ struct LicensingCryptoFixture final
     }
 };
 
+void testRuntimeLicensingContextOwnership()
+{
+    LicensingCryptoFixture fixture;
+    auto callerCertificate = fixture.serverCertificate;
+    auto callerPrivateKey = fixture.privateKeyPem;
+
+    RuntimeLicensingContext context;
+    assert(!context.configured());
+    assert(context.identity() == nullptr);
+    assert(context.credential() == nullptr);
+
+    assert(context.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        callerCertificate, kServerLicenseScope, callerPrivateKey));
+    assert(context.configured());
+    const auto *identity = context.identity();
+    const auto *credential = context.credential();
+    assert(identity != nullptr && credential != nullptr);
+    assert(identity->configured());
+    assert(credential->configured());
+    assert(credential->matches(*identity));
+    assert(identity->serverCertificate().size() ==
+           fixture.serverCertificate.size());
+    assert(std::equal(
+        identity->serverCertificate().begin(),
+        identity->serverCertificate().end(),
+        fixture.serverCertificate.begin()));
+    assert(credential->certificateFingerprint().size() == 32U);
+
+    // R10 must own the successful snapshots. Caller storage can change
+    // immediately without altering the advertised identity or private key.
+    std::fill(callerCertificate.begin(), callerCertificate.end(), 0U);
+    std::fill(callerPrivateKey.begin(), callerPrivateKey.end(), 0U);
+    assert(std::equal(
+        identity->serverCertificate().begin(),
+        identity->serverCertificate().end(),
+        fixture.serverCertificate.begin()));
+    const auto decrypted = credential->decryptPreMasterSecret(
+        fixture.encryptedPreMasterSecret);
+    assert(decrypted);
+    assert(decrypted.value == fixture.preMaster);
+
+    // Service configuration is immutable once published.
+    assert(!context.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope,
+        fixture.privateKeyPem));
+}
+
+void testRuntimeLicensingContextDenials()
+{
+    LicensingCryptoFixture fixture;
+
+    // A cryptographically mismatched key fails the complete context and the
+    // failed one-shot object cannot later be repaired under active consumers.
+    RuntimeLicensingContext mismatch;
+    assert(!mismatch.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope,
+        fixture.mismatchedPrivateKeyPem));
+    assert(!mismatch.configured());
+    assert(mismatch.identity() == nullptr);
+    assert(mismatch.credential() == nullptr);
+    assert(!mismatch.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope,
+        fixture.privateKeyPem));
+
+    // Identity failure is equally terminal; no partially configured R3 object
+    // becomes externally observable through R10.
+    RuntimeLicensingContext invalidIdentity;
+    assert(!invalidIdentity.configure(
+        0x00060001U, {}, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope,
+        fixture.privateKeyPem));
+    assert(!invalidIdentity.configured());
+    assert(invalidIdentity.identity() == nullptr);
+    assert(invalidIdentity.credential() == nullptr);
+    assert(!invalidIdentity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope,
+        fixture.privateKeyPem));
+}
+
 void testRdpLicensingPreMasterDecrypt()
 {
     const LicensingCryptoFixture fixture;
@@ -6334,7 +6420,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 98> kMcsTestCases{{
+constexpr std::array<McsTestCase, 100> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -6399,6 +6485,8 @@ constexpr std::array<McsTestCase, 98> kMcsTestCases{{
     {"licensing-client-license-info-hwid-fresh-verification", &testRdpClientLicenseInfoHardwareIdFreshVerification},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
+    {"licensing-runtime-context-ownership", &testRuntimeLicensingContextOwnership},
+    {"licensing-runtime-context-denials", &testRuntimeLicensingContextDenials},
     {"licensing-initial-crypto-preparation", &testRdpInitialLicensingCryptoPreparation},
     {"licensing-initial-crypto-denials", &testRdpInitialLicensingCryptoDenials},
     {"licensing-key-material-terminal-replay", &testRdpLicensingKeyMaterialTerminalReplay},

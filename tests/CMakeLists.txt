@@ -81,6 +81,8 @@ function(add_rdp_test source_file suite behavior)
                 licensing-client-license-info-hwid-fresh-verification
                 licensing-premaster-rsa-decrypt
                 licensing-premaster-rsa-denials
+                licensing-runtime-context-ownership
+                licensing-runtime-context-denials
                 licensing-initial-crypto-preparation
                 licensing-initial-crypto-denials
                 licensing-key-material-terminal-replay
@@ -403,6 +405,10 @@ endfunction()
 add_rdp_test(test_owned_rdp_x224.cpp transport x224)
 add_rdp_test(test_owned_security_negotiation.cpp transport security-negotiation)
 add_rdp_test(test_owned_mcs_connect_initial.cpp transport mcs-connect-initial)
+# R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
+# fixture to validate the noninstalled service-lifetime runtime owner.
+target_link_libraries(test_owned_mcs_connect_initial PRIVATE
+    rdp-server-runtime-licensing)
 add_rdp_test(test_owned_gcc_conference_create.cpp transport gcc-conference-create)
 add_rdp_test(test_owned_preauth_session.cpp transport preauth-session)
 # Test-only cross-road composition: R1 remains in the exported protocol target;

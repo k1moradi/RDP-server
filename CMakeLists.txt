@@ -497,6 +497,23 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R10 service-lifetime licensing identity/private-key owner. The underlying R3
+# types perform the reviewed chain/key validation and cleanse private material.
+# This component is noninstalled and grants no R2 admission or licensing result.
+add_library(rdp-server-runtime-licensing STATIC
+    src/server/runtime/runtime_licensing_context.cpp)
+target_compile_features(rdp-server-runtime-licensing PUBLIC cxx_std_23)
+target_include_directories(rdp-server-runtime-licensing PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-runtime-licensing PUBLIC
+    rdp-server-protocol)
+if(MSVC)
+    target_compile_options(rdp-server-runtime-licensing PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-runtime-licensing PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R10 process entry point: compile and test it, but do not install/package
 # an RDP service before authenticating and OS-authorizing live sessions.
 add_executable(rdp-server src/server/runtime/main.cpp)

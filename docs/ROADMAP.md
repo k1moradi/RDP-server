@@ -14837,3 +14837,49 @@ macOS 27, genuine Kerberos/NSS/logind positive admission and real licensing
 authority configuration remain **NOT RUN / OPEN**. **M2/M3 remain OPEN / NOT
 ACCEPTED.**
 
+
+
+## R10 service-owned licensing credential context (2026-10-16; hosted CI pending)
+
+Starting reconciled shared `main`: `7732d83f4b1ffcb2f1a579043303ec777071b271`. R3 now has a reviewed,
+cryptographically bound `RdpLicensingServiceCredential` contract: the exact
+advertised `CERT_CHAIN_VERSION_2` identity must match one RSA private key,
+and protected licensing publication/intake requires that credential separately
+from the concrete R2 admission lease. This removes the earlier R10 blocker that
+the service credential ownership contract itself was undefined.
+
+R10 now adds a narrow, noninstalled `RuntimeLicensingContext`. It is
+noncopyable/nonmovable and one-shot. `configure()` synchronously composes the
+existing R3 `RdpServerLicenseIdentity` and
+`RdpLicensingServiceCredential`; success exposes only const borrows to those
+two already-reviewed owners. Both R3 objects own their required snapshots, so
+the caller may overwrite or release the input certificate/private-key buffers
+after configuration. The private-key snapshot remains inside R3's bounded
+credential storage and is cleansed by that owner on destruction.
+
+This increment deliberately does **not** define a configuration-file schema or
+read a licensing key pathname. It does not connect the credential to
+`LinuxRuntimeConnection`, because positive final CredSSP authorization and
+therefore a genuine native R2 lease remain unreachable. It also does not bind a
+listener, create R3 session authority, publish a Server License Request, make a
+licensing decision, or enable Share activation. The next filesystem/config
+increment must reuse an independently reviewed secure R10 file-snapshot
+boundary rather than accepting a pathname reopen.
+
+Two production-backed cases reuse the existing ephemeral RSA/X.509 licensing
+fixture instead of creating a second cryptographic fixture:
+`transport.licensing-runtime-context-ownership` proves successful snapshot
+ownership survives caller certificate/private-key mutation and can still
+decrypt the fixture premaster; `transport.licensing-runtime-context-denials`
+proves mismatched-key and invalid-identity failures are terminal and expose no
+partial identity/credential. Both are added to the bounded Clang ASan/UBSan
+licensing selection.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** in this connector environment because no synchronized checkout is
+available. Exact-publication-SHA Linux/GCC, macOS/Clang, Windows/MSVC,
+documentation-policy, SDK/package and sanitizer evidence are required before
+PASS is claimed. Positive Kerberos/final-CredSSP authorization, NSS/logind
+admission, real licensing credential files, Microsoft-client licensing/Share
+activation and any listener/service remain **NOT RUN / BLOCKED**. M2/M3 remain
+**OPEN / NOT ACCEPTED**.

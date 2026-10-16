@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "security/credssp_tsrequest.h"\n#include "security/credssp_credentials.h"
+#include "security/credssp_tsrequest.h"
+#include "security/credssp_credentials.h"
 
 #ifdef NDEBUG
 #undef NDEBUG

@@ -1,3 +1,33 @@
+## R2 binding identity versus completed CredSSP admission (2026-10-16)
+
+MS-CSSP public-key proof is not the final client credential step. R2 therefore
+keeps two distinct internal facts. A fully delivered server binding reply may
+expose the provider-derived principal through the existing diagnostic
+`verifiedPrincipal*()` APIs. Native OS admission, however, requires a
+separate private R2 final-credential authorization completion proof. No public
+Boolean, principal string, TLS pointer or caller-supplied receipt can set that
+proof. The current delegated-credential implementation is intentionally
+deny-only, so the proof remains false and the native lease path is
+unreachable.
+
+The one production provider state machine remains
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake()`. After it returns
+`BindingVerified` for the fully written/released server public-key reply, a
+later call may read exactly one final `authInfo` frame only through the same
+R1 owner. The frame must retain actual HYBRID selection, the pinned TLS
+certificate, CredSSP version, reader/writer identity and an idle reply writer.
+A bounded exact `finalAuthInfoOnly()` request is handed to the existing GSS
+credential denial path, which wipes provider plaintext and the source frame
+and destroys the GSS context. The result `UnsupportedFinalCredentials` is
+terminal policy denial; it never means authenticated desktop access. Invalid
+field mixtures, oversized data, owner or certificate substitution and replay
+remain `Rejected`.
+
+R10 owns scheduling and maps that terminal result into aggregate revocation.
+R1 remains the sole TLS application I/O owner; R2 does not call production
+`SSL_read_ex`/`SSL_write_ex` independently. R3 sees no lease or session
+capability from either binding completion or final-credential denial.
+
 ## R1 post-TLS HYBRID phase ownership (2026-10-16)
 
 R1's transport state now records the actual protocol selected by its one X.224

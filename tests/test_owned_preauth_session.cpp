@@ -8,6 +8,7 @@
 #include "security/credssp_tls_certificate.h"
 #ifdef RDP_TEST_LINUX_GSSAPI
 #include "security/gssapi_spnego_acceptor.h"
+#include "security/linux_console_admission.h"
 #include <gssapi/gssapi_ext.h>
 #include <gssapi/gssapi_krb5.h>
 #include <cstdlib>
@@ -4660,6 +4661,12 @@ constexpr std::array<std::uint8_t, 21> kTestCredSspDer{
     0xa1, 0x0c, 0x30, 0x0a, 0x30, 0x08,
     0xa0, 0x06, 0x04, 0x04, 0x60, 0x82, 0x01, 0x00};
 
+// Syntactically valid final authInfo shape with intentionally opaque,
+// non-GSS ciphertext. It is used only to prove premature owner dispatch denial.
+constexpr std::array<std::uint8_t, 14> kTestCredSspAuthInfoDer{
+    0x30, 0x0c, 0xa0, 0x03, 0x02, 0x01, 0x06,
+    0xa2, 0x05, 0x04, 0x03, 0x11, 0x22, 0x33};
+
 
 [[nodiscard]] std::vector<std::uint8_t> makeFinalCredSspDer(
     std::uint8_t version)
@@ -6616,6 +6623,75 @@ void testGssapiOwnedCredSspProvenanceFence()
     }
 }
 
+void testGssapiOwnedCredSspAuthInfoTerminalDenials()
+{
+    for (const auto version : {std::uint8_t{5}, std::uint8_t{6}})
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTlsForRequest(
+            owner, clientIo, tls, tlsAndHybridRequestWire(),
+            SecurityNegotiationPolicy::HybridNla);
+
+        auto authInfo = kTestCredSspAuthInfoDer;
+        authInfo[6] = version;
+        const auto parsedAuthInfo = parseCredSspTsRequest(authInfo);
+        assert(parsedAuthInfo && parsedAuthInfo.value.finalAuthInfoOnly());
+        writeNativeTlsClientAll(tls.client.get(), authInfo);
+
+        GssapiSpnegoAcceptor acceptor;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        std::size_t bytesRead = 0;
+        OwnedCredSspHandshakeStatus finalStatus{
+            OwnedCredSspHandshakeStatus::NeedRead};
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{5};
+
+        for (std::size_t stepIndex = 0;
+             stepIndex < kMaximumCredSspRequestBytes + 16;
+             ++stepIndex)
+        {
+            const auto step = acceptor.advanceOwnedCredSspHandshake(
+                owner, reader, writer);
+            bytesRead += step.plaintextBytesRead;
+            assert(step.plaintextBytesWritten == 0);
+            finalStatus = step.status;
+            if (finalStatus == OwnedCredSspHandshakeStatus::Rejected)
+                break;
+            assert(finalStatus == OwnedCredSspHandshakeStatus::Progress ||
+                   finalStatus == OwnedCredSspHandshakeStatus::NeedRead ||
+                   finalStatus == OwnedCredSspHandshakeStatus::NeedWrite);
+            if (finalStatus == OwnedCredSspHandshakeStatus::NeedRead ||
+                finalStatus == OwnedCredSspHandshakeStatus::NeedWrite)
+            {
+                const auto polled = owner.pollSocketOnce(
+                    deadline, kMaximumTcpPollWait);
+                assert(polled.outcome ==
+                           TcpConnectionPollOutcome::Dispatched ||
+                       polled.outcome ==
+                           TcpConnectionPollOutcome::NoEvent);
+            }
+        }
+
+        assert(finalStatus == OwnedCredSspHandshakeStatus::Rejected);
+        assert(bytesRead == authInfo.size());
+        assert(acceptor.stage() == SpnegoStage::Failed);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assertNoGssReplyDelivered(tls.client.get());
+        owner.cancel();
+    }
+}
+
 void testGssapiOwnedCredSspBindingDeliveryFence()
 {
     using Method = decltype(
@@ -7084,10 +7160,37 @@ std::vector<std::uint8_t> realKerberosFinalNegoAndBindingDer(
     return frame;
 }
 
+std::vector<std::uint8_t> realKerberosAuthInfoDer(
+    std::uint8_t version,
+    std::span<const std::uint8_t> encryptedAuthInfo)
+{
+    assert((version == 5 || version == 6) && !encryptedAuthInfo.empty() &&
+           encryptedAuthInfo.size() <= kMaximumDecryptedCredentialsBytes);
+    const std::array<std::uint8_t, 3> versionDer{0x02, 0x01, version};
+    std::vector<std::uint8_t> body =
+        wrapKerberosTestDer(0xa0, versionDer);
+    const auto authInfo = wrapKerberosTestDer(
+        0xa2, wrapKerberosTestDer(0x04, encryptedAuthInfo));
+    body.insert(body.end(), authInfo.begin(), authInfo.end());
+    const auto frame = wrapKerberosTestDer(0x30, body);
+    const auto parsed = parseCredSspTsRequest(frame);
+    assert(parsed && parsed.value.version == version);
+    assert(parsed.value.finalAuthInfoOnly());
+    return frame;
+}
+
+enum class RealKerberosOwnedCredSspScenario : std::uint8_t
+{
+    BindingReceipt,
+    PublicKeyNotNativeAdmission,
+    FinalAuthInfoDenied,
+};
+
 // Opt-in positive proof for the production R1-owner/R2 CredSSP path.
 // This requires caller-provisioned Kerberos credentials and never creates
 // native OS admission, an R3 capability, delegated credentials or a desktop.
-void testRealKerberosOwnedCredSspBindingVerified()
+void runRealKerberosOwnedCredSspScenario(
+    RealKerberosOwnedCredSspScenario scenario)
 {
     const char *serviceName = std::getenv("RDP_TEST_KRB5_SERVICE");
     const char *serviceKeytab = std::getenv("RDP_TEST_KRB5_KEYTAB");
@@ -7352,12 +7455,135 @@ void testRealKerberosOwnedCredSspBindingVerified()
         OPENSSL_cleanse(
             bindingReply.data(), bindingReply.size());
 
-        // R2/GSS proof is not a native lease and must be retired before R1.
-        server.reject();
-        assert(server.verifiedPrincipalForOwnedConnection(owner).empty());
+        if (scenario ==
+            RealKerberosOwnedCredSspScenario::PublicKeyNotNativeAdmission)
+        {
+            const std::string principal{ownerPrincipal};
+            ConsoleIdentityPolicy policy;
+            assert(policy.add(
+                       {std::string_view{principal}, "rdptest", "seat0", ":0",
+                        1001U, kConsoleViewPermission}) ==
+                   ConsoleRuleError::None);
+            LinuxConsoleAdmissionBroker broker{policy};
+            const ConsoleEvidenceRequest request{
+                std::string_view{principal}, "rdptest", "seat0", ":0",
+                kConsoleViewPermission};
+
+            // The exact live HYBRID owner, real Kerberos principal and fully
+            // delivered server binding are still insufficient. The private R2
+            // final-credential completion proof is absent, so denial occurs
+            // before native NSS/logind monitoring or evidence sampling.
+            assert(!broker.issue(server, owner, request));
+            assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+            assert(broker.nativeChangeFd() == -1);
+            assert(broker.nativeChangeEvents() == -1);
+            assert(server.stage() == SpnegoStage::Failed);
+        }
+        else if (scenario ==
+                 RealKerberosOwnedCredSspScenario::FinalAuthInfoDenied)
+        {
+            std::array<std::uint8_t, 29> credentials{
+                0x30, 0x1b,
+                0xa0, 0x03, 0x02, 0x01, 0x01,
+                0xa1, 0x14, 0x04, 0x12,
+                0x30, 0x10,
+                0xa0, 0x02, 0x04, 0x00,
+                0xa1, 0x04, 0x04, 0x02, 0x75, 0x00,
+                0xa2, 0x04, 0x04, 0x02, 0x70, 0x00};
+            assert(inspectCredSspCredentials(credentials));
+            auto encryptedAuthInfo = client.seal(credentials);
+            OPENSSL_cleanse(credentials.data(), credentials.size());
+            auto authInfoRequest = realKerberosAuthInfoDer(
+                version, encryptedAuthInfo);
+            OPENSSL_cleanse(
+                encryptedAuthInfo.data(), encryptedAuthInfo.size());
+            encryptedAuthInfo.clear();
+
+            const std::size_t authInfoRequestSize = authInfoRequest.size();
+            writeNativeTlsClientAll(tls.client.get(), authInfoRequest);
+            OPENSSL_cleanse(
+                authInfoRequest.data(), authInfoRequest.size());
+            authInfoRequest.clear();
+
+            std::size_t authInfoBytesRead = 0;
+            OwnedCredSspHandshakeStatus terminalStatus{
+                OwnedCredSspHandshakeStatus::NeedRead};
+            const auto authInfoDeadline =
+                std::chrono::steady_clock::now() +
+                std::chrono::seconds{5};
+            for (std::size_t stepIndex = 0;
+                 stepIndex < kMaximumCredSspRequestBytes + 16;
+                 ++stepIndex)
+            {
+                const auto step = server.advanceOwnedCredSspHandshake(
+                    owner, reader, writer);
+                authInfoBytesRead += step.plaintextBytesRead;
+                assert(step.plaintextBytesWritten == 0);
+                terminalStatus = step.status;
+                if (terminalStatus ==
+                    OwnedCredSspHandshakeStatus::
+                        UnsupportedFinalCredentials)
+                {
+                    break;
+                }
+                assert(terminalStatus ==
+                           OwnedCredSspHandshakeStatus::Progress ||
+                       terminalStatus ==
+                           OwnedCredSspHandshakeStatus::NeedRead ||
+                       terminalStatus ==
+                           OwnedCredSspHandshakeStatus::NeedWrite);
+                if (terminalStatus ==
+                        OwnedCredSspHandshakeStatus::NeedRead ||
+                    terminalStatus ==
+                        OwnedCredSspHandshakeStatus::NeedWrite)
+                {
+                    const auto polled = owner.pollSocketOnce(
+                        authInfoDeadline, kMaximumTcpPollWait);
+                    assert(polled.outcome ==
+                               TcpConnectionPollOutcome::Dispatched ||
+                           polled.outcome ==
+                               TcpConnectionPollOutcome::NoEvent);
+                }
+            }
+
+            assert(terminalStatus ==
+                   OwnedCredSspHandshakeStatus::
+                       UnsupportedFinalCredentials);
+            assert(authInfoBytesRead == authInfoRequestSize);
+            assert(server.stage() == SpnegoStage::Failed);
+            assert(server.verifiedPrincipal().empty());
+            assert(reader.status() == TsRequestFrameStatus::Closed);
+            assert(reader.completeDer().empty());
+            assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        }
+        else
+        {
+            // R2/GSS proof remains diagnostic and is explicitly retired.
+            server.reject();
+            assert(server.verifiedPrincipalForOwnedConnection(owner).empty());
+        }
+
         owner.cancel();
         assert(!owner.active());
     }
+}
+
+void testRealKerberosOwnedCredSspBindingVerified()
+{
+    runRealKerberosOwnedCredSspScenario(
+        RealKerberosOwnedCredSspScenario::BindingReceipt);
+}
+
+void testRealKerberosPublicKeyNotNativeAdmission()
+{
+    runRealKerberosOwnedCredSspScenario(
+        RealKerberosOwnedCredSspScenario::PublicKeyNotNativeAdmission);
+}
+
+void testRealKerberosOwnedAuthInfoDenial()
+{
+    runRealKerberosOwnedCredSspScenario(
+        RealKerberosOwnedCredSspScenario::FinalAuthInfoDenied);
 }
 
 // Opt-in ONLY. Every GSS token below comes from MIT's actual initiator
@@ -8130,6 +8356,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testGssapiOwnedCredSspProvenanceFence},
     {"gssapi-r1-owned-binding-delivery-fence",
      &testGssapiOwnedCredSspBindingDeliveryFence},
+    {"gssapi-credssp-authinfo-terminal-denials",
+     &testGssapiOwnedCredSspAuthInfoTerminalDenials},
     {"gssapi-r1-owned-credssp-cancellation-fence",
      &testGssapiOwnedCredSspCancellationFence},
     {"gssapi-tls-ownership", &testGssapiTlsBoundHandoffDenials},
@@ -8145,6 +8373,10 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
 #ifdef RDP_TEST_REAL_KERBEROS
     {"gssapi-real-kerberos-owned-binding",
      &testRealKerberosOwnedCredSspBindingVerified},
+    {"gssapi-credssp-public-key-not-native-admission",
+     &testRealKerberosPublicKeyNotNativeAdmission},
+    {"gssapi-real-kerberos-owned-authinfo-denial",
+     &testRealKerberosOwnedAuthInfoDenial},
     {"gssapi-real-kerberos-tls-mechanism", &testRealKerberosSpnegoOverTls},
     {"gssapi-real-kerberos-tls-failure", &testRealKerberosProviderFailureReplyOverTls},
 #endif

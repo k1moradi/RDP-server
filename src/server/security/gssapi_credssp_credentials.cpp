@@ -13,12 +13,7 @@ namespace
 [[nodiscard]] bool permittedCredentialMessage(
     const TsRequestResult &request) noexcept
 {
-    return request && request.value.version >= 5 &&
-           request.value.version <= 6 &&
-           request.value.hasAuthInfo && !request.value.hasPubKeyAuth &&
-           !request.value.hasClientNonce && !request.value.hasErrorCode &&
-           request.value.tokenCount == 0 &&
-           !request.value.encryptedAuthInfo.empty() &&
+    return request && request.value.finalAuthInfoOnly() &&
            request.value.encryptedAuthInfo.size() <=
                kMaximumDecryptedCredentialsBytes;
 }

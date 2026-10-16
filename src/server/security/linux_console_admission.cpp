@@ -346,10 +346,10 @@ LinuxConsoleAdmissionBroker::issue(
         return std::nullopt;
     }
 
-    // Reject invalid protocol/transport provenance before constructing a
-    // native change monitor or sampling NSS/logind. R1 currently selects
-    // diagnostic PROTOCOL_SSL, so production admission remains intentionally
-    // negative until R1 implements genuine HYBRID negotiation.
+    // Reject invalid protocol/transport provenance and incomplete R2 policy
+    // before constructing a native change monitor or sampling NSS/logind.
+    // HYBRID plus fully delivered GSS public-key binding is necessary but is
+    // not the final supported CredSSP credential-authorization condition.
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security)
     {
@@ -358,7 +358,7 @@ LinuxConsoleAdmissionBroker::issue(
     }
     const std::uint64_t policyGeneration = policy_.generation();
     const std::string_view proven =
-        acceptor.verifiedPrincipalForOwnedConnection(connection);
+        acceptor.nativeAdmissionPrincipalForOwnedConnection(connection);
     if (policyGeneration == 0 || proven.empty() ||
         proven != request.kerberosPrincipal ||
         !copyBounded(seat_, seatLength_, request.seat) ||
@@ -381,7 +381,8 @@ LinuxConsoleAdmissionBroker::issue(
     }
 
     if (changes_->nativeFd() < 0 || changes_->nativeEvents() <= 0 ||
-        acceptor.verifiedPrincipalForOwnedConnection(connection) != proven ||
+        acceptor.nativeAdmissionPrincipalForOwnedConnection(connection) !=
+            proven ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
         deny(acceptor);
@@ -398,7 +399,8 @@ LinuxConsoleAdmissionBroker::issue(
         request.kerberosPrincipal.size() >= 129 ||
         request.unixAccount.size() >= 33 ||
         policy_.generation() != policyGeneration ||
-        acceptor.verifiedPrincipalForOwnedConnection(connection) != proven)
+        acceptor.nativeAdmissionPrincipalForOwnedConnection(connection) !=
+            proven)
     {
         deny(acceptor);
         return std::nullopt;
@@ -465,7 +467,8 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
         lease.kerberosPrincipal_.data(), lease.kerberosPrincipalLength_};
     if (!ownsActiveLease(lease) ||
         control_->policyGeneration != policy_.generation() ||
-        acceptor.verifiedPrincipalForTls(activeServerTls) != leasePrincipal ||
+        acceptor.nativeAdmissionPrincipalForTls(activeServerTls) !=
+            leasePrincipal ||
         changes_ == nullptr ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
@@ -484,7 +487,8 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
         fingerprint.accountUid != lease.localUid_ ||
         fingerprint.consoleOwnerUid != lease.localUid_ ||
         fingerprint.sessionGeneration != lease.sessionGeneration_ ||
-        acceptor.verifiedPrincipalForTls(activeServerTls) != leasePrincipal ||
+        acceptor.nativeAdmissionPrincipalForTls(activeServerTls) !=
+            leasePrincipal ||
         !refreshDeadline(lease.admissionGeneration_))
     {
         return false;

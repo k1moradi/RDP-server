@@ -62,6 +62,17 @@ struct TsRequestInfo
                !hasErrorCode && !hasClientNonce;
     }
 
+    // MS-CSSP 3.1.5: after the server public-key proof is accepted, the
+    // client sends exactly one encrypted authInfo and no negotiation/binding
+    // fields. Shape validation ONLY; this does not authorize the credentials.
+    [[nodiscard]] bool finalAuthInfoOnly() const noexcept
+    {
+        return (version == 5 || version == 6) &&
+               hasAuthInfo && !encryptedAuthInfo.empty() &&
+               !hasPubKeyAuth && !hasClientNonce && !hasErrorCode &&
+               tokenCount == 0;
+    }
+
     // MS-CSSP 3.1.5: the final client GSS negotiation token and the
     // encrypted client->server public-key binding share one TSRequest.
     // Shape validation ONLY; does not authenticate GSS or verify the hash.

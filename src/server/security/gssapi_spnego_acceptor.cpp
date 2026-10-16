@@ -189,6 +189,7 @@ void GssapiSpnegoAcceptor::reject() noexcept
     ownedCredSspWriter_ = nullptr;
     ownedCredSspReplyPending_ = false;
     ownedCredSspBindingVerified_ = false;
+    ownedCredSspCredentialAuthorizationComplete_ = false;
     deleteContext();
     if (credentials_ != GSS_C_NO_CREDENTIAL)
     {
@@ -617,14 +618,13 @@ GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
 
     if (writer.status() != TsRequestTlsWriteStatus::Idle)
         return fail(OwnedCredSspHandshakeStatus::Rejected);
-    if (stage_ == SpnegoStage::ServerBindingPrepared)
+    if (stage_ == SpnegoStage::ServerBindingPrepared &&
+        !ownedCredSspBindingVerified_)
     {
         // Legacy framed helpers can reach this semantic state without the
-        // production owner-driven reply completion. Never promote that into
-        // BindingVerified.
-        if (!ownedCredSspBindingVerified_)
-            return fail(OwnedCredSspHandshakeStatus::Rejected);
-        return {OwnedCredSspHandshakeStatus::BindingVerified, 0, 0};
+        // production owner-driven reply completion. Never consume final
+        // credentials or promote that state into an admission prerequisite.
+        return fail(OwnedCredSspHandshakeStatus::Rejected);
     }
     if (stage_ == SpnegoStage::Failed)
         return fail(OwnedCredSspHandshakeStatus::Rejected);
@@ -662,6 +662,30 @@ GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
     const auto request = parseCredSspTsRequest(reader.completeDer());
     if (!request)
         return fail(OwnedCredSspHandshakeStatus::Rejected, bytesRead, 0);
+
+    if (stage_ == SpnegoStage::ServerBindingPrepared)
+    {
+        // MS-CSSP requires final authInfo only after the client has accepted
+        // the server public-key proof. The current deployment policy has no
+        // positive delegated-credential authorization. Route only the exact
+        // bounded final shape through the existing real GSS unwrap/inspection/
+        // wipe path, then report the unsupported policy outcome.
+        if (!ownedCredSspBindingVerified_ ||
+            request.value.version != negotiatedVersion_ ||
+            !request.value.finalAuthInfoOnly() ||
+            request.value.encryptedAuthInfo.size() >
+                kMaximumDecryptedCredentialsBytes)
+        {
+            return fail(
+                OwnedCredSspHandshakeStatus::Rejected, bytesRead, 0);
+        }
+
+        consumeFramedAndDenyDelegatedCredentials(reader);
+        writer.close();
+        return {
+            OwnedCredSspHandshakeStatus::UnsupportedFinalCredentials,
+            bytesRead, 0};
+    }
 
     bool queued = false;
     if (request.value.initialNegoTokenOnly())
@@ -707,6 +731,23 @@ std::string_view GssapiSpnegoAcceptor::verifiedPrincipalForOwnedConnection(
         return {};
     }
     return verifiedPrincipalForTls(connection.establishedTls());
+}
+
+std::string_view
+GssapiSpnegoAcceptor::nativeAdmissionPrincipalForOwnedConnection(
+    const transport::OwnedPreauthTcpConnection &connection) const noexcept
+{
+    if (!ownedCredSspCredentialAuthorizationComplete_)
+        return {};
+    return verifiedPrincipalForOwnedConnection(connection);
+}
+
+std::string_view GssapiSpnegoAcceptor::nativeAdmissionPrincipalForTls(
+    const SSL *activeServerTls) const noexcept
+{
+    if (!ownedCredSspCredentialAuthorizationComplete_)
+        return {};
+    return verifiedPrincipalForTls(activeServerTls);
 }
 
 SpnegoStep GssapiSpnegoAcceptor::accept(

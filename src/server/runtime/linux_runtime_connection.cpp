@@ -192,6 +192,10 @@ LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
     case HandshakeStatus::BindingVerified:
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::BindingVerified};
+    case HandshakeStatus::UnsupportedFinalCredentials:
+        revoke();
+        return {result.plaintextBytesRead, result.plaintextBytesWritten,
+                LinuxCredSspStepStatus::UnsupportedFinalCredentials};
     case HandshakeStatus::Rejected:
         revoke();
         return {result.plaintextBytesRead, result.plaintextBytesWritten,

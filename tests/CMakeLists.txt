@@ -388,6 +388,8 @@ if(TARGET rdp-server-linux-gssapi)
             RDP_TEST_REAL_KERBEROS=1)
         foreach(case_name IN ITEMS
                 gssapi-real-kerberos-owned-binding
+                gssapi-credssp-public-key-not-native-admission
+                gssapi-real-kerberos-owned-authinfo-denial
                 gssapi-real-kerberos-tls-mechanism
                 gssapi-real-kerberos-tls-failure)
             add_test(NAME "security.${case_name}"
@@ -399,6 +401,7 @@ if(TARGET rdp-server-linux-gssapi)
     foreach(case_name IN ITEMS
             gssapi-r1-owned-credssp-provenance-fence
             gssapi-r1-owned-binding-delivery-fence
+            gssapi-credssp-authinfo-terminal-denials
             gssapi-r1-owned-credssp-cancellation-fence
             gssapi-tls-ownership
             gssapi-principal-tls-proof-gate

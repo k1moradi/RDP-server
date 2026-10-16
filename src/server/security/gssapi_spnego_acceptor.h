@@ -86,13 +86,18 @@ struct CredSspProtectedReply
 // One bounded event-loop step for the production R1-owned CredSSP/GSS path.
 // BindingVerified means the Kerberos mechanism and CredSSP public-key proof
 // completed on the exact TLS transcript and its server reply was fully sent.
-// It is NOT native desktop/session authorization and grants no R3 capability.
+// The required final authInfo step has NOT completed at that point.
+// UnsupportedFinalCredentials means the same owner subsequently delivered a
+// structurally valid, bounded final authInfo to the existing deny-only
+// credential processor. Any provider plaintext is securely wiped before R2
+// terminates. Neither outcome is native authorization or an R3 capability.
 enum class OwnedCredSspHandshakeStatus : std::uint8_t
 {
     Progress,
     NeedRead,
     NeedWrite,
     BindingVerified,
+    UnsupportedFinalCredentials,
     Rejected,
     TransportClosed,
 };
@@ -182,8 +187,11 @@ public:
     //
     // No CredSSP bytes are consumed or emitted unless the client offered
     // PROTOCOL_HYBRID and R1 actually selected PROTOCOL_HYBRID.
-    // BindingVerified proves only the TLS-bound GSS/public-key handshake;
-    // native authorization and R3 admission remain separate.
+    // BindingVerified proves only the TLS-bound GSS/public-key handshake.
+    // A later call consumes the final authInfo on this same owner. The current
+    // delegated-credential policy is deny-only, so a bounded final credential
+    // step returns UnsupportedFinalCredentials and terminally revokes R2.
+    // Native authorization and R3 admission remain separate.
     [[nodiscard]] OwnedCredSspHandshakeResult advanceOwnedCredSspHandshake(
         transport::OwnedPreauthTcpConnection &connection,
         TsRequestFrameReader &reader,
@@ -286,14 +294,27 @@ public:
         return verifiedPrincipal();
     }
 
-    // Positive native admission additionally requires that the server
-    // binding reply completed through this exact live R1 owner.
+    // Binding-level identity observation additionally requires that the
+    // server binding reply completed through this exact live R1 owner.
+    // It remains diagnostic evidence only; native admission has a stricter,
+    // private R2 completion requirement.
     [[nodiscard]] std::string_view verifiedPrincipalForOwnedConnection(
         const transport::OwnedPreauthTcpConnection &connection) const noexcept;
 
     void reject() noexcept;
 
 private:
+    friend class LinuxConsoleAdmissionBroker;
+
+    // Native admission must not be derived from the public binding-level
+    // identity observations above. These private borrows are nonempty only
+    // after an R2-owned final-credential authorization policy completes.
+    // The current deny-only policy never sets that completion state.
+    [[nodiscard]] std::string_view nativeAdmissionPrincipalForTls(
+        const SSL *activeServerTls) const noexcept;
+    [[nodiscard]] std::string_view nativeAdmissionPrincipalForOwnedConnection(
+        const transport::OwnedPreauthTcpConnection &connection) const noexcept;
+
     // Shared protected-binding implementation; combinedFinal permits the
     // one final GSS token ONLY after the one-shot framed GSS completion.
     [[nodiscard]] CredSspProtectedReply processVerifiedBinding(
@@ -323,6 +344,9 @@ private:
     TsRequestTlsReplyWriter *ownedCredSspWriter_{};
     bool ownedCredSspReplyPending_{};
     bool ownedCredSspBindingVerified_{};
+    // Deliberately false until a future reviewed policy positively authorizes
+    // the final CredSSP credential step. No caller-facing setter exists.
+    bool ownedCredSspCredentialAuthorizationComplete_{};
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
     // Borrowed from the one TLS-bound framing owner, never owning SSL.

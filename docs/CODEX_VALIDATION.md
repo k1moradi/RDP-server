@@ -1,3 +1,35 @@
+## R2 final-CredSSP admission fence authoring validation (2026-10-16)
+
+**Reconciled parent:** `010d3b6e34bb36a01cd24424a2a6474b9d279e0a`.
+
+Source/protocol audit **PASS**: Microsoft MS-CSSP requires final encrypted
+`authInfo` after the server public-key proof, while the pre-change broker
+could consult binding-level `verifiedPrincipalForOwnedConnection()` for
+native issuance. Production now gates native issuance and revalidation on a
+private R2 final-credential authorization completion proof that the current
+deny-only policy never sets. The owner-driven handoff continues after the
+one-shot `BindingVerified` event, accepts only the same-owner/same-version
+bounded final-authInfo shape into the existing GSS unwrap/wipe denial path,
+and reports terminal `UnsupportedFinalCredentials`. R10 revokes on that
+outcome.
+
+New centrally registered default case:
+`security.gssapi-credssp-authinfo-terminal-denials`. New explicitly opt-in
+real-provider cases:
+`security.gssapi-credssp-public-key-not-native-admission` and
+`security.gssapi-real-kerberos-owned-authinfo-denial`. Ordinary CI keeps
+`RDP_SERVER_TEST_REAL_KERBEROS=OFF`, so the latter two require external
+`RDP_TEST_KRB5_SERVICE`, `RDP_TEST_KRB5_KEYTAB` and
+`RDP_TEST_KRB5_CCACHE` and are **NOT RUN** by default. R9's native GSS
+sanitizer selection now includes the new credential-free terminal-denial case.
+
+Canonical local build/full CTest: **NOT RUN / BLOCKED** because no usable
+synchronized `~/rdp-server` checkout is available and shell GitHub DNS
+resolution fails; no second build root was created. Exact-publication-SHA
+Linux/GCC, macOS/Clang, Windows/MSVC, documentation/SDK and R9 sanitizer jobs
+are **PENDING** until publication. Owner platform, real Kerberos/KDC/logind and
+Microsoft-client acceptance remain **NOT RUN**. **M2/M3 remain OPEN.**
+
 ## R1 HYBRID phase compile follow-up (2026-10-16; hosted CI pending)
 
 Exact implementation SHA `8b80bc7d2916e80bc11af9be71070f544795c0ef`, Actions

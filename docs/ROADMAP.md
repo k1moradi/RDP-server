@@ -1,3 +1,56 @@
+## R2 final-CredSSP admission fence and owned authInfo denial (2026-10-16; exact-SHA CI pending)
+
+**Reconciled publication parent:** `010d3b6e34bb36a01cd24424a2a6474b9d279e0a`.
+
+The MS-CSSP sequence audit found a real completion-boundary gap in the
+otherwise owner-bound R2 path. `BindingVerified` is emitted only after the
+real Kerberos mechanism, client public-key proof and the full R1-owned server
+binding reply have completed, but the protocol still requires the client final
+encrypted `authInfo` afterward. `LinuxConsoleAdmissionBroker::issue()` was
+using that binding-level principal as its positive identity prerequisite, so a
+matching native NSS/logind policy could make binding completion look stronger
+than the currently supported CredSSP credential policy.
+
+R2 now preserves `verifiedPrincipal()` and
+`verifiedPrincipalForOwnedConnection()` as narrow binding-level diagnostics,
+but native issuance/revalidation uses a private R2 completion proof instead.
+That proof has no caller-facing setter and the current deny-only delegated
+credential policy never sets it. Positive `LinuxConsoleAdmissionLease`
+issuance is therefore deliberately unreachable until a separately reviewed
+final-credential authorization policy exists.
+
+The existing `advanceOwnedCredSspHandshake()` is also the sole post-binding
+provider handoff. `BindingVerified` is one-shot: the next frame must come
+through the same R1 `OwnedPreauthTcpConnection`, reader and writer, with the
+same HYBRID provenance, TLS certificate and CredSSP version. Only a bounded
+`finalAuthInfoOnly()` shape is routed to
+`consumeFramedAndDenyDelegatedCredentials()`; that existing path performs
+the real GSS confidential unwrap attempt, bounded metadata inspection, secure
+plaintext/frame cleanup and terminal provider teardown. R2 then returns
+`UnsupportedFinalCredentials`; this is an explicit deny-only policy outcome,
+not proof that credential plaintext was valid or authorized. Malformed,
+mixed, oversized, stale or wrong-version frames remain terminal
+`Rejected`. R10 maps the unsupported outcome and revokes the aggregate; no
+listener or R3 capability is added.
+
+Dedicated default Linux CTest
+`security.gssapi-credssp-authinfo-terminal-denials` exercises genuine
+R1-owned HYBRID/TLS intake and early final-authInfo rejection without
+fabricating GSS success. The opt-in real-provider suite gains
+`security.gssapi-credssp-public-key-not-native-admission` and
+`security.gssapi-real-kerberos-owned-authinfo-denial`; they require the
+existing externally provisioned service keytab and client FILE cache and are
+not enabled in ordinary hosted CI. The new default denial case is added to
+R9's bounded native GSS ASan/UBSan selection.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest is
+**NOT RUN** here because this execution environment has no usable synchronized
+checkout and shell GitHub DNS resolution fails; no alternate build root was
+created. Hosted exact-publication-SHA validation is pending. Real Kerberos
+positive execution, positive NSS/logind admission, owner Linux/X11,
+MSYS2 CLANG64/Clang23, macOS 27 and Microsoft-client acceptance remain
+**NOT RUN**. **M2/M3 remain OPEN.**
+
 ## R1 HYBRID phase compile follow-up (2026-10-16; hosted CI pending)
 
 Exact implementation SHA `8b80bc7d2916e80bc11af9be71070f544795c0ef`, Actions

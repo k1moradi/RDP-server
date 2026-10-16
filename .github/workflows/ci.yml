@@ -191,7 +191,7 @@ jobs:
         run: |
           set -euo pipefail
           # Verify the actual central CTest registry before instrumented execution.
-          licensing_selection='^(transport\.(tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-client-license-read|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$'
+          licensing_selection='^(transport\.(tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-client-license-read|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
           printf '%s\n' "$selected_tests"
@@ -200,6 +200,7 @@ jobs:
           grep -Fq 'transport.licensing-key-exchange-wire' <<< "$selected_tests"
           grep -Fq 'transport.licensing-key-exchange-denials' <<< "$selected_tests"
           grep -Fq 'transport.licensing-key-derivation' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-tls-application-cancellation' <<< "$selected_tests"
           grep -Fq 'transport.licensing-client-response-before-request-delivery' <<< "$selected_tests"
           grep -Fq 'transport.licensing-generated-request-cancellation-replay' <<< "$selected_tests"
           grep -Fq 'transport.licensing-client-response-single-consumption' <<< "$selected_tests"

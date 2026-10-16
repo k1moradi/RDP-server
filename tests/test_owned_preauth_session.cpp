@@ -3887,14 +3887,27 @@ void testOwnedTlsApplicationCancellation()
 
         std::array<std::uint8_t, 16> buffer{};
         TlsApplicationIoResult result{};
-        for (int attempt = 0; attempt < 128; ++attempt)
+        const auto deadline =
+            Clock::now() + std::chrono::seconds{5};
+        while (Clock::now() < deadline)
         {
             result = owner.readTlsApplicationData(buffer);
             if (result.outcome != Outcome::NeedRead &&
                 result.outcome != Outcome::NeedWrite)
                 break;
+
             assert(result.bytes == 0);
-            std::this_thread::yield();
+            // A successful nonblocking client send does not imply immediate
+            // server readability on optimized/macOS builds. Advance only the
+            // existing one-step R1 readiness gate, then explicitly resubmit
+            // the SAME stable read span as the application-I/O contract
+            // requires. No hidden retry exists in production.
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome ==
+                       TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome ==
+                       TcpConnectionPollOutcome::NoEvent);
         }
         assert(result.outcome == Outcome::FatalTlsFailure);
         assert(result.bytes == 0);

@@ -1,3 +1,47 @@
+## R1 optimized malformed-TLS readiness regression (2026-10-16; exact-SHA CI pending)
+
+**Reproduced on descendant integration:** `3d77a024b0150cb93058f5ac52f84cff639d3a88`,
+Actions `38922487647`, macOS/AppleClang Release. Publication is reconciled
+onto shared parent `dc89b81192e7fee4854ef63890444bffd5e17062`.
+
+The existing production R1 application-I/O classifier is unchanged. The
+Release-only failure was in the R1 loopback test harness: after injecting one
+malformed TLS record through the native client socket,
+`transport.tcp-owned-tls-application-cancellation` retried
+`readTlsApplicationData()` only through 128 scheduler `yield()` calls.
+A successful nonblocking client send does not guarantee that the server socket
+is immediately readable; optimized macOS could exhaust that artificial loop
+while the R1 result was still `NeedRead`.
+
+The test now follows the production contract it validates. On
+`NeedRead`/`NeedWrite`, it performs one bounded
+`OwnedPreauthTcpConnection::pollSocketOnce()` with a five-second monotonic
+deadline and explicitly resubmits the same stable 16-byte destination. No
+production retry loop, sleep, socket state, TLS mapping or public API is added.
+Once the malformed record is readable, the existing `FatalTlsFailure`
+classification and sole-owner cancellation remain asserted.
+
+R9's bounded R1/R3 ASan+UBSan selector now also names
+`transport.tcp-owned-tls-application-cancellation` and asserts its central
+CTest registration before execution.
+
+The preceding R1 licensing-read commit
+`f945dae52d086539c151c032cd8e7d5136329db5` is behavior-PASS in Actions
+`38922208793` on Linux/GCC, macOS/AppleClang and Windows/MSVC Debug and under
+Clang ASan+UBSan. Its overall hosted workflow failed only on the then-stale R4
+zero-surface expectations. At descendant R4 commit
+`3d77a024b0150cb93058f5ac52f84cff639d3a88`, the licensing-read case also
+PASSes macOS Release; that run exposed this separate pre-existing R1
+cancellation-test readiness race.
+
+Canonical owner-local `~/rdp-server/build`, Linux/X11 owner acceptance,
+Windows MSYS2 CLANG64/Clang23, macOS 27 and Microsoft-client testing remain
+**NOT RUN** here. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+**Next R1:** after exact-SHA hosted validation, add no transport surface unless
+a later protected licensing/Share transition proves another concrete bounded
+TCP/TLS mismatch.
+
 ## R8 completed-file X11 file-manager handoff (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `64f91607a1346258c5a843fb10a717e91747518a`. The hosted-validated Linux

@@ -1,3 +1,30 @@
+## R1 optimized malformed-TLS readiness correction (2026-10-16)
+
+**Reproduced:** macOS/AppleClang Release in Actions `38922487647` at
+`3d77a024b0150cb93058f5ac52f84cff639d3a88`.
+**Publication parent:** `dc89b81192e7fee4854ef63890444bffd5e17062`.
+
+**Root cause:** `transport.tcp-owned-tls-application-cancellation` exhausted
+a 128-`yield()` test loop before a raw malformed TLS record became readable.
+This was a test scheduling assumption, not a production TLS outcome mismatch.
+
+**Change:** the existing CTest now uses R1's one-step bounded
+`pollSocketOnce()` readiness gate with a monotonic five-second deadline and
+resubmits the same destination after WANT_READ/WANT_WRITE. Production
+`finishTlsApplicationStep()`, socket/BIO/SSL ownership and cancellation are
+unchanged. The R9 bounded sanitizer registry/selection includes this existing
+cancellation behavior explicitly.
+
+**Previous increment evidence:** `transport.tcp-owned-r3-client-license-read`
+at `f945dae52d086539c151c032cd8e7d5136329db5` PASSes hosted Linux, macOS and
+Windows Debug plus Clang ASan+UBSan; it also PASSes macOS Release on descendant
+`3d77a024b0150cb93058f5ac52f84cff639d3a88`.
+
+**Authoring execution:** source/ownership review **PASS**. Owner-local build is
+**NOT RUN** because this connector environment has no synchronized checkout.
+Exact-SHA hosted Debug/Release and sanitizer validation is required after
+publication.
+
 ## R8 completed-file X11 handoff authoring validation (2026-10-16)
 
 **Base:** `64f91607a1346258c5a843fb10a717e91747518a`. Current external references were reviewed before

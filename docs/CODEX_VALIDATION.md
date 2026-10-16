@@ -14256,9 +14256,9 @@ requires the client BLOB to be exactly the configured RSA modulus width plus
 the protocol's eight trailing zero bytes, converts the RDP unsigned
 little-endian RSA integer to OpenSSL big-endian form, performs raw RSA private
 operation, converts the result back, requires all bytes above the exact
-48-byte premaster secret to be zero, rejects an all-zero premaster, returns a
-zero-initialized result on failure, and cleanses all temporary ciphertext and
-plaintext buffers. The successful 48-byte output can feed the already-tested
+48-byte premaster secret to be zero, returns the exact 48-byte value without
+inventing an entropy/nonzero predicate, returns a zero-initialized result on
+failure, and cleanses all temporary ciphertext and plaintext buffers. The successful 48-byte output can feed the already-tested
 `deriveRdpLicensingKeys` helper; neither operation mutates licensing/session
 state.
 

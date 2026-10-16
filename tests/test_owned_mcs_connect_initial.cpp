@@ -5637,15 +5637,17 @@ void testRdpLicensingPreMasterDecryptDenials()
     RdpLicensingServiceCredential oversizedKeyCredential;
     assert(!oversizedKeyCredential.configure(identity, oversizedKey));
 
-    // Raw RSA ciphertext zero decrypts to an all-zero integer. A premaster
-    // secret must be random, so this weak value is terminally rejected.
+    // Entropy provenance cannot be inferred from the decoded value. Raw RSA
+    // ciphertext zero therefore round-trips to an all-zero 48-byte premaster;
+    // later protocol/authentication checks, not this primitive, decide use.
     std::vector<std::uint8_t> zeroCiphertext(
         fixture.encryptedPreMasterSecret.size(), 0U);
-    const auto zeroDenied =
+    const auto zeroDecoded =
         credential.decryptPreMasterSecret(zeroCiphertext);
-    assert(!zeroDenied);
-    assert(zeroDenied.error ==
-           RdpLicensingPreMasterDecryptError::DecryptFailure);
+    assert(zeroDecoded);
+    assert((zeroDecoded.value ==
+            std::array<std::uint8_t,
+                       kRdpLicensingPreMasterSecretBytes>{}));
 
     // Configuration is one-shot even after failure; callers cannot replace
     // rejected credential material under an already-checked service object.

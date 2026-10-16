@@ -698,12 +698,6 @@ RdpLicensingServiceCredential::decryptPreMasterSecret(
                     kRdpLicensingPreMasterSecretBytes),
             plaintextLittleEndian.begin() +
                 static_cast<std::ptrdiff_t>(keyBytes),
-            [](std::uint8_t value) { return value == 0U; }) ||
-        std::all_of(
-            plaintextLittleEndian.begin(),
-            plaintextLittleEndian.begin() +
-                static_cast<std::ptrdiff_t>(
-                    kRdpLicensingPreMasterSecretBytes),
             [](std::uint8_t value) { return value == 0U; }))
     {
         clearTemporaryBuffers();

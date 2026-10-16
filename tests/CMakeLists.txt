@@ -443,16 +443,21 @@ if(TARGET rdp-server-linux-runtime-security)
             LABELS "runtime;security;linux-provider;offline")
     endforeach()
 
-    add_test(NAME runtime.rejects-linux-security-missing-provisioning
-        COMMAND "${CMAKE_COMMAND}"
-            "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
-            "-DRDP_RUNTIME_VERSION=${PROJECT_VERSION}"
-            "-DRDP_RUNTIME_TEST_CASE=rejects-linux-security-missing-provisioning"
-            "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-fixtures"
-            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
-    set_tests_properties(
-        runtime.rejects-linux-security-missing-provisioning
-        PROPERTIES LABELS "runtime;security;linux-provider;offline")
+    foreach(runtime_linux_process_case IN ITEMS
+            validates-linux-security-provisioning
+            rejects-linux-security-missing-provisioning)
+        add_test(NAME "runtime.${runtime_linux_process_case}"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
+                "-DRDP_RUNTIME_VERSION=${PROJECT_VERSION}"
+                "-DRDP_RUNTIME_TEST_CASE=${runtime_linux_process_case}"
+                "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-fixtures"
+                "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=$<TARGET_FILE:test_runtime_linux_security>"
+                -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
+        set_tests_properties(
+            "runtime.${runtime_linux_process_case}"
+            PROPERTIES LABELS "runtime;security;linux-provider;offline")
+    endforeach()
 endif()
 
 # R6 fixture-only checks: do not enumerate a real desktop, capture pixels,

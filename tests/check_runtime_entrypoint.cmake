@@ -53,7 +53,7 @@ elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-linux-security-missing-provisioni
     endif()
     set(runtime_arguments "--check-linux-security" "${config_file}")
     set(expected_exit_code 3)
-elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-files|tls-credentials)-")
+elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-files|tls-credentials|linux-security)-")
     if(NOT DEFINED RDP_RUNTIME_FIXTURE_DIRECTORY OR
        RDP_RUNTIME_FIXTURE_DIRECTORY STREQUAL "")
         message(FATAL_ERROR "Missing RDP_RUNTIME_FIXTURE_DIRECTORY")
@@ -62,10 +62,16 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
     set(config_file "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TEST_CASE}.conf")
     set(check_tls_metadata FALSE)
     set(check_tls_credentials FALSE)
+    set(check_linux_security FALSE)
     if(RDP_RUNTIME_TEST_CASE MATCHES "-tls-(files|credentials)-")
         set(check_tls_metadata TRUE)
     endif()
     if(RDP_RUNTIME_TEST_CASE MATCHES "-tls-credentials-")
+        set(check_tls_credentials TRUE)
+    endif()
+    if(RDP_RUNTIME_TEST_CASE MATCHES "-linux-security-")
+        set(check_linux_security TRUE)
+        set(check_tls_metadata TRUE)
         set(check_tls_credentials TRUE)
     endif()
     # Absolute path syntax is host-specific; no real credentials are accessed.
@@ -86,6 +92,19 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
         "authentication=required\nos_authorization=required\n"
         "max_connections=4\n")
     string(JOIN "" config_text ${config_text})
+    if(check_linux_security)
+        set(keytab_file
+            "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TEST_CASE}.keytab")
+        string(APPEND config_text
+            "gss_service_principal=TERMSRV/rdp.example.test@EXAMPLE.TEST\n"
+            "gss_keytab=FILE:${keytab_file}\n"
+            "authorized_kerberos_principal=alice@EXAMPLE.TEST\n"
+            "authorized_unix_account=alice\n"
+            "authorized_seat=seat0\n"
+            "authorized_display=:0\n"
+            "authorized_uid=1001\n"
+            "authorized_permissions=7\n")
+    endif()
     if(check_tls_credentials)
         set(valid_certificate [=[-----BEGIN CERTIFICATE-----
 MIIBRTCB7aADAgECAgESMAoGCCqGSM49BAMCMCMxITAfBgNVBAMMGHJkcC1zZXJ2
@@ -189,6 +208,9 @@ E0U+IoGqDg==
         if(NOT WIN32)
             string(REPLACE "\n" "\r\n" config_text "${config_text}")
         endif()
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-linux-security-provisioning")
+        # Positive Linux provisioning composes the existing TLS fixture with
+        # a generated explicit service keytab and one native identity rule.
     elseif(check_tls_metadata)
         # TLS-file cases modify only synthetic fixture paths or permissions.
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-windows-private-dacl")
@@ -409,6 +431,24 @@ E0U+IoGqDg==
                     message(FATAL_ERROR "Cannot grant synthetic TLS key public read ACE")
                 endif()
             endif()
+            if(check_linux_security)
+                if(NOT DEFINED RDP_RUNTIME_LINUX_SECURITY_HELPER OR
+                   RDP_RUNTIME_LINUX_SECURITY_HELPER STREQUAL "")
+                    message(FATAL_ERROR
+                        "Missing RDP_RUNTIME_LINUX_SECURITY_HELPER")
+                endif()
+                file(REMOVE "${keytab_file}")
+                execute_process(
+                    COMMAND "${RDP_RUNTIME_LINUX_SECURITY_HELPER}"
+                        write-synthetic-keytab "${keytab_file}"
+                    RESULT_VARIABLE keytab_result
+                    OUTPUT_QUIET ERROR_QUIET)
+                if(NOT keytab_result STREQUAL "0" OR
+                   NOT EXISTS "${keytab_file}")
+                    message(FATAL_ERROR
+                        "Cannot create synthetic Linux service keytab")
+                endif()
+            endif()
         endif()
         if(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-comments-crlf")
             # Ordinary CMake file(READ) normalizes CRLF to LF. HEX reads
@@ -424,7 +464,9 @@ E0U+IoGqDg==
             endif()
         endif()
     endif()
-    if(check_tls_credentials)
+    if(check_linux_security)
+        set(runtime_arguments "--check-linux-security" "${config_file}")
+    elseif(check_tls_credentials)
         set(runtime_arguments "--check-tls-credentials" "${config_file}")
     elseif(check_tls_metadata)
         set(runtime_arguments "--check-tls-files" "${config_file}")
@@ -436,7 +478,7 @@ E0U+IoGqDg==
         get_filename_component(relative_config_file "${config_file}" NAME)
         set(runtime_arguments "--check-config" "${relative_config_file}")
     endif()
-    if(RDP_RUNTIME_TEST_CASE MATCHES "^validates-(configuration|tls-files|tls-credentials)-")
+    if(RDP_RUNTIME_TEST_CASE MATCHES "^validates-(configuration|tls-files|tls-credentials|linux-security)-")
         set(expected_exit_code 0)
     else()
         set(expected_exit_code 3)
@@ -504,5 +546,11 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^validates-tls-credentials-")
     if(NOT runtime_stderr STREQUAL "" OR NOT runtime_stdout STREQUAL
         "rdp-server: TLS certificate is currently valid and matches the private key; trust, hostname, revocation and OS authorization not verified; service remains disabled.\n")
         message(FATAL_ERROR "Offline TLS credential success must not imply trusted service")
+    endif()
+elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-linux-security-provisioning")
+    if(NOT runtime_stderr STREQUAL "" OR NOT runtime_stdout STREQUAL
+        "rdp-server: TLS identity, explicit Linux GSS acceptor credential and native identity policy accepted; no user authenticated or session authorized; service remains disabled.\n")
+        message(FATAL_ERROR
+            "Linux security preflight must not imply authenticated service")
     endif()
 endif()

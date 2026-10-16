@@ -1,3 +1,43 @@
+## R10 positive Linux security preflight coverage (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main`: `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`. This is a testing-only R10 increment;
+production serving behavior is unchanged and the listener remains disabled.
+The existing Linux provisioning boundary already has direct keytab-owner tests
+and a process-level missing-provisioning denial, but it did not exercise the
+production executable's complete positive `--check-linux-security FILE`
+path.
+
+The existing `test_runtime_linux_security` fixture now exposes one test-only
+`write-synthetic-keytab` mode. `check_runtime_entrypoint.cmake` reuses its
+existing valid TLS certificate/private-key fixture, asks that helper to create
+a private build-root-only MIT service keytab, appends the eight existing Linux
+security fields, and invokes the real `rdp-server --check-linux-security`
+entrypoint. New dedicated CTest:
+`runtime.validates-linux-security-provisioning`. It requires exit 0 and the
+existing explicit message that TLS identity, GSS acceptor credential and
+native identity policy are accepted while **no user is authenticated, no
+session is authorized and service remains disabled**. The prior
+`runtime.rejects-linux-security-missing-provisioning` case remains registered.
+
+No KDC, client ticket, live GSS user authentication, NSS/logind admission,
+R3 session or socket is created. The synthetic keytab contains a random test
+service key only and remains under the one build root.
+
+**Authoring validation:** MIT GSSAPI provider probes in
+`~/rdp-server/build/r10-probe/` rerun PASS:
+`./keytab_probe` -> `GSS_S_COMPLETE`; `./procfd_probe` ->
+`GSS_S_COMPLETE` after pathname removal through retained
+`FILE:/proc/self/fd/3`. Candidate CMake/test registration static assertions
+also PASS. Full repository build/CTest is **NOT RUN** in this execution host
+because the repository checkout cannot be obtained through local GitHub DNS.
+The earlier implementation workflow `38881106173` for
+`d6efca9f14e8b5bd675016f0c7962f4f98a6da6d` remains **QUEUED** at this
+authoring snapshot.
+
+**Next R10 gate:** exact-SHA hosted Linux compile plus all direct and process
+Linux-security CTests, including the new positive preflight. Do not promote the
+provisioning boundary or add a listener until that evidence is available.
+
 ## R4 x264 -> segmented AVC420 publication owner (2026-10-16; exact-SHA CI pending)
 
 Starting inspected shared `main`: `be0a0322117742da5a2cdd8be97b972289d4cce0`;

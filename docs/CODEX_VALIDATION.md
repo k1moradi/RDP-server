@@ -1,3 +1,32 @@
+## R10 positive Linux security preflight authoring validation (2026-10-16)
+
+**Starting shared main:** `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`.
+
+**Change:** test-only coverage for the existing production
+`rdp-server --check-linux-security FILE` path. The existing runtime test
+helper can now create one random synthetic MIT service keytab on request.
+The central runtime CMake checker reuses the established TLS PEM fixture,
+writes the existing eight Linux security settings, invokes the production
+entrypoint, and requires the current fail-safe success text. New behavior CTest:
+`runtime.validates-linux-security-provisioning`. Existing direct
+`runtime.linux-security-explicit-keytab-continuity`,
+`runtime.linux-security-keytab-policy-denials` and process denial
+`runtime.rejects-linux-security-missing-provisioning` are retained.
+
+**Authoring PASS:** `~/rdp-server/build/r10-probe/keytab_probe` returned
+`acquire 0 0`; `procfd_probe` returned
+`FILE:/proc/self/fd/3 acquire=0 minor=0` after removal of the configured
+pathname. Static candidate checks confirm one new process CTest registration,
+the helper parameter, production `--check-linux-security` invocation and
+exact success-output assertion.
+
+**NOT RUN:** full repository configure/build/CTest on this host, hosted tests
+for this unpublished candidate, owner Linux/X11, MSYS2 CLANG64/Clang23,
+macOS27, KDC/client-ticket authentication, positive R2 native admission, R3,
+external clients or a listener. The prior exact implementation workflow
+`38881106173` is still queued. The acceptance gate remains exact-SHA Linux
+compile/CTest before any R10 runtime promotion.
+
 ## R4 x264 -> segmented AVC420 producer authoring (2026-10-16)
 
 **Starting inspected main:** `be0a0322117742da5a2cdd8be97b972289d4cce0`;

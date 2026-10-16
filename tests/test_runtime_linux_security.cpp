@@ -242,15 +242,30 @@ int main(int argumentCount, char **argumentValues)
         return 2;
     }
 
+    const std::string_view testCase{argumentValues[1]};
     std::error_code error;
+    if (testCase == "write-synthetic-keytab")
+    {
+        const std::filesystem::path keytabPath{argumentValues[2]};
+        const auto parentPath = keytabPath.parent_path();
+        if (parentPath.empty())
+        {
+            return 2;
+        }
+        std::filesystem::create_directories(parentPath, error);
+        if (error || !writeSyntheticKeytab(keytabPath, kServicePrincipal))
+        {
+            return 1;
+        }
+        return 0;
+    }
+
     const std::filesystem::path fixtureDirectory{argumentValues[2]};
     std::filesystem::create_directories(fixtureDirectory, error);
     if (error)
     {
         return 2;
     }
-
-    const std::string_view testCase{argumentValues[1]};
     if (testCase == "linux-security-explicit-keytab-continuity")
     {
         testExplicitKeytabContinuity(fixtureDirectory);

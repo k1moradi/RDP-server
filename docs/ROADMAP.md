@@ -16143,3 +16143,49 @@ license-server issuance material/policy. Existing CLIENT_LICENSE_INFO remains
 blocked on CAL signature/trust, product/version/expiration and HWID validation
 before `STATUS_VALID_CLIENT`. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R1 Client Platform Challenge Response exact-SHA validation (2026-10-16)
+
+**Implementation:** `d98f96afc69ab6fadc0776db46731dddc4f52ee0`.  
+**Actions:** [38972700952](https://github.com/k1moradi/RDP-server/actions/runs/38972700952) — **SUCCESS**.
+
+The exact R1 transport-regression SHA is green across the hosted matrix. Linux/GCC
+passes **487/487 Debug** and **487/487 Release** CTests; the new
+`transport.tcp-owned-r3-platform-challenge-response-read` case runs as test
+151 and passes in both configurations. macOS/AppleClang passes **411/411
+Debug** and **411/411 Release**, again with the new case as test 151. Windows
+native preflight passes **48/48** in both configurations and the full suite
+passes **441/441 Debug** plus **441/441 Release**; the new R1 case passes as
+test 151 in both.
+
+R9 Clang ASan+UBSan is also **PASS**. The bounded R1/R3 MCS, CredSSP and
+licensing selection passes **71/71**, explicitly discovers
+`transport.tcp-owned-r3-platform-challenge-response-read`, and executes it as
+selected test 151 with sanitizer instrumentation. The other bounded sanitizer
+groups pass as well: clipboard **53/53**, portable R4 lifecycle **33/33**, R4
+x264/BGRA **20/20**, R4 capability **4/4**, native R2/R3 GSSAPI **29/29**,
+direct R10 runtime security **10/10**, native R5 X11 **27/27**, and the bounded
+fuzzer **1/1**. The independent R7 macOS sanitizer job and documentation-policy
+job pass.
+
+Staged SDK install, downstream consumer **1/1**, package generation,
+reproducible digest and artifact upload pass on Linux, macOS and Windows. The
+run is untagged, so prerelease publication is correctly skipped.
+
+This closes the R1 compatibility increment without changing production R1
+source. The complete protected Client Platform Challenge Response remains a
+140-byte TPKT inside the existing 18 KiB application-I/O boundary; the test
+proves split TLS plaintext progress, zero-byte WANT retry with the same pending
+span, exact R3 verification after reassembly, and preservation of a following
+TLS application record. No second TLS reader, listener, authentication result,
+licensing issuance, Share activation, session authority or Microsoft-client
+acceptance is added.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, real license-authority issuance and Microsoft-client
+acceptance remain **NOT RUN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R1:** add no transport surface unless R3's eventual protected New
+License / Upgrade License publication or later Share activation demonstrates a
+concrete bounded TCP/TLS mismatch.

@@ -1,3 +1,21 @@
+## R2 boundary for licensing key material (2026-10-16)
+
+R3's licensing parsers and `deriveRdpLicensingKeys` are protocol/cryptographic
+helpers, not authorization capabilities. A structurally valid
+`CLIENT_NEW_LICENSE_REQUEST`, borrowed ClientRandom, encrypted-premaster BLOB,
+or successfully derived MAC/encryption key pair cannot enter protected R3
+session progression.
+
+The only positive first-client-licensing transition remains
+`LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage`, which
+requires the concrete move-only native admission lease, exact R1
+`OwnedPreauthTcpConnection`, GSS acceptor and sole R3 lifecycle before the
+packet reaches private licensing state. Key-exchange views, derived key
+material, raw SSL pointers, principal strings, generation integers and nullable
+lease substitutes are not alternative authority forms. Pure decoding and key
+derivation therefore remain reusable below the authorization boundary without
+weakening the R2 lease/provenance contract.
+
 ## R8 completed Linux file URI handoff through X11 (2026-10-16)
 
 The Linux file-descriptor materializer and X11 clipboard adapter remain

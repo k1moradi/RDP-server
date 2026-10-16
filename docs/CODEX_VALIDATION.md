@@ -1,3 +1,36 @@
+## R2 licensing key-material authority authoring validation (2026-10-16)
+
+**Implementation:** `394a17d930044fcbbd247747c05b7a9174997d22`.  
+**Fixture hardening:** `7392882bfdbe7f960d329b4f175675c9ac07b44d`.  
+**CI structure repair:** `93ab919dc2a3de53d551471599c04310dd25f35e`.
+
+Source review **PASS**: no production R2/R3 API changed. The existing dedicated
+Linux route contract now exercises R3's production licensing envelope parser,
+complete licensing-message parser, key-exchange extractor and key-derivation
+helper using one complete global-I/O SendDataRequest. It then proves the public
+unadmitted R3 surface still fails closed. Static invocation checks additionally
+exclude `RdpClientLicensingKeyExchangeView` and
+`RdpLicensingKeyMaterial` as substitutes for
+`LinuxConsoleAdmissionLease`.
+
+Post-commit fixture review added the direct `<algorithm>` dependency and an
+explicit encrypted-premaster length equality before `std::equal`, avoiding a
+transitive-include dependency and preserving bounded comparison assumptions.
+
+Actions for `7392882...` reported a workflow-level failure with **zero jobs**,
+not a compile/test failure. Its inherited R10 parent had malformed
+`.github/workflows/ci.yml`: later sanitizer/jobs content was duplicated into
+the R10 block, its regex quote was unterminated and a stray
+`--output-on-failure` remained. `93ab919...` restores the previously valid
+workflow structure and preserves only the intended new R10 sanitizer selector.
+The repaired workflow is executing; exact descendant hosted Debug/Release,
+R9/R7 sanitizer, documentation-policy and SDK/package results are **PENDING**.
+
+Canonical owner-local testing and genuine positive
+Kerberos/final-CredSSP + NSS/logind admission are **NOT RUN**. No licensing
+premaster decryption, MAC/license validation or Microsoft-client acceptance is
+claimed.
+
 ## R1 accept-batch callback visibility hosted receipt (2026-10-16)
 
 Implementation `2ccfce7e0ed0a939eaa2bef9f8c3da2d3a97beed`, Actions

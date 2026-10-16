@@ -1,3 +1,45 @@
+## R2 licensing key-material non-authority fence (2026-10-16; exact-SHA CI pending)
+
+**Implementation:** `394a17d930044fcbbd247747c05b7a9174997d22`; test-quality hardening:
+`7392882bfdbe7f960d329b4f175675c9ac07b44d`; shared CI structure repair:
+`93ab919dc2a3de53d551471599c04310dd25f35e`.
+
+R3 now exposes bounded client licensing key-exchange parsing and pure
+MS-RDPELE key derivation helpers. R2 deliberately adds no speculative server
+decision API. Instead, the existing
+`security.gssapi-r3-client-licensing-route-contract` now constructs a complete
+`CLIENT_NEW_LICENSE_REQUEST` inside a valid TPKT/X.224/MCS global-I/O
+SendDataRequest, verifies the production Enhanced-Security/licensing parsers,
+extracts the ClientRandom/encrypted premaster metadata, and successfully derives
+symmetric licensing keys from deterministic already-decoded test material.
+
+Those protocol/cryptographic values remain non-authority. Compile-time checks
+prove neither the key-exchange view nor derived key material can substitute for
+the concrete move-only `LinuxConsoleAdmissionLease`; runtime still sends the
+otherwise valid packet only through the public unadmitted R3 path, which returns
+`ValidButNotAdmitted` and closes licensing state. No synthetic GSS success,
+native lease, premaster decryption, server licensing decision, Share/activation,
+input/clipboard/graphics or desktop authority is created.
+
+The first exact hardening workflow could not create jobs because its parent R10
+commit accidentally spliced duplicate workflow jobs into the R9 sanitizer step
+and left an unterminated selector/stray shell fragment. R2 restored the prior
+workflow structure while preserving R10's intended
+`runtime.linux-connection-pre-admission-dispatch` sanitizer selection. The
+repaired workflow executes normally; protocol/sanitizer evidence for the final
+documented SHA is still **PENDING**.
+
+Canonical owner-local `~/rdp-server/build/`, genuine
+Kerberos/final-CredSSP + NSS/logind positive admission, licensing
+certificate/private-key premaster decryption/MAC validation, Microsoft-client
+licensing and M2/M3 remain **NOT RUN / OPEN**.
+
+**Next R2:** per the existing roadmap, do not add another authorization API
+until R3 exposes a real server licensing decision, challenge/issuance, or
+activation publication/completion boundary. At that point require the same
+fresh concrete lease + exact R1 owner authorization immediately before
+publication and again before asynchronous accepted-byte completion.
+
 ## R1 accept-batch callback visibility exact-SHA hosted validation (2026-10-16; PASS)
 
 **Implementation:** `2ccfce7e0ed0a939eaa2bef9f8c3da2d3a97beed`.  

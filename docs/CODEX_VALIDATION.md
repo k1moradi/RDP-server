@@ -3933,3 +3933,36 @@ desktop, service packaging, or release acceptance. M1–M6 remain OPEN.
 **Next:** R1/R5 own their specific CI repairs on `main`; R10
 rechecks exact CI and proceeds to Windows-native secure config-file
 handling without enabling live server startup.
+
+## R1 one-connection bounded native poll and deadline (2026-10-15)
+
+**Road:** R1 Transport/TLS, P0 first-party event-loop prerequisite.
+**Integration parent:** `84d55d00f4c49772ddaad524d078ade198cf5f03`. Nine changed files:
+`src/server/transport/nonblocking_tcp_adapter.h/.cpp`,
+`tests/test_owned_preauth_session.cpp`, `tests/CMakeLists.txt`,
+existing `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/coding_standards.md`, `docs/testing_standards.md` and
+this validation ledger. Production increment:
+`OwnedPreauthTcpConnection::pollSocketOnce` performs no more than
+one bounded (<=25ms) OS `poll`/`WSAPoll` on the accepted owner,
+delegates one matching read/write callback to the preexisting
+`onSocketReady`, returns explicit idle/needs-TLS/expired/closed/failure,
+and closes SSL/BIO before socket on fatal OS error or deadline.
+No process listener, second state machine, timer thread, certificate
+enrollment, R2 identity, R3 admission or desktop authority.
+**Dedicated CTests:** `transport.tcp-owned-bounded-poll-loopback-tls`
+and `transport.tcp-owned-bounded-poll-timeout-eof`; both are ordinary
+portable loopback cases under the original preauth executable and
+central CTest registry.
+**Preceding baseline PASS:** all GitHub-hosted Linux/GCC,
+Windows/MSVC, macOS/AppleClang protocol and documentation jobs on
+`991320318e681fba99ca85adf1d29039c3e3137c`
+([Actions 38801211658](https://github.com/k1moradi/RDP-server/actions/runs/38801211658)).
+**NOT RUN at authoring:** new code local focused or full CTest
+(network git clone cannot resolve github.com and worker has no
+existing clone), new implementation exact-commit GitHub Actions,
+owner Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27 checks,
+human live Microsoft RDP client and R2/R3 OS admission.
+**Next:** R10 integrate the single connection polling step under
+a bounded listener-accept budget; R2 authorizes identity and R3 owns
+MCS/channel/OS session progression independently.

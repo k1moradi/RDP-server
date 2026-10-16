@@ -97,6 +97,8 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-readiness-dispatch
                 tcp-owned-reply-interest-priority
                 tcp-owned-deadline-cancellation
+                tcp-owned-bounded-poll-loopback-tls
+                tcp-owned-bounded-poll-timeout-eof
                 tls-nonblocking-handshake
                 tls-nonblocking-failures
                 tcp-native-loopback-tls

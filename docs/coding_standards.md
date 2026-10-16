@@ -1288,3 +1288,12 @@ An external `steady_clock` time point and policy deadline trigger
 idempotent cancellation; do not allocate timers or read the wall clock
 from the transport owner. A read-only completed SSL borrow must not
 outlive its owner or substitute for R2 authenticated identity.
+
+**One bounded native poll step (R1):** Do not place a blocking
+socket recv/send or unbounded poll/retry into a readiness callback.
+A connection-scoped POSIX poll/WSAPoll wait is capped to 25ms,
+uses only the owner's socket and previous `ioInterest`, handles
+EINTR without hidden retry and fails closed on native errors.
+Check a monotonic deadline before and after polling, pass only the
+matching ready direction to one existing bounded callback, and keep
+listener policy, process runtime and OS authorization outside R1.

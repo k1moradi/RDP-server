@@ -1493,6 +1493,15 @@ the caller-owned listener. It reuses the current protocol stages and
 cannot grant authentication, authorize a desktop or emit an MCS reply.
 An external event loop supplies readiness and timeout decisions.
 
+**R1 one-connection OS polling step:** `pollSocketOnce` uses POSIX
+`poll` or Winsock `WSAPoll` for precisely the currently owned
+accepted socket, with a 25ms per-call wait cap and caller-owned
+monotonic deadline. Only the matching existing socket readiness
+callback runs, once; timeout and hard OS error close the TLS/BIO and
+socket in the original order, with the borrowed listener untouched.
+This is a reusable event-loop building block, NOT a new daemon,
+background thread or authenticated session controller.
+
 ### R1 bounded readiness and connection deadline (2026-10-15)
 
 The same `OwnedPreauthTcpConnection` now advertises `Read`, `Write`,

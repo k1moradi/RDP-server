@@ -513,6 +513,35 @@ actually run; another parser CTest alone is not a complete session.
   **NOT ACCEPTED**. Next R1: bounded actual readiness polling/listener
   budget integration with R10 under authenticated R2/R3 interfaces.
 
+
+  **R1 bounded one-connection native polling integration
+  (2026-10-15; integration parent `84d55d00f4c49772ddaad524d078ade198cf5f03`; exact new-code CI pending):**
+  Extend the ONLY `OwnedPreauthTcpConnection` with one
+  `pollSocketOnce(deadline,maxWait)` using platform POSIX `poll` or
+  Winsock `WSAPoll`. Each call polls precisely one owned accepted socket
+  for the existing `ioInterest` direction, for at most **25ms**, then
+  forwards a single bounded `onSocketReady` callback. Unready, EINTR,
+  pending TLS configuration, expired deadlines, socket error/hangup
+  and already-closed owners are explicit; no hidden OS blocking I/O
+  loops, socket duplicate, poll thread, service port, listener manager,
+  TLS certificate policy or new RDP authority. Deadline cancellations
+  continue to free SSL/BIO before the accepted socket; the separately
+  borrowed listener remains unaffected. Two new dedicated portable
+  CTests `transport.tcp-owned-bounded-poll-loopback-tls` and
+  `transport.tcp-owned-bounded-poll-timeout-eof` use real ephemeral
+  loopback acceptance, partial X.224, exact Confirm, actual selected
+  SSL/TLS handshake and encrypted MCS termination, zero/oversized wait,
+  expired time and mid-request peer EOF. Expected +2 registered tests
+  relative to current main; **NOT RUN** new focused/full CTest at
+  authoring (worker has no GitHub-clonable checkout).
+  **PASS** earlier main CI baseline Linux/Windows/macOS and documentation
+  at `991320318e681fba99ca85adf1d29039c3e3137c`
+  ([Actions 38801211658](https://github.com/k1moradi/RDP-server/actions/runs/38801211658)).
+  **NOT RUN:** exact new-SHA CI, owner Linux/X11, Windows MSYS2 CLANG64
+  Clang23 and macOS27, live Microsoft client and R2/R3 authenticated
+  session. Next gate: R10 runtime callback wiring to bounded listener
+  acceptance with R2 identity/R3 session trust decisions preserved.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

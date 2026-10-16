@@ -1730,6 +1730,16 @@ monotonic timestamps for a partially received X.224 request and an
 attached-but-incomplete TLS handshake, validating cleanup and listener
 preservation without waiting on a real timer. A green offline case
 does not assert R2 credentials, R3 channel admission or desktop access.
+
+**R1 bounded native poll CTests:**
+`transport.tcp-owned-bounded-poll-loopback-tls` exercises actual
+POSIX poll/WSAPoll on the accepted loopback owner from split X.224
+request through exact response, one SSL/BIO handshake and encrypted
+first diagnostic MCS packet. `transport.tcp-owned-bounded-poll-timeout-eof`
+checks idle zero wait, bounded overly-large wait, deterministic past
+deadline, stale poll denial, and peer EOF during partial negotiation.
+Both live in the existing preauth executable and are registered in
+`tests/CMakeLists.txt`; no service, user login or OS desktop is used.
 A further dedicated `transport.tcp-owned-reply-interest-priority`
 regression asserts that successful X.224 Confirm and rejected
 NEG_FAILURE remain scheduled for full bounded write *after* parsing

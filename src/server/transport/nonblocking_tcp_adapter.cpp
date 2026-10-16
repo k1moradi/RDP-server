@@ -18,6 +18,7 @@
 #else
 #include <cerrno>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -338,6 +339,89 @@ TcpAcceptResult acceptNonblockingTcpConnection(
 }
 
 
+
+
+TcpConnectionPollResult OwnedPreauthTcpConnection::pollSocketOnce(
+    std::chrono::steady_clock::time_point deadline,
+    std::chrono::milliseconds maxWait) noexcept
+{
+    using Outcome = TcpConnectionPollOutcome;
+    using Interest = TcpConnectionIoInterest;
+    if (!active()) return {Outcome::Closed, Interest::Closed};
+
+    // Deadlines apply even while an external TLS context is pending.
+    const auto now = std::chrono::steady_clock::now();
+    if (cancelIfExpired(now, deadline))
+        return {Outcome::Expired, Interest::Closed};
+
+    const auto wanted = ioInterest();
+    if (wanted == Interest::Closed)
+    {
+        cancel();
+        return {Outcome::Closed, Interest::Closed};
+    }
+    if (wanted == Interest::ConfigureTls)
+        return {Outcome::NeedsTls, wanted};
+
+    // No unbounded wait, retry loop, OS timer or descriptor duplication.
+    const auto maximum = (std::max)(maxWait, std::chrono::milliseconds{0});
+    const auto remaining =
+        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+    const auto wait = (std::min)(
+        (std::min)(maximum, kMaximumTcpPollWait), remaining);
+    const int timeoutMillis = static_cast<int>(wait.count()); // 0..25
+
+#ifdef _WIN32
+    WSAPOLLFD ready{};
+    ready.fd = static_cast<SOCKET>(nativeSocket());
+    ready.events = wanted == Interest::Read ? POLLIN : POLLOUT;
+    const int count = ::WSAPoll(&ready, 1UL, timeoutMillis);
+    const bool interrupted = count < 0 && WSAGetLastError() == WSAEINTR;
+#else
+    if (nativeSocket() > static_cast<std::uintptr_t>(
+            (std::numeric_limits<int>::max)()))
+    {
+        cancel();
+        return {Outcome::Failure, Interest::Closed};
+    }
+    pollfd ready{};
+    ready.fd = static_cast<int>(nativeSocket());
+    ready.events = wanted == Interest::Read ? POLLIN : POLLOUT;
+    const int count = ::poll(&ready, static_cast<nfds_t>(1), timeoutMillis);
+    const bool interrupted = count < 0 && errno == EINTR;
+#endif
+
+    if (count < 0 && !interrupted)
+    {
+        cancel();
+        return {Outcome::Failure, Interest::Closed};
+    }
+    // EINTR is NOT silently retried. Return control to the caller after
+    // at most one OS poll and give a fresh chance to check the deadline.
+    if (count <= 0)
+    {
+        if (cancelIfExpired(std::chrono::steady_clock::now(), deadline))
+            return {Outcome::Expired, Interest::Closed};
+        return {Outcome::NoEvent, ioInterest()};
+    }
+
+    if ((ready.revents & (POLLERR | POLLNVAL)) != 0)
+    {
+        cancel();
+        return {Outcome::Failure, Interest::Closed};
+    }
+
+    // A hangup wakes the relevant callback exactly once so the owner
+    // sees EOF or send failure through its existing bounded adapter.
+    const bool hungUp = (ready.revents & POLLHUP) != 0;
+    const bool readable = (ready.revents & POLLIN) != 0 || hungUp;
+    const bool writable = (ready.revents & POLLOUT) != 0 || hungUp;
+    if (!readable && !writable)
+        return {Outcome::NoEvent, ioInterest()};
+
+    const auto next = onSocketReady(readable, writable);
+    return {Outcome::Dispatched, next};
+}
 
 TcpConnectionIoInterest OwnedPreauthTcpConnection::ioInterest() const noexcept
 {

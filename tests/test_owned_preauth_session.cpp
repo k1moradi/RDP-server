@@ -2205,6 +2205,201 @@ void testOwnedTcpDeadlineCancellation()
     }
 }
 
+
+[[nodiscard]] TcpConnectionPollResult pollUntilTcpInterest(
+    OwnedPreauthTcpConnection &owner,
+    TcpConnectionIoInterest expected,
+    std::chrono::steady_clock::time_point deadline)
+{
+    TcpConnectionPollResult last{};
+    for (int attempt = 0; attempt < 4096; ++attempt)
+    {
+        last = owner.pollSocketOnce(deadline, std::chrono::milliseconds{2});
+        if (last.nextInterest == expected) return last;
+        assert(last.outcome == TcpConnectionPollOutcome::Dispatched ||
+               last.outcome == TcpConnectionPollOutcome::NoEvent);
+        assert(owner.active());
+    }
+    assert(false && "bounded TCP poll did not reach expected interest");
+    return last;
+}
+
+void testOwnedTcpBoundedPollLoopbackTls()
+{
+    using Interest = TcpConnectionIoInterest;
+    using Outcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    assert(owner.active());
+    assert(!accepted.connection.valid());
+    const auto deadline = Clock::now() + std::chrono::seconds{10};
+
+    // Empty socket: one zero-budget poll must not invoke a callback.
+    const auto idle = owner.pollSocketOnce(deadline,
+                                          std::chrono::milliseconds{0});
+    assert(idle.outcome == Outcome::NoEvent);
+    assert(idle.nextInterest == Interest::Read);
+
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    const auto request = validRequestWire();
+    nativeSendAll(clientIo, std::span(request).first(3));
+    auto partial = pollUntilTcpInterest(owner, Interest::Read, deadline);
+    assert(partial.nextInterest == Interest::Read);
+    assert(owner.stage() == PreauthStage::AwaitConnectionRequest);
+    nativeSendAll(clientIo, std::span(request).subspan(3));
+
+    // Native poll detects read, then writable interest for queued Confirm.
+    const auto read = pollUntilTcpInterest(owner, Interest::Write, deadline);
+    assert(read.outcome == Outcome::Dispatched);
+    const auto reply = owner.pollSocketOnce(deadline,
+                                           std::chrono::milliseconds{2});
+    assert(reply.outcome == Outcome::Dispatched);
+    assert(reply.nextInterest == Interest::ConfigureTls);
+    assert(owner.pollSocketOnce(deadline).outcome == Outcome::NeedsTls);
+    std::array<std::uint8_t, 19> confirm{};
+    nativeReadAll(clientIo, confirm);
+    assert(confirm == negotiateDiagnosticTls(validRequest()).packet);
+
+    TlsHandshakeFixture tls{false, false};
+    const SSL *serverIdentity = tls.server.get();
+    OwnedPreauthTcpConnection::ServerTls server{
+        tls.server.release(), SSL_free};
+    assert(owner.attachServerTls(std::move(server)));
+    assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    for (int attempt = 0; attempt < 16384; ++attempt)
+    {
+        if (!clientEstablished)
+        {
+            const int success = SSL_do_handshake(tls.client.get());
+            if (success == 1)
+                clientEstablished = true;
+            else
+            {
+                const int err = SSL_get_error(tls.client.get(), success);
+                assert(err == SSL_ERROR_WANT_READ ||
+                       err == SSL_ERROR_WANT_WRITE);
+            }
+        }
+        const auto step = owner.pollSocketOnce(
+            deadline, std::chrono::milliseconds{2});
+        assert(step.outcome == Outcome::Dispatched ||
+               step.outcome == Outcome::NoEvent);
+        serverEstablished = owner.establishedTls() != nullptr;
+        if (clientEstablished && serverEstablished) break;
+    }
+    assert(clientEstablished && serverEstablished);
+    assert(owner.establishedTls() == serverIdentity);
+    assert(owner.stage() == PreauthStage::AwaitMcsConnectInitial);
+
+    const auto frame = validMcsPacket();
+    std::size_t written = 0;
+    for (int attempt = 0; attempt < 16384 && written < frame.size();
+         ++attempt)
+    {
+        std::size_t count = 0;
+        const int success = SSL_write_ex(tls.client.get(),
+            frame.data() + written, frame.size() - written, &count);
+        if (success == 1)
+        {
+            assert(count > 0 && count <= frame.size() - written);
+            written += count;
+        }
+        else
+        {
+            const int err = SSL_get_error(tls.client.get(), success);
+            assert(err == SSL_ERROR_WANT_READ ||
+                   err == SSL_ERROR_WANT_WRITE);
+            std::this_thread::yield();
+        }
+    }
+    assert(written == frame.size());
+    for (int attempt = 0; attempt < 16384 && owner.active(); ++attempt)
+    {
+        const auto step = owner.pollSocketOnce(
+            deadline, std::chrono::milliseconds{2});
+        assert(step.outcome == Outcome::Dispatched ||
+               step.outcome == Outcome::NoEvent);
+    }
+    assert(!owner.active());
+    assert(owner.stage() == PreauthStage::Closed);
+    assert(owner.establishedTls() == nullptr);
+    assert(owner.pollSocketOnce(deadline).outcome == Outcome::Closed);
+    assert(pair.listener.value != kInvalidLocalSocket);
+    assert(acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(pair.listener.value)).outcome ==
+        TcpAcceptOutcome::WouldBlock);
+}
+
+void testOwnedTcpBoundedPollTimeoutAndDisconnect()
+{
+    using Interest = TcpConnectionIoInterest;
+    using Outcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    OwnedPreauthTcpConnection empty{OwnedNativeTcpSocket{}};
+    assert(empty.pollSocketOnce(Clock::now()).outcome == Outcome::Closed);
+    assert(!empty.active());
+
+    // Even a huge caller wait is clamped to a 25ms maximum OS wait;
+    // expiration is checked at both ends of the one-step poll.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        const auto start = Clock::now();
+        const auto hugeWait = owner.pollSocketOnce(
+            start + std::chrono::seconds{4}, std::chrono::hours{1});
+        const auto duration = Clock::now() - start;
+        assert(hugeWait.outcome == Outcome::NoEvent);
+        assert(hugeWait.nextInterest == Interest::Read);
+        assert(duration < std::chrono::seconds{3});
+
+        const auto expired = owner.pollSocketOnce(
+            Clock::now() - std::chrono::nanoseconds{1},
+            std::chrono::milliseconds{0});
+        assert(expired.outcome == Outcome::Expired);
+        assert(!owner.active());
+        assert(owner.pollSocketOnce(Clock::now()).outcome ==
+               Outcome::Closed);
+        owner.cancel();
+        assert(pair.listener.value != kInvalidLocalSocket);
+    }
+
+    // Closing the client in the middle of X.224 must report native
+    // readable/HUP then fail closed, while preserving the listener.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = acceptNonblockingTcpConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo client{static_cast<std::uintptr_t>(pair.client.value)};
+        const auto request = validRequestWire();
+        nativeSendAll(client, std::span(request).first(3));
+        pair.client.close();
+        const auto deadline = Clock::now() + std::chrono::seconds{10};
+        for (int i = 0; i < 4096 && owner.active(); ++i)
+        {
+            const auto result = owner.pollSocketOnce(
+                deadline, std::chrono::milliseconds{2});
+            assert(result.outcome == Outcome::Dispatched ||
+                   result.outcome == Outcome::NoEvent);
+        }
+        assert(!owner.active());
+        assert(owner.stage() == PreauthStage::Closed);
+        assert(owner.pollSocketOnce(deadline).outcome == Outcome::Closed);
+        assert(pair.listener.value != kInvalidLocalSocket);
+    }
+}
 void testNativeTcpChunkBounds()
 {
     // Real OS sockets, loopback only. The caller provides buffers much
@@ -4525,6 +4720,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-readiness-dispatch", &testOwnedTcpReadinessDispatch},
     {"tcp-owned-reply-interest-priority", &testOwnedTcpPendingReplyInterestPriority},
     {"tcp-owned-deadline-cancellation", &testOwnedTcpDeadlineCancellation},
+    {"tcp-owned-bounded-poll-loopback-tls", &testOwnedTcpBoundedPollLoopbackTls},
+    {"tcp-owned-bounded-poll-timeout-eof", &testOwnedTcpBoundedPollTimeoutAndDisconnect},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},

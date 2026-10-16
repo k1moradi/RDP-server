@@ -234,6 +234,29 @@ private:
      Closed,
  };
 
+
+ // One bounded, readiness-driven OS poll of an already accepted TCP
+ // connection. This is NOT a second session manager or server listener.
+ enum class TcpConnectionPollOutcome : std::uint8_t
+ {
+     Dispatched,
+     NoEvent,
+     NeedsTls,
+     Expired,
+     Closed,
+     Failure,
+ };
+
+ struct TcpConnectionPollResult
+ {
+     TcpConnectionPollOutcome outcome{TcpConnectionPollOutcome::Closed};
+     TcpConnectionIoInterest nextInterest{TcpConnectionIoInterest::Closed};
+ };
+
+ // Absolute maximum wait for a single pollSocketOnce call. A long caller
+ // timeout is split into bounded steps by the EXTERNAL runtime scheduler.
+ inline constexpr std::chrono::milliseconds kMaximumTcpPollWait{25};
+
  // R1: one event-loop-affine owner of an accepted socket, preauth and SSL.
  // Never move: the attached SSL/BIO borrows the embedded NativeTcpIo.
  // There is no additional protocol/session state machine or listener here.
@@ -283,6 +306,16 @@ private:
      [[nodiscard]] bool cancelIfExpired(
          std::chrono::steady_clock::time_point now,
          std::chrono::steady_clock::time_point deadline) noexcept;
+
+     // One native poll/WSAPoll + at most ONE callback on this same owner.
+     // Requires its event-loop thread. Does not bind/listen, retry hidden
+     // EINTR, perform TLS configuration or infer authentication.
+     // Both maxWait and deadline bound the wait to <= 25 milliseconds.
+     // The caller retains the deadline policy and repeats this step.
+     [[nodiscard]] TcpConnectionPollResult pollSocketOnce(
+         std::chrono::steady_clock::time_point deadline,
+         std::chrono::milliseconds maxWait = kMaximumTcpPollWait) noexcept;
+
      // Short-lived, read-only handoff for R2 certificate/peer inspection.
      // Non-null ONLY after actual TLS establishment; caller may not cache
      // this borrow across cancellation or advance SSL outside R1.

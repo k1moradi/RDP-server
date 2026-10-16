@@ -1,3 +1,27 @@
+## R10 Linux runtime-security publication receipt (2026-10-16; exact-SHA workflow queued)
+
+Implementation commit: `d6efca9f14e8b5bd675016f0c7962f4f98a6da6d`
+(`feat(r10): provision explicit Linux runtime security`), published directly
+to `main` from parent `b009c43bc6913513937b89c9de16a0abbc5a6a50`
+with an expected-head, non-force ref update. Exact implementation workflow:
+Actions `38881106173`, currently **QUEUED** in the shared runner backlog, so
+hosted compile/CTest is **NOT RUN yet** for this exact SHA.
+
+Authoring PASS remains the two provider probes in
+`~/rdp-server/build/r10-probe/`: `./keytab_probe` acquired the explicit
+synthetic keytab with `GSS_S_COMPLETE`; `./procfd_probe` acquired the same
+credential through the retained `FILE:/proc/self/fd/3` after pathname
+replacement. Full local repository build/CTest remains **NOT RUN** because the
+workspace has no GitHub-resolvable checkout.
+
+Descendant `main` inspected at `6cdfab6e45126baa67cc277339443b8a223b42a2` retains the R10 runtime source,
+process entrypoint, CMake registration and three new CTests unchanged; its
+intervening changes are other-road graphics/Windows/docs/test additions.
+Therefore no R10 behavior was silently replaced while its exact workflow is
+queued. **Next gate:** obtain exact-SHA Linux compile and all three dedicated
+R10 CTest results before promoting the provisioning boundary or adding any
+listener.
+
 ## R4 owned AVC420 segmented-frame handoff (2026-10-16; exact-SHA CI pending)
 
 Starting shared `main` for this convergence increment:

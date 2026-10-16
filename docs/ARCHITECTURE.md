@@ -346,6 +346,31 @@ offers. The caller owns native offer completion, outbound queueing, and
 channel reassembly. No additional clipboard controller, OS API dependency
 or live clipboard access is introduced by this increment.
 
+### R8 outbound clipboard Format Data Request write receipts (offline)
+
+The existing single `RemoteTransfer` state owner prepares a
+CLIPRDR Format Data Request for an advertised current-generation
+numeric format, wraps the 12-byte PDU with a single uncompressed
+`CHANNEL_PDU_HEADER` (length 12, FIRST|LAST), and delegates only
+the MCS SendDataIndication serialization to R3's confirmed-join
+`McsChannelJoinWriteGate`. The format-data request slot is reserved
+**only after** successful checked serialization into a caller-owned
+buffer. R3 retains all genuine authenticated CLIPRDR channel role,
+TLS/NLA/R2 session admission, security headers, and outbound writer
+ownership; an offline checked MCS join is not authorization.
+
+A monotonic receipt distinguishes request preparations across actual
+disconnect/reconnect. The R3 writer must check current generation and
+receipt before submitting the stored buffer, then report cumulative
+bytes actually written to the same event-loop owner. Zero submitted
+bytes can be cancelled without reserving an ambiguous response.
+A partially delivered request cannot be rolled back; abort or
+unknown delivery poisons the coordinator until a genuine disconnect.
+Only a fully written request can consume a Format Data Response,
+which has no wire request ID. If the clipboard generation changes
+after full delivery, its late response is drained as obsolete.
+This offline API does not enqueue TLS bytes or cache OS clipboard data.
+
 ### Independence test
 
 The top-level CMake project enables **CXX only**, targets C++23, and links

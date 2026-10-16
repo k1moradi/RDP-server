@@ -2954,6 +2954,26 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   Windows MSYS2 CLANG64 Clang23, macOS27, authenticated desktop,
   real-client clipboard, Firefox PNG File paste and performance
   **NOT RUN**.
+  **R8 transactional outbound Format Data Request (2026-10-16):**
+  `RemoteTransfer::prepareJoinedFormatDataRequest` now builds a
+  complete 12-byte CLIPRDR request inside the uncompressed FIRST|LAST
+  static VC header, then delegates the MCS SendDataIndication to R3's
+  confirmed-join encoder. It rejects unadvertised/stale formats,
+  wrong or unjoined channel IDs and short output capacity without
+  reserving a phantom pending response or mutating output. The new
+  monotonic joined-request receipt lets R3's sole writer report
+  cumulative byte progress; pre-write cancellation is safe, whereas
+  partial/uncertain delivery poisons the transfer until disconnect.
+  Complete delivery is required before accepting any data response;
+  an old-generation completed response is discarded, never relabeled.
+  Dedicated `clipboard.format-data-request-joined-mcs-envelope`
+  and `clipboard.format-data-request-generation-cancellation`
+  CTests cover golden bytes, failures, partial writes, reconnects
+  and stale response quarantine. This remains an OFFLINE R8 wire
+  boundary: genuine R2/R3 TLS/NLA/OS admission, CLIPRDR role and
+  one TLS writer remain external, and media/OS paste acceptance
+  is NOT RUN. At authoring full exact-SHA CI and owner-machine CTests
+  NOT RUN; next bridge the R3 authorized writer and verify bytes.
 - [ ] **Bounded eager text/image retrieval, with delayed OS presentation**:
   after a *legitimate client Format List* for generation N, prioritize
   `CF_UNICODETEXT` and registered `PNG` (look up names, not fixed IDs),

@@ -161,6 +161,47 @@ public:
     [[nodiscard]] bool beginRequest(
         std::uint32_t formatId, std::vector<std::uint8_t> &output) noexcept;
 
+    // OFFLINE wire-only preparation. A confirmed R3 MCS join and the
+    // expected CLIPRDR role ID are necessary but NOT TLS/NLA/OS authority.
+    // R3 must independently admit the session/channel and serialize the
+    // exact caller-owned output through its single TLS writer.
+    // On failure output and pending request are unchanged (no phantom slot).
+    // The returned receipt is generation/lifetime scoped and monotonic
+    // even across resetAfterDisconnect(), to reject stale writer callbacks.
+    struct JoinedRequestReceipt
+    {
+        std::uint64_t sequence{};
+        std::uint64_t generation{};
+        std::size_t bytes{};
+    };
+
+    [[nodiscard]] std::optional<JoinedRequestReceipt>
+    prepareJoinedFormatDataRequest(
+        const transport::McsChannelJoinWriteGate &joinedChannels,
+        std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+        std::uint32_t formatId,
+        std::span<std::uint8_t> output) noexcept;
+
+    // The R3 session owner must recheck this before queuing bytes, on
+    // the same event loop as clipboard generation changes. Serialization
+    // or membership does NOT itself grant permission to send.
+    [[nodiscard]] bool joinedRequestMayWrite(
+        std::uint64_t sequence) const noexcept;
+
+    // Cumulative bytes *actually accepted by the one connection writer*.
+    // Only a complete write allows the corresponding reply to be consumed.
+    // Wrong/stale receipts are ignored; impossible progress fails closed.
+    [[nodiscard]] bool recordJoinedRequestWritten(
+        std::uint64_t sequence, std::size_t cumulativeBytes) noexcept;
+
+    // Revoke a prepared request only when no byte was submitted. Once any
+    // part might have been sent, failure/timeout is ambiguous and the
+    // coordinator must remain poisoned until a genuine disconnect.
+    [[nodiscard]] bool cancelUnwrittenJoinedRequest(
+        std::uint64_t sequence) noexcept;
+    [[nodiscard]] bool abandonJoinedRequest(
+        std::uint64_t sequence) noexcept;
+
     // Optional bounded eager-retrieval planner for one clipboard generation.
     // Text selects CF_UNICODETEXT only; images prefer registered PNG, then
     // CF_DIBV5 (17) and CF_DIB (8). IDs are matched to THIS format list,
@@ -211,6 +252,11 @@ private:
     bool capabilitiesReceived_{};
     PendingRequest pending_{};
     bool pendingValid_{};
+    std::uint64_t joinedRequestSequence_{}; // Never reset: no receipt ABA.
+    std::uint64_t joinedRequestActiveSequence_{};
+    std::size_t joinedRequestFrameBytes_{};
+    std::size_t joinedRequestWrittenBytes_{};
+    bool joinedRequestActive_{};
     bool poisoned_{};
 };
 

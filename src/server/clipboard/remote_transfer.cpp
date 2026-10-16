@@ -629,6 +629,108 @@ bool RemoteTransfer::beginRequest(
     return true;
 }
 
+std::optional<RemoteTransfer::JoinedRequestReceipt>
+RemoteTransfer::prepareJoinedFormatDataRequest(
+    const transport::McsChannelJoinWriteGate &joinedChannels,
+    std::uint16_t channelId, std::uint16_t expectedCliprdrChannelId,
+    std::uint32_t formatId, std::span<std::uint8_t> output) noexcept
+{
+    using namespace rdp_server::clipboard;
+    if (poisoned_ || generation_ == 0 || pendingValid_ ||
+        joinedRequestActive_ || joinedRequestSequence_ == UINT64_MAX ||
+        channelId == 0 || channelId != expectedCliprdrChannelId ||
+        !joinedChannels.channelJoinConfirmed(channelId) ||
+        !advertises(formatId))
+        return std::nullopt;
+
+    // MS-RDPECLIP 2.2.5.1: CB_FORMAT_DATA_REQUEST is an exact 12-byte
+    // PDU with one 32-bit currently advertised format identifier.
+    // Stage the codec output before reserving the single-flight slot.
+    const std::array<std::uint8_t, 4> format{
+        static_cast<std::uint8_t>(formatId),
+        static_cast<std::uint8_t>(formatId >> 8U),
+        static_cast<std::uint8_t>(formatId >> 16U),
+        static_cast<std::uint8_t>(formatId >> 24U),
+    };
+    std::vector<std::uint8_t> pdu;
+    if (!encodePdu(kFormatDataRequest, 0, format, pdu) || pdu.size() != 12)
+        return std::nullopt;
+
+    // MS-RDPBCGR 2.2.6.1.1: uncompressed data size, then FIRST|LAST,
+    // then the complete clipboard PDU. The VC payload is only 12 bytes.
+    std::array<std::uint8_t, 20> channelData{};
+    channelData[0] = 12;
+    channelData[4] = 3;
+    std::copy(pdu.begin(), pdu.end(), channelData.begin() + 8);
+    const auto framed = joinedChannels.encodeJoinedSendDataIndication(
+        channelId, 1, 3, channelData, output);
+    if (!framed)
+        return std::nullopt;
+
+    // Commit *after* all checks and serialization. The caller owns the
+    // fully encoded output; R3 alone can admit, queue and complete writes.
+    ++joinedRequestSequence_;
+    pending_ = PendingRequest{generation_, formatId};
+    pendingValid_ = true;
+    joinedRequestActiveSequence_ = joinedRequestSequence_;
+    joinedRequestFrameBytes_ = *framed;
+    joinedRequestWrittenBytes_ = 0;
+    joinedRequestActive_ = true;
+    return JoinedRequestReceipt{joinedRequestSequence_, generation_, *framed};
+}
+
+bool RemoteTransfer::joinedRequestMayWrite(std::uint64_t sequence) const noexcept
+{
+    return !poisoned_ && pendingValid_ && joinedRequestActive_ &&
+           sequence != 0 && sequence == joinedRequestActiveSequence_ &&
+           pending_.generation == generation_ &&
+           joinedRequestWrittenBytes_ < joinedRequestFrameBytes_;
+}
+
+bool RemoteTransfer::recordJoinedRequestWritten(
+    std::uint64_t sequence, std::size_t cumulativeBytes) noexcept
+{
+    if (poisoned_ || !pendingValid_ || !joinedRequestActive_ ||
+        sequence == 0 || sequence != joinedRequestActiveSequence_)
+        return false;
+    if (cumulativeBytes < joinedRequestWrittenBytes_ ||
+        cumulativeBytes > joinedRequestFrameBytes_ ||
+        (pending_.generation != generation_ &&
+         cumulativeBytes > joinedRequestWrittenBytes_))
+    {
+        poisoned_ = true;
+        return false;
+    }
+    joinedRequestWrittenBytes_ = cumulativeBytes;
+    return true;
+}
+
+bool RemoteTransfer::cancelUnwrittenJoinedRequest(
+    std::uint64_t sequence) noexcept
+{
+    if (poisoned_ || !pendingValid_ || !joinedRequestActive_ ||
+        sequence == 0 || sequence != joinedRequestActiveSequence_ ||
+        joinedRequestWrittenBytes_ != 0)
+        return false;
+    pending_ = {};
+    pendingValid_ = false;
+    joinedRequestActive_ = false;
+    joinedRequestActiveSequence_ = 0;
+    joinedRequestFrameBytes_ = 0;
+    return true;
+}
+
+bool RemoteTransfer::abandonJoinedRequest(std::uint64_t sequence) noexcept
+{
+    if (!pendingValid_ || !joinedRequestActive_ || sequence == 0 ||
+        sequence != joinedRequestActiveSequence_)
+        return false;
+    if (joinedRequestWrittenBytes_ == 0)
+        return cancelUnwrittenJoinedRequest(sequence);
+    poisoned_ = true; // Partial/uncertain send: never reassign its reply.
+    return true;
+}
+
 bool RemoteTransfer::beginNextPrefetch(
     PrefetchKind kind,
     std::uint32_t &selectedFormatId,
@@ -683,9 +785,21 @@ RemoteTransfer::Response RemoteTransfer::receiveResponse(
         return {};
     }
 
+    // An early reply cannot prove a prepared or partially written request
+    // was delivered; leave the channel poisoned instead of reusing its slot.
+    if (joinedRequestActive_ &&
+        joinedRequestWrittenBytes_ != joinedRequestFrameBytes_)
+    {
+        poisoned_ = true;
+        return {};
+    }
     const PendingRequest completed = pending_;
     pending_ = {};
     pendingValid_ = false;
+    joinedRequestActive_ = false;
+    joinedRequestActiveSequence_ = 0;
+    joinedRequestFrameBytes_ = 0;
+    joinedRequestWrittenBytes_ = 0;
     if (completed.generation != generation_)
     {
         return {ResponseStatus::DiscardedPreviousGeneration,
@@ -722,6 +836,11 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     capabilitiesReceived_ = false;
     pending_ = {};
     pendingValid_ = false;
+    joinedRequestActiveSequence_ = 0;
+    joinedRequestFrameBytes_ = 0;
+    joinedRequestWrittenBytes_ = 0;
+    joinedRequestActive_ = false;
+    // joinedRequestSequence_ remains monotonic across reconnects.
     poisoned_ = false;
 }
 

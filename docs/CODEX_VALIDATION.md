@@ -280,6 +280,41 @@ Clang23, macOS27, real clipboard/client paste, verified PNG/DIB/
 UTF-16 conversion and performance. Actual native content readiness
 and scheduling are future R8/adapter gates.
 
+## R8 transactional joined-MCS Format Data Request (2026-10-16; CI pending)
+
+**Implementation:** `RemoteTransfer::prepareJoinedFormatDataRequest`
+accepts only an advertised current-generation format ID on R3's
+confirmed and caller-expected CLIPRDR MCS channel, stages the standard
+12-byte CLIPRDR PDU via the first-party codec, wraps it with an
+uncompressed single-chunk static VC header and delegates MCS
+SendDataIndication serialization to R3. An output/encoder failure
+leaves the caller buffer and the outstanding-request slot intact.
+The returned monotonic request sequence and byte-count receipt
+lets the external single R3 writer check readiness, report cumulative
+bytes and reject delayed callbacks across reconnect. Safe zero-byte
+cancellation is separate from ambiguous partial transmission,
+which poisons R8 until genuine disconnect. Inbound response
+consumption now refuses pre-completion or partially written request
+states; completed obsolete-generation replies are discarded.
+
+**Changed:** `src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`,
+`docs/CODEX_VALIDATION.md`, `docs/coding_standards.md`.
+**New CTests:**
+`clipboard.format-data-request-joined-mcs-envelope` (exact 34-byte
+wire, confirmed joins, wrong role/ID, unadvertised format,
+insufficient output, no phantom pending or output mutation);
+`clipboard.format-data-request-generation-cancellation` (safe
+unsent cancellation, partial send poisoning, stale receipt after
+reconnect, old-generation reply draining and early-response rejection).
+**NOT RUN at authoring:** complete checkout/local CMake/CTest (no
+Git transport in execution environment), exact-commit Actions,
+owner's Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, TLS/NLA
+admission, R3 writer integration, clipboard bytes validation,
+native paste/Firefox PNG File and performance. Follow-up requires
+authorized R3 write-hand-off and payload-readiness adapter boundary.
+
 ## Local validation (one reused build root)
 
 ```sh

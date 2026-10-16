@@ -1338,6 +1338,181 @@ void testPrefetchUnicodePngDibFallbackSingleFlight()
     assert(selectedId == 17);
 }
 
+// R8 outbound CLIPRDR data requests are encoded atomically over R3's
+// joined MCS envelope. They are NOT proof of TLS/NLA/OS authorization.
+void testJoinedFormatDataRequestEnvelope()
+{
+    using namespace rdp_server::server::transport;
+    using namespace rdp_server::clipboard;
+    McsChannelJoinWriteGate gate;
+    const std::array<std::uint16_t, 2> channels{1007, 1003};
+    assert(gate.configure(1007, channels));
+    RemoteTransfer transfer;
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 2>{13, 0xc001}));
+
+    std::array<std::uint8_t, 64> bytes{};
+    bytes.fill(0xa5);
+    const auto prepare = [&](std::uint16_t channelId,
+                             std::uint16_t expectedRole,
+                             std::uint32_t formatId,
+                             std::span<std::uint8_t> output)
+    {
+        return transfer.prepareJoinedFormatDataRequest(
+            gate, channelId, expectedRole, formatId, output);
+    };
+    // A configured but unjoined channel cannot reserve the request slot.
+    assert(!prepare(1003, 1003, 13, bytes));
+    assert(!transfer.hasOutstandingRequest());
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(!prepare(1003, 1003, 13, bytes));
+    assert(gate.onReplyBytesWritten(
+        gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 15) ==
+        McsJoinWriteOutcome::Confirmed);
+    assert(!prepare(1003, 1004, 13, bytes));  // Wrong CLIPRDR role.
+    assert(!prepare(1007, 1003, 13, bytes));  // Wrong joined channel.
+    assert(!prepare(999, 999, 13, bytes));   // Unknown channel.
+    assert(!prepare(1003, 1003, 8, bytes));  // Not advertised.
+    assert(!prepare(1003, 1003, 13, std::span(bytes).first(33)));
+    assert(!transfer.hasOutstandingRequest());
+    assert(std::all_of(bytes.begin(), bytes.end(),
+                       [](std::uint8_t b) { return b == 0xa5; }));
+
+    const std::array<std::uint8_t, 34> golden{
+        0x03, 0, 0, 0x22, 0x02, 0xf0, 0x80, 0x68,
+        0, 6, 3, 0xeb, 0x70, 0x14,
+        0x0c, 0, 0, 0, 0x03, 0, 0, 0,
+        0x04, 0, 0, 0, 0x04, 0, 0, 0,
+        0x0d, 0, 0, 0};
+    const auto first = prepare(1003, 1003, 13, bytes);
+    assert(first && first->bytes == golden.size() && first->generation == 1);
+    assert(first->sequence != 0);
+    assert(std::equal(golden.begin(), golden.end(), bytes.begin()));
+    assert(std::all_of(bytes.begin() + golden.size(), bytes.end(),
+                       [](std::uint8_t b) { return b == 0xa5; }));
+    assert(transfer.hasOutstandingRequest());
+    assert(transfer.joinedRequestMayWrite(first->sequence));
+    bytes.fill(0xa5);
+    assert(!prepare(1003, 1003, 0xc001, bytes)); // Exactly one flight.
+    assert(std::all_of(bytes.begin(), bytes.end(),
+                       [](std::uint8_t b) { return b == 0xa5; }));
+    assert(transfer.cancelUnwrittenJoinedRequest(first->sequence));
+    assert(!transfer.hasOutstandingRequest());
+    assert(!transfer.recordJoinedRequestWritten(first->sequence, 1));
+    const auto second = prepare(1003, 1003, 0xc001, bytes);
+    assert(second && second->sequence > first->sequence);
+    assert(!transfer.recordJoinedRequestWritten(first->sequence, 1));
+    assert(!transfer.cancelUnwrittenJoinedRequest(first->sequence));
+    assert(transfer.recordJoinedRequestWritten(second->sequence, 7));
+    assert(transfer.joinedRequestMayWrite(second->sequence));
+    assert(transfer.recordJoinedRequestWritten(second->sequence, second->bytes));
+    assert(!transfer.joinedRequestMayWrite(second->sequence));
+    const auto result = transfer.receiveResponse(
+        responsePdu(kResponseOk, std::array<std::uint8_t, 2>{0x89, 0x50}));
+    assert(result.status == RemoteTransfer::ResponseStatus::Received);
+    assert(result.generation == 1 && result.formatId == 0xc001);
+    assert(!transfer.hasOutstandingRequest());
+    gate.close();
+    bytes.fill(0xa5);
+    assert(!prepare(1003, 1003, 13, bytes));
+    assert(std::all_of(bytes.begin(), bytes.end(),
+                       [](std::uint8_t b) { return b == 0xa5; }));
+}
+
+void testJoinedFormatDataRequestGenerationCancellation()
+{
+    using namespace rdp_server::server::transport;
+    using namespace rdp_server::clipboard;
+    const std::array<std::uint16_t, 1> channels{1003};
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1007, channels));
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1007;
+    join.channelId = 1003;
+    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(gate.onReplyBytesWritten(
+        gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 15) ==
+        McsJoinWriteOutcome::Confirmed);
+    std::array<std::uint8_t, 64> output{};
+    const std::array<std::uint32_t, 1> initial{13};
+    const std::array<std::uint32_t, 1> newer{8};
+    const auto prepare = [&](RemoteTransfer &owner, std::uint32_t id)
+    {
+        return owner.prepareJoinedFormatDataRequest(
+            gate, 1003, 1003, id, output);
+    };
+    const auto reply = responsePdu(kResponseOk, std::array<std::uint8_t, 1>{9});
+
+    // A reoffer invalidates an UNSENT old packet; cancellation is safe.
+    RemoteTransfer transfer;
+    assert(transfer.receiveFormatList(initial));
+    const auto first = prepare(transfer, 13);
+    assert(first);
+    assert(transfer.receiveFormatList(newer));
+    assert(!transfer.joinedRequestMayWrite(first->sequence));
+    assert(transfer.cancelUnwrittenJoinedRequest(first->sequence));
+    assert(!transfer.hasOutstandingRequest());
+    const auto second = prepare(transfer, 8);
+    assert(second && second->sequence > first->sequence);
+    assert(!transfer.recordJoinedRequestWritten(first->sequence, 2));
+    assert(transfer.recordJoinedRequestWritten(second->sequence, second->bytes));
+    assert(transfer.receiveResponse(reply).status ==
+           RemoteTransfer::ResponseStatus::Received);
+
+    // A fully delivered old request keeps its retired response identity.
+    assert(transfer.receiveFormatList(initial));
+    const auto third = prepare(transfer, 13);
+    assert(third);
+    assert(transfer.recordJoinedRequestWritten(third->sequence, third->bytes));
+    assert(transfer.receiveFormatList(newer));
+    assert(transfer.waitingForObsoleteResponse());
+    assert(!prepare(transfer, 8));
+    assert(transfer.receiveResponse(reply).status ==
+           RemoteTransfer::ResponseStatus::DiscardedPreviousGeneration);
+    assert(prepare(transfer, 8));
+
+    // An uncertain partial write cannot safely free the request slot.
+    RemoteTransfer partial;
+    assert(partial.receiveFormatList(initial));
+    const auto active = prepare(partial, 13);
+    assert(active);
+    assert(partial.recordJoinedRequestWritten(active->sequence, 1));
+    assert(!partial.cancelUnwrittenJoinedRequest(active->sequence));
+    assert(partial.abandonJoinedRequest(active->sequence));
+    assert(!partial.synchronized());
+    assert(!prepare(partial, 13));
+    partial.resetAfterDisconnect();
+    assert(!partial.recordJoinedRequestWritten(active->sequence, active->bytes));
+    assert(partial.receiveFormatList(initial));
+    const auto afterReconnect = prepare(partial, 13);
+    assert(afterReconnect && afterReconnect->sequence > active->sequence);
+    assert(!partial.recordJoinedRequestWritten(active->sequence, 1));
+    assert(partial.recordJoinedRequestWritten(
+        afterReconnect->sequence, afterReconnect->bytes));
+    assert(partial.receiveResponse(reply).status ==
+           RemoteTransfer::ResponseStatus::Received);
+
+    RemoteTransfer tooEarly;
+    assert(tooEarly.receiveFormatList(initial));
+    const auto unsubmitted = prepare(tooEarly, 13);
+    assert(unsubmitted);
+    assert(tooEarly.receiveResponse(reply).status ==
+           RemoteTransfer::ResponseStatus::ProtocolError);
+    assert(!tooEarly.synchronized());
+    tooEarly.resetAfterDisconnect();
+    assert(tooEarly.receiveFormatList(initial));
+    const auto invalidProgress = prepare(tooEarly, 13);
+    assert(invalidProgress);
+    assert(!tooEarly.recordJoinedRequestWritten(
+        invalidProgress->sequence, invalidProgress->bytes + 1));
+    assert(!tooEarly.synchronized());
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -1353,6 +1528,16 @@ int main(int argumentCount, char **arguments)
         if (caseName == "mcs-joined-response-teardown")
         {
             testMcsJoinedClipboardResponseTeardown();
+            return 0;
+        }
+        if (caseName == "format-data-request-joined-mcs-envelope")
+        {
+            testJoinedFormatDataRequestEnvelope();
+            return 0;
+        }
+        if (caseName == "format-data-request-generation-cancellation")
+        {
+            testJoinedFormatDataRequestGenerationCancellation();
             return 0;
         }
         if (caseName == "prefetch-unicode-png-dib-single-flight")

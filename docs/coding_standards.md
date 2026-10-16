@@ -101,6 +101,22 @@ A completed fetch is not ready for OS paste until bounded media
 validation, conversion and native lifetime/ownership checks succeed.
 An actual paste must not be starved by speculative background work.
 
+## R8 outbound clipboard write lifecycle (2026-10-16)
+
+MS-RDPECLIP 2.2.5.1 requests one actually advertised format ID,
+and MS-RDPBCGR 2.2.6.1.1 requires an eight-byte static-VC header
+before it is sent in a T.125 MCS SendDataIndication. Prepare
+the full envelope transactionally before committing the
+single-outstanding CLIPRDR request state. Serialization success
+is neither R2/R3 admission nor TLS acceptance. The sole authorized
+writer owns output until a complete send receipt is observed;
+a zero-byte never-submitted request may be revoked, but any partial
+or uncertain send must fail closed because the response has no
+wire request ID. Keep delivery sequence receipts monotonic
+across reconnect to reject stale callbacks, and drain old
+generation's replies without handing them to a newer format.
+No second clipboard controller, writer, or packet queue.
+
 ## Native clipboard implementation rules (2026-10-14; design, NOT RUN)
 
 Use [MS-RDPECLIP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/8bb14d95-fcfa-45e9-b822-f97b129ff208)

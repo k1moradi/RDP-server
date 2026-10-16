@@ -15472,3 +15472,41 @@ gates are required after publication. Genuine authenticated R3
 owner three-OS commands, native capture performance and Microsoft-client
 visible graphics remain **NOT RUN/BLOCKED**. Gate B and M3/M4/M5 remain
 **OPEN**.
+
+
+## R5 XTEST destructor held-input release exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `50dd46ab43aa8f70753ba6e71c9afe4df9a7429f`.  
+**Actions:** `38970934571` — overall **SUCCESS**.
+
+Ubuntu/GCC full CTest passed **474/474** in Debug and **474/474** in
+Release. The new production-linked
+`x11.input-native-destructor-held-input-release` case passed in both
+configurations. macOS/Clang full CTest passed **400/400** in Debug and
+**400/400** in Release. Windows/MSVC native preflight passed **48/48** in
+Debug and **48/48** in Release; full CTest passed **429/429** in Debug and
+**429/429** in Release.
+
+The shared Clang ASan/UBSan job completed **SUCCESS**. Its complete R5
+native-X11 selection is now **27/27 PASS**, directly including
+`x11.input-native-destructor-held-input-release`. The same sanitizer job also
+passed clipboard **50/50**, R4 x264/BGRA **20/20**, R4 RDPGFX capability
+**4/4**, bounded R1/R3 **63/63**, native R2/R3 GSS **27/27**, R10
+pre-admission **5/5**, and bounded fuzzer **1/1**. The separate R7 macOS
+session sanitizer job also passed. Documentation policy, installed-SDK
+consumer **1/1**, package/digest/upload stages all passed; untagged prerelease
+publication was correctly skipped.
+
+This closes the R5 lifetime-evidence gap for XTEST held-state cleanup: the
+production controller's existing destructor/disconnect path is now proven to
+release a real held key and button on an isolated Xvfb server while its borrowed
+XCB owner remains healthy and reusable. No production XTEST behavior changed,
+and this synthetic input evidence does not grant or imply R2/R3 authorization
+or Microsoft-client desktop input acceptance.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, genuine Kerberos/logind-authorized XTEST operation
+and Microsoft-client M3 acceptance remain **NOT RUN/OPEN**. The next functional
+R5 input-PDU integration remains **BLOCKED** until R3 exposes its authoritative
+authenticated Share/Input or Fast-Path Input translation boundary; R5 must not
+invent a parallel parser/session/input owner.

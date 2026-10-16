@@ -17558,3 +17558,23 @@ any STATUS_VALID_CLIENT path. Share activation remains blocked until one of
 those standards-correct licensing completions is live. **M2/M3 remain OPEN /
 NOT ACCEPTED.**
 
+## R3 grant receipt-gate compile-order correction (2026-10-16)
+
+The authority-correlated New License receipt-gate implementation remains
+unchanged from `525e235e1cc86ae978cf910020511bfcba4f4338`. Its first exact-SHA
+hosted run exposed a macOS/AppleClang test compilation error only: the new
+`advanceToNewLicenseIssuance` helper referenced the existing
+`makeClientPlatformChallengeResponse` fixture before that fixture's later
+definition in the same translation unit.
+
+Correction `83d05e8076982545e57b75b78f5f5b212ddde865` adds the explicit
+forward declaration and passes all five arguments at the earlier call site.
+There is no production source, packet encoding, authority correlation,
+receipt-accounting or lifecycle behavior change.
+
+The correction's first hosted workflow correctly failed documentation policy
+because that implementation-fix commit lacked a Markdown co-change; this
+section supplies the required policy receipt for the corrected-source
+descendant. Platform, sanitizer and full CTest results for the corrected source
+remain pending and must be recorded only after their exact workflow completes.
+

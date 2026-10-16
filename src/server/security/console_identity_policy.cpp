@@ -176,6 +176,9 @@ ConsoleRuleError ConsoleIdentityPolicy::add(
     newRule.uid = rule.localUid;
     newRule.permissions = rule.permissions;
     rules_[count_++] = newRule;
+    // At most 16 successful additions exist for one policy, so generation
+    // cannot wrap during this object's lifetime.
+    generation_.fetch_add(1, std::memory_order_release);
     return ConsoleRuleError::None;
 }
 

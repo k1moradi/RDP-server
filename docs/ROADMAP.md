@@ -1640,9 +1640,41 @@ actually run; another parser CTest alone is not a complete session.
   correctly skipped without a version tag. This does not substitute for
   owner Linux/X11, Windows MSYS2 CLANG64/Clang23 or macOS27 runs, genuine
   Kerberos, native OS admission, R3 activation or Microsoft-client evidence.
-  **Next:** implement the smallest nonforgeable revocable native-OS-backed
-  admission capability for R3; fake evidence sources must remain incapable
-  of positive authorization.
+  **R2 Linux native admission lease boundary (2026-10-16;
+  authoring parent `7f6d74b4ef9b03c86ecabc7c56af6f1de071ad07`; exact-SHA CI pending):**
+  introduce a move-only, non-default-constructible
+  `LinuxConsoleAdmissionLease` and one-shot
+  `LinuxConsoleAdmissionBroker` in the existing optional Linux GSS target.
+  Positive issuance has **no injectable evidence-source parameter**: only
+  the broker-owned concrete `LinuxLogindReadOnlyEvidenceSource` plus
+  `LinuxLogindSessionChangeSource` may reach issuance, and the native
+  change monitor is established before NSS/logind sampling. The broker
+  requires the provider-derived principal for the exact active pinned TLS,
+  unchanged policy generation, current physical seat/display/UID/session
+  generation, fresh monotonic evidence and a quiet native change watch.
+  The lease carries only bounded principal/account/session ID, UID,
+  session generation, permission mask and admission generation.
+  Lease destruction, explicit revoke, policy epoch changes or a one-second
+  missed-revalidation deadline invalidate the shared capability epoch.
+  `authorizes()` rechecks permission scope, GSS/TLS certificate continuity,
+  policy generation, NSS/logind identity and the change watch immediately
+  before protected use. A logind event may still occur after the final
+  post-sample poll and before R3 acts; this residual check/use race is
+  unavoidable with these read-only APIs, so R3 must register the native
+  watch fd, call the broker immediately before protected transitions, and
+  revoke before TLS/R3 teardown.
+  The existing generic `ConsoleAdmissionGate` remains deny-only and fake
+  `ConsoleOsEvidenceSource` implementations remain structurally unable to
+  mint this production lease. Dedicated Linux GSS CTest
+  `security.gssapi-native-os-admission-capability-denials` checks the
+  move-only/nonconstructible contract, absence of a generic evidence
+  issuance overload, GSS-before-native denial, replay denial and policy
+  generation fencing without a real login or Kerberos credential.
+  **NOT RUN at authoring:** local checkout build/CTest, exact-SHA CI, real
+  positive Kerberos+logind issuance, R3 consumption, owner Linux/X11,
+  Windows CLANG64/Clang23, macOS27 or Microsoft-client desktop.
+  **Next:** validate exact-SHA CI, then wire this capability into R3's sole
+  session owner and R1 disconnect teardown before any protected MCS state.
   **R2 GSS-to-OS candidate-evidence provenance gate (2026-10-15;
   new implementation CI pending):** add the existing
   `ConsoleAdmissionGate`, `ConsoleIdentityPolicy`, and

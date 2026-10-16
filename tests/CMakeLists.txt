@@ -176,7 +176,8 @@ function(add_rdp_test source_file suite behavior)
         foreach(case_name IN ITEMS
                 gssapi-configuration-rejections
                 gssapi-framed-handoff
-                gssapi-console-provenance-before-os-read)
+                gssapi-console-provenance-before-os-read
+                gssapi-native-os-admission-capability-denials)
             add_test(NAME "security.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("security.${case_name}" PROPERTIES

@@ -233,6 +233,21 @@ public:
             return {};
         return std::string_view(principal_);
     }
+
+    // Same provider-derived identity, additionally requiring the exact
+    // active server TLS object pinned by this GSS/CredSSP transcript.
+    // verifiedPrincipal() rechecks selected-certificate continuity.
+    [[nodiscard]] std::string_view verifiedPrincipalForTls(
+        const SSL *activeServerTls) const noexcept
+    {
+        if (activeServerTls == nullptr ||
+            activeServerTls != negotiatedServerTls_)
+        {
+            return {};
+        }
+        return verifiedPrincipal();
+    }
+
     void reject() noexcept;
 
 private:

@@ -321,21 +321,35 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     endif()
     find_path(RDP_SERVER_GSSAPI_INCLUDE_DIR NAMES gssapi/gssapi.h REQUIRED)
     find_library(RDP_SERVER_GSSAPI_LIBRARY NAMES gssapi_krb5 REQUIRED)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN QUIET IMPORTED_TARGET
+            libsystemd)
+    endif()
     add_library(rdp-server-linux-gssapi STATIC
         src/server/security/gssapi_spnego_acceptor.cpp
         src/server/security/gssapi_credssp_binding.cpp
         src/server/security/gssapi_credssp_credentials.cpp
-        # The ONLY Linux GSS-to-OS candidate bridge: combine the
-        # existing bounded policy and stateless read-only inspector.
-        # No credential authorization or OS session activation.
+        # Keep the generic injected-evidence bridge deny-only. Positive
+        # admission below owns concrete native NSS/logind/watch provenance.
         src/server/security/gssapi_console_gate.cpp
         src/server/security/console_identity_policy.cpp
-        src/server/security/console_os_evidence.cpp)
+        src/server/security/console_os_evidence.cpp
+        src/server/security/linux_nss_console_evidence.cpp
+        src/server/security/linux_logind_console_evidence.cpp
+        src/server/security/linux_logind_session_change_watch.cpp
+        src/server/security/linux_console_admission.cpp)
     target_compile_features(rdp-server-linux-gssapi PUBLIC cxx_std_23)
     target_include_directories(rdp-server-linux-gssapi PRIVATE
         "${RDP_SERVER_GSSAPI_INCLUDE_DIR}")
     target_link_libraries(rdp-server-linux-gssapi PUBLIC
         rdp-server-protocol "${RDP_SERVER_GSSAPI_LIBRARY}")
+    if(TARGET PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
+        target_link_libraries(rdp-server-linux-gssapi PRIVATE
+            PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
+        target_compile_definitions(rdp-server-linux-gssapi PRIVATE
+            XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN=1)
+    endif()
     if(MSVC)
         target_compile_options(rdp-server-linux-gssapi PRIVATE /W4)
     else()

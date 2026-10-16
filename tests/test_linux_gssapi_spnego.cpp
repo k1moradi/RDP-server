@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "security/gssapi_spnego_acceptor.h"
 #include "security/gssapi_console_gate.h"
+#include "security/linux_console_admission.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -11,6 +12,7 @@
 #include <cstdint>
 #include <span>
 #include <string_view>
+#include <type_traits>
 
 using namespace rdp_server::server::security;
 
@@ -179,6 +181,61 @@ public:
     }
 };
 
+using NativeAdmissionIssue = decltype(&LinuxConsoleAdmissionBroker::issue);
+
+static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
+static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
+static_assert(!std::is_copy_assignable_v<LinuxConsoleAdmissionLease>);
+static_assert(std::is_move_constructible_v<LinuxConsoleAdmissionLease>);
+static_assert(!std::is_invocable_v<
+              NativeAdmissionIssue,
+              LinuxConsoleAdmissionBroker &,
+              GssapiSpnegoAcceptor &,
+              const SSL *,
+              const ConsoleEvidenceRequest &,
+              CountingConsoleEvidenceSource &>);
+
+void testNativeAdmissionCapabilityDenials()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.generation() == 0);
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    assert(policy.generation() == 1);
+
+    const ConsoleEvidenceRequest request{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+
+    // No provider-derived GSS/TLS identity: fail before any positive native
+    // admission can exist, then remain terminal on replay.
+    GssapiSpnegoAcceptor unverified;
+    LinuxConsoleAdmissionBroker broker(policy);
+    assert(broker.state() == LinuxConsoleAdmissionState::Ready);
+    const auto denied = broker.issue(unverified, nullptr, request);
+    assert(!denied.has_value());
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(broker.nativeChangeFd() == -1);
+    assert(broker.nativeChangeEvents() == -1);
+    assert(unverified.stage() == SpnegoStage::Failed);
+
+    const auto replay = broker.issue(unverified, nullptr, request);
+    assert(!replay.has_value());
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+
+    // Only successful policy mutation advances the lease-revocation epoch.
+    const std::uint64_t generation = policy.generation();
+    assert(policy.add({"alice@EXAMPLE.TEST", "other", "seat0", ":0",
+                       1002, kConsoleViewPermission}) ==
+           ConsoleRuleError::Duplicate);
+    assert(policy.generation() == generation);
+    assert(policy.add({"bob@EXAMPLE.TEST", "bob", "seat0", ":0",
+                       1002, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    assert(policy.generation() == generation + 1);
+}
+
 void testConsoleGssProvenanceBeforeOsRead()
 {
     ConsoleIdentityPolicy policy;
@@ -263,6 +320,11 @@ int main(int argc, char **argv)
             testConsoleGssProvenanceBeforeOsRead();
             return 0;
         }
+        if (name == "gssapi-native-os-admission-capability-denials")
+        {
+            testNativeAdmissionCapabilityDenials();
+            return 0;
+        }
         return 2;
     };
     if (argc == 2)
@@ -276,5 +338,6 @@ int main(int argc, char **argv)
     testConfigurationRejections();
     testFramedGssHandoffFailClosed();
     testConsoleGssProvenanceBeforeOsRead();
+    testNativeAdmissionCapabilityDenials();
     return 0;
 }

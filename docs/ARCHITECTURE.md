@@ -1462,6 +1462,39 @@ The portable SDK remains independent of GSSAPI; no real
 Kerberos authentication, OS session admission or live RDP
 listener is enabled.
 
+### Linux native R2 admission lease boundary (2026-10-16)
+
+The positive Linux authorization path is intentionally separate from the
+generic candidate-inspection interfaces. `LinuxConsoleAdmissionBroker` is
+one-shot and owns the concrete `LinuxLogindReadOnlyEvidenceSource` and
+`LinuxLogindSessionChangeSource`; it exposes no
+`ConsoleOsEvidenceSource` injection point. It may mint the private-
+constructor, move-only `LinuxConsoleAdmissionLease` only after the real
+GSS acceptor re-proves the exact active TLS identity and selected X.509,
+the policy epoch is stable, the native change monitor is established and
+quiet, and fresh NSS/logind facts match the requested account, physical
+seat/display, UID and session generation.
+
+The capability carries no password, ticket, keytab or delegated credential:
+only bounded principal/account/session identity, UID, session generation,
+permission mask and admission generation. Its shared revocation epoch is
+invalidated by lease destruction, explicit broker revocation, policy epoch
+change or a one-second revalidation deadline. Before protected R3 use,
+`authorizes()` rechecks permission scope, live GSS/TLS certificate
+continuity, policy, NSS/logind session identity and the native change watch.
+The broker owns neither SSL nor GSS; the connection owner must keep them
+alive during checks and invoke revoke before teardown.
+
+This does not make logind polling atomic authorization. The double-poll
+brackets each native evidence sample, but a seat/session event can occur
+immediately after the final poll and before R3 performs an action. R3 must
+monitor the returned native change fd, validate immediately before each
+protected transition and revoke on disconnect/session teardown. A future
+platform primitive that offers an atomic use lease should replace this
+residual check/use gap rather than pretending polling eliminates it.
+Synthetic evidence remains CandidateOnly and cannot construct the production
+lease.
+
 ### Linux GSS-to-OS candidate inspection without authorization (2026-10-15)
 
 The optional Linux GSS library now compiles the existing

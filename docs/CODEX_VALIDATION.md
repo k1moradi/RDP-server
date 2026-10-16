@@ -5500,6 +5500,46 @@ authorization integration under existing one-owner contracts.
 
 
 
+## R2 Linux native admission lease boundary (2026-10-16)
+
+**Authoring parent:** `7f6d74b4ef9b03c86ecabc7c56af6f1de071ad07`. New production files:
+`src/server/security/linux_console_admission.{h,cpp}`; updated the existing
+GSS acceptor TLS-provenance accessor, policy generation fence, Linux GSS
+target source/linkage, `test_linux_gssapi_spnego.cpp`, central CTest
+registry, roadmap, architecture and this ledger.
+
+`LinuxConsoleAdmissionLease` is move-only, non-default-constructible and
+has a private constructor. Only `LinuxConsoleAdmissionBroker` can mint it.
+The broker has no generic evidence-source parameter: successful issuance
+requires the concrete native NSS/logind reader and concrete logind change
+monitor, after a genuine provider-derived GSS principal is rechecked against
+the exact active pinned TLS certificate. Policy generation, physical
+session/UID/generation, freshness and watch quietness are required.
+Protected use goes through `authorizes()`, which revalidates those facts
+and the permission mask. Lease destruction, explicit revoke, policy epoch
+change and a one-second missed-revalidation deadline are terminal. The
+residual race is explicit: logind may change after the final poll but before
+R3 acts, so R3 must monitor the native fd and validate immediately before
+protected state.
+
+**Dedicated CTest:**
+`security.gssapi-native-os-admission-capability-denials`. It statically
+checks that the lease cannot be default/copy constructed and that an
+arbitrary `ConsoleOsEvidenceSource` has no issuance overload, then executes
+production denial/replay paths with no verified GSS/TLS identity and checks
+successful policy mutations advance the revocation epoch while rejected
+mutations do not. The ordinary test does **not** fabricate a positive
+production admission capability.
+
+**NOT RUN at authoring:** local one-root compile/CTest because this agent has
+no repository checkout; exact-SHA Actions until publication; real positive
+Kerberos + native logged-in physical console issuance; R3 capability
+consumption; owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27;
+Microsoft-client desktop. This creates a genuine production-only issuance
+contract but does not yet prove a positive host admission or integrate R3,
+so Gate A/M2 remain OPEN/NOT ACCEPTED. **Next:** exact-SHA CI, then R3/R1
+lifecycle consumption and disconnect revocation.
+
 ## R2 CredSSP TLS release certificate continuity (2026-10-16)
 
 **Starting main:** `a603976a07d5a525aee20f75ba74e40f77ec9314`.

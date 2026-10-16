@@ -2,6 +2,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -74,6 +75,14 @@ public:
 
     [[nodiscard]] std::size_t size() const noexcept { return count_; }
 
+    // Monotonic configuration epoch used to revoke native admission leases.
+    // Rule mutation itself remains externally serialized; this atomic epoch
+    // is a revocation fence, not concurrent access to the rules array.
+    [[nodiscard]] std::uint64_t generation() const noexcept
+    {
+        return generation_.load(std::memory_order_acquire);
+    }
+
 private:
     struct Rule
     {
@@ -86,6 +95,7 @@ private:
     };
     std::array<Rule, kMaximumConsoleIdentityRules> rules_{};
     std::size_t count_{};
+    std::atomic<std::uint64_t> generation_{};
 };
 
 } // namespace rdp_server::server::security

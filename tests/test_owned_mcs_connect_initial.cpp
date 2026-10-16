@@ -5136,6 +5136,173 @@ void testRdpServerPlatformChallengeWriteDenials()
     assert(overLifecycle.phase() == RdpLicensingPhase::Closed);
 }
 
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientPlatformChallengeResponse(
+    std::span<const std::uint8_t> challenge,
+    const RdpLicensingKeyMaterial &keys,
+    std::uint16_t version = 0x0100U,
+    std::uint16_t clientType = 0x0100U,
+    std::uint16_t detailLevel = 0x0003U)
+{
+    assert(challenge.size() == kRdpPlatformChallengePlaintextBytes);
+    std::array<std::uint8_t, kRdpPlatformChallengeResponseDataBytes>
+        responseData{};
+    const auto putLe16 =
+        [&](std::size_t offset, std::uint16_t value)
+        {
+            responseData[offset] = static_cast<std::uint8_t>(value);
+            responseData[offset + 1U] =
+                static_cast<std::uint8_t>(value >> 8U);
+        };
+    putLe16(0U, version);
+    putLe16(2U, clientType);
+    putLe16(4U, detailLevel);
+    putLe16(6U, static_cast<std::uint16_t>(challenge.size()));
+    std::copy(
+        challenge.begin(), challenge.end(),
+        responseData.begin() +
+            static_cast<std::ptrdiff_t>(
+                kRdpPlatformChallengeResponseHeaderBytes));
+
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId{};
+    for (std::size_t index = 0U; index < hardwareId.size(); ++index)
+        hardwareId[index] = static_cast<std::uint8_t>(0x40U + index);
+
+    std::array<std::uint8_t, kRdpPlatformChallengeResponseDataBytes>
+        encryptedResponse{};
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes>
+        encryptedHardwareId{};
+    assert(cryptRdpLicensingData(
+        keys.encryptionKey, responseData, encryptedResponse));
+    assert(cryptRdpLicensingData(
+        keys.encryptionKey, hardwareId, encryptedHardwareId));
+
+    std::array<std::uint8_t,
+               kRdpPlatformChallengeResponseDataBytes +
+                   kRdpLicensingHardwareIdBytes> macInput{};
+    std::copy(responseData.begin(), responseData.end(), macInput.begin());
+    std::copy(
+        hardwareId.begin(), hardwareId.end(),
+        macInput.begin() +
+            static_cast<std::ptrdiff_t>(responseData.size()));
+    auto mac = generateRdpLicensingMac(keys.macSaltKey, macInput);
+    assert(mac);
+
+    std::vector<std::uint8_t> message{0x15, 0x03, 0x00, 0x00};
+    appendLicensingBlob(message, 0x0009U, encryptedResponse);
+    appendLicensingBlob(message, 0x0009U, encryptedHardwareId);
+    message.insert(message.end(), mac.value.begin(), mac.value.end());
+    finishLicensingMessageSize(message);
+    return message;
+}
+
+void testRdpClientPlatformChallengeResponseProof()
+{
+    const auto keys = platformChallengeKeys();
+    const auto challenge = platformChallengePlaintext();
+    const auto message =
+        makeClientPlatformChallengeResponse(challenge, keys);
+
+    const auto verified = verifyRdpClientPlatformChallengeResponse(
+        message, keys, challenge);
+    assert(verified);
+    assert(verified.clientType == 0x0100U);
+    assert(verified.licenseDetailLevel == 0x0003U);
+
+    RdpLicensingLifecycle lifecycle;
+    assert(deliverServerLicenseRequest(lifecycle));
+    assert(lifecycle.onClientMessage(makeClientNewLicenseRequest()) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    RdpServerPlatformChallengeWriteGate writer{lifecycle};
+    assert(writer.queue(keys));
+    const auto pending = writer.pendingWrite();
+    assert(pending);
+    assert(writer.onBytesWritten(
+               pending.replySequence,
+               pending.writeSliceSequence,
+               pending.bytes.size()) ==
+           RdpServerPlatformChallengeWriteOutcome::Delivered);
+    const auto retained = lifecycle.platformChallenge();
+    const auto response =
+        makeClientPlatformChallengeResponse(retained, keys);
+    assert(lifecycle.onClientPlatformChallengeResponse(response, keys) ==
+           RdpLicensingIntake::ClientPlatformChallengeResponseAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::NewLicenseIssuanceRequired);
+    assert(lifecycle.platformChallenge().empty());
+
+    // A duplicate response cannot be replayed as a second issuance decision.
+    assert(lifecycle.onClientPlatformChallengeResponse(response, keys) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(lifecycle.phase() == RdpLicensingPhase::Failed);
+}
+
+void testRdpClientPlatformChallengeResponseDenials()
+{
+    const auto keys = platformChallengeKeys();
+    const auto challenge = platformChallengePlaintext();
+
+    auto expectError =
+        [&](std::vector<std::uint8_t> message,
+            RdpClientPlatformChallengeResponseError expected)
+        {
+            const auto verified = verifyRdpClientPlatformChallengeResponse(
+                message, keys, challenge);
+            assert(!verified);
+            assert(verified.error == expected);
+        };
+
+    auto wrongBlob =
+        makeClientPlatformChallengeResponse(challenge, keys);
+    wrongBlob[4] = 0x01U;
+    expectError(
+        std::move(wrongBlob),
+        RdpClientPlatformChallengeResponseError::InvalidBlob);
+
+    expectError(
+        makeClientPlatformChallengeResponse(
+            challenge, keys, 0x0200U),
+        RdpClientPlatformChallengeResponseError::InvalidResponseData);
+    expectError(
+        makeClientPlatformChallengeResponse(
+            challenge, keys, 0x0100U, 0x0400U),
+        RdpClientPlatformChallengeResponseError::InvalidResponseData);
+    expectError(
+        makeClientPlatformChallengeResponse(
+            challenge, keys, 0x0100U, 0x0100U, 0x0004U),
+        RdpClientPlatformChallengeResponseError::InvalidResponseData);
+
+    auto differentChallenge = challenge;
+    differentChallenge[0] =
+        differentChallenge[0] == '0' ? '1' : '0';
+    expectError(
+        makeClientPlatformChallengeResponse(differentChallenge, keys),
+        RdpClientPlatformChallengeResponseError::ChallengeMismatch);
+
+    auto badMac =
+        makeClientPlatformChallengeResponse(challenge, keys);
+    badMac.back() ^= 0x80U;
+    expectError(
+        std::move(badMac),
+        RdpClientPlatformChallengeResponseError::MacMismatch);
+
+    auto truncated =
+        makeClientPlatformChallengeResponse(challenge, keys);
+    truncated.pop_back();
+    finishLicensingMessageSize(truncated);
+    expectError(
+        std::move(truncated),
+        RdpClientPlatformChallengeResponseError::InvalidBlob);
+
+    const auto initial = makeClientNewLicenseRequest();
+    const auto unexpected = verifyRdpClientPlatformChallengeResponse(
+        initial, keys, challenge);
+    assert(!unexpected);
+    assert(unexpected.error ==
+           RdpClientPlatformChallengeResponseError::InvalidMessage);
+}
+
 void testRdpServerLicenseRequestWriteReceipts()
 {
     RdpServerLicenseIdentity identity;
@@ -6757,7 +6924,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 103> kMcsTestCases{{
+constexpr std::array<McsTestCase, 105> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -6823,6 +6990,8 @@ constexpr std::array<McsTestCase, 103> kMcsTestCases{{
     {"licensing-server-platform-challenge-wire", &testRdpServerPlatformChallengeWire},
     {"licensing-server-platform-challenge-write-receipts", &testRdpServerPlatformChallengeWriteReceipts},
     {"licensing-server-platform-challenge-write-denials", &testRdpServerPlatformChallengeWriteDenials},
+    {"licensing-client-platform-challenge-response-proof", &testRdpClientPlatformChallengeResponseProof},
+    {"licensing-client-platform-challenge-response-denials", &testRdpClientPlatformChallengeResponseDenials},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
     {"licensing-runtime-context-ownership", &testRuntimeLicensingContextOwnership},

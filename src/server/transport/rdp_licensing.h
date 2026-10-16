@@ -296,6 +296,49 @@ encodeRdpServerPlatformChallenge(
     const RdpLicensingKeyMaterial &keyMaterial,
     std::span<std::uint8_t> output) noexcept;
 
+inline constexpr std::size_t
+    kRdpPlatformChallengeResponseHeaderBytes = 8U;
+inline constexpr std::size_t
+    kRdpPlatformChallengeResponseDataBytes =
+        kRdpPlatformChallengeResponseHeaderBytes +
+        kRdpPlatformChallengePlaintextBytes;
+
+enum class RdpClientPlatformChallengeResponseError : std::uint8_t
+{
+    None,
+    InvalidMessage,
+    InvalidBlob,
+    DecryptFailure,
+    InvalidResponseData,
+    ChallengeMismatch,
+    MacFailure,
+    MacMismatch,
+};
+
+struct RdpClientPlatformChallengeResponseResult
+{
+    std::uint16_t clientType{};
+    std::uint16_t licenseDetailLevel{};
+    RdpClientPlatformChallengeResponseError error{
+        RdpClientPlatformChallengeResponseError::InvalidMessage};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpClientPlatformChallengeResponseError::None;
+    }
+};
+
+// MS-RDPELE 2.2.2.5 / 2.2.2.5.1. Decrypt both BB_ENCRYPTED_DATA_BLOB
+// values with the already-derived licensing key, require version 0x0100,
+// a normative client type/detail level, exact retained challenge equality,
+// a 20-byte HWID, and MACData over plaintext response-data || HWID.
+// No license is issued and no authorization is inferred.
+[[nodiscard]] RdpClientPlatformChallengeResponseResult
+verifyRdpClientPlatformChallengeResponse(
+    std::span<const std::uint8_t> completeMessage,
+    const RdpLicensingKeyMaterial &keyMaterial,
+    std::span<const std::uint8_t> expectedChallenge) noexcept;
+
 // Current credential processing deliberately supports the standards-defined
 // X.509 certificate-chain form (CERT_CHAIN_VERSION_2). The private key input
 // is one unencrypted PEM object supplied by the service configuration owner.
@@ -570,6 +613,7 @@ enum class RdpLicensingDecisionBranch : std::uint8_t
     ClientLicenseInfoValidation,
     PlatformChallengeRequired,
     AwaitPlatformChallengeResponse,
+    NewLicenseIssuanceRequired,
 };
 
 enum class RdpLicensingPhase : std::uint8_t
@@ -586,6 +630,7 @@ enum class RdpLicensingIntake : std::uint8_t
 {
     ClientLicenseInfoAccepted,
     ClientNewLicenseRequestAccepted,
+    ClientPlatformChallengeResponseAccepted,
     MalformedMessage,
     UnexpectedMessage,
     Failed,
@@ -635,6 +680,13 @@ public:
     // performed, so success never means that licensing has completed.
     [[nodiscard]] RdpLicensingIntake onClientMessage(
         std::span<const std::uint8_t> completeMessage) noexcept;
+
+    // Accept only the response to this lifecycle's fully delivered platform
+    // challenge. Cryptographic integrity/challenge correlation are mandatory;
+    // success stops at the next server-decision gate before license issuance.
+    [[nodiscard]] RdpLicensingIntake onClientPlatformChallengeResponse(
+        std::span<const std::uint8_t> completeMessage,
+        const RdpLicensingKeyMaterial &keyMaterial) noexcept;
 
     // Terminal for this object. Reconnect requires a fresh owning R3 session
     // and therefore a fresh RdpLicensingLifecycle instance.

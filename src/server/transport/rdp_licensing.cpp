@@ -34,6 +34,7 @@ constexpr std::uint16_t kBlobData = 0x0001U;
 constexpr std::uint16_t kBlobRandom = 0x0002U;
 constexpr std::uint16_t kBlobClientUserName = 0x000fU;
 constexpr std::uint16_t kBlobClientMachineName = 0x0010U;
+constexpr std::uint16_t kBlobEncryptedData = 0x0009U;
 constexpr std::uint16_t kBlobServerCertificate = 0x0003U;
 constexpr std::uint16_t kBlobKeyExchangeAlgorithms = 0x000dU;
 constexpr std::uint16_t kBlobScope = 0x000eU;
@@ -514,6 +515,120 @@ encodeRdpServerPlatformChallenge(
     std::copy(packet.begin(), packet.begin() + offset, output.begin());
     OPENSSL_cleanse(packet.data(), packet.size());
     return {offset, RdpServerPlatformChallengeEncodeError::None};
+}
+
+RdpClientPlatformChallengeResponseResult
+verifyRdpClientPlatformChallengeResponse(
+    std::span<const std::uint8_t> completeMessage,
+    const RdpLicensingKeyMaterial &keyMaterial,
+    std::span<const std::uint8_t> expectedChallenge) noexcept
+{
+    const auto parsed = parseRdpLicensingMessage(completeMessage);
+    if (!parsed ||
+        parsed.value.type !=
+            RdpLicensingMessageType::ClientPlatformChallengeResponse)
+        return {};
+
+    if (expectedChallenge.size() != kRdpPlatformChallengePlaintextBytes)
+        return {0U, 0U,
+                RdpClientPlatformChallengeResponseError::InvalidResponseData};
+
+    std::size_t offset = 0U;
+    std::span<const std::uint8_t> encryptedResponse;
+    std::span<const std::uint8_t> encryptedHardwareId;
+    if (!readRequiredBlob(
+            parsed.value.body, offset, kBlobEncryptedData,
+            encryptedResponse) ||
+        !readRequiredBlob(
+            parsed.value.body, offset, kBlobEncryptedData,
+            encryptedHardwareId) ||
+        encryptedResponse.size() != kRdpPlatformChallengeResponseDataBytes ||
+        encryptedHardwareId.size() != kRdpLicensingHardwareIdBytes ||
+        offset > parsed.value.body.size() ||
+        parsed.value.body.size() - offset != kRdpLicensingMacBytes)
+    {
+        return {0U, 0U, RdpClientPlatformChallengeResponseError::InvalidBlob};
+    }
+
+    std::array<std::uint8_t, kRdpPlatformChallengeResponseDataBytes>
+        responseData{};
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId{};
+    const auto responseDecrypted = cryptRdpLicensingData(
+        keyMaterial.encryptionKey, encryptedResponse, responseData);
+    const auto hardwareIdDecrypted = cryptRdpLicensingData(
+        keyMaterial.encryptionKey, encryptedHardwareId, hardwareId);
+    if (!responseDecrypted || !hardwareIdDecrypted)
+    {
+        OPENSSL_cleanse(responseData.data(), responseData.size());
+        OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+        return {0U, 0U,
+                RdpClientPlatformChallengeResponseError::DecryptFailure};
+    }
+
+    const std::uint16_t version = readLe16(responseData, 0U);
+    const std::uint16_t clientType = readLe16(responseData, 2U);
+    const std::uint16_t detailLevel = readLe16(responseData, 4U);
+    const std::size_t challengeBytes = readLe16(responseData, 6U);
+    const bool validClientType =
+        clientType == 0x0100U || clientType == 0x0200U ||
+        clientType == 0x0300U || clientType == 0xff00U;
+    const bool validDetailLevel =
+        detailLevel >= 0x0001U && detailLevel <= 0x0003U;
+    if (version != 0x0100U || !validClientType || !validDetailLevel ||
+        challengeBytes != expectedChallenge.size())
+    {
+        OPENSSL_cleanse(responseData.data(), responseData.size());
+        OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+        return {clientType, detailLevel,
+                RdpClientPlatformChallengeResponseError::InvalidResponseData};
+    }
+
+    const auto responseChallenge =
+        std::span(responseData).subspan(
+            kRdpPlatformChallengeResponseHeaderBytes);
+    if (CRYPTO_memcmp(
+            responseChallenge.data(), expectedChallenge.data(),
+            expectedChallenge.size()) != 0)
+    {
+        OPENSSL_cleanse(responseData.data(), responseData.size());
+        OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+        return {clientType, detailLevel,
+                RdpClientPlatformChallengeResponseError::ChallengeMismatch};
+    }
+
+    std::array<std::uint8_t,
+               kRdpPlatformChallengeResponseDataBytes +
+                   kRdpLicensingHardwareIdBytes> macInput{};
+    std::copy(
+        responseData.begin(), responseData.end(), macInput.begin());
+    std::copy(
+        hardwareId.begin(), hardwareId.end(),
+        macInput.begin() +
+            static_cast<std::ptrdiff_t>(responseData.size()));
+    auto mac = generateRdpLicensingMac(keyMaterial.macSaltKey, macInput);
+    if (!mac)
+    {
+        OPENSSL_cleanse(responseData.data(), responseData.size());
+        OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+        OPENSSL_cleanse(macInput.data(), macInput.size());
+        OPENSSL_cleanse(mac.value.data(), mac.value.size());
+        return {clientType, detailLevel,
+                RdpClientPlatformChallengeResponseError::MacFailure};
+    }
+
+    const auto receivedMac = parsed.value.body.subspan(offset);
+    const bool macMatches =
+        CRYPTO_memcmp(
+            receivedMac.data(), mac.value.data(), mac.value.size()) == 0;
+    OPENSSL_cleanse(responseData.data(), responseData.size());
+    OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+    OPENSSL_cleanse(macInput.data(), macInput.size());
+    OPENSSL_cleanse(mac.value.data(), mac.value.size());
+    return {
+        clientType, detailLevel,
+        macMatches
+            ? RdpClientPlatformChallengeResponseError::None
+            : RdpClientPlatformChallengeResponseError::MacMismatch};
 }
 
 RdpClientLicenseInfoHardwareIdResult
@@ -1529,6 +1644,42 @@ bool RdpLicensingLifecycle::onServerPlatformChallengeWritten(
         RdpLicensingDecisionBranch::AwaitPlatformChallengeResponse;
     phase_ = RdpLicensingPhase::AwaitClientPlatformChallengeResponse;
     return true;
+}
+
+RdpLicensingIntake
+RdpLicensingLifecycle::onClientPlatformChallengeResponse(
+    std::span<const std::uint8_t> completeMessage,
+    const RdpLicensingKeyMaterial &keyMaterial) noexcept
+{
+    if (phase_ == RdpLicensingPhase::Closed)
+        return RdpLicensingIntake::Closed;
+    if (phase_ == RdpLicensingPhase::Failed)
+        return RdpLicensingIntake::Failed;
+    if (phase_ != RdpLicensingPhase::AwaitClientPlatformChallengeResponse ||
+        decisionBranch_ !=
+            RdpLicensingDecisionBranch::AwaitPlatformChallengeResponse ||
+        !platformChallengeReady_)
+    {
+        fail();
+        return RdpLicensingIntake::UnexpectedMessage;
+    }
+
+    const auto verified = verifyRdpClientPlatformChallengeResponse(
+        completeMessage, keyMaterial, platformChallenge());
+    if (!verified)
+    {
+        fail();
+        return RdpLicensingIntake::MalformedMessage;
+    }
+
+    platformChallenge_.fill(0U);
+    platformChallengeReady_ = false;
+    serverRandom_.fill(0U);
+    serverRandomReady_ = false;
+    decisionBranch_ =
+        RdpLicensingDecisionBranch::NewLicenseIssuanceRequired;
+    phase_ = RdpLicensingPhase::AwaitServerDecision;
+    return RdpLicensingIntake::ClientPlatformChallengeResponseAccepted;
 }
 
 RdpLicensingIntake RdpLicensingLifecycle::onClientMessage(

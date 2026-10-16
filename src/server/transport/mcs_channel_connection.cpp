@@ -1484,6 +1484,75 @@ McsSessionLifecycle::completeServerPlatformChallengeWrite(
     return outcome;
 }
 
+std::optional<RdpLicensingIntake>
+McsSessionLifecycle::acceptVerifiedR2ClientPlatformChallengeResponse(
+    const SecurityNegotiationProvenance &provenance,
+    const RdpLicensingServiceCredential &credential,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    const auto credentialFingerprint = credential.certificateFingerprint();
+    if (phase_ != McsSessionPhase::AwaitClientPlatformChallengeResponse ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() !=
+            RdpLicensingPhase::AwaitClientPlatformChallengeResponse ||
+        licensing_.decisionBranch() !=
+            RdpLicensingDecisionBranch::AwaitPlatformChallengeResponse ||
+        !licensingKeyMaterialReady_ ||
+        !licensingCredentialBound_ ||
+        credentialFingerprint.size() !=
+            licensingCredentialFingerprint_.size() ||
+        !std::equal(
+            credentialFingerprint.begin(), credentialFingerprint.end(),
+            licensingCredentialFingerprint_.begin()) ||
+        completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    if (!joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed ||
+        !joins_.matchesJoinedInboundSendData(parsed.request) ||
+        parsed.request.channelId != connectResponseAllocation_.ioChannelId ||
+        parsed.request.segmentation != 3U)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto envelope =
+        parseEnhancedSecurityLicensingEnvelope(parsed.request.userData);
+    if (!envelope)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto intake = licensing_.onClientPlatformChallengeResponse(
+        envelope.value.licensingMessage, licensingKeyMaterial_);
+    if (intake !=
+            RdpLicensingIntake::ClientPlatformChallengeResponseAccepted ||
+        licensing_.phase() != RdpLicensingPhase::AwaitServerDecision ||
+        licensing_.decisionBranch() !=
+            RdpLicensingDecisionBranch::NewLicenseIssuanceRequired)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    phase_ = McsSessionPhase::AwaitServerLicenseDecision;
+    return intake;
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {

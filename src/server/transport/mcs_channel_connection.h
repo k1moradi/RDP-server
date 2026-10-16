@@ -859,6 +859,17 @@ private:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // First response to the fully delivered Server Platform Challenge.
+    // The R2 broker reauthorizes the same lease/R1 owner; R3 then proves
+    // global-I/O routing and cryptographically correlates the retained
+    // challenge, response data, HWID and MAC before returning to a server
+    // decision. No New License bytes are created here.
+    [[nodiscard]] std::optional<RdpLicensingIntake>
+    acceptVerifiedR2ClientPlatformChallengeResponse(
+        const SecurityNegotiationProvenance &provenance,
+        const RdpLicensingServiceCredential &credential,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
     McsConnectResponseAllocation connectResponseAllocation_{};

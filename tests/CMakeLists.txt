@@ -82,6 +82,8 @@ function(add_rdp_test source_file suite behavior)
                 licensing-server-platform-challenge-wire
                 licensing-server-platform-challenge-write-receipts
                 licensing-server-platform-challenge-write-denials
+                licensing-client-platform-challenge-response-proof
+                licensing-client-platform-challenge-response-denials
                 licensing-premaster-rsa-decrypt
                 licensing-premaster-rsa-denials
                 licensing-runtime-context-ownership
@@ -248,6 +250,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-r3-server-license-request-write-contract
                 gssapi-r3-client-licensing-route-contract
                 gssapi-r3-server-platform-challenge-write-contract
+                gssapi-r3-client-platform-challenge-response-route-contract
                 gssapi-r3-attach-user-terminal-replay-fence
                 gssapi-r3-protected-transition-terminal-replay-fence
                 gssapi-r3-native-change-revocation

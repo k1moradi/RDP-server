@@ -1104,6 +1104,35 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage(
     return accepted;
 }
 
+std::optional<rdp_server::server::transport::RdpLicensingIntake>
+LinuxConsoleAdmissionBroker::authorizeR3ClientPlatformChallengeResponse(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::transport::RdpLicensingServiceCredential
+        &credential,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto accepted =
+        session.acceptVerifiedR2ClientPlatformChallengeResponse(
+            *provenance, credential, completeTpkt);
+    if (!accepted)
+        revokeR3Session(acceptor, session);
+    return accepted;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

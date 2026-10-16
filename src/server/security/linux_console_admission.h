@@ -388,6 +388,22 @@ public:
             &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Consume exactly one response to the fully delivered Server Platform
+    // Challenge after another fresh protected-transition authorization.
+    // R3 verifies challenge/HWID/MAC with its retained keys and stops before
+    // New License issuance.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpLicensingIntake>
+    authorizeR3ClientPlatformChallengeResponse(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::transport::RdpLicensingServiceCredential
+            &credential,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

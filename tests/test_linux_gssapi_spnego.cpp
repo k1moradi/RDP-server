@@ -1911,6 +1911,53 @@ void testR3ClientLicensingRouteContract()
     serverRandom.fill(0U);
 }
 
+void testR3ClientPlatformChallengeResponseRouteContract()
+{
+    using RouteMethod =
+        decltype(&LinuxConsoleAdmissionBroker::
+                     authorizeR3ClientPlatformChallengeResponse);
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Session = McsSessionLifecycle &;
+    using Credential = const RdpLicensingServiceCredential &;
+    using Bytes = std::span<const std::uint8_t>;
+
+    static_assert(std::is_invocable_r_v<
+        std::optional<RdpLicensingIntake>,
+        RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session, Credential, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, bool, Acceptor, Connection, Session,
+        Credential, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const LinuxConsoleAdmissionLease *,
+        Acceptor, Connection, Session, Credential, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, const SSL *, Session, Credential, Bytes>);
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+    // Public/unadmitted state is terminal even for challenge-response-shaped
+    // traffic; only the concrete move-only lease can reach the private route.
+    constexpr std::array<std::uint8_t, 22> shaped{
+        0x03,0x00,0x00,0x16,0x02,0xf0,0x80,
+        0x64,0x00,0x01,0x03,0xeb,0x70,0x08,
+        0x80,0x00,0x00,0x00,0x15,0x03,0x04,0x00};
+    assert(session.onDomainPdu(shaped) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+}
+
 void testR3NativeChangeRevocation()
 {
     ConsoleIdentityPolicy policy;
@@ -2167,6 +2214,11 @@ int main(int argc, char **argv)
             testR3ServerPlatformChallengeWriteContract();
             return 0;
         }
+        if (name == "gssapi-r3-client-platform-challenge-response-route-contract")
+        {
+            testR3ClientPlatformChallengeResponseRouteContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -2208,6 +2260,7 @@ int main(int argc, char **argv)
     testR3ServerLicenseRequestWriteContract();
     testR3ClientLicensingRouteContract();
     testR3ServerPlatformChallengeWriteContract();
+    testR3ClientPlatformChallengeResponseRouteContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

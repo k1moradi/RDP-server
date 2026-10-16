@@ -5437,3 +5437,66 @@ challenge and current licensing keys, including decrypted response/HWID and
 MAC verification, then stop before license issuance until authoritative
 license-issuance policy/material exists. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+## R3 protected Client Platform Challenge Response intake (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `d78deb63f756ee902c57c4571be789e13e320260`.
+
+R3 now implements the bounded inbound half of the standards-required platform
+challenge exchange. After the receipt-bound `SERVER_PLATFORM_CHALLENGE` has
+fully delivered, only one `CLIENT_PLATFORM_CHALLENGE_RESPONSE` can be
+accepted. The pure verifier requires two
+`BB_ENCRYPTED_DATA_BLOB (0x0009)` fields, decrypts each independently with
+the already-derived licensing encryption key, requires the first plaintext to
+be exactly the fixed R3 response-data size, and requires the HWID plaintext to
+be exactly 20 bytes.
+
+The decrypted Platform Challenge Response Data is checked before any state
+advance: `wVersion == 0x0100`, client type is one of the four normative
+values (Win32/Win16/WinCE/Other), license detail level is Simple/Moderate/Detail
+(1..3), `cbChallenge` equals the retained challenge length, and
+`pbChallenge` matches the exact challenge retained from the fully delivered
+server packet using constant-time comparison. MACData is then verified in
+constant time over the concatenation of the plaintext response-data and
+decrypted HWID, as required by MS-RDPELE 2.2.2.5/2.2.2.5.1. Temporary
+plaintext response, HWID, MAC input and digest buffers are cleansed before
+return.
+
+The licensing lifecycle exposes a dedicated
+`onClientPlatformChallengeResponse` transition only from
+`AwaitClientPlatformChallengeResponse /
+AwaitPlatformChallengeResponse`. Success consumes the retained challenge and
+public ServerRandom, returns the lifecycle to `AwaitServerDecision`, and
+sets the explicit branch `NewLicenseIssuanceRequired`. Duplicate, wrong-order,
+malformed, mismatched-challenge or bad-MAC input is terminal. Success is **not**
+a license decision and creates no New/Upgrade License bytes.
+
+The sole `McsSessionLifecycle` accepts the response only from its matching
+`AwaitClientPlatformChallengeResponse` phase, with the exact bound HYBRID
+provenance, fully joined global-I/O channel, begin|end MCS segmentation,
+`SEC_LICENSE_PKT` envelope, retained derived keys, and the same provisioned
+licensing credential fingerprint. Positive entry remains private to
+`LinuxConsoleAdmissionBroker::authorizeR3ClientPlatformChallengeResponse`,
+which freshly reauthorizes the concrete move-only native lease and exact R1
+owner before the packet reaches R3.
+
+New central-registry production-linked CTests:
+`transport.licensing-client-platform-challenge-response-proof`,
+`transport.licensing-client-platform-challenge-response-denials`, and
+Linux-only
+`security.gssapi-r3-client-platform-challenge-response-route-contract`.
+All three are added to the existing bounded ASan/UBSan selectors; no new test
+executable or duplicated state controller is introduced.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, bounded sanitizer,
+documentation-policy and SDK/package evidence are pending.
+
+**Next R3:** implement a real New License / Upgrade License issuance decision
+only when legitimate license-authority material and policy are available.
+Until then do not emit a synthetic CAL, `STATUS_VALID_CLIENT`, Demand Active,
+Share activation, graphics, input, clipboard or desktop authority. The
+parallel `CLIENT_LICENSE_INFO` branch still requires CAL
+trust/signature/product/expiration/HWID validation. **M2/M3 remain OPEN / NOT
+ACCEPTED.**
+

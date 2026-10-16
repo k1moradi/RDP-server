@@ -245,6 +245,93 @@ void windowsCaptureCycleSynchronousConsumeDenials()
            lost.releases == 1 && lost.viewClearedOnUnmap);
 }
 
+void windowsCapturePackedCopyLifetime()
+{
+    FakeCaptureCycle source{};
+    source.pixels.fill(std::byte{0xf1});
+    source.pixels[0] = std::byte{0x55}; // Blue, first row.
+    source.pixels[7] = std::byte{0x77};
+    source.pixels[12] = std::byte{0x66}; // Second row follows padding.
+    source.pixels[19] = std::byte{0x88};
+    WindowsDxgiCaptureCycle cycle(
+        sampleLayout(), source.frameCallbacks(), source.stagingCallbacks());
+    source.cycle = &cycle;
+
+    std::array<std::byte, 20> destination{};
+    destination.fill(std::byte{0xaa});
+    FramebufferView owned{};
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(cycle.copyFrameTo(destination, owned) ==
+           WindowsCaptureConsumeResult::consumed);
+    assert(owned.valid() && owned.widthPixels == 2 &&
+           owned.heightPixels == 2 && owned.strideBytes == 8);
+    assert(owned.pixels.size() == 16 &&
+           owned.pixels.data() == destination.data());
+    assert(destination[0] == std::byte{0x55} &&
+           destination[7] == std::byte{0x77});
+    assert(destination[8] == std::byte{0x66} &&
+           destination[15] == std::byte{0x88});
+    assert(destination[16] == std::byte{0xaa});
+    assert(source.count == 4 && source.order[0] == 'A' &&
+           source.order[1] == 'S' && source.order[2] == 'U' &&
+           source.order[3] == 'R');
+    assert(source.viewClearedOnUnmap && source.unmaps == 1 &&
+           source.releases == 1 && cycle.frame().pixels.empty());
+
+    // The DXGI texture may be reused or destroyed; caller bytes persist.
+    source.pixels.fill(std::byte{});
+    assert(owned.pixels[0] == std::byte{0x55} &&
+           owned.pixels[8] == std::byte{0x66});
+    assert(cycle.copyFrameTo(destination, owned) ==
+           WindowsCaptureConsumeResult::noFrame);
+    assert(owned.pixels.empty());
+}
+
+void windowsCapturePackedCopyDenials()
+{
+    FakeCaptureCycle source{};
+    WindowsDxgiCaptureCycle cycle(
+        sampleLayout(), source.frameCallbacks(), source.stagingCallbacks());
+    source.cycle = &cycle;
+    std::array<std::byte, 20> destination{};
+    destination.fill(std::byte{0xcc});
+    FramebufferView owned{};
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(cycle.copyFrameTo(std::span(destination).first(15), owned) ==
+           WindowsCaptureConsumeResult::rejected);
+    assert(source.unmaps == 1 && source.releases == 1 &&
+           source.viewClearedOnUnmap && owned.pixels.empty());
+    for (const auto pixel : destination)
+    {
+        assert(pixel == std::byte{0xcc});
+    }
+
+    // An alias of mapped GPU bytes would dangle after DXGI unmap.
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(cycle.copyFrameTo(std::span(source.pixels).first(20), owned) ==
+           WindowsCaptureConsumeResult::rejected);
+    assert(source.unmaps == 2 && source.releases == 2 &&
+           owned.pixels.empty());
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(cycle.copyFrameTo(
+               std::span(source.pixels).subspan(4, 16), owned) ==
+           WindowsCaptureConsumeResult::rejected);
+    assert(source.unmaps == 3 && source.releases == 3 &&
+           owned.pixels.empty());
+
+    // A successful memcpy is NOT a successfully released frame.
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    source.releaseResult = WindowsDxgiReleaseResult::accessLost;
+    assert(cycle.copyFrameTo(destination, owned) ==
+           WindowsCaptureConsumeResult::releaseFailed);
+    assert(cycle.closed() && owned.pixels.empty() &&
+           source.unmaps == 4 && source.releases == 4);
+    assert(cycle.copyFrameTo(destination, owned) ==
+           WindowsCaptureConsumeResult::closed);
+}
+
 void windowsCaptureCycleOrderedLifetime()
 {
     FakeCaptureCycle source{};

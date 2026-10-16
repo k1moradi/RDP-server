@@ -21,7 +21,9 @@ namespace rdp_server::windows
 void windowsCaptureCycleOrderedLifetime();
 
 void windowsCaptureCycleSynchronousConsumeLifetime();
-void windowsCaptureCycleSynchronousConsumeDenials();void windowsCaptureCycleLifecycleDenials();
+void windowsCaptureCycleSynchronousConsumeDenials();void windowsCapturePackedCopyLifetime();
+void windowsCapturePackedCopyDenials();
+void windowsCaptureCycleLifecycleDenials();
 
 using namespace rdp_server::windows;
 
@@ -733,6 +735,14 @@ int main(int argc, char **argv)
     else if (behavior == "capture-cycle-synchronous-consume-denials")
     {
         windowsCaptureCycleSynchronousConsumeDenials();
+    }
+    else if (behavior == "capture-packed-copy-lifetime")
+    {
+        windowsCapturePackedCopyLifetime();
+    }
+    else if (behavior == "capture-packed-copy-denials")
+    {
+        windowsCapturePackedCopyDenials();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

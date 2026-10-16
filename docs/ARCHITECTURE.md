@@ -134,6 +134,22 @@ before the next acquisition; access loss requires recreating
 duplication:
 https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_2/nf-dxgi1_2-idxgioutputduplication-releaseframe
 
+### Caller-owned packed BGRA handoff (R6; offline tested)
+
+`WindowsDxgiCaptureCycle::copyFrameTo` reuses the existing
+synchronous `consumeFrame` callback to copy a mapped DXGI BGRA8
+texture into caller-provided storage as tightly packed rows. It
+validates dimensions, full pitched source layout, destination size,
+512 MiB per-frame bounds and complete disjointness from GPU mapping
+(including source row padding). No allocation, new frame owner, cache,
+R4 queue or Windows framebuffer type is created. Only a successful
+consume/unmap/`ReleaseFrame` result publishes a portable
+`FramebufferView` over the caller's independent bytes. Every denial
+still releases the acquired frame in map-before-lease order.
+The caller controls the output storage lifetime; R4 must agree on
+generation/queue ownership before retaining frames asynchronously.
+This helper does not authorize or acquire a native desktop.
+
 ### Scoped DXGI mapped-frame consumption (R6; synthetic tests only)
 
 `WindowsDxgiCaptureCycle::consumeFrame` is the synchronous R6 handoff

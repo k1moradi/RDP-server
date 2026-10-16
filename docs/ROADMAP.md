@@ -2864,6 +2864,29 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   R4 graphics presentation and M4 Microsoft-client desktop acceptance.
   **Next:** consume an R2/R3 authorization-bound native capture
   lifecycle, then hand synchronous frame bytes to the sole R4 owner.
+  **R6 caller-owned packed BGRA snapshot (2026-10-15; implementation
+  against inspected main `b127398873a810d50957ad94537d56a4c0eb8b55`; hosted CI pending):** Existing
+  `WindowsDxgiCaptureCycle::copyFrameTo` now accepts bounded caller
+  storage and, via the existing synchronous consume callback, copies
+  ONLY visible BGRA pixels into a packed buffer (no D3D11 padding).
+  A `FramebufferView` over the caller's independent bytes is published
+  only after successful D3D11 unmap and DXGI frame release. Undersized
+  and source-overlapping buffers are rejected without publishing a view,
+  while still releasing the one native lease. The destination is
+  caller-owned; no new frame queue, scheduler or Windows framebuffer
+  representation was added. **Dedicated registered CTests:**
+  `windows.capture-packed-copy-lifetime` and
+  `windows.capture-packed-copy-denials`.
+  **PASS (headless sparse fixture, not full checkout):** GCC 14.2
+  `-std=c++23 -O2 -Wall -Wextra -Wpedantic -Werror -UNDEBUG` 2/2;
+  Clang 17 ASan/UBSan 2/2; reused sparse `~/rdp-server/build`
+  CMake/CTest 6/6 including all previous focused fixture cases.
+  **NOT RUN at authoring:** complete repository CTest, Windows MSYS2
+  CLANG64 Clang23, owner Linux/X11/macOS27, live authenticated
+  desktop, real RDP client and performance. Exact-commit CI must
+  be checked after publication. **Next:** R2/R3 independently
+  authorized Windows session generation, native device/duplication
+  selection, and agreed R4 frame scheduling/pixel-copy contract.
   **R6 scoped capture-cycle frame consumption (2026-10-15; authored
   against remote main `d3a7137dcb8b4c0d2e4a036068dca04af4617de9`; integration CI pending):** Extend
   the EXISTING `WindowsDxgiCaptureCycle` with `consumeFrame`, a

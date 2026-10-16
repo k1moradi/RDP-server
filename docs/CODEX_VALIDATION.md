@@ -9,6 +9,35 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R6 caller-owned packed BGRA frame snapshot (2026-10-15)
+
+**Starting main SHA:** `b127398873a810d50957ad94537d56a4c0eb8b55`. **Actual changes:**
+`src/windows/windows_dxgi_capture_cycle.{h,cpp}`,
+`tests/windows_capture_cycle_cases.cpp`,
+`tests/test_windows_desktop_geometry.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, and this ledger.
+**New Windows-only canonical CTests:**
+`windows.capture-packed-copy-lifetime`,
+`windows.capture-packed-copy-denials`. The existing
+`WindowsDxgiCaptureCycle` now copies mapped D3D11 BGRA visible
+pixels into a caller-supplied independent buffer, packs away row
+padding, rejects short or overlapping buffers and only publishes the
+portable `FramebufferView` after successful unmap and DXGI release.
+No queue, frame scheduler, native authorization or desktop access.
+
+**PASS (isolated sparse fixture, NOT full-repository):** Linux GCC 14.2
+`g++ -std=c++23 -O2 -Wall -Wextra -Wpedantic -Werror -UNDEBUG`
+2/2, Clang 17 `-std=c++23 -O1 -g -Wall -Wextra -Wpedantic
+-Werror -UNDEBUG -fsanitize=address,undefined` 2/2, and
+`ctest --test-dir ~/rdp-server/build -C Debug --output-on-failure`
+6/6. Compilation covered production-equivalent capture-cycle,
+staging-owner, lease-owner and BGRA source via a local sparse fixture;
+it was not the canonical project checkout.
+**NOT RUN at authoring:** full native repository build/CTest,
+Windows CLANG64 Clang23, real DXGI SDK/hardware frame, owner
+Linux/X11/macOS27 acceptance, Microsoft RDP client, and benchmark.
+Exact-SHA hosted Actions must be checked after publishing. M4 open.
+
 ## R6 DXGI synchronous scoped-frame handoff (2026-10-15)
 
 **Parent main SHA inspected:** `d3a7137dcb8b4c0d2e4a036068dca04af4617de9`. The native D3D11

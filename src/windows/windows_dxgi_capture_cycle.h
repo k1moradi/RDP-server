@@ -5,6 +5,7 @@
 #include "windows_desktop_geometry.h"
 #include "windows_dxgi_frame_owner.h"
 
+#include <span>
 #include <cstdint>
 
 namespace rdp_server::windows
@@ -69,6 +70,13 @@ public:
     // capture APIs on another thread. This does not authorize a session.
     [[nodiscard]] WindowsCaptureConsumeResult consumeFrame(
         WindowsCaptureFrameConsumer consumer) noexcept;
+    // Produce a tightly packed BGRA8 snapshot into caller-owned storage.
+    // Does not allocate, retain pixels, or schedule an R4 frame. The mapped
+    // staging texture is unmapped and the DXGI lease released on every path.
+    // A consumed result alone publishes the independent caller-owned view.
+    // Rejected/cancelled/failed requests clear the output view.
+    [[nodiscard]] WindowsCaptureConsumeResult copyFrameTo(
+        std::span<std::byte> destination, FramebufferView &ownedOutput) noexcept;
     [[nodiscard]] bool releaseFrame() noexcept;
     // Compare caller-sampled, validated geometry with the pinned snapshot.
     // A changed topology revokes the cycle; no Win32 enumeration is done.

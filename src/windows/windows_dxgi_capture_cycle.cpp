@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "windows_bgra_frame.h"
+
+#include <cstring>
+#include <functional>
+#include <span>
 #include "windows_dxgi_capture_cycle.h"
 
 namespace rdp_server::windows
@@ -100,6 +105,78 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
     }
     operationInProgress_ = false;
     return outcome;
+}
+
+namespace
+{
+
+struct WindowsPackedBgraCopy
+{
+    std::span<std::byte> destination{};
+    FramebufferView candidate{};
+
+    static bool consume(void *raw, const FramebufferView &source) noexcept
+    {
+        auto &copy = *static_cast<WindowsPackedBgraCopy *>(raw);
+        const std::uint64_t rowBytes =
+            static_cast<std::uint64_t>(source.widthPixels) *
+            kWindowsBgraBytesPerPixel;
+        if (!source.valid() || rowBytes == 0 ||
+            rowBytes > source.strideBytes ||
+            rowBytes > kMaximumWindowsCaptureFrameBytes ||
+            source.heightPixels > kMaximumWindowsCaptureFrameBytes / rowBytes)
+        {
+            return false;
+        }
+
+        const std::size_t pitch = static_cast<std::size_t>(rowBytes);
+        const std::size_t required = pitch * source.heightPixels;
+        if (copy.destination.size() < required)
+        {
+            return false;
+        }
+
+        // A view into the mapped texture is never an owned R4 snapshot.
+        // Reject overlapping spans, including any source pitch padding.
+        const auto less = std::less<const std::byte *>{};
+        const auto *const sourceBegin = source.pixels.data();
+        const auto *const sourceEnd = sourceBegin + source.pixels.size();
+        const auto *const destinationBegin = copy.destination.data();
+        const auto *const destinationEnd = destinationBegin + required;
+        if (less(sourceBegin, destinationEnd) &&
+            less(destinationBegin, sourceEnd))
+        {
+            return false;
+        }
+
+        for (std::size_t y = 0; y < source.heightPixels; ++y)
+        {
+            std::memcpy(copy.destination.data() + y * pitch,
+                        sourceBegin + y * source.strideBytes, pitch);
+        }
+        copy.candidate = {
+            std::span<const std::byte>(copy.destination.data(), required),
+            source.widthPixels, source.heightPixels, pitch};
+        return true;
+    }
+};
+
+} // namespace
+
+WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::copyFrameTo(
+    std::span<std::byte> destination, FramebufferView &ownedOutput) noexcept
+{
+    ownedOutput = {};
+    WindowsPackedBgraCopy copy{destination};
+    const auto result = consumeFrame(
+        {&copy, &WindowsPackedBgraCopy::consume});
+    // A failed DXGI ReleaseFrame or revoked session cannot publish pixels,
+    // even when copying into the destination buffer itself succeeded.
+    if (result == WindowsCaptureConsumeResult::consumed)
+    {
+        ownedOutput = copy.candidate;
+    }
+    return result;
 }
 
 WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::consumeFrame(

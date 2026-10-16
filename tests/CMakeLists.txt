@@ -389,6 +389,16 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.capture-${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
     endforeach()
+    # R6 independent caller-owned BGRA snapshot, using the existing cycle
+    # and one synchronous copy before native unmap/duplication release.
+    foreach(case_name IN ITEMS
+            capture-packed-copy-lifetime
+            capture-packed-copy-denials)
+        add_test(NAME "windows.${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;offline")
+    endforeach()
     # R6 DXGI metadata converts native move/dirty descriptors only; tests
     # never acquire an output or call live native input/capture APIs.
     add_test(NAME windows.capture-dxgi-move-before-dirty

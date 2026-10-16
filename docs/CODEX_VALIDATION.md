@@ -11237,3 +11237,42 @@ CTest is the primary execution gate; Linux/Windows, sanitizer and documentation
 jobs remain required regression evidence. Genuine macOS R2/R3 admission and an
 R4 cursor-consumer contract are still absent, so this change does not expose a
 native capture factory or grant desktop authority.
+
+
+## R10 CredSSP progress-accounting hosted receipt + sanitizer selection (2026-10-16; sanitizer-extension CI pending)
+
+Starting reconciled shared `main`: `914b2c5b0c97476f37243a59c7ceee2f6752e22d`. Exact R10 implementation
+`0a07d096626cad58576d14de72ff52c6d333439c`, Actions `38903827001`,
+completed **SUCCESS**. Ubuntu/GCC full CTest passed **402/402 Debug** and
+**402/402 Release**; the four R10 aggregate cases
+`runtime.linux-connection-credssp-owner-framing`,
+`runtime.linux-connection-credssp-progress-accounting`,
+`runtime.linux-connection-credssp-revocation-order`, and
+`runtime.linux-connection-credssp-authorization-denials` all passed in both
+configurations. macOS/Clang passed **343/343 Debug + Release**. Windows/MSVC
+passed focused native preflight **39/39 Debug + Release** and full CTest
+**368/368 Debug + Release**. Installed SDK consumer/package validation and
+documentation policy passed. The existing R9 sanitizer job also passed its
+credential-free groups: **41/41 clipboard**, **25/25 bounded R1/R3
+transport/security**, **23/23 native R2/R3 GSS**, **16/16 R5 X11**, and
+**1/1 bounded fuzzer**.
+
+That exact sanitizer job did not build or execute
+`test_runtime_linux_security`, so it is regression evidence but not direct
+sanitizer coverage for the corrected R10 status mapping. The shared sanitizer
+job is therefore extended additively: it now builds the existing
+`test_runtime_linux_security` target and runs exactly the four R10 CredSSP
+aggregate CTests under ASan/UBSan, with the existing MIT-krb5 provider leak
+suppression scoped to that Linux GSS-backed step. No existing R9 selection is
+removed or renamed, and no parallel sanitizer harness/build root is created.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, the opt-in R2
+`security.gssapi-real-kerberos-owned-binding`, positive NSS/logind admission
+and Microsoft-client acceptance remain **NOT RUN** here. R2 exact-SHA hosted
+validation confirms the new real-Kerberos body compiles but the positive case
+itself remains disabled without explicit credentials. R10 still requires an
+opt-in aggregate-level real Kerberos run reaching `BindingVerified` before
+positive native admission or listener work. No listener/service, fabricated
+principal, synthetic lease or authentication bypass is added. M2/M3 remain
+**OPEN**.

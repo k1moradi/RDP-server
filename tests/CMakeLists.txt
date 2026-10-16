@@ -1128,6 +1128,7 @@ if(APPLE)
             lifecycle stale-generation-denials callback-retirement
             consumer-cancellation native-stop-single-ownership
             backend-callback-reentry-retirement
+            start-retirement-after-completion
             native-factory-quarantine framebuffer-contract)
         add_test(NAME "macos.capture-stream-${case_name}"
             COMMAND test_macos_capture_stream "${case_name}")

@@ -13877,3 +13877,35 @@ non-forgeable macOS per-user admission, R4 live cursor publication and
 Microsoft-client M5 acceptance remain **NOT RUN/OPEN**. The next R7
 authority-bearing gate is the genuine R2/R3 macOS capability, followed by
 owner-local macOS 27 tests. **M5 remains OPEN/BLOCKED**.
+
+
+## R7 capture close-before-start-completion race (2026-10-16; CI pending)
+
+**Reconciled parent:** `915e4d746dc6253a8af145108c022b2a812cf021`.
+
+The native ScreenCaptureKit bridge previously claimed the only stop request
+during owner close even if `startCaptureWithCompletionHandler` had not yet
+completed. Because an early stop cannot prove that a later successful native
+start is stopped, the late start-completion callback could be left without a
+remaining stop claim. R7 now reserves that claim until real start success and
+records success on the shared callback state even after C++ cancellation.
+The existing start-completion path then stops the newly started native stream
+exactly once. Unsuccessful starts do not request speculative stop.
+
+New production-backed, central CTest
+`macos.capture-stream-start-retirement-after-completion` exercises:
+close before delayed successful start; close before failed start; normal start
+then close; and idempotent native stop claims. Tests use synthetic callback
+state without real capture, Screen Recording prompts or interactive desktop.
+The Apple job must compile/link the real Objective-C++ ScreenCaptureKit bridge;
+that is SDK evidence, not live start/stop acceptance.
+
+Changes remain limited to the existing R7 C++ callback state, private native
+bridge, dedicated synthetic regression and documentation. Native factories,
+Quartz input, AppKit cursor sampling and per-user desktop admission remain
+quarantined. Source/CTest review **PASS**; canonical owner-local
+`~/rdp-server/build/` **NOT RUN** in this connector environment. Exact-SHA
+hosted Debug/Release, sanitizer, documentation and SDK/package evidence
+**PENDING** after publication. Owner macOS 27 live fast-user-switch and native
+capture, genuine R2/R3 admission, and Microsoft-client M5 acceptance
+**NOT RUN**. **M5 remains OPEN/BLOCKED**.

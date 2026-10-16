@@ -638,6 +638,50 @@ void testBackendCallbackReentryRetirement() {
     }
 }
 
+
+void testStartRetirementAfterCompletion() {
+    // A close before asynchronous start success must not spend the native
+    // stop claim. The later successful completion must retain one stop.
+    {
+        auto fixture = makeStream();
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        assert(fixture.stream->start());
+        const auto state = fixture.backend->state;
+        fixture.stream->close();
+        assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Closed);
+        assert(!state->claimNativeStopAfterStarted());
+        state->startCompleted(true);
+        assert(state->lifecycleState() == MacScreenCaptureLifecycleState::Closed);
+        assert(state->claimNativeStopAfterStarted());
+        assert(!state->claimNativeStopRequest());
+        assert(!state->claimNativeStopAfterStarted());
+        assert(fixture.backend->closeCalls == 1);
+    }
+    // An asynchronous start failure is not a live native capture: do not
+    // request a speculative stop after owner close.
+    {
+        auto fixture = makeStream();
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        assert(fixture.stream->start());
+        const auto state = fixture.backend->state;
+        fixture.stream->close();
+        state->startCompleted(false);
+        assert(!state->claimNativeStopAfterStarted());
+        assert(fixture.backend->closeCalls == 1);
+    }
+    // After a normal completed start, close can claim exactly one stop.
+    {
+        auto fixture = makeStream();
+        prepareAndStart(fixture);
+        const auto state = fixture.backend->state;
+        fixture.stream->close();
+        assert(state->claimNativeStopAfterStarted());
+        assert(!state->claimNativeStopAfterStarted());
+    }
+}
+
 void testCallbackRetirement() {
     GeometryFixture geometry;
     const auto oldGeneration = geometry.refresh();
@@ -699,6 +743,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testNativeStopSingleOwnership();
     } else if (testCase == "backend-callback-reentry-retirement") {
         testBackendCallbackReentryRetirement();
+    } else if (testCase == "start-retirement-after-completion") {
+        testStartRetirementAfterCompletion();
     } else if (testCase == "native-factory-quarantine") {
         testNativeFactoryQuarantine();
     } else if (testCase == "framebuffer-contract") {

@@ -101,6 +101,11 @@ void MacScreenCaptureState::prepareFailed(const MacScreenCaptureError error) noe
 
 void MacScreenCaptureState::startCompleted(const bool succeeded) noexcept {
     std::scoped_lock lock(mutex_);
+    // Completion may arrive after close. Still record successful native start
+    // so that the completion can retire a stream started after owner teardown.
+    if (succeeded) {
+        nativeStartSucceeded_ = true;
+    }
     if (lifecycleState_ != MacScreenCaptureLifecycleState::Starting) return;
     if (!succeeded) {
         failLocked(MacScreenCaptureError::StartFailed);
@@ -155,6 +160,15 @@ void MacScreenCaptureState::invalidateTopology() noexcept {
 bool MacScreenCaptureState::claimNativeStopRequest() noexcept {
     std::scoped_lock lock(mutex_);
     if (nativeStopRequested_) {
+        return false;
+    }
+    nativeStopRequested_ = true;
+    return true;
+}
+
+bool MacScreenCaptureState::claimNativeStopAfterStarted() noexcept {
+    std::scoped_lock lock(mutex_);
+    if (!nativeStartSucceeded_ || nativeStopRequested_) {
         return false;
     }
     nativeStopRequested_ = true;

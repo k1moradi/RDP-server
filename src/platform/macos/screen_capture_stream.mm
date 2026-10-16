@@ -323,8 +323,11 @@ using RdpMacCaptureDisposition = rdp::macos::MacScreenCaptureFrameDisposition;
         _state.reset();
     }
     if (@available(macOS 12.3, *)) {
+        // A pending asynchronous start owns retirement after completion.
+        // Claiming stop before native start succeeds could leave a later
+        // successful start running without another available stop request.
         if (stream != nil && stopSubmitted && state &&
-            state->claimNativeStopRequest()) {
+            state->claimNativeStopAfterStarted()) {
             [stream stopCaptureWithCompletionHandler:^(NSError* error) {
                 if (error != nil) {
                     state->nativeFailed();

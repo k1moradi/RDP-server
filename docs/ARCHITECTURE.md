@@ -4620,3 +4620,19 @@ therefore passes through CREATE, MAP, WIRE_TO_SURFACE_1, frame delivery/ACK
 and DELETE exactly like any other ID. R3 remains responsible for the future
 authenticated Graphics DVC; this rule adds no surface allocator or transport
 ownership.
+
+
+## R7 native capture start-completion stop ordering (2026-10-16)
+
+A ScreenCaptureKit stream may report successful asynchronous start after its
+C++ owner has already closed or invalidated the topology. A speculative
+`stopCaptureWithCompletionHandler` submitted before start completion does not
+guarantee that the later successful start is retired; if it consumes the
+one-shot stop claim, the later start callback cannot submit a second stop.
+The shared C++ callback state therefore records a *successful native start
+completion* even when its lifecycle was already closed. Only an already
+successful start permits owner `close()` to claim a native stop. Otherwise the
+late successful start completion uses the existing one-shot claim and submits
+retirement. Failed starts never cause speculative stop. This keeps all stop
+paths on the same per-stream claim without changing frame delivery,
+authorization, capture construction, or R3/R4 ownership.

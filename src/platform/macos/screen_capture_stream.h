@@ -125,6 +125,9 @@ public:
     // startup retirement, or an output callback. Claim exactly one native
     // stop submission across those paths for this one-shot stream.
     [[nodiscard]] bool claimNativeStopRequest() noexcept;
+    // Owner close cannot consume the stop claim before native start succeeds;
+    // a later successful start completion must still retire that capture.
+    [[nodiscard]] bool claimNativeStopAfterStarted() noexcept;
 
     [[nodiscard]] MacScreenCaptureFrameDisposition
     consumeFrame(CVPixelBufferRef pixelBuffer,
@@ -146,6 +149,7 @@ private:
     MacScreenCaptureFrameDrop lastFrameDrop_{MacScreenCaptureFrameDrop::None};
     std::shared_ptr<MacCaptureFrameConsumer> consumer_;
     bool nativeStopRequested_{};
+    bool nativeStartSucceeded_{};
 };
 
 // Apple implementation is private Objective-C++; tests inject this C++ seam.

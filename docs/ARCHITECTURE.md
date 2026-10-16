@@ -1123,6 +1123,9 @@ it. Failed XCB connections are rejected before XTEST negotiation.
 `disconnect()` is the repeatable cancellation barrier: while the borrowed
 owner is valid it releases held keys/buttons, then clears native state and the
 borrowed pointer so destruction cannot touch a later-destroyed connection.
+The destructor reuses that barrier. Ephemeral-Xvfb lifecycle coverage verifies
+that a real held key and button are both released on ordinary scope exit while
+the same borrowed XCB owner remains healthy and reusable.
 The noninstalled Linux `rdp-server-linux-xtest-input` target links only
 `xcb` and `xcb-xtest`; it is not linked into the server runtime yet.
 Its ordinary native CTest uses an already-failed XCB fd and therefore cannot

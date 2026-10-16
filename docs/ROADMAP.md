@@ -15390,3 +15390,51 @@ Windows R2/R3 native admission, live DXGI/SendInput, Microsoft-client M4 and
 native performance remain **NOT RUN/BLOCKED**. **M4 remains OPEN / NOT
 ACCEPTED.**
 
+
+
+## R5 XTEST destructor held-input release coverage (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `ffafbea189aacd7925508a4b1cae8caa3f49c2de`.
+
+Review of the remaining R5 native child lifetimes found no production defect in
+`X11InputController`: its destructor already delegates to the idempotent
+`disconnect()` path, which releases every remembered held key/button while the
+borrowed XCB owner is still healthy, then clears native state and the borrowed
+pointer. The dedicated native test had only exercised an already-failed XCB
+descriptor, so this release behavior had no real-XTEST lifetime evidence.
+
+The existing production-linked `test_x11_native_input` executable now gains
+`x11.input-native-destructor-held-input-release`. Under ephemeral Xvfb it
+constructs the real XTEST controller on one synthetic root, snapshots baseline
+keyboard/button state, presses one ordinary key and button through the
+production typed adapter, and verifies the X server reports both states held.
+Ordinary C++ scope exit must release both before the still-live borrowed XCB
+owner is destroyed. The same owner is then reused by a replacement controller;
+explicit `disconnect()` must likewise release a held button and leave the
+connection healthy.
+
+The test uses XTEST only against the isolated Xvfb server created for that CTest.
+It touches no logged-in desktop, real user input, RDP packet, credential,
+admission lease, scheduler or runtime listener. It is strictly native lifetime
+coverage and cannot be treated as R3 authorization or Microsoft-client input
+acceptance. No R5 production code changes are required by this increment.
+
+The shared Clang ASan/UBSan native-X11 selector expands from **26** to **27**
+behavior-named cases. Architecture/build documentation records the synthetic
+XTEST scope so later validation cannot confuse it with live input acceptance.
+
+**Authoring validation:** source/ownership/registry review **PASS**. Canonical
+owner-local
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+is **NOT RUN** because this connector environment does not expose the required
+`~/rdp-server/build` checkout; no alternate persistent build root was created.
+Exact publication-SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC,
+native-X11 ASan/UBSan, documentation-policy and SDK/package evidence are the
+next executable gate.
+
+The next functional R5 input-PDU integration remains **BLOCKED** until R3
+exposes its authoritative authenticated Share/Input or Fast-Path Input
+translation boundary. R5 must not create a parallel RDP parser, authorization
+token, session/input owner or scheduler. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, genuine Kerberos/logind-authorized XTEST use and
+Microsoft-client M3 acceptance remain **NOT RUN/OPEN**.

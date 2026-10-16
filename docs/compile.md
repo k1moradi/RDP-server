@@ -220,6 +220,13 @@ installed portable protocol headers.
 ## Linux native XTEST and one-XCB owner dependencies (R5)
 
 The XTEST controller needs `libxcb1-dev` plus `libxcb-xtest0-dev`.
+Its headless denial/cancellation CTest still uses only a failed XCB descriptor.
+When `xvfb-run` is present, `x11.input-native-destructor-held-input-release`
+uses only an ephemeral synthetic X server: it holds one key and button through
+the production XTEST controller, proves native state is down, destroys the
+controller and requires both states to be released while the same XCB owner
+stays healthy. This is lifecycle evidence, not authenticated desktop/input
+acceptance.
 With XCB/RandR, XShm, XFixes, XDamage and XTEST targets all available, CMake
 also builds noninstalled `rdp-server-linux-x11-desktop`. The
 `x11.desktop-resource-owner-connection-denial` CTest needs no X server.

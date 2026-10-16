@@ -7303,3 +7303,16 @@ surface and fix slow/deadlocked failures rather than increasing the bound.
 The protected-transition R9 exact-SHA run remains **QUEUED**, not PASS/FAIL,
 at authoring time. Positive native admission and live/owner/client acceptance
 remain **NOT RUN/BLOCKED** as previously recorded.
+
+
+## R7 generation-pinned macOS input controller (2026-10-16)
+
+R7 now has a generation-pinned, single-thread-affine macOS input state owner. `MacInputController` is bound to one current `NativeDisplayGeometryRefresh` generation and Quartz topology revision; these are revocation facts only and are never authentication or desktop authorization. The controller accepts macOS-native virtual-key codes plus RDP scan identity, virtual-desktop pointer coordinates, five buttons, and bounded vertical/horizontal wheel deltas. Pointer coordinates reuse the existing Retina/multi-display transform, so monitor gaps, stale generations, and topology revocation fail closed.
+
+Held key/button state is fixed-capacity and allocation-free. Duplicate make/button transitions are idempotent, wheel input accumulates in bounded 120-unit steps, callback reentry is denied, cancellation during a callback is deferred, and short native acceptance is terminal. Cleanup releases held native state only while the exact pinned generation/revision remains current; after display refresh/reconfiguration R7 clears local state without injecting releases into a replacement desktop epoch.
+
+The Apple-only bridge compiles a dormant Quartz translator for keyboard, pointer, drag, button, and line-scroll events. It uses the non-prompting Accessibility trust query immediately before native posting, but the callback factory is intentionally private and no runtime path can obtain it. A positive Accessibility result, generation number, or synthetic test callback therefore cannot bypass future macOS R2/R3 authorization.
+
+Dedicated permission-free CTests are `macos.input-controller-lifecycle`, `macos.input-controller-validation-denials`, and `macos.input-controller-revocation-cleanup`. Implementation commit `003f455148fa72f6ee82bd5fbdf6016e3df4fab8` is on `main`; exact-SHA Actions run `38884345628` is **QUEUED**. Local strict Clang/GCC and Clang ASan+UBSan+LSan harnesses pass, and Objective-C++ syntax against stub CoreGraphics/ApplicationServices declarations passes. Owner macOS 27, real Accessibility trust, live Quartz input posting, genuine R2/R3 macOS admission, Microsoft-client input, and performance remain **NOT RUN**.
+
+**Next R7:** do not export the native input callback until a concrete macOS R2/R3 authorization/session route exists. If that cross-road authority remains unavailable, continue isolated macOS session/permission lifecycle groundwork; if R4 publishes a portable cursor-consumer contract first, add generation-safe cursor dedup/publication without creating another graphics scheduler. M5 remains **OPEN**.

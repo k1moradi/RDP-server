@@ -10654,3 +10654,50 @@ all **18** cases with the vendored x264 C sources compiler-instrumented.
 Normal three-OS Debug/Release, SDK/package and documentation gates remain
 required. Genuine R3 Graphics DVC/full-send integration and Microsoft-client
 rendering remain **BLOCKED/NOT RUN**; Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R4 fully instrumented x264/BGRA sanitizer exact-SHA receipt (2026-10-16)
+
+**Implementation/repair SHA:** `0abf1e5de12517817a70973be3740ac56ff1d522`.
+**Actions:** `38906102171` — **SUCCESS**.
+
+The first R4 sanitizer publication `27d472baee4eabf3593757c2a749e72d33595cd0`
+correctly added Clang C instrumentation and the R4 test group, but inherited a
+pre-existing malformed workflow: its run `38905806962` created **0 jobs**.
+The repair rebuilt `.github/workflows/ci.yml` from the last known-good
+workflow and reapplied only the intended R10 and R4 additive sanitizer changes.
+GitHub then created and completed the full matrix successfully.
+
+- **Clang ASan+UBSan R4 graphics gate:** **18/18 PASS**. Both
+  `test_x264_avc420_encoder` and
+  `test_x264_avc420_segmented_frame_producer` compile and execute with
+  `clang++`; all vendored x264 C translation units compile with `clang`
+  under the same address/undefined sanitizer flags. Leak detection,
+  halt-on-error and fail-on-UB remain enabled with **no x264 suppression**.
+  Coverage includes NV12 validation, Annex-B/crop/reference lifecycle,
+  metadata and malformed-input preflight, duplicate-ID/backpressure recovery,
+  abort/generation reset, fixed-CFR PTS, BGRA BT.709 conversion/scratch
+  lifetime, and BGRA -> x264 -> AVC420 -> segmented RDP8 publication.
+- **Linux/GCC:** Debug **407/407 PASS**, Release **407/407 PASS**; installed
+  SDK consumer and package gates PASS.
+- **macOS/Clang:** Debug **349/349 PASS**, Release **349/349 PASS**; installed
+  SDK consumer and package gates PASS.
+- **Windows/MSVC:** native preflight **39/39 PASS** in Debug and Release;
+  full Debug **373/373 PASS**, Release **373/373 PASS**; SDK consumer/package
+  gates PASS.
+- The same sanitizer job also preserves all previously configured clipboard,
+  bounded R1/R3, native R2/R3 GSSAPI, R10 runtime CredSSP, complete R5 X11 and
+  bounded fuzzer groups; they all PASS. **Documentation policy PASS** and
+  untagged prerelease publication is correctly **SKIPPED**.
+
+This closes the roadmap's prior **NOT RUN** item for real R4 x264/BGRA
+ASan+UBSan execution. No production graphics code, CTest semantics, channel
+authority, scheduler, capture owner or wire format changed.
+
+**Still NOT RUN/BLOCKED:** canonical owner `~/rdp-server/build` command on
+Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27; genuine authenticated
+R3 `Microsoft::Windows::RDS::Graphics` DVC/full-send integration; native
+capture performance; and Microsoft-client visible graphics acceptance.
+There is still no R3 graphics authority to consume without fabricating a
+second owner, so R4's next production integration gate remains that dependency.
+Gate B and M3/M4/M5 remain **OPEN**.

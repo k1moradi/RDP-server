@@ -1808,3 +1808,14 @@ regex dollar-sign immediately followed by an apostrophe:
 the source, duplicating GitHub Actions jobs. Check every
 top-level job definition for uniqueness, then verify
 GitHub actually schedules the new job before PASS claims.
+
+## R1 POSIX listener readiness before nonblocking acceptance assertion (2026-10-15)
+
+A successful loopback TCP connect does not guarantee that a subsequent
+nonblocking `accept4` can consume it immediately. For the existing
+`transport.tcp-native-accept-batch-stops-denials` test, wait boundedly
+for the original listener to be readable via
+`pollNonblockingTcpAcceptBatch` (128 attempts, 25ms maximum each)
+before asserting the *same* callback count, one accepted descriptor,
+`Drained` outcome and listener preservation. Do not change
+production socket behavior or weaken rejection/RAII assertions.

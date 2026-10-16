@@ -5400,3 +5400,27 @@ diagnostics do not authorize an OS session.
 **Next R1 boundary:** existing R10 runtime owns live listener
 configuration, admission budgets and fairness; R1's bounded
 listener/accepted-owner APIs are now tested building blocks.
+
+## R1 intermittent macOS accept-batch drain regression (2026-10-15)
+
+**Parent main:** `464211b1da48ce80e09e27904addce7bb40137b2`. **Previously verified source CI:**
+`1fb4d48e3f9a1133587d634d08ec69c5d5c19e03`
+[Actions 38851057291](https://github.com/k1moradi/RDP-server/actions/runs/38851057291)
+**PASS** Linux/GCC 228/228, macOS/AppleClang 211/211 and
+Windows/MSVC 230/230 Debug and Release, including both new
+listener poll CTests. **Subsequent documentation-only follow-up:**
+`464211b1da48ce80e09e27904addce7bb40137b2`,
+[Actions 38851395036](https://github.com/k1moradi/RDP-server/actions/runs/38851395036)
+**FAIL** macOS Debug **210/211**, *only*
+`transport.tcp-native-accept-batch-stops-denials`:
+`test_owned_preauth_session.cpp:2582` asserted immediate
+`TcpAcceptBatchOutcome::Drained` after loopback connect. Native
+TCP may still return WouldBlock before the pending connection is
+readable. **Fixture-only fix:** use bounded `pollNonblockingTcpAcceptBatch`
+(128 x <=25ms, caller steady-clock 5s) before enforcing the
+same `Drained`, accepted count, callback and listener assertions.
+No production transport code changed; all other CTests remain.
+**NOT RUN at authorship:** corrected full exact-SHA hosted CI,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
+authenticated R2/R3 admission and real RDP client/desktop.
+**Next:** verify all platforms' full Debug+Release CTests.

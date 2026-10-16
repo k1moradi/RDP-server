@@ -843,6 +843,27 @@ actually run; another parser CTest alone is not a complete session.
   OS authorization and R3 MCS/share/session remain NOT RUN**.
   Runtime port binding and listener scheduling remain R10-owned.
 
+  **R1 older accept-batch test nonblocking readiness repair
+  (2026-10-15; integration parent `464211b1da48ce80e09e27904addce7bb40137b2`):**
+  The source-only implementation `1fb4d48e3f9a1133587d634d08ec69c5d5c19e03`
+  [Actions 38851057291](https://github.com/k1moradi/RDP-server/actions/runs/38851057291)
+  **PASS Linux 228/228, macOS 211/211, Windows 230/230**
+  Debug+Release. Its documentation-only follow-up
+  `464211b1da48ce80e09e27904addce7bb40137b2`
+  [Actions 38851395036](https://github.com/k1moradi/RDP-server/actions/runs/38851395036)
+  exposed an intermittent **FAIL macOS Debug** in the older
+  `transport.tcp-native-accept-batch-stops-denials` CTest:
+  `drained.outcome == Drained` at the fixture's test line 2582.
+  That test assumed a just-connected loopback client was already
+  visible to the nonblocking listener. It now uses a bounded
+  128-step/25ms listener-ready wait through the new R1 API before
+  asserting the same **Drained**, exactly one accepted handle,
+  callback execution and untouched listener. Production code is
+  unchanged; no negative assertion is suppressed. **NOT RUN at
+  authoring:** corrected fixture exact-SHA full CI and the owner's
+  three platform toolchains. Next: confirm the full hosted matrix
+  including the previously intermittent macOS Debug case.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

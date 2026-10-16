@@ -2576,11 +2576,23 @@ void testNativeTcpAcceptBatchStopsAndDenials()
         ++*static_cast<std::size_t *>(context);
         return true; // RAII auto-close (no session adopted).
     };
-    const auto drained = acceptNonblockingTcpBatch(
-        static_cast<std::uintptr_t>(drainedPair.listener.value),
-        2, keep, &seen);
-    assert(drained.outcome == Outcome::Drained);
-    assert(drained.accepted == 1 && seen == 1);
+    // TCP connect returning does NOT guarantee the listener's pending
+    // accept is immediately observable on every POSIX scheduler. Wait
+    // boundedly using the production listener-readiness gate, without
+    // adding a new socket owner or changing batch/drain semantics.
+    TcpListenerPollResult drained{};
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds{5};
+    for (int attempt = 0; attempt < 128; ++attempt)
+    {
+        drained = pollNonblockingTcpAcceptBatch(
+            static_cast<std::uintptr_t>(drainedPair.listener.value),
+            2, keep, &seen, deadline, kMaximumTcpPollWait);
+        if (drained.outcome != TcpListenerPollOutcome::NoEvent) break;
+    }
+    assert(drained.outcome == TcpListenerPollOutcome::BatchCompleted);
+    assert(drained.batch.outcome == Outcome::Drained);
+    assert(drained.batch.accepted == 1 && seen == 1);
     assert(drainedPair.listener.value != kInvalidLocalSocket);
 }
 

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "gcc_conference_create.h"
+#include "rdp_licensing.h"
 
 #include <array>
 #include <cstddef>
@@ -471,6 +472,10 @@ public:
     McsSessionLifecycle &operator=(McsSessionLifecycle &&) = delete;
 
     [[nodiscard]] McsSessionPhase phase() const noexcept { return phase_; }
+    [[nodiscard]] RdpLicensingPhase licensingPhase() const noexcept
+    {
+        return licensing_.phase();
+    }
 
     // Exactly one *already decrypted* complete MCS Connect-Initial TPKT,
     // supplied by R1's bounded TLS intake. Validate the production parser,
@@ -497,11 +502,13 @@ public:
 
     void close() noexcept
     {
+        licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
     }
 
 private:
+    RdpLicensingLifecycle licensing_{};
     McsChannelJoinWriteGate joins_{};
     McsSessionPhase phase_{McsSessionPhase::AwaitVerifiedR2Admission};
 };

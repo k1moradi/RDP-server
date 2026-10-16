@@ -46,6 +46,9 @@ function(add_rdp_test source_file suite behavior)
                 mcs-session-unadmitted-domain-size-bounds
                 mcs-session-first-failure-boundaries
                 mcs-session-domain-failure-boundaries
+                licensing-preamble-and-state
+                licensing-length-bounds
+                licensing-ordering-denials
                 mcs-disconnect-wire
                 mcs-disconnect-rejections
                 mcs-send-data-wire

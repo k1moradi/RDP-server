@@ -2198,3 +2198,30 @@ session, channel permission or anti-spoofing proof. R2 still owns identity and
 admission; R3 still owns session/channel state. No reverse DNS lookup,
 listener policy, connection scheduler, second event loop or service
 activation is introduced.
+
+
+## R3 licensing ownership and authorization boundary (2026-10-16)
+
+The sole `McsSessionLifecycle` now embeds the bounded
+`RdpLicensingLifecycle` and closes it on every session teardown. The
+licensing object owns only protocol phase; it owns no SSL/socket, identity,
+authorization token, event loop, thread or application channel. A reconnect
+constructs a fresh session/licensing object rather than resetting terminal
+state in place.
+
+Its first reachable standalone phase transition is deliberately tied to a
+*fully written* future Server License Request:
+`NotStarted -> AwaitClientLicenseResponse -> AwaitServerDecision`.
+The latter means only that one initial client licensing response is
+structurally valid; it is not a `licensed=true` state and cannot enable
+Demand Active. Wrong-order, duplicate, malformed or late messages fail
+terminally. The production `McsSessionLifecycle` still has no positive path
+past `AwaitVerifiedR2Admission` because R2 has not published a genuine
+revocable native-OS admission capability.
+
+Licensing dispatch must eventually occur only after R1 TLS decryption and R3
+checks for the same admitted generation, assigned user, global/static channel,
+segmentation/reassembly, direction and licensing phase. The common licensing
+parser returns only an immutable borrowed body span whose lifetime is the
+caller's unchanged input. It never allocates from `wMsgSize` or nested BLOB
+lengths and never logs opaque licensing material.

@@ -5127,3 +5127,55 @@ or Microsoft-client acceptance is implied; M2 remains **NOT ACCEPTED**.
 the existing read-only established TLS object and bounded application I/O;
 add no further transport surface unless integration demonstrates a concrete
 missing hook.
+
+
+## R3 bounded licensing lifecycle foundation (2026-10-16)
+
+**Starting main inspected:** `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`. **Publication parent after
+concurrent-agent reconciliation:** `d4682e71e76d55dd923a8ae1e7b970e558e02f6d`. R2 still exposes no
+genuine nonforgeable, revocable, TLS-bound native OS admission capability, so
+the existing `McsSessionLifecycle` remains denial-only at
+`AwaitVerifiedR2Admission -> Closed`; no Boolean, principal string, fake
+token or test backdoor can enter the post-auth MCS path.
+
+R3 now contains a first-party allocation-free `RdpLicensingLifecycle`
+owned by that same sole session object for teardown. It implements the first
+licensing state transition independently of authentication: `NotStarted ->
+AwaitClientLicenseResponse` only after a future owner reports a fully written
+Server License Request, then accepts exactly one structurally valid initial
+client `CLIENT_LICENSE_INFO (0x12)` or
+`CLIENT_NEW_LICENSE_REQUEST (0x13)` and stops at
+`AwaitServerDecision`. There is intentionally no licensed/completed
+transition and no server licensing output yet.
+
+The common MS-RDPBCGR 2.2.1.12.1.1 preamble is exact-length checked with a
+65,535-byte hard maximum, current protocol versions 2/3 and only the defined
+extended-error flag. Initial client bodies follow MS-RDPELE 2.2.2.2/2.2.2.3:
+RSA key-exchange selector, fixed 32-byte ClientRandom, bounded
+LICENSE_BINARY_BLOB headers/data, required BLOB types, null-terminated ANSI
+user/machine names for new requests, and exact 16-byte MAC tail for stored
+license information. Peer lengths never allocate memory; returned body spans
+borrow the caller input only for that call. Truncation, overflow, surplus,
+wrong type/order, duplicate messages and post-failure data are terminal.
+
+Before production dispatch the eventual owner must additionally prove genuine
+R2 admission, matching session generation/TLS provenance, assigned MCS user,
+global/static channel, complete segmentation/reassembly, direction and current
+licensing phase. Parsing never grants authentication, OS authorization,
+licensing success, share activation or application-channel access.
+
+**Dedicated CTests:** `transport.licensing-preamble-and-state`,
+`transport.licensing-length-bounds`, and
+`transport.licensing-ordering-denials`. A focused standalone GCC C++23
+strict-warning build/run of the production licensing translation unit passed
+during authoring. Full synchronized repository CMake/CTest and owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 are **NOT RUN** in the
+authoring environment because Git network cloning is unavailable; exact-SHA
+hosted Actions is to be inspected after direct-to-main publication.
+M2 remains **NOT ACCEPTED**.
+
+**Next R3:** keep the same owner and add the smallest spec-backed server
+licensing output/write-receipt step needed to drive the accepted initial client
+response toward the required challenge/license decision. Do not integrate a
+positive Connect Response or licensing path until R2 publishes a real
+revocable admission capability.

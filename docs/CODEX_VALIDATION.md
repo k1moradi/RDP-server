@@ -6578,3 +6578,37 @@ this sandbox has no mounted checkout and cannot directly clone GitHub.
 Exact-SHA hosted CI **PENDING** after the direct-to-main commit. Owner
 Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27 and real Microsoft-client
 acceptance remain **NOT RUN**. M2 remains **NOT ACCEPTED**.
+
+
+## R3 bounded licensing lifecycle authoring validation (2026-10-16)
+
+**Starting main:** `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`; reconciled without overwriting
+concurrent R8/R1 work through `d4682e71e76d55dd923a8ae1e7b970e558e02f6d`. **R2 admission:**
+NOT AVAILABLE; latest R2 evidence remains deny-only/CandidateOnly, so no
+positive MCS admission path was added.
+
+**Production increment:** new `src/server/transport/rdp_licensing.{h,cpp}`
+plus ownership/teardown in the existing `McsSessionLifecycle`. Supported
+initial client message structures are `CLIENT_NEW_LICENSE_REQUEST (0x13)`
+and `CLIENT_LICENSE_INFO (0x12)`; both stop at
+`AwaitServerDecision`, which is explicitly not licensing completion.
+Common type/flags/16-bit total-length parsing also safely classifies all current
+MS-RDPBCGR licensing message types. Hard PDU bound is 65,535 bytes; no
+peer-length-driven heap allocation occurs. New-request user/machine BLOBs must
+be nonempty exact null-terminated ANSI strings, and License Information must
+end in exactly 16 MAC bytes.
+
+**Focused PASS:** GCC strict C++23
+`-Wall -Wextra -Wpedantic -Werror` compiled
+`rdp_licensing.cpp`; a standalone production-code harness passed valid new
+request and stored-license paths, every truncation prefix, declared-length
+mismatch, invalid type/flags, nested BLOB length overflow/zero length, surplus,
+pre-start input, duplicate server-write receipt, duplicate client input,
+unexpected challenge response, post-failure/post-close input and fresh-object
+reset.
+
+**Full repository/owner platforms:** NOT RUN locally because this execution
+environment cannot resolve github.com for a synchronized clone. The owner
+one-root command is unchanged. Exact-SHA hosted CI is pending publication and
+must be inspected separately. No real credentials, Kerberos, OS login,
+listener, RDP client or desktop were used. M2 remains **NOT ACCEPTED**.

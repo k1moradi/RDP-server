@@ -4,6 +4,7 @@
 #include "transport/mcs_connect_initial.h"
 #include "transport/mcs_connect_response.h"
 #include "transport/mcs_channel_connection.h"
+#include "transport/rdp_licensing.h"
 #include "transport/gcc_conference_create.h"
 
 #include <algorithm>
@@ -3551,6 +3552,237 @@ void testInputMutationsRemainBounded()
     }
 }
 
+
+void appendLicensingLe16(std::vector<std::uint8_t> &bytes,
+                         std::uint16_t value)
+{
+    bytes.push_back(static_cast<std::uint8_t>(value));
+    bytes.push_back(static_cast<std::uint8_t>(value >> 8U));
+}
+
+void appendLicensingLe32(std::vector<std::uint8_t> &bytes,
+                         std::uint32_t value)
+{
+    appendLicensingLe16(bytes, static_cast<std::uint16_t>(value));
+    appendLicensingLe16(bytes, static_cast<std::uint16_t>(value >> 16U));
+}
+
+void appendLicensingBlob(std::vector<std::uint8_t> &bytes,
+                         std::uint16_t type,
+                         std::initializer_list<std::uint8_t> payload)
+{
+    assert(payload.size() <= 65535U);
+    appendLicensingLe16(bytes, type);
+    appendLicensingLe16(
+        bytes, static_cast<std::uint16_t>(payload.size()));
+    bytes.insert(bytes.end(), payload);
+}
+
+void finishLicensingMessageSize(std::vector<std::uint8_t> &bytes)
+{
+    assert(bytes.size() >= 4U && bytes.size() <= 65535U);
+    const auto length = static_cast<std::uint16_t>(bytes.size());
+    bytes[2] = static_cast<std::uint8_t>(length);
+    bytes[3] = static_cast<std::uint8_t>(length >> 8U);
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientNewLicenseRequest()
+{
+    std::vector<std::uint8_t> message{0x13, 0x83, 0x00, 0x00};
+    appendLicensingLe32(message, 1U);          // KEY_EXCHANGE_ALG_RSA
+    appendLicensingLe32(message, 0x04010000U); // Microsoft WinNT platform
+    for (std::uint8_t value = 0; value < 32U; ++value)
+        message.push_back(value);
+
+    appendLicensingBlob(message, 0x0002U, {0x11, 0x22, 0x33});
+    appendLicensingBlob(
+        message, 0x000fU, {0x75, 0x73, 0x65, 0x72, 0x00});
+    appendLicensingBlob(
+        message, 0x0010U, {0x68, 0x6f, 0x73, 0x74, 0x00});
+    finishLicensingMessageSize(message);
+    return message;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientLicenseInfo()
+{
+    std::vector<std::uint8_t> message{0x12, 0x03, 0x00, 0x00};
+    appendLicensingLe32(message, 1U);
+    appendLicensingLe32(message, 0x04010000U);
+    for (std::uint8_t value = 0; value < 32U; ++value)
+        message.push_back(static_cast<std::uint8_t>(0xa0U + value));
+
+    appendLicensingBlob(message, 0x0002U, {0x31, 0x32});
+    appendLicensingBlob(message, 0x0001U, {0x41, 0x42, 0x43});
+    appendLicensingBlob(message, 0x0001U, {0x51, 0x52, 0x53});
+    for (std::uint8_t value = 0; value < 16U; ++value)
+        message.push_back(static_cast<std::uint8_t>(0x80U + value));
+    finishLicensingMessageSize(message);
+    return message;
+}
+
+void testRdpLicensingPreambleAndState()
+{
+    const auto newRequest = makeClientNewLicenseRequest();
+    const auto parsed = parseRdpLicensingMessage(newRequest);
+    assert(parsed);
+    assert(parsed.value.type ==
+           RdpLicensingMessageType::ClientNewLicenseRequest);
+    assert(parsed.value.protocolVersion == 3U);
+    assert(parsed.value.extendedErrorSupported);
+    assert(parsed.value.body.data() == newRequest.data() + 4U);
+    assert(parsed.value.body.size() == newRequest.size() - 4U);
+
+    RdpLicensingLifecycle newLicense;
+    assert(newLicense.phase() == RdpLicensingPhase::NotStarted);
+    assert(newLicense.onServerLicenseRequestWritten());
+    assert(newLicense.phase() ==
+           RdpLicensingPhase::AwaitClientLicenseResponse);
+    assert(newLicense.onClientMessage(newRequest) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(newLicense.phase() == RdpLicensingPhase::AwaitServerDecision);
+
+    const auto licenseInfo = makeClientLicenseInfo();
+    const auto existingParsed = parseRdpLicensingMessage(licenseInfo);
+    assert(existingParsed);
+    assert(existingParsed.value.type ==
+           RdpLicensingMessageType::ClientLicenseInfo);
+    assert(existingParsed.value.protocolVersion == 3U);
+    assert(!existingParsed.value.extendedErrorSupported);
+
+    RdpLicensingLifecycle existingLicense;
+    assert(existingLicense.onServerLicenseRequestWritten());
+    assert(existingLicense.onClientMessage(licenseInfo) ==
+           RdpLicensingIntake::ClientLicenseInfoAccepted);
+    assert(existingLicense.phase() ==
+           RdpLicensingPhase::AwaitServerDecision);
+}
+
+void testRdpLicensingLengthBounds()
+{
+    const auto valid = makeClientNewLicenseRequest();
+
+    // Every shorter prefix is rejected, including all nested BLOB boundaries.
+    for (std::size_t size = 0; size < valid.size(); ++size)
+    {
+        RdpLicensingLifecycle lifecycle;
+        assert(lifecycle.onServerLicenseRequestWritten());
+        assert(lifecycle.onClientMessage(
+                   std::span(valid).first(size)) ==
+               RdpLicensingIntake::MalformedMessage);
+        assert(lifecycle.phase() == RdpLicensingPhase::Failed);
+    }
+
+    auto badLength = valid;
+    --badLength[2];
+    assert(parseRdpLicensingMessage(badLength).error ==
+           RdpLicensingParseError::LengthMismatch);
+
+    auto invalidType = valid;
+    invalidType[0] = 0x14U;
+    assert(parseRdpLicensingMessage(invalidType).error ==
+           RdpLicensingParseError::InvalidType);
+
+    auto invalidFlags = valid;
+    invalidFlags[1] = 0x73U;
+    assert(parseRdpLicensingMessage(invalidFlags).error ==
+           RdpLicensingParseError::InvalidFlags);
+
+    // First BLOB begins at packet offset 44; its little-endian length is 46.
+    auto nestedOverflow = valid;
+    nestedOverflow[46] = 0xffU;
+    nestedOverflow[47] = 0xffU;
+    RdpLicensingLifecycle overflowLifecycle;
+    assert(overflowLifecycle.onServerLicenseRequestWritten());
+    assert(overflowLifecycle.onClientMessage(nestedOverflow) ==
+           RdpLicensingIntake::MalformedMessage);
+
+    auto zeroBlob = valid;
+    zeroBlob[46] = 0x00U;
+    zeroBlob[47] = 0x00U;
+    RdpLicensingLifecycle zeroLifecycle;
+    assert(zeroLifecycle.onServerLicenseRequestWritten());
+    assert(zeroLifecycle.onClientMessage(zeroBlob) ==
+           RdpLicensingIntake::MalformedMessage);
+
+    auto surplus = valid;
+    surplus.push_back(0x00U);
+    assert(parseRdpLicensingMessage(surplus).error ==
+           RdpLicensingParseError::LengthMismatch);
+    finishLicensingMessageSize(surplus);
+    RdpLicensingLifecycle surplusLifecycle;
+    assert(surplusLifecycle.onServerLicenseRequestWritten());
+    assert(surplusLifecycle.onClientMessage(surplus) ==
+           RdpLicensingIntake::MalformedMessage);
+
+    std::vector<std::uint8_t> oversized(
+        kMaximumRdpLicensingPduBytes + 1U, 0U);
+    oversized[0] = 0x13U;
+    oversized[1] = 0x03U;
+    assert(parseRdpLicensingMessage(oversized).error ==
+           RdpLicensingParseError::Oversized);
+}
+
+void testRdpLicensingOrderingDenials()
+{
+    const auto request = makeClientNewLicenseRequest();
+
+    RdpLicensingLifecycle beforeRequest;
+    assert(beforeRequest.onClientMessage(request) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(beforeRequest.phase() == RdpLicensingPhase::Failed);
+    assert(beforeRequest.onClientMessage(request) ==
+           RdpLicensingIntake::Failed);
+
+    RdpLicensingLifecycle duplicateWrite;
+    assert(duplicateWrite.onServerLicenseRequestWritten());
+    assert(!duplicateWrite.onServerLicenseRequestWritten());
+    assert(duplicateWrite.phase() == RdpLicensingPhase::Failed);
+
+    RdpLicensingLifecycle duplicateMessage;
+    assert(duplicateMessage.onServerLicenseRequestWritten());
+    assert(duplicateMessage.onClientMessage(request) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(duplicateMessage.onClientMessage(request) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(duplicateMessage.phase() == RdpLicensingPhase::Failed);
+
+    constexpr std::array<std::uint8_t, 4> challengeResponse{
+        0x15, 0x03, 0x04, 0x00};
+    assert(parseRdpLicensingMessage(challengeResponse));
+    RdpLicensingLifecycle wrongInitialType;
+    assert(wrongInitialType.onServerLicenseRequestWritten());
+    assert(wrongInitialType.onClientMessage(challengeResponse) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(wrongInitialType.phase() == RdpLicensingPhase::Failed);
+
+    RdpLicensingLifecycle closed;
+    assert(closed.onServerLicenseRequestWritten());
+    closed.close();
+    assert(closed.phase() == RdpLicensingPhase::Closed);
+    assert(closed.onClientMessage(request) == RdpLicensingIntake::Closed);
+    assert(!closed.onServerLicenseRequestWritten());
+
+    // The sole R3 owner deterministically tears licensing down. There is no
+    // positive production transition into licensing until genuine R2 admission
+    // is available; reconnect uses a fresh owner and fresh licensing object.
+    McsSessionLifecycle owner;
+    assert(owner.licensingPhase() == RdpLicensingPhase::NotStarted);
+    owner.close();
+    assert(owner.licensingPhase() == RdpLicensingPhase::Closed);
+
+    McsSessionLifecycle denied;
+    assert(denied.onConnectInitial(publishedFixture()) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(denied.licensingPhase() == RdpLicensingPhase::Closed);
+
+    McsSessionLifecycle fresh;
+    assert(fresh.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(fresh.licensingPhase() == RdpLicensingPhase::NotStarted);
+}
+
+
 } // namespace
 
 struct McsTestCase
@@ -3561,7 +3793,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 57> kMcsTestCases{{
+constexpr std::array<McsTestCase, 60> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3591,6 +3823,9 @@ constexpr std::array<McsTestCase, 57> kMcsTestCases{{
     {"mcs-session-unadmitted-domain-size-bounds", &testMcsSessionUnadmittedDomainSizeBounds},
     {"mcs-session-first-failure-boundaries", &testMcsSessionFirstFailureBoundaries},
     {"mcs-session-domain-failure-boundaries", &testMcsSessionDomainFailureBoundaries},
+    {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},
+    {"licensing-length-bounds", &testRdpLicensingLengthBounds},
+    {"licensing-ordering-denials", &testRdpLicensingOrderingDenials},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

@@ -328,8 +328,8 @@ public:
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
-        const rdp_server::server::transport::RdpServerLicenseRequestFields
-            &fields) noexcept;
+        const rdp_server::server::transport::RdpServerLicenseIdentity
+            &identity) noexcept;
 
     // Accepted bytes are not durable R3 progress until the same concrete
     // lease and owner reauthorize the receipt. A null lease is denial-only

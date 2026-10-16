@@ -92,6 +92,74 @@ struct RdpServerLicenseRequestFields
     std::span<const std::uint8_t> scopeAnsi{};
 };
 
+// One-shot, fixed-storage product/scope provisioning for live R3 licensing.
+// It owns copies so configuration buffers cannot change beneath a session.
+// This is protocol identity only, never authentication or license authority.
+inline constexpr std::size_t kMaximumRdpServerLicenseIdentityTextBytes = 512U;
+
+class RdpServerLicenseIdentity final
+{
+public:
+    RdpServerLicenseIdentity() noexcept = default;
+    RdpServerLicenseIdentity(const RdpServerLicenseIdentity &) = delete;
+    RdpServerLicenseIdentity &operator=(const RdpServerLicenseIdentity &) = delete;
+    RdpServerLicenseIdentity(RdpServerLicenseIdentity &&) = delete;
+    RdpServerLicenseIdentity &operator=(RdpServerLicenseIdentity &&) = delete;
+
+    // Configure exactly once. Each logical text value must be nonempty.
+    // Failure is terminal for this object: malformed provisioning cannot be
+    // replaced later while other owners may believe startup validation passed.
+    [[nodiscard]] bool configure(
+        std::uint32_t productVersion,
+        std::span<const std::uint8_t> companyNameUtf16,
+        std::span<const std::uint8_t> productIdUtf16,
+        std::span<const std::uint8_t> scopeAnsi) noexcept;
+
+    [[nodiscard]] bool configured() const noexcept { return configured_; }
+    [[nodiscard]] std::uint32_t productVersion() const noexcept
+    {
+        return configured_ ? productVersion_ : 0U;
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    companyNameUtf16() const noexcept
+    {
+        return configured_
+            ? std::span<const std::uint8_t>{
+                  companyNameUtf16_.data(), companyNameUtf16Length_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    productIdUtf16() const noexcept
+    {
+        return configured_
+            ? std::span<const std::uint8_t>{
+                  productIdUtf16_.data(), productIdUtf16Length_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    scopeAnsi() const noexcept
+    {
+        return configured_
+            ? std::span<const std::uint8_t>{
+                  scopeAnsi_.data(), scopeAnsiLength_}
+            : std::span<const std::uint8_t>{};
+    }
+
+private:
+    std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
+        companyNameUtf16_{};
+    std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
+        productIdUtf16_{};
+    std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
+        scopeAnsi_{};
+    std::uint32_t productVersion_{};
+    std::size_t companyNameUtf16Length_{};
+    std::size_t productIdUtf16Length_{};
+    std::size_t scopeAnsiLength_{};
+    bool attempted_{};
+    bool configured_{};
+};
+
 struct RdpServerLicenseRequestEncodeResult
 {
     std::size_t bytesWritten{};
@@ -218,8 +286,10 @@ public:
     RdpServerLicenseRequestWriteGate &operator=(
         RdpServerLicenseRequestWriteGate &&) = delete;
 
+    // The live writer generates the required ServerRandom internally with
+    // OpenSSL's private CSPRNG. Callers provide only immutable provisioning.
     [[nodiscard]] bool queue(
-        const RdpServerLicenseRequestFields &fields) noexcept;
+        const RdpServerLicenseIdentity &identity) noexcept;
     [[nodiscard]] RdpServerLicenseRequestWriteView
     pendingWrite() const noexcept;
     [[nodiscard]] RdpServerLicenseRequestWriteOutcome onBytesWritten(

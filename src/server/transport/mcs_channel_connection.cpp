@@ -1169,7 +1169,7 @@ McsSessionLifecycle::acceptVerifiedR2ClientInfoPacket(
 std::optional<RdpServerLicenseRequestWriteView>
 McsSessionLifecycle::prepareServerLicenseRequestWrite(
     const SecurityNegotiationProvenance &provenance,
-    const RdpServerLicenseRequestFields &fields) noexcept
+    const RdpServerLicenseIdentity &identity) noexcept
 {
     if (phase_ != McsSessionPhase::AwaitServerLicenseRequest ||
         !connectResponseProvenanceBound_ ||
@@ -1183,7 +1183,7 @@ McsSessionLifecycle::prepareServerLicenseRequestWrite(
     auto pending = serverLicenseRequestWrite_.pendingWrite();
     if (!pending)
     {
-        if (!serverLicenseRequestWrite_.queue(fields))
+        if (!serverLicenseRequestWrite_.queue(identity))
         {
             close();
             return std::nullopt;
@@ -1216,7 +1216,19 @@ McsSessionLifecycle::completeServerLicenseRequestWrite(
     const auto outcome = serverLicenseRequestWrite_.onBytesWritten(
         replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == RdpServerLicenseRequestWriteOutcome::Rejected)
+    {
         close();
+        return outcome;
+    }
+    if (outcome == RdpServerLicenseRequestWriteOutcome::Delivered)
+    {
+        if (licensing_.phase() != RdpLicensingPhase::AwaitClientLicenseResponse)
+        {
+            close();
+            return RdpServerLicenseRequestWriteOutcome::Rejected;
+        }
+        phase_ = McsSessionPhase::AwaitClientLicenseResponse;
+    }
     return outcome;
 }
 

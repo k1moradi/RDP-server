@@ -4546,11 +4546,24 @@ constexpr std::array<std::uint8_t, 6> kServerLicenseScope{
         kServerLicenseScope};
 }
 
+[[nodiscard]] bool configureServerLicenseIdentity(
+    RdpServerLicenseIdentity &identity) noexcept
+{
+    return identity.configure(
+        0x00060001U,
+        kServerLicenseCompany,
+        kServerLicenseProduct,
+        kServerLicenseScope);
+}
+
 [[nodiscard]] bool deliverServerLicenseRequest(
     RdpLicensingLifecycle &lifecycle) noexcept
 {
+    RdpServerLicenseIdentity identity;
+    if (!configureServerLicenseIdentity(identity))
+        return false;
     RdpServerLicenseRequestWriteGate writer{lifecycle};
-    if (!writer.queue(serverLicenseFields()))
+    if (!writer.queue(identity))
         return false;
     const auto pending = writer.pendingWrite();
     return pending &&
@@ -4594,11 +4607,121 @@ void testRdpServerLicenseRequestWire()
     assert(parsed.value.extendedErrorSupported);
 }
 
-void testRdpServerLicenseRequestWriteReceipts()
+void testRdpServerLicenseIdentityConfiguration()
 {
+    auto company = kServerLicenseCompany;
+    auto product = kServerLicenseProduct;
+    auto scope = kServerLicenseScope;
+
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, company, product, scope));
+    assert(identity.configured());
+    assert(identity.productVersion() == 0x00060001U);
+    assert(std::equal(
+        identity.companyNameUtf16().begin(),
+        identity.companyNameUtf16().end(),
+        kServerLicenseCompany.begin()));
+    assert(std::equal(
+        identity.productIdUtf16().begin(),
+        identity.productIdUtf16().end(),
+        kServerLicenseProduct.begin()));
+    assert(std::equal(
+        identity.scopeAnsi().begin(),
+        identity.scopeAnsi().end(),
+        kServerLicenseScope.begin()));
+
+    // Caller storage is not retained and cannot mutate live provisioning.
+    company[0] = 0xffU;
+    product[0] = 0xeeU;
+    scope[0] = 0xddU;
+    assert(identity.companyNameUtf16().front() ==
+           kServerLicenseCompany.front());
+    assert(identity.productIdUtf16().front() ==
+           kServerLicenseProduct.front());
+    assert(identity.scopeAnsi().front() == kServerLicenseScope.front());
+
+    assert(!identity.configure(
+        0x00070001U, kServerLicenseCompany,
+        kServerLicenseProduct, kServerLicenseScope));
+    assert(identity.productVersion() == 0x00060001U);
+
+    RdpServerLicenseIdentity zeroVersion;
+    assert(!zeroVersion.configure(
+        0U, kServerLicenseCompany,
+        kServerLicenseProduct, kServerLicenseScope));
+
+    RdpServerLicenseIdentity oddCompany;
+    assert(!oddCompany.configure(
+        0x00060001U,
+        std::span(kServerLicenseCompany).first(
+            kServerLicenseCompany.size() - 1U),
+        kServerLicenseProduct, kServerLicenseScope));
+
+    auto embeddedZeroCompany = kServerLicenseCompany;
+    embeddedZeroCompany[2] = 0U;
+    embeddedZeroCompany[3] = 0U;
+    RdpServerLicenseIdentity embeddedZero;
+    assert(!embeddedZero.configure(
+        0x00060001U, embeddedZeroCompany,
+        kServerLicenseProduct, kServerLicenseScope));
+
+    RdpServerLicenseIdentity missingScopeTerminator;
+    assert(!missingScopeTerminator.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        std::span(kServerLicenseScope).first(
+            kServerLicenseScope.size() - 1U)));
+
+    std::array<std::uint8_t,
+               kMaximumRdpServerLicenseIdentityTextBytes + 2U>
+        oversizedCompany{};
+    oversizedCompany[0] = 0x41U;
+    oversizedCompany[1] = 0x00U;
+    RdpServerLicenseIdentity oversized;
+    assert(!oversized.configure(
+        0x00060001U, oversizedCompany,
+        kServerLicenseProduct, kServerLicenseScope));
+}
+
+void testRdpServerLicenseRequestGeneratedRandom()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+
     RdpLicensingLifecycle lifecycle;
     RdpServerLicenseRequestWriteGate writer{lifecycle};
-    assert(writer.queue(serverLicenseFields()));
+    assert(writer.queue(identity));
+    const auto pending = writer.pendingWrite();
+    assert(pending);
+    assert(pending.bytes.size() == 90U);
+
+    const auto parsed = parseRdpLicensingMessage(pending.bytes);
+    assert(parsed);
+    assert(parsed.value.type ==
+           RdpLicensingMessageType::ServerLicenseRequest);
+    const auto random = pending.bytes.subspan(4U, 32U);
+    assert(!std::all_of(
+        random.begin(), random.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+
+    assert(std::equal(
+        pending.bytes.begin() + 44U,
+        pending.bytes.begin() + 52U,
+        kServerLicenseCompany.begin()));
+    assert(std::equal(
+        pending.bytes.end() - kServerLicenseScope.size(),
+        pending.bytes.end(),
+        kServerLicenseScope.begin()));
+    assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+}
+
+void testRdpServerLicenseRequestWriteReceipts()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    RdpLicensingLifecycle lifecycle;
+    RdpServerLicenseRequestWriteGate writer{lifecycle};
+    assert(writer.queue(identity));
 
     const auto first = writer.pendingWrite();
     assert(first);
@@ -4671,15 +4794,18 @@ void testRdpServerLicenseRequestWriteDenials()
                serverLicenseFields(), tooSmall).error ==
            RdpServerLicenseRequestEncodeError::OutputTooSmall);
 
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+
     RdpLicensingLifecycle overwriteLifecycle;
     RdpServerLicenseRequestWriteGate overwrite{overwriteLifecycle};
-    assert(overwrite.queue(serverLicenseFields()));
-    assert(!overwrite.queue(serverLicenseFields()));
+    assert(overwrite.queue(identity));
+    assert(!overwrite.queue(identity));
     assert(overwriteLifecycle.phase() == RdpLicensingPhase::Closed);
 
     RdpLicensingLifecycle staleLifecycle;
     RdpServerLicenseRequestWriteGate stale{staleLifecycle};
-    assert(stale.queue(serverLicenseFields()));
+    assert(stale.queue(identity));
     const auto staleFirst = stale.pendingWrite();
     assert(stale.onBytesWritten(
                staleFirst.replySequence,
@@ -4695,7 +4821,7 @@ void testRdpServerLicenseRequestWriteDenials()
 
     RdpLicensingLifecycle overLifecycle;
     RdpServerLicenseRequestWriteGate over{overLifecycle};
-    assert(over.queue(serverLicenseFields()));
+    assert(over.queue(identity));
     const auto overPending = over.pendingWrite();
     assert(over.onBytesWritten(
                overPending.replySequence,
@@ -4706,7 +4832,7 @@ void testRdpServerLicenseRequestWriteDenials()
 
     RdpLicensingLifecycle duplicateLifecycle;
     RdpServerLicenseRequestWriteGate duplicate{duplicateLifecycle};
-    assert(duplicate.queue(serverLicenseFields()));
+    assert(duplicate.queue(identity));
     const auto duplicatePending = duplicate.pendingWrite();
     assert(duplicate.onBytesWritten(
                duplicatePending.replySequence,
@@ -4886,7 +5012,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 77> kMcsTestCases{{
+constexpr std::array<McsTestCase, 79> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -4931,6 +5057,8 @@ constexpr std::array<McsTestCase, 77> kMcsTestCases{{
     {"mcs-session-first-failure-boundaries", &testMcsSessionFirstFailureBoundaries},
     {"mcs-session-domain-failure-boundaries", &testMcsSessionDomainFailureBoundaries},
     {"licensing-server-request-wire", &testRdpServerLicenseRequestWire},
+    {"licensing-server-identity-configuration", &testRdpServerLicenseIdentityConfiguration},
+    {"licensing-server-request-generated-random", &testRdpServerLicenseRequestGeneratedRandom},
     {"licensing-server-request-write-receipts", &testRdpServerLicenseRequestWriteReceipts},
     {"licensing-server-request-write-denials", &testRdpServerLicenseRequestWriteDenials},
     {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},

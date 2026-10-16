@@ -596,6 +596,7 @@ enum class McsSessionPhase : std::uint8_t
     AwaitAttachConfirm,
     AwaitChannelJoin,
     AwaitServerLicenseRequest,
+    AwaitClientLicenseResponse,
     Closed,
 };
 
@@ -777,7 +778,7 @@ private:
     [[nodiscard]] std::optional<RdpServerLicenseRequestWriteView>
     prepareServerLicenseRequestWrite(
         const SecurityNegotiationProvenance &provenance,
-        const RdpServerLicenseRequestFields &fields) noexcept;
+        const RdpServerLicenseIdentity &identity) noexcept;
     [[nodiscard]] RdpServerLicenseRequestWriteOutcome
     completeServerLicenseRequestWrite(
         const SecurityNegotiationProvenance &provenance,

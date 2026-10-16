@@ -36,6 +36,7 @@ using rdp_server::server::transport::OwnedNativeTcpSocket;
 using rdp_server::server::transport::OwnedPreauthTcpConnection;
 using rdp_server::server::transport::RdpLicensingLifecycle;
 using rdp_server::server::transport::RdpLicensingPhase;
+using rdp_server::server::transport::RdpServerLicenseIdentity;
 using rdp_server::server::transport::RdpServerLicenseRequestFields;
 using rdp_server::server::transport::RdpServerLicenseRequestWriteGate;
 using rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
@@ -1544,14 +1545,18 @@ void testR3ServerLicenseRequestWriteContract()
     using Acceptor = GssapiSpnegoAcceptor &;
     using Connection = const OwnedPreauthTcpConnection &;
     using Session = McsSessionLifecycle &;
+    using Identity = const RdpServerLicenseIdentity &;
     using Fields = const RdpServerLicenseRequestFields &;
 
     static_assert(std::is_invocable_r_v<
         std::optional<RdpServerLicenseRequestWriteView>,
         PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
-        Acceptor, Connection, Session, Fields>);
+        Acceptor, Connection, Session, Identity>);
     static_assert(!std::is_invocable_v<
-        PrepareMethod, Broker, bool, Acceptor, Connection, Session, Fields>);
+        PrepareMethod, Broker, bool, Acceptor, Connection, Session, Identity>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session, Fields>);
     static_assert(std::is_invocable_r_v<
         RdpServerLicenseRequestWriteOutcome,
         CompletionMethod, Broker, const LinuxConsoleAdmissionLease *,
@@ -1561,26 +1566,20 @@ void testR3ServerLicenseRequestWriteContract()
         CompletionMethod, Broker, bool, Acceptor, Connection, Session,
         std::uint64_t, std::uint64_t, std::size_t>);
 
-    constexpr std::array<std::uint8_t, 32> random{
-        0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
-        0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x10,
-        0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,
-        0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f,0x20};
     constexpr std::array<std::uint8_t, 8> company{
         0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00};
     constexpr std::array<std::uint8_t, 8> product{
         0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00};
     constexpr std::array<std::uint8_t, 6> scope{
         0x73,0x63,0x6f,0x70,0x65,0x00};
-    const RdpServerLicenseRequestFields fields{
-        random, 0x00060001U, company, product, scope};
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(0x00060001U, company, product, scope));
 
-    // A real production licensing writer can produce valid receipt integers
-    // for its own lifecycle. Those integers are bookkeeping, not transferable
-    // R2/R3 authority.
+    // A real production licensing writer obtains its own CSPRNG random and can
+    // produce valid receipt integers. Those integers remain non-transferable.
     RdpLicensingLifecycle detachedLifecycle;
     RdpServerLicenseRequestWriteGate detachedWriter{detachedLifecycle};
-    assert(detachedWriter.queue(fields));
+    assert(detachedWriter.queue(identity));
     const auto first = detachedWriter.pendingWrite();
     assert(first && first.bytes.size() > 11U);
     assert(detachedWriter.onBytesWritten(

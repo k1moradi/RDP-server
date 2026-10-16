@@ -958,8 +958,8 @@ LinuxConsoleAdmissionBroker::authorizeR3ServerLicenseRequestWrite(
     GssapiSpnegoAcceptor &acceptor,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
-    const rdp_server::server::transport::RdpServerLicenseRequestFields
-        &fields) noexcept
+    const rdp_server::server::transport::RdpServerLicenseIdentity
+        &identity) noexcept
 {
     if (!authorizeR3ProtectedTransition(
             lease, acceptor, connection, session, kConsoleViewPermission))
@@ -973,7 +973,7 @@ LinuxConsoleAdmissionBroker::authorizeR3ServerLicenseRequestWrite(
     }
 
     const auto pending =
-        session.prepareServerLicenseRequestWrite(*provenance, fields);
+        session.prepareServerLicenseRequestWrite(*provenance, identity);
     if (!pending)
         revokeR3Session(acceptor, session);
     return pending;

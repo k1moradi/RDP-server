@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdp_licensing.h"
 
+#include <openssl/rand.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -177,6 +179,44 @@ void writeLe32(
 }
 } // namespace
 
+bool RdpServerLicenseIdentity::configure(
+    std::uint32_t productVersion,
+    std::span<const std::uint8_t> companyNameUtf16,
+    std::span<const std::uint8_t> productIdUtf16,
+    std::span<const std::uint8_t> scopeAnsi) noexcept
+{
+    if (attempted_)
+        return false;
+    attempted_ = true;
+
+    // At least one logical character plus the required terminator.
+    if (productVersion == 0U ||
+        companyNameUtf16.size() < 4U ||
+        productIdUtf16.size() < 4U ||
+        scopeAnsi.size() < 2U ||
+        companyNameUtf16.size() > companyNameUtf16_.size() ||
+        productIdUtf16.size() > productIdUtf16_.size() ||
+        scopeAnsi.size() > scopeAnsi_.size() ||
+        !validNullTerminatedUtf16Le(companyNameUtf16) ||
+        !validNullTerminatedUtf16Le(productIdUtf16) ||
+        !validNullTerminatedAnsi(scopeAnsi))
+    {
+        return false;
+    }
+
+    productVersion_ = productVersion;
+    companyNameUtf16Length_ = companyNameUtf16.size();
+    productIdUtf16Length_ = productIdUtf16.size();
+    scopeAnsiLength_ = scopeAnsi.size();
+    std::copy(companyNameUtf16.begin(), companyNameUtf16.end(),
+              companyNameUtf16_.begin());
+    std::copy(productIdUtf16.begin(), productIdUtf16.end(),
+              productIdUtf16_.begin());
+    std::copy(scopeAnsi.begin(), scopeAnsi.end(), scopeAnsi_.begin());
+    configured_ = true;
+    return true;
+}
+
 RdpServerLicenseRequestEncodeResult
 encodeEnhancedSecurityServerLicenseRequest(
     const RdpServerLicenseRequestFields &fields,
@@ -331,18 +371,36 @@ bool RdpServerLicenseRequestWriteGate::advanceWriteSliceSequence() noexcept
 }
 
 bool RdpServerLicenseRequestWriteGate::queue(
-    const RdpServerLicenseRequestFields &fields) noexcept
+    const RdpServerLicenseIdentity &identity) noexcept
 {
     if (closed_ || delivered_ || pendingLength_ != 0U ||
         lifecycle_ == nullptr ||
-        lifecycle_->phase() != RdpLicensingPhase::NotStarted)
+        lifecycle_->phase() != RdpLicensingPhase::NotStarted ||
+        !identity.configured())
     {
         close();
         return false;
     }
 
+    std::array<std::uint8_t, 32> serverRandom{};
+    if (RAND_priv_bytes(
+            serverRandom.data(),
+            static_cast<int>(serverRandom.size())) != 1)
+    {
+        close();
+        return false;
+    }
+
+    const RdpServerLicenseRequestFields fields{
+        serverRandom,
+        identity.productVersion(),
+        identity.companyNameUtf16(),
+        identity.productIdUtf16(),
+        identity.scopeAnsi()};
     const auto encoded = encodeEnhancedSecurityServerLicenseRequest(
         fields, pending_);
+    // ServerRandom is public on the wire, but keep only the owned packet copy.
+    serverRandom.fill(0U);
     if (!encoded || !advanceReplySequence() ||
         !advanceWriteSliceSequence())
     {

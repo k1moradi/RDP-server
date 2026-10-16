@@ -4210,3 +4210,62 @@ contract exists. M2/M3 remain **OPEN**. R10's next safe production integration
 gate is that R2 contract; after it lands, R10 must require the genuine
 owner-completed credential proof and independent current native-session
 evidence before any listener work.
+
+## R3 CSPRNG licensing identity and session completion phase (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `2bea27c667816b3e876fc392bd6b94820634bea1`.
+
+R2's immediately preceding protected-publication increment embedded the existing
+Server License Request receipt gate in the sole R3 session and required fresh
+lease/R1-owner authorization before each exposed slice and accepted-byte
+receipt. R3 now closes the remaining serialization-provenance gap without
+duplicating that R2 boundary.
+
+`RdpServerLicenseIdentity` is a one-shot, noncopyable, fixed-storage
+product/scope snapshot. It owns bounded nonempty terminated UTF-16LE
+company/product strings and one bounded terminated ANSI issuer scope, so
+configuration buffers cannot be changed beneath active sessions. It is
+protocol provisioning only and conveys no authentication or licensing
+authority.
+
+The live `RdpServerLicenseRequestWriteGate` no longer accepts raw
+`RdpServerLicenseRequestFields`. On first queue it generates the mandatory
+32-byte ServerRandom internally with OpenSSL `RAND_priv_bytes`, combines it
+with the immutable identity, and preserves the resulting request bytes across
+backpressure and partial-write receipts. The raw fields serializer remains an
+offline deterministic wire-codec API for specification-derived tests; it is no
+longer a production session writer input.
+
+R3 and the concrete R2 broker now accept only the immutable identity at request
+preparation. Full accepted-byte completion advances the nested licensing
+lifecycle to `AwaitClientLicenseResponse` and the owning
+`McsSessionLifecycle` to the matching explicit phase. Partial or zero-byte
+progress cannot change the phase, and duplicate/stale completion remains
+terminal. The already-landed R2 contract continues to require the move-only
+lease and exact R1 HYBRID/TLS owner; its sanitizer-selected test now also proves
+raw request fields cannot substitute for the identity API.
+
+New ordinary production-linked CTests are
+`transport.licensing-server-identity-configuration` and
+`transport.licensing-server-request-generated-random`. Existing
+`security.gssapi-r3-server-license-request-write-contract` is strengthened
+in place and remains selected by the R9 native-GSS sanitizer group. No R10
+listener/config-file ownership, second TLS writer, scheduler, positive native
+admission or synthetic license result is added.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer, documentation-policy and
+SDK/package evidence are pending. R10 still has to provision the immutable
+identity from real service configuration and drive the existing R1 application
+writer after genuine positive admission. Microsoft-client licensing, client
+license cryptography, Share activation and desktop acceptance remain
+**NOT RUN/OPEN**.
+
+**Next R3:** after full request delivery, add protected global-I/O-channel
+intake for exactly one `CLIENT_LICENSE_INFO` or
+`CLIENT_NEW_LICENSE_REQUEST` through the existing bounded licensing
+lifecycle, preserving security-header/segmentation ordering and stopping at
+`AwaitServerDecision` until real cryptographic licensing logic exists.
+**M2/M3 remain OPEN / NOT ACCEPTED.**
+

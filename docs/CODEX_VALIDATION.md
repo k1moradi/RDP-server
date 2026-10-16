@@ -1,3 +1,47 @@
+## R6 hosted Windows DXGI/input focused validation (2026-10-16)
+
+**Implementation:** `527977bfe3fbb167dc14d6273006f1b802edc170`.
+**Validation preflight:** `d965eb8e15c9dbffd30ed497020f7d0560384eef`,
+Actions `38892908446`.
+**Descendant full-build check:** `fa79a916fbdda240a8df9601858989ede5e4ca92`,
+Actions `38893052784`.
+
+The Windows-only preflight builds exactly the existing
+`test_windows_desktop_geometry` target, then runs every CTest with the
+`windows` label before the repository-wide build. On the preflight SHA MSVC
+Debug **35/35 PASS** and MSVC Release **35/35 PASS**. The corrected
+`windows.cursor-dxgi-shape-generation-denials` completed in **0.01 s** in
+both configurations; `windows.cursor-dxgi-shape-owned-lifetime`, native
+SendInput lifecycle/revocation, cursor snapshot, DXGI duplication/frame lease,
+D3D11 staging, capture cycle, generation/session and metadata cases also passed.
+
+After the unrelated R8 compile unblock, descendant Actions `38893052784`
+again produced **35/35 PASS** in the focused MSVC Debug preflight and **35/35
+PASS** in focused MSVC Release. Its full Windows Debug compile succeeded and
+ordinary 332-test CTest reached R6, where the pointer-shape denial case again
+passed in **0.01 s**. Full Debug ultimately **FAIL** from four unrelated tests:
+R8 `clipboard.file-descriptor-metadata-validation` and
+`clipboard.file-contents-response-rejections` (MSVC assertion processes hit
+the workflow's 60-second cap), and R10
+`runtime.validates-live-tls-context-construction` plus
+`runtime.tls-context-survives-credential-path-replacement`
+(`OPENSSL_Uplink(...): no OPENSSL_Applink`). Full Windows Release was skipped
+after that failure; this does not erase the already completed focused R6
+Release PASS.
+
+Cross-platform descendant state: documentation-policy **PASS**; Linux/GCC
+**FAIL** before CTest on the R3/R9 GSS fixture's stale
+`pendingConnectResponse` call; R9 sanitizer **FAIL** on the same compile
+boundary; macOS/Clang Debug CTest **FAIL** only the two R8 clipboard cases.
+These results are recorded for completeness and are not treated as native R6
+execution on non-Windows systems.
+
+Canonical owner-local full CMake/CTest and Windows MSYS2 CLANG64/Clang23 are
+**NOT RUN** from this connector environment. No live desktop, actual
+`DuplicateOutput`, `AcquireNextFrame`, `GetFramePointerShape`,
+`SendInput`, Microsoft-client session or fabricated R2/R3 authorization was
+used. Native input remains admission-gated and M4 remains OPEN.
+
 ## R5 lifecycle rerun result and cross-road compile unblock (2026-10-16)
 
 Historical Actions `38873727660` attempt 2 completed **SUCCESS** at exact SHA

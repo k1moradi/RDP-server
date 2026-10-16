@@ -1,3 +1,51 @@
+## R6 hosted Windows native-adapter stabilization receipt (2026-10-16)
+
+R6 CI-preflight commit `d965eb8e15c9dbffd30ed497020f7d0560384eef`
+was published directly to `main`; Actions
+`38892908446` proved the new Windows preflight works before the unrelated
+full-build blocker. MSVC Debug built the existing
+`test_windows_desktop_geometry` production-backed fixture and its **35/35**
+`windows`-labeled CTests passed. The same target then built under MSVC
+Release with assertions retained and **35/35** passed. In both configurations
+`windows.cursor-dxgi-shape-generation-denials` passed promptly, confirming the
+pre-map invariant fix instead of the historical 1,500-second stall. The later
+full Debug compile on that SHA still failed on unrelated R8 assertion-macro
+source and therefore did not reach the ordinary full CTest.
+
+Descendant `fa79a916fbdda240a8df9601858989ede5e4ca92`, Actions
+`38893052784`, repaired that shared compile blocker and repeated the same R6
+preflight: **35/35 Debug PASS, 35/35 Release PASS**. Windows full Debug compile
+also passed and ordinary CTest ran the R6 cases again; both
+`windows.cursor-dxgi-shape-owned-lifetime` and
+`windows.cursor-dxgi-shape-generation-denials` passed in **0.01 s**, as did
+the generation/session, duplication/frame-lease/staging, metadata, cursor
+snapshot and SendInput-controller fixtures. The repository-wide Windows Debug
+CTest still failed on unrelated R8
+`clipboard.file-descriptor-metadata-validation` and
+`clipboard.file-contents-response-rejections` plus the R10
+`runtime.validates-live-tls-context-construction` and
+`runtime.tls-context-survives-credential-path-replacement` OpenSSL Applink
+failures. Full Windows Release was skipped after that authoritative Debug
+failure even though the focused R6 Release suite had already passed.
+
+On the same descendant, documentation-policy **PASS**. Linux/GCC and the R9
+sanitizer job failed while compiling an R3/R9 GSS fixture that referenced the
+removed `McsSessionLifecycle::pendingConnectResponse` API; macOS/Clang reached
+CTest and failed only the two R8 clipboard cases above. These are cross-road
+blockers and are not R6 ownership changes.
+
+**R6 status:** hosted MSVC native-adapter Debug/Release focused validation is
+**PASS**; the original DXGI pointer regression is stabilized. Canonical
+owner-local CMake/CTest and owner Windows MSYS2 CLANG64/Clang23 remain
+**NOT RUN** here. Source still exposes no genuine Windows R2/R3 admission
+capability, so native DXGI/Input runtime binding remains **BLOCKED** and no
+`SendInput` callback is exposed. M4 remains OPEN.
+
+**Next R6 production gate:** owner Windows MSYS2 CLANG64/Clang23 receipt and a
+concrete R2/R3 Windows authorization capability. Until both exist, do not add a
+runtime capture/input route; continue only validation/maintenance of the
+existing single R6 owners.
+
 ## R5 lifecycle validation update and shared CI unblock (2026-10-16; descendant CI pending)
 
 Historical lifecycle workflow `38873727660` attempt 2 completed **SUCCESS**

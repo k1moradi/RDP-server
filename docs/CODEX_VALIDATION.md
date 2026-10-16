@@ -1,3 +1,25 @@
+## R8 macOS ready-data pasteboard authoring validation (2026-10-16)
+
+**Base:** `1cbb068c4dd7b0b9b2b8065244ba650b71676005`. Current AppKit documentation was checked for
+`NSPasteboard.clearContents`, `changeCount`, `writeObjects:` and
+`NSPasteboardTypePNG`. The production design uses the documented ownership
+count as its local-takeover fence and publishes only already-verified
+`RemoteTransfer` text/PNG data.
+
+Five new ordinary CTests exercise ready publication, exact text/PNG routing,
+local-owner takeover, generation revocation, disconnect ownership fencing,
+native failures and reentry. The test executable uses injected operations and
+does not touch the host pasteboard. The Apple-only Objective-C++ bridge is
+compile/link coverage only. The existing R9 sanitizer job is updated to build
+the target before its complete clipboard-labelled selection.
+
+Canonical local `~/rdp-server/build` execution is **NOT RUN** in this
+connector environment. Exact publication-SHA hosted Linux/GCC, macOS/Clang,
+Windows/MSVC, R9 sanitizer and documentation-policy evidence is **PENDING**.
+Live macOS clipboard use, native file destinations, Microsoft-client
+interoperability, R3-authorized CLIPRDR transmission and performance remain
+**NOT RUN/OPEN** and must not be inferred from synthetic CTests.
+
 ## R1 HYBRID CredSSP-before-MCS exact-SHA hosted validation (2026-10-16)
 
 Validated R1 implementation/fix SHA

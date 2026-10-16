@@ -1,3 +1,19 @@
+## R8 macOS clipboard adapter build boundary (2026-10-16)
+
+The noninstalled `rdp-server-macos-clipboard` target compiles its portable
+C++ ownership state on every CI OS, linking only the existing protocol target.
+On Apple, the existing Objective-C++ language enablement additionally compiles
+`mac_clipboard_adapter.mm` with ARC and links AppKit/Foundation. This target
+is deliberately separate from `rdp-server-macos-capture`; Linux/Windows and
+the installed protocol SDK gain no AppKit or ScreenCaptureKit dependency.
+
+`test_macos_clipboard_adapter` is likewise compiled on every hosted OS with
+synthetic native callbacks. The R9 Linux sanitizer build names that target
+explicitly before selecting all clipboard-labelled CTests. The owner's normal
+single `~/rdp-server/build` command is unchanged. Hosted Apple compilation
+proves the dormant AppKit bridge builds, not that a live pasteboard was read or
+written.
+
 ## R8 Windows clipboard adapter build boundary (2026-10-16)
 
 The noninstalled `rdp-server-windows-clipboard` target compiles the

@@ -156,7 +156,7 @@ jobs:
         run: |
           cmake --build build --config Debug --parallel 2 --target \
             test_owned_remote_transfer test_clipboard_protocol \
-            test_windows_clipboard_adapter \
+            test_windows_clipboard_adapter test_macos_clipboard_adapter \
             test_x264_avc420_encoder \
             test_x264_avc420_segmented_frame_producer \
             test_owned_mcs_connect_initial test_owned_preauth_session \

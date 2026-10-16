@@ -1,3 +1,34 @@
+## R8 macOS pasteboard presentation boundary (2026-10-16)
+
+`MacClipboardAdapter` is a native presentation child of the existing
+`RemoteTransfer`; it is not another clipboard controller. The portable C++
+state machine borrows one native operation table, retains no duplicate RDP
+payload, and stays confined to the caller's serialized clipboard/native event
+context. `RemoteTransfer` continues to own generation, verified UTF-8 text,
+validated image bytes, request receipts and disconnect semantics.
+
+macOS publication is ready-data-only. The adapter can copy verified UTF-8 text
+and verified named PNG bytes into one native pasteboard item. DIB/DIBV5 bytes
+are deliberately not advertised as PNG. The AppKit bridge uses
+`clearContents` followed by `writeObjects:`; it does not initiate an RDP
+request, wait for network data, create a clipboard channel or confer R2/R3
+session authority.
+
+The native ownership fence is the pasteboard change count recorded immediately
+after publication. A changed count means another native owner won and causes
+the current remote generation to be yielded. R8 then refuses to reclaim that
+same generation. Conversely, when `RemoteTransfer` advances generations,
+old immediate pasteboard bytes are cleared only if the recorded count still
+matches. An unreadable ownership count fails closed without clearing, because
+native ownership is ambiguous. Disconnect uses the same fence.
+
+The Objective-C++ callback implementation is Apple-only and dormant until a
+future authorized macOS desktop aggregate chooses to construct it. Ordinary
+CTests use injected callbacks on every platform and never call
+`NSPasteboard generalPasteboard`, read user clipboard data or mutate a host
+pasteboard. Native file destinations and authenticated CLIPRDR payload
+dispatch remain separate R8/R3 gates.
+
 ## R2 binding identity versus completed CredSSP admission (2026-10-16)
 
 MS-CSSP public-key proof is not the final client credential step. R2 therefore

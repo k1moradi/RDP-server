@@ -193,6 +193,23 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R8 macOS pasteboard presentation is noninstalled and never owns CLIPRDR.
+# The portable state owner compiles on every CI platform through an injected
+# native seam; only Apple adds the dormant AppKit implementation below.
+add_library(rdp-server-macos-clipboard STATIC
+    src/platform/macos/mac_clipboard_adapter.cpp)
+target_compile_features(rdp-server-macos-clipboard PUBLIC cxx_std_23)
+target_include_directories(rdp-server-macos-clipboard PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-macos-clipboard PUBLIC
+    rdp-server-protocol)
+if(MSVC)
+    target_compile_options(rdp-server-macos-clipboard PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-macos-clipboard PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R5 first-party native XCB/RandR connection; the portable RDP SDK
 # never links XCB. The native target is built when the development
 # packages exist; CI provisions them on Linux for exact-SHA coverage.
@@ -547,6 +564,22 @@ if(APPLE)
     find_library(RDP_SERVER_APPLICATIONSERVICES_FRAMEWORK ApplicationServices REQUIRED)
     find_library(RDP_SERVER_COREMEDIA_FRAMEWORK CoreMedia REQUIRED)
     find_library(RDP_SERVER_SCREENCAPTUREKIT_FRAMEWORK ScreenCaptureKit REQUIRED)
+
+    # R8 native pasteboard callbacks stay separate from R7 capture/input and
+    # are never linked into the installed portable protocol SDK.
+    target_sources(rdp-server-macos-clipboard PRIVATE
+        src/platform/macos/mac_clipboard_adapter.mm)
+    set_source_files_properties(
+        src/platform/macos/mac_clipboard_adapter.mm
+        PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    set_target_properties(rdp-server-macos-clipboard PROPERTIES
+        OBJCXX_STANDARD 23
+        OBJCXX_STANDARD_REQUIRED YES
+        OBJCXX_EXTENSIONS NO)
+    target_link_libraries(rdp-server-macos-clipboard PRIVATE
+        "${RDP_SERVER_FOUNDATION_FRAMEWORK}"
+        "${RDP_SERVER_APPKIT_FRAMEWORK}")
+
     add_library(rdp-server-macos-capture STATIC
         src/platform/macos/capture_pixel_layout.cpp
         src/platform/macos/capture_framebuffer_view.cpp

@@ -1,3 +1,50 @@
+## R8 macOS ready-data pasteboard presentation (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `1cbb068c4dd7b0b9b2b8065244ba650b71676005`. The bounded
+FILEDESCRIPTORW/FileContents Lock/Unlock owner and the hosted-validated Windows
+ready-data adapter remain unchanged. The live roadmap's next R8 native
+presentation increment is implemented as a separate noninstalled
+`MacClipboardAdapter` while `RemoteTransfer` remains the sole clipboard
+generation, verified-content and request-correlation owner.
+
+The adapter publishes only current-generation data that R8 already validated:
+normalized UTF-8 text as the native string representation and a genuinely
+registered/validated PNG as `NSPasteboardTypePNG`. CF_DIB/CF_DIBV5 are not
+relabelled as PNG and no image decode/conversion or file-body cache is added.
+Publication is immediate-data-only and performs no CLIPRDR request or wait.
+
+Native ownership is fenced by AppKit's monotonic pasteboard `changeCount`.
+After a successful replacement R8 records the observed count; any later
+mismatch yields that remote generation and prevents same-generation reclaim.
+Generation replacement clears stale remote data only when the recorded count
+still proves R8 owns the pasteboard. Disconnect follows the same rule and
+therefore cannot erase a newer local application's clipboard. Failed ownership
+observation is terminal and does not speculate by clearing native contents.
+
+Dedicated production-linked CTests are
+`clipboard.macos-clipboard-remote-ready-publication`,
+`clipboard.macos-clipboard-generation-owner-loss`,
+`clipboard.macos-clipboard-png-routing`,
+`clipboard.macos-clipboard-disconnect-owner-fence`, and
+`clipboard.macos-clipboard-failure-reentry-denials`. They inject the native
+operation seam on every hosted OS and never access the host pasteboard. Apple
+builds additionally compile/link the dormant AppKit implementation. The R9
+clipboard sanitizer target list explicitly builds this executable before the
+existing all-`clipboard` selection.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** because this connector environment does not expose that checkout;
+no alternate build root was created. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 ASan/UBSan clipboard coverage,
+documentation policy and downstream package/consumer evidence are **PENDING**.
+No live macOS pasteboard, Windows App/Microsoft client, authenticated R3
+CLIPRDR writer, file-manager destination, owner macOS 27 or performance test
+is claimed.
+
+**Next R8 after hosted validation:** continue bounded native file-destination
+integration while R3 completes the authoritative post-admission CLIPRDR
+payload writer. Native fetch intents must not bypass that authority.
+
 ## R1 HYBRID CredSSP-before-MCS exact-SHA hosted validation (2026-10-16)
 
 Validated R1 implementation/fix SHA

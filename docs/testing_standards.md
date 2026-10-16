@@ -1,3 +1,18 @@
+## R8 macOS pasteboard tests are host-pasteboard free
+
+Exercise `MacClipboardAdapter` through injected native operations under
+ordinary CTest on every hosted OS. Cover already-ready text/PNG publication,
+DIB-not-PNG routing, change-count owner takeover, same-generation reclaim
+denial, remote-generation revocation, disconnect fencing, native failure and
+reentry. Apple builds compile/link the real AppKit callbacks, but ordinary
+tests must never invoke `generalPasteboard`, read user clipboard data or
+mutate the host pasteboard.
+
+As with the Windows R8 adapter, sanitizer CI must explicitly build the macOS
+clipboard test executable before running the shared `ctest -L clipboard`
+selection. Compile/link success of Objective-C++ is not live macOS clipboard
+acceptance, and synthetic callbacks are not authenticated CLIPRDR evidence.
+
 ## Focused CTest selectors must match the built target
 
 A focused CI step that builds only one test executable must select only tests

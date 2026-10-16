@@ -1214,6 +1214,32 @@ if(TARGET rdp-server-linux-x11-authorized-input AND
                    TIMEOUT 20)
 endif()
 
+# R8 macOS pasteboard presentation. Every case uses deterministic injected
+# native operations on every CI OS; ordinary CTest never reads or mutates the
+# host pasteboard. Apple additionally compile/links the dormant AppKit bridge.
+add_executable(test_macos_clipboard_adapter
+    test_macos_clipboard_adapter.cpp)
+target_link_libraries(test_macos_clipboard_adapter PRIVATE
+    rdp-server-macos-clipboard)
+if(MSVC)
+    target_compile_options(test_macos_clipboard_adapter PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_macos_clipboard_adapter PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        macos-clipboard-remote-ready-publication
+        macos-clipboard-generation-owner-loss
+        macos-clipboard-png-routing
+        macos-clipboard-disconnect-owner-fence
+        macos-clipboard-failure-reentry-denials)
+    add_test(NAME "clipboard.${case_name}"
+        COMMAND test_macos_clipboard_adapter "${case_name}")
+    # Keep native-adapter labeling narrower than broad platform preflights.
+    set_tests_properties("clipboard.${case_name}" PROPERTIES
+        LABELS "protocol;clipboard;apple-clipboard-adapter;offline")
+endforeach()
+
 # R8 Windows clipboard presentation. Every case uses deterministic injected
 # native operations; no ordinary CTest opens or mutates the host clipboard.
 # The same production source compiles the dormant Win32 bridge on Windows.

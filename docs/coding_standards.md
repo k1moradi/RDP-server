@@ -1,3 +1,20 @@
+## macOS pasteboard ownership is change-count fenced
+
+For R8 macOS ready-data publication, keep `RemoteTransfer` as the only RDP
+clipboard-generation/data owner. Publish only verified current-generation
+representations; UTF-8 text may become the native string type, and only a
+validated registered PNG may become `NSPasteboardTypePNG`. Never label
+CF_DIB/CF_DIBV5 bytes as PNG merely because a native image consumer wants PNG.
+
+Record the AppKit pasteboard change count after replacement and compare it
+before any later clear/republication. A mismatch is local-owner takeover:
+yield that remote generation and do not steal it back. On RDP generation
+replacement, clear old immediate data only while the recorded change count
+still proves ownership. If the count cannot be read, fail closed without
+clearing somebody else's pasteboard. Native publication remains presentation
+state, never R3 channel authority, and must not perform a synchronous network
+fetch or wait.
+
 ## Win32 delayed clipboard rendering is never a network wait
 
 For R8 Windows publication, do not use `WM_RENDERFORMAT` as the trigger for a

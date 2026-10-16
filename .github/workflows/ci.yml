@@ -66,9 +66,9 @@ jobs:
         run: |
           set -euo pipefail
           cmake --build build --config Debug --target test_windows_desktop_geometry --parallel 2
-          ctest --test-dir build --build-config Debug --timeout 20 -L windows --output-on-failure
+          ctest --test-dir build --build-config Debug --timeout 20 -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
           cmake --build build --config Release --target test_windows_desktop_geometry --parallel 2
-          ctest --test-dir build --build-config Release --timeout 20 -L windows --output-on-failure
+          ctest --test-dir build --build-config Release --timeout 20 -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
       - name: Run Debug protocol and project-policy tests

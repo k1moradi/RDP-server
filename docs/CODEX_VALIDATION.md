@@ -1,3 +1,19 @@
+## R6 focused preflight selector correction (2026-10-16)
+
+Prior SHA `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`, Actions
+`38902316637`: Windows/MSVC built `test_windows_desktop_geometry.exe` and
+the new single-attach R6 case passed in **0.01 s**. The old label selector
+selected 44 tests; five R8 `windows-adapter` cases were **NOT RUN** because
+their separate clipboard executable was not built, while the other 39
+Windows desktop/R6 cases passed. Release preflight/full Windows matrix were not
+reached after that focused-step failure.
+
+The corrected preflight selects only `windows.geometry-`,
+`windows.capture-`, `windows.cursor-`, and `windows.input-` behavior names.
+Full repository CTest is unchanged. Documentation-policy on the prior SHA
+passed. Owner-local build/CTest and Windows MSYS2 CLANG64/Clang23 remain
+**NOT RUN**; genuine Windows R2/R3 admission and M4 remain **BLOCKED/OPEN**.
+
 ## R8 Windows clipboard first hosted-run failure and fixture repair (2026-10-16)
 
 Implementation `b1cd3e30b5b2a708831c55c4cc857b103a46f246`, Actions

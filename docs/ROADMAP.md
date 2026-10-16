@@ -1,3 +1,25 @@
+## R6 focused Windows preflight selector isolation (2026-10-16; exact-SHA CI pending)
+
+Exact-SHA Actions `38902316637` for test-only R6 commit
+`2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f` compiled the Windows desktop
+target successfully. Its new
+`windows.capture-dxgi-duplication-owner-capture-cycle-single-attach` test
+**PASS** in Debug in **0.01 s**. The focused preflight then failed because
+`ctest -L windows` regex-matched five R8 clipboard cases labeled
+`windows-adapter`; their separate executable was intentionally not built by
+the R6-only step. All 39 selected R6/native-desktop tests themselves passed.
+
+The preflight now uses anchored behavior names
+`^windows\.(geometry|capture|cursor|input)-`, matching only the existing
+`test_windows_desktop_geometry` target. The ordinary complete build and full
+CTest remain unchanged and authoritative, so R8 and other-road tests are still
+required there. No production source/native behavior changes.
+
+Canonical owner-local CMake/CTest is **NOT RUN** here. Exact-SHA hosted
+Windows/MSVC Debug+Release preflight/full matrix is required after publication.
+Owner Windows MSYS2 CLANG64/Clang23 and genuine Windows R2/R3 admission remain
+**NOT RUN/BLOCKED**; M4 remains OPEN.
+
 ## R8 Windows clipboard fixture-lifetime and preflight-label repair (2026-10-16; CI pending)
 
 Implementation `b1cd3e30b5b2a708831c55c4cc857b103a46f246`, Actions

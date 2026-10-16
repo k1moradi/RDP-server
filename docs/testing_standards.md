@@ -1,3 +1,13 @@
+## Focused CTest selectors must match the built target
+
+A focused CI step that builds only one test executable must select only tests
+provided by that executable. CTest label filters are regular expressions, so a
+broad selector such as `-L windows` also matches labels such as
+`windows-adapter` owned by another executable/road. Prefer an anchored
+behavior-name regex or an exact road-specific label with explicit registry
+ownership. This applies only to focused preflights; the complete build/full
+CTest remains the authoritative cross-road gate.
+
 ## Borrowed clipboard response fixtures must pin their backing PDU
 
 `RemoteTransfer::Response::payload` is a borrowed span into the caller's

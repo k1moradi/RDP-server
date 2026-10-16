@@ -2417,6 +2417,21 @@ actually run; another parser CTest alone is not a complete session.
   authorized X11 desktop, R4 graphics integration and benchmarks.
   **Next R5:** native damage, capture/cursor connection teardown
   ordering and R2/R3-approved frame/cursor delivery; M3 NOT ACCEPTED.
+  **R5 native XFixes cursor exact-SHA CI PASS (2026-10-15):**
+  published production commit `c4aedf8d4dbc2e0732b43bd7df273dea47e94d85`;
+  [Actions 38845314257](https://github.com/k1moradi/RDP-server/actions/runs/38845314257)
+  completed SUCCESS. Linux/GCC built the actual native XFixes
+  tracker and production converter in Debug/Release; full Linux
+  CTests **208/208** PASS each, including new
+  `x11.cursor-native-connection-denials-and-cancellation` PASS in
+  both. Hosted macOS/Clang **193/193** and Windows/MSVC
+  **203/203** full CTests PASS in each config; Linux-only native
+  XFixes test was NOT RUN on macOS/Windows. Docs policy,
+  install/consumer SDK and package/digests PASS.
+  **NOT RUN:** owner's independent Linux/X11, Windows CLANG64/
+  Clang23 and macOS27 exact-SHA tests; real R2/R3 authorization,
+  Microsoft-client desktop, R4 cursor delivery and benchmarks.
+  M1/M3 remain unaccepted.
   **R5 Linux XCB-SHM native compile increment (2026-10-15;
   base `aa15209c67d74814cac8c859997e623cd096691c`, exact-SHA CI pending):**
   Add separate, noninstalled `rdp-server-linux-xshm` native Linux

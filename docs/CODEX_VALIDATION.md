@@ -4367,3 +4367,33 @@ graphics-cursor consumer, and performance/latency benchmarks.
 **Next:** verify new exact-SHA Linux native target/CTest and full
 Windows/macOS regression; integrate connected capture/cursor/damage
 teardown and resize only behind R2/R3 authorization.
+
+## R5 XFixes native cursor exact-SHA hosted validation (2026-10-15)
+
+**Production commit:** [`c4aedf8d4dbc2e0732b43bd7df273dea47e94d85`](https://github.com/k1moradi/RDP-server/commit/c4aedf8d4dbc2e0732b43bd7df273dea47e94d85);
+[GitHub Actions 38845314257](https://github.com/k1moradi/RDP-server/actions/runs/38845314257)
+**completed SUCCESS** on exact implementation SHA.
+
+**Linux/GCC Debug and Release:** real `x11_cursor_tracker.cpp`
+and `cursor_image_conversion.cpp` built and linked into
+`rdp-server-linux-xfixes-cursor` with XCB/XFixes development
+libraries. The new dedicated native
+`x11.cursor-native-connection-denials-and-cancellation` passed
+in both modes. Full registered CTests **208/208 PASS** in both.
+Existing native capture, XCB event tests and SDK check remained
+green. No X display or protected desktop was opened.
+
+**macOS/Clang Debug and Release:** **193/193** PASS each.
+**Windows/MSVC Debug and Release:** **203/203** PASS each.
+Linux-only native XFixes CTest was NOT RUN on those OSes by design.
+Documentation policy and SDK install/consumer/archive/digest
+workflow stages PASS.
+
+**NOT RUN:** owner's separate three-platform exact-SHA full commands
+(Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS 27), actual
+authenticated Linux session and native OS authorization, licensed
+Microsoft-client desktop, live XFixes shape/resize/refresh,
+R4 cursor frame delivery, and performance benchmarks. M1 and M3
+remain NOT ACCEPTED. **Next R5:** integrate native capture/cursor/
+damage lifetimes with X11 connection ownership and R2/R3-approved
+R4 graphics consumption, preserving no-capture-before-admission.

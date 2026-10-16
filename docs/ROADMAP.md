@@ -11163,3 +11163,33 @@ macOS R2/R3 admission capability before exposing native capture/input/cursor
 construction, while R4 still owns any future cursor publication contract.
 Owner macOS 27 live fast-user-switch delivery and Microsoft-client M5
 acceptance remain **NOT RUN**. **M5 remains OPEN/BLOCKED**.
+
+
+## R4 RDPGFX highest-supported capability regression (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `6a9bf3f67c09cdf1c10f4de252411579efe5eec8`.
+
+The May 2026 MS-RDPEGFX revision changed server behavior around preventing
+selection of unsupported graphics capability sets. R4's production parser is
+already fail-closed for this rule: the only implemented profile is Version 8.1
+with explicit AVC420, while newer/unknown capability sets are parsed only for
+their bounded declared length and are never reflected into CAPS_CONFIRM.
+
+A new dedicated production-linked CTest,
+`graphics.avc420-capabilities-highest-supported-selection`, locks that
+contract. It advertises the currently published Version 10.7 and an unknown
+future capability before/after a valid Version 8.1 AVC420 set and requires the
+exact Version 8.1 confirmation regardless of list order. Advertisements
+containing only Version 10.7/unknown sets must return
+`UnsupportedCapability` with zero confirmation bytes. Existing malformed,
+header-bounds and generic selection cases remain unchanged.
+
+No production parser change is needed, no higher graphics profile is claimed,
+and no R3 DVC/channel authority is fabricated. Canonical owner
+`~/rdp-server/build` configure/build/full CTest is **NOT RUN** in this
+connector environment. Exact-SHA Linux/GCC, macOS/Clang, Windows/MSVC
+Debug/Release, the existing sanitizer matrix, documentation policy and
+SDK/package checks are required after publication. Genuine authenticated R3
+Graphics DVC/full-send integration, owner three-OS commands, native capture
+performance and Microsoft-client rendering remain **NOT RUN/BLOCKED**.
+Gate B and M3/M4/M5 remain **OPEN**.

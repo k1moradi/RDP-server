@@ -2028,3 +2028,15 @@ not suppress x264 findings, and keep this group behind the shared compile
 success with `always()` so failures do not hide later road evidence. This
 does not change the owner's ordinary build command or create another build
 root.
+
+
+## R4 RDPGFX highest-supported capability selection (2026-10-16)
+
+Capability-negotiation tests must distinguish the **highest advertised**
+RDPGFX capability version from the **highest capability set the server
+actually supports**. Per MS-RDPEGFX 3.2.5.19, CAPS_CONFIRM selects the latter.
+While R4 implements only Version 8.1 AVC420, tests must place newer published
+capability sets before and after a valid Version 8.1 set and require the exact
+Version 8.1 confirmation. Advertisements containing only unsupported newer or
+unknown sets must yield no confirmation. Do not infer support from a larger
+version number or from similarly named H.264 flags.

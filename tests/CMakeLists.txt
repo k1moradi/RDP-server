@@ -309,9 +309,10 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;graphics")
         endforeach()
     elseif(test_target STREQUAL "test_gfx_avc420_capabilities")
-        # Same production-linked executable, three independent wire behaviors.
+        # Same production-linked executable, four independent wire behaviors.
         foreach(case_name IN ITEMS
                 avc420-capabilities-selection
+                avc420-capabilities-highest-supported-selection
                 avc420-capabilities-rejections
                 avc420-capabilities-header-bounds)
             add_test(NAME "graphics.${case_name}"

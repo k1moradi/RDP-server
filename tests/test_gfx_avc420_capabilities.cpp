@@ -97,6 +97,53 @@ void testSelection()
     assert(negotiateGfxAvc420(advertisement).confirmation == expected);
 }
 
+void testHighestSupportedSelection()
+{
+    // MS-RDPEGFX 3.2.5.19 requires CAPS_CONFIRM to select the highest
+    // capability set the server actually supports, not simply the highest
+    // version advertised by the client. R4 currently implements only 8.1
+    // AVC420, so newer published/future sets must never be reflected.
+    constexpr std::uint32_t version81 = 0x00080105;
+    constexpr std::uint32_t version107 = 0x000A0701;
+    constexpr std::uint32_t unknownFutureVersion = 0x000B0300;
+
+    const auto expected = negotiateGfxAvc420(
+        makeAdvertisement({{version81, 0x13}}));
+    assert(expected.accepted());
+    assert(expected.confirmationBytes == 20);
+
+    for (const auto &advertisement : {
+             makeAdvertisement({{version107, 0x20},
+                                {version81, 0x13},
+                                {unknownFutureVersion, 0xFFFFFFFF}}),
+             makeAdvertisement({{unknownFutureVersion, 0},
+                                {version81, 0x13},
+                                {version107, 0x20}}),
+             makeAdvertisement({{version81, 0x13},
+                                {version107, 0x20},
+                                {unknownFutureVersion, 0xFFFFFFFF}}),
+         })
+    {
+        const auto selected = negotiateGfxAvc420(advertisement);
+        assert(selected.status == GfxAvc420NegotiationStatus::Accepted);
+        assert(selected.confirmationBytes == expected.confirmationBytes);
+        assert(selected.confirmation == expected.confirmation);
+    }
+
+    for (const auto &advertisement : {
+             makeAdvertisement({{version107, 0x20}}),
+             makeAdvertisement({{unknownFutureVersion, 0xFFFFFFFF}}),
+             makeAdvertisement({{version107, 0x20},
+                                {unknownFutureVersion, 0xFFFFFFFF}}),
+         })
+    {
+        const auto unsupported = negotiateGfxAvc420(advertisement);
+        assert(unsupported.status ==
+               GfxAvc420NegotiationStatus::UnsupportedCapability);
+        assert(unsupported.confirmationBytes == 0);
+    }
+}
+
 void testRejections()
 {
     const auto valid = makeAdvertisement({{0x00080105, 0x10}});
@@ -197,6 +244,11 @@ int main(int argc, char **argv)
     if (behavior == "avc420-capabilities-selection")
     {
         testSelection();
+        return 0;
+    }
+    if (behavior == "avc420-capabilities-highest-supported-selection")
+    {
+        testHighestSupportedSelection();
         return 0;
     }
     if (behavior == "avc420-capabilities-rejections")

@@ -11838,3 +11838,22 @@ branch or worktree is created. Exact publication-SHA hosted Debug/Release,
 sanitizer, documentation and SDK/package evidence is **PENDING**. Owner macOS
 27 notification delivery, genuine R2/R3 macOS admission and Microsoft-client
 M5 acceptance remain **NOT RUN/OPEN**.
+
+
+## R4 RDPGFX highest-supported capability authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `6a9bf3f67c09cdf1c10f4de252411579efe5eec8`.
+
+Source review against current MS-RDPEGFX server capability-selection behavior
+found no production correction necessary: R4 supports only Version 8.1 AVC420
+and does not promote or echo newer advertised capability sets. Dedicated CTest
+`graphics.avc420-capabilities-highest-supported-selection` now proves
+Version 10.7 and an unknown future set cannot displace the supported Version
+8.1 set in any tested ordering, and cannot produce CAPS_CONFIRM when no
+supported set is present.
+
+Central CTest registration and standards/roadmap documentation are updated.
+Canonical local execution is **NOT RUN** because this connector does not expose
+the owner `~/rdp-server` checkout. Exact publication-SHA hosted CI is the
+first executable gate. Authenticated R3 Graphics DVC/full-send and real-client
+graphics remain **BLOCKED/NOT RUN**.

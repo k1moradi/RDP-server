@@ -13855,3 +13855,52 @@ final CredSSP credentials are still deny-only. R3 licensing credential
 provisioning is not invented here because its reviewed certificate/private-key
 service contract is not yet defined. No listener/service is enabled and M2/M3
 remain **OPEN**.
+
+## R10 unified pre-admission dispatcher hosted validation receipt (2026-10-16)
+
+Implementation `3e135ad6fe0d7d0720e79369e925f815e75a4826` introduced the
+bounded R10 `advancePreAdmission()` readiness dispatcher and
+`runtime.linux-connection-pre-admission-dispatch`. Its first workflow,
+Actions `38934560964`, failed before any job was created because the
+publication script accidentally duplicated the tail of `.github/workflows/ci.yml`
+while editing the sanitizer regex. That run is workflow-authoring failure only,
+not C++/CTest evidence.
+
+Shared-main correction `93ab919dc2a3de53d551471599c04310dd25f35e`
+restored the workflow structure and retained the intended five-case R10
+sanitizer selector. Clean validated descendant
+`aa6f55dfc5f399e995ca0ba922567c0d1d99e211`, Actions
+`38934985250`, completed **SUCCESS**. The R10 runtime header/source,
+`test_runtime_linux_security.cpp` and central CTest registration have
+identical Git blobs at the implementation and validated descendant SHAs.
+
+Hosted evidence on that clean descendant is Ubuntu/GCC **459/459 Debug PASS**
+and **459/459 Release PASS**; the new dispatcher is test 287 and passes in both.
+macOS/AppleClang is **385/385 Debug PASS** and **385/385 Release PASS**.
+Windows/MSVC native preflight is **46/46 Debug PASS** and **46/46 Release
+PASS**, with the full suite **414/414 Debug PASS** and **414/414 Release PASS**.
+Installed SDK consumer **1/1**, packaging, digest and artifact upload pass on
+all hosted platforms. Documentation policy passes; untagged prerelease
+publication is correctly skipped.
+
+The Clang ASan/UBSan job also completes **SUCCESS**: clipboard **50/50**,
+R4 x264/BGRA **20/20**, bounded R1/R3 transport/security/licensing **49/49**,
+native R2/R3 GSS **27/27**, R10 pre-admission **5/5**, native R5 X11 **25/25**,
+and bounded fuzzer **1/1**. The new dispatcher test passes directly under
+ASan/UBSan.
+
+Validated invariant: one R10 call now maps external readiness across X.224,
+TLS and R2 CredSSP without redispatching the legacy plaintext callback after
+HYBRID TLS. Wrong-direction readiness performs zero plaintext I/O, X.224 reply
+delivery precedes SSL ownership transfer, and the pre-admission API never
+invokes the legacy R1 MCS reader. Existing R2/R3 admission remains the only
+positive MCS route.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, explicit real-Kerberos credentialed aggregate tests,
+positive NSS/logind admission and Microsoft-client acceptance remain **NOT
+RUN**. Positive native admission remains **BLOCKED on R2** because final
+CredSSP credential authorization is deny-only. R3 licensing still lacks the
+reviewed service certificate/private-key provisioning contract needed for R10
+configuration; no schema is invented. No listener/service is enabled and
+M2/M3 remain **OPEN / NOT ACCEPTED**.

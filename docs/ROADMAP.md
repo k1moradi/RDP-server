@@ -1,3 +1,57 @@
+## R9 Client Info / NLA sanitizer coverage reconciliation (2026-10-16; exact-SHA CI pending)
+
+**Publication parent after concurrent reconciliation:** `92a0820d88312de8f7a0a1ae7e733cfc0c2532f8`.
+R9 audited the central CTest registry against the single Clang ASan/UBSan
+workflow after R2 owner-driven CredSSP and R3 protected Client Info landed.
+No production state machine, parser, admission owner, CTest registration or
+fixture changes in this increment.
+
+Five existing production-backed behaviors run in ordinary full CTest but were
+absent from the bounded R9 sanitizer selections:
+`transport.mcs-client-info-protected-route`,
+`transport.mcs-client-info-protected-route-denials`,
+`security.gssapi-native-admission-r1-nla-provenance-denials`,
+`security.gssapi-r3-initial-nla-owner-fence`, and
+`security.gssapi-r3-client-info-route-contract`. The first two exercise the
+real Enhanced-Security Client Info envelope/parser route and all-join,
+I/O-channel, initiator, segmentation and Basic Security Header denials. The
+three Linux cases cover real R1 HYBRID provenance refusal, the R2 native
+admission boundary, the initial R3 owner fence and the protected Client Info
+broker contract. They remain denial/ownership tests: no fake Kerberos
+principal, native logind lease or successful R3 admission is introduced.
+
+The existing sanitizer job changes only its CTest selection. The already
+compiled `test_owned_mcs_connect_initial` and
+`test_linux_gssapi_spnego` targets are reused. One checkout-local
+`build/`, ASan/UBSan halt-on-error, leak detection, the MIT-krb5 LSan
+suppression scoped only to native GSS, clipboard, the concurrently expanded
+R5 X11 group and the bounded fuzzer remain unchanged. Expected selected counts
+rise from bounded R1/R3 transport/security **23 to 25** and native
+GSS/R2/R3 **19 to 22**.
+
+Pre-change exact-head Actions `38899285708` for
+`06e4793eb7a78ea86bfb7f072b8642f1ec90d1d7` is the latest completed
+baseline before this R9 selection change. Its R9 sanitizer passed
+**36/36 + 23/23 + 19/19 + 7/7 + 1/1**. Linux/GCC full CTest passed
+**395/395 Debug and 395/395 Release**, directly running all five cases.
+Windows/MSVC passed **361/361 Debug and 361/361 Release**, including both
+portable Client Info cases. macOS/Clang Debug passed those portable cases but
+ended **336/337** because unrelated
+`transport.tcp-native-listener-role-and-mode-denials` asserted
+`Batch::BudgetReached` at `tests/test_owned_preauth_session.cpp:4377`;
+macOS Release/downstream were **NOT RUN**. Documentation policy passed. Later
+concurrent commits do not change these five registry entries or the R9
+transport/GSS sanitizer regexes being corrected here.
+
+**Authoring execution:** canonical owner `~/rdp-server/build/` configure,
+build, focused/full CTest and local sanitizer execution are **NOT RUN** because
+this connector runtime has no mounted owner checkout; no alternate build root,
+worktree or side branch is created. Exact-publication-SHA Linux/GCC,
+Windows/MSVC, macOS/Clang, R9 sanitizer and documentation-policy evidence is
+required after publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS27, configured KDC/client ticket, positive NSS/logind admission and
+Microsoft-client M2/M3 acceptance remain **NOT RUN/OPEN**.
+
 ## R5 complete native X11 sanitizer selection (2026-10-16; exact-SHA CI pending)
 
 The prior R5 sanitizer expansion `3b57baa31cd2533d29a00d92d1606f27cb476af8`,

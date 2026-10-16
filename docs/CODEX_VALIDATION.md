@@ -1,3 +1,45 @@
+## R9 sanitizer registry-drift reconciliation (2026-10-16)
+
+**Reconciled publication parent:** `92a0820d88312de8f7a0a1ae7e733cfc0c2532f8`.
+Registry/CI comparison found five bounded R1/R2/R3 behaviors omitted from the
+R9 sanitizer regexes while already registered in ordinary CTest:
+`transport.mcs-client-info-protected-route`,
+`transport.mcs-client-info-protected-route-denials`,
+`security.gssapi-native-admission-r1-nla-provenance-denials`,
+`security.gssapi-r3-initial-nla-owner-fence`, and
+`security.gssapi-r3-client-info-route-contract`.
+
+Source review confirms the Linux cases are denial-only or terminal-owner
+tests. The NLA provenance case uses real R1 loopback TLS to prove SSL-only,
+HYBRID-offered/SSL-selected, raw-SSL and cancelled-owner inputs cannot issue a
+native capability. The initial R3 fence constructs no positive lease. The
+Client Info broker contract verifies unforgeable lease/R1-owner signatures and
+closes an unadmitted R3 session rather than fabricating successful
+Kerberos/logind state. The portable cases use the production Client Info
+security-header and joined-channel routing logic.
+
+Only the existing CI selection changes. Existing compiled targets, the single
+`build/` root, ASan+UBSan options, scoped MIT-krb5 LSan suppression,
+clipboard/R5-X11 groups and bounded fuzzer are preserved. Expected R9 groups
+become **36 clipboard**, **25 bounded R1/R3 transport/security**, **22 native
+GSS/R2/R3**, **16 R5 X11** after the concurrent R5 expansion, and **1 fuzzer**.
+
+Completed pre-change baseline Actions `38899285708` at
+`06e4793eb7a78ea86bfb7f072b8642f1ec90d1d7`: R9 sanitizer **PASS**
+`36/36, 23/23, 19/19, 7/7, 1/1`; Linux/GCC **395/395 Debug + 395/395
+Release PASS**; Windows/MSVC **361/361 Debug + 361/361 Release PASS**.
+macOS/Clang Debug ran and passed the two portable Client Info cases but was
+**336/337**, failing only the unrelated listener role/mode denial at
+`test_owned_preauth_session.cpp:4377`; its Release/package stages were
+**NOT RUN**. Documentation policy PASS. Later concurrent commits do not alter
+the five target CTests or the two R9 regexes updated by this increment.
+
+Local canonical owner build/CTest and sanitizers are **NOT RUN** because
+`~/rdp-server` is absent. No alternate build root or side branch is created.
+Exact publication-SHA hosted evidence is pending; real Kerberos/logind
+admission and Microsoft-client acceptance remain outside this CI-only
+increment.
+
 ## R5 full native-X11 sanitizer selection authoring receipt (2026-10-16)
 
 Previous exact R5 CI `38894949531` at

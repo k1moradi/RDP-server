@@ -14924,3 +14924,50 @@ genuine non-forgeable R2/R3 macOS per-user admission, live
 capture/input/cursor publication and Microsoft-client M5 acceptance remain
 **NOT RUN/OPEN**. The next authority-bearing R7 gate remains the genuine macOS
 admission capability. **M5 remains OPEN/BLOCKED**.
+
+
+
+## R10 service-owned licensing context exact-SHA validation (2026-10-16)
+
+Implementation `85f12cdd9386b9d606697048e99ff5c42ac50f8a`,
+GitHub Actions `38966505059`, completed **SUCCESS**. The implementation adds
+the noninstalled one-shot `RuntimeLicensingContext` and the dedicated
+`transport.licensing-runtime-context-ownership` plus
+`transport.licensing-runtime-context-denials` regressions.
+
+Hosted exact-SHA evidence is Ubuntu/GCC **471/471 Debug PASS** and
+**471/471 Release PASS**; macOS/AppleClang **397/397 Debug PASS** and
+**397/397 Release PASS**; Windows/MSVC native preflight **47/47 Debug PASS**
+and **47/47 Release PASS**, with the full suite **426/426 Debug PASS** and
+**426/426 Release PASS**. Both new runtime licensing cases pass in every full
+platform configuration. Installed SDK consumer **1/1**, package generation,
+digest/artifact upload and documentation policy pass on all applicable hosted
+platforms; untagged prerelease publication is correctly skipped.
+
+The Clang ASan/UBSan job is also **PASS**. Its bounded R1/R3 licensing selector
+registered and directly executed both new R10 cases; that selection is
+**61/61 PASS**. The other configured sanitizer groups remain green:
+clipboard **50/50**, R4 x264/BGRA **20/20**, R4 RDPGFX capability **4/4**,
+native R2/R3 GSSAPI **27/27**, R10 pre-admission **5/5**, native R5 X11
+**26/26**, and bounded fuzzer **1/1**. The independent R7 macOS session
+sanitizer side gate also passes.
+
+Validated invariant: R10 can own one immutable service-lifetime R3 licensing
+identity/private-key credential pair without exposing partial state, and the
+successful context remains independent of caller certificate/private-key
+buffer lifetime. The credential remains protocol cryptographic continuity
+material, not an R2 admission capability or licensing decision.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, genuine Kerberos/final-CredSSP positive
+authorization, NSS/logind admission, real licensing credential files and
+Microsoft-client licensing/Share/desktop acceptance remain **NOT RUN**.
+Positive live R10 composition is still **BLOCKED on R2** because final
+CredSSP credential authorization remains deny-only. No listener/service is
+enabled; M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+**Next R10:** add a secure licensing credential file-snapshot/provisioning
+boundary by reusing the already-reviewed R10 opened-file ownership rules rather
+than reopening caller pathnames, while keeping the resulting context offline
+and non-authorizing. Do not connect licensing into the per-connection aggregate
+or enable a listener until genuine R2 positive admission exists.

@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "gcc_conference_create.h"
 #include "mcs_connect_initial.h"
+#include "security_negotiation.h"
 #include "tpkt_x224.h"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace rdp_server::server::transport
@@ -26,13 +29,90 @@ struct McsConnectResponse
 
     [[nodiscard]] explicit operator bool() const noexcept
     {
-        return length != 0;
+        return length != 0U && length <= packet.size();
     }
     [[nodiscard]] std::span<const std::uint8_t> bytes() const noexcept
     {
-        return std::span(packet).first(length);
+        return length <= packet.size()
+                   ? std::span(packet).first(length)
+                   : std::span<const std::uint8_t>{};
     }
 };
+
+
+struct McsConnectResponseAllocation
+{
+    std::uint32_t gccNodeId{};
+    std::uint16_t ioChannelId{};
+    std::array<std::uint16_t, kMaximumStaticChannelCount> staticChannelIds{};
+    std::uint8_t staticChannelCount{};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return gccNodeId != 0U && ioChannelId != 0U &&
+               staticChannelCount <= staticChannelIds.size();
+    }
+    [[nodiscard]] std::span<const std::uint16_t> staticChannels() const noexcept
+    {
+        return staticChannelCount <= staticChannelIds.size()
+                   ? std::span(staticChannelIds).first(staticChannelCount)
+                   : std::span<const std::uint16_t>{};
+    }
+};
+
+[[nodiscard]] std::optional<McsConnectResponseAllocation>
+planMcsConnectResponseAllocation(
+    const McsDomainParameters &negotiatedDomain,
+    const GccClientSettings &clientSettings) noexcept;
+[[nodiscard]] std::optional<McsConnectResponseAllocation>
+planMcsConnectResponseAllocation(const McsConnectInitial &client) noexcept;
+
+struct McsConnectResponseWriteView
+{
+    std::span<const std::uint8_t> bytes{};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return !bytes.empty() && replySequence != 0U &&
+               writeSliceSequence != 0U;
+    }
+};
+
+enum class McsConnectResponseWriteOutcome : std::uint8_t
+{
+    Pending,
+    Delivered,
+    Rejected,
+};
+
+class McsConnectResponseWriteGate final
+{
+public:
+    McsConnectResponseWriteGate() noexcept = default;
+    McsConnectResponseWriteGate(const McsConnectResponseWriteGate &) = delete;
+    McsConnectResponseWriteGate &operator=(const McsConnectResponseWriteGate &) = delete;
+    McsConnectResponseWriteGate(McsConnectResponseWriteGate &&) = delete;
+    McsConnectResponseWriteGate &operator=(McsConnectResponseWriteGate &&) = delete;
+    [[nodiscard]] bool queue(const McsConnectResponse &response) noexcept;
+    [[nodiscard]] McsConnectResponseWriteView pendingWrite() const noexcept;
+    [[nodiscard]] McsConnectResponseWriteOutcome onBytesWritten(
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    void close() noexcept;
+private:
+    [[nodiscard]] bool advanceReplySequence() noexcept;
+    [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
+    McsConnectResponse pending_{};
+    std::size_t bytesWritten_{};
+    std::uint64_t replySequence_{};
+    std::uint64_t writeSliceSequence_{};
+    bool delivered_{};
+    bool closed_{};
+};
+
+[[nodiscard]] bool matchesMcsSecurityNegotiationReplay(
+    const GccClientSettings &clientSettings,
+    const SecurityNegotiationProvenance &provenance) noexcept;
 
 // Pure anti-tamper correlation for Enhanced RDP Security. R1 must supply
 // immutable provenance for BOTH values from the original X.224 exchange.
@@ -56,6 +136,13 @@ struct McsConnectResponse
 // gccNodeId is T.124 UserID [1001, 65536] inclusive.
 [[nodiscard]] McsConnectResponse encodeMcsConnectResponse(
     const McsConnectInitial &client,
+    std::span<const std::uint16_t> staticChannelIds,
+    std::uint32_t gccNodeId,
+    std::uint32_t clientRequestedProtocols) noexcept;
+
+[[nodiscard]] McsConnectResponse encodeMcsConnectResponseFromNegotiatedState(
+    const McsDomainParameters &negotiatedDomain,
+    std::size_t expectedStaticChannelCount,
     std::span<const std::uint16_t> staticChannelIds,
     std::uint32_t gccNodeId,
     std::uint32_t clientRequestedProtocols) noexcept;

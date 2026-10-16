@@ -25,6 +25,9 @@ function(add_rdp_test source_file suite behavior)
                 mcs-domain-rejections
                 mcs-response-wire
                 mcs-response-security-replay
+                mcs-response-session-allocation-plan
+                mcs-response-write-receipts
+                mcs-response-write-denials
                 mcs-response-rejections
                 mcs-erect-request
                 mcs-attach-request
@@ -182,6 +185,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-native-os-admission-capability-denials
                 gssapi-r3-mcs-admission-contract
                 gssapi-r3-protected-transition-generation-fence
+                gssapi-r3-connect-response-write-contract
                 gssapi-r3-native-change-revocation
                 gssapi-r3-mcs-disconnect-revocation-fence)
             add_test(NAME "security.${case_name}"

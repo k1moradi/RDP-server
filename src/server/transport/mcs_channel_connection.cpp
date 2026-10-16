@@ -295,25 +295,28 @@ McsChannelConfirm encodeMcsChannelJoinConfirm(
 
 namespace
 {
-[[nodiscard]] std::optional<McsSessionIntake>
-validateMcsSessionConnectInitial(
-    std::span<const std::uint8_t> completeTpkt) noexcept
+struct McsSessionConnectValidation
 {
-    // Independently enforce R1's fixed first-TLS-TPKT budget before BER/GCC.
-    if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
-        return McsSessionIntake::OversizedEnvelope;
-    if (completeTpkt.size() < 8)
-        return McsSessionIntake::InvalidEnvelope;
-
-    // No borrowed packet/GCC view escapes this synchronous validation call.
-    const auto parsed = parseMcsConnectInitial(completeTpkt);
-    if (!parsed)
-        return McsSessionIntake::InvalidEnvelope;
-    if (!mergeMcsDomainParameters(parsed.value))
-        return McsSessionIntake::InvalidDomainParameters;
-    if (!parseGccConferenceCreate(parsed.value.gccUserData))
-        return McsSessionIntake::InvalidGccUserData;
-    return std::nullopt;
+    McsDomainParameters domain{};
+    GccClientSettings settings{};
+    McsConnectResponseAllocation allocation{};
+    std::optional<McsSessionIntake> failure{};
+};
+[[nodiscard]] McsSessionConnectValidation validateMcsSessionConnectInitial(
+    std::span<const std::uint8_t> tpkt) noexcept
+{
+    if(tpkt.size()>kMaximumInitialMcsTpktBytes)
+        return {{},{},{},McsSessionIntake::OversizedEnvelope};
+    if(tpkt.size()<8U) return {{},{},{},McsSessionIntake::InvalidEnvelope};
+    const auto p=parseMcsConnectInitial(tpkt);
+    if(!p) return {{},{},{},McsSessionIntake::InvalidEnvelope};
+    const auto d=mergeMcsDomainParameters(p.value);
+    if(!d) return {{},{},{},McsSessionIntake::InvalidDomainParameters};
+    const auto g=parseGccConferenceCreate(p.value.gccUserData);
+    if(!g) return {{},{},{},McsSessionIntake::InvalidGccUserData};
+    const auto a=planMcsConnectResponseAllocation(d.value,g.settings);
+    if(!a) return {{},{},{},McsSessionIntake::InvalidResourceAllocation};
+    return {d.value,g.settings,*a,std::nullopt};
 }
 } // namespace
 
@@ -328,10 +331,10 @@ McsSessionIntake McsSessionLifecycle::onConnectInitial(
         return McsSessionIntake::InvalidOrdering;
     }
 
-    const auto failure = validateMcsSessionConnectInitial(completeTpkt);
+    const auto validation = validateMcsSessionConnectInitial(completeTpkt);
     close();
-    return failure.has_value()
-               ? *failure
+    return validation.failure.has_value()
+               ? *validation.failure
                : McsSessionIntake::ValidButNotAdmitted;
 }
 
@@ -353,14 +356,16 @@ McsSessionIntake McsSessionLifecycle::onVerifiedR2ConnectInitial(
         return McsSessionIntake::AdmissionDenied;
     }
 
-    if (const auto failure =
-            validateMcsSessionConnectInitial(completeTpkt);
-        failure.has_value())
+    const auto validation = validateMcsSessionConnectInitial(completeTpkt);
+    if (validation.failure.has_value())
     {
         close();
-        return *failure;
+        return *validation.failure;
     }
 
+    connectResponseDomain_ = validation.domain;
+    connectResponseClientSettings_ = validation.settings;
+    connectResponseAllocation_ = validation.allocation;
     admissionGeneration_ = admissionGeneration;
     sessionGeneration_ = sessionGeneration;
     phase_ = McsSessionPhase::AwaitConnectResponse;
@@ -371,17 +376,62 @@ void McsSessionLifecycle::revokeUnlessAdmissionBindingMatches(
     std::uint64_t admissionGeneration,
     std::uint64_t sessionGeneration) noexcept
 {
-    // This is deliberately denial-only. Public scalar inputs never create
-    // authority: before a genuine R2 handoff the stored generations are zero,
-    // and after teardown they are erased. At the current implementation stage
-    // AwaitConnectResponse is the sole admitted phase.
-    if (phase_ != McsSessionPhase::AwaitConnectResponse ||
+    // Public scalar inputs are revocation-only. Keep only an already-admitted
+    // phase with the exact stored generations; this fence also applies after
+    // Connect Response delivery.
+    if (phase_ == McsSessionPhase::AwaitVerifiedR2Admission ||
+        phase_ == McsSessionPhase::Closed ||
         admissionGeneration == 0 || sessionGeneration == 0 ||
         admissionGeneration_ != admissionGeneration ||
         sessionGeneration_ != sessionGeneration)
     {
         close();
     }
+}
+
+
+std::optional<McsConnectResponseWriteView>
+McsSessionLifecycle::prepareConnectResponseWrite(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if(phase_!=McsSessionPhase::AwaitConnectResponse ||
+       !connectResponseAllocation_ ||
+       !matchesMcsSecurityNegotiationReplay(
+           connectResponseClientSettings_,provenance)){
+        close(); return std::nullopt;
+    }
+    if(connectResponseProvenanceBound_){
+        if(connectResponseBoundProvenance_!=provenance){
+            close(); return std::nullopt;
+        }
+    }else{
+        const auto response=encodeMcsConnectResponseFromNegotiatedState(
+            connectResponseDomain_,connectResponseClientSettings_.channelCount,
+            connectResponseAllocation_.staticChannels(),
+            connectResponseAllocation_.gccNodeId,
+            provenance.clientRequestedProtocols);
+        if(!response||!connectResponseWrite_.queue(response)){
+            close(); return std::nullopt;
+        }
+        connectResponseBoundProvenance_=provenance;
+        connectResponseProvenanceBound_=true;
+    }
+    const auto pending=connectResponseWrite_.pendingWrite();
+    if(!pending){close();return std::nullopt;}
+    return pending;
+}
+
+McsConnectResponseWriteOutcome McsSessionLifecycle::completeConnectResponseWrite(
+    std::uint64_t reply,std::uint64_t slice,std::size_t accepted) noexcept
+{
+    if(phase_!=McsSessionPhase::AwaitConnectResponse){
+        close(); return McsConnectResponseWriteOutcome::Rejected;
+    }
+    const auto out=connectResponseWrite_.onBytesWritten(reply,slice,accepted);
+    if(out==McsConnectResponseWriteOutcome::Rejected) close();
+    else if(out==McsConnectResponseWriteOutcome::Delivered)
+        phase_=McsSessionPhase::AwaitErectDomain;
+    return out;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(

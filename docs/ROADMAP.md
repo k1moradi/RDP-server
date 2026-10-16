@@ -6378,3 +6378,47 @@ consume the now-landed immutable R1 negotiation provenance plus R2
 generation-bound reauthorization once R3 exposes a real protected transition;
 until then, continue independent sanitizer/regression coverage of reachable
 production boundaries without synthetic admission.
+
+
+## R3 protected Connect Response writer boundary (2026-10-16)
+
+**Starting implementation base:** `22d6641f0fbf5f92ce4d1327c1dbcd4fc0a1e11b`.
+**Publication parent after concurrent reconciliation:** `abb285087cf500a85090d823fe1ce60881363d4f`.
+R1 now exposes immutable `SecurityNegotiationProvenance` only from the exact
+established `OwnedPreauthTcpConnection`, and R2 already provides
+generation-bound live reauthorization. R3 consumes both without accepting
+caller protocol scalars.
+
+The admitted Connect Initial copies only fixed response state: negotiated
+DomainParameters, parsed GCC settings, deterministic GCC nodeID 1001, I/O
+channel 1003, and ordered static channel IDs from 1004. Borrowed Connect
+Initial/GCC bytes do not survive the call. The User Channel ID remains
+unallocated until Attach User.
+
+`LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite` borrows the
+sole R1 connection, obtains its established TLS pointer and same-connection
+negotiation provenance, invokes the existing protected-transition
+reauthorization for view permission, correlates Client Core's replayed selected
+protocol, and returns exactly one stable R3 write slice with monotonic
+reply/slice receipts. The gate is called again before every next partial-write
+slice/resubmission. There is no positive API accepting a Boolean or raw
+requested/selected protocol scalar.
+
+`completeR3ConnectResponseWrite` accepts only the exact issued reply/slice
+receipt. Zero-byte backpressure keeps the slice receipt; positive partial
+progress rotates it; stale/duplicate/overreported completion is terminal and
+revokes R3 then R2/GSS. Exact full delivery advances only to
+`AwaitErectDomain`. The ordinary DomainMCSPDU path still cannot consume
+Erect without a later protected R2 wrapper.
+
+Dedicated CTests:
+`transport.mcs-response-session-allocation-plan`,
+`transport.mcs-response-write-receipts`,
+`transport.mcs-response-write-denials`, and
+`security.gssapi-r3-connect-response-write-contract`. The Linux contract
+test cannot fabricate a positive lease; it proves the broker API requires the
+nonforgeable lease plus the R1 connection and guessed completion receipts are
+terminal. **Next R3:** add protected Erect Domain progression, then Attach User
+allocation/confirmation, each with fresh R2 authorization and the same
+single-owner receipt discipline. M2 remains **NOT ACCEPTED** pending genuine
+positive native admission and Microsoft-client evidence.

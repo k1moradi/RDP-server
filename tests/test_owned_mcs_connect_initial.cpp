@@ -407,6 +407,135 @@ void testMcsResponseSecurityReplay()
     }
 }
 
+
+void testMcsResponseSessionAllocationPlan()
+{
+    const auto parsed = parseMcsConnectInitial(publishedFixture());
+    assert(parsed);
+    const auto domain = mergeMcsDomainParameters(parsed.value);
+    const auto gcc = parseGccConferenceCreate(parsed.value.gccUserData);
+    assert(domain && gcc && gcc.settings.channelCount == 3U);
+    const auto plan =
+        planMcsConnectResponseAllocation(domain.value, gcc.settings);
+    assert(plan && *plan);
+    assert(plan->gccNodeId == 1001U);
+    assert(plan->ioChannelId == 1003U);
+    constexpr std::array<std::uint16_t, 3> expected{1004U,1005U,1006U};
+    assert(std::equal(plan->staticChannels().begin(),
+                      plan->staticChannels().end(),
+                      expected.begin(), expected.end()));
+    assert(encodeMcsConnectResponseFromNegotiatedState(
+        domain.value, gcc.settings.channelCount, plan->staticChannels(),
+        plan->gccNodeId, kRdpProtocolSsl));
+    auto insufficient=domain.value;
+    insufficient.values[0]=static_cast<std::uint32_t>(
+        gcc.settings.channelCount)+2U;
+    assert(!planMcsConnectResponseAllocation(insufficient,gcc.settings));
+    auto invalid=domain.value; invalid.values[7]=3U;
+    assert(!planMcsConnectResponseAllocation(invalid,gcc.settings));
+    auto tooMany=gcc.settings;
+    tooMany.channelCount=static_cast<std::uint8_t>(
+        kMaximumStaticChannelCount+1U);
+    assert(!planMcsConnectResponseAllocation(domain.value,tooMany));
+    McsSessionLifecycle unadmitted;
+    assert(unadmitted.allocatedGccNodeId()==0U);
+    assert(unadmitted.allocatedIoChannelId()==0U);
+    assert(unadmitted.allocatedStaticChannelIds().empty());
+}
+
+[[nodiscard]] McsConnectResponse testPlannedConnectResponse()
+{
+    const auto parsed=parseMcsConnectInitial(publishedFixture());
+    assert(parsed);
+    const auto plan=planMcsConnectResponseAllocation(parsed.value);
+    assert(plan);
+    const auto response=encodeMcsConnectResponse(
+        parsed.value,plan->staticChannels(),plan->gccNodeId,kRdpProtocolSsl);
+    assert(response);
+    return response;
+}
+
+void testMcsResponseWriteReceipts()
+{
+    const auto response=testPlannedConnectResponse();
+    McsConnectResponseWriteGate gate;
+    assert(gate.queue(response));
+    const auto first=gate.pendingWrite();
+    assert(first && first.bytes.size()==response.length);
+    assert(gate.onBytesWritten(
+        first.replySequence,first.writeSliceSequence,0U)==
+        McsConnectResponseWriteOutcome::Pending);
+    const auto backpressure=gate.pendingWrite();
+    assert(backpressure.replySequence==first.replySequence);
+    assert(backpressure.writeSliceSequence==first.writeSliceSequence);
+    constexpr std::size_t progress=7U;
+    assert(gate.onBytesWritten(
+        first.replySequence,first.writeSliceSequence,progress)==
+        McsConnectResponseWriteOutcome::Pending);
+    const auto second=gate.pendingWrite();
+    assert(second && second.replySequence==first.replySequence);
+    assert(second.writeSliceSequence!=first.writeSliceSequence);
+    assert(second.bytes.size()==response.length-progress);
+    assert(std::equal(second.bytes.begin(),second.bytes.end(),
+                      response.bytes().begin()+progress,response.bytes().end()));
+    assert(gate.onBytesWritten(
+        second.replySequence,second.writeSliceSequence,second.bytes.size())==
+        McsConnectResponseWriteOutcome::Delivered);
+    assert(!gate.pendingWrite());
+    assert(!gate.queue(response));
+}
+
+void testMcsResponseWriteDenials()
+{
+    const auto response=testPlannedConnectResponse();
+    McsConnectResponse fabricated{};
+    fabricated.length=fabricated.packet.size()+1U;
+    assert(!fabricated && fabricated.bytes().empty());
+    McsConnectResponseWriteGate bad;
+    assert(!bad.queue(fabricated));
+    assert(!bad.queue(response));
+
+    McsConnectResponseAllocation badAllocation{};
+    badAllocation.gccNodeId=1001U;
+    badAllocation.ioChannelId=1003U;
+    badAllocation.staticChannelCount=static_cast<std::uint8_t>(
+        badAllocation.staticChannelIds.size()+1U);
+    assert(!badAllocation && badAllocation.staticChannels().empty());
+
+    McsConnectResponseWriteGate staleReply;
+    assert(staleReply.queue(response));
+    auto write=staleReply.pendingWrite();
+    assert(staleReply.onBytesWritten(
+        write.replySequence+1U,write.writeSliceSequence,1U)==
+        McsConnectResponseWriteOutcome::Rejected);
+    assert(!staleReply.pendingWrite());
+
+    McsConnectResponseWriteGate staleSlice;
+    assert(staleSlice.queue(response));
+    const auto old=staleSlice.pendingWrite();
+    assert(staleSlice.onBytesWritten(
+        old.replySequence,old.writeSliceSequence,1U)==
+        McsConnectResponseWriteOutcome::Pending);
+    const auto current=staleSlice.pendingWrite();
+    assert(current.writeSliceSequence!=old.writeSliceSequence);
+    assert(staleSlice.onBytesWritten(
+        old.replySequence,old.writeSliceSequence,1U)==
+        McsConnectResponseWriteOutcome::Rejected);
+
+    McsConnectResponseWriteGate overreport;
+    assert(overreport.queue(response));
+    write=overreport.pendingWrite();
+    assert(overreport.onBytesWritten(
+        write.replySequence,write.writeSliceSequence,write.bytes.size()+1U)==
+        McsConnectResponseWriteOutcome::Rejected);
+
+    McsConnectResponseWriteGate closed;
+    assert(closed.queue(response)); closed.close();
+    assert(!closed.pendingWrite());
+    assert(closed.onBytesWritten(1U,1U,0U)==
+           McsConnectResponseWriteOutcome::Rejected);
+}
+
 void testMcsResponseRejectInvalidInputs()
 {
     const auto fixture = publishedFixture();
@@ -3915,7 +4044,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 61> kMcsTestCases{{
+constexpr std::array<McsTestCase, 64> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3924,6 +4053,9 @@ constexpr std::array<McsTestCase, 61> kMcsTestCases{{
     {"mcs-domain-rejections", &testMcsDomainNegotiationRejections},
     {"mcs-response-wire", &testMcsResponseWire},
     {"mcs-response-security-replay", &testMcsResponseSecurityReplay},
+    {"mcs-response-session-allocation-plan", &testMcsResponseSessionAllocationPlan},
+    {"mcs-response-write-receipts", &testMcsResponseWriteReceipts},
+    {"mcs-response-write-denials", &testMcsResponseWriteDenials},
     {"mcs-response-rejections", &testMcsResponseRejectInvalidInputs},
     {"mcs-erect-request", &testMcsErectDomainRequest},
     {"mcs-attach-request", &testMcsAttachUserRequest},

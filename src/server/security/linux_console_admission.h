@@ -6,6 +6,7 @@
 #include "linux_logind_console_evidence.h"
 #include "linux_logind_session_change_watch.h"
 #include "transport/mcs_channel_connection.h"
+#include "transport/nonblocking_tcp_adapter.h"
 
 #include <array>
 #include <cstddef>
@@ -151,6 +152,24 @@ public:
         const SSL *activeServerTls,
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::uint32_t requiredPermissions) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::McsConnectResponseWriteView>
+    authorizeR3ConnectResponseWrite(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
+    [[nodiscard]]
+    rdp_server::server::transport::McsConnectResponseWriteOutcome
+    completeR3ConnectResponseWrite(
+        GssapiSpnegoAcceptor &acceptor,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
 
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.

@@ -520,6 +520,52 @@ bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
     return true;
 }
 
+
+std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    const SSL *activeServerTls = connection.establishedTls();
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (activeServerTls == nullptr || !provenance ||
+        !authorizeR3ProtectedTransition(
+            lease, acceptor, activeServerTls, session,
+            kConsoleViewPermission))
+    {
+        if (session.phase() !=
+            rdp_server::server::transport::McsSessionPhase::Closed)
+            revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending = session.prepareConnectResponseWrite(*provenance);
+    if (!pending)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+    return pending;
+}
+
+rdp_server::server::transport::McsConnectResponseWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite(
+    GssapiSpnegoAcceptor &acceptor,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    const auto outcome = session.completeConnectResponseWrite(
+        replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome ==
+        rdp_server::server::transport::McsConnectResponseWriteOutcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
 void LinuxConsoleAdmissionBroker::revokeR3Session(
     GssapiSpnegoAcceptor &acceptor,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept

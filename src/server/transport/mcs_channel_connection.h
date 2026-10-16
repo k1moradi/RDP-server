@@ -2,6 +2,7 @@
 #pragma once
 
 #include "gcc_conference_create.h"
+#include "mcs_connect_response.h"
 #include "rdp_licensing.h"
 
 #include <array>
@@ -451,6 +452,7 @@ enum class McsSessionPhase : std::uint8_t
 {
     AwaitVerifiedR2Admission,
     AwaitConnectResponse,
+    AwaitErectDomain,
     Closed,
 };
 
@@ -466,6 +468,7 @@ enum class McsSessionIntake : std::uint8_t
     Closed,
     InvalidDomainParameters,
     InvalidGccUserData,
+    InvalidResourceAllocation,
     InvalidDomainTransport,
     InvalidDomainPdu,
     InvalidDomainPerValue,
@@ -484,6 +487,15 @@ public:
     [[nodiscard]] RdpLicensingPhase licensingPhase() const noexcept
     {
         return licensing_.phase();
+    }
+    [[nodiscard]] std::uint32_t allocatedGccNodeId() const noexcept
+    { return connectResponseAllocation_ ? connectResponseAllocation_.gccNodeId : 0U; }
+    [[nodiscard]] std::uint16_t allocatedIoChannelId() const noexcept
+    { return connectResponseAllocation_ ? connectResponseAllocation_.ioChannelId : 0U; }
+    [[nodiscard]] std::span<const std::uint16_t> allocatedStaticChannelIds() const noexcept
+    {
+        return connectResponseAllocation_ ? connectResponseAllocation_.staticChannels()
+                                          : std::span<const std::uint16_t>{};
     }
 
     // Denial-only diagnostic entry. Exactly one *already decrypted* complete
@@ -522,6 +534,12 @@ public:
     {
         admissionGeneration_ = 0;
         sessionGeneration_ = 0;
+        connectResponseDomain_ = {};
+        connectResponseClientSettings_ = {};
+        connectResponseAllocation_ = {};
+        connectResponseBoundProvenance_ = {};
+        connectResponseProvenanceBound_ = false;
+        connectResponseWrite_.close();
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
@@ -537,7 +555,19 @@ private:
         std::uint64_t admissionGeneration,
         std::uint64_t sessionGeneration,
         std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<McsConnectResponseWriteView>
+    prepareConnectResponseWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] McsConnectResponseWriteOutcome completeConnectResponseWrite(
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
 
+    McsDomainParameters connectResponseDomain_{};
+    GccClientSettings connectResponseClientSettings_{};
+    McsConnectResponseAllocation connectResponseAllocation_{};
+    SecurityNegotiationProvenance connectResponseBoundProvenance_{};
+    bool connectResponseProvenanceBound_{};
+    McsConnectResponseWriteGate connectResponseWrite_{};
     RdpLicensingLifecycle licensing_{};
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};

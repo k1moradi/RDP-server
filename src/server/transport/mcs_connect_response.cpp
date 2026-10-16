@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <span>
 
 namespace rdp_server::server::transport
@@ -107,6 +108,18 @@ private:
     std::size_t size_{};
 };
 
+constexpr std::uint32_t kAllocatedGccNodeId = 1001U;
+constexpr std::uint16_t kAllocatedIoChannelId = 1003U;
+constexpr std::uint16_t kFirstAllocatedStaticChannelId = 1004U;
+
+[[nodiscard]] bool validNegotiatedDomainForAllocation(
+    const McsDomainParameters &domain) noexcept
+{
+    const auto &v = domain.values;
+    return v[0] >= 4U && v[1] >= 3U && v[3] == 1U && v[5] == 1U &&
+           v[6] >= 124U && v[6] <= 65528U && v[7] == 2U;
+}
+
 [[nodiscard]] bool supportedEnhancedSecurityRequest(
     std::uint32_t clientRequestedProtocols) noexcept
 {
@@ -149,109 +162,167 @@ private:
 }
 } // namespace
 
+
+std::optional<McsConnectResponseAllocation>
+planMcsConnectResponseAllocation(
+    const McsDomainParameters &domain,
+    const GccClientSettings &settings) noexcept
+{
+    static_assert(static_cast<std::uint32_t>(kFirstAllocatedStaticChannelId) +
+                      kMaximumStaticChannelCount - 1U <=
+                  std::numeric_limits<std::uint16_t>::max());
+    const std::size_t count = settings.channelCount;
+    if (!validNegotiatedDomainForAllocation(domain) ||
+        count > kMaximumStaticChannelCount ||
+        count + 3U > domain.values[0])
+        return std::nullopt;
+    McsConnectResponseAllocation out{};
+    out.gccNodeId = kAllocatedGccNodeId;
+    out.ioChannelId = kAllocatedIoChannelId;
+    out.staticChannelCount = static_cast<std::uint8_t>(count);
+    for (std::size_t i=0;i<count;++i)
+        out.staticChannelIds[i] =
+            static_cast<std::uint16_t>(kFirstAllocatedStaticChannelId+i);
+    return out;
+}
+
+std::optional<McsConnectResponseAllocation>
+planMcsConnectResponseAllocation(const McsConnectInitial &client) noexcept
+{
+    const auto d=mergeMcsDomainParameters(client);
+    const auto g=parseGccConferenceCreate(client.gccUserData);
+    if(!d||!g) return std::nullopt;
+    return planMcsConnectResponseAllocation(d.value,g.settings);
+}
+
+bool matchesMcsSecurityNegotiationReplay(
+    const GccClientSettings &settings,
+    const SecurityNegotiationProvenance &p) noexcept
+{
+    return supportedEnhancedSecurityRequest(p.clientRequestedProtocols) &&
+           (p.serverSelectedProtocol==kRdpProtocolSsl ||
+            p.serverSelectedProtocol==kRdpProtocolHybrid) &&
+           (p.clientRequestedProtocols & p.serverSelectedProtocol)!=0U &&
+           settings.hasServerSelectedProtocol &&
+           settings.serverSelectedProtocol==p.serverSelectedProtocol;
+}
+
 bool matchesMcsSecurityNegotiationReplay(
     const McsConnectInitial &client,
-    std::uint32_t clientRequestedProtocols,
-    std::uint32_t serverSelectedProtocol) noexcept
+    std::uint32_t requested,
+    std::uint32_t selected) noexcept
 {
-    const auto gcc = parseGccConferenceCreate(client.gccUserData);
-    if (!gcc ||
-        !supportedEnhancedSecurityRequest(clientRequestedProtocols) ||
-        (serverSelectedProtocol != kRdpProtocolSsl &&
-         serverSelectedProtocol != kRdpProtocolHybrid) ||
-        (clientRequestedProtocols & serverSelectedProtocol) == 0U ||
-        !gcc.settings.hasServerSelectedProtocol)
-    {
-        return false;
+    const auto g=parseGccConferenceCreate(client.gccUserData);
+    return g && matchesMcsSecurityNegotiationReplay(
+        g.settings, SecurityNegotiationProvenance{requested,selected});
+}
+
+McsConnectResponse encodeMcsConnectResponseFromNegotiatedState(
+    const McsDomainParameters &domain,
+    std::size_t expectedCount,
+    std::span<const std::uint16_t> channels,
+    std::uint32_t nodeId,
+    std::uint32_t requested) noexcept
+{
+    if (!validNegotiatedDomainForAllocation(domain) ||
+        nodeId<1001U || nodeId>65536U ||
+        !supportedEnhancedSecurityRequest(requested) ||
+        channels.size()!=expectedCount ||
+        channels.size()>kMaximumStaticChannelCount ||
+        channels.size()+3U>domain.values[0]) return {};
+    for(std::size_t i=0;i<channels.size();++i){
+        if(channels[i]<1004U) return {};
+        for(std::size_t j=0;j<i;++j) if(channels[j]==channels[i]) return {};
     }
-    return gcc.settings.serverSelectedProtocol == serverSelectedProtocol;
+    std::array<std::uint8_t,256> sb{}; Writer settings(sb);
+    if(!encodeServerSettings(settings,channels,requested)) return {};
+    std::array<std::uint8_t,512> gb{}; Writer gcc(gb);
+    const auto off=nodeId-1001U;
+    if(!gcc.raw({0x00,0x05,0x00,0x14,0x7c,0x00,0x01,0x2a,0x14,
+                 static_cast<std::uint8_t>(off>>8U),
+                 static_cast<std::uint8_t>(off),
+                 0x01,0x01,0x00,0x01,0xc0,0x00,'M','c','D','n'}) ||
+       !gcc.perLength(settings.written().size()) ||
+       !gcc.bytes(settings.written())) return {};
+    std::array<std::uint8_t,128> db{}; Writer dom(db);
+    for(const auto v:domain.values) if(!dom.unsignedInteger(v)) return {};
+    std::array<std::uint8_t,1024> bb{}; Writer body(bb);
+    if(!body.raw({0x0a,0x01,0x00,0x02,0x01,0x00}) ||
+       !body.byte(0x30) || !body.berLength(dom.written().size()) ||
+       !body.bytes(dom.written()) || !body.byte(0x04) ||
+       !body.berLength(gcc.written().size()) || !body.bytes(gcc.written()))
+        return {};
+    McsConnectResponse out{}; Writer tpkt(out.packet);
+    const auto bs=body.written().size();
+    const std::size_t bh=bs<128U?1U:bs<256U?2U:3U;
+    const auto total=4U+3U+2U+bh+bs;
+    if(total>out.packet.size()||total>65535U ||
+       !tpkt.raw({0x03,0x00,static_cast<std::uint8_t>(total>>8U),
+                  static_cast<std::uint8_t>(total),0x02,0xf0,0x80,0x7f,0x66}) ||
+       !tpkt.berLength(bs) || !tpkt.bytes(body.written())) return {};
+    out.length=tpkt.written().size();
+    return out;
 }
 
 McsConnectResponse encodeMcsConnectResponse(
     const McsConnectInitial &client,
-    std::span<const std::uint16_t> staticChannelIds,
-    std::uint32_t gccNodeId,
-    std::uint32_t clientRequestedProtocols) noexcept
+    std::span<const std::uint16_t> channels,
+    std::uint32_t nodeId,
+    std::uint32_t requested) noexcept
 {
-    const auto domain = mergeMcsDomainParameters(client);
-    const auto gcc = parseGccConferenceCreate(client.gccUserData);
-    if (!domain || !gcc || gccNodeId < 1001 || gccNodeId > 65536 ||
-        !supportedEnhancedSecurityRequest(clientRequestedProtocols) ||
-        staticChannelIds.size() != gcc.settings.channelCount ||
-        staticChannelIds.size() > kMaximumStaticChannelCount ||
-        staticChannelIds.size() + 3U > domain.value.values[0])
-        return {};
+    const auto d=mergeMcsDomainParameters(client);
+    const auto g=parseGccConferenceCreate(client.gccUserData);
+    if(!d||!g) return {};
+    return encodeMcsConnectResponseFromNegotiatedState(
+        d.value,g.settings.channelCount,channels,nodeId,requested);
+}
 
-    // IDs belong to an eventual, independently authorized MCS domain.
-    // Reject duplicates and reserved/user/I/O channel identifiers.
-    for (std::size_t i = 0; i < staticChannelIds.size(); ++i)
-    {
-        if (staticChannelIds[i] < 1004)
-            return {};
-        for (std::size_t j = 0; j < i; ++j)
-        {
-            if (staticChannelIds[j] == staticChannelIds[i])
-                return {};
+bool McsConnectResponseWriteGate::advanceReplySequence() noexcept
+{
+    if(replySequence_==std::numeric_limits<std::uint64_t>::max()) return false;
+    ++replySequence_; return true;
+}
+bool McsConnectResponseWriteGate::advanceWriteSliceSequence() noexcept
+{
+    if(writeSliceSequence_==std::numeric_limits<std::uint64_t>::max()) return false;
+    ++writeSliceSequence_; return true;
+}
+bool McsConnectResponseWriteGate::queue(const McsConnectResponse &r) noexcept
+{
+    if(closed_||delivered_||pending_||!r||
+       !advanceReplySequence()||!advanceWriteSliceSequence()){
+        close(); return false;
+    }
+    pending_=r; bytesWritten_=0U; return true;
+}
+McsConnectResponseWriteView McsConnectResponseWriteGate::pendingWrite() const noexcept
+{
+    if(closed_||delivered_||!pending_) return {};
+    const auto b=pending_.bytes().subspan(bytesWritten_);
+    return b.empty()?McsConnectResponseWriteView{}:
+        McsConnectResponseWriteView{b,replySequence_,writeSliceSequence_};
+}
+McsConnectResponseWriteOutcome McsConnectResponseWriteGate::onBytesWritten(
+    std::uint64_t reply,std::uint64_t slice,std::size_t accepted) noexcept
+{
+    if(closed_||delivered_||!pending_||reply==0U||reply!=replySequence_||
+       slice==0U||slice!=writeSliceSequence_||
+       accepted>pending_.length-bytesWritten_){
+        close(); return McsConnectResponseWriteOutcome::Rejected;
+    }
+    bytesWritten_+=accepted;
+    if(bytesWritten_!=pending_.length){
+        if(accepted!=0U&&!advanceWriteSliceSequence()){
+            close(); return McsConnectResponseWriteOutcome::Rejected;
         }
+        return McsConnectResponseWriteOutcome::Pending;
     }
-
-    std::array<std::uint8_t, 256> settingBuffer{};
-    Writer settings(settingBuffer);
-    if (!encodeServerSettings(
-            settings, staticChannelIds, clientRequestedProtocols))
-        return {};
-
-    // T.124 GCC ConferenceCreateResponse, one H.221 server userData
-    // set with key "McDn", PER nodeID offset by 1001. The 0x2a
-    // connectPDU length is the value used in MS-RDPBCGR 4.1.4;
-    // clients explicitly ignore this outer field.
-    std::array<std::uint8_t, 512> gccBuffer{};
-    Writer gccResponse(gccBuffer);
-    const auto nodeOffset = gccNodeId - 1001U;
-    if (!gccResponse.raw({0x00, 0x05, 0x00, 0x14, 0x7c, 0x00, 0x01, 0x2a,
-                          0x14,
-                          static_cast<std::uint8_t>(nodeOffset >> 8U),
-                          static_cast<std::uint8_t>(nodeOffset),
-                          0x01, 0x01, 0x00, 0x01, 0xc0, 0x00,
-                          'M', 'c', 'D', 'n'}) ||
-        !gccResponse.perLength(settings.written().size()) ||
-        !gccResponse.bytes(settings.written()))
-        return {};
-
-    std::array<std::uint8_t, 128> domainBuffer{};
-    Writer encodedDomain(domainBuffer);
-    for (const auto value : domain.value.values)
-    {
-        if (!encodedDomain.unsignedInteger(value))
-            return {};
-    }
-
-    std::array<std::uint8_t, 1024> bodyBuffer{};
-    Writer body(bodyBuffer);
-    if (!body.raw({0x0a, 0x01, 0x00, 0x02, 0x01, 0x00}) ||
-        !body.byte(0x30) ||
-        !body.berLength(encodedDomain.written().size()) ||
-        !body.bytes(encodedDomain.written()) ||
-        !body.byte(0x04) ||
-        !body.berLength(gccResponse.written().size()) ||
-        !body.bytes(gccResponse.written()))
-        return {};
-
-    McsConnectResponse output{};
-    Writer tpkt(output.packet);
-    const auto bodySize = body.written().size();
-    const std::size_t berHeader = bodySize < 128 ? 1 :
-                                  bodySize < 256 ? 2 : 3;
-    const auto total = 4U + 3U + 2U + berHeader + bodySize;
-    if (total > output.packet.size() || total > 65535 ||
-        !tpkt.raw({0x03, 0x00, static_cast<std::uint8_t>(total >> 8U),
-                   static_cast<std::uint8_t>(total),
-                   0x02, 0xf0, 0x80, 0x7f, 0x66}) ||
-        !tpkt.berLength(bodySize) ||
-        !tpkt.bytes(body.written()))
-        return {};
-    output.length = tpkt.written().size();
-    return output;
+    pending_={}; bytesWritten_=0U; delivered_=true;
+    return McsConnectResponseWriteOutcome::Delivered;
+}
+void McsConnectResponseWriteGate::close() noexcept
+{
+    pending_={}; bytesWritten_=0U; delivered_=false; closed_=true;
 }
 
 } // namespace rdp_server::server::transport

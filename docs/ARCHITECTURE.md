@@ -2633,3 +2633,21 @@ This is the R1 transport half of R3's Enhanced Security replay correlation.
 R3 still owns GCC/MCS replay validation and response state; R2 still owns
 identity and independent OS authorization. The existence of the snapshot
 cannot publish a Connect Response by itself.
+
+
+## R3 Connect Response R1/R2/R3 composition (2026-10-16)
+
+The first protected outbound MCS transition has one ownership chain: R1
+`OwnedPreauthTcpConnection` owns SSL/socket and immutable X.224 provenance;
+R2 `LinuxConsoleAdmissionBroker` owns the revocable OS-admission lease and
+fresh reauthorization; R3 `McsSessionLifecycle` owns negotiated MCS state,
+identifier allocation, response bytes and write receipts.
+
+R2 reads both the established TLS pointer and
+`SecurityNegotiationProvenance` from the same R1 owner rather than accepting
+protocol scalars from a caller. R3 independently correlates its stored Client
+Core replay before encoding. Each next write slice passes through R2 again.
+Completion uses only the previously issued monotonic reply/slice receipt;
+wrong or late completion fails closed. Full response delivery changes only
+R3's phase to `AwaitErectDomain`; later DomainMCSPDU transitions remain
+separately protected.

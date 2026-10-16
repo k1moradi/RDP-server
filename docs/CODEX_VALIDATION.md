@@ -7880,3 +7880,34 @@ same-SHA commands; genuine positive R2/R3 admitted desktop use; R4 delivery to
 a client; live XTEST input; Microsoft-client M3 acceptance; performance
 benchmarks. The native aggregate remains noninstalled and is not a standalone
 authorization or graphics scheduler.
+
+
+## R3 protected Connect Response authoring validation (2026-10-16)
+
+**Starting base:** `22d6641f0fbf5f92ce4d1327c1dbcd4fc0a1e11b`;
+reconciled onto `abb285087cf500a85090d823fe1ce60881363d4f` without overwriting concurrent R1/R5/R10 work.
+This composes existing R1 provenance and R2 authorization; it creates no
+second TLS/session owner and no synthetic positive admission. Fixed response
+storage is bounded by the existing 2048-byte `McsConnectResponse`;
+peer-controlled counts allocate no heap memory.
+
+Allocation enforces negotiated channel capacity and
+`kMaximumStaticChannelCount`. The serializer requires exact static-channel
+count, supported Enhanced Security request bits, unique static IDs >=1004,
+legal nodeID and negotiated-domain invariants. Malformed public fixed-buffer
+lengths return empty spans rather than violating `std::span::first`
+preconditions.
+
+The R2 broker is the only caller of R3's private response
+prepare/completion operations. Preparation obtains
+`SecurityNegotiationProvenance` from `OwnedPreauthTcpConnection` itself
+after exact TLS establishment and fresh R2 authorization; later provenance
+mismatch closes the owner. Each positive partial write rotates the slice
+receipt; full completion reaches only `AwaitErectDomain`.
+
+Local synchronized CMake/CTest is **NOT RUN** because this agent has no
+shell-clonable repository. New cases are registered in the canonical
+executables, and the R9 native R2/R3 sanitizer selection includes the new
+broker contract. Exact-SHA hosted CI is required after publication. Owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, genuine positive
+Kerberos/logind admission and Microsoft client remain **NOT RUN**.

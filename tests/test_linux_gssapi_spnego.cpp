@@ -192,6 +192,10 @@ using R3NativeChange =
     decltype(&LinuxConsoleAdmissionBroker::onNativeSessionChangeReady);
 using R3ProtectedTransition =
     decltype(&LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition);
+using R3ConnectResponseWrite =
+    decltype(&LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite);
+using R3ConnectResponseCompletion =
+    decltype(&LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite);
 
 static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
@@ -244,6 +248,27 @@ static_assert(!std::is_invocable_v<
               const SSL *,
               McsSessionLifecycle &,
               std::uint32_t>);
+static_assert(std::is_invocable_v<
+              R3ConnectResponseWrite,
+              LinuxConsoleAdmissionBroker &,
+              const LinuxConsoleAdmissionLease &,
+              GssapiSpnegoAcceptor &,
+              const rdp_server::server::transport::OwnedPreauthTcpConnection &,
+              McsSessionLifecycle &>);
+static_assert(!std::is_invocable_v<
+              R3ConnectResponseWrite,
+              LinuxConsoleAdmissionBroker &,
+              bool,
+              GssapiSpnegoAcceptor &,
+              const rdp_server::server::transport::SecurityNegotiationProvenance &,
+              McsSessionLifecycle &>);
+static_assert(std::is_invocable_r_v<
+              rdp_server::server::transport::McsConnectResponseWriteOutcome,
+              R3ConnectResponseCompletion,
+              LinuxConsoleAdmissionBroker &,
+              GssapiSpnegoAcceptor &,
+              McsSessionLifecycle &,
+              std::uint64_t, std::uint64_t, std::size_t>);
 
 void testNativeAdmissionCapabilityDenials()
 {
@@ -336,6 +361,29 @@ void testR3ProtectedTransitionGenerationFence()
     assert(zero.phase() == McsSessionPhase::Closed);
     assert(zero.pendingJoinConfirmation().empty());
     assert(!zero.channelJoinConfirmed(1003U));
+}
+
+
+void testR3ConnectResponseWriteContract()
+{
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST","alice","seat0",":0",
+                       1001,kConsoleViewPermission})==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    assert(broker.completeR3ConnectResponseWrite(
+        acceptor,session,1U,1U,0U)==Outcome::Rejected);
+    assert(session.phase()==McsSessionPhase::Closed);
+    assert(session.licensingPhase()==RdpLicensingPhase::Closed);
+    assert(broker.state()==LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage()==SpnegoStage::Failed);
+    assert(broker.completeR3ConnectResponseWrite(
+        acceptor,session,1U,1U,1U)==Outcome::Rejected);
+    assert(session.phase()==McsSessionPhase::Closed);
 }
 
 void testR3NativeChangeRevocation()
@@ -519,6 +567,11 @@ int main(int argc, char **argv)
             testR3ProtectedTransitionGenerationFence();
             return 0;
         }
+        if (name == "gssapi-r3-connect-response-write-contract")
+        {
+            testR3ConnectResponseWriteContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -545,6 +598,7 @@ int main(int argc, char **argv)
     testNativeAdmissionCapabilityDenials();
     testR3McsAdmissionContract();
     testR3ProtectedTransitionGenerationFence();
+    testR3ConnectResponseWriteContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

@@ -227,8 +227,10 @@ void BgraNv12Converter::reset() noexcept
     codedGeometry_ = {};
     yBytes_ = 0;
     pts_ = 0;
-    // Keep bounded capacity across frames/generations; no native borrow.
-    pixels_.clear();
+    // Keep the initialized scratch size AND capacity across generations.
+    // Clearing size would force a fresh large allocation for the next
+    // same-geometry frame despite retaining capacity. ready_ invalidates
+    // publication without releasing or exposing old pixels.
 }
 
 } // namespace rdp_server::rdp

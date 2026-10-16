@@ -16,7 +16,8 @@ namespace rdp_server::rdp
 // One synchronous R4 BGRA/XRGB -> NV12 scratch owner. FramebufferView is
 // borrowed only while convert() runs. The returned NV12 planes borrow this
 // allocation until the next convert() or reset(); never retain them beyond
-// the existing producer's synchronous prepare() call.
+// the existing producer's synchronous prepare() call. Reset invalidates the
+// view but retains initialized scratch for same-geometry reuse.
 // Not thread-safe: the R4 presentation thread serializes this owner.
 class BgraNv12Converter final
 {

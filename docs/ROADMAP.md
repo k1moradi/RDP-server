@@ -1,3 +1,52 @@
+## R4 BGRA converter reset reuse + exact-SHA matrix (2026-10-16; new CI pending)
+
+The production BGRA-to-NV12 implementation landed directly on `main` at
+[`6749f43fff489eb9d9a8ee27a122bd1004b0c314`](https://github.com/k1moradi/RDP-server/commit/6749f43fff489eb9d9a8ee27a122bd1004b0c314).
+Its [exact-SHA Actions 38894864302](https://github.com/k1moradi/RDP-server/actions/runs/38894864302)
+completed **overall FAIL** (other-road regressions), with the following
+precise evidence:
+
+- **R4:** all five newly registered `graphics.bgra-nv12-*` /
+  `graphics.x264-bgra-*` CTests **PASS** in Linux/GCC Debug and Release,
+  macOS/Clang Debug, and Windows/MSVC Debug. The eight existing
+  `graphics.x264-*` CTests also **PASS** in those Debug jobs.
+- **Linux/GCC:** complete Debug **369/369 PASS** and Release **369/369 PASS**;
+  downstream portable SDK package/consumer **PASS**.
+- **macOS/Clang:** Debug **316/317 PASS**, one unrelated
+  `transport.credssp-r1-owned-framing` assertion at
+  `tests/test_owned_preauth_session.cpp:5708` (R1/R3); Release and SDK
+  downstream **NOT RUN** because Debug CTest stopped the job.
+- **Windows/MSVC:** Debug **339/341 PASS**; unrelated R10
+  `runtime.validates-live-tls-context-construction` and
+  `runtime.tls-context-survives-credential-path-replacement` fail with
+  `OPENSSL_Uplink(...): no OPENSSL_Applink`. Release/downstream **NOT RUN**
+  at this SHA because Debug CTest stopped the job.
+- **R9 selected sanitizer job:** **PASS**, but BGRA converter-specific
+  sanitizer instrumentation **NOT RUN** unless explicitly selected.
+  Documentation-policy job **PASS**.
+- **Owner local:** Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27,
+  native capture integration and Microsoft-client graphics **NOT RUN**.
+
+A focused subsequent R4 correction preserves the converter's initialized
+scratch **size as well as capacity** on `reset()`. The old `clear()`
+invalidated output correctly but caused a new large allocation on the next
+same-geometry conversion despite retained capacity; it could also skip the
+active-overlap check while size was zero. `ready_` continues to invalidate
+published planes, and the entire allocation stays R4-owned. New dedicated
+`graphics.bgra-nv12-reset-scratch-reuse` CTest checks publication
+invalidation, retained capacity, overlap denial immediately after reset,
+same-address reuse on a fresh frame, and correct BT.709 output. This change
+does not alter the codec owner, capture authority or ACK accounting.
+
+**Validation for the reset refinement:** code, CTest and docs authored;
+canonical owner-local compile/full CTest **NOT RUN** (no `~/rdp-server`
+checkout in this environment). Exact-final-SHA hosted CI is required before
+claiming this new regression **PASS**. No listener or synthetic R2/R3 channel
+is enabled. **Next R4:** confirm exact-SHA CI and owner platform checks,
+then integrate only with genuinely admitted R3 Graphics DVC/full-send and
+native R5/R6/R7 synchronous capture seams. Gate B, M3/M4/M5 and live
+Microsoft-client rendering remain **OPEN**.
+
 ## R6 frame-lease acquire callback revocation (2026-10-16; exact-SHA CI pending)
 
 Exact validation of the preceding same-adapter ambiguity fix

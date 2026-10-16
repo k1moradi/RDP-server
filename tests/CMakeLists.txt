@@ -1281,6 +1281,7 @@ foreach(case_name IN ITEMS
         bgra-nv12-bt709-pixel-oracle
         bgra-nv12-stride-padding-lifetime
         bgra-nv12-invalid-frame-denials
+        bgra-nv12-reset-scratch-reuse
         x264-bgra-segmented-production-chain
         x264-bgra-backpressure-reference-denials)
     add_test(NAME "graphics.${case_name}"

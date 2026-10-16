@@ -1,3 +1,38 @@
+## R4 BGRA/NV12 hosted receipt and reset reuse hardening (2026-10-16)
+
+**Published production parent:**
+[`6749f43fff489eb9d9a8ee27a122bd1004b0c314`](https://github.com/k1moradi/RDP-server/commit/6749f43fff489eb9d9a8ee27a122bd1004b0c314).
+[Exact-SHA Actions 38894864302](https://github.com/k1moradi/RDP-server/actions/runs/38894864302)
+**overall FAIL**, correctly separated by owner: Linux/GCC full Debug
+`369/369 PASS`, Release `369/369 PASS`, portable SDK install/consumer
+**PASS**; macOS/Clang Debug `316/317 PASS` with sole R1/R3-owned
+`transport.credssp-r1-owned-framing` assertion in
+`tests/test_owned_preauth_session.cpp:5708`; Windows/MSVC Debug
+`339/341 PASS`, two R10-owned OpenSSL cross-CRT `OPENSSL_Applink`
+failures. Five new R4 BGRA/NV12 tests and eight existing x264 tests
+**PASS** in all three Debug jobs; the five new tests also **PASS** in
+Linux Release. R9's selected sanitizer job and docs-policy **PASS**;
+this does **not** establish converter-specific ASan/UBSan coverage.
+macOS/Windows Release + downstream packaging **NOT RUN** at this SHA due
+to earlier Debug CTest failures.
+
+**New R4 hardening:** eliminate `pixels_.clear()` from
+`BgraNv12Converter::reset()`, retain fully initialized bounded NV12
+scratch, invalidate only the visible `picture()` contract. This fixes
+unexpected new allocation after reset/reopen of the same geometry and
+keeps source/scratch overlap denial active between generations.
+Added behavior-named `graphics.bgra-nv12-reset-scratch-reuse` to
+the existing production-linked test executable and central CTest registry.
+
+**New refinement verification:** compile/CTest/sanitizer/owner-native
+validation **NOT RUN** during authoring; this connector session cannot
+execute the mandated `~/rdp-server/build` build. Exact-final-SHA Linux
+GCC Debug/Release, Windows MSVC Debug/Release, macOS Clang Debug/Release,
+R9, documentation-policy and SDK consumer CI must be inspected after
+publication; owner Linux/X11, MSYS2 CLANG64/Clang23 and macOS27 are
+independent **NOT RUN**. Gate B/M3/M4/M5 and live Microsoft client
+rendering remain **OPEN**.
+
 ## R6 frame-lease callback lifecycle authoring (2026-10-16)
 
 Prior exact-SHA validation: commit

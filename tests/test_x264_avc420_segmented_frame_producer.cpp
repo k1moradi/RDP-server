@@ -466,6 +466,46 @@ void bgraInvalidFrameDenials()
     assert(!converter.picture().yPlane.empty());
 }
 
+void bgraResetRetainsScratchReuse()
+{
+    BgraNv12Converter converter;
+    constexpr PixelSize visible{2, 2};
+    constexpr PixelSize coded{16, 16};
+    auto first = makeBgraFrame(visible, 7);
+    first.solid(255, 0, 0, 0);
+    assert(converter.convert(first.view(), visible, coded, 1));
+
+    const auto before = converter.picture();
+    const std::byte *const scratchAddress = before.yPlane.data();
+    const std::size_t scratchCapacity = converter.capacityBytes();
+    assert(scratchAddress != nullptr && scratchCapacity >= 384U);
+    assert(before.yPlane[0] == std::byte{54});
+
+    converter.reset();
+    // Reset must invalidate both planes and metadata, not release scratch.
+    assert(converter.picture().yPlane.empty());
+    assert(converter.picture().uvPlane.empty());
+    assert(converter.picture().codedGeometry == PixelSize{});
+    assert(converter.capacityBytes() == scratchCapacity);
+
+    // No BGRA input may alias retained scratch, including after reset.
+    const FramebufferView overlapping{
+        std::span<const std::byte>(scratchAddress, 16U), 2, 2, 8};
+    assert(!converter.convert(overlapping, visible, coded, 2));
+    assert(converter.picture().yPlane.empty());
+    assert(converter.capacityBytes() == scratchCapacity);
+
+    auto second = makeBgraFrame(visible, 5);
+    second.solid(0, 255, 0, 255);
+    assert(converter.convert(second.view(), visible, coded, 3));
+    const auto after = converter.picture();
+    assert(after.yPlane.data() == scratchAddress);
+    assert(converter.capacityBytes() == scratchCapacity);
+    assert(after.pts == 3 && after.yPlane[0] == std::byte{182});
+    assert(after.uvPlane[0] == std::byte{30});
+    assert(after.uvPlane[1] == std::byte{12});
+}
+
 void x264BgraSegmentedProductionChain()
 {
     GfxPresentationLifecycle lifecycle;
@@ -602,6 +642,11 @@ int main(int argc, char **argv)
     if (behavior == "bgra-nv12-invalid-frame-denials")
     {
         bgraInvalidFrameDenials();
+        return 0;
+    }
+    if (behavior == "bgra-nv12-reset-scratch-reuse")
+    {
+        bgraResetRetainsScratchReuse();
         return 0;
     }
     if (behavior == "x264-bgra-segmented-production-chain")

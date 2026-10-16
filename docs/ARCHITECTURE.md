@@ -1,3 +1,16 @@
+### R4 reset-stable NV12 scratch lifetime (2026-10-16)
+
+`BgraNv12Converter::reset()` invalidates `picture()` via `ready_ = false`
+and clears visible/coded metadata without destroying its initialized
+contiguous scratch. Subsequent same-byte-size frames reuse the exact
+allocation without a large default-initialization/heap transaction. Input
+overlap validation continues to inspect the live vector extent even between
+presentation generations; it must reject capture aliases of R4 scratch before
+reading or writing. The old coded Y/UV pixels are never exposed as a valid
+frame after reset or after a rejected conversion. The encoder remains the
+sole x264 reference-history owner, and all methods remain serialized by R4's
+event thread.
+
 ### R4 borrowed BGRA framebuffer to owned x264 NV12 input (2026-10-16)
 
 The noninstalled `rdp-server-graphics` target now owns

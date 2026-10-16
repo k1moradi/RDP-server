@@ -15079,3 +15079,44 @@ PASS is claimed. Positive Kerberos/final-CredSSP authorization, NSS/logind
 admission, real licensing credential files, Microsoft-client licensing/Share
 activation and any listener/service remain **NOT RUN / BLOCKED**. M2/M3 remain
 **OPEN / NOT ACCEPTED**.
+
+
+## R7 native geometry coverage-gate exact-SHA hosted validation (2026-10-16)
+
+Corrected implementation `9d05b8f2eec3cce4179402a7aebe968d0f72c6de`,
+GitHub Actions `38965849463`, completed **SUCCESS**. The earlier implementation
+`f5beef84a25bebd82b1e8ae71b32930c2ff5dc23` failed only because the new
+Apple-only test function preceded its synthetic geometry helpers; correction
+`9d05b8f2...` moves the test below those declarations without changing the
+production coverage gate.
+
+The new
+`macos.desktop-native-refresh-requires-topology-coverage` case is **PASS** in
+both macOS/AppleClang Debug and Release. macOS full CTest is **395/395 PASS**
+in each configuration. The test starts from a valid synthetic geometry epoch,
+calls the production `refreshNative()` with no native reconfiguration watch,
+receives `TopologyCoverageUnavailable`, and verifies the old geometry epoch
+was retired. Because the denial precedes `queryNativeDisplaySnapshot`, the
+case performs no live CoreGraphics display enumeration or callback
+registration.
+
+Cross-platform regression evidence is also green: Ubuntu/GCC full CTest is
+**469/469 PASS** in Debug and Release; Windows/MSVC is **424/424 PASS** in
+Debug and Release with focused native preflight **47/47 PASS** in both
+configurations. Installed SDK consumer is **1/1 PASS** on Linux, macOS and
+Windows; packaging/digest/upload succeeds.
+
+The dedicated R7 GCC ASan/UBSan session-watch job is **10/10 PASS** and the
+shared R9 Clang ASan/UBSan job is **PASS** across all configured groups.
+Documentation policy **PASS**; untagged prerelease publication is correctly
+**SKIPPED**.
+
+Production R7 now distinguishes the process registration reservation from
+active Quartz topology coverage: stop clears coverage before observer removal,
+so ambiguous removal cannot authorize a fresh native geometry snapshot.
+Synthetic geometry refresh remains unchanged. Canonical owner-local
+`~/rdp-server/build/`, owner macOS 27 real display-reconfiguration delivery,
+genuine non-forgeable R2/R3 macOS per-user admission, live
+capture/input/cursor publication and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**. The next authority-bearing R7 gate remains the genuine macOS
+admission capability. **M5 remains OPEN/BLOCKED**.

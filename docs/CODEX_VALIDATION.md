@@ -4194,3 +4194,22 @@ Microsoft client input/desktop, or benchmarks. Hosted exact-SHA
 GitHub Actions results require separate verification after
 publication. M4 remains open. **Next:** coordinate an explicitly
 R2/R3-authorized capture lifecycle and R4 frame ownership.
+
+## R7 native CoreGraphics display observation exact-commit CI (2026-10-15)
+
+**Source SHA:** `3274b39c85b817ef2a56215390bf19cc8aa0e5b4`.
+**Exact-source PASS:** [GitHub Actions 38844757901](https://github.com/k1moradi/RDP-server/actions/runs/38844757901):
+Ubuntu/GCC **205/205**, macOS/Apple Clang **191/191**, Windows/MSVC
+**195/195** full registered CTests in **both Debug and Release**. All
+three new `macos.display-snapshot-stable-multi-retina`,
+`macos.display-snapshot-geometry-denials`,
+`macos.display-snapshot-changed-during-read` tests executed and passed
+on every hosted platform. Documentation policy, installed SDK/downstream
+consumer, ZIP/checksum artifacts PASS. No live desktop read, TCC prompt,
+input event or service was invoked by these ordinary CTests.
+**NOT RUN:** owner's independent macOS 27, MSYS2 CLANG64 Clang23,
+Linux/X11 terminal one-liner at a nominated common SHA; native
+interactive display/TCC/reconfiguration tests, authenticated Microsoft
+RDP client and actual desktop, performance/soak. **Next:** R2/R3
+authorization and R4 physical frame layout contract before live native
+ScreenCaptureKit capture; then independently authorized macOS27 trial.

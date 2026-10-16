@@ -2675,6 +2675,19 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 exact-commit hosted display-snapshot CTest PASS (2026-10-15):**
+  Implementation `3274b39c85b817ef2a56215390bf19cc8aa0e5b4`,
+  [Actions 38844757901](https://github.com/k1moradi/RDP-server/actions/runs/38844757901)
+  completed full registered Debug and Release CTest on
+  Ubuntu/GCC **205/205**, hosted macOS/Apple Clang **191/191** and
+  Windows/MSVC **195/195** in EACH configuration. All three new R7
+  `macos.display-snapshot-*` fixture-driven cases passed on all OSes.
+  Documentation-policy, staged SDK consumer and package/artifact checks
+  also PASS. **NOT RUN:** owner macOS 27 terminal, Windows MSYS2 CLANG64
+  Clang23 and Linux/X11 exact-SHA one-root validation, real macOS
+  CoreGraphics enumeration/ScreenCaptureKit authorization/desktop input,
+  Microsoft RDP client acceptance, memory/latency benchmarks. M1/M5
+  remain OPEN.
   **R7 native display enumeration (2026-10-15):** Added an allocation-free
   CoreGraphics active-display read-only snapshot (at most 16 displays),
   preserving global top-left logical-point bounds separately from backing

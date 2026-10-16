@@ -9129,3 +9129,31 @@ New CTests: `macos.capture-framebuffer-view-contract` and
 GCC 14.2 C++23 and Clang 17 ASan+UBSan+LSan. Exact-SHA hosted Apple/full matrix
 is pending. Next R7 remains a genuine non-forgeable macOS R2/R3 capability;
 M5 remains open.
+
+
+## R7 macOS portable framebuffer exact-SHA hosted receipt (2026-10-16)
+
+Implementation `35df03319d0a1cf4ac667f1715e7408958b78d74`,
+Actions `38897985255`, completed the full hosted matrix successfully.
+Linux/GCC full CTest is **388/388 PASS** in both Debug and Release;
+Windows/MSVC is **359/359 PASS** in both Debug and Release; macOS/AppleClang is
+**335/335 PASS** in both Debug and Release. Documentation policy and the R9
+ASan/UBSan/fuzzer job also PASS, and each platform's installed SDK consumer is
+**1/1 PASS**.
+
+The new portable `macos.capture-framebuffer-view-contract` passes in both
+configurations on Linux, Windows and macOS. Apple-only
+`macos.capture-stream-framebuffer-contract` passes in both macOS
+configurations using the synthetic padded CoreVideo buffer. The same Apple
+runs also pass `macos.capture-stream-native-factory-quarantine` and
+`macos.cursor-native-sampler-quarantine`, so the portable handoff did not
+reopen either live native desktop-read path.
+
+AppleClang compiles and links the production CoreVideo lock owner and
+ScreenCaptureKit callback with the new `FramebufferView` consumer signature.
+No frame queue, scheduling, codec, transport or authorization owner was added.
+Current R2 work has advanced R1-owned HYBRID CredSSP progression but still
+provides no non-forgeable macOS native-admission lease/capability. R7 therefore
+does not expose ScreenCaptureKit construction, cursor sampling or Quartz input.
+Owner macOS 27 live capture/cursor/input, real per-user R2/R3 admission,
+Microsoft-client M5 acceptance and performance remain **NOT RUN/BLOCKED**.

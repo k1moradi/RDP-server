@@ -7505,3 +7505,10 @@ authorized R3->R8 route.
 - Microsoft RDP client acceptance: **NOT RUN**.
 - R2/R3 authorization remains external; no runtime capture bypass or automatic startup path was added.
 - M5 remains **OPEN**.
+
+
+### R7 ScreenCaptureKit exact-SHA hosted receipt (2026-10-16)
+
+Implementation `46694f15e388f9929538bafda7f1454559c56a42`, Actions `38876241172`: hosted macOS/AppleClang 21 **COMPILED and LINKED** the real Objective-C++ `screen_capture_stream.mm` into `librdp-server-macos-capture.a`, then built the native lifecycle test executable. `macos.capture-stream-lifecycle`, `macos.capture-stream-stale-generation-denials`, and `macos.capture-stream-callback-retirement` all **PASS**. The full macOS Debug suite is **269/270**, with the sole failure in unrelated `transport.gcc-conference-create` (`earlyCapabilityFlags` assertion); therefore the macOS job is **FAIL**, not a full-suite R7 PASS. Linux is **FAIL** before R7-native code is relevant because concurrent R5 `x11_desktop_resources.cpp` fails `-Werror=extra`; documentation-policy and the R9 sanitizer job **PASS**. Windows remained **IN PROGRESS** when this receipt was authored.
+
+Live ScreenCaptureKit capture, TCC prompt/request, owner macOS 27, genuine R2/R3-authorized desktop binding, R4 client delivery, cursor/input, and Microsoft-client acceptance remain **NOT RUN**. The hosted compile/link result proves SDK compatibility of this bridge only; it does not prove protected screen access. M5 remains **OPEN**.

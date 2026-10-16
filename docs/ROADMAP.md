@@ -1,3 +1,14 @@
+## R1 HYBRID phase compile follow-up (2026-10-16; hosted CI pending)
+
+Exact implementation SHA `8b80bc7d2916e80bc11af9be71070f544795c0ef`, Actions
+`38907356523`, reached the production R1 sources successfully on macOS but the
+new test translation unit failed because
+`substituteCredSspReplyCertificate` was defined later in the file without a
+prior declaration. This is test declaration order only; no production transport
+behavior changes. The follow-up adds the matching test-only forward declaration
+and retains all HYBRID/CredSSP assertions unchanged. Exact follow-up-SHA hosted
+Debug/Release and sanitizer validation is pending. M2 remains **OPEN**.
+
 ## R1 HYBRID CredSSP-before-MCS transport phase (2026-10-16; hosted CI pending)
 
 Authoring parent: `e9acfa52007247488f5088af0a66161e1e9d735a`. P0's deferred loopback TLS-read repair is already

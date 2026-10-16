@@ -4776,6 +4776,10 @@ std::size_t drainCredSspReplyThroughOwnedTls(
 
 
 
+// Test-only certificate substitution helper is defined below the new
+// HYBRID cases; declare it here so all compilers see the helper first.
+void substituteCredSspReplyCertificate(SSL *destination, const SSL *source);
+
 void testOwnedHybridCredSspFirstRecord()
 {
     using Interest = TcpConnectionIoInterest;

@@ -1,3 +1,50 @@
+## R3 bounded TS_INFO_PACKET acceptance boundary (2026-10-16; hosted CI pending)
+
+**Authoring base:** `3bcdb4ad2911de916aae465305f58b9f8c770918`;
+**reconciled shared main:** `f032e4c434642dc788a56e48616e1e72d429935c`.
+The protected Enhanced-Security Client Info envelope already proves one
+fresh R2-authorized, complete begin|end MCS SendDataRequest from the assigned
+client UserId on the joined I/O channel. This increment validates the borrowed
+TS_INFO_PACKET before any connection-sequence state advances.
+
+`parseRdpClientInfoPacket` is allocation-free and never returns Domain,
+UserName, Password, AlternateShell or WorkingDir bytes. It checks the fixed
+18-byte header, Unicode/ANSI string byte counts, mandatory terminators and the
+current 512-byte per-string bound. Optional TS_EXTENDED_INFO_PACKET is checked
+in strict suffix order: AF_INET/AF_INET6, bounded terminated clientAddress and
+clientDir, optional 172-byte time-zone block, session/performance fields,
+zero-or-28-byte Auto-Reconnect cookie, reserved2=0, bounded even Dynamic DST
+key and 0/1 daylight-disabled value. Truncation, malformed optional ordering,
+odd Unicode sizes, missing terminators and trailing bytes fail closed.
+
+After a freshly reauthorized broker call validates both the existing
+MCS/security envelope and the full TS_INFO structure, the sole
+`McsSessionLifecycle` consumes Client Info once and transitions
+`AwaitChannelJoin -> AwaitServerLicenseRequest`. Its embedded licensing
+lifecycle deliberately remains `NotStarted`: no Server License Request bytes
+exist in this increment, and therefore no licensing state can advance without
+a later receipt-bound writer. Duplicate Client Info and late Channel Join are
+no longer valid after this state change. Joined static-channel identity remains
+owned by the same R3 session; CLIPRDR still requires the separate clipboard
+permission and is not payload authority.
+
+Dedicated portable CTests:
+`transport.mcs-client-info-packet-structure` and
+`transport.mcs-client-info-packet-denials`. The existing Linux
+`security.gssapi-r3-client-info-route-contract` is updated to require the
+stateful packet-acceptance broker signature while ordinary CI continues to
+avoid fabricating a positive Kerberos/logind lease.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-SHA hosted Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizers and documentation-policy
+are **PENDING after publication**. Real TS_INFO semantics, credentials,
+Microsoft-client admission, Server License Request construction/delivery,
+license completion, Share activation and desktop acceptance remain **NOT
+RUN/OPEN**. **Next R3:** add the one bounded Server License Request encoder and
+receipt owner, then call the existing licensing lifecycle only after full
+accepted-byte completion. **M2 NOT ACCEPTED.**
+
 ## R2 opt-in owner-driven real Kerberos binding receipt (2026-10-16; exact-SHA CI pending)
 
 R2 implementation `5400566af551b6b5715a23d76569a3e838bcd8bd` plus

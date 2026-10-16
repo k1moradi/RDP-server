@@ -1,3 +1,35 @@
+## R3 TS_INFO_PACKET structural acceptance authoring validation (2026-10-16)
+
+**Base:** `3bcdb4ad2911de916aae465305f58b9f8c770918`.
+Normative review used MS-RDPBCGR TS_INFO_PACKET and
+TS_EXTENDED_INFO_PACKET. The production parser validates the 18-byte base
+header, five length-delimited terminated character fields, Unicode parity and
+bounds, plus the ordered optional extended-info suffix without copying or
+exposing credential strings.
+
+New portable CTests:
+`transport.mcs-client-info-packet-structure` covers Unicode and ANSI base
+forms, minimal extended info and the complete optional suffix;
+`transport.mcs-client-info-packet-denials` covers truncated fixed fields,
+odd/oversized string lengths, missing NULs, unsupported address family,
+extended NUL failures, partial time-zone ordering, invalid reconnect-cookie
+length, reserved2, Dynamic DST length/value and trailing bytes.
+The existing Linux
+`security.gssapi-r3-client-info-route-contract` now type-checks
+`authorizeR3ClientInfoPacket`, which returns only scalar structural summary
+and cannot be invoked with booleans/raw SSL/channel IDs in place of the genuine
+lease and exact R1 connection.
+
+On positive protected acceptance, R3 advances only to
+`AwaitServerLicenseRequest`; licensing remains `NotStarted`. No server
+license bytes or synthetic positive R2 lease are created by tests.
+
+Local canonical compile/CTest is **BLOCKED / NOT RUN** because the owner
+checkout is unavailable here. Exact-SHA hosted cross-platform full matrix,
+R9 sanitizer selections and documentation-policy are **PENDING** after direct
+main publication. Positive Kerberos/logind, real Microsoft Client Info,
+license exchange and Share/desktop acceptance remain **NOT RUN**.
+
 ## R2 opt-in owner-driven real Kerberos binding authoring (2026-10-16)
 
 **Starting reconciled main:** `f032e4c434642dc788a56e48616e1e72d429935c`.

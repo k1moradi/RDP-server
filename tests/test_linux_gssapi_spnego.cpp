@@ -1466,17 +1466,17 @@ void testR3JoinedClipboardRoleContract()
 void testR3ClientInfoRouteContract()
 {
     using Method =
-        decltype(&LinuxConsoleAdmissionBroker::authorizeR3ClientInfoEnvelope);
+        decltype(&LinuxConsoleAdmissionBroker::authorizeR3ClientInfoPacket);
     using Broker = LinuxConsoleAdmissionBroker &;
     using Acceptor = GssapiSpnegoAcceptor &;
     using Connection = const OwnedPreauthTcpConnection &;
     using Session = McsSessionLifecycle &;
     using Packet = std::span<const std::uint8_t>;
-    using View =
-        rdp_server::server::transport::RdpClientInfoEnvelopeView;
+    using Summary =
+        rdp_server::server::transport::RdpClientInfoPacketSummary;
 
     static_assert(std::is_invocable_r_v<
-        std::optional<View>, Method, Broker,
+        std::optional<Summary>, Method, Broker,
         const LinuxConsoleAdmissionLease &, Acceptor,
         Connection, Session, Packet>);
     static_assert(!std::is_invocable_v<
@@ -1510,8 +1510,9 @@ void testR3ClientInfoRouteContract()
     McsSessionLifecycle session;
     OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
 
-    // Ordinary CI must not mint an R2 lease merely to obtain a positive
-    // Client Info route. The public R3 domain entry remains terminal denial.
+    // Ordinary CI must not mint an R2 lease merely to obtain positive
+    // Client Info acceptance. The public R3 domain entry remains terminal
+    // denial and cannot advance to AwaitServerLicenseRequest.
     assert(session.onDomainPdu(clientInfo) ==
            McsSessionIntake::ValidButNotAdmitted);
     assert(session.phase() == McsSessionPhase::Closed);

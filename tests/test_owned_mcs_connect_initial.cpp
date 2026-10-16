@@ -726,6 +726,160 @@ void testMcsClientInfoProtectedRouteDenials()
     assert(!joined.allConfiguredChannelsJoined());
 }
 
+void testRdpClientInfoPacketStructure()
+{
+    // Unicode TS_INFO_PACKET with five empty strings. Each cb* field excludes
+    // its mandatory UTF-16 NUL, so the structural packet is 18 + 5*2 bytes.
+    std::vector<std::uint8_t> unicode(28U, 0U);
+    unicode[4] = 0x10U; // INFO_UNICODE
+    const auto basic = parseRdpClientInfoPacket(unicode);
+    assert(basic);
+    assert(basic.value.unicode);
+    assert(!basic.value.hasExtendedInfo);
+    assert(basic.value.flags == 0x10U);
+    assert(basic.value.domainBytes == 0U);
+    assert(basic.value.userNameBytes == 0U);
+    assert(basic.value.passwordBytes == 0U);
+    assert(basic.value.alternateShellBytes == 0U);
+    assert(basic.value.workingDirBytes == 0U);
+
+    // ANSI shape uses one-byte terminators. Code-page interpretation remains
+    // outside this structural boundary.
+    std::vector<std::uint8_t> ansi(23U, 0U);
+    const auto ansiParsed = parseRdpClientInfoPacket(ansi);
+    assert(ansiParsed && !ansiParsed.value.unicode);
+    assert(!ansiParsed.value.hasExtendedInfo);
+
+    // Minimal TS_EXTENDED_INFO_PACKET: AF_INET, empty terminated address and
+    // clientDir. No later optional fields are required merely by its presence.
+    auto extended = unicode;
+    constexpr std::array<std::uint8_t, 10> minimalExtended{
+        0x02,0x00, // AF_INET
+        0x02,0x00, 0x00,0x00, // cbClientAddress + UTF-16 NUL
+        0x02,0x00, 0x00,0x00  // cbClientDir + UTF-16 NUL
+    };
+    extended.insert(
+        extended.end(), minimalExtended.begin(), minimalExtended.end());
+    const auto extendedParsed = parseRdpClientInfoPacket(extended);
+    assert(extendedParsed);
+    assert(extendedParsed.value.hasExtendedInfo);
+
+    // Full optional suffix through Dynamic DST with empty key name.
+    auto full = extended;
+    full.resize(full.size() + 172U, 0U); // clientTimeZone
+    full.resize(full.size() + 4U, 0U);   // clientSessionId
+    full.resize(full.size() + 4U, 0U);   // performanceFlags
+    full.push_back(0U);                  // cbAutoReconnectCookie = 0
+    full.push_back(0U);
+    full.insert(full.end(), 4U, 0U);     // reserved1/reserved2
+    full.push_back(0U);                  // cbDynamicDSTTimeZoneKeyName = 0
+    full.push_back(0U);
+    full.push_back(0U);                  // dynamicDaylightTimeDisabled = false
+    full.push_back(0U);
+    const auto fullParsed = parseRdpClientInfoPacket(full);
+    assert(fullParsed && fullParsed.value.hasExtendedInfo);
+}
+
+void testRdpClientInfoPacketDenials()
+{
+    std::vector<std::uint8_t> valid(28U, 0U);
+    valid[4] = 0x10U; // INFO_UNICODE
+
+    for (std::size_t size = 0U; size < 18U; ++size)
+    {
+        const auto parsed =
+            parseRdpClientInfoPacket(std::span(valid).first(size));
+        assert(!parsed);
+        assert(parsed.error ==
+               RdpClientInfoPacketError::TruncatedFixedFields);
+    }
+
+    auto odd = valid;
+    odd[8] = 1U; // cbDomain must be even in Unicode form.
+    assert(parseRdpClientInfoPacket(odd).error ==
+           RdpClientInfoPacketError::InvalidStringLength);
+
+    auto tooLarge = valid;
+    tooLarge[8] = 0x00U;
+    tooLarge[9] = 0x02U; // 512 data bytes + 2 terminator exceeds max 512.
+    assert(parseRdpClientInfoPacket(tooLarge).error ==
+           RdpClientInfoPacketError::InvalidStringLength);
+
+    auto nonterminated = valid;
+    nonterminated[19] = 1U; // second byte of empty Domain UTF-16 NUL.
+    assert(parseRdpClientInfoPacket(nonterminated).error ==
+           RdpClientInfoPacketError::MissingStringTerminator);
+
+    auto extended = valid;
+    constexpr std::array<std::uint8_t, 10> minimalExtended{
+        0x02,0x00, 0x02,0x00, 0x00,0x00,
+        0x02,0x00, 0x00,0x00};
+    extended.insert(
+        extended.end(), minimalExtended.begin(), minimalExtended.end());
+
+    auto badFamily = extended;
+    badFamily[28] = 3U;
+    assert(parseRdpClientInfoPacket(badFamily).error ==
+           RdpClientInfoPacketError::InvalidExtendedInfo);
+
+    auto badAddressNul = extended;
+    badAddressNul[33] = 1U;
+    assert(parseRdpClientInfoPacket(badAddressNul).error ==
+           RdpClientInfoPacketError::InvalidExtendedTerminator);
+
+    auto badDirNul = extended;
+    badDirNul[37] = 1U;
+    assert(parseRdpClientInfoPacket(badDirNul).error ==
+           RdpClientInfoPacketError::InvalidExtendedTerminator);
+
+    auto partialTimeZone = extended;
+    partialTimeZone.push_back(0U);
+    assert(parseRdpClientInfoPacket(partialTimeZone).error ==
+           RdpClientInfoPacketError::InvalidOptionalOrdering);
+
+    auto full = extended;
+    full.resize(full.size() + 172U, 0U);
+    full.resize(full.size() + 4U, 0U);
+    full.resize(full.size() + 4U, 0U);
+    const std::size_t autoReconnectOffset = full.size();
+    full.push_back(0U);
+    full.push_back(0U);
+    const std::size_t reservedOffset = full.size();
+    full.insert(full.end(), 4U, 0U);
+    const std::size_t dynamicKeyLengthOffset = full.size();
+    full.push_back(0U);
+    full.push_back(0U);
+    const std::size_t dynamicDisabledOffset = full.size();
+    full.push_back(0U);
+    full.push_back(0U);
+    assert(parseRdpClientInfoPacket(full));
+
+    auto invalidAuto = full;
+    invalidAuto[autoReconnectOffset] = 1U;
+    assert(parseRdpClientInfoPacket(invalidAuto).error ==
+           RdpClientInfoPacketError::InvalidExtendedInfo);
+
+    auto invalidReserved2 = full;
+    invalidReserved2[reservedOffset + 2U] = 1U;
+    assert(parseRdpClientInfoPacket(invalidReserved2).error ==
+           RdpClientInfoPacketError::InvalidExtendedInfo);
+
+    auto oddDynamicKey = full;
+    oddDynamicKey[dynamicKeyLengthOffset] = 1U;
+    assert(parseRdpClientInfoPacket(oddDynamicKey).error ==
+           RdpClientInfoPacketError::InvalidExtendedInfo);
+
+    auto invalidDynamicDisabled = full;
+    invalidDynamicDisabled[dynamicDisabledOffset] = 2U;
+    assert(parseRdpClientInfoPacket(invalidDynamicDisabled).error ==
+           RdpClientInfoPacketError::InvalidExtendedInfo);
+
+    auto trailing = full;
+    trailing.push_back(0U);
+    assert(parseRdpClientInfoPacket(trailing).error ==
+           RdpClientInfoPacketError::InvalidExtendedInfo);
+}
+
 void testMcsResponseWriteReceipts()
 {
     const auto response=testPlannedConnectResponse();
@@ -4541,7 +4695,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 72> kMcsTestCases{{
+constexpr std::array<McsTestCase, 74> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -4555,6 +4709,8 @@ constexpr std::array<McsTestCase, 72> kMcsTestCases{{
     {"mcs-static-channel-role-denials", &testMcsStaticChannelRoleDenials},
     {"mcs-client-info-protected-route", &testMcsClientInfoProtectedRoute},
     {"mcs-client-info-protected-route-denials", &testMcsClientInfoProtectedRouteDenials},
+    {"mcs-client-info-packet-structure", &testRdpClientInfoPacketStructure},
+    {"mcs-client-info-packet-denials", &testRdpClientInfoPacketDenials},
     {"mcs-response-write-receipts", &testMcsResponseWriteReceipts},
     {"mcs-response-write-denials", &testMcsResponseWriteDenials},
     {"mcs-response-rejections", &testMcsResponseRejectInvalidInputs},

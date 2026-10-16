@@ -163,6 +163,49 @@ struct RdpClientInfoEnvelopeParseResult
 parseEnhancedSecurityClientInfoEnvelope(
     std::span<const std::uint8_t> mcsUserData) noexcept;
 
+// Bounded structural validation for MS-RDPBCGR TS_INFO_PACKET plus optional
+// TS_EXTENDED_INFO_PACKET. Sensitive Domain/UserName/Password/Shell/WorkingDir
+// bytes are never returned, copied or logged. Only scalar shape metadata is
+// published. All length arithmetic is checked against the caller-owned span.
+enum class RdpClientInfoPacketError : std::uint8_t
+{
+    None,
+    TruncatedFixedFields,
+    InvalidStringLength,
+    MissingStringTerminator,
+    InvalidExtendedInfo,
+    InvalidExtendedTerminator,
+    InvalidOptionalOrdering,
+};
+
+struct RdpClientInfoPacketSummary
+{
+    std::uint32_t codePage{};
+    std::uint32_t flags{};
+    bool unicode{};
+    bool hasExtendedInfo{};
+    std::uint16_t domainBytes{};
+    std::uint16_t userNameBytes{};
+    std::uint16_t passwordBytes{};
+    std::uint16_t alternateShellBytes{};
+    std::uint16_t workingDirBytes{};
+};
+
+struct RdpClientInfoPacketParseResult
+{
+    RdpClientInfoPacketSummary value{};
+    RdpClientInfoPacketError error{
+        RdpClientInfoPacketError::TruncatedFixedFields};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpClientInfoPacketError::None;
+    }
+};
+
+[[nodiscard]] RdpClientInfoPacketParseResult parseRdpClientInfoPacket(
+    std::span<const std::uint8_t> infoPacket) noexcept;
+
 // T.125 AttachUserConfirm rt-successful with initiator present.
 // 'assignedUserId' is an explicit external allocation, never
 // chosen or reserved by this pure encoder.
@@ -552,6 +595,7 @@ enum class McsSessionPhase : std::uint8_t
     AwaitAttachUser,
     AwaitAttachConfirm,
     AwaitChannelJoin,
+    AwaitServerLicenseRequest,
     Closed,
 };
 
@@ -709,12 +753,19 @@ private:
     resolveVerifiedR2JoinedClipboardChannel(
         const SecurityNegotiationProvenance &provenance) noexcept;
 
-    // First protected post-join message route. It accepts only one complete
-    // client SendDataRequest on the joined I/O channel with begin|end
-    // segmentation and a Basic Security Header that marks Client Info.
-    // TS_INFO_PACKET remains unparsed and no licensing state advances.
+    // First protected post-join message route. This remains a syntax-only
+    // helper: it validates exact MCS/I/O/security-envelope provenance but
+    // leaves TS_INFO_PACKET interpretation to the stateful acceptance below.
     [[nodiscard]] std::optional<RdpClientInfoEnvelopeView>
     routeVerifiedR2ClientInfoEnvelope(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Validate the routed TS_INFO_PACKET without exposing credentials, then
+    // consume this one connection-sequence message and stop at the next
+    // explicit state: a future receipt-bound Server License Request writer.
+    [[nodiscard]] std::optional<RdpClientInfoPacketSummary>
+    acceptVerifiedR2ClientInfoPacket(
         const SecurityNegotiationProvenance &provenance,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 

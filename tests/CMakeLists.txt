@@ -30,6 +30,8 @@ function(add_rdp_test source_file suite behavior)
                 mcs-static-channel-role-denials
                 mcs-client-info-protected-route
                 mcs-client-info-protected-route-denials
+                mcs-client-info-packet-structure
+                mcs-client-info-packet-denials
                 mcs-response-write-receipts
                 mcs-response-write-denials
                 mcs-response-rejections

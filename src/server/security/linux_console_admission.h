@@ -302,13 +302,13 @@ public:
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
 
-    // Route one already-decrypted complete Client Info envelope only after
-    // all requested MCS joins and a fresh native R2/R1 authorization check.
-    // The returned TS_INFO_PACKET span is borrowed syntax, not a credential,
-    // licensing transition, Share activation or reusable admission token.
+    // Consume one fully routed and structurally valid TS_INFO_PACKET after
+    // fresh R1/R2 authorization. Sensitive variable strings are not exposed.
+    // Success moves only to AwaitServerLicenseRequest; licensing remains
+    // NotStarted until a future receipt-bound server request completes.
     [[nodiscard]] std::optional<
-        rdp_server::server::transport::RdpClientInfoEnvelopeView>
-    authorizeR3ClientInfoEnvelope(
+        rdp_server::server::transport::RdpClientInfoPacketSummary>
+    authorizeR3ClientInfoPacket(
         const LinuxConsoleAdmissionLease &lease,
         GssapiSpnegoAcceptor &acceptor,
         const rdp_server::server::transport::OwnedPreauthTcpConnection

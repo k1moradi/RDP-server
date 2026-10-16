@@ -1,3 +1,29 @@
+### R3 bounded Client Info structure and pre-licensing state (2026-10-16)
+
+Client Info is consumed exactly once by the existing R3 session owner. The
+outer route remains responsible for genuine R2 authorization, immutable R1
+HYBRID/TLS provenance, joined assigned user/I/O/static channels, exact I/O
+channel identity and complete MCS segmentation. The new inner parser treats
+TS_INFO_PACKET contents as sensitive untrusted structure, not authentication.
+
+The parser retains no credential/string view. It validates the fixed lengths,
+Unicode/ANSI terminators and bounded optional TS_EXTENDED_INFO_PACKET chain
+using only caller-owned bytes. Extended fields are structural metadata only:
+client address/directory, time-zone bytes, performance/session fields,
+Auto-Reconnect cookie length, reserved fields and Dynamic DST values do not
+authorize an OS session, alter R2 identity or become policy inputs.
+
+A successful protected acceptance changes only
+`McsSessionPhase::AwaitChannelJoin` to
+`McsSessionPhase::AwaitServerLicenseRequest`. The embedded
+`RdpLicensingLifecycle` remains `NotStarted`; the transition does not imply
+that a Server License Request was encoded, queued or delivered. The next
+outbound licensing message must therefore use the existing R3/R2/R1 pattern:
+one R3-owned bounded byte buffer, monotonic reply/slice receipts, fresh R2
+authorization before each publication and completion, and R1 as the only TLS
+writer. Only full accepted-byte completion may call
+`RdpLicensingLifecycle::onServerLicenseRequestWritten()`.
+
 ### R2 real-provider owner-driven CredSSP acceptance test
 
 The authentication boundary has an opt-in test for the transition between

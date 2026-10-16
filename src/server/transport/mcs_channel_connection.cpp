@@ -327,6 +327,174 @@ RdpClientInfoEnvelopeParseResult parseEnhancedSecurityClientInfoEnvelope(
     return {{flags, flagsHi, info}, RdpClientInfoEnvelopeError::None};
 }
 
+RdpClientInfoPacketParseResult parseRdpClientInfoPacket(
+    std::span<const std::uint8_t> infoPacket) noexcept
+{
+    constexpr std::size_t kFixedBytes = 18U;
+    constexpr std::uint32_t kInfoUnicode = 0x00000010U;
+    constexpr std::size_t kMaxStringBytes = 512U;
+    constexpr std::size_t kTimeZoneBytes = 172U;
+    constexpr std::size_t kMaxAddressBytes = 80U;
+    constexpr std::size_t kMaxDynamicTimeZoneKeyBytes = 254U;
+
+    const auto read16 = [](std::span<const std::uint8_t> bytes,
+                           std::size_t offset) noexcept -> std::uint16_t
+    {
+        return static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(bytes[offset]) |
+            (static_cast<std::uint16_t>(bytes[offset + 1U]) << 8U));
+    };
+    const auto read32 = [&read16](std::span<const std::uint8_t> bytes,
+                                  std::size_t offset) noexcept -> std::uint32_t
+    {
+        return static_cast<std::uint32_t>(read16(bytes, offset)) |
+               (static_cast<std::uint32_t>(read16(bytes, offset + 2U)) << 16U);
+    };
+
+    if (infoPacket.size() < kFixedBytes)
+        return {{}, RdpClientInfoPacketError::TruncatedFixedFields};
+
+    RdpClientInfoPacketSummary summary{};
+    summary.codePage = read32(infoPacket, 0U);
+    summary.flags = read32(infoPacket, 4U);
+    summary.unicode = (summary.flags & kInfoUnicode) != 0U;
+    summary.domainBytes = read16(infoPacket, 8U);
+    summary.userNameBytes = read16(infoPacket, 10U);
+    summary.passwordBytes = read16(infoPacket, 12U);
+    summary.alternateShellBytes = read16(infoPacket, 14U);
+    summary.workingDirBytes = read16(infoPacket, 16U);
+
+    const std::size_t terminator = summary.unicode ? 2U : 1U;
+    const std::array<std::uint16_t, 5> lengths{
+        summary.domainBytes,
+        summary.userNameBytes,
+        summary.passwordBytes,
+        summary.alternateShellBytes,
+        summary.workingDirBytes};
+
+    std::size_t offset = kFixedBytes;
+    for (const std::uint16_t rawLength : lengths)
+    {
+        const std::size_t length = rawLength;
+        if ((summary.unicode && (length & 1U) != 0U) ||
+            length > kMaxStringBytes - terminator)
+            return {{}, RdpClientInfoPacketError::InvalidStringLength};
+        if (offset > infoPacket.size() ||
+            length + terminator > infoPacket.size() - offset)
+            return {{}, RdpClientInfoPacketError::InvalidStringLength};
+
+        const std::size_t nullOffset = offset + length;
+        if (infoPacket[nullOffset] != 0U ||
+            (summary.unicode && infoPacket[nullOffset + 1U] != 0U))
+            return {{}, RdpClientInfoPacketError::MissingStringTerminator};
+        offset = nullOffset + terminator;
+    }
+
+    if (offset == infoPacket.size())
+        return {summary, RdpClientInfoPacketError::None};
+
+    summary.hasExtendedInfo = true;
+    auto remaining = [&]() noexcept -> std::size_t
+    {
+        return offset <= infoPacket.size() ? infoPacket.size() - offset : 0U;
+    };
+    auto consumeTerminated = [&](std::size_t length,
+                                 std::size_t maximum) noexcept -> bool
+    {
+        if (length < terminator || length > maximum ||
+            (summary.unicode && (length & 1U) != 0U) ||
+            length > remaining())
+            return false;
+        const std::size_t nullOffset = offset + length - terminator;
+        if (infoPacket[nullOffset] != 0U ||
+            (summary.unicode && infoPacket[nullOffset + 1U] != 0U))
+            return false;
+        offset += length;
+        return true;
+    };
+
+    // TS_EXTENDED_INFO_PACKET mandatory prefix.
+    if (remaining() < 4U)
+        return {{}, RdpClientInfoPacketError::InvalidExtendedInfo};
+    const std::uint16_t addressFamily = read16(infoPacket, offset);
+    offset += 2U;
+    const std::size_t addressBytes = read16(infoPacket, offset);
+    offset += 2U;
+    if (addressFamily != 0x0002U && addressFamily != 0x0017U)
+        return {{}, RdpClientInfoPacketError::InvalidExtendedInfo};
+    if (!consumeTerminated(addressBytes, kMaxAddressBytes))
+        return {{}, RdpClientInfoPacketError::InvalidExtendedTerminator};
+
+    if (remaining() < 2U)
+        return {{}, RdpClientInfoPacketError::InvalidExtendedInfo};
+    const std::size_t clientDirBytes = read16(infoPacket, offset);
+    offset += 2U;
+    if (!consumeTerminated(clientDirBytes, kMaxStringBytes))
+        return {{}, RdpClientInfoPacketError::InvalidExtendedTerminator};
+
+    // Optional fields form a strict suffix chain. An exact stop after any
+    // complete optional group is valid; a partial field or a later field
+    // without its predecessor is not.
+    if (remaining() == 0U)
+        return {summary, RdpClientInfoPacketError::None};
+    if (remaining() < kTimeZoneBytes)
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    offset += kTimeZoneBytes;
+
+    if (remaining() == 0U)
+        return {summary, RdpClientInfoPacketError::None};
+    if (remaining() < 4U)
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    offset += 4U; // clientSessionId
+
+    if (remaining() == 0U)
+        return {summary, RdpClientInfoPacketError::None};
+    if (remaining() < 4U)
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    offset += 4U; // performanceFlags
+
+    if (remaining() == 0U)
+        return {summary, RdpClientInfoPacketError::None};
+    if (remaining() < 2U)
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    const std::size_t autoReconnectBytes = read16(infoPacket, offset);
+    offset += 2U;
+    if (autoReconnectBytes != 0U && autoReconnectBytes != 28U)
+        return {{}, RdpClientInfoPacketError::InvalidExtendedInfo};
+    if (autoReconnectBytes > remaining())
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    offset += autoReconnectBytes;
+
+    if (remaining() == 0U)
+        return {summary, RdpClientInfoPacketError::None};
+    if (remaining() < 4U)
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    offset += 2U; // reserved1 is ignored.
+    if (read16(infoPacket, offset) != 0U)
+        return {{}, RdpClientInfoPacketError::InvalidExtendedInfo};
+    offset += 2U; // reserved2 MUST be zero.
+
+    if (remaining() == 0U)
+        return {summary, RdpClientInfoPacketError::None};
+    if (remaining() < 2U)
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    const std::size_t dynamicKeyBytes = read16(infoPacket, offset);
+    offset += 2U;
+    if (dynamicKeyBytes > kMaxDynamicTimeZoneKeyBytes ||
+        (dynamicKeyBytes & 1U) != 0U ||
+        dynamicKeyBytes > remaining())
+        return {{}, RdpClientInfoPacketError::InvalidExtendedInfo};
+    offset += dynamicKeyBytes;
+    if (remaining() < 2U)
+        return {{}, RdpClientInfoPacketError::InvalidOptionalOrdering};
+    const std::uint16_t dynamicDisabled = read16(infoPacket, offset);
+    offset += 2U;
+    if (dynamicDisabled > 1U || remaining() != 0U)
+        return {{}, RdpClientInfoPacketError::InvalidExtendedInfo};
+
+    return {summary, RdpClientInfoPacketError::None};
+}
+
 McsChannelConfirm encodeMcsAttachUserConfirm(
     std::uint32_t assignedUserId) noexcept
 {
@@ -902,7 +1070,8 @@ std::optional<std::uint16_t>
 McsSessionLifecycle::resolveVerifiedR2JoinedClipboardChannel(
     const SecurityNegotiationProvenance &provenance) noexcept
 {
-    if (phase_ != McsSessionPhase::AwaitChannelJoin ||
+    if ((phase_ != McsSessionPhase::AwaitChannelJoin &&
+         phase_ != McsSessionPhase::AwaitServerLicenseRequest) ||
         allocatedUserId_ == 0U || !connectResponseAllocation_ ||
         !connectResponseProvenanceBound_ ||
         provenance != connectResponseBoundProvenance_)
@@ -968,9 +1137,33 @@ McsSessionLifecycle::routeVerifiedR2ClientInfoEnvelope(
         return std::nullopt;
     }
 
-    // The borrowed TS_INFO_PACKET is only routed. A later R3 increment must
-    // validate its exact internal lengths and then advance licensing order.
+    // Syntax-only route: no sequence state changes here.
     return envelope.value;
+}
+
+std::optional<RdpClientInfoPacketSummary>
+McsSessionLifecycle::acceptVerifiedR2ClientInfoPacket(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    const auto envelope =
+        routeVerifiedR2ClientInfoEnvelope(provenance, completeTpkt);
+    if (!envelope)
+        return std::nullopt;
+
+    const auto info = parseRdpClientInfoPacket(envelope->infoPacket);
+    if (!info)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    // Consuming Client Info is the first state change after Join. The next
+    // legal positive action is an R3-owned Server License Request writer;
+    // the existing licensing lifecycle remains NotStarted until that future
+    // writer reports complete accepted-byte progress.
+    phase_ = McsSessionPhase::AwaitServerLicenseRequest;
+    return info.value;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(

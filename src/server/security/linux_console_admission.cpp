@@ -921,8 +921,8 @@ LinuxConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel(
     return channel;
 }
 
-std::optional<rdp_server::server::transport::RdpClientInfoEnvelopeView>
-LinuxConsoleAdmissionBroker::authorizeR3ClientInfoEnvelope(
+std::optional<rdp_server::server::transport::RdpClientInfoPacketSummary>
+LinuxConsoleAdmissionBroker::authorizeR3ClientInfoPacket(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
@@ -940,11 +940,11 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientInfoEnvelope(
         return std::nullopt;
     }
 
-    const auto routed =
-        session.routeVerifiedR2ClientInfoEnvelope(*provenance, completeTpkt);
-    if (!routed)
+    const auto accepted =
+        session.acceptVerifiedR2ClientInfoPacket(*provenance, completeTpkt);
+    if (!accepted)
         revokeR3Session(acceptor, session);
-    return routed;
+    return accepted;
 }
 
 void LinuxConsoleAdmissionBroker::revokeR3Session(

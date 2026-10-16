@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <span>
@@ -172,28 +173,32 @@ void writeLe32(
     return true;
 }
 
+struct ParsedClientLicenseInfoBody
+{
+    std::span<const std::uint8_t> encryptedPreMasterSecret{};
+    std::span<const std::uint8_t> licenseInfo{};
+    std::span<const std::uint8_t> encryptedHardwareId{};
+    std::span<const std::uint8_t> macData{};
+};
+
 [[nodiscard]] bool parseClientLicenseInfoBody(
     std::span<const std::uint8_t> body,
-    RdpClientLicensingKeyExchangeView &view) noexcept
+    ParsedClientLicenseInfoBody &fields) noexcept
 {
     if (!validInitialClientPrefix(body))
         return false;
 
     std::size_t offset = kInitialClientFixedBytes;
-    std::span<const std::uint8_t> encryptedPreMasterSecret;
-    std::span<const std::uint8_t> licenseInfo;
-    std::span<const std::uint8_t> encryptedHardwareId;
     if (!readRequiredBlob(body, offset, kBlobRandom,
-                          encryptedPreMasterSecret) ||
-        !readRequiredBlob(body, offset, kBlobData, licenseInfo) ||
-        !readRequiredBlob(body, offset, kBlobData, encryptedHardwareId) ||
+                          fields.encryptedPreMasterSecret) ||
+        !readRequiredBlob(body, offset, kBlobData, fields.licenseInfo) ||
+        !readRequiredBlob(body, offset, kBlobData,
+                          fields.encryptedHardwareId) ||
+        fields.encryptedHardwareId.size() != kRdpLicensingHardwareIdBytes ||
         offset > body.size() || body.size() - offset != kMacBytes)
         return false;
 
-    view.type = RdpLicensingMessageType::ClientLicenseInfo;
-    view.clientRandom =
-        body.subspan(kClientRandomOffset, kRdpLicensingRandomBytes);
-    view.encryptedPreMasterSecret = encryptedPreMasterSecret;
+    fields.macData = body.subspan(offset, kMacBytes);
     return true;
 }
 
@@ -228,6 +233,45 @@ void writeLe32(
     std::copy_n(digest.begin(), output.size(), output.begin());
     OPENSSL_cleanse(digest.data(), digest.size());
     return true;
+}
+
+struct MdContextCloser
+{
+    void operator()(EVP_MD_CTX *context) const noexcept
+    {
+        EVP_MD_CTX_free(context);
+    }
+};
+using OwnedMdContext = std::unique_ptr<EVP_MD_CTX, MdContextCloser>;
+
+template <std::size_t SegmentCount>
+[[nodiscard]] bool digestSegments(
+    const EVP_MD *algorithm,
+    const std::array<std::span<const std::uint8_t>, SegmentCount> &segments,
+    std::span<std::uint8_t> output) noexcept
+{
+    OwnedMdContext context{EVP_MD_CTX_new()};
+    if (!context || EVP_DigestInit_ex(context.get(), algorithm, nullptr) != 1)
+        return false;
+
+    for (const auto segment : segments)
+    {
+        if (!segment.empty() &&
+            EVP_DigestUpdate(
+                context.get(), segment.data(), segment.size()) != 1)
+            return false;
+    }
+
+    std::array<std::uint8_t, EVP_MAX_MD_SIZE> digest{};
+    unsigned int digestBytes = 0U;
+    const bool ok =
+        EVP_DigestFinal_ex(
+            context.get(), digest.data(), &digestBytes) == 1 &&
+        digestBytes == output.size();
+    if (ok)
+        std::copy_n(digest.begin(), output.size(), output.begin());
+    OPENSSL_cleanse(digest.data(), digest.size());
+    return ok;
 }
 
 [[nodiscard]] bool saltedHash(
@@ -286,13 +330,171 @@ parseRdpClientLicensingKeyExchange(
             return {{}, RdpClientLicensingKeyExchangeError::MalformedBody};
         break;
     case RdpLicensingMessageType::ClientLicenseInfo:
-        if (!parseClientLicenseInfoBody(parsed.value.body, view))
+    {
+        ParsedClientLicenseInfoBody fields{};
+        if (!parseClientLicenseInfoBody(parsed.value.body, fields))
             return {{}, RdpClientLicensingKeyExchangeError::MalformedBody};
+        view.type = RdpLicensingMessageType::ClientLicenseInfo;
+        view.clientRandom = parsed.value.body.subspan(
+            kClientRandomOffset, kRdpLicensingRandomBytes);
+        view.encryptedPreMasterSecret = fields.encryptedPreMasterSecret;
         break;
+    }
     default:
         return {{}, RdpClientLicensingKeyExchangeError::UnexpectedMessage};
     }
     return {view, RdpClientLicensingKeyExchangeError::None};
+}
+
+RdpClientLicenseInfoParseResult parseRdpClientLicenseInfo(
+    std::span<const std::uint8_t> completeMessage) noexcept
+{
+    const auto parsed = parseRdpLicensingMessage(completeMessage);
+    if (!parsed)
+        return {{}, RdpClientLicenseInfoParseError::InvalidLicensingMessage};
+    if (parsed.value.type != RdpLicensingMessageType::ClientLicenseInfo)
+        return {{}, RdpClientLicenseInfoParseError::UnexpectedMessage};
+
+    ParsedClientLicenseInfoBody fields{};
+    if (!parseClientLicenseInfoBody(parsed.value.body, fields))
+        return {{}, RdpClientLicenseInfoParseError::MalformedBody};
+
+    return {{
+        fields.licenseInfo,
+        fields.encryptedHardwareId,
+        fields.macData},
+        RdpClientLicenseInfoParseError::None};
+}
+
+RdpLicensingRc4Result cryptRdpLicensingData(
+    std::span<const std::uint8_t> encryptionKey,
+    std::span<const std::uint8_t> input,
+    std::span<std::uint8_t> output) noexcept
+{
+    if (encryptionKey.size() != kRdpLicensingKeyBytes)
+        return {RdpLicensingRc4Error::InvalidKey};
+    if (input.size() != output.size())
+        return {RdpLicensingRc4Error::SizeMismatch};
+
+    if (!input.empty())
+        std::memmove(output.data(), input.data(), input.size());
+
+    std::array<std::uint8_t, 256> state{};
+    for (std::size_t index = 0U; index < state.size(); ++index)
+        state[index] = static_cast<std::uint8_t>(index);
+
+    std::uint16_t j = 0U;
+    for (std::size_t index = 0U; index < state.size(); ++index)
+    {
+        j = static_cast<std::uint16_t>(
+            (j + state[index] +
+             encryptionKey[index % kRdpLicensingKeyBytes]) & 0xffU);
+        std::swap(state[index], state[j]);
+    }
+
+    std::uint16_t i = 0U;
+    j = 0U;
+    for (std::size_t index = 0U; index < output.size(); ++index)
+    {
+        i = static_cast<std::uint16_t>((i + 1U) & 0xffU);
+        j = static_cast<std::uint16_t>((j + state[i]) & 0xffU);
+        std::swap(state[i], state[j]);
+        const std::uint16_t streamIndex = static_cast<std::uint16_t>(
+            (state[i] + state[j]) & 0xffU);
+        output[index] ^= state[streamIndex];
+    }
+
+    OPENSSL_cleanse(state.data(), state.size());
+    return {RdpLicensingRc4Error::None};
+}
+
+RdpLicensingMacResult generateRdpLicensingMac(
+    std::span<const std::uint8_t> macSaltKey,
+    std::span<const std::uint8_t> data) noexcept
+{
+    RdpLicensingMacResult result{};
+    if (macSaltKey.size() != kRdpLicensingKeyBytes)
+        return result;
+    if (data.size() > std::numeric_limits<std::uint32_t>::max())
+    {
+        result.error = RdpLicensingMacError::OversizedData;
+        return result;
+    }
+
+    std::array<std::uint8_t, 40> pad1{};
+    std::array<std::uint8_t, 48> pad2{};
+    pad1.fill(0x36U);
+    pad2.fill(0x5cU);
+    std::array<std::uint8_t, 4> lengthBytes{
+        static_cast<std::uint8_t>(data.size()),
+        static_cast<std::uint8_t>(data.size() >> 8U),
+        static_cast<std::uint8_t>(data.size() >> 16U),
+        static_cast<std::uint8_t>(data.size() >> 24U)};
+    std::array<std::uint8_t, 20> shaDigest{};
+
+    const std::array<std::span<const std::uint8_t>, 4> shaSegments{
+        macSaltKey, pad1, lengthBytes, data};
+    if (!digestSegments(EVP_sha1(), shaSegments, shaDigest))
+    {
+        result.error = RdpLicensingMacError::DigestFailure;
+        OPENSSL_cleanse(shaDigest.data(), shaDigest.size());
+        return result;
+    }
+
+    const std::array<std::span<const std::uint8_t>, 3> md5Segments{
+        macSaltKey, pad2, shaDigest};
+    if (!digestSegments(EVP_md5(), md5Segments, result.value))
+    {
+        result.value.fill(0U);
+        result.error = RdpLicensingMacError::DigestFailure;
+        OPENSSL_cleanse(shaDigest.data(), shaDigest.size());
+        return result;
+    }
+
+    OPENSSL_cleanse(shaDigest.data(), shaDigest.size());
+    result.error = RdpLicensingMacError::None;
+    return result;
+}
+
+RdpClientLicenseInfoHardwareIdResult
+verifyRdpClientLicenseInfoHardwareId(
+    std::span<const std::uint8_t> completeMessage,
+    const RdpLicensingKeyMaterial &keyMaterial) noexcept
+{
+    const auto info = parseRdpClientLicenseInfo(completeMessage);
+    if (!info)
+        return {RdpClientLicenseInfoHardwareIdError::InvalidMessage};
+
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId{};
+    const auto decrypted = cryptRdpLicensingData(
+        keyMaterial.encryptionKey,
+        info.value.encryptedHardwareId,
+        hardwareId);
+    if (!decrypted)
+    {
+        OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+        return {RdpClientLicenseInfoHardwareIdError::DecryptFailure};
+    }
+
+    auto mac = generateRdpLicensingMac(
+        keyMaterial.macSaltKey, hardwareId);
+    if (!mac)
+    {
+        OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+        OPENSSL_cleanse(mac.value.data(), mac.value.size());
+        return {RdpClientLicenseInfoHardwareIdError::MacFailure};
+    }
+
+    const bool matches =
+        info.value.macData.size() == mac.value.size() &&
+        CRYPTO_memcmp(
+            info.value.macData.data(), mac.value.data(),
+            mac.value.size()) == 0;
+    OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
+    OPENSSL_cleanse(mac.value.data(), mac.value.size());
+    return {
+        matches ? RdpClientLicenseInfoHardwareIdError::None
+                : RdpClientLicenseInfoHardwareIdError::MacMismatch};
 }
 
 namespace
@@ -750,7 +952,8 @@ RdpInitialLicensingCryptoResult prepareInitialRdpLicensingCrypto(
     }
 
     RdpInitialLicensingCryptoResult result{
-        derived.value, RdpInitialLicensingCryptoError::None};
+        derived.value, RdpInitialLicensingCryptoError::None,
+        exchange.value.type};
     cleanseRdpLicensingKeyMaterial(derived.value);
     return result;
 }
@@ -1132,8 +1335,8 @@ RdpLicensingIntake RdpLicensingLifecycle::onClientMessage(
 
     case RdpLicensingMessageType::ClientLicenseInfo:
     {
-        RdpClientLicensingKeyExchangeView view{};
-        if (!parseClientLicenseInfoBody(parsed.value.body, view))
+        ParsedClientLicenseInfoBody fields{};
+        if (!parseClientLicenseInfoBody(parsed.value.body, fields))
         {
             fail();
             return RdpLicensingIntake::MalformedMessage;

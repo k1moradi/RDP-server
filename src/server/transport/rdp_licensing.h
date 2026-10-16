@@ -105,6 +105,117 @@ struct RdpClientLicensingKeyExchangeParseResult
 parseRdpClientLicensingKeyExchange(
     std::span<const std::uint8_t> completeMessage) noexcept;
 
+struct RdpLicensingKeyMaterial;
+
+// MS-RDPELE 2.2.2.3.1 CLIENT_HARDWARE_ID and MACData have fixed wire sizes.
+inline constexpr std::size_t kRdpLicensingHardwareIdBytes = 20U;
+inline constexpr std::size_t kRdpLicensingMacBytes = 16U;
+
+struct RdpClientLicenseInfoView
+{
+    std::span<const std::uint8_t> licenseInfo{};
+    std::span<const std::uint8_t> encryptedHardwareId{};
+    std::span<const std::uint8_t> macData{};
+};
+
+enum class RdpClientLicenseInfoParseError : std::uint8_t
+{
+    None,
+    InvalidLicensingMessage,
+    UnexpectedMessage,
+    MalformedBody,
+};
+
+struct RdpClientLicenseInfoParseResult
+{
+    RdpClientLicenseInfoView value{};
+    RdpClientLicenseInfoParseError error{
+        RdpClientLicenseInfoParseError::InvalidLicensingMessage};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpClientLicenseInfoParseError::None;
+    }
+};
+
+[[nodiscard]] RdpClientLicenseInfoParseResult parseRdpClientLicenseInfo(
+    std::span<const std::uint8_t> completeMessage) noexcept;
+
+enum class RdpLicensingRc4Error : std::uint8_t
+{
+    None,
+    InvalidKey,
+    SizeMismatch,
+};
+
+struct RdpLicensingRc4Result
+{
+    RdpLicensingRc4Error error{RdpLicensingRc4Error::InvalidKey};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpLicensingRc4Error::None;
+    }
+};
+
+// MS-RDPELE 5.1.3/5.1.4 RC4 with the exact 128-bit licensing key.
+// Equal-size input/output may overlap; no allocation or legacy provider is used.
+[[nodiscard]] RdpLicensingRc4Result cryptRdpLicensingData(
+    std::span<const std::uint8_t> encryptionKey,
+    std::span<const std::uint8_t> input,
+    std::span<std::uint8_t> output) noexcept;
+
+enum class RdpLicensingMacError : std::uint8_t
+{
+    None,
+    InvalidKey,
+    OversizedData,
+    DigestFailure,
+};
+
+struct RdpLicensingMacResult
+{
+    std::array<std::uint8_t, kRdpLicensingMacBytes> value{};
+    RdpLicensingMacError error{RdpLicensingMacError::InvalidKey};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpLicensingMacError::None;
+    }
+};
+
+// MS-RDPELE 5.1.5 licensing MAC generation.
+[[nodiscard]] RdpLicensingMacResult generateRdpLicensingMac(
+    std::span<const std::uint8_t> macSaltKey,
+    std::span<const std::uint8_t> data) noexcept;
+
+enum class RdpClientLicenseInfoHardwareIdError : std::uint8_t
+{
+    None,
+    InvalidMessage,
+    DecryptFailure,
+    MacFailure,
+    MacMismatch,
+};
+
+struct RdpClientLicenseInfoHardwareIdResult
+{
+    RdpClientLicenseInfoHardwareIdError error{
+        RdpClientLicenseInfoHardwareIdError::InvalidMessage};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpClientLicenseInfoHardwareIdError::None;
+    }
+};
+
+// Decrypt the 20-byte HWID and compare its MAC in constant time. This proves
+// only HWID integrity; the CAL still requires trust/product/expiry validation.
+[[nodiscard]] RdpClientLicenseInfoHardwareIdResult
+verifyRdpClientLicenseInfoHardwareId(
+    std::span<const std::uint8_t> completeMessage,
+    const RdpLicensingKeyMaterial &keyMaterial) noexcept;
+
 struct RdpLicensingKeyMaterial
 {
     std::array<std::uint8_t, kRdpLicensingKeyBytes> macSaltKey{};
@@ -193,6 +304,8 @@ struct RdpInitialLicensingCryptoResult
     RdpLicensingKeyMaterial value{};
     RdpInitialLicensingCryptoError error{
         RdpInitialLicensingCryptoError::InvalidClientMessage};
+    RdpLicensingMessageType messageType{
+        RdpLicensingMessageType::ErrorAlert};
 
     [[nodiscard]] explicit operator bool() const noexcept
     {

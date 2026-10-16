@@ -74,6 +74,10 @@ function(add_rdp_test source_file suite behavior)
                 licensing-key-exchange-wire
                 licensing-key-exchange-denials
                 licensing-key-derivation
+                licensing-rc4-wire
+                licensing-mac-wire
+                licensing-client-license-info-hwid-proof
+                licensing-client-license-info-hwid-denials
                 licensing-premaster-rsa-decrypt
                 licensing-premaster-rsa-denials
                 licensing-initial-crypto-preparation

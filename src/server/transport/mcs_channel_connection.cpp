@@ -1364,6 +1364,18 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
         return std::nullopt;
     }
 
+    if (prepared.messageType == RdpLicensingMessageType::ClientLicenseInfo)
+    {
+        const auto hardwareId = verifyRdpClientLicenseInfoHardwareId(
+            envelope.value.licensingMessage, prepared.value);
+        if (!hardwareId)
+        {
+            cleanseRdpLicensingKeyMaterial(prepared.value);
+            close();
+            return std::nullopt;
+        }
+    }
+
     licensingKeyMaterial_ = prepared.value;
     cleanseRdpLicensingKeyMaterial(prepared.value);
     licensingKeyMaterialReady_ = true;
@@ -1382,6 +1394,7 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
         return std::nullopt;
     }
 
+    acceptedInitialLicensingIntake_ = intake;
     phase_ = McsSessionPhase::AwaitServerLicenseDecision;
     return intake;
 }

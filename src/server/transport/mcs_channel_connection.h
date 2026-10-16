@@ -735,6 +735,7 @@ public:
         licensingCredentialBound_ = false;
         cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
         licensingKeyMaterialReady_ = false;
+        acceptedInitialLicensingIntake_.reset();
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
@@ -856,6 +857,7 @@ private:
     bool licensingCredentialBound_{};
     RdpLicensingKeyMaterial licensingKeyMaterial_{};
     bool licensingKeyMaterialReady_{};
+    std::optional<RdpLicensingIntake> acceptedInitialLicensingIntake_{};
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};
     std::uint64_t sessionGeneration_{};

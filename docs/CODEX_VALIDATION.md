@@ -14776,3 +14776,73 @@ this connector environment. Genuine authenticated R3
 native capture performance and Microsoft-client visible graphics acceptance
 remain **BLOCKED/NOT RUN**. The next R4 production integration gate remains
 that real R3 channel seam; Gate B and M3/M4/M5 remain **OPEN**.
+
+## R3 CLIENT_LICENSE_INFO HWID integrity boundary (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `06d2e08eeea0c224c949b68ae46ffb5b9bd7175a`.
+
+R3 now implements the next cryptographic prerequisite for an existing-license
+client without claiming that the presented CAL is valid. The licensing layer
+exposes the exact borrowed `CLIENT_LICENSE_INFO` fields needed by later
+license validation: the opaque CAL BLOB, encrypted hardware identification and
+16-byte MACData. The encrypted hardware identifier is structurally required to
+be exactly the 20-byte `CLIENT_HARDWARE_ID` defined by MS-RDPELE 2.2.2.3.1.
+
+A bounded first-party `cryptRdpLicensingData` implements the RC4 transform
+specified by MS-RDPELE 5.1.3/5.1.4 using only the exact 16-byte licensing
+encryption key. It uses fixed 256-byte stack state, supports overlapping
+input/output through memmove staging, allocates nothing and cleanses the RC4
+state after use. It deliberately avoids dependence on OpenSSL's optional legacy
+RC4 provider.
+
+`generateRdpLicensingMac` implements MS-RDPELE 5.1.5 exactly:
+`MD5(macKey || pad2 || SHA1(macKey || pad1 || LE32(dataLength) || data))`.
+SHA-1/MD5 are invoked only for this protocol-defined compatibility checksum via
+the existing OpenSSL digest boundary.
+
+`verifyRdpClientLicenseInfoHardwareId` decrypts the 20-byte HWID with the
+derived licensing encryption key, regenerates MACData over the plaintext HWID
+and compares it with `CRYPTO_memcmp`. Plaintext HWID and temporary MAC bytes
+are cleansed before return and are never exposed or retained.
+
+The protected first-client-response transition now invokes that verifier when
+the already-bound response is `CLIENT_LICENSE_INFO`. HWID integrity failure
+closes the sole R3 owner before the licensing lifecycle can remain in the
+server-decision state. Success still advances only to
+`AwaitServerLicenseDecision`; the session retains the branch enum and the
+already-derived two 16-byte keys, not CAL or HWID payload.
+`CLIENT_NEW_LICENSE_REQUEST` remains on its separate Platform Challenge
+decision branch.
+
+New production-linked CTests:
+`transport.licensing-rc4-wire`,
+`transport.licensing-mac-wire`,
+`transport.licensing-client-license-info-hwid-proof`, and
+`transport.licensing-client-license-info-hwid-denials`. The RC4/MAC oracles
+are fixed independent specification vectors. Denials cover key/size errors,
+MAC mismatch, ciphertext corruption, wrong key, wrong message type and malformed
+encrypted-HWID length. All four are selected by the bounded R1/R3 ASan/UBSan
+registry preflight.
+
+This increment deliberately does **not** validate the CAL certificate/signature,
+product identity, expiration state or CAL-to-HWID binding and therefore cannot
+emit `STATUS_VALID_CLIENT`. It creates no Platform Challenge, New/Upgrade
+License, Demand Active, Share, graphics, input, clipboard or desktop authority.
+R1 remains the only TLS/application-I/O owner, R2 the native
+admission/reauthorization owner, and R10 the real service/license-authority
+configuration owner.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer, documentation-policy and
+SDK/package evidence are pending. Genuine Kerberos/NSS/logind positive
+admission, real licensing authority material and Microsoft-client
+licensing/Share/desktop acceptance remain **NOT RUN / OPEN**.
+
+**Next R3:** either add bounded CAL parsing plus provisioned trust/product/
+expiration/HWID validation for the now-MAC-verified
+`CLIENT_LICENSE_INFO`, or implement the standards-required receipt-bound
+Server Platform Challenge branch for `CLIENT_NEW_LICENSE_REQUEST`.
+Only after the full relevant branch is cryptographically valid may a protected
+server licensing result be serialized. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

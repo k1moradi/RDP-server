@@ -4544,8 +4544,13 @@ makeClientNewLicenseRequestWithKeyExchange(
 }
 
 [[nodiscard]] std::vector<std::uint8_t>
-makeClientLicenseInfo()
+makeClientLicenseInfoWithHardwareProof(
+    std::span<const std::uint8_t> encryptedHardwareId,
+    std::span<const std::uint8_t> macData)
 {
+    assert(encryptedHardwareId.size() == kRdpLicensingHardwareIdBytes);
+    assert(macData.size() == kRdpLicensingMacBytes);
+
     std::vector<std::uint8_t> message{0x12, 0x03, 0x00, 0x00};
     appendLicensingLe32(message, 1U);
     appendLicensingLe32(message, 0x04010000U);
@@ -4554,11 +4559,24 @@ makeClientLicenseInfo()
 
     appendLicensingBlob(message, 0x0002U, {0x31, 0x32});
     appendLicensingBlob(message, 0x0001U, {0x41, 0x42, 0x43});
-    appendLicensingBlob(message, 0x0001U, {0x51, 0x52, 0x53});
-    for (std::uint8_t value = 0; value < 16U; ++value)
-        message.push_back(static_cast<std::uint8_t>(0x80U + value));
+    appendLicensingBlob(message, 0x0001U, encryptedHardwareId);
+    message.insert(message.end(), macData.begin(), macData.end());
     finishLicensingMessageSize(message);
     return message;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientLicenseInfo()
+{
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> encryptedHardwareId{};
+    std::array<std::uint8_t, kRdpLicensingMacBytes> macData{};
+    for (std::size_t index = 0U; index < encryptedHardwareId.size(); ++index)
+        encryptedHardwareId[index] =
+            static_cast<std::uint8_t>(0x40U + index);
+    for (std::size_t index = 0U; index < macData.size(); ++index)
+        macData[index] = static_cast<std::uint8_t>(0x80U + index);
+    return makeClientLicenseInfoWithHardwareProof(
+        encryptedHardwareId, macData);
 }
 
 [[nodiscard]] std::vector<std::uint8_t>
@@ -5338,6 +5356,174 @@ void testRdpLicensingKeyDerivation()
            RdpLicensingKeyDerivationError::InvalidInput);
 }
 
+void testRdpLicensingRc4Wire()
+{
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> plain{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,
+        0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x10,0x11,0x12,0x13};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> cipher{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+
+    std::array<std::uint8_t, plain.size()> output{};
+    assert(cryptRdpLicensingData(key, plain, output));
+    assert(output == cipher);
+    assert(cryptRdpLicensingData(key, output, output));
+    assert(output == plain);
+
+    // memmove staging makes partial overlap deterministic and safe.
+    std::array<std::uint8_t, plain.size() + 2U> overlap{};
+    std::copy(plain.begin(), plain.end(), overlap.begin());
+    assert(cryptRdpLicensingData(
+        key,
+        std::span<const std::uint8_t>{overlap.data(), plain.size()},
+        std::span<std::uint8_t>{overlap.data() + 2U, plain.size()}));
+    assert(std::equal(
+        overlap.begin() + 2U, overlap.end(), cipher.begin()));
+
+    std::array<std::uint8_t, plain.size()> guarded{};
+    guarded.fill(0xa5U);
+    assert(!cryptRdpLicensingData(
+        std::span(key).first(key.size() - 1U), plain, guarded));
+    assert(std::all_of(
+        guarded.begin(), guarded.end(),
+        [](std::uint8_t value) { return value == 0xa5U; }));
+    assert(!cryptRdpLicensingData(
+        key, plain, std::span(guarded).first(guarded.size() - 1U)));
+}
+
+void testRdpLicensingMacWire()
+{
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> data{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,
+        0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x10,0x11,0x12,0x13};
+    // Independent MS-RDPELE 5.1.5 oracle:
+    // MD5(key || pad2 || SHA1(key || pad1 || LE32(20) || data)).
+    constexpr std::array<std::uint8_t, kRdpLicensingMacBytes> expected{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+
+    const auto result = generateRdpLicensingMac(key, data);
+    assert(result);
+    assert(result.value == expected);
+
+    const auto badKey = generateRdpLicensingMac(
+        std::span(key).first(key.size() - 1U), data);
+    assert(!badKey);
+    assert(badKey.error == RdpLicensingMacError::InvalidKey);
+    assert(std::all_of(
+        badKey.value.begin(), badKey.value.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+}
+
+void testRdpClientLicenseInfoHardwareIdProof()
+{
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> cipher{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+    constexpr std::array<std::uint8_t, kRdpLicensingMacBytes> mac{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+
+    const auto message =
+        makeClientLicenseInfoWithHardwareProof(cipher, mac);
+    const auto view = parseRdpClientLicenseInfo(message);
+    assert(view);
+    assert(view.value.licenseInfo.size() == 3U);
+    assert(std::equal(
+        view.value.encryptedHardwareId.begin(),
+        view.value.encryptedHardwareId.end(), cipher.begin()));
+    assert(std::equal(
+        view.value.macData.begin(), view.value.macData.end(), mac.begin()));
+
+    RdpLicensingKeyMaterial material{};
+    material.macSaltKey = key;
+    material.encryptionKey = key;
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+    cleanseRdpLicensingKeyMaterial(material);
+}
+
+void testRdpClientLicenseInfoHardwareIdDenials()
+{
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> cipher{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+    constexpr std::array<std::uint8_t, kRdpLicensingMacBytes> mac{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+
+    RdpLicensingKeyMaterial material{};
+    material.macSaltKey = key;
+    material.encryptionKey = key;
+
+    auto badMac = mac;
+    badMac[0] ^= 0x01U;
+    const auto macMessage =
+        makeClientLicenseInfoWithHardwareProof(cipher, badMac);
+    const auto macDenied =
+        verifyRdpClientLicenseInfoHardwareId(macMessage, material);
+    assert(!macDenied);
+    assert(macDenied.error ==
+           RdpClientLicenseInfoHardwareIdError::MacMismatch);
+
+    auto badCipher = cipher;
+    badCipher[3] ^= 0x80U;
+    const auto cipherMessage =
+        makeClientLicenseInfoWithHardwareProof(badCipher, mac);
+    const auto cipherDenied =
+        verifyRdpClientLicenseInfoHardwareId(cipherMessage, material);
+    assert(!cipherDenied);
+    assert(cipherDenied.error ==
+           RdpClientLicenseInfoHardwareIdError::MacMismatch);
+
+    auto wrongKey = material;
+    wrongKey.encryptionKey[0] ^= 0x01U;
+    const auto wrongKeyDenied =
+        verifyRdpClientLicenseInfoHardwareId(
+            makeClientLicenseInfoWithHardwareProof(cipher, mac), wrongKey);
+    assert(!wrongKeyDenied);
+    assert(wrongKeyDenied.error ==
+           RdpClientLicenseInfoHardwareIdError::MacMismatch);
+    cleanseRdpLicensingKeyMaterial(wrongKey);
+
+    const auto unexpected =
+        verifyRdpClientLicenseInfoHardwareId(
+            makeClientNewLicenseRequest(), material);
+    assert(!unexpected);
+    assert(unexpected.error ==
+           RdpClientLicenseInfoHardwareIdError::InvalidMessage);
+
+    // Exact CLIENT_HARDWARE_ID length is structural, not merely cryptographic.
+    auto malformed = makeClientLicenseInfoWithHardwareProof(cipher, mac);
+    // Packet offsets: 4-byte preamble + 40-byte fixed client prefix,
+    // premaster BLOB (4+2), LicenseInfo BLOB (4+3), then the EncryptedHWID
+    // BLOB header. Its little-endian length therefore begins at offset 59.
+    constexpr std::size_t encryptedHardwareLengthOffset = 59U;
+    assert(malformed.size() > encryptedHardwareLengthOffset + 1U);
+    malformed[encryptedHardwareLengthOffset] =
+        static_cast<std::uint8_t>(kRdpLicensingHardwareIdBytes - 1U);
+    malformed[encryptedHardwareLengthOffset + 1U] = 0U;
+    const auto malformedDenied =
+        verifyRdpClientLicenseInfoHardwareId(malformed, material);
+    assert(!malformedDenied);
+    assert(malformedDenied.error ==
+           RdpClientLicenseInfoHardwareIdError::InvalidMessage);
+
+    cleanseRdpLicensingKeyMaterial(material);
+}
+
 using LicensingKeyPointer =
     std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using LicensingCertificatePointer =
@@ -6079,7 +6265,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 93> kMcsTestCases{{
+constexpr std::array<McsTestCase, 97> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -6137,6 +6323,10 @@ constexpr std::array<McsTestCase, 93> kMcsTestCases{{
     {"licensing-key-exchange-wire", &testRdpClientLicensingKeyExchangeViews},
     {"licensing-key-exchange-denials", &testRdpClientLicensingKeyExchangeDenials},
     {"licensing-key-derivation", &testRdpLicensingKeyDerivation},
+    {"licensing-rc4-wire", &testRdpLicensingRc4Wire},
+    {"licensing-mac-wire", &testRdpLicensingMacWire},
+    {"licensing-client-license-info-hwid-proof", &testRdpClientLicenseInfoHardwareIdProof},
+    {"licensing-client-license-info-hwid-denials", &testRdpClientLicenseInfoHardwareIdDenials},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
     {"licensing-initial-crypto-preparation", &testRdpInitialLicensingCryptoPreparation},

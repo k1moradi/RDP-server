@@ -34,6 +34,69 @@ std::vector<std::uint8_t> responsePdu(
     return result;
 }
 
+std::vector<std::uint8_t> capabilitiesPdu(std::uint32_t generalFlags)
+{
+    const std::array<std::uint8_t, 16> payload{
+        1, 0, 0, 0,
+        1, 0, 12, 0,
+        2, 0, 0, 0,
+        static_cast<std::uint8_t>(generalFlags),
+        static_cast<std::uint8_t>(generalFlags >> 8U),
+        static_cast<std::uint8_t>(generalFlags >> 16U),
+        static_cast<std::uint8_t>(generalFlags >> 24U),
+    };
+    std::vector<std::uint8_t> result;
+    assert(encodePdu(rdp_server::clipboard::kClipCaps, 0, payload, result));
+    return result;
+}
+
+void put32(std::span<std::uint8_t> bytes, std::size_t offset,
+           std::uint32_t value)
+{
+    assert(offset + 4U <= bytes.size());
+    bytes[offset] = static_cast<std::uint8_t>(value);
+    bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 16U);
+    bytes[offset + 3U] = static_cast<std::uint8_t>(value >> 24U);
+}
+
+void put64(std::span<std::uint8_t> bytes, std::size_t offset,
+           std::uint64_t value)
+{
+    put32(bytes, offset, static_cast<std::uint32_t>(value));
+    put32(bytes, offset + 4U, static_cast<std::uint32_t>(value >> 32U));
+}
+
+void putFileName(std::span<std::uint8_t> descriptor,
+                 std::u16string_view name)
+{
+    constexpr std::size_t kNameOffset = 72U;
+    constexpr std::size_t kMaximumNameCodeUnits = 260U;
+    assert(name.size() < kMaximumNameCodeUnits);
+    assert(descriptor.size() >= kNameOffset + kMaximumNameCodeUnits * 2U);
+    for (std::size_t index = 0; index < name.size(); ++index)
+    {
+        const std::uint16_t codeUnit = static_cast<std::uint16_t>(name[index]);
+        descriptor[kNameOffset + index * 2U] =
+            static_cast<std::uint8_t>(codeUnit);
+        descriptor[kNameOffset + index * 2U + 1U] =
+            static_cast<std::uint8_t>(codeUnit >> 8U);
+    }
+}
+
+std::vector<std::uint8_t> fileContentsResponsePdu(
+    std::uint16_t flags, std::uint32_t streamId,
+    std::span<const std::uint8_t> data = {})
+{
+    std::vector<std::uint8_t> payload(4U + data.size());
+    put32(payload, 0, streamId);
+    std::copy(data.begin(), data.end(), payload.begin() + 4U);
+    std::vector<std::uint8_t> result;
+    assert(encodePdu(rdp_server::clipboard::kFileContentsResponse,
+                     flags, payload, result));
+    return result;
+}
+
 void testBasicRequestAndFailure()
 {
     RemoteTransfer transfer;
@@ -1514,6 +1577,284 @@ void testJoinedFormatDataRequestGenerationCancellation()
     assert(!tooEarly.synchronized());
 }
 
+// R8 file-list metadata stays bounded and generation scoped. The wire
+// FILEDESCRIPTORW names are accepted only as safe leaf names; no whole file
+// body is copied into this owner.
+void testFileDescriptorMetadataValidation()
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t kFileListFormatId = 0xc100U;
+    constexpr std::size_t kDescriptorBytes = 592U;
+    constexpr std::uint32_t kFdAttributes = 0x00000004U;
+    constexpr std::uint32_t kFdFileSize = 0x00000040U;
+    constexpr std::uint32_t kFileAttributeDirectory = 0x00000010U;
+    constexpr std::uint32_t kFileAttributeNormal = 0x00000080U;
+    constexpr std::uint32_t kFileFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+
+    RemoteTransfer transfer;
+    // The peer/local policy may offer locking, but R8 does not negotiate that
+    // bit until lock/unlock write receipts exist.
+    assert(transfer.receiveCapabilitiesPdu(capabilitiesPdu(0x3eU), 0x3eU));
+    assert(transfer.negotiatedGeneralFlags() == kFileFlags);
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(formats, kFileListFormatId, "FileGroupDescriptorW");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(transfer.fileStreamingAvailable());
+
+    std::vector<std::uint8_t> request;
+    assert(transfer.beginFileGroupDescriptorRequest(request));
+    PduView requestView{};
+    assert(decodePdu(request, requestView));
+    assert(requestView.type == kFormatDataRequest);
+    assert(requestView.payload.size() == 4U);
+
+    std::vector<std::uint8_t> list(4U + 2U * kDescriptorBytes, 0);
+    put32(list, 0, 2);
+    auto first = std::span(list).subspan(4U, kDescriptorBytes);
+    put32(first, 0, kFdAttributes | kFdFileSize);
+    put32(first, 36U, kFileAttributeNormal);
+    put64(first, 64U, (std::uint64_t{1} << 32U) + 17U);
+    putFileName(first, u"alpha.txt");
+
+    auto second = std::span(list).subspan(
+        4U + kDescriptorBytes, kDescriptorBytes);
+    put32(second, 0, kFdAttributes);
+    put32(second, 36U, kFileAttributeDirectory);
+    putFileName(second, u"folder");
+
+    const auto listWire = responsePdu(kResponseOk, list);
+    const auto response = transfer.receiveResponse(listWire);
+    assert(response.status == RemoteTransfer::ResponseStatus::Received);
+    assert(transfer.storeFileGroupDescriptors(response));
+    assert(transfer.remoteFileCount() == 2U);
+
+    const auto alpha = transfer.remoteFile(0);
+    assert(alpha &&
+           std::u16string_view{alpha->name.data(), alpha->name.size()} ==
+               u"alpha.txt");
+    assert(alpha->sizeKnown);
+    assert(alpha->size == (std::uint64_t{1} << 32U) + 17U);
+    assert(!alpha->directory);
+    assert(alpha->attributes == kFileAttributeNormal);
+
+    // Huge-file negotiation permits a nonzero high offset DWORD.
+    const auto highRange = transfer.beginFileRangeRequest(
+        0, std::uint64_t{1} << 32U, 1U, request);
+    assert(highRange);
+    PduView highRangeView{};
+    assert(decodePdu(request, highRangeView));
+    assert(highRangeView.payload[12] == 0U);
+    assert(highRangeView.payload[16] == 1U);
+    assert(transfer.cancelUnsentFileContentsRequest(highRange->sequence));
+
+    const auto folder = transfer.remoteFile(1);
+    assert(folder &&
+           std::u16string_view{folder->name.data(), folder->name.size()} ==
+               u"folder");
+    assert(folder->directory);
+    assert(!folder->sizeKnown);
+    assert(!transfer.beginFileRangeRequest(1, 0, 1, request));
+
+    // A path-bearing name is not retained as a local destination hint.
+    assert(transfer.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> badList(4U + kDescriptorBytes, 0);
+    put32(badList, 0, 1);
+    auto bad = std::span(badList).subspan(4U, kDescriptorBytes);
+    put32(bad, 0, kFdFileSize);
+    putFileName(bad, u"dir\\escape.txt");
+    const auto badWire = responsePdu(kResponseOk, badList);
+    const auto badResponse = transfer.receiveResponse(badWire);
+    assert(!transfer.storeFileGroupDescriptors(badResponse));
+    assert(transfer.remoteFileCount() == 2U);
+    assert(transfer.synchronized());
+
+    // Without huge-file capability a high file-size DWORD is rejected.
+    RemoteTransfer bounded;
+    constexpr std::uint32_t kSmallFileFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled | kFileclipNoFilePaths;
+    assert(bounded.receiveCapabilitiesPdu(
+        capabilitiesPdu(kSmallFileFlags), kSmallFileFlags));
+    assert(bounded.receiveLongFormatListPdu(longFormatPdu(formats)));
+    assert(bounded.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> hugeList(4U + kDescriptorBytes, 0);
+    put32(hugeList, 0, 1);
+    auto huge = std::span(hugeList).subspan(4U, kDescriptorBytes);
+    put32(huge, 0, kFdFileSize);
+    put64(huge, 64U, std::uint64_t{1} << 32U);
+    putFileName(huge, u"huge.bin");
+    const auto hugeWire = responsePdu(kResponseOk, hugeList);
+    const auto hugeResponse = bounded.receiveResponse(hugeWire);
+    assert(!bounded.storeFileGroupDescriptors(hugeResponse));
+    assert(bounded.remoteFileCount() == 0);
+    assert(bounded.synchronized());
+}
+
+void testFileContentsSizeRangeStreaming()
+{
+    using namespace rdp_server::clipboard;
+    using Status = RemoteTransfer::FileContentsStatus;
+    constexpr std::uint32_t kFileListFormatId = 0xc101U;
+    constexpr std::size_t kDescriptorBytes = 592U;
+    constexpr std::uint32_t kFileFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+
+    RemoteTransfer transfer;
+    assert(transfer.receiveCapabilitiesPdu(
+        capabilitiesPdu(kFileFlags), kFileFlags));
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(formats, kFileListFormatId, "FileGroupDescriptorW");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+
+    std::vector<std::uint8_t> request;
+    assert(transfer.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> list(4U + kDescriptorBytes, 0);
+    put32(list, 0, 1);
+    putFileName(std::span(list).subspan(4U, kDescriptorBytes), u"stream.bin");
+    const auto listWire = responsePdu(kResponseOk, list);
+    const auto listResponse = transfer.receiveResponse(listWire);
+    assert(transfer.storeFileGroupDescriptors(listResponse));
+    assert(!transfer.remoteFile(0)->sizeKnown);
+
+    const auto sizeRequest = transfer.beginFileSizeRequest(0, request);
+    assert(sizeRequest && transfer.hasOutstandingFileContentsRequest());
+    PduView requestView{};
+    assert(decodePdu(request, requestView));
+    assert(requestView.type == kFileContentsRequest);
+    assert(requestView.flags == 0);
+    assert(requestView.payload.size() == 24U);
+    assert(requestView.payload[0] ==
+           static_cast<std::uint8_t>(sizeRequest->streamId));
+    assert(requestView.payload[8] == 1U);
+    assert(requestView.payload[20] == 8U);
+
+    std::array<std::uint8_t, 8> sizeBytes{};
+    put64(sizeBytes, 0, 100000U);
+    const auto sizeWire = fileContentsResponsePdu(
+        kResponseOk, sizeRequest->streamId, sizeBytes);
+    const auto sizeResult = transfer.receiveFileContentsResponse(sizeWire);
+    assert(sizeResult.status == Status::ReceivedSize);
+    assert(sizeResult.fileSize == 100000U);
+    assert(!transfer.hasOutstandingFileContentsRequest());
+    assert(transfer.remoteFile(0)->sizeKnown);
+    assert(transfer.remoteFile(0)->size == 100000U);
+
+    const auto rangeRequest = transfer.beginFileRangeRequest(
+        0, 65530U, 16U, request);
+    assert(rangeRequest);
+    assert(decodePdu(request, requestView));
+    assert(requestView.type == kFileContentsRequest);
+    assert(requestView.payload[8] == 2U);
+    assert(requestView.payload[12] == 0xfaU);
+    assert(requestView.payload[13] == 0xffU);
+    assert(requestView.payload[20] == 16U);
+
+    const std::array<std::uint8_t, 8> chunk{
+        1, 2, 3, 4, 5, 6, 7, 8};
+    const auto rangeWire = fileContentsResponsePdu(
+        kResponseOk, rangeRequest->streamId, chunk);
+    const auto rangeResult = transfer.receiveFileContentsResponse(rangeWire);
+    assert(rangeResult.status == Status::ReceivedRange);
+    assert(rangeResult.offset == 65530U);
+    assert(std::equal(rangeResult.bytes.begin(), rangeResult.bytes.end(),
+                      chunk.begin(), chunk.end()));
+
+    assert(!transfer.beginFileRangeRequest(
+        0, 0, RemoteTransfer::kMaximumFileContentsChunkBytes + 1U, request));
+    assert(!transfer.beginFileRangeRequest(0, 99999U, 2U, request));
+
+    const auto cancelled = transfer.beginFileRangeRequest(0, 0, 32U, request);
+    assert(cancelled);
+    assert(!transfer.cancelUnsentFileContentsRequest(
+        cancelled->sequence + 1U));
+    assert(transfer.cancelUnsentFileContentsRequest(cancelled->sequence));
+    assert(!transfer.hasOutstandingFileContentsRequest());
+
+    // Replacement does not let a late stream response attach to new files.
+    const auto obsolete = transfer.beginFileRangeRequest(0, 0, 4U, request);
+    assert(obsolete);
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{kFormatUnicodeText}));
+    const std::array<std::uint8_t, 4> oldBytes{9, 8, 7, 6};
+    const auto obsoleteWire = fileContentsResponsePdu(
+        kResponseOk, obsolete->streamId, oldBytes);
+    const auto obsoleteResult =
+        transfer.receiveFileContentsResponse(obsoleteWire);
+    assert(obsoleteResult.status == Status::DiscardedPreviousGeneration);
+    assert(transfer.remoteFileCount() == 0U);
+    assert(transfer.synchronized());
+}
+
+void testFileContentsResponseRejections()
+{
+    using namespace rdp_server::clipboard;
+    using Status = RemoteTransfer::FileContentsStatus;
+    constexpr std::uint32_t kFileListFormatId = 0xc102U;
+    constexpr std::size_t kDescriptorBytes = 592U;
+    constexpr std::uint32_t kFdFileSize = 0x00000040U;
+    constexpr std::uint32_t kFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled | kFileclipNoFilePaths;
+
+    const auto prepare = [&]() {
+        RemoteTransfer owner;
+        assert(owner.receiveCapabilitiesPdu(capabilitiesPdu(kFlags), kFlags));
+        std::vector<std::uint8_t> formats;
+        appendLongFormat(formats, kFileListFormatId, "FileGroupDescriptorW");
+        assert(owner.receiveLongFormatListPdu(longFormatPdu(formats)));
+        std::vector<std::uint8_t> request;
+        assert(owner.beginFileGroupDescriptorRequest(request));
+        std::vector<std::uint8_t> list(4U + kDescriptorBytes, 0);
+        put32(list, 0, 1);
+        auto descriptor = std::span(list).subspan(4U, kDescriptorBytes);
+        put32(descriptor, 0, kFdFileSize);
+        put64(descriptor, 64U, 32U);
+        putFileName(descriptor, u"small.bin");
+        const auto wire = responsePdu(kResponseOk, list);
+        assert(owner.storeFileGroupDescriptors(owner.receiveResponse(wire)));
+        return owner;
+    };
+
+    {
+        auto owner = prepare();
+        std::vector<std::uint8_t> request;
+        const auto pending = owner.beginFileRangeRequest(0, 0, 4, request);
+        assert(pending);
+        const std::array<std::uint8_t, 1> data{1};
+        const auto wrong = fileContentsResponsePdu(
+            kResponseOk, pending->streamId + 1U, data);
+        assert(owner.receiveFileContentsResponse(wrong).status ==
+               Status::ProtocolError);
+        assert(!owner.synchronized());
+    }
+    {
+        auto owner = prepare();
+        std::vector<std::uint8_t> request;
+        const auto pending = owner.beginFileRangeRequest(0, 0, 4, request);
+        assert(pending);
+        const std::array<std::uint8_t, 5> tooMuch{1, 2, 3, 4, 5};
+        const auto oversized = fileContentsResponsePdu(
+            kResponseOk, pending->streamId, tooMuch);
+        assert(owner.receiveFileContentsResponse(oversized).status ==
+               Status::ProtocolError);
+        assert(!owner.synchronized());
+    }
+    {
+        auto owner = prepare();
+        std::vector<std::uint8_t> request;
+        const auto pending = owner.beginFileSizeRequest(0, request);
+        assert(pending);
+        std::array<std::uint8_t, 8> huge{};
+        put64(huge, 0, std::uint64_t{1} << 32U);
+        const auto response = fileContentsResponsePdu(
+            kResponseOk, pending->streamId, huge);
+        assert(owner.receiveFileContentsResponse(response).status ==
+               Status::ProtocolError);
+        assert(!owner.synchronized());
+    }
+}
+
 // R8: a raw, framed data response is not a native text-paste offer until
 // its UTF-16LE is verified and copied for the current clipboard generation.
 void testVerifiedUnicodeTextReadiness()
@@ -1934,6 +2275,21 @@ int main(int argumentCount, char **arguments)
         if (caseName == "mcs-joined-response-teardown")
         {
             testMcsJoinedClipboardResponseTeardown();
+            return 0;
+        }
+        if (caseName == "file-descriptor-metadata-validation")
+        {
+            testFileDescriptorMetadataValidation();
+            return 0;
+        }
+        if (caseName == "file-contents-size-range-streaming")
+        {
+            testFileContentsSizeRangeStreaming();
+            return 0;
+        }
+        if (caseName == "file-contents-response-rejections")
+        {
+            testFileContentsResponseRejections();
             return 0;
         }
         if (caseName == "verified-unicode-text-readiness")

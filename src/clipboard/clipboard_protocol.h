@@ -21,10 +21,21 @@ constexpr std::uint16_t kFormatListResponse = 3;
 constexpr std::uint16_t kFormatDataRequest = 4;
 constexpr std::uint16_t kFormatDataResponse = 5;
 constexpr std::uint16_t kClipCaps = 7;
+constexpr std::uint16_t kFileContentsRequest = 8;
+constexpr std::uint16_t kFileContentsResponse = 9;
+constexpr std::uint16_t kLockClipdata = 10;
+constexpr std::uint16_t kUnlockClipdata = 11;
 
 constexpr std::uint16_t kResponseOk = 0x0001;
 constexpr std::uint16_t kResponseFail = 0x0002;
-constexpr std::uint16_t kUseLongFormatNames = 0x0002;
+constexpr std::uint32_t kUseLongFormatNames = 0x00000002U;
+constexpr std::uint32_t kStreamFileclipEnabled = 0x00000004U;
+constexpr std::uint32_t kFileclipNoFilePaths = 0x00000008U;
+constexpr std::uint32_t kCanLockClipdata = 0x00000010U;
+constexpr std::uint32_t kHugeFileSupportEnabled = 0x00000020U;
+
+constexpr std::uint32_t kFileContentsSize = 0x00000001U;
+constexpr std::uint32_t kFileContentsRange = 0x00000002U;
 
 constexpr std::uint16_t kFormatText = 1;
 constexpr std::uint16_t kFormatUnicodeText = 13;

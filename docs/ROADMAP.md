@@ -4608,7 +4608,41 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   integration (URI/file-descriptor/portal or another native adapter) since
   RDP file streaming alone does not make remote files locally openable.
   Do not require FUSE or `~/thinclient_drives` by default.
-  **Status: NOT RUN.**
+  **Status: PARTIAL — bounded R8 FileContents owner (2026-10-16).**
+  The existing `RemoteTransfer` now accepts `FileGroupDescriptorW` only
+  when `CB_STREAM_FILECLIP_ENABLED` is jointly negotiated. It retains at
+  most 64 exact 592-byte FILEDESCRIPTORW metadata records, never file bodies.
+  UTF-16 file names must be terminated, scalar-valid leaf names with zero
+  padding; path separators, drive separators, control characters and Windows
+  reserved filename characters are rejected. File attributes and optional
+  64-bit sizes are generation scoped; directories are represented as metadata
+  but cannot start byte-range reads. Sizes above 4 GiB and nonzero high offset
+  DWORDs require `CB_HUGE_FILE_SUPPORT_ENABLED`.
+
+  File size/range requests use one monotonic 32-bit `streamId` at a time,
+  never reused across disconnect, with a 64-KiB maximum range. Responses must
+  echo that exact stream ID. Size replies are exact 64-bit little-endian
+  values; range replies are borrowed bounded spans rather than retained file
+  copies. A valid new Format List invalidates metadata while an already-issued
+  old-generation response is drained as obsolete. Wrong stream IDs,
+  malformed size replies and oversized/out-of-file range replies fail closed.
+  Because lock/unlock write receipts are not implemented yet,
+  `CB_CAN_LOCK_CLIPDATA` is no longer included in R8's supported-general-flags
+  mask; the owner now advertises at most long names, stream file copy,
+  no-file-paths and huge-file support.
+
+  Dedicated CTests:
+  `clipboard.file-descriptor-metadata-validation`,
+  `clipboard.file-contents-size-range-streaming`, and
+  `clipboard.file-contents-response-rejections`.
+  Authoring parent main `23d9f362283d27bee7fc7cd4646b402512934575`; full exact-SHA CI and owner machine tests
+  are NOT RUN at authoring. This increment is still an offline R8 protocol
+  boundary: genuine R3-authorized CLIPRDR framing/TLS writes for FileContents,
+  `CB_LOCK_CLIPDATA`/`CB_UNLOCK_CLIPDATA` receipts, native destination
+  integration, directory-tree materialization and real-client file copy remain
+  NOT IMPLEMENTED / NOT RUN. **Next R8:** add lock/unlock lifetime receipts
+  and joined-channel FileContents framing once R3's authoritative Attach/Join
+  lifecycle exists; continue Windows/macOS native clipboard work in parallel.
 - [ ] **Real Microsoft-client clipboard acceptance**: macOS screenshot
   taken while Windows App is unfocused, delayed Format List after refocus,
   then remote paste on Linux/X11 into Firefox. Inspect the *synchronous*

@@ -319,6 +319,9 @@ function(add_rdp_test source_file suite behavior)
                 prefetch-unicode-png-dib-single-flight
                 format-data-request-joined-mcs-envelope
                 format-data-request-generation-cancellation
+                file-descriptor-metadata-validation
+                file-contents-size-range-streaming
+                file-contents-response-rejections
                 verified-unicode-text-readiness
                 verified-image-readiness
                 nonblocking-paste-readiness)

@@ -70,6 +70,99 @@ constexpr std::uint64_t kMaximumDecodedImageBytes =
            static_cast<std::uint32_t>(bytes[offset + 3]) << 24U;
 }
 
+[[nodiscard]] std::uint64_t read64(std::span<const std::uint8_t> bytes,
+                                   std::size_t offset) noexcept
+{
+    return static_cast<std::uint64_t>(read32(bytes, offset)) |
+           (static_cast<std::uint64_t>(read32(bytes, offset + 4U)) << 32U);
+}
+
+void write32(std::span<std::uint8_t> bytes, std::size_t offset,
+             std::uint32_t value) noexcept
+{
+    bytes[offset] = static_cast<std::uint8_t>(value);
+    bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 16U);
+    bytes[offset + 3U] = static_cast<std::uint8_t>(value >> 24U);
+}
+
+[[nodiscard]] bool parseRemoteLeafFileName(
+    std::span<const std::uint8_t> bytes,
+    std::array<char16_t, 260> &name,
+    std::uint16_t &nameLength) noexcept
+{
+    if (bytes.size() != name.size() * 2U)
+    {
+        return false;
+    }
+
+    name.fill(u'\0');
+    nameLength = 0;
+    bool terminated = false;
+    bool pendingHighSurrogate = false;
+    for (std::size_t index = 0; index < name.size(); ++index)
+    {
+        const std::uint16_t codeUnit = read16(bytes, index * 2U);
+        if (terminated)
+        {
+            if (codeUnit != 0)
+            {
+                return false;
+            }
+            continue;
+        }
+        if (codeUnit == 0)
+        {
+            if (pendingHighSurrogate || index == 0)
+            {
+                return false;
+            }
+            terminated = true;
+            nameLength = static_cast<std::uint16_t>(index);
+            continue;
+        }
+
+        if (codeUnit < 0x20U || codeUnit == '<' || codeUnit == '>' ||
+            codeUnit == ':' || codeUnit == '"' || codeUnit == '/' ||
+            codeUnit == '\\' || codeUnit == '|' || codeUnit == '?' ||
+            codeUnit == '*')
+        {
+            return false;
+        }
+        if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
+        {
+            if (pendingHighSurrogate)
+            {
+                return false;
+            }
+            pendingHighSurrogate = true;
+        }
+        else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
+        {
+            if (!pendingHighSurrogate)
+            {
+                return false;
+            }
+            pendingHighSurrogate = false;
+        }
+        else if (pendingHighSurrogate)
+        {
+            return false;
+        }
+        name[index] = static_cast<char16_t>(codeUnit);
+    }
+    if (!terminated)
+    {
+        return false;
+    }
+    if ((nameLength == 1U && name[0] == u'.') ||
+        (nameLength == 2U && name[0] == u'.' && name[1] == u'.'))
+    {
+        return false;
+    }
+    return true;
+}
+
 // Registered names used for image/file negotiation are ASCII, but on the
 // CLIPRDR wire they are encoded as UTF-16LE. Compare without allocating.
 [[nodiscard]] bool matchesUtf16Name(std::span<const std::uint8_t> bytes,
@@ -153,6 +246,9 @@ bool RemoteTransfer::receiveFormatList(
     verifiedImageGeneration_ = 0;
     verifiedImageSourceFormatId_ = 0;
     verifiedImageReady_ = false;
+    remoteFiles_.fill({});
+    remoteFileCount_ = 0;
+    remoteFileGeneration_ = 0;
     if (poisoned_ || generation_ == std::numeric_limits<std::uint64_t>::max() ||
         advertisedFormatIds.size() > kMaximumFormats)
     {
@@ -775,6 +871,360 @@ bool RemoteTransfer::abandonJoinedRequest(std::uint64_t sequence) noexcept
     return true;
 }
 
+bool RemoteTransfer::fileStreamingAvailable() const noexcept
+{
+    using namespace rdp_server::clipboard;
+    return !poisoned_ && generation_ != 0 &&
+           fileGroupDescriptorFormatId_ != 0 &&
+           advertises(fileGroupDescriptorFormatId_) &&
+           (negotiatedGeneralFlags_ & kStreamFileclipEnabled) != 0;
+}
+
+bool RemoteTransfer::beginFileGroupDescriptorRequest(
+    std::vector<std::uint8_t> &output) noexcept
+{
+    output.clear();
+    return fileStreamingAvailable() &&
+           beginRequest(fileGroupDescriptorFormatId_, output);
+}
+
+bool RemoteTransfer::storeFileGroupDescriptors(
+    const Response &response) noexcept
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::size_t kDescriptorBytes = 592U;
+    constexpr std::size_t kNameOffset = 72U;
+    constexpr std::size_t kNameBytes = 520U;
+    constexpr std::uint32_t kFdAttributes = 0x00000004U;
+    constexpr std::uint32_t kFdFileSize = 0x00000040U;
+    constexpr std::uint32_t kFileAttributeDirectory = 0x00000010U;
+
+    if (!fileStreamingAvailable() || pendingValid_ ||
+        response.status != ResponseStatus::Received ||
+        response.generation != generation_ ||
+        response.formatId != fileGroupDescriptorFormatId_ ||
+        response.payload.size() < 4U)
+    {
+        return false;
+    }
+
+    const std::size_t count = read32(response.payload, 0);
+    if (count > kMaximumRemoteFiles ||
+        count > (std::numeric_limits<std::size_t>::max() - 4U) /
+                    kDescriptorBytes ||
+        response.payload.size() != 4U + count * kDescriptorBytes)
+    {
+        return false;
+    }
+
+    std::array<RemoteFileDescriptor, kMaximumRemoteFiles> candidate{};
+    const bool hugeFiles =
+        (negotiatedGeneralFlags_ & kHugeFileSupportEnabled) != 0;
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        const auto descriptor =
+            response.payload.subspan(4U + index * kDescriptorBytes,
+                                     kDescriptorBytes);
+        auto &file = candidate[index];
+        const std::uint32_t flags = read32(descriptor, 0);
+        file.attributes =
+            (flags & kFdAttributes) != 0 ? read32(descriptor, 36U) : 0U;
+        file.directory =
+            (flags & kFdAttributes) != 0 &&
+            (file.attributes & kFileAttributeDirectory) != 0;
+        file.sizeKnown = (flags & kFdFileSize) != 0;
+        if (file.sizeKnown)
+        {
+            const std::uint32_t high = read32(descriptor, 64U);
+            const std::uint32_t low = read32(descriptor, 68U);
+            if (!hugeFiles && high != 0)
+            {
+                return false;
+            }
+            file.size = static_cast<std::uint64_t>(low) |
+                        (static_cast<std::uint64_t>(high) << 32U);
+        }
+        if (!parseRemoteLeafFileName(
+                descriptor.subspan(kNameOffset, kNameBytes),
+                file.name, file.nameLength))
+        {
+            return false;
+        }
+    }
+
+    remoteFiles_ = candidate;
+    remoteFileCount_ = count;
+    remoteFileGeneration_ = generation_;
+    return true;
+}
+
+std::size_t RemoteTransfer::remoteFileCount() const noexcept
+{
+    return !poisoned_ && remoteFileGeneration_ == generation_
+               ? remoteFileCount_
+               : 0U;
+}
+
+std::optional<RemoteTransfer::RemoteFileView>
+RemoteTransfer::remoteFile(std::size_t fileIndex) const noexcept
+{
+    if (poisoned_ || remoteFileGeneration_ != generation_ ||
+        fileIndex >= remoteFileCount_)
+    {
+        return std::nullopt;
+    }
+    const auto &file = remoteFiles_[fileIndex];
+    return RemoteFileView{
+        std::span<const char16_t>{file.name.data(), file.nameLength},
+        file.size,
+        file.attributes,
+        file.sizeKnown,
+        file.directory,
+    };
+}
+
+std::optional<RemoteTransfer::FileContentsRequestReceipt>
+RemoteTransfer::beginFileContentsRequest(
+    FileContentsKind kind, std::size_t fileIndex,
+    std::uint64_t offset, std::size_t requestedBytes,
+    std::vector<std::uint8_t> &output) noexcept
+{
+    using namespace rdp_server::clipboard;
+    output.clear();
+    if (!fileStreamingAvailable() ||
+        remoteFileGeneration_ != generation_ ||
+        fileIndex >= remoteFileCount_ ||
+        pendingFileContentsValid_ ||
+        fileContentsSequence_ >=
+            std::numeric_limits<std::uint32_t>::max())
+    {
+        return std::nullopt;
+    }
+
+    const auto &file = remoteFiles_[fileIndex];
+    const bool hugeFiles =
+        (negotiatedGeneralFlags_ & kHugeFileSupportEnabled) != 0;
+    if (kind == FileContentsKind::Size)
+    {
+        if (offset != 0 || requestedBytes != 8U)
+        {
+            return std::nullopt;
+        }
+    }
+    else
+    {
+        if (file.directory || !file.sizeKnown || requestedBytes == 0 ||
+            requestedBytes > kMaximumFileContentsChunkBytes ||
+            offset >= file.size ||
+            requestedBytes > file.size - offset ||
+            (!hugeFiles &&
+             (file.size > std::numeric_limits<std::uint32_t>::max() ||
+              offset > static_cast<std::uint64_t>(
+                           std::numeric_limits<std::int32_t>::max()))))
+        {
+            return std::nullopt;
+        }
+    }
+
+    const std::uint64_t nextSequence = fileContentsSequence_ + 1U;
+    const std::uint32_t streamId =
+        static_cast<std::uint32_t>(nextSequence);
+    std::array<std::uint8_t, 24> payload{};
+    write32(payload, 0, streamId);
+    write32(payload, 4, static_cast<std::uint32_t>(fileIndex));
+    write32(payload, 8,
+            kind == FileContentsKind::Size
+                ? kFileContentsSize : kFileContentsRange);
+    write32(payload, 12, static_cast<std::uint32_t>(offset));
+    write32(payload, 16, static_cast<std::uint32_t>(offset >> 32U));
+    write32(payload, 20, static_cast<std::uint32_t>(requestedBytes));
+
+    std::vector<std::uint8_t> candidate;
+    if (!encodePdu(kFileContentsRequest, 0, payload, candidate))
+    {
+        return std::nullopt;
+    }
+
+    output.swap(candidate);
+    fileContentsSequence_ = nextSequence;
+    pendingFileContents_ = PendingFileContentsRequest{
+        nextSequence,
+        generation_,
+        streamId,
+        fileIndex,
+        offset,
+        requestedBytes,
+        kind,
+    };
+    pendingFileContentsValid_ = true;
+    return FileContentsRequestReceipt{
+        nextSequence,
+        generation_,
+        streamId,
+        fileIndex,
+        offset,
+        requestedBytes,
+        kind,
+    };
+}
+
+std::optional<RemoteTransfer::FileContentsRequestReceipt>
+RemoteTransfer::beginFileSizeRequest(
+    std::size_t fileIndex,
+    std::vector<std::uint8_t> &output) noexcept
+{
+    return beginFileContentsRequest(
+        FileContentsKind::Size, fileIndex, 0, 8U, output);
+}
+
+std::optional<RemoteTransfer::FileContentsRequestReceipt>
+RemoteTransfer::beginFileRangeRequest(
+    std::size_t fileIndex, std::uint64_t offset,
+    std::size_t requestedBytes,
+    std::vector<std::uint8_t> &output) noexcept
+{
+    return beginFileContentsRequest(
+        FileContentsKind::Range, fileIndex, offset,
+        requestedBytes, output);
+}
+
+RemoteTransfer::FileContentsResult
+RemoteTransfer::receiveFileContentsResponse(
+    std::span<const std::uint8_t> completePdu) noexcept
+{
+    using namespace rdp_server::clipboard;
+    FileContentsResult result{};
+    PduView pdu{};
+    if (poisoned_ || !pendingFileContentsValid_ ||
+        !decodePdu(completePdu, pdu) ||
+        pdu.type != kFileContentsResponse ||
+        (pdu.flags != kResponseOk && pdu.flags != kResponseFail) ||
+        pdu.payload.size() < 4U)
+    {
+        poisoned_ = true;
+        result.status = FileContentsStatus::ProtocolError;
+        return result;
+    }
+
+    const PendingFileContentsRequest completed = pendingFileContents_;
+    result.sequence = completed.sequence;
+    result.generation = completed.generation;
+    result.streamId = completed.streamId;
+    result.fileIndex = completed.fileIndex;
+    result.offset = completed.offset;
+    const std::uint32_t streamId = read32(pdu.payload, 0);
+    if (streamId != completed.streamId)
+    {
+        poisoned_ = true;
+        result.status = FileContentsStatus::ProtocolError;
+        return result;
+    }
+
+    pendingFileContents_ = {};
+    pendingFileContentsValid_ = false;
+    if (pdu.flags == kResponseFail)
+    {
+        if (pdu.payload.size() != 4U)
+        {
+            poisoned_ = true;
+            result.status = FileContentsStatus::ProtocolError;
+            return result;
+        }
+        result.status =
+            completed.generation == generation_
+                ? FileContentsStatus::RemoteFailure
+                : FileContentsStatus::DiscardedPreviousGeneration;
+        return result;
+    }
+
+    if (completed.kind == FileContentsKind::Size)
+    {
+        if (pdu.payload.size() != 12U)
+        {
+            poisoned_ = true;
+            result.status = FileContentsStatus::ProtocolError;
+            return result;
+        }
+        const std::uint64_t fileSize = read64(pdu.payload, 4U);
+        if ((negotiatedGeneralFlags_ & kHugeFileSupportEnabled) == 0 &&
+            fileSize > std::numeric_limits<std::uint32_t>::max())
+        {
+            poisoned_ = true;
+            result.status = FileContentsStatus::ProtocolError;
+            return result;
+        }
+        result.fileSize = fileSize;
+        if (completed.generation != generation_)
+        {
+            result.status =
+                FileContentsStatus::DiscardedPreviousGeneration;
+            return result;
+        }
+        if (remoteFileGeneration_ != generation_ ||
+            completed.fileIndex >= remoteFileCount_)
+        {
+            poisoned_ = true;
+            result.status = FileContentsStatus::ProtocolError;
+            return result;
+        }
+        auto &file = remoteFiles_[completed.fileIndex];
+        file.size = fileSize;
+        file.sizeKnown = true;
+        result.status = FileContentsStatus::ReceivedSize;
+        return result;
+    }
+
+    const auto bytes = pdu.payload.subspan(4U);
+    if (bytes.empty() || bytes.size() > completed.requestedBytes)
+    {
+        poisoned_ = true;
+        result.status = FileContentsStatus::ProtocolError;
+        return result;
+    }
+    if (completed.generation != generation_)
+    {
+        result.status =
+            FileContentsStatus::DiscardedPreviousGeneration;
+        return result;
+    }
+    if (remoteFileGeneration_ != generation_ ||
+        completed.fileIndex >= remoteFileCount_)
+    {
+        poisoned_ = true;
+        result.status = FileContentsStatus::ProtocolError;
+        return result;
+    }
+    const auto &file = remoteFiles_[completed.fileIndex];
+    if (!file.sizeKnown || completed.offset >= file.size ||
+        bytes.size() > file.size - completed.offset)
+    {
+        poisoned_ = true;
+        result.status = FileContentsStatus::ProtocolError;
+        return result;
+    }
+    result.bytes = bytes;
+    result.status = FileContentsStatus::ReceivedRange;
+    return result;
+}
+
+bool RemoteTransfer::cancelUnsentFileContentsRequest(
+    std::uint64_t sequence) noexcept
+{
+    if (poisoned_ || !pendingFileContentsValid_ || sequence == 0 ||
+        sequence != pendingFileContents_.sequence)
+    {
+        return false;
+    }
+    pendingFileContents_ = {};
+    pendingFileContentsValid_ = false;
+    return true;
+}
+
+bool RemoteTransfer::hasOutstandingFileContentsRequest() const noexcept
+{
+    return pendingFileContentsValid_;
+}
+
 bool RemoteTransfer::beginNextPrefetch(
     PrefetchKind kind,
     std::uint32_t &selectedFormatId,
@@ -1219,6 +1669,11 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     advertisedCount_ = 0;
     pngFormatId_ = 0;
     fileGroupDescriptorFormatId_ = 0;
+    remoteFiles_.fill({});
+    remoteFileCount_ = 0;
+    remoteFileGeneration_ = 0;
+    pendingFileContents_ = {};
+    pendingFileContentsValid_ = false;
     attemptedPrefetchIds_.fill(0);
     generation_ = 0;
     negotiatedGeneralFlags_ = 0;
@@ -1229,7 +1684,8 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     joinedRequestFrameBytes_ = 0;
     joinedRequestWrittenBytes_ = 0;
     joinedRequestActive_ = false;
-    // joinedRequestSequence_ remains monotonic across reconnects.
+    // joinedRequestSequence_ and fileContentsSequence_ remain monotonic
+    // across reconnects so stale callbacks cannot acquire a fresh identity.
     poisoned_ = false;
 }
 

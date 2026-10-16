@@ -30,8 +30,11 @@ class RemoteTransfer final
 public:
     static constexpr std::size_t kMaximumFormats = 64;
     static constexpr std::size_t kMaximumCapabilitySets = 16;
+    static constexpr std::size_t kMaximumRemoteFiles = 64;
+    static constexpr std::size_t kMaximumFileContentsChunkBytes = 64U * 1024U;
     // MS-RDPECLIP generalFlags: capability version is informational only.
-    static constexpr std::uint32_t kSupportedGeneralFlags = 0x0000003eU;
+    // Do not advertise CB_CAN_LOCK_CLIPDATA until lock/unlock receipts exist.
+    static constexpr std::uint32_t kSupportedGeneralFlags = 0x0000002eU;
 
     enum class ResponseStatus : std::uint8_t
     {
@@ -204,6 +207,75 @@ public:
     [[nodiscard]] bool abandonJoinedRequest(
         std::uint64_t sequence) noexcept;
 
+    // Stream-file capability and FileGroupDescriptorW are both generation
+    // scoped. Descriptor storage is fixed-capacity metadata only; no remote
+    // file body is retained here.
+    struct RemoteFileView
+    {
+        std::span<const char16_t> name{};
+        std::uint64_t size{};
+        std::uint32_t attributes{};
+        bool sizeKnown{};
+        bool directory{};
+    };
+
+    [[nodiscard]] bool fileStreamingAvailable() const noexcept;
+    [[nodiscard]] bool beginFileGroupDescriptorRequest(
+        std::vector<std::uint8_t> &output) noexcept;
+    [[nodiscard]] bool storeFileGroupDescriptors(
+        const Response &response) noexcept;
+    [[nodiscard]] std::size_t remoteFileCount() const noexcept;
+    [[nodiscard]] std::optional<RemoteFileView> remoteFile(
+        std::size_t fileIndex) const noexcept;
+
+    enum class FileContentsKind : std::uint8_t { Size, Range };
+    enum class FileContentsStatus : std::uint8_t
+    {
+        Invalid,
+        ReceivedSize,
+        ReceivedRange,
+        RemoteFailure,
+        DiscardedPreviousGeneration,
+        ProtocolError,
+    };
+    struct FileContentsRequestReceipt
+    {
+        std::uint64_t sequence{};
+        std::uint64_t generation{};
+        std::uint32_t streamId{};
+        std::size_t fileIndex{};
+        std::uint64_t offset{};
+        std::size_t requestedBytes{};
+        FileContentsKind kind{FileContentsKind::Size};
+    };
+    struct FileContentsResult
+    {
+        FileContentsStatus status{FileContentsStatus::Invalid};
+        std::uint64_t sequence{};
+        std::uint64_t generation{};
+        std::uint32_t streamId{};
+        std::size_t fileIndex{};
+        std::uint64_t offset{};
+        std::uint64_t fileSize{};
+        // Borrowed from the complete response PDU for ReceivedRange only.
+        std::span<const std::uint8_t> bytes{};
+    };
+
+    [[nodiscard]] std::optional<FileContentsRequestReceipt>
+    beginFileSizeRequest(
+        std::size_t fileIndex,
+        std::vector<std::uint8_t> &output) noexcept;
+    [[nodiscard]] std::optional<FileContentsRequestReceipt>
+    beginFileRangeRequest(
+        std::size_t fileIndex, std::uint64_t offset,
+        std::size_t requestedBytes,
+        std::vector<std::uint8_t> &output) noexcept;
+    [[nodiscard]] FileContentsResult receiveFileContentsResponse(
+        std::span<const std::uint8_t> completePdu) noexcept;
+    [[nodiscard]] bool cancelUnsentFileContentsRequest(
+        std::uint64_t sequence) noexcept;
+    [[nodiscard]] bool hasOutstandingFileContentsRequest() const noexcept;
+
     // Optional bounded eager-retrieval planner for one clipboard generation.
     // Text selects CF_UNICODETEXT only; images prefer registered PNG, then
     // CF_DIBV5 (17) and CF_DIB (8). IDs are matched to THIS format list,
@@ -318,6 +390,33 @@ private:
         std::uint32_t formatId{};
     };
 
+    struct RemoteFileDescriptor
+    {
+        std::array<char16_t, 260> name{};
+        std::uint16_t nameLength{};
+        std::uint64_t size{};
+        std::uint32_t attributes{};
+        bool sizeKnown{};
+        bool directory{};
+    };
+
+    struct PendingFileContentsRequest
+    {
+        std::uint64_t sequence{};
+        std::uint64_t generation{};
+        std::uint32_t streamId{};
+        std::size_t fileIndex{};
+        std::uint64_t offset{};
+        std::size_t requestedBytes{};
+        FileContentsKind kind{FileContentsKind::Size};
+    };
+
+    [[nodiscard]] std::optional<FileContentsRequestReceipt>
+    beginFileContentsRequest(
+        FileContentsKind kind, std::size_t fileIndex,
+        std::uint64_t offset, std::size_t requestedBytes,
+        std::vector<std::uint8_t> &output) noexcept;
+
     std::string verifiedTextUtf8_{};
     bool verifiedTextReady_{};
     std::vector<std::uint8_t> verifiedImageBytes_{};
@@ -338,6 +437,12 @@ private:
     std::size_t advertisedCount_{};
     std::uint32_t pngFormatId_{};
     std::uint32_t fileGroupDescriptorFormatId_{};
+    std::array<RemoteFileDescriptor, kMaximumRemoteFiles> remoteFiles_{};
+    std::size_t remoteFileCount_{};
+    std::uint64_t remoteFileGeneration_{};
+    std::uint64_t fileContentsSequence_{}; // Never reset: no stream receipt ABA.
+    PendingFileContentsRequest pendingFileContents_{};
+    bool pendingFileContentsValid_{};
     std::array<std::uint32_t, 4> attemptedPrefetchIds_{};
     std::uint64_t generation_{};
     std::uint32_t negotiatedGeneralFlags_{};

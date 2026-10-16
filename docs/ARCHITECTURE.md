@@ -436,6 +436,41 @@ deadline. Runtime activation remains disabled until R2/R3 provide genuine
 admitted CLIPRDR/session authority. DIB-to-PNG, Windows/macOS adapters and file
 streaming remain later R8 increments.
 
+### R8 bounded FileContents metadata and range owner
+
+The portable `RemoteTransfer` remains the single CLIPRDR generation owner for
+file-copy state. File streaming activates only when the current remote offer
+contains the registered `FileGroupDescriptorW` format and the negotiated
+general capabilities include `CB_STREAM_FILECLIP_ENABLED`. The owner stores
+no remote file body. It retains a fixed-capacity array of at most 64 parsed
+FILEDESCRIPTORW records for the current clipboard generation.
+
+Each descriptor is exactly 592 bytes: attributes and FILESIZE are consumed only
+when their validity bits are present, and the 260-code-unit UTF-16LE name is
+validated as a NUL-terminated leaf name with strict surrogate pairing and zero
+padding. Source paths and Windows-reserved path/name characters are rejected
+rather than being converted into local paths. Directory descriptors may be
+observed as metadata but are not eligible for byte-range retrieval. A size
+above 32 bits or a range with a nonzero high offset is accepted only after
+`CB_HUGE_FILE_SUPPORT_ENABLED` was jointly negotiated.
+
+FileContents requests are separate from ordinary Format Data requests because
+their responses carry an explicit stream ID. R8 allocates one monotonic,
+nonzero stream ID per request and never resets that counter across disconnect.
+This first bounded owner permits one FileContents request at a time. SIZE uses
+the protocol-mandated eight-byte request length; RANGE is limited to 64 KiB and
+must fit the known file size. Responses must echo the pending stream ID. Range
+bytes borrow the caller's complete PDU and are never copied into a whole-file
+cache. Generation replacement clears descriptor metadata; a late response for
+the old generation is consumed as obsolete instead of being attached to a new
+file list.
+
+The supported general capability mask intentionally omits
+`CB_CAN_LOCK_CLIPDATA` until R8 owns lock/unlock transmission and completion
+receipts. The FileContents state added here does not grant MCS membership,
+CLIPRDR role authority, R2 admission, TLS write permission or a local file
+destination. Those remain R3/R2/native-adapter responsibilities.
+
 ### R5 native XCB connection readiness and ownership
 
 The existing `src/x11/x11_display_connection.{h,cpp}` is the only XCB

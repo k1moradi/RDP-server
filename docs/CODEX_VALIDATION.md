@@ -1,3 +1,45 @@
+## R8 bounded FileContents metadata/range increment (2026-10-16; CI pending)
+
+**Authoring parent main:** `23d9f362283d27bee7fc7cd4646b402512934575`. R3's protected session lifecycle currently
+stops at `AwaitAttachUser`, so R8 does not manufacture a CLIPRDR role or bypass
+R3's pending Attach User / Channel Join ownership. Instead this increment
+advances the independent file-copy portion of the R8 roadmap inside the
+existing portable `RemoteTransfer` owner.
+
+The owner now validates and retains at most 64 current-generation
+`FileGroupDescriptorW` metadata records, with exact 592-byte descriptor
+layout, strict UTF-16 leaf filenames, optional attributes and 64-bit sizes.
+No file body is retained. One monotonic stream-ID-correlated
+`CB_FILECONTENTS_REQUEST` can request SIZE or a maximum 64-KiB RANGE; the
+response must echo the exact stream ID. SIZE updates only the current
+generation's descriptor. RANGE data is returned as a borrowed span into the
+caller's complete PDU. Replacement drains an old response as obsolete, while
+wrong IDs, malformed lengths, impossible ranges and unsupported huge-file
+values fail closed. High offsets and >4-GiB sizes require the negotiated huge
+file capability.
+
+Protocol constants for FileContents and lock/unlock PDUs plus general capability
+bits are now named in `clipboard_protocol.h`. Since lock/unlock receipts do
+not yet exist, `RemoteTransfer::kSupportedGeneralFlags` drops
+`CB_CAN_LOCK_CLIPDATA` instead of advertising unsupported behavior.
+
+**Changed:** `src/clipboard/clipboard_protocol.h`,
+`src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, and this ledger.
+**Dedicated CTests:** `clipboard.file-descriptor-metadata-validation`,
+`clipboard.file-contents-size-range-streaming`, and
+`clipboard.file-contents-response-rejections`.
+
+The wire values and capability behavior were cross-checked against the current
+Microsoft MS-RDPECLIP Open Specifications before implementation. Full canonical
+repository CMake/CTest, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, live Microsoft-client file copy, native destination
+integration and lock/unlock are NOT RUN / NOT IMPLEMENTED at authoring.
+**Next R8:** add lock/unlock lifetime receipts and the joined-channel
+FileContents envelope only after R3 publishes genuine CLIPRDR channel
+authority; continue Windows/macOS native clipboard adapters independently.
+
 ## R10 positive Linux security preflight authoring validation (2026-10-16)
 
 **Starting shared main:** `23ae82fe9f8f5f93dccd91ea2c8e8e5b045f9334`.

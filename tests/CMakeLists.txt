@@ -1073,7 +1073,8 @@ endif()
 foreach(case_name IN ITEMS
         lifecycle validation-denials revocation-reentry
         switch-away-back-revocation mid-operation-epoch-change
-        watch-registration-retirement watch-destructor-retirement
+        watch-registration-retirement watch-retirement-callback-race
+        watch-partial-install-retirement watch-destructor-retirement
         watch-unavailable-denial)
     add_test(NAME "macos.desktop-session-${case_name}"
         COMMAND test_macos_desktop_session_guard "${case_name}")

@@ -53,6 +53,7 @@ struct FakeSessionWatchBackend final {
     bool installSucceeds{true};
     bool removeSucceeds{true};
     bool eventDuringInstall{};
+    bool eventDuringRemove{};
     bool partialInstallOnFailure{};
 
     static bool install(void* context, const std::uint64_t epoch,
@@ -75,6 +76,10 @@ struct FakeSessionWatchBackend final {
     static bool remove(void* context) noexcept {
         auto& self = *static_cast<FakeSessionWatchBackend*>(context);
         ++self.removals;
+        if (self.eventDuringRemove && self.recorder != nullptr &&
+            self.registrationEpoch != 0) {
+            self.recorder(self.registrationEpoch);
+        }
         if (!self.removeSucceeds) {
             return false;
         }
@@ -524,6 +529,51 @@ void testWatchRegistrationRetirement() {
     assert(blockedWatch.stop());
 }
 
+void testWatchRetirementCallbackRace() {
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend retiringBackend;
+    NativeSessionChangeWatch retiringWatch;
+    startSessionWatch(retiringWatch, retiringBackend);
+    const auto activeRevision = NativeSessionChangeWatch::coveredRevision();
+    assert(activeRevision);
+
+    // Model a notification already entering native delivery while observer
+    // removal runs. The first removal is ambiguous and the retry succeeds.
+    retiringBackend.eventDuringRemove = true;
+    retiringBackend.removeSucceeds = false;
+    const auto failedRemoval = retiringWatch.stop();
+    assert(!failedRemoval);
+    assert(failedRemoval.error() ==
+           NativeSessionChangeWatchError::RemovalFailed);
+    assert(retiringWatch.registered());
+    assert(retiringBackend.removals == 1);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    retiringBackend.removeSucceeds = true;
+    assert(retiringWatch.stop());
+    assert(!retiringWatch.registered());
+    assert(retiringBackend.removals == 2);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend replacementBackend;
+    NativeSessionChangeWatch replacementWatch;
+    startSessionWatch(replacementWatch, replacementBackend);
+    const auto replacementRevision =
+        NativeSessionChangeWatch::coveredRevision();
+    assert(replacementRevision);
+
+    // Each stop() advances once and replacement start advances once. A
+    // callback delivered from inside remove() must not consume a revision
+    // after retirement has zeroed the active registration epoch.
+    assert(*replacementRevision == *activeRevision + 3U);
+
+    retiringBackend.notifyDelayed();
+    const auto afterDelayed = NativeSessionChangeWatch::coveredRevision();
+    assert(afterDelayed && *afterDelayed == *replacementRevision);
+    assert(replacementWatch.stop());
+}
+
 void testWatchPartialInstallRetirement() {
     assert(!NativeSessionChangeWatch::coveredRevision());
 
@@ -677,6 +727,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testMidOperationEpochChange();
     } else if (testCase == "watch-registration-retirement") {
         testWatchRegistrationRetirement();
+    } else if (testCase == "watch-retirement-callback-race") {
+        testWatchRetirementCallbackRace();
     } else if (testCase == "watch-partial-install-retirement") {
         testWatchPartialInstallRetirement();
     } else if (testCase == "watch-destructor-retirement") {

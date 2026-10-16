@@ -12698,3 +12698,31 @@ with cryptographic verification/key handling before any License Error
 (valid-client), New License, Platform Challenge or Demand Active path can
 advance. Until that exists, **M2/M3 remain OPEN / NOT ACCEPTED**.
 
+
+
+## R7 session-watch retirement callback race authoring receipt (2026-10-16; CI pending)
+
+Authoring base is `07e074f2d4ede699b8178bbb80cff1bb53603f77`. The shared CTest registry is corrected to restore
+the already-authored
+`macos.desktop-session-watch-partial-install-retirement` case. A second
+behavior-named case,
+`macos.desktop-session-watch-retirement-callback-race`, extends the existing
+fake native backend so `remove()` can synchronously deliver its retained
+scalar registration epoch before returning.
+
+The new case forces one failed removal followed by a successful retry and then
+starts a replacement watch. It asserts the replacement revision is exactly
+three greater than the original active revision, proving callbacks delivered
+inside either removal did not advance the production process revision after
+`stop()` retired coverage. A later old-epoch callback must likewise leave the
+replacement revision unchanged.
+
+No production source, AppKit registration, authentication/admission state,
+capture factory, cursor sampler or Quartz input reachability changes. The
+canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** because this connector environment does not expose that checkout;
+no alternate persistent build root, branch or worktree is created. Exact
+publication-SHA hosted Debug/Release, sanitizer, documentation-policy and
+SDK/package evidence is **PENDING**. Real macOS 27 notification delivery,
+genuine R2/R3 macOS admission and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**.

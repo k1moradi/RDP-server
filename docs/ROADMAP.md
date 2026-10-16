@@ -12121,3 +12121,40 @@ with cryptographic verification/key handling before any License Error
 (valid-client), New License, Platform Challenge or Demand Active path can
 advance. Until that exists, **M2/M3 remain OPEN / NOT ACCEPTED**.
 
+
+
+## R7 session-watch retirement callback race regression (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `07e074f2d4ede699b8178bbb80cff1bb53603f77`.
+
+Current `main` still contains the previously validated
+`testWatchPartialInstallRetirement` executable mode, but its central CTest
+entry was lost by later shared `tests/CMakeLists.txt` edits. This increment
+restores `macos.desktop-session-watch-partial-install-retirement` to ordinary
+full CTest and adds
+`macos.desktop-session-watch-retirement-callback-race`.
+
+The new production-backed regression drives the real static session-change
+recorder synchronously from inside the injected native `remove()` callback.
+The first observer removal is forced to fail and the retry succeeds. Both
+removal callbacks arrive after production `stop()` has entered
+`Retiring` and cleared the active registration epoch. A replacement watch
+must therefore observe exactly three revision advances relative to the original
+active revision: failed stop, successful retry, and replacement start. Any
+accepted callback during removal would create an extra revision and fail the
+test. Delayed old-epoch delivery after replacement is also required to remain
+inert.
+
+Production source and native reachability are unchanged. Ordinary CTest uses
+only injected callbacks; it installs no AppKit observer, requests no TCC
+permission, reads no live desktop and performs no capture, cursor sampling or
+Quartz input. This is lifecycle/race coverage for the already-documented
+retirement ordering, not new authority.
+
+Source/registry/documentation review is **PASS**. Canonical owner-local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment.
+Exact-SHA hosted Linux/GCC, macOS/AppleClang, Windows/MSVC, sanitizer,
+documentation-policy and SDK/package evidence are **PENDING** after
+publication. Genuine non-forgeable macOS R2/R3 admission, owner macOS 27 live
+fast-user-switch delivery and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.

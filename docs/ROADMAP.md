@@ -3030,6 +3030,27 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 topology epoch invalidation (2026-10-16):**
+  `NativeDisplayGeometryRefresh` extends existing CoreGraphics read-only
+  discovery plus `DesktopDisplayGeometry` with an explicit, bounded
+  generation-controlled refresh guard. It invalidates the prior geometry
+  before every read/conversion; failed enumeration, unstable observation
+  or unsupported mixed-scale layout never permits old pointer positions.
+  Explicit `invalidate()` retires geometry synchronously on a future
+  R3/native display-change notification; only a complete two-sample
+  fresh geometry can restore translations. Generation wrap is terminal.
+  No new scheduler, session owner, callback subscription, capture stream,
+  TCC prompt, input injection or OS admission is introduced. Three
+  new central headless CTests: `macos.desktop-geometry-epoch-refresh`,
+  `macos.desktop-geometry-epoch-invalidate`,
+  `macos.desktop-geometry-epoch-failed-refresh`. Isolated GCC14.2 CMake
+  CTest **7/7 PASS** (3 new + 4 preceding fixture behaviors), optimized
+  strict GCC14.2 **3/3 PASS**, Clang17 ASan+UBSan **3/3 PASS**.
+  **NOT RUN at authoring:** full canonical CTest/hosted exact-SHA CI,
+  owner's macOS27 and Windows CLANG64 Clang23, native live desktop/TCC,
+  Microsoft client or benchmarks. **Next:** actual native display-change
+  callback registration scoped to a R2/R3-authorized user session;
+  coordinate R4 mixed-Retina compositor mapping before capture.
   **R7 exact-source hosted CI verified (2026-10-16):** Corrected
   implementation `8083958d617daff00bf68f02848a11eab416bd7d`,
   [Actions 38849245902](https://github.com/k1moradi/RDP-server/actions/runs/38849245902)

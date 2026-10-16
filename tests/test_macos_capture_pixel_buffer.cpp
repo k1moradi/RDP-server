@@ -2,6 +2,7 @@
 #include "platform/macos/capture_pixel_layout.h"
 #include "platform/macos/desktop_display_geometry.h"
 #include "platform/macos/native_display_snapshot.h"
+#include "platform/macos/native_display_refresh.h"
 #include "platform/macos/native_display_geometry.h"
 #include "platform/macos/screen_capture_preflight.h"
 
@@ -658,6 +659,80 @@ void testNativeGeometryGenerationRefresh() {
     assert(!before->pixelAtLogicalPoint({10, 10}, 91));
     assert(!after->logicalAtVirtualPixel(20, 20, 90));
 }
+
+void testNativeDisplayRefreshEpoch() {
+    using namespace rdp::macos;
+    auto fixture = nativeDisplayFixture();
+    NativeDisplayGeometryRefresh tracker;
+    assert(tracker.generation() == 0 && !tracker.usable(0));
+    const auto first = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(first && *first == 1 && fixture.calls == 2);
+    const auto initial = tracker.pixelAtLogicalPoint({10, 10}, *first);
+    assert(initial && initial->virtualX == 20);
+    assert(tracker.virtualPixelSize(*first)->widthPixels == 3024);
+    fixture.first[0].backingWidthPixels =
+        fixture.second[0].backingWidthPixels = 2268;
+    fixture.first[0].backingHeightPixels =
+        fixture.second[0].backingHeightPixels = 1473;
+    const auto updated = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(updated && *updated == 2 && fixture.calls == 4);
+    assert(!tracker.usable(*first));
+    assert(!tracker.pixelAtLogicalPoint({10, 10}, *first));
+    assert(!tracker.logicalAtVirtualPixel(20, 20, *first));
+    const auto transformed = tracker.pixelAtLogicalPoint({10, 10}, *updated);
+    assert(transformed && transformed->virtualX == 15);
+    assert(tracker.logicalAtVirtualPixel(15, 15, *updated));
+}
+
+void testNativeDisplayTopologyInvalidation() {
+    using namespace rdp::macos;
+    auto fixture = nativeDisplayFixture();
+    NativeDisplayGeometryRefresh tracker;
+    const auto oldEpoch = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(oldEpoch && tracker.usable(*oldEpoch));
+    tracker.invalidate(); // A future CG display-change observer will call this.
+    assert(tracker.generation() == 2);
+    assert(!tracker.usable(*oldEpoch) && !tracker.usable(2));
+    assert(!tracker.pixelAtLogicalPoint({0, 0}, *oldEpoch));
+    assert(!tracker.logicalAtVirtualPixel(0, 0, *oldEpoch));
+    assert(!tracker.virtualPixelSize(*oldEpoch));
+    fixture = nativeDisplayFixture();
+    const auto newEpoch = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(newEpoch && *newEpoch == 3 && tracker.usable(*newEpoch));
+    assert(!tracker.usable(1) && !tracker.usable(2));
+    const auto p = tracker.pixelAtLogicalPoint({0, 0}, *newEpoch);
+    assert(p && p->displayId == 100 && p->virtualX == 0);
+}
+
+void testNativeDisplayFailedRefreshClearsGeometry() {
+    using namespace rdp::macos;
+    auto fixture = nativeDisplayFixture();
+    NativeDisplayGeometryRefresh tracker;
+    const auto first = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(first && *first == 1);
+    fixture.failingCall = 4; // second sample of the next refresh.
+    const auto unavailable = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(!unavailable &&
+           unavailable.error() == NativeDisplayRefreshError::DisplayUnavailable);
+    assert(tracker.generation() == 2 && !tracker.usable(1) && !tracker.usable(2));
+    assert(!tracker.logicalAtVirtualPixel(0, 0, 1));
+    fixture = nativeDisplayFixture();
+    fixture.firstCount = fixture.secondCount = 2;
+    fixture.first[1] = fixture.second[1] = kNativeLeft; // mixed 2x/1x
+    const auto unsupported = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(!unsupported &&
+           unsupported.error() == NativeDisplayRefreshError::GeometryUnsupported);
+    assert(!tracker.usable(3));
+    const auto nullReader = tracker.refresh(nullptr, nullptr);
+    assert(!nullReader &&
+           nullReader.error() == NativeDisplayRefreshError::DisplayUnavailable);
+    assert(tracker.generation() == 4 && !tracker.usable(4));
+    fixture = nativeDisplayFixture();
+    const auto recovered = tracker.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(recovered && *recovered == 5 && tracker.usable(5));
+    tracker.invalidate();
+    assert(!tracker.usable(5));
+}
 } // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -683,6 +758,12 @@ int main(const int argument_count, const char* const arguments[]) {
         testNativeDisplaySnapshotDenials();
     } else if (test_case == "display-snapshot-changed-during-read") {
         testNativeDisplayChangedDuringRead();
+    } else if (test_case == "geometry-epoch-refresh") {
+        testNativeDisplayRefreshEpoch();
+    } else if (test_case == "geometry-epoch-invalidate") {
+        testNativeDisplayTopologyInvalidation();
+    } else if (test_case == "geometry-epoch-failed-refresh") {
+        testNativeDisplayFailedRefreshClearsGeometry();
     } else if (test_case == "geometry-native-single-retina") {
         testNativeGeometrySingleRetina();
     } else if (test_case == "geometry-native-uniform-multi-display") {

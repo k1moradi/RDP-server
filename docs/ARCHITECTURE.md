@@ -410,6 +410,24 @@ R4 supplies an explicit compositor mapping. The snapshot now carries
 R2/R3 session owners before new input/capture. No callbacks, permission
 prompts, capture session, login or input injection are added.
 
+### R7 fail-closed display refresh epochs (2026-10-16)
+
+The allocation-free `NativeDisplayGeometryRefresh` retains only an owned
+`DesktopDisplayGeometry` and monotonically advancing topology generation.
+It belongs to R7's native geometry adapter, **not** to R3's authoritative
+session or R4's graphics scheduler. A synchronous native or injected refresh
+first invalidates the previously published geometry, then performs the
+existing bounded double display observation and checked translation. A
+failed observation, unsupported placement, explicit display-change signal,
+or generation mismatch refuses all pointer/size queries; callers must
+serialize notifications and translations. Generation exhaustion never wraps
+to zero or permits reuse. A provider/context is borrowed only during the
+refresh call, never retained. Default CTests use a deterministic provider;
+`refreshNative()` is Apple-only and read-only, with NO implicit capture,
+privacy prompt, input permission or authenticated OS admission. Native
+CoreGraphics callback registration and actual StreamCaptureKit integration
+remain future authorized R7 work.
+
 ### Implementation principles
 
 - Portable wire parsers reject malformed lengths/flags and ambiguous states.

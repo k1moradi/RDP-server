@@ -551,7 +551,8 @@ else()
         "${PROJECT_SOURCE_DIR}/src/platform/macos/desktop_display_geometry.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/screen_capture_preflight.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp"
-        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp")
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp")
 endif()
 if(MSVC)
     target_compile_options(test_macos_capture_pixel_buffer PRIVATE /W4 /UNDEBUG)
@@ -591,6 +592,14 @@ foreach(case_name IN ITEMS
         COMMAND test_macos_capture_pixel_buffer "geometry-native-${case_name}")
     set_tests_properties("macos.geometry-native-${case_name}" PROPERTIES
         LABELS "macos;geometry;offline")
+endforeach()
+# R7 topology-epoch guard: synthetic reads, no CoreGraphics display,
+# screen-capture stream, TCC prompt, native input or service activation.
+foreach(case_name IN ITEMS refresh invalidate failed-refresh)
+    add_test(NAME "macos.desktop-geometry-epoch-${case_name}"
+        COMMAND test_macos_capture_pixel_buffer "geometry-epoch-${case_name}")
+    set_tests_properties("macos.desktop-geometry-epoch-${case_name}"
+        PROPERTIES LABELS "macos;geometry;offline")
 endforeach()
 if(APPLE)
     foreach(case_name IN ITEMS ownership native-denials native-move-replacement)

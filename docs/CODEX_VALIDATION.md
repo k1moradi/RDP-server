@@ -5044,3 +5044,34 @@ and macOS27 commands, live TLS/NLA/OS admission and Microsoft-client
 desktop or clipboard. **Next:** exact SHA build/test/sanitizer
 receipts, triage first failing boundary if any, retain
 existing full CTest and SDK/package gates.
+
+## R7 fail-closed native display refresh epochs (2026-10-16)
+
+**Production:** `src/platform/macos/native_display_refresh.{h,cpp}`;
+`NativeDisplayGeometryRefresh` is a generation guard over existing
+`NativeDisplaySnapshot::read` and `makeDesktopGeometry`. It owns a
+complete optional mapping, not a second framebuffer/scheduler. Every
+refresh invalidates old geometry before two-sample enumeration. A failed
+native read, invalid configuration, explicit invalidate or stale generation
+rejects virtual-to-logical input and logical-to-pixel queries. Native
+`refreshNative()` only calls the previously implemented read-only Quartz
+enumerator; ordinary tests do not touch the user's desktop.
+**Changed together:** top-level and central tests CMake,
+`tests/test_macos_capture_pixel_buffer.cpp`, existing roadmap,
+architecture and this ledger. **Three dedicated CTests:**
+`macos.desktop-geometry-epoch-refresh`,
+`macos.desktop-geometry-epoch-invalidate`,
+`macos.desktop-geometry-epoch-failed-refresh`.
+**PASS (isolated Linux C++23 fixture, NOT full repository):**
+`cmake -S ~/rdp-server -B ~/rdp-server/build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build ~/rdp-server/build --parallel 2`,
+`ctest --test-dir ~/rdp-server/build -C Debug --output-on-failure`
+=> **7/7 PASS** (three new + four earlier fixture cases). GCC14.2
+strict `-O2 -Werror -D_GLIBCXX_ASSERTIONS`: 3/3 new behaviors PASS.
+Clang17 C++23 strict ASan/UBSan: 3/3 new behaviors PASS.
+**NOT RUN at authoring:** full canonical checkout CMake/CTest, exact-SHA
+hosted CI, owner macOS27, MSYS2 CLANG64 Clang23, Linux/X11 one-root,
+interactive ScreenCaptureKit/TCC, R2/R3 authorized session, Microsoft
+client, pointer/cursor and performance. **Next:** native display-change
+callback (opt-in per-user runtime) and R2/R3/R4-controlled capture
+ownership/physical mixed-Retina composition; M1/M5 not accepted.

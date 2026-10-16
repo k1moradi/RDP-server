@@ -1,3 +1,13 @@
+## Runtime aggregate tests before listener activation
+
+Before a production listener exists, exercise a future connection aggregate
+with test-only ephemeral loopback sockets and synthetic service credentials.
+Such tests may prove ownership transfer, fail-closed missing provisioning,
+premature-admission denial and ordered R3→R2→R1 teardown, but must not fabricate
+a positive R2 lease or report that evidence as authenticated service
+acceptance. Positive admission still requires the real TLS-bound CredSSP/GSS
+identity, exact R1 negotiation provenance and concrete native OS evidence.
+
 ## Credential continuity tests must mutate the same inode
 
 A pathname-replacement regression proves object-identity continuity but cannot

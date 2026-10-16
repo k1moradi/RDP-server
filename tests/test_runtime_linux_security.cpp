@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "server/runtime/linux_runtime_connection.h"
 #include "server/runtime/linux_runtime_security.h"
 #include "server/security/linux_console_admission.h"
 
@@ -10,12 +11,20 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 namespace
 {
+using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
+using rdp_server::server::security::ConsoleEvidenceRequest;
 using rdp_server::server::security::ConsoleIdentityRuleInput;
 using rdp_server::server::security::GssapiSpnegoAcceptor;
 using rdp_server::server::security::LinuxConsoleAdmissionBroker;
@@ -24,6 +33,10 @@ using rdp_server::server::security::SpnegoStage;
 using rdp_server::server::security::kConsoleClipboardPermission;
 using rdp_server::server::security::kConsoleInputPermission;
 using rdp_server::server::security::kConsoleViewPermission;
+using rdp_server::server::transport::McsSessionPhase;
+using rdp_server::server::transport::OwnedNativeTcpSocket;
+using rdp_server::server::transport::TcpAcceptOutcome;
+using rdp_server::server::transport::acceptNonblockingTcpConnection;
 
 constexpr std::string_view kServicePrincipal{
     "TERMSRV/rdp.example.test@EXAMPLE.TEST"};
@@ -107,6 +120,46 @@ constexpr std::string_view kServicePrincipal{
     return true;
 }
 
+[[nodiscard]] OwnedNativeTcpSocket acceptLoopbackConnection(
+    int &clientDescriptor)
+{
+    const int listenerDescriptor =
+        ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    assert(listenerDescriptor >= 0);
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port = 0;
+    assert(::bind(
+        listenerDescriptor, reinterpret_cast<const sockaddr *>(&address),
+        sizeof(address)) == 0);
+    assert(::listen(listenerDescriptor, 1) == 0);
+
+    const int flags = ::fcntl(listenerDescriptor, F_GETFL, 0);
+    assert(flags >= 0);
+    assert(::fcntl(
+        listenerDescriptor, F_SETFL, flags | O_NONBLOCK) == 0);
+
+    socklen_t addressLength = sizeof(address);
+    assert(::getsockname(
+        listenerDescriptor, reinterpret_cast<sockaddr *>(&address),
+        &addressLength) == 0);
+
+    clientDescriptor = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    assert(clientDescriptor >= 0);
+    assert(::connect(
+        clientDescriptor, reinterpret_cast<const sockaddr *>(&address),
+        sizeof(address)) == 0);
+
+    auto accepted = acceptNonblockingTcpConnection(
+        static_cast<std::uintptr_t>(listenerDescriptor));
+    assert(::close(listenerDescriptor) == 0);
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    assert(accepted.connection.valid());
+    return std::move(accepted.connection);
+}
+
 [[nodiscard]] bool writePrivateGarbage(
     const std::filesystem::path &path)
 {
@@ -185,6 +238,100 @@ void testSealedKeytabSnapshotSurvivesSourceMutation(
     GssapiSpnegoAcceptor connectionAcceptor;
     assert(configuration.configureAcceptor(connectionAcceptor));
     assert(connectionAcceptor.stage() == SpnegoStage::AwaitInitialToken);
+}
+
+void testConnectionAggregateOrderedRevocation(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-aggregate.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    {
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(connection.ready());
+        assert(!accepted.valid());
+        assert(connection.gssStage() == SpnegoStage::AwaitInitialToken);
+        assert(connection.admissionState() ==
+               LinuxConsoleAdmissionState::Ready);
+        assert(connection.mcsPhase() ==
+               McsSessionPhase::AwaitVerifiedR2Admission);
+        assert(!connection.hasAdmissionLease());
+
+        connection.revoke();
+        assert(!connection.ready());
+        assert(connection.gssStage() == SpnegoStage::Failed);
+        assert(connection.admissionState() ==
+               LinuxConsoleAdmissionState::Revoked);
+        assert(connection.mcsPhase() == McsSessionPhase::Closed);
+        assert(!connection.hasAdmissionLease());
+
+        // Ordered teardown is idempotent and never revives R1/R2/R3 state.
+        connection.revoke();
+        assert(!connection.ready());
+        assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    }
+    assert(::close(clientDescriptor) == 0);
+}
+
+void testConnectionAggregatePrematureAdmissionDenial(
+    const std::filesystem::path &fixtureDirectory)
+{
+    // An accepted socket cannot survive construction without completed R10
+    // service provisioning. This exercises the constructor's fail-closed path
+    // before any protocol callback is possible.
+    {
+        LinuxRuntimeSecurityConfiguration unconfigured;
+        int unconfiguredClientDescriptor = -1;
+        auto unconfiguredAccepted =
+            acceptLoopbackConnection(unconfiguredClientDescriptor);
+        LinuxRuntimeConnection denied{
+            unconfigured, std::move(unconfiguredAccepted)};
+        assert(!denied.ready());
+        assert(!unconfiguredAccepted.valid());
+        assert(denied.gssStage() == SpnegoStage::Failed);
+        assert(denied.admissionState() ==
+               LinuxConsoleAdmissionState::Revoked);
+        assert(denied.mcsPhase() == McsSessionPhase::Closed);
+        assert(::close(unconfiguredClientDescriptor) == 0);
+    }
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-premature-admission.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{
+        configuration, std::move(accepted)};
+    assert(connection.ready());
+
+    // An explicit policy-shaped request is not sufficient. No CredSSP/GSS
+    // principal or R1 HYBRID provenance exists yet, so the aggregate must
+    // terminate all R3/R2/R1 ownership rather than sampling OS admission.
+    const ConsoleEvidenceRequest request{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+    assert(!connection.issueAdmission(request));
+    assert(!connection.ready());
+    assert(connection.gssStage() == SpnegoStage::Failed);
+    assert(connection.admissionState() ==
+           LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    assert(::close(clientDescriptor) == 0);
 }
 
 void testKeytabAndPolicyDenials(
@@ -301,6 +448,16 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-security-keytab-policy-denials")
     {
         testKeytabAndPolicyDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-aggregate-ordered-revocation")
+    {
+        testConnectionAggregateOrderedRevocation(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-aggregate-premature-admission-denial")
+    {
+        testConnectionAggregatePrematureAdmissionDenial(fixtureDirectory);
         return 0;
     }
     return 2;

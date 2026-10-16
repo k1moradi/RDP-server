@@ -1,3 +1,53 @@
+## R10 non-listening Linux R1→R2→R3 connection aggregate (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main`: `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`;
+shared files were reconciled through publication candidate `461077c612ec4370d8f943e1a2502172e4649ee3`. The
+sealed-keytab provisioning gate remains unpromoted and correction workflow
+`38884685461` is still pending, so this increment does **not** add or activate
+a listener. Instead R10 adds the ownership boundary required before listener
+work: `LinuxRuntimeConnection`.
+
+One nonmoving aggregate owns the transferred R1
+`OwnedPreauthTcpConnection`, one existing R2 `GssapiSpnegoAcceptor`, one
+`LinuxConsoleAdmissionBroker`, an optional move-only
+`LinuxConsoleAdmissionLease`, and the sole R3 `McsSessionLifecycle`.
+It borrows the service-lifetime `LinuxRuntimeSecurityConfiguration` and
+`RuntimeServerTlsContext`; it creates no competing protocol/authentication
+state. Construction configures a fresh R2 acceptor from the already sealed R10
+keytab snapshot and cancels an accepted socket immediately if service
+provisioning is absent.
+
+The terminal `revoke()` is idempotent and enforces R3 → R2/GSS → R1:
+`LinuxConsoleAdmissionBroker::revokeR3Session` closes R3 first, then the
+lease/broker/GSS authority is destroyed, and only then R1 releases SSL/BIO/
+socket ownership. A fresh per-connection SSL can be created only through the
+existing R10 TLS context and transferred into R1. Positive admission remains
+the existing R2 `issue(acceptor, exact-R1-owner, request)` path, including its
+genuine HYBRID negotiation-provenance requirement; the lease never escapes
+this aggregate. R3 Connect Initial remains reachable only through R2.
+
+Two new Linux production-backed CTests are registered in the existing
+`test_runtime_linux_security` executable:
+`runtime.linux-connection-aggregate-ordered-revocation` and
+`runtime.linux-connection-aggregate-premature-admission-denial`. They reuse
+the build-root-only synthetic MIT service keytab and a test-only ephemeral
+loopback accepted socket. Coverage includes unprovisioned-constructor socket
+cancellation, one transferred R1 socket with a fresh R2 acceptor/broker and
+untouched R3 owner, idempotent ordered teardown, and terminal denial when a
+policy-shaped request is submitted before any CredSSP/GSS identity or R1
+HYBRID proof. No positive admission capability is fabricated.
+
+**Authoring status:** source/test/doc review only. Canonical repository
+build/CTest is **NOT RUN** here because the owner checkout is unavailable; no
+alternate build root was created. Exact-SHA hosted Linux compilation and both
+new CTests are required after publication. Owner Linux/X11, MSYS2
+CLANG64/Clang23, macOS27, real KDC/client ticket, positive logind admission,
+external RDP client and listener/service are **NOT RUN**.
+
+**Next R10 gate:** obtain exact-SHA Linux PASS for the sealed-keytab correction
+and this aggregate. Only then may R10 promote Linux runtime provisioning and
+design the minimal loopback listener/event loop around this exact aggregate.
+
 ## R2 downstream R1-owner seam repair (2026-10-16; exact-SHA CI pending)
 
 Post-publication call-site audit of R2 commit

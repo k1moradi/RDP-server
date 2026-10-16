@@ -1,3 +1,36 @@
+## R10 non-listening Linux connection aggregate authoring (2026-10-16)
+
+**Starting shared main:** `0ecfc2e5f54a38c1605c04bf32bd0d09a65d10d9`;
+reconciled through publication candidate `461077c612ec4370d8f943e1a2502172e4649ee3`.
+
+**Production change:** new
+`src/server/runtime/linux_runtime_connection.{h,cpp}` composes the existing
+R1 accepted-connection owner, R2 GSS/native admission objects and sole R3 MCS
+lifecycle without binding or listening. It borrows the service-lifetime R10
+sealed-keytab policy and TLS context. Construction configures the existing real
+MIT GSS acceptor from the sealed snapshot; absent provisioning cancels the
+transferred R1 socket. Positive R2 issuance uses the exact R1 owner, preserving
+the HYBRID-provenance gate. The admission lease is aggregate-private.
+
+**Teardown contract:** `revoke()` first calls R2's existing
+`revokeR3Session` barrier, then drops lease/broker/GSS authority, then cancels
+R1 so SSL/BIO/socket are released last. Repeated revoke remains terminal.
+
+**Dedicated CTests:** 
+`runtime.linux-connection-aggregate-ordered-revocation` and
+`runtime.linux-connection-aggregate-premature-admission-denial`, reusing the
+existing synthetic MIT keytab and a test-only ephemeral loopback connection.
+Coverage includes missing service provisioning and a policy-shaped admission
+attempt before CredSSP/GSS identity and genuine R1 HYBRID provenance. Neither
+case fabricates positive native admission.
+
+**NOT RUN at authoring:** full repository configure/build/CTest; no owner
+checkout is available in this environment. Exact-SHA hosted Linux compile and
+focused/full CTest are pending publication. Sealed-keytab correction Actions
+`38884685461` remains an independent prerequisite. No production listener,
+KDC/client ticket, positive NSS/logind lease, R3 admitted session,
+owner-platform receipt or external RDP client is claimed.
+
 ## R2 downstream owner-callsite repair validation (2026-10-16)
 
 Review after `2fb5ed5a832c97241d236813599b6d1e8efef985` found the existing

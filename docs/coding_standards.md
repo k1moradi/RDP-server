@@ -1,3 +1,16 @@
+## Runtime connection aggregate teardown
+
+When R10 composes a live connection from existing road owners, do not transfer
+or duplicate their authority into a second session controller. A connection
+aggregate may own the objects solely to enforce lifetime: R1 socket/BIO/SSL,
+R2 GSS/native admission capability, and the one R3 session lifecycle.
+
+Terminal teardown order is security-significant. Close/revoke R3 first while
+R2 and R1 are still alive, then revoke/destroy R2 GSS and admission leases,
+then release R1 TLS/BIO/socket last. Make this path idempotent and use it from
+the destructor. Service-lifetime keytab/policy/SSL_CTX owners must outlive every
+connection aggregate that borrows them.
+
 ## Credential object identity is not credential-content immutability
 
 When a provider will reload security-sensitive bytes later, retaining a

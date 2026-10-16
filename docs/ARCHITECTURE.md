@@ -1,3 +1,27 @@
+### R10 Linux connection aggregate and teardown order
+
+`LinuxRuntimeConnection` is the non-listening composition owner between
+service-lifetime R10 security/TLS configuration and one future accepted client.
+It is noncopyable/nonmovable because R1's SSL/BIO callbacks borrow the embedded
+TCP adapter and because R2/R3 authority must never fork.
+
+Ownership remains layered rather than duplicated: R10 owns the sealed keytab
+snapshot, immutable native identity policy and reusable `SSL_CTX`; the
+aggregate owns one R1 accepted socket/BIO/SSL connection, one R2 GSS/native
+admission broker with at most one lease, and exactly one R3
+`McsSessionLifecycle`.
+
+The aggregate does not parse SPNEGO, inspect NSS/logind itself or emulate R3.
+Every positive transition delegates to its existing owner. R2 admission
+consumes the exact R1 connection so established TLS and immutable HYBRID
+negotiation provenance cannot be supplied independently.
+
+Terminal destruction is a security boundary: close/revoke R3 first while R2
+and R1 are alive, then revoke/destroy R2 GSS and admission leases, then cancel
+R1 so SSL/BIO/socket disappear last. Explicit `revoke()` and the destructor
+share this idempotent order. Service-lifetime keytab/policy/SSL_CTX owners must
+outlive every aggregate that borrows them.
+
 ### R2 downstream protected-input owner seam (2026-10-16)
 
 Native input routing does not receive an independent transport proof.

@@ -910,10 +910,11 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::writeTlsApplicationData(
 }
 
 OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
-    OwnedNativeTcpSocket acceptedSocket) noexcept
+    OwnedNativeTcpSocket acceptedSocket,
+    SecurityNegotiationPolicy negotiationPolicy) noexcept
     : socket_(std::move(acceptedSocket)),
       io_(socket_.nativeSocket()),
-      adapter_(io_)
+      adapter_(io_, negotiationPolicy)
 {
     if (!socket_.valid()) adapter_.close();
 }

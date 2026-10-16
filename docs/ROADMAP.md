@@ -1,3 +1,39 @@
+## R1 explicit genuine HYBRID/NLA negotiation policy (2026-10-16; exact-SHA CI pending)
+
+Starting reconciled shared `main`: `b31d910a7c5f17f16676469bee7e7c8ba1bd69fe`. R2 already requires immutable
+R1 provenance showing both a client HYBRID offer and an actual server
+`PROTOCOL_HYBRID` selection before native OS admission. R1 previously had
+only the diagnostic TLS selection, which made that positive path impossible.
+
+R1 now exposes one immutable per-connection
+`SecurityNegotiationPolicy`. The source-compatible default remains
+`DiagnosticTlsOnly`; existing callers keep selecting `PROTOCOL_SSL`.
+An explicitly configured `HybridNla` connection selects
+`PROTOCOL_HYBRID` only when HYBRID was offered, emits
+`HYBRID_REQUIRED_BY_SERVER` for SSL-only/downgrade attempts, and rejects
+Restricted Admin, Remote Credential Guard and unknown flags that this
+implementation does not support. Standard RDP security remains unsupported.
+
+The policy is fixed before peer bytes enter the existing
+`PreauthSession -> PreauthConnectionStream -> PreauthTcpAdapter ->
+OwnedPreauthTcpConnection` ownership chain. No second transport/session
+controller is added. Provenance remains unavailable until the exact attached
+SSL completes TLS and is revoked by terminal cancellation.
+
+Dedicated loopback CTest `transport.tcp-owned-hybrid-nla-negotiation`
+proves downgrade denial, exact HYBRID Confirm bytes, real nonblocking TLS on
+the same accepted socket/BIO, immutable offered+selected provenance, caller
+buffer mutation isolation and revocation. `transport.security-negotiation`
+covers combined/HYBRID-only offers, HYBRID_REQUIRED encoding, correlation
+acceptance and unsupported-flag denials. R9 sanitizer selection includes the
+new owner case.
+
+R1 does not switch R10's non-listening aggregate from its diagnostic default.
+R10 owns serving configuration and must opt a genuine serving connection into
+`HybridNla` when its CredSSP/GSS/native-admission event loop is composed.
+R2 remains the sole identity/OS-admission authority and R3 the sole session
+owner. M2 is not accepted by this transport change alone.
+
 ## R3 protected joined-CLIPRDR role identity boundary (2026-10-16; exact-SHA CI pending)
 
 **Authoring base:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`;

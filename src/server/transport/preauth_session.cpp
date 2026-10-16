@@ -18,9 +18,9 @@ SecurityReply PreauthSession::onConnectionRequest(
     {
         // Repeated/out-of-order X.224 is terminal for R3 as well as R1.
         close();
-        return negotiateDiagnosticTls({});
+        return negotiateSecurity({}, negotiationPolicy_);
     }
-    const auto reply = negotiateDiagnosticTls(request);
+    const auto reply = negotiateSecurity(request, negotiationPolicy_);
     if (reply.decision == SecurityDecision::Tls)
         stage_ = PreauthStage::AwaitTls;
     else
@@ -154,7 +154,7 @@ bool PreauthConnectionStream::onTlsHandshake(const SSL *serverTls) noexcept
     }
     connectionReplySent_ = false;
 
-    // MS-RDPBCGR 5.4: PROTOCOL_SSL delegates TLS to the security provider.
+    // MS-RDPBCGR 5.4: PROTOCOL_SSL/PROTOCOL_HYBRID both begin with TLS.
     // Do not accept an SSL object that is merely configured/started, or
     // one from the peer/client role. This is a transport phase check,
     // NOT certificate-chain trust or user/desktop authorization.

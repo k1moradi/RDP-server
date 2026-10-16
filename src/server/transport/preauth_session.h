@@ -33,6 +33,11 @@ enum class PreauthStage : std::uint8_t
 class PreauthSession final
 {
 public:
+    explicit PreauthSession(
+        SecurityNegotiationPolicy negotiationPolicy =
+            SecurityNegotiationPolicy::DiagnosticTlsOnly) noexcept
+        : negotiationPolicy_(negotiationPolicy) {}
+
     [[nodiscard]] PreauthStage stage() const noexcept { return stage_; }
 
     // Read-only diagnostic of the embedded R3 owner; never an
@@ -59,6 +64,8 @@ public:
     }
 
 private:
+    SecurityNegotiationPolicy negotiationPolicy_{
+        SecurityNegotiationPolicy::DiagnosticTlsOnly};
     McsSessionLifecycle mcsSession_{};
     PreauthStage stage_{PreauthStage::AwaitConnectionRequest};
 };
@@ -134,6 +141,11 @@ struct McsIntakeResult
 class PreauthConnectionStream final
 {
 public:
+    explicit PreauthConnectionStream(
+        SecurityNegotiationPolicy negotiationPolicy =
+            SecurityNegotiationPolicy::DiagnosticTlsOnly) noexcept
+        : session_(negotiationPolicy) {}
+
     [[nodiscard]] PreauthStage stage() const noexcept
     {
         return session_.stage();

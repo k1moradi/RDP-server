@@ -10,7 +10,14 @@ namespace rdp_server::server::transport
 {
 
 // This is a preauthentication protocol decision, NEVER session admission.
-// The probe only supports PROTOCOL_SSL (TLS), never Standard RDP security.
+// Standard RDP security is never supported. Policy is fixed before any
+// peer-controlled bytes are consumed and cannot change mid-connection.
+enum class SecurityNegotiationPolicy : std::uint8_t
+{
+    DiagnosticTlsOnly,
+    HybridNla,
+};
+
 enum class SecurityDecision : std::uint8_t
 {
     Reject,
@@ -42,9 +49,15 @@ struct SecurityNegotiationProvenance
 // RFC 1006 + MS-RDPBCGR 2.2.1.2, with X.224 Connection Confirm (CC)
 // and an eight-byte RDP_NEG_RSP or RDP_NEG_FAILURE payload.
 //
-// Fail closed for legacy, malformed or non-TLS proposals. On success the
-// caller MAY perform a TLS handshake; that is NOT CredSSP/NLA or a desktop
-// session, and no bytes from an unauthenticated client may reach MCS.
+// DiagnosticTlsOnly preserves the historical TLS-only diagnostic behavior.
+// HybridNla selects PROTOCOL_HYBRID only when the client explicitly offered
+// HYBRID; SSL-only offers receive HYBRID_REQUIRED_BY_SERVER. Neither policy
+// authenticates a principal, authorizes an OS session or admits R3.
+[[nodiscard]] SecurityReply negotiateSecurity(
+    const ConnectionParseResult &request,
+    SecurityNegotiationPolicy policy) noexcept;
+
+// Source-compatible diagnostic wrapper for existing callers/tests.
 [[nodiscard]] SecurityReply negotiateDiagnosticTls(
     const ConnectionParseResult &request) noexcept;
 

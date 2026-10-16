@@ -1,3 +1,26 @@
+## R1 genuine HYBRID negotiation authoring (2026-10-16)
+
+**Starting reconciled main:** `b31d910a7c5f17f16676469bee7e7c8ba1bd69fe`.
+
+**Production:** fixed per-connection
+`SecurityNegotiationPolicy::{DiagnosticTlsOnly,HybridNla}` is threaded
+through the existing R1 negotiation/preauth/TCP owner chain. The default is
+unchanged. HybridNla selects only `PROTOCOL_HYBRID`, returns
+`HYBRID_REQUIRED_BY_SERVER` for SSL-only offers, rejects unsupported flags,
+and records the actual offered/selected pair through existing provenance.
+
+**Tests:** `transport.tcp-owned-hybrid-nla-negotiation` uses the existing
+native loopback/OpenSSL fixture for downgrade denial, wire selection,
+same-socket TLS completion, HYBRID provenance and revocation.
+`transport.security-negotiation` covers policy encoding positives/negatives.
+The owner case is included in the R9 sanitizer selection.
+
+**Scope/validation:** no R10 activation, R2 admission, R3 advancement or
+external-client claim. Local checkout build/CTest is NOT RUN in this connector
+environment. Exact-SHA hosted matrix, documentation policy and ASan/UBSan are
+required after publication; owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27 and Microsoft-client M2 remain NOT RUN.
+
 ## R3 joined static-channel role authoring verification (2026-10-16)
 
 **Inspected main:** `e4b0df9c3a2e9e466b3a24cb7dc2f563d2160533`.

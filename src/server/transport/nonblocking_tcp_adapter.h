@@ -269,7 +269,11 @@ enum class TcpPreauthEvent : std::uint8_t
 class PreauthTcpAdapter final
 {
 public:
-    explicit PreauthTcpAdapter(TcpNonblockingIo &io) noexcept : io_(io) {}
+    explicit PreauthTcpAdapter(
+        TcpNonblockingIo &io,
+        SecurityNegotiationPolicy negotiationPolicy =
+            SecurityNegotiationPolicy::DiagnosticTlsOnly) noexcept
+        : io_(io), connection_(negotiationPolicy) {}
 
     [[nodiscard]] TcpPreauthEvent onReadable() noexcept;
     [[nodiscard]] TcpPreauthEvent onWritable() noexcept;
@@ -410,7 +414,9 @@ private:
      using ServerTls = std::unique_ptr<SSL, decltype(&SSL_free)>;
 
      explicit OwnedPreauthTcpConnection(
-         OwnedNativeTcpSocket acceptedSocket) noexcept;
+         OwnedNativeTcpSocket acceptedSocket,
+         SecurityNegotiationPolicy negotiationPolicy =
+             SecurityNegotiationPolicy::DiagnosticTlsOnly) noexcept;
      OwnedPreauthTcpConnection(const OwnedPreauthTcpConnection &) = delete;
      OwnedPreauthTcpConnection &operator=(const OwnedPreauthTcpConnection &) = delete;
      OwnedPreauthTcpConnection(OwnedPreauthTcpConnection &&) = delete;

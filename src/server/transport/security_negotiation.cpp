@@ -3,12 +3,26 @@
 
 namespace rdp_server::server::transport
 {
-
-SecurityReply negotiateDiagnosticTls(
-    const ConnectionParseResult &request) noexcept
+namespace
 {
-    // TPKT(4) + X.224 CC(7) + RDP_NEG_{RSP,FAILURE}(8).
-    // CC destination reference = 0, source reference = 0x1234, class = 0.
+constexpr std::uint8_t kCorrelationInfoPresent = 0x08U;
+constexpr std::uint32_t kSslRequiredByServer = 0x00000001U;
+constexpr std::uint32_t kHybridRequiredByServer = 0x00000005U;
+
+void writeLittleEndian32(std::array<std::uint8_t, 19> &packet,
+                         std::uint32_t value) noexcept
+{
+    packet[15] = static_cast<std::uint8_t>(value & 0xffU);
+    packet[16] = static_cast<std::uint8_t>((value >> 8U) & 0xffU);
+    packet[17] = static_cast<std::uint8_t>((value >> 16U) & 0xffU);
+    packet[18] = static_cast<std::uint8_t>((value >> 24U) & 0xffU);
+}
+}
+
+SecurityReply negotiateSecurity(
+    const ConnectionParseResult &request,
+    SecurityNegotiationPolicy policy) noexcept
+{
     SecurityReply result{
         SecurityDecision::Reject,
         {0x03, 0x00, 0x00, 0x13,
@@ -16,25 +30,39 @@ SecurityReply negotiateDiagnosticTls(
          0x03, 0x00, 0x08, 0x00,
          0x01, 0x00, 0x00, 0x00},
     };
-    // Do not negotiate based on unknown flag bits. All other requested
-    // security protocols are rejected unless TLS is explicitly included.
-    // The request may also advertise HYBRID; selecting TLS here is only
-    // permissible for a diagnostic which refuses application data later.
-    constexpr std::uint8_t kCorrelationOnly = 0x08U;
-    if (request &&
-        request.request.hasNegotiation &&
-        // Restricted Admin and Remote Credential Guard require CredSSP,
-        // which the diagnostic does not provide. Reject unknown flags too.
-        (request.request.negotiationFlags & ~kCorrelationOnly) == 0 &&
-        (request.request.requestedProtocols & kRdpProtocolSsl) != 0)
+
+    const std::uint32_t requiredProtocol =
+        policy == SecurityNegotiationPolicy::HybridNla
+            ? kRdpProtocolHybrid
+            : kRdpProtocolSsl;
+    const std::uint32_t failureCode =
+        policy == SecurityNegotiationPolicy::HybridNla
+            ? kHybridRequiredByServer
+            : kSslRequiredByServer;
+    writeLittleEndian32(result.packet, failureCode);
+
+    // R1 does not implement Restricted Admin or Remote Credential Guard
+    // semantics. Correlation information is independently parsed/bounded.
+    if (!request ||
+        !request.request.hasNegotiation ||
+        (request.request.negotiationFlags & ~kCorrelationInfoPresent) != 0 ||
+        (request.request.requestedProtocols & requiredProtocol) == 0)
     {
-        result.decision = SecurityDecision::Tls;
-        result.packet[11] = 0x02; // TYPE_RDP_NEG_RSP
-        result.selectedProtocol = kRdpProtocolSsl;
-        // selectedProtocol = PROTOCOL_SSL (1), LE, already in [15..18].
+        return result;
     }
-    // Otherwise TYPE_RDP_NEG_FAILURE and SSL_REQUIRED_BY_SERVER (1).
+
+    result.decision = SecurityDecision::Tls;
+    result.packet[11] = 0x02; // TYPE_RDP_NEG_RSP
+    result.selectedProtocol = requiredProtocol;
+    writeLittleEndian32(result.packet, requiredProtocol);
     return result;
+}
+
+SecurityReply negotiateDiagnosticTls(
+    const ConnectionParseResult &request) noexcept
+{
+    return negotiateSecurity(
+        request, SecurityNegotiationPolicy::DiagnosticTlsOnly);
 }
 
 } // namespace rdp_server::server::transport

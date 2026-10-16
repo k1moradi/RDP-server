@@ -1,3 +1,17 @@
+### R1 explicit TLS-vs-HYBRID negotiation policy (2026-10-16)
+
+Security protocol selection is immutable per-connection configuration, not a
+post-parse scalar. `DiagnosticTlsOnly` preserves the historical default.
+`HybridNla` requires an actual HYBRID offer and returns
+`PROTOCOL_HYBRID`; SSL-only receives `HYBRID_REQUIRED_BY_SERVER`.
+
+The policy is threaded through the existing single R1 owner before any peer
+bytes are consumed. The same parser, X.224 reply buffer, SSL/BIO and immutable
+provenance remain authoritative. HYBRID selection is only protocol shape; it
+does not prove GSS authentication, native OS authorization or R3 admission.
+Unsupported Restricted Admin/Remote Credential Guard flags remain denied.
+R10 must explicitly choose HybridNla for serving connections.
+
 ### R3 authenticated joined static-channel role observation (2026-10-16)
 
 MS-RDPBCGR CS_NET `CHANNEL_DEF` positions correspond exactly to the

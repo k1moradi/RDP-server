@@ -1,3 +1,47 @@
+## R9 licensing transition regression and sanitizer selection (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `3a178f60a3a5e6612b9a1c2ef930eb81d8e4c24c`.
+**Source review: PASS.** The existing bounded R1/R3 sanitizer regex already
+included `transport.licensing-server-identity-configuration` and
+`transport.licensing-server-request-generated-random` at this parent.
+R9 preserves both and adds a fail-closed `ctest -N` selection assertion
+before instrumented execution; source selection alone is not a sanitizer PASS.
+
+Three dedicated, production-linked CTests reuse
+`test_owned_mcs_connect_initial`: 
+`transport.licensing-client-response-before-request-delivery` checks zero
+and partial actual CSPRNG-backed writer receipts followed by premature client
+intake and irreversible denial;
+`transport.licensing-generated-request-cancellation-replay` checks partial
+delivery, cancellation, old/reordered/duplicate receipts and late-message
+replay; `transport.licensing-client-response-single-consumption` checks
+either valid first client response after a completed real server write, then
+alternate-response replay and malformed terminal denial. None bypass R2 or
+proves genuine licensing cryptography; all remain in the existing bounded R9
+sanitizer group. Existing R3 tests are unchanged.
+
+**M1 quality gate: OPEN.** Previously recorded hosted Linux/GCC,
+macOS/AppleClang, Windows/MSVC Debug/Release and sanitizer successes belong
+to their own explicitly cited earlier SHAs, not this change. At publication
+time this R9 commit's exact-SHA hosted full CTests, bounded ASan/UBSan,
+documentation-policy, SDK consumer and package checks are **NOT RUN** pending
+CI receipts. Local `~/rdp-server/build/` configure/build/full CTest and
+`ctest -N` are **BLOCKED** in this connector environment (checkout absent);
+no alternate build root was created. The independent project-owner Linux/X11,
+Windows MSYS2 CLANG64/Clang 23 and macOS 27 checks on one identical SHA are
+**NOT RUN**. Do not accept M1 without these native receipts.
+
+**M2 quality gate: OPEN.** R2 positive final CredSSP `authInfo`
+authorization remains deny-only, and real NSS/logind admission is
+**BLOCKED** pending genuine identity/session facts. R3 first client licensing
+intake stops at `AwaitServerLicenseDecision`; cryptographic license
+validation, a real server decision, Share activation, and genuine
+Microsoft-client acceptance are **NOT RUN**. The protected R2 method still
+requires the move-only lease, exact R1 owner and HYBRID/GSS binding. An opt-in
+positive integration run requires genuine Kerberos/KDC credentials, native
+NSS/logind authorization and an actual owner-platform session; no synthetic
+lease or positive authentication was added.
+
 ## R9 licensing certificate sanitizer verification (2026-10-16)
 
 R3 implementation `1d030ab1fe5e3301b82ba7f4c37a2a0fd5f30b91` / Actions

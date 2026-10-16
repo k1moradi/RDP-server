@@ -5004,6 +5004,193 @@ void testRdpServerLicenseRequestWriteDenials()
     assert(fresh.licensingPhase() == RdpLicensingPhase::NotStarted);
 }
 
+
+void testRdpClientResponseBeforeRequestDelivery()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    const auto response = makeClientNewLicenseRequest();
+
+    // A queued packet and a zero-byte transport receipt are not delivery.
+    RdpLicensingLifecycle zeroByteLifecycle;
+    RdpServerLicenseRequestWriteGate zeroByteWriter{zeroByteLifecycle};
+    assert(zeroByteWriter.queue(identity));
+    std::uint64_t zeroReplySequence{};
+    std::uint64_t zeroSliceSequence{};
+    std::size_t zeroPendingBytes{};
+    {
+        const auto pending = zeroByteWriter.pendingWrite();
+        assert(pending);
+        zeroReplySequence = pending.replySequence;
+        zeroSliceSequence = pending.writeSliceSequence;
+        zeroPendingBytes = pending.bytes.size();
+        assert(zeroByteWriter.onBytesWritten(
+                   zeroReplySequence, zeroSliceSequence, 0U) ==
+               RdpServerLicenseRequestWriteOutcome::Pending);
+        const auto unchanged = zeroByteWriter.pendingWrite();
+        assert(unchanged.replySequence == zeroReplySequence);
+        assert(unchanged.writeSliceSequence == zeroSliceSequence);
+        assert(unchanged.bytes.size() == zeroPendingBytes);
+    }
+    assert(zeroByteLifecycle.phase() == RdpLicensingPhase::NotStarted);
+    assert(zeroByteLifecycle.onClientMessage(response) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(zeroByteLifecycle.phase() == RdpLicensingPhase::Failed);
+    assert(zeroByteWriter.onBytesWritten(
+               zeroReplySequence, zeroSliceSequence, zeroPendingBytes) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(!zeroByteWriter.pendingWrite());
+    assert(zeroByteLifecycle.phase() == RdpLicensingPhase::Closed);
+    assert(zeroByteLifecycle.onClientMessage(response) ==
+           RdpLicensingIntake::Closed);
+
+    // A real, positive short write rotates its slice but still grants no
+    // client-response authority or server-decision/Share transition.
+    RdpLicensingLifecycle partialLifecycle;
+    RdpServerLicenseRequestWriteGate partialWriter{partialLifecycle};
+    assert(partialWriter.queue(identity));
+    std::uint64_t partialReplySequence{};
+    std::uint64_t remainingSliceSequence{};
+    std::size_t remainingBytes{};
+    {
+        const auto initial = partialWriter.pendingWrite();
+        assert(initial);
+        const std::size_t acceptedBytes = initial.bytes.size() / 2U;
+        assert(acceptedBytes > 0U && acceptedBytes < initial.bytes.size());
+        assert(partialWriter.onBytesWritten(
+                   initial.replySequence, initial.writeSliceSequence,
+                   acceptedBytes) == RdpServerLicenseRequestWriteOutcome::Pending);
+        const auto remaining = partialWriter.pendingWrite();
+        assert(remaining);
+        assert(remaining.replySequence == initial.replySequence);
+        assert(remaining.writeSliceSequence != initial.writeSliceSequence);
+        assert(remaining.bytes.size() == initial.bytes.size() - acceptedBytes);
+        partialReplySequence = remaining.replySequence;
+        remainingSliceSequence = remaining.writeSliceSequence;
+        remainingBytes = remaining.bytes.size();
+    }
+    assert(partialLifecycle.phase() == RdpLicensingPhase::NotStarted);
+    assert(partialLifecycle.onClientMessage(response) ==
+           RdpLicensingIntake::UnexpectedMessage);
+    assert(partialLifecycle.phase() == RdpLicensingPhase::Failed);
+    assert(partialWriter.onBytesWritten(
+               partialReplySequence, remainingSliceSequence, remainingBytes) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(!partialWriter.pendingWrite());
+    assert(partialLifecycle.phase() == RdpLicensingPhase::Closed);
+    assert(partialLifecycle.onClientMessage(response) ==
+           RdpLicensingIntake::Closed);
+}
+
+void testRdpGeneratedRequestCancellationReplay()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    const auto response = makeClientLicenseInfo();
+
+    RdpLicensingLifecycle lifecycle;
+    RdpServerLicenseRequestWriteGate writer{lifecycle};
+    assert(writer.queue(identity));
+    std::uint64_t replySequence{};
+    std::uint64_t oldSliceSequence{};
+    std::uint64_t currentSliceSequence{};
+    std::size_t currentPendingBytes{};
+    {
+        const auto initial = writer.pendingWrite();
+        assert(initial);
+        replySequence = initial.replySequence;
+        oldSliceSequence = initial.writeSliceSequence;
+        constexpr std::size_t acceptedBytes = 7U;
+        assert(initial.bytes.size() > acceptedBytes);
+        assert(writer.onBytesWritten(
+                   replySequence, oldSliceSequence, acceptedBytes) ==
+               RdpServerLicenseRequestWriteOutcome::Pending);
+
+        const auto remaining = writer.pendingWrite();
+        assert(remaining);
+        assert(remaining.replySequence == replySequence);
+        assert(remaining.writeSliceSequence != oldSliceSequence);
+        assert(remaining.bytes.size() == initial.bytes.size() - acceptedBytes);
+        currentSliceSequence = remaining.writeSliceSequence;
+        currentPendingBytes = remaining.bytes.size();
+    }
+
+    // Capture only receipt values, never a borrowed buffer across close.
+    assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
+    writer.close();
+    assert(!writer.pendingWrite());
+    assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+    assert(writer.onBytesWritten(
+               replySequence, currentSliceSequence, currentPendingBytes) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(writer.onBytesWritten(
+               replySequence, oldSliceSequence, 7U) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(writer.onBytesWritten(
+               replySequence, currentSliceSequence, 0U) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(writer.onBytesWritten(
+               replySequence + 1U, currentSliceSequence, 1U) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    writer.close();
+    assert(!writer.pendingWrite());
+    assert(!writer.queue(identity));
+    assert(lifecycle.onClientMessage(response) ==
+           RdpLicensingIntake::Closed);
+    assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+}
+
+void testRdpClientResponseSingleConsumption()
+{
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    const auto newRequest = makeClientNewLicenseRequest();
+    const auto licenseInfo = makeClientLicenseInfo();
+
+    // Both legitimate first-message forms stop at a server decision. An
+    // alternate second response cannot be accepted or revive that phase.
+    for (bool firstIsLicenseInfo : {false, true})
+    {
+        RdpLicensingLifecycle lifecycle;
+        RdpServerLicenseRequestWriteGate writer{lifecycle};
+        assert(writer.queue(identity));
+        {
+            const auto pending = writer.pendingWrite();
+            assert(pending);
+            assert(writer.onBytesWritten(
+                       pending.replySequence, pending.writeSliceSequence,
+                       pending.bytes.size()) ==
+                   RdpServerLicenseRequestWriteOutcome::Delivered);
+        }
+        assert(!writer.pendingWrite());
+        assert(lifecycle.phase() == RdpLicensingPhase::AwaitClientLicenseResponse);
+
+        const auto &first = firstIsLicenseInfo ? licenseInfo : newRequest;
+        const auto &alternate = firstIsLicenseInfo ? newRequest : licenseInfo;
+        const auto expected = firstIsLicenseInfo
+            ? RdpLicensingIntake::ClientLicenseInfoAccepted
+            : RdpLicensingIntake::ClientNewLicenseRequestAccepted;
+        assert(lifecycle.onClientMessage(first) == expected);
+        assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+        assert(lifecycle.onClientMessage(alternate) ==
+               RdpLicensingIntake::UnexpectedMessage);
+        assert(lifecycle.phase() == RdpLicensingPhase::Failed);
+        assert(lifecycle.onClientMessage(first) == RdpLicensingIntake::Failed);
+        lifecycle.close();
+        assert(lifecycle.onClientMessage(alternate) ==
+               RdpLicensingIntake::Closed);
+    }
+
+    RdpLicensingLifecycle malformedLifecycle;
+    assert(deliverServerLicenseRequest(malformedLifecycle));
+    assert(malformedLifecycle.onClientMessage(
+               std::span(licenseInfo).first(licenseInfo.size() - 1U)) ==
+           RdpLicensingIntake::MalformedMessage);
+    assert(malformedLifecycle.phase() == RdpLicensingPhase::Failed);
+    assert(malformedLifecycle.onClientMessage(newRequest) ==
+           RdpLicensingIntake::Failed);
+}
+
 void testRdpLicensingPreambleAndState()
 {
     const auto newRequest = makeClientNewLicenseRequest();
@@ -5162,7 +5349,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 82> kMcsTestCases{{
+constexpr std::array<McsTestCase, 85> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -5212,6 +5399,9 @@ constexpr std::array<McsTestCase, 82> kMcsTestCases{{
     {"licensing-server-request-generated-random", &testRdpServerLicenseRequestGeneratedRandom},
     {"licensing-server-request-write-receipts", &testRdpServerLicenseRequestWriteReceipts},
     {"licensing-server-request-write-denials", &testRdpServerLicenseRequestWriteDenials},
+    {"licensing-client-response-before-request-delivery", &testRdpClientResponseBeforeRequestDelivery},
+    {"licensing-generated-request-cancellation-replay", &testRdpGeneratedRequestCancellationReplay},
+    {"licensing-client-response-single-consumption", &testRdpClientResponseSingleConsumption},
     {"licensing-client-envelope-wire", &testRdpClientLicensingEnvelopeWire},
     {"licensing-client-envelope-denials", &testRdpClientLicensingEnvelopeDenials},
     {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},

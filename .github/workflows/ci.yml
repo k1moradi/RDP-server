@@ -189,8 +189,19 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
+          set -euo pipefail
+          # Verify the actual central CTest registry before instrumented execution.
+          licensing_selection='^(transport\.(tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'transport.licensing-server-identity-configuration' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-server-request-generated-random' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-client-response-before-request-delivery' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-generated-request-cancellation-replay' <<< "$selected_tests"
+          grep -Fq 'transport.licensing-client-response-single-consumption' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^(transport\.(tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|preamble-and-state|length-bounds|ordering-denials))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$' --output-on-failure
+            -R "$licensing_selection" --output-on-failure
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

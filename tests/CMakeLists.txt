@@ -66,6 +66,9 @@ function(add_rdp_test source_file suite behavior)
                 licensing-server-request-generated-random
                 licensing-server-request-write-receipts
                 licensing-server-request-write-denials
+                licensing-client-response-before-request-delivery
+                licensing-generated-request-cancellation-replay
+                licensing-client-response-single-consumption
                 licensing-client-envelope-wire
                 licensing-client-envelope-denials
                 licensing-preamble-and-state

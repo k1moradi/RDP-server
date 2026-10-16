@@ -244,6 +244,45 @@ constexpr std::array<std::string_view, 7> kConfigurationFields{
 #endif
 
 
+#if !defined(_WIN32)
+// Walk the absolute path through one open directory descriptor at a time.
+// O_NOFOLLOW on every component rejects parent symlink/junction aliases
+// without a separate pathname stat and avoids opening a FIFO for reading.
+[[nodiscard]] int openTlsFileWithoutSymlinkParents(
+    std::string_view path) noexcept {
+    if (path.size() < 2 || path.front() != '/') {
+        return -1;
+    }
+    int parentFd = ::open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (parentFd < 0) {
+        return -1;
+    }
+    path.remove_prefix(1);
+    while (true) {
+        const std::size_t separator = path.find('/');
+        const std::string_view component = path.substr(0, separator);
+        if (component.empty() || component == "." || component == "..") {
+            (void)::close(parentFd);
+            return -1;
+        }
+        std::array<char, 1025> terminated{};
+        std::copy(component.begin(), component.end(), terminated.begin());
+        const int flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK |
+            (separator == std::string_view::npos ? 0 : O_DIRECTORY);
+        const int opened = ::openat(parentFd, terminated.data(), flags);
+        (void)::close(parentFd);
+        if (opened < 0) {
+            return -1;
+        }
+        if (separator == std::string_view::npos) {
+            return opened;
+        }
+        parentFd = opened;
+        path.remove_prefix(separator + 1);
+    }
+}
+#endif
+
 struct TlsFileIdentity {
 #if defined(_WIN32)
     DWORD volume = 0;
@@ -265,9 +304,9 @@ struct TlsFileIdentity {
     if (!isAbsoluteConfigurationPath(path)) {
         return false;
     }
+#if defined(_WIN32)
     std::array<char, 1025> terminatedPath{};
     std::copy(path.begin(), path.end(), terminatedPath.begin());
-#if defined(_WIN32)
     const HANDLE handle = ::CreateFileA(
         terminatedPath.data(), GENERIC_READ, FILE_SHARE_READ, nullptr,
         OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
@@ -297,10 +336,9 @@ struct TlsFileIdentity {
     identity.indexHigh = information.nFileIndexHigh;
     identity.indexLow = information.nFileIndexLow;
 #else
-    // Check identity/mode on the same descriptor without following the
-    // final symlink, blocking on a FIFO or opening any TLS material content.
-    const int fd = ::open(
-        terminatedPath.data(), O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
+    // Check identity/mode on the opened descriptor. Ancestor directories
+    // are also opened with O_NOFOLLOW rather than traversed by pathname.
+    const int fd = openTlsFileWithoutSymlinkParents(path);
     if (fd < 0) {
         return false;
     }

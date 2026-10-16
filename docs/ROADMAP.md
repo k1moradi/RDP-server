@@ -361,6 +361,36 @@ Next R10: credentials' parent-path confinement and real
 certificate/key cryptographic provisioning checks behind a
 separate offline, non-activating gate.
 
+**R10 POSIX TLS file parent-symlink component walk (2026-10-15; CI NOT RUN at authoring):**
+The already implemented independent, nonactivating
+`rdp-server --check-tls-files FILE` previously rejected a symlink at
+the final cert/key path component but could follow an ancestor
+directory symlink during pathname opening. For POSIX TLS certificate
+and private-key preflight, R10 now walks absolute path components from
+an opened root directory with bounded stack buffers and
+`openat(O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK)`, using
+`O_DIRECTORY` at each intermediate step. It then performs the
+**existing** opened-descriptor regular-file, owner, mode, size and
+cert/key identity tests. Failures close the current descriptor; no
+path content, key material or credential is logged or parsed.
+Three dedicated **POSIX-only** CTests exercise a real nested parent
+(accept) and symlinked parent directories for key and certificate
+(reject), invoking the existing real executable and CMake fixture.
+Windows's previously validated native HANDLE/reparse/DACL path is
+unchanged. The ordinary `--check-config` remains syntax-only;
+normal startup, listener, R2 admission and R3 desktop remain
+disabled. **PASS isolated Linux:** GCC 14.2 and Clang 17 strict
+C++23 production-like focused source with genuine nested/symlink
+file handles, success 0 and rejection 3. **NOT RUN at authoring:**
+full repository CI on this increment, owner Linux/X11,
+Windows MSYS2 CLANG64 Clang23, macOS27 exact-SHA one-liner and
+live-client checks. This does not prevent replacement **after**
+offline validation; live TLS loader must re-open and re-validate
+credential handles. M1–M6 remain unaccepted. Next: hosted CI
+Debug/Release and owner full CTests, then actual cryptographic
+certificate/private-key parsing and matching without service
+activation.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

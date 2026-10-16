@@ -613,6 +613,20 @@ separate. This is FILE METADATA only: no PEM parsing, private key
 loading, certificate matching, NLA, listener or desktop activation.
 Intermediate directory reparse/ACL analysis remains open.
 
+### R10 POSIX TLS credential ancestor-path descriptor walk (2026-10-15)
+
+R10's offline `--check-tls-files` metadata preflight now refuses
+certificate and key paths that traverse intermediate POSIX symbolic
+links. It opens each component relative to the previous opened
+directory descriptor using `openat` and `O_NOFOLLOW`; no separate
+path `stat` is used for the decision. The already-established
+`fstat`, effective UID, file mode, size, alias-identity and
+resource-lifetime checks are preserved. The handle is closed after
+offline verification; TLS material is **not parsed or retained**.
+This does not grant future live-session permission or protect a
+separate subsequent file reopen. Windows is unchanged and needs
+separate parent-junction review.
+
 ### R10 Windows native configuration-file descriptor guard (2026-10-15)
 
 The non-installable runtime uses Win32 `CreateFileA`,

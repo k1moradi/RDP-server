@@ -5898,3 +5898,34 @@ actual user TCC/ScreenCaptureKit, authenticated desktop, live RDP client,
 cursor/input and performance. **Next:** native callback registration in
 R2/R3-authorized user process, first-party ScreenCaptureKit lifetime and
 R4-consumer ownership, with deterministic teardown tests.
+
+## R10 POSIX TLS ancestor symlink closure (2026-10-15)
+
+**Parent main SHA:** `3849c8e3073822984c185aad1c996f87e448031e`. The already existing
+`--check-tls-files` R10 metadata stage checks only final symlinks
+using `O_NOFOLLOW` on one absolute-path `open`. This incremental
+change adds `openTlsFileWithoutSymlinkParents`: for POSIX only,
+open `/`, traverse each component using relative `openat` with
+`O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK`, require `O_DIRECTORY`
+on intermediate entries, and close each previous descriptor before
+advancing. Invalid/dot/empty components fail closed. The returned
+handle is examined using the **existing** `fstat`, effective owner,
+permissions, byte bounds and same-identity rejection before closure.
+
+**New registered runtime CTests (POSIX only):**
+`runtime.validates-tls-files-nested-real-parent`,
+`runtime.rejects-tls-files-key-parent-symlink`, and
+`runtime.rejects-tls-files-certificate-parent-symlink`. All use
+the existing CMake fixture and real `rdp-server` executable,
+synthetic metadata-only contents; no listener or OS session.
+**PASS local isolated Linux:** GCC 14.2 and Clang 17 strict C++23
+metadata/path code compiled and a real nested parent returned exit
+0 while a parent symlink returned 3, within `~/rdp-server/build/`.
+**NOT RUN at authoring:** complete project Debug/Release CTests,
+current exact-SHA hosted Actions, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27 one-root full commands, real TLS
+certificate/key parsing, Microsoft RDP client, R2 OS admission
+and R3 live session/desktop. **Security:** does not prove later
+credential reload is race-safe; live loader must revalidate the
+newly opened handles. `--check-config` and startup denials are
+unchanged. M1–M6 remain OPEN.

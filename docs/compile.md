@@ -263,3 +263,16 @@ A successful preflight does **not** validate X.509, PEM key
 contents, private-key matching, expiry or service authorization,
 and cannot start the server. Dedicated `runtime.*tls-files*`
 CTests use synthetic content in `build/runtime-fixtures`.
+
+## R10 POSIX TLS parent-path symlink gate (2026-10-15)
+
+The separate `rdp-server --check-tls-files FILE` command checks
+credential **metadata only**; syntax-only `--check-config` is
+unchanged. On Linux/macOS, TLS files can reside in real nested
+directories but none of their parent components may be symlinks.
+The regular-file, size, owner, private-key mode and hardlink-alias
+checks still apply. Three POSIX-only CTests generate safe synthetic
+files under `build/runtime-fixtures`, including two parent-symlink
+denials. The unchanged owner configure/build/CTest one-liner runs
+these without genuine PEM data or a listener. Windows CLANG64
+and real TLS contents remain separately unverified.

@@ -536,7 +536,16 @@ foreach(runtime_case IN ITEMS
         rejects-tls-files-key-directory
         rejects-tls-files-windows-key-public-read
         rejects-tls-files-option-smuggling
+        validates-tls-files-nested-real-parent
+        rejects-tls-files-key-parent-symlink
+        rejects-tls-files-certificate-parent-symlink
         )
+    # A real nested directory is valid; either parent symlink is rejected
+    # by the production openat component walk on POSIX.
+    if(NOT UNIX AND runtime_case MATCHES
+       "^(validates-tls-files-nested-real-parent|rejects-tls-files-(key|certificate)-parent-symlink)$")
+        continue()
+    endif()
     if(NOT WIN32 AND runtime_case STREQUAL "rejects-tls-files-windows-key-public-read")
         continue()
     endif()

@@ -9241,3 +9241,27 @@ and the static-channel allocation span is empty. This is test-only and does not
 weaken the existing R2/R3 revocation or writer contract. Exact-SHA hosted
 sanitizer evidence is required before the new Attach User replay result is
 claimed.
+
+
+### R9 protected Channel Join sanitizer expansion (2026-10-16; CI pending)
+
+R3 now exposes the protected Channel Join intake/confirmation contract through
+the same nonforgeable R2 lease and exact R1 owner. R9 adds the registered
+`security.gssapi-r3-channel-join-contract` to the existing native R2/R3 GSS
+sanitizer selection. This sits alongside the independently authored
+`security.gssapi-r3-attach-user-terminal-replay-fence`; no positive native
+lease or synthetic admission is introduced.
+
+The preceding R9 exact-SHA run compiled the GSS executable after the stale
+writer-accessor fixture correction, then stopped in two R8 FILEDESCRIPTORW
+tests before reaching GSS. Shared commit
+`2bdc77344862ee589ae3adbdbe167b4d5947bbc7` corrects those test-only
+high/low DWORD fixtures without changing production. R9 consumes that shared
+repair rather than duplicating it.
+
+Exact-SHA hosted CI must now demonstrate the complete clipboard label stage,
+the expanded GSS selection including Attach User and Channel Join, the existing
+R1/R3 MCS/CredSSP/licensing selection, X11 authorized-input denial, and bounded
+fuzzer. Positive Kerberos/logind admission, real Join progression, authorized
+channel roles, owner platform checks, Microsoft-client interoperability and
+performance remain **NOT RUN/BLOCKED**.

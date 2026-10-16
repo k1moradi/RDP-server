@@ -178,7 +178,7 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           ctest --test-dir build --build-config Debug --timeout 60 --verbose \
-            -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
+            -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-channel-join-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
 
       - name: Run native authorized X11 input denial with sanitizers
         env:

@@ -5424,3 +5424,40 @@ No production transport code changed; all other CTests remain.
 owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
 authenticated R2/R3 admission and real RDP client/desktop.
 **Next:** verify all platforms' full Debug+Release CTests.
+
+## R1 listener-readiness corrected full hosted CI (2026-10-15)
+
+**Production implementation:** `1fb4d48e3f9a1133587d634d08ec69c5d5c19e03`,
+[Actions 38851057291](https://github.com/k1moradi/RDP-server/actions/runs/38851057291)
+SUCCESS Linux 228/228, macOS 211/211, Windows 230/230
+Debug+Release. A documentation-only follow-up revealed
+`transport.tcp-native-accept-batch-stops-denials` as
+intermittently failing macOS Debug (210/211) due to
+premature direct nonblocking accept before listener readiness.
+
+**Corrected fixture and exact validated SHA:**
+`66077dd20222f6f50466b2937f90e25d500a13f1`
+([test-only commit](https://github.com/k1moradi/RDP-server/commit/66077dd20222f6f50466b2937f90e25d500a13f1)).
+[Hosted Actions 38851653835](https://github.com/k1moradi/RDP-server/actions/runs/38851653835)
+**SUCCESS**, Linux/GCC **228/228 Debug and 228/228 Release**;
+macOS/AppleClang **211/211 Debug and 211/211 Release**;
+Windows/MSVC **230/230 Debug and 230/230 Release**.
+The previously failing `transport.tcp-native-accept-batch-stops-denials`
+and both new `transport.tcp-listener-poll-*` CTests PASS in
+all six hosted configurations. Documentation policy, R9
+ASan/UBSan security-protocol tests and installed SDK consumer
+checks PASS; prerelease intentionally SKIPPED without tag.
+
+**Hosted CI commands:** `cmake -S . -B build
+-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`, `cmake --build
+build --config Debug --parallel 2`, `ctest --test-dir build
+--build-config Debug --output-on-failure`, then Release
+reconfiguration/build/CTest in the same `build` root.
+
+**NOT RUN:** owner's nominated Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27 exact-SHA command; live first-party
+listener runtime, external Microsoft client, R2 authenticated
+identity/OS authorization and R3 admitted MCS/share/desktop.
+These are independent unaccepted gates, not inferred from CI.
+**Next R1:** R10 integrates the now bounded borrowed-listener
+readiness and sole connection owner into the process event loop.

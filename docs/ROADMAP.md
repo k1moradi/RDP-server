@@ -864,6 +864,29 @@ actually run; another parser CTest alone is not a complete session.
   three platform toolchains. Next: confirm the full hosted matrix
   including the previously intermittent macOS Debug case.
 
+  **R1 listener-readiness corrected full-CI receipt (2026-10-15)**:
+  Initial native listener-poll implementation
+  [`1fb4d48e3f9a1133587d634d08ec69c5d5c19e03`](https://github.com/k1moradi/RDP-server/commit/1fb4d48e3f9a1133587d634d08ec69c5d5c19e03)
+  PASS full hosted Debug+Release. Its documentation-only follow-up
+  exposed one sporadic macOS Debug failure in an older R1 batch
+  test that assumed an immediate native accept after client connect.
+  The test-only [`66077dd20222f6f50466b2937f90e25d500a13f1`](https://github.com/k1moradi/RDP-server/commit/66077dd20222f6f50466b2937f90e25d500a13f1)
+  waits boundedly for the same borrowed listener to become readable
+  through the new R1 polling API; `Drained`, one accepted connection,
+  callback and independent listener assertions are unchanged.
+  [Exact corrected commit Actions 38851653835](https://github.com/k1moradi/RDP-server/actions/runs/38851653835)
+  **SUCCESS**: Linux/GCC **228/228 Debug+Release**,
+  macOS/AppleClang **211/211 Debug+Release**, Windows/MSVC
+  **230/230 Debug+Release**. All new R1 poll tests AND the
+  previously intermittent accept-batch test PASS in all six
+  configurations; documentation-policy, security-protocol
+  sanitizers and installed SDK downstream checks PASS.
+  **NOT RUN** owner's Linux/X11, Windows MSYS2 CLANG64
+  Clang23, macOS27 exact-SHA commands or live Microsoft client,
+  R2 authenticated OS identity/admission, and R3 channel/desktop
+  activation. Next: R10 bounded runtime listener integration
+  after the independent security and session gates.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

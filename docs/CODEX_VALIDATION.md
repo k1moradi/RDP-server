@@ -1,3 +1,33 @@
+### R3 TS_INFO_PACKET exact-SHA hosted validation receipt (2026-10-16)
+
+Implementation `6d15aa6f1e564e389224e4b54d44b62b7d2920de`,
+[Actions 38904425329](https://github.com/k1moradi/RDP-server/actions/runs/38904425329):
+**SUCCESS** across every mandatory job. Linux/GCC full CTest is
+**407/407 PASS** in Debug and **407/407 PASS** in Release; macOS/Clang is
+**348/348 PASS** in Debug and Release; Windows/MSVC native preflight is
+**39/39 PASS** in both configurations and full CTest is **373/373 PASS**
+in Debug and Release. Documentation-policy and downstream SDK/package gates
+PASS; non-tag prerelease publication is correctly skipped.
+
+The new `transport.mcs-client-info-packet-structure` and
+`transport.mcs-client-info-packet-denials` cases PASS in all six hosted
+Debug/Release configurations. Existing protected Client Info route tests PASS
+alongside them; Linux-only `security.gssapi-r3-client-info-route-contract`
+PASSes in Debug and Release. R9 ASan/UBSan selected groups are all PASS:
+clipboard **41/41**, bounded R1/R3 transport/security **25/25**, native
+GSS/R2/R3 **23/23**, native R5 X11 **16/16**, and fuzzer **1/1**. The R9
+bounded selector still contains the two earlier route tests but does not yet
+select the two newly added packet-structure cases; their sanitizer-specific
+execution is therefore **NOT RUN**, while full hosted CTest evidence is green.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, genuine positive Kerberos/logind admission,
+Microsoft-client Client Info, licensing/Share and desktop acceptance remain
+**NOT RUN/OPEN**. **M2 NOT ACCEPTED.** The next R3 implementation must not
+invent licensing identity or randomness: Server License Request needs an
+owned CSPRNG server random plus product/scope identity before its receipt-bound
+writer can become a positive R2-authorized path.
+
 ## R2 owner-driven real Kerberos test hosted receipt (2026-10-16)
 
 Test `1d218f285049b12460ccd9da844b57d7c70e3b9c`, Actions

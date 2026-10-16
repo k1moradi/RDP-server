@@ -298,6 +298,20 @@ McsSessionIntake McsSessionLifecycle::onConnectInitial(
     if (phase_ == McsSessionPhase::Closed)
         return McsSessionIntake::Closed;
 
+    // Independently enforce R1's fixed first-TLS-TPKT budget at this
+    // public R3 entry point, before BER or GCC reads. All failures
+    // irrevocably revoke the one session owner and channel membership.
+    if (completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return McsSessionIntake::OversizedEnvelope;
+    }
+    if (completeTpkt.size() < 8)
+    {
+        close();
+        return McsSessionIntake::InvalidEnvelope;
+    }
+
     const auto parsed = parseMcsConnectInitial(completeTpkt);
     const bool valid = parsed &&
         static_cast<bool>(mergeMcsDomainParameters(parsed.value)) &&

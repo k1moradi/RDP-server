@@ -15,9 +15,8 @@
 namespace rdp_server::server::transport
 {
 
-// Candidate-only upper limit for the first *decrypted* MCS TPKT, before
-// domain/channel allocation. Larger input fails closed before being buffered.
-inline constexpr std::size_t kMaximumInitialMcsTpktBytes = 8192;
+// The single first-decrypted-TPKT cap is in mcs_connect_initial.h.
+// Both this bounded R1 intake and the R3 lifecycle enforce that cap.
 
 enum class PreauthStage : std::uint8_t
 {

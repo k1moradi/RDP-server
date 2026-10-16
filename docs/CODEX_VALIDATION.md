@@ -2924,6 +2924,36 @@ any branch, live desktop access or input injection.
 **Next:** native frame acquisition/release with deterministic cancellation
 tests after R2/R3 session and R4 frame lifetime agreement.
 
+## R3 authoritative first MCS intake-size denial (2026-10-15)
+
+**Code:** `kMaximumInitialMcsTpktBytes` is defined once by
+`mcs_connect_initial.h` and used unchanged (8192 bytes) by
+R1's bounded first TLS MCS intake and the existing R3
+`McsSessionLifecycle`. Direct R3 callers receive terminal
+`McsSessionIntake::OversizedEnvelope` for larger spans
+before BER/domain/GCC parsing. R1's PreauthSession diagnostic
+now calls that owner for all sizes after its protocol-phase check,
+rather than enforcing a duplicate local early-return. Truncated,
+malformed, valid-but-not-admitted and oversize inputs all close R3.
+
+**Dedicated registered CTests:**
+`transport.mcs-session-first-envelope-size-bounds` checks
+exact 8 KiB, over-limit buffers, malformed/truncated, valid
+published Microsoft packet, terminal revocation and no joins.
+`transport.mcs-preauth-first-envelope-size-bound` exercises
+the actual R1-to-R3 callback, oversized/truncated closure,
+late callback denial and unchanged syntax-only valid behavior.
+
+**NOT RUN at authoring:** complete local repository build/CTest
+(no full checkout in this runtime), exact implementation-SHA
+GitHub Actions, owner independent Linux/X11, Windows MSYS2
+CLANG64/Clang23 and macOS27 CTests, genuine R2 OS admission,
+licensed activation or real Microsoft RDP client.
+The local 8192-byte envelope ceiling is NOT the normative
+1024/4096-byte GCC userData limit (MS-RDPBCGR 3.3.5.3.3).
+Gate A/M2 remains NOT ACCEPTED; next is true R2 authorization
+and ordered post-auth MCS Connect Response writer completion.
+
 ## R3 preauth terminal revocation of MCS lifecycle (2026-10-15)
 
 **Exact-SHA hosted CI PASS:** [implementation 84d55d00f4c49772ddaad524d078ade198cf5f03](https://github.com/k1moradi/RDP-server/commit/84d55d00f4c49772ddaad524d078ade198cf5f03),

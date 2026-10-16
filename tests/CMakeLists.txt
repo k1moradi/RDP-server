@@ -42,6 +42,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-send-indication-joined-denials
                 mcs-session-unverified-connect
                 mcs-session-unverified-ordering
+                mcs-session-first-envelope-size-bounds
                 mcs-disconnect-wire
                 mcs-disconnect-rejections
                 mcs-send-data-wire
@@ -81,6 +82,7 @@ function(add_rdp_test source_file suite behavior)
         foreach(case_name IN ITEMS
                 preauth-session-lifecycle
                 mcs-preauth-terminal-revocation
+                mcs-preauth-first-envelope-size-bound
                 x224-request-fragments
                 x224-request-outcomes
                 x224-confirm-write-order

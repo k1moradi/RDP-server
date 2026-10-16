@@ -2,11 +2,19 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 
 namespace rdp_server::server::transport
 {
+
+ // Bounded R1/R3 first decrypted MCS Connect-Initial TPKT intake.
+ // A local allocation/processing limit, not the MS-RDPBCGR GCC userData
+ // 1024/4096-byte conditional limit. The ONE shared cap prevents a
+ // direct R3 caller from bypassing R1's bounded TLS intake.
+inline constexpr std::size_t kMaximumInitialMcsTpktBytes = 8192;
+
 
 // MS-RDPBCGR 2.2.1.3. Only the X.224 Data TPDU and BER encoded
 // MCS Connect-Initial envelope are parsed. The GCC userData is BORROWED.

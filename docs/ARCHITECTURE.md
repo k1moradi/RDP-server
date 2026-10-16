@@ -1585,6 +1585,17 @@ means only diagnostic progress to an MCS envelope, not R2 authorization.
 No new transport, admission capability or session state machine exists.
 
 
+**R3 first-MCS byte-budget ownership (2026-10-15):**
+The project's existing 8192-byte cap on the first decrypted MCS
+Connect-Initial TPKT now lives in the common MCS header, shared by
+R1's fixed-capacity TLS intake and the sole R3 `McsSessionLifecycle`.
+R3 applies the cap before parsing and terminates oversize envelopes;
+R1's diagnostic callback forwards all sizes to the one R3 checker
+while retaining its R1 TLS intake bound. This defense-in-depth bound
+is independent of the negotiated 1024/4096-byte GCC user-data limits.
+An oversized diagnostic does not admit, send, or configure anything
+and can never be retried on a closed connection.
+
 **R3 first R1/R2 session integration boundary (deny-only):** The
 noncopyable `McsSessionLifecycle` owns the R3 Channel Join bookkeeping
 and receives the already-decrypted first MCS Connect-Initial from the

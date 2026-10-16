@@ -2204,6 +2204,27 @@ actually run; another parser CTest alone is not a complete session.
   Owner exact-SHA Linux/X11, Windows MSYS2 CLANG64/Clang23 and
   macOS27 validation, real R2 OS admission, Microsoft client and
   desktop remain NOT RUN. Gate A/M2 remains OPEN.
+  **R3 shared bounded first-MCS admission-denial intake (2026-10-15; CI NOT RUN at authoring):**
+  Moved the existing 8192-byte first decrypted Connect-Initial TPKT
+  ceiling into the common first-party MCS header. The sole noncopyable
+  R3 `McsSessionLifecycle` now enforces this bound BEFORE the BER/GCC
+  parser, returning an explicit `OversizedEnvelope` terminal outcome.
+  R1's incremental TLS reader still allocates/buffers no more than its
+  original 8192 bytes, and the R1 syntax-only callback now delegates
+  envelope validation and its size policy to R3 instead of duplicating
+  a second check. Too-short/malformed/overlimit data closes both owners;
+  a fresh session is required for any next packet. The 8192-byte bound
+  is a local intake ceiling, NOT a replacement for MS-RDPBCGR's
+  1024/4096-byte negotiated GCC Create Request field limits.
+  Two new production-linked registered CTests cover direct R3
+  oversize rejection and the actual R1-to-R3 denial callback.
+  **NOT RUN at authoring:** exact new-SHA hosted full CTests, owner's
+  exact-SHA Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27 CTests,
+  genuine R2 OS authorization, real Microsoft-client or desktop.
+  **Next:** consume only a genuine R2-issued TLS-bound and independently
+  OS-authorized session lease; then complete MCS Connect Response with
+  R1's accepted-byte writer before admitting Erect/Attach/Join.
+  Gate A/M2 remains NOT ACCEPTED.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

@@ -45,12 +45,13 @@ bool PreauthSession::onEncryptedMcsConnectInitial(
 {
     const bool awaiting = stage_ == PreauthStage::AwaitMcsConnectInitial;
     stage_ = PreauthStage::Closed;
-    if (!awaiting || packet.size() < 8 ||
-        packet.size() > kMaximumInitialMcsTpktBytes)
+    if (!awaiting)
     {
         mcsSession_.close();
         return false;
     }
+    // The R1 stream remains fixed-capacity, while the sole R3 owner
+    // enforces the same intake ceiling even for direct diagnostic calls.
     // Preserve the established syntax-diagnostic return contract: true
     // denotes only a valid envelope. R3 ALWAYS tears down and denies MCS
     // admission because R2 has no real OS-authorized session capability.

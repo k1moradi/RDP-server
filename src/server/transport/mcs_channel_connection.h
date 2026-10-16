@@ -452,6 +452,7 @@ enum class McsSessionIntake : std::uint8_t
     ValidButNotAdmitted,
     PeerDisconnected,
     InvalidEnvelope,
+    OversizedEnvelope,
     Closed,
 };
 

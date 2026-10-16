@@ -4885,6 +4885,40 @@ void testMcsPreauthTerminalRevocation()
     assert(!diagnostic.onEncryptedMcsConnectInitial(frame));
 }
 
+void testMcsPreauthFirstEnvelopeSizeBound()
+{
+    // R1's public syntax-only callback must use the SAME R3 envelope
+    // ceiling as the incremental TLS intake. No Boolean can grant OS
+    // admission or revive the closed session on a later valid packet.
+    const auto request = validRequest();
+    assert(request);
+    const auto valid = validMcsPacket();
+
+    for (const std::size_t size : {
+             0U, 7U, kMaximumInitialMcsTpktBytes,
+             kMaximumInitialMcsTpktBytes + 1U})
+    {
+        std::vector<std::uint8_t> frame(size, 0);
+        PreauthSession session;
+        assert(session.onConnectionRequest(request).decision ==
+               SecurityDecision::Tls);
+        assert(session.onTlsHandshake(true));
+        assert(!session.onEncryptedMcsConnectInitial(frame));
+        assert(session.stage() == PreauthStage::Closed);
+        assert(session.mcsLifecyclePhase() == McsSessionPhase::Closed);
+        assert(!session.onEncryptedMcsConnectInitial(valid));
+        session.close();
+    }
+
+    PreauthSession normalDiagnostic;
+    assert(normalDiagnostic.onConnectionRequest(request).decision ==
+           SecurityDecision::Tls);
+    assert(normalDiagnostic.onTlsHandshake(true));
+    assert(normalDiagnostic.onEncryptedMcsConnectInitial(valid));
+    assert(normalDiagnostic.stage() == PreauthStage::Closed);
+    assert(normalDiagnostic.mcsLifecyclePhase() == McsSessionPhase::Closed);
+}
+
 void testPreauthSessionLifecycle()
 {
     const auto frame = validMcsPacket();
@@ -4957,6 +4991,7 @@ struct PreauthTestCase
 constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"preauth-session-lifecycle", &testPreauthSessionLifecycle},
     {"mcs-preauth-terminal-revocation", &testMcsPreauthTerminalRevocation},
+    {"mcs-preauth-first-envelope-size-bound", &testMcsPreauthFirstEnvelopeSizeBound},
     {"x224-request-fragments", &testFragmentedConnectionRequestIntake},
     {"x224-request-outcomes", &testConnectionRequestByteBoundaryAndFailure},
     {"x224-confirm-write-order", &testConnectionReplyMustBeSentBeforeTls},

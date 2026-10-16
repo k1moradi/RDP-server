@@ -3305,6 +3305,52 @@ void testMcsSessionUnverifiedDomainOrdering()
     assert(bad.pendingJoinConfirmation().empty());
 }
 
+void testMcsSessionFirstEnvelopeSizeBounds()
+{
+    // 8 KiB is the project's existing bounded first decrypted TPKT
+    // intake policy, not a substitute for the spec's GCC field limits.
+    // The sole R3 owner must independently enforce it even when called
+    // directly rather than through R1's exact-length TLS reader.
+    constexpr std::size_t maximum = kMaximumInitialMcsTpktBytes;
+    static_assert(maximum == 8192U);
+    const auto valid = publishedFixture();
+
+    McsSessionLifecycle validDiagnostic;
+    assert(validDiagnostic.onConnectInitial(valid) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(validDiagnostic.phase() == McsSessionPhase::Closed);
+    assert(validDiagnostic.pendingJoinConfirmation().empty());
+
+    for (const std::size_t size : {0U, 1U, 7U, 8U,
+                                  static_cast<unsigned>(maximum)})
+    {
+        std::vector<std::uint8_t> packet(size, 0);
+        McsSessionLifecycle malformed;
+        assert(malformed.onConnectInitial(packet) ==
+               McsSessionIntake::InvalidEnvelope);
+        assert(malformed.phase() == McsSessionPhase::Closed);
+        assert(malformed.onConnectInitial(valid) == McsSessionIntake::Closed);
+        assert(malformed.pendingJoinConfirmation().empty());
+        assert(!malformed.channelJoinConfirmed(1003));
+    }
+
+    // Exact over-limit status proves that R3 rejects before BER/GCC
+    // parsing, even if the attacker supplies a larger borrowed buffer.
+    for (const std::size_t size : {
+             maximum + 1U, maximum + 4096U, 65536U})
+    {
+        std::vector<std::uint8_t> packet(size, 0);
+        McsSessionLifecycle overLimit;
+        assert(overLimit.onConnectInitial(packet) ==
+               McsSessionIntake::OversizedEnvelope);
+        assert(overLimit.phase() == McsSessionPhase::Closed);
+        assert(overLimit.pendingJoinConfirmation().empty());
+        assert(!overLimit.channelJoinConfirmed(1003));
+        assert(overLimit.onConnectInitial(valid) == McsSessionIntake::Closed);
+        overLimit.close();
+    }
+}
+
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
@@ -3331,7 +3377,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 53> kMcsTestCases{{
+constexpr std::array<McsTestCase, 54> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3357,6 +3403,7 @@ constexpr std::array<McsTestCase, 53> kMcsTestCases{{
     {"mcs-send-indication-joined-denials", &testMcsJoinedSendIndicationDenials},
     {"mcs-session-unverified-connect", &testMcsSessionUnverifiedConnectDenials},
     {"mcs-session-unverified-ordering", &testMcsSessionUnverifiedDomainOrdering},
+    {"mcs-session-first-envelope-size-bounds", &testMcsSessionFirstEnvelopeSizeBounds},
     {"mcs-disconnect-wire", &testMcsDisconnectProviderWire},
     {"mcs-disconnect-rejections", &testMcsDisconnectProviderRejections},
     {"mcs-send-data-wire", &testMcsSendDataWire},

@@ -107,12 +107,23 @@ private:
     std::size_t size_{};
 };
 
-[[nodiscard]] bool encodeServerSettings(
-    Writer &out, std::span<const std::uint16_t> channels) noexcept
+[[nodiscard]] bool supportedEnhancedSecurityRequest(
+    std::uint32_t clientRequestedProtocols) noexcept
 {
-    // MS-RDPBCGR 2.2.1.4.2: SC_CORE, version 5.0, client offered TLS.
+    constexpr std::uint32_t supported =
+        kRdpProtocolSsl | kRdpProtocolHybrid;
+    return clientRequestedProtocols != 0U &&
+           (clientRequestedProtocols & ~supported) == 0U;
+}
+
+[[nodiscard]] bool encodeServerSettings(
+    Writer &out, std::span<const std::uint16_t> channels,
+    std::uint32_t clientRequestedProtocols) noexcept
+{
+    // MS-RDPBCGR 2.2.1.4.2: SC_CORE replays the client's COMPLETE
+    // requestedProtocols mask; it is not the server's selected protocol.
     if (!out.le16(0x0c01) || !out.le16(12) ||
-        !out.le32(0x00080004) || !out.le32(1))
+        !out.le32(0x00080004) || !out.le32(clientRequestedProtocols))
         return false;
 
     // MS-RDPBCGR 2.2.1.4.4: SC_NET, I/O channel 1003; ordered
@@ -138,6 +149,24 @@ private:
 }
 } // namespace
 
+bool matchesMcsSecurityNegotiationReplay(
+    const McsConnectInitial &client,
+    std::uint32_t clientRequestedProtocols,
+    std::uint32_t serverSelectedProtocol) noexcept
+{
+    const auto gcc = parseGccConferenceCreate(client.gccUserData);
+    if (!gcc ||
+        !supportedEnhancedSecurityRequest(clientRequestedProtocols) ||
+        (serverSelectedProtocol != kRdpProtocolSsl &&
+         serverSelectedProtocol != kRdpProtocolHybrid) ||
+        (clientRequestedProtocols & serverSelectedProtocol) == 0U ||
+        !gcc.settings.hasServerSelectedProtocol)
+    {
+        return false;
+    }
+    return gcc.settings.serverSelectedProtocol == serverSelectedProtocol;
+}
+
 McsConnectResponse encodeMcsConnectResponse(
     const McsConnectInitial &client,
     std::span<const std::uint16_t> staticChannelIds,
@@ -147,7 +176,7 @@ McsConnectResponse encodeMcsConnectResponse(
     const auto domain = mergeMcsDomainParameters(client);
     const auto gcc = parseGccConferenceCreate(client.gccUserData);
     if (!domain || !gcc || gccNodeId < 1001 || gccNodeId > 65536 ||
-        clientRequestedProtocols != 1 ||
+        !supportedEnhancedSecurityRequest(clientRequestedProtocols) ||
         staticChannelIds.size() != gcc.settings.channelCount ||
         staticChannelIds.size() > kMaximumStaticChannelCount ||
         staticChannelIds.size() + 3U > domain.value.values[0])
@@ -168,7 +197,8 @@ McsConnectResponse encodeMcsConnectResponse(
 
     std::array<std::uint8_t, 256> settingBuffer{};
     Writer settings(settingBuffer);
-    if (!encodeServerSettings(settings, staticChannelIds))
+    if (!encodeServerSettings(
+            settings, staticChannelIds, clientRequestedProtocols))
         return {};
 
     // T.124 GCC ConferenceCreateResponse, one H.221 server userData

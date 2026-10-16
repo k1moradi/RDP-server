@@ -5841,3 +5841,37 @@ boundary CTests. The 19 clipboard tests, 13 MCS/CredSSP/licensing CTests and
 bounded fuzzer run with no LSan suppression. The GSS CTest step is verbose so
 the provider suppression use is auditable. Any unsuppressed ASan/UBSan/LSan
 finding still fails the job. Exact-SHA hosted rerun is **PENDING**.
+
+
+## R3 Enhanced Security Basic Settings replay foundation (2026-10-16)
+
+**Authoring parent:** `799280df6ed88099614ac6a1ddcda2a9aefcb01b`. This increment follows the successful native
+R2-admission -> R3 Connect Initial handoff but deliberately does not publish a
+Connect Response. Basic Settings has two distinct replay checks: Client Core
+replays the server's one earlier `selectedProtocol`, while Server Core
+replays the client's entire earlier `requestedProtocols` mask.
+
+Production remains allocation-free. `GccClientSettings` now records optional
+`earlyCapabilityFlags` and `serverSelectedProtocol` plus presence bits.
+The parser accepts only the 16 legal Client Core body prefix endpoints from
+128 through 230 bytes, preventing partial optional fields. The pure
+`matchesMcsSecurityNegotiationReplay` correlation accepts only the current
+SSL/HYBRID subset, requires the selected bit to have been offered, requires
+the Client Core replay field, and compares it exactly.
+`encodeMcsConnectResponse` now writes supported request masks 1, 2 or 3
+exactly instead of hardcoding 1; zero and unsupported/unknown bits fail closed.
+
+Dedicated central CTest `transport.mcs-response-security-replay` rewrites
+only the published Microsoft Client Core replay field, verifies SSL/HYBRID
+request-selection correlation, checks exact Server Core mask bytes for 1/2/3,
+and proves no other response byte changes. Existing GCC coverage additionally
+checks optional-field presence and rejects a split Client Core optional field.
+No channel allocation, user allocation, writer, TLS write or new authority is
+introduced.
+
+**BLOCKED next positive R3 step:** R1 does not yet preserve/export immutable
+selected-protocol provenance from the X.224 negotiation. Connect Response
+publication must not accept a forgeable caller scalar. Once R1 provides that
+provenance, R3 must freshly revalidate the same R2 admission/session
+generations, allocate identifiers in the same owner, and bind partial writes
+to stable monotonic receipts. M2 remains **NOT ACCEPTED**.

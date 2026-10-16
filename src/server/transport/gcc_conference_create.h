@@ -39,10 +39,16 @@ struct GccClientSettings
     std::uint32_t clientVersion{};
     std::uint16_t requestedWidth{};
     std::uint16_t requestedHeight{};
+    // Optional Client Core replay/capability fields. Presence is explicit;
+    // zero can be a meaningful wire value and must not mean "absent".
+    std::uint16_t earlyCapabilityFlags{};
+    std::uint32_t serverSelectedProtocol{};
     std::uint32_t encryptionMethods{};
     std::uint32_t extEncryptionMethods{};
     std::array<GccChannel, kMaximumStaticChannelCount> channels{};
     std::uint8_t channelCount{};
+    bool hasEarlyCapabilityFlags{};
+    bool hasServerSelectedProtocol{};
     bool hasNetworkData{};
     bool hasClusterData{};
 };

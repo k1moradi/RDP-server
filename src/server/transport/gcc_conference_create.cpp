@@ -134,6 +134,17 @@ namespace
     return true;
 }
 
+[[nodiscard]] bool validClientCoreBodySize(std::size_t size) noexcept
+{
+    // TS_UD_CS_CORE optional fields are a strict ordered prefix. Only exact
+    // field endpoints are legal; never accept a truncated optional scalar.
+    constexpr std::array<std::size_t, 16> validSizes{
+        128U, 130U, 132U, 136U, 138U, 140U, 142U, 206U,
+        207U, 208U, 212U, 216U, 220U, 222U, 226U, 230U};
+    return std::find(validSizes.begin(), validSizes.end(), size) !=
+           validSizes.end();
+}
+
 [[nodiscard]] GccParseResult fail(GccError error) noexcept
 {
     return {{}, error};
@@ -214,7 +225,7 @@ GccParseResult parseGccConferenceCreate(
         switch (type)
         {
             case 0xc001: // CS_CORE: fixed portion, then optional extensions
-                if (hasCore || body.size() < 128)
+                if (hasCore || !validClientCoreBodySize(body.size()))
                 {
                     return fail(GccError::InvalidCore);
                 }
@@ -225,6 +236,21 @@ GccParseResult parseGccConferenceCreate(
                     settings.requestedHeight == 0)
                 {
                     return fail(GccError::InvalidCore);
+                }
+                // earlyCapabilityFlags ends at byte 142 of the core body.
+                if (body.size() >= 142U)
+                {
+                    settings.earlyCapabilityFlags =
+                        readLe16(body.subspan(140U, 2U));
+                    settings.hasEarlyCapabilityFlags = true;
+                }
+                // serverSelectedProtocol follows connectionType+pad1octet
+                // and ends at byte 212 of the core body.
+                if (body.size() >= 212U)
+                {
+                    settings.serverSelectedProtocol =
+                        readLe32(body.subspan(208U, 4U));
+                    settings.hasServerSelectedProtocol = true;
                 }
                 hasCore = true;
                 break;

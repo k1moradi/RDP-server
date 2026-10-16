@@ -2426,3 +2426,33 @@ accepts only its diagnostic PROTOCOL_SSL input and caller-supplied channel IDs.
 The live CredSSP/Hybrid path therefore stops at `AwaitConnectResponse` rather
 than emitting a response with invented or mismatched protocol/allocation
 semantics.
+
+
+## R3 Basic Settings enhanced-security replay parsing (2026-10-16)
+
+The bounded GCC Client Core parser now treats its optional tail as the strict
+ordered prefix defined by MS-RDPBCGR instead of accepting every length at or
+above the 128-byte fixed body. Only complete optional-field boundaries are
+accepted. R3 retains the non-sensitive `earlyCapabilityFlags` and Client
+Core `serverSelectedProtocol` together with explicit presence bits; no
+borrowed Core view or identity string survives parsing.
+
+For Enhanced RDP Security, Client Core `serverSelectedProtocol` is the
+client's replay of the server's earlier RDP Negotiation Response. The pure
+`matchesMcsSecurityNegotiationReplay` helper checks that replay against
+externally proven X.224 request/selection values, verifies the selected SSL or
+HYBRID bit was actually offered, and grants no admission or write authority.
+
+Server Core has a different replay rule: `clientRequestedProtocols` carries
+the client's complete original request mask. The offline Connect Response
+encoder therefore no longer hardcodes PROTOCOL_SSL. It accepts only the
+currently implemented Enhanced Security bits PROTOCOL_SSL and
+PROTOCOL_HYBRID, separately or combined, and serializes that exact mask.
+Unsupported RDSTLS/HYBRID_EX/RDS-AAD/unknown bits remain fail-closed.
+
+No runtime response publication is enabled. Current R1 still selects its
+diagnostic PROTOCOL_SSL path and does not expose immutable original request
+plus selected-protocol provenance to R3. A caller-supplied scalar is not an
+authority. R3 therefore remains in `AwaitConnectResponse` until that R1
+provenance exists and R2 can freshly revalidate the bound admission/session
+generations immediately before writer ownership.

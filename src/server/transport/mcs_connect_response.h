@@ -2,6 +2,7 @@
 #pragma once
 
 #include "mcs_connect_initial.h"
+#include "tpkt_x224.h"
 
 #include <array>
 #include <cstddef>
@@ -33,12 +34,25 @@ struct McsConnectResponse
     }
 };
 
+// Pure anti-tamper correlation for Enhanced RDP Security. R1 must supply
+// immutable provenance for BOTH values from the original X.224 exchange.
+// clientRequestedProtocols is the client's entire request bitmask; the
+// Client Core block separately replays the one serverSelectedProtocol.
+// Current syntax support is PROTOCOL_SSL and PROTOCOL_HYBRID only.
+// This comparison grants no authentication, admission or response authority.
+[[nodiscard]] bool matchesMcsSecurityNegotiationReplay(
+    const McsConnectInitial &client,
+    std::uint32_t clientRequestedProtocols,
+    std::uint32_t serverSelectedProtocol) noexcept;
+
 // Input must have come from a checked MCS Connect-Initial; this function
 // independently validates the GCC client blocks and negotiates T.125
 // DomainParameters. Channel IDs are caller-supplied, NOT assigned here,
 // and correspond in order to the client's requested static channels.
-// Only current diagnostic PROTOCOL_SSL=1 is supported; selected TLS
-// does NOT imply NLA/CredSSP or any authenticated desktop session.
+// clientRequestedProtocols is replayed EXACTLY in Server Core Data and may
+// contain PROTOCOL_SSL, PROTOCOL_HYBRID, or both; unsupported protocol bits
+// fail closed. The caller still must correlate serverSelectedProtocol using
+// matchesMcsSecurityNegotiationReplay before any bytes can be published.
 // gccNodeId is T.124 UserID [1001, 65536] inclusive.
 [[nodiscard]] McsConnectResponse encodeMcsConnectResponse(
     const McsConnectInitial &client,

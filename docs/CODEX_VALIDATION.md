@@ -7312,3 +7312,26 @@ boundary CTests. The 19 clipboard tests, 13 MCS/CredSSP/licensing CTests and
 bounded fuzzer run with no LSan suppression. The GSS CTest step is verbose so
 the provider suppression use is auditable. Any unsuppressed ASan/UBSan/LSan
 finding still fails the job. Exact-SHA hosted rerun is **PENDING**.
+
+
+## R3 Enhanced Security replay authoring validation (2026-10-16)
+
+**Base:** `799280df6ed88099614ac6a1ddcda2a9aefcb01b`. No runtime Connect Response path is added. The strict
+Client Core body endpoints are 128, 130, 132, 136, 138, 140, 142, 206, 207,
+208, 212, 216, 220, 222, 226 and 230 bytes.
+`earlyCapabilityFlags` is read only at body size >=142 and
+`serverSelectedProtocol` only at >=212.
+
+`matchesMcsSecurityNegotiationReplay` is syntax/correlation only: it rejects
+missing replay, a selection not offered in the original request, unsupported
+selection/request bits, and any mismatch. The offline response encoder writes
+exact supported request masks 1/2/3 into SC_CORE and rejects zero, RDSTLS,
+HYBRID_EX, RDS-AAD and unknown bits in this bounded subset.
+
+**Tests added/extended:** `transport.mcs-response-security-replay`, existing
+`transport.mcs-response-rejections`, and GCC parser regressions. A
+synchronized local build is **NOT RUN** in this tool environment; exact-SHA
+hosted CI is required after publication. Genuine selected-protocol provenance,
+positive Kerberos/logind admission, Connect Response write ownership, owner
+Linux/X11 / Windows MSYS2 CLANG64/Clang23 / macOS27 and Microsoft-client
+evidence remain **NOT RUN/BLOCKED**.

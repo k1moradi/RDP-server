@@ -287,6 +287,126 @@ void testMcsResponseWire()
     assert(parseDataTpdu(highToken.bytes(), mcsPayload));
 }
 
+
+void testMcsResponseSecurityReplay()
+{
+    constexpr std::array<std::uint16_t, 3> ids{1004, 1005, 1006};
+    constexpr std::array<std::uint8_t, 4> coreHeader{
+        0x01, 0xc0, 0xd8, 0x00};
+
+    auto packet = publishedFixture();
+    auto parsed = parseMcsConnectInitial(packet);
+    assert(parsed);
+    const auto legacyGcc =
+        parseGccConferenceCreate(parsed.value.gccUserData);
+    assert(legacyGcc);
+    assert(legacyGcc.settings.hasServerSelectedProtocol);
+    assert(legacyGcc.settings.serverSelectedProtocol == 0U);
+    // The published example predates Enhanced Security negotiation replay.
+    assert(!matchesMcsSecurityNegotiationReplay(
+        parsed.value, kRdpProtocolSsl, kRdpProtocolSsl));
+
+    const auto core = std::search(
+        parsed.value.gccUserData.begin(), parsed.value.gccUserData.end(),
+        coreHeader.begin(), coreHeader.end());
+    assert(core != parsed.value.gccUserData.end());
+    const std::size_t gccOffset = static_cast<std::size_t>(
+        parsed.value.gccUserData.data() - packet.data());
+    const std::size_t coreOffset = static_cast<std::size_t>(
+        core - parsed.value.gccUserData.begin());
+    // Four-byte block header + 208-byte offset in the Client Core body.
+    const std::size_t selectedProtocolOffset =
+        gccOffset + coreOffset + 212U;
+    assert(selectedProtocolOffset + 4U <= packet.size());
+
+    packet[selectedProtocolOffset] =
+        static_cast<std::uint8_t>(kRdpProtocolHybrid);
+    packet[selectedProtocolOffset + 1U] = 0U;
+    packet[selectedProtocolOffset + 2U] = 0U;
+    packet[selectedProtocolOffset + 3U] = 0U;
+    parsed = parseMcsConnectInitial(packet);
+    assert(parsed);
+    const auto hybridGcc =
+        parseGccConferenceCreate(parsed.value.gccUserData);
+    assert(hybridGcc);
+    assert(hybridGcc.settings.hasServerSelectedProtocol);
+    assert(hybridGcc.settings.serverSelectedProtocol ==
+           kRdpProtocolHybrid);
+
+    assert(matchesMcsSecurityNegotiationReplay(
+        parsed.value, kRdpProtocolHybrid, kRdpProtocolHybrid));
+    assert(matchesMcsSecurityNegotiationReplay(
+        parsed.value,
+        kRdpProtocolSsl | kRdpProtocolHybrid,
+        kRdpProtocolHybrid));
+    assert(!matchesMcsSecurityNegotiationReplay(
+        parsed.value, kRdpProtocolSsl, kRdpProtocolHybrid));
+    assert(!matchesMcsSecurityNegotiationReplay(
+        parsed.value,
+        kRdpProtocolSsl | kRdpProtocolHybrid,
+        kRdpProtocolSsl));
+    assert(!matchesMcsSecurityNegotiationReplay(
+        parsed.value, 0x00000008U, kRdpProtocolHybrid));
+    assert(!matchesMcsSecurityNegotiationReplay(
+        parsed.value,
+        kRdpProtocolSsl | kRdpProtocolHybrid,
+        0x00000004U));
+
+    const auto sslOnly =
+        encodeMcsConnectResponse(
+            parsed.value, ids, 31219, kRdpProtocolSsl);
+    const auto hybridOnly =
+        encodeMcsConnectResponse(
+            parsed.value, ids, 31219, kRdpProtocolHybrid);
+    const auto hybridAndSsl =
+        encodeMcsConnectResponse(
+            parsed.value, ids, 31219,
+            kRdpProtocolSsl | kRdpProtocolHybrid);
+    assert(sslOnly && hybridOnly && hybridAndSsl);
+    assert(sslOnly.length == hybridOnly.length);
+    assert(sslOnly.length == hybridAndSsl.length);
+
+    // SC_CORE = type, length, version, exact clientRequestedProtocols.
+    constexpr std::array<std::uint8_t, 8> serverCorePrefix{
+        0x01, 0x0c, 0x0c, 0x00, 0x04, 0x00, 0x08, 0x00};
+    const auto locateRequestMask =
+        [&serverCorePrefix](const McsConnectResponse &response)
+        {
+            const auto found = std::search(
+                response.bytes().begin(), response.bytes().end(),
+                serverCorePrefix.begin(), serverCorePrefix.end());
+            assert(found != response.bytes().end());
+            return static_cast<std::size_t>(
+                       found - response.bytes().begin()) +
+                   serverCorePrefix.size();
+        };
+    const std::size_t sslOffset = locateRequestMask(sslOnly);
+    const std::size_t hybridOffset = locateRequestMask(hybridOnly);
+    const std::size_t combinedOffset = locateRequestMask(hybridAndSsl);
+    assert(sslOnly.bytes()[sslOffset] == kRdpProtocolSsl);
+    assert(hybridOnly.bytes()[hybridOffset] == kRdpProtocolHybrid);
+    assert(hybridAndSsl.bytes()[combinedOffset] ==
+           (kRdpProtocolSsl | kRdpProtocolHybrid));
+    for (std::size_t byte = 1; byte < 4U; ++byte)
+    {
+        assert(sslOnly.bytes()[sslOffset + byte] == 0U);
+        assert(hybridOnly.bytes()[hybridOffset + byte] == 0U);
+        assert(hybridAndSsl.bytes()[combinedOffset + byte] == 0U);
+    }
+
+    // These request masks change only the four-byte SC_CORE replay field.
+    for (std::size_t index = 0; index < sslOnly.length; ++index)
+    {
+        const bool requestMaskByte =
+            index >= sslOffset && index < sslOffset + 4U;
+        if (!requestMaskByte)
+        {
+            assert(sslOnly.bytes()[index] == hybridOnly.bytes()[index]);
+            assert(sslOnly.bytes()[index] == hybridAndSsl.bytes()[index]);
+        }
+    }
+}
+
 void testMcsResponseRejectInvalidInputs()
 {
     const auto fixture = publishedFixture();
@@ -301,8 +421,10 @@ void testMcsResponseRejectInvalidInputs()
     reject(encodeMcsConnectResponse(parsed.value, ids, 1000, 1));
     reject(encodeMcsConnectResponse(parsed.value, ids, 65537, 1));
     reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 0));
-    reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 2));
-    reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 3));
+    reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 4));
+    reject(encodeMcsConnectResponse(parsed.value, ids, 31219, 8));
+    reject(encodeMcsConnectResponse(
+        parsed.value, ids, 31219, 0x80000003U));
     reject(encodeMcsConnectResponse(parsed.value,
                                     std::span(ids).first(2), 31219, 1));
     constexpr std::array<std::uint16_t, 3> duplicate{1004, 1004, 1006};
@@ -3793,7 +3915,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 60> kMcsTestCases{{
+constexpr std::array<McsTestCase, 61> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -3801,6 +3923,7 @@ constexpr std::array<McsTestCase, 60> kMcsTestCases{{
     {"mcs-domain-merge", &testMicrosoftDomainNegotiation},
     {"mcs-domain-rejections", &testMcsDomainNegotiationRejections},
     {"mcs-response-wire", &testMcsResponseWire},
+    {"mcs-response-security-replay", &testMcsResponseSecurityReplay},
     {"mcs-response-rejections", &testMcsResponseRejectInvalidInputs},
     {"mcs-erect-request", &testMcsErectDomainRequest},
     {"mcs-attach-request", &testMcsAttachUserRequest},

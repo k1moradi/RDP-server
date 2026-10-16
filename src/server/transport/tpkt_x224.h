@@ -15,6 +15,11 @@ namespace rdp_server::server::transport
 // implemented. All input is untrusted; the parser borrows no surviving bytes.
 inline constexpr std::size_t kMaximumConnectionRequestBytes = 260;
 
+// MS-RDPBCGR 2.2.1.1.1/2.2.1.2.1 Enhanced RDP Security wire bits.
+// These values classify negotiation bytes; they never confer admission.
+inline constexpr std::uint32_t kRdpProtocolSsl = 0x00000001U;
+inline constexpr std::uint32_t kRdpProtocolHybrid = 0x00000002U;
+
 enum class ConnectionError : std::uint8_t
 {
     None,

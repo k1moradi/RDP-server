@@ -16,7 +16,6 @@ SecurityReply negotiateDiagnosticTls(
          0x03, 0x00, 0x08, 0x00,
          0x01, 0x00, 0x00, 0x00},
     };
-    constexpr std::uint32_t kProtocolTls = 0x00000001U;
     // Do not negotiate based on unknown flag bits. All other requested
     // security protocols are rejected unless TLS is explicitly included.
     // The request may also advertise HYBRID; selecting TLS here is only
@@ -27,7 +26,7 @@ SecurityReply negotiateDiagnosticTls(
         // Restricted Admin and Remote Credential Guard require CredSSP,
         // which the diagnostic does not provide. Reject unknown flags too.
         (request.request.negotiationFlags & ~kCorrelationOnly) == 0 &&
-        (request.request.requestedProtocols & kProtocolTls) != 0)
+        (request.request.requestedProtocols & kRdpProtocolSsl) != 0)
     {
         result.decision = SecurityDecision::Tls;
         result.packet[11] = 0x02; // TYPE_RDP_NEG_RSP

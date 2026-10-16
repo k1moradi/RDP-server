@@ -105,6 +105,10 @@ void testPublishedGccSettings()
     assert(settings.clientVersion == 0x00080004U);
     assert(settings.requestedWidth == 1280);
     assert(settings.requestedHeight == 1024);
+    assert(settings.hasEarlyCapabilityFlags);
+    assert(settings.earlyCapabilityFlags == 0x0001U);
+    assert(settings.hasServerSelectedProtocol);
+    assert(settings.serverSelectedProtocol == 0U);
     assert(settings.encryptionMethods == 0x1bU);
     assert(settings.extEncryptionMethods == 0);
     assert(settings.hasClusterData);
@@ -175,6 +179,12 @@ void testDataBlockValidation()
     gcc[coreOffset + 2] = 0; // zero-length block
     assert(!parseGccConferenceCreate(gcc));
     assert(!intake(packet));
+
+    packet = realMicrosoftMcsFixture();
+    gcc = gccData(packet);
+    const auto splitCore = locate(gcc, core);
+    gcc[splitCore + 2] = 0xd7; // body size 211 splits serverSelectedProtocol.
+    assert(parseGccConferenceCreate(gcc).error == GccError::InvalidCore);
 
     packet = realMicrosoftMcsFixture();
     gcc = gccData(packet);

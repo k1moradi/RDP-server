@@ -100,6 +100,35 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Quality road R9: instrument the real production-linked clipboard
+  # protocol tests. One ephemeral checkout-local build/ root, no real peer.
+  r9-clipboard-sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Clang sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v clang++
+          clang++ --version
+      - name: Configure first-party CLIPRDR tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_TEST_LINUX_GSSAPI=OFF \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile both production-linked clipboard test targets
+        run: cmake --build build --config Debug --parallel 2 --target test_owned_remote_transfer test_clipboard_protocol
+      - name: Run every registered clipboard CTest with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --build-config Debug -L clipboard --output-on-failure
+
   documentation-policy:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest

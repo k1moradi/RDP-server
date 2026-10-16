@@ -3637,6 +3637,27 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   receipts, and test *actual* R3-admitted R8 ingress only when
   a production authorized routing owner has been integrated.
 
+  **R9 first-party CLIPRDR sanitizer CI (2026-10-15):**
+  Add GitHub Actions `r9-clipboard-sanitizers`, a separate Ubuntu
+  C++23 Clang AddressSanitizer+UndefinedBehaviorSanitizer job running
+  on every `main` push and PR. Configure from the real source
+  into the SAME ephemeral checkout's `build/` directory with
+  `-fsanitize=address,undefined -fno-omit-frame-pointer`;
+  compile the existing `test_owned_remote_transfer` and
+  `test_clipboard_protocol` against production translation units;
+  run the sole CTest registry's `-L clipboard` set with ASan leak
+  detection and UBSan abort-on-error. No second test registry,
+  protocol owner, separate build root, credential, desktop or
+  live clipboard. The normal three-OS Debug+Release matrix stays.
+  **Integration parent main:** `8083958d617daff00bf68f02848a11eab416bd7d`. **NOT RUN at
+  authoring:** new exact-SHA sanitizer job (pending GitHub Actions).
+  Earlier R9 normal hosted `4eb24cd9312e1d3e133811a8c3a9151cebab4501`
+  passed the Linux/macOS/Windows full Debug+Release suites.
+  **Next:** inspect sanitizer exit statuses and real first failure,
+  repair any introduced CI defect without relaxing assertions;
+  obtain owner Linux/X11, MSYS2 CLANG64 Clang23, macOS27
+  separately and eventually real R3/R8 admitted-channel tests.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

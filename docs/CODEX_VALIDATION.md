@@ -4577,3 +4577,38 @@ strict C++23 ASan/UBSan 4/4. **NOT RUN at authoring:** corrected-source
 full GitHub Actions or owner macOS27/Windows CLANG64 Clang23/Linux
 one-root tests; live ScreenCaptureKit, TCC, client input and performance.
 No OS admission, permission or graphics scheduler behavior changed.
+
+## R9 native Clang clipboard sanitizers CI (2026-10-15)
+
+**Parent `main`:** `8083958d617daff00bf68f02848a11eab416bd7d`. **Files changed:**
+`.github/workflows/ci.yml`, `docs/ROADMAP.md`,
+`docs/CODEX_VALIDATION.md`; no production or test-source changes.
+**New native CI job:** `r9-clipboard-sanitizers` (Ubuntu/Clang,
+real production-linked `test_owned_remote_transfer` and
+`test_clipboard_protocol`). Configure `build/` once for
+C++23 Debug with `-fsanitize=address,undefined`,
+`-fno-omit-frame-pointer`, and `-fno-sanitize-recover=all`,
+then build both existing CMake test targets and execute
+`ctest --test-dir build --build-config Debug -L clipboard
+--output-on-failure` under `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1`
+and `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+The central CTest registry's `clipboard` label remains
+the sole test enumeration. Explicitly excludes native desktop,
+live OS/user state, Kerberos, RDP session activation and the
+unimplemented authenticated R3 router. Linux GSSAPI opt-ins
+are disabled in this focused sanitizer job, not in normal CI.
+Existing normal Linux/macOS/Windows Debug+Release and package
+jobs remain unchanged. Earlier R9 `4eb24cd9312e1d3e133811a8c3a9151cebab4501`
+[Actions 38844672159](https://github.com/k1moradi/RDP-server/actions/runs/38844672159)
+**PASS:** Linux 202/202, macOS 188/188, Windows 192/192
+in both configurations; these ordinary hosted results
+are NOT sanitizer evidence.
+
+**NOT RUN at authoring:** exact-new-commit Clang ASan/UBSan
+CI and full owner's `~/rdp-server/build` command (direct
+GitHub clone hostname unavailable in this worker); owner's
+Windows MSYS2 CLANG64 Clang23/macOS27/Linux X11 runs;
+live authenticated R2/R3 admission, physical clipboard,
+Microsoft RDP client and desktop. **Next:** inspect first
+ASan/UBSan CI failure if any and repair at the true
+production/test boundary, then record exact-SHA PASS/FAIL.

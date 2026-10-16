@@ -51,3 +51,42 @@ alternate persistent build root, branch or patch artifact is created. Exact
 publication-SHA hosted platform, sanitizer, documentation-policy and
 SDK/package evidence for the two new cases is pending. M1 owner-platform
 same-SHA evidence remains **NOT RUN** and M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+
+## R4 client decode-backlog observation exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `35833ba667a110ec859e04958d2a4ef269616012`.  
+**Actions:** `38976220846` — **SUCCESS**.
+
+The sole R4 presentation owner now exposes the already-owned
+FRAME_ACKNOWLEDGE backlog facts without creating a throttle policy:
+`expectingFrameAcknowledgements()`, `clientQueueDepthAvailable()` and
+`clientQueueDepthBytes()`. Positive finite `queueDepth` values remain client
+buffered-byte counts; zero remains explicitly unavailable, and suspension
+clears the count and ACK expectation.
+
+Dedicated production-backed
+`graphics.frame-ack-backpressure-observation` passed in every normal hosted
+configuration and under the portable R4 sanitizer gate:
+- **Linux/GCC:** Debug **509/509 PASS**, Release **509/509 PASS**; new case
+  **#270** in both.
+- **macOS/Clang:** Debug **432/432 PASS**, Release **432/432 PASS**; new case
+  **#255** in both.
+- **Windows/MSVC:** focused native preflight **51/51 PASS** in Debug and
+  Release; full Debug **462/462 PASS**, Release **462/462 PASS**; new case
+  **#255** in both.
+- **Clang ASan+UBSan portable R4 RDPGFX:** **34/34 PASS**; the new case is
+  selected and passes as item **14/34**. Existing R4 x264/BGRA remains
+  **20/20 PASS** and RDPGFX capability negotiation remains **4/4 PASS**.
+- Documentation policy, independent R7 sanitizer, installed-SDK consumer,
+  package/digest/upload and all remaining configured sanitizer/fuzzer groups
+  PASS; untagged prerelease publication is correctly SKIPPED.
+
+This closes the observation-boundary increment only. No frame-rate threshold,
+timer, additional queue, second scheduler, DVC router or authorization path is
+introduced. Canonical owner-local `~/rdp-server/build` validation and owner
+Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 commands remain
+**NOT RUN** in this connector environment. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC admission/full-send, native capture
+performance and Microsoft-client visible graphics acceptance remain
+**BLOCKED/NOT RUN**. Gate B and M3/M4/M5 remain **OPEN**.

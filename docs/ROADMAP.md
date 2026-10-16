@@ -1692,8 +1692,24 @@ actually run; another parser CTest alone is not a complete session.
   **NOT RUN at authoring:** local checkout build/CTest, exact-SHA CI, real
   positive Kerberos+logind issuance, R3 consumption, owner Linux/X11,
   Windows CLANG64/Clang23, macOS27 or Microsoft-client desktop.
-  **Next:** validate exact-SHA CI, then wire this capability into R3's sole
-  session owner and R1 disconnect teardown before any protected MCS state.
+  **Exact-SHA hosted CI receipt:** implementation
+  `03f2edbbfaa9049e7d6a22f22c11c94d9ad91213`,
+  [Actions 38872022770](https://github.com/k1moradi/RDP-server/actions/runs/38872022770)
+  finished overall **FAIL** only because a concurrent R10 macOS Debug build
+  treats OpenSSL 3.6 deprecations of `X509_cmp_current_time` in
+  `src/server/runtime/main.cpp` as errors. R2's Linux target compiled with
+  strict warnings and full CTest passed **287/287** in BOTH Debug and
+  Release; `security.gssapi-native-os-admission-capability-denials`
+  passed in both. Windows/MSVC full CTest passed **285/285** in BOTH
+  configurations. R9 ASan/UBSan and documentation-policy passed; Linux and
+  Windows SDK downstream/package checks passed. macOS CTest/Release/package
+  were **NOT RUN** after the unrelated R10 compile failure. No R2 failure is
+  observed at this SHA.
+  **Still NOT RUN:** real positive Kerberos+native-logind issuance, R3
+  capability consumption, owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+  macOS27 and Microsoft-client desktop.
+  **Next:** wire this capability into R3's sole session owner and R1
+  disconnect teardown before any protected MCS state.
   **R2 GSS-to-OS candidate-evidence provenance gate (2026-10-15;
   new implementation CI pending):** add the existing
   `ConsoleAdmissionGate`, `ConsoleIdentityPolicy`, and

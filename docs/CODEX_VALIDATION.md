@@ -5537,8 +5537,30 @@ Kerberos + native logged-in physical console issuance; R3 capability
 consumption; owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27;
 Microsoft-client desktop. This creates a genuine production-only issuance
 contract but does not yet prove a positive host admission or integrate R3,
-so Gate A/M2 remain OPEN/NOT ACCEPTED. **Next:** exact-SHA CI, then R3/R1
-lifecycle consumption and disconnect revocation.
+so Gate A/M2 remain OPEN/NOT ACCEPTED.
+
+**Exact-SHA hosted CI:** implementation
+`03f2edbbfaa9049e7d6a22f22c11c94d9ad91213`,
+[Actions 38872022770](https://github.com/k1moradi/RDP-server/actions/runs/38872022770)
+overall **FAIL**, with the sole failing platform boundary outside R2:
+macOS Debug compilation of concurrent R10
+`src/server/runtime/main.cpp` fails under OpenSSL 3.6 because
+`X509_cmp_current_time` is deprecated and warnings are errors. R2's
+optional Linux GSS target, including the new concrete admission broker,
+compiled successfully. Linux/GCC full CTest **287/287 PASS** in Debug and
+Release; the dedicated
+`security.gssapi-native-os-admission-capability-denials` passed in both.
+Windows/MSVC full CTest **285/285 PASS** in Debug and Release.
+`r9-security-protocol-sanitizers` and `documentation-policy` passed;
+Linux/Windows SDK downstream and package verification passed. macOS
+CTest/Release/package steps were **NOT RUN** after the unrelated R10
+compile failure. No R2-introduced failure is observed.
+
+Real positive Kerberos plus matching native physical-console issuance,
+R3 consumption, owner's Linux/X11, MSYS2 CLANG64/Clang23 and macOS27, and
+Microsoft-client desktop remain **NOT RUN**. Gate A/M2 remain
+**OPEN/NOT ACCEPTED**. **Next:** R3/R1 lifecycle consumption and disconnect
+revocation of the R2 lease.
 
 ## R2 CredSSP TLS release certificate continuity (2026-10-16)
 

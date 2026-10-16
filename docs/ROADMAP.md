@@ -1,3 +1,42 @@
+## R9 complete Linux runtime-security sanitizer gate (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `06ebfa7897b305b2b65eba85b29e0610779f6c00`.
+
+Audit of the current central registry found `test_runtime_linux_security`
+registers ten direct offline production-backed security behaviors, while R9's
+Clang ASan/UBSan runtime step executed only five connection cases. The omitted
+coverage is security-significant rather than test-count padding:
+`runtime.linux-security-explicit-keytab-continuity`,
+`runtime.linux-security-keytab-snapshot-mutation-continuity`,
+`runtime.linux-security-keytab-policy-denials`,
+`runtime.linux-connection-aggregate-ordered-revocation`, and
+`runtime.linux-connection-aggregate-premature-admission-denial`.
+
+R9 expands the existing runtime sanitizer selection to all ten direct cases and
+adds a fail-closed `ctest -N` registry preflight that requires every behavior
+name before execution. This reuses the one existing
+`test_runtime_linux_security` binary, the current synthetic keytab/loopback
+fixtures and the existing narrowly scoped MIT-krb5 LSan suppression. R3's
+new Server Platform Challenge transport/native-GSS cases are already selected
+by their existing R9 sanitizer gates and are preserved unchanged. No production
+source, R1 transport, R2 authorization, R3 session authority, listener or
+service changes.
+
+The added runtime sanitizer paths cover opened/sealed keytab continuity after
+pathname or source-inode mutation, keytab/path/policy denials, aggregate
+teardown order, idempotent revocation, constructor failure with incomplete
+service provisioning, and terminal rejection of a policy-shaped admission
+request before any CredSSP/GSS identity or genuine R1 HYBRID provenance exists.
+They do not create positive native admission.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution remain **NOT RUN** in this connector environment; no
+alternate checkout/build root is created. Exact-publication-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC, R9 sanitizer, documentation-policy and
+SDK/package evidence are required. Genuine KDC/client-ticket authentication,
+NSS/logind admission, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS 27,
+Microsoft-client acceptance and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R9 licensing credential-path replacement freshness exact-SHA receipt (2026-10-16)
 
 **Implementation:** `0013bf00a20b1c8c92c66eb6552f003b1a4f752b`.  

@@ -1,3 +1,24 @@
+## R9 complete Linux runtime-security sanitizer authoring (2026-10-16)
+
+**Parent:** `06ebfa7897b305b2b65eba85b29e0610779f6c00`.
+
+The central registry exposes ten direct `test_runtime_linux_security` CTests,
+but R9's runtime sanitizer regex selected only five. The selector now includes
+all three keytab provisioning/snapshot security cases, all five existing
+CredSSP/pre-admission connection cases and the two aggregate lifetime/denial
+cases. Before instrumented execution, `ctest -N` must list all ten exact
+behavior names.
+
+Concurrent R3 Platform Challenge work already adds its three transport cases
+and one native-GSS contract to the existing bounded R9 sanitizer selectors;
+this increment preserves those selectors rather than duplicating them.
+
+This is CI/testing-only. It changes no production runtime or authorization API,
+uses no real client credentials or host keytab, and keeps the existing GSS-only
+LSan suppression unchanged and narrowly scoped. Canonical owner-local one-root
+validation is **NOT RUN** because this connector has no synchronized
+`~/rdp-server` checkout. Exact publication-SHA hosted evidence is pending.
+
 ## R9 licensing credential-path replacement freshness exact-SHA receipt (2026-10-16)
 
 **Implementation:** `0013bf00a20b1c8c92c66eb6552f003b1a4f752b`.  

@@ -1,3 +1,23 @@
+## R9 complete direct Linux runtime-security sanitizer selection (2026-10-16)
+
+The shared Linux/Clang ASan+UBSan gate must execute every direct offline
+production-backed CTest registered from `test_runtime_linux_security`, not
+only the CredSSP dispatcher subset. Keep one anchored selector for the ten
+behaviors: three service-keytab provisioning/snapshot/policy cases, five
+CredSSP/pre-admission connection cases, and the two aggregate
+ordered-revocation/premature-admission cases.
+
+Enumerate the central CTest registry with `ctest -N` before execution and
+require every one of the ten behavior names. A missing registration or regex
+drift is therefore a CI failure rather than a smaller sanitizer run that still
+reports green. Keep the existing MIT-krb5 leak suppression scoped to this
+GSS-backed selection only; do not broaden it to portable or non-GSS tests.
+
+These cases use build-root synthetic keytabs and loopback sockets only. Their
+sanitizer PASS is lifetime, bounds and fail-closed regression evidence; it is
+not real Kerberos client authentication, NSS/logind admission, listener/service
+activation or Microsoft-client acceptance.
+
 
 
 ## R7 Quartz display-watch lifecycle tests are host-display free (2026-10-16)

@@ -2816,3 +2816,12 @@ TPKT. Borrowed packet bytes do not survive the synchronous call. Wrong order,
 malformed transport/PER, oversized input, unexpected PDU, disconnect, stale
 lease or native reauthorization failure closes R3 and revokes R2/GSS. Erect
 allocates no UserId/channel and grants no licensing/share/application authority.
+
+
+## R7 generation-safe macOS cursor snapshot boundary (2026-10-16)
+
+`MacCursorSnapshot` is independent of the ScreenCaptureKit frame callback and owns its BGRA shape bytes outright. Its position is the cursor hotspot expressed in the existing RDP virtual-desktop coordinate system; no AppKit/CoreGraphics coordinate convention escapes the macOS adapter. A hidden snapshot clears width/height/hotspot/position/storage, while a visible snapshot must be structurally valid, no larger than 256x256 and no larger than 256 KiB. The constructor rechecks the same geometry generation and topology revision before publishing the snapshot, so a display reconfiguration cannot silently relabel old cursor state.
+
+`mac_cursor_snapshot.mm` is the sole AppKit cursor bridge. It uses a read-only Quartz event for global pointer location, the existing display mapping for backing scale, and the current system cursor image/hotspot for shape acquisition. Deprecated system-wide cursor introspection is isolated here; no deprecated cursor API crosses a header or portable target. Shape pixels are rendered once into tightly packed premultiplied BGRA using CoreGraphics and transferred by `std::unique_ptr<std::byte[]>`.
+
+The sampler does not start a capture stream, request Screen Recording or Accessibility permission, install an event tap, move the cursor or inject input. It must only be called by a future independently authorized per-user desktop owner. R4 remains the sole owner of cursor scheduling/deduplication and protocol encoding.

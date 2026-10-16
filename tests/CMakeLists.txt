@@ -820,7 +820,8 @@ else()
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp"
-        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp")
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/mac_cursor_snapshot.cpp")
 endif()
 if(MSVC)
     target_compile_options(test_macos_capture_pixel_buffer PRIVATE /W4 /UNDEBUG)
@@ -877,6 +878,15 @@ foreach(case_name IN ITEMS
         COMMAND test_macos_capture_pixel_buffer "native-reconfiguration-${case_name}")
     set_tests_properties("macos.desktop-native-reconfiguration-${case_name}"
         PROPERTIES LABELS "macos;geometry;offline")
+endforeach()
+# R7 cursor snapshots are synthetic on every OS. The Apple-only native sampler
+# is compile/link checked through rdp-server-macos-capture but is never invoked
+# by ordinary CTest, so no live pointer or AppKit desktop state is inspected.
+foreach(case_name IN ITEMS owned-shape validation-denials topology-revocation)
+    add_test(NAME "macos.cursor-${case_name}"
+        COMMAND test_macos_capture_pixel_buffer "cursor-${case_name}")
+    set_tests_properties("macos.cursor-${case_name}" PROPERTIES
+        LABELS "macos;cursor;offline")
 endforeach()
 if(APPLE)
     foreach(case_name IN ITEMS ownership native-denials native-move-replacement)

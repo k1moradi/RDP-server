@@ -6226,3 +6226,27 @@ macOS27 same-SHA command, authenticated R2/R3 Graphics DVC and DVC
 fragmentation, real x264 H.264, Microsoft client or graphics benchmark.
 Gate B/M3–M5 remain OPEN. Next R4: combine mapped AVC420 picture output
 with RDP_SEGMENTED_DATA at the single R3 full-send boundary.
+
+## R10 PEM/key-match corrected hosted CI (2026-10-15)
+
+**Implementation SHA:** `caa767fe0550958aebd215f19fa83dae0fb7fee5`.
+[GitHub Actions 38864834658](https://github.com/k1moradi/RDP-server/actions/runs/38864834658)
+verifies the corrected memory-BIO credential parser. Linux/GCC
+Debug and Release full CTest **271/271 PASS**. Windows/MSVC Debug and
+Release **269/269 PASS**. On both, all six new R10 PEM/key-match
+tests PASS; the Windows result proves the earlier status-1
+cross-CRT parser failure is removed. macOS/Clang Debug **253/253
+PASS**; Release **252/253**, sole failure R1
+`transport.tcp-owned-reply-interest-priority` at line 2112;
+R10 credential tests remain PASS in that failing Release suite.
+R1 issue #2 records the exact blocker. R9 sanitizer and
+documentation-policy PASS. Linux and Windows installed SDK consumers
+**1/1 PASS** and SDK ZIP/SHA256 packaging/uploads PASS; macOS's
+downstream/package stages are **NOT RUN** because its Release CTest
+failed first. Untagged prerelease remains skipped.
+
+No listener, service, TLS session, private-key password, external
+client or OS-authorized desktop is exercised. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23 and macOS27 same-SHA validation is
+**NOT RUN**. Certificate trust chain, hostname, time validity and
+revocation remain outside this increment. M1–M6 remain OPEN.

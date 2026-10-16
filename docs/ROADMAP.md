@@ -454,6 +454,28 @@ and all CLI semantics remain unchanged. **NOT RUN at authoring:**
 corrected hosted CI and owner three-platform command. R3 blocker
 was reported on issue #5 with exact parent evidence. M1–M6 OPEN.
 
+**R10 PEM/key-match corrected cross-platform CI evidence (2026-10-15):**
+Corrected implementation [`caa767fe0550958aebd215f19fa83dae0fb7fee5`](https://github.com/k1moradi/RDP-server/commit/caa767fe0550958aebd215f19fa83dae0fb7fee5),
+[Actions 38864834658](https://github.com/k1moradi/RDP-server/actions/runs/38864834658).
+The Windows memory-BIO correction is verified: Windows/MSVC
+**269/269 PASS** in both Debug and Release, including all six new
+TLS-credential parse/match cases. Linux/GCC **271/271 PASS** in both
+Debug and Release. macOS/Clang Debug **253/253 PASS**; macOS Release
+**252/253**, with the sole failure R1-owned
+`transport.tcp-owned-reply-interest-priority` at
+`test_owned_preauth_session.cpp:2112`. Every R10 TLS-credential
+case PASSes in macOS Release too. R1 issue #2 received the exact
+failure. R9 sanitizer and documentation-policy PASS. Linux/Windows
+downstream SDK consumer **1/1**, protocol ZIP/digest packaging and
+artifact upload PASS; macOS downstream/package are NOT RUN because
+its Release CTest step failed first. Overall workflow therefore
+reports FAIL despite cross-platform R10 success. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23 and macOS27 same-SHA tests, real
+certificate trust/expiry/revocation, R2/R3 live authorization and
+Microsoft-client desktop remain NOT RUN. M1–M6 OPEN.
+**Next R10:** certificate validity/trust policy and future live-loader
+handle continuity, still behind nonactivating offline checks.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

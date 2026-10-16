@@ -184,9 +184,11 @@ LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::Progress};
     case HandshakeStatus::NeedRead:
-        return {0, 0, LinuxCredSspStepStatus::NeedRead};
+        return {result.plaintextBytesRead, result.plaintextBytesWritten,
+                LinuxCredSspStepStatus::NeedRead};
     case HandshakeStatus::NeedWrite:
-        return {0, 0, LinuxCredSspStepStatus::NeedWrite};
+        return {result.plaintextBytesRead, result.plaintextBytesWritten,
+                LinuxCredSspStepStatus::NeedWrite};
     case HandshakeStatus::BindingVerified:
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::BindingVerified};

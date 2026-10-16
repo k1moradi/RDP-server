@@ -683,7 +683,6 @@ void testConnectionCredSspOwnerFraming(
     }
     assert(providerFailureObserved);
     assert(terminalReplyFlushed);
-    assert(terminalReplyFlushed);
     assert(totalWritten == kV6LogonFailure.size());
 
     std::array<std::uint8_t, kV6LogonFailure.size()> received{};
@@ -692,6 +691,70 @@ void testConnectionCredSspOwnerFraming(
     assert(!connection.ready());
     assert(connection.admissionState() == LinuxConsoleAdmissionState::Revoked);
     assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(connection.onCredSspIoReady().status ==
+           LinuxCredSspStepStatus::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
+void testConnectionCredSspProgressAccounting(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-credssp-progress.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    auto tlsContext = makeRuntimeTlsContext(fixtureDirectory, "progress");
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    TestSsl clientTls =
+        establishHybridTls(connection, clientDescriptor, tlsContext);
+
+    const auto request = encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::NegoToken, kRejectedInitialSpnego);
+    assert(writeTlsClientAll(clientTls.get(), request));
+
+    std::size_t totalRead = 0;
+    bool finalReadReportedOnNeedWrite = false;
+    for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+    {
+        const auto step = connection.onCredSspIoReady();
+        assert(step.plaintextBytesRead == 0 ||
+               step.plaintextBytesWritten == 0);
+        assert(step.plaintextBytesWritten == 0);
+        totalRead += step.plaintextBytesRead;
+        assert(totalRead <= request.size());
+
+        if (step.status == LinuxCredSspStepStatus::NeedWrite &&
+            connection.gssStage() == SpnegoStage::Failed)
+        {
+            // The final request bytes and provider failure can share one R2
+            // step; R10 must not discard accepted R1 read progress merely
+            // because the next required readiness direction is write.
+            assert(step.plaintextBytesRead != 0);
+            assert(totalRead == request.size());
+            finalReadReportedOnNeedWrite = true;
+            break;
+        }
+
+        assert(step.status == LinuxCredSspStepStatus::Progress ||
+               step.status == LinuxCredSspStepStatus::NeedRead ||
+               step.status == LinuxCredSspStepStatus::NeedWrite);
+        std::this_thread::yield();
+    }
+
+    assert(finalReadReportedOnNeedWrite);
+    assert(connection.gssStage() == SpnegoStage::Failed);
+    assert(connection.admissionState() == LinuxConsoleAdmissionState::Ready);
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(!connection.hasAdmissionLease());
+
+    connection.revoke();
+    assert(!connection.ready());
     assert(connection.onCredSspIoReady().status ==
            LinuxCredSspStepStatus::Closed);
     assert(::close(clientDescriptor) == 0);
@@ -1006,6 +1069,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-credssp-owner-framing")
     {
         testConnectionCredSspOwnerFraming(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-credssp-progress-accounting")
+    {
+        testConnectionCredSspProgressAccounting(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

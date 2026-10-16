@@ -3654,3 +3654,34 @@ Exact-publication-SHA hosted Linux Debug/Release, R9 sanitizer,
 documentation-policy and cross-platform matrix are required before PASS is
 claimed. No listener, service, fabricated GSS success or native lease is added.
 M2/M3 remain **OPEN**.
+
+
+## R10 CredSSP readiness progress accounting correction (2026-10-16; CI pending)
+
+Starting reconciled shared `main`: `3bcdb4ad2911de916aae465305f58b9f8c770918`. Exact R10 workflow
+`38902051095` at `255b532b85456dff228912541bb25dfc3a73eea3`
+compiled the production aggregate and exposed the accounting defect behind the
+prior timing-sensitive oracle: R2 may return `NeedWrite` in the same bounded
+call that consumed final TLS plaintext and queued its genuine provider failure,
+but R10 mapped `NeedRead` and `NeedWrite` to zero byte counts. That discarded
+progress already accepted by the exact R1 owner.
+
+`LinuxRuntimeConnection::onCredSspIoReady()` now preserves R2's
+`plaintextBytesRead` and `plaintextBytesWritten` for readiness statuses as
+well as Progress/terminal statuses. R10 still performs no TLS application I/O
+itself and readiness/framing remains non-authorizing. The existing owner-framing
+test retains exact request/reply accounting and the canonical 15-byte v6
+failure check. New dedicated CTest
+`runtime.linux-connection-credssp-progress-accounting` requires the
+provider-failure `NeedWrite` transition to report the final accepted R1 read
+progress while GSS is failed, no native lease exists, R3 remains pre-admission,
+and explicit revocation is terminal.
+
+Workflow `38902051095` also contained concurrent R8 clipboard failures; those
+are not attributed to this R10 defect. Canonical owner-local
+`~/rdp-server/build` configure/build/full CTest is **NOT RUN** because the
+checkout is unavailable in this connector environment. Exact-publication-SHA
+hosted Linux Debug/Release, R9 sanitizer, documentation-policy and
+cross-platform regression evidence are required before PASS is claimed. No
+listener, service, synthetic GSS success or fabricated native lease is added.
+M2/M3 remain **OPEN**.

@@ -497,6 +497,22 @@ hostname and revocation, live-loader handle continuity, R2/R3
 authorization, listener/service startup and M1-M6 remain OPEN.
 Starting `main`: `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`.
 
+**R10 validity-time first exact-SHA fixture correction (2026-10-16):**
+Implementation `8dfa00a8aef833e24f6a7ad3867a16c0a37a9351`,
+[Actions 38871662501](https://github.com/k1moradi/RDP-server/actions/runs/38871662501)
+compiled the production change on all hosted platforms. The two new
+temporal denials explicitly **PASS** on Linux/GCC, macOS/Clang and
+Windows/MSVC, and the owner-reported configuration syntax/CRLF cases
+also **PASS** on all three. Full Debug CTest is Linux **285/286**,
+macOS **264/265** and Windows **284/285**: the sole failure everywhere
+is the pre-existing `runtime.validates-tls-credentials-matching-pair`
+fixture comparing stdout to the old success text after production
+truthfully stopped saying expiry was unverified. R9 sanitizer and
+documentation-policy **PASS**; Release/downstream steps are not credited
+because Debug failed. This follow-up changes only that CMake fixture
+expectation. Production validity, key-match, file-security and startup
+denials are unchanged. Owner MSYS2 CLANG64/Clang23 remains **NOT RUN**.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

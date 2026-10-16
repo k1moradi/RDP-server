@@ -468,7 +468,7 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^validates-tls-files-")
     endif()
 elseif(RDP_RUNTIME_TEST_CASE MATCHES "^validates-tls-credentials-")
     if(NOT runtime_stderr STREQUAL "" OR NOT runtime_stdout STREQUAL
-        "rdp-server: TLS certificate and private key parsed and match; trust, expiry and OS authorization not verified; service remains disabled.\n")
+        "rdp-server: TLS certificate is currently valid and matches the private key; trust, hostname, revocation and OS authorization not verified; service remains disabled.\n")
         message(FATAL_ERROR "Offline TLS credential success must not imply trusted service")
     endif()
 endif()

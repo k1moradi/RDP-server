@@ -6453,6 +6453,19 @@ Security limits remain explicit: no trust chain, hostname or revocation
 verification, no live TLS loader, no R2/R3 admission, no listener/service
 activation and no real desktop. M1-M6 remain OPEN.
 
+**Initial exact-SHA CI:** implementation
+`8dfa00a8aef833e24f6a7ad3867a16c0a37a9351`,
+[Actions 38871662501](https://github.com/k1moradi/RDP-server/actions/runs/38871662501)
+is **FAIL** only because the existing matching-pair CMake fixture still
+expected the old success string. Linux Debug is **285/286**, macOS
+**264/265**, and Windows **284/285**; in every job both new temporal
+denials PASS and both owner-reported syntax/CRLF cases PASS. The
+production executable compiled on all three. R9 sanitizer and
+documentation-policy PASS. The correction updates only the positive
+fixture's exact stdout expectation; production security behavior is
+unchanged. Hosted corrected-SHA CI and owner Windows MSYS2
+CLANG64/Clang 23 remain pending/NOT RUN respectively.
+
 
 ## R1 bounded post-handshake TLS application I/O (2026-10-15)
 

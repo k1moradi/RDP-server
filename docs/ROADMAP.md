@@ -10599,3 +10599,33 @@ are required after publication. Genuine authenticated R3 Graphics
 DVC/full-send integration, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
 macOS 27, native capture performance and Microsoft-client rendering remain
 **NOT RUN/BLOCKED**. Gate B and M3/M4/M5 remain **OPEN**.
+
+
+## R4 sanitizer workflow shared-YAML repair (2026-10-16; exact-SHA CI pending)
+
+R4 sanitizer implementation `27d472baee4eabf3593757c2a749e72d33595cd0`
+triggered Actions `38905806962`, which failed with **0 jobs**. The same
+zero-job failure is present on its parent `9d37c0da...` (Actions
+`38905605037`) and preceding R10 syntax-fix `3b7a32e...` (Actions
+`38905403688`), proving the failure predates the R4 sanitizer additions.
+
+Inspection found duplicate top-level `documentation-policy` and
+`publish-protocol-prerelease` keys plus a duplicated sanitizer tail left by
+the earlier malformed R10 workflow edit. The R10 follow-up repaired its
+truncated regex/header but did not remove that duplicated YAML, so GitHub
+continued rejecting the workflow before job creation.
+
+This correction reconstructs only `.github/workflows/ci.yml` from the last
+known-good exact workflow at `695dd90b80cf105d7bdeb90576168801ffaf011b`,
+then reapplies the intended additive R10 sanitizer target/group and R4's
+additive Clang-C/x264 sanitizer target/group. The resulting workflow contains
+one sanitizer job, one documentation-policy job and one prerelease job. No
+production source, CTest registration, authorization or graphics behavior is
+changed.
+
+Canonical owner-local testing remains **NOT RUN**. The repaired exact SHA must
+first prove GitHub creates jobs, then the R4 `x264` sanitizer label must run
+all **18** cases with the vendored x264 C sources compiler-instrumented.
+Normal three-OS Debug/Release, SDK/package and documentation gates remain
+required. Genuine R3 Graphics DVC/full-send integration and Microsoft-client
+rendering remain **BLOCKED/NOT RUN**; Gate B and M3/M4/M5 remain **OPEN**.

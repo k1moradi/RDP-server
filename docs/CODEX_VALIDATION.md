@@ -11383,3 +11383,20 @@ Canonical local execution is **NOT RUN** because this connector environment
 does not expose `~/rdp-server`. Exact-SHA hosted CI is the first executable
 gate. Real authenticated R3 Graphics DVC/full-send, owner three-OS commands,
 native capture/client rendering and performance remain **NOT RUN/BLOCKED**.
+
+
+## R4 sanitizer workflow zero-job triage (2026-10-16; repair CI pending)
+
+Actions `38905806962` for R4 commit
+`27d472baee4eabf3593757c2a749e72d33595cd0` created **0 jobs**. This is not
+an x264/ASan/UBSan result: parent Actions `38905605037` and
+`38905403688` also created zero jobs before R4's CI edit. Current workflow
+inspection shows duplicated top-level documentation/prerelease jobs and a
+duplicated sanitizer/fuzzer tail inherited from the malformed R10 sanitizer
+publication.
+
+The repair rebuilds the workflow text from last-known-good
+`695dd90b80cf105d7bdeb90576168801ffaf011b` and reapplies only the intended
+R10 and R4 additive sanitizer changes. Production code/tests are untouched.
+Exact-repair-SHA hosted CI is required; until it schedules and executes the
+`x264` label, real instrumented R4 sanitizer coverage remains **NOT RUN**.

@@ -255,6 +255,47 @@ void cleanseRdpLicensingKeyMaterial(
     std::span<const std::uint8_t> clientRandom,
     std::span<const std::uint8_t> serverRandom) noexcept;
 
+// R3's concrete Server Platform Challenge profile uses a fresh 128-bit
+// CSPRNG seed rendered as 32 uppercase hexadecimal UTF-16LE characters plus
+// the terminating null. The wire field is variable-length; this fixed profile
+// preserves full seed entropy while preventing embedded terminators.
+inline constexpr std::size_t kRdpPlatformChallengeSeedBytes = 16U;
+inline constexpr std::size_t kRdpPlatformChallengePlaintextBytes = 66U;
+inline constexpr std::size_t kRdpServerPlatformChallengeBytes =
+    4U + 4U + 4U + kRdpPlatformChallengePlaintextBytes +
+    kRdpLicensingMacBytes;
+
+enum class RdpServerPlatformChallengeEncodeError : std::uint8_t
+{
+    None,
+    InvalidChallenge,
+    EncryptionFailure,
+    MacFailure,
+    OutputTooSmall,
+};
+
+struct RdpServerPlatformChallengeEncodeResult
+{
+    std::size_t bytesWritten{};
+    RdpServerPlatformChallengeEncodeError error{
+        RdpServerPlatformChallengeEncodeError::InvalidChallenge};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpServerPlatformChallengeEncodeError::None;
+    }
+};
+
+// MS-RDPELE 2.2.2.4 pure encoder. MACData is generated over the plaintext
+// challenge and the challenge BLOB is RC4-encrypted with the exact derived
+// session keys. No authorization or state transition occurs here, and caller
+// output is unchanged on failure.
+[[nodiscard]] RdpServerPlatformChallengeEncodeResult
+encodeRdpServerPlatformChallenge(
+    std::span<const std::uint8_t> plaintextChallenge,
+    const RdpLicensingKeyMaterial &keyMaterial,
+    std::span<std::uint8_t> output) noexcept;
+
 // Current credential processing deliberately supports the standards-defined
 // X.509 certificate-chain form (CERT_CHAIN_VERSION_2). The private key input
 // is one unencrypted PEM object supplied by the service configuration owner.
@@ -523,11 +564,20 @@ encodeEnhancedSecurityServerLicenseRequest(
     const RdpServerLicenseRequestFields &fields,
     std::span<std::uint8_t> output) noexcept;
 
+enum class RdpLicensingDecisionBranch : std::uint8_t
+{
+    None,
+    ClientLicenseInfoValidation,
+    PlatformChallengeRequired,
+    AwaitPlatformChallengeResponse,
+};
+
 enum class RdpLicensingPhase : std::uint8_t
 {
     NotStarted,
     AwaitClientLicenseResponse,
     AwaitServerDecision,
+    AwaitClientPlatformChallengeResponse,
     Failed,
     Closed,
 };
@@ -558,6 +608,17 @@ public:
     RdpLicensingLifecycle &operator=(RdpLicensingLifecycle &&) = delete;
 
     [[nodiscard]] RdpLicensingPhase phase() const noexcept { return phase_; }
+    [[nodiscard]] RdpLicensingDecisionBranch decisionBranch() const noexcept
+    {
+        return decisionBranch_;
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    platformChallenge() const noexcept
+    {
+        return platformChallengeReady_
+            ? std::span<const std::uint8_t>{platformChallenge_}
+            : std::span<const std::uint8_t>{};
+    }
     // Public protocol random already sent on the wire, retained only while a
     // live licensing decision may still need MS-RDPELE 5.1.2 derivation.
     [[nodiscard]] std::span<const std::uint8_t> serverRandom() const noexcept
@@ -580,27 +641,41 @@ public:
     void close() noexcept
     {
         serverRandom_.fill(0U);
+        platformChallenge_.fill(0U);
         serverRandomReady_ = false;
+        platformChallengeReady_ = false;
+        decisionBranch_ = RdpLicensingDecisionBranch::None;
         phase_ = RdpLicensingPhase::Closed;
     }
 
 private:
     friend class RdpServerLicenseRequestWriteGate;
+    friend class RdpServerPlatformChallengeWriteGate;
 
     // Only the receipt gate may advance this transition after every byte of
     // its stable owned SERVER_LICENSE_REQUEST has been accepted.
     [[nodiscard]] bool onServerLicenseRequestWritten(
         std::span<const std::uint8_t> serverRandom) noexcept;
+    [[nodiscard]] bool onServerPlatformChallengeWritten(
+        std::span<const std::uint8_t> plaintextChallenge) noexcept;
     void fail() noexcept
     {
         serverRandom_.fill(0U);
+        platformChallenge_.fill(0U);
         serverRandomReady_ = false;
+        platformChallengeReady_ = false;
+        decisionBranch_ = RdpLicensingDecisionBranch::None;
         phase_ = RdpLicensingPhase::Failed;
     }
 
     std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom_{};
+    std::array<std::uint8_t, kRdpPlatformChallengePlaintextBytes>
+        platformChallenge_{};
     RdpLicensingPhase phase_{RdpLicensingPhase::NotStarted};
+    RdpLicensingDecisionBranch decisionBranch_{
+        RdpLicensingDecisionBranch::None};
     bool serverRandomReady_{};
+    bool platformChallengeReady_{};
 };
 
 struct RdpServerLicenseRequestWriteView
@@ -665,6 +740,73 @@ private:
 
     std::array<std::uint8_t, kMaximumRdpServerLicenseRequestBytes> pending_{};
     std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom_{};
+    RdpLicensingLifecycle *lifecycle_{};
+    std::size_t pendingLength_{};
+    std::size_t bytesWritten_{};
+    std::uint64_t replySequence_{};
+    std::uint64_t writeSliceSequence_{};
+    bool delivered_{};
+    bool closed_{};
+};
+
+struct RdpServerPlatformChallengeWriteView
+{
+    std::span<const std::uint8_t> bytes{};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return !bytes.empty() && replySequence != 0U &&
+               writeSliceSequence != 0U;
+    }
+};
+
+enum class RdpServerPlatformChallengeWriteOutcome : std::uint8_t
+{
+    Pending,
+    Delivered,
+    Rejected,
+};
+
+// Single-owner receipt accounting for the standards-required challenge after
+// CLIENT_NEW_LICENSE_REQUEST. queue() generates fresh challenge material,
+// encrypts/MACs one stable packet and exposes suffixes until exact delivery.
+// Stale/duplicate/over-reported receipts are terminal.
+class RdpServerPlatformChallengeWriteGate final
+{
+public:
+    explicit RdpServerPlatformChallengeWriteGate(
+        RdpLicensingLifecycle &lifecycle) noexcept
+        : lifecycle_(&lifecycle)
+    {
+    }
+    RdpServerPlatformChallengeWriteGate(
+        const RdpServerPlatformChallengeWriteGate &) = delete;
+    RdpServerPlatformChallengeWriteGate &operator=(
+        const RdpServerPlatformChallengeWriteGate &) = delete;
+    RdpServerPlatformChallengeWriteGate(
+        RdpServerPlatformChallengeWriteGate &&) = delete;
+    RdpServerPlatformChallengeWriteGate &operator=(
+        RdpServerPlatformChallengeWriteGate &&) = delete;
+
+    [[nodiscard]] bool queue(
+        const RdpLicensingKeyMaterial &keyMaterial) noexcept;
+    [[nodiscard]] RdpServerPlatformChallengeWriteView
+    pendingWrite() const noexcept;
+    [[nodiscard]] RdpServerPlatformChallengeWriteOutcome onBytesWritten(
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    void close() noexcept;
+
+private:
+    [[nodiscard]] bool advanceReplySequence() noexcept;
+    [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
+
+    std::array<std::uint8_t, kRdpServerPlatformChallengeBytes> pending_{};
+    std::array<std::uint8_t, kRdpPlatformChallengePlaintextBytes>
+        plaintextChallenge_{};
     RdpLicensingLifecycle *lifecycle_{};
     std::size_t pendingLength_{};
     std::size_t bytesWritten_{};

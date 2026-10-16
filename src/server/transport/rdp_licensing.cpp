@@ -456,6 +456,66 @@ RdpLicensingMacResult generateRdpLicensingMac(
     return result;
 }
 
+RdpServerPlatformChallengeEncodeResult
+encodeRdpServerPlatformChallenge(
+    std::span<const std::uint8_t> plaintextChallenge,
+    const RdpLicensingKeyMaterial &keyMaterial,
+    std::span<std::uint8_t> output) noexcept
+{
+    if (plaintextChallenge.size() != kRdpPlatformChallengePlaintextBytes ||
+        !validNullTerminatedUtf16Le(plaintextChallenge))
+        return {0U, RdpServerPlatformChallengeEncodeError::InvalidChallenge};
+    if (output.size() < kRdpServerPlatformChallengeBytes)
+        return {0U, RdpServerPlatformChallengeEncodeError::OutputTooSmall};
+
+    std::array<std::uint8_t, kRdpServerPlatformChallengeBytes> packet{};
+    packet[0] = static_cast<std::uint8_t>(
+        RdpLicensingMessageType::ServerPlatformChallenge);
+    packet[1] = 0x03U;
+    writeLe16(
+        packet, 2U,
+        static_cast<std::uint16_t>(kRdpServerPlatformChallengeBytes));
+
+    std::size_t offset = 4U;
+    writeLe32(packet, offset, 0xffffffffU);
+    offset += 4U;
+    // wBlobType is explicitly unused for EncryptedPlatformChallenge.
+    writeLe16(packet, offset, 0x0000U);
+    writeLe16(
+        packet, offset + 2U,
+        static_cast<std::uint16_t>(plaintextChallenge.size()));
+    offset += 4U;
+
+    const auto encryptedOutput =
+        std::span(packet).subspan(offset, plaintextChallenge.size());
+    if (!cryptRdpLicensingData(
+            keyMaterial.encryptionKey,
+            plaintextChallenge,
+            encryptedOutput))
+    {
+        OPENSSL_cleanse(packet.data(), packet.size());
+        return {0U,
+                RdpServerPlatformChallengeEncodeError::EncryptionFailure};
+    }
+    offset += plaintextChallenge.size();
+
+    auto mac = generateRdpLicensingMac(
+        keyMaterial.macSaltKey, plaintextChallenge);
+    if (!mac)
+    {
+        OPENSSL_cleanse(packet.data(), packet.size());
+        OPENSSL_cleanse(mac.value.data(), mac.value.size());
+        return {0U, RdpServerPlatformChallengeEncodeError::MacFailure};
+    }
+    std::copy(mac.value.begin(), mac.value.end(), packet.begin() + offset);
+    OPENSSL_cleanse(mac.value.data(), mac.value.size());
+    offset += kRdpLicensingMacBytes;
+
+    std::copy(packet.begin(), packet.begin() + offset, output.begin());
+    OPENSSL_cleanse(packet.data(), packet.size());
+    return {offset, RdpServerPlatformChallengeEncodeError::None};
+}
+
 RdpClientLicenseInfoHardwareIdResult
 verifyRdpClientLicenseInfoHardwareId(
     std::span<const std::uint8_t> completeMessage,
@@ -1282,6 +1342,150 @@ void RdpServerLicenseRequestWriteGate::close() noexcept
         lifecycle_->close();
 }
 
+bool RdpServerPlatformChallengeWriteGate::advanceReplySequence() noexcept
+{
+    if (replySequence_ == std::numeric_limits<std::uint64_t>::max())
+        return false;
+    ++replySequence_;
+    return replySequence_ != 0U;
+}
+
+bool RdpServerPlatformChallengeWriteGate::advanceWriteSliceSequence() noexcept
+{
+    if (writeSliceSequence_ == std::numeric_limits<std::uint64_t>::max())
+        return false;
+    ++writeSliceSequence_;
+    return writeSliceSequence_ != 0U;
+}
+
+bool RdpServerPlatformChallengeWriteGate::queue(
+    const RdpLicensingKeyMaterial &keyMaterial) noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ != 0U ||
+        lifecycle_ == nullptr ||
+        lifecycle_->phase() != RdpLicensingPhase::AwaitServerDecision ||
+        lifecycle_->decisionBranch() !=
+            RdpLicensingDecisionBranch::PlatformChallengeRequired)
+    {
+        close();
+        return false;
+    }
+
+    std::array<std::uint8_t, kRdpPlatformChallengeSeedBytes> seed{};
+    if (RAND_priv_bytes(seed.data(), static_cast<int>(seed.size())) != 1)
+    {
+        OPENSSL_cleanse(seed.data(), seed.size());
+        close();
+        return false;
+    }
+
+    static constexpr std::array<std::uint8_t, 16> hex{
+        '0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+    std::size_t challengeOffset = 0U;
+    for (const std::uint8_t value : seed)
+    {
+        plaintextChallenge_[challengeOffset++] = hex[value >> 4U];
+        plaintextChallenge_[challengeOffset++] = 0U;
+        plaintextChallenge_[challengeOffset++] = hex[value & 0x0fU];
+        plaintextChallenge_[challengeOffset++] = 0U;
+    }
+    plaintextChallenge_[challengeOffset++] = 0U;
+    plaintextChallenge_[challengeOffset++] = 0U;
+    OPENSSL_cleanse(seed.data(), seed.size());
+
+    if (challengeOffset != plaintextChallenge_.size())
+    {
+        close();
+        return false;
+    }
+
+    const auto encoded = encodeRdpServerPlatformChallenge(
+        plaintextChallenge_, keyMaterial, pending_);
+    if (!encoded || !advanceReplySequence() ||
+        !advanceWriteSliceSequence())
+    {
+        close();
+        return false;
+    }
+
+    pendingLength_ = encoded.bytesWritten;
+    bytesWritten_ = 0U;
+    return true;
+}
+
+RdpServerPlatformChallengeWriteView
+RdpServerPlatformChallengeWriteGate::pendingWrite() const noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ == 0U ||
+        bytesWritten_ >= pendingLength_)
+        return {};
+    return {
+        std::span(pending_).first(pendingLength_).subspan(bytesWritten_),
+        replySequence_,
+        writeSliceSequence_};
+}
+
+RdpServerPlatformChallengeWriteOutcome
+RdpServerPlatformChallengeWriteGate::onBytesWritten(
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (closed_ || delivered_ || pendingLength_ == 0U ||
+        lifecycle_ == nullptr ||
+        lifecycle_->phase() != RdpLicensingPhase::AwaitServerDecision ||
+        lifecycle_->decisionBranch() !=
+            RdpLicensingDecisionBranch::PlatformChallengeRequired ||
+        replySequence == 0U || replySequence != replySequence_ ||
+        writeSliceSequence == 0U ||
+        writeSliceSequence != writeSliceSequence_ ||
+        acceptedBytes > pendingLength_ - bytesWritten_)
+    {
+        close();
+        return RdpServerPlatformChallengeWriteOutcome::Rejected;
+    }
+
+    if (acceptedBytes == 0U)
+        return RdpServerPlatformChallengeWriteOutcome::Pending;
+
+    bytesWritten_ += acceptedBytes;
+    if (bytesWritten_ != pendingLength_)
+    {
+        if (!advanceWriteSliceSequence())
+        {
+            close();
+            return RdpServerPlatformChallengeWriteOutcome::Rejected;
+        }
+        return RdpServerPlatformChallengeWriteOutcome::Pending;
+    }
+
+    if (!lifecycle_->onServerPlatformChallengeWritten(plaintextChallenge_))
+    {
+        close();
+        return RdpServerPlatformChallengeWriteOutcome::Rejected;
+    }
+
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    delivered_ = true;
+    OPENSSL_cleanse(
+        plaintextChallenge_.data(), plaintextChallenge_.size());
+    return RdpServerPlatformChallengeWriteOutcome::Delivered;
+}
+
+void RdpServerPlatformChallengeWriteGate::close() noexcept
+{
+    OPENSSL_cleanse(pending_.data(), pending_.size());
+    OPENSSL_cleanse(
+        plaintextChallenge_.data(), plaintextChallenge_.size());
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    delivered_ = false;
+    closed_ = true;
+    if (lifecycle_ != nullptr)
+        lifecycle_->close();
+}
+
 bool RdpLicensingLifecycle::onServerLicenseRequestWritten(
     std::span<const std::uint8_t> serverRandom) noexcept
 {
@@ -1295,7 +1499,35 @@ bool RdpLicensingLifecycle::onServerLicenseRequestWritten(
     }
     std::copy(serverRandom.begin(), serverRandom.end(), serverRandom_.begin());
     serverRandomReady_ = true;
+    platformChallenge_.fill(0U);
+    platformChallengeReady_ = false;
+    decisionBranch_ = RdpLicensingDecisionBranch::None;
     phase_ = RdpLicensingPhase::AwaitClientLicenseResponse;
+    return true;
+}
+
+bool RdpLicensingLifecycle::onServerPlatformChallengeWritten(
+    std::span<const std::uint8_t> plaintextChallenge) noexcept
+{
+    if (phase_ == RdpLicensingPhase::Closed)
+        return false;
+    if (phase_ != RdpLicensingPhase::AwaitServerDecision ||
+        decisionBranch_ !=
+            RdpLicensingDecisionBranch::PlatformChallengeRequired ||
+        plaintextChallenge.size() != platformChallenge_.size() ||
+        !validNullTerminatedUtf16Le(plaintextChallenge))
+    {
+        fail();
+        return false;
+    }
+
+    std::copy(
+        plaintextChallenge.begin(), plaintextChallenge.end(),
+        platformChallenge_.begin());
+    platformChallengeReady_ = true;
+    decisionBranch_ =
+        RdpLicensingDecisionBranch::AwaitPlatformChallengeResponse;
+    phase_ = RdpLicensingPhase::AwaitClientPlatformChallengeResponse;
     return true;
 }
 
@@ -1329,6 +1561,8 @@ RdpLicensingIntake RdpLicensingLifecycle::onClientMessage(
             fail();
             return RdpLicensingIntake::MalformedMessage;
         }
+        decisionBranch_ =
+            RdpLicensingDecisionBranch::PlatformChallengeRequired;
         phase_ = RdpLicensingPhase::AwaitServerDecision;
         return RdpLicensingIntake::ClientNewLicenseRequestAccepted;
     }
@@ -1341,6 +1575,8 @@ RdpLicensingIntake RdpLicensingLifecycle::onClientMessage(
             fail();
             return RdpLicensingIntake::MalformedMessage;
         }
+        decisionBranch_ =
+            RdpLicensingDecisionBranch::ClientLicenseInfoValidation;
         phase_ = RdpLicensingPhase::AwaitServerDecision;
         return RdpLicensingIntake::ClientLicenseInfoAccepted;
     }

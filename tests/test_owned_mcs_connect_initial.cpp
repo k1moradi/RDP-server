@@ -4922,6 +4922,220 @@ void testRdpServerLicenseRequestGeneratedRandom()
     assert(lifecycle.phase() == RdpLicensingPhase::NotStarted);
 }
 
+[[nodiscard]] RdpLicensingKeyMaterial platformChallengeKeys() noexcept
+{
+    RdpLicensingKeyMaterial keys{};
+    for (std::size_t index = 0U; index < kRdpLicensingKeyBytes; ++index)
+    {
+        keys.macSaltKey[index] = static_cast<std::uint8_t>(index);
+        keys.encryptionKey[index] =
+            static_cast<std::uint8_t>(0x10U + index);
+    }
+    return keys;
+}
+
+[[nodiscard]] std::array<std::uint8_t, kRdpPlatformChallengePlaintextBytes>
+platformChallengePlaintext() noexcept
+{
+    constexpr std::string_view text{"00112233445566778899AABBCCDDEEFF"};
+    std::array<std::uint8_t, kRdpPlatformChallengePlaintextBytes> out{};
+    std::size_t offset = 0U;
+    for (const char value : text)
+    {
+        out[offset++] = static_cast<std::uint8_t>(value);
+        out[offset++] = 0U;
+    }
+    assert(offset + 2U == out.size());
+    return out;
+}
+
+void testRdpServerPlatformChallengeWire()
+{
+    const auto keys = platformChallengeKeys();
+    const auto plaintext = platformChallengePlaintext();
+    constexpr std::array<std::uint8_t, kRdpServerPlatformChallengeBytes>
+        expected{
+            0x02,0x03,0x5e,0x00,0xff,0xff,0xff,0xff,
+            0x00,0x00,0x42,0x00,0x7b,0xb0,0x30,0xcc,
+            0xcc,0x00,0x2a,0xf2,0x05,0xbe,0xd7,0xd7,
+            0xbf,0x3b,0xcf,0xa2,0x86,0x46,0x9f,0x34,
+            0x6e,0xec,0xee,0xe4,0xea,0xe2,0x3c,0x83,
+            0x00,0x3b,0x8c,0x39,0xfb,0xdb,0x0a,0x5a,
+            0x23,0x19,0xa0,0x50,0x66,0x42,0x8c,0x65,
+            0xe4,0xa6,0x90,0xcf,0x90,0xfc,0x8f,0xe8,
+            0x1b,0x16,0x4e,0xba,0x60,0xa8,0x78,0x64,
+            0xdf,0x37,0x4e,0x3b,0x3c,0x5a,0xcd,0x6c,
+            0x27,0x1f,0x93,0x71,0x0b,0x84,0x36,0x41,
+            0xd3,0x56,0xa1,0x66,0xcb,0xdf};
+
+    std::array<std::uint8_t, kRdpServerPlatformChallengeBytes> output{};
+    const auto encoded =
+        encodeRdpServerPlatformChallenge(plaintext, keys, output);
+    assert(encoded);
+    assert(encoded.bytesWritten == expected.size());
+    assert(output == expected);
+
+    const auto parsed = parseRdpLicensingMessage(output);
+    assert(parsed);
+    assert(parsed.value.type ==
+           RdpLicensingMessageType::ServerPlatformChallenge);
+    assert(parsed.value.protocolVersion == 3U);
+    assert(parsed.value.body.size() == output.size() - 4U);
+
+    // Failure is transactional: malformed plaintext cannot alter output.
+    output.fill(0xa5U);
+    auto malformed = plaintext;
+    malformed[2] = 0U;
+    malformed[3] = 0U;
+    assert(encodeRdpServerPlatformChallenge(
+               malformed, keys, output).error ==
+           RdpServerPlatformChallengeEncodeError::InvalidChallenge);
+    assert(std::all_of(
+        output.begin(), output.end(),
+        [](std::uint8_t value) { return value == 0xa5U; }));
+}
+
+void testRdpServerPlatformChallengeWriteReceipts()
+{
+    RdpLicensingLifecycle lifecycle;
+    assert(deliverServerLicenseRequest(lifecycle));
+    assert(lifecycle.onClientMessage(makeClientNewLicenseRequest()) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::PlatformChallengeRequired);
+
+    const auto keys = platformChallengeKeys();
+    RdpServerPlatformChallengeWriteGate writer{lifecycle};
+    assert(writer.queue(keys));
+
+    const auto first = writer.pendingWrite();
+    assert(first);
+    assert(first.bytes.size() == kRdpServerPlatformChallengeBytes);
+    assert(lifecycle.platformChallenge().empty());
+
+    assert(writer.onBytesWritten(
+               first.replySequence, first.writeSliceSequence, 0U) ==
+           RdpServerPlatformChallengeWriteOutcome::Pending);
+    const auto afterWant = writer.pendingWrite();
+    assert(afterWant.bytes.data() == first.bytes.data());
+    assert(afterWant.bytes.size() == first.bytes.size());
+    assert(afterWant.replySequence == first.replySequence);
+    assert(afterWant.writeSliceSequence == first.writeSliceSequence);
+
+    constexpr std::size_t firstAccepted = 23U;
+    assert(writer.onBytesWritten(
+               first.replySequence, first.writeSliceSequence, firstAccepted) ==
+           RdpServerPlatformChallengeWriteOutcome::Pending);
+    const auto remainder = writer.pendingWrite();
+    assert(remainder);
+    assert(remainder.replySequence == first.replySequence);
+    assert(remainder.writeSliceSequence != first.writeSliceSequence);
+    assert(remainder.bytes.data() == first.bytes.data() + firstAccepted);
+    assert(remainder.bytes.size() == first.bytes.size() - firstAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+
+    // Snapshot the encrypted challenge before final delivery zeroes the gate.
+    std::array<std::uint8_t, kRdpPlatformChallengePlaintextBytes> decrypted{};
+    const auto encrypted = first.bytes.subspan(
+        12U, kRdpPlatformChallengePlaintextBytes);
+    assert(cryptRdpLicensingData(
+        keys.encryptionKey, encrypted, decrypted));
+
+    assert(writer.onBytesWritten(
+               remainder.replySequence,
+               remainder.writeSliceSequence,
+               remainder.bytes.size()) ==
+           RdpServerPlatformChallengeWriteOutcome::Delivered);
+    assert(!writer.pendingWrite());
+    assert(lifecycle.phase() ==
+           RdpLicensingPhase::AwaitClientPlatformChallengeResponse);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::AwaitPlatformChallengeResponse);
+    assert(lifecycle.platformChallenge().size() ==
+           kRdpPlatformChallengePlaintextBytes);
+    assert(std::equal(
+        decrypted.begin(), decrypted.end(),
+        lifecycle.platformChallenge().begin()));
+
+    auto mac = generateRdpLicensingMac(
+        keys.macSaltKey, lifecycle.platformChallenge());
+    assert(mac);
+    const auto sentMac = first.bytes.last(kRdpLicensingMacBytes);
+    assert(std::equal(mac.value.begin(), mac.value.end(), sentMac.begin()));
+
+    // Concrete profile: 32 uppercase hex UTF-16LE chars and terminator.
+    const auto challenge = lifecycle.platformChallenge();
+    for (std::size_t offset = 0U; offset + 2U < challenge.size(); offset += 2U)
+    {
+        const auto value = challenge[offset];
+        assert(challenge[offset + 1U] == 0U);
+        assert((value >= '0' && value <= '9') ||
+               (value >= 'A' && value <= 'F'));
+    }
+    assert(challenge[challenge.size() - 2U] == 0U);
+    assert(challenge.back() == 0U);
+}
+
+void testRdpServerPlatformChallengeWriteDenials()
+{
+    const auto keys = platformChallengeKeys();
+
+    // CLIENT_LICENSE_INFO is a different server-decision branch.
+    RdpLicensingLifecycle licenseInfoLifecycle;
+    assert(deliverServerLicenseRequest(licenseInfoLifecycle));
+    assert(licenseInfoLifecycle.onClientMessage(makeClientLicenseInfo()) ==
+           RdpLicensingIntake::ClientLicenseInfoAccepted);
+    assert(licenseInfoLifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::ClientLicenseInfoValidation);
+    RdpServerPlatformChallengeWriteGate wrongBranch{licenseInfoLifecycle};
+    assert(!wrongBranch.queue(keys));
+    assert(licenseInfoLifecycle.phase() == RdpLicensingPhase::Closed);
+
+    // Challenge cannot be emitted before a client licensing response.
+    RdpLicensingLifecycle earlyLifecycle;
+    assert(deliverServerLicenseRequest(earlyLifecycle));
+    RdpServerPlatformChallengeWriteGate early{earlyLifecycle};
+    assert(!early.queue(keys));
+    assert(earlyLifecycle.phase() == RdpLicensingPhase::Closed);
+
+    // Stale partial-write receipt is terminal.
+    RdpLicensingLifecycle staleLifecycle;
+    assert(deliverServerLicenseRequest(staleLifecycle));
+    assert(staleLifecycle.onClientMessage(makeClientNewLicenseRequest()) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    RdpServerPlatformChallengeWriteGate stale{staleLifecycle};
+    assert(stale.queue(keys));
+    const auto staleFirst = stale.pendingWrite();
+    assert(stale.onBytesWritten(
+               staleFirst.replySequence,
+               staleFirst.writeSliceSequence,
+               1U) == RdpServerPlatformChallengeWriteOutcome::Pending);
+    const auto staleRemainder = stale.pendingWrite();
+    assert(staleRemainder.writeSliceSequence !=
+           staleFirst.writeSliceSequence);
+    assert(stale.onBytesWritten(
+               staleFirst.replySequence,
+               staleFirst.writeSliceSequence,
+               1U) == RdpServerPlatformChallengeWriteOutcome::Rejected);
+    assert(staleLifecycle.phase() == RdpLicensingPhase::Closed);
+
+    // Over-report cannot manufacture delivery.
+    RdpLicensingLifecycle overLifecycle;
+    assert(deliverServerLicenseRequest(overLifecycle));
+    assert(overLifecycle.onClientMessage(makeClientNewLicenseRequest()) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    RdpServerPlatformChallengeWriteGate over{overLifecycle};
+    assert(over.queue(keys));
+    const auto overPending = over.pendingWrite();
+    assert(over.onBytesWritten(
+               overPending.replySequence,
+               overPending.writeSliceSequence,
+               overPending.bytes.size() + 1U) ==
+           RdpServerPlatformChallengeWriteOutcome::Rejected);
+    assert(overLifecycle.phase() == RdpLicensingPhase::Closed);
+}
+
 void testRdpServerLicenseRequestWriteReceipts()
 {
     RdpServerLicenseIdentity identity;
@@ -6543,7 +6757,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 100> kMcsTestCases{{
+constexpr std::array<McsTestCase, 103> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -6606,6 +6820,9 @@ constexpr std::array<McsTestCase, 100> kMcsTestCases{{
     {"licensing-client-license-info-hwid-proof", &testRdpClientLicenseInfoHardwareIdProof},
     {"licensing-client-license-info-hwid-denials", &testRdpClientLicenseInfoHardwareIdDenials},
     {"licensing-client-license-info-hwid-fresh-verification", &testRdpClientLicenseInfoHardwareIdFreshVerification},
+    {"licensing-server-platform-challenge-wire", &testRdpServerPlatformChallengeWire},
+    {"licensing-server-platform-challenge-write-receipts", &testRdpServerPlatformChallengeWriteReceipts},
+    {"licensing-server-platform-challenge-write-denials", &testRdpServerPlatformChallengeWriteDenials},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
     {"licensing-runtime-context-ownership", &testRuntimeLicensingContextOwnership},

@@ -635,6 +635,7 @@ enum class McsSessionPhase : std::uint8_t
     AwaitServerLicenseRequest,
     AwaitClientLicenseResponse,
     AwaitServerLicenseDecision,
+    AwaitClientPlatformChallengeResponse,
     Closed,
 };
 
@@ -731,6 +732,7 @@ public:
         connectResponseProvenanceBound_ = false;
         connectResponseWrite_.close();
         serverLicenseRequestWrite_.close();
+        serverPlatformChallengeWrite_.close();
         licensingCredentialFingerprint_.fill(0U);
         licensingCredentialBound_ = false;
         cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
@@ -843,6 +845,20 @@ private:
         const RdpLicensingServiceCredential &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Standards-required outbound branch after a successfully prepared
+    // CLIENT_NEW_LICENSE_REQUEST. R3 owns challenge generation, keys and
+    // receipt state; the concrete R2 broker must reauthorize before every
+    // exposed slice and accepted-byte completion.
+    [[nodiscard]] std::optional<RdpServerPlatformChallengeWriteView>
+    prepareServerPlatformChallengeWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] RdpServerPlatformChallengeWriteOutcome
+    completeServerPlatformChallengeWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
     McsConnectResponseAllocation connectResponseAllocation_{};
@@ -853,6 +869,8 @@ private:
     std::uint32_t allocatedUserId_{};
     RdpLicensingLifecycle licensing_{};
     RdpServerLicenseRequestWriteGate serverLicenseRequestWrite_{licensing_};
+    RdpServerPlatformChallengeWriteGate
+        serverPlatformChallengeWrite_{licensing_};
     std::array<std::uint8_t, 32> licensingCredentialFingerprint_{};
     bool licensingCredentialBound_{};
     RdpLicensingKeyMaterial licensingKeyMaterial_{};

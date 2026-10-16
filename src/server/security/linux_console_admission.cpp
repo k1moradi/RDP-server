@@ -1016,6 +1016,66 @@ LinuxConsoleAdmissionBroker::completeR3ServerLicenseRequestWrite(
     return outcome;
 }
 
+std::optional<
+    rdp_server::server::transport::RdpServerPlatformChallengeWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3ServerPlatformChallengeWrite(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending =
+        session.prepareServerPlatformChallengeWrite(*provenance);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+rdp_server::server::transport::RdpServerPlatformChallengeWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3ServerPlatformChallengeWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome =
+        rdp_server::server::transport::RdpServerPlatformChallengeWriteOutcome;
+    if (lease == nullptr ||
+        !authorizeR3ProtectedTransition(
+            *lease, acceptor, connection, session, kConsoleViewPermission))
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto outcome = session.completeServerPlatformChallengeWrite(
+        *provenance, replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
 std::optional<rdp_server::server::transport::RdpLicensingIntake>
 LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage(
     const LinuxConsoleAdmissionLease &lease,

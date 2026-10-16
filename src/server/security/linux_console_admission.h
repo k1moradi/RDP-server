@@ -348,6 +348,30 @@ public:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // Publish/resume the one standards-required Server Platform Challenge
+    // only after a fresh lease/R1-owner authorization. Challenge bytes and
+    // derived licensing keys stay inside R3 and are never caller inputs.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpServerPlatformChallengeWriteView>
+    authorizeR3ServerPlatformChallengeWrite(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
+    [[nodiscard]]
+    rdp_server::server::transport::RdpServerPlatformChallengeWriteOutcome
+    completeR3ServerPlatformChallengeWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     // Consume exactly one complete client licensing response only after the
     // server request's full receipt and another fresh authorization of the
     // same native lease/R1 owner. R3 validates global-I/O/segmentation and

@@ -1399,6 +1399,91 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
     return intake;
 }
 
+std::optional<RdpServerPlatformChallengeWriteView>
+McsSessionLifecycle::prepareServerPlatformChallengeWrite(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitServerLicenseDecision ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() != RdpLicensingPhase::AwaitServerDecision ||
+        licensing_.decisionBranch() !=
+            RdpLicensingDecisionBranch::PlatformChallengeRequired ||
+        !licensingKeyMaterialReady_ ||
+        acceptedInitialLicensingIntake_ !=
+            RdpLicensingIntake::ClientNewLicenseRequestAccepted)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    auto pending = serverPlatformChallengeWrite_.pendingWrite();
+    if (!pending)
+    {
+        if (!serverPlatformChallengeWrite_.queue(licensingKeyMaterial_))
+        {
+            close();
+            return std::nullopt;
+        }
+        pending = serverPlatformChallengeWrite_.pendingWrite();
+    }
+    if (!pending)
+    {
+        close();
+        return std::nullopt;
+    }
+    return pending;
+}
+
+RdpServerPlatformChallengeWriteOutcome
+McsSessionLifecycle::completeServerPlatformChallengeWrite(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitServerLicenseDecision ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() != RdpLicensingPhase::AwaitServerDecision ||
+        licensing_.decisionBranch() !=
+            RdpLicensingDecisionBranch::PlatformChallengeRequired ||
+        !licensingKeyMaterialReady_ ||
+        acceptedInitialLicensingIntake_ !=
+            RdpLicensingIntake::ClientNewLicenseRequestAccepted)
+    {
+        close();
+        return RdpServerPlatformChallengeWriteOutcome::Rejected;
+    }
+
+    const auto outcome = serverPlatformChallengeWrite_.onBytesWritten(
+        replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == RdpServerPlatformChallengeWriteOutcome::Rejected)
+    {
+        close();
+        return outcome;
+    }
+    if (outcome == RdpServerPlatformChallengeWriteOutcome::Delivered)
+    {
+        if (licensing_.phase() !=
+                RdpLicensingPhase::AwaitClientPlatformChallengeResponse ||
+            licensing_.decisionBranch() !=
+                RdpLicensingDecisionBranch::AwaitPlatformChallengeResponse ||
+            licensing_.platformChallenge().size() !=
+                kRdpPlatformChallengePlaintextBytes)
+        {
+            close();
+            return RdpServerPlatformChallengeWriteOutcome::Rejected;
+        }
+        phase_ = McsSessionPhase::AwaitClientPlatformChallengeResponse;
+    }
+    return outcome;
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {

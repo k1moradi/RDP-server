@@ -45,6 +45,8 @@ using rdp_server::server::transport::RdpServerLicenseRequestFields;
 using rdp_server::server::transport::RdpServerLicenseRequestWriteGate;
 using rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
 using rdp_server::server::transport::RdpServerLicenseRequestWriteView;
+using rdp_server::server::transport::RdpServerPlatformChallengeWriteOutcome;
+using rdp_server::server::transport::RdpServerPlatformChallengeWriteView;
 using rdp_server::server::transport::SecurityNegotiationProvenance;
 using rdp_server::server::transport::TcpAcceptOutcome;
 using rdp_server::server::transport::TcpIoOutcome;
@@ -1648,6 +1650,64 @@ void testR3ServerLicenseRequestWriteContract()
     assert(session.licensingPhase() == RdpLicensingPhase::Closed);
 }
 
+void testR3ServerPlatformChallengeWriteContract()
+{
+    using PrepareMethod =
+        decltype(&LinuxConsoleAdmissionBroker::
+                     authorizeR3ServerPlatformChallengeWrite);
+    using CompletionMethod =
+        decltype(&LinuxConsoleAdmissionBroker::
+                     completeR3ServerPlatformChallengeWrite);
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Session = McsSessionLifecycle &;
+    using KeyMaterial =
+        const rdp_server::server::transport::RdpLicensingKeyMaterial &;
+
+    static_assert(std::is_invocable_r_v<
+        std::optional<RdpServerPlatformChallengeWriteView>,
+        PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, bool, Acceptor, Connection, Session>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, const SSL *, Session>);
+    static_assert(!std::is_invocable_v<
+        PrepareMethod, Broker, const LinuxConsoleAdmissionLease &,
+        Acceptor, Connection, Session, KeyMaterial>);
+
+    static_assert(std::is_invocable_r_v<
+        RdpServerPlatformChallengeWriteOutcome,
+        CompletionMethod, Broker, const LinuxConsoleAdmissionLease *,
+        Acceptor, Connection, Session, std::uint64_t, std::uint64_t,
+        std::size_t>);
+    static_assert(!std::is_invocable_v<
+        CompletionMethod, Broker, bool, Acceptor, Connection, Session,
+        std::uint64_t, std::uint64_t, std::size_t>);
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+    // A guessed challenge receipt cannot substitute for the move-only native
+    // lease or the exact established HYBRID/TLS/GSS owner.
+    assert(broker.completeR3ServerPlatformChallengeWrite(
+               nullptr, acceptor, connection, session,
+               1U, 1U, 1U) ==
+           RdpServerPlatformChallengeWriteOutcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+}
+
 void testR3ClientLicensingRouteContract()
 {
     using RouteMethod =
@@ -2102,6 +2162,11 @@ int main(int argc, char **argv)
             testR3ClientLicensingRouteContract();
             return 0;
         }
+        if (name == "gssapi-r3-server-platform-challenge-write-contract")
+        {
+            testR3ServerPlatformChallengeWriteContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -2142,6 +2207,7 @@ int main(int argc, char **argv)
     testR3ClientInfoRouteContract();
     testR3ServerLicenseRequestWriteContract();
     testR3ClientLicensingRouteContract();
+    testR3ServerPlatformChallengeWriteContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

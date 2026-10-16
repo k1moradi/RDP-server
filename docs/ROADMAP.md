@@ -15569,3 +15569,86 @@ macOS 27, genuine Kerberos/NSS/logind positive admission, real production
 licensing credential files and Microsoft-client licensing/Share/desktop
 acceptance remain **NOT RUN / OPEN**. No listener/service is enabled.
 **M2/M3 remain OPEN / NOT ACCEPTED.**
+
+## R3 receipt-bound Server Platform Challenge branch (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `c3b12e213ce63e42c13e54508d7c3d18a0b2b21c`.
+
+R3 now implements the standards-required outbound branch after an accepted
+`CLIENT_NEW_LICENSE_REQUEST`, without weakening the separate
+`CLIENT_LICENSE_INFO` CAL-validation gate. The licensing lifecycle records
+which server-decision branch is pending: a new-license request requires a
+Platform Challenge, while a license-info response remains blocked on
+CAL trust/product/expiration/HWID authorization and cannot produce
+`STATUS_VALID_CLIENT`.
+
+The pure `SERVER_PLATFORM_CHALLENGE` encoder follows MS-RDPELE 2.2.2.4:
+the preamble is version 3, ConnectFlags is the reserved `0xffffffff` value,
+the challenge BLOB type is the specification-unused zero value, the challenge
+is RC4-encrypted with the already-derived licensing encryption key, and
+MACData is generated over the plaintext challenge with the already-derived
+MAC salt key. Encoding is allocation-free and transactional: malformed input
+or insufficient output never exposes partial bytes.
+
+The production challenge profile generates a fresh 128-bit seed with
+OpenSSL `RAND_priv_bytes`, renders all 32 uppercase hexadecimal characters
+as UTF-16LE plus one terminating null, and therefore owns a fixed 66-byte
+plaintext challenge without embedded terminators. The seed and temporary
+plaintext are cleansed after construction/delivery; the sole licensing
+lifecycle retains the plaintext only while the matching client challenge
+response is expected.
+
+`RdpServerPlatformChallengeWriteGate` owns one stable encrypted packet and
+uses the same nonzero reply/write-slice receipt discipline as the preceding
+Server License Request writer. Zero-byte backpressure preserves the exact
+slice, positive partial progress rotates only the slice receipt, and full
+accepted-byte delivery alone advances
+`RdpLicensingPhase::AwaitServerDecision ->
+AwaitClientPlatformChallengeResponse`. Stale, duplicate, over-reported,
+wrong-branch or early receipts close the licensing owner.
+
+The sole `McsSessionLifecycle` accepts this writer only when its initial
+response was `CLIENT_NEW_LICENSE_REQUEST`, the derived licensing keys are
+present, the exact bound HYBRID provenance still matches, and the session is
+still `AwaitServerLicenseDecision`. Full delivery advances only to
+`McsSessionPhase::AwaitClientPlatformChallengeResponse`. The
+`CLIENT_LICENSE_INFO` branch cannot enter this writer.
+
+Positive prepare/resume and accepted-byte completion are private to
+`LinuxConsoleAdmissionBroker`. The broker freshly revalidates the concrete
+move-only native lease and exact R1 HYBRID/TLS/GSS owner before every exposed
+slice and every completion receipt. Challenge bytes and licensing keys are not
+caller inputs. A raw SSL pointer, Boolean, derived key material, guessed
+receipt or configuration value cannot replace the admission capability.
+
+New production-linked CTests:
+`transport.licensing-server-platform-challenge-wire`,
+`transport.licensing-server-platform-challenge-write-receipts`,
+`transport.licensing-server-platform-challenge-write-denials`, and
+Linux-only
+`security.gssapi-r3-server-platform-challenge-write-contract`.
+The wire case uses a fixed independent RC4/MAC oracle. All four are selected
+by the existing bounded ASan/UBSan R1/R3 and native-GSS registry gates.
+
+This increment does **not** accept `CLIENT_PLATFORM_CHALLENGE_RESPONSE`,
+issue New/Upgrade License, validate CAL trust/product/expiration, emit
+`STATUS_VALID_CLIENT`, send Demand Active, activate Share, or grant graphics,
+input, clipboard or desktop authority. R1 remains the sole TLS/application-I/O
+owner, R2 remains native admission/reauthorization owner, and R10 remains
+service/licensing credential configuration owner.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, bounded ASan/UBSan,
+documentation-policy and SDK/package evidence are pending.
+
+**Next R3:** add bounded protected
+`CLIENT_PLATFORM_CHALLENGE_RESPONSE` intake. Decrypt the challenge response
+and HWID with the existing session encryption key, require the plaintext
+challenge to match this exact retained server challenge and the normative
+client type/version/detail layout, verify MACData over the plaintext response
+data plus HWID, and stop before New License issuance until real
+license-authority issuance material/policy is available. The parallel
+`CLIENT_LICENSE_INFO` path still requires CAL trust/product/expiration/HWID
+authorization. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

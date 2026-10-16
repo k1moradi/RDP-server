@@ -782,6 +782,19 @@ if(TARGET rdp-server-linux-xdamage)
         PROPERTIES LABELS "x11;linux-adapter;native")
 endif()
 
+# R5 native XTEST input lifetime: the test uses an already-failed XCB
+# descriptor so no live input can be injected. It verifies production
+# constructor denial plus repeated cancellation before parent teardown.
+if(TARGET rdp-server-linux-xtest-input)
+    add_rdp_test(test_x11_native_input.cpp x11
+        input-native-connection-denials-and-cancellation)
+    target_link_libraries(test_x11_native_input PRIVATE
+        rdp-server-linux-xtest-input)
+    set_tests_properties(
+        x11.input-native-connection-denials-and-cancellation
+        PROPERTIES LABELS "x11;linux-adapter;native")
+endif()
+
 add_test(NAME project.policy
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SERVER_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

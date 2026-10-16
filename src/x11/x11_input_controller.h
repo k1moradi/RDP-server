@@ -9,6 +9,7 @@
 #include <xcb/xcb.h>
 
 #include "../core/geometry.h"
+#include "x11_input_event.h"
 
 class X11InputController final
 {
@@ -23,8 +24,13 @@ public:
     [[nodiscard]] bool valid() const noexcept;
     [[nodiscard]] const char *failureReason() const noexcept;
 
-    [[nodiscard]] bool handle(int message, long param1, long param2,
-                               long param3, long param4) noexcept;
+    // The request is already authorized by R2/R3; this native adapter does
+    // not make or cache an authorization decision of its own.
+    [[nodiscard]] bool handle(const X11InputEvent &event) noexcept;
+
+    // Release held native state while the borrowed XCB owner is still alive,
+    // then invalidate the pointer. Idempotent and required before XCB teardown.
+    void disconnect() noexcept;
 
 private:
     struct KeyMapping
@@ -36,30 +42,29 @@ private:
     void fail(const char *reason) noexcept;
     void releaseAll() noexcept;
     [[nodiscard]] xcb_keycode_t keycodeFor(xcb_keysym_t keysym) const noexcept;
-    [[nodiscard]] bool handleKey(bool pressed, long keysym, long scanCode,
-                                 long deviceFlags) noexcept;
-    [[nodiscard]] bool synchronizeLocks(long lockFlags) noexcept;
-    [[nodiscard]] bool handleVerticalScroll(long x, long y,
-                                            long delta) noexcept;
-    [[nodiscard]] bool handleHorizontalScroll(long x, long y,
-                                              long delta) noexcept;
-    [[nodiscard]] bool emitScrollClicks(long x, long y,
-                                        long delta,
+    [[nodiscard]] bool handleKey(const X11KeyInput &input) noexcept;
+    [[nodiscard]] bool synchronizeLocks(const X11LockStateInput &input) noexcept;
+    [[nodiscard]] bool handlePointerButton(
+        const X11PointerButtonInput &input) noexcept;
+    [[nodiscard]] bool handleScroll(const X11ScrollInput &input) noexcept;
+    [[nodiscard]] bool emitScrollClicks(std::int32_t x, std::int32_t y,
+                                        std::int32_t delta,
                                         std::int64_t &accumulator,
-                                        int positiveButton,
-                                        int negativeButton) noexcept;
+                                        std::uint8_t positiveButton,
+                                        std::uint8_t negativeButton) noexcept;
     [[nodiscard]] bool fakeKey(xcb_keycode_t keycode, bool pressed) noexcept;
-    [[nodiscard]] bool fakePointer(std::uint8_t type, long x, long y) noexcept;
-    [[nodiscard]] bool fakeButton(std::uint8_t type, int button, long x,
-                                  long y, bool flush = true) noexcept;
+    [[nodiscard]] bool fakePointer(std::int32_t x, std::int32_t y) noexcept;
+    [[nodiscard]] bool fakeButton(std::uint8_t type, std::uint8_t button,
+                                  std::int32_t x, std::int32_t y,
+                                  bool flush = true) noexcept;
     [[nodiscard]] bool fakeInput(std::uint8_t type, std::uint8_t detail,
                                  std::int16_t x, std::int16_t y,
                                  bool flush = true) noexcept;
     [[nodiscard]] bool flushInput() noexcept;
-    [[nodiscard]] std::int16_t coordinate(long value,
+    [[nodiscard]] std::int16_t coordinate(std::int32_t value,
                                           std::uint32_t bound) const noexcept;
-    [[nodiscard]] std::size_t keySlot(long scanCode,
-                                      long deviceFlags) const noexcept;
+    [[nodiscard]] std::size_t keySlot(std::uint8_t scanCode,
+                                      bool extended) const noexcept;
 
     xcb_connection_t *connection_{nullptr};
     xcb_window_t rootWindow_{XCB_WINDOW_NONE};

@@ -70,6 +70,26 @@ installed portable SDK. The headless native test uses only an invalid
 XCB descriptor and never confers R2/R3 authorization. R4 alone owns
 graphics scheduling and cursor delivery.
 
+### R5 native XTEST input lifetime and typed boundary (Linux only)
+
+`X11InputController` now consumes the R5-native, allocation-free
+`X11InputEvent` variant rather than historical xrdp `WM_*` and
+`KBD_FLAG_*` identifiers. The typed requests preserve the existing X11 keysym,
+scan-code slot, pointer, button, lock and bounded scroll semantics without
+pulling xrdp or libX11 into the adapter. This native type does **not** confer
+authorization: R3 must translate and forward only already-authorized input
+after R2 OS-session admission.
+
+The controller borrows one live `xcb_connection_t` and never owns or closes
+it. Failed XCB connections are rejected before XTEST negotiation.
+`disconnect()` is the repeatable cancellation barrier: while the borrowed
+owner is valid it releases held keys/buttons, then clears native state and the
+borrowed pointer so destruction cannot touch a later-destroyed connection.
+The noninstalled Linux `rdp-server-linux-xtest-input` target links only
+`xcb` and `xcb-xtest`; it is not linked into the server runtime yet.
+Its ordinary native CTest uses an already-failed XCB fd and therefore cannot
+inject real keyboard or pointer input.
+
 ### R5 native XCB connection readiness and ownership
 
 The existing `src/x11/x11_display_connection.{h,cpp}` is the only XCB

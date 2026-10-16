@@ -3242,6 +3242,33 @@ actually run; another parser CTest alone is not a complete session.
   R3-authorized desktop, R4 frame delivery, live Microsoft client,
   native resize integration, benchmarks. Gate B/M3 remain OPEN.
 
+  **R5 native XTEST typed input boundary (2026-10-16; based on main
+  `e6504314c87fadbb9fcf1cde7f09f9fa5b9de010`, exact-SHA hosted CI pending):** Remove the remaining
+  `xrdp_constants.h` and `ms-rdpbcgr.h` dependency from
+  `X11InputController`. The controller now consumes a first-party
+  R5-native typed event variant for keys, lock state, pointer movement,
+  buttons and bounded scrolling; it rejects failed XCB connections before
+  XTEST negotiation and catches keyboard-map allocation failure inside its
+  `noexcept` constructor. Add an explicit idempotent `disconnect()`
+  barrier that releases held keys/buttons while the XCB owner is alive,
+  then invalidates the borrowed connection before parent teardown.
+  A Linux-only noninstalled `rdp-server-linux-xtest-input` target builds
+  the real production source when pkg-config finds `xcb`/`xcb-xtest`;
+  hosted CI installs `libxcb-xtest0-dev`. Dedicated headless CTest
+  `x11.input-native-connection-denials-and-cancellation` uses only an
+  already-failed fd, exercises all typed request categories as fail-closed,
+  repeated cancellation and destructor-after-owner-teardown safety, and
+  cannot inject live input. The target is not linked into the runtime, and
+  the typed R5 event is not an authorization token: R2/R3 admission and
+  R3's authoritative input routing remain required before protected input.
+  **PASS locally:** GCC 14.2 strict C++23 compile/run of the allocation-free
+  typed event contract. **NOT RUN locally:** actual XTEST translation unit
+  and native CTest because `xcb/xtest.h` is absent; full canonical CTest,
+  owner platform trio, authorized desktop, Microsoft client and benchmarks.
+  **Next R5:** compose display/capture/cursor/damage/input cancellation under
+  one admitted XCB owner, then bind R3-authorized input and R4 frame/cursor
+  consumption without creating a second scheduler. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

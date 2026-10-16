@@ -6361,3 +6361,38 @@ Exact-SHA GitHub Actions is **PENDING** immediately after the direct-to-main
 publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27
 remain **NOT RUN**. M2 remains **NOT ACCEPTED** pending genuine R2 admission,
 R3 activation and Microsoft-client evidence.
+
+## R5 native XTEST typed input boundary (2026-10-16)
+
+**Base main at authoring:** `e6504314c87fadbb9fcf1cde7f09f9fa5b9de010`; exact implementation SHA and
+hosted CI pending publication.
+
+**Production:** `X11InputController` no longer includes xrdp message/keyboard
+constant headers or libX11 keysyms. It accepts the first-party R5-native
+`X11InputEvent` variant, rejects an already-failed XCB connection before
+extension negotiation, catches keyboard-map allocation failure within the
+`noexcept` constructor, and provides idempotent `disconnect()` that releases
+held input while the XCB owner is live and then invalidates the borrowed
+connection. The Linux-only noninstalled
+`rdp-server-linux-xtest-input` target uses real `xcb`/`xcb-xtest` and is
+not linked into the runtime; therefore this increment does not enable
+unauthorized desktop input.
+
+**Dedicated CTest:** `x11.input-native-connection-denials-and-cancellation`
+links the actual controller when XTEST development files exist. It creates
+`xcb_connect_to_fd(-1, nullptr)`, verifies constructor denial, checks key,
+lock, pointer, button and scroll requests all fail closed, repeats
+cancellation, destroys the parent XCB connection only after cancellation, and
+then verifies post-owner calls/destruction remain safe. It opens no DISPLAY
+and injects no live input.
+
+**PASS locally:** GCC 14.2 C++23 `-Wall -Wextra -Wpedantic -Werror -UNDEBUG`
+compile/run of the allocation-free typed event contract.
+
+**NOT RUN locally:** actual `x11_input_controller.cpp` XTEST compilation and
+the new native CTest because this authoring environment has `xcb/xcb.h` but
+not `xcb/xtest.h`/`xcb-xtest.pc`; complete synchronized repository CMake/
+CTest, owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27, R2/R3
+authorized input routing, live Microsoft-client desktop and performance
+measurements. Hosted exact-SHA CI must provide the native Linux compile/test
+receipt. M3 remains unaccepted.

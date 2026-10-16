@@ -2,16 +2,12 @@
 
 #include "x11_input_controller.h"
 
-#include <X11/keysym.h>
-
 #include <algorithm>
 #include <cstdlib>
 #include <limits>
+#include <type_traits>
 
 #include <xcb/xtest.h>
-
-#include <ms-rdpbcgr.h>
-#include <xrdp_constants.h>
 
 namespace
 {
@@ -19,66 +15,15 @@ namespace
 constexpr std::size_t kLockCaps = 0;
 constexpr std::size_t kLockNum = 1;
 constexpr std::size_t kLockScroll = 2;
-constexpr int kMaximumButton = 9;
+constexpr std::uint8_t kMaximumButton = 9;
 constexpr std::int64_t kScrollUnitsPerClick = 120;
 constexpr std::int64_t kMaximumScrollBurst = 16;
 
-bool
-isButtonDownMessage(int message) noexcept
-{
-    switch (message)
-    {
-        case WM_LBUTTONDOWN:
-        case WM_RBUTTONDOWN:
-        case WM_BUTTON3DOWN:
-        case WM_BUTTON4DOWN:
-        case WM_BUTTON5DOWN:
-        case WM_BUTTON6DOWN:
-        case WM_BUTTON7DOWN:
-        case WM_BUTTON8DOWN:
-        case WM_BUTTON9DOWN:
-            return true;
-        default:
-            return false;
-    }
-}
-
-int
-buttonForMessage(int message) noexcept
-{
-    switch (message)
-    {
-        case WM_LBUTTONDOWN:
-        case WM_LBUTTONUP:
-            return 1;
-        case WM_RBUTTONDOWN:
-        case WM_RBUTTONUP:
-            return 3;
-        case WM_BUTTON3DOWN:
-        case WM_BUTTON3UP:
-            return 2;
-        case WM_BUTTON4DOWN:
-        case WM_BUTTON4UP:
-            return 4;
-        case WM_BUTTON5DOWN:
-        case WM_BUTTON5UP:
-            return 5;
-        case WM_BUTTON6DOWN:
-        case WM_BUTTON6UP:
-            return 6;
-        case WM_BUTTON7DOWN:
-        case WM_BUTTON7UP:
-            return 7;
-        case WM_BUTTON8DOWN:
-        case WM_BUTTON8UP:
-            return 8;
-        case WM_BUTTON9DOWN:
-        case WM_BUTTON9UP:
-            return 9;
-        default:
-            return 0;
-    }
-}
+// Core X11 keysyms; keeping the numeric protocol values here avoids a
+// libX11 dependency for an otherwise XCB-only adapter.
+constexpr xcb_keysym_t kCapsLockKeySymbol = 0x0000ffe5U;
+constexpr xcb_keysym_t kNumLockKeySymbol = 0x0000ff7fU;
+constexpr xcb_keysym_t kScrollLockKeySymbol = 0x0000ff14U;
 
 } // namespace
 
@@ -87,6 +32,19 @@ X11InputController::X11InputController(xcb_connection_t &connection,
                                        PixelSize bounds) noexcept
     : connection_(&connection), rootWindow_(rootWindow), bounds_(bounds)
 {
+    if (xcb_connection_has_error(connection_) != 0)
+    {
+        connection_ = nullptr;
+        fail("X11 connection is already failed");
+        return;
+    }
+    if (rootWindow_ == XCB_WINDOW_NONE || bounds_.widthPixels == 0 ||
+        bounds_.heightPixels == 0)
+    {
+        fail("XTEST input geometry is invalid");
+        return;
+    }
+
     const xcb_query_extension_reply_t *extension =
         xcb_get_extension_data(connection_, &xcb_test_id);
     if (extension == nullptr || !extension->present)
@@ -109,13 +67,6 @@ X11InputController::X11InputController(xcb_connection_t &connection,
     }
     std::free(version);
 
-    if (rootWindow_ == XCB_WINDOW_NONE || bounds_.widthPixels == 0 ||
-        bounds_.heightPixels == 0)
-    {
-        fail("XTEST input geometry is invalid");
-        return;
-    }
-
     const xcb_setup_t *setup = xcb_get_setup(connection_);
     if (setup == nullptr || setup->max_keycode < setup->min_keycode)
     {
@@ -123,10 +74,17 @@ X11InputController::X11InputController(xcb_connection_t &connection,
         return;
     }
 
-    const std::uint8_t keycodeCount = static_cast<std::uint8_t>(
-        setup->max_keycode - setup->min_keycode + 1);
+    const unsigned int keycodeCount =
+        static_cast<unsigned int>(setup->max_keycode) -
+        static_cast<unsigned int>(setup->min_keycode) + 1U;
+    if (keycodeCount > std::numeric_limits<std::uint8_t>::max())
+    {
+        fail("X11 keyboard mapping range is too large");
+        return;
+    }
     const auto keyboardCookie = xcb_get_keyboard_mapping(
-        connection_, setup->min_keycode, keycodeCount);
+        connection_, setup->min_keycode,
+        static_cast<std::uint8_t>(keycodeCount));
     xcb_generic_error_t *keyboardError = nullptr;
     xcb_get_keyboard_mapping_reply_t *keyboard =
         xcb_get_keyboard_mapping_reply(connection_, keyboardCookie,
@@ -142,63 +100,81 @@ X11InputController::X11InputController(xcb_connection_t &connection,
 
     const int symbolCount = xcb_get_keyboard_mapping_keysyms_length(keyboard);
     const xcb_keysym_t *symbols = xcb_get_keyboard_mapping_keysyms(keyboard);
-    keyMappings_.reserve(static_cast<std::size_t>(symbolCount));
-    bool haveKeyMapping = false;
-    for (xcb_keycode_t keycode = setup->min_keycode;
-         keycode <= setup->max_keycode; ++keycode)
+    if (symbolCount <= 0 || symbols == nullptr)
     {
-        const int keycodeOffset = keycode - setup->min_keycode;
-        for (std::uint8_t level = 0; level < keyboard->keysyms_per_keycode;
-             ++level)
+        std::free(keyboard);
+        std::free(keyboardError);
+        fail("X11 keyboard mapping reply is empty");
+        return;
+    }
+
+    bool haveKeyMapping = false;
+    try
+    {
+        keyMappings_.reserve(static_cast<std::size_t>(symbolCount));
+        for (xcb_keycode_t keycode = setup->min_keycode;
+             keycode <= setup->max_keycode; ++keycode)
         {
-            const int symbolIndex =
-                keycodeOffset * keyboard->keysyms_per_keycode + level;
-            if (symbolIndex >= symbolCount)
+            const int keycodeOffset = keycode - setup->min_keycode;
+            for (std::uint8_t level = 0; level < keyboard->keysyms_per_keycode;
+                 ++level)
             {
-                continue;
-            }
-            const xcb_keysym_t keysym = symbols[symbolIndex];
-            if (keysym == XCB_NO_SYMBOL)
-            {
-                continue;
-            }
-            haveKeyMapping = true;
-            if (keysym <= 0xffU)
-            {
-                xcb_keycode_t &direct =
-                    latin1Keycodes_[static_cast<std::size_t>(keysym)];
-                if (direct == XCB_NO_SYMBOL)
+                const int symbolIndex =
+                    keycodeOffset * keyboard->keysyms_per_keycode + level;
+                if (symbolIndex >= symbolCount)
                 {
-                    direct = keycode;
+                    continue;
                 }
-                hasDirectKeycodes_ = true;
-            }
-            else if ((keysym & 0xffffff00U) == 0xff00U)
-            {
-                xcb_keycode_t &direct = functionKeycodes_[
-                    static_cast<std::size_t>(keysym & 0xffU)];
-                if (direct == XCB_NO_SYMBOL)
+                const xcb_keysym_t keysym = symbols[symbolIndex];
+                if (keysym == XCB_NO_SYMBOL)
                 {
-                    direct = keycode;
+                    continue;
                 }
-                hasDirectKeycodes_ = true;
+                haveKeyMapping = true;
+                if (keysym <= 0xffU)
+                {
+                    xcb_keycode_t &direct =
+                        latin1Keycodes_[static_cast<std::size_t>(keysym)];
+                    if (direct == XCB_NO_SYMBOL)
+                    {
+                        direct = keycode;
+                    }
+                    hasDirectKeycodes_ = true;
+                }
+                else if ((keysym & 0xffffff00U) == 0xff00U)
+                {
+                    xcb_keycode_t &direct = functionKeycodes_[
+                        static_cast<std::size_t>(keysym & 0xffU)];
+                    if (direct == XCB_NO_SYMBOL)
+                    {
+                        direct = keycode;
+                    }
+                    hasDirectKeycodes_ = true;
+                }
+                else
+                {
+                    keyMappings_.push_back({keysym, keycode});
+                }
             }
-            else
+            if (keycode == setup->max_keycode)
             {
-                keyMappings_.push_back({keysym, keycode});
+                break;
             }
         }
-        if (keycode == setup->max_keycode)
-        {
-            break;
-        }
+    }
+    catch (...)
+    {
+        std::free(keyboard);
+        std::free(keyboardError);
+        fail("X11 keyboard mapping allocation failed");
+        return;
     }
     std::free(keyboard);
     std::free(keyboardError);
 
-    lockKeycodes_[kLockCaps] = keycodeFor(XK_Caps_Lock);
-    lockKeycodes_[kLockNum] = keycodeFor(XK_Num_Lock);
-    lockKeycodes_[kLockScroll] = keycodeFor(XK_Scroll_Lock);
+    lockKeycodes_[kLockCaps] = keycodeFor(kCapsLockKeySymbol);
+    lockKeycodes_[kLockNum] = keycodeFor(kNumLockKeySymbol);
+    lockKeycodes_[kLockScroll] = keycodeFor(kScrollLockKeySymbol);
 
     const auto modifierCookie = xcb_get_modifier_mapping(connection_);
     xcb_generic_error_t *modifierError = nullptr;
@@ -209,22 +185,26 @@ X11InputController::X11InputController(xcb_connection_t &connection,
     {
         const xcb_keycode_t *modifierKeycodes =
             xcb_get_modifier_mapping_keycodes(modifierMapping);
-        for (std::size_t modifier = 0; modifier < 8; ++modifier)
+        if (modifierMapping->keycodes_per_modifier == 0 ||
+            modifierKeycodes != nullptr)
         {
-            for (std::size_t index = 0;
-                 index < modifierMapping->keycodes_per_modifier; ++index)
+            for (std::size_t modifier = 0; modifier < 8; ++modifier)
             {
-                const xcb_keycode_t keycode =
-                    modifierKeycodes[modifier *
-                                     modifierMapping->keycodes_per_modifier +
-                                     index];
-                for (std::size_t lock = 0; lock < lockKeycodes_.size(); ++lock)
+                for (std::size_t index = 0;
+                     index < modifierMapping->keycodes_per_modifier; ++index)
                 {
-                    if (keycode != XCB_NO_SYMBOL &&
-                        keycode == lockKeycodes_[lock])
+                    const xcb_keycode_t keycode =
+                        modifierKeycodes[modifier *
+                                         modifierMapping->keycodes_per_modifier +
+                                         index];
+                    for (std::size_t lock = 0; lock < lockKeycodes_.size(); ++lock)
                     {
-                        lockMasks_[lock] |=
-                            static_cast<std::uint16_t>(1U << modifier);
+                        if (keycode != XCB_NO_SYMBOL &&
+                            keycode == lockKeycodes_[lock])
+                        {
+                            lockMasks_[lock] |= static_cast<std::uint16_t>(
+                                1U << modifier);
+                        }
                     }
                 }
             }
@@ -245,7 +225,7 @@ X11InputController::X11InputController(xcb_connection_t &connection,
 
 X11InputController::~X11InputController() noexcept
 {
-    releaseAll();
+    disconnect();
 }
 
 bool
@@ -263,64 +243,62 @@ X11InputController::failureReason() const noexcept
 }
 
 bool
-X11InputController::handle(int message, long param1, long param2,
-                            long param3, long param4) noexcept
+X11InputController::handle(const X11InputEvent &event) noexcept
 {
     if (!valid())
     {
         return false;
     }
 
-    switch (message)
-    {
-        case WM_KEYDOWN:
-            return handleKey(true, param2, param3, param4);
-        case WM_KEYUP:
-            return handleKey(false, param2, param3, param4);
-        case WM_KEYBRD_SYNC:
-            return synchronizeLocks(param1);
-        case WM_TOUCH_VSCROLL:
-            return handleVerticalScroll(param1, param2, param3);
-        case WM_TOUCH_HSCROLL:
-            return handleHorizontalScroll(param1, param2, param3);
-        case WM_MOUSEMOVE:
-            return fakePointer(XCB_MOTION_NOTIFY, param1, param2);
-        case WM_LBUTTONDOWN:
-        case WM_LBUTTONUP:
-        case WM_RBUTTONDOWN:
-        case WM_RBUTTONUP:
-        case WM_BUTTON3DOWN:
-        case WM_BUTTON3UP:
-        case WM_BUTTON4DOWN:
-        case WM_BUTTON4UP:
-        case WM_BUTTON5DOWN:
-        case WM_BUTTON5UP:
-        case WM_BUTTON6DOWN:
-        case WM_BUTTON6UP:
-        case WM_BUTTON7DOWN:
-        case WM_BUTTON7UP:
-        case WM_BUTTON8DOWN:
-        case WM_BUTTON8UP:
-        case WM_BUTTON9DOWN:
-        case WM_BUTTON9UP:
-        {
-            const int button = buttonForMessage(message);
-            const std::uint8_t type = isButtonDownMessage(message)
-                                           ? XCB_BUTTON_PRESS
-                                           : XCB_BUTTON_RELEASE;
-            const bool sent = fakeButton(type, button, param1, param2);
-            if (sent && button > 0 && button <= kMaximumButton)
+    return std::visit(
+        [this](const auto &input) noexcept -> bool {
+            using Input = std::decay_t<decltype(input)>;
+            if constexpr (std::is_same_v<Input, X11KeyInput>)
             {
-                pressedButtons_[static_cast<std::size_t>(button)] =
-                    type == XCB_BUTTON_PRESS;
+                return handleKey(input);
             }
-            return sent;
-        }
-        default:
-            // Keep lifecycle/control messages ABI-compatible until their
-            // corresponding first-party subsystem is implemented.
-            return true;
-    }
+            else if constexpr (std::is_same_v<Input, X11LockStateInput>)
+            {
+                return synchronizeLocks(input);
+            }
+            else if constexpr (std::is_same_v<Input, X11PointerMoveInput>)
+            {
+                return fakePointer(input.x, input.y);
+            }
+            else if constexpr (std::is_same_v<Input, X11PointerButtonInput>)
+            {
+                return handlePointerButton(input);
+            }
+            else
+            {
+                static_assert(std::is_same_v<Input, X11ScrollInput>);
+                return handleScroll(input);
+            }
+        },
+        event);
+}
+
+void
+X11InputController::disconnect() noexcept
+{
+    releaseAll();
+    const char *reason = failureReason_ == nullptr
+                             ? "XTEST input controller is disconnected"
+                             : failureReason_;
+    connection_ = nullptr;
+    rootWindow_ = XCB_WINDOW_NONE;
+    bounds_ = {};
+    keyMappings_.clear();
+    latin1Keycodes_.fill(XCB_NO_SYMBOL);
+    functionKeycodes_.fill(XCB_NO_SYMBOL);
+    hasDirectKeycodes_ = false;
+    activeKeycodes_.fill(XCB_NO_SYMBOL);
+    pressedButtons_.fill(false);
+    lockKeycodes_.fill(XCB_NO_SYMBOL);
+    lockMasks_.fill(0);
+    verticalScrollRemainder_ = 0;
+    horizontalScrollRemainder_ = 0;
+    failureReason_ = reason;
 }
 
 void
@@ -332,6 +310,8 @@ X11InputController::fail(const char *reason) noexcept
 void
 X11InputController::releaseAll() noexcept
 {
+    verticalScrollRemainder_ = 0;
+    horizontalScrollRemainder_ = 0;
     if (connection_ == nullptr || rootWindow_ == XCB_WINDOW_NONE ||
         xcb_connection_has_error(connection_) != 0)
     {
@@ -353,16 +333,14 @@ X11InputController::releaseAll() noexcept
         sent = true;
     }
 
-    for (int button = 1; button <= kMaximumButton; ++button)
+    for (std::uint8_t button = 1; button <= kMaximumButton; ++button)
     {
         if (!pressedButtons_[static_cast<std::size_t>(button)])
         {
             continue;
         }
-        xcb_test_fake_input(
-            connection_, XCB_BUTTON_RELEASE,
-            static_cast<std::uint8_t>(button), XCB_CURRENT_TIME, rootWindow_,
-            0, 0, 0);
+        xcb_test_fake_input(connection_, XCB_BUTTON_RELEASE, button,
+                            XCB_CURRENT_TIME, rootWindow_, 0, 0, 0);
         pressedButtons_[static_cast<std::size_t>(button)] = false;
         sent = true;
     }
@@ -371,8 +349,6 @@ X11InputController::releaseAll() noexcept
     {
         fail("XTEST input release failed");
     }
-    verticalScrollRemainder_ = 0;
-    horizontalScrollRemainder_ = 0;
 }
 
 xcb_keycode_t
@@ -402,17 +378,11 @@ X11InputController::keycodeFor(xcb_keysym_t keysym) const noexcept
 }
 
 bool
-X11InputController::handleKey(bool pressed, long keysym, long scanCode,
-                               long deviceFlags) noexcept
+X11InputController::handleKey(const X11KeyInput &input) noexcept
 {
-    const std::size_t slot = keySlot(scanCode, deviceFlags);
-    if (slot >= activeKeycodes_.size())
-    {
-        return false;
-    }
-
+    const std::size_t slot = keySlot(input.scanCode, input.extended);
     xcb_keycode_t keycode = activeKeycodes_[slot];
-    if (pressed)
+    if (input.pressed)
     {
         // RDP clients may send repeated make events while a key is held.
         // XTest makes the key logically down on the first event; forwarding
@@ -422,7 +392,7 @@ X11InputController::handleKey(bool pressed, long keysym, long scanCode,
         {
             return true;
         }
-        keycode = keycodeFor(static_cast<xcb_keysym_t>(keysym));
+        keycode = keycodeFor(static_cast<xcb_keysym_t>(input.keySymbol));
     }
     else if (keycode == XCB_NO_SYMBOL)
     {
@@ -435,23 +405,16 @@ X11InputController::handleKey(bool pressed, long keysym, long scanCode,
         return false;
     }
 
-    if (!fakeKey(keycode, pressed))
+    if (!fakeKey(keycode, input.pressed))
     {
         return false;
     }
-    if (pressed)
-    {
-        activeKeycodes_[slot] = keycode;
-    }
-    else
-    {
-        activeKeycodes_[slot] = XCB_NO_SYMBOL;
-    }
+    activeKeycodes_[slot] = input.pressed ? keycode : XCB_NO_SYMBOL;
     return true;
 }
 
 bool
-X11InputController::synchronizeLocks(long lockFlags) noexcept
+X11InputController::synchronizeLocks(const X11LockStateInput &input) noexcept
 {
     const auto pointerCookie = xcb_query_pointer(connection_, rootWindow_);
     xcb_generic_error_t *pointerError = nullptr;
@@ -470,9 +433,9 @@ X11InputController::synchronizeLocks(long lockFlags) noexcept
     std::free(pointerError);
 
     const std::array<bool, 3> desired{
-        (lockFlags & KBD_FLAG_CAPITAL) != 0,
-        (lockFlags & KBD_FLAG_NUMLOCK) != 0,
-        (lockFlags & KBD_FLAG_SCROLL) != 0,
+        input.capsLock,
+        input.numLock,
+        input.scrollLock,
     };
     for (std::size_t lock = 0; lock < desired.size(); ++lock)
     {
@@ -496,25 +459,49 @@ X11InputController::synchronizeLocks(long lockFlags) noexcept
 }
 
 bool
-X11InputController::handleVerticalScroll(long x, long y, long delta) noexcept
+X11InputController::handlePointerButton(
+    const X11PointerButtonInput &input) noexcept
 {
-    return emitScrollClicks(x, y, delta, verticalScrollRemainder_,
-                             /*positiveButton=*/4, /*negativeButton=*/5);
+    if (input.button == 0 || input.button > kMaximumButton)
+    {
+        return false;
+    }
+    const std::uint8_t type = input.pressed ? XCB_BUTTON_PRESS
+                                            : XCB_BUTTON_RELEASE;
+    if (!fakeButton(type, input.button, input.x, input.y))
+    {
+        return false;
+    }
+    pressedButtons_[static_cast<std::size_t>(input.button)] = input.pressed;
+    return true;
 }
 
 bool
-X11InputController::handleHorizontalScroll(long x, long y,
-                                            long delta) noexcept
+X11InputController::handleScroll(const X11ScrollInput &input) noexcept
 {
-    return emitScrollClicks(x, y, delta, horizontalScrollRemainder_,
-                             /*positiveButton=*/7, /*negativeButton=*/6);
+    switch (input.axis)
+    {
+        case X11ScrollAxis::Vertical:
+            return emitScrollClicks(input.x, input.y, input.delta,
+                                    verticalScrollRemainder_,
+                                    /*positiveButton=*/4,
+                                    /*negativeButton=*/5);
+        case X11ScrollAxis::Horizontal:
+            return emitScrollClicks(input.x, input.y, input.delta,
+                                    horizontalScrollRemainder_,
+                                    /*positiveButton=*/7,
+                                    /*negativeButton=*/6);
+        default:
+            return false;
+    }
 }
 
 bool
-X11InputController::emitScrollClicks(long x, long y, long delta,
+X11InputController::emitScrollClicks(std::int32_t x, std::int32_t y,
+                                      std::int32_t delta,
                                       std::int64_t &accumulator,
-                                      int positiveButton,
-                                      int negativeButton) noexcept
+                                      std::uint8_t positiveButton,
+                                      std::uint8_t negativeButton) noexcept
 {
     const std::int64_t boundedDelta = std::clamp<std::int64_t>(
         static_cast<std::int64_t>(delta),
@@ -557,29 +544,29 @@ X11InputController::fakeKey(xcb_keycode_t keycode, bool pressed) noexcept
 }
 
 bool
-X11InputController::fakePointer(std::uint8_t type, long x, long y) noexcept
+X11InputController::fakePointer(std::int32_t x, std::int32_t y) noexcept
 {
-    return fakeInput(type, 0, coordinate(x, bounds_.widthPixels),
+    return fakeInput(XCB_MOTION_NOTIFY, 0, coordinate(x, bounds_.widthPixels),
                      coordinate(y, bounds_.heightPixels));
 }
 
 bool
-X11InputController::fakeButton(std::uint8_t type, int button, long x,
-                                long y, bool flush) noexcept
+X11InputController::fakeButton(std::uint8_t type, std::uint8_t button,
+                               std::int32_t x, std::int32_t y,
+                               bool flush) noexcept
 {
-    if (button <= 0 || button > std::numeric_limits<std::uint8_t>::max())
+    if (button == 0 || button > kMaximumButton)
     {
         return false;
     }
-    return fakeInput(type, static_cast<std::uint8_t>(button),
-                     coordinate(x, bounds_.widthPixels),
+    return fakeInput(type, button, coordinate(x, bounds_.widthPixels),
                      coordinate(y, bounds_.heightPixels), flush);
 }
 
 bool
 X11InputController::fakeInput(std::uint8_t type, std::uint8_t detail,
-                               std::int16_t x, std::int16_t y,
-                               bool flush) noexcept
+                              std::int16_t x, std::int16_t y,
+                              bool flush) noexcept
 {
     if (!valid())
     {
@@ -607,25 +594,23 @@ X11InputController::flushInput() noexcept
 }
 
 std::int16_t
-X11InputController::coordinate(long value, std::uint32_t bound) const noexcept
+X11InputController::coordinate(std::int32_t value,
+                               std::uint32_t bound) const noexcept
 {
-    if (value < 0)
+    if (value <= 0 || bound == 0)
     {
         return 0;
     }
-    const long maximum = bound == 0 ? 0 : static_cast<long>(bound - 1);
-    const long clipped = std::min(value, maximum);
-    return static_cast<std::int16_t>(std::min<long>(
-        clipped, std::numeric_limits<std::int16_t>::max()));
+    const std::uint32_t maximum = std::min<std::uint32_t>(
+        bound - 1U,
+        static_cast<std::uint32_t>(std::numeric_limits<std::int16_t>::max()));
+    const auto clipped = std::min(static_cast<std::uint32_t>(value), maximum);
+    return static_cast<std::int16_t>(clipped);
 }
 
 std::size_t
-X11InputController::keySlot(long scanCode, long deviceFlags) const noexcept
+X11InputController::keySlot(std::uint8_t scanCode, bool extended) const noexcept
 {
-    if (scanCode < 0 || scanCode > 0xff)
-    {
-        return activeKeycodes_.size();
-    }
-    const std::size_t extended = (deviceFlags & KBD_FLAG_EXT) != 0 ? 256 : 0;
-    return extended + static_cast<std::size_t>(scanCode);
+    const std::size_t extendedOffset = extended ? 256U : 0U;
+    return extendedOffset + static_cast<std::size_t>(scanCode);
 }

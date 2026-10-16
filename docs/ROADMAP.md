@@ -1,3 +1,45 @@
+## R5 RandR stale-damage generation isolation (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `fd1b6a687718f3887c3169a2b4b0bcda129d2d40`.
+
+The requested XShm pixel-parity, RandR capture-generation and terminal-capture
+denial boundaries are already present and have later descendant sanitizer
+evidence, so this increment does not duplicate them. Current-source review
+instead found one narrower unproved event-budget invariant: the existing RandR
+helper says events queued behind a geometry transition are offered only to the
+replacement geometry-bound trackers, but no CTest deliberately queued an old
+XDamage notification behind that transition.
+
+New production-backed CTest
+`x11.desktop-resource-randr-stale-damage-isolation` stays in the existing
+`test_x11_desktop_resources` dispatcher. On an ephemeral 1280x720x24 Xvfb
+server, an independent helper XCB client completes a real resize to 1024x600
+and then performs checked deterministic drawing before the production aggregate
+processes the queued RandR event. The aggregate must stop at the transition,
+transactionally rebuild on the same XCB connection, then drain the queued
+old-generation Damage event without incrementing or publishing damage from the
+replacement tracker. The already-drawn BGRX pixels remain capturable through
+the rebuilt XShm child; a second distinct post-rebuild drawing must produce a
+fresh real XDamage observation and exact B/G/R capture.
+
+This is test-only because the existing production stop/rebuild ordering already
+implements the intended contract. No R2 admission, R3 protocol/input parsing,
+R4 scheduler, second XCB owner or native event loop is added. The shared R9
+Clang ASan/UBSan native-X11 selector and fail-closed registry preflight now
+include the new behavior, expanding the expected R5 selection from **31** to
+**32** cases.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest is
+**NOT RUN** in this connector environment because the synchronized owner
+checkout is unavailable; no alternate persistent build root was created.
+Exact-publication-SHA Linux/GCC Debug+Release, macOS/AppleClang Debug+Release,
+Windows/MSVC Debug+Release, R9 sanitizer, documentation-policy and SDK/package
+evidence are **PENDING**. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27 and Microsoft-client M3 acceptance remain **NOT RUN / OPEN**. The
+next functional R5 input translation remains **BLOCKED ON R3** until R3
+exports its authoritative authenticated already-decoded bounded Share/Input or
+Fast-Path Input event contract.
+
 ## R8 Windows completed-file Explorer handoff exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `74b5fb33484e961479a652204d35864ecfc77fd8`.

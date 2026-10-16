@@ -1,3 +1,39 @@
+## R5 RandR stale-damage generation-isolation authoring validation (2026-10-16)
+
+**Reconciled parent:** `fd1b6a687718f3887c3169a2b4b0bcda129d2d40`.
+
+Current `main` already contains the real XShm pixel-fidelity,
+post-RandR capture-generation and terminal-denial tests requested by the prior
+R5 assignment, plus the later successful XShm lifetime/sanitizer work. This
+audit therefore selected a distinct generation-safety boundary instead of
+re-registering those behaviors.
+
+`x11.desktop-resource-randr-stale-damage-isolation` uses the existing
+production `X11DesktopResources` aggregate and one helper producer connection.
+The helper completes a real Xvfb RandR resize and checked draw before the
+production owner dispatches the transition. The test requires the aggregate to
+retain its XCB identity, publish the 1024x600 replacement generation, drain the
+queued old Damage event with replacement damage count still zero and no pending
+region, capture the already-drawn first pattern through the rebuilt XShm child,
+then observe a second post-rebuild Damage notification and capture its distinct
+exact B/G/R pixels. No borrowed framebuffer span crosses capture, rebuild or
+disconnect.
+
+No production R5 source changed: source inspection shows
+`X11DisplayConnection` already stops its bounded batch at each valid RandR
+screen-change event and `X11DesktopResources` rebuilds all geometry-bound
+children before a later queued event is dispatched. The new CTest makes that
+ordering executable and joins the existing R9 native-X11 sanitizer selector
+with an exact-name preflight requirement.
+
+Canonical local `~/rdp-server/build/` execution is **NOT RUN** because this
+connector environment has no synchronized owner checkout and project policy
+forbids creating another persistent build root. Exact publication-SHA hosted
+matrix/sanitizer/documentation/package validation is **PENDING**. Functional
+R5 input translation remains **BLOCKED** because current source still exposes
+no R3-owned authenticated decoded Share/Input or Fast-Path Input event handoff;
+R5 does not add a competing parser or authority owner.
+
 ## R8 Windows completed-file Explorer handoff exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `74b5fb33484e961479a652204d35864ecfc77fd8`.

@@ -73,6 +73,15 @@ republish a stale arena view. These synthetic tests prove native source pixels
 and lifetime boundaries only, not RDP graphics delivery or Microsoft-client
 desktop acceptance.
 
+When validating the RandR event-budget fence, deliberately queue a
+geometry-bound event on the retiring native resource after the server-side
+resize and before the aggregate consumes the RandR transition. Require the
+transition to publish the complete replacement generation first, drain the
+stale old-generation event without crediting it to the replacement tracker,
+then generate a fresh post-rebuild event and require that one to be observed.
+Keep this synchronization request/reply based and bounded rather than relying
+on sleeps.
+
 For the XShm child itself, a failed-connection cancellation test is not enough
 to prove the native retirement path. Under ephemeral Xvfb, first establish a
 real attached capture and finish consuming its borrowed `FramebufferView`.

@@ -824,6 +824,104 @@ syntheticXvfbRandrCaptureGeneration()
 }
 
 void
+syntheticXvfbRandrStaleDamageIsolation()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "RandR stale-damage isolation");
+    assert(resources.randrAvailable());
+
+    const int originalDescriptor = resources.fileDescriptor();
+    xcb_connection_t *const originalConnection = resources.nativeConnection();
+    assert(originalDescriptor >= 0);
+    assert(originalConnection != nullptr);
+    assert((resources.sourceGeometry() == PixelSize{1280, 720}));
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+    assert(helperScreen->root_depth == 24U);
+
+    constexpr PixelSize resizedGeometry{1024, 600};
+    constexpr Rectangle patternRectangle{0, 0, 8, 6};
+
+    // Complete the server-side resize first, then draw while the production
+    // aggregate still owns its old geometry-bound Damage resource. This queues
+    // an old-generation DamageNotify behind the RandR transition on the one
+    // production XCB connection.
+    disableRandrCrtcsAndResize(
+        *helper, helperScreen->root, resizedGeometry);
+    drawSyntheticPattern(
+        *helper, helperScreen->root, patternRectangle, kFirstPixelPattern);
+    synchronizeXcbConnection(*originalConnection);
+
+    bool rebuilt = false;
+    bool queuedEventsDrained = false;
+    for (std::size_t attempt = 0; attempt < 16U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(64, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+
+        if (resources.sourceGeometry() == resizedGeometry)
+        {
+            if (!rebuilt)
+            {
+                // The display owner stops at the geometry transition. The
+                // aggregate must publish a complete replacement generation
+                // before any later queued event can be routed.
+                assert(workMayRemain);
+                rebuilt = true;
+            }
+            assert(resources.fileDescriptor() == originalDescriptor);
+            assert(resources.nativeConnection() == originalConnection);
+            assert(resources.damageNotificationCount() == 0U);
+            assert(!resources.damagePending());
+
+            if (!workMayRemain)
+            {
+                queuedEventsDrained = true;
+                break;
+            }
+        }
+    }
+
+    assert(rebuilt);
+    assert(queuedEventsDrained);
+    assert(resources.valid());
+
+    DamageRegion staleDamage;
+    assert(resources.snapshotDamage(staleDamage));
+    assert(staleDamage.rectangles().empty());
+
+    // The first pattern was drawn before R5 consumed the RandR transition, but
+    // current pixels remain capturable through the rebuilt XShm generation.
+    {
+        const FramebufferView frame = resources.capture(patternRectangle);
+        requireCapturedPattern(
+            frame, patternRectangle, patternRectangle, kFirstPixelPattern);
+    }
+
+    // A genuinely new post-rebuild draw must be observed by the replacement
+    // Damage owner and captured with its exact new-generation source pixels.
+    const std::uint64_t notificationCountBefore =
+        resources.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, patternRectangle, kSecondPixelPattern);
+    requireSyntheticDamage(
+        resources, notificationCountBefore, patternRectangle);
+    {
+        const FramebufferView frame = resources.capture(patternRectangle);
+        requireCapturedPattern(
+            frame, patternRectangle, patternRectangle, kSecondPixelPattern);
+    }
+
+    assert(resources.valid());
+    resources.disconnect();
+    assert(!resources.valid());
+}
+
+void
 syntheticXvfbCaptureTerminalDenial()
 {
     X11DesktopResources resources(syntheticDisplay(), kCaptureArenaPixels);
@@ -1139,6 +1237,11 @@ main(int argc, char **argv)
     if (behavior == "randr-capture-generation")
     {
         syntheticXvfbRandrCaptureGeneration();
+        return 0;
+    }
+    if (behavior == "randr-stale-damage-isolation")
+    {
+        syntheticXvfbRandrStaleDamageIsolation();
         return 0;
     }
     if (behavior == "capture-terminal-denial")

@@ -162,10 +162,18 @@ public:
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
 
+    // Accepted-byte completion is itself a protected R3 publication point.
+    // Require the same concrete lease plus exact R1 owner, then revalidate
+    // live TLS/provenance and native admission before R3 consumes a receipt.
+    // A null lease is denial-only and exists so ordinary CI can execute the
+    // fail-closed path without fabricating a positive production capability.
     [[nodiscard]]
     rdp_server::server::transport::McsConnectResponseWriteOutcome
     completeR3ConnectResponseWrite(
+        const LinuxConsoleAdmissionLease *lease,
         GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::uint64_t replySequence,
         std::uint64_t writeSliceSequence,

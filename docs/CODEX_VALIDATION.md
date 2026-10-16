@@ -8065,6 +8065,30 @@ real Microsoft-client validation remain **NOT RUN**; M2 remains
 Erect/Attach/Join integration demonstrates a concrete bounded TCP/TLS gap.
 
 
+## R2 Connect Response completion reauthorization (2026-10-16)
+
+**Authoring parent:** `132b1d5e7ed81809f163cce108acf79c93e53fc6`. `completeR3ConnectResponseWrite` no longer
+accepts only GSS acceptor, R3 owner and public receipt scalars. It now requires
+the same `LinuxConsoleAdmissionLease` pointer plus exact R1
+`OwnedPreauthTcpConnection`; null is denial-only for ordinary tests. Before
+R3 consumes accepted-byte progress, R2 requires current established TLS,
+R1 negotiation provenance and a fresh generation-bound
+`authorizeR3ProtectedTransition(kConsoleViewPermission)`. Failure closes R3
+and revokes R2/GSS.
+
+Dedicated CTest:
+`security.gssapi-r3-connect-response-completion-reauthorization`. It uses
+no fake positive lease and executes the production null-lease denial,
+zero-byte/late guessed-receipt replay and terminal R3/licensing/GSS cleanup.
+Compile-time checks require the new lease/R1-owner shape and reject the former
+scalar-only completion signature. Existing Connect Response and protected
+Erect tests remain registered.
+
+**NOT RUN at authoring:** local synchronized full build/CTest, exact-SHA
+hosted CI, real positive Kerberos/TLS/logind admission with mid-write
+logout/switch, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 and
+Microsoft client. Gate A/M2 remain **OPEN/NOT ACCEPTED**.
+
 ## R3 protected Erect Domain authoring validation (2026-10-16)
 
 **Implementation base:** `86b5c32aa0318ab96a3e5e30ddda57a84f54b3b3`; reconciled through

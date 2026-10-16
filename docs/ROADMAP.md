@@ -6567,6 +6567,29 @@ tests and sanitizer coverage passed; the corrected descendant must provide
 cross-platform confirmation.
 
 
+## R2 Connect Response completion reauthorization (2026-10-16; authoring parent `132b1d5e7ed81809f163cce108acf79c93e53fc6`)
+
+The first protected outbound MCS step already reauthorizes the concrete native
+lease before each write slice, but its completion callback previously accepted
+only public reply/slice receipts. R2 now requires the same lease plus the exact
+`OwnedPreauthTcpConnection` again before R3 may consume accepted-byte
+completion. It verifies that R1 still exposes established TLS and immutable
+negotiation provenance, then reruns the generation-bound native
+`authorizeR3ProtectedTransition(kConsoleViewPermission)`. Missing lease,
+TLS/provenance loss, policy/session expiry or change, stale GSS/TLS identity,
+native-watch failure, or a bad receipt closes R3 and revokes R2/GSS.
+
+This cannot retract bytes already accepted by R1/TLS after the pre-write
+authorization; it closes the narrower state-publication gap so stale
+authorization cannot advance durable R3 write state or the next phase.
+Dedicated Linux provider CTest
+`security.gssapi-r3-connect-response-completion-reauthorization` executes
+the real null-lease denial and replay paths without fabricating positive
+admission, and compile-time checks prove the old scalar-only completion call
+is no longer invocable. **NOT RUN at authoring:** local full CTest,
+exact-SHA hosted CI, genuine Kerberos/logind mid-write revocation, owner
+platform trio or Microsoft client. Gate A/M2 remain OPEN.
+
 ## R3 protected Erect Domain progression (2026-10-16)
 
 **Authoring base:** `86b5c32aa0318ab96a3e5e30ddda57a84f54b3b3`; reconciled onto

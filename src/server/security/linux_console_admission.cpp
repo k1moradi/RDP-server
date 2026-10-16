@@ -552,16 +552,43 @@ LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite(
 
 rdp_server::server::transport::McsConnectResponseWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite(
+    const LinuxConsoleAdmissionLease *lease,
     GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint64_t replySequence,
     std::uint64_t writeSliceSequence,
     std::size_t acceptedBytes) noexcept
 {
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+
+    // Bytes may already have been accepted by R1/TLS after the pre-write
+    // authorization. Do not let a late callback turn those bytes into durable
+    // R3 writer/phase progress after policy, native session, GSS or TLS
+    // provenance has gone stale.
+    const SSL *activeServerTls = connection.establishedTls();
+    if (lease == nullptr || activeServerTls == nullptr ||
+        !connection.securityNegotiationProvenance() ||
+        !authorizeR3ProtectedTransition(
+            *lease, acceptor, activeServerTls, session,
+            kConsoleViewPermission))
+    {
+        if (session.phase() !=
+            rdp_server::server::transport::McsSessionPhase::Closed)
+        {
+            revokeR3Session(acceptor, session);
+        }
+        else
+        {
+            revoke(acceptor);
+        }
+        return Outcome::Rejected;
+    }
+
     const auto outcome = session.completeConnectResponseWrite(
         replySequence, writeSliceSequence, acceptedBytes);
-    if (outcome ==
-        rdp_server::server::transport::McsConnectResponseWriteOutcome::Rejected)
+    if (outcome == Outcome::Rejected)
         revokeR3Session(acceptor, session);
     return outcome;
 }

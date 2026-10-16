@@ -268,6 +268,14 @@ static_assert(std::is_invocable_r_v<
               rdp_server::server::transport::McsConnectResponseWriteOutcome,
               R3ConnectResponseCompletion,
               LinuxConsoleAdmissionBroker &,
+              const LinuxConsoleAdmissionLease *,
+              GssapiSpnegoAcceptor &,
+              const rdp_server::server::transport::OwnedPreauthTcpConnection &,
+              McsSessionLifecycle &,
+              std::uint64_t, std::uint64_t, std::size_t>);
+static_assert(!std::is_invocable_v<
+              R3ConnectResponseCompletion,
+              LinuxConsoleAdmissionBroker &,
               GssapiSpnegoAcceptor &,
               McsSessionLifecycle &,
               std::uint64_t, std::uint64_t, std::size_t>);
@@ -385,8 +393,9 @@ void testR3ProtectedTransitionGenerationFence()
 
 void testR3ConnectResponseWriteContract()
 {
-    using Outcome =
-        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+    // The positive preparation API still requires a nonforgeable lease and
+    // exact R1 owner. Completion is covered separately because it now has the
+    // same authority requirement rather than accepting receipt scalars alone.
     ConsoleIdentityPolicy policy;
     assert(policy.add({"alice@EXAMPLE.TEST","alice","seat0",":0",
                        1001,kConsoleViewPermission})==
@@ -394,15 +403,42 @@ void testR3ConnectResponseWriteContract()
     GssapiSpnegoAcceptor acceptor;
     LinuxConsoleAdmissionBroker broker(policy);
     McsSessionLifecycle session;
+    broker.revokeR3Session(acceptor,session);
+    assert(session.phase()==McsSessionPhase::Closed);
+    assert(session.licensingPhase()==RdpLicensingPhase::Closed);
+    assert(broker.state()==LinuxConsoleAdmissionState::Revoked);
+}
+
+void testR3ConnectResponseCompletionReauthorization()
+{
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+    using rdp_server::server::transport::OwnedNativeTcpSocket;
+    using rdp_server::server::transport::OwnedPreauthTcpConnection;
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST","alice","seat0",":0",
+                       1001,kConsoleViewPermission})==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+    // Ordinary CI must not fabricate a positive lease. Exercise the real
+    // denial path instead: no null lease, guessed receipt or late replay may
+    // publish writer progress or preserve R3/GSS authority.
     assert(broker.completeR3ConnectResponseWrite(
-        acceptor,session,1U,1U,0U)==Outcome::Rejected);
+        nullptr,acceptor,connection,session,1U,1U,0U)==Outcome::Rejected);
     assert(session.phase()==McsSessionPhase::Closed);
     assert(session.licensingPhase()==RdpLicensingPhase::Closed);
     assert(broker.state()==LinuxConsoleAdmissionState::Revoked);
     assert(acceptor.stage()==SpnegoStage::Failed);
     assert(broker.completeR3ConnectResponseWrite(
-        acceptor,session,1U,1U,1U)==Outcome::Rejected);
+        nullptr,acceptor,connection,session,UINT64_MAX,UINT64_MAX,1U)==
+           Outcome::Rejected);
     assert(session.phase()==McsSessionPhase::Closed);
+    assert(broker.state()==LinuxConsoleAdmissionState::Revoked);
 }
 
 void testR3ErectDomainContract()
@@ -609,6 +645,11 @@ int main(int argc, char **argv)
             testR3ConnectResponseWriteContract();
             return 0;
         }
+        if (name == "gssapi-r3-connect-response-completion-reauthorization")
+        {
+            testR3ConnectResponseCompletionReauthorization();
+            return 0;
+        }
         if (name == "gssapi-r3-erect-domain-contract")
         {
             testR3ErectDomainContract();
@@ -641,6 +682,7 @@ int main(int argc, char **argv)
     testR3McsAdmissionContract();
     testR3ProtectedTransitionGenerationFence();
     testR3ConnectResponseWriteContract();
+    testR3ConnectResponseCompletionReauthorization();
     testR3ErectDomainContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();

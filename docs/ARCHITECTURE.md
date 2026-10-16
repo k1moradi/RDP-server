@@ -2688,6 +2688,22 @@ coded frame; RDPGFX regions independently constrain the presented surface.
 R3 remains the sole future Graphics DVC authority.
 
 
+## R2 Connect Response completion authorization fence (2026-10-16)
+
+Connect Response write completion is a protected state-publication boundary,
+not merely receipt bookkeeping. R2 requires the same nonforgeable lease and
+exact R1 connection used for preparation, confirms live established TLS and
+R1 negotiation provenance, and reruns generation-bound native authorization
+before R3 consumes any accepted-byte receipt. Thus policy/native-session
+revocation, GSS/TLS loss, stale generation, missing provenance or bad receipt
+cannot advance R3 writer state or transition to `AwaitErectDomain`.
+
+The fence cannot undo bytes already accepted by TLS in the interval after the
+pre-write authorization. The serialized runtime must therefore continue
+servicing native-change readiness promptly and authorize every write slice;
+the completion fence prevents stale authorization from becoming durable R3
+state after that unavoidable external check/use interval.
+
 ## R3 protected Erect Domain boundary (2026-10-16)
 
 After full Connect Response delivery, R3 owns `AwaitErectDomain`. Erect is

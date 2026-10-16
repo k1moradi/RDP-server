@@ -1,3 +1,43 @@
+## R9 native file-destination lifetime and handoff sanitizer fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`.
+
+R9's platform-neutral destructor-retirement rule is exact-SHA validated on
+macOS. The equivalent Windows destination has the same production RAII branch
+but lacked direct coverage: destroying an active
+`WindowsClipboardFileDestination` calls `discardPartial(Cancelled)`, which
+must truncate the owned HANDLE duplicate before closing it. Existing Windows
+coverage exercises explicit cancellation, generation replacement, remote
+failure and native I/O failure, not scope-loss retirement.
+
+R9 adds
+`clipboard.windows-file-destination-destructor-retirement` to the existing
+portable injected-seam executable. It materializes only 4 of 8 bytes, proves
+the destination remains active and unflushed, then destroys it without
+`cancel()`. The duplicate must be truncated to zero and closed exactly once,
+with no flush or completion publication.
+
+R8's new `clipboard.macos-completed-file-url-handoff` already inherits
+execution from R9's complete `clipboard` label and its executable is already
+sanitizer-built. R9 now also requires that exact registration in the fail-closed
+`ctest -N -L clipboard` preflight, alongside both macOS and Windows
+destructor-retirement cases, so a lost authoritative handoff/lifetime
+registration cannot silently reduce sanitizer coverage.
+
+Concurrent R2 strict password-field parsing is already independently present in
+the bounded R9 CredSSP selector and preflight on this parent; R9 preserves it
+without duplication. R1 licensing readiness and R7 sanitizer/session-retirement
+repairs are also preserved unchanged.
+
+No production source, native API, R2 authorization, R3 clipboard authority,
+wire encoding or filesystem-path policy changes. Canonical owner-local
+`~/rdp-server/build/` configure/build/full CTest and local sanitizer execution
+remain **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC, R9 sanitizer, documentation-policy and
+SDK/package evidence are required. Owner Windows MSYS2 CLANG64/Clang23,
+macOS 27, genuine positive admission, live Explorer/Finder handoff,
+authenticated Microsoft-client file copy and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R7 synchronous capture session-fence completion (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `d5779a5cc96ee371b00bb470f98e4abfb8967df6`.

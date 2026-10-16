@@ -433,6 +433,38 @@ void windowsFileDestinationSizeCancellation()
     assert(native.closeCalls == 1U);
 }
 
+void windowsFileDestinationDestructorRetirement()
+{
+    RemoteTransfer owner;
+    installSingleFileOffer(owner, u"partial.bin", true, 8U);
+
+    FakeNative native;
+    {
+        WindowsClipboardFileDestination destination{
+            owner, native.operations()};
+        assert(destination.begin(0, native.sourceToken));
+
+        const auto intent = destination.nextRequestIntent();
+        assert(intent && intent->requestedBytes == 8U);
+        const auto partial = makeChunk(0U, 4U);
+        receiveRange(owner, destination, *intent, partial);
+
+        assert(destination.active());
+        assert(destination.bytesWritten() == partial.size());
+        assert(native.bytes.size() == partial.size());
+        assert(native.flushCalls == 0U);
+        assert(native.closeCalls == 0U);
+    }
+
+    // Scope loss is terminal cancellation for a partial native destination:
+    // the owned HANDLE duplicate is truncated before close and never flushed
+    // or exposed as a completed file.
+    assert(native.bytes.empty());
+    assert(native.flushCalls == 0U);
+    assert(native.closeCalls == 1U);
+    assert(native.closed);
+}
+
 void windowsFileDestinationDenials()
 {
     {
@@ -602,6 +634,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-file-destination-size-cancel")
     {
         windowsFileDestinationSizeCancellation();
+        return 0;
+    }
+    if (behavior == "windows-file-destination-destructor-retirement")
+    {
+        windowsFileDestinationDestructorRetirement();
         return 0;
     }
     if (behavior == "windows-file-destination-denials")

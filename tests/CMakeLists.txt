@@ -1595,6 +1595,7 @@ endif()
 foreach(case_name IN ITEMS
         windows-file-destination-streaming
         windows-file-destination-size-cancel
+        windows-file-destination-destructor-retirement
         windows-file-destination-denials)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_windows_clipboard_file_destination "${case_name}")

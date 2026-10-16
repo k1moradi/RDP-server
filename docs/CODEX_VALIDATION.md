@@ -1,3 +1,25 @@
+## R9 Windows file-destination destructor retirement authoring (2026-10-16)
+
+**Parent:** `c2334ff97a7b5ecd29f5213ae780417ca2167cc3`.
+
+Added `clipboard.windows-file-destination-destructor-retirement` to the
+existing production-linked `test_windows_clipboard_file_destination`
+executable. It leaves a short RANGE partially materialized and relies only on
+RAII scope exit. The production destructor must truncate the partial duplicate,
+close it once and never flush it.
+
+The R9 clipboard sanitizer preflight now explicitly requires the Windows
+destructor case, the exact-SHA validated macOS destructor case, and R8's new
+`clipboard.macos-completed-file-url-handoff`. The all-clipboard sanitizer
+execution itself is unchanged. Concurrent R2 strict password parsing is already
+present in its own bounded sanitizer selector and is not duplicated here.
+
+Canonical local one-root validation is **NOT RUN** because this connector has
+no synchronized owner checkout. Exact publication-SHA hosted evidence is
+pending. Live Explorer/Finder publication, authenticated Microsoft-client file
+copy, owner Windows CLANG64/Clang23, owner macOS 27, genuine positive admission
+and M2/M3 remain **NOT RUN / OPEN**.
+
 ## R7 synchronous capture session-fence authoring receipt (2026-10-16)
 
 **Parent:** `d5779a5cc96ee371b00bb470f98e4abfb8967df6`. Exact-SHA hosted validation: **PENDING**.

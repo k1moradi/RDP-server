@@ -1,3 +1,53 @@
+## R9 Channel Join terminal replay exact-SHA hosted receipt (2026-10-16)
+
+**Validated implementation:** `d5a129f2d28e0100cb5d173463a081a83a8a133b`, Actions `38897266092`.
+**Validation-receipt publication parent after concurrent reconciliation:** `68cfd7eff0bc42381ff71c6347a937e56e1c2a3f`.
+The exact implementation workflow completed **SUCCESS**. The conditional
+prerelease job was **SKIPPED** because this was not a tagged prerelease; it is
+not reported as a passing Release stage.
+
+The single `r9-security-protocol-sanitizers` job completed **SUCCESS** with
+production-linked coverage: clipboard **36/36 PASS**; bounded R1/R3 transport,
+CredSSP and licensing **23/23 PASS**; native R2/R3 GSS **17/17 PASS**;
+authorized X11/input **7/7 PASS**; bounded MCS/CLIPRDR fuzzer **1/1 PASS**.
+The job built both `test_owned_preauth_session` and
+`test_linux_gssapi_spnego`. It actually executed
+`transport.credssp-r1-owned-framing` and
+`transport.credssp-r1-owned-reply` as tests 126/127 and the new
+`security.gssapi-r3-channel-join-terminal-replay-fence` plus
+`security.gssapi-r3-joined-clipboard-role-contract` as tests 240/241; all
+four passed. The MIT-krb5 LSan suppression remained scoped only to the native
+GSS step and was used in the same two known provider failure cases, each
+**216 bytes / 10 `krb5_copy_principal` allocations**. No unsuppressed
+ASan/UBSan/LSan failure occurred.
+
+Hosted full-suite evidence on the same SHA is: Linux/GCC **385/385 PASS**
+Debug and **385/385 PASS** Release; macOS/Clang **331/331 PASS** Debug and
+**331/331 PASS** Release; Windows/MSVC focused native-adapter **37/37 PASS**
+in both Debug and Release, then full **356/356 PASS** Debug and **356/356
+PASS** Release. The two historical R10 Windows TLS-context tests,
+`runtime.validates-live-tls-context-construction` and
+`runtime.tls-context-survives-credential-path-replacement`, both pass on
+this descendant SHA; their earlier `f1a6dc...` OpenSSL/Applink failure
+evidence remains preserved in the historical R9 receipt rather than being
+weakened or removed.
+
+Installed SDK consumer **1/1 PASS** and package generation/upload completed
+successfully on Linux, macOS and Windows. Documentation policy **PASS**. The
+R1 CredSSP owner tests that had exposed the earlier macOS Release timing
+fixture issue pass in both Debug and Release on all three hosted platforms at
+this exact SHA.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/focused/full
+CTest and local sanitizer execution remain **NOT RUN** in this agent runtime
+because the owner checkout is not mounted and shell GitHub DNS is unavailable;
+no alternate build root, branch, worktree, patch or quarantine was created.
+Hosted runners do not substitute for owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 or macOS 27 validation. Genuine Kerberos/TLS plus native
+logind admission, positive authenticated Channel Join, Microsoft-client
+authentication and live desktop acceptance remain **NOT RUN/OPEN**. M2/M3
+acceptance remains **OPEN**.
+
 ## R8 bounded file-stream Lock/Unlock validation (2026-10-16)
 
 P0 commit `2bdc77344862ee589ae3adbdbe167b4d5947bbc7` corrected only the

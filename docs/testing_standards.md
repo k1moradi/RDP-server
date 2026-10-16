@@ -1782,3 +1782,29 @@ expired deadline while a real connection remains pending,
 callback-stop RAII closure, 25ms wait clamp, and a closed
 borrowed listener's error. All tests are offline and require
 no service, OS session, desktop or credentials.
+
+
+## Native security sanitizer gate (R9; verified 2026-10-15)
+
+Maintain the single Linux-only `r9-security-protocol-sanitizers`
+CI job alongside the ordinary cross-platform Debug/Release
+matrix. Verified by [Actions 38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646)
+on Clang 18.1.3 with **15 clipboard + 10 MCS/CredSSP
+CTests PASS**. Configure first-party C++23 Debug code in
+that job's single `build/` using `-fsanitize=address,undefined`,
+`-fno-omit-frame-pointer` and fail-on-UB. Run the
+clipboard CTest label and separately the centrally
+registered bounded MCS/DER/binding cases; keep
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1` and
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+Any real sanitizer finding fails CI; retain the first
+stack trace and route production defects to its owner.
+No live client, credentials, other build roots or
+special requirements for the owner's standard command.
+When generating YAML from JavaScript, avoid a string
+replacement whose literal contents include a CTest
+regex dollar-sign immediately followed by an apostrophe:
+`String.replace` can expand this as the remainder of
+the source, duplicating GitHub Actions jobs. Check every
+top-level job definition for uniqueness, then verify
+GitHub actually schedules the new job before PASS claims.

@@ -5305,3 +5305,66 @@ admitted channel/desktop.
 **Next:** R9/R10 restore CI workflow startup, then R1 verify
 exact new source SHA with dedicated/full CTests; R10 may wire
 listener readiness to runtime only when R2/R3 gates are ready.
+
+
+## R9 MCS/CredSSP/CLIPRDR sanitizer gate exact-SHA verification
+
+**PASS (exact SHA `a0c39e4a612c740949c05e4a9699f711061c21d0`):**
+[Actions 38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646)
+completed SUCCESS. Native Ubuntu Clang 18.1.3 C++23
+Debug build, `-fsanitize=address,undefined
+-fno-omit-frame-pointer -fno-sanitize-recover=all`,
+same sanitizer linker flags,
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1`,
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+One ephemeral checkout-local `build/`, five existing binaries:
+`test_owned_remote_transfer`, `test_clipboard_protocol`,
+`test_owned_mcs_connect_initial`,
+`test_owned_credssp_tsrequest` and
+`test_owned_credssp_binding`. The first command
+`ctest --test-dir build --build-config Debug -L clipboard
+--output-on-failure` passed **15/15**.
+The second command used the CTest `-R` selector
+for the following ten existing tests (**10/10 PASS**):
+- `transport.mcs-envelope-tpkt-errors`
+- `transport.mcs-envelope-ber-errors`
+- `transport.mcs-envelope-mutations`
+- `transport.mcs-send-data-joined-denials`
+- `transport.mcs-join-stale-write-receipts`
+- `transport.mcs-join-stale-partial-write-slices`
+- `security.credssp-der-rejections`
+- `security.credssp-der-bounds`
+- `security.credssp-der-mutations`
+- `security.credssp-binding`
+No ASan, UBSan or LeakSanitizer diagnostics appeared.
+No separate test registry/fuzzer or live credentials.
+
+**Same-SHA hosted full matrix SUCCESS:** Linux/GCC
+**226/226** Debug and Release, macOS/Clang
+**209/209** Debug and Release, Windows/MSVC
+**228/228** Debug and Release, downstream installed
+SDK consumer and package artifacts PASS, policy PASS.
+
+**Failure integrity:** [Actions 38850195312](https://github.com/k1moradi/RDP-server/actions/runs/38850195312)
+and [38850488920](https://github.com/k1moradi/RDP-server/actions/runs/38850488920)
+FAILED with zero jobs due workflow YAML corruption caused
+by a `String.replace` dollar-sign/apostrophe replacement
+token, not a sanitizer fault. The concurrent
+`4d24b8b3b9857370fef8608cf7d7782f644df3ea`
+workflow repair restored scheduling.
+[Actions 38850617229](https://github.com/k1moradi/RDP-server/actions/runs/38850617229)
+then showed **25/25 sanitizer PASS** and Windows
+**228/228** Debug/Release PASS, but Linux **225/226**
+and macOS **208/209** Debug FAIL at R10's
+`runtime.validates-configuration-mode-normalization`:
+`tests/check_runtime_entrypoint.cmake:127` used unsupported
+`OTHERS_WRITE`. R10 replaced it with `WORLD_WRITE`
+at exact passing SHA; R9 did not alter runtime security.
+
+**NOT RUN:** user's one-root owner Linux/X11, Windows
+MSYS2 CLANG64/Clang23 and macOS 27 commands, sanitizers
+outside selected protocol suite, sustained coverage-guided
+fuzzing, live authenticated Microsoft-client/session
+and desktop/clipboard. M1–M6 remain OPEN.
+**Next:** authorized R3→R8 routing and disconnect
+regression upon real production dispatch availability.

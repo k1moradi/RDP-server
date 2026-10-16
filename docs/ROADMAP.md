@@ -4134,6 +4134,34 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   corrected workflow hosted CI/owner commands. **Next:**
   verify new SHA job scheduling and real sanitizer output.
 
+  **R9 extended native sanitizer verification PASS (2026-10-15):**
+  On exact R10-corrected `main` SHA
+  `a0c39e4a612c740949c05e4a9699f711061c21d0`,
+  [Actions 38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646)
+  **SUCCESS**: the single Ubuntu Clang 18.1.3 R9 CI job
+  built five production-linked targets under ASan/UBSan
+  and leak detection, with 15/15 clipboard and ten MCS/
+  CredSSP security CTests PASS (25/25 total), no diagnostics.
+  Full hosted Linux/GCC 226/226, macOS/Clang 209/209
+  and Windows/MSVC 228/228 CTests PASS in each Debug and
+  Release; documentation policy, SDK consumer and
+  packaging PASS. First R9 workflow SHAs
+  `2cca0ed17d8c98b5f38d5d34079f90d66ce389d4`
+  and `a2a85d0e4eb551572e56df8d01df07958c5f3782`
+  failed before scheduling jobs due duplicated YAML
+  from JavaScript `String.replace` interpreting
+  the regex dollar-sign/apostrophe. Concurrent repair
+  `4d24b8b3b9857370fef8608cf7d7782f644df3ea`
+  restored the workflow; [Actions 38850617229](https://github.com/k1moradi/RDP-server/actions/runs/38850617229)
+  then had sanitizer PASS but a sole R10 POSIX fixture
+  failure (`file(CHMOD OTHERS_WRITE)`) on Linux/macOS.
+  R10 fixed that separately in the passing SHA above.
+  **NOT RUN:** owner Linux/X11, MSYS2 CLANG64 Clang 23
+  and macOS27 exact-SHA, sustained coverage-guided
+  fuzzing, Microsoft-client NLA/OS-authorized desktop.
+  **Next:** independently test real R3-admitted R8
+  channel dispatch/cancellation when implemented.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

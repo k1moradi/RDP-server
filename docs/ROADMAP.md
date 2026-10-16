@@ -11534,3 +11534,44 @@ and retire normally. No event loop, connection, RDP input path or scheduler is
 added. The shared R5 ASan/UBSan selector expands from **23** to **24** cases.
 Exact-SHA hosted CI is the next gate; canonical owner-platform tests remain
 **NOT RUN**.
+
+## R6 DXGI outer-owner callback reentry exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `54c1685119aa84e01d864d9834c26ed643a13edb`.  
+**Actions:** `38911492569`.
+
+The exact implementation SHA is fully green across every hosted job. Windows/MSVC
+focused native R6 preflight is **44/44 PASS Debug** and **44/44 PASS Release**.
+All five new production-linked cases pass in both configurations:
+`windows.capture-dxgi-duplication-owner-release-reentry`,
+`windows.capture-dxgi-duplication-owner-open-cancel-reentry`,
+`windows.capture-dxgi-duplication-owner-partial-result-cleanup`,
+`windows.capture-dxgi-duplication-owner-ambiguous-reentry`, and
+`windows.capture-dxgi-duplication-owner-child-close-order`. Full Windows CTest
+is **391/391 PASS Debug** and **391/391 PASS Release**, with the same five cases
+passing again in both full runs. The installed SDK consumer is **1/1 PASS** and
+the remaining Windows package/digest/upload steps pass.
+
+Linux/GCC full CTest is **429/429 PASS Debug** and **429/429 PASS Release**;
+macOS/AppleClang full CTest is **362/362 PASS Debug** and **362/362 PASS
+Release**. Each hosted platform's installed SDK consumer is **1/1 PASS**. R9
+ASan/UBSan selections are all green: clipboard **46/46**, R4 x264/BGRA
+**18/18**, bounded R1/R3 protocol **33/33**, native R2/R3 GSSAPI **25/25**,
+R10 runtime CredSSP **4/4**, R5 X11 **23/23**, and bounded fuzzer **1/1**.
+Documentation policy is **PASS**. The prerelease publication job is
+intentionally **SKIPPED**, not a test failure.
+
+The validated R6 contract is terminal and same-thread serialized: a callback
+may request `close()`, but no later native construction call runs after that
+callback returns; owner slots are detached before external release callbacks;
+nested close cannot overlap teardown; partial callback results are released
+once; selected-adapter alias semantics remain balanced; and the capture-cycle
+child is retired before duplication/context/device references. A terminal owner
+cannot publish a device epoch or reopen.
+
+Canonical owner-local `~/rdp-server/build/` execution remains **NOT RUN** in
+this connector environment. Owner Windows MSYS2 CLANG64/Clang23 validation is
+**NOT RUN**. Live Desktop Duplication/SendInput, genuine Windows R2/R3
+authorization and Microsoft-client M4 acceptance remain **NOT RUN/BLOCKED**.
+**M4 remains OPEN / NOT ACCEPTED.**
+

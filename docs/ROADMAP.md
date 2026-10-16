@@ -2822,6 +2822,28 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 native-to-portable compositor geometry (2026-10-16):**
+  Native CoreGraphics display observations now feed the existing
+  generation-safe `DesktopDisplayGeometry` via `makeDesktopGeometry`.
+  A shared minimum Quartz logical origin defines explicit RDP compositor
+  pixel placement, supporting single Retina and uniform, isotropic
+  scale multi-monitor layouts (negative origins, gaps, stable IDs).
+  Reject mixed scale, rotated/mirrored displays and non-integer or
+  unrepresentable physical offsets; do not infer native global physical
+  origins by multiplying each display by its own Retina scale.
+  Preserve previous geometry on failed conversion only under explicit
+  caller-side invalidation, not as permission for new input.
+  Added native `CGDisplayRotation` observation; no TCC/capture/input.
+  New existing-runner CTests: `macos.geometry-native-single-retina`,
+  `macos.geometry-native-uniform-multi-display`,
+  `macos.geometry-native-mixed-scale-denials`,
+  `macos.geometry-native-generation-refresh`.
+  **PASS** isolated GCC14.2 Debug CTest 4/4, -O2 strict 4/4,
+  Clang17 ASan/UBSan 4/4. **NOT RUN** canonical exact-SHA CI at
+  authoring, owner macOS27/CLANG64 Clang23/Linux one-root, genuine
+  ScreenCaptureKit, authorized Microsoft client, pointer/cursor or
+  benchmarks. **Next:** R4 mixed-Retina physical compositor placement
+  and R2/R3-authorized native capture lifecycle; M1/M5 open.
   **R7 exact-commit hosted display-snapshot CTest PASS (2026-10-15):**
   Implementation `3274b39c85b817ef2a56215390bf19cc8aa0e5b4`,
   [Actions 38844757901](https://github.com/k1moradi/RDP-server/actions/runs/38844757901)

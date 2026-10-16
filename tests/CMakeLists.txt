@@ -526,7 +526,8 @@ else()
         "${PROJECT_SOURCE_DIR}/src/platform/macos/capture_pixel_layout.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/desktop_display_geometry.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/screen_capture_preflight.cpp"
-        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp")
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_snapshot.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp")
 endif()
 if(MSVC)
     target_compile_options(test_macos_capture_pixel_buffer PRIVATE /W4 /UNDEBUG)
@@ -557,6 +558,14 @@ foreach(case_name IN ITEMS
     add_test(NAME "macos.display-snapshot-${case_name}"
         COMMAND test_macos_capture_pixel_buffer "display-snapshot-${case_name}")
     set_tests_properties("macos.display-snapshot-${case_name}" PROPERTIES
+        LABELS "macos;geometry;offline")
+endforeach()
+# R7 native snapshot -> portable geometry uses synthetic metadata only.
+foreach(case_name IN ITEMS
+        single-retina uniform-multi-display mixed-scale-denials generation-refresh)
+    add_test(NAME "macos.geometry-native-${case_name}"
+        COMMAND test_macos_capture_pixel_buffer "geometry-native-${case_name}")
+    set_tests_properties("macos.geometry-native-${case_name}" PROPERTIES
         LABELS "macos;geometry;offline")
 endforeach()
 if(APPLE)

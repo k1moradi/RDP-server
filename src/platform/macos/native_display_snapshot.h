@@ -22,6 +22,9 @@ struct NativeDisplayObservation {
     std::size_t backingWidthPixels{};
     std::size_t backingHeightPixels{};
     std::uint32_t mirrorsDisplayId{};
+    // CGDisplayRotation degrees; nonzero rotation is not representable by
+    // the current native-to-composited physical rectangle contract.
+    double rotationDegrees{};
     friend bool operator==(const NativeDisplayObservation&,
                            const NativeDisplayObservation&) = default;
 };

@@ -364,6 +364,20 @@ Regular CTests inject samples and never query an actual user display.
 Physical availability, authorized graphical session identity and screen
 privacy permissions remain independent R2/R3 and native TCC concerns.
 
+### R7 native snapshot -> portable geometry normalization (2026-10-16)
+
+`native_display_geometry` takes the existing owned `NativeDisplaySnapshot`
+and produces the existing `DesktopDisplayGeometry`. It establishes ONE
+RDP-compositor-relative pixel origin at the minimum global Quartz logical
+point; it never claims these pixel coordinates represent Apple's native
+physical framebuffer origins. Native backing widths/heights and a shared
+uniform isotropic scale determine integer-aligned virtual placements.
+Mixed scale, rotated, mirrored and non-aligned layouts are rejected until
+R4 supplies an explicit compositor mapping. The snapshot now carries
+`CGDisplayRotation` metadata, and generation changes must be passed by
+R2/R3 session owners before new input/capture. No callbacks, permission
+prompts, capture session, login or input injection are added.
+
 ### Implementation principles
 
 - Portable wire parsers reject malformed lengths/flags and ambiguous states.

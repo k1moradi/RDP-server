@@ -4521,3 +4521,25 @@ macOS27 acceptance, live Microsoft RDP client, R2 authentication
 and independent OS authorization, R3 session and desktop.
 **Next:** converge the borrowed listener's fairness/budget with
 R10 runtime scheduling and separately authorized R2/R3 handoff.
+
+## R7 CoreGraphics to DesktopDisplayGeometry integration (2026-10-16)
+
+**Production:** `native_display_geometry.{h,cpp}` uses existing
+`NativeDisplaySnapshot` (new `CGDisplayRotation` evidence) and the
+existing `DesktopDisplayGeometry`. CMake adds one source to existing
+Apple-only adapter and portable test fixture; R7 tests reused, no new
+binary/controller. Four dedicated offline CTests:
+`macos.geometry-native-single-retina`,
+`macos.geometry-native-uniform-multi-display`,
+`macos.geometry-native-mixed-scale-denials`,
+`macos.geometry-native-generation-refresh`.
+**PASS, sparse local fixture only:**
+`cmake -S ~/rdp-server -B ~/rdp-server/build -DCMAKE_BUILD_TYPE=Debug
+-DBUILD_TESTING=ON`; `cmake --build ~/rdp-server/build --parallel 2`;
+`ctest --test-dir ~/rdp-server/build --output-on-failure`: 4/4.
+GCC14.2 C++23 -O2 strict 4/4; Clang17 ASan/UBSan 4/4.
+**NOT RUN:** exact-commit hosted CI before publication, owner's macOS27,
+Windows MSYS2 CLANG64 Clang23 and Linux/X11 one-root CTests; real
+CoreGraphics screen reading, ScreenCaptureKit, client input/cursor,
+authenticated OS admission and benchmarks. **Next:** exact-SHA Actions,
+then R4 mixed-scale physical placement and R2/R3-authorized capture.

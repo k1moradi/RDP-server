@@ -2,6 +2,7 @@
 #include "platform/macos/capture_pixel_layout.h"
 #include "platform/macos/desktop_display_geometry.h"
 #include "platform/macos/native_display_snapshot.h"
+#include "platform/macos/native_display_geometry.h"
 #include "platform/macos/screen_capture_preflight.h"
 
 #if defined(__APPLE__)
@@ -540,6 +541,124 @@ void testNativeDisplayChangedDuringRead() {
            NativeDisplaySnapshotError::Unavailable);
 }
 
+
+// Conversion tests exercise the SAME production native -> portable geometry
+// boundary used by queryNativeDesktopGeometry; the provider is synthetic,
+// without CoreGraphics enumeration, desktop capture, TCC or input injection.
+[[nodiscard]] rdp::macos::NativeDisplaySnapshot nativeGeometrySnapshot(
+    NativeDisplayFixture& fixture, const std::uint64_t generation) {
+    const auto read = NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, generation);
+    assert(read);
+    return *read;
+}
+
+void testNativeGeometrySingleRetina() {
+    using namespace rdp::macos;
+    auto fixture = nativeDisplayFixture();
+    auto geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 15));
+    assert(geometry && geometry->generation() == 15);
+    assert((geometry->virtualPixelSize() == PixelSize{3024, 1964}));
+    const auto origin = geometry->pixelAtLogicalPoint({0.0, 0.0}, 15);
+    assert(origin && origin->displayId == 100 && origin->virtualX == 0);
+    assert(!geometry->logicalAtVirtualPixel(0, 0, 16));
+    fixture = nativeDisplayFixture();
+    fixture.first[0].xPoints = -100.0;
+    fixture.second[0].xPoints = -100.0;
+    fixture.first[0].yPoints = 200.0;
+    fixture.second[0].yPoints = 200.0;
+    geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 16));
+    assert(geometry);
+    const auto native = geometry->logicalAtVirtualPixel(0, 0, 16);
+    assert(native && native->displayId == 100);
+    assert(native->point.xPoints > -100.0 && native->point.xPoints < -99.0);
+}
+
+void testNativeGeometryUniformMultiDisplay() {
+    using namespace rdp::macos;
+    auto fixture = nativeDisplayFixture();
+    constexpr NativeDisplayObservation one{
+        101, 0, 0, 1280, 800, 1920, 1200, 0};
+    constexpr NativeDisplayObservation upperLeft{
+        203, -960, -600, 960, 600, 1440, 900, 0};
+    fixture.firstCount = fixture.secondCount = 2;
+    fixture.first[0] = one;
+    fixture.first[1] = upperLeft;
+    fixture.second[0] = upperLeft; // reordered sample, stable IDs
+    fixture.second[1] = one;
+    const auto geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 17));
+    assert(geometry);
+    assert((geometry->virtualPixelSize() == PixelSize{3360, 2100}));
+    const auto upper = geometry->pixelAtLogicalPoint({-960, -600}, 17);
+    assert(upper && upper->displayId == 203 &&
+           upper->virtualX == 0 && upper->virtualY == 0);
+    const auto primary = geometry->pixelAtLogicalPoint({0, 0}, 17);
+    assert(primary && primary->displayId == 101 &&
+           primary->virtualX == 1440 && primary->virtualY == 900);
+    assert(!geometry->logicalAtVirtualPixel(1440, 0, 17)); // monitor gap
+    assert(!geometry->logicalAtVirtualPixel(0, 901, 17)); // monitor gap
+    const auto native = geometry->logicalAtVirtualPixel(1440, 900, 17);
+    assert(native && native->displayId == 101);
+    const auto roundtrip = geometry->pixelAtLogicalPoint(native->point, 17);
+    assert(roundtrip && roundtrip->virtualX == 1440 &&
+           roundtrip->virtualY == 900);
+}
+
+void testNativeGeometryFailClosed() {
+    using namespace rdp::macos;
+    auto fixture = nativeDisplayFixture();
+    fixture.firstCount = fixture.secondCount = 2;
+    fixture.first[1].xPoints = fixture.second[1].xPoints = -1920.0;
+    fixture.first[1].yPoints = fixture.second[1].yPoints = -100.0;
+    auto geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 30));
+    assert(!geometry &&
+           geometry.error() == NativeDisplayGeometryError::UnsupportedMixedScale);
+    fixture = nativeDisplayFixture();
+    fixture.firstCount = fixture.secondCount = 2;
+    fixture.first[0] = fixture.second[0] =
+        NativeDisplayObservation{101, 0, 0, 1280, 800, 1920, 1200, 0};
+    fixture.first[1] = fixture.second[1] =
+        NativeDisplayObservation{203, -960.25, -600, 960, 600, 1440, 900, 0};
+    geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 30));
+    assert(!geometry &&
+           geometry.error() == NativeDisplayGeometryError::UnrepresentablePlacement);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].rotationDegrees = fixture.second[0].rotationDegrees = 90;
+    geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 30));
+    assert(!geometry &&
+           geometry.error() == NativeDisplayGeometryError::UnsupportedRotation);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].backingWidthPixels =
+        fixture.second[0].backingWidthPixels = 3000;
+    geometry = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 30));
+    assert(!geometry &&
+           geometry.error() == NativeDisplayGeometryError::UnsupportedMixedScale);
+    fixture = nativeDisplayFixture();
+    fixture.first[0].rotationDegrees = fixture.second[0].rotationDegrees =
+        std::numeric_limits<double>::infinity();
+    assert(!NativeDisplaySnapshot::read(
+        &readSyntheticNativeDisplays, &fixture, 30));
+}
+
+void testNativeGeometryGenerationRefresh() {
+    using namespace rdp::macos;
+    auto fixture = nativeDisplayFixture();
+    const auto before = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 90));
+    assert(before);
+    fixture.first[0].backingWidthPixels =
+        fixture.second[0].backingWidthPixels = 2268;
+    fixture.first[0].backingHeightPixels =
+        fixture.second[0].backingHeightPixels = 1473;
+    // Change logical dimensions instead of breaking isotropic scaling.
+    fixture.first[0].widthPoints = fixture.second[0].widthPoints = 1512;
+    fixture.first[0].heightPoints = fixture.second[0].heightPoints = 982;
+    const auto after = makeDesktopGeometry(nativeGeometrySnapshot(fixture, 91));
+    assert(after);
+    assert(before->pixelAtLogicalPoint({10, 10}, 90)->virtualX == 20);
+    assert(after->pixelAtLogicalPoint({10, 10}, 91)->virtualX == 15);
+    assert(!before->pixelAtLogicalPoint({10, 10}, 91));
+    assert(!after->logicalAtVirtualPixel(20, 20, 90));
+}
 } // namespace
 
 int main(const int argument_count, const char* const arguments[]) {
@@ -565,6 +684,14 @@ int main(const int argument_count, const char* const arguments[]) {
         testNativeDisplaySnapshotDenials();
     } else if (test_case == "display-snapshot-changed-during-read") {
         testNativeDisplayChangedDuringRead();
+    } else if (test_case == "geometry-native-single-retina") {
+        testNativeGeometrySingleRetina();
+    } else if (test_case == "geometry-native-uniform-multi-display") {
+        testNativeGeometryUniformMultiDisplay();
+    } else if (test_case == "geometry-native-mixed-scale-denials") {
+        testNativeGeometryFailClosed();
+    } else if (test_case == "geometry-native-generation-refresh") {
+        testNativeGeometryGenerationRefresh();
 #if defined(__APPLE__)
     } else if (test_case == "ownership") {
         testRetainedPaddedBufferLifetime();

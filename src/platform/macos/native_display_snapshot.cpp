@@ -20,6 +20,7 @@ constexpr std::size_t kMaximumDimensionPixels = 32768;
     if (display.displayId == 0 || display.mirrorsDisplayId != 0 ||
         !std::isfinite(display.xPoints) || !std::isfinite(display.yPoints) ||
         !std::isfinite(display.widthPoints) || !std::isfinite(display.heightPoints) ||
+        !std::isfinite(display.rotationDegrees) ||
         display.widthPoints <= 0.0 || display.heightPoints <= 0.0 ||
         display.backingWidthPixels == 0 || display.backingHeightPixels == 0 ||
         display.backingWidthPixels > kMaximumDimensionPixels ||
@@ -101,7 +102,7 @@ readChecked(NativeDisplayReadFunction reader, void* context,
             displayId, bounds.origin.x, bounds.origin.y,
             bounds.size.width, bounds.size.height,
             CGDisplayPixelsWide(displayId), CGDisplayPixelsHigh(displayId),
-            CGDisplayMirrorsDisplay(displayId)};
+            CGDisplayMirrorsDisplay(displayId), CGDisplayRotation(displayId)};
     }
     return NativeDisplayReadStatus::Ok;
 }

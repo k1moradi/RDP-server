@@ -319,8 +319,17 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
+          set -euo pipefail
+          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-disconnect-cancellation|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|capture-pixel-parity|randr-capture-generation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild)|input-r3-admission-route-denials-and-revocation)$'
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'x11.desktop-resource-capture-pixel-parity' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-randr-capture-generation' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-capture-terminal-denial' <<< "$selected_tests"
+
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-disconnect-cancellation|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild)|input-r3-admission-route-denials-and-revocation)$' --output-on-failure
+            -R "$r5_x11_selection" --output-on-failure
 
       - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

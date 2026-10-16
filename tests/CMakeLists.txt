@@ -1355,7 +1355,7 @@ if(TARGET rdp-server-linux-x11-desktop)
     target_link_libraries(test_x11_desktop_resources PRIVATE
         rdp-server-linux-x11-desktop)
     target_compile_options(test_x11_desktop_resources PRIVATE
-        -Wall -Wextra -Wpedantic -Werror)
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     if(TARGET rdp-server-linux-xinput-pointer)
         target_compile_definitions(test_x11_desktop_resources PRIVATE
             RDP_TEST_XINPUT_POINTER=1)
@@ -1384,6 +1384,21 @@ if(TARGET rdp-server-linux-x11-desktop)
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources> r4-read-boundary)
+        add_test(NAME x11.desktop-resource-capture-pixel-parity
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                capture-pixel-parity)
+        add_test(NAME x11.desktop-resource-randr-capture-generation
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                randr-capture-generation)
+        add_test(NAME x11.desktop-resource-capture-terminal-denial
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                capture-terminal-denial)
         add_test(NAME x11.desktop-resource-pointer-capability-denials
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
@@ -1394,6 +1409,9 @@ if(TARGET rdp-server-linux-x11-desktop)
             x11.desktop-resource-event-routing
             x11.desktop-resource-randr-rebuild
             x11.desktop-resource-r4-read-boundary
+            x11.desktop-resource-capture-pixel-parity
+            x11.desktop-resource-randr-capture-generation
+            x11.desktop-resource-capture-terminal-denial
             x11.desktop-resource-pointer-capability-denials
             PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
                        TIMEOUT 20)

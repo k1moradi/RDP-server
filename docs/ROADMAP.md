@@ -1,3 +1,58 @@
+## R5 native XShm pixel and RandR capture-generation fidelity (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `1b753b65cb40b49062fa896e3b73dc45c8a6512a`.
+
+R5 now adds three production-backed cases to the existing
+`test_x11_desktop_resources` dispatcher without a second XCB owner or test
+executable. `x11.desktop-resource-capture-pixel-parity` uses an independent
+helper XCB client only as a synthetic producer: checked core drawing requests
+paint an 8x6 multicolor pattern with distinct base, four corners and center.
+The production aggregate alone observes real XDamage and captures through its
+real XShm child. The oracle verifies exact packed stride and the little-endian
+B, G and R lanes, exercises an interior subrectangle, then paints a wholly
+different pattern and proves no BGR pixel is stale. The X11 padding byte is
+deliberately ignored as alpha.
+
+`x11.desktop-resource-randr-capture-generation` copies the old borrowed frame
+before invalidation, performs one real Xvfb RandR resize from 1280x720 to
+1024x600, and requires the same production XCB connection identity with newly
+published geometry. Event routing resumes only after the transactional rebuild.
+A second distinct pattern at the new right/bottom edge must produce fresh
+Damage and exact new-generation BGR bytes; the old borrowed span is never
+reused.
+
+`x11.desktop-resource-capture-terminal-denial` first proves a valid capture,
+then requests an in-bounds 1280x300 image whose 384,000 pixels exceed the
+aggregate's 256K-pixel XShm arena. The expected production failure must revoke
+the complete native owner: no framebuffer, descriptor, XCB/root access, damage
+snapshot or cursor refresh remains, and repeated disconnect is harmless.
+
+The fixtures use checked XCB request completion plus a production-connection
+round trip before bounded nonblocking event dispatch; no arbitrary image or
+resize sleeps are introduced. Release assertions are forced active for the
+desktop-resource test executable. The existing R9 Clang ASan/UBSan native-X11
+selector expands from 27 to 30 cases and now performs a fail-closed
+`ctest -N` preflight for the three new names.
+
+No R5 production source change is justified by source review: the current XShm
+child already validates exact layout and the aggregate already revokes on
+capture failure and transactionally rebuilds geometry-bound children. Hosted
+execution will determine whether that assessment holds.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment because that checkout is unavailable;
+no alternate persistent build root was created. Exact-publication-SHA
+Linux/GCC Debug+Release, macOS/Clang Debug+Release, Windows/MSVC Debug+Release,
+R9 Clang ASan/UBSan native-X11, documentation-policy and SDK/package evidence
+are **PENDING**.
+
+M1 still requires same-integration-SHA owner-machine Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 evidence. M2 licensing/Share activation and M3
+authenticated Microsoft-client desktop acceptance remain outside this R5
+increment. The next functional R5 protocol integration remains blocked until
+R3 exposes its authoritative authenticated, already-decoded bounded input-event
+contract; R5 must not add an RDP input parser or duplicate R3/R4 authority.
+
 ## R8 macOS bounded file-descriptor destination (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `e868411d9c2a03190ca8b4dcb4523ddcce2a33a9`. Linux descriptor streaming and

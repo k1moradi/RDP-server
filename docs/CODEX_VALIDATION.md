@@ -1,3 +1,37 @@
+## R5 native XShm pixel/RandR fidelity authoring validation (2026-10-16; CI pending)
+
+**Authoring base:** `1b753b65cb40b49062fa896e3b73dc45c8a6512a`.
+
+Source, ownership and registry review found a real coverage gap but no proven
+production defect. The existing aggregate-level read-boundary test validates
+geometry/stride without an independent pixel oracle, while the existing RandR
+case validates reconstruction and later Damage without proving post-resize
+capture content. Existing pure capture-layout tests cover invalid rectangles but
+not terminal aggregate revocation.
+
+Three dedicated Xvfb CTests therefore exercise the production aggregate:
+`x11.desktop-resource-capture-pixel-parity`,
+`x11.desktop-resource-randr-capture-generation`, and
+`x11.desktop-resource-capture-terminal-denial`. The pixel oracle is produced
+by a separate helper XCB connection using checked rectangle fills, while
+Damage, capture, resize reconstruction and public capability revocation remain
+inside the real `X11DesktopResources` owner. BGR lanes and exact packed stride
+are checked; the X padding byte is not treated as alpha. Old XShm bytes are
+copied before any later capture or RandR invalidation.
+
+The R9 native-X11 sanitizer selector is extended to all three new registrations
+and gains a fail-closed registry preflight for their exact names. No second
+sanitizer workflow is added. No production X11 source changed during authoring.
+
+Canonical owner-local `~/rdp-server/build/` validation is **NOT RUN** because
+this connector environment has no canonical checkout and project policy forbids
+creating an alternate persistent build root. Exact publication-SHA hosted
+Linux/GCC, macOS/Clang, Windows/MSVC, sanitizer, documentation-policy and
+SDK/package outcomes are **PENDING**. Synthetic Xvfb evidence, even when green,
+will not be claimed as M1 owner-machine evidence, M2 activation, or M3
+Microsoft-client acceptance. R5's next protocol dependency remains R3's
+authoritative authenticated typed input-event boundary.
+
 ## R8 macOS file-descriptor destination authoring validation (2026-10-16)
 
 **Base:** `e868411d9c2a03190ca8b4dcb4523ddcce2a33a9`. The preceding Windows destination implementation

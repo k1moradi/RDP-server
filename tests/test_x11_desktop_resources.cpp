@@ -4,11 +4,15 @@
 
 #include <cassert>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
@@ -141,6 +145,302 @@ clearSyntheticRoot(xcb_connection_t &connection, xcb_window_t root) noexcept
     assert(clearError == nullptr);
     std::free(clearError);
     assert(xcb_flush(&connection) > 0);
+}
+
+struct SyntheticBgrColor final
+{
+    std::uint8_t red{};
+    std::uint8_t green{};
+    std::uint8_t blue{};
+
+    [[nodiscard]] constexpr std::uint32_t nativePixel() const noexcept
+    {
+        return (static_cast<std::uint32_t>(red) << 16U) |
+               (static_cast<std::uint32_t>(green) << 8U) |
+               static_cast<std::uint32_t>(blue);
+    }
+};
+
+struct SyntheticPixelPattern final
+{
+    SyntheticBgrColor base{};
+    SyntheticBgrColor topLeft{};
+    SyntheticBgrColor topRight{};
+    SyntheticBgrColor bottomLeft{};
+    SyntheticBgrColor bottomRight{};
+    SyntheticBgrColor center{};
+};
+
+constexpr SyntheticPixelPattern kFirstPixelPattern{
+    {0x12U, 0x34U, 0x56U},
+    {0xa1U, 0x22U, 0x33U},
+    {0x44U, 0xb2U, 0x55U},
+    {0x66U, 0x77U, 0xc3U},
+    {0xd4U, 0x88U, 0x99U},
+    {0xabU, 0xcdU, 0xefU},
+};
+
+constexpr SyntheticPixelPattern kSecondPixelPattern{
+    {0xe1U, 0xd2U, 0xc3U},
+    {0x14U, 0x25U, 0x36U},
+    {0x47U, 0x58U, 0x69U},
+    {0x7aU, 0x8bU, 0x9cU},
+    {0xadU, 0xbeU, 0xcfU},
+    {0x20U, 0x40U, 0x60U},
+};
+
+void
+requireCheckedRequest(xcb_connection_t &connection,
+                      xcb_void_cookie_t cookie) noexcept
+{
+    xcb_generic_error_t *error = xcb_request_check(&connection, cookie);
+    assert(error == nullptr);
+    std::free(error);
+}
+
+void
+synchronizeXcbConnection(xcb_connection_t &connection) noexcept
+{
+    xcb_generic_error_t *error = nullptr;
+    const auto cookie = xcb_get_input_focus(&connection);
+    xcb_get_input_focus_reply_t *reply =
+        xcb_get_input_focus_reply(&connection, cookie, &error);
+    assert(error == nullptr);
+    std::free(error);
+    assert(reply != nullptr);
+    std::free(reply);
+    assert(xcb_connection_has_error(&connection) == 0);
+}
+
+void
+drawSyntheticPattern(xcb_connection_t &connection, xcb_drawable_t drawable,
+                     Rectangle bounds,
+                     const SyntheticPixelPattern &pattern) noexcept
+{
+    assert(bounds.widthPixels >= 3U);
+    assert(bounds.heightPixels >= 3U);
+
+    const xcb_gcontext_t graphicsContext = xcb_generate_id(&connection);
+    assert(graphicsContext != XCB_NONE);
+    std::uint32_t foreground = pattern.base.nativePixel();
+    requireCheckedRequest(
+        connection,
+        xcb_create_gc_checked(
+            &connection, graphicsContext, drawable, XCB_GC_FOREGROUND,
+            &foreground));
+
+    const auto fill =
+        [&](Rectangle rectangle, SyntheticBgrColor color) noexcept
+        {
+            foreground = color.nativePixel();
+            requireCheckedRequest(
+                connection,
+                xcb_change_gc_checked(
+                    &connection, graphicsContext, XCB_GC_FOREGROUND,
+                    &foreground));
+            const xcb_rectangle_t nativeRectangle{
+                static_cast<std::int16_t>(rectangle.x),
+                static_cast<std::int16_t>(rectangle.y),
+                static_cast<std::uint16_t>(rectangle.widthPixels),
+                static_cast<std::uint16_t>(rectangle.heightPixels),
+            };
+            requireCheckedRequest(
+                connection,
+                xcb_poly_fill_rectangle_checked(
+                    &connection, drawable, graphicsContext, 1,
+                    &nativeRectangle));
+        };
+
+    fill(bounds, pattern.base);
+    fill({bounds.x, bounds.y, 1, 1}, pattern.topLeft);
+    fill({bounds.x + static_cast<std::int32_t>(bounds.widthPixels - 1U),
+          bounds.y, 1, 1},
+         pattern.topRight);
+    fill({bounds.x,
+          bounds.y + static_cast<std::int32_t>(bounds.heightPixels - 1U),
+          1, 1},
+         pattern.bottomLeft);
+    fill({bounds.x + static_cast<std::int32_t>(bounds.widthPixels - 1U),
+          bounds.y + static_cast<std::int32_t>(bounds.heightPixels - 1U),
+          1, 1},
+         pattern.bottomRight);
+    fill({bounds.x + static_cast<std::int32_t>(bounds.widthPixels / 2U),
+          bounds.y + static_cast<std::int32_t>(bounds.heightPixels / 2U),
+          1, 1},
+         pattern.center);
+
+    requireCheckedRequest(
+        connection, xcb_free_gc_checked(&connection, graphicsContext));
+    assert(xcb_connection_has_error(&connection) == 0);
+}
+
+[[nodiscard]] SyntheticBgrColor
+expectedSyntheticColor(Rectangle patternBounds,
+                       const SyntheticPixelPattern &pattern,
+                       std::int32_t globalX, std::int32_t globalY) noexcept
+{
+    assert(globalX >= patternBounds.x);
+    assert(globalY >= patternBounds.y);
+    const std::uint32_t localX =
+        static_cast<std::uint32_t>(globalX - patternBounds.x);
+    const std::uint32_t localY =
+        static_cast<std::uint32_t>(globalY - patternBounds.y);
+    assert(localX < patternBounds.widthPixels);
+    assert(localY < patternBounds.heightPixels);
+
+    if (localX == 0U && localY == 0U)
+        return pattern.topLeft;
+    if (localX + 1U == patternBounds.widthPixels && localY == 0U)
+        return pattern.topRight;
+    if (localX == 0U && localY + 1U == patternBounds.heightPixels)
+        return pattern.bottomLeft;
+    if (localX + 1U == patternBounds.widthPixels &&
+        localY + 1U == patternBounds.heightPixels)
+    {
+        return pattern.bottomRight;
+    }
+    if (localX == patternBounds.widthPixels / 2U &&
+        localY == patternBounds.heightPixels / 2U)
+    {
+        return pattern.center;
+    }
+    return pattern.base;
+}
+
+void
+requireCapturedPattern(const FramebufferView &frame,
+                       Rectangle capturedRectangle,
+                       Rectangle patternBounds,
+                       const SyntheticPixelPattern &pattern) noexcept
+{
+    assert(frame.valid());
+    assert(frame.widthPixels == capturedRectangle.widthPixels);
+    assert(frame.heightPixels == capturedRectangle.heightPixels);
+    assert(frame.strideBytes ==
+           static_cast<std::size_t>(capturedRectangle.widthPixels) * 4U);
+    assert(frame.pixels.size() == frame.strideBytes * frame.heightPixels);
+
+    const std::size_t strideBytes = frame.strideBytes;
+    for (std::uint32_t y = 0; y < frame.heightPixels; ++y)
+    {
+        for (std::uint32_t x = 0; x < frame.widthPixels; ++x)
+        {
+            const auto expected = expectedSyntheticColor(
+                patternBounds, pattern,
+                capturedRectangle.x + static_cast<std::int32_t>(x),
+                capturedRectangle.y + static_cast<std::int32_t>(y));
+            const std::size_t pixelOffset =
+                static_cast<std::size_t>(y) * strideBytes +
+                static_cast<std::size_t>(x) * 4U;
+            // The supported Xvfb visual is 24-bit TrueColor stored in 32-bit
+            // little-endian BGRX memory. The padding byte is not alpha.
+            assert(std::to_integer<std::uint8_t>(
+                       frame.pixels[pixelOffset]) == expected.blue);
+            assert(std::to_integer<std::uint8_t>(
+                       frame.pixels[pixelOffset + 1U]) == expected.green);
+            assert(std::to_integer<std::uint8_t>(
+                       frame.pixels[pixelOffset + 2U]) == expected.red);
+        }
+    }
+}
+
+void
+requireEveryBgrPixelChanged(std::span<const std::byte> previousPixels,
+                            const FramebufferView &currentFrame) noexcept
+{
+    assert(currentFrame.valid());
+    assert(previousPixels.size() == currentFrame.pixels.size());
+    for (std::uint32_t y = 0; y < currentFrame.heightPixels; ++y)
+    {
+        for (std::uint32_t x = 0; x < currentFrame.widthPixels; ++x)
+        {
+            const std::size_t pixelOffset =
+                static_cast<std::size_t>(y) * currentFrame.strideBytes +
+                static_cast<std::size_t>(x) * 4U;
+            const bool bgrChanged =
+                previousPixels[pixelOffset] !=
+                    currentFrame.pixels[pixelOffset] ||
+                previousPixels[pixelOffset + 1U] !=
+                    currentFrame.pixels[pixelOffset + 1U] ||
+                previousPixels[pixelOffset + 2U] !=
+                    currentFrame.pixels[pixelOffset + 2U];
+            assert(bgrChanged);
+        }
+    }
+}
+
+void
+requireSyntheticDamage(X11DesktopResources &resources,
+                       std::uint64_t notificationCountBefore,
+                       Rectangle expectedRectangle) noexcept
+{
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+
+    // A round trip on the production connection deterministically moves any
+    // already-generated Damage events into XCB's local queue; event routing
+    // itself still goes through X11DesktopResources.
+    synchronizeXcbConnection(*connection);
+
+    bool observed = false;
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(32, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+        if (resources.damageNotificationCount() > notificationCountBefore)
+        {
+            observed = true;
+            break;
+        }
+    }
+    assert(observed);
+    assert(resources.damagePending());
+
+    DamageRegion damage;
+    assert(resources.snapshotDamage(damage));
+    assert(!damage.rectangles().empty());
+    assert(damage.intersects(expectedRectangle));
+    assert(!resources.damagePending());
+
+    // snapshotDamage() flushes XDamageSubtract. Complete that production
+    // request before a helper client creates the next image generation.
+    synchronizeXcbConnection(*connection);
+}
+
+void
+requireSyntheticRandrRebuild(X11DesktopResources &resources,
+                             xcb_connection_t &helper,
+                             xcb_window_t root,
+                             PixelSize resizedGeometry) noexcept
+{
+    disableRandrCrtcsAndResize(helper, root, resizedGeometry);
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
+
+    bool rebuilt = false;
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(64, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+        if (resources.sourceGeometry() == resizedGeometry)
+        {
+            assert(workMayRemain);
+            rebuilt = true;
+            break;
+        }
+    }
+    assert(rebuilt);
+
+    // Drain only after the RandR event committed the new generation. Any
+    // event queued behind the transition is therefore offered to new
+    // geometry-bound trackers, never the retired generation.
+    bool workMayRemain = false;
+    assert(resources.processEvents(64, &workMayRemain, false) ==
+           ConnectionStatus::Ok);
+    assert(resources.valid());
 }
 
 void
@@ -387,6 +687,191 @@ syntheticXvfbR4ReadBoundary()
     assert(!resources.capture({0, 0, 1, 1}).valid());
     assert(!resources.refreshCursor());
     assert(!resources.cursorImage().valid());
+}
+
+void
+syntheticXvfbCapturePixelParity()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "capture pixel parity");
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+    assert(helperScreen->root_depth == 24U);
+
+    constexpr Rectangle patternBounds{73, 91, 8, 6};
+    constexpr Rectangle subrectangle{75, 92, 4, 3};
+
+    const std::uint64_t firstNotificationCount =
+        resources.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, patternBounds, kFirstPixelPattern);
+    requireSyntheticDamage(
+        resources, firstNotificationCount, patternBounds);
+
+    std::vector<std::byte> firstGenerationPixels;
+    {
+        const FramebufferView frame = resources.capture(patternBounds);
+        requireCapturedPattern(
+            frame, patternBounds, patternBounds, kFirstPixelPattern);
+        firstGenerationPixels.assign(
+            frame.pixels.begin(), frame.pixels.end());
+    }
+
+    {
+        const FramebufferView subframe = resources.capture(subrectangle);
+        requireCapturedPattern(
+            subframe, subrectangle, patternBounds, kFirstPixelPattern);
+    }
+
+    const std::uint64_t secondNotificationCount =
+        resources.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, patternBounds, kSecondPixelPattern);
+    requireSyntheticDamage(
+        resources, secondNotificationCount, patternBounds);
+
+    {
+        const FramebufferView frame = resources.capture(patternBounds);
+        requireCapturedPattern(
+            frame, patternBounds, patternBounds, kSecondPixelPattern);
+        requireEveryBgrPixelChanged(firstGenerationPixels, frame);
+    }
+
+    assert(resources.valid());
+    resources.disconnect();
+}
+
+void
+syntheticXvfbRandrCaptureGeneration()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "RandR capture generation");
+    assert(resources.randrAvailable());
+
+    const int originalDescriptor = resources.fileDescriptor();
+    xcb_connection_t *const originalConnection = resources.nativeConnection();
+    assert(originalDescriptor >= 0);
+    assert(originalConnection != nullptr);
+    assert((resources.sourceGeometry() == PixelSize{1280, 720}));
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+    assert(helperScreen->root_depth == 24U);
+
+    constexpr Rectangle generationRectangle{1016, 594, 8, 6};
+    constexpr PixelSize resizedGeometry{1024, 600};
+    static_assert(
+        generationRectangle.x +
+            static_cast<std::int32_t>(generationRectangle.widthPixels) ==
+        static_cast<std::int32_t>(resizedGeometry.widthPixels));
+    static_assert(
+        generationRectangle.y +
+            static_cast<std::int32_t>(generationRectangle.heightPixels) ==
+        static_cast<std::int32_t>(resizedGeometry.heightPixels));
+
+    const std::uint64_t oldNotificationCount =
+        resources.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, generationRectangle, kFirstPixelPattern);
+    requireSyntheticDamage(
+        resources, oldNotificationCount, generationRectangle);
+
+    std::vector<std::byte> oldGenerationPixels;
+    {
+        const FramebufferView oldFrame =
+            resources.capture(generationRectangle);
+        requireCapturedPattern(
+            oldFrame, generationRectangle, generationRectangle,
+            kFirstPixelPattern);
+        oldGenerationPixels.assign(
+            oldFrame.pixels.begin(), oldFrame.pixels.end());
+    }
+
+    requireSyntheticRandrRebuild(
+        resources, *helper, helperScreen->root, resizedGeometry);
+    assert(resources.valid());
+    assert(resources.fileDescriptor() == originalDescriptor);
+    assert(resources.nativeConnection() == originalConnection);
+    assert(resources.sourceGeometry() == resizedGeometry);
+
+    const std::uint64_t newNotificationCount =
+        resources.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, generationRectangle, kSecondPixelPattern);
+    requireSyntheticDamage(
+        resources, newNotificationCount, generationRectangle);
+
+    {
+        const FramebufferView newFrame =
+            resources.capture(generationRectangle);
+        requireCapturedPattern(
+            newFrame, generationRectangle, generationRectangle,
+            kSecondPixelPattern);
+        requireEveryBgrPixelChanged(oldGenerationPixels, newFrame);
+    }
+
+    assert(resources.valid());
+    resources.disconnect();
+    assert(!resources.valid());
+    assert(resources.fileDescriptor() == -1);
+    assert(resources.nativeConnection() == nullptr);
+    assert(resources.rootWindow() == XCB_WINDOW_NONE);
+}
+
+void
+syntheticXvfbCaptureTerminalDenial()
+{
+    X11DesktopResources resources(syntheticDisplay(), kCaptureArenaPixels);
+    requireValidResources(resources, "capture terminal denial");
+    assert(resources.fileDescriptor() >= 0);
+    assert(resources.nativeConnection() != nullptr);
+
+    {
+        const FramebufferView initialFrame =
+            resources.capture({0, 0, 4, 4});
+        assert(initialFrame.valid());
+    }
+
+    // 1280x300 is inside the Xvfb root but exceeds the bounded 256K-pixel
+    // arena. The production XShm child treats this as terminal, so the
+    // aggregate must revoke every native capability rather than republish a
+    // partial or stale arena view.
+    const FramebufferView rejected =
+        resources.capture({0, 0, 1280, 300});
+    assert(!rejected.valid());
+    assert(!resources.valid());
+    assert(resources.failureReason() != nullptr);
+    assert(std::string_view(resources.failureReason()) ==
+           "XShm capture rectangle or arena is outside supported limits");
+    assert(resources.fileDescriptor() == -1);
+    assert(resources.nativeConnection() == nullptr);
+    assert(resources.rootWindow() == XCB_WINDOW_NONE);
+    assert((resources.sourceGeometry() == PixelSize{}));
+    assert(!resources.randrAvailable());
+    assert(!resources.damagePending());
+    assert(resources.damageNotificationCount() == 0U);
+
+    DamageRegion damage;
+    assert(!resources.snapshotDamage(damage));
+    assert(damage.rectangles().empty());
+    assert(!resources.capture({0, 0, 1, 1}).valid());
+    assert(!resources.refreshCursor());
+    assert(!resources.cursorImage().valid());
+
+    bool workMayRemain = true;
+    assert(resources.processEvents(8, &workMayRemain, true) ==
+           ConnectionStatus::Failed);
+    assert(!workMayRemain);
+
+    resources.disconnect();
+    assert(!resources.valid());
+    resources.disconnect();
+    assert(!resources.valid());
 }
 
 void
@@ -644,6 +1129,21 @@ main(int argc, char **argv)
     if (behavior == "r4-read-boundary")
     {
         syntheticXvfbR4ReadBoundary();
+        return 0;
+    }
+    if (behavior == "capture-pixel-parity")
+    {
+        syntheticXvfbCapturePixelParity();
+        return 0;
+    }
+    if (behavior == "randr-capture-generation")
+    {
+        syntheticXvfbRandrCaptureGeneration();
+        return 0;
+    }
+    if (behavior == "capture-terminal-denial")
+    {
+        syntheticXvfbCaptureTerminalDenial();
         return 0;
     }
 

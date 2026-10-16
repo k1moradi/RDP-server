@@ -1,3 +1,27 @@
+## R5 native X11 capture-fidelity fixtures (2026-10-16)
+
+Production-backed native capture tests must use an ephemeral 24-bit Xvfb
+screen, never a logged-in display. An independent helper XCB connection may
+produce deterministic source pixels, but XDamage observation, framebuffer
+capture and RandR reconstruction must remain on one real
+`X11DesktopResources` aggregate and its single production XCB owner.
+
+Synchronize helper drawing with checked XCB requests, then use a bounded
+round-trip on the aggregate's borrowed connection before nonblocking event
+dispatch. Do not use arbitrary sleeps to decide that image bytes or RandR
+state are ready. Validate the supported 24-bit TrueColor image as 32-bit
+little-endian BGRX storage by checking the B, G and R lanes plus exact packed
+row stride; the fourth byte is padding and is not an alpha oracle.
+
+A borrowed XShm framebuffer span must be consumed or copied before the next
+capture, RandR rebuild or disconnect. A resize test must copy any old-generation
+oracle bytes first, require the transaction to commit the new geometry before
+later queued events are routed, and then obtain a distinct new-generation
+capture. Terminal capture failures must revoke the aggregate and must not
+republish a stale arena view. These synthetic tests prove native source pixels
+and lifetime boundaries only, not RDP graphics delivery or Microsoft-client
+desktop acceptance.
+
 ## macOS clipboard file-destination tests separate state from native I/O
 
 Compile the macOS file-destination state machine on every hosted OS through

@@ -1,3 +1,39 @@
+## R8 macOS ready-data pasteboard exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `4da8d0deab5e3d7a251fdd4c180a6380c1e4e978`.
+**Actions:** [38908531302](https://github.com/k1moradi/RDP-server/actions/runs/38908531302) — **SUCCESS**.
+
+The complete hosted matrix is green. Ubuntu/GCC full CTest is **416/416
+PASS** in Debug and **416/416 PASS** in Release. macOS/Clang is **357/357
+PASS** in Debug and Release, compile/linking the Apple-only Objective-C++
+AppKit bridge in both configurations. Windows/MSVC focused native preflight is
+**39/39 PASS** in both configurations and full CTest is **381/381 PASS** in
+Debug and Release. The downstream installed-SDK consumer, package/artifact
+steps and documentation-policy job all pass.
+
+All five new production-linked R8 cases pass on Linux, macOS and Windows:
+`clipboard.macos-clipboard-remote-ready-publication`,
+`clipboard.macos-clipboard-generation-owner-loss`,
+`clipboard.macos-clipboard-png-routing`,
+`clipboard.macos-clipboard-disconnect-owner-fence`, and
+`clipboard.macos-clipboard-failure-reentry-denials`. R9 Clang ASan/UBSan
+clipboard coverage is **46/46 PASS**, including those five cases. The same
+sanitizer job also passes its bounded transport/security **18/18**, native
+GSS/R2/R3 **30/30**, runtime **24/24**, native X11 **16/16**, auxiliary
+selected group **4/4**, and bounded CLIPRDR fuzzer **1/1**.
+
+This evidence validates deterministic ready-data state, cross-platform C++23
+builds and Apple SDK compile/link coverage only. Canonical owner-local
+`~/rdp-server/build`, owner macOS 27 live pasteboard use, Windows
+MSYS2 CLANG64/Clang23, authenticated Microsoft-client CLIPRDR, native
+file-manager destinations and clipboard performance remain **NOT RUN/OPEN**.
+No live user pasteboard was read or modified by ordinary CTest. R3 remains the
+sole future post-admission CLIPRDR payload writer.
+
+**Next R8:** bounded native file-destination integration, without introducing
+a second transfer owner, whole-file cache, transport writer or authentication
+shortcut.
+
 ## R8 macOS ready-data pasteboard presentation (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `1cbb068c4dd7b0b9b2b8065244ba650b71676005`. The bounded

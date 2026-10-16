@@ -8206,3 +8206,30 @@ sandbox, exact-SHA hosted CI, genuine positive Kerberos/TLS plus physical
 logind admission, live XTEST input, owner Linux/X11, Windows MSYS2
 CLANG64/Clang23, macOS27, Microsoft-client M3 acceptance and performance
 benchmarks.
+
+
+### R1 R3 Connect Response slice exact-SHA partial hosted receipt (2026-10-16)
+
+**Code/test SHA:** `372ad95ebe4d93c8c4c476eae10e6064209577aa`.
+**Actions:** [38879623066](https://github.com/k1moradi/RDP-server/actions/runs/38879623066).
+
+Hosted macOS/AppleClang has completed **SUCCESS**: the new
+`transport.tcp-owned-r3-connect-response-slice` case **PASS** in both Debug
+and Release, the full suite is **283/283 PASS** in each configuration, and the
+installed-SDK smoke is **1/1 PASS**. This proves the maximum 2048-byte R3
+write view traverses the existing bounded R1 OpenSSL application writer with
+the intended short-progress/receipt behavior on that host.
+
+At this receipt, the exact-SHA Linux/GCC, Windows/MSVC, R9 sanitizer and
+documentation-policy jobs remain **QUEUED**, not PASS or FAIL. The queue is
+behind older shared-branch workflows whose Windows jobs remain in the full
+Debug CTest step; no R1 assertion failure is currently available from those
+queued jobs. Do not infer Linux/Windows success from the macOS result or from
+newer descendants.
+
+Concurrent R3 protected Erect Domain integration has also landed and uses the
+existing R1 owner only for its established TLS identity; the decrypted complete
+TPKT and authorization remain R2/R3 responsibilities. Inspection therefore
+shows no new bounded R1 TCP/TLS hook is required for Erect. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang 23, macOS 27, genuine positive native admission
+and Microsoft-client evidence remain **NOT RUN**. M2 remains **NOT ACCEPTED**.

@@ -389,6 +389,20 @@ which has no wire request ID. If the clipboard generation changes
 after full delivery, its late response is drained as obsolete.
 This offline API does not enqueue TLS bytes or cache OS clipboard data.
 
+### R8 owned verified Unicode clipboard readiness (offline)
+
+The existing generation-owning `RemoteTransfer` can validate a
+successfully consumed CF_UNICODETEXT Format Data Response and copy
+only a strict, 1-MiB-bounded UTF-16LE payload into owned UTF-8.
+Exactly one terminator is required, invalid surrogate pairs fail,
+CRLF normalizes to LF, and UTF-8 expansion stays below 2 MiB.
+Content failure is not confused with a malformed CLIPRDR PDU:
+it fails readiness without poisoning a sound channel. New offers
+and disconnect clear the snapshot; channel poison hides it.
+Raw `Response.payload` remains borrowed, unvalidated wire data.
+R3 authentication and native OS clipboard publication are not
+supplied by this offline readiness boundary.
+
 ### Independence test
 
 The top-level CMake project enables **CXX only**, targets C++23, and links

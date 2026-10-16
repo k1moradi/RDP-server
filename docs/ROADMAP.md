@@ -3274,7 +3274,17 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   or rejected data. New dedicated CTest
   `clipboard.prefetch-unicode-png-dib-single-flight`.
   Full CI and owner three-platform validation NOT RUN at authoring.
-  **Remaining:** bounded verified text/image readiness, native
+  **R8 bounded Unicode text readiness (2026-10-16):** the existing
+  `RemoteTransfer` now validates current-generation CF_UNICODETEXT
+  UTF-16LE Format Data Response bytes, then owns a UTF-8 snapshot.
+  Exactly one trailing UTF-16 NUL is required; odd lengths, embedded
+  NUL, invalid surrogate pairs and wire data over 1 MiB fail without
+  exposing partial text; CRLF normalizes to LF. A malformed content
+  payload leaves sound PDU framing usable but never becomes paste-ready.
+  New offers, disconnect and coordinator poison invalidate readiness.
+  Dedicated `clipboard.verified-unicode-text-readiness` CTest.
+  Full CI/owner three-platform and real OS paste: NOT RUN at authoring.
+  **Remaining:** validated PNG/DIB readiness, native
   prefetch scheduling/conversion and actual OS paste acceptance.
 - [ ] **Nonblocking clipboard paste readiness**: register a pending OS paste
   request and deadline; process RDP/desktop events while remote transfer or

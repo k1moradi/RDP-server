@@ -9,6 +9,22 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
+## R8 verified Unicode clipboard readiness (2026-10-16)
+
+**Starting main SHA:** `9dd3197115bcd56d4465ec18b1bdedddcccc5336`. **Files:**
+`src/server/clipboard/remote_transfer.{h,cpp}`,
+`tests/test_owned_remote_transfer.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md` and this ledger.
+**New CTest:** `clipboard.verified-unicode-text-readiness`.
+The current-generation CF_UNICODETEXT payload must be strictly
+terminated and valid UTF-16LE, limited to 1 MiB on wire, copied
+into UTF-8, and invalidated on reoffer/disconnect. Invalid content
+is not native-paste ready and does not poison otherwise sound framing.
+**NOT RUN at authoring:** complete checkout CMake/full CTest,
+hosted exact-SHA CI, owner Linux/X11, Windows CLANG64/Clang23
+and macOS27, native clipboard, Microsoft client and performance.
+**Next:** exact-SHA CI and PNG/DIB validation before OS adapter paste.
+
 ## R6 native DXGI damage metadata bound to one capture frame (2026-10-15)
 
 **Remote main used for integration:** `3c09e0763d019d0423919f17d880375167bb7be7`. **Changed files:**

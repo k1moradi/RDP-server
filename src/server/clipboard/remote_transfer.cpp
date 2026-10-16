@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <string>
 #include <string_view>
 
 namespace rdp_server::server::clipboard
@@ -118,6 +119,8 @@ bool RemoteTransfer::receiveFormatList(
     std::span<const std::uint32_t> advertisedFormatIds) noexcept
 {
     lastFormatListResponseValid_ = false;
+    verifiedTextUtf8_.clear();
+    verifiedTextReady_ = false;
     if (poisoned_ || generation_ == std::numeric_limits<std::uint64_t>::max() ||
         advertisedFormatIds.size() > kMaximumFormats)
     {
@@ -814,6 +817,103 @@ RemoteTransfer::Response RemoteTransfer::receiveResponse(
             completed.formatId, pdu.payload};
 }
 
+bool RemoteTransfer::storeVerifiedUnicodeText(
+    const Response &response) noexcept
+{
+    using rdp_server::clipboard::kFormatUnicodeText;
+    verifiedTextReady_ = false;
+    verifiedTextUtf8_.clear();
+    if (poisoned_ || generation_ == 0 || pendingValid_ ||
+        response.status != ResponseStatus::Received ||
+        response.generation != generation_ ||
+        response.formatId != kFormatUnicodeText ||
+        !advertises(kFormatUnicodeText))
+        return false;
+
+    // Win32 CF_UNICODETEXT: exactly one terminal UTF-16LE NUL, no interior
+    // NUL, strict surrogate pairs. One MiB wire cap bounds UTF-8 below
+    // 1.5 MiB; never publish a partially decoded or truncated string.
+    constexpr std::size_t kMaximumTextBytes = 1024U * 1024U;
+    const auto wire = response.payload;
+    if (wire.size() < 2U || wire.size() > kMaximumTextBytes ||
+        wire.size() % 2U != 0 || wire[wire.size() - 1U] != 0 ||
+        wire[wire.size() - 2U] != 0)
+        return false;
+
+    std::string candidate;
+    try
+    {
+        candidate.reserve(wire.size());
+        for (std::size_t offset = 0; offset < wire.size() - 2U;
+             offset += 2U)
+        {
+            std::uint32_t value = read16(wire, offset);
+            if (value == 0)
+                return false;
+            if (value >= 0xd800U && value <= 0xdbffU)
+            {
+                if (offset + 4U >= wire.size())
+                    return false;
+                const std::uint32_t low = read16(wire, offset + 2U);
+                if (low < 0xdc00U || low > 0xdfffU)
+                    return false;
+                value = 0x10000U + ((value - 0xd800U) << 10U) +
+                        (low - 0xdc00U);
+                offset += 2U;
+            }
+            else if (value >= 0xdc00U && value <= 0xdfffU)
+                return false;
+
+            // Windows line endings are CRLF; native text presentation
+            // uses LF. A standalone CR or LF is preserved for interop.
+            if (value == '\r' && offset + 4U < wire.size() &&
+                read16(wire, offset + 2U) == '\n')
+            {
+                value = '\n';
+                offset += 2U;
+            }
+            if (value <= 0x7fU)
+                candidate.push_back(static_cast<char>(value));
+            else if (value <= 0x7ffU)
+            {
+                candidate.push_back(static_cast<char>(0xc0U | (value >> 6U)));
+                candidate.push_back(static_cast<char>(0x80U | (value & 0x3fU)));
+            }
+            else if (value <= 0xffffU)
+            {
+                candidate.push_back(static_cast<char>(0xe0U | (value >> 12U)));
+                candidate.push_back(static_cast<char>(0x80U |
+                                                      ((value >> 6U) & 0x3fU)));
+                candidate.push_back(static_cast<char>(0x80U | (value & 0x3fU)));
+            }
+            else
+            {
+                candidate.push_back(static_cast<char>(0xf0U | (value >> 18U)));
+                candidate.push_back(static_cast<char>(0x80U |
+                                                      ((value >> 12U) & 0x3fU)));
+                candidate.push_back(static_cast<char>(0x80U |
+                                                      ((value >> 6U) & 0x3fU)));
+                candidate.push_back(static_cast<char>(0x80U | (value & 0x3fU)));
+            }
+        }
+    }
+    catch (...)
+    {
+        return false;
+    }
+    verifiedTextUtf8_.swap(candidate);
+    verifiedTextReady_ = true;
+    return true;
+}
+
+std::optional<std::string_view>
+RemoteTransfer::verifiedUnicodeText() const noexcept
+{
+    if (poisoned_ || !verifiedTextReady_)
+        return std::nullopt;
+    return std::string_view{verifiedTextUtf8_};
+}
+
 void RemoteTransfer::abandonRequest() noexcept
 {
     if (pendingValid_)
@@ -824,6 +924,8 @@ void RemoteTransfer::abandonRequest() noexcept
 
 void RemoteTransfer::resetAfterDisconnect() noexcept
 {
+    verifiedTextUtf8_.clear();
+    verifiedTextReady_ = false;
     lastFormatListResponse_.fill(0);
     lastFormatListResponseValid_ = false;
     advertisedFormats_.fill(0);

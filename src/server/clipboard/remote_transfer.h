@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -222,6 +223,15 @@ public:
     [[nodiscard]] Response receiveResponse(
         std::span<const std::uint8_t> completePdu) noexcept;
 
+    // Only a validated current-generation CF_UNICODETEXT reply can make an
+    // owned UTF-8 clipboard snapshot ready for native adapters. This accepts
+    // the borrowed Response synchronously before its PDU buffer expires.
+    // Invalid content clears readiness but does not poison sound PDU framing.
+    [[nodiscard]] bool storeVerifiedUnicodeText(
+        const Response &response) noexcept;
+    [[nodiscard]] std::optional<std::string_view>
+    verifiedUnicodeText() const noexcept;
+
     // A lost, timed-out or ambiguous response cannot be correlated with
     // subsequent traffic. Fail closed until an actual channel disconnect.
     void abandonRequest() noexcept;
@@ -240,6 +250,8 @@ private:
         std::uint32_t formatId{};
     };
 
+    std::string verifiedTextUtf8_{};
+    bool verifiedTextReady_{};
     std::array<std::uint8_t, 8> lastFormatListResponse_{};
     bool lastFormatListResponseValid_{};
     std::array<std::uint32_t, kMaximumFormats> advertisedFormats_{};

@@ -1513,6 +1513,82 @@ void testJoinedFormatDataRequestGenerationCancellation()
     assert(!tooEarly.synchronized());
 }
 
+// R8: a raw, framed data response is not a native text-paste offer until
+// its UTF-16LE is verified and copied for the current clipboard generation.
+void testVerifiedUnicodeTextReadiness()
+{
+    using namespace rdp_server::clipboard;
+    RemoteTransfer owner;
+    std::vector<std::uint8_t> request;
+    assert(!owner.verifiedUnicodeText());
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 2>{kFormatUnicodeText, 8}));
+    const auto receiveText = [&](std::span<const std::uint8_t> wire)
+    {
+        assert(owner.beginRequest(kFormatUnicodeText, request));
+        const auto complete = responsePdu(kResponseOk, wire);
+        const auto response = owner.receiveResponse(complete);
+        assert(response.status == RemoteTransfer::ResponseStatus::Received);
+        return owner.storeVerifiedUnicodeText(response);
+    };
+
+    const std::array<std::uint8_t, 12> smile{
+        'A', 0, '\r', 0, '\n', 0, 0x3d, 0xd8, 0, 0xde, 0, 0};
+    assert(receiveText(smile));
+    assert(owner.verifiedUnicodeText() ==
+           std::optional<std::string_view>{"A\n\xf0\x9f\x98\x80"});
+    assert(!owner.hasOutstandingRequest());
+    // The completed PDU buffer is dead, yet the owned snapshot remains.
+    assert(*owner.verifiedUnicodeText() == "A\n\xf0\x9f\x98\x80");
+
+    const std::array<std::array<std::uint8_t, 4>, 4> malformed{{
+        {{'A', 0, 'B', 0}},     // Missing NUL.
+        {{0, 0, 0, 0}},         // Repeated NUL.
+        {{0x3d, 0xd8, 0, 0}},   // Isolated high surrogate.
+        {{0, 0xdc, 0, 0}},      // Isolated low surrogate.
+    }};
+    for (const auto &wire : malformed)
+    {
+        assert(!receiveText(wire));
+        assert(!owner.verifiedUnicodeText());
+        assert(owner.synchronized()); // Payload failure, not wire framing.
+    }
+    const std::array<std::uint8_t, 3> odd{'A', 0, 0};
+    assert(!receiveText(odd));
+    const std::array<std::uint8_t, 6> interior{'A', 0, 0, 0, 0, 0};
+    assert(!receiveText(interior));
+    const std::array<std::uint8_t, 6> mismatched{
+        0x3d, 0xd8, 'B', 0, 0, 0};
+    assert(!receiveText(mismatched));
+    std::vector<std::uint8_t> excessive(1024U * 1024U + 2U);
+    assert(!receiveText(excessive));
+    assert(owner.synchronized());
+
+    const std::array<std::uint8_t, 2> empty{0, 0};
+    assert(receiveText(empty));
+    assert(owner.verifiedUnicodeText()->empty());
+    assert(!receiveText({}));
+    assert(!owner.verifiedUnicodeText());
+
+    assert(receiveText(smile));
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 1>{kFormatUnicodeText}));
+    assert(!owner.verifiedUnicodeText()); // Reoffer invalidates cached data.
+    assert(receiveText(smile));
+    owner.resetAfterDisconnect();
+    assert(!owner.verifiedUnicodeText());
+    assert(owner.receiveFormatList(
+        std::array<std::uint32_t, 1>{kFormatUnicodeText}));
+    assert(receiveText(smile));
+    assert(owner.beginRequest(kFormatUnicodeText, request));
+    const std::array<std::uint8_t, 1> badPdu{0};
+    assert(owner.receiveResponse(badPdu).status ==
+           RemoteTransfer::ResponseStatus::ProtocolError);
+    assert(!owner.verifiedUnicodeText()); // Poison hides prior readiness.
+    owner.resetAfterDisconnect();
+    assert(!owner.verifiedUnicodeText());
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -1528,6 +1604,11 @@ int main(int argumentCount, char **arguments)
         if (caseName == "mcs-joined-response-teardown")
         {
             testMcsJoinedClipboardResponseTeardown();
+            return 0;
+        }
+        if (caseName == "verified-unicode-text-readiness")
+        {
+            testVerifiedUnicodeTextReadiness();
             return 0;
         }
         if (caseName == "format-data-request-joined-mcs-envelope")

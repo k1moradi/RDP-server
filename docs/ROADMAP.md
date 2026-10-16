@@ -1,3 +1,46 @@
+## R10 Windows live-TLS test-oracle cross-CRT correction (2026-10-16; exact-SHA CI pending)
+
+Validated descendant `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`,
+Actions `38893987860`, exercises unchanged R10 Linux provisioning/aggregate
+sources from `be99fb50d0f1c7ae981a8e706ec44794a309eadc`: Ubuntu/GCC full
+CTest is **362/362 PASS** in Debug and Release, macOS/Clang is **310/310
+PASS** in Debug and Release, and the R9 sanitizer job passes its selected
+scope. Earlier exact R10 workflows remain historical pre-R10-test failures.
+
+Windows/MSVC Debug on the same descendant is **332/334**; only
+`runtime.validates-live-tls-context-construction` and
+`runtime.tls-context-survives-credential-path-replacement` fail with
+`OPENSSL_Uplink(...): no OPENSSL_Applink`. The neighboring production
+R1/R10 live handshake and identity-continuity tests PASS, as do all offline
+TLS credential parsing cases.
+
+Root cause is test-only: `test_runtime_tls_context.cpp::readCertificate()`
+passed the application CRT's `FILE*` to `PEM_read_X509`. Production R10
+already uses a memory-BIO boundary. The oracle now bounds the fixture to 1 MiB,
+reads exact bytes with the application CRT into
+`std::make_unique_for_overwrite<unsigned char[]>`, rejects short/growing
+input, and parses with `BIO_new_mem_buf` / `PEM_read_bio_X509`. No Applink
+shim or production TLS behavior changes.
+
+The R1 half of issue #17 landed at
+`e476ab5b2dd96a6595d3bfe3ac597ffe14965141`: owner-aware CredSSP framing
+routes application I/O through the exact `OwnedPreauthTcpConnection`.
+R10/R2 still must consume that seam with the genuine GSS/CredSSP owner, and
+genuine production HYBRID negotiation remains an R1 dependency. No listener
+is permitted yet.
+
+**Authoring status:** source/log/doc review only. Canonical owner-local
+configure/build/CTest is **NOT RUN** because this connector environment has no
+owner checkout; no alternate build root was created. Exact-SHA hosted
+Windows/MSVC Debug+Release and the ordinary Linux/macOS matrix are required
+after publication. Owner Windows MSYS2 CLANG64/Clang23, Linux/X11, macOS27,
+real KDC/client ticket, positive logind admission, external RDP client and
+listener/service remain **NOT RUN**.
+
+**Next R10 gate:** Windows/MSVC PASS for the two live TLS-context cases and
+full matrix, then compose R2 genuine CredSSP/GSS state with the new R1
+owner-aware framing seam before any listener.
+
 ## R6 DXGI same-adapter ambiguity ownership fix (2026-10-16; exact-SHA CI pending)
 
 Maintenance review of the existing `WindowsDxgiDuplicationOwner` found one

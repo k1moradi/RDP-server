@@ -1,3 +1,14 @@
+## Windows OpenSSL test-oracle CRT boundaries
+
+On Windows, test helpers must not pass an application-owned `FILE*` directly
+to a separately built OpenSSL DLL. That can require OpenSSL's Applink CRT
+bridge and make an otherwise valid production path fail only in the oracle.
+When production parses security material from bounded memory, the test oracle
+must independently read its fixture bytes with the application runtime and
+use OpenSSL memory-BIO APIs as well. Do not add `OPENSSL_Applink` merely to
+make a fixture parse; keep the CRT boundary explicit and test the same
+cross-platform object semantics without sharing production parsing helpers.
+
 ## R1-owned CredSSP transport seam coverage (2026-10-16)
 
 Reuse the existing native loopback preauth executable for production CredSSP

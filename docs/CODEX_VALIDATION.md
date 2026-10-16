@@ -1,3 +1,29 @@
+## R10 Windows live-TLS cross-CRT oracle correction authoring (2026-10-16)
+
+Validated descendant: `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`,
+Actions `38893987860`. R10 Linux runtime source and
+`tests/test_runtime_linux_security.cpp` are unchanged from aggregate commit
+`be99fb50d0f1c7ae981a8e706ec44794a309eadc` through that SHA. Ubuntu/GCC
+full CTest is **362/362 PASS** Debug and Release; macOS/Clang is **310/310
+PASS** Debug and Release; R9 sanitizer scope PASSes.
+
+Windows full Debug is **332/334**. Only the two positive live
+`RuntimeServerTlsContext` tests fail with
+`OPENSSL_Uplink(...): no OPENSSL_Applink`; the immediately preceding
+production live TLS handshake/continuity cases PASS.
+
+The failure is confined to the test oracle's direct
+`PEM_read_X509(FILE*)` call. The corrected oracle reads the bounded fixture
+with the application CRT and feeds only memory to OpenSSL
+(`BIO_new_mem_buf` / `PEM_read_bio_X509`), preserving independent
+certificate comparison and both existing CTest contracts without an Applink
+compatibility shim.
+
+**NOT RUN at authoring:** local build/CTest and corrected hosted matrix. Owner
+Windows MSYS2 CLANG64/Clang23 and genuine client/native admission remain NOT
+RUN. Issue #17's R1 transport half is implemented, but R10/R2 end-to-end
+CredSSP driving plus genuine production HYBRID remain listener blockers.
+
 ## R6 DXGI same-adapter ambiguity authoring validation (2026-10-16)
 
 Source review found an aliasing double-release path in

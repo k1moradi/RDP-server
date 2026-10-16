@@ -4,10 +4,12 @@
 
 #include <concepts>
 #include <cstdio>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string_view>
 
+#include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 
@@ -17,11 +19,27 @@ static_assert(std::same_as<
     rdp_server::server::runtime::RuntimeServerTlsContext::ServerTls,
     rdp_server::server::transport::OwnedPreauthTcpConnection::ServerTls>);
 
+struct FileCloser
+{
+    void operator()(std::FILE *file) const noexcept
+    {
+        (void)std::fclose(file);
+    }
+};
+struct BioCloser
+{
+    void operator()(BIO *bio) const noexcept { ::BIO_free(bio); }
+};
 struct X509Closer
 {
     void operator()(X509 *certificate) const noexcept { ::X509_free(certificate); }
 };
+
+using OwnedFile = std::unique_ptr<std::FILE, FileCloser>;
+using OwnedBio = std::unique_ptr<BIO, BioCloser>;
 using OwnedCertificate = std::unique_ptr<X509, X509Closer>;
+
+constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
 
 [[nodiscard]] bool fail(const char *message) noexcept
 {
@@ -31,13 +49,39 @@ using OwnedCertificate = std::unique_ptr<X509, X509Closer>;
 
 [[nodiscard]] OwnedCertificate readCertificate(const char *path) noexcept
 {
-    std::FILE *file = std::fopen(path, "rb");
-    if (file == nullptr) {
+    if (path == nullptr) {
         return {};
     }
-    OwnedCertificate certificate{::PEM_read_X509(file, nullptr, nullptr, nullptr)};
-    (void)std::fclose(file);
-    return certificate;
+
+    std::error_code fileSizeError;
+    const std::uintmax_t fileBytes =
+        std::filesystem::file_size(path, fileSizeError);
+    if (fileSizeError || fileBytes == 0 ||
+        fileBytes > kMaximumFixtureCertificateBytes) {
+        return {};
+    }
+
+    OwnedFile file{std::fopen(path, "rb")};
+    if (!file) {
+        return {};
+    }
+
+    const std::size_t bytes = static_cast<std::size_t>(fileBytes);
+    auto data = std::make_unique_for_overwrite<unsigned char[]>(bytes);
+    if (std::fread(data.get(), 1, bytes, file.get()) != bytes ||
+        std::ferror(file.get()) != 0 || std::fgetc(file.get()) != EOF) {
+        return {};
+    }
+
+    // Never pass an application-CRT FILE* into OpenSSL on Windows. The
+    // production R10 loader uses the same memory-BIO boundary so this oracle
+    // independently parses the fixture without requiring OPENSSL_Applink.
+    OwnedBio bio{::BIO_new_mem_buf(data.get(), static_cast<int>(bytes))};
+    if (!bio) {
+        return {};
+    }
+    return OwnedCertificate{
+        ::PEM_read_bio_X509(bio.get(), nullptr, nullptr, nullptr)};
 }
 
 [[nodiscard]] bool validateContext(const char *certificatePath,

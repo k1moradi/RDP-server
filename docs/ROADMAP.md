@@ -5032,3 +5032,17 @@ fixture WANT loops now wait 1 ms between explicit retries, and the partial
 write test resubmits the same 7-byte caller span until Progress instead of
 assuming one retry is sufficient. No hidden R1 retry or retained span is
 introduced.
+
+
+**Final hosted verification:** `1260eb659073d5269724a4436e3a8bbfda322725`,
+[Actions 38866320385](https://github.com/k1moradi/RDP-server/actions/runs/38866320385)
+**PASS**. Linux/GCC Debug and Release each passed **277/277** CTests;
+macOS/AppleClang Debug and Release each passed **258/258**; Windows/MSVC
+Debug and Release each passed **276/276**. The three dedicated R1
+application-I/O CTests passed in those full suites. R9 sanitizer and
+documentation-policy jobs also passed; downstream installed-SDK smoke tests
+passed **1/1** on each platform and the workflow concluded success. This
+hosted matrix is separate from the owner's Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 environments, which remain **NOT RUN** here.
+M2 remains **NOT ACCEPTED** pending genuine R2 admission, R3 activation and
+real Microsoft-client evidence.

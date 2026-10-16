@@ -8972,3 +8972,16 @@ still **QUEUED** behind older workflows at this authoring snapshot.
 **Exact-SHA hosted state:** Actions run `38884345628` for `003f455148fa72f6ee82bd5fbdf6016e3df4fab8` is **QUEUED** in the repository-wide runner backlog. All five jobs were queued at this receipt; therefore real Apple SDK/ApplicationServices compile/link and full hosted CTest remain **NOT RUN** for this exact SHA and must not be counted as PASS. The prior R7 cursor workflow `38881746797` also remains **QUEUED**.
 
 **Still NOT RUN:** owner macOS 27, actual Accessibility trust, live Quartz keyboard/pointer injection, genuine macOS R2/R3 admission/session binding, R4 cursor publication, Microsoft-client cursor/input behavior, and performance/reliability acceptance. M5 remains **OPEN**.
+
+
+## R7 synchronous macOS desktop session/permission guard (2026-10-16)
+
+**Implementation:** `ce23e7dd73a0c943c42a8257149111fe5a66baf7` on `main`, merged via PR #18 after reconciling concurrent shared CMake/test/docs edits.
+
+**Focused local PASS:** the exact portable guard logic compiled and executed with GCC and Clang C++23 under `-Wall -Wextra -Wpedantic -Werror`. A Clang ASan+UBSan build with leak detection passed lifecycle, mid-check session-change, permission, reentry and terminal-close behaviors. The Apple branch also passed strict Clang syntax against stub CoreFoundation/CoreGraphics declarations, including `CFDictionary` ownership, typed session-property extraction, UID conversion and native permission callback wiring. These are isolated source/ownership checks, not real Apple SDK evidence.
+
+**Dedicated ordinary CTests:** `macos.desktop-session-lifecycle`, `macos.desktop-session-validation-denials`, and `macos.desktop-session-revocation-reentry`. They use synthetic GUI-session observations and permission results and never call the native Quartz session reader or either real permission API.
+
+**Exact-SHA hosted state:** Actions `38885564347` for `ce23e7dd73a0c943c42a8257149111fe5a66baf7` is **QUEUED** at this receipt. Earlier R7 cursor run `38881746797` and input-controller run `38884345628` are also **QUEUED**. Real Apple SDK compile/link and full hosted CTest therefore remain **NOT RUN** for these exact SHAs.
+
+**Known remaining gap:** synchronous double-read catches a session change during one operation, but cannot detect an unobserved switch-away-and-back occurring entirely between later calls. The next R7 lifecycle increment is a monotonic native console/session-change revision/watch pinned by this guard. Positive macOS R2/R3 admission, live capture/input, owner macOS 27, Microsoft-client interoperability and performance/reliability remain **NOT RUN**. M5 remains **OPEN**.

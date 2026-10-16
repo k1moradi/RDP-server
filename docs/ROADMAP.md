@@ -1,3 +1,57 @@
+## R9 licensing credential-path replacement freshness exact-SHA receipt (2026-10-16)
+
+**Implementation:** `0013bf00a20b1c8c92c66eb6552f003b1a4f752b`.  
+**Actions:** `38969090371` — overall **FAIL** only because the inherited R7
+macOS test source from parent `7b2426144d1bab893a67dc21971b6036b089f012`
+did not compile. The R9 sanitizer job, Linux/GCC, Windows/MSVC, documentation
+policy and the independent R7 sanitizer all completed successfully.
+
+The new production-backed
+`runtime.licensing-context-replacement-freshness` is CTest **104**. R9's
+fail-closed registry preflight discovers both the pre-existing
+`runtime.licensing-context-secure-file-snapshots` case (**103**) and the new
+freshness case. Under Clang ASan/UBSan the freshness case passes in **0.52 s**
+and the expanded bounded R1/R3/security/licensing group is **63/63 PASS**.
+The remaining sanitizer groups pass: clipboard **50/50**, x264/BGRA **20/20**,
+RDPGFX capability **4/4**, native GSS/R2/R3 **27/27**, R10 pre-admission
+**5/5**, native X11 **26/26**, and bounded fuzzer **1/1**.
+
+Hosted exact-SHA platform evidence that completed:
+- Linux/GCC: **473/473 Debug + 473/473 Release PASS**; the new case passes in
+  **0.57 s / 0.24 s**. Installed SDK consumer **1/1 PASS** and package,
+  digest, artifact upload **PASS**.
+- Windows/MSVC: focused native preflight **47/47 Debug + 47/47 Release PASS**;
+  full CTest **428/428 Debug + 428/428 Release PASS**; the new case passes in
+  **0.25 s / 0.17 s**. Installed SDK consumer **1/1 PASS** and package,
+  digest, artifact upload **PASS**.
+- Documentation policy and the independent R7 sanitizer gate **PASS**.
+- Untagged `publish-protocol-prerelease` is correctly **SKIPPED**.
+
+The exact-SHA macOS job is **COMPILE FAIL / CTest NOT RUN**. Its reported
+errors are only in concurrent R7
+`tests/test_macos_capture_pixel_buffer.cpp`: unqualified
+`NativeDisplayReconfigurationWatch` references should name
+`rdp::macos::NativeDisplayReconfigurationWatch`. R9 does not rewrite that
+failure as a pass. R7 descendant
+`b0a439898976d2c64719fe5ae6fefbbc8d639f84`, Actions `38969197292`,
+changes only R7 docs plus that macOS test source and leaves the R9 files
+unchanged. Its macOS job passes **400/400 Debug + 400/400 Release**, including
+the R9 freshness case as CTest **104** in **0.23 s / 0.12 s**; downstream
+consumer **1/1**, package, digest and artifact upload also pass.
+
+Validated R9 invariant: a retained successful credential snapshot is local to
+that configured context. After the source certificate/private-key pathnames are
+replaced, a distinct `RuntimeLicensingContext` must freshly open current
+objects, reject the replacement bytes, expose no identity/credential, and stay
+terminal on replay. No process/global success cache, R2 lease, CAL decision,
+listener, Share activation or desktop authority is created.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizer execution remain **NOT RUN** in this connector environment.
+Genuine Kerberos/NSS/logind admission, CAL trust/product/expiry validation,
+Microsoft-client licensing/Share/desktop acceptance and M2/M3 remain
+**NOT RUN / OPEN**.
+
 ## R2 CLIENT_LICENSE_INFO HWID-proof authority exact-SHA validation (2026-10-16)
 
 **R2 hardening:** `09ac1e1759970c03fd0e5d57eb94bf43ed61491d`.  

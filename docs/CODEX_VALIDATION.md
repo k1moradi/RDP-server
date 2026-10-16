@@ -7219,3 +7219,30 @@ environment, exact-SHA hosted CI, owner Linux/X11, Windows MSYS2
 CLANG64/Clang23 and macOS27 one-root commands, admitted desktop routing, R4
 frame/cursor consumption, Microsoft-client M3 acceptance, and performance
 benchmarks.
+
+
+### R9 first hosted sanitizer boundary and dependency correction (2026-10-16)
+
+Implementation SHA `f99a2ad3efefb03b2316cc940cc625f77d3699eb`,
+Actions **38874696875**, reached Ubuntu Clang **18.1.3** with
+`RDP_SERVER_TEST_LINUX_GSSAPI=ON`, real Kerberos OFF and the unchanged
+ASan/UBSan/LSan settings. Configuration succeeded, but compilation of the real
+Linux native-admission target stopped before CTest: without libsystemd
+development metadata, the optional no-systemd compilation left native logind
+storage fields unused under Clang's `-Werror`
+(`sessionIdBytes_`, `displayBytes_`, and `monitor_`). This is the first
+R9 failing boundary; no sanitizer diagnostic or test failure occurred because
+the target did not finish compiling.
+
+The correction keeps production code, warnings and sanitizer settings intact
+and adds only `libsystemd-dev` to the existing sanitizer job's Linux build
+dependencies. This compiles the actual systemd/logind integration that the
+native R2 admission broker depends on rather than suppressing Clang warnings
+or weakening the gate. Exact-SHA rerun is **PENDING**.
+
+In the same `f99a2ad3...` workflow, Linux/GCC full Debug+Release completed
+successfully. macOS Debug failed independently in the R1 fixture
+`transport.tcp-owned-connection-cancellation` at
+`test_owned_preauth_session.cpp:1964` because a loopback accept was assumed
+immediately visible; R9 does not modify that R1 boundary. Windows was still
+running when this correction was authored.

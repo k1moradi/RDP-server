@@ -118,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libkrb5-dev pkg-config
+          sudo apt-get install -y --no-install-recommends libkrb5-dev libsystemd-dev pkg-config
       - name: Configure first-party protocol tests with ASan and UBSan
         shell: bash
         run: |

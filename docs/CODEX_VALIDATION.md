@@ -5511,3 +5511,30 @@ human-desktop, three owner-operated platform builds or benchmark.
 **Next:** verify exact implementation SHA on GitHub Actions Linux native
 Debug/Release and all platform CTests, then integrate R5 resources under
 the admitted display/session owner (R2/R3) and R4 graphics.
+
+## R1 one-shot/listener-poll role and nonblocking validation (2026-10-15)
+
+**Parent main:** `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`. **Production:** single native
+`acceptNonblockingTcpConnection` rejects connected sockets
+and POSIX blocking listeners before `accept4/accept`. The
+existing borrowed listener poll applies the same precondition
+before readiness waiting; all batches still use the one-shot
+acceptor. Listener flags, ownership and R2/R3 authority remain
+unchanged. Windows `FIONBIO` mode must be configured by runtime;
+`SO_ACCEPTCONN` is verified via Winsock `getsockopt`.
+**Dedicated new CTest:** `transport.tcp-native-listener-role-and-mode-denials`
+(real queued loopback peer, non-listener all-API failure,
+POSIX blocking listener failure without stolen peer, sole owner
+handoff after caller-controlled flag restoration), registered
+in the existing central CTest list with TIMEOUT 20.
+**Files:** native TCP header/implementation, existing preauth
+tests, shared CMake test registry and existing ROADMAP,
+ARCHITECTURE, coding/testing standards and validation ledger.
+**Previous baseline:** current `main` `ea1cf468986b15bcc4ee0b43b70082cfc0862e82` hosted
+CI PASS on Linux/GCC, macOS/AppleClang and Windows/MSVC.
+**NOT RUN at authoring:** new-code local CMake/CTest (worker
+has no clone), exact implementation Actions, owner Linux/X11,
+Windows CLANG64/Clang23 and macOS27, real client, R2
+identity/OS admission and R3 authorized session.
+**Next:** exact-SHA hosted validation, then R10 runtime
+integration gated by independent R2/R3 authorization.

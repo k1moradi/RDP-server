@@ -1351,3 +1351,13 @@ deadline before socket operations, and do not silently retry
 interrupts. Never close a borrowed listener on poll error or
 deadline; neither the presence of a pending connection nor a
 successful X.224/TLS diagnostic implies R2/R3 authorization.
+
+## R1 listener role/nonblocking fail-closed guard (2026-10-15)
+
+Only `SO_ACCEPTCONN`-verified listening sockets may enter a
+native accept callback. On POSIX reject listeners missing
+`O_NONBLOCK` before calling `accept`, using `F_GETFL`
+without mutating flags. A caller still owns the listener,
+its socket mode, fairness and lifetime; Windows callers MUST
+configure `FIONBIO` explicitly. No new listening service,
+session controller or identity authority.

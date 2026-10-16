@@ -2766,6 +2766,85 @@ void testNativeTcpListenerPollDeadlineAndDenials()
     assert(failed.batch.accepted == 0 && state.called == 1);
 }
 
+
+void testNativeTcpListenerRoleAndModeDenials()
+{
+    using Batch = TcpAcceptBatchOutcome;
+    using Poll = TcpListenerPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    const auto listener = static_cast<std::uintptr_t>(pair.listener.value);
+    const auto client = static_cast<std::uintptr_t>(pair.client.value);
+    std::size_t calls = 0;
+    const auto callback = +[](OwnedNativeTcpSocket socket,
+                              void *context) noexcept -> bool
+    {
+        assert(socket.valid());
+        ++*static_cast<std::size_t *>(context);
+        OwnedPreauthTcpConnection owner{std::move(socket)};
+        assert(owner.active());
+        assert(!socket.valid());
+        owner.cancel();
+        assert(!owner.active());
+        return true;
+    };
+    const auto deadline = Clock::now() + std::chrono::seconds{10};
+
+    // A connected stream socket is not a listening socket. It cannot
+    // be promoted into a preauth owner by a one-shot/batch/poll call.
+    const auto directRejected = acceptNonblockingTcpConnection(client);
+    assert(directRejected.outcome == TcpAcceptOutcome::Failure);
+    assert(!directRejected.connection.valid());
+    const auto batchRejected = acceptNonblockingTcpBatch(
+        client, 1, callback, &calls);
+    assert(batchRejected.outcome == Batch::Failure);
+    assert(batchRejected.accepted == 0 && calls == 0);
+    const auto pollRejected = pollNonblockingTcpAcceptBatch(
+        client, 1, callback, &calls, deadline,
+        std::chrono::milliseconds{0});
+    assert(pollRejected.outcome == Poll::Failure);
+    assert(pollRejected.batch.accepted == 0 && calls == 0);
+
+#ifndef _WIN32
+    // The legitimate listener has a client queued. A temporarily
+    // blocking descriptor must fail closed without consuming it
+    // and without silently changing borrowed descriptor flags.
+    const int fd = static_cast<int>(listener);
+    const int flags = ::fcntl(fd, F_GETFL, 0);
+    assert(flags >= 0 && (flags & O_NONBLOCK) != 0);
+    assert(::fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) == 0);
+    const auto blockedDirect = acceptNonblockingTcpConnection(listener);
+    assert(blockedDirect.outcome == TcpAcceptOutcome::Failure);
+    assert(!blockedDirect.connection.valid());
+    const auto blockedBatch = acceptNonblockingTcpBatch(
+        listener, kMaximumTcpAcceptBatch, callback, &calls);
+    assert(blockedBatch.outcome == Batch::Failure);
+    assert(blockedBatch.accepted == 0 && calls == 0);
+    const auto blockedPoll = pollNonblockingTcpAcceptBatch(
+        listener, 1, callback, &calls, deadline,
+        std::chrono::milliseconds{0});
+    assert(blockedPoll.outcome == Poll::Failure);
+    assert(blockedPoll.batch.accepted == 0 && calls == 0);
+    assert((::fcntl(fd, F_GETFL, 0) & O_NONBLOCK) == 0);
+    // Only the caller may restore its listening descriptor mode.
+    assert(::fcntl(fd, F_SETFL, flags) == 0);
+    assert((::fcntl(fd, F_GETFL, 0) & O_NONBLOCK) != 0);
+#endif
+
+    // The original queued client is STILL available and transferred
+    // once into the same existing nonmoving preauth connection owner.
+    const auto accepted = acceptNonblockingTcpBatch(
+        listener, 1, callback, &calls);
+    assert(accepted.outcome == Batch::BudgetReached);
+    assert(accepted.accepted == 1 && calls == 1);
+    assert(pair.listener.value != kInvalidLocalSocket);
+    const auto idle = acceptNonblockingTcpBatch(
+        listener, 1, callback, &calls);
+    assert(idle.outcome == Batch::WouldBlock);
+    assert(idle.accepted == 0 && calls == 1);
+}
+
 void testNativeTcpChunkBounds()
 {
     // Real OS sockets, loopback only. The caller provides buffers much
@@ -5198,6 +5277,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-native-accept-orderly-eof", &testNativeTcpAcceptOrderlyPeerDisconnect},
     {"tcp-native-accept-batch-budget-handoff", &testNativeTcpAcceptBatchBudgetAndHandoff},
     {"tcp-native-accept-batch-stops-denials", &testNativeTcpAcceptBatchStopsAndDenials},
+    {"tcp-native-listener-role-and-mode-denials", &testNativeTcpListenerRoleAndModeDenials},
     {"tcp-listener-poll-budget-handoff", &testNativeTcpListenerPollBudgetAndOwnerHandoff},
     {"tcp-listener-poll-deadline-denials", &testNativeTcpListenerPollDeadlineAndDenials},
     {"tcp-owned-connection-tls-lifecycle", &testOwnedTcpConnectionTlsLifecycle},

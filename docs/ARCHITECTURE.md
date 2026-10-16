@@ -1839,3 +1839,14 @@ the callback) `OwnedPreauthTcpConnection`. It never closes the
 borrowed listener even on poll error. R10 owns process/listener
 policy, fairness and timeout selection; R2/R3 still own
 authenticated session authorization and activation.
+
+## R1 fail-closed borrowed-listener configuration (2026-10-15)
+
+`SO_ACCEPTCONN` must report an actual listening socket before the
+native one-shot accept or borrowed listener readiness wait. POSIX
+additionally checks `O_NONBLOCK` through read-only `F_GETFL`
+before any accept. These checks do NOT configure, bind, duplicate,
+close or otherwise own the listener. Windows runtime must set
+`FIONBIO` itself because the existing mode is not safely queryable.
+The already sole accepted-socket owner and authenticated R2/R3
+session boundaries remain unchanged.

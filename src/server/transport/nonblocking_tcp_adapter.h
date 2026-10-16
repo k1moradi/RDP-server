@@ -133,8 +133,10 @@ struct TcpAcceptResult
 };
 
 // Accept ONE connection on a caller-owned, already-bound/listening,
-// NONBLOCKING socket. No hidden wait/retry, bind policy, daemon or session
-// admission. A successful result owns one NONBLOCKING, close-on-exec (POSIX)
+// NONBLOCKING socket. SO_ACCEPTCONN rejects non-listening sockets and
+// POSIX F_GETFL rejects blocking listeners BEFORE a native accept.
+// Winsock callers MUST set FIONBIO (mode cannot be queried safely).
+// No hidden wait/retry, bind policy, daemon or session admission. A successful result owns one NONBLOCKING, close-on-exec (POSIX)
 // / non-inheritable (Windows) connected socket, suitable for NativeTcpIo.
 // On macOS/BSD, configure SO_NOSIGPIPE before exposing the accepted socket.
 [[nodiscard]] TcpAcceptResult acceptNonblockingTcpConnection(
@@ -168,7 +170,8 @@ struct TcpAcceptResult
      OwnedNativeTcpSocket accepted, void *context) noexcept;
 
  // Exactly budget at most, bounded to 1..16; invalid inputs never
- // consume an incoming connection. No dynamic arrays, sleep or poll.
+ // consume an incoming connection. Each one-shot accept checks its
+ // listener role and POSIX nonblocking mode. No arrays/sleep/poll.
  // false from callback stops AFTER that descriptor transfers.
  [[nodiscard]] TcpAcceptBatchResult acceptNonblockingTcpBatch(
      std::uintptr_t listenerSocket, std::size_t budget,
@@ -315,7 +318,8 @@ private:
 
  // Supply a monotonic deadline and one-step maxWait; clamped to 25ms.
  // POSIX: poll(POLLIN). Winsock: select(readfds) for listener
- // compatibility. EINTR returns NoEvent without hidden retry.
+ // compatibility. Fail closed before polling a non-listener or
+ // a POSIX listener lacking O_NONBLOCK. No EINTR hidden retry.
  // An OS error does not close the listener. If ready, accept at most
  // budget connections and transfer each to the caller callback.
  [[nodiscard]] TcpListenerPollResult pollNonblockingTcpAcceptBatch(

@@ -887,6 +887,28 @@ actually run; another parser CTest alone is not a complete session.
   activation. Next: R10 bounded runtime listener integration
   after the independent security and session gates.
 
+
+  **R1 listener role/nonblocking configuration guard (2026-10-15;
+  parent `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`; corrected exact-code CI pending):**
+  Fail closed on an actual native TCP socket that is NOT listening
+  using POSIX/Winsock `getsockopt(SO_ACCEPTCONN)` in the one-shot
+  acceptor and pre-poll borrowed listener gate. POSIX additionally
+  rejects a listener without `fcntl(F_GETFL) & O_NONBLOCK`
+  BEFORE a possibly blocking `accept`. The batch inherits the
+  single acceptor's validation. Winsock cannot query `FIONBIO`
+  non-mutatingly, so R10/runtime MUST still set nonblocking mode.
+  No changes to caller-owned listener flags, queue, service or
+  user admission. New registered 20s-watchdog CTest
+  `transport.tcp-native-listener-role-and-mode-denials`: all-platform
+  connected non-listener denials in one-shot/batch/poll; POSIX
+  queued-peer blocking-listener fail-closed and restored modes;
+  exactly one successful existing-owner handoff afterward.
+  **NOT RUN at authoring:** new full CTest/exact source-SHA CI,
+  owner Linux/X11, MSYS2 CLANG64/Clang23 and macOS27 tests,
+  live RDP service/R2/R3 authorized session or Microsoft client.
+  Next: R10's gated live listener scheduling using the sole
+  R1 transport owner without creating competing state authority.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

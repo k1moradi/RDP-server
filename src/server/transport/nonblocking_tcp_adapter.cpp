@@ -144,6 +144,37 @@ struct TcpBioMethod final
 }
 }
 
+
+[[nodiscard]] bool configuredNativeListener(
+    std::uintptr_t candidate) noexcept
+{
+    if (candidate == OwnedNativeTcpSocket::kInvalidSocket) return false;
+    int listening = 0;
+#ifdef _WIN32
+    // The caller must already have set FIONBIO; Winsock provides
+    // no non-mutating query for this mode. SO_ACCEPTCONN is read-only.
+    int length = sizeof(listening);
+    if (::getsockopt(static_cast<SOCKET>(candidate), SOL_SOCKET,
+                     SO_ACCEPTCONN, reinterpret_cast<char *>(&listening),
+                     &length) != 0)
+        return false;
+#else
+    if (candidate > static_cast<std::uintptr_t>(
+            (std::numeric_limits<int>::max)()))
+        return false;
+    const int descriptor = static_cast<int>(candidate);
+    const int flags = ::fcntl(descriptor, F_GETFL, 0);
+    if (flags < 0 || (flags & O_NONBLOCK) == 0)
+        return false;
+    socklen_t length = sizeof(listening);
+    if (::getsockopt(descriptor, SOL_SOCKET, SO_ACCEPTCONN,
+                     &listening, &length) != 0)
+        return false;
+#endif
+    return length == static_cast<decltype(length)>(sizeof(listening)) &&
+           listening != 0;
+}
+
 bool attachNonblockingTcpBio(SSL *tls, TcpNonblockingIo &io) noexcept
 {
     if (tls == nullptr || SSL_get_rbio(tls) != nullptr ||
@@ -263,7 +294,7 @@ void OwnedNativeTcpSocket::close() noexcept
 TcpAcceptResult acceptNonblockingTcpConnection(
     std::uintptr_t listenerSocket) noexcept
 {
-    if (listenerSocket == OwnedNativeTcpSocket::kInvalidSocket)
+    if (!configuredNativeListener(listenerSocket))
         return {};
 
 #ifdef _WIN32
@@ -393,6 +424,10 @@ TcpListenerPollResult pollNonblockingTcpAcceptBatch(
             (std::numeric_limits<int>::max)()))
         return {Outcome::InvalidInput, {}};
 #endif
+
+    // Reject a misconfigured borrowed listener before a native wait.
+    if (!configuredNativeListener(listenerSocket))
+        return {Outcome::Failure, {}};
 
     const auto now = std::chrono::steady_clock::now();
     if (now >= deadline) return {Outcome::Expired, {}};

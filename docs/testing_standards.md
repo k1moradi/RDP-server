@@ -1819,3 +1819,16 @@ for the original listener to be readable via
 before asserting the *same* callback count, one accepted descriptor,
 `Drained` outcome and listener preservation. Do not change
 production socket behavior or weaken rejection/RAII assertions.
+
+## R1 native listener role/mode denial CTest (2026-10-15)
+
+`transport.tcp-native-listener-role-and-mode-denials` runs
+under the existing preauth executable/central registry with a
+20-second timeout. A real connected but non-listening loopback
+socket is rejected by one-shot, batch and listener-poll APIs
+on all hosts. POSIX additionally sets a genuine listening
+descriptor to blocking, checks three fail-closed denials without
+consuming the queued peer or modifying flags, restores its
+original nonblocking mode, then proves exactly one successful
+handoff to the existing sole preauth owner. No live service,
+credentials, OS authorization or desktop.

@@ -98,6 +98,7 @@ function(add_rdp_test source_file suite behavior)
                 tcp-native-accept-orderly-eof
                 tcp-native-accept-batch-budget-handoff
                 tcp-native-accept-batch-stops-denials
+                tcp-native-listener-role-and-mode-denials
                 tcp-listener-poll-budget-handoff
                 tcp-listener-poll-deadline-denials
                 tcp-owned-connection-tls-lifecycle
@@ -145,6 +146,7 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             transport.tcp-native-accept-batch-budget-handoff
             transport.tcp-native-accept-batch-stops-denials
+            transport.tcp-native-listener-role-and-mode-denials
             transport.tcp-listener-poll-budget-handoff
             transport.tcp-listener-poll-deadline-denials
             PROPERTIES TIMEOUT 20)

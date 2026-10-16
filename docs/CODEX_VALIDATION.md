@@ -6447,3 +6447,27 @@ CI compiles it with libFuzzer+ASan+UBSan and retains prior
 Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27, live
 NLA/OS admission or Microsoft client/desktop. Any fuzzer
 crash is FAIL; preserve reproducer and first production stack.
+
+## R5 native XTEST hosted Linux receipt (2026-10-16)
+
+**Implementation commit:** `987b4736c001edeb3cd4c2a4675080b583ca134c`.
+Exact-SHA Actions run 38866079679 installed Ubuntu Noble
+`libxcb-xtest0-dev` and successfully compiled/linked the real
+`src/x11/x11_input_controller.cpp` target
+`rdp-server-linux-xtest-input`. The shared job then stopped on the unrelated
+R1 `tests/test_owned_preauth_session.cpp` OpenSSL constness compile error;
+parent `e6504314c87fadbb9fcf1cde7f09f9fa5b9de010` reproduces that same
+failure on Linux/GCC, Windows/MSVC and macOS/Clang.
+
+R1 descendant `1260eb659073d5269724a4436e3a8bbfda322725` modifies only
+R1 test/docs after the R5 implementation. Actions run 38866320385 builds the
+unchanged XTEST production target and `test_x11_native_input`, and
+`x11.input-native-connection-denials-and-cancellation` is **PASS** in
+Ubuntu Debug and Release. Full Ubuntu CTests are **277/277 PASS** in Debug
+and **277/277 PASS** in Release; SDK install, downstream consumer, ZIP
+package/digest and upload stages PASS.
+
+**NOT RUN:** owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+same-SHA commands; authorized R2/R3 desktop/input routing; live XTEST
+injection; Microsoft-client M3 acceptance; performance benchmarks. Protected
+input remains disconnected from the server runtime.

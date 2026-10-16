@@ -3269,6 +3269,20 @@ actually run; another parser CTest alone is not a complete session.
   one admitted XCB owner, then bind R3-authorized input and R4 frame/cursor
   consumption without creating a second scheduler. M3 remains OPEN.
 
+  **R5 native XTEST hosted Linux receipt (2026-10-16):**
+  implementation `987b4736c001edeb3cd4c2a4675080b583ca134c`.
+  Exact-SHA Actions run 38866079679 installed `libxcb-xtest0-dev` and
+  compiled/linked the real native XTEST target before the shared build hit
+  the pre-existing R1 OpenSSL constness failure also reproduced by parent
+  `e6504314c87fadbb9fcf1cde7f09f9fa5b9de010` on all three hosted OSes.
+  R1 descendant `1260eb659073d5269724a4436e3a8bbfda322725` changes only
+  R1 test/docs after the R5 implementation; Actions run 38866320385 builds
+  unchanged R5 source and runs
+  `x11.input-native-connection-denials-and-cancellation` **PASS** in
+  Ubuntu Debug and Release, with full **277/277 PASS** in each configuration
+  plus SDK install/consumer/package stages PASS. No DISPLAY, live input,
+  R2/R3 authorization, Microsoft client or M3 acceptance was exercised.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

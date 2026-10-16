@@ -102,7 +102,9 @@ jobs:
 
   # Quality road R9: instrument the real production-linked clipboard
   # protocol tests. One ephemeral checkout-local build/ root, no real peer.
-  r9-clipboard-sanitizers:
+  # R9: one bounded sanitizer job across existing first-party CLIPRDR,
+  # MCS channel/length and CredSSP DER/binding rejection contracts.
+  r9-security-protocol-sanitizers:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +114,7 @@ jobs:
           set -euo pipefail
           command -v clang++
           clang++ --version
-      - name: Configure first-party CLIPRDR tests with ASan and UBSan
+      - name: Configure first-party protocol tests with ASan and UBSan
         shell: bash
         run: |
           set -euo pipefail
@@ -121,13 +123,88 @@ jobs:
             -DCMAKE_CXX_COMPILER=clang++ \
             "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
-      - name: Compile both production-linked clipboard test targets
-        run: cmake --build build --config Debug --parallel 2 --target test_owned_remote_transfer test_clipboard_protocol
-      - name: Run every registered clipboard CTest with sanitizers
+      - name: Compile existing production-linked protocol test targets
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_owned_remote_transfer test_clipboard_protocol \
+            test_owned_mcs_connect_initial test_owned_credssp_tsrequest \
+            test_owned_credssp_binding
+      - name: Run all registered clipboard CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --build-config Debug -L clipboard --output-on-failure
+      - name: Run bounded MCS and CredSSP rejection CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --build-config Debug \
+            -R '^(transport\.(mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices)|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))  documentation-policy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
+ \
+            --output-on-failure
 
   documentation-policy:
     if: github.event_name == 'push'

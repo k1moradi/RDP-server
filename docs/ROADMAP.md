@@ -3892,6 +3892,30 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   live client and authenticated desktop NOT RUN. Next: R3's real
   session-authorized clipboard router and expanded fuzzing.
 
+  **R9 security/MCS sanitizer coverage expansion (2026-10-15):**
+  Extend the existing first-party Ubuntu/Clang ASan+UBSan
+  `r9-clipboard-sanitizers` job into the SAME single bounded CI
+  job `r9-security-protocol-sanitizers` (not a second workflow).
+  Under one ephemeral checkout-local `build/`, compile the five
+  production-linked clipboard, MCS Connect-Initial, CredSSP DER
+  and CredSSP binding test binaries with Debug symbols,
+  `-fsanitize=address,undefined` and preserved frame pointers.
+  Preserve the entire existing `ctest -L clipboard` suite,
+  and add exactly ten *existing* named CTests covering hostile MCS
+  envelope lengths/BER, joined membership/stale receipts, and
+  CredSSP DER rejection/bounds/mutations and public-key binding.
+  Leak and UB detection halt the job; no live TLS session,
+  native desktop, credentials or alternate test registry/build root.
+  Existing Linux/GCC, macOS/Clang and Windows/MSVC Debug/Release
+  matrices and SDK packaging remain unchanged.
+  **Parent main SHA:** `90c17fc19fe17ddc6e87ed712d8b22f5484eb4d6`. **NOT RUN at authoring:**
+  new expanded sanitizer CI and owner three-platform commands;
+  preceding clipboard-only ASan/UBSan job **12/12 PASS**
+  at `9e4d33b60ca87606cd66625c4212b326d98b5204`.
+  **Next:** inspect new exact-SHA job for first real sanitizer
+  error, record compiler and CTest evidence, then validate
+  R3→R8 genuine authorized channel routing when available.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

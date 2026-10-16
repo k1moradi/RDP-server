@@ -4981,3 +4981,45 @@ focused/full CTest (unavailable); exact commit Actions
 independent OS login-session authorization and owner's three
 platforms. R2 Gate A remains OPEN; next verify hosted CI and
 audited, revocable OS identity/session capability for R3.
+
+## R9 MCS and CredSSP native sanitizer extension (2026-10-15)
+
+**Implementation parent SHA:** `90c17fc19fe17ddc6e87ed712d8b22f5484eb4d6`. Updated:
+`.github/workflows/ci.yml`, `docs/ROADMAP.md`,
+`docs/CODEX_VALIDATION.md`. Existing production/tests and
+central `tests/CMakeLists.txt` remain unchanged.
+**Replaced rather than duplicated CI job:** `r9-security-protocol-sanitizers`
+runs Ubuntu/Clang C++23 Debug, `-fsanitize=address,undefined
+-fno-omit-frame-pointer -fno-sanitize-recover=all`,
+`-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined`.
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1` and
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`
+apply to both CTest steps. Reuses one `build/`.
+Five production-linked binaries compiled:
+`test_owned_remote_transfer`, `test_clipboard_protocol`,
+`test_owned_mcs_connect_initial`,
+`test_owned_credssp_tsrequest`, `test_owned_credssp_binding`.
+Runs all `-L clipboard` CTests and ten additional existing
+named CTests: `transport.mcs-envelope-tpkt-errors`,
+`transport.mcs-envelope-ber-errors`,
+`transport.mcs-envelope-mutations`,
+`transport.mcs-send-data-joined-denials`,
+`transport.mcs-join-stale-write-receipts`,
+`transport.mcs-join-stale-partial-write-slices`,
+`security.credssp-der-rejections`,
+`security.credssp-der-bounds`,
+`security.credssp-der-mutations`, and
+`security.credssp-binding`.
+All are headless bounded production-contract tests using
+the existing registry, not an independent fuzzing engine.
+
+**PASS pre-implementation:** existing original clipboard
+ASan+UBSan job at `9e4d33b60ca87606cd66625c4212b326d98b5204`,
+[Actions 38849272774](https://github.com/k1moradi/RDP-server/actions/runs/38849272774)
+12/12. **NOT RUN for this new SHA at authoring:**
+actual expanded Actions sanitizer CI, normal three-OS CI,
+owner single-root Linux/X11, Windows MSYS2 CLANG64 Clang23
+and macOS27 commands, live TLS/NLA/OS admission and Microsoft-client
+desktop or clipboard. **Next:** exact SHA build/test/sanitizer
+receipts, triage first failing boundary if any, retain
+existing full CTest and SDK/package gates.

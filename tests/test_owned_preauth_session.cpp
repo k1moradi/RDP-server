@@ -3915,6 +3915,360 @@ void testR3ClientLicensingReadThroughOwnedTls()
 }
 
 
+inline constexpr std::size_t kR1ClientPlatformChallengeLicensingBytes =
+    4U + 4U + kRdpPlatformChallengeResponseDataBytes +
+    4U + kRdpLicensingHardwareIdBytes + kRdpLicensingMacBytes;
+inline constexpr std::size_t kR1ClientPlatformChallengeUserDataBytes =
+    4U + kR1ClientPlatformChallengeLicensingBytes;
+inline constexpr std::size_t kR1ClientPlatformChallengeTpktBytes =
+    7U + 7U + kR1ClientPlatformChallengeUserDataBytes;
+
+[[nodiscard]] std::array<std::uint8_t,
+                         kR1ClientPlatformChallengeTpktBytes>
+makeClientPlatformChallengeResponseTpkt(
+    std::span<const std::uint8_t> challenge,
+    const RdpLicensingKeyMaterial &keyMaterial)
+{
+    static_assert(kR1ClientPlatformChallengeUserDataBytes <= 127U);
+    static_assert(kR1ClientPlatformChallengeLicensingBytes <= UINT16_MAX);
+    static_assert(kR1ClientPlatformChallengeTpktBytes <= UINT16_MAX);
+    assert(challenge.size() == kRdpPlatformChallengePlaintextBytes);
+
+    std::array<std::uint8_t, kRdpPlatformChallengeResponseDataBytes>
+        responseData{};
+    const auto putLe16 =
+        [&](std::size_t offset, std::uint16_t value)
+        {
+            assert(offset + 2U <= responseData.size());
+            responseData[offset] = static_cast<std::uint8_t>(value);
+            responseData[offset + 1U] =
+                static_cast<std::uint8_t>(value >> 8U);
+        };
+    putLe16(0U, 0x0100U);
+    putLe16(2U, 0x0100U);
+    putLe16(4U, 0x0003U);
+    putLe16(6U, static_cast<std::uint16_t>(challenge.size()));
+    std::copy(
+        challenge.begin(), challenge.end(),
+        responseData.begin() +
+            static_cast<std::ptrdiff_t>(
+                kRdpPlatformChallengeResponseHeaderBytes));
+
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId{};
+    for (std::size_t index = 0U; index < hardwareId.size(); ++index)
+        hardwareId[index] = static_cast<std::uint8_t>(0x40U + index);
+
+    std::array<std::uint8_t, kRdpPlatformChallengeResponseDataBytes>
+        encryptedResponse{};
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes>
+        encryptedHardwareId{};
+    assert(cryptRdpLicensingData(
+        keyMaterial.encryptionKey, responseData, encryptedResponse));
+    assert(cryptRdpLicensingData(
+        keyMaterial.encryptionKey, hardwareId, encryptedHardwareId));
+
+    std::array<std::uint8_t,
+               kRdpPlatformChallengeResponseDataBytes +
+                   kRdpLicensingHardwareIdBytes> macInput{};
+    std::copy(responseData.begin(), responseData.end(), macInput.begin());
+    std::copy(
+        hardwareId.begin(), hardwareId.end(),
+        macInput.begin() +
+            static_cast<std::ptrdiff_t>(responseData.size()));
+    const auto mac = generateRdpLicensingMac(
+        keyMaterial.macSaltKey, macInput);
+    assert(mac);
+
+    std::array<std::uint8_t, kR1ClientPlatformChallengeTpktBytes> packet{};
+    std::size_t offset = 0U;
+    const auto appendByte = [&](std::uint8_t value)
+    {
+        assert(offset < packet.size());
+        packet[offset++] = value;
+    };
+    const auto appendLe16 = [&](std::uint16_t value)
+    {
+        appendByte(static_cast<std::uint8_t>(value));
+        appendByte(static_cast<std::uint8_t>(value >> 8U));
+    };
+    const auto appendSpan = [&](std::span<const std::uint8_t> bytes)
+    {
+        assert(offset <= packet.size() &&
+               bytes.size() <= packet.size() - offset);
+        std::copy(
+            bytes.begin(), bytes.end(),
+            packet.begin() + static_cast<std::ptrdiff_t>(offset));
+        offset += bytes.size();
+    };
+
+    // RFC 1006 TPKT + X.224 Data TPDU.
+    appendByte(0x03U);
+    appendByte(0x00U);
+    appendByte(static_cast<std::uint8_t>(packet.size() >> 8U));
+    appendByte(static_cast<std::uint8_t>(packet.size()));
+    appendByte(0x02U);
+    appendByte(0xf0U);
+    appendByte(0x80U);
+
+    // T.125 SendDataRequest: user 1001, global I/O channel 1003,
+    // high priority value 0, complete begin|end segmentation.
+    appendByte(0x64U);
+    appendByte(0x00U);
+    appendByte(0x00U);
+    appendByte(0x03U);
+    appendByte(0xebU);
+    appendByte(0x30U);
+    appendByte(static_cast<std::uint8_t>(
+        kR1ClientPlatformChallengeUserDataBytes));
+
+    // Enhanced Security Basic Security Header: SEC_LICENSE_PKT.
+    appendByte(0x80U);
+    appendByte(0x00U);
+    appendByte(0x00U);
+    appendByte(0x00U);
+
+    // CLIENT_PLATFORM_CHALLENGE_RESPONSE.
+    appendByte(0x15U);
+    appendByte(0x03U);
+    appendLe16(static_cast<std::uint16_t>(
+        kR1ClientPlatformChallengeLicensingBytes));
+
+    appendLe16(0x0009U);
+    appendLe16(static_cast<std::uint16_t>(encryptedResponse.size()));
+    appendSpan(encryptedResponse);
+    appendLe16(0x0009U);
+    appendLe16(static_cast<std::uint16_t>(encryptedHardwareId.size()));
+    appendSpan(encryptedHardwareId);
+    appendSpan(mac.value);
+
+    assert(offset == packet.size());
+    return packet;
+}
+
+void testR3ClientPlatformChallengeResponseReadThroughOwnedTls()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    static_assert(kR1ClientPlatformChallengeTpktBytes <=
+                  kMaximumTlsApplicationIoBytes);
+
+    const auto initialPacket = makeMaximumClientLicensingTpkt();
+    const auto initialRequest = parseMcsChannelRequest(initialPacket);
+    assert(initialRequest);
+    const auto initialEnvelope =
+        parseEnhancedSecurityLicensingEnvelope(
+            initialRequest.request.userData);
+    assert(initialEnvelope);
+
+    constexpr std::array<std::uint8_t, 8> company{
+        0x52,0x00,0x44,0x00,0x50,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 8> product{
+        0x41,0x00,0x30,0x00,0x32,0x00,0x00,0x00};
+    constexpr std::array<std::uint8_t, 4> certificate{
+        0xde,0xad,0xbe,0xef};
+    constexpr std::array<std::uint8_t, 6> scope{
+        0x73,0x63,0x6f,0x70,0x65,0x00};
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, company, product, certificate, scope));
+
+    RdpLicensingLifecycle lifecycle;
+    RdpServerLicenseRequestWriteGate requestWriter{lifecycle};
+    assert(requestWriter.queue(identity));
+    const auto serverRequest = requestWriter.pendingWrite();
+    assert(serverRequest);
+    assert(requestWriter.onBytesWritten(
+               serverRequest.replySequence,
+               serverRequest.writeSliceSequence,
+               serverRequest.bytes.size()) ==
+           RdpServerLicenseRequestWriteOutcome::Delivered);
+    assert(lifecycle.onClientMessage(
+               initialEnvelope.value.licensingMessage) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+
+    RdpLicensingKeyMaterial keyMaterial{};
+    for (std::size_t index = 0U; index < kRdpLicensingKeyBytes; ++index)
+    {
+        keyMaterial.macSaltKey[index] = static_cast<std::uint8_t>(index);
+        keyMaterial.encryptionKey[index] =
+            static_cast<std::uint8_t>(0x10U + index);
+    }
+
+    RdpServerPlatformChallengeWriteGate challengeWriter{lifecycle};
+    assert(challengeWriter.queue(keyMaterial));
+    const auto challengeWrite = challengeWriter.pendingWrite();
+    assert(challengeWrite);
+    assert(challengeWriter.onBytesWritten(
+               challengeWrite.replySequence,
+               challengeWrite.writeSliceSequence,
+               challengeWrite.bytes.size()) ==
+           RdpServerPlatformChallengeWriteOutcome::Delivered);
+    assert(lifecycle.phase() ==
+           RdpLicensingPhase::AwaitClientPlatformChallengeResponse);
+    assert(lifecycle.platformChallenge().size() ==
+           kRdpPlatformChallengePlaintextBytes);
+
+    const auto packet = makeClientPlatformChallengeResponseTpkt(
+        lifecycle.platformChallenge(), keyMaterial);
+    assert(packet.size() == kR1ClientPlatformChallengeTpktBytes);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    std::array<std::uint8_t, kR1ClientPlatformChallengeTpktBytes>
+        received{};
+    const auto initiallyBlocked = owner.readTlsApplicationData(received);
+    assert(initiallyBlocked.outcome == Outcome::NeedRead);
+    assert(initiallyBlocked.bytes == 0U);
+
+    // Stop between two real TLS application writes. R1 must expose only the
+    // first plaintext fragment, then a zero-byte WANT until the same caller
+    // explicitly supplies the next encrypted record.
+    constexpr std::size_t kFirstFragmentBytes = 61U;
+    static_assert(kFirstFragmentBytes < kR1ClientPlatformChallengeTpktBytes);
+    writeNativeTlsClientAll(
+        tls.client.get(), std::span(packet).first(kFirstFragmentBytes));
+
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    std::size_t receivedBytes = 0U;
+    for (int attempt = 0;
+         attempt < 2048 && receivedBytes < kFirstFragmentBytes;
+         ++attempt)
+    {
+        const auto destination =
+            receivedBytes == 0U
+                ? std::span(received)
+                : std::span(received).subspan(
+                      receivedBytes,
+                      kFirstFragmentBytes - receivedBytes);
+        const auto result = owner.readTlsApplicationData(destination);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0U &&
+                   result.bytes <= kFirstFragmentBytes - receivedBytes);
+            receivedBytes += result.bytes;
+            continue;
+        }
+
+        assert(result.bytes == 0U);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(Clock::now() < deadline);
+    }
+    assert(receivedBytes == kFirstFragmentBytes);
+    assert(std::equal(
+        received.begin(),
+        received.begin() +
+            static_cast<std::ptrdiff_t>(kFirstFragmentBytes),
+        packet.begin()));
+
+    const auto waitingForSecond = owner.readTlsApplicationData(
+        std::span(received).subspan(kFirstFragmentBytes));
+    assert(waitingForSecond.outcome == Outcome::NeedRead);
+    assert(waitingForSecond.bytes == 0U);
+
+    constexpr std::array<std::uint8_t, 9> followingApplicationBytes{
+        0x52,0x31,0x2d,0x63,0x68,0x61,0x6c,0x00,0x7f};
+    writeNativeTlsClientAll(
+        tls.client.get(),
+        std::span(packet).subspan(kFirstFragmentBytes));
+    writeNativeTlsClientAll(tls.client.get(), followingApplicationBytes);
+
+    for (int attempt = 0;
+         attempt < 2048 && receivedBytes < received.size();
+         ++attempt)
+    {
+        const auto destination =
+            std::span(received).subspan(receivedBytes);
+        const auto result = owner.readTlsApplicationData(destination);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0U &&
+                   result.bytes <= destination.size());
+            receivedBytes += result.bytes;
+            continue;
+        }
+
+        assert(result.bytes == 0U);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(Clock::now() < deadline);
+    }
+    assert(receivedBytes == received.size());
+    assert(received == packet);
+
+    const auto request = parseMcsChannelRequest(received);
+    assert(request);
+    assert(request.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(request.request.initiator == 1001U);
+    assert(request.request.channelId == 1003U);
+    assert(request.request.segmentation == 3U);
+    const auto envelope =
+        parseEnhancedSecurityLicensingEnvelope(request.request.userData);
+    assert(envelope);
+    const auto licensing =
+        parseRdpLicensingMessage(envelope.value.licensingMessage);
+    assert(licensing);
+    assert(licensing.value.type ==
+           RdpLicensingMessageType::ClientPlatformChallengeResponse);
+
+    assert(lifecycle.onClientPlatformChallengeResponse(
+               envelope.value.licensingMessage, keyMaterial) ==
+           RdpLicensingIntake::ClientPlatformChallengeResponseAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::NewLicenseIssuanceRequired);
+
+    // The next TLS record must remain untouched by the exact challenge-response
+    // destination and be returned only to the next explicit application read.
+    std::array<std::uint8_t, followingApplicationBytes.size()> following{};
+    std::size_t followingBytes = 0U;
+    for (int attempt = 0;
+         attempt < 2048 && followingBytes < following.size();
+         ++attempt)
+    {
+        const auto destination =
+            std::span(following).subspan(followingBytes);
+        const auto result = owner.readTlsApplicationData(destination);
+        if (result.outcome == Outcome::Progress)
+        {
+            assert(result.bytes > 0U &&
+                   result.bytes <= destination.size());
+            followingBytes += result.bytes;
+            continue;
+        }
+        assert(result.bytes == 0U);
+        assert(result.outcome == Outcome::NeedRead ||
+               result.outcome == Outcome::NeedWrite);
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(Clock::now() < deadline);
+    }
+    assert(followingBytes == following.size());
+    assert(following == followingApplicationBytes);
+
+    owner.cancel();
+}
+
+
 void testOwnedTlsApplicationCancellation()
 {
     using Outcome = TlsApplicationIoOutcome;
@@ -9477,6 +9831,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-r3-license-request-slice", &testR3ServerLicenseRequestSliceThroughOwnedTls},
     {"tcp-owned-r3-platform-challenge-slice", &testR3ServerPlatformChallengeSliceThroughOwnedTls},
     {"tcp-owned-r3-client-license-read", &testR3ClientLicensingReadThroughOwnedTls},
+    {"tcp-owned-r3-platform-challenge-response-read", &testR3ClientPlatformChallengeResponseReadThroughOwnedTls},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},

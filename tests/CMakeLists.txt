@@ -170,6 +170,7 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-r3-license-request-slice
                 tcp-owned-r3-platform-challenge-slice
                 tcp-owned-r3-client-license-read
+                tcp-owned-r3-platform-challenge-response-read
                 tcp-owned-tls-application-cancellation
                 tls-nonblocking-handshake
                 tls-nonblocking-failures

@@ -16017,3 +16017,48 @@ evidence are required before PASS is claimed. Positive live composition
 remains **BLOCKED on R2** while final CredSSP credential authorization is
 deny-only; R10 must not connect licensing or a listener around a fabricated
 lease. M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+
+## R1 Client Platform Challenge Response owned-TLS compatibility (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `12fafaa866bef4f4d2258ecf39a6f96a8e72a815`.
+
+R3 now exposes the protected `CLIENT_PLATFORM_CHALLENGE_RESPONSE` intake
+that the preceding R1 roadmap explicitly awaited. The complete production
+boundary remains comfortably inside the existing transport contract: the
+licensing PDU is 122 bytes, Enhanced-Security MCS user data is 126 bytes, and
+the complete TPKT is 140 bytes, all below R1's existing 18 KiB
+`kMaximumTlsApplicationIoBytes` ceiling. No R1 production API or buffer-size
+change is required.
+
+New default CTest
+`transport.tcp-owned-r3-platform-challenge-response-read` reuses the sole
+`OwnedPreauthTcpConnection` over a real ephemeral loopback TLS session. It
+advances the production licensing lifecycle through a fully delivered Server
+Platform Challenge, builds a cryptographically valid response for that exact
+retained challenge and key material, then sends the complete protected TPKT in
+two explicit TLS application writes. After the first 61 plaintext bytes R1
+must return a zero-byte `NeedRead`; the same caller-owned suffix is then
+resubmitted after bounded monotonic readiness polling. The completed plaintext
+is parsed through the existing MCS and Enhanced-Security licensing envelope and
+accepted by `onClientPlatformChallengeResponse`, which reaches only
+`AwaitServerDecision / NewLicenseIssuanceRequired`.
+
+A separate trailing TLS application record is sent before the second half is
+drained and must remain untouched until a subsequent explicit R1 application
+read. This proves exact caller-buffer boundaries as well as WANT retry
+semantics without a second TLS reader, hidden retry loop, sleep, queue,
+listener, authorization token or session owner. R9's bounded R1/R3
+ASan/UBSan selector explicitly names and fail-closed checks the new case.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate persistent build root
+or branch was created. Exact publication-SHA Linux/GCC, macOS/AppleClang,
+Windows/MSVC Debug/Release, bounded sanitizer, documentation-policy and
+SDK/package evidence are pending. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27, real license issuance and Microsoft-client
+acceptance remain **NOT RUN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R1:** add no transport surface unless R3's eventual protected New
+License / Upgrade License publication or later Share activation demonstrates
+a concrete bounded TCP/TLS mismatch.

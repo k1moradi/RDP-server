@@ -1811,7 +1811,10 @@ void testNativeTcpAcceptOrderlyPeerDisconnect()
     // must deliver all already-queued bytes, then an explicit EOF, and the
     // owner must be safe to cancel without affecting its borrowed listener.
     LoopbackSocketPair pair{false};
-    auto accepted = acceptNonblockingTcpConnection(
+    // connect() completion does not guarantee immediate visibility to a
+    // nonblocking accept on every hosted scheduler. Reuse the shared bounded
+    // fixture wait; production accept remains exactly one native attempt.
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     assert(accepted.connection.valid());

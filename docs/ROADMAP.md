@@ -1,3 +1,41 @@
+## R1 orderly-EOF accept visibility regression (2026-10-16; exact-SHA CI pending)
+
+**Starting shared `main`:** `045d8074bf949ae725347fd32f871585d6d549d1`. The repository is fully green at
+Actions `38938508447`, but immediately preceding R3 integration
+`10ff27cdd93a9c0226a024f40e6e9fe1f90bd1f0` / Actions
+`38936935534` exposed one intermittent R1 macOS/AppleClang Release failure:
+`transport.tcp-native-accept-orderly-eof` aborted before exercising EOF
+semantics because the fixture required a single immediate nonblocking
+`accept()` after synchronous loopback `connect()`.
+
+That assumption contradicts the existing R1 testing standard and the shared
+loopback helper already used by the surrounding native tests: successful
+`connect()` does not guarantee that the peer is visible to the listener's
+next nonblocking accept on every scheduler. The production one-shot acceptor
+is correct to return `WouldBlock` and remains unchanged.
+
+This increment is test/CI-only. The orderly-EOF case now reuses
+`waitForAcceptedLoopbackConnection()`, whose retries exist only in the
+bounded fixture and accept only `WouldBlock` until one production accept
+transfers the socket. The case is added to the existing 20-second native CTest
+watchdog set and to R9's bounded R1/R3 Clang ASan+UBSan selection with a
+fail-closed registry assertion. Its actual contract remains unchanged:
+deliver queued bytes before peer FIN, report explicit EOF, close the accepted
+owner idempotently and preserve the borrowed listener.
+
+No `src/server/transport/*` change, hidden retry, listener owner, queue,
+authentication, R2 admission or R3 session state is added. Per the live R1
+roadmap, no new transport surface is justified: current licensing request
+(16 KiB maximum) and client licensing intake (8 KiB maximum) already fit
+inside R1's 18 KiB application-I/O boundary.
+
+Canonical owner-local `~/rdp-server/build` execution is **NOT RUN** in this
+connector environment. Exact-publication-SHA Linux/GCC, macOS/AppleClang,
+Windows/MSVC Debug+Release, R9 sanitizer, documentation-policy and SDK/package
+evidence is required after publication. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS 27 and Microsoft-client acceptance remain **NOT RUN**.
+M2/M3 remain **OPEN / NOT ACCEPTED**.
+
 ## R2 licensing key-material non-authority exact-SHA validation (2026-10-16)
 
 **Implementation chain:** `394a17d930044fcbbd247747c05b7a9174997d22`,

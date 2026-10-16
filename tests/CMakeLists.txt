@@ -194,6 +194,7 @@ function(add_rdp_test source_file suite behavior)
         # Windows worker forever if native connect/backlog handling stalls.
         # Keep both original production assertions intact.
         set_tests_properties(
+            transport.tcp-native-accept-orderly-eof
             transport.tcp-native-accept-batch-budget-handoff
             transport.tcp-native-accept-batch-stops-denials
             transport.tcp-native-listener-role-and-mode-denials

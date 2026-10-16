@@ -1,3 +1,28 @@
+## R1 orderly-EOF accept visibility fixture correction (2026-10-16)
+
+**Starting inspected main:** `045d8074bf949ae725347fd32f871585d6d549d1`.
+
+**Trigger:** Actions `38936935534`, macOS/AppleClang Release, failed only
+`transport.tcp-native-accept-orderly-eof` at
+`tests/test_owned_preauth_session.cpp:1816` because the test performed one
+immediate production `acceptNonblockingTcpConnection()` after loopback
+`connect()` and asserted `Accepted`. Debug passed the same case; Linux,
+Windows and sanitizer jobs were green. Descendant `1268b81...` reran fully
+green without an R1 source change, confirming scheduler visibility rather than
+an EOF-classification defect.
+
+**Correction:** test-only. The case now uses the existing bounded
+`waitForAcceptedLoopbackConnection()` fixture helper before its unchanged
+payload/FIN/EOF assertions. Production accept remains one-step and retry-free.
+The named CTest joins the 20-second native watchdog set and is newly selected
+by R9's bounded R1/R3 ASan+UBSan regex; the registry preflight explicitly
+requires its presence.
+
+**Authoring validation:** source/ownership review **PASS**. No production
+transport file or public API changes. Canonical owner-local build/CTest is
+**NOT RUN** because this connector has no synchronized `~/rdp-server`
+checkout. Exact-SHA hosted CI is the next evidence gate.
+
 ## R2 licensing key-material non-authority exact-SHA validation (2026-10-16)
 
 **Implementation chain:** `394a17d930044fcbbd247747c05b7a9174997d22`,

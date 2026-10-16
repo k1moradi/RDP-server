@@ -2981,6 +2981,27 @@ tests after R2/R3 session and R4 frame lifetime agreement.
 
 ## R3 pre-admission oversized domain-PDU denial (2026-10-15)
 
+**Exact-SHA hosted CI results (2026-10-15):**
+[`7cb6ac36aa7b8355dd76cdc567f7e943acfe330b`](https://github.com/k1moradi/RDP-server/commit/7cb6ac36aa7b8355dd76cdc567f7e943acfe330b),
+[Actions 38849842295, attempt 2](https://github.com/k1moradi/RDP-server/actions/runs/38849842295)
+completed **SUCCESS**. Linux/GCC **219/219**, macOS/Clang
+**203/203**, Windows/MSVC **221/221** full CTests in
+Debug AND Release, including
+`transport.mcs-session-unadmitted-domain-size-bounds`;
+documentation policy, downstream SDK, packaging and R9's
+clipboard sanitizer workflow job PASS.
+**First attempt macOS FAIL:** unrelated R1
+`transport.tcp-native-accept-batch-budget-handoff` assertion
+at `tests/test_owned_preauth_session.cpp:2494`. The same
+R3 commit's macOS retry (attempt 2) PASSED **203/203**
+in Debug and Release. Record the intermittent R1 result;
+do not convert that failure into R3 session approval.
+**NOT RUN:** owner independently on Linux/X11, Windows
+MSYS2 CLANG64/Clang23, macOS27; real R2 GSS/CredSSP
+and independent OS authorization, Microsoft client or
+desktop. R3 Gate A/M2 remains NOT ACCEPTED.
+
+
 **Production:** `McsSessionLifecycle::onDomainPdu` uses the existing
 `kMaximumInitialMcsTpktBytes` ceiling before first-party PER parser
 invocation, closing and returning `OversizedEnvelope` on 8193+ byte

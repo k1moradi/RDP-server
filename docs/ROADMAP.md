@@ -2330,7 +2330,7 @@ actually run; another parser CTest alone is not a complete session.
   OS-authorized session lease; then complete MCS Connect Response with
   R1's accepted-byte writer before admitting Erect/Attach/Join.
   Gate A/M2 remains NOT ACCEPTED.
-  **R3 pre-admission domain-PDU byte budget (2026-10-15; exact-SHA CI NOT RUN at authoring):**
+  **R3 pre-admission domain-PDU byte budget (2026-10-15; exact-SHA CI PASS):**
   The one denial-only `McsSessionLifecycle::onDomainPdu` now enforces
   the same bounded 8192-byte pre-admission TPKT ceiling as its first
   Connect-Initial, BEFORE parsing client T.125 domain PDUs. This
@@ -2347,6 +2347,23 @@ actually run; another parser CTest alone is not a complete session.
   **NOT RUN at authoring:** actual new-commit Actions and owner
   three-platform same-SHA CTests; real Kerberos/CredSSP and OS
   authorization, Microsoft client and desktop. Gate A/M2 remains OPEN.
+  **Exact-SHA R3 hosted CI verified (2026-10-15):**
+  [Implementation 7cb6ac36aa7b8355dd76cdc567f7e943acfe330b](https://github.com/k1moradi/RDP-server/commit/7cb6ac36aa7b8355dd76cdc567f7e943acfe330b),
+  [GitHub Actions 38849842295, attempt 2](https://github.com/k1moradi/RDP-server/actions/runs/38849842295)
+  PASS: Linux/GCC **219/219**, macOS/Clang **203/203**,
+  Windows/MSVC **221/221** full CTests in BOTH Debug and Release.
+  The new R3 domain-budget CTest, documentation-policy,
+  installed SDK consumer, packaging and the R9 sanitizer job PASS.
+  Initial macOS attempt 1 FAILED at a separate R1-owned
+  `transport.tcp-native-accept-batch-budget-handoff` assertion
+  (`test_owned_preauth_session.cpp:2494`); exact-SHA macOS rerun
+  attempt 2 **203/203 PASS** in Debug and Release. This does not
+  erase the initial failure or prove that R1's timing boundary
+  is deterministic; its first failing owner remains R1.
+  **NOT RUN:** owner's independent Linux/X11, Windows MSYS2
+  CLANG64/Clang23 and macOS27 CTests at this SHA, genuine
+  R2 TLS-bound OS authorization, Microsoft-client activation
+  or desktop. R3 Gate A/M2 remains NOT ACCEPTED.
   **Verified partial offline MCS lifecycle boundary (CI PASS):**
   the existing `mcs_channel_connection` parser now recognizes
   strictly framed Disconnect Provider Ultimatum with ignored

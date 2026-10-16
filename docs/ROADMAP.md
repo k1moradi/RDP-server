@@ -17333,3 +17333,55 @@ documentation and SDK/package gates are required. Genuine authenticated R3
 `Microsoft::Windows::RDS::Graphics` DVC admission/full-send remains
 **BLOCKED/NOT RUN**; live throttling cannot be wired until that seam exists.
 Gate B and M3/M4/M5 remain **OPEN**.
+
+## R3 New/Upgrade License encoder exact-SHA validation (2026-10-16)
+
+**Corrected implementation:** `67e6bf5a9305ff4ffbaf535cbded8bf9331a6743`.  
+**GitHub Actions:** `38975902082` — **SUCCESS**.
+
+The exact correction SHA validates the standalone encrypted
+SERVER_NEW_LICENSE / SERVER_UPGRADE_LICENSE encoder across every mandatory
+hosted gate. The earlier implementation SHA
+`fb63d5873057145d8a22a38d56645be5397bf940` passed Linux, macOS,
+documentation policy and the R9 sanitizer selection but failed Windows/MSVC at
+compile time because the newly included R1 transport header exposed Win32's
+`max` macro to pre-existing `std::numeric_limits<...>::max()` expressions.
+The correction defines `NOMINMAX` before that include; no packet or authority
+behavior changed.
+
+Exact correction-SHA results:
+
+- Ubuntu/GCC: **506/506 PASS Debug** and **506/506 PASS Release**.
+- macOS/AppleClang: **429/429 PASS Debug** and **429/429 PASS Release**.
+- Windows/MSVC: native focused preflight **51/51 PASS Debug** and **51/51 PASS
+  Release**; full suite **459/459 PASS Debug** and **459/459 PASS Release**.
+- The five new R3 cases — New License wire, Upgrade License wire, grant encode
+  denials, transactional output, and no-live-publication — PASS in all six
+  hosted full-suite configurations.
+- R9 Clang ASan/UBSan: bounded R1/R3 MCS/CredSSP/licensing selection
+  **80/80 PASS**. Its fail-closed selector explicitly lists and executes all
+  five new grant cases; each passed under the sanitizer runtime.
+- Documentation policy **PASS**. Linux/macOS/Windows installed SDK downstream
+  consumer **1/1 PASS**; package/digest/artifact stages PASS. The untagged
+  prerelease publication job is **SKIPPED**, not counted as a passing release.
+
+Validated transport proof remains: effective always-unfragmented grant CAL
+maximum **14,799 bytes**; maximum NEW_LICENSE_INFO plaintext **16,355 bytes**;
+complete licensing packet **16,379 bytes**; plus the four-byte Enhanced
+Security header exactly **16,383 bytes** of T.125 userData; complete long
+TPKT/X.224/MCS application plaintext **16,398 bytes**, below R1's existing
+**18,432-byte** ceiling. The standalone 16 KiB NEW_LICENSE_INFO CAL serializer
+remains unchanged.
+
+The encoder remains offline and non-authoritative. Synthetic CAL bytes prove
+wire serialization only; they do not establish issuer trust, a licensing
+decision, STATUS_VALID_CLIENT, live New/Upgrade publication, Share activation
+or M2. The subsequently landed R3 authority-snapshot boundary is a separate
+non-live correlation primitive and does not retroactively change this
+validation claim.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, genuine positive R2 native admission, real license
+authority/client acceptance and Share activation remain **NOT RUN / OPEN**.
+M1 owner-machine evidence and M2/M3 remain **OPEN / NOT ACCEPTED**.
+

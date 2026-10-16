@@ -67,6 +67,18 @@ built and must be marked NOT RUN (not PASS). The owner's existing
 one-root configure/build/CTest command is unchanged, and XCB
 remains excluded from installed portable protocol headers.
 
+## Linux native XTEST and one-XCB owner dependencies (R5)
+
+The XTEST controller needs `libxcb1-dev` plus `libxcb-xtest0-dev`.
+With XCB/RandR, XShm, XFixes, XDamage and XTEST targets all available, CMake
+also builds noninstalled `rdp-server-linux-x11-desktop`. The
+`x11.desktop-resource-owner-connection-denial` CTest needs no X server.
+When `xvfb-run` is present, CTest also registers
+`x11.desktop-resource-owner-lifecycle` against an ephemeral 1280x720x24
+Xvfb server. Hosted Ubuntu installs `xvfb` and `xauth`; local absence
+means that optional synthetic-display case is NOT RUN, not PASS. The normal
+one-root owner command remains unchanged.
+
 ## Owner's required daily test from the latest GitHub main
 
 Agents commit production code, its dedicated, registered behavior-named

@@ -811,6 +811,35 @@ if(TARGET rdp-server-linux-xtest-input)
         PROPERTIES LABELS "x11;linux-adapter;native")
 endif()
 
+# R5 one-XCB-owner lifecycle. The denial case needs no X server; the
+# positive case runs only under an ephemeral Xvfb server and never touches a
+# logged-in desktop, credentials, or the server runtime.
+if(TARGET rdp-server-linux-x11-desktop)
+    add_rdp_test(test_x11_desktop_resources.cpp x11
+        desktop-resource-owner-connection-denial)
+    target_link_libraries(test_x11_desktop_resources PRIVATE
+        rdp-server-linux-x11-desktop)
+    target_compile_options(test_x11_desktop_resources PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+    set_tests_properties(
+        x11.desktop-resource-owner-connection-denial
+        PROPERTIES LABELS "x11;linux-adapter;native")
+
+    find_program(RDP_SERVER_XVFB_RUN_EXECUTABLE NAMES xvfb-run)
+    if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
+        add_test(NAME x11.desktop-resource-owner-lifecycle
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp"
+                $<TARGET_FILE:test_x11_desktop_resources> lifecycle)
+        set_tests_properties(
+            x11.desktop-resource-owner-lifecycle
+            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display"
+                       TIMEOUT 20)
+    else()
+        message(STATUS "R5 xvfb-run unavailable: synthetic X11 owner lifecycle CTest not built")
+    endif()
+endif()
+
 # R9 opt-in bounded coverage-guided wire fuzzing. This is deliberately
 # absent from normal owner builds and uses only first-party production APIs.
 if(RDP_SERVER_BUILD_FUZZERS)

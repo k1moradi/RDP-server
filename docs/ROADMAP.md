@@ -3283,6 +3283,25 @@ actually run; another parser CTest alone is not a complete session.
   plus SDK install/consumer/package stages PASS. No DISPLAY, live input,
   R2/R3 authorization, Microsoft client or M3 acceptance was exercised.
 
+  **R5 one-XCB desktop resource owner (2026-10-16; based on main
+  `0ee521f2802bb2f2fd3fd6fa1ebfb834f4d47287`; exact-SHA CI pending):** Repair the concurrent R9 CMake
+  overwrite that left typed XTEST source/test present but dropped its native
+  target and CI package, then add `X11DesktopResources`. This noninstalled
+  Linux aggregate owns the existing display connection plus XShm capture,
+  XFixes cursor, XDamage and XTEST input under one XCB owner. It grants no
+  R2/R3 admission and is not linked into the runtime. Failure/destruction
+  cancels input, cursor, Damage and XShm before closing XCB. Dedicated
+  `x11.desktop-resource-owner-connection-denial` needs no X server;
+  `x11.desktop-resource-owner-lifecycle` runs under ephemeral Xvfb when
+  available and constructs/tears down all real native resources without
+  user input or real desktop capture consumption.
+  **NOT RUN at authoring:** native composite compile/CTest here, owner
+  platform trio, real admission, RandR reconstruction, R4/R3 consumers,
+  Microsoft client and benchmarks.
+  **Next R5:** route bounded XCB events through this owner and revoke or
+  reconstruct geometry-bound children on RandR change before authorized
+  input/frame/cursor integration. M3 remains OPEN.
+
   implement RDPGFX/DVC lifecycle, AVC420 capability selection, surface mapping,
   changed-region encoding, reference-frame correctness, frame ACK flow control,
   resizing and reconnects together with authorized desktop capture/input.

@@ -6671,3 +6671,29 @@ redeclared the shared `sockaddr_storage`. The correction is compile-only:
 add the platform socket-address headers and keep one shared peer-address
 storage object. Endpoint capture, ownership, fail-closed address-family
 handling and the dedicated CTest semantics are unchanged.
+
+## R5 one-XCB desktop resource owner (2026-10-16; CI pending)
+
+**Authoring main:** `0ee521f2802bb2f2fd3fd6fa1ebfb834f4d47287`. Current source still contained the typed XTEST
+controller and conditional test registration, but the concurrent R9 CMake/CI
+rewrite had removed `rdp-server-linux-xtest-input` and
+`libxcb-xtest0-dev`, making that native test unreachable. This change
+restores them and adds the next ownership boundary.
+
+New `X11DesktopResources` owns one `X11DisplayConnection` plus in-place
+XShm, XFixes, XDamage and XTEST children. It makes no authorization decision
+and is not linked into the server runtime. Child-construction failure,
+explicit cancellation and destruction share one order: input, cursor,
+Damage, XShm, then the XCB owner.
+
+Dedicated `x11.desktop-resource-owner-connection-denial` uses invalid
+display syntax with no server. Optional
+`x11.desktop-resource-owner-lifecycle` uses ephemeral 1280x720x24 Xvfb,
+verifies failed partial construction cleanup, complete construction,
+idempotent explicit teardown and destructor-driven teardown, without
+injecting input or consuming a real desktop frame. Hosted Ubuntu provisions
+Xvfb/xauth and xcb-xtest development files.
+
+**NOT RUN at authoring:** native composite build/CTest in this environment,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, R2/R3 admission,
+RandR reconstruction, R4 consumers, Microsoft-client M3 and benchmarks.

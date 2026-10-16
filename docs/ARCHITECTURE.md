@@ -90,6 +90,19 @@ The noninstalled Linux `rdp-server-linux-xtest-input` target links only
 Its ordinary native CTest uses an already-failed XCB fd and therefore cannot
 inject real keyboard or pointer input.
 
+### R5 one-XCB desktop resource ownership (Linux only)
+
+`X11DesktopResources` owns the existing `X11DisplayConnection` together
+with the existing XShm capture, XFixes cursor, XDamage and XTEST input
+adapters. It adds no second connection, graphics scheduler, authorization
+state or protocol engine, and the runtime does not link it before R2/R3
+admission. Child cancellation is ordered input, cursor, Damage, XShm, then
+the sole XCB connection. Construction failures use that same path. The
+noninstalled aggregate builds only when all five native adapter targets exist.
+Its headless denial CTest needs no X server; an optional lifecycle CTest runs
+under ephemeral Xvfb and touches no logged-in desktop. Event routing, RandR
+resource reconstruction and R3/R4 consumers remain later boundaries.
+
 ### R5 native XCB connection readiness and ownership
 
 The existing `src/x11/x11_display_connection.{h,cpp}` is the only XCB

@@ -241,6 +241,52 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# R5 native XTEST input adapter. Keep it noninstalled and separate from the
+# runtime until R2/R3 supply an authorized input-routing boundary.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_XCB_XTEST QUIET IMPORTED_TARGET
+            xcb xcb-xtest)
+    endif()
+    if(TARGET PkgConfig::RDP_SERVER_XCB_XTEST)
+        add_library(rdp-server-linux-xtest-input STATIC
+            src/x11/x11_input_controller.cpp)
+        target_compile_features(rdp-server-linux-xtest-input PUBLIC cxx_std_23)
+        target_include_directories(rdp-server-linux-xtest-input PUBLIC
+            "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+        target_link_libraries(rdp-server-linux-xtest-input PUBLIC
+            PkgConfig::RDP_SERVER_XCB_XTEST)
+        target_compile_options(rdp-server-linux-xtest-input PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    else()
+        message(STATUS "R5 xcb-xtest development files unavailable: native XTEST input CTest not built")
+    endif()
+endif()
+
+# One R5 native desktop resource aggregate owns the existing XCB connection
+# plus capture/cursor/damage/input children. It remains noninstalled and is
+# not linked into the runtime before genuine R2/R3 desktop admission.
+if(TARGET rdp-server-x11-connection AND
+   TARGET rdp-server-linux-xshm AND
+   TARGET rdp-server-linux-xfixes-cursor AND
+   TARGET rdp-server-linux-xdamage AND
+   TARGET rdp-server-linux-xtest-input)
+    add_library(rdp-server-linux-x11-desktop STATIC
+        src/x11/x11_desktop_resources.cpp)
+    target_compile_features(rdp-server-linux-x11-desktop PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-linux-x11-desktop PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(rdp-server-linux-x11-desktop PUBLIC
+        rdp-server-x11-connection
+        rdp-server-linux-xshm
+        rdp-server-linux-xfixes-cursor
+        rdp-server-linux-xdamage
+        rdp-server-linux-xtest-input)
+    target_compile_options(rdp-server-linux-x11-desktop PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 if(MSVC)
     target_compile_options(rdp-server-protocol PRIVATE /W4)
 else()

@@ -216,6 +216,32 @@ convergence are **NOT RUN / NOT ACCEPTED**.
 permissions and lifecycle, with dedicated security-negative CTests,
 without activating any listener.
 
+**R10 deterministic POSIX configuration fixture correction (2026-10-15; exact-SHA CI NOT RUN at authoring):**
+Owner-reported full CTest showed failures at
+`runtime.validates-configuration-syntax` (#164) and
+`runtime.validates-configuration-comments-crlf` (#165).
+The full failure diagnostics and platform were not included; the
+specific root cause remains unconfirmed. Both success fixtures
+previously inherited the local filesystem creation `umask`; on
+POSIX a permissive umask can create group/world-writable files,
+which the production R10 security gate correctly rejects.
+The shared CMake fixture writer now explicitly applies owner-only
+read/write permissions to each POSIX file before case-specific
+negative overrides; it does NOT weaken the production file-policy
+check. New dedicated behavior-named POSIX CTest
+`runtime.validates-configuration-mode-normalization` starts from
+a deliberately world/group-writable synthetic file and verifies
+the existing production `--check-config` accepts it only after
+fixture permissions are normalized. Existing
+`runtime.rejects-configuration-group-writable` still asserts
+the restrictive production behavior. **PASS:** isolated Linux
+CMake 3.31.6 under `umask 000` creates mode 666 and explicit
+`file(CHMOD OWNER_READ OWNER_WRITE)` produces mode 600.
+**NOT RUN at authoring:** actual owner failure command/output,
+full-repository CTest and Windows/macOS CI. No service activation,
+TLS private keys or real client. M1–M6 remain open. Next: exact-SHA
+hosted CTests and rerun the owner's two previously failing tests.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

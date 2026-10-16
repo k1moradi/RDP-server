@@ -99,6 +99,9 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
         # A real existing file must be rejected when opened relatively.
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-owner-only")
         # A private regular file must remain valid on POSIX hosts.
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-mode-normalization")
+        # Exercise a previously permissive file even if the test host's
+        # umask would otherwise create all its fixtures as private.
     elseif(RDP_RUNTIME_TEST_CASE MATCHES "^rejects-configuration-(symlink|fifo|group-writable|directory)$")
         # Substitute a synthetic local file-system object after writing the
         # ordinary configuration, without accessing any user's credentials.
@@ -117,7 +120,20 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-configuration-")
     if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-missing-file")
         # This case deliberately leaves the generated fixture absent.
     else()
+        if(UNIX AND RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-mode-normalization")
+            # Model a CTest build tree created under a permissive umask.
+            # CMake file(WRITE) preserves permissions on an existing file.
+            file(WRITE "${config_file}" "${config_text}")
+            file(CHMOD "${config_file}" PERMISSIONS
+                OWNER_READ OWNER_WRITE GROUP_WRITE OTHERS_WRITE)
+        endif()
         file(WRITE "${config_file}" "${config_text}")
+        if(UNIX)
+            # The production POSIX reader rejects group/world writable
+            # config files. Fixtures must not depend on the owner's umask.
+            # Explicit negative permission tests override this baseline.
+            file(CHMOD "${config_file}" PERMISSIONS OWNER_READ OWNER_WRITE)
+        endif()
         if(WIN32 AND NOT RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
             # Ensure every Windows config fixture has an explicit private
             # baseline DACL, independent of CI checkout inheritance.

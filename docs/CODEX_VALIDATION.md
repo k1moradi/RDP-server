@@ -5075,3 +5075,33 @@ interactive ScreenCaptureKit/TCC, R2/R3 authorized session, Microsoft
 client, pointer/cursor and performance. **Next:** native display-change
 callback (opt-in per-user runtime) and R2/R3/R4-controlled capture
 ownership/physical mixed-Retina composition; M1/M5 not accepted.
+
+## R10 POSIX secure-fixture umask independence (2026-10-15)
+
+**Parent GitHub main:** `2978c45dd75a18bcf30a9c30a0f6d280a29ea999`. Owner reported failure names
+`runtime.validates-configuration-syntax` (#164) and
+`runtime.validates-configuration-comments-crlf` (#165), without
+platform or `--output-on-failure` diagnostic. **Diagnosis is
+provisional:** default POSIX `file(WRITE)` permission modes depend on
+the host's umask; `O_NOFOLLOW`/regular-file/mode validation rejects
+group/world-writable config files as designed. The shared fixture
+script now imposes `OWNER_READ OWNER_WRITE` after writing all normal
+POSIX fixtures, before any negative-case override. The new dedicated
+registered POSIX CTest
+`runtime.validates-configuration-mode-normalization` simulates a
+permissively writable preexisting file and exercises the production
+`--check-config` success path after normalized file permissions.
+`runtime.rejects-configuration-group-writable` remains unchanged
+and must still return 3. CRLF content assertions are unchanged.
+
+**PASS:** stand-alone Linux CMake 3.31.6 permission probe in the
+single reusable `~/rdp-server/build/r10-fixture-mode` subdirectory,
+executed under `umask 000`: `file(WRITE)` mode **666** before
+normalization and **600** after `file(CHMOD)`.
+**NOT RUN:** actual owner build and diagnostic reproduction, complete
+repo CTest (local checkout inaccessible), hosted exact-SHA Actions
+at authoring, owner Linux/X11 / Windows MSYS2 CLANG64 Clang23 /
+macOS 27, authenticated desktop. No production behavior changed;
+the existing security check remains fail-closed. **Next:** verify
+exact-SHA CI and request full CTest failure text if the owner
+continues to see either failure; M1–M6 remain OPEN.

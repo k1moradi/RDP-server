@@ -470,6 +470,7 @@ foreach(runtime_case IN ITEMS
         rejects-configuration-missing-file
         rejects-config-option-smuggling
         validates-configuration-owner-only
+        validates-configuration-mode-normalization
         rejects-configuration-symlink
         rejects-configuration-fifo
         rejects-configuration-group-writable
@@ -490,7 +491,7 @@ foreach(runtime_case IN ITEMS
     # POSIX descriptor-identity/permissions tests are not applicable to
     # Windows native file handles; retain the original Windows CTests.
     if(NOT UNIX AND runtime_case MATCHES
-       "^(validates-configuration-owner-only|rejects-configuration-(symlink|fifo|group-writable|directory))$")
+       "^(validates-configuration-(owner-only|mode-normalization)|rejects-configuration-(symlink|fifo|group-writable|directory))$")
         continue()
     endif()
     add_test(NAME "runtime.${runtime_case}"

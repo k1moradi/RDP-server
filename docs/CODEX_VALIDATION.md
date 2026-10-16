@@ -4713,3 +4713,29 @@ CLANG64 Clang23 / macOS27 tests, real credentials, NLA,
 desktop and release acceptance. Next: inspect exact-SHA CI;
 expand to complete effective Windows DACL trustees and TLS key
 permissions. M1–M6 remain OPEN.
+
+## R7 native-to-portable geometry exact-source hosted CI (2026-10-16)
+
+**Initial production:** `2427cdea0f0aa866e1b8fe8caa53f119317225bf`.
+**First failure:** [Actions 38849090483](https://github.com/k1moradi/RDP-server/actions/runs/38849090483)
+failed Debug on Ubuntu and macOS only in
+`macos.geometry-native-mixed-scale-denials`, because a synthetic
+second display lacked identity/dimensions; it asserted before the
+intended production converter denial was tested.
+**Corrected source:** `8083958d617daff00bf68f02848a11eab416bd7d`
+initializes that display, documents the actual scale-generation change,
+and compares all finite Retina scale ratios with relative tolerance.
+**Exact-SHA PASS:** [Actions 38849245902](https://github.com/k1moradi/RDP-server/actions/runs/38849245902)
+completed Ubuntu/GCC **216/216**, macOS/Apple Clang **201/201**,
+Windows/MSVC **215/215** registered CTests in **both Debug and Release**.
+All four dedicated R7 native geometry tests pass on every hosted OS.
+Documentation-policy, installed downstream protocol SDK consumer and
+ZIP/checksum artifact tasks PASS. Hosted Apple frameworks compiled and
+linked via the existing `rdp-server-macos-capture` static target.
+**NOT RUN:** owner's macOS27 full one-root CTest, Windows CLANG64 Clang23
+and Linux/X11 independently tested common SHA, live CoreGraphics
+screen sampling, ScreenCaptureKit, genuine R2/R3 admission, remote
+input/cursor/clipboard and current Microsoft client, performance.
+**Next:** coordinate R4 compositor ownership for mixed Retina layouts,
+then a narrowly scoped R2/R3-approved ScreenCaptureKit callback lifecycle
+with generation, cancellation, permission denial and revocation tests.

@@ -2889,6 +2889,20 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   to the native TEST target. Production R7 and portable RDP library
   linkage are unchanged. Corrected-SHA CI and macOS27 owner tests NOT RUN
   at authoring; M1/M5 acceptance remains open.
+  **R7 exact-source hosted CI verified (2026-10-16):** Corrected
+  implementation `8083958d617daff00bf68f02848a11eab416bd7d`,
+  [Actions 38849245902](https://github.com/k1moradi/RDP-server/actions/runs/38849245902)
+  PASS on Ubuntu/GCC **216/216**, macOS/Apple Clang **201/201**,
+  Windows/MSVC **215/215** full registered CTests EACH in both Debug and
+  Release; all four new R7 geometry-native CTests passed on every OS.
+  Documentation policy, staged SDK consumer and ZIP/hash artifacts PASS.
+  Initial implementation `2427cdea0f0aa866e1b8fe8caa53f119317225bf`
+  had a synthetic mixed-scale fixture failure in
+  [Actions 38849090483](https://github.com/k1moradi/RDP-server/actions/runs/38849090483),
+  corrected without weakening assertions.
+  **NOT RUN:** owner macOS27, Windows MSYS2 CLANG64 Clang23, Linux/X11
+  exact-SHA terminal runs, real TCC/capture/input/Microsoft-client M5
+  acceptance and benchmarks. M1/M5 still OPEN.
   **R7 conversion hardening (2026-10-16):** Corrected the
   mixed-scale rejection test so its second display has complete native
   identity/dimensions, and tightened common-scale comparison to relative

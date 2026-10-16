@@ -1,3 +1,44 @@
+## R9 licensing key-material terminal replay exact-SHA receipt (2026-10-16)
+
+**Implementation:** `4be6e17ed741be198bf0d15e7921af66340904ac`.  
+**Actions:** `38934204044` — **SUCCESS**.
+
+The new production-backed
+`transport.licensing-key-material-terminal-replay` executes as test 60 and
+passes on Linux/GCC **458/458 Debug + 458/458 Release**, macOS/AppleClang
+**385/385 Debug + 385/385 Release**, and Windows/MSVC **414/414 Debug +
+414/414 Release**. Windows focused native preflight is **46/46 Debug +
+46/46 Release**. Installed SDK consumer/package/digest/upload gates pass on
+all hosted platforms; documentation-policy and the separate R7 macOS
+sanitizer job also pass.
+
+R9 Clang ASan/UBSan is **SUCCESS** with clipboard **50/50**, x264/BGRA
+**20/20**, bounded R1/R3 transport/CredSSP/licensing **48/48**, native
+GSS/R2/R3 **27/27**, runtime CredSSP **4/4**, native X11 **25/25**, and
+bounded fuzzer **1/1**. The new key-material replay fence is explicitly listed
+by the fail-closed registry assertion and passes under sanitizers in **0.02 s**.
+The GSS-only MIT-krb5 suppression remains limited to the same two known
+provider-failure paths, each **216 bytes / 10 `krb5_copy_principal`
+allocations**.
+
+This exact result corrects the earlier authoring estimate: R3 key-material SHA
+`64f91607a1346258c5a843fb10a717e91747518a` had bounded R1/R3 **46/46**,
+but the reconciled R9 parent already contained one additional selected R1
+cancellation case, making the pre-R9 parent **47** and this implementation
+**48**.
+
+Descendant R2 commits
+`394a17d930044fcbbd247747c05b7a9174997d22` and
+`7392882bfdbe7f960d329b4f175675c9ac07b44d` strengthen the existing
+`security.gssapi-r3-client-licensing-route-contract` so parsed key-exchange
+fields and derived symmetric keys still cannot substitute for genuine R2
+admission. That behavior name was already in R9's native GSS sanitizer
+selector; no new selector entry is required.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, genuine Kerberos/NSS/logind admission,
+Microsoft-client licensing/Share activation and M2/M3 remain **NOT RUN/OPEN**.
+
 ## R2 licensing key-material non-authority fence (2026-10-16; exact-SHA CI pending)
 
 **Implementation:** `394a17d930044fcbbd247747c05b7a9174997d22`; test-quality hardening:

@@ -1,3 +1,27 @@
+## R9 licensing key-material terminal replay hosted verification (2026-10-16)
+
+Commit `4be6e17ed741be198bf0d15e7921af66340904ac`, Actions
+`38934204044`: overall **SUCCESS**. The new
+`transport.licensing-key-material-terminal-replay` passes in all six hosted
+Debug/Release configurations and under the R9 Clang ASan/UBSan selection.
+
+Hosted full suites are Linux/GCC **458/458 Debug + Release**,
+macOS/AppleClang **385/385 Debug + Release**, and Windows/MSVC
+**414/414 Debug + Release**; Windows focused preflight is **46/46 Debug +
+Release**. R9 sanitizer groups are **50/50 clipboard**, **20/20 x264/BGRA**,
+**48/48 bounded R1/R3**, **27/27 native GSS/R2/R3**, **4/4 runtime CredSSP**,
+**25/25 X11**, and **1/1 fuzzer**. The new case is test 60 and passes in
+**0.02 s** under ASan/UBSan.
+
+The actual bounded count is **48**, not the earlier authoring estimate of 47:
+the reconciled parent already contained one additional selected R1
+cancellation case beyond R3's older **46/46** baseline.
+
+Later R2 hardening continues to use the already-selected
+`security.gssapi-r3-client-licensing-route-contract`; no synthetic positive
+admission, licensing decision or authority is introduced. Owner-local and
+real-client/native-admission gates remain **NOT RUN/OPEN**.
+
 ## R2 licensing key-material authority authoring validation (2026-10-16)
 
 **Implementation:** `394a17d930044fcbbd247747c05b7a9174997d22`.  

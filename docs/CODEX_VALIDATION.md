@@ -1,3 +1,29 @@
+## R5 complete native-X11 sanitizer hosted receipt (2026-10-16)
+
+Exact SHA `f220436f0da88e6b02f2bd58f1da164826929ac6`, Actions
+`38900083125`: **SUCCESS** across all mandatory jobs.
+
+- Clang ASan/UBSan R5 native X11 selection: **16/16 PASS** in **0.38 s**.
+  This is the complete current R5 X11 registry and includes the one-XCB
+  lifecycle/RandR/R4-read paths plus child-level XShm/XFixes/XDamage/XTEST
+  cancellation and bounds.
+- Ubuntu/GCC full CTest: **395/395 PASS** Debug, **395/395 PASS** Release;
+  all **24** X11-labeled tests pass in both configurations.
+- macOS/Clang full CTest: **337/337 PASS** Debug and Release.
+- Windows/MSVC full CTest: **361/361 PASS** Debug and Release; focused native
+  preflight **37/37 PASS** in both configurations.
+- Documentation-policy, SDK downstream consumer, package/digest/upload, all
+  other sanitizer selections and bounded fuzzer: **PASS**. Protocol prerelease
+  publication: **SKIPPED** as expected for a non-tag push.
+
+This closes the hosted sanitizer-validation gap for the existing R5 native
+surface. It does **not** establish positive R2/R3 admission, live input,
+owner-platform acceptance or Microsoft-client desktop acceptance. Current main
+still has no R3 Share/Input/Fast-Path Input event boundary, so production R5
+input-PDU translation remains **BLOCKED** rather than implemented
+speculatively. Canonical owner-local and live acceptance gates remain **NOT
+RUN**.
+
 ## R4 malformed NV12 pre-encode reference continuity (2026-10-16)
 
 **Starting inspected `main`:**

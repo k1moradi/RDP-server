@@ -1,3 +1,40 @@
+## R5 complete native X11 sanitizer exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `f220436f0da88e6b02f2bd58f1da164826929ac6`.
+**Actions:** `38900083125`, overall **SUCCESS**.
+
+The existing R9 Clang ASan/UBSan job compiled every production-linked R5 X11
+test executable and the exact 16-case selection completed **16/16 PASS** with
+no reported ASan/UBSan finding. Coverage is the complete current R5 native X11
+registry: capture layout bounds, cursor reply bounds, XShm arena/connection and
+disconnect cancellation, display event budget/readiness/disconnect/deferred
+owner teardown, XFixes cursor cancellation, XDamage cancellation, XTEST input
+cancellation, the five one-XCB aggregate ownership/event/RandR/R4-read cases,
+and the concrete R3-admission input denial. The separate R8 clipboard
+sanitizer selection remained **36/36 PASS**.
+
+The same exact SHA passed the full hosted matrix: Ubuntu/GCC **395/395 PASS**
+in Debug and **395/395 PASS** in Release; macOS/Clang **337/337 PASS** in
+Debug and **337/337 PASS** in Release; Windows/MSVC **361/361 PASS** in Debug
+and **361/361 PASS** in Release, with its focused native preflight **37/37
+PASS** in both configurations. Documentation policy, installed SDK consumer,
+package/digest/upload and the bounded fuzzer all passed. Prerelease publication
+was correctly skipped because the commit is not a protocol release tag.
+
+No production R5 source or CTest semantics changed in this increment. Current
+shared main still contains no R3 Share/Input or Fast-Path Input PDU event
+surface; R3 has advanced through protected Channel Join and Client Info, but
+not input parsing. Therefore the roadmap's next R5 production translation
+remains **BLOCKED BY R3** and R5 must not introduce another parser/session/input
+authority.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang23, macOS27, genuine positive Kerberos/logind admission, live
+XTEST injection, Microsoft-client M3 acceptance and R5 performance benchmarks
+remain **NOT RUN**. **Next R5:** preserve the fully sanitized native boundary
+and resume production input translation only when R3 exports the authoritative
+bounded input event contract. M3 remains OPEN.
+
 ## R4 deterministic malformed-NV12 preflight before x264 references (2026-10-16; hosted CI pending)
 
 Starting inspected shared `main`: `06e4793eb7a78ea86bfb7f072b8642f1ec90d1d7`.

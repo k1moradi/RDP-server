@@ -1,3 +1,28 @@
+## R9 sanitizer-group independence hosted verification (2026-10-16)
+
+Commit `87d529d7d64721187e3ae873da33a48f6d24c809`, Actions
+`38902378901`, proves the single R9 sanitizer job now preserves later-group
+evidence after an earlier test-group failure. Shared selected-target compile
+**PASS**. Clipboard is **36/41** with five known concurrent R8 ASan
+use-after-free failures; nevertheless later groups execute and pass
+**25/25 R1/R3 transport/security**, **23/23 native GSS/R2/R3**, **16/16 R5
+X11**, and **1/1 fuzzer**.
+
+`security.gssapi-r1-owned-binding-delivery-fence` is therefore no longer only
+registered/ordinary-CTest evidence: it executed under ASan/UBSan as CTest 143
+and passed in **0.04 s**. The GSS-only MIT-krb5 suppression remained limited
+to the same two existing 216-byte / 10-allocation provider-failure cases.
+
+The workflow remains overall FAIL by design because R8 failures are not
+masked. Linux Debug also retains one unrelated R10 CredSSP fixture failure;
+macOS Debug fails only the five R8 adapter fixtures; Windows focused preflight
+is blocked by the R8 label collision present at that SHA. Documentation policy
+PASS. Follow-up R8 `e028aa5652636e82218eed85a49e675be5d322d3` repairs those
+fixture/label defects separately.
+
+Owner-local canonical testing remains **NOT RUN**; real Kerberos/logind and
+Microsoft-client acceptance are not inferred.
+
 ## R6 focused preflight selector correction (2026-10-16)
 
 Prior SHA `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`, Actions

@@ -1,3 +1,44 @@
+## R9 sanitizer-group independence exact-SHA receipt (2026-10-16)
+
+**Implementation:** `87d529d7d64721187e3ae873da33a48f6d24c809`,
+Actions `38902378901`. The workflow is correctly **FAIL** overall, but the
+R9 CI-control objective is validated: after a successful shared sanitizer
+compile, a failing earlier owner group no longer suppresses later bounded
+sanitizer evidence.
+
+The clipboard sanitizer group ran **41 cases** and finished **36/41** because
+all five concurrent R8 Windows clipboard adapter fixtures still reproduced the
+known heap-use-after-free at this exact SHA. Despite that failure, the new
+`always() && compile-success` gates caused every later R9 group to execute:
+bounded R1/R3 transport/CredSSP/licensing **25/25 PASS**; native GSS/R2/R3
+**23/23 PASS**; native R5 X11 **16/16 PASS**; bounded MCS/CLIPRDR fuzzer
+**1/1 PASS**. The newly selected
+`security.gssapi-r1-owned-binding-delivery-fence` ran as CTest 143 and
+**PASS**ed under ASan/UBSan in **0.04 s**. The MIT-krb5 LSan suppression
+remained scoped to native GSS and appeared only in the same two known
+`krb5_copy_principal` failure paths, each **216 bytes / 10 allocations**.
+
+Cross-platform Debug jobs remain red for independently owned fixtures at this
+SHA. Linux/GCC ran **401** tests with six failures: the concurrent R10
+`runtime.linux-connection-credssp-owner-framing` plus the five R8 clipboard
+cases; the R2 binding-delivery fence itself passed as test 143. macOS/Clang
+ran **343** tests with only the five R8 clipboard cases failing. Windows/MSVC
+stopped in its focused native preflight because the same five R8 cases were
+selected by the broad `windows-adapter` label before their executable was
+built. Release/downstream stages blocked by those Debug/preflight failures are
+not claimed. Documentation policy **PASS**; non-tag prerelease publication
+was correctly **SKIPPED**.
+
+Concurrent R8 commit `e028aa5652636e82218eed85a49e675be5d322d3` now repairs
+both the borrowed-response fixture lifetime and the preflight label collision;
+that descendant fix is separate evidence and does not rewrite the exact
+`87d529d...` receipt above.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest and
+local sanitizers remain **NOT RUN** in this connector environment. Real
+Kerberos binding completion, NSS/logind admission, Microsoft-client
+authentication and M2/M3 remain **NOT RUN/OPEN**.
+
 ## R6 focused Windows preflight selector isolation (2026-10-16; exact-SHA CI pending)
 
 Exact-SHA Actions `38902316637` for test-only R6 commit

@@ -8368,3 +8368,16 @@ no synchronized shell checkout. Expected exact-SHA sanitizer scope is
 clipboard **27**, unsuppressed R1/R3 MCS + CredSSP + licensing **18**, native
 R2/R3 GSS **12**, authorized-input denial **1**, and fuzzer **1**. Exact-SHA
 Actions is **PENDING**.
+
+
+## R7 generation-safe macOS cursor snapshot boundary (2026-10-16)
+
+**Implementation:** `be0a0322117742da5a2cdd8be97b972289d4cce0` on `main` (squash-merged from PR #16 after repeated shared-branch contention). Files are limited to the macOS cursor snapshot boundary, Apple-only build linkage, three synthetic tests, and Markdown co-change.
+
+**Local/isolated PASS:** portable ownership/validation behavior built and executed with Clang and GCC C++23 under `-Wall -Wextra -Wpedantic -Werror`; Clang ASan+UBSan with leak detection passed owned-shape, hidden, malformed-shape, off-desktop, stale-generation and stale-topology cases. Objective-C++ ARC syntax of the AppKit/CoreGraphics bridge passed against stub framework declarations. A moved-from ownership edge was corrected before publication so `pixels()` returns an empty span when storage has moved.
+
+**Dedicated standard CTests:** `macos.cursor-owned-shape`, `macos.cursor-validation-denials`, and `macos.cursor-topology-revocation`. They exercise the production portable snapshot constructor with synthetic geometry and owned storage only. Ordinary CTest does not invoke `queryNativeMacCursorSnapshot`, inspect a live cursor, request Screen Recording/Accessibility permission, install event taps, or inject input.
+
+**Exact-SHA hosted state:** Actions run `38881746797` for `be0a0322117742da5a2cdd8be97b972289d4cce0` is **QUEUED** behind a repository-wide CI backlog at this receipt. The real Apple SDK/AppKit compile/link and full hosted CTest matrix therefore remain **NOT RUN** for this exact SHA and must not be counted as PASS.
+
+**Still NOT RUN:** owner macOS 27, live native cursor sampling, genuine R2/R3-authorized desktop binding, R4 cursor publication/deduplication, native input, Microsoft-client cursor rendering, and performance/reliability acceptance. M5 remains **OPEN**.

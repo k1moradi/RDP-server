@@ -1,3 +1,22 @@
+## R6 coordinated Windows session-retirement coverage (2026-10-16)
+
+A native Windows session-change retirement test must compose the real
+`WindowsCaptureSessionGenerationGuard`, `WindowsDxgiCaptureCycle` and
+`WindowsInputController` rather than replacing the cross-component boundary
+with mocks. Ordinary CTest supplies only deterministic session/generation,
+staging/frame and input callbacks: it must not register WTS notifications,
+capture a live desktop or call host `SendInput`.
+
+For target or malformed-session revocation, assert the guard is closed before
+input cancellation, no key/button cleanup is emitted after revocation, the
+borrowed capture view is invalidated before exactly one D3D11 unmap and one
+DXGI frame release, and duplicate notification/cancellation is idempotent.
+When notification is delivered from a native capture callback, require logical
+closure before the callback returns while allowing only the capture cycle's
+existing deferred physical teardown. Keep orderly input shutdown as a separate
+case: held keys/buttons are best-effort released exactly once only while the
+original pinned generation remains current.
+
 ## R9 native file-destination destructor retirement
 
 For injected native file-destination state machines that own a duplicated file

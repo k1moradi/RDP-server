@@ -1471,10 +1471,28 @@ This layer grants no rights: a caller can fabricate the target ID and
 synthetic callbacks, so R2/R3 must independently authenticate the user,
 authorize the native session and own its lifetime. The guard deliberately
 does not register a window, service control handler or WTS notification
-source. R10/R3 must marshal `WM_WTSSESSION_CHANGE` or
-`SERVICE_CONTROL_SESSIONCHANGE` delivery onto the serialized R6 capture
-owner and promptly cancel an active cycle after target revocation. Ordinary
-CTests execute synthetic callbacks only.
+source.
+
+`retireWindowsNativeConsumersOnSessionChange` is the stateless R6
+cross-component retirement boundary for an already-composed guard, capture
+cycle and input controller. R10/R3 must marshal `WM_WTSSESSION_CHANGE` or
+`SERVICE_CONTROL_SESSIONCHANGE` delivery onto the serialized R6 owner and
+call this function. It first notifies the guard. A valid unrelated session
+event returns without touching healthy consumers; a target event, malformed
+session identifier, or already-invalid guard is terminal. Terminal retirement
+then cancels input before capture. Because the guard is already closed, the
+existing input controller discards held key/button state without synthesizing
+cleanup into a potentially different desktop generation. The existing capture
+cycle invalidates its borrowed view, unmaps D3D11 staging and releases the DXGI
+frame exactly once. When the notification arrives inside a native capture
+callback, logical closure is immediate while the cycle's established callback
+guard defers physical unmap/release until the callback returns.
+
+The coordinator owns nothing, starts no watcher and grants no admission. If
+the supplied cycle is a child of `WindowsDxgiDuplicationOwner`, the caller
+must still invoke that outer owner's terminal `close()` when retiring its
+duplication/device/output resources; its existing child-before-parent cleanup
+remains authoritative. Ordinary CTests execute synthetic callbacks only.
 
 ### R6 read-only Win32 cursor metadata snapshot
 

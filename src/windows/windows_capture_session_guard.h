@@ -8,6 +8,8 @@
 namespace rdp_server::windows
 {
 
+class WindowsInputController;
+
 // Read-only facts about one caller-selected Windows session. A target ID is
 // merely a selector supplied by the future R2/R3 authorization owner; these
 // fields never constitute authentication, authorization or a capability.
@@ -71,6 +73,22 @@ private:
     bool readInProgress_{};
     bool closed_{};
 };
+
+// Stateless, revocation-only composition for an already-authorized native
+// lifetime. Calls must stay on the same serialized R6 owner thread as the
+// guard, capture cycle and input controller. The guard is revoked first so a
+// terminal event can never emit held-input cleanup into another generation;
+// capture cancellation then reuses the existing map/frame owners.
+//
+// This retires the supplied capture cycle only. If that cycle is owned by a
+// WindowsDxgiDuplicationOwner, its caller must still close that outer owner to
+// release the parent duplication/device/output resources child-before-parent.
+[[nodiscard]] WindowsCaptureSessionChangeResult
+retireWindowsNativeConsumersOnSessionChange(
+    WindowsCaptureSessionGenerationGuard &guard,
+    WindowsDxgiCaptureCycle &captureCycle,
+    WindowsInputController &inputController,
+    std::uint32_t sessionId) noexcept;
 
 #ifdef _WIN32
 // Production read-only WTS observer. It checks the calling process's actual

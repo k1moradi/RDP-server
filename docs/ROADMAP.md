@@ -1,3 +1,56 @@
+## R6 coordinated Windows native session retirement (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `5f00b101ea4e47f1ac60c5fe7ebb25b2f9b353c2`.
+
+Source audit found a cross-component revocation gap rather than a duplicate
+owner need: `WindowsCaptureSessionGenerationGuard::notifySessionChange()`
+closed the common generation, but a mapped DXGI frame and held native input
+could remain physically live until a later graphics/input operation sampled
+that generation. The existing child owners already implement the required safe
+teardown once invoked.
+
+This increment adds the stateless
+`retireWindowsNativeConsumersOnSessionChange` boundary. It accepts the
+existing caller-owned guard, `WindowsDxgiCaptureCycle`,
+`WindowsInputController` and session identifier. Unrelated valid events leave
+a healthy composition untouched. Target, malformed, or already-invalid guard
+state is terminal: guard revocation occurs first, then input cancellation, then
+capture cancellation. The guard-first order makes stale held-input cleanup
+impossible; the existing capture owner preserves view invalidation -> D3D11
+unmap -> exact-once DXGI `ReleaseFrame`, deferring physical cleanup only while
+an existing native callback is active. The helper creates no watcher, token,
+session, authorization capability, duplication owner or input owner. An outer
+`WindowsDxgiDuplicationOwner` still requires explicit terminal `close()`
+for its parent COM resources.
+
+Three dedicated production-backed offline CTests are centrally registered once:
+`windows.capture-session-change-coordinated-input-revocation`,
+`windows.capture-session-change-callback-revocation`, and
+`windows.input-session-change-held-state-retirement`. They distinguish
+orderly held-input release from revoked-generation discard, prove unrelated
+notifications are inert, require synchronous terminal target retirement,
+exercise notification during staging-map callback, require one unmap and one
+frame release, deny stale input, and prove duplicate retirement idempotent.
+They use injected callbacks only and perform no live WTS mutation, Desktop
+Duplication or `SendInput`.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest is
+**NOT RUN** in this connector environment because no synchronized owner
+checkout is exposed; no alternate persistent build root was created. Exact
+publication-SHA hosted Windows/MSVC focused/full Debug+Release, Linux/GCC,
+macOS/Clang, R9 sanitizer, documentation-policy and SDK/package evidence are
+**PENDING**. Owner Windows MSYS2 CLANG64/Clang23, genuine Windows R2/R3 native
+admission, live DXGI/`SendInput`, Microsoft-client M4 acceptance and native
+performance remain **NOT RUN/BLOCKED**. Direct sanitizer execution of the
+Windows-only R6 executable is **NOT RUN** unless a supported Windows sanitizer
+run is separately recorded. **M1 and M4 remain OPEN / NOT ACCEPTED.**
+
+**Next R6 -> R10 composition gate:** after genuine R2/R3 Windows authorization
+exists, R10 may deliver serialized native session-change identifiers to this
+retirement boundary without knowing D3D11 or `SendInput` internals. Recovery
+still requires fresh R2/R3 authorization and newly composed native owners; an
+unlock/reconnect event never reauthorizes the retired generation.
+
 ## R9 macOS file-destination destructor retirement fence (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `9ff9e7cd6ff057568696c8be954f505acd680599`.

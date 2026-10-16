@@ -34,6 +34,9 @@ void windowsCaptureSessionGenerationActiveLifetime();
 void windowsCaptureSessionRevocationDenials();
 void windowsCaptureSessionChangeRevocation();
 void windowsCaptureSessionChangeDenials();
+void windowsCaptureSessionChangeCoordinatedInputRevocation();
+void windowsCaptureSessionChangeCallbackRevocation();
+void windowsInputSessionChangeHeldStateRetirement();
 void windowsDxgiDuplicationOwnerLifecycle();
 void windowsDxgiDuplicationOwnerSelectionDenials();
 void windowsDxgiDuplicationOwnerSameAdapterAmbiguity();
@@ -890,6 +893,19 @@ int main(int argc, char **argv)
     else if (behavior == "capture-session-change-denials")
     {
         windowsCaptureSessionChangeDenials();
+    }
+    else if (behavior ==
+             "capture-session-change-coordinated-input-revocation")
+    {
+        windowsCaptureSessionChangeCoordinatedInputRevocation();
+    }
+    else if (behavior == "capture-session-change-callback-revocation")
+    {
+        windowsCaptureSessionChangeCallbackRevocation();
+    }
+    else if (behavior == "input-session-change-held-state-retirement")
+    {
+        windowsInputSessionChangeHeldStateRetirement();
     }
     else if (behavior == "dxgi-duplication-owner-lifecycle")
     {

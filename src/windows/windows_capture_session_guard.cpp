@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "windows_capture_session_guard.h"
 
+#include "windows_input_controller.h"
+
 #include <cstring>
 #include <limits>
 
@@ -64,6 +66,38 @@ WindowsCaptureSessionGenerationGuard::notifySessionChange(
 
     closed_ = true;
     return WindowsCaptureSessionChangeResult::revoked;
+}
+
+WindowsCaptureSessionChangeResult
+retireWindowsNativeConsumersOnSessionChange(
+    WindowsCaptureSessionGenerationGuard &guard,
+    WindowsDxgiCaptureCycle &captureCycle,
+    WindowsInputController &inputController,
+    std::uint32_t sessionId) noexcept
+{
+    const auto notification = guard.notifySessionChange(sessionId);
+    if (notification == WindowsCaptureSessionChangeResult::ignored &&
+        !guard.closed())
+    {
+        return notification;
+    }
+
+    // Guard revocation deliberately precedes input retirement. The existing
+    // controller therefore observes a dead generation and discards held state
+    // without synthesizing key/button releases into a different desktop.
+    inputController.cancel();
+
+    // The existing cycle invalidates its borrowed view, unmaps staging, then
+    // releases the outstanding DXGI frame. An in-flight native callback keeps
+    // teardown deferred until that callback returns.
+    captureCycle.cancel();
+
+    // notifySessionChange() intentionally ignores an unrelated valid session
+    // ID before consulting closed_. At this composition boundary an already
+    // invalid guard is nevertheless terminal for both native consumers.
+    return notification == WindowsCaptureSessionChangeResult::ignored
+               ? WindowsCaptureSessionChangeResult::alreadyClosed
+               : notification;
 }
 
 bool WindowsCaptureSessionGenerationGuard::readGeneration(

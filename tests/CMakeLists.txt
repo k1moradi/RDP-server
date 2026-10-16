@@ -748,6 +748,24 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;security;offline")
     endforeach()
+    # R6 cross-component native session retirement. These use the real guard,
+    # capture cycle and input controller with injected callbacks only.
+    add_test(NAME windows.capture-session-change-coordinated-input-revocation
+        COMMAND test_windows_desktop_geometry
+            capture-session-change-coordinated-input-revocation)
+    add_test(NAME windows.capture-session-change-callback-revocation
+        COMMAND test_windows_desktop_geometry
+            capture-session-change-callback-revocation)
+    add_test(NAME windows.input-session-change-held-state-retirement
+        COMMAND test_windows_desktop_geometry
+            input-session-change-held-state-retirement)
+    set_tests_properties(
+        windows.capture-session-change-coordinated-input-revocation
+        windows.capture-session-change-callback-revocation
+        windows.input-session-change-held-state-retirement
+        PROPERTIES
+            LABELS "windows;desktop-capture;desktop-input;security;offline"
+            TIMEOUT 20)
     # R6 DXGI pointer position/shape ownership. Synthetic callbacks exercise
     # the same acquired-frame/generation path; no CTest captures a live cursor.
     foreach(case_name IN ITEMS

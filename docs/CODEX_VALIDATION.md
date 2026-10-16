@@ -1,3 +1,39 @@
+## R6 coordinated native session-retirement authoring receipt (2026-10-16)
+
+**Starting/reconciled shared main:** `5f00b101ea4e47f1ac60c5fe7ebb25b2f9b353c2`.
+
+Inspection of the production guard, capture cycle, staging/frame RAII owners and
+generation-pinned input controller confirms one immediate coordination gap:
+session-change notification invalidated the shared generation but did not
+itself invoke both native consumers. The correction adds one stateless
+revocation-only function in the existing session-guard component; no second
+owner, WTS observer, thread, authorization decision or runtime listener is
+introduced.
+
+Terminal ordering is deliberately guard -> input -> capture. Therefore
+`WindowsInputController::cancel()` observes the already-dead guard and clears
+held state without a stale `SendInput` key/button release. Capture cancellation
+reuses the established mapped-view invalidation, D3D11 unmap and DXGI
+frame-release path. Callback-time revocation remains logically terminal while
+physical capture teardown is deferred until the active callback returns.
+Outer `WindowsDxgiDuplicationOwner::close()` remains a separate parent-resource
+obligation.
+
+Dedicated CTests added to the existing `test_windows_desktop_geometry`
+executable:
+`windows.capture-session-change-coordinated-input-revocation`,
+`windows.capture-session-change-callback-revocation`, and
+`windows.input-session-change-held-state-retirement`. All invoke the real
+production guard/cycle/input implementations with synthetic callbacks and no
+live WTS, DXGI, D3D11 device or `SendInput` activity.
+
+Authoring environment status: canonical owner-local `~/rdp-server/build/`
+**NOT RUN** (no synchronized checkout; no alternate persistent build root
+created). Exact publication-SHA hosted matrix **PENDING**. Owner Windows MSYS2
+CLANG64/Clang23 **NOT RUN**. Direct Windows-only R6 sanitizer execution
+**NOT RUN**. Genuine Windows R2/R3 admission and Microsoft-client M4 remain
+**BLOCKED/OPEN**.
+
 ## R9 macOS file-destination destructor-retirement authoring (2026-10-16)
 
 **Parent:** `9ff9e7cd6ff057568696c8be954f505acd680599`.

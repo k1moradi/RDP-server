@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "windows/windows_capture_session_guard.h"
+#include "windows/windows_input_controller.h"
 
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 
 using namespace rdp_server::windows;
 
@@ -84,16 +86,58 @@ struct FakeGenerationSource final
     }
 };
 
+struct FakeInputBackend final
+{
+    std::array<WindowsNativeInputCommand, 16> commands{};
+    std::size_t commandCount{};
+    WindowsCaptureSessionGenerationGuard *guard{};
+    bool sentAfterRevocation{};
+
+    static std::size_t send(
+        void *context,
+        std::span<const WindowsNativeInputCommand> commands) noexcept
+    {
+        auto &self = *static_cast<FakeInputBackend *>(context);
+        assert(self.commandCount + commands.size() <= self.commands.size());
+        if (self.guard != nullptr && self.guard->closed())
+        {
+            self.sentAfterRevocation = true;
+        }
+        for (const auto &command : commands)
+        {
+            self.commands[self.commandCount++] = command;
+        }
+        return commands.size();
+    }
+
+    [[nodiscard]] WindowsInputCallbacks callbacks() noexcept
+    {
+        return {this, &send};
+    }
+};
+
 struct FakeFramePipeline final
 {
     std::array<std::byte, 4> pixels{
         std::byte{0x12}, std::byte{0x34},
         std::byte{0x56}, std::byte{0xff}};
+    std::array<char, 8> retirementOrder{};
     std::byte token{};
+    std::size_t retirementOrderCount{};
     unsigned acquisitions{};
     unsigned maps{};
     unsigned unmaps{};
     unsigned releases{};
+    WindowsCaptureSessionGenerationGuard *sessionGuard{};
+    WindowsDxgiCaptureCycle *captureCycle{};
+    WindowsInputController *inputController{};
+    bool revokeDuringMap{};
+    bool teardownDeferredDuringMap{};
+    bool postRevocationInputAccepted{true};
+    WindowsCaptureCycleResult nestedCaptureResult{
+        WindowsCaptureCycleResult::failed};
+    WindowsCaptureSessionChangeResult notificationResult{
+        WindowsCaptureSessionChangeResult::ignored};
 
     static WindowsDxgiAcquireResult acquire(
         void *context, std::uint32_t, void *&resource,
@@ -111,6 +155,8 @@ struct FakeFramePipeline final
         auto &self = *static_cast<FakeFramePipeline *>(context);
         assert(resource == &self.token);
         ++self.releases;
+        assert(self.retirementOrderCount < self.retirementOrder.size());
+        self.retirementOrder[self.retirementOrderCount++] = 'R';
         return WindowsDxgiReleaseResult::released;
     }
 
@@ -123,6 +169,23 @@ struct FakeFramePipeline final
         ++self.maps;
         output = {
             self.pixels.data(), self.pixels.size(), {1, 1}, 4, &self.token};
+        if (self.revokeDuringMap)
+        {
+            assert(self.sessionGuard != nullptr);
+            assert(self.captureCycle != nullptr);
+            assert(self.inputController != nullptr);
+            self.revokeDuringMap = false;
+            self.notificationResult =
+                retireWindowsNativeConsumersOnSessionChange(
+                    *self.sessionGuard, *self.captureCycle,
+                    *self.inputController, 42);
+            self.teardownDeferredDuringMap =
+                self.unmaps == 0 && self.releases == 0;
+            self.nestedCaptureResult = self.captureCycle->captureFrame(0);
+            self.postRevocationInputAccepted =
+                self.inputController->handle(
+                    WindowsKeyInput{0x20, false, true});
+        }
         return WindowsD3D11MapResult::mapped;
     }
 
@@ -131,6 +194,8 @@ struct FakeFramePipeline final
         auto &self = *static_cast<FakeFramePipeline *>(context);
         assert(handle == &self.token);
         ++self.unmaps;
+        assert(self.retirementOrderCount < self.retirementOrder.size());
+        self.retirementOrder[self.retirementOrderCount++] = 'U';
     }
 
     [[nodiscard]] WindowsDxgiFrameCallbacks frameCallbacks() noexcept
@@ -388,4 +453,205 @@ void windowsCaptureSessionChangeDenials()
     assert(reentrantGuard.closed());
     assert(reentrantGeneration.reads == 0);
     assert((output == WindowsCaptureGeneration{3, 4}));
+}
+
+
+void windowsCaptureSessionChangeCoordinatedInputRevocation()
+{
+    FakeSessionSource session{};
+    FakeGenerationSource generation{};
+    WindowsCaptureSessionGenerationGuard guard(
+        42, session.callbacks(), generation.callbacks());
+    WindowsCaptureGeneration pinned{};
+    const auto reader = guard.reader();
+    assert(reader.read != nullptr &&
+           reader.read(reader.context, pinned));
+
+    FakeFramePipeline native{};
+    WindowsDxgiCaptureCycle cycle(
+        onePixelLayout(), native.frameCallbacks(), native.stagingCallbacks(),
+        {}, guard.reader(), pinned);
+    FakeInputBackend inputBackend{};
+    inputBackend.guard = &guard;
+    WindowsInputController input(
+        onePixelLayout(), inputBackend.callbacks(), guard.reader(), pinned);
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(input.handle(WindowsKeyInput{0x1e, false, true}));
+    assert(input.handle(WindowsPointerButtonInput{
+        {0, 0}, WindowsPointerButton::left, true}));
+    assert(inputBackend.commandCount == 3);
+    assert(native.unmaps == 0 && native.releases == 0);
+
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, cycle, input, 43) ==
+           WindowsCaptureSessionChangeResult::ignored);
+    assert(!guard.closed() && !cycle.closed() && !input.closed());
+    assert(native.unmaps == 0 && native.releases == 0);
+    assert(inputBackend.commandCount == 3);
+
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, cycle, input, 42) ==
+           WindowsCaptureSessionChangeResult::revoked);
+    assert(guard.closed() && cycle.closed() && input.closed());
+    assert(!inputBackend.sentAfterRevocation);
+    assert(inputBackend.commandCount == 3);
+    assert(native.unmaps == 1 && native.releases == 1);
+    assert(native.retirementOrderCount == 2);
+    assert(native.retirementOrder[0] == 'U' &&
+           native.retirementOrder[1] == 'R');
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
+    assert(!input.handle(WindowsKeyInput{0x1e, false, false}));
+
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, cycle, input, 42) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+    input.cancel();
+    cycle.cancel();
+    assert(inputBackend.commandCount == 3);
+    assert(native.unmaps == 1 && native.releases == 1);
+
+    FakeSessionSource invalidSessionSource{};
+    FakeGenerationSource invalidGenerationSource{};
+    WindowsCaptureSessionGenerationGuard invalidGuard(
+        42, invalidSessionSource.callbacks(),
+        invalidGenerationSource.callbacks());
+    WindowsCaptureGeneration invalidPinned{};
+    const auto invalidReader = invalidGuard.reader();
+    assert(invalidReader.read != nullptr &&
+           invalidReader.read(invalidReader.context, invalidPinned));
+    FakeFramePipeline invalidNative{};
+    WindowsDxgiCaptureCycle invalidCycle(
+        onePixelLayout(), invalidNative.frameCallbacks(),
+        invalidNative.stagingCallbacks(), {}, invalidGuard.reader(),
+        invalidPinned);
+    FakeInputBackend invalidInputBackend{};
+    invalidInputBackend.guard = &invalidGuard;
+    WindowsInputController invalidInput(
+        onePixelLayout(), invalidInputBackend.callbacks(),
+        invalidGuard.reader(), invalidPinned);
+    assert(invalidCycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(invalidInput.handle(WindowsKeyInput{0x30, false, true}));
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               invalidGuard, invalidCycle, invalidInput, 0) ==
+           WindowsCaptureSessionChangeResult::invalidSession);
+    assert(invalidGuard.closed() && invalidCycle.closed() &&
+           invalidInput.closed());
+    assert(invalidInputBackend.commandCount == 1);
+    assert(!invalidInputBackend.sentAfterRevocation);
+    assert(invalidNative.unmaps == 1 && invalidNative.releases == 1);
+}
+
+void windowsCaptureSessionChangeCallbackRevocation()
+{
+    FakeSessionSource session{};
+    FakeGenerationSource generation{};
+    WindowsCaptureSessionGenerationGuard guard(
+        42, session.callbacks(), generation.callbacks());
+    WindowsCaptureGeneration pinned{};
+    const auto reader = guard.reader();
+    assert(reader.read != nullptr &&
+           reader.read(reader.context, pinned));
+
+    FakeInputBackend inputBackend{};
+    inputBackend.guard = &guard;
+    WindowsInputController input(
+        onePixelLayout(), inputBackend.callbacks(), guard.reader(), pinned);
+    assert(input.handle(WindowsKeyInput{0x1e, false, true}));
+    assert(inputBackend.commandCount == 1);
+
+    FakeFramePipeline native{};
+    WindowsDxgiCaptureCycle cycle(
+        onePixelLayout(), native.frameCallbacks(), native.stagingCallbacks(),
+        {}, guard.reader(), pinned);
+    native.sessionGuard = &guard;
+    native.captureCycle = &cycle;
+    native.inputController = &input;
+    native.revokeDuringMap = true;
+
+    assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
+    assert(native.notificationResult ==
+           WindowsCaptureSessionChangeResult::revoked);
+    assert(native.teardownDeferredDuringMap);
+    assert(native.nestedCaptureResult == WindowsCaptureCycleResult::closed);
+    assert(!native.postRevocationInputAccepted);
+    assert(guard.closed() && cycle.closed() && input.closed());
+    assert(native.acquisitions == 1 && native.maps == 1);
+    assert(native.unmaps == 1 && native.releases == 1);
+    assert(native.retirementOrderCount == 2);
+    assert(native.retirementOrder[0] == 'U' &&
+           native.retirementOrder[1] == 'R');
+    assert(inputBackend.commandCount == 1);
+    assert(!inputBackend.sentAfterRevocation);
+    assert(cycle.frame().pixels.empty());
+
+    cycle.cancel();
+    input.cancel();
+    assert(native.unmaps == 1 && native.releases == 1);
+    assert(inputBackend.commandCount == 1);
+}
+
+void windowsInputSessionChangeHeldStateRetirement()
+{
+    {
+        FakeSessionSource session{};
+        FakeGenerationSource generation{};
+        WindowsCaptureSessionGenerationGuard guard(
+            42, session.callbacks(), generation.callbacks());
+        WindowsCaptureGeneration pinned{};
+        const auto reader = guard.reader();
+        assert(reader.read != nullptr &&
+               reader.read(reader.context, pinned));
+
+        FakeInputBackend backend{};
+        backend.guard = &guard;
+        WindowsInputController input(
+            onePixelLayout(), backend.callbacks(), guard.reader(), pinned);
+        assert(input.handle(WindowsKeyInput{0x1e, false, true}));
+        assert(input.handle(WindowsPointerButtonInput{
+            {0, 0}, WindowsPointerButton::right, true}));
+        assert(backend.commandCount == 3);
+
+        input.cancel();
+        assert(input.closed());
+        assert(backend.commandCount == 5);
+        assert(backend.commands[3].kind == WindowsNativeInputKind::keyUp);
+        assert(backend.commands[3].scanCode == 0x1e);
+        assert(backend.commands[4].kind == WindowsNativeInputKind::buttonUp);
+        assert(backend.commands[4].button == WindowsPointerButton::right);
+        assert(!backend.sentAfterRevocation);
+        input.cancel();
+        assert(backend.commandCount == 5);
+    }
+
+    {
+        FakeSessionSource session{};
+        FakeGenerationSource generation{};
+        WindowsCaptureSessionGenerationGuard guard(
+            42, session.callbacks(), generation.callbacks());
+        WindowsCaptureGeneration pinned{};
+        const auto reader = guard.reader();
+        assert(reader.read != nullptr &&
+               reader.read(reader.context, pinned));
+
+        FakeInputBackend backend{};
+        backend.guard = &guard;
+        WindowsInputController input(
+            onePixelLayout(), backend.callbacks(), guard.reader(), pinned);
+        assert(input.handle(WindowsKeyInput{0x1e, true, true}));
+        assert(input.handle(WindowsPointerButtonInput{
+            {0, 0}, WindowsPointerButton::x1, true}));
+        assert(backend.commandCount == 3);
+
+        assert(guard.notifySessionChange(42) ==
+               WindowsCaptureSessionChangeResult::revoked);
+        input.cancel();
+        assert(input.closed());
+        assert(backend.commandCount == 3);
+        assert(!backend.sentAfterRevocation);
+        assert(!input.handle(WindowsKeyInput{0x1e, true, false}));
+        input.cancel();
+        assert(backend.commandCount == 3);
+    }
 }

@@ -15,6 +15,7 @@
 #include <openssl/pem.h>
 #include <openssl/opensslv.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #if defined(_WIN32)
 #include <windows.h>
 #include <aclapi.h>
@@ -526,7 +527,9 @@ struct PkeyCloser {
             privateKeyBio.get(), nullptr, rejectPrivateKeyPassword, nullptr)};
     return certificate && privateKey &&
            hasCurrentCertificateValidity(certificate.get()) &&
-           ::X509_check_private_key(certificate.get(), privateKey.get()) == 1;
+           ::X509_check_private_key(certificate.get(), privateKey.get()) == 1 &&
+           ::X509_check_purpose(
+               certificate.get(), X509_PURPOSE_SSL_SERVER, 0) == 1;
 }
 
 // Offline checks do not establish certificate trust, hostname, revocation,

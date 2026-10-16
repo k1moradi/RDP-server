@@ -1,5 +1,28 @@
 # RDP-server protocol roadmap and acceptance gates
 
+## R10 TLS server-certificate purpose gate (2026-10-16; exact-SHA CI pending)
+
+Starting `main`: `d4669a0a612bf916c6f406d42f26d1174d7130c8`. The two owner-reported configuration-positive
+CTest failures are not reproducible in the latest recorded hosted matrix:
+Windows/MSVC Debug and Release both passed 285/285 registered CTests, including
+`runtime.validates-configuration-syntax` and
+`runtime.validates-configuration-comments-crlf`. Owner MSYS2 CLANG64/Clang
+23 remains **NOT RUN**, so owner-local closure is not claimed.
+
+The existing nonactivating `--check-tls-credentials` preflight now requires
+the already-opened, currently-valid, certificate/private-key-matched X.509
+certificate to be suitable for TLS server use according to OpenSSL's
+`X509_PURPOSE_SSL_SERVER` purpose check. A clientAuth-only certificate is
+rejected without reopening paths or weakening native file policy. New dedicated
+CTest: `runtime.rejects-tls-credentials-client-only-certificate`. Trust-chain,
+hostname, revocation, live credential-handle continuity into a future listener,
+R2/R3 admission, service lifecycle and release packaging remain OPEN.
+
+**Authoring validation:** OpenSSL 3.5.5 C++23 high-warning API probe for
+`X509_check_purpose(..., X509_PURPOSE_SSL_SERVER, ...)` PASS. Full repository
+build/CTest and owner platform tests are **NOT RUN** in this network-isolated
+workspace; exact-SHA GitHub Actions is required after publication.
+
 ## R6 native DXGI owner increment (2026-10-16; validation pending)
 
 The Windows-only `WindowsDxgiDuplicationOwner` now provides an explicit

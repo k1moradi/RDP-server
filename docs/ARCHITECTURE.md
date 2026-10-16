@@ -1,5 +1,16 @@
 # RDP-server architecture
 
+### R10 TLS server-certificate purpose gate (2026-10-16)
+
+After native credential-file identity/permission checks, exact bounded reads,
+PEM parsing, certificate time validation and certificate/private-key matching,
+the offline credential preflight asks OpenSSL to validate the certificate for
+`X509_PURPOSE_SSL_SERVER`. Certificates constrained to incompatible purposes,
+such as clientAuth-only EKU, fail closed. The decision uses the same
+handle-derived bytes and does not reopen either credential path. This remains
+an offline prerequisite: certificate trust, hostname, revocation, R2 identity,
+R3 authority, listener activation and service installation are not established.
+
 ### R6 native D3D11/DXGI duplication ownership (offline integration)
 
 `WindowsDxgiDuplicationOwner` is the native R6 COM RAII boundary, not

@@ -78,6 +78,19 @@ BAIwADAKBggqhkjOPQQDAgNHADBEAiBfHoR/od+48kUfNa1TnJvzMd5K55V4xs5f
 xEyf+2a6QwIgQuZ6iUBOIXPlG7GX932Ob4XuiIEQk8DK/LooextAsT8=
 -----END CERTIFICATE-----
 ]=])
+        set(client_only_certificate [=[-----BEGIN CERTIFICATE-----
+MIIBzDCCAXGgAwIBAgIUZkGs/yO3vX3ivI9fsKdqTftOtXMwCgYIKoZIzj0EAwIw
+KTEnMCUGA1UEAwwecmRwLXNlcnZlci1yMTAtY2xpZW50b25seS10ZXN0MCAXDTI2
+MTAxNjA4MzAyNFoYDzIxMjYwOTIyMDgzMDI0WjApMScwJQYDVQQDDB5yZHAtc2Vy
+dmVyLXIxMC1jbGllbnRvbmx5LXRlc3QwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC
+AARHlTXWKfJwyoq97RvREwXY+oNRVA+FHgJYQIdBtjbv6sWLmmdwo6RPEqW1uVkq
+b8d1wwZ2HWkbjuRfauYQgOmDo3UwczAdBgNVHQ4EFgQUtaVxIkarAzc4CC4Ul+SK
+p8thI9AwHwYDVR0jBBgwFoAUtaVxIkarAzc4CC4Ul+SKp8thI9AwDAYDVR0TAQH/
+BAIwADAOBgNVHQ8BAf8EBAMCB4AwEwYDVR0lBAwwCgYIKwYBBQUHAwIwCgYIKoZI
+zj0EAwIDSQAwRgIhAL1dSTI0uGnRneUqFzw/ymVNrKrwNLEVK3zncmoTmsqqAiEA
+zM3gSCjIAUy6rUxrKsETblErkrn0muJUxG+amk7YRV0=
+-----END CERTIFICATE-----
+]=])
         set(expired_certificate [=[-----BEGIN CERTIFICATE-----
 MIIBRDCB66ADAgECAgEQMAoGCCqGSM49BAMCMCMxITAfBgNVBAMMGHJkcC1zZXJ2
 ZXItcjEwLXRpbWUtdGVzdDAeFw0xMDAxMDEwMDAwMDBaFw0yMDAxMDEwMDAwMDBa
@@ -300,7 +313,9 @@ E0U+IoGqDg==
                     endif()
                 endforeach()
             endif()
-            if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-mismatched-key")
+            if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-client-only-certificate")
+                file(WRITE "${certificate_file}" "${client_only_certificate}")
+            elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-mismatched-key")
                 file(WRITE "${private_key_file}" "${other_private_key}")
             elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-malformed-certificate")
                 file(WRITE "${certificate_file}" "NOT_A_PEM_CERTIFICATE")

@@ -602,6 +602,7 @@ foreach(runtime_case IN ITEMS
         rejects-tls-files-key-parent-symlink
         rejects-tls-files-certificate-parent-symlink
         validates-tls-credentials-matching-pair
+        rejects-tls-credentials-client-only-certificate
         rejects-tls-credentials-mismatched-key
         rejects-tls-credentials-malformed-certificate
         rejects-tls-credentials-malformed-key

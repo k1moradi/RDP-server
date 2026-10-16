@@ -1,5 +1,28 @@
 # CODEX_VALIDATION.md — validation ledger and agent contract
 
+## R10 TLS server-certificate purpose authoring (2026-10-16)
+
+**Starting main:** `d4669a0a612bf916c6f406d42f26d1174d7130c8`. Current source includes the previous Windows
+CRLF and deterministic fixture-permission corrections. The latest recorded
+hosted Windows/MSVC matrix reports **285/285 PASS** in both Debug and Release,
+including both original configuration-positive runtime CTests. Owner Windows
+MSYS2 CLANG64/Clang23 is **NOT RUN**.
+
+**Production change:** the offline `--check-tls-credentials` command now
+requires `X509_check_purpose(certificate, X509_PURPOSE_SSL_SERVER, 0) == 1`
+after secure native file checks, exact bounded reads, current-time validation,
+and certificate/private-key matching. No listener/session/service is activated.
+
+**Dedicated CTest:** `runtime.rejects-tls-credentials-client-only-certificate`
+uses a fixed certificate carrying clientAuth-only EKU with the existing matching
+test private key and requires the existing generic exit-3 denial.
+
+**Authoring validation:** OpenSSL 3.5.5 C++23 `-Wall -Wextra -Wpedantic
+-Werror` API compile probe: **PASS**. Full checkout build/CTest, owner
+Linux/X11, Windows CLANG64/Clang23, macOS27 and live TLS/server admission:
+**NOT RUN** here. Exact-SHA hosted CI is pending. Trust/hostname/revocation and
+secure listener/service lifecycle remain OPEN.
+
 ## R6 native duplication owner (2026-10-16; exact-SHA CI pending)
 
 **Inspected starting main:** `e540be81f297c7f880c6b03db6ffc1a3ad8998ad`.

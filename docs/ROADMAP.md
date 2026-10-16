@@ -5806,3 +5806,38 @@ successfully. macOS Debug failed independently in the R1 fixture
 `test_owned_preauth_session.cpp:1964` because a loopback accept was assumed
 immediately visible; R9 does not modify that R1 boundary. Windows was still
 running when this correction was authored.
+
+
+### R9 MIT GSS failure-path leak isolation (2026-10-16; rerun pending)
+
+Correction SHA `08a6cb30349441db2adc0505965fedf9402ab722`,
+Actions **38874962952**, compiled the full native Linux GSSAPI/logind target
+under Ubuntu Clang **18.1.3** after adding `libsystemd-dev`. The job then
+proved the R9 expansion itself is reachable: clipboard **19/19 PASS** and
+**18/20** selected MCS/CredSSP/R2/R3/licensing CTests passed. The three R3
+licensing cases, R2 native capability denial, R3 admission contract,
+native-session-change revocation and new
+`security.gssapi-r3-mcs-disconnect-revocation-fence` all passed. The two
+failures were existing
+`security.gssapi-configuration-rejections` and
+`security.gssapi-console-provenance-before-os-read`; each reached MIT
+`gss_acquire_cred_from` with the deliberately unavailable explicit keytab and
+LSan reported **216 bytes in 10 allocations**, rooted at
+`krb5_copy_principal`.
+
+R9 independently reproduced that exact **216-byte / 10-allocation** signature
+in a standalone ASan/LSan program containing no RDP-server code, linked only
+to MIT GSSAPI/Kerberos **1.21.3**. The probe released the imported GSS name and
+released any returned credential handle; the failed provider call returned
+`GSS_C_NO_CREDENTIAL`, leaving no caller-owned object capable of freeing the
+reported principal copies. The same external leak reproduced for both a
+nonexistent keytab and a syntactically valid empty keytab. This establishes an
+MIT provider failure-path leak rather than RDP-server ownership loss.
+
+The gate therefore keeps
+`ASAN_OPTIONS=detect_leaks=1:halt_on_error=1` unchanged and adds one narrow
+LSan suppression, `leak:krb5_copy_principal`, **only** to the seven GSSAPI
+boundary CTests. The 19 clipboard tests, 13 MCS/CredSSP/licensing CTests and
+bounded fuzzer run with no LSan suppression. The GSS CTest step is verbose so
+the provider suppression use is auditable. Any unsuppressed ASan/UBSan/LSan
+finding still fails the job. Exact-SHA hosted rerun is **PENDING**.

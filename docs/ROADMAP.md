@@ -1,3 +1,34 @@
+## R2 Server License Request gate exact-SHA validation (2026-10-16)
+
+**Implementation:** `dd59f8a71ee921261b1a6346404676abb1c28750`.  
+**Actions:** [38913002884](https://github.com/k1moradi/RDP-server/actions/runs/38913002884) — **SUCCESS**.
+
+The exact implementation SHA is green across the hosted matrix. Linux/GCC
+passes **431/431 Debug** and **431/431 Release** CTests. macOS/Clang passes
+**362/362 Debug** and **362/362 Release**. Windows/MSVC passes native preflight
+**44/44** in both configurations and the full suite **391/391 Debug** plus
+**391/391 Release**. Documentation policy, staged install, downstream SDK
+consumer, package, digest and artifact steps pass.
+
+R9 Clang ASan/UBSan passes: **46/46 clipboard**, **18/18 x264/BGRA**,
+**33/33 R1/R3 MCS-CredSSP-licensing**, **26/26 native R2/R3 GSSAPI**, **4/4
+R10 runtime CredSSP**, **24/24 native X11**, and **1/1 fuzzer**. The new
+`security.gssapi-r3-server-license-request-write-contract` runs in the native
+R2/R3 sanitizer group and passes, proving genuine writer receipt values cannot
+replace the concrete R2 lease/original R1 owner.
+
+This verifies the fail-closed licensing publication/receipt boundary only.
+Positive final-CredSSP authorization, NSS/logind admission, licensing
+credentials/cryptography and Microsoft-client acceptance remain **NOT RUN**.
+Canonical owner-local `~/rdp-server/build/`, opt-in real Kerberos execution,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS 27 remain **NOT RUN**.
+**M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R2:** protect future client licensing intake and later licensing /
+activation publication with the same fresh lease + exact-owner authorization;
+separately execute genuine Kerberos/final-CredSSP + NSS/logind acceptance when
+its external credentials/session prerequisites are available.
+
 ## R8 Linux bounded file-descriptor destination (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `dd59f8a71ee921261b1a6346404676abb1c28750`. The existing `RemoteTransfer`

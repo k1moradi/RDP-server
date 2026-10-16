@@ -1,3 +1,50 @@
+## R9 Client Info / NLA sanitizer exact-SHA hosted receipt (2026-10-16)
+
+**Validated implementation:** `f59f3e89b02925d6d91a5ce35c312830918c0fe8`,
+Actions `38900361619`. The workflow completed **FAIL** overall, but the
+R9-owned sanitizer job completed **SUCCESS** with the intended expanded
+registry coverage. The conditional prerelease publisher was **SKIPPED** because
+this was not a version tag.
+
+R9 sanitizer results are: clipboard **36/36 PASS**; bounded R1/R3
+transport/CredSSP/licensing **25/25 PASS**; native GSS/R2/R3 **22/22 PASS**;
+the concurrently expanded R5 native X11 selection **16/16 PASS**; bounded
+MCS/CLIPRDR fuzzer **1/1 PASS**. The newly selected
+`transport.mcs-client-info-protected-route` and
+`transport.mcs-client-info-protected-route-denials` passed under
+ASan/UBSan. The newly selected Linux cases
+`security.gssapi-native-admission-r1-nla-provenance-denials`,
+`security.gssapi-r3-initial-nla-owner-fence`, and
+`security.gssapi-r3-client-info-route-contract` also passed. The
+MIT-krb5 LSan suppression remained scoped only to native GSS and appeared in
+the same two known provider-failure cases, each reporting **216 bytes / 10
+`krb5_copy_principal` allocations**; no unsuppressed sanitizer failure was
+reported.
+
+macOS/Clang full CTest is **337/337 PASS** in Debug and **337/337 PASS** in
+Release, followed by downstream SDK consumer/package success. Windows/MSVC
+native preflight is **37/37 PASS** in Debug and Release; full CTest is
+**361/361 PASS** in Debug and **361/361 PASS** in Release, followed by SDK
+consumer/package success. Both portable Client Info route cases pass in all
+four of those full configurations.
+
+Ubuntu/GCC Debug reached **394/395 PASS**. All five R9 target cases passed,
+including the three Linux-only security contracts, before the sole failure:
+concurrent R10 test
+`runtime.linux-connection-credssp-owner-framing` asserted
+`step.plaintextBytesWritten == 0` at
+`tests/test_runtime_linux_security.cpp:648`. The R9 implementation changes
+only CI regex selection and documentation, so this is not attributed to R9 or
+R3 Client Info. Linux Release, SDK consumer and package stages were **NOT RUN**
+because the Debug full-suite step failed. Documentation policy **PASS**.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/focused/full
+CTest and local sanitizers remain **NOT RUN** in this connector environment.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, genuine
+Kerberos/client-ticket plus native logind admission, Microsoft-client
+authentication and live desktop acceptance remain **NOT RUN/OPEN**. M2/M3 are
+not accepted by this CI-only coverage expansion.
+
 ## R5 complete native X11 sanitizer exact-SHA hosted receipt (2026-10-16)
 
 **Implementation:** `f220436f0da88e6b02f2bd58f1da164826929ac6`.

@@ -1,3 +1,34 @@
+## R9 Client Info / NLA sanitizer hosted verification (2026-10-16)
+
+Implementation `f59f3e89b02925d6d91a5ce35c312830918c0fe8`, Actions
+`38900361619`: R9 Clang ASan/UBSan **PASS** with exact groups
+**36/36 clipboard**, **25/25 R1/R3 transport/security**, **22/22 native
+GSS/R2/R3**, **16/16 R5 X11**, and **1/1 bounded fuzzer**. All five registry
+drift cases added by the implementation executed and passed under sanitizers:
+the two portable Client Info route tests plus the NLA provenance, initial R3
+owner fence and R3 Client Info broker contract. Scoped MIT-krb5 LSan output
+remained limited to the two existing **216-byte / 10-allocation**
+`krb5_copy_principal` failure-path suppressions.
+
+Hosted cross-platform evidence on the same SHA: macOS/Clang
+**337/337 Debug + 337/337 Release PASS**, Windows/MSVC
+**37/37 native preflight Debug + Release PASS** and
+**361/361 full Debug + 361/361 full Release PASS**; both platforms complete
+their downstream SDK consumer/package steps. Ubuntu/GCC Debug is
+**394/395** with every R9 target PASS and one unrelated concurrent R10
+aggregate failure:
+`runtime.linux-connection-credssp-owner-framing` at
+`tests/test_runtime_linux_security.cpp:648`
+(`step.plaintextBytesWritten == 0`). Linux Release/downstream are therefore
+**NOT RUN**. Documentation policy PASS; non-tag prerelease publication is
+correctly SKIPPED. The overall workflow is truthfully recorded as FAIL rather
+than promoted to green.
+
+Local owner build/CTest/sanitizers remain **NOT RUN** because
+`~/rdp-server` is not mounted in this connector runtime. No alternate build
+root or side branch was created. Real Kerberos/logind and Microsoft-client
+acceptance remain outside this R9 validation receipt.
+
 ## R5 complete native-X11 sanitizer hosted receipt (2026-10-16)
 
 Exact SHA `f220436f0da88e6b02f2bd58f1da164826929ac6`, Actions

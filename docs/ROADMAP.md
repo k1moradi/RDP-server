@@ -156,6 +156,22 @@ separate blockers and the server still refuses startup.
 cross-platform CI and implement DACL policy with its own CTest.
 M1–M6 remain open.
 
+**R10 Windows handle exact-SHA CI PASS (2026-10-15):**
+Implementation [`c7676520bb2c360d156004d458d5ed946575297b`](https://github.com/k1moradi/RDP-server/commit/c7676520bb2c360d156004d458d5ed946575297b)
+passed [Actions 38844859211](https://github.com/k1moradi/RDP-server/actions/runs/38844859211)
+with Linux/GCC **205/205**, macOS/Clang **191/191**, and Windows/MSVC
+**199/199** full registered CTests in EACH Debug and Release.
+All four newly registered Windows-only native config-handle CTests
+explicitly PASS in both Windows configurations. Each OS's installed
+downstream SDK consumer **1/1 PASS**; protocol-only ZIP/SHA256
+packaging and uploads PASS, documentation-policy PASS.
+Automatic protocol prerelease SKIPPED (no tag).
+This is hosted CI evidence, NOT the owner's Linux/X11,
+Windows MSYS2 CLANG64 Clang23 and macOS27 same-SHA command.
+Native ACL/reparse ancestors and actual TLS private-key/OS
+authorization remain unverified, so M1–M6 remain OPEN.
+**Next R10:** Windows DACL/write-access gate and dedicated CTests.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

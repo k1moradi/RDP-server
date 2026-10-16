@@ -4232,3 +4232,27 @@ native independently audited OS console session and R3 admission,
 owner local Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
 live Microsoft client, desktop or user interaction.
 Gate A remains OPEN; this increment is deny-only.
+
+## R10 Windows handle exact-SHA hosted CI (2026-10-15)
+
+**Code SHA:** `c7676520bb2c360d156004d458d5ed946575297b`,
+[Actions 38844859211](https://github.com/k1moradi/RDP-server/actions/runs/38844859211)
+**completed SUCCESS**. Hosted GCC/Linux **205/205** Debug and **205/205**
+Release full CTests; Clang/macOS **191/191** Debug and **191/191**
+Release; MSVC/Windows **199/199** Debug and **199/199** Release.
+Windows's four new R10 CTests
+`runtime.validates-configuration-windows-regular`,
+`runtime.rejects-configuration-windows-directory`,
+`runtime.rejects-configuration-windows-relative-file`, and
+`runtime.rejects-windows-device-namespace` PASS in both configs.
+Downstream installed SDK consumer **1/1 PASS** on each OS, ZIP/SHA256
+package/upload and documentation-policy PASS; prerelease SKIPPED
+without a protocol version tag. No runtime service was installed or run.
+
+Owner's Linux/X11, Windows MSYS2 CLANG64 **Clang 23**, and macOS 27
+terminal one-liners, same-SHA milestone gate, real Microsoft RDP
+client, desktop, true OS identity authorization and TLS private-key
+ACL checks are **NOT RUN**. The above is developer SDK/runtime CI,
+not M1–M6 acceptance. Next R10: per-HANDLE Windows DACL screening
+with a new dedicated CTest; intermediate path reparse restrictions
+remain outstanding.

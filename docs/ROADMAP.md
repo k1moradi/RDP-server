@@ -1,3 +1,45 @@
+## R2 licensing HWID-proof non-authority fence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `df67d3012440a59cd67dd2e53b85aea8f4355c39`.
+
+R3 now performs CLIENT_LICENSE_INFO hardware-ID RC4/MAC verification before
+retaining that branch, but the verifier's success result and parsed
+`RdpClientLicenseInfoView` are protocol evidence only. Per the existing R2
+roadmap, no new authorization API is introduced because R3 still exposes no
+server licensing decision, challenge/issuance or activation publication /
+completion boundary.
+
+The existing
+`security.gssapi-r3-client-licensing-route-contract` is strengthened in
+place. Compile-time invocation checks now prove that neither a parsed
+`RdpClientLicenseInfoView` nor
+`RdpClientLicenseInfoHardwareIdResult` can occupy the authority-bearing
+`LinuxConsoleAdmissionLease` slot of
+`authorizeR3ClientLicensingMessage`. The test also constructs a
+success-shaped HWID-verifier status and confirms it is merely data before
+executing the existing unadmitted licensing denial path. Key-exchange views,
+derived key material, service credentials, raw SSL pointers, strings,
+generation integers and nullable lease substitutes remain rejected as before.
+
+No production R1/R2/R3 API, GSS state, logind state or licensing decision is
+changed. The existing CTest remains centrally registered and already selected
+by the native R2/R3 ASan/UBSan group, so no second fixture or selector is
+added.
+
+Canonical owner-local `~/rdp-server/build/` remains **NOT RUN** in this
+connector environment. Exact-publication-SHA Linux/GCC, macOS/Clang,
+Windows/MSVC, sanitizer, documentation-policy and SDK/package validation are
+**PENDING**. Genuine Kerberos/final-CredSSP + NSS/logind positive admission,
+CAL trust/product/expiry validation, protected server licensing publication,
+Microsoft-client licensing/Share/desktop acceptance and M2/M3 remain
+**NOT RUN / OPEN**.
+
+**Next R2:** keep the production authorization API unchanged until R3 exposes
+a real server licensing decision, challenge/issuance or activation
+publication/completion boundary. Then require fresh concrete lease + exact R1
+owner authorization immediately before state/write publication and again
+before asynchronous accepted-byte completion.
+
 ## R9 CLIENT_LICENSE_INFO fresh-proof exact-SHA receipt (2026-10-16)
 
 **Implementation:** `8c93173c1e4a44cf3a024a317a63de994dea9b53`.

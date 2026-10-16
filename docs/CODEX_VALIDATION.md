@@ -1,3 +1,27 @@
+## R2 licensing HWID-proof authority authoring validation (2026-10-16)
+
+**Reconciled parent:** `df67d3012440a59cd67dd2e53b85aea8f4355c39`.
+
+Source review **PASS**: R3's newer CLIENT_LICENSE_INFO HWID verifier remains
+below the existing protected client-licensing route and returns only a status
+result. The Linux R2 contract is strengthened so both
+`RdpClientLicenseInfoView` and
+`RdpClientLicenseInfoHardwareIdResult` are compile-time rejected when placed
+in the `LinuxConsoleAdmissionLease` argument position. A success-shaped
+verifier status is also exercised as plain protocol data; it does not mutate
+the fresh unadmitted R3 owner or licensing lifecycle.
+
+No production authorization API or runtime positive-admission fixture changes.
+The existing
+`security.gssapi-r3-client-licensing-route-contract` remains registered and
+already included in the native R2/R3 sanitizer selector.
+
+Canonical local build/full CTest is **NOT RUN / BLOCKED** because this
+connector environment has no synchronized owner `~/rdp-server` checkout.
+Exact-SHA hosted platform, sanitizer, documentation and SDK/package evidence
+are **PENDING**. Genuine positive Kerberos/NSS/logind admission and
+Microsoft-client licensing remain **NOT RUN**.
+
 ## R9 CLIENT_LICENSE_INFO fresh-proof hosted verification (2026-10-16)
 
 Implementation `8c93173c1e4a44cf3a024a317a63de994dea9b53`, Actions

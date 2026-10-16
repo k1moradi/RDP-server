@@ -1662,6 +1662,11 @@ void testR3ClientLicensingRouteContract()
         rdp_server::server::transport::RdpClientLicensingKeyExchangeView;
     using KeyMaterial =
         rdp_server::server::transport::RdpLicensingKeyMaterial;
+    using ClientLicenseInfo =
+        rdp_server::server::transport::RdpClientLicenseInfoView;
+    using HardwareIdProof =
+        rdp_server::server::transport::
+            RdpClientLicenseInfoHardwareIdResult;
     using Credential = const RdpLicensingServiceCredential &;
 
     static_assert(std::is_invocable_r_v<
@@ -1695,6 +1700,19 @@ void testR3ClientLicensingRouteContract()
     static_assert(!std::is_invocable_v<
         RouteMethod, Broker, const KeyMaterial &,
         Acceptor, Connection, Session, Credential, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const ClientLicenseInfo &,
+        Acceptor, Connection, Session, Credential, Bytes>);
+    static_assert(!std::is_invocable_v<
+        RouteMethod, Broker, const HardwareIdProof &,
+        Acceptor, Connection, Session, Credential, Bytes>);
+
+    // The HWID verifier result is intentionally a small status value. Even a
+    // success-shaped value remains protocol evidence, not native admission.
+    const HardwareIdProof successShapedHardwareIdProof{
+        rdp_server::server::transport::
+            RdpClientLicenseInfoHardwareIdError::None};
+    assert(successShapedHardwareIdProof);
 
     // Build one structurally complete CLIENT_NEW_LICENSE_REQUEST. R3's public
     // parsers may classify protocol bytes and derive keys from already-decoded

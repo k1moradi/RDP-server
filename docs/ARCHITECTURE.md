@@ -1,3 +1,19 @@
+## R2 boundary for CLIENT_LICENSE_INFO HWID verification (2026-10-16)
+
+A successful `verifyRdpClientLicenseInfoHardwareId` result proves only the
+protocol-defined HWID integrity check performed with the already-derived
+licensing keys. It is not an R2 admission capability and does not certify CAL
+trust, product identity, expiry, native console ownership or desktop
+authorization.
+
+The protected first-client-licensing route therefore continues to accept only
+the concrete move-only `LinuxConsoleAdmissionLease` in its authority slot,
+with the licensing service credential separately supplied as protocol
+continuity input. Parsed `RdpClientLicenseInfoView`, HWID verifier results,
+key-exchange views and derived key material cannot substitute for that lease.
+R2 adds no speculative server-decision API while R3 remains stopped at
+`AwaitServerLicenseDecision`.
+
 ## R2 boundary for licensing service credentials (2026-10-16)
 
 `RdpLicensingServiceCredential` is cryptographic continuity material, not an

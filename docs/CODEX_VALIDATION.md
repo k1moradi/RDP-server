@@ -13843,3 +13843,37 @@ must provide non-forgeable macOS per-user admission; R4 retains graphics/
 cursor publication authority. Owner macOS 27 live capture/session-switch
 and Microsoft-client M5 acceptance remain **NOT RUN/OPEN**.
 **M5 remains OPEN/BLOCKED**.
+
+
+## R7 capture backend reentry exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `874c9e0ddc4a3f20af12f64f3fbddaeadbe2e832`.
+**GitHub Actions:** `38927738085` — overall **SUCCESS** on the exact
+implementation SHA. The production `MacScreenCaptureStream` now unlocks the
+owner mutex for synchronous backend submissions, denies nested owner operations
+while in flight, and defers one backend retirement when a callback closes the
+stream or invalidates topology. Backend closure is marked before the native
+close callback to prevent recursive/double retirement.
+
+The new Apple-only native-linked
+`macos.capture-stream-backend-callback-reentry-retirement` CTest is
+**PASS** in both macOS/AppleClang Debug and Release. macOS full CTest is
+**383/383 PASS** in both configurations. Ubuntu/GCC full CTest is
+**457/457 PASS** in Debug and Release; Windows/MSVC is **413/413 PASS**
+in Debug and Release, with focused Windows native preflight **46/46 PASS**
+in both configurations. The installed SDK consumer is **1/1 PASS**
+on each of Linux, macOS, and Windows.
+
+The dedicated R7 session-watch GCC ASan/UBSan job, the shared R9 Clang
+ASan/UBSan job and documentation policy all **PASS**. This receipt does
+not claim that the Apple-only capture stream reentry test ran under the Linux
+sanitizer selectors; it ran under hosted macOS Debug and Release CTests.
+Untagged prerelease publication was correctly **SKIPPED**.
+
+No public native ScreenCaptureKit factory, live GUI-session authority, cursor
+sampler or Quartz input callback was exposed. Canonical owner-local
+`~/rdp-server/build/`, genuine macOS 27 fast-user-switch/capture, R2/R3
+non-forgeable macOS per-user admission, R4 live cursor publication and
+Microsoft-client M5 acceptance remain **NOT RUN/OPEN**. The next R7
+authority-bearing gate is the genuine R2/R3 macOS capability, followed by
+owner-local macOS 27 tests. **M5 remains OPEN/BLOCKED**.

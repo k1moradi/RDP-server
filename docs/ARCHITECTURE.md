@@ -4157,3 +4157,15 @@ only, not a real-Kerberos PASS. M2/M3 remain **OPEN**. With final credentials
 still policy-denied by R2, positive NSS/logind admission is correctly
 **BLOCKED** rather than synthesized; the next R10 production gate depends on a
 reviewed R2 positive final-credential authorization contract.
+
+
+## R4 RDPGFX frame-ID domain (2026-10-16)
+
+RDPGFX START_FRAME and END_FRAME carry a 32-bit unsigned `frameId`.
+R4 treats the full wire domain, including zero, as valid. A frame ID is not an
+object-validity sentinel: `GfxFrameDeliveryReceipt::serial`, presentation
+generation/stage and the ACK window provide delivery identity/liveness.
+Pending duplicate IDs remain rejected by the one authoritative ACK window
+before x264 runs; accepting zero therefore does not weaken correlation or
+create a second frame scheduler. The same ID is serialized unchanged into
+START_FRAME and END_FRAME and is matched unchanged by FRAME_ACKNOWLEDGE.

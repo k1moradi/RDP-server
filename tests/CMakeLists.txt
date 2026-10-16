@@ -272,6 +272,7 @@ function(add_rdp_test source_file suite behavior)
     elseif(test_target STREQUAL "test_gfx_avc420_picture")
         foreach(case_name IN ITEMS
                 avc420-picture-wire
+                avc420-zero-frame-id-wire
                 avc420-picture-rejections
                 avc420-picture-overlap
                 avc420-visible-crop
@@ -1491,6 +1492,7 @@ foreach(case_name IN ITEMS
         x264-segmented-malformed-nv12-reference-continuity
         x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset
+        x264-segmented-zero-frame-id-delivery
         x264-segmented-cfr-pts-reference-continuity
         bgra-nv12-bt709-pixel-oracle
         bgra-nv12-stride-padding-lifetime

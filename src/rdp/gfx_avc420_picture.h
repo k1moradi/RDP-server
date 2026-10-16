@@ -23,6 +23,8 @@ struct GfxAvc420QuantQuality final
 struct GfxAvc420Picture final
 {
     std::uint16_t surfaceId{};
+    // Full MS-RDPEGFX START/END_FRAME u32 domain; zero is a valid wire ID.
+    // Delivery validity is carried by the lifecycle receipt serial, not this ID.
     std::uint32_t frameId{};
     // Coded picture size, multiple of 16 in each dimension. Regions are
     // actual visible rectangles cropped from that coded picture.

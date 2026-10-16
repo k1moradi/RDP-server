@@ -71,6 +71,27 @@ void wire()
     for (std::size_t i = bytes; i < output.size(); ++i)
         assert(output[i] == std::byte{0xA5});
 }
+void zeroFrameIdWire()
+{
+    Bytes output{};
+    output.fill(std::byte{0xA5});
+    auto p = picture();
+    p.frameId = 0;
+
+    assert(gfxAvc420PictureMetadataValid(p));
+    const std::size_t bytes = gfxAvc420PictureBytes(2, 7);
+    assert(bytes == 84U);
+    assert(buildGfxAvc420Picture(p, output) == bytes);
+
+    // MS-RDPEGFX frameId is a full uint32 wire value; zero is not reserved.
+    assert(u16(output, 0) == 0x000BU);
+    assert(u32(output, 12) == 0U);
+    assert(u16(output, 72) == 0x000CU);
+    assert(u32(output, 80) == 0U);
+    for (std::size_t index = bytes; index < output.size(); ++index)
+        assert(output[index] == std::byte{0xA5});
+}
+
 void rejections()
 {
     Bytes output{}; output.fill(std::byte{0xA5});
@@ -85,7 +106,6 @@ void rejections()
     for (std::size_t n = 0; n < gfxAvc420PictureBytes(2, 7); ++n)
         fail(valid, n);
     {auto p=valid;p.surfaceId=0;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
-    {auto p=valid;p.frameId=0;assert(!gfxAvc420PictureMetadataValid(p));fail(p,output.size());}
     for(const PixelSize size : {PixelSize{0,16}, PixelSize{32,0},
                                 PixelSize{31,16}, PixelSize{32,17},
                                 PixelSize{65536,16}, PixelSize{32,65536}})
@@ -174,6 +194,7 @@ int main(int argc, char **argv)
     if(argc!=2) return 2;
     const std::string_view testName=argv[1];
     if(testName=="avc420-picture-wire") {wire();return 0;}
+    if(testName=="avc420-zero-frame-id-wire") {zeroFrameIdWire();return 0;}
     if(testName=="avc420-picture-rejections") {rejections();return 0;}
     if(testName=="avc420-picture-overlap") {overlap();return 0;}
     if(testName=="avc420-visible-crop") {crop1080();return 0;}

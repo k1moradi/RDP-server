@@ -758,6 +758,58 @@ void malformedNv12PreflightPreservesReferences()
     assert(!hasNalType(second.wireBytes(), 5));
 }
 
+
+void zeroFrameIdDelivery()
+{
+    constexpr std::uint64_t generation = 6501;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+
+    const auto firstPixels = makeFrame(kCoded, 6);
+    const auto duplicatePixels = makeFrame(kCoded, 14);
+    const auto nextPixels = makeFrame(kCoded, 22);
+
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepare(
+        lifecycle, generation, request(0, firstPixels, 0), first));
+    assert(first.valid() && first.frameId() == 0U);
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    // Zero participates in the same duplicate-pending gate as every other
+    // uint32 frame ID, and the denial must occur before x264 advances.
+    assert(!lifecycle.canReserveFrame(generation, 0U));
+    GfxAvc420SegmentedFrame denied;
+    assert(!producer.prepare(
+        lifecycle, generation, request(0, duplicatePixels, 1), denied));
+    assert(!denied.valid());
+    assert(producer.valid());
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    GfxFrameAckWindowResult acknowledged{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(0U), acknowledged));
+    assert(acknowledged == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
+
+    // The rejected duplicate zero did not touch codec history: the next
+    // distinct frame remains reference-continuous instead of forcing IDR.
+    GfxAvc420SegmentedFrame next;
+    assert(producer.prepare(
+        lifecycle, generation, request(1U, nextPixels, 2), next));
+    assert(hasNalType(next.wireBytes(), 1));
+    assert(!hasNalType(next.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, next, next.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(1U), acknowledged));
+    assert(acknowledged == GfxFrameAckWindowResult::Acknowledged);
+}
+
 void fixedCfrPtsPreserveReferenceContinuity()
 {
     // NV12: arbitrary caller PTS values must not become a second ordering
@@ -884,6 +936,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-abort-generation-reset")
     {
         abortAndGenerationReset();
+        return 0;
+    }
+    if (behavior == "x264-segmented-zero-frame-id-delivery")
+    {
+        zeroFrameIdDelivery();
         return 0;
     }
     if (behavior == "x264-segmented-cfr-pts-reference-continuity")

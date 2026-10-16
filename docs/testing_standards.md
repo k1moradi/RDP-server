@@ -2057,3 +2057,15 @@ capability sets before and after a valid Version 8.1 set and require the exact
 Version 8.1 confirmation. Advertisements containing only unsupported newer or
 unknown sets must yield no confirmation. Do not infer support from a larger
 version number or from similarly named H.264 flags.
+
+
+## Protocol scalar domains are not local sentinels (R4, 2026-10-16)
+
+Do not reject a protocol integer solely because its value is zero when the
+normative wire definition does not reserve zero. Keep local object validity
+separate from peer-visible scalar domains. For RDPGFX logical frames,
+`frameId` is the full 32-bit unsigned wire value; the R4 lifecycle's
+nonzero receipt serial and stage/generation state identify a live delivery.
+Tests must cover protocol boundary values through the complete production path,
+including duplicate/backpressure handling, rather than relying only on a
+serializer unit check.

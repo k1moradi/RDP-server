@@ -12367,3 +12367,24 @@ only, not a real-Kerberos PASS. M2/M3 remain **OPEN**. With final credentials
 still policy-denied by R2, positive NSS/logind admission is correctly
 **BLOCKED** rather than synthesized; the next R10 production gate depends on a
 reviewed R2 positive final-credential authorization contract.
+
+
+## R4 zero frame-ID authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `a7c0cb9d4b9bbb03d35fac50fbba28c25e59e3f9`.
+
+Normative RDPGFX review found an R4-only scalar-domain mismatch:
+START_FRAME/END_FRAME define `frameId` as uint32 without reserving zero, while
+`gfxAvc420PictureMetadataValid()` rejected zero despite the existing ACK
+window already supporting it. The metadata-only rejection is removed; receipt
+validity remains based on generation/serial/state.
+
+New ordinary CTests
+`graphics.avc420-zero-frame-id-wire` and
+`graphics.x264-segmented-zero-frame-id-delivery` cover raw wire
+serialization plus the real x264/segmented/full-delivery/ACK/reference path.
+The latter is automatically included by the existing `x264` sanitizer label.
+Canonical local execution is **NOT RUN** because this connector does not expose
+the owner checkout. Exact publication-SHA hosted CI is the first executable
+gate. R3 Graphics DVC/full-send and real-client graphics remain
+**BLOCKED/NOT RUN**.

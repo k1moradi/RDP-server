@@ -11778,3 +11778,36 @@ only, not a real-Kerberos PASS. M2/M3 remain **OPEN**. With final credentials
 still policy-denied by R2, positive NSS/logind admission is correctly
 **BLOCKED** rather than synthesized; the next R10 production gate depends on a
 reviewed R2 positive final-credential authorization contract.
+
+
+## R4 zero-valued RDPGFX frame ID correction (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `a7c0cb9d4b9bbb03d35fac50fbba28c25e59e3f9`.
+
+Current MS-RDPEGFX defines START_FRAME/END_FRAME `frameId` as a 32-bit
+unsigned frame identifier and does not reserve zero. R4's ACK parser/window
+already accepts and correlates frame ID zero, and delivery receipts use their
+independent nonzero serial for validity. The AVC420 metadata validator was the
+inconsistent boundary: it rejected `picture.frameId == 0` before publication.
+
+R4 now admits the full uint32 frame-ID wire domain by removing only that
+non-normative metadata rejection. No allocator, wrap policy, scheduler or
+channel state is added. Pending duplicate zero is still denied by the existing
+generation-bound ACK window before x264 advances.
+
+Dedicated production-backed CTests:
+`graphics.avc420-zero-frame-id-wire` verifies zero is serialized unchanged
+in both START_FRAME and END_FRAME; and
+`graphics.x264-segmented-zero-frame-id-delivery` sends a real x264 IDR with
+frame ID zero through segmented AVC420 delivery, proves a duplicate pending
+zero is pre-encode denied, ACKs zero, then proves the next distinct picture is
+a reference-continuous P slice. The x264 case carries the existing `x264`
+label and therefore joins the fully instrumented R4 ASan/UBSan group.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest is **NOT
+RUN** in this connector environment. Exact-SHA Linux/GCC, macOS/Clang,
+Windows/MSVC Debug/Release, R4 x264 sanitizer, documentation policy and
+SDK/package checks are required after publication. Genuine authenticated R3
+Graphics DVC/full-send integration, owner three-OS commands, native capture
+performance and Microsoft-client rendering remain **NOT RUN/BLOCKED**.
+Gate B and M3/M4/M5 remain **OPEN**.

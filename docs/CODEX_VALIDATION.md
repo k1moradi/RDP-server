@@ -4889,3 +4889,32 @@ owner Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27, sanitizer
 cases outside clipboard, unbounded libFuzzer corpus, real Microsoft client,
 NLA/OS authorization and live desktop. Next R9: add bounded sanitizer
 seeds or real R3-to-R8 authorized channel dispatch tests when implemented.
+
+## R1 bounded accept-batch cross-platform full CI receipt (2026-10-15)
+
+**Production implementation:** `c3b10eecf9f76d550d09f6601c3095130ff94b95`;
+**test fixture sequencing:** `16ec8326ef2be45d56f2e87e49f907635a314eb8`;
+**per-CTest timeout:** `2d03a9bd0bebf7697231322c07d0fa594ef6b0d1`.
+**Exact-SHA hosted CI [Actions 38849575634](https://github.com/k1moradi/RDP-server/actions/runs/38849575634) SUCCESS:**
+Linux/GCC **218/218 Debug and Release**, macOS/AppleClang
+**202/202 Debug and Release**, Windows/MSVC **220/220 Debug
+and Release**. Both named R1 native acceptance CTests
+`transport.tcp-native-accept-batch-budget-handoff` and
+`transport.tcp-native-accept-batch-stops-denials` PASS in
+all six hosted configurations. Documentation-policy PASS,
+R9 clipboard sanitizer PASS, all hosted installed SDK downstream
+consumer checks PASS, SDK package ZIP/SHA256 PASS; prerelease
+SKIPPED (no release tag).
+
+**Commands:** hosted workflow runs ordinary `cmake -S . -B build`
+with `BUILD_TESTING=ON`, builds Debug/Release in one build root,
+`ctest --test-dir build -C Debug/Release --output-on-failure` and
+SDK consumer tests; owner exact-command reports NOT RUN.
+**NOT RUN:** owner's separately nominated Linux/X11,
+Windows MSYS2 CLANG64 Clang23 and macOS27 platform checks,
+real Microsoft client, server listener/service activation,
+R2 authenticated identity and OS authorization, R3 channel/
+share progression, graphics and desktop. Synthetic X.224/TLS
+accept handoff alone does not accept Gate A or M2.
+**Next R1:** R10's bounded live listener schedule and R2/R3
+authorization integration under existing one-owner contracts.

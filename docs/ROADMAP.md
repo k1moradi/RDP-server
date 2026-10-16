@@ -691,6 +691,26 @@ actually run; another parser CTest alone is not a complete session.
   Corrected watchdog CI **NOT RUN** at authorship. Owner-local
   Linux/X11, MSYS2 CLANG64 Clang23 and macOS27 **NOT RUN**.
 
+  **R1 bounded accept-batch cross-platform full CI receipt (2026-10-15)**:
+  [production commit `c3b10eecf9f76d550d09f6601c3095130ff94b95`](https://github.com/k1moradi/RDP-server/commit/c3b10eecf9f76d550d09f6601c3095130ff94b95),
+  [backlog-independent fixture `16ec8326ef2be45d56f2e87e49f907635a314eb8`](https://github.com/k1moradi/RDP-server/commit/16ec8326ef2be45d56f2e87e49f907635a314eb8),
+  and [bounded test watchdog `2d03a9bd0bebf7697231322c07d0fa594ef6b0d1`](https://github.com/k1moradi/RDP-server/commit/2d03a9bd0bebf7697231322c07d0fa594ef6b0d1).
+  The [exact source CI run 38849575634](https://github.com/k1moradi/RDP-server/actions/runs/38849575634)
+  completed **SUCCESS**, with hosted Linux/GCC full
+  **218/218 Debug and 218/218 Release**, macOS/AppleClang full
+  **202/202 Debug and 202/202 Release**, and Windows/MSVC full
+  **220/220 Debug and 220/220 Release** CTests.
+  BOTH new R1 native batch CTests PASS in every platform/build type.
+  Documentation-policy, R9 clipboard-sanitizer, installed SDK
+  consumer and ZIP/SHA-256 artifact jobs PASS; prerelease SKIPPED
+  without a tag. All listener bind/service activation, R2 identity
+  and OS authorization, R3 admitted session, live Microsoft RDP
+  client/desktop and owner's Linux/X11, MSYS2 CLANG64 Clang23,
+  macOS27 exact-SHA commands remain **NOT RUN**.
+  Next R1: integrate the bounded accept callback into R10's
+  eventual production listener fairness without introducing a
+  second session controller or bypassing authenticated gates.
+
   **Verified R1 bounded TCP/BIO syscall integration increment
   (2026-10-15; exact-head CI PASS):** Reuse the
   ONLY existing `NativeTcpIo` and custom OpenSSL

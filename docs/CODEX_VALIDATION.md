@@ -9,7 +9,32 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
-## R6 target-session change revocation (2026-10-16; CI pending)
+## R6 Win32 cursor metadata snapshot (2026-10-16; CI pending)
+
+**Authoring parent main:** `10fff1ab437b74f7065bdd4c87dd9a5095f1f050`. Added
+`src/windows/windows_cursor_snapshot.{h,cpp}` to the existing R6 native
+adapter. The shared callback seam validates visible cursor dimensions/hotspot,
+translates Win32 screen coordinates through the existing monitor layout,
+rejects monitor gaps and preserves prior output on invalid/unavailable reads.
+Hidden/suppressed cursor state clears stale visible metadata. The native
+callback uses `GetCursorInfo`, `GetIconInfo` and `GetObjectW`; temporary
+mask/color `HBITMAP` ownership is stack-RAII and always released. Color
+bitmap dimensions must match the mask; monochrome mask height must be even
+and is halved. Cursor metadata is capped at 256x256. No shape pixels,
+HCURSOR lifetime, R4 scheduling, input or authorization was added.
+
+**New Windows-only CTests:** `windows.cursor-snapshot-visible-and-hidden`
+and `windows.cursor-snapshot-rejections`, in the existing R6 executable
+and central registry. **PASS (isolated portable seam only):** GCC 14.2 and
+Clang 17 C++23 with strict warnings, plus Clang 17 ASan/UBSan. **NOT RUN at
+authoring:** full repository CMake/CTest, hosted exact-SHA CI, Windows SDK/
+MSVC native path, owner Windows MSYS2 CLANG64 Clang23/Linux X11/macOS27,
+live authorized cursor/session, Microsoft-client M4 acceptance or performance.
+**Next:** exact-SHA hosted CI, then bounded native cursor shape extraction
+with explicit color/monochrome transparency semantics and generation-safe
+R4 ownership.
+
+## R6 target-session change revocation (2026-10-16; exact-SHA CI PASS)
 
 **Authoring parent main:** `5510d09b31bb1aaa0697a9086edeb317e3c12b42`. The existing
 `WindowsCaptureSessionGenerationGuard` now accepts a serialized
@@ -25,6 +50,13 @@ before `ReleaseFrame`, and publishes no caller-owned pixels.
 `tests/windows_capture_session_guard_cases.cpp`,
 `tests/test_windows_desktop_geometry.cpp`, `tests/CMakeLists.txt`,
 `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, and this ledger.
+**Implementation SHA:** `1efd3688872cc38e7c932efc661c793edfd4c4b7`.
+**Actions run:** 38865710309, overall **PASS**. Linux/GCC registered CTest
+**273/273** Debug and Release; Windows/MSVC **273/273** Debug and Release;
+macOS/Clang **255/255** Debug and Release. Both target-session-change R6
+cases passed in Windows Debug and Release. Documentation policy, R9
+security/protocol sanitizers, staged SDK consumers and package steps PASS.
+Owner MSYS2 CLANG64/Clang23, live WTS delivery and M4 remain NOT RUN.
 **New Windows-only CTests:** `windows.capture-session-change-revocation`
 and `windows.capture-session-change-denials`. They use synthetic
 session/generation/frame callbacks only; ordinary CTest neither registers

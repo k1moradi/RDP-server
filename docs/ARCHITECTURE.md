@@ -227,6 +227,34 @@ source. R10/R3 must marshal `WM_WTSSESSION_CHANGE` or
 owner and promptly cancel an active cycle after target revocation. Ordinary
 CTests execute synthetic callbacks only.
 
+### R6 read-only Win32 cursor metadata snapshot
+
+`WindowsCursorSnapshot` is a small owned metadata record, not a cursor
+bitmap or R4 graphics packet. `readWindowsCursorSnapshot` samples one
+injected/native observation synchronously, then translates the native
+virtual-screen position through the existing validated
+`WindowsDesktopLayout`. Visible cursors require nonzero dimensions no
+larger than 256x256, an in-bounds hotspot, and a position on an actual
+monitor rather than a virtual-desktop gap. Invalid/unavailable reads leave
+the previous snapshot unchanged; hidden or touch/pen-suppressed state
+successfully clears stale visible metadata.
+
+The Windows callback uses `GetCursorInfo` for global cursor state and
+screen position, then `GetIconInfo` plus `GetObjectW` only while the
+cursor is visible. `GetIconInfo` creates mask/color bitmaps, so the adapter
+owns those temporary `HBITMAP` values through stack RAII and calls
+`DeleteObject` on every exit path. Color mask/color sizes must agree.
+For a monochrome cursor, the mask bitmap contains AND and XOR halves, so
+its height must be even and the logical cursor height is half the bitmap
+height. The observer retains no HCURSOR/HBITMAP after return and extracts
+no shape pixels yet.
+
+Reading global cursor state is not authorization. R2/R3 must first bind the
+correct interactive Windows session/desktop and its lifecycle; R4 remains
+the sole cursor/graphics delivery owner. Ordinary CTests use synthetic
+callbacks and never inspect a live cursor. Cursor shape conversion and
+generation-safe R4 handoff remain subsequent work.
+
 ### R6 bounded native DXGI move/dirty metadata on active lease
 
 `WindowsDxgiCaptureCycle::readFrameDamage` samples metadata only

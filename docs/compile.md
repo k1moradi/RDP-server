@@ -123,6 +123,17 @@ portable RDP protocol archive, Linux or macOS targets. Hosted
 Windows/MSVC build and owner MSYS2 CLANG64 Clang23 are independent
 verification gates; no ordinary CTest opens a live desktop.
 
+## R6 Win32 cursor metadata linkage (2026-10-16; CI pending)
+
+The same noninstalled `rdp-server-windows-desktop` target now compiles
+`windows_cursor_snapshot.cpp` and links `gdi32` in addition to its
+existing `user32`, D3D11, DXGI and WTS dependencies. `GetCursorInfo`
+and `GetIconInfo` remain User32 calls; `GetObjectW`/`DeleteObject`
+for the temporary cursor bitmaps require GDI32. No Windows cursor headers
+or import libraries enter the installed portable protocol SDK. Hosted
+Windows/MSVC and owner MSYS2 CLANG64/Clang23 remain independent compile
+gates. Ordinary CTest uses synthetic callbacks and never reads a live cursor.
+
 ## Windows (PowerShell, MSVC and OpenSSL)
 
 ```powershell

@@ -4059,7 +4059,7 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   issues real OS-authorized Windows session evidence; add explicit
   lock/unlock/session-change notification invalidation before live M4.
   **R6 target-session change revocation (2026-10-16; authored against
-  parent `5510d09b31bb1aaa0697a9086edeb317e3c12b42`; exact-SHA CI pending):** Extend the existing
+  parent `5510d09b31bb1aaa0697a9086edeb317e3c12b42`; exact-SHA CI PASS):** Extend the existing
   `WindowsCaptureSessionGenerationGuard` with a same-owner-thread
   `notifySessionChange(sessionId)` sink. Any valid notification for the
   selected target terminally revokes the guard; this conservatively covers
@@ -4079,7 +4079,14 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   and `windows.capture-session-change-denials`, in the existing R6
   executable/registry with synthetic callbacks only.
   **PASS (isolated portable seam):** Clang 17 C++23 strict-warning fixture
-  and Clang 17 ASan/UBSan fixture. **NOT RUN at authoring:** full canonical
+  and Clang 17 ASan/UBSan fixture.
+  **Hosted exact-SHA PASS:** implementation
+  `1efd3688872cc38e7c932efc661c793edfd4c4b7`,
+  Actions 38865710309: Linux/GCC **273/273**, Windows/MSVC **273/273**
+  and macOS/Clang **255/255** registered CTests passed in both Debug and
+  Release; both new R6 cases passed on Windows; documentation policy,
+  sanitizer, installed SDK consumer and package checks also passed.
+  **NOT RUN at authoring:** full canonical
   repository CMake/CTest, native Windows SDK/MSVC, owner MSYS2 CLANG64
   Clang23/Linux X11/macOS27, live WTS notifications, R2/R3 admission,
   Desktop Duplication, Microsoft client and performance.
@@ -4087,6 +4094,31 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   service/window session-change events into this sink and bind authorized
   device/output duplication lifetime; then proceed to cursor/input in
   focused increments.
+  **R6 Win32 cursor metadata snapshot (2026-10-16; authored against
+  parent `10fff1ab437b74f7065bdd4c87dd9a5095f1f050`; exact-SHA CI pending):**
+  Add `windows_cursor_snapshot.{h,cpp}` to the existing noninstalled R6
+  adapter. A synthetic/native callback reports cursor visibility, screen
+  position, dimensions and hotspot; the shared validation path translates
+  visible cursor position through the EXISTING validated monitor layout,
+  rejects monitor gaps, zero/oversized dimensions and out-of-range hotspots,
+  and preserves the prior snapshot on malformed/unavailable reads. Hidden
+  or touch/pen-suppressed state is a successful snapshot that clears stale
+  cursor metadata. The native observer uses read-only `GetCursorInfo`,
+  `GetIconInfo` and `GetObjectW`; the two `HBITMAP` objects created by
+  `GetIconInfo` are released through stack RAII on every path. Color cursor
+  mask/color dimensions must match; monochrome mask height must be even and
+  is halved per Win32 cursor semantics. Metadata is bounded to 256x256.
+  No cursor pixel extraction, pointer cache, R4 scheduling, input injection,
+  desktop switching or R2/R3 admission is added.
+  **Dedicated Windows-only CTests:** `windows.cursor-snapshot-visible-and-hidden`
+  and `windows.cursor-snapshot-rejections`, using synthetic callbacks while
+  compiling the native Win32 path on Windows. **PASS (isolated portable
+  seam):** GCC 14.2 and Clang 17 strict C++23, plus Clang 17 ASan/UBSan.
+  **NOT RUN at authoring:** full repository CMake/CTest, Windows SDK/MSVC,
+  owner MSYS2 CLANG64 Clang23, live authorized cursor/session, Microsoft
+  client and performance. **Next:** add bounded cursor shape-pixel extraction
+  with explicit alpha/AND/XOR semantics and generation-safe R4 ownership;
+  input injection remains separately gated on real R2/R3 authorization.
   **R6 capture session/device generation revocation (2026-10-15;
   authored against parent `ea1cf468986b15bcc4ee0b43b70082cfc0862e82`; exact-SHA CI pending):**
   The existing `WindowsDxgiCaptureCycle` accepts an OPTIONAL,

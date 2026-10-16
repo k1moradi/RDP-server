@@ -31,6 +31,8 @@ void windowsCaptureSessionGenerationActiveLifetime();
 void windowsCaptureSessionRevocationDenials();
 void windowsCaptureSessionChangeRevocation();
 void windowsCaptureSessionChangeDenials();
+void windowsCursorSnapshotVisibleAndHidden();
+void windowsCursorSnapshotRejections();
 void windowsCaptureCycleLifecycleDenials();
 
 using namespace rdp_server::windows;
@@ -783,6 +785,14 @@ int main(int argc, char **argv)
     else if (behavior == "capture-session-change-denials")
     {
         windowsCaptureSessionChangeDenials();
+    }
+    else if (behavior == "cursor-snapshot-visible-and-hidden")
+    {
+        windowsCursorSnapshotVisibleAndHidden();
+    }
+    else if (behavior == "cursor-snapshot-rejections")
+    {
+        windowsCursorSnapshotRejections();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

@@ -137,6 +137,46 @@ encoding, Microsoft RDP client, performance benchmarks. Hosted
 Windows/MSVC Debug/Release and Linux/macOS exact-SHA CI must be
 inspected after the atomic commit. M4 remains open.
 
+## R9 wire codec exact-commit hosted CI triage (2026-10-15)
+
+**Published R9 source:** `ab78ed83f59b64463123382da34b8b13b832c0e1`
+([atomic main commit](https://github.com/k1moradi/RDP-server/commit/ab78ed83f59b64463123382da34b8b13b832c0e1)).
+[Exact SHA Actions run 38857546859](https://github.com/k1moradi/RDP-server/actions/runs/38857546859):
+**overall FAIL**; do not infer cross-platform milestone acceptance
+from the independently passing new case.
+
+- **R9 focused CTest PASS:** `clipboard.wire-codec-mutated-boundaries`
+  passed Ubuntu/GCC, macOS/AppleClang and Windows/MSVC **Debug**;
+  Ubuntu/GCC **Release** also passed. The independent
+  `r9-security-protocol-sanitizers` job passed
+  **17/17** clipboard tests (including the new R9 CTest) and
+  **10/10** MCS/CredSSP negatives under Ubuntu/Clang 18
+  ASan+UBSan with leak detection.
+- **Linux matrix PASS:** full **251/251 Debug** and
+  **251/251 Release**; downstream SDK consumer/package gates
+  passed. **Documentation policy PASS**.
+- **macOS matrix FAIL:** **218/233 Debug**. Fifteen pre-existing
+  `transport.tcp-native-*` / `transport.tcp-owned-*`
+  cases aborted at TCP accept expectations, first
+  `test_owned_preauth_session.cpp:1564` expecting
+  `TcpAcceptOutcome::Accepted`. This is an R1 native
+  listener/accept boundary, not an R9 codec-case failure.
+  R1 later committed a macOS listener check correction
+  `c78a745aaa5180007a00a35a2858072974c2ad17`;
+  verification of the corrected SHA is a distinct run.
+- **Windows matrix FAIL:** **247/248 Debug**. Only
+  `runtime.validates-tls-files-private-regular` failed
+  (CMake script line 317, unexpected runtime exit status 3).
+  This is R10 TLS-file validation, not R9 wire decoding.
+- **NOT RUN:** macOS and Windows Release in this failed run,
+  owner's Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27
+  full CTests, Microsoft real client/OS-authorized desktop.
+  A green R9 unit test/sanitizer run is not an admitted RDP session.
+
+**Next R9 gate:** confirm successful exact-SHA full matrix after
+the R1/R10 repairs and collect the owner's matching SHA receipts;
+continue R3/R8 admitted virtual-channel negative integration.
+
 ## R6 native DXGI damage metadata bound to one capture frame (2026-10-15)
 
 **Remote main used for integration:** `3c09e0763d019d0423919f17d880375167bb7be7`. **Changed files:**

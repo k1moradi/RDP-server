@@ -4182,6 +4182,30 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   and Microsoft-client authorization/desktop. **Next:** verify hosted
   exact-SHA CTests and repeat owner's three-platform same-SHA command.
 
+  **R9 exact-commit CLIPRDR codec CI receipt (2026-10-15):**
+  Source commit `ab78ed83f59b64463123382da34b8b13b832c0e1`,
+  [Actions run 38857546859](https://github.com/k1moradi/RDP-server/actions/runs/38857546859):
+  dedicated `clipboard.wire-codec-mutated-boundaries` **PASS** hosted
+  Linux/GCC, macOS/AppleClang and Windows/MSVC Debug, plus Ubuntu
+  Clang 18 ASan/UBSan. Ubuntu Debug/Release full CTest **251/251
+  PASS** each; R9 sanitizer job **17/17 clipboard + 10/10 MCS/
+  CredSSP PASS**; documentation-policy **PASS**.
+  **OVERALL RUN FAIL (unrelated cross-road gates):** macOS
+  **218/233 Debug**, with 15 TCP accept/listener tests aborting
+  after unsuccessful acceptance (first at
+  `test_owned_preauth_session.cpp:1564`); Windows
+  **247/248 Debug**, failing only
+  `runtime.validates-tls-files-private-regular`
+  at `tests/check_runtime_entrypoint.cmake:317` with
+  unexpected process exit 3. R1 subsequently published listener
+  guard correction `c78a745aaa5180007a00a35a2858072974c2ad17`,
+  but its exact-SHA rerun is a separate gate; Windows R10
+  fixture likewise remains unverified at the R9 source SHA.
+  macOS/Windows Release, owner Linux/X11, MSYS2 CLANG64/Clang23,
+  macOS27 and real clients remain **NOT RUN**.
+  **Next:** obtain full green cross-road Debug/Release and
+  owner-same-SHA platform receipts before milestone acceptance.
+
   **R9 CLIPRDR Format Data Response fail-closed regression (2026-10-15):**
   A new distinct default-enabled `clipboard.remote-transfer-framing-rejections`
   CTest invokes the production `RemoteTransfer::receiveResponse` and CLIPRDR

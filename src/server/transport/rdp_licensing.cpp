@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "rdp_licensing.h"
 
+#include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
+#include <openssl/pem.h>
 #include <openssl/rand.h>
+#include <openssl/rsa.h>
+#include <openssl/x509.h>
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <span>
 
 namespace rdp_server::server::transport
@@ -290,6 +295,191 @@ parseRdpClientLicensingKeyExchange(
     return {view, RdpClientLicensingKeyExchangeError::None};
 }
 
+namespace
+{
+struct BioCloser
+{
+    void operator()(BIO *bio) const noexcept { BIO_free(bio); }
+};
+
+struct X509Closer
+{
+    void operator()(X509 *certificate) const noexcept
+    {
+        X509_free(certificate);
+    }
+};
+
+struct PkeyCloser
+{
+    void operator()(EVP_PKEY *key) const noexcept { EVP_PKEY_free(key); }
+};
+
+struct PkeyContextCloser
+{
+    void operator()(EVP_PKEY_CTX *context) const noexcept
+    {
+        EVP_PKEY_CTX_free(context);
+    }
+};
+
+using OwnedBio = std::unique_ptr<BIO, BioCloser>;
+using OwnedX509 = std::unique_ptr<X509, X509Closer>;
+using OwnedPkey = std::unique_ptr<EVP_PKEY, PkeyCloser>;
+using OwnedPkeyContext = std::unique_ptr<EVP_PKEY_CTX, PkeyContextCloser>;
+
+int rejectPrivateKeyPassword(char *, int, int, void *) noexcept
+{
+    return 0;
+}
+
+[[nodiscard]] bool bioRemainderIsWhitespace(BIO *bio) noexcept
+{
+    if (bio == nullptr)
+        return false;
+
+    std::array<unsigned char, 256> buffer{};
+    for (;;)
+    {
+        std::size_t bytesRead = 0U;
+        const int result =
+            BIO_read_ex(bio, buffer.data(), buffer.size(), &bytesRead);
+        for (std::size_t index = 0U; index < bytesRead; ++index)
+        {
+            const unsigned char value = buffer[index];
+            if (value != ' ' && value != '\t' &&
+                value != '\r' && value != '\n')
+                return false;
+        }
+        if (result != 1)
+            return bytesRead == 0U && !BIO_should_retry(bio);
+        if (bytesRead == 0U)
+            return true;
+    }
+}
+
+struct X509ChainLeafResult
+{
+    OwnedX509 leaf{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return leaf != nullptr;
+    }
+};
+
+[[nodiscard]] X509ChainLeafResult parseLicensingX509Leaf(
+    std::span<const std::uint8_t> serverCertificate) noexcept
+{
+    constexpr std::uint32_t certificateVersionMask = 0x7fffffffU;
+    constexpr std::uint32_t x509CertificateChainVersion = 0x00000002U;
+    constexpr std::uint32_t minimumCertificateCount = 2U;
+    constexpr std::uint32_t maximumCertificateCount = 200U;
+
+    if (serverCertificate.size() < 8U)
+        return {};
+
+    const std::uint32_t rawVersion = readLe32(serverCertificate, 0U);
+    if ((rawVersion & certificateVersionMask) != x509CertificateChainVersion)
+        return {};
+
+    const std::uint32_t certificateCount =
+        readLe32(serverCertificate, 4U);
+    if (certificateCount < minimumCertificateCount ||
+        certificateCount > maximumCertificateCount)
+        return {};
+
+    std::size_t offset = 8U;
+    OwnedX509 issuer{};
+    for (std::uint32_t index = 0U; index < certificateCount; ++index)
+    {
+        if (offset > serverCertificate.size() ||
+            serverCertificate.size() - offset < 4U)
+            return {};
+
+        const std::size_t certificateBytes =
+            readLe32(serverCertificate, offset);
+        offset += 4U;
+        if (certificateBytes == 0U ||
+            certificateBytes > serverCertificate.size() - offset ||
+            certificateBytes >
+                static_cast<std::size_t>(std::numeric_limits<long>::max()))
+            return {};
+
+        const auto der =
+            serverCertificate.subspan(offset, certificateBytes);
+        const unsigned char *cursor = der.data();
+        const unsigned char *const end = der.data() + der.size();
+        OwnedX509 current{
+            d2i_X509(nullptr, &cursor, static_cast<long>(der.size()))};
+        if (!current || cursor != end)
+            return {};
+
+        // The first element is the external trust anchor for this bounded
+        // check. Every later certificate must be cryptographically signed by
+        // the immediately preceding root-first issuer. This proves internal
+        // chain coherence without claiming the root is trusted by policy.
+        if (issuer)
+        {
+            OwnedPkey issuerPublicKey{X509_get_pubkey(issuer.get())};
+            if (!issuerPublicKey ||
+                X509_verify(current.get(), issuerPublicKey.get()) != 1)
+                return {};
+        }
+
+        issuer = std::move(current);
+        offset += certificateBytes;
+    }
+
+    const std::size_t expectedPaddingBytes =
+        8U + 4U * static_cast<std::size_t>(certificateCount);
+    if (offset > serverCertificate.size() ||
+        serverCertificate.size() - offset != expectedPaddingBytes ||
+        !issuer)
+        return {};
+
+    return {std::move(issuer)};
+}
+
+[[nodiscard]] OwnedPkey loadLicensingPrivateKey(
+    std::span<const std::uint8_t> privateKeyPem) noexcept
+{
+    if (privateKeyPem.empty() ||
+        privateKeyPem.size() > kMaximumRdpLicensingPrivateKeyPemBytes ||
+        privateKeyPem.size() >
+            static_cast<std::size_t>(std::numeric_limits<int>::max()))
+        return {};
+
+    OwnedBio privateKeyBio{BIO_new_mem_buf(
+        privateKeyPem.data(), static_cast<int>(privateKeyPem.size()))};
+    if (!privateKeyBio)
+        return {};
+
+    OwnedPkey privateKey{PEM_read_bio_PrivateKey(
+        privateKeyBio.get(), nullptr, rejectPrivateKeyPassword, nullptr)};
+    if (!privateKey || !bioRemainderIsWhitespace(privateKeyBio.get()))
+        return {};
+    return privateKey;
+}
+
+[[nodiscard]] bool supportedLicensingRsaKey(
+    const EVP_PKEY *privateKey, std::size_t &modulusBytes) noexcept
+{
+    constexpr std::size_t minimumRsaModulusBytes = 64U; // legacy 512-bit
+    if (privateKey == nullptr ||
+        EVP_PKEY_base_id(privateKey) != EVP_PKEY_RSA)
+        return false;
+
+    const int keyBytesSigned = EVP_PKEY_get_size(privateKey);
+    if (keyBytesSigned < static_cast<int>(minimumRsaModulusBytes) ||
+        keyBytesSigned >
+            static_cast<int>(kMaximumRdpLicensingRsaModulusBytes))
+        return false;
+    modulusBytes = static_cast<std::size_t>(keyBytesSigned);
+    return true;
+}
+} // namespace
+
 RdpLicensingKeyDerivationResult deriveRdpLicensingKeys(
     std::span<const std::uint8_t> preMasterSecret,
     std::span<const std::uint8_t> clientRandom,
@@ -351,6 +541,181 @@ RdpLicensingKeyDerivationResult deriveRdpLicensingKeys(
         return result;
     }
     result.error = RdpLicensingKeyDerivationError::None;
+    return result;
+}
+
+RdpLicensingServiceCredential::~RdpLicensingServiceCredential()
+{
+    OPENSSL_cleanse(privateKeyPem_.data(), privateKeyPem_.size());
+    OPENSSL_cleanse(
+        serverCertificateSha256_.data(), serverCertificateSha256_.size());
+    privateKeyPemLength_ = 0U;
+    rsaModulusBytes_ = 0U;
+    configured_ = false;
+}
+
+bool RdpLicensingServiceCredential::configure(
+    const RdpServerLicenseIdentity &identity,
+    std::span<const std::uint8_t> privateKeyPem) noexcept
+{
+    if (attempted_)
+        return false;
+    attempted_ = true;
+
+    if (!identity.configured())
+        return false;
+
+    auto leaf = parseLicensingX509Leaf(identity.serverCertificate());
+    if (!leaf)
+        return false;
+
+    auto privateKey = loadLicensingPrivateKey(privateKeyPem);
+    std::size_t rsaModulusBytes = 0U;
+    if (!privateKey ||
+        X509_check_private_key(leaf.leaf.get(), privateKey.get()) != 1 ||
+        !supportedLicensingRsaKey(privateKey.get(), rsaModulusBytes))
+        return false;
+
+    std::array<std::uint8_t, 32> certificateDigest{};
+    if (!digestExact(
+            EVP_sha256(), identity.serverCertificate(), certificateDigest))
+        return false;
+
+    std::copy(
+        privateKeyPem.begin(), privateKeyPem.end(), privateKeyPem_.begin());
+    std::copy(
+        certificateDigest.begin(), certificateDigest.end(),
+        serverCertificateSha256_.begin());
+    OPENSSL_cleanse(certificateDigest.data(), certificateDigest.size());
+
+    privateKeyPemLength_ = privateKeyPem.size();
+    rsaModulusBytes_ = rsaModulusBytes;
+    configured_ = true;
+    return true;
+}
+
+bool RdpLicensingServiceCredential::matches(
+    const RdpServerLicenseIdentity &identity) const noexcept
+{
+    if (!configured_ || !identity.configured())
+        return false;
+
+    std::array<std::uint8_t, 32> certificateDigest{};
+    if (!digestExact(
+            EVP_sha256(), identity.serverCertificate(), certificateDigest))
+        return false;
+    const bool matches =
+        CRYPTO_memcmp(
+            certificateDigest.data(), serverCertificateSha256_.data(),
+            certificateDigest.size()) == 0;
+    OPENSSL_cleanse(certificateDigest.data(), certificateDigest.size());
+    return matches;
+}
+
+RdpLicensingPreMasterDecryptResult
+RdpLicensingServiceCredential::decryptPreMasterSecret(
+    std::span<const std::uint8_t> encryptedPreMasterSecret) const noexcept
+{
+    RdpLicensingPreMasterDecryptResult result{};
+    if (!configured_ || privateKeyPemLength_ == 0U ||
+        rsaModulusBytes_ == 0U)
+        return result;
+
+    auto privateKey = loadLicensingPrivateKey(
+        std::span(privateKeyPem_).first(privateKeyPemLength_));
+    std::size_t keyBytes = 0U;
+    if (!privateKey ||
+        !supportedLicensingRsaKey(privateKey.get(), keyBytes) ||
+        keyBytes != rsaModulusBytes_)
+    {
+        result.error = RdpLicensingPreMasterDecryptError::DecryptFailure;
+        return result;
+    }
+
+    constexpr std::size_t protocolPaddingBytes = 8U;
+    if (encryptedPreMasterSecret.size() !=
+            keyBytes + protocolPaddingBytes ||
+        !std::all_of(
+            encryptedPreMasterSecret.end() -
+                static_cast<std::ptrdiff_t>(protocolPaddingBytes),
+            encryptedPreMasterSecret.end(),
+            [](std::uint8_t value) { return value == 0U; }))
+    {
+        result.error =
+            RdpLicensingPreMasterDecryptError::
+                InvalidEncryptedPreMasterSecret;
+        return result;
+    }
+
+    std::array<std::uint8_t, kMaximumRdpLicensingRsaModulusBytes>
+        ciphertextBigEndian{};
+    std::array<std::uint8_t, kMaximumRdpLicensingRsaModulusBytes>
+        plaintextBigEndian{};
+    std::array<std::uint8_t, kMaximumRdpLicensingRsaModulusBytes>
+        plaintextLittleEndian{};
+
+    std::reverse_copy(
+        encryptedPreMasterSecret.begin(),
+        encryptedPreMasterSecret.begin() +
+            static_cast<std::ptrdiff_t>(keyBytes),
+        ciphertextBigEndian.begin());
+
+    OwnedPkeyContext context{EVP_PKEY_CTX_new(privateKey.get(), nullptr)};
+    std::size_t plaintextBytes = keyBytes;
+    const bool decrypted =
+        context != nullptr &&
+        EVP_PKEY_decrypt_init(context.get()) == 1 &&
+        EVP_PKEY_CTX_set_rsa_padding(
+            context.get(), RSA_NO_PADDING) == 1 &&
+        EVP_PKEY_decrypt(
+            context.get(), plaintextBigEndian.data(), &plaintextBytes,
+            ciphertextBigEndian.data(), keyBytes) == 1 &&
+        plaintextBytes == keyBytes;
+
+    if (decrypted)
+    {
+        std::reverse_copy(
+            plaintextBigEndian.begin(),
+            plaintextBigEndian.begin() +
+                static_cast<std::ptrdiff_t>(keyBytes),
+            plaintextLittleEndian.begin());
+    }
+
+    const auto clearTemporaryBuffers = [&]() noexcept
+    {
+        OPENSSL_cleanse(
+            ciphertextBigEndian.data(), ciphertextBigEndian.size());
+        OPENSSL_cleanse(
+            plaintextBigEndian.data(), plaintextBigEndian.size());
+        OPENSSL_cleanse(
+            plaintextLittleEndian.data(), plaintextLittleEndian.size());
+    };
+
+    if (!decrypted ||
+        !std::all_of(
+            plaintextLittleEndian.begin() +
+                static_cast<std::ptrdiff_t>(
+                    kRdpLicensingPreMasterSecretBytes),
+            plaintextLittleEndian.begin() +
+                static_cast<std::ptrdiff_t>(keyBytes),
+            [](std::uint8_t value) { return value == 0U; }) ||
+        std::all_of(
+            plaintextLittleEndian.begin(),
+            plaintextLittleEndian.begin() +
+                static_cast<std::ptrdiff_t>(
+                    kRdpLicensingPreMasterSecretBytes),
+            [](std::uint8_t value) { return value == 0U; }))
+    {
+        clearTemporaryBuffers();
+        result.error = RdpLicensingPreMasterDecryptError::DecryptFailure;
+        return result;
+    }
+
+    std::copy_n(
+        plaintextLittleEndian.begin(),
+        result.value.size(), result.value.begin());
+    clearTemporaryBuffers();
+    result.error = RdpLicensingPreMasterDecryptError::None;
     return result;
 }
 

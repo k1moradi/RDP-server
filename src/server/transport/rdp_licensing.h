@@ -139,6 +139,87 @@ struct RdpLicensingKeyDerivationResult
     std::span<const std::uint8_t> clientRandom,
     std::span<const std::uint8_t> serverRandom) noexcept;
 
+// Current credential processing deliberately supports the standards-defined
+// X.509 certificate-chain form (CERT_CHAIN_VERSION_2). The private key input
+// is one unencrypted PEM object supplied by the service configuration owner.
+// Proprietary RDP certificates and encrypted PEM keys remain unsupported here.
+inline constexpr std::size_t kMaximumRdpLicensingPrivateKeyPemBytes =
+    16U * 1024U;
+inline constexpr std::size_t kMaximumRdpLicensingRsaModulusBytes = 512U;
+
+enum class RdpLicensingPreMasterDecryptError : std::uint8_t
+{
+    None,
+    NotConfigured,
+    InvalidEncryptedPreMasterSecret,
+    DecryptFailure,
+};
+
+struct RdpLicensingPreMasterDecryptResult
+{
+    std::array<std::uint8_t, kRdpLicensingPreMasterSecretBytes> value{};
+    RdpLicensingPreMasterDecryptError error{
+        RdpLicensingPreMasterDecryptError::NotConfigured};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpLicensingPreMasterDecryptError::None;
+    }
+};
+
+class RdpServerLicenseIdentity;
+
+// One service-owned licensing credential, configured before session
+// publication and immutable thereafter. Configuration proves that the exact
+// advertised CERT_CHAIN_VERSION_2 chain is internally signature-consistent,
+// its terminal-server leaf has an RSA key, and the supplied unencrypted PEM
+// private key matches that leaf. The private PEM is copied into bounded
+// contiguous storage, cleansed on destruction, and is never exposed.
+//
+// configure() is one-shot and not thread-safe. After successful configuration,
+// matches() and decryptPreMasterSecret() are read-only and may be called by
+// separately serialized session owners. This object is credential material,
+// NOT R2/native admission or a positive licensing decision.
+class RdpLicensingServiceCredential final
+{
+public:
+    RdpLicensingServiceCredential() noexcept = default;
+    ~RdpLicensingServiceCredential();
+
+    RdpLicensingServiceCredential(
+        const RdpLicensingServiceCredential &) = delete;
+    RdpLicensingServiceCredential &operator=(
+        const RdpLicensingServiceCredential &) = delete;
+    RdpLicensingServiceCredential(
+        RdpLicensingServiceCredential &&) = delete;
+    RdpLicensingServiceCredential &operator=(
+        RdpLicensingServiceCredential &&) = delete;
+
+    [[nodiscard]] bool configure(
+        const RdpServerLicenseIdentity &identity,
+        std::span<const std::uint8_t> privateKeyPem) noexcept;
+    [[nodiscard]] bool configured() const noexcept { return configured_; }
+    [[nodiscard]] bool matches(
+        const RdpServerLicenseIdentity &identity) const noexcept;
+
+    // MS-RDPELE uses the terminal server certificate's RSA key and the RDP
+    // little-endian raw-RSA integer convention. The client BLOB must be
+    // exactly the RSA modulus width plus eight trailing zero protocol bytes.
+    // No RC4/MAC/license validation or lifecycle transition occurs here.
+    [[nodiscard]] RdpLicensingPreMasterDecryptResult
+    decryptPreMasterSecret(
+        std::span<const std::uint8_t> encryptedPreMasterSecret) const noexcept;
+
+private:
+    std::array<std::uint8_t, kMaximumRdpLicensingPrivateKeyPemBytes>
+        privateKeyPem_{};
+    std::array<std::uint8_t, 32> serverCertificateSha256_{};
+    std::size_t privateKeyPemLength_{};
+    std::size_t rsaModulusBytes_{};
+    bool attempted_{};
+    bool configured_{};
+};
+
 // Under Enhanced RDP Security, SC_SECURITY carries no server certificate.
 // SERVER_LICENSE_REQUEST therefore has to carry the explicitly provisioned
 // licensing certificate needed by the client's RSA key exchange. Keep the

@@ -4754,3 +4754,81 @@ CredSSP credential authorization is deny-only. R3 licensing still lacks the
 reviewed service certificate/private-key provisioning contract needed for R10
 configuration; no schema is invented. No listener/service is enabled and
 M2/M3 remain **OPEN / NOT ACCEPTED**.
+
+## R3 licensing service credential and RSA premaster primitive (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `8199ba9a6b7af6ea574711da163d410bd75009b5`.
+
+R3 now has the bounded asymmetric-credential prerequisite for the existing
+initial licensing key-exchange parser and MS-RDPELE key derivation. A new
+noncopyable `RdpLicensingServiceCredential` is configured exactly once from
+one already-provisioned `RdpServerLicenseIdentity` plus one unencrypted PEM
+private key. Failed configuration retains no caller key bytes; successful
+configuration owns one bounded contiguous PEM snapshot and cleanses that
+storage on destruction.
+
+The credential accepts the standards-defined
+`CERT_CHAIN_VERSION_2` X.509 licensing-certificate form only. It checks the
+2..200 root-first certificate layout and exact protocol padding, parses every
+DER certificate, verifies each child certificate signature against the
+immediately preceding issuer, selects the terminal-server leaf, requires an
+RSA private key of at least the legacy 512-bit size and at most 4096 bits, and
+requires that private key to match the exact terminal leaf. This proves
+internal chain coherence and leaf/private-key binding only; it deliberately
+does not claim that the chain root is externally trusted by licensing policy.
+Proprietary RDP certificates and encrypted PEM private keys remain unsupported
+and fail closed.
+
+A SHA-256 fingerprint binds the credential to the exact advertised
+`SERVER_CERTIFICATE` bytes, including the chain padding. After configuration,
+`matches(identity)` can prove that a later identity is byte-for-byte the
+credential's advertised certificate without exposing private material.
+
+`decryptPreMasterSecret` implements only the RSA unwrap prerequisite. It
+requires the client BLOB to be exactly the configured RSA modulus width plus
+the protocol's eight trailing zero bytes, converts the RDP unsigned
+little-endian RSA integer to OpenSSL big-endian form, performs raw RSA private
+operation, converts the result back, requires all bytes above the exact
+48-byte premaster secret to be zero, rejects an all-zero premaster, returns a
+zero-initialized result on failure, and cleanses all temporary ciphertext and
+plaintext buffers. The successful 48-byte output can feed the already-tested
+`deriveRdpLicensingKeys` helper; neither operation mutates licensing/session
+state.
+
+New production-linked ordinary CTests are
+`transport.licensing-premaster-rsa-decrypt` and
+`transport.licensing-premaster-rsa-denials`. The fixture creates ephemeral
+in-memory RSA keys and a two-certificate X.509 chain only for offline
+cryptographic verification; it is never service provisioning or an
+authentication/license authority. Denials cover wrong private key,
+unsupported/non-RSA key, malformed/unsupported certificate form, broken chain
+signature, key-file trailing garbage/oversize, malformed protocol padding,
+truncated ciphertext and all-zero decrypted premaster. Both cases are added
+to the bounded R1/R3 ASan/UBSan selector and its registry preflight.
+
+This increment deliberately does **not** make
+`RdpServerLicenseRequestWriteGate` require the credential yet, does not pass
+private-key material through R2, and does not perform a server licensing
+decision. Therefore an opaque structurally accepted
+`RdpServerLicenseIdentity` still cannot be treated as a usable live
+credential merely because serialization succeeds. R10 remains responsible for
+real service credential provisioning, and R2 remains the sole native
+admission/reauthorization owner.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate persistent checkout or
+build root is created. Exact-publication-SHA Linux/GCC, macOS/Clang,
+Windows/MSVC Debug/Release, R9 sanitizer, documentation-policy and
+SDK/package evidence are pending. Genuine Kerberos/NSS/logind positive
+admission, real licensing credential provisioning, Microsoft-client licensing,
+Share activation and desktop acceptance remain **NOT RUN/OPEN**.
+
+**Next R3:** require the configured credential to match the identity before
+the protected Server License Request can be published; then, after the first
+client licensing response is freshly R2-reauthorized, decrypt its exact
+encrypted premaster with that same credential, derive the licensing keys, and
+stop at `AwaitServerDecision` until CAL/HWID/MAC validation is implemented.
+No `STATUS_VALID_CLIENT`, Platform Challenge, New License or Demand Active
+path may advance before those cryptographic checks. **M2/M3 remain OPEN / NOT
+ACCEPTED.**
+

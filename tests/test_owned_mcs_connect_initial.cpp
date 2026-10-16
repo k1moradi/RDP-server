@@ -9,12 +9,20 @@
 
 #include <algorithm>
 #include <array>
+
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/rsa.h>
+#include <openssl/x509.h>
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 #include <cassert>
 #include <cstdint>
 #include <fstream>
+#include <limits>
+#include <memory>
 #include <sstream>
 #include <span>
 #include <string>
@@ -5301,6 +5309,350 @@ void testRdpLicensingKeyDerivation()
            RdpLicensingKeyDerivationError::InvalidInput);
 }
 
+using LicensingKeyPointer =
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
+using LicensingCertificatePointer =
+    std::unique_ptr<X509, decltype(&X509_free)>;
+using LicensingBioPointer =
+    std::unique_ptr<BIO, decltype(&BIO_free)>;
+using LicensingPkeyContextPointer =
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
+using LicensingX509NamePointer =
+    std::unique_ptr<X509_NAME, decltype(&X509_NAME_free)>;
+
+[[nodiscard]] LicensingCertificatePointer makeLicensingFixtureCertificate(
+    EVP_PKEY *subjectKey,
+    const X509 *issuerCertificate,
+    EVP_PKEY *issuerKey,
+    long serial,
+    std::string_view commonName)
+{
+    LicensingCertificatePointer certificate{X509_new(), X509_free};
+    assert(certificate);
+    assert(X509_set_version(certificate.get(), 2) == 1);
+    assert(ASN1_INTEGER_set(
+               X509_get_serialNumber(certificate.get()), serial) == 1);
+    assert(X509_gmtime_adj(
+        X509_getm_notBefore(certificate.get()), -60));
+    assert(X509_gmtime_adj(
+        X509_getm_notAfter(certificate.get()), 3600));
+    assert(X509_set_pubkey(certificate.get(), subjectKey) == 1);
+
+    LicensingX509NamePointer subject{X509_NAME_new(), X509_NAME_free};
+    assert(subject);
+    assert(commonName.size() <=
+           static_cast<std::size_t>(std::numeric_limits<int>::max()));
+    assert(X509_NAME_add_entry_by_txt(
+               subject.get(), "CN", MBSTRING_ASC,
+               reinterpret_cast<const unsigned char *>(commonName.data()),
+               static_cast<int>(commonName.size()), -1, 0) == 1);
+    assert(X509_set_subject_name(certificate.get(), subject.get()) == 1);
+
+    const X509_NAME *issuerName = issuerCertificate != nullptr
+        ? X509_get_subject_name(issuerCertificate)
+        : subject.get();
+    assert(issuerName != nullptr);
+    assert(X509_set_issuer_name(certificate.get(), issuerName) == 1);
+    assert(X509_sign(certificate.get(), issuerKey, EVP_sha256()) > 0);
+    return certificate;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> licensingFixtureCertificateDer(
+    X509 *certificate)
+{
+    const int encodedBytes = i2d_X509(certificate, nullptr);
+    assert(encodedBytes > 0);
+    std::vector<std::uint8_t> encoded(
+        static_cast<std::size_t>(encodedBytes));
+    unsigned char *cursor = encoded.data();
+    assert(i2d_X509(certificate, &cursor) == encodedBytes);
+    assert(cursor == encoded.data() + encoded.size());
+    return encoded;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> licensingFixturePrivateKeyPem(
+    EVP_PKEY *key)
+{
+    LicensingBioPointer bio{BIO_new(BIO_s_mem()), BIO_free};
+    assert(bio);
+    assert(PEM_write_bio_PrivateKey(
+               bio.get(), key, nullptr, nullptr, 0, nullptr, nullptr) == 1);
+
+    const std::size_t bytes = BIO_ctrl_pending(bio.get());
+    assert(bytes > 0U &&
+           bytes <= kMaximumRdpLicensingPrivateKeyPemBytes);
+    std::vector<std::uint8_t> pem(bytes);
+    std::size_t bytesRead = 0U;
+    assert(BIO_read_ex(
+               bio.get(), pem.data(), pem.size(), &bytesRead) == 1);
+    assert(bytesRead == pem.size());
+    return pem;
+}
+
+void appendLicensingFixtureLe32(
+    std::vector<std::uint8_t> &output,
+    std::uint32_t value)
+{
+    output.push_back(static_cast<std::uint8_t>(value));
+    output.push_back(static_cast<std::uint8_t>(value >> 8U));
+    output.push_back(static_cast<std::uint8_t>(value >> 16U));
+    output.push_back(static_cast<std::uint8_t>(value >> 24U));
+}
+
+struct LicensingCryptoFixture final
+{
+    LicensingKeyPointer rootKey{nullptr, EVP_PKEY_free};
+    LicensingKeyPointer terminalKey{nullptr, EVP_PKEY_free};
+    LicensingCertificatePointer rootCertificate{nullptr, X509_free};
+    LicensingCertificatePointer terminalCertificate{nullptr, X509_free};
+    std::vector<std::uint8_t> serverCertificate;
+    std::vector<std::uint8_t> privateKeyPem;
+    std::vector<std::uint8_t> mismatchedPrivateKeyPem;
+    std::vector<std::uint8_t> encryptedPreMasterSecret;
+    std::array<std::uint8_t, kRdpLicensingPreMasterSecretBytes> preMaster{};
+
+    LicensingCryptoFixture()
+    {
+        // Ephemeral offline crypto fixture only. It is never service
+        // provisioning, never trusted as a license authority, and never
+        // enters the R2/R3 admission path.
+        rootKey.reset(EVP_RSA_gen(2048));
+        terminalKey.reset(EVP_RSA_gen(2048));
+        assert(rootKey && terminalKey);
+
+        rootCertificate = makeLicensingFixtureCertificate(
+            rootKey.get(), nullptr, rootKey.get(), 1L,
+            "rdp-licensing-test-root");
+        terminalCertificate = makeLicensingFixtureCertificate(
+            terminalKey.get(), rootCertificate.get(), rootKey.get(), 2L,
+            "rdp-licensing-test-terminal");
+
+        const auto rootDer =
+            licensingFixtureCertificateDer(rootCertificate.get());
+        const auto terminalDer =
+            licensingFixtureCertificateDer(terminalCertificate.get());
+        privateKeyPem =
+            licensingFixturePrivateKeyPem(terminalKey.get());
+        mismatchedPrivateKeyPem =
+            licensingFixturePrivateKeyPem(rootKey.get());
+
+        // SERVER_CERTIFICATE::dwVersion = CERT_CHAIN_VERSION_2 followed by
+        // X509_CERTIFICATE_CHAIN with root-first order and terminal leaf last.
+        appendLicensingFixtureLe32(serverCertificate, 0x00000002U);
+        appendLicensingFixtureLe32(serverCertificate, 2U);
+        appendLicensingFixtureLe32(
+            serverCertificate,
+            static_cast<std::uint32_t>(rootDer.size()));
+        serverCertificate.insert(
+            serverCertificate.end(), rootDer.begin(), rootDer.end());
+        appendLicensingFixtureLe32(
+            serverCertificate,
+            static_cast<std::uint32_t>(terminalDer.size()));
+        serverCertificate.insert(
+            serverCertificate.end(), terminalDer.begin(), terminalDer.end());
+        serverCertificate.resize(
+            serverCertificate.size() + 16U, 0U); // 8 + 4*NumCertBlobs
+        assert(serverCertificate.size() <=
+               kMaximumRdpServerLicenseCertificateBytes);
+
+        for (std::size_t index = 0U; index < preMaster.size(); ++index)
+            preMaster[index] =
+                static_cast<std::uint8_t>(0x31U + index);
+
+        const int keyBytesSigned = EVP_PKEY_get_size(terminalKey.get());
+        assert(keyBytesSigned > 0);
+        const std::size_t keyBytes =
+            static_cast<std::size_t>(keyBytesSigned);
+        assert(keyBytes <= kMaximumRdpLicensingRsaModulusBytes);
+
+        std::array<std::uint8_t, kMaximumRdpLicensingRsaModulusBytes>
+            plaintextLittleEndian{};
+        std::array<std::uint8_t, kMaximumRdpLicensingRsaModulusBytes>
+            plaintextBigEndian{};
+        std::array<std::uint8_t, kMaximumRdpLicensingRsaModulusBytes>
+            ciphertextBigEndian{};
+        std::copy(
+            preMaster.begin(), preMaster.end(),
+            plaintextLittleEndian.begin());
+        std::reverse_copy(
+            plaintextLittleEndian.begin(),
+            plaintextLittleEndian.begin() +
+                static_cast<std::ptrdiff_t>(keyBytes),
+            plaintextBigEndian.begin());
+
+        LicensingPkeyContextPointer context{
+            EVP_PKEY_CTX_new(terminalKey.get(), nullptr),
+            EVP_PKEY_CTX_free};
+        assert(context);
+        assert(EVP_PKEY_encrypt_init(context.get()) == 1);
+        assert(EVP_PKEY_CTX_set_rsa_padding(
+                   context.get(), RSA_NO_PADDING) == 1);
+        std::size_t encryptedBytes = keyBytes;
+        assert(EVP_PKEY_encrypt(
+                   context.get(), ciphertextBigEndian.data(),
+                   &encryptedBytes, plaintextBigEndian.data(),
+                   keyBytes) == 1);
+        assert(encryptedBytes == keyBytes);
+
+        encryptedPreMasterSecret.resize(keyBytes + 8U, 0U);
+        std::reverse_copy(
+            ciphertextBigEndian.begin(),
+            ciphertextBigEndian.begin() +
+                static_cast<std::ptrdiff_t>(keyBytes),
+            encryptedPreMasterSecret.begin());
+    }
+};
+
+void testRdpLicensingPreMasterDecrypt()
+{
+    const LicensingCryptoFixture fixture;
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope));
+
+    RdpLicensingServiceCredential credential;
+    assert(credential.configure(identity, fixture.privateKeyPem));
+    assert(credential.configured());
+    assert(credential.matches(identity));
+
+    const auto decrypted = credential.decryptPreMasterSecret(
+        fixture.encryptedPreMasterSecret);
+    assert(decrypted);
+    assert(decrypted.value == fixture.preMaster);
+
+    // The decrypted premaster is suitable only as input to the already
+    // independent key-derivation primitive; neither operation mutates R3.
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> clientRandom{};
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom{};
+    for (std::size_t index = 0U; index < clientRandom.size(); ++index)
+    {
+        clientRandom[index] = static_cast<std::uint8_t>(index + 1U);
+        serverRandom[index] = static_cast<std::uint8_t>(0x80U + index);
+    }
+    assert(deriveRdpLicensingKeys(
+        decrypted.value, clientRandom, serverRandom));
+
+    // Credential binding covers the exact advertised certificate bytes,
+    // including chain padding, rather than only a matching leaf key.
+    auto differentCertificate = fixture.serverCertificate;
+    assert(!differentCertificate.empty());
+    differentCertificate.back() ^= 0x01U;
+    RdpServerLicenseIdentity differentIdentity;
+    assert(differentIdentity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        differentCertificate, kServerLicenseScope));
+    assert(!credential.matches(differentIdentity));
+}
+
+void testRdpLicensingPreMasterDecryptDenials()
+{
+    const LicensingCryptoFixture fixture;
+
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope));
+    RdpLicensingServiceCredential credential;
+    assert(credential.configure(identity, fixture.privateKeyPem));
+
+    // A different RSA key cannot configure a service credential for the
+    // terminal leaf that was advertised to the client.
+    RdpLicensingServiceCredential mismatchedCredential;
+    assert(!mismatchedCredential.configure(
+        identity, fixture.mismatchedPrivateKeyPem));
+    assert(!mismatchedCredential.configured());
+    const auto unconfigured =
+        mismatchedCredential.decryptPreMasterSecret(
+            fixture.encryptedPreMasterSecret);
+    assert(!unconfigured);
+    assert(unconfigured.error ==
+           RdpLicensingPreMasterDecryptError::NotConfigured);
+
+    auto unsupportedCertificate = fixture.serverCertificate;
+    unsupportedCertificate[0] = 0x01U;
+    RdpServerLicenseIdentity unsupportedIdentity;
+    assert(unsupportedIdentity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        unsupportedCertificate, kServerLicenseScope));
+    RdpLicensingServiceCredential unsupportedCredential;
+    assert(!unsupportedCredential.configure(
+        unsupportedIdentity, fixture.privateKeyPem));
+
+    auto malformedCertificate = fixture.serverCertificate;
+    malformedCertificate[4] = 0x01U; // NumCertBlobs below minimum 2.
+    RdpServerLicenseIdentity malformedIdentity;
+    assert(malformedIdentity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        malformedCertificate, kServerLicenseScope));
+    RdpLicensingServiceCredential malformedCredential;
+    assert(!malformedCredential.configure(
+        malformedIdentity, fixture.privateKeyPem));
+
+    // Preserve valid DER framing but corrupt the terminal certificate's
+    // signature. Internal root->leaf signature coherence must be checked.
+    auto badSignatureCertificate = fixture.serverCertificate;
+    assert(badSignatureCertificate.size() > 16U);
+    badSignatureCertificate[badSignatureCertificate.size() - 17U] ^= 0x01U;
+    RdpServerLicenseIdentity badSignatureIdentity;
+    assert(badSignatureIdentity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        badSignatureCertificate, kServerLicenseScope));
+    RdpLicensingServiceCredential badSignatureCredential;
+    assert(!badSignatureCredential.configure(
+        badSignatureIdentity, fixture.privateKeyPem));
+
+    auto badPadding = fixture.encryptedPreMasterSecret;
+    badPadding.back() = 0x01U;
+    const auto paddingDenied =
+        credential.decryptPreMasterSecret(badPadding);
+    assert(!paddingDenied);
+    assert(paddingDenied.error ==
+           RdpLicensingPreMasterDecryptError::
+               InvalidEncryptedPreMasterSecret);
+
+    const auto truncated = credential.decryptPreMasterSecret(
+        std::span(fixture.encryptedPreMasterSecret).first(
+            fixture.encryptedPreMasterSecret.size() - 1U));
+    assert(!truncated);
+    assert(truncated.error ==
+           RdpLicensingPreMasterDecryptError::
+               InvalidEncryptedPreMasterSecret);
+
+    auto trailingGarbageKey = fixture.privateKeyPem;
+    trailingGarbageKey.push_back(0x41U);
+    RdpLicensingServiceCredential invalidKeyCredential;
+    assert(!invalidKeyCredential.configure(identity, trailingGarbageKey));
+
+    const LicensingKeyPointer ecKey{
+        EVP_EC_gen("prime256v1"), EVP_PKEY_free};
+    assert(ecKey);
+    const auto ecPrivateKeyPem =
+        licensingFixturePrivateKeyPem(ecKey.get());
+    RdpLicensingServiceCredential nonRsaCredential;
+    assert(!nonRsaCredential.configure(identity, ecPrivateKeyPem));
+
+    std::vector<std::uint8_t> oversizedKey(
+        kMaximumRdpLicensingPrivateKeyPemBytes + 1U, 0x41U);
+    RdpLicensingServiceCredential oversizedKeyCredential;
+    assert(!oversizedKeyCredential.configure(identity, oversizedKey));
+
+    // Raw RSA ciphertext zero decrypts to an all-zero integer. A premaster
+    // secret must be random, so this weak value is terminally rejected.
+    std::vector<std::uint8_t> zeroCiphertext(
+        fixture.encryptedPreMasterSecret.size(), 0U);
+    const auto zeroDenied =
+        credential.decryptPreMasterSecret(zeroCiphertext);
+    assert(!zeroDenied);
+    assert(zeroDenied.error ==
+           RdpLicensingPreMasterDecryptError::DecryptFailure);
+
+    // Configuration is one-shot even after failure; callers cannot replace
+    // rejected credential material under an already-checked service object.
+    assert(!mismatchedCredential.configure(
+        identity, fixture.privateKeyPem));
+}
+
 void testRdpLicensingKeyMaterialTerminalReplay()
 {
     RdpServerLicenseIdentity identity;
@@ -5582,7 +5934,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 89> kMcsTestCases{{
+constexpr std::array<McsTestCase, 91> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -5640,6 +5992,8 @@ constexpr std::array<McsTestCase, 89> kMcsTestCases{{
     {"licensing-key-exchange-wire", &testRdpClientLicensingKeyExchangeViews},
     {"licensing-key-exchange-denials", &testRdpClientLicensingKeyExchangeDenials},
     {"licensing-key-derivation", &testRdpLicensingKeyDerivation},
+    {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
+    {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
     {"licensing-key-material-terminal-replay", &testRdpLicensingKeyMaterialTerminalReplay},
     {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},
     {"licensing-length-bounds", &testRdpLicensingLengthBounds},

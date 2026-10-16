@@ -1,3 +1,24 @@
+## R5 one-XCB sanitizer expansion authoring receipt (2026-10-16)
+
+**Base:** `6749f43fff489eb9d9a8ee27a122bd1004b0c314`. Current roadmap/source review reconfirms that R3 has
+not yet published a Share/Input or Fast-Path Input PDU event contract, so no R5
+production input translation is authorized in this increment.
+
+The existing GitHub ASan/UBSan job is extended, without a new registry or
+fixture owner, to build the production-linked
+`test_x11_display_events` and `test_x11_desktop_resources` executables and
+run seven existing R5 behaviors: deferred XCB teardown, aggregate connection
+denial, lifecycle recovery, event routing, transactional RandR rebuild,
+synchronous R4 native reads, and the concrete R3-admission input denial. Xvfb
+remains ephemeral; no genuine session, credentials or positive XTEST injection
+is exercised.
+
+**Authoring validation:** CI/CMake/test-name inspection PASS. Canonical
+`~/rdp-server/build` compile/CTest is **NOT RUN** because this tool
+environment has no owner checkout. Exact-SHA hosted Clang ASan/UBSan execution
+is **PENDING** and must be recorded before claiming sanitizer PASS. Production
+R5 code is unchanged.
+
 ## R4 BGRA-to-NV12 production boundary authoring (2026-10-16)
 
 **Inspected starting main:** `b348e2708a9870b69c7e099302357a4a65cef0e5`.

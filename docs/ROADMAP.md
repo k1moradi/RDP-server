@@ -1,3 +1,35 @@
+## R5 one-XCB ownership sanitizer expansion (2026-10-16; exact-SHA CI pending)
+
+Starting shared `main`: `6749f43fff489eb9d9a8ee27a122bd1004b0c314`. R3 still exposes no authoritative
+Share/Input or Fast-Path Input PDU event surface, so the roadmap's next R5
+production translation remains dependency-blocked and no competing parser,
+session owner or input controller is introduced.
+
+R5 instead extends the existing bounded ASan/UBSan job across the already
+registered deterministic native ownership boundaries. The sanitizer build now
+also compiles `test_x11_display_events` and
+`test_x11_desktop_resources`; the X11 sanitizer step runs the existing
+`x11.display-event-failure-defers-owner-teardown`,
+`x11.desktop-resource-owner-connection-denial`,
+`x11.desktop-resource-owner-lifecycle`,
+`x11.desktop-resource-event-routing`,
+`x11.desktop-resource-randr-rebuild`,
+`x11.desktop-resource-r4-read-boundary`, and
+`x11.input-r3-admission-route-denials-and-revocation` CTests. The synthetic
+Xvfb cases exercise real XCB/XShm/XFixes/XDamage/XTEST construction and
+ordered teardown but still perform no positive R2 admission or live keyboard/
+pointer injection.
+
+No production source or CTest registry is changed. This is deliberately the
+same one-root sanitizer job and existing behavior tests, not a parallel test
+harness. **Authoring status:** source/CMake/CI contract review PASS; canonical
+owner-local build/CTest **NOT RUN** in this connector environment; exact-SHA
+hosted CI **PENDING**. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+macOS27, genuine Kerberos/logind admission, live XTEST and Microsoft-client M3
+remain **NOT RUN**. **Next R5:** if this sanitizer expansion passes, retain the
+validated native boundary and wait for R3's real input PDU/event contract
+before adding production translation. M3 remains OPEN.
+
 ## R4 bounded desktop BGRA to AVC420 NV12 boundary (2026-10-16; CI NOT RUN)
 
 Starting inspected shared `main`: `b348e2708a9870b69c7e099302357a4a65cef0e5`.

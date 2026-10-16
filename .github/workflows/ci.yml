@@ -154,7 +154,8 @@ jobs:
             test_owned_mcs_connect_initial test_owned_preauth_session \
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_linux_gssapi_spnego \
-            test_x11_clipboard_adapter test_x11_authorized_input_route \
+            test_x11_clipboard_adapter test_x11_display_events \
+            test_x11_desktop_resources test_x11_authorized_input_route \
             fuzz_mcs_cliprdr
       - name: Run all registered clipboard CTests with sanitizers
         env:
@@ -180,13 +181,13 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 --verbose \
             -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-channel-join-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
 
-      - name: Run native authorized X11 input denial with sanitizers
+      - name: Run R5 one-XCB lifecycle and authorized-input CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^x11\.input-r3-admission-route-denials-and-revocation$' --output-on-failure
+            -R '^x11\.(display-event-failure-defers-owner-teardown|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary)|input-r3-admission-route-denials-and-revocation)$' --output-on-failure
 
       - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
         env:

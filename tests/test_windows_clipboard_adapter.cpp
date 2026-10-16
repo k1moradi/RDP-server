@@ -97,7 +97,10 @@ void storeText(RemoteTransfer &owner,
     std::vector<std::uint8_t> request;
     assert(owner.beginRequest(
         rdp_server::clipboard::kFormatUnicodeText, request));
-    const auto response = owner.receiveResponse(responsePdu(wire));
+    // RemoteTransfer::Response::payload borrows this complete PDU. Keep its
+    // backing vector alive through synchronous validation/storage.
+    const auto completeResponse = responsePdu(wire);
+    const auto response = owner.receiveResponse(completeResponse);
     assert(response.status == RemoteTransfer::ResponseStatus::Received);
     assert(owner.storeVerifiedUnicodeText(response));
 }
@@ -107,7 +110,10 @@ void storeImage(RemoteTransfer &owner, std::uint32_t formatId,
 {
     std::vector<std::uint8_t> request;
     assert(owner.beginRequest(formatId, request));
-    const auto response = owner.receiveResponse(responsePdu(wire));
+    // RemoteTransfer::Response::payload borrows this complete PDU. Keep its
+    // backing vector alive through synchronous validation/storage.
+    const auto completeResponse = responsePdu(wire);
+    const auto response = owner.receiveResponse(completeResponse);
     assert(response.status == RemoteTransfer::ResponseStatus::Received);
     assert(owner.storeVerifiedImage(response));
 }

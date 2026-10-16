@@ -1224,8 +1224,10 @@ foreach(case_name IN ITEMS
         windows-clipboard-failure-reentry-denials)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_windows_clipboard_adapter "${case_name}")
+    # Do not add the broad "windows" label: R6's target-only native
+    # preflight intentionally runs -L windows before this executable is built.
     set_tests_properties("clipboard.${case_name}" PROPERTIES
-        LABELS "protocol;clipboard;windows-adapter;offline")
+        LABELS "protocol;clipboard;win32-adapter;offline")
 endforeach()
 
 # R8 native X11 CLIPBOARD selection adapter. All cases use a deterministic

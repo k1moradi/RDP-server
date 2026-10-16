@@ -1,3 +1,17 @@
+## Borrowed clipboard response fixtures must pin their backing PDU
+
+`RemoteTransfer::Response::payload` is a borrowed span into the caller's
+complete CLIPRDR PDU. A test must keep that PDU buffer alive until synchronous
+validation/storage has consumed the response. Do not write
+`receiveResponse(makeTemporaryPdu(...))` and then inspect/store the returned
+payload after the full expression; sanitizers correctly report that as
+use-after-free even though production ownership is sound.
+
+Native-adapter CTest labels must also respect focused preflight selectors. R6's
+Windows target-only preflight runs `ctest -L windows` after building only its
+R6 executable, so unrelated R8 cases use the narrower `win32-adapter` label
+while retaining `clipboard` for full and sanitizer suites.
+
 ## R8 Windows clipboard tests are host-clipboard free
 
 Exercise the Windows clipboard state owner through injected native operations

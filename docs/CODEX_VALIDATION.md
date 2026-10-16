@@ -1,3 +1,28 @@
+## R8 Windows clipboard first hosted-run failure and fixture repair (2026-10-16)
+
+Implementation `b1cd3e30b5b2a708831c55c4cc857b103a46f246`, Actions
+`38901871912`: documentation-policy **PASS**. Linux/GCC compiled the new
+`rdp-server-windows-clipboard` and `test_windows_clipboard_adapter` targets.
+Full Debug CTest reached **395/401 PASS**: all five new R8 cases failed because
+their helpers passed a temporary vector into `receiveResponse()` and then used
+the returned borrowed payload after that vector's lifetime ended; one separate
+concurrent R10 CredSSP fixture also failed. R9 ASan/UBSan reported the R8
+helper error directly as heap-use-after-free in text and image validation.
+
+Windows/MSVC did not reach the R8 native compile in that exact run. The existing
+R6 target-only preflight runs `ctest -L windows`; the new
+`windows-adapter` label accidentally matched that selector before
+`test_windows_clipboard_adapter` had been built, producing five **Not Run**
+cases. The repair changes only those labels to `win32-adapter` and preserves
+`clipboard;protocol;offline`, so R6 preflight remains isolated while full
+Windows CTest and sanitizer clipboard selection retain R8 coverage.
+
+The fixture repair keeps the complete response PDU vector alive through
+synchronous `storeVerifiedUnicodeText` / `storeVerifiedImage`, matching the
+documented borrowed-span contract. No production adapter behavior changes.
+Canonical local build/CTest remains **NOT RUN** because no permitted
+`~/rdp-server` checkout exists here. Exact-SHA hosted rerun is **PENDING**.
+
 ## R9 sanitizer failure-isolation authoring receipt (2026-10-16)
 
 **Parent:** `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`.

@@ -1,3 +1,30 @@
+## R8 Windows clipboard fixture-lifetime and preflight-label repair (2026-10-16; CI pending)
+
+Implementation `b1cd3e30b5b2a708831c55c4cc857b103a46f246`, Actions
+`38901871912`, exposed two R8 test-integration defects without invalidating the
+production ownership design. Linux/GCC and macOS/Clang compiled the new
+Windows clipboard adapter/test target, but the five R8 cases dereferenced
+`RemoteTransfer::Response::payload` after a temporary response vector had
+already been destroyed. R9 ASan/UBSan independently diagnosed the same helper
+bug as heap-use-after-free. Production `RemoteTransfer` documents that payload
+as borrowed, so the fixture now retains each complete PDU through synchronous
+`storeVerifiedUnicodeText` / `storeVerifiedImage`.
+
+Windows/MSVC failed earlier in the existing R6 native preflight: R8 had labeled
+its cases `windows-adapter`, and CTest's `-L windows` regex selected them
+even though that target-only preflight intentionally builds only
+`test_windows_desktop_geometry`. The R8 cases now use
+`win32-adapter` plus the existing `clipboard;protocol;offline` labels, keeping
+R6's isolated preflight intact while full Windows CTest and the R9 clipboard
+sanitizer suite still select R8 normally.
+
+The same Linux full CTest also retained one unrelated concurrent R10 failure,
+`runtime.linux-connection-credssp-owner-framing`; R10 has since published its
+own scheduling-independent fixture repair. Documentation-policy passed on the
+R8 implementation commit. Canonical owner-local `~/rdp-server/build` remains
+**NOT RUN** in this connector environment. Exact-SHA hosted validation of this
+repair is the next R8 gate.
+
 ## R9 sanitizer-group execution independence (2026-10-16; exact-SHA CI pending)
 
 **Reconciled publication parent:** `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`.

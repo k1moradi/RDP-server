@@ -662,6 +662,7 @@ class McsSessionLifecycle final
 {
 public:
     McsSessionLifecycle() noexcept = default;
+    ~McsSessionLifecycle();
     McsSessionLifecycle(const McsSessionLifecycle &) = delete;
     McsSessionLifecycle &operator=(const McsSessionLifecycle &) = delete;
     McsSessionLifecycle(McsSessionLifecycle &&) = delete;
@@ -732,6 +733,8 @@ public:
         serverLicenseRequestWrite_.close();
         licensingCredentialFingerprint_.fill(0U);
         licensingCredentialBound_ = false;
+        cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
+        licensingKeyMaterialReady_ = false;
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
@@ -829,9 +832,10 @@ private:
 
     // First client licensing response after the request has been fully
     // delivered. The concrete R2 broker reauthorizes the same lease/R1 owner;
-    // R3 then proves joined global-I/O MCS routing, complete begin|end
-    // segmentation and SEC_LICENSE_PKT before invoking the bounded licensing
-    // lifecycle. No client license cryptography is decided here.
+    // R3 proves joined global-I/O routing and SEC_LICENSE_PKT, unwraps the
+    // premaster with the bound service credential, derives the session's
+    // licensing keys, then invokes the bounded lifecycle. CAL/HWID/MAC
+    // validation and every positive server licensing decision remain later.
     [[nodiscard]] std::optional<RdpLicensingIntake>
     acceptVerifiedR2ClientLicensingMessage(
         const SecurityNegotiationProvenance &provenance,
@@ -850,6 +854,8 @@ private:
     RdpServerLicenseRequestWriteGate serverLicenseRequestWrite_{licensing_};
     std::array<std::uint8_t, 32> licensingCredentialFingerprint_{};
     bool licensingCredentialBound_{};
+    RdpLicensingKeyMaterial licensingKeyMaterial_{};
+    bool licensingKeyMaterialReady_{};
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};
     std::uint64_t sessionGeneration_{};

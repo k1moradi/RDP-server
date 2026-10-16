@@ -76,6 +76,8 @@ function(add_rdp_test source_file suite behavior)
                 licensing-key-derivation
                 licensing-premaster-rsa-decrypt
                 licensing-premaster-rsa-denials
+                licensing-initial-crypto-preparation
+                licensing-initial-crypto-denials
                 licensing-key-material-terminal-replay
                 licensing-preamble-and-state
                 licensing-length-bounds

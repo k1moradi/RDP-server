@@ -4479,13 +4479,22 @@ void appendLicensingLe32(std::vector<std::uint8_t> &bytes,
 
 void appendLicensingBlob(std::vector<std::uint8_t> &bytes,
                          std::uint16_t type,
-                         std::initializer_list<std::uint8_t> payload)
+                         std::span<const std::uint8_t> payload)
 {
     assert(payload.size() <= 65535U);
     appendLicensingLe16(bytes, type);
     appendLicensingLe16(
         bytes, static_cast<std::uint16_t>(payload.size()));
-    bytes.insert(bytes.end(), payload);
+    bytes.insert(bytes.end(), payload.begin(), payload.end());
+}
+
+void appendLicensingBlob(std::vector<std::uint8_t> &bytes,
+                         std::uint16_t type,
+                         std::initializer_list<std::uint8_t> payload)
+{
+    appendLicensingBlob(
+        bytes, type,
+        std::span<const std::uint8_t>{payload.begin(), payload.size()});
 }
 
 void finishLicensingMessageSize(std::vector<std::uint8_t> &bytes)
@@ -4506,6 +4515,26 @@ makeClientNewLicenseRequest()
         message.push_back(value);
 
     appendLicensingBlob(message, 0x0002U, {0x11, 0x22, 0x33});
+    appendLicensingBlob(
+        message, 0x000fU, {0x75, 0x73, 0x65, 0x72, 0x00});
+    appendLicensingBlob(
+        message, 0x0010U, {0x68, 0x6f, 0x73, 0x74, 0x00});
+    finishLicensingMessageSize(message);
+    return message;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientNewLicenseRequestWithKeyExchange(
+    std::span<const std::uint8_t> clientRandom,
+    std::span<const std::uint8_t> encryptedPreMasterSecret)
+{
+    assert(clientRandom.size() == kRdpLicensingRandomBytes);
+    std::vector<std::uint8_t> message{0x13, 0x83, 0x00, 0x00};
+    appendLicensingLe32(message, 1U);
+    appendLicensingLe32(message, 0x04010000U);
+    message.insert(
+        message.end(), clientRandom.begin(), clientRandom.end());
+    appendLicensingBlob(message, 0x0002U, encryptedPreMasterSecret);
     appendLicensingBlob(
         message, 0x000fU, {0x75, 0x73, 0x65, 0x72, 0x00});
     appendLicensingBlob(
@@ -5545,6 +5574,120 @@ void testRdpLicensingPreMasterDecrypt()
     assert(!credential.matches(differentIdentity));
 }
 
+void testRdpInitialLicensingCryptoPreparation()
+{
+    const LicensingCryptoFixture fixture;
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope));
+    RdpLicensingServiceCredential credential;
+    assert(credential.configure(identity, fixture.privateKeyPem));
+
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> clientRandom{};
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom{};
+    for (std::size_t index = 0U; index < clientRandom.size(); ++index)
+    {
+        clientRandom[index] = static_cast<std::uint8_t>(0x40U + index);
+        serverRandom[index] = static_cast<std::uint8_t>(0x90U + index);
+    }
+    const auto message = makeClientNewLicenseRequestWithKeyExchange(
+        clientRandom, fixture.encryptedPreMasterSecret);
+    const auto exchange = parseRdpClientLicensingKeyExchange(message);
+    assert(exchange);
+    assert(std::equal(
+        exchange.value.clientRandom.begin(),
+        exchange.value.clientRandom.end(), clientRandom.begin()));
+
+    auto prepared = prepareInitialRdpLicensingCrypto(
+        credential, message, serverRandom);
+    assert(prepared);
+    auto expected = deriveRdpLicensingKeys(
+        fixture.preMaster, clientRandom, serverRandom);
+    assert(expected);
+    assert(prepared.value.macSaltKey == expected.value.macSaltKey);
+    assert(prepared.value.encryptionKey == expected.value.encryptionKey);
+
+    cleanseRdpLicensingKeyMaterial(prepared.value);
+    cleanseRdpLicensingKeyMaterial(expected.value);
+    assert(std::all_of(
+        prepared.value.macSaltKey.begin(),
+        prepared.value.macSaltKey.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+    assert(std::all_of(
+        prepared.value.encryptionKey.begin(),
+        prepared.value.encryptionKey.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+}
+
+void testRdpInitialLicensingCryptoDenials()
+{
+    const LicensingCryptoFixture fixture;
+    RdpServerLicenseIdentity identity;
+    assert(identity.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        fixture.serverCertificate, kServerLicenseScope));
+    RdpLicensingServiceCredential credential;
+    assert(credential.configure(identity, fixture.privateKeyPem));
+
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> clientRandom{};
+    std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom{};
+    for (std::size_t index = 0U; index < clientRandom.size(); ++index)
+    {
+        clientRandom[index] = static_cast<std::uint8_t>(index + 1U);
+        serverRandom[index] = static_cast<std::uint8_t>(0xa0U + index);
+    }
+    const auto valid = makeClientNewLicenseRequestWithKeyExchange(
+        clientRandom, fixture.encryptedPreMasterSecret);
+
+    const auto shortRandom = prepareInitialRdpLicensingCrypto(
+        credential, valid,
+        std::span(serverRandom).first(serverRandom.size() - 1U));
+    assert(!shortRandom);
+    assert(shortRandom.error ==
+           RdpInitialLicensingCryptoError::InvalidServerRandom);
+
+    const auto truncated = prepareInitialRdpLicensingCrypto(
+        credential, std::span(valid).first(valid.size() - 1U),
+        serverRandom);
+    assert(!truncated);
+    assert(truncated.error ==
+           RdpInitialLicensingCryptoError::InvalidClientMessage);
+
+    RdpLicensingServiceCredential unconfiguredCredential;
+    const auto noCredential = prepareInitialRdpLicensingCrypto(
+        unconfiguredCredential, valid, serverRandom);
+    assert(!noCredential);
+    assert(noCredential.error ==
+           RdpInitialLicensingCryptoError::PreMasterDecryptFailure);
+
+    auto badCiphertext = fixture.encryptedPreMasterSecret;
+    badCiphertext.back() = 0x01U;
+    const auto badCipherMessage = makeClientNewLicenseRequestWithKeyExchange(
+        clientRandom, badCiphertext);
+    const auto badCipher = prepareInitialRdpLicensingCrypto(
+        credential, badCipherMessage, serverRandom);
+    assert(!badCipher);
+    assert(badCipher.error ==
+           RdpInitialLicensingCryptoError::PreMasterDecryptFailure);
+    assert(std::all_of(
+        badCipher.value.macSaltKey.begin(),
+        badCipher.value.macSaltKey.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+    assert(std::all_of(
+        badCipher.value.encryptionKey.begin(),
+        badCipher.value.encryptionKey.end(),
+        [](std::uint8_t value) { return value == 0U; }));
+
+    constexpr std::array<std::uint8_t, 4> challenge{
+        0x15, 0x03, 0x04, 0x00};
+    const auto unexpected = prepareInitialRdpLicensingCrypto(
+        credential, challenge, serverRandom);
+    assert(!unexpected);
+    assert(unexpected.error ==
+           RdpInitialLicensingCryptoError::InvalidClientMessage);
+}
+
 void testRdpLicensingPreMasterDecryptDenials()
 {
     const LicensingCryptoFixture fixture;
@@ -5936,7 +6079,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 91> kMcsTestCases{{
+constexpr std::array<McsTestCase, 93> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -5996,6 +6139,8 @@ constexpr std::array<McsTestCase, 91> kMcsTestCases{{
     {"licensing-key-derivation", &testRdpLicensingKeyDerivation},
     {"licensing-premaster-rsa-decrypt", &testRdpLicensingPreMasterDecrypt},
     {"licensing-premaster-rsa-denials", &testRdpLicensingPreMasterDecryptDenials},
+    {"licensing-initial-crypto-preparation", &testRdpInitialLicensingCryptoPreparation},
+    {"licensing-initial-crypto-denials", &testRdpInitialLicensingCryptoDenials},
     {"licensing-key-material-terminal-replay", &testRdpLicensingKeyMaterialTerminalReplay},
     {"licensing-preamble-and-state", &testRdpLicensingPreambleAndState},
     {"licensing-length-bounds", &testRdpLicensingLengthBounds},

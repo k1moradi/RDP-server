@@ -130,6 +130,11 @@ struct RdpLicensingKeyDerivationResult
     }
 };
 
+// Wipe session-owned licensing keys with OpenSSL's non-optimizable cleanse.
+// Safe on already-zero/default material and intended for terminal teardown.
+void cleanseRdpLicensingKeyMaterial(
+    RdpLicensingKeyMaterial &material) noexcept;
+
 // MS-RDPELE 5.1.2. The caller must already have decrypted and validated the
 // exact 48-byte premaster secret with the matching licensing private key.
 // This helper derives keys only; it does not perform RSA, RC4, MAC validation,
@@ -168,6 +173,32 @@ struct RdpLicensingPreMasterDecryptResult
 };
 
 class RdpServerLicenseIdentity;
+
+// Initial client-response cryptographic preparation. This does NOT validate a
+// CAL, HWID or licensing MAC and does not change any session/lifecycle state.
+// It only proves that the already-bounded initial response's encrypted
+// premaster can be unwrapped by the exact configured credential and derives
+// the two MS-RDPELE 5.1.2 keys using the request's exact ServerRandom.
+enum class RdpInitialLicensingCryptoError : std::uint8_t
+{
+    None,
+    InvalidServerRandom,
+    InvalidClientMessage,
+    PreMasterDecryptFailure,
+    KeyDerivationFailure,
+};
+
+struct RdpInitialLicensingCryptoResult
+{
+    RdpLicensingKeyMaterial value{};
+    RdpInitialLicensingCryptoError error{
+        RdpInitialLicensingCryptoError::InvalidClientMessage};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpInitialLicensingCryptoError::None;
+    }
+};
 
 // One service-owned licensing credential, configured before session
 // publication and immutable thereafter. Configuration proves that the exact
@@ -228,6 +259,16 @@ private:
     bool attempted_{};
     bool configured_{};
 };
+
+// Parse the exact initial licensing message, unwrap its encrypted premaster
+// through the configured credential, derive MAC/encryption keys, and cleanse
+// the temporary 48-byte premaster before returning. The returned keys remain
+// sensitive and must be cleansed by their owner on every terminal path.
+[[nodiscard]] RdpInitialLicensingCryptoResult
+prepareInitialRdpLicensingCrypto(
+    const RdpLicensingServiceCredential &credential,
+    std::span<const std::uint8_t> completeMessage,
+    std::span<const std::uint8_t> serverRandom) noexcept;
 
 // Under Enhanced RDP Security, SC_SECURITY carries no server certificate.
 // SERVER_LICENSE_REQUEST therefore has to carry the explicitly provisioned

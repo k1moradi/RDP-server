@@ -1179,6 +1179,12 @@ McsSessionLifecycle::routeVerifiedR2ClientInfoEnvelope(
     return envelope.value;
 }
 
+McsSessionLifecycle::~McsSessionLifecycle()
+{
+    cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
+    licensingKeyMaterialReady_ = false;
+}
+
 std::optional<RdpClientInfoPacketSummary>
 McsSessionLifecycle::acceptVerifiedR2ClientInfoPacket(
     const SecurityNegotiationProvenance &provenance,
@@ -1342,6 +1348,25 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
         close();
         return std::nullopt;
     }
+
+    if (licensingKeyMaterialReady_)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    auto prepared = prepareInitialRdpLicensingCrypto(
+        credential, envelope.value.licensingMessage,
+        licensing_.serverRandom());
+    if (!prepared)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    licensingKeyMaterial_ = prepared.value;
+    cleanseRdpLicensingKeyMaterial(prepared.value);
+    licensingKeyMaterialReady_ = true;
 
     const auto intake =
         licensing_.onClientMessage(envelope.value.licensingMessage);

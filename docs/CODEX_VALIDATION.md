@@ -14500,3 +14500,64 @@ temporary premaster material, and stop at `AwaitServerDecision`. Do not emit
 until the required CAL/HWID/MAC validation is implemented. **M2/M3 remain
 OPEN / NOT ACCEPTED.**
 
+## R3 bound client-premaster decryption and licensing-key preparation (2026-10-16; hosted CI pending)
+
+**Reconciled shared-main parent:** `5dd55a2e84faf883510929ab3a99393085156390`.
+
+The protected first-client-licensing transition now performs the cryptographic
+preparation required by the preceding roadmap while still stopping before any
+positive licensing decision. A new bounded
+`prepareInitialRdpLicensingCrypto` helper composes the existing structural
+key-exchange parser, the session-bound `RdpLicensingServiceCredential` RSA
+premaster unwrap, and the existing MS-RDPELE 5.1.2 key derivation. It accepts
+one complete supported initial client licensing message plus the exact
+32-byte ServerRandom retained from the fully delivered Server License Request.
+
+The helper returns only the 16-byte MAC salt key and 16-byte licensing
+encryption key. The temporary 48-byte premaster is cleansed immediately after
+derivation. A shared `cleanseRdpLicensingKeyMaterial` boundary uses
+OpenSSL's non-optimizable cleanse for terminal erasure; no premaster, client
+payload, private key, username or machine name is retained.
+
+`McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage` invokes this
+crypto preparation only after the existing concrete R2 lease/exact-R1-owner
+reauthorization, credential-fingerprint continuity check, joined global-I/O
+routing, complete segmentation and `SEC_LICENSE_PKT` validation. Crypto
+failure closes the R3 owner before the structural licensing lifecycle can
+advance. On success the sole R3 session owns one fixed
+`RdpLicensingKeyMaterial`, immediately cleanses the temporary returned copy,
+then consumes the licensing message exactly once and stops at
+`AwaitServerLicenseDecision`. Session close and destruction both cleanse the
+owned keys.
+
+This is **not** a valid-client decision. No CAL, HWID or MAC verification is
+implemented; no RC4 licensing payload is trusted; no `STATUS_VALID_CLIENT`,
+Platform Challenge, New/Upgrade License, Demand Active, Share, graphics,
+input, clipboard or desktop authority is emitted. R2 admission authority and
+R1 TLS/application-I/O ownership are unchanged, and R10 still owns real
+service credential/configuration composition.
+
+New ordinary production-linked CTests are
+`transport.licensing-initial-crypto-preparation` and
+`transport.licensing-initial-crypto-denials`. The positive case uses only an
+ephemeral in-memory RSA/X.509 fixture and independently compares the composed
+result with the already-tested key-derivation oracle. Denials cover invalid
+ServerRandom size, truncated client message, unconfigured credential, malformed
+encrypted-premaster padding and an unexpected licensing message. Both cases are
+added to the bounded R1/R3 ASan/UBSan selector and its registry preflight.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA Linux/GCC,
+macOS/Clang, Windows/MSVC Debug/Release, R9 sanitizer, documentation-policy and
+SDK/package evidence are pending. Genuine Kerberos/NSS/logind positive
+admission, real service licensing credentials and Microsoft-client licensing/
+Share/desktop acceptance remain **NOT RUN/OPEN**.
+
+**Next R3:** parse and cryptographically validate the relevant
+`CLIENT_LICENSE_INFO` CAL/HWID/MAC material using these bound derived keys,
+or implement the standards-required New License / Platform Challenge branch
+for `CLIENT_NEW_LICENSE_REQUEST`, with every outbound decision protected by
+fresh R2 authorization and receipt-bound R1 delivery. Do not emit
+`STATUS_VALID_CLIENT` or activation before those checks. **M2/M3 remain
+OPEN / NOT ACCEPTED.**
+

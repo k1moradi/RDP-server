@@ -480,6 +480,15 @@ struct X509ChainLeafResult
 }
 } // namespace
 
+void cleanseRdpLicensingKeyMaterial(
+    RdpLicensingKeyMaterial &material) noexcept
+{
+    OPENSSL_cleanse(
+        material.macSaltKey.data(), material.macSaltKey.size());
+    OPENSSL_cleanse(
+        material.encryptionKey.data(), material.encryptionKey.size());
+}
+
 RdpLicensingKeyDerivationResult deriveRdpLicensingKeys(
     std::span<const std::uint8_t> preMasterSecret,
     std::span<const std::uint8_t> clientRandom,
@@ -710,6 +719,39 @@ RdpLicensingServiceCredential::decryptPreMasterSecret(
         result.value.size(), result.value.begin());
     clearTemporaryBuffers();
     result.error = RdpLicensingPreMasterDecryptError::None;
+    return result;
+}
+
+RdpInitialLicensingCryptoResult prepareInitialRdpLicensingCrypto(
+    const RdpLicensingServiceCredential &credential,
+    std::span<const std::uint8_t> completeMessage,
+    std::span<const std::uint8_t> serverRandom) noexcept
+{
+    if (serverRandom.size() != kRdpLicensingRandomBytes)
+        return {{}, RdpInitialLicensingCryptoError::InvalidServerRandom};
+
+    const auto exchange =
+        parseRdpClientLicensingKeyExchange(completeMessage);
+    if (!exchange)
+        return {{}, RdpInitialLicensingCryptoError::InvalidClientMessage};
+
+    auto preMaster = credential.decryptPreMasterSecret(
+        exchange.value.encryptedPreMasterSecret);
+    if (!preMaster)
+        return {{}, RdpInitialLicensingCryptoError::PreMasterDecryptFailure};
+
+    auto derived = deriveRdpLicensingKeys(
+        preMaster.value, exchange.value.clientRandom, serverRandom);
+    OPENSSL_cleanse(preMaster.value.data(), preMaster.value.size());
+    if (!derived)
+    {
+        cleanseRdpLicensingKeyMaterial(derived.value);
+        return {{}, RdpInitialLicensingCryptoError::KeyDerivationFailure};
+    }
+
+    RdpInitialLicensingCryptoResult result{
+        derived.value, RdpInitialLicensingCryptoError::None};
+    cleanseRdpLicensingKeyMaterial(derived.value);
     return result;
 }
 

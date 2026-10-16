@@ -59,7 +59,7 @@ jobs:
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
       - name: Run Debug protocol and project-policy tests
-        run: ctest --test-dir build --build-config Debug --output-on-failure
+        run: ctest --test-dir build --build-config Debug --timeout 60 --output-on-failure
 
       # Reconfigure the SAME build root for the release artifact. Never
       # create a parallel local or CI top-level build directory.
@@ -68,7 +68,7 @@ jobs:
       - name: Compile Release
         run: cmake --build build --config Release --parallel 2
       - name: Run Release protocol tests
-        run: ctest --test-dir build --build-config Release --output-on-failure
+        run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
       - name: Stage installable protocol SDK
         shell: bash
         run: |
@@ -82,7 +82,7 @@ jobs:
             "-DCMAKE_PREFIX_PATH=$GITHUB_WORKSPACE/build/stage" \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build/consumer --config Release --parallel 2
-          ctest --test-dir build/consumer --build-config Release --output-on-failure
+          ctest --test-dir build/consumer --build-config Release --timeout 60 --output-on-failure
       - name: Package ZIP protocol SDK
         run: cmake --build build --config Release --target package
       - name: Generate reproducible artifact digest
@@ -147,13 +147,13 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: ctest --test-dir build --build-config Debug -L clipboard --output-on-failure
+        run: ctest --test-dir build --build-config Debug --timeout 60 -L clipboard --output-on-failure
       - name: Run bounded R1/R3 MCS, CredSSP and licensing CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          ctest --test-dir build --build-config Debug \
+          ctest --test-dir build --build-config Debug --timeout 60 \
             -R '^(transport\.(tcp-owned-(security-negotiation-provenance|r3-connect-response-slice)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(preamble-and-state|length-bounds|ordering-denials))|security\.(credssp-der-(rejections|bounds|mutations)|credssp-binding))$' --output-on-failure
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         env:
@@ -164,7 +164,7 @@ jobs:
           # credential. Keep the suppression scoped to these GSS tests only.
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
-          ctest --test-dir build --build-config Debug --verbose \
+          ctest --test-dir build --build-config Debug --timeout 60 --verbose \
             -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
 
       - name: Run native authorized X11 input denial with sanitizers
@@ -172,14 +172,14 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          ctest --test-dir build --build-config Debug \
+          ctest --test-dir build --build-config Debug --timeout 60 \
             -R '^x11\.input-r3-admission-route-denials-and-revocation$' --output-on-failure
 
       - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: ctest --test-dir build --build-config Debug -R '^fuzz\.mcs-cliprdr-bounded$' --output-on-failure
+        run: ctest --test-dir build --build-config Debug --timeout 60 -R '^fuzz\.mcs-cliprdr-bounded$' --output-on-failure
 
   documentation-policy:
     if: github.event_name == 'push'

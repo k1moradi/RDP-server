@@ -34,6 +34,11 @@ translation units, not text-pattern assertions or pure mocks.
 - Run cross-platform C++23 compile and CTest in GitHub Actions on
   Linux/GCC, macOS/Clang and Windows/MSVC, one checkout-local CI
   `build/` per job. Fix failures instead of hiding or skipping them.
+  Hosted CTest invocations use a **60-second default per-test timeout** so a
+  crash/assertion that leaves a platform error dialog pending cannot consume
+  the historical 1500-second CTest default and starve later validation.
+  Purpose-built tests may keep a tighter explicit `TIMEOUT`; do not raise the
+  bound to conceal a slow or deadlocked regression.
 - Every protocol parser covers valid, truncated, malformed, unknown
   capability, oversized and integer-overflow cases; every state
   machine covers ordering, stale responses, cancel/disconnect and

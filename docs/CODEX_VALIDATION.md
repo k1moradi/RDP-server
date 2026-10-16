@@ -8440,3 +8440,23 @@ Actions is **PENDING**.
 **Exact-SHA hosted state:** Actions run `38881746797` for `be0a0322117742da5a2cdd8be97b972289d4cce0` is **QUEUED** behind a repository-wide CI backlog at this receipt. The real Apple SDK/AppKit compile/link and full hosted CTest matrix therefore remain **NOT RUN** for this exact SHA and must not be counted as PASS.
 
 **Still NOT RUN:** owner macOS 27, live native cursor sampling, genuine R2/R3-authorized desktop binding, R4 cursor publication/deduplication, native input, Microsoft-client cursor rendering, and performance/reliability acceptance. M5 remains **OPEN**.
+
+
+## R9 hosted CTest timeout authoring (2026-10-16; CI pending)
+
+Observed evidence from Windows job `116892480222`, Actions **38876427741**:
+test 64 `transport.gcc-conference-create` started at 08:51:58Z, printed the
+stale R3 fixture assertion, and CTest reported `***Timeout 1500.01 sec` at
+09:16:58Z before immediately continuing with later tests. Current `main`
+already contains the R3 fixture/lifetime corrections; R9 addresses the generic
+hosted-runner starvation behavior.
+
+All hosted CTest commands now use `--timeout 60` as their default test
+timeout, while explicit tighter test properties remain authoritative. This
+applies to the full Debug/Release matrix, installed consumer, and focused R9
+sanitizer stages. No test is disabled, quarantined or made less strict.
+`docs/testing_standards.md` carries the reusable policy.
+
+The prior R9 protected-transition SHA
+`b009c43bc6913513937b89c9de16a0abbc5a6a50`, Actions **38880965403**, is
+still **QUEUED** behind older workflows at this authoring snapshot.

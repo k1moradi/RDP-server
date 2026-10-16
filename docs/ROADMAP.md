@@ -7022,3 +7022,26 @@ The Apple-only read-only sampler uses the existing normalized display epoch and 
 Dedicated permission-free CTests are `macos.cursor-owned-shape`, `macos.cursor-validation-denials`, and `macos.cursor-topology-revocation`. They never invoke the Apple sampler or inspect a live desktop. Implementation commit `be0a0322117742da5a2cdd8be97b972289d4cce0` is on `main`; exact-SHA hosted Actions run `38881746797` is **QUEUED**, not yet PASS/FAIL. Local strict Clang/GCC and Clang ASan+UBSan+LSan harnesses pass; owner macOS 27 and live cursor sampling remain **NOT RUN**.
 
 This increment still grants no R2/R3 authorization, performs no input injection, and does not publish cursor updates into R4. **Next R7:** define the smallest generation-safe cursor publication/deduplication boundary that consumes this owned snapshot once R4's portable cursor consumer contract is available; otherwise continue native macOS input/session groundwork without duplicating R4 ownership. M5 remains **OPEN**.
+
+
+## R9 hosted CTest timeout bound (2026-10-16; CI pending)
+
+R9 implementation `b009c43bc6913513937b89c9de16a0abbc5a6a50`,
+Actions **38880965403**, is queued behind older workflows. R9 traced the queue
+amplifier to completed Windows job `116892480222` in run **38876427741**:
+`transport.gcc-conference-create` emitted the now-corrected
+`earlyCapabilityFlags == 0x0001U` assertion, but CTest held the test for its
+default **1500.01-second** timeout before continuing. Adjacent successful tests
+completed normally in fractions of a second. This is bounded-CI infrastructure
+evidence, not a DXGI or current-R3 failure claim.
+
+Every hosted CTest invocation now supplies `--timeout 60` as the default
+per-test limit: Debug, Release, installed-package consumer, R9 clipboard,
+transport, GSS, X11-input and fuzzer runs. Explicit tighter per-test
+`TIMEOUT` properties remain intact. No test is skipped or weakened and no
+production code changes. `docs/testing_standards.md` records the same rule:
+surface and fix slow/deadlocked failures rather than increasing the bound.
+
+The protected-transition R9 exact-SHA run remains **QUEUED**, not PASS/FAIL,
+at authoring time. Positive native admission and live/owner/client acceptance
+remain **NOT RUN/BLOCKED** as previously recorded.

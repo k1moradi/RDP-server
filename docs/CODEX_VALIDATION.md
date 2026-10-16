@@ -9532,3 +9532,47 @@ exercise terminal replay/reconnect behavior around protected Channel Join
 confirmation and then extend sanitizer coverage to the next real R3
 channel-role/licensing transition as it lands; continue to avoid synthetic
 positive admission.
+
+
+## R7 monotonic macOS session-change revocation watch (2026-10-16; publication pending)
+
+Historical R7 CI was rechecked before this increment. Cursor
+`be0a0322117742da5a2cdd8be97b972289d4cce0`, Actions `38881746797`,
+passed hosted macOS AppleClang Debug and Release **290/290** CTests, including
+real AppKit compile/link; its overall workflow failed in Windows. Input
+`003f455148fa72f6ee82bd5fbdf6016e3df4fab8`, Actions `38884345628`,
+and session guard `ce23e7dd73a0c943c42a8257149111fe5a66baf7`, Actions
+`38885564347`, failed full hosted builds at the unrelated R8 braced-expression
+`assert` macro error in `test_owned_remote_transfer.cpp`, before R7 CTest
+execution. Descendant `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`,
+Actions `38893987860`, cleared that blocker: Linux/GCC **362/362** and
+macOS/AppleClang **310/310** full CTests PASS, documentation policy and R9
+sanitizer stages PASS; Windows reached full CTest and failed only the two
+then-existing R10 live TLS-context cases.
+
+**Focused authoring PASS:** the production `NativeSessionChangeWatch` state
+machine and revised `MacDesktopSessionGuard` compiled with GCC 14.2 C++23
+under `-Wall -Wextra -Wpedantic -Werror -UNDEBUG` and all seven session cases
+passed. The same seven cases passed Clang 17 ASan+UBSan with leak detection.
+The focused harness used synthetic display/session metadata and the production
+guard/watch sources; it did not install AppKit observers and is not Apple SDK
+or live-desktop evidence.
+
+New dedicated CTests are
+`macos.desktop-session-switch-away-back-revocation`,
+`macos.desktop-session-mid-operation-epoch-change`,
+`macos.desktop-session-watch-registration-retirement`, and
+`macos.desktop-session-watch-unavailable-denial`. They cover restored
+identical GUI-session facts after revision changes, capture/input callbacks that
+advance the epoch mid-operation, invalid/failed/duplicate registration,
+event-during-registration, start/stop retirement, repeated stop, stale delayed
+callbacks, removal failure/retry, and denial when notification coverage is
+unavailable. Existing lifecycle/validation/reentry tests now start explicit
+synthetic coverage and callback cancellation remains terminal.
+
+The Apple Objective-C++ bridge is wired into `rdp-server-macos-capture` with
+ARC and existing AppKit linkage, but exact-SHA real Apple SDK compile/link for
+this new source is **PENDING hosted CI**. Ordinary CTest never invokes
+`startNative()`. Real fast-user-switch notification delivery, owner macOS 27,
+genuine R2/R3 authorized admission, live ScreenCaptureKit/Quartz input, R4
+integration, Microsoft-client acceptance and performance remain **NOT RUN**.

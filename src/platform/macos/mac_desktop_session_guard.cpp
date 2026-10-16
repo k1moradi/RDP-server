@@ -22,15 +22,20 @@ MacDesktopSessionGuard::MacDesktopSessionGuard(
       targetUserId_(targetUserId),
       sessionReader_(sessionReader),
       permissionReader_(permissionReader) {
-    const auto revision = geometry.topologyRevision(geometryGeneration);
+    const auto topologyRevision = geometry.topologyRevision(geometryGeneration);
+    const auto sessionWatchRevision =
+        NativeSessionChangeWatch::coveredRevision();
     if (geometryGeneration_ == 0 || targetUserId_ == 0 ||
         targetUserId_ == std::numeric_limits<std::uint32_t>::max() ||
         sessionReader_.read == nullptr || permissionReader_.capture == nullptr ||
-        permissionReader_.input == nullptr || !revision || *revision == 0) {
+        permissionReader_.input == nullptr || !topologyRevision ||
+        *topologyRevision == 0 || !sessionWatchRevision ||
+        *sessionWatchRevision == 0) {
         invalidate();
         return;
     }
-    topologyRevision_ = *revision;
+    topologyRevision_ = *topologyRevision;
+    sessionWatchRevision_ = *sessionWatchRevision;
 }
 
 bool MacDesktopSessionGuard::geometryCurrent() const noexcept {
@@ -40,6 +45,11 @@ bool MacDesktopSessionGuard::geometryCurrent() const noexcept {
     }
     const auto current = geometry_->topologyRevision(geometryGeneration_);
     return current && *current == topologyRevision_;
+}
+
+bool MacDesktopSessionGuard::sessionWatchCurrent() const noexcept {
+    return sessionWatchRevision_ != 0 &&
+           NativeSessionChangeWatch::current(sessionWatchRevision_);
 }
 
 bool MacDesktopSessionGuard::sessionCurrent(
@@ -58,6 +68,7 @@ void MacDesktopSessionGuard::invalidate() noexcept {
     geometry_ = nullptr;
     geometryGeneration_ = 0;
     topologyRevision_ = 0;
+    sessionWatchRevision_ = 0;
     targetUserId_ = 0;
 }
 
@@ -72,7 +83,8 @@ bool MacDesktopSessionGuard::allows(const MacDesktopAccessKind access) noexcept 
 
     operationInProgress_ = true;
     MacDesktopSessionObservation before{};
-    bool permitted = geometryCurrent() && sessionCurrent(before);
+    bool permitted = sessionWatchCurrent() && geometryCurrent() &&
+                     sessionCurrent(before);
 
     if (permitted) {
         switch (access) {
@@ -97,6 +109,11 @@ bool MacDesktopSessionGuard::allows(const MacDesktopAccessKind access) noexcept 
     }
 
     operationInProgress_ = false;
+    if (permitted) {
+        // Final success gate closes on an observed switch even when both
+        // synchronous Quartz session observations compare equal.
+        permitted = sessionWatchCurrent();
+    }
     if (!permitted || closed_) {
         invalidate();
         return false;

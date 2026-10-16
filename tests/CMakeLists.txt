@@ -986,6 +986,7 @@ else()
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_session_change_watch.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/mac_desktop_session_guard.cpp")
 endif()
 if(MSVC)
@@ -994,7 +995,10 @@ else()
     target_compile_options(test_macos_desktop_session_guard PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
-foreach(case_name IN ITEMS lifecycle validation-denials revocation-reentry)
+foreach(case_name IN ITEMS
+        lifecycle validation-denials revocation-reentry
+        switch-away-back-revocation mid-operation-epoch-change
+        watch-registration-retirement watch-unavailable-denial)
     add_test(NAME "macos.desktop-session-${case_name}"
         COMMAND test_macos_desktop_session_guard "${case_name}")
     set_tests_properties("macos.desktop-session-${case_name}" PROPERTIES

@@ -3181,3 +3181,41 @@ The controller consumes macOS-native virtual-key codes plus RDP scan identity, v
 Before each requested capture or input operation, the guard checks the pinned geometry/revision, reads the caller's Quartz GUI-session facts, checks the relevant no-prompt OS permission, reads the session a second time, and rechecks geometry. The two session samples must be identical and both must report the selected user as the WindowServer session user and the process effective UID, with console/login-complete state. Capture uses the existing Screen Recording preflight; input uses the existing Accessibility trust query. Any denial, malformed read, reentry, mid-check session change, permission loss, geometry refresh, or topology change permanently closes the guard.
 
 The native reader uses `CGSessionCopyCurrentDictionary` and documented Window Server session properties only; no username string is retained, no token is opened, no login session is switched, and no prompt is requested. The guard deliberately exposes no ScreenCaptureKit object and no Quartz event-posting callback. A future concrete macOS R2/R3 route must still provide the independently authorized target UID and invoke this guard immediately before the native child operation. Synchronous double-read cannot prove an unobserved user switch-away-and-back between separate calls; a native session-change revision/watch remains a later lifecycle hardening step.
+
+
+## R7 monotonic macOS GUI-session revocation epoch (2026-10-16)
+
+`NativeSessionChangeWatch` is a process-scoped revocation source separate from
+`NativeDisplayReconfigurationWatch`; display and Retina topology remain owned
+by `NativeDisplayGeometryRefresh`. The session watch has one process
+registration owner and a process-lifetime 64-bit revision initialized nonzero.
+Release/acquire atomic transitions are monotonic; zero is terminal exhaustion
+and is never reused. Explicit start and stop advance the revision so guards
+cannot span notification-coverage lifetimes.
+
+The Apple Objective-C++ bridge registers the resign-active and become-active
+session notifications only on the shared `NSWorkspace` notification center.
+Observer blocks capture a static recorder and scalar registration epoch. The
+recorder performs one atomic revision transition and no allocation, identity
+lookup, TCC query, capture, input action or watch-object dereference. Observer
+retirement clears the active scalar epoch before removal. A callback already in
+flight may conservatively add a revision but cannot restore coverage; delayed
+callbacks carrying older epochs are ignored. Removal failure retains the
+process reservation so a second observer authority cannot appear.
+
+Native coverage is accepted only from an already-running AppKit main-loop
+context. Successful observer creation alone is not treated as proof that a
+headless or indefinitely stalled process observes every fast-user-switch
+transition; such a context returns `DeliveryUnavailable`. Real delivery
+remains an owner macOS 27 validation gate.
+
+`MacDesktopSessionGuard` remains R7's revocation-only precondition. It now
+pins the session-watch revision alongside target UID, display generation and
+topology revision. `allows()` requires unchanged active watch coverage before
+the first Quartz session observation and again as its final success gate. The
+existing two identical Quartz observations and selected capture/input
+permission check remain mandatory. Any watch event, coverage stop/failure,
+UID/session mismatch, topology change, permission denial, reentry or callback
+cancellation closes the guard permanently. The revision never constitutes
+authentication, R2/R3 admission, ScreenCaptureKit authority, Quartz input
+authority or R4 scheduling permission.

@@ -3,6 +3,7 @@
 
 #include "platform/macos/mac_input_controller.h"
 #include "platform/macos/native_display_refresh.h"
+#include "platform/macos/native_session_change_watch.h"
 #include "platform/macos/screen_capture_preflight.h"
 
 #include <cstdint>
@@ -40,10 +41,10 @@ struct MacDesktopPermissionReadCallbacks final {
 };
 
 // Single-thread-affine, revocation-only desktop precondition. It binds a
-// caller-selected user ID to one display generation/topology revision and
-// re-reads the GUI session plus the required OS permission synchronously on
-// every allows() call. It owns no native session, credential, capture stream,
-// input callback or RDP authority.
+// caller-selected user ID to one display generation/topology revision and one
+// explicitly active native session-watch revision. It re-reads the GUI session
+// plus the required OS permission synchronously on every allows() call. It owns
+// no native session, credential, capture stream, input callback or RDP authority.
 //
 // Any malformed, stale, reentrant, permission-denied, user/session-mismatched
 // observation closes the guard permanently. A replacement may be constructed
@@ -75,6 +76,7 @@ public:
 
 private:
     [[nodiscard]] bool geometryCurrent() const noexcept;
+    [[nodiscard]] bool sessionWatchCurrent() const noexcept;
     [[nodiscard]] bool sessionCurrent(
         MacDesktopSessionObservation& observation) noexcept;
     void invalidate() noexcept;
@@ -82,6 +84,7 @@ private:
     const NativeDisplayGeometryRefresh* geometry_{};
     std::uint64_t geometryGeneration_{};
     std::uint64_t topologyRevision_{};
+    std::uint64_t sessionWatchRevision_{};
     std::uint32_t targetUserId_{};
     MacDesktopSessionReadCallbacks sessionReader_{};
     MacDesktopPermissionReadCallbacks permissionReader_{};

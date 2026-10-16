@@ -497,3 +497,21 @@ The Apple-only `rdp-server-macos-capture` target also compiles `mac_input_contro
 The Apple-only `rdp-server-macos-capture` target now also compiles `mac_desktop_session_guard.cpp`. Its native path uses CoreGraphics/CoreFoundation already linked by the R7 target and the existing non-prompting Screen Recording/Accessibility probes; no new framework reaches the portable protocol SDK.
 
 `test_macos_desktop_session_guard` is registered on every OS with `macos.desktop-session-lifecycle`, `macos.desktop-session-validation-denials`, and `macos.desktop-session-revocation-reentry`. Non-Apple builds compile the portable guard plus synthetic geometry directly. Apple links the production R7 target, but ordinary CTest injects synthetic session/permission callbacks and never calls `CGSessionCopyCurrentDictionary`, queries real TCC/Accessibility state, starts capture, or posts input.
+
+
+## R7 NSWorkspace session-change observer linkage (2026-10-16)
+
+The Apple-only `rdp-server-macos-capture` target compiles
+`native_session_change_watch.cpp` plus ARC Objective-C++
+`native_session_change_watch.mm`. It reuses the target's existing AppKit and
+Foundation linkage; no new native framework enters the installed portable
+protocol SDK, Linux or Windows builds. Non-Apple
+`test_macos_desktop_session_guard` compiles the portable watch source directly.
+
+Ordinary CTest uses an injected registration backend and the production atomic
+revision recorder; it never creates `NSWorkspace` observers. Native
+`startNative()` is explicit and fails closed unless called from an
+already-running AppKit main event-loop context. Hosted Apple compilation proves
+SDK/API linkage only; it does not prove real fast-user-switch notifications
+were delivered. Owner macOS 27 remains the separate delivery/desktop acceptance
+gate.

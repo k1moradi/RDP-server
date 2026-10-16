@@ -8303,3 +8303,57 @@ exercise terminal replay/reconnect behavior around protected Channel Join
 confirmation and then extend sanitizer coverage to the next real R3
 channel-role/licensing transition as it lands; continue to avoid synthetic
 positive admission.
+
+
+## R7 monotonic macOS session-change revocation watch (2026-10-16; exact-SHA CI pending)
+
+R7 closes the documented switch-away-and-back gap with a distinct process-scoped
+`NativeSessionChangeWatch`, separate from display-topology ownership. Its
+process-lifetime nonzero revision uses release/acquire atomics, advances on each
+accepted resign-active/become-active event and on coverage start/stop, and fails
+closed on numeric exhaustion instead of wrapping. Only one registration owner
+may exist; ambiguous observer removal keeps that reservation held. Native
+callbacks carry only a scalar registration epoch and static recorder, so late
+callbacks cannot dereference a destroyed watch or revive a retired epoch.
+
+The Apple bridge observes
+`NSWorkspaceSessionDidResignActiveNotification` and
+`NSWorkspaceSessionDidBecomeActiveNotification` through the shared
+`NSWorkspace` notification center. `startNative()` accepts coverage only
+from an already-running AppKit main event-loop context; successful observer
+creation alone is not treated as proof that a headless/stalled process observes
+every fast-user-switch transition. Unavailable delivery context therefore fails
+closed. Owner macOS 27 notification-delivery validation remains **NOT RUN**.
+
+`MacDesktopSessionGuard` now pins the active session-watch revision alongside
+target UID, display generation and topology revision. Every capture/input check
+requires that revision before the first Quartz session read and again
+immediately before success, in addition to the existing two identical session
+observations and permission preflight. Any session-watch event, coverage loss,
+session mismatch, permission denial, display change, reentry or callback
+cancellation permanently closes the guard; a later become-active event cannot
+revive it even if the same UID returns.
+
+Dedicated ordinary CTests retain the existing three session cases and add
+`macos.desktop-session-switch-away-back-revocation`,
+`macos.desktop-session-mid-operation-epoch-change`,
+`macos.desktop-session-watch-registration-retirement`, and
+`macos.desktop-session-watch-unavailable-denial`. Focused authoring coverage
+passed **7/7** with strict GCC 14.2 C++23 and **7/7** with Clang 17
+ASan+UBSan+LSan. Ordinary tests use the production atomic recorder with a
+synthetic registration backend and never install AppKit observers.
+
+Historical CI was rechecked before this increment. Cursor
+`be0a0322117742da5a2cdd8be97b972289d4cce0` passed hosted macOS
+Debug/Release **290/290** CTests. Input/session-guard workflows were blocked by
+the unrelated R8 braced-`assert` compile error. Descendant
+`2bdc77344862ee589ae3adbdbe167b4d5947bbc7`, Actions `38893987860`,
+cleared that blocker with Linux **362/362** and macOS **310/310** full CTests
+plus documentation policy and R9 sanitizer PASS; Windows reached full CTest and
+failed only then-existing R10 live TLS-context cases.
+
+Exact-SHA hosted validation for this increment, owner macOS 27, genuine R2/R3
+per-user macOS admission, live capture/input, R4 publication and Microsoft-client
+acceptance remain **NOT RUN**. Next R7 is the R2/R3 binding of the existing
+children to a genuinely authorized per-user desktop, not publication of native
+authority from revocation metadata. **M5 remains OPEN.**

@@ -536,6 +536,8 @@ if(APPLE)
         src/platform/macos/native_display_geometry.cpp
         src/platform/macos/native_display_refresh.cpp
         src/platform/macos/native_display_reconfiguration.cpp
+        src/platform/macos/native_session_change_watch.cpp
+        src/platform/macos/native_session_change_watch.mm
         src/platform/macos/mac_cursor_snapshot.cpp
         src/platform/macos/mac_cursor_snapshot.mm
         src/platform/macos/mac_input_controller.cpp
@@ -545,6 +547,7 @@ if(APPLE)
         src/platform/macos/screen_capture_stream.mm)
     set_source_files_properties(
         src/platform/macos/mac_cursor_snapshot.mm
+        src/platform/macos/native_session_change_watch.mm
         src/platform/macos/screen_capture_stream.mm
         PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     set_target_properties(rdp-server-macos-capture PROPERTIES

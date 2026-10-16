@@ -43,17 +43,83 @@ struct DisplayFixture final {
     return *result;
 }
 
+struct FakeSessionWatchBackend final {
+    NativeSessionChangeRecorder recorder{};
+    NativeSessionChangeRecorder lastRecorder{};
+    std::uint64_t registrationEpoch{};
+    std::uint64_t lastRegistrationEpoch{};
+    std::size_t installs{};
+    std::size_t removals{};
+    bool installSucceeds{true};
+    bool removeSucceeds{true};
+    bool eventDuringInstall{};
+
+    static bool install(void* context, const std::uint64_t epoch,
+                        const NativeSessionChangeRecorder recorder) noexcept {
+        auto& self = *static_cast<FakeSessionWatchBackend*>(context);
+        ++self.installs;
+        if (!self.installSucceeds) {
+            return false;
+        }
+        self.recorder = recorder;
+        self.lastRecorder = recorder;
+        self.registrationEpoch = epoch;
+        self.lastRegistrationEpoch = epoch;
+        if (self.eventDuringInstall) {
+            recorder(epoch);
+        }
+        return true;
+    }
+
+    static bool remove(void* context) noexcept {
+        auto& self = *static_cast<FakeSessionWatchBackend*>(context);
+        ++self.removals;
+        if (!self.removeSucceeds) {
+            return false;
+        }
+        self.recorder = nullptr;
+        self.registrationEpoch = 0;
+        return true;
+    }
+
+    [[nodiscard]] NativeSessionChangeWatchCallbacks callbacks() noexcept {
+        return {this, &install, &remove};
+    }
+
+    void notify() noexcept {
+        assert(recorder != nullptr && registrationEpoch != 0);
+        recorder(registrationEpoch);
+    }
+
+    void notifyDelayed() noexcept {
+        assert(lastRecorder != nullptr && lastRegistrationEpoch != 0);
+        lastRecorder(lastRegistrationEpoch);
+    }
+};
+
+void startSessionWatch(NativeSessionChangeWatch& watch,
+                       FakeSessionWatchBackend& backend) {
+    const auto result = watch.startWithCallbacks(backend.callbacks());
+    assert(result);
+    assert(watch.registered());
+    assert(NativeSessionChangeWatch::coveredRevision());
+}
+
 struct FakeDesktopAccess final {
     MacDesktopSessionObservation session{501, 501, true, true};
     ScreenCapturePreflightStatus capture{ScreenCapturePreflightStatus::Granted};
     MacInputPermissionStatus input{MacInputPermissionStatus::Trusted};
     MacDesktopSessionGuard* guard{};
+    FakeSessionWatchBackend* sessionWatch{};
     std::size_t sessionReads{};
     std::size_t captureReads{};
     std::size_t inputReads{};
     bool failSessionRead{};
     bool changeSessionDuringCapture{};
     bool changeTopologyDuringCapture{};
+    bool changeSessionWatchDuringCapture{};
+    bool changeSessionWatchDuringInput{};
+    bool closeDuringCapture{};
     bool reenterDuringInput{};
     bool reentrantResult{true};
 
@@ -77,12 +143,23 @@ struct FakeDesktopAccess final {
         if (self.changeTopologyDuringCapture) {
             NativeDisplayReconfigurationWatch::recordTopologyChange();
         }
+        if (self.changeSessionWatchDuringCapture &&
+            self.sessionWatch != nullptr) {
+            self.sessionWatch->notify();
+        }
+        if (self.closeDuringCapture && self.guard != nullptr) {
+            self.guard->close();
+        }
         return self.capture;
     }
 
     static MacInputPermissionStatus readInput(void* context) noexcept {
         auto& self = *static_cast<FakeDesktopAccess*>(context);
         ++self.inputReads;
+        if (self.changeSessionWatchDuringInput &&
+            self.sessionWatch != nullptr) {
+            self.sessionWatch->notify();
+        }
         if (self.reenterDuringInput && self.guard != nullptr) {
             self.reentrantResult =
                 self.guard->allows(MacDesktopAccessKind::Capture);
@@ -101,6 +178,10 @@ struct FakeDesktopAccess final {
 };
 
 void testLifecycle() {
+    FakeSessionWatchBackend watchBackend;
+    NativeSessionChangeWatch watch;
+    startSessionWatch(watch, watchBackend);
+
     NativeDisplayGeometryRefresh geometry;
     DisplayFixture display;
     const auto generation = refreshGeometry(geometry, display);
@@ -132,6 +213,10 @@ void testLifecycle() {
 }
 
 void testValidationDenials() {
+    FakeSessionWatchBackend watchBackend;
+    NativeSessionChangeWatch watch;
+    startSessionWatch(watch, watchBackend);
+
     NativeDisplayGeometryRefresh geometry;
     DisplayFixture display;
     const auto generation = refreshGeometry(geometry, display);
@@ -208,6 +293,10 @@ void testValidationDenials() {
 }
 
 void testRevocationAndReentry() {
+    FakeSessionWatchBackend watchBackend;
+    NativeSessionChangeWatch watch;
+    startSessionWatch(watch, watchBackend);
+
     {
         NativeDisplayGeometryRefresh geometry;
         DisplayFixture display;
@@ -258,6 +347,20 @@ void testRevocationAndReentry() {
         MacDesktopSessionGuard guard(
             geometry, generation, 501, backend.sessionCallbacks(),
             backend.permissionCallbacks());
+        backend.guard = &guard;
+        backend.closeDuringCapture = true;
+        assert(!guard.allows(MacDesktopAccessKind::Capture));
+        assert(guard.closed());
+    }
+
+    {
+        NativeDisplayGeometryRefresh geometry;
+        DisplayFixture display;
+        const auto generation = refreshGeometry(geometry, display);
+        FakeDesktopAccess backend;
+        MacDesktopSessionGuard guard(
+            geometry, generation, 501, backend.sessionCallbacks(),
+            backend.permissionCallbacks());
         assert(guard.allows(MacDesktopAccessKind::Capture));
         DisplayFixture replacement;
         const auto nextGeneration = refreshGeometry(geometry, replacement);
@@ -280,6 +383,179 @@ void testRevocationAndReentry() {
     }
 }
 
+void testSwitchAwayBackRevocation() {
+    FakeSessionWatchBackend watchBackend;
+    NativeSessionChangeWatch watch;
+    startSessionWatch(watch, watchBackend);
+
+    NativeDisplayGeometryRefresh geometry;
+    DisplayFixture display;
+    const auto generation = refreshGeometry(geometry, display);
+    FakeDesktopAccess backend;
+    MacDesktopSessionGuard guard(
+        geometry, generation, 501, backend.sessionCallbacks(),
+        backend.permissionCallbacks());
+
+    assert(guard.allows(MacDesktopAccessKind::Capture));
+    const auto beforeSwitch = NativeSessionChangeWatch::coveredRevision();
+    assert(beforeSwitch);
+    watchBackend.notify();
+    watchBackend.notify();
+    const auto afterSwitch = NativeSessionChangeWatch::coveredRevision();
+    assert(afterSwitch && *afterSwitch > *beforeSwitch);
+    assert(!guard.allows(MacDesktopAccessKind::Capture));
+    assert(guard.closed());
+    assert(backend.captureReads == 1);
+}
+
+void testMidOperationEpochChange() {
+    FakeSessionWatchBackend watchBackend;
+    NativeSessionChangeWatch watch;
+    startSessionWatch(watch, watchBackend);
+
+    {
+        NativeDisplayGeometryRefresh geometry;
+        DisplayFixture display;
+        const auto generation = refreshGeometry(geometry, display);
+        FakeDesktopAccess backend;
+        backend.sessionWatch = &watchBackend;
+        backend.changeSessionWatchDuringCapture = true;
+        MacDesktopSessionGuard guard(
+            geometry, generation, 501, backend.sessionCallbacks(),
+            backend.permissionCallbacks());
+        assert(!guard.allows(MacDesktopAccessKind::Capture));
+        assert(guard.closed());
+        assert(backend.sessionReads == 2 && backend.captureReads == 1);
+    }
+    {
+        NativeDisplayGeometryRefresh geometry;
+        DisplayFixture display;
+        const auto generation = refreshGeometry(geometry, display);
+        FakeDesktopAccess backend;
+        backend.sessionWatch = &watchBackend;
+        backend.changeSessionWatchDuringInput = true;
+        MacDesktopSessionGuard guard(
+            geometry, generation, 501, backend.sessionCallbacks(),
+            backend.permissionCallbacks());
+        assert(!guard.allows(MacDesktopAccessKind::Input));
+        assert(guard.closed());
+        assert(backend.sessionReads == 2 && backend.inputReads == 1);
+    }
+}
+
+void testWatchRegistrationRetirement() {
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    {
+        NativeSessionChangeWatch invalid;
+        const auto result = invalid.startWithCallbacks({});
+        assert(!result);
+        assert(result.error() ==
+               NativeSessionChangeWatchError::InvalidCallbacks);
+    }
+    {
+        FakeSessionWatchBackend failedBackend;
+        failedBackend.installSucceeds = false;
+        NativeSessionChangeWatch failedWatch;
+        const auto result =
+            failedWatch.startWithCallbacks(failedBackend.callbacks());
+        assert(!result);
+        assert(result.error() ==
+               NativeSessionChangeWatchError::RegistrationFailed);
+        assert(failedBackend.installs == 1 &&
+               failedBackend.removals == 1);
+        assert(!failedWatch.registered());
+        assert(!NativeSessionChangeWatch::coveredRevision());
+    }
+
+    FakeSessionWatchBackend firstBackend;
+    NativeSessionChangeWatch firstWatch;
+    startSessionWatch(firstWatch, firstBackend);
+    const auto firstRevision = NativeSessionChangeWatch::coveredRevision();
+    assert(firstRevision);
+
+    FakeSessionWatchBackend duplicateBackend;
+    NativeSessionChangeWatch duplicateWatch;
+    const auto duplicate =
+        duplicateWatch.startWithCallbacks(duplicateBackend.callbacks());
+    assert(!duplicate);
+    assert(duplicate.error() ==
+           NativeSessionChangeWatchError::AlreadyRegistered);
+    assert(duplicateBackend.installs == 0);
+
+    assert(firstWatch.stop());
+    assert(!NativeSessionChangeWatch::coveredRevision());
+    assert(firstWatch.stop());
+    firstBackend.notifyDelayed();
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend replacementBackend;
+    replacementBackend.eventDuringInstall = true;
+    NativeSessionChangeWatch replacementWatch;
+    startSessionWatch(replacementWatch, replacementBackend);
+    const auto replacementRevision =
+        NativeSessionChangeWatch::coveredRevision();
+    assert(replacementRevision && *replacementRevision > *firstRevision);
+
+    firstBackend.notifyDelayed();
+    const auto afterDelayed = NativeSessionChangeWatch::coveredRevision();
+    assert(afterDelayed && *afterDelayed == *replacementRevision);
+
+    replacementBackend.removeSucceeds = false;
+    const auto failedRemoval = replacementWatch.stop();
+    assert(!failedRemoval);
+    assert(failedRemoval.error() ==
+           NativeSessionChangeWatchError::RemovalFailed);
+    assert(!NativeSessionChangeWatch::coveredRevision());
+
+    FakeSessionWatchBackend blockedBackend;
+    NativeSessionChangeWatch blockedWatch;
+    const auto blocked =
+        blockedWatch.startWithCallbacks(blockedBackend.callbacks());
+    assert(!blocked);
+    assert(blocked.error() ==
+           NativeSessionChangeWatchError::AlreadyRegistered);
+    assert(blockedBackend.installs == 0);
+
+    replacementBackend.removeSucceeds = true;
+    assert(replacementWatch.stop());
+    startSessionWatch(blockedWatch, blockedBackend);
+    assert(blockedWatch.stop());
+}
+
+void testWatchUnavailableDenial() {
+    NativeDisplayGeometryRefresh geometry;
+    DisplayFixture display;
+    const auto generation = refreshGeometry(geometry, display);
+    FakeDesktopAccess backend;
+
+    MacDesktopSessionGuard unavailableGuard(
+        geometry, generation, 501, backend.sessionCallbacks(),
+        backend.permissionCallbacks());
+    assert(unavailableGuard.closed());
+    assert(!unavailableGuard.allows(MacDesktopAccessKind::Capture));
+    assert(backend.sessionReads == 0 && backend.captureReads == 0);
+
+    FakeSessionWatchBackend watchBackend;
+    NativeSessionChangeWatch watch;
+    startSessionWatch(watch, watchBackend);
+    MacDesktopSessionGuard coveredGuard(
+        geometry, generation, 501, backend.sessionCallbacks(),
+        backend.permissionCallbacks());
+    assert(!coveredGuard.closed());
+
+    assert(watch.stop());
+    assert(!coveredGuard.allows(MacDesktopAccessKind::Capture));
+    assert(coveredGuard.closed());
+    assert(backend.captureReads == 0);
+
+    MacDesktopSessionGuard stoppedCoverageGuard(
+        geometry, generation, 501, backend.sessionCallbacks(),
+        backend.permissionCallbacks());
+    assert(stoppedCoverageGuard.closed());
+}
+
+
 } // namespace
 
 int main(const int argumentCount, const char* const arguments[]) {
@@ -293,6 +569,14 @@ int main(const int argumentCount, const char* const arguments[]) {
         testValidationDenials();
     } else if (testCase == "revocation-reentry") {
         testRevocationAndReentry();
+    } else if (testCase == "switch-away-back-revocation") {
+        testSwitchAwayBackRevocation();
+    } else if (testCase == "mid-operation-epoch-change") {
+        testMidOperationEpochChange();
+    } else if (testCase == "watch-registration-retirement") {
+        testWatchRegistrationRetirement();
+    } else if (testCase == "watch-unavailable-denial") {
+        testWatchUnavailableDenial();
     } else {
         return 2;
     }

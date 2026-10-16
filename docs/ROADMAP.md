@@ -3802,6 +3802,15 @@ Protocol SDK ZIPs are developer packages, not server deployment.
   obtain owner Linux/X11, MSYS2 CLANG64 Clang23, macOS27
   separately and eventually real R3/R8 admitted-channel tests.
 
+  **R9 exact-SHA Clang sanitizer CI receipt (2026-10-15):** Implementation `9e4d33b60ca87606cd66625c4212b326d98b5204`,
+  [Actions 38849272774](https://github.com/k1moradi/RDP-server/actions/runs/38849272774)
+  completed SUCCESS: Ubuntu/Clang ASan+UBSan+leak detection clipboard
+  **12/12 CTests PASS**, Linux/GCC **216/216**, macOS/Clang
+  **201/201**, Windows/MSVC **215/215** full CTests in Debug
+  AND Release, with policy and SDK packaging PASS. Owner three-platform,
+  live client and authenticated desktop NOT RUN. Next: R3's real
+  session-authorized clipboard router and expanded fuzzing.
+
 Each implementation updates the relevant item with exact SHA, test
 PASS/FAIL/BLOCKED/NOT RUN, first failing boundary and next smallest step.
 Put detailed lessons into the appropriate domain standard, not new files.

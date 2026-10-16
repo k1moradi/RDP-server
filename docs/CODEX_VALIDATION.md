@@ -4846,3 +4846,23 @@ M1–M6 remain OPEN and protocol-only SDK ZIPs are not a
 deployable server. **Next R10:** secure actual certificate/
 private-key files and directory-reparse/ACL boundaries with
 new dedicated CTests, while startup stays disabled.
+
+
+## R9 exact-SHA Clang sanitizer CI receipt (2026-10-15)
+
+Exact SHA `9e4d33b60ca87606cd66625c4212b326d98b5204`,
+[GitHub Actions 38849272774](https://github.com/k1moradi/RDP-server/actions/runs/38849272774),
+completed SUCCESS. New CI job `r9-clipboard-sanitizers` used one
+checkout-local `build/`, first-party Clang C++23 Debug with combined
+AddressSanitizer/UndefinedBehaviorSanitizer and leak detection:
+`ctest --test-dir build --build-config Debug -L clipboard --output-on-failure`
+**12/12 PASS**, no sanitizer/leak diagnostics. All R9 joined-channel,
+nested MCS/CLIPRDR length, format-response framing and chunk-reassembly
+CTests passed. Normal Linux/GCC **216/216**, macOS/Clang **201/201**
+and Windows/MSVC **215/215** Debug and Release full CTests PASS,
+plus documentation policy and installed SDK packaging. No first failing
+hosted CI boundary. NOT RUN: local checkout CTest (GitHub DNS unavailable),
+owner Linux/X11, Windows MSYS2 CLANG64 Clang23, macOS27, sanitizer
+cases outside clipboard, unbounded libFuzzer corpus, real Microsoft client,
+NLA/OS authorization and live desktop. Next R9: add bounded sanitizer
+seeds or real R3-to-R8 authorized channel dispatch tests when implemented.

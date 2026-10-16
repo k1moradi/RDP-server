@@ -4051,8 +4051,13 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   MCS/CLIPRDR fuzzer **1/1 PASS**; documentation-policy PASS; each staged
   installed-package consumer **1/1 PASS**. Owner Linux/X11, Windows MSYS2
   CLANG64/Clang23, macOS27 and live native paste remain NOT RUN.
-  **Remaining:** bind this receipt to R5/R6/R7 asynchronous native clipboard
-  requests and bounded lazy image conversion/INCR, then real-client paste
+  **R8 Linux/X11 binding (2026-10-16): PARTIAL.** The first native
+  `X11ClipboardAdapter` now binds this same receipt to X11 SelectionRequest
+  handling for `UTF8_STRING` and registered `image/png`, while exposing only
+  an exact remote-format fetch intent for R3's future authorized writer.
+  `PasteKind::Png` prevents a ready DIB/DIBV5 fallback from satisfying PNG.
+  **Remaining:** complete X11 INCR for large data, genuine R3-authorized
+  request transmission, Windows/macOS adapters and real-client paste
   acceptance.
 - [ ] **OS clipboard ownership without competition**: one native adapter per
   OS; on X11 use the `CLIPBOARD` selection (not `PRIMARY`), XFixes owner-change
@@ -4062,7 +4067,29 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   example Qlipper) becomes owner. Do not repeatedly reclaim selection from
   a timer or mistake a manager's reoffer for fresh remote content. Test
   ownership handoff, INCR, local copies and races with disconnect/reconnect.
-  **Status: NOT RUN.**
+  **Status: PARTIAL — R8 native X11 CLIPBOARD increment (2026-10-16).**
+  A Linux-only `X11ClipboardAdapter` borrows R5's sole XCB connection/root
+  and optional event fanout; it never creates a second XCB connection or
+  clipboard generation owner. It claims only `CLIPBOARD`, publishes bounded
+  `TARGETS`, serves verified `UTF8_STRING` and registered compressed
+  `image/png`, and never advertises DIB bytes as PNG. One delayed native
+  request maps to one monotonic R8 paste receipt; a second delayed request
+  fails deterministically. SelectionClear/local takeover yields immediately,
+  exact-sequence owner-loss cancellation prevents stale callbacks, own owner
+  observations are ignored, and the yielded generation is never reclaimed by
+  timer. Direct properties are capped at 64 KiB; larger data fails cleanly.
+  Dedicated headless CTests:
+  `clipboard.x11-selection-ownership-generation`,
+  `clipboard.x11-targets-publication`,
+  `clipboard.x11-selection-request-nonblocking`, and
+  `clipboard.x11-selection-owner-loss`.
+  Isolated GCC 14.2 and Clang 17 strict C++23 native-source compilation PASS;
+  deterministic fake-XCB behavior 4/4 PASS and Clang ASan+UBSan+LSan 4/4
+  PASS. Canonical repository CMake/CTest and exact-SHA hosted CI are pending
+  at authoring; owner Linux/X11, Windows CLANG64/Clang23, macOS27, live
+  clipboard, Microsoft client/Firefox and performance are NOT RUN. Genuine
+  R3 CLIPRDR-role activation remains external. **INCR is NOT IMPLEMENTED and
+  is the immediate next R8 increment.**
 - [ ] **Native clipboard file streaming, never whole-file prefetch**:
   negotiate `CB_STREAM_FILECLIP_ENABLED`, `FileGroupDescriptorW` and
   FileContents size/range requests; use `streamId` per file-content request,

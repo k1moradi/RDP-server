@@ -881,6 +881,30 @@ if(TARGET rdp-server-linux-x11-desktop)
     endif()
 endif()
 
+# R8 native X11 CLIPBOARD selection adapter. All cases use a deterministic
+# native operation seam; they compile the real adapter without DISPLAY/Xvfb.
+if(TARGET rdp-server-linux-x11-clipboard)
+    add_rdp_test(test_x11_clipboard_adapter.cpp clipboard
+        x11-selection-ownership-generation)
+    target_link_libraries(test_x11_clipboard_adapter PRIVATE
+        rdp-server-linux-x11-clipboard)
+    target_compile_options(test_x11_clipboard_adapter PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+
+    foreach(case_name IN ITEMS
+            x11-targets-publication
+            x11-selection-request-nonblocking
+            x11-selection-owner-loss)
+        add_test(NAME "clipboard.${case_name}"
+            COMMAND $<TARGET_FILE:test_x11_clipboard_adapter> "${case_name}")
+        set_tests_properties("clipboard.${case_name}" PROPERTIES
+            LABELS "protocol;clipboard;x11;linux-adapter;native;offline")
+    endforeach()
+    set_tests_properties(
+        clipboard.x11-selection-ownership-generation
+        PROPERTIES LABELS "protocol;clipboard;x11;linux-adapter;native;offline")
+endif()
+
 # R9 opt-in bounded coverage-guided wire fuzzing. This is deliberately
 # absent from normal owner builds and uses only first-party production APIs.
 if(RDP_SERVER_BUILD_FUZZERS)

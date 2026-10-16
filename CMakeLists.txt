@@ -265,6 +265,29 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# R8 X11 CLIPBOARD presentation borrows R5's one XCB connection at runtime.
+# Keep it noninstalled and separate from the portable protocol archive.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(RDP_SERVER_XCB_CLIPBOARD QUIET IMPORTED_TARGET xcb)
+    endif()
+    if(TARGET PkgConfig::RDP_SERVER_XCB_CLIPBOARD)
+        add_library(rdp-server-linux-x11-clipboard STATIC
+            src/x11/x11_clipboard_adapter.cpp)
+        target_compile_features(rdp-server-linux-x11-clipboard PUBLIC cxx_std_23)
+        target_include_directories(rdp-server-linux-x11-clipboard PUBLIC
+            "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+        target_link_libraries(rdp-server-linux-x11-clipboard PUBLIC
+            rdp-server-protocol
+            PkgConfig::RDP_SERVER_XCB_CLIPBOARD)
+        target_compile_options(rdp-server-linux-x11-clipboard PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    else()
+        message(STATUS "R8 xcb development files unavailable: native X11 clipboard CTests not built")
+    endif()
+endif()
+
 # One R5 native desktop resource aggregate owns the existing XCB connection
 # plus capture/cursor/damage/input children. It remains noninstalled and is
 # not linked into the runtime before genuine R2/R3 desktop admission.

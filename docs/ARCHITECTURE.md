@@ -178,6 +178,42 @@ complete resource lifetime, real XDamage notification routing, and a deliberate
 protocol-error path proving connection destruction is deferred until ordered
 owner teardown. They touch no logged-in desktop and inject no user input.
 
+### R8 native X11 CLIPBOARD publication (Linux only)
+
+`X11ClipboardAdapter` is an R8 presentation adapter, not another clipboard
+session owner. `RemoteTransfer` remains the sole generation, verified-content
+and pending-paste owner. The adapter borrows `X11DesktopResources`' sole XCB
+connection and root window; R5 exposes those handles only while its aggregate
+is valid and can fan the same bounded XCB event batch to one additional sink.
+The clipboard adapter never calls `xcb_connect`, never closes the borrowed
+connection and must be disconnected before the R5 owner.
+
+Only `CLIPBOARD` is claimed; `PRIMARY` is never interned or modified.
+Fixed native atoms are bounded to `CLIPBOARD`, `TARGETS`, `UTF8_STRING`
+and `image/png`. A current remote generation advertises UTF-8 text when
+CF_UNICODETEXT is offered and `image/png` only when that generation names a
+registered PNG format. Verified PNG bytes remain compressed; DIB/DIBV5 are
+never mislabeled as PNG. A 64-KiB direct-property ceiling rejects larger data
+cleanly until the complete INCR state machine is implemented.
+
+SelectionRequest handling is nonblocking with respect to CLIPRDR. Ready R8
+views are borrowed only for the synchronous property write. Otherwise one
+native request binds to one monotonic `RemoteTransfer` paste receipt and a
+two-second monotonic deadline. The adapter exposes only the exact remote
+format-fetch intent; R3 must still authorize and serialize any Format Data
+Request through its one writer. `PasteKind::Png` prevents an already-ready
+DIB fallback from satisfying an `image/png` request. Property success precedes
+one SelectionNotify; timeout, replacement, disconnect, owner loss, oversize or
+native write failure returns the X11 failure form exactly once.
+
+SelectionClear or an observed different owner yields immediately, cancels the
+exact pending receipt by sequence and marks that remote generation as yielded.
+The adapter ignores its own owner observation and has no timer or same-
+generation reclaim path. Ownership tracks remote generation, native epoch and
+source rather than content hashes. Runtime activation remains disabled until
+R2/R3 provide genuine admitted CLIPRDR/session authority. INCR, DIB-to-PNG,
+Windows/macOS adapters and file streaming remain later R8 increments.
+
 ### R5 native XCB connection readiness and ownership
 
 The existing `src/x11/x11_display_connection.{h,cpp}` is the only XCB

@@ -37,6 +37,10 @@ public:
     [[nodiscard]] bool valid() const noexcept;
     [[nodiscard]] const char *failureReason() const noexcept;
     [[nodiscard]] int fileDescriptor() const noexcept;
+    // Borrowed native identity for same-thread child adapters. Both become
+    // invalid at disconnect and must never be closed or retained separately.
+    [[nodiscard]] xcb_connection_t *nativeConnection() const noexcept;
+    [[nodiscard]] xcb_window_t rootWindow() const noexcept;
     [[nodiscard]] PixelSize sourceGeometry() const noexcept;
     [[nodiscard]] bool randrAvailable() const noexcept;
     [[nodiscard]] bool damagePending() const noexcept;
@@ -50,7 +54,8 @@ public:
      */
     [[nodiscard]] ConnectionStatus processEvents(
         std::size_t eventBudget = 128, bool *workMayRemain = nullptr,
-        bool socketReadable = false) noexcept;
+        bool socketReadable = false,
+        X11EventSink *additionalEventSink = nullptr) noexcept;
 
     // Idempotent ordered cancellation. Child resources are disconnected and
     // destroyed before the sole XCB connection owner is disconnected.

@@ -1063,11 +1063,15 @@ RemoteTransfer::beginPasteRequest(
 
     constexpr std::uint32_t kDibFormatId = 8;
     constexpr std::uint32_t kDibV5FormatId = 17;
+    const bool pngOffered =
+        pngFormatId_ != 0 && advertises(pngFormatId_);
     const bool contentOffered =
         kind == PasteKind::UnicodeText
             ? advertises(kFormatUnicodeText)
-            : ((pngFormatId_ != 0 && advertises(pngFormatId_)) ||
-               advertises(kDibV5FormatId) || advertises(kDibFormatId));
+            : kind == PasteKind::Png
+                  ? pngOffered
+                  : (pngOffered || advertises(kDibV5FormatId) ||
+                     advertises(kDibFormatId));
     if (!contentOffered)
     {
         return std::nullopt;
@@ -1113,6 +1117,17 @@ RemoteTransfer::PasteResult RemoteTransfer::pollPasteRequest(
             if (verifiedUnicodeText())
             {
                 pasteRequestStatus_ = PasteStatus::ReadyUnicodeText;
+            }
+        }
+        else if (pasteRequestKind_ == PasteKind::Png)
+        {
+            const auto image = verifiedImage();
+            if (image &&
+                image->format == VerifiedImageFormat::Png &&
+                pngFormatId_ != 0 &&
+                image->sourceFormatId == pngFormatId_)
+            {
+                pasteRequestStatus_ = PasteStatus::ReadyImage;
             }
         }
         else if (verifiedImage())

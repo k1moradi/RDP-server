@@ -9,8 +9,11 @@ class X11DesktopResourceEventSink final : public X11EventSink
 {
 public:
     X11DesktopResourceEventSink(X11CursorTracker &cursor,
-                                X11DamageTracker &damage) noexcept
-        : cursor_(cursor), damage_(damage)
+                                X11DamageTracker &damage,
+                                X11EventSink *additionalEventSink) noexcept
+        : cursor_(cursor),
+          damage_(damage),
+          additionalEventSink_(additionalEventSink)
     {
     }
 
@@ -18,11 +21,16 @@ public:
     {
         cursor_.handle(event);
         damage_.handle(event);
+        if (additionalEventSink_ != nullptr)
+        {
+            additionalEventSink_->handle(event);
+        }
     }
 
 private:
     X11CursorTracker &cursor_;
     X11DamageTracker &damage_;
+    X11EventSink *additionalEventSink_{};
 };
 
 } // namespace
@@ -110,6 +118,18 @@ X11DesktopResources::fileDescriptor() const noexcept
     return valid() ? display_.fileDescriptor() : -1;
 }
 
+xcb_connection_t *
+X11DesktopResources::nativeConnection() const noexcept
+{
+    return valid() ? display_.nativeConnection() : nullptr;
+}
+
+xcb_window_t
+X11DesktopResources::rootWindow() const noexcept
+{
+    return valid() ? display_.rootWindow() : XCB_WINDOW_NONE;
+}
+
 PixelSize
 X11DesktopResources::sourceGeometry() const noexcept
 {
@@ -137,7 +157,8 @@ X11DesktopResources::damageNotificationCount() const noexcept
 ConnectionStatus
 X11DesktopResources::processEvents(std::size_t eventBudget,
                                   bool *workMayRemain,
-                                  bool socketReadable) noexcept
+                                  bool socketReadable,
+                                  X11EventSink *additionalEventSink) noexcept
 {
     if (workMayRemain != nullptr)
     {
@@ -154,7 +175,8 @@ X11DesktopResources::processEvents(std::size_t eventBudget,
         return ConnectionStatus::Failed;
     }
 
-    X11DesktopResourceEventSink eventSink(*cursor_, *damage_);
+    X11DesktopResourceEventSink eventSink(
+        *cursor_, *damage_, additionalEventSink);
     const ConnectionStatus status = display_.processEvents(
         eventSink, eventBudget, workMayRemain, socketReadable);
     if (status == ConnectionStatus::Failed)

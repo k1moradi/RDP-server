@@ -138,6 +138,54 @@ independently authorized target session's native window/service WTS events
 onto the existing serialized R6 owner, then bind authorized D3D11/DXGI
 device/output lifetime.
 
+## R8 native X11 CLIPBOARD publication (2026-10-16; exact-SHA CI pending)
+
+**Authoring parent main:** `d415648b880ec44734e1458ac81fa51fa3a59d8a`. This increment adds the first real native
+R8 publication boundary. Linux `X11ClipboardAdapter` borrows R5's sole XCB
+connection/root and shared bounded event fanout; it does not call
+`xcb_connect`, own the connection, parse CLIPRDR or create another clipboard
+generation. `RemoteTransfer` remains the sole generation/verified-data/paste
+receipt owner.
+
+The adapter claims `CLIPBOARD` only, never `PRIMARY`, resolves only fixed
+native atoms, answers `TARGETS`, publishes verified UTF-8 text, and exposes
+`image/png` only for the generation's registered verified PNG bytes.
+`PasteKind::Png` was added to the existing receipt contract so ready DIB or
+DIBV5 cannot accidentally complete an X11 PNG request. One delayed
+SelectionRequest is retained with its exact generation, native ownership epoch
+and never-reused paste sequence; polling is nonblocking. SelectionClear/local
+owner takeover cancels that exact sequence and suppresses same-generation
+reclaim, while an own-owner observation is treated as an echo. Property write
+failure, timeout, replacement, disconnect, stale generation and the 64-KiB
+direct-property bound send one X11 failure notify. INCR is intentionally not
+partially implemented.
+
+**Changed:** `src/x11/x11_clipboard_adapter.{h,cpp}`,
+`src/x11/x11_desktop_resources.{h,cpp}`,
+`src/server/clipboard/remote_transfer.{h,cpp}`, `CMakeLists.txt`,
+`tests/test_x11_clipboard_adapter.cpp`, `tests/CMakeLists.txt`,
+`docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/compile.md`, and this
+ledger. **Dedicated CTests:** `clipboard.x11-selection-ownership-generation`,
+`clipboard.x11-targets-publication`,
+`clipboard.x11-selection-request-nonblocking`, and
+`clipboard.x11-selection-owner-loss`.
+
+**PASS (isolated tool-environment harness):** production adapter translation
+unit compiled with GCC 14.2 and Clang 17 under strict C++23 warnings against
+the installed XCB headers; deterministic fake-XCB behavior cases **4/4 PASS**.
+Clang ASan+UBSan with leak detection also passed **4/4**. The isolated harness
+used a local behavioral stand-in for `RemoteTransfer`; therefore it is not
+canonical repository or end-to-end evidence.
+
+**NOT RUN at authoring:** canonical full repository CMake/CTest in
+`~/rdp-server/build`, exact-SHA GitHub Actions, owner Linux/X11, Windows
+MSYS2 CLANG64/Clang23 and macOS27, live clipboard/clipboard-manager behavior,
+Microsoft-client/Firefox paste, genuine R2/R3 CLIPRDR authorization and
+performance. Runtime activation remains disabled until genuine R3 role
+authority exists. **Next R8:** complete bounded X11 INCR with
+PropertyDelete-driven progression and generation/owner/requester-safe
+cancellation, then Windows/macOS native adapters and bounded FileContents.
+
 ## R8 nonblocking pending-paste receipt exact-SHA hosted CI (2026-10-16)
 
 **Authoring parent main:** `46b1ca77c4c2c00bbd66e02de71896999f8c71fd`. The existing event-loop-confined

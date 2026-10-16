@@ -251,7 +251,9 @@ public:
     // session event loop. Time is caller-supplied from a monotonic clock:
     // RemoteTransfer never sleeps, waits, starts a thread, or polls the OS.
     using PasteClock = std::chrono::steady_clock;
-    enum class PasteKind : std::uint8_t { UnicodeText, Image };
+    // Png is native-target-specific: unlike Image, it must never become
+    // ready from a validated DIB/DIBV5 fallback.
+    enum class PasteKind : std::uint8_t { UnicodeText, Image, Png };
     enum class PasteStatus : std::uint8_t
     {
         InvalidSequence,

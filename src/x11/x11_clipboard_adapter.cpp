@@ -1,0 +1,842 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "x11_clipboard_adapter.h"
+
+#include <array>
+#include <cstdlib>
+#include <limits>
+
+#include "clipboard/clipboard_protocol.h"
+
+namespace
+{
+
+[[nodiscard]] xcb_connection_t *
+asConnection(void *context) noexcept
+{
+    return static_cast<xcb_connection_t *>(context);
+}
+
+[[nodiscard]] bool
+connectionUsable(xcb_connection_t *connection) noexcept
+{
+    return connection != nullptr && xcb_connection_has_error(connection) == 0;
+}
+
+xcb_atom_t
+xcbInternAtom(void *context, std::string_view name) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || name.empty() ||
+        name.size() > std::numeric_limits<std::uint16_t>::max())
+    {
+        return XCB_ATOM_NONE;
+    }
+
+    const auto cookie = xcb_intern_atom(
+        connection, 0, static_cast<std::uint16_t>(name.size()), name.data());
+    xcb_generic_error_t *error = nullptr;
+    xcb_intern_atom_reply_t *reply =
+        xcb_intern_atom_reply(connection, cookie, &error);
+    const xcb_atom_t atom =
+        error == nullptr && reply != nullptr ? reply->atom : xcb_atom_t{};
+    std::free(error);
+    std::free(reply);
+    return atom;
+}
+
+xcb_window_t
+xcbCreateOwnerWindow(void *context, xcb_window_t rootWindow) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || rootWindow == XCB_WINDOW_NONE)
+    {
+        return XCB_WINDOW_NONE;
+    }
+
+    const xcb_window_t window = xcb_generate_id(connection);
+    if (window == XCB_WINDOW_NONE)
+    {
+        return XCB_WINDOW_NONE;
+    }
+    const xcb_void_cookie_t cookie = xcb_create_window_checked(
+        connection, XCB_COPY_FROM_PARENT, window, rootWindow,
+        0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_ONLY,
+        XCB_COPY_FROM_PARENT, 0, nullptr);
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    const bool success = error == nullptr;
+    std::free(error);
+    return success ? window : xcb_window_t{};
+}
+
+bool
+xcbDestroyWindow(void *context, xcb_window_t window) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || window == XCB_WINDOW_NONE)
+    {
+        return false;
+    }
+    const xcb_void_cookie_t cookie =
+        xcb_destroy_window_checked(connection, window);
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    const bool success = error == nullptr;
+    std::free(error);
+    return success;
+}
+
+xcb_window_t
+xcbSelectionOwner(void *context, xcb_atom_t selection) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || selection == XCB_ATOM_NONE)
+    {
+        return XCB_WINDOW_NONE;
+    }
+    const auto cookie = xcb_get_selection_owner(connection, selection);
+    xcb_generic_error_t *error = nullptr;
+    xcb_get_selection_owner_reply_t *reply =
+        xcb_get_selection_owner_reply(connection, cookie, &error);
+    const xcb_window_t owner =
+        error == nullptr && reply != nullptr ? reply->owner : xcb_window_t{};
+    std::free(error);
+    std::free(reply);
+    return owner;
+}
+
+bool
+xcbSetSelectionOwner(void *context, xcb_window_t owner,
+                     xcb_atom_t selection) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || selection == XCB_ATOM_NONE)
+    {
+        return false;
+    }
+    const xcb_void_cookie_t cookie = xcb_set_selection_owner_checked(
+        connection, owner, selection, XCB_CURRENT_TIME);
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    if (error != nullptr)
+    {
+        std::free(error);
+        return false;
+    }
+    return xcbSelectionOwner(context, selection) == owner;
+}
+
+bool
+xcbChangeProperty(void *context, xcb_window_t window, xcb_atom_t property,
+                  xcb_atom_t propertyType, std::uint8_t format,
+                  std::span<const std::byte> bytes) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || window == XCB_WINDOW_NONE ||
+        property == XCB_ATOM_NONE || propertyType == XCB_ATOM_NONE ||
+        (format != 8U && format != 16U && format != 32U))
+    {
+        return false;
+    }
+
+    const std::size_t unitBytes = format / 8U;
+    if (unitBytes == 0 || bytes.size() % unitBytes != 0 ||
+        bytes.size() / unitBytes > std::numeric_limits<std::uint32_t>::max())
+    {
+        return false;
+    }
+
+    const auto elementCount =
+        static_cast<std::uint32_t>(bytes.size() / unitBytes);
+    const xcb_void_cookie_t cookie = xcb_change_property_checked(
+        connection, XCB_PROP_MODE_REPLACE, window, property, propertyType,
+        format, elementCount, bytes.data());
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    const bool success = error == nullptr;
+    std::free(error);
+    return success;
+}
+
+bool
+xcbSendSelectionNotify(void *context,
+                       const xcb_selection_notify_event_t &event) noexcept
+{
+    xcb_connection_t *connection = asConnection(context);
+    if (!connectionUsable(connection) || event.requestor == XCB_WINDOW_NONE)
+    {
+        return false;
+    }
+    const xcb_void_cookie_t cookie = xcb_send_event_checked(
+        connection, 0, event.requestor, XCB_EVENT_MASK_NO_EVENT,
+        reinterpret_cast<const char *>(&event));
+    xcb_generic_error_t *error = xcb_request_check(connection, cookie);
+    const bool success = error == nullptr;
+    std::free(error);
+    return success;
+}
+
+} // namespace
+
+X11ClipboardNativeOperations
+X11ClipboardAdapter::makeXcbOperations(xcb_connection_t &connection) noexcept
+{
+    return X11ClipboardNativeOperations{
+        &connection,
+        xcbInternAtom,
+        xcbCreateOwnerWindow,
+        xcbDestroyWindow,
+        xcbSetSelectionOwner,
+        xcbSelectionOwner,
+        xcbChangeProperty,
+        xcbSendSelectionNotify,
+    };
+}
+
+X11ClipboardAdapter::X11ClipboardAdapter(RemoteTransfer &remoteTransfer,
+                                         xcb_connection_t &connection,
+                                         xcb_window_t rootWindow) noexcept
+    : X11ClipboardAdapter(remoteTransfer, makeXcbOperations(connection),
+                          rootWindow)
+{
+}
+
+X11ClipboardAdapter::X11ClipboardAdapter(
+    RemoteTransfer &remoteTransfer,
+    X11ClipboardNativeOperations nativeOperations,
+    xcb_window_t rootWindow) noexcept
+    : remoteTransfer_(remoteTransfer),
+      nativeOperations_(nativeOperations),
+      rootWindow_(rootWindow)
+{
+    if (!nativeOperationsValid() || rootWindow_ == XCB_WINDOW_NONE)
+    {
+        return;
+    }
+
+    // Fixed native names only: never intern remote-provided atom names.
+    atoms_.clipboard =
+        nativeOperations_.internAtom(nativeOperations_.context, "CLIPBOARD");
+    atoms_.targets =
+        nativeOperations_.internAtom(nativeOperations_.context, "TARGETS");
+    atoms_.utf8String =
+        nativeOperations_.internAtom(nativeOperations_.context, "UTF8_STRING");
+    atoms_.png =
+        nativeOperations_.internAtom(nativeOperations_.context, "image/png");
+    if (atoms_.clipboard == XCB_ATOM_NONE ||
+        atoms_.targets == XCB_ATOM_NONE ||
+        atoms_.utf8String == XCB_ATOM_NONE ||
+        atoms_.png == XCB_ATOM_NONE)
+    {
+        return;
+    }
+
+    ownerWindow_ = nativeOperations_.createOwnerWindow(
+        nativeOperations_.context, rootWindow_);
+    valid_ = ownerWindow_ != XCB_WINDOW_NONE;
+}
+
+X11ClipboardAdapter::~X11ClipboardAdapter() noexcept
+{
+    disconnect();
+}
+
+bool
+X11ClipboardAdapter::nativeOperationsValid() const noexcept
+{
+    return nativeOperations_.context != nullptr &&
+           nativeOperations_.internAtom != nullptr &&
+           nativeOperations_.createOwnerWindow != nullptr &&
+           nativeOperations_.destroyWindow != nullptr &&
+           nativeOperations_.setSelectionOwner != nullptr &&
+           nativeOperations_.selectionOwner != nullptr &&
+           nativeOperations_.changeProperty != nullptr &&
+           nativeOperations_.sendSelectionNotify != nullptr;
+}
+
+bool
+X11ClipboardAdapter::valid() const noexcept
+{
+    return valid_ && ownerWindow_ != XCB_WINDOW_NONE &&
+           atoms_.clipboard != XCB_ATOM_NONE;
+}
+
+xcb_window_t
+X11ClipboardAdapter::ownerWindow() const noexcept
+{
+    return valid() ? ownerWindow_ : xcb_window_t{};
+}
+
+xcb_atom_t
+X11ClipboardAdapter::clipboardAtom() const noexcept
+{
+    return valid() ? atoms_.clipboard : xcb_atom_t{};
+}
+
+xcb_atom_t
+X11ClipboardAdapter::targetsAtom() const noexcept
+{
+    return valid() ? atoms_.targets : xcb_atom_t{};
+}
+
+xcb_atom_t
+X11ClipboardAdapter::utf8StringAtom() const noexcept
+{
+    return valid() ? atoms_.utf8String : xcb_atom_t{};
+}
+
+xcb_atom_t
+X11ClipboardAdapter::pngAtom() const noexcept
+{
+    return valid() ? atoms_.png : xcb_atom_t{};
+}
+
+std::uint64_t
+X11ClipboardAdapter::publicationGeneration() const noexcept
+{
+    return publicationGeneration_;
+}
+
+std::uint64_t
+X11ClipboardAdapter::ownershipEpoch() const noexcept
+{
+    return ownershipEpoch_;
+}
+
+bool
+X11ClipboardAdapter::ownsClipboard() const noexcept
+{
+    return valid() && ownsClipboard_;
+}
+
+X11ClipboardAdapter::Source
+X11ClipboardAdapter::contentSource() const noexcept
+{
+    return contentSource_;
+}
+
+X11ClipboardAdapter::Source
+X11ClipboardAdapter::lastOwnershipTransitionSource() const noexcept
+{
+    return lastOwnershipTransitionSource_;
+}
+
+bool
+X11ClipboardAdapter::remoteTextOffered() const noexcept
+{
+    return remoteTransfer_.advertises(
+        rdp_server::clipboard::kFormatUnicodeText);
+}
+
+std::uint32_t
+X11ClipboardAdapter::remotePngFormatId() const noexcept
+{
+    const std::uint32_t formatId = remoteTransfer_.namedFormatId("PNG");
+    return formatId != 0 && remoteTransfer_.advertises(formatId) ? formatId : 0;
+}
+
+bool
+X11ClipboardAdapter::currentPublicationValid() const noexcept
+{
+    return valid() && ownsClipboard_ &&
+           contentSource_ == Source::RemoteRdp &&
+           remoteTransfer_.synchronized() && publicationGeneration_ != 0 &&
+           publicationGeneration_ == remoteTransfer_.generation();
+}
+
+bool
+X11ClipboardAdapter::publishCurrentRemoteOffer(
+    PasteClock::time_point now) noexcept
+{
+    if (!valid())
+    {
+        return false;
+    }
+
+    if (pending_.active)
+    {
+        (void)servicePendingPaste(now);
+        if (pending_.active &&
+            pending_.publicationGeneration != remoteTransfer_.generation())
+        {
+            failPendingSelection();
+        }
+    }
+
+    const std::uint64_t generation = remoteTransfer_.generation();
+    if (!remoteTransfer_.synchronized() || generation == 0)
+    {
+        releaseNativeOwnership();
+        return false;
+    }
+    if (yieldedGeneration_ == generation && !ownsClipboard_)
+    {
+        // No timer or same-generation retry may fight a local desktop owner.
+        return false;
+    }
+
+    const bool textOffered = remoteTextOffered();
+    const bool pngOffered = remotePngFormatId() != 0;
+    if (!textOffered && !pngOffered)
+    {
+        releaseNativeOwnership();
+        return false;
+    }
+    if (ownsClipboard_ && publicationGeneration_ == generation &&
+        textOffered_ == textOffered && pngOffered_ == pngOffered)
+    {
+        return true;
+    }
+    if (ownershipEpoch_ == std::numeric_limits<std::uint64_t>::max())
+    {
+        releaseNativeOwnership();
+        valid_ = false;
+        return false;
+    }
+
+    lastOwnershipTransitionSource_ = Source::SelfGeneratedNativeTransition;
+    if (!nativeOperations_.setSelectionOwner(
+            nativeOperations_.context, ownerWindow_, atoms_.clipboard) ||
+        nativeOperations_.selectionOwner(
+            nativeOperations_.context, atoms_.clipboard) != ownerWindow_)
+    {
+        ownsClipboard_ = false;
+        clearPublicationState();
+        return false;
+    }
+
+    ++ownershipEpoch_;
+    publicationGeneration_ = generation;
+    textOffered_ = textOffered;
+    pngOffered_ = pngOffered;
+    ownsClipboard_ = true;
+    yieldedGeneration_ = 0;
+    contentSource_ = Source::RemoteRdp;
+    return true;
+}
+
+xcb_atom_t
+X11ClipboardAdapter::requestProperty(
+    const xcb_selection_request_event_t &request) const noexcept
+{
+    // ICCCM compatibility for obsolete requestors using property=None.
+    return request.property == XCB_ATOM_NONE ? request.target : request.property;
+}
+
+void
+X11ClipboardAdapter::handle(const xcb_generic_event_t &event) noexcept
+{
+    handleAt(event, PasteClock::now());
+}
+
+void
+X11ClipboardAdapter::handleAt(const xcb_generic_event_t &event,
+                              PasteClock::time_point now) noexcept
+{
+    if (!valid())
+    {
+        return;
+    }
+
+    switch (event.response_type & 0x7fU)
+    {
+        case XCB_SELECTION_REQUEST:
+            handleSelectionRequest(
+                reinterpret_cast<const xcb_selection_request_event_t &>(event),
+                now);
+            break;
+        case XCB_SELECTION_CLEAR:
+            handleSelectionClear(
+                reinterpret_cast<const xcb_selection_clear_event_t &>(event));
+            break;
+        default:
+            // PropertyNotify remains reserved for the complete INCR increment.
+            break;
+    }
+}
+
+void
+X11ClipboardAdapter::handleSelectionRequest(
+    const xcb_selection_request_event_t &request,
+    PasteClock::time_point now) noexcept
+{
+    if (!currentPublicationValid() || request.owner != ownerWindow_ ||
+        request.selection != atoms_.clipboard)
+    {
+        (void)sendFailureNotify(request);
+        return;
+    }
+
+    const xcb_atom_t property = requestProperty(request);
+    if (property == XCB_ATOM_NONE)
+    {
+        (void)sendFailureNotify(request);
+        return;
+    }
+    if (request.target == atoms_.targets)
+    {
+        (void)publishTargets(request, property);
+        return;
+    }
+    if (request.target == atoms_.utf8String && textOffered_)
+    {
+        const auto text = remoteTransfer_.verifiedUnicodeText();
+        if (text)
+        {
+            (void)publishText(request, property, *text);
+            return;
+        }
+        beginDelayedRequest(request, property,
+                            RemoteTransfer::PasteKind::UnicodeText,
+                            rdp_server::clipboard::kFormatUnicodeText, now);
+        return;
+    }
+    if (request.target == atoms_.png && pngOffered_)
+    {
+        const auto image = remoteTransfer_.verifiedImage();
+        const std::uint32_t pngFormatId = remotePngFormatId();
+        if (image &&
+            image->format == RemoteTransfer::VerifiedImageFormat::Png &&
+            image->generation == publicationGeneration_ &&
+            image->sourceFormatId == pngFormatId)
+        {
+            (void)publishPng(request, property, *image);
+            return;
+        }
+        beginDelayedRequest(request, property, RemoteTransfer::PasteKind::Png,
+                            pngFormatId, now);
+        return;
+    }
+
+    (void)sendFailureNotify(request);
+}
+
+void
+X11ClipboardAdapter::beginDelayedRequest(
+    const xcb_selection_request_event_t &request, xcb_atom_t property,
+    RemoteTransfer::PasteKind kind, std::uint32_t remoteFormatId,
+    PasteClock::time_point now) noexcept
+{
+    if (pending_.active || remoteFormatId == 0)
+    {
+        (void)sendFailureNotify(request);
+        return;
+    }
+
+    const auto receipt = remoteTransfer_.beginPasteRequest(
+        kind, now, now + kPasteTimeout);
+    if (!receipt || receipt->generation != publicationGeneration_)
+    {
+        (void)sendFailureNotify(request);
+        return;
+    }
+
+    pending_.request = request;
+    pending_.property = property;
+    pending_.publicationGeneration = publicationGeneration_;
+    pending_.ownershipEpoch = ownershipEpoch_;
+    pending_.pasteSequence = receipt->sequence;
+    pending_.remoteFormatId = remoteFormatId;
+    pending_.kind = kind;
+    pending_.remoteFetchStarted = false;
+    pending_.active = true;
+}
+
+std::optional<X11ClipboardAdapter::RemoteFetchRequest>
+X11ClipboardAdapter::pendingRemoteFetch() const noexcept
+{
+    if (!pending_.active || pending_.remoteFetchStarted ||
+        !currentPublicationValid() ||
+        pending_.publicationGeneration != publicationGeneration_ ||
+        pending_.ownershipEpoch != ownershipEpoch_)
+    {
+        return std::nullopt;
+    }
+    return RemoteFetchRequest{
+        pending_.pasteSequence,
+        pending_.publicationGeneration,
+        pending_.remoteFormatId,
+        pending_.kind,
+    };
+}
+
+bool
+X11ClipboardAdapter::markRemoteFetchStarted(
+    std::uint64_t pasteSequence) noexcept
+{
+    if (!pending_.active || pending_.remoteFetchStarted || pasteSequence == 0 ||
+        pasteSequence != pending_.pasteSequence)
+    {
+        return false;
+    }
+    pending_.remoteFetchStarted = true;
+    return true;
+}
+
+bool
+X11ClipboardAdapter::publishTargets(
+    const xcb_selection_request_event_t &request,
+    xcb_atom_t property) noexcept
+{
+    std::array<xcb_atom_t, 3> targets{};
+    std::size_t count = 0;
+    targets[count++] = atoms_.targets;
+    if (textOffered_)
+    {
+        targets[count++] = atoms_.utf8String;
+    }
+    if (pngOffered_)
+    {
+        targets[count++] = atoms_.png;
+    }
+    const auto bytes =
+        std::as_bytes(std::span<const xcb_atom_t>{targets.data(), count});
+    return publishPropertyAndNotify(
+        request, property, XCB_ATOM_ATOM, 32, bytes);
+}
+
+bool
+X11ClipboardAdapter::publishText(
+    const xcb_selection_request_event_t &request, xcb_atom_t property,
+    std::string_view text) noexcept
+{
+    const auto bytes =
+        std::as_bytes(std::span<const char>{text.data(), text.size()});
+    return publishPropertyAndNotify(
+        request, property, atoms_.utf8String, 8, bytes);
+}
+
+bool
+X11ClipboardAdapter::publishPng(
+    const xcb_selection_request_event_t &request, xcb_atom_t property,
+    const RemoteTransfer::VerifiedImage &image) noexcept
+{
+    if (image.format != RemoteTransfer::VerifiedImageFormat::Png ||
+        image.generation != publicationGeneration_ ||
+        image.sourceFormatId != remotePngFormatId())
+    {
+        return sendFailureNotify(request);
+    }
+    return publishPropertyAndNotify(
+        request, property, atoms_.png, 8, std::as_bytes(image.bytes));
+}
+
+bool
+X11ClipboardAdapter::publishPropertyAndNotify(
+    const xcb_selection_request_event_t &request,
+    xcb_atom_t property, xcb_atom_t propertyType, std::uint8_t format,
+    std::span<const std::byte> bytes) noexcept
+{
+    if (bytes.size() > kMaximumDirectPropertyBytes ||
+        !nativeOperations_.changeProperty(
+            nativeOperations_.context, request.requestor, property,
+            propertyType, format, bytes))
+    {
+        return sendFailureNotify(request);
+    }
+    return sendNotify(request, property);
+}
+
+bool
+X11ClipboardAdapter::sendNotify(
+    const xcb_selection_request_event_t &request,
+    xcb_atom_t property) noexcept
+{
+    xcb_selection_notify_event_t notify{};
+    notify.response_type = XCB_SELECTION_NOTIFY;
+    notify.sequence = 0;
+    notify.time = request.time;
+    notify.requestor = request.requestor;
+    notify.selection = request.selection;
+    notify.target = request.target;
+    notify.property = property;
+    return nativeOperations_.sendSelectionNotify(
+        nativeOperations_.context, notify);
+}
+
+bool
+X11ClipboardAdapter::sendFailureNotify(
+    const xcb_selection_request_event_t &request) noexcept
+{
+    return sendNotify(request, XCB_ATOM_NONE);
+}
+
+bool
+X11ClipboardAdapter::servicePendingPaste(
+    PasteClock::time_point now) noexcept
+{
+    if (!pending_.active)
+    {
+        return true;
+    }
+
+    const auto result =
+        remoteTransfer_.pollPasteRequest(pending_.pasteSequence, now);
+    if (result.status == RemoteTransfer::PasteStatus::Pending)
+    {
+        return true;
+    }
+
+    const PendingSelectionRequest completed = pending_;
+    pending_ = {};
+    if (result.sequence != completed.pasteSequence ||
+        result.generation != completed.publicationGeneration ||
+        completed.publicationGeneration != publicationGeneration_ ||
+        completed.ownershipEpoch != ownershipEpoch_ ||
+        !currentPublicationValid())
+    {
+        return sendFailureNotify(completed.request);
+    }
+
+    if (result.status == RemoteTransfer::PasteStatus::ReadyUnicodeText &&
+        completed.kind == RemoteTransfer::PasteKind::UnicodeText)
+    {
+        return publishText(completed.request, completed.property, result.text);
+    }
+    if (result.status == RemoteTransfer::PasteStatus::ReadyImage &&
+        completed.kind == RemoteTransfer::PasteKind::Png && result.image &&
+        result.image->format == RemoteTransfer::VerifiedImageFormat::Png &&
+        result.image->sourceFormatId == completed.remoteFormatId)
+    {
+        return publishPng(completed.request, completed.property, *result.image);
+    }
+
+    return sendFailureNotify(completed.request);
+}
+
+void
+X11ClipboardAdapter::failPendingSelection() noexcept
+{
+    if (!pending_.active)
+    {
+        return;
+    }
+    const auto request = pending_.request;
+    pending_ = {};
+    (void)sendFailureNotify(request);
+}
+
+void
+X11ClipboardAdapter::cancelPendingForOwnerLoss() noexcept
+{
+    if (!pending_.active)
+    {
+        return;
+    }
+
+    const PendingSelectionRequest cancelled = pending_;
+    (void)remoteTransfer_.cancelPasteRequestForOwnerLoss(
+        cancelled.pasteSequence);
+    // Consume OwnerLost or an already-terminal replacement/disconnect using
+    // this exact sequence. A stale sequence remains a no-op.
+    (void)remoteTransfer_.pollPasteRequest(
+        cancelled.pasteSequence, PasteClock::time_point{});
+    pending_ = {};
+    (void)sendFailureNotify(cancelled.request);
+}
+
+void
+X11ClipboardAdapter::handleSelectionClear(
+    const xcb_selection_clear_event_t &clear) noexcept
+{
+    if (!ownsClipboard_ || clear.owner != ownerWindow_ ||
+        clear.selection != atoms_.clipboard)
+    {
+        return;
+    }
+    yieldToLocalOwner();
+}
+
+void
+X11ClipboardAdapter::observeClipboardOwner(xcb_window_t owner) noexcept
+{
+    if (!ownsClipboard_ || owner == ownerWindow_)
+    {
+        return;
+    }
+    yieldToLocalOwner();
+}
+
+void
+X11ClipboardAdapter::yieldToLocalOwner() noexcept
+{
+    if (!ownsClipboard_)
+    {
+        return;
+    }
+    cancelPendingForOwnerLoss();
+    yieldedGeneration_ = publicationGeneration_;
+    ownsClipboard_ = false;
+    publicationGeneration_ = 0;
+    textOffered_ = false;
+    pngOffered_ = false;
+    contentSource_ = Source::LocalNative;
+    lastOwnershipTransitionSource_ = Source::LocalNative;
+}
+
+void
+X11ClipboardAdapter::clearPublicationState() noexcept
+{
+    publicationGeneration_ = 0;
+    textOffered_ = false;
+    pngOffered_ = false;
+    if (!ownsClipboard_)
+    {
+        contentSource_ = Source::None;
+    }
+}
+
+void
+X11ClipboardAdapter::releaseNativeOwnership() noexcept
+{
+    if (!valid())
+    {
+        return;
+    }
+    if (pending_.active)
+    {
+        cancelPendingForOwnerLoss();
+    }
+
+    if (ownsClipboard_)
+    {
+        lastOwnershipTransitionSource_ = Source::SelfGeneratedNativeTransition;
+        const xcb_window_t currentOwner = nativeOperations_.selectionOwner(
+            nativeOperations_.context, atoms_.clipboard);
+        if (currentOwner == ownerWindow_)
+        {
+            (void)nativeOperations_.setSelectionOwner(
+                nativeOperations_.context, XCB_WINDOW_NONE, atoms_.clipboard);
+        }
+    }
+    ownsClipboard_ = false;
+    clearPublicationState();
+}
+
+void
+X11ClipboardAdapter::disconnect() noexcept
+{
+    if (!valid_ && ownerWindow_ == XCB_WINDOW_NONE)
+    {
+        return;
+    }
+
+    if (valid_)
+    {
+        releaseNativeOwnership();
+    }
+    if (ownerWindow_ != XCB_WINDOW_NONE && nativeOperations_.destroyWindow)
+    {
+        (void)nativeOperations_.destroyWindow(
+            nativeOperations_.context, ownerWindow_);
+    }
+
+    pending_ = {};
+    ownerWindow_ = XCB_WINDOW_NONE;
+    rootWindow_ = XCB_WINDOW_NONE;
+    atoms_ = {};
+    publicationGeneration_ = 0;
+    yieldedGeneration_ = 0;
+    textOffered_ = false;
+    pngOffered_ = false;
+    ownsClipboard_ = false;
+    valid_ = false;
+    contentSource_ = Source::None;
+}

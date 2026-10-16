@@ -1,3 +1,15 @@
+## R8 Linux file-descriptor destination exact-SHA hosted validation (2026-10-16)
+
+Implementation `a7c0cb9d4b9bbb03d35fac50fbba28c25e59e3f9`; Actions `38913256703`: **SUCCESS**.
+
+Ubuntu/GCC full CTest: **434/434 PASS** Debug and Release. New cases `clipboard.linux-file-destination-streaming`, `clipboard.linux-file-destination-size-cancel`, and `clipboard.linux-file-destination-denials` PASS in both. R9 ASan/UBSan clipboard: **49/49 PASS**; other selected groups: x264/BGRA **18/18**, bounded R1/R3 **33/33**, native GSS/R2/R3 **26/26**, runtime CredSSP **4/4**, native X11 **24/24**, bounded fuzzer **1/1**.
+
+macOS/Clang full CTest: **362/362 PASS** Debug and Release. Windows/MSVC focused native preflight: **44/44 PASS** Debug and Release; full CTest: **391/391 PASS** Debug and Release. Documentation policy, downstream SDK consumer, package, digest and artifact upload PASS.
+
+This proves the bounded Linux descriptor sink and cross-platform isolation only. Canonical owner-local `~/rdp-server/build`, real Linux file-manager/portal handoff, Microsoft-client file copy, owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS native file destinations and clipboard-file performance remain **NOT RUN/OPEN**.
+
+Next R8: expose only completed materializations through a real Linux file-manager/portal or equivalent handoff while R3 remains the sole authorized CLIPRDR writer; then add bounded Windows/macOS file destinations.
+
 ## R2 Server License Request gate exact-SHA validation (2026-10-16)
 
 **Implementation:** `dd59f8a71ee921261b1a6346404676abb1c28750`.  

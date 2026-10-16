@@ -1,3 +1,32 @@
+## R9 owned binding-delivery sanitizer selection (2026-10-16)
+
+**Parent:** `b1cd3e30b5b2a708831c55c4cc857b103a46f246`.
+Cross-road registry review found the newly registered
+`security.gssapi-r1-owned-binding-delivery-fence` absent from the R9 sanitizer
+regex while its sibling owner-driven provenance and cancellation fences were
+already selected. The test exercises genuine loopback HYBRID/TLS ownership
+and production R2 CredSSP progression, verifies that an unconfigured provider
+never reports `BindingVerified`, and confirms
+`verifiedPrincipalForOwnedConnection()` remains empty before and after
+cancellation. It does not synthesize Kerberos or native admission.
+
+The existing `test_owned_preauth_session` sanitizer target is already built,
+so only its CTest regex is extended. Expected native GSS/R2/R3 coverage becomes
+**23 cases**. Clipboard, bounded transport/security, complete native X11,
+fuzzer, ASan/UBSan halt-on-error and the GSS-only MIT-krb5 LSan suppression
+remain unchanged.
+
+Historical R2 SHA `5400566af551b6b5715a23d76569a3e838bcd8bd`,
+Actions `38901455596`, failed the Linux GSS compile before CTest because
+`linux_console_admission.cpp:359` retained unused local `activeServerTls`
+under `-Werror`. Follow-up `f2c363b27f20e047b31611861e585a63b3076703`
+removes only that stale local. No positive binding/admission result is inferred.
+
+Owner-local canonical build/full CTest and sanitizers are **NOT RUN** because
+the owner checkout is unavailable here. Exact R9 publication-SHA hosted
+evidence is pending; real Kerberos/logind and Microsoft-client acceptance stay
+outside this CI-only increment.
+
 ## R8 Windows ready-data clipboard adapter authoring (2026-10-16)
 
 **Starting main:** `f2c363b27f20e047b31611861e585a63b3076703`.

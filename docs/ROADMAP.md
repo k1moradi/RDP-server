@@ -1,3 +1,38 @@
+## R9 owner-completed CredSSP binding sanitizer handoff (2026-10-16; exact-SHA CI pending)
+
+**Reconciled publication parent:** `b1cd3e30b5b2a708831c55c4cc857b103a46f246`.
+R2 added `security.gssapi-r1-owned-binding-delivery-fence` beside the two
+owner-driven CredSSP provenance/cancellation fences already selected by R9.
+The new test uses the real R1 loopback HYBRID/TLS owner and the production
+`GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake` path, but ordinary CI
+still has no configured Kerberos credentials, so it proves fail-closed
+delivery/admission behavior without fabricating a principal, native logind
+lease or successful R3 session.
+
+R9 adds exactly this registered case to the existing native GSS/R2/R3
+ASan+UBSan regex. No production source, CTest registration, fixture semantics,
+build target, sanitizer option, LSan scope, X11/clipboard selection or fuzzer
+changes. The native GSS/R2/R3 selected count is expected to rise from
+**22 to 23**; all other R9 groups remain unchanged.
+
+R2 implementation `5400566af551b6b5715a23d76569a3e838bcd8bd`,
+Actions `38901455596`, is preserved as a compile-failure receipt rather than
+a test result: the R9 sanitizer build and Ubuntu/GCC stopped in
+`src/server/security/linux_console_admission.cpp:359` because the R2 admission
+switch left an unused `activeServerTls` local and the Linux GSS target uses
+`-Werror`. No new binding-delivery CTest executed in those failed jobs.
+The direct follow-up `f2c363b27f20e047b31611861e585a63b3076703` removes
+only that obsolete local; authorization semantics are unchanged. Its hosted
+workflow is independent evidence and was still in progress when this R9
+selection was authored.
+
+Canonical owner `~/rdp-server/build/` configure/build/full CTest and local
+sanitizers remain **NOT RUN** in this connector environment; no alternate
+build root/worktree/branch is created. Exact-publication-SHA hosted R9
+sanitizer, Linux/GCC, macOS/Clang, Windows/MSVC and documentation-policy
+evidence is required. Positive real-Kerberos binding delivery, NSS/logind
+admission and Microsoft-client M2 remain **NOT RUN/OPEN**.
+
 ## R8 Windows ready-data clipboard presentation (2026-10-16; exact-SHA CI pending)
 
 **Starting shared main:** `f2c363b27f20e047b31611861e585a63b3076703`. R8 P0/P1 remain intact: the

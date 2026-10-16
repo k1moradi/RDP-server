@@ -1,3 +1,27 @@
+## R10 seal-query correction publication receipt (2026-10-16; exact-SHA workflow queued)
+
+Correction commit: `110479f382dfcbbd28343f472ba126e6c5fbef09`
+(`fix(r10): fail closed on keytab seal query`), published directly to
+`main` from parent `f9704cacd236f2d2344fa20508570c44e2a2bbdd` by
+expected-head non-force update. Exact workflow: Actions `38884685461`,
+currently **QUEUED**; hosted compile/CTest is therefore **NOT RUN yet** for
+this correction SHA.
+
+Authoring verification under `~/rdp-server/build/r10-probe/`:
+`seal_verify_probe.cpp` compiled with GCC C++23
+`-Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion` and
+Clang with the same warnings plus ASan+UBSan. Both executions report
+`verified=1 seals=0xf pwrite=-1 errno=1`, demonstrating successful explicit
+seal verification and kernel-enforced `EPERM` on a post-seal write. The
+existing MIT-GSS sealed-keytab provider probe remains PASS.
+
+This correction adds no listener, authentication success or native admission.
+All existing R10 Linux-security CTests remain registered, including
+`runtime.validates-linux-security-provisioning` and
+`runtime.linux-security-keytab-snapshot-mutation-continuity`.
+**Next gate:** exact-SHA Linux compile/CTest. Runtime promotion and listener
+work remain blocked until that gate passes.
+
 ## R10 sealed-keytab seal-query fail-closed correction (2026-10-16; exact-SHA CI pending)
 
 Starting shared `main`: `f9704cacd236f2d2344fa20508570c44e2a2bbdd`. Post-publication review of

@@ -533,6 +533,7 @@ if(TARGET rdp-server-windows-desktop)
     # AcquireNextFrame on an actual Windows desktop during ordinary tests.
     foreach(case_name IN ITEMS
             dxgi-frame-lease-lifecycle
+            dxgi-frame-lease-acquire-callback-revocation
             dxgi-frame-lease-rejections)
         add_test(NAME "windows.capture-${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")

@@ -95,6 +95,7 @@ private:
     WindowsDxgiFrameCallbacks callbacks_{};
     void *resource_{};
     WindowsDxgiFrameInfo frameInfo_{};
+    bool acquireInProgress_{};
     bool releaseInProgress_{};
     bool closed_{};
 };

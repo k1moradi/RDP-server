@@ -1,3 +1,43 @@
+## R6 frame-lease acquire callback revocation (2026-10-16; exact-SHA CI pending)
+
+Exact validation of the preceding same-adapter ambiguity fix
+`91423a68f6af1569029cc2016b9cfa9663ea1b18`, Actions
+`38895053035`, proved the Windows R6 preflight in both MSVC configurations:
+**36/36 Debug PASS** and **36/36 Release PASS**. The new
+`windows.capture-dxgi-duplication-owner-same-adapter-ambiguity` passed in
+**0.01 s** in each preflight and again in the ordinary full Windows Debug
+CTest. Ubuntu/GCC, documentation-policy and the R9 sanitizer job also passed.
+The exact workflow remained overall **FAIL** only because the full Windows
+Debug suite hit the already-owned R10 OpenSSL Applink pair and macOS/Clang hit
+the unrelated R1 `transport.credssp-r1-owned-framing` assertion. A later R10
+commit addresses its test oracle independently.
+
+Continuing the allowed R6 ownership audit found a second callback-lifecycle
+gap in `WindowsDxgiFrameOwner`. Release-callback reentry was already denied,
+but acquire-callback reentry was not: while the callback was active,
+`resource_` was still null, so a nested `acquireFrame` could enter a second
+acquisition. In addition, a synchronous callback could call `cancel()`, set
+the owner terminal, then return a newly acquired resource; the old outer path
+would commit and return that lease from the already-closed owner.
+
+The frame owner now marks acquisition callbacks in progress. Nested acquisition
+returns `busy` without invoking the backend. If cancellation occurs inside
+the acquire callback, any resource returned by that callback is routed through
+the ordinary single-release path and `acquireFrame` returns `closed`; the
+resource and frame metadata are never published. Dedicated CTest
+`windows.capture-dxgi-frame-lease-acquire-callback-revocation` covers both
+reentry and cancel-with-returned-lease cleanup, including idempotent later
+cancel/destruction.
+
+Canonical owner-local CMake/CTest is **NOT RUN** in this connector environment.
+Exact-SHA Windows/MSVC Debug+Release preflight and full matrix are required
+after publication. Owner Windows MSYS2 CLANG64/Clang23 remains **NOT RUN**.
+No live Desktop Duplication or R2/R3 authorization is fabricated.
+
+**Next R6 production gate remains unchanged:** concrete Windows R2/R3
+authorization plus the owner CLANG64/Clang23 receipt. Native runtime
+capture/input binding remains **BLOCKED** and M4 remains OPEN.
+
 ## R10 Windows live-TLS test-oracle cross-CRT correction (2026-10-16; exact-SHA CI pending)
 
 Validated descendant `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`,

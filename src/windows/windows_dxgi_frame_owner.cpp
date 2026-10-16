@@ -34,7 +34,7 @@ WindowsDxgiAcquireResult WindowsDxgiFrameOwner::acquireFrame(
     {
         return WindowsDxgiAcquireResult::closed;
     }
-    if (resource_ != nullptr || releaseInProgress_)
+    if (resource_ != nullptr || acquireInProgress_ || releaseInProgress_)
     {
         return WindowsDxgiAcquireResult::busy;
     }
@@ -45,9 +45,26 @@ WindowsDxgiAcquireResult WindowsDxgiFrameOwner::acquireFrame(
 
     void *acquiredResource = nullptr;
     WindowsDxgiFrameInfo acquiredFrameInfo{};
+    acquireInProgress_ = true;
     const auto result = callbacks_.acquire(
         callbacks_.context, timeoutMilliseconds,
         acquiredResource, acquiredFrameInfo);
+    acquireInProgress_ = false;
+
+    // A synchronous acquire callback may request terminal cancellation. Do not
+    // publish a lease into the now-closed owner; return any resource produced
+    // by the callback through the ordinary single-release path first.
+    if (closed_)
+    {
+        if (acquiredResource != nullptr)
+        {
+            resource_ = acquiredResource;
+            frameInfo_ = acquiredFrameInfo;
+            (void)releaseFrame();
+        }
+        return WindowsDxgiAcquireResult::closed;
+    }
+
     if (result == WindowsDxgiAcquireResult::acquired &&
         acquiredResource != nullptr)
     {

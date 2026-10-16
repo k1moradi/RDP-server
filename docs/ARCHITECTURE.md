@@ -993,9 +993,13 @@ duplication interface is **borrowed** from the future R2/R3-authorized
 native capture/session owner. Duplicate acquisition is rejected;
 timeouts (bounded 100 ms polling) do not close the lease; access loss,
 invalid native returns and release failures terminate the owner and
-require a new independently authorized duplication. Cancellation
-and destruction release the outstanding frame once; callback reentry
-cannot acquire during release. The underlying frame resource is only
+require a new independently authorized duplication. Acquire and release
+callbacks are both reentry-guarded. Cancellation during acquisition is
+terminal but deferred with respect to callback-owned outputs: if the callback
+returns a new lease after cancellation, the owner releases it exactly once
+before returning `closed` and never publishes its resource or metadata.
+Cancellation and destruction release any already-held frame once. The
+underlying frame resource is only
 borrowed by synchronous consumers while the lease exists, never
 scheduled or retained by R4. No active desktop, OS authorization,
 GPU staging texture, frame queue or new R4 scheduler is implemented.

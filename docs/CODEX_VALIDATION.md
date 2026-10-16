@@ -1,3 +1,37 @@
+## R6 frame-lease callback lifecycle authoring (2026-10-16)
+
+Prior exact-SHA validation: commit
+`91423a68f6af1569029cc2016b9cfa9663ea1b18`, Actions
+`38895053035`. Windows R6 preflight **36/36 PASS Debug** and **36/36 PASS
+Release**; `windows.capture-dxgi-duplication-owner-same-adapter-ambiguity`
+passed in **0.01 s** in both configurations and again in the full Windows Debug
+CTest. Ubuntu/GCC **PASS**, documentation-policy **PASS**, R9 sanitizer
+**PASS**. Full Windows Debug failed only the R10 OpenSSL Applink tests; macOS
+failed only the unrelated R1 owned-CredSSP-framing assertion. Those failures
+are not R6 regressions.
+
+New source audit: `WindowsDxgiFrameOwner::acquireFrame` had no
+acquire-callback in-progress guard. A callback could synchronously reenter
+`acquireFrame` before `resource_` was committed, or call `cancel()` and
+still return an acquired resource that the outer call then published from a
+terminal owner. The fix adds one owner-local acquisition-in-progress flag,
+denies nested acquire as `busy`, and after callback return checks terminal
+state before publishing. A returned resource after callback cancellation is
+released exactly once through `releaseFrame`; metadata remains inaccessible.
+
+Dedicated CTest
+`windows.capture-dxgi-frame-lease-acquire-callback-revocation` uses the
+existing deterministic frame callback fixture. One case reenters acquisition
+and requires only one backend acquire plus nested `busy`; the second cancels
+inside acquire after supplying a lease and requires outer `closed`, zero
+published resource/metadata and exactly one release across later cancel and
+destruction.
+
+Authoring source/ownership review **PASS**. Canonical owner-local
+`~/rdp-server/build` build/CTest **NOT RUN**; exact-SHA hosted CI **PENDING**.
+Owner Windows MSYS2 CLANG64/Clang23, live DXGI, Microsoft-client acceptance and
+genuine Windows R2/R3 admission remain **NOT RUN/BLOCKED**.
+
 ## R10 Windows live-TLS cross-CRT oracle correction authoring (2026-10-16)
 
 Validated descendant: `2bdc77344862ee589ae3adbdbe167b4d5947bbc7`,

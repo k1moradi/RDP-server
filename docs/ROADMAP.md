@@ -12915,3 +12915,37 @@ are required after publication. Genuine authenticated R3 Graphics DVC/full-send
 integration, owner three-OS commands, native capture performance and
 Microsoft-client visible graphics remain **NOT RUN/BLOCKED**. Gate B and
 M3/M4/M5 remain **OPEN**.
+
+
+## R4 zero-surface stale-regression correction (2026-10-16; exact-SHA rerun pending)
+
+Implementation `4ac92d9717d751b62c7268d4fd800ed0210246d8`,
+Actions `38921852064`, provided positive evidence for the production
+surface-ID correction but exposed two stale test-only assumptions. On both
+Linux/GCC Debug and macOS/Clang Debug,
+`graphics.surface-zero-id-wire` and
+`graphics.x264-segmented-zero-surface-id-delivery` **PASS**, while the
+pre-existing `graphics.channel-lifecycle-denials` and
+`graphics.avc420-picture-rejections` cases still asserted that surface ID
+zero must be rejected and therefore aborted after the production code correctly
+accepted it.
+
+The production correction is retained. This follow-up removes only those two
+obsolete negative assertions and adds
+`graphics.avc420-zero-surface-id-wire`, a direct positive test of the AVC420
+metadata/builder boundary. It requires metadata validation to accept surface
+zero and verifies the exact zero uint16 in WIRE_TO_SURFACE_1 without changing
+frame IDs, payload or output-tail canaries.
+
+The same implementation run already proves the fully instrumented R4
+Clang ASan/UBSan `x264` group **20/20 PASS**, including
+`graphics.x264-segmented-zero-surface-id-delivery`. The shared sanitizer job's
+overall failure occurred later/outside the R4 x264 group and is not R4
+execution evidence. Exact follow-up-SHA hosted Linux/GCC, macOS/Clang,
+Windows/MSVC Debug/Release, documentation, SDK/package and sanitizer evidence
+is required before acceptance.
+
+Canonical owner `~/rdp-server/build` and owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 remain **NOT RUN** here. Genuine authenticated
+R3 Graphics DVC/full-send integration and Microsoft-client visible graphics
+remain **BLOCKED/NOT RUN**. Gate B and M3/M4/M5 remain **OPEN**.

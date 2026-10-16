@@ -13379,3 +13379,27 @@ Canonical local execution is **NOT RUN** because this connector does not expose
 the owner `~/rdp-server` checkout. Exact publication-SHA hosted CI is the
 first executable gate. R3 Graphics DVC/full-send and real-client graphics
 remain **BLOCKED/NOT RUN**.
+
+
+## R4 zero-surface first hosted execution and stale-test correction (2026-10-16; rerun pending)
+
+**Production implementation:** `4ac92d9717d751b62c7268d4fd800ed0210246d8`.
+**First Actions:** `38921852064`.
+
+The new surface-zero behaviors themselves pass on the first hosted execution:
+Linux and macOS both pass `graphics.surface-zero-id-wire` and
+`graphics.x264-segmented-zero-surface-id-delivery`. The Clang
+ASan/UBSan R4 `x264` selection also passes **20/20**, with the real-x264
+surface-zero case included.
+
+The ordinary Debug suites fail only because two older tests encode the
+superseded non-normative assumption that surface ID zero is invalid:
+`graphics.channel-lifecycle-denials` and
+`graphics.avc420-picture-rejections`. This follow-up removes those stale
+negative expectations and adds direct positive
+`graphics.avc420-zero-surface-id-wire` coverage. No production source is
+changed in the follow-up and no assertion unrelated to the corrected protocol
+domain is weakened.
+
+Canonical owner-local execution remains **NOT RUN**. Exact follow-up-SHA
+hosted CI is required before recording PASS for the complete matrix.

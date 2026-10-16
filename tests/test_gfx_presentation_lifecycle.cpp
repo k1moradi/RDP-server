@@ -129,7 +129,6 @@ void denials()
                                  PixelSize{641, 480}, PixelSize{640, 479},
                                  PixelSize{65536, 480}, PixelSize{640, 65536}})
         assert(!lifecycle.configureSurface(3, 1, size));
-    assert(!lifecycle.configureSurface(3, 0, {640, 480}));
     assert(lifecycle.configureSurface(3, 1, {640, 480}));
     assert(!lifecycle.configureSurface(3, 1, {640, 480}));
     Buffer bytes{};bytes.fill(std::byte{0xA5});Receipt unused{};

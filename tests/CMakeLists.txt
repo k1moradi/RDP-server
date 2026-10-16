@@ -284,6 +284,7 @@ function(add_rdp_test source_file suite behavior)
         foreach(case_name IN ITEMS
                 avc420-picture-wire
                 avc420-zero-frame-id-wire
+                avc420-zero-surface-id-wire
                 avc420-picture-rejections
                 avc420-picture-overlap
                 avc420-visible-crop

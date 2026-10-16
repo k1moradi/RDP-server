@@ -1,3 +1,24 @@
+## R6 adapter-reference provenance exact-SHA receipt (2026-10-16)
+
+Implementation `06d2e08eeea0c224c949b68ae46ffb5b9bd7175a`, Actions
+`38965111974`: **SUCCESS**. Windows/MSVC R6 preflight is **47/47 Debug +
+47/47 Release**; the new repeated-adapter-reference case is **PASS 0.01 s** in
+both and again in full CTest. Windows full CTest is **419/419 Debug + 419/419
+Release** with installed SDK/package path PASS. Linux/GCC is **464/464 Debug +
+464/464 Release**; macOS/AppleClang is **389/389 Debug + 389/389 Release**.
+Documentation-policy, R9 ASan/UBSan and R7 sanitizer jobs all pass.
+
+The production invariant is explicit reference-transfer ownership: one
+enumeration-returned reference transferred into `adapter_` is released once
+by the owner; a later enumeration call owns another reference even if COM
+returns the same pointer value and that later reference is retired separately
+unless it is itself transferred. Final fixture accounting returns every
+reference count to zero.
+
+Owner-local one-root testing and Windows MSYS2 CLANG64/Clang23 remain
+**NOT RUN**. Genuine Windows R2/R3 admission, live DXGI/SendInput,
+Microsoft-client M4 and native performance remain **NOT RUN/BLOCKED**.
+
 ## R9 CLIENT_LICENSE_INFO fresh-verification authoring (2026-10-16)
 
 **Parent:** `f5beef84a25bebd82b1e8ae71b32930c2ff5dc23`.

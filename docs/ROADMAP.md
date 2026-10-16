@@ -1,3 +1,30 @@
+## R6 adapter-reference transfer exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `06d2e08eeea0c224c949b68ae46ffb5b9bd7175a`. **Actions:**
+`38965111974` — **SUCCESS**.
+
+Windows/MSVC focused R6 preflight: **47/47 PASS Debug + 47/47 PASS Release**.
+New `windows.capture-dxgi-duplication-owner-repeated-adapter-reference` passes
+in **0.01 s** in both configurations and again in both full suites. Full
+Windows CTest is **419/419 PASS Debug + 419/419 PASS Release**; installed SDK
+consumer and package/digest/artifact path pass.
+
+Linux/GCC full CTest is **464/464 PASS Debug + 464/464 PASS Release**.
+macOS/AppleClang is **389/389 PASS Debug + 389/389 PASS Release**.
+Linux/macOS installed consumers, documentation-policy, R9 Clang ASan/UBSan and
+the R7 sanitizer job all **PASS**. Untagged prerelease is correctly **SKIPPED**.
+
+Validated invariant: ownership follows each enumeration-returned COM reference,
+not raw interface-address equality. A later `adapterAt` return at the same
+address is independently released unless that exact reference is transferred,
+while the one adapter reference already transferred within a same-adapter
+output scan is not double released.
+
+Owner-local `~/rdp-server/build` and owner Windows MSYS2 CLANG64/Clang23
+remain **NOT RUN**. Genuine Windows R2/R3 native admission is still absent, so
+runtime DXGI/SendInput binding, live Desktop Duplication, Microsoft-client M4
+and native performance remain **NOT RUN/BLOCKED**. **M4 OPEN / NOT ACCEPTED.**
+
 ## R9 CLIENT_LICENSE_INFO fresh-proof replay fence (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `f5beef84a25bebd82b1e8ae71b32930c2ff5dc23`.

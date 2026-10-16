@@ -1,3 +1,51 @@
+## R5 X11 desktop lifecycle fixture reliability (2026-10-16; exact-SHA CI pending)
+
+**Starting shared main:** `ce23e7dd73a0c943c42a8257149111fe5a66baf7`. This P0 investigation preserves the
+existing production X11 resource aggregate and fixes the deterministic test
+environment instead of weakening native initialization.
+
+**Historical failure and reproduction evidence:** exact source SHA
+`45dc57878bcc741a87bd2ba8b9b9edf15588f062`, Actions `38873727660`, passed
+Linux/GCC Debug **289/289** and then failed Linux/GCC Release **288/289**.
+The sole failure was `x11.desktop-resource-owner-lifecycle` at the third
+`X11DesktopResources` construction, line 115's `assert(resources.valid())`:
+a deliberately failed partial owner had already been destroyed, one complete
+owner had initialized successfully and been explicitly disconnected twice, and
+the next independent owner failed to become valid. The following separately
+spawned `x11.desktop-resource-event-routing` Xvfb case passed. The historical
+binary printed no `failureReason()`, so the exact child diagnostic for that
+one failed run is unavailable and is not inferred.
+
+**Root cause:** the lifecycle fixture intentionally reaches a zero-X-client
+interval but launched Xvfb without `-noreset`. A bounded local fixture probe
+using the same `-screen 0 1280x720x24 -nolisten tcp` arguments demonstrated
+that a root property written by one X client disappears after that last client
+disconnects, while adding `-noreset` preserves it for the next independent
+client. The Release-only failure therefore raced Xvfb's last-client server
+reset, not R5's one-XCB ownership or child teardown ordering. The dedicated
+lifecycle CTest now adds `-noreset`; no sleep, retry, privilege widening or
+second XCB owner is introduced.
+
+The existing lifecycle behavior remains the dedicated regression rather than
+adding a duplicate case: it requires the deliberate XShm construction failure
+to preserve `XShm capture arena size is invalid`, recovery by a complete owner,
+idempotent explicit disconnect, and a subsequent independent complete owner.
+Unexpected valid-owner construction failures now emit only the bounded phase
+and existing aggregate `failureReason()` before the assertion. No production
+X11 source or ownership rule changes; architecture remains unchanged.
+
+**Authoring validation:** the standalone exact-argument Xvfb reset probe is
+**PASS**. The canonical `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment because the owner checkout is not
+mounted; no alternate build root was created. Historical Actions
+`38873727660` attempt 2 was requested as a bounded same-SHA reliability rerun
+and was still queued at authoring. Exact-SHA hosted Debug/Release CI is required
+after publication. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27,
+genuine positive R2/R3 admission, live XTEST, Microsoft-client M3 acceptance
+and performance remain **NOT RUN**. The existing next R5 integration boundary
+remains real R3 input-PDU translation only after R3 exposes that authoritative
+parser/session route; M3 remains **OPEN**.
+
 ## R3 protected Attach User / confirmation receipt increment (2026-10-16; hosted validation pending)
 
 Starting inspected main: `db5bcbd4a6415779dab713424c0c7c0e17ce6fb2`;

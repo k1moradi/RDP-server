@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <string_view>
@@ -29,6 +30,23 @@ struct XcbConnectionDeleter
 using XcbConnection = std::unique_ptr<xcb_connection_t, XcbConnectionDeleter>;
 
 constexpr std::uint64_t kCaptureArenaPixels = 256U * 1024U;
+
+void
+requireValidResources(const X11DesktopResources &resources,
+                      const char *constructionPhase) noexcept
+{
+    const bool isValid = resources.valid();
+    if (!isValid)
+    {
+        const char *reason = resources.failureReason();
+        std::fprintf(
+            stderr,
+            "X11 desktop resource construction failed during %s: %s\n",
+            constructionPhase,
+            reason != nullptr ? reason : "no failure reason");
+    }
+    assert(isValid);
+}
 
 XcbConnection
 connectHelper(const char *display, int &screenNumber)
@@ -159,12 +177,14 @@ syntheticXvfbLifecycle()
         X11DesktopResources rejected(display, 0);
         assert(!rejected.valid());
         assert(rejected.failureReason() != nullptr);
+        assert(std::string_view(rejected.failureReason()) ==
+               "XShm capture arena size is invalid");
         assert(rejected.fileDescriptor() == -1);
     }
 
     {
         X11DesktopResources resources(display, kCaptureArenaPixels);
-        assert(resources.valid());
+        requireValidResources(resources, "failed-owner recovery");
         assert(resources.failureReason() == nullptr);
         assert(resources.fileDescriptor() >= 0);
         const PixelSize geometry = resources.sourceGeometry();
@@ -186,7 +206,7 @@ syntheticXvfbLifecycle()
     // Exercise destructor-driven ordered cancellation after a second complete
     // resource construction. No real desktop or user input is involved.
     X11DesktopResources resources(display, kCaptureArenaPixels);
-    assert(resources.valid());
+    requireValidResources(resources, "post-disconnect recovery");
 }
 
 void

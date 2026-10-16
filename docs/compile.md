@@ -156,8 +156,11 @@ When `xvfb-run` is present, CTest additionally registers
 `x11.desktop-resource-event-routing`,
 `x11.desktop-resource-randr-rebuild`, and
 `x11.display-event-failure-defers-owner-teardown` against an ephemeral
-1280x720x24 Xvfb server. The routing case generates a real XDamage
-notification only on that synthetic root window; the failure case generates
+1280x720x24 Xvfb server. The lifecycle case adds Xvfb `-noreset` because it
+intentionally closes the last XCB client between independent owner generations;
+that keeps the synthetic server stable while R5 teardown/recovery is tested.
+The routing case generates a real XDamage notification only on that synthetic
+root window; the failure case generates
 an invalid unchecked core request to verify child-before-parent teardown.
 The RandR case disables only the synthetic Xvfb CRTC, resizes its root to
 1024x600 through XCB/RandR, verifies geometry-bound XShm/Damage/input

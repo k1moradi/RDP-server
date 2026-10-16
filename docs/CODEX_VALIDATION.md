@@ -1,3 +1,47 @@
+## R5 X11 lifecycle fixture root-cause validation (2026-10-16; CI pending)
+
+**Inspected starting main:** `ce23e7dd73a0c943c42a8257149111fe5a66baf7`.
+
+The documented regression is exact SHA
+`45dc57878bcc741a87bd2ba8b9b9edf15588f062`, Actions `38873727660`. Linux
+Debug completed **289/289 PASS**. Linux Release completed **288/289**; only
+`x11.desktop-resource-owner-lifecycle` failed at
+`tests/test_x11_desktop_resources.cpp:115` on the third native aggregate
+construction. That location is after the deliberately invalid owner, after one
+fully valid aggregate, and after its explicit idempotent disconnect. The next
+separately launched Xvfb event-routing case passed. Because that historical
+test binary had no fail-only construction diagnostic, its exact aggregate
+`failureReason()`/first-child reason cannot be recovered from the log and is
+recorded as unavailable rather than guessed.
+
+A direct bounded fixture probe reproduced the relevant environmental boundary
+with the lifecycle CTest's exact Xvfb arguments. With
+`-screen 0 1280x720x24 -nolisten tcp`, a root property set by one standalone X
+client was absent to the next client after the first disconnected; with
+`-noreset` appended, the same property remained. This establishes that the
+current fixture permits an X-server reset exactly where the R5 test intends to
+measure independent owner teardown/recovery. The correction adds `-noreset`
+only to `x11.desktop-resource-owner-lifecycle`; the real X11 production
+aggregate, one-XCB owner and child cancellation order are unchanged.
+
+The existing lifecycle executable now also preserves the expected deliberate
+failure text `XShm capture arena size is invalid` and emits a bounded phase plus
+aggregate `failureReason()` only if either healthy recovery construction fails.
+No new CTest is added because the existing lifecycle case already covers
+failed-construction recovery, explicit/idempotent disconnect and subsequent
+independent owner construction. Reusable guidance is recorded in
+`docs/testing_standards.md`; `docs/compile.md` documents the fixture flag.
+
+**Authoring status:** exact-argument Xvfb reset probe **PASS**. Canonical local
+repository build/full CTest is **NOT RUN** because this environment has no
+synchronized `~/rdp-server/` checkout; no alternate build root was created.
+Actions `38873727660` attempt 2 was requested and remained **QUEUED** at this
+snapshot. Publication must be followed by exact-SHA hosted Linux/GCC Debug and
+Release, the full existing R5/R8 regression matrix and honest reporting of any
+unrelated failures. Owner Linux/X11, MSYS2 CLANG64/Clang23, macOS27, positive
+Kerberos/logind admission, Microsoft-client desktop acceptance and performance
+remain **NOT RUN**.
+
 ## R3 protected Attach User confirmation validation ledger (2026-10-16)
 
 **Authoring base:** `db5bcbd4a6415779dab713424c0c7c0e17ce6fb2`.

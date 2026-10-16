@@ -1105,9 +1105,12 @@ if(TARGET rdp-server-linux-x11-desktop)
         PROPERTIES LABELS "x11;linux-adapter;native")
 
     if(RDP_SERVER_XVFB_RUN_EXECUTABLE)
+        # This case intentionally reaches zero X clients between independent
+        # owner generations. Keep Xvfb from resetting so the test isolates R5
+        # teardown/recovery rather than racing the server's last-client reset.
         add_test(NAME x11.desktop-resource-owner-lifecycle
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
-                "-screen 0 1280x720x24 -nolisten tcp"
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_desktop_resources> lifecycle)
         add_test(NAME x11.desktop-resource-event-routing
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s

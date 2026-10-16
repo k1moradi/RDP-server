@@ -73,6 +73,23 @@ translation units, not text-pattern assertions or pure mocks.
   versions/capabilities. A simulated FreeRDP peer is not automatically
   a normative Microsoft implementation.
 
+## Synthetic native-server lifecycle fixtures
+
+When a test deliberately destroys the last X client and then constructs a new
+independent native owner on the **same** synthetic X server, run Xvfb with
+`-noreset`. Without that control, the X server's last-client reset becomes a
+second lifecycle transition that can race immediate reconnection and obscure
+whether application-owned teardown is correct. Do not paper over that boundary
+with sleeps or retries. Keep the server ephemeral, use `-noreset` only when the
+test contract requires continuity across a zero-client interval, and leave it
+off for tests that intentionally exercise server reset semantics.
+
+Native lifecycle assertions should emit bounded fail-only diagnostics before
+aborting: identify the construction phase and print the aggregate's existing
+`failureReason()` when available. Never dump desktop pixels, unbounded protocol
+buffers, credentials or other sensitive state merely to diagnose a fixture
+failure.
+
 ## Acceptance criteria and reporting
 
 | Feature | Offline coverage | Real acceptance gate |

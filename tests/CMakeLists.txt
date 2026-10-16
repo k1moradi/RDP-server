@@ -776,6 +776,30 @@ if(APPLE)
     endforeach()
 endif()
 
+# The ScreenCaptureKit lifecycle CTests use the production C++ state owner with
+# an injected backend and synthetic CoreVideo buffers. They never enumerate
+# SCShareableContent, start SCStream, or request Screen Recording permission.
+if(APPLE)
+    add_executable(test_macos_capture_stream test_macos_capture_stream.cpp)
+    target_include_directories(test_macos_capture_stream PRIVATE
+        "${PROJECT_SOURCE_DIR}/src")
+    target_link_libraries(test_macos_capture_stream PRIVATE
+        rdp-server-macos-capture
+        "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}")
+    if(MSVC)
+        target_compile_options(test_macos_capture_stream PRIVATE /W4 /UNDEBUG)
+    else()
+        target_compile_options(test_macos_capture_stream PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    foreach(case_name IN ITEMS lifecycle stale-generation-denials callback-retirement)
+        add_test(NAME "macos.capture-stream-${case_name}"
+            COMMAND test_macos_capture_stream "${case_name}")
+        set_tests_properties("macos.capture-stream-${case_name}" PROPERTIES
+            LABELS "macos;capture;offline;native")
+    endforeach()
+endif()
+
 # R5 native XCB connection: headless deterministic event draining and
 # invalid-display descriptor ownership, no live desktop/X server.
 if(TARGET rdp-server-x11-connection)

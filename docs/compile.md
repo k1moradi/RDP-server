@@ -372,3 +372,10 @@ It requires Linux/Clang/CTest; the fuzzer target links
 remain in `build/fuzz-corpus-mcs-cliprdr` and
 `build/fuzz-artifacts-mcs-cliprdr`. Do not create `build-fuzz`
 or alter the owner's unchanged configure/build/CTest command.
+
+
+## R7 ScreenCaptureKit stream lifecycle and CoreVideo handoff (2026-10-16)
+
+On Apple, the existing `rdp-server-macos-capture` target now enables Objective-C++ only inside the `APPLE` block and compiles `screen_capture_stream.mm` with ARC. The target links `ScreenCaptureKit`, `Foundation`, `CoreMedia`, `CoreVideo`, `CoreGraphics`, and `CoreFoundation`; none of these dependencies are added to `rdp-server-protocol`, Linux, or Windows. The existing CMake command remains valid and does not require Xcode project generation or a second build tree.
+
+Ordinary CTests do not invoke the native ScreenCaptureKit backend. They use the production C++ lifecycle owner with an injected backend and synthetic CoreVideo buffers, so a normal test run neither starts live screen capture nor requests TCC permission. Compiling/linking the Objective-C++ source on macOS is evidence that the SDK bridge builds; it is not evidence that a live screen was captured.

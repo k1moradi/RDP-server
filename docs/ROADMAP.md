@@ -5965,3 +5965,14 @@ this offline/hosted QA increment alone. **Next R9:** when explicit native
 authorization is available, independently exercise positive lease issuance,
 revocation across reconnect/session generations, and then the genuine
 authorized R3->R8 route.
+
+
+## R7 ScreenCaptureKit stream lifecycle and CoreVideo handoff (2026-10-16)
+
+R7 now contains an opt-in, Apple-only one-display ScreenCaptureKit stream owner. A capture binding is created only from a current `NativeDisplayGeometryRefresh` generation; it preserves the validated CoreGraphics display ID, that display's physical backing dimensions, and the Quartz reconfiguration revision. The Objective-C++ bridge enumerates `SCShareableContent` and selects only the `SCDisplay` whose `displayID` matches that validated identity. Missing or stale displays fail closed; there is no first-display or primary-display fallback.
+
+The owner has explicit idle/preparing/ready/starting/capturing/stopping/closed/failed states. Native delegate, completion and output callbacks retain shared callback state rather than a C++ owner pointer. Stop, close, native failure and topology revocation retire the one-shot stream; a replacement requires a fresh validated geometry generation and a fresh independently authorized R2/R3 binding. R7 does not create an authorization token and the stream is not started automatically by R10.
+
+ScreenCaptureKit is configured for `kCVPixelFormatType_32BGRA`, exact validated display backing dimensions, cursor exclusion for this increment, and `queueDepth = 3`. Only complete, ready video samples with an image buffer and exact dimensions are admitted; the existing `LockedBgraPixelBuffer::lock()` performs the CoreVideo format/stride/storage validation. The frame is synchronously borrowed by `MacCaptureFrameConsumer::consume()` only for the callback duration. R7 adds no unbounded graphics/frame queue; R4 remains responsible for any later owned copy, scheduling, conversion, encode and backpressure.
+
+Dedicated Apple CTests are `macos.capture-stream-lifecycle`, `macos.capture-stream-stale-generation-denials`, and `macos.capture-stream-callback-retirement`. They inject the production lifecycle backend seam and use synthetic CoreVideo buffers; they do not enumerate live shareable content, start a real stream, request Screen Recording permission, inject input or exercise cursor delivery. Cursor metadata remains the preferred next isolated R7 increment after hosted stream-lifetime evidence is stable. M5 remains **OPEN** pending genuine R2/R3 authorization, live macOS capture/input, R4 delivery, and Microsoft-client evidence.

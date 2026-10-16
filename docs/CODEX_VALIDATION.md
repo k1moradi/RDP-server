@@ -7446,3 +7446,19 @@ this offline/hosted QA increment alone. **Next R9:** when explicit native
 authorization is available, independently exercise positive lease issuance,
 revocation across reconnect/session generations, and then the genuine
 authorized R3->R8 route.
+
+
+## R7 ScreenCaptureKit stream lifecycle and CoreVideo handoff (2026-10-16)
+
+- Starting repository HEAD inspected before development: `e540be81f297c7f880c6b03db6ffc1a3ad8998ad`. Concurrent-agent changes were repeatedly reconciled from newer `main` before publication.
+- Local isolated C++23 validation on the staged lifecycle/test sources: **PASS** with Clang and GCC under `-Wall -Wextra -Wpedantic -Werror -UNDEBUG`; all three lifecycle/stale-generation/callback-retirement cases executed successfully against a stubbed platform seam.
+- Local Clang ASan+UBSan validation with leak detection on the same three behavior cases: **PASS**. This is lifecycle ownership/state evidence only; it is not Apple SDK or project-wide CTest evidence.
+- Local Objective-C++ ARC/block syntax validation against stubbed Foundation/CoreMedia/ScreenCaptureKit declarations: **PASS** after correcting the bridge interface syntax. This does not claim native Apple SDK compile/link.
+- Dedicated ordinary CTests are permission-free and do not call the real ScreenCaptureKit backend, open a TCC prompt, read the live screen, record audio, or inject input.
+- Hosted exact-SHA Apple SDK compile/link and full GitHub Actions result: **NOT RUN at source-authoring time**; inspect the published exact SHA before upgrading this evidence.
+- Owner macOS 27 command: **NOT RUN**.
+- Live ScreenCaptureKit/TCC-authorized capture: **NOT RUN**.
+- TCC permission prompt/request: **NOT RUN**.
+- Microsoft RDP client acceptance: **NOT RUN**.
+- R2/R3 authorization remains external; no runtime capture bypass or automatic startup path was added.
+- M5 remains **OPEN**.

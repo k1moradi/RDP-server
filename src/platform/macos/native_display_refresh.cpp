@@ -77,6 +77,18 @@ std::optional<PixelSize> NativeDisplayGeometryRefresh::virtualPixelSize(
     return active_->virtualPixelSize();
 }
 
+std::optional<DesktopDisplayMapping> NativeDisplayGeometryRefresh::displayMapping(
+    const std::uint32_t displayId, const std::uint64_t generation) const noexcept {
+    if (!usable(generation)) return std::nullopt;
+    return active_->displayMapping(displayId, generation);
+}
+
+std::optional<std::uint64_t> NativeDisplayGeometryRefresh::topologyRevision(
+    const std::uint64_t generation) const noexcept {
+    if (!usable(generation)) return std::nullopt;
+    return topologyRevision_;
+}
+
 std::optional<DesktopPixelPosition> NativeDisplayGeometryRefresh::pixelAtLogicalPoint(
     const DesktopLogicalPoint point, const std::uint64_t generation) const noexcept {
     if (!usable(generation)) return std::nullopt;

@@ -384,12 +384,17 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     # and independently authorized OS admission in a future service.
 endif()
 
-# R7 native capture ingestion only: retain CoreVideo buffers and preflight
-# Screen Recording permission without activating a capture stream or service.
-# No Apple frameworks are linked into the portable protocol library.
+# R7 native macOS capture remains isolated from the portable protocol target.
+# Objective-C++ is enabled only on Apple for the ScreenCaptureKit bridge; the
+# owner is not wired into runtime startup before independent R2/R3 admission.
 if(APPLE)
+    enable_language(OBJCXX)
     find_library(RDP_SERVER_COREVIDEO_FRAMEWORK CoreVideo REQUIRED)
     find_library(RDP_SERVER_COREGRAPHICS_FRAMEWORK CoreGraphics REQUIRED)
+    find_library(RDP_SERVER_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    find_library(RDP_SERVER_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(RDP_SERVER_COREMEDIA_FRAMEWORK CoreMedia REQUIRED)
+    find_library(RDP_SERVER_SCREENCAPTUREKIT_FRAMEWORK ScreenCaptureKit REQUIRED)
     add_library(rdp-server-macos-capture STATIC
         src/platform/macos/capture_pixel_layout.cpp
         src/platform/macos/capture_pixel_buffer.cpp
@@ -398,13 +403,26 @@ if(APPLE)
         src/platform/macos/native_display_snapshot.cpp
         src/platform/macos/native_display_geometry.cpp
         src/platform/macos/native_display_refresh.cpp
-        src/platform/macos/native_display_reconfiguration.cpp)
+        src/platform/macos/native_display_reconfiguration.cpp
+        src/platform/macos/screen_capture_stream.cpp
+        src/platform/macos/screen_capture_stream.mm)
+    set_source_files_properties(
+        src/platform/macos/screen_capture_stream.mm
+        PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    set_target_properties(rdp-server-macos-capture PROPERTIES
+        OBJCXX_STANDARD 23
+        OBJCXX_STANDARD_REQUIRED YES
+        OBJCXX_EXTENSIONS NO)
     target_compile_features(rdp-server-macos-capture PUBLIC cxx_std_23)
     target_include_directories(rdp-server-macos-capture PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
     target_link_libraries(rdp-server-macos-capture PUBLIC
         "${RDP_SERVER_COREVIDEO_FRAMEWORK}"
-        "${RDP_SERVER_COREGRAPHICS_FRAMEWORK}")
+        "${RDP_SERVER_COREGRAPHICS_FRAMEWORK}"
+        "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}"
+        "${RDP_SERVER_FOUNDATION_FRAMEWORK}"
+        "${RDP_SERVER_COREMEDIA_FRAMEWORK}"
+        "${RDP_SERVER_SCREENCAPTUREKIT_FRAMEWORK}")
     target_compile_options(rdp-server-macos-capture PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()

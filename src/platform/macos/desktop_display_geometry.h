@@ -83,6 +83,9 @@ public:
     [[nodiscard]] std::int32_t physicalOriginY() const noexcept { return originY_; }
     [[nodiscard]] std::uint64_t generation() const noexcept { return generation_; }
     [[nodiscard]] std::size_t displayCount() const noexcept { return displayCount_; }
+    [[nodiscard]] std::optional<DesktopDisplayMapping> displayMapping(
+        std::uint32_t displayId,
+        std::uint64_t configurationGeneration) const noexcept;
 
 private:
     struct CachedDisplay {

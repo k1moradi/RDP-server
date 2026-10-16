@@ -45,6 +45,10 @@ public:
     [[nodiscard]] bool usable(std::uint64_t generation) const noexcept;
     [[nodiscard]] std::optional<PixelSize>
     virtualPixelSize(std::uint64_t generation) const noexcept;
+    [[nodiscard]] std::optional<DesktopDisplayMapping>
+    displayMapping(std::uint32_t displayId, std::uint64_t generation) const noexcept;
+    [[nodiscard]] std::optional<std::uint64_t>
+    topologyRevision(std::uint64_t generation) const noexcept;
     [[nodiscard]] std::optional<DesktopPixelPosition>
     pixelAtLogicalPoint(DesktopLogicalPoint point,
                         std::uint64_t generation) const noexcept;

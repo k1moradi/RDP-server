@@ -2492,3 +2492,14 @@ plus selected-protocol provenance to R3. A caller-supplied scalar is not an
 authority. R3 therefore remains in `AwaitConnectResponse` until that R1
 provenance exists and R2 can freshly revalidate the bound admission/session
 generations immediately before writer ownership.
+
+
+## R7 ScreenCaptureKit stream lifecycle and CoreVideo handoff (2026-10-16)
+
+The native capture boundary is split intentionally. `MacScreenCaptureStream` and its state machine are C++23. `screen_capture_stream.mm` is the only ScreenCaptureKit Objective-C++ bridge and is built with ARC. Objective-C objects stay private to that translation unit. The bridge retains a shared C++ callback-state object, never a borrowed `MacScreenCaptureStream::this`; therefore queued delegate/output/completion callbacks can observe a retired state without dereferencing a destroyed owner.
+
+A binding comes from the existing `NativeDisplayGeometryRefresh` epoch and carries `displayId`, physical width/height, geometry generation and topology revision. ScreenCaptureKit content enumeration must find an `SCDisplay.displayID` equal to that CoreGraphics identity. No coordinate-derived identity and no fallback display are accepted. The global native reconfiguration revision fences prepare/start/frame publication, and the owner exposes explicit topology invalidation so the topology coordinator can immediately close the native stream. Late old-generation callbacks retain only old state and cannot publish into a replacement generation.
+
+The output queue is a private serial dispatch queue and ScreenCaptureKit queue depth is three; R7 creates no additional frame queue. A complete screen sample is converted only to its `CVPixelBufferRef`, then passed through the existing `LockedBgraPixelBuffer` RAII lock. The consumer receives that locked BGRA frame synchronously and must copy into explicitly bounded owned storage before returning if asynchronous R4 work is needed. Neither x264/RDPGFX scheduling nor RDP session admission moves into R7.
+
+Screen Recording preflight remains macOS TCC evidence only. Successful preflight, shareable-content enumeration, or stream start never substitutes for R2 authentication or R3 session admission. Live runtime wiring remains intentionally absent until those contracts are genuine.

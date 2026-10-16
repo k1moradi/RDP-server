@@ -149,6 +149,20 @@ std::optional<DesktopDisplayGeometry> DesktopDisplayGeometry::create(
     return geometry;
 }
 
+std::optional<DesktopDisplayMapping> DesktopDisplayGeometry::displayMapping(
+    const std::uint32_t displayId,
+    const std::uint64_t configurationGeneration) const noexcept {
+    if (displayId == 0 || configurationGeneration != generation_) {
+        return std::nullopt;
+    }
+    for (std::size_t displayIndex = 0; displayIndex < displayCount_; ++displayIndex) {
+        if (displays_[displayIndex].mapping.displayId == displayId) {
+            return displays_[displayIndex].mapping;
+        }
+    }
+    return std::nullopt;
+}
+
 std::optional<DesktopPixelPosition> DesktopDisplayGeometry::pixelAtLogicalPoint(
     const DesktopLogicalPoint point,
     const std::uint64_t configurationGeneration) const noexcept {

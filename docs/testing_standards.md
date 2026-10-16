@@ -1893,6 +1893,12 @@ registered bounded MCS/DER/binding cases; keep
 `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
 Any real sanitizer finding fails CI; retain the first
 stack trace and route production defects to its owner.
+Within the one sanitizer job, bounded owner groups after the shared compile
+must still execute when an earlier CTest group fails. Gate those later steps
+with `always()` plus a successful shared-compile outcome: this preserves the
+job failure while preventing one road from suppressing sanitizer evidence for
+another. A failed compile must still skip dependent CTest groups rather than
+manufacturing missing-executable failures.
 No live client, credentials, other build roots or
 special requirements for the owner's standard command.
 When generating YAML from JavaScript, avoid a string

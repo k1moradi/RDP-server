@@ -1,3 +1,25 @@
+## R9 sanitizer failure-isolation authoring receipt (2026-10-16)
+
+**Parent:** `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`.
+Actions `38901941233` for R9 selection commit
+`487e26c49b4709c031c6ef71342c5b3f202d5fb4` compiled every selected
+sanitizer target, then failed in the first `ctest -L clipboard` group.
+All five new R8 Windows clipboard tests reported ASan heap-use-after-free;
+the later R1/R3, native GSS/R2/R3, R5 and fuzzer steps were skipped by normal
+GitHub step short-circuiting. Consequently
+`security.gssapi-r1-owned-binding-delivery-fence` has no sanitizer execution
+receipt at that SHA.
+
+The R9 job now assigns an ID to the shared compile step and gives every later
+bounded group an `always()` condition that also requires that compile to have
+succeeded. This preserves the original failure signal—any failing CTest step
+still fails the job—while ensuring one road cannot hide another road's
+sanitizer evidence. If compilation fails, dependent test groups remain
+skipped instead of emitting missing-executable noise.
+
+No production code or CTest registration changes. Owner-local validation is
+**NOT RUN** here; exact hosted evidence is pending.
+
 ## R6 capture-cycle single-attachment authoring verification (2026-10-16)
 
 Added dedicated behavior

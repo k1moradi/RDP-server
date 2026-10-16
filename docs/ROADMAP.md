@@ -1,3 +1,40 @@
+## R9 sanitizer-group execution independence (2026-10-16; exact-SHA CI pending)
+
+**Reconciled publication parent:** `2918bbfda7db4b47afb3ee82a22d1d7bbe2b859f`.
+R9 exact implementation `487e26c49b4709c031c6ef71342c5b3f202d5fb4`,
+Actions `38901941233`, proved the selected-target sanitizer build itself
+succeeds but exposed a cross-road CI suppression hazard. The first clipboard
+group executed **41 cases** and the five newly landed R8 Windows clipboard
+adapter cases all failed under ASan with heap-use-after-free reports rooted
+through the R8 fixture's borrowed `RemoteTransfer::Response` payload lifetime.
+Because that clipboard step failed, GitHub skipped the later bounded
+transport/security, native GSS/R2/R3, R5 X11 and fuzzer steps. Therefore the
+new `security.gssapi-r1-owned-binding-delivery-fence` was **NOT RUN** at that
+SHA despite being correctly present in the regex. This is not recorded as an
+R2/R9 behavioral pass.
+
+R9 now makes the existing sanitizer groups execution-independent after one
+successful selected-target compile. The compile step receives a stable ID;
+each later non-clipboard group uses `always()` gated by that compile outcome.
+A failure in clipboard or any intermediate CTest group still makes the one
+sanitizer job fail overall, but it no longer suppresses evidence from later
+owners. A compile failure still prevents all test groups that depend on the
+missing binaries, avoiding misleading secondary failures. The single checkout
+and single `build/` root, sanitizer flags, target list, CTest regexes, leak
+suppression scope and bounded test semantics are otherwise unchanged.
+
+The same `487e26c...` workflow also had concurrent R8 full-matrix failures;
+Windows reported all five new clipboard adapter CTests **Not Run** because
+`test_windows_clipboard_adapter.exe` was absent from the ordinary full-build
+output. Those R8 build/test integration defects remain owned by R8 and are not
+fixed by this R9 CI-control change.
+
+Canonical owner-local build/full CTest and sanitizer commands remain **NOT
+RUN** in this connector runtime. Exact-publication-SHA hosted execution is
+required to prove that the R8 failure remains visible while the later R9
+groups, especially the 23-case native GSS/R2/R3 selection, still execute.
+Real Kerberos/logind and Microsoft-client acceptance remain **NOT RUN/OPEN**.
+
 ## R6 capture-cycle single-attachment ownership coverage (2026-10-16; exact-SHA CI pending)
 
 With native runtime binding still blocked on genuine Windows R2/R3 admission and

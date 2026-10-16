@@ -12559,3 +12559,50 @@ authorization capability remain the next production gates; live
 DXGI/SendInput and Microsoft-client M4 acceptance remain **BLOCKED/NOT RUN**.
 **M4 remains OPEN / NOT ACCEPTED.**
 
+
+
+## R7 first sanitizer-selection attempt exact-SHA failure (2026-10-16)
+
+Implementation `cd3166ad0159ac10a9742075d144e5c4d7d1db1b`, Actions
+`38919618026`, completed **FAIL**. Documentation policy and the ordinary
+Ubuntu/GCC, macOS/AppleClang and Windows/MSVC protocol jobs all **PASS**; the
+overall workflow fails only in the shared R9 Clang sanitizer target-build step.
+
+The first failing boundary is compilation of
+`test_macos_desktop_session_guard.cpp` with hosted Clang **18.1.3** against
+libstdc++: every R7 header use of `std::expected` is unavailable, beginning at
+`native_display_snapshot.h:54`. The R7 sanitizer CTest step is therefore
+**SKIPPED/NOT RUN** on this SHA. No R7 runtime assertion or sanitizer finding
+is implicated.
+
+This is a toolchain/library compatibility boundary exposed by adding the R7
+target to an R9-owned Clang job. R7 does not retune that shared job. The
+follow-up restores R9's target list and adds a dedicated Ubuntu/GCC ASan+UBSan
+job for the permission-free R7 session executable.
+
+
+## R7 dedicated session-watch sanitizer job (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `233dc7e8f40243650f32fd0771df8f5e1e73b468`.
+
+The failed Clang-18 attempt is corrected without changing the R9 sanitizer
+toolchain. A new road-local `r7-macos-session-sanitizers` Ubuntu job uses the
+runner's GCC/G++ C++23 toolchain with AddressSanitizer and UndefinedBehavior
+Sanitizer, one checkout-local `build/` root, and builds only
+`test_macos_desktop_session_guard`. Its anchored
+`^macos\.desktop-session-` selector runs all ten registered R7 session/guard
+behaviors.
+
+The shared R9 sanitizer job is restored to its prior target list and selectors,
+preserving concurrent R3/R5/R6/R8/R9 ownership. Production source, AppKit
+observer wiring and macOS native reachability remain unchanged. The new job
+uses only synthetic callbacks and no live desktop, TCC, capture, cursor or
+input action.
+
+Workflow/documentation review is **PASS**. Canonical owner-local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted full suites, the dedicated R7 sanitizer job,
+documentation policy and SDK/package evidence are **PENDING** after
+publication. Owner macOS 27 fast-user-switch delivery, genuine non-forgeable
+R2/R3 macOS admission and Microsoft-client M5 acceptance remain
+**NOT RUN/OPEN**. **M5 remains OPEN/BLOCKED**.

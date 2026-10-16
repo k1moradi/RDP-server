@@ -158,7 +158,6 @@ jobs:
             test_owned_remote_transfer test_clipboard_protocol \
             test_windows_clipboard_adapter test_macos_clipboard_adapter \
             test_linux_clipboard_file_destination \
-            test_macos_desktop_session_guard \
             test_x264_avc420_encoder \
             test_x264_avc420_segmented_frame_producer \
             test_owned_mcs_connect_initial test_owned_preauth_session \
@@ -183,15 +182,6 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --build-config Debug --timeout 60 -L x264 --output-on-failure
-
-      - name: Run R7 macOS session-watch CTests with sanitizers
-        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: |
-          ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^macos\.desktop-session-' --output-on-failure
 
       - name: Run bounded R1/R3 MCS, CredSSP and licensing CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
@@ -242,6 +232,40 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --build-config Debug --timeout 60 -R '^fuzz\.mcs-cliprdr-bounded$' --output-on-failure
+
+  r7-macos-session-sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GCC sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gcc
+          command -v g++
+          gcc --version
+          g++ --version
+      - name: Configure R7 session-watch tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile R7 session-watch test target
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_macos_desktop_session_guard
+      - name: Run R7 macOS session-watch CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^macos\.desktop-session-' --output-on-failure
 
   documentation-policy:
     if: github.event_name == 'push'

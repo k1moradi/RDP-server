@@ -5211,3 +5211,30 @@ all production security checks unchanged. **PASS** local CMake
 **NOT RUN at authoring:** exact-SHA hosted CTest following this
 test-only correction and owner Linux/X11/Windows CLANG64/macOS27
 acceptance. Next: exact CI and original owner one-liner.
+
+## R10 POSIX fixture normalization exact-SHA CI PASS (2026-10-15)
+
+**Implementation correction:** `a0c39e4a612c740949c05e4a9699f711061c21d0`.
+[GitHub Actions 38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646)
+**completed SUCCESS** across five jobs: hosted Linux/GCC full
+CTest **226/226 Debug and 226/226 Release**, hosted macOS/Clang
+**209/209 Debug and 209/209 Release**, hosted Windows/MSVC
+**228/228 Debug and 228/228 Release**, R9 native security sanitizer
+and documentation-policy PASS. All three OS downstream SDK consumers
+**1/1 PASS**; ZIP packaging, digest and artifact upload PASS.
+On each OS, the two owner-reported R10 tests
+`runtime.validates-configuration-syntax` and
+`runtime.validates-configuration-comments-crlf` now **PASS**.
+The new POSIX mode-normalization test also **PASS** on Linux and
+macOS. The prior local `file(CHMOD)` typo was corrected from
+`OTHERS_WRITE` to supported `WORLD_WRITE`. No production code
+was weakened; only private fixture modes, CI YAML integrity and
+behavior-named CTest coverage changed.
+
+**NOT RUN:** owner's original Linux/X11, Windows MSYS2 CLANG64
+Clang 23, macOS27 same-SHA terminal command after a fresh pull,
+external RDP client, real credentials/OS authorization, listener,
+desktop, and release security gates. The likely owner umask cause
+is supported by a local 666-to-600 probe but not conclusively
+established for the owner's machine from a two-line failure list.
+M1–M6 remain OPEN.

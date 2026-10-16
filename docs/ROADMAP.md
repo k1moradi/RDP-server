@@ -277,6 +277,26 @@ group-writable denial is unchanged. Exact-SHA CI for this correction
 **NOT RUN at authoring**; owner's original terminal outcome after
 pull remains NOT RUN. No RDP runtime production code changed.
 
+**R10 POSIX fixture normalization exact-SHA CI PASS (2026-10-15):**
+Corrected test/script commit [`a0c39e4a612c740949c05e4a9699f711061c21d0`](https://github.com/k1moradi/RDP-server/commit/a0c39e4a612c740949c05e4a9699f711061c21d0)
+passed [Actions 38850747646](https://github.com/k1moradi/RDP-server/actions/runs/38850747646).
+Hosted Linux/GCC **226/226**, macOS/Clang **209/209**, and
+Windows/MSVC **228/228** full CTests all PASS in **both Debug and
+Release**. `runtime.validates-configuration-syntax` and
+`runtime.validates-configuration-comments-crlf` explicitly PASS
+on every hosted OS, and the added
+`runtime.validates-configuration-mode-normalization` explicitly
+PASSes on Linux/macOS. R9 sanitizer job, hosted documentation
+policy and per-OS downstream SDK consumer **1/1** PASS; protocol
+ZIP/SHA256 packaging succeeds. The CI workflow is again valid,
+with one sanitizer, documentation and prerelease job.
+No production security policy was relaxed. **NOT RUN:** owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27 original
+terminal after latest pull; failure root cause on owner's host
+remains provisional until original `ctest --output-on-failure`
+diagnostics are provided. Real TLS private-key permissions,
+R2/R3 admission, Microsoft client and M1–M6 acceptance OPEN.
+
 **R10 Windows CRLF fixture regression (2026-10-15):** The first
 published R10 increment `a7234f40c4e2188b1170daf363136a6ac159c025`
 passed the Ubuntu/GCC and macOS/Clang CI jobs, but Windows/MSVC Debug

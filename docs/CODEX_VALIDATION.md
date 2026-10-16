@@ -7562,3 +7562,51 @@ authorized R3->R8 route.
 Implementation `46694f15e388f9929538bafda7f1454559c56a42`, Actions `38876241172`: hosted macOS/AppleClang 21 **COMPILED and LINKED** the real Objective-C++ `screen_capture_stream.mm` into `librdp-server-macos-capture.a`, then built the native lifecycle test executable. `macos.capture-stream-lifecycle`, `macos.capture-stream-stale-generation-denials`, and `macos.capture-stream-callback-retirement` all **PASS**. The full macOS Debug suite is **269/270**, with the sole failure in unrelated `transport.gcc-conference-create` (`earlyCapabilityFlags` assertion); therefore the macOS job is **FAIL**, not a full-suite R7 PASS. Linux is **FAIL** before R7-native code is relevant because concurrent R5 `x11_desktop_resources.cpp` fails `-Werror=extra`; documentation-policy and the R9 sanitizer job **PASS**. Windows remained **IN PROGRESS** when this receipt was authored.
 
 Live ScreenCaptureKit capture, TCC prompt/request, owner macOS 27, genuine R2/R3-authorized desktop binding, R4 client delivery, cursor/input, and Microsoft-client acceptance remain **NOT RUN**. The hosted compile/link result proves SDK compatibility of this bridge only; it does not prove protected screen access. M5 remains **OPEN**.
+
+
+## R9 X11 clipboard sanitizer authoring evidence (2026-10-16; CI pending)
+
+**Starting inspection head:** `9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`;
+reconciled through R2/R8 documentation on `e0a05f8b35df3575984c9de0b022f4af298a13a0`. Positive native R2
+admission remains credential/physical-session gated, so this QA increment
+targets newly reachable native/offline production boundaries.
+
+The existing single R9 sanitizer job adds `libxcb1-dev` to its Linux build
+dependencies and builds `test_x11_clipboard_adapter` against the real
+`rdp-server-linux-x11-clipboard` production library. The existing clipboard
+label run therefore covers the native X11 adapter under the same Clang
+ASan+UBSan+LSan environment as the portable clipboard suite. No DISPLAY, Xvfb,
+live selection owner or desktop contents are required.
+
+Independent R9 regression
+`clipboard.x11-disconnect-late-paste-fence` creates a real
+`RemoteTransfer` delayed paste receipt, starts the matching remote format
+request, disconnects the native adapter, and verifies that teardown cancels
+and consumes the exact paste receipt while leaving the already-issued protocol
+request independently owned. A valid late response can still be parsed and
+verified by `RemoteTransfer`, but cannot revive native publication, create a
+property write, send a duplicate notification, expose a stale fetch or
+recreate ownership. The existing native-operation seam is reused; no new
+harness or production authorization seam is introduced.
+
+The concurrently landed R2
+`security.gssapi-r3-protected-transition-generation-fence` is added to the
+R9 GSS sanitizer regex so the new post-handoff generation/permission fence is
+covered immediately. The scoped MIT `krb5_copy_principal` LSan suppression
+remains limited to the GSS step; no X11/clipboard test receives it.
+
+**Expected exact-SHA selections:** clipboard **24** total (19 portable plus
+five X11), unsuppressed MCS/CredSSP/licensing unchanged, GSS **8** total, and
+the existing bounded fuzzer unchanged. Canonical local build/CTest is
+**NOT RUN** in this agent environment. Exact-SHA GitHub Actions is **PENDING**.
+
+The shared branch still contains an unrelated R3 full-suite failure in
+`transport.gcc-conference-create`: the published Microsoft fixture decodes
+Client Core `earlyCapabilityFlags` as `0x0018`, not the test's
+`0x0001` expectation. R9 leaves that road's contract unchanged and will
+separate it from R9 sanitizer evidence.
+
+Real Kerberos/logind positive admission, authorized R3->R8 runtime clipboard
+routing, live X11 clipboard ownership, owner Linux/X11, Windows CLANG64/Clang23,
+macOS27, Microsoft client and performance/reliability acceptance remain
+**NOT RUN/BLOCKED**. M1-M6 remain open.

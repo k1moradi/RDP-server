@@ -6073,3 +6073,56 @@ The owner has explicit idle/preparing/ready/starting/capturing/stopping/closed/f
 ScreenCaptureKit is configured for `kCVPixelFormatType_32BGRA`, exact validated display backing dimensions, cursor exclusion for this increment, and `queueDepth = 3`. Only complete, ready video samples with an image buffer and exact dimensions are admitted; the existing `LockedBgraPixelBuffer::lock()` performs the CoreVideo format/stride/storage validation. The frame is synchronously borrowed by `MacCaptureFrameConsumer::consume()` only for the callback duration. R7 adds no unbounded graphics/frame queue; R4 remains responsible for any later owned copy, scheduling, conversion, encode and backpressure.
 
 Dedicated Apple CTests are `macos.capture-stream-lifecycle`, `macos.capture-stream-stale-generation-denials`, and `macos.capture-stream-callback-retirement`. They inject the production lifecycle backend seam and use synthetic CoreVideo buffers; they do not enumerate live shareable content, start a real stream, request Screen Recording permission, inject input or exercise cursor delivery. Cursor metadata remains the preferred next isolated R7 increment after hosted stream-lifetime evidence is stable. M5 remains **OPEN** pending genuine R2/R3 authorization, live macOS capture/input, R4 delivery, and Microsoft-client evidence.
+
+
+## R9 X11 clipboard teardown sanitizer coverage (2026-10-16; CI pending)
+
+**Starting inspection head:** `9d6fc40ec78a33e4a558f61b9f6e9f36a96110cd`.
+**Reconciled authoring base:** `e0a05f8b35df3575984c9de0b022f4af298a13a0`. Genuine positive Kerberos/TLS plus
+active physical logind admission is still unavailable, so the next R9
+increment stays on credential-free production boundaries rather than
+inventing an authorization fixture.
+
+R8 now has a real Linux `X11ClipboardAdapter` that borrows R5's XCB owner and
+the sole `RemoteTransfer`; its own exact-SHA hosted run passes all four native
+X11 clipboard behaviors, but the dedicated R9 sanitizer job still builds only
+the portable clipboard targets. R9 therefore adds `libxcb1-dev`, builds
+`test_x11_clipboard_adapter` against the real
+`rdp-server-linux-x11-clipboard` production target, and relies on the
+existing `-L clipboard` sanitizer step to execute all registered native X11
+clipboard behaviors. These tests use the existing deterministic native
+operation seam and require no DISPLAY, Xvfb, live clipboard manager or desktop
+authorization.
+
+One independent R9 behavior,
+`clipboard.x11-disconnect-late-paste-fence`, starts a real
+`RemoteTransfer` paste receipt and matching remote format request, marks the
+native fetch as started, then disconnects the adapter before the remote
+response arrives. Teardown must consume the exact paste receipt and send one
+native failure notification before destroying the borrowed-owner window. A
+subsequently valid late CLIPRDR response may still be verified by
+`RemoteTransfer`, but the disconnected adapter must issue no property write,
+no duplicate notification, no stale fetch intent and no republish. Repeated
+disconnect remains idempotent. The existing fake-XCB operation seam is reused;
+no new harness, session owner or authorization bypass is introduced.
+
+The concurrent R2 generation-bound protected-transition gate is also added to
+the existing R9 GSS sanitizer selection as
+`security.gssapi-r3-protected-transition-generation-fence`. Its production
+contract is denial/revalidation only; R9 does not synthesize a positive lease.
+
+**Expected hosted scope:** the previous 19 portable clipboard CTests plus the
+four existing R8 X11 cases and this new R9 teardown case (**24 clipboard
+cases**); the GSS selection increases from seven to eight with the new R2
+generation fence. Existing MCS/CredSSP/licensing and bounded libFuzzer
+selections remain unchanged. Canonical local build/CTest is **NOT RUN** in
+this tool environment; exact-SHA hosted CI is required after publication.
+
+A separate shared-branch defect remains outside R9:
+`transport.gcc-conference-create` expects the published Microsoft Client Core
+`earlyCapabilityFlags` to be `0x0001`, while the checked-in fixture bytes at
+the documented offset decode as `0x0018`. R9 does not modify that R3
+contract. Genuine positive R2/R3 admission, authorized R3->R8 runtime routing,
+owner Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, Microsoft-client
+interoperability and performance remain **NOT RUN/BLOCKED** as applicable.
+M1-M6 remain unaccepted.

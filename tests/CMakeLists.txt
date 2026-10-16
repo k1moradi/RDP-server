@@ -930,7 +930,8 @@ if(TARGET rdp-server-linux-x11-clipboard)
     foreach(case_name IN ITEMS
             x11-targets-publication
             x11-selection-request-nonblocking
-            x11-selection-owner-loss)
+            x11-selection-owner-loss
+            x11-disconnect-late-paste-fence)
         add_test(NAME "clipboard.${case_name}"
             COMMAND $<TARGET_FILE:test_x11_clipboard_adapter> "${case_name}")
         set_tests_properties("clipboard.${case_name}" PROPERTIES

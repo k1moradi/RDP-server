@@ -512,6 +512,73 @@ void selectionRequestNonblocking()
     assert(native.notifications.back().property == XCB_ATOM_NONE);
 }
 
+
+void disconnectLatePasteFence()
+{
+    RemoteTransfer transfer;
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+
+    FakeNative native;
+    X11ClipboardAdapter adapter(transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{5}};
+    assert(adapter.publishCurrentRemoteOffer(start));
+
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 831, 31), start);
+    const auto fetch = adapter.pendingRemoteFetch();
+    assert(fetch);
+    assert(fetch->generation == transfer.generation());
+
+    std::vector<std::uint8_t> request;
+    assert(transfer.beginRequest(fetch->formatId, request));
+    assert(adapter.markRemoteFetchStarted(fetch->pasteSequence));
+    assert(transfer.hasOutstandingRequest());
+    assert(transfer.hasPendingPasteRequest());
+
+    const std::size_t writesBeforeDisconnect = native.propertyWrites.size();
+    const std::size_t notificationsBeforeDisconnect =
+        native.notifications.size();
+
+    // R5/R8 native teardown must cancel the exact paste receipt before the
+    // borrowed XCB window disappears. The already-sent CLIPRDR request may
+    // still receive a late response, but that data has no native publisher.
+    adapter.disconnect();
+    assert(!adapter.valid());
+    assert(!adapter.ownsClipboard());
+    assert(!adapter.pendingRemoteFetch());
+    assert(!transfer.hasPendingPasteRequest());
+    assert(transfer.hasOutstandingRequest());
+    assert(native.propertyWrites.size() == writesBeforeDisconnect);
+    assert(native.notifications.size() ==
+           notificationsBeforeDisconnect + 1U);
+    assert(native.notifications.back().property == XCB_ATOM_NONE);
+    assert(native.destroyWindowCalls == 1);
+
+    const std::array<std::uint8_t, 10> textWire{
+        'l', 0, 'a', 0, 't', 0, 'e', 0, 0, 0};
+    const auto lateResponseWire = responsePdu(textWire);
+    const auto lateResponse = transfer.receiveResponse(lateResponseWire);
+    assert(lateResponse.status == RemoteTransfer::ResponseStatus::Received);
+    assert(transfer.storeVerifiedUnicodeText(lateResponse));
+    assert(!transfer.hasOutstandingRequest());
+
+    // A late verified payload remains owned only by RemoteTransfer. The
+    // disconnected adapter cannot emit a property, notify, or new fetch.
+    assert(adapter.servicePendingPaste(
+        start + std::chrono::milliseconds{1}));
+    assert(native.propertyWrites.size() == writesBeforeDisconnect);
+    assert(native.notifications.size() ==
+           notificationsBeforeDisconnect + 1U);
+    assert(!adapter.pendingRemoteFetch());
+    assert(!adapter.markRemoteFetchStarted(fetch->pasteSequence));
+    assert(!adapter.publishCurrentRemoteOffer(
+        start + std::chrono::milliseconds{2}));
+
+    adapter.disconnect();
+    assert(native.destroyWindowCalls == 1);
+}
+
 void selectionOwnerLoss()
 {
     RemoteTransfer transfer;
@@ -608,6 +675,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-selection-owner-loss")
     {
         selectionOwnerLoss();
+        return 0;
+    }
+    if (behavior == "x11-disconnect-late-paste-fence")
+    {
+        disconnectLatePasteFence();
         return 0;
     }
     assert(false && "unknown X11 clipboard behavior");

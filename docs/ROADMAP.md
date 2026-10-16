@@ -1,3 +1,48 @@
+## R2 licensing key-material non-authority exact-SHA validation (2026-10-16)
+
+**Implementation chain:** `394a17d930044fcbbd247747c05b7a9174997d22`,
+`7392882bfdbe7f960d329b4f175675c9ac07b44d`, shared CI repair
+`93ab919dc2a3de53d551471599c04310dd25f35e`, documented descendant
+`6702ccf1369c2417831c2798734dc7c8758ecabb`.  
+**Actions:** [38935079463](https://github.com/k1moradi/RDP-server/actions/runs/38935079463) — **SUCCESS**.
+
+The exact documented descendant passes Linux/GCC **459/459 Debug** and
+**459/459 Release**, macOS/Clang **385/385 Debug** and **385/385 Release**,
+and Windows/MSVC focused native preflight **46/46** in both configurations plus
+full CTest **414/414 Debug** and **414/414 Release**. Installed SDK consumer,
+packaging, digest/artifact upload and documentation policy pass. The dedicated
+R7 sanitizer job also passes.
+
+R9 Clang ASan/UBSan passes all selected groups: clipboard **50/50**, R4
+x264/BGRA **20/20**, bounded R1/R3 MCS/CredSSP/licensing **49/49**, native
+R2/R3 GSSAPI **27/27**, R10 pre-admission runtime **5/5**, native R5 X11
+**25/25**, and bounded fuzzer **1/1**. The strengthened
+`security.gssapi-r3-client-licensing-route-contract` executes in the native
+R2/R3 group and passes, after constructing a complete client licensing request,
+extracting key-exchange metadata and successfully deriving deterministic
+licensing keys before proving those values still cannot replace the concrete
+move-only R2 lease/exact R1 owner.
+
+The earlier `7392882...` workflow failure had **zero jobs** and was traced to
+an inherited malformed R10 workflow splice, not protocol/test execution.
+`93ab919...` restores the valid workflow structure while preserving R10's
+intended new sanitizer selection; the successful `6702ccf...` run confirms
+that repair.
+
+This closes the credential-free R2 review for licensing key material as
+non-authority. It does not prove premaster decryption, MAC/license validation,
+a positive server licensing decision, final-CredSSP authorization, NSS/logind
+lease issuance or Microsoft-client acceptance. Canonical owner-local
+`~/rdp-server/build/`, genuine Kerberos/final-CredSSP + NSS/logind positive
+admission and M2/M3 remain **NOT RUN / OPEN**.
+
+**Next R2:** keep the current API unchanged until R3 exposes a real server
+licensing decision, challenge/issuance, or activation publication/completion
+boundary. Then require the same fresh concrete lease + exact R1 owner
+authorization immediately before publication and again before asynchronous
+accepted-byte completion; do not treat parsed/derived licensing material as
+authority.
+
 ## R9 licensing key-material terminal replay exact-SHA receipt (2026-10-16)
 
 **Implementation:** `4be6e17ed741be198bf0d15e7921af66340904ac`.  

@@ -4348,6 +4348,7 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   `clipboard.x11-targets-publication`,
   `clipboard.x11-selection-request-nonblocking`,
   `clipboard.x11-selection-owner-loss`,
+  `clipboard.x11-disconnect-late-paste-fence`,
   `clipboard.x11-incr-large-text-progression`,
   `clipboard.x11-incr-png-progression`, and
   `clipboard.x11-incr-cancellation`.

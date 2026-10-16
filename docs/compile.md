@@ -142,7 +142,7 @@ When pkg-config finds `xcb`, Linux builds the noninstalled
 `rdp-server-linux-x11-clipboard` target from the real
 `src/x11/x11_clipboard_adapter.cpp`. Debian/Ubuntu provide the required
 header/library through `libxcb1-dev`, already installed by hosted Linux CI.
-The seven `clipboard.x11-*` CTests use a deterministic native-call seam and
+The eight `clipboard.x11-*` CTests use a deterministic native-call seam and
 need no `DISPLAY`, Xvfb, clipboard manager, RDP client or actual desktop
 data. The INCR cases exercise large UTF-8, validated registered PNG,
 PropertyDelete chunk progression, final zero-length completion, timeout,

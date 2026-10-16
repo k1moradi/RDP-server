@@ -1,5 +1,14 @@
 ## R5 RandR stale-damage sequence-fence correction authoring (2026-10-16)
 
+## R2 Linux PAM verifier authoring receipt (2026-10-16)
+
+**Authoring parent:** `5b5f349f96195c42eaf0e67ab5445d9887d0b195`.
+
+Current-source review confirms final CredSSP is still terminal deny-only and no existing source changes `ownedCredSspCredentialAuthorizationComplete_`. This increment adds one real Linux-PAM verifier with no injected positive provider. It performs one-shot explicit service configuration, bounded account/password validation, UTF-16LE→UTF-8 conversion in cleansed stack storage, one password conversation, real `pam_authenticate`, real `pam_acct_mgmt`, and fail-closed provider cleanup.
+
+CTest `security.linux-pam-password-verifier-denials` exercises invalid service/account/password boundaries and the real PAM API only for a nonexistent synthetic account; it cannot authorize a real user. R9 explicitly builds and executes this behavior with ASan/UBSan. Canonical local build/full CTest is **NOT RUN** here; exact publication-SHA hosted evidence is **PENDING**. No positive Kerberos/PAM/NSS/logind lease or Microsoft-client M2 acceptance is claimed.
+
+
 **Correction parent:** `83d05e8076982545e57b75b78f5f5b212ddde865`.  
 **Failing implementation:** `c1d5296dcd2b1cc50126188970a6cb4a50658898`.  
 **Failing Actions:** `38976824134`.

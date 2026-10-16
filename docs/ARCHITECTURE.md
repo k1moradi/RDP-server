@@ -1,5 +1,14 @@
 ## R5 XDamage event generation fence (2026-10-16)
 
+## R2 Linux PAM verifier boundary (2026-10-16)
+
+The Linux PAM verifier is a subordinate OS-authentication primitive, not an R2 capability. It owns only an explicit PAM service name and one synchronous verification call; it has no socket/TLS/GSS/session/logind state and cannot construct a `LinuxConsoleAdmissionLease`.
+
+Password conversion stays inside this boundary: bounded UTF-16LE is revalidated, converted into fixed-capacity UTF-8 stack storage, and cleansed on every return path. The PAM conversation may transfer one password response into PAM's C-API ownership; R2 retains no heap/plaintext copy. Username prompts and additional secret prompts are refused.
+
+A future positive path must first parse the TLS-derived confidential `TSPasswordCreds`, match the delegated username to the immutable `ConsoleIdentityPolicy` rule for the exact provider-derived Kerberos principal, then invoke PAM. PAM success plus `pam_acct_mgmt` is necessary but insufficient; only the authenticated GSS owner may set the private completion proof, and `LinuxConsoleAdmissionBroker` must still independently revalidate exact R1 HYBRID/TLS provenance, NSS/logind foreground-session facts, permissions, freshness, generation and change-watch state.
+
+
 A geometry rebuild may occur while XCB still holds events generated for the
 retiring XDamage resource. Resource ID plus extension event type are not treated
 as sufficient generation provenance. Each `X11DamageTracker` records the full

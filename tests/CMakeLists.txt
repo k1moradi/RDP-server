@@ -569,6 +569,17 @@ if(TARGET rdp-server-linux-gssapi)
         rdp-server-linux-gssapi)
 endif()
 
+if(TARGET rdp-server-linux-pam-password-verifier)
+    add_rdp_test(
+        test_linux_pam_password_verifier.cpp
+        security linux-pam-password-verifier-denials)
+    target_link_libraries(test_linux_pam_password_verifier PRIVATE
+        rdp-server-linux-pam-password-verifier)
+    set_tests_properties(
+        security.linux-pam-password-verifier-denials
+        PROPERTIES LABELS "security;linux-provider;pam;offline")
+endif()
+
 if(TARGET rdp-server-linux-runtime-security)
     find_path(RDP_SERVER_TEST_KRB5_INCLUDE_DIR NAMES krb5.h REQUIRED)
     find_library(RDP_SERVER_TEST_KRB5_LIBRARY NAMES krb5 REQUIRED)

@@ -50,8 +50,18 @@ endif()
 # protocol SDK, macOS/Windows builds or default downstream consumers.
 option(RDP_SERVER_TEST_LINUX_GSSAPI
        "Compile/test the first-party Linux GSSAPI provider (no admission)" OFF)
+option(RDP_SERVER_TEST_LINUX_PAM
+       "Compile/test the Linux PAM password verifier boundary (no admission)" OFF)
 option(RDP_SERVER_TEST_REAL_KERBEROS
        "Opt-in REAL external FILE: keytab+ticket SPNEGO validation (no OS admission)" OFF)
+if(RDP_SERVER_TEST_LINUX_PAM)
+    if(NOT RDP_SERVER_TEST_LINUX_GSSAPI OR
+       NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
+       NOT BUILD_TESTING OR NOT RDP_SERVER_BUILD_TESTING)
+        message(FATAL_ERROR
+            "Linux PAM verifier validation requires Linux GSSAPI test mode")
+    endif()
+endif()
 if(RDP_SERVER_TEST_REAL_KERBEROS)
     if(NOT RDP_SERVER_TEST_LINUX_GSSAPI OR
        NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
@@ -565,6 +575,10 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     endif()
     find_path(RDP_SERVER_GSSAPI_INCLUDE_DIR NAMES gssapi/gssapi.h REQUIRED)
     find_library(RDP_SERVER_GSSAPI_LIBRARY NAMES gssapi_krb5 REQUIRED)
+    if(RDP_SERVER_TEST_LINUX_PAM)
+        find_path(RDP_SERVER_PAM_INCLUDE_DIR NAMES security/pam_appl.h REQUIRED)
+        find_library(RDP_SERVER_PAM_LIBRARY NAMES pam REQUIRED)
+    endif()
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
         pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN QUIET IMPORTED_TARGET
@@ -602,6 +616,26 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     endif()
     # Not installed or exported; requires an actual Linux Kerberos provider
     # and independently authorized OS admission in a future service.
+
+    # R2 real Linux password-verifier boundary. It is deliberately separate
+    # from GSS/native admission: no synthetic result can set the private R2
+    # completion latch, and ordinary non-Linux/default builds gain no PAM.
+    if(RDP_SERVER_TEST_LINUX_PAM)
+        add_library(rdp-server-linux-pam-password-verifier STATIC
+            src/server/security/linux_pam_password_verifier.cpp)
+        target_compile_features(
+            rdp-server-linux-pam-password-verifier PUBLIC cxx_std_23)
+        target_include_directories(
+            rdp-server-linux-pam-password-verifier
+            PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+            PRIVATE "${RDP_SERVER_PAM_INCLUDE_DIR}")
+        target_link_libraries(
+            rdp-server-linux-pam-password-verifier PRIVATE
+            OpenSSL::Crypto "${RDP_SERVER_PAM_LIBRARY}")
+        target_compile_options(
+            rdp-server-linux-pam-password-verifier PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
 
     # R10 Linux pre-listener security provisioning. It retains one securely
     # opened keytab object and one immutable native identity policy, then
@@ -740,7 +774,8 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "macos" EXCLUDE
     PATTERN "linux" EXCLUDE
     PATTERN "x11" EXCLUDE
-    PATTERN "runtime_credential_file_internal.h" EXCLUDE)
+    PATTERN "runtime_credential_file_internal.h" EXCLUDE
+    PATTERN "linux_pam_password_verifier.h" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake
     NAMESPACE RDPServer::

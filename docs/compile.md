@@ -1,3 +1,25 @@
+## R2 Linux PAM verifier build boundary (2026-10-16)
+
+The new verifier remains outside the portable SDK and default build graph.
+Enable it only together with the existing Linux GSSAPI developer gate:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+  -DRDP_SERVER_TEST_LINUX_GSSAPI=ON \
+  -DRDP_SERVER_TEST_LINUX_PAM=ON
+```
+
+On Debian/Ubuntu the additional development package is `libpam0g-dev`.
+CMake requires both `security/pam_appl.h` and `libpam` when the PAM gate is
+enabled. macOS, Windows, the installed protocol SDK and ordinary builds with the
+gate off gain no PAM dependency. The verifier target is noninstalled and its
+header is explicitly excluded from SDK installation.
+
+The ordinary hosted Linux Debug job and R9 sanitizer job enable the PAM gate.
+Release packaging continues through the existing portable configuration and
+does not export or package this native verifier. No PAM service file, account
+or credential is installed or synthesized by the build.
+
 ## R10 offline licensing credential preflight (2026-10-16)
 
 The noninstalled runtime executable accepts one additional offline command:

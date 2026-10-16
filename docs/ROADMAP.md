@@ -1,3 +1,15 @@
+## R2 Linux PAM password-verifier boundary (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `5b5f349f96195c42eaf0e67ab5445d9887d0b195`.
+
+R2 adds a real Linux-PAM password-verifier component without wiring it to the private final-CredSSP completion latch or native admission. `LinuxPamPasswordVerifier` is Linux-only, noninstalled and enabled only by `RDP_SERVER_TEST_LINUX_PAM=ON`, which requires the existing Linux GSSAPI test mode. There is no fake verifier, caller-supplied success Boolean or public lease path.
+
+The verifier uses explicit one-shot PAM service configuration, bounded policy-compatible local account input, bounded UTF-16LE password validation, allocation-free UTF-8 conversion into a cleansed stack buffer, a single-password PAM conversation, real `pam_authenticate`, and real `pam_acct_mgmt`. Username prompts and extra secret prompts fail closed. Dedicated CTest `security.linux-pam-password-verifier-denials` uses no credential fixture and calls the real host PAM stack only with a deliberately nonexistent synthetic account; only Denied or ProviderFailure are accepted.
+
+Hosted Linux and R9 install `libpam0g-dev`, enable the PAM gate, build the production verifier and execute the exact CTest. `ownedCredSspCredentialAuthorizationComplete_` remains false and final authInfo remains terminal deny-only. The next R2 step is authenticated in-provider extraction of `TSPasswordCreds.userName` and exact match to the immutable Kerberos-principal→local-account policy mapping before PAM can participate in any positive path. Real positive Kerberos/PAM/NSS/logind authorization and M2 remain **BLOCKED / NOT RUN**.
+
+Canonical owner-local `~/rdp-server/build/` testing is **NOT RUN** in this connector environment. Exact-SHA hosted platform/sanitizer/docs/package evidence is **PENDING**.
+
 ## R5 RandR stale-damage sequence-fence correction (2026-10-16; exact-SHA CI pending)
 
 **Correction parent:** `83d05e8076982545e57b75b78f5f5b212ddde865`.  

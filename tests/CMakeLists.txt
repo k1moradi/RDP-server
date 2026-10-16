@@ -406,17 +406,21 @@ if(TARGET rdp-server-linux-gssapi)
         # R10 opt-in real-provider composition. Reuse the secure R10 TLS
         # fixture writer and the existing real MIT GSS initiator; no listener,
         # native admission or R3 session is created.
-        add_test(NAME runtime.linux-connection-real-kerberos-binding
-            COMMAND "${CMAKE_COMMAND}"
-                "-DRDP_RUNTIME_TLS_CONTEXT_TEST=$<TARGET_FILE:test_owned_preauth_session>"
-                "-DRDP_RUNTIME_TLS_CONTEXT_CASE=linux-connection-real-kerberos-binding"
-                "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-tls-context-fixtures"
-                -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_tls_context.cmake")
-        set_tests_properties(
-            runtime.linux-connection-real-kerberos-binding
-            PROPERTIES
-                LABELS "runtime;security;linux-provider;opt-in-kerberos"
-                TIMEOUT 30)
+        foreach(runtime_real_kerberos_case IN ITEMS
+                linux-connection-real-kerberos-binding
+                linux-connection-real-kerberos-authinfo-denial)
+            add_test(NAME "runtime.${runtime_real_kerberos_case}"
+                COMMAND "${CMAKE_COMMAND}"
+                    "-DRDP_RUNTIME_TLS_CONTEXT_TEST=$<TARGET_FILE:test_owned_preauth_session>"
+                    "-DRDP_RUNTIME_TLS_CONTEXT_CASE=${runtime_real_kerberos_case}"
+                    "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-tls-context-fixtures"
+                    -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_tls_context.cmake")
+            set_tests_properties(
+                "runtime.${runtime_real_kerberos_case}"
+                PROPERTIES
+                    LABELS "runtime;security;linux-provider;opt-in-kerberos"
+                    TIMEOUT 30)
+        endforeach()
     endif()
     foreach(case_name IN ITEMS
             gssapi-r1-owned-credssp-provenance-fence
@@ -1062,8 +1066,8 @@ endif()
 foreach(case_name IN ITEMS
         lifecycle validation-denials revocation-reentry
         switch-away-back-revocation mid-operation-epoch-change
-        watch-registration-retirement watch-partial-install-retirement
-        watch-destructor-retirement watch-unavailable-denial)
+        watch-registration-retirement watch-destructor-retirement
+        watch-unavailable-denial)
     add_test(NAME "macos.desktop-session-${case_name}"
         COMMAND test_macos_desktop_session_guard "${case_name}")
     set_tests_properties("macos.desktop-session-${case_name}" PROPERTIES

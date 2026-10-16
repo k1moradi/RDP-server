@@ -4090,3 +4090,30 @@ PASS is to drive the existing R2 final-`authInfo`
 `UnsupportedFinalCredentials` denial through this same aggregate, then keep
 native NSS/logind admission blocked until R2 defines a reviewed positive final
 credential authorization contract.
+
+## R10 real-Kerberos aggregate final-authInfo denial gate (2026-10-16; execution pending)
+
+Starting reconciled shared `main`: `6b45368b57ec0213212f3e3f42ff9a1ec5ee3d10`. The newly added R10
+real-Kerberos aggregate fixture is extended with a second dedicated opt-in CTest,
+`runtime.linux-connection-real-kerberos-authinfo-denial`. It reuses the same
+production `LinuxRuntimeConnection`, R1 HYBRID/TLS owner, R2 MIT-GSS
+handshake and verified public-key binding, then GSS-wraps one bounded valid
+TSPasswordCreds envelope and submits it as the final CredSSP `authInfo`.
+
+The expected result is the existing R2 policy outcome
+`UnsupportedFinalCredentials`. R10 must preserve the exact plaintext-read
+receipt, emit no reply bytes, surface that distinct terminal denial, close R3,
+revoke R2 state/lease authority, retire the framing objects, then cancel R1.
+The case also proves the aggregate cannot resume on a late CredSSP callback.
+It never turns decrypted credentials into a native identity, never creates a
+lease, never invokes MCS progression and never enables a listener/service.
+
+Both real-Kerberos aggregate cases compile in the ordinary Linux GSS test
+binary, but are registered only with
+`RDP_SERVER_TEST_REAL_KERBEROS=ON` and explicit external service keytab and
+client cache. Credentialed execution is **NOT RUN** in this connector
+environment. Exact-SHA ordinary hosted CI remains regression/compile evidence
+only, not a real-Kerberos PASS. M2/M3 remain **OPEN**. With final credentials
+still policy-denied by R2, positive NSS/logind admission is correctly
+**BLOCKED** rather than synthesized; the next R10 production gate depends on a
+reviewed R2 positive final-credential authorization contract.

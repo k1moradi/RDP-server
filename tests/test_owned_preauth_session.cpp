@@ -7398,9 +7398,10 @@ void establishRuntimeAggregateHybridTls(
 // Opt-in real-provider proof for the complete non-listening R10 aggregate.
 // The externally supplied ticket/keytab are used only by MIT GSS. The test
 // stops at R2 BindingVerified and never creates native admission or R3 state.
-void testRuntimeRealKerberosOwnedBinding(
+void runRuntimeRealKerberosAggregateScenario(
     const char *certificatePath,
-    const char *privateKeyPath)
+    const char *privateKeyPath,
+    bool finalAuthInfoDenial)
 {
     const char *serviceName = std::getenv("RDP_TEST_KRB5_SERVICE");
     const char *serviceKeytab = std::getenv("RDP_TEST_KRB5_KEYTAB");
@@ -7570,6 +7571,79 @@ void testRuntimeRealKerberosOwnedBinding(
         assert(connection.mcsPhase() ==
                McsSessionPhase::AwaitVerifiedR2Admission);
 
+        if (finalAuthInfoDenial)
+        {
+            std::array<std::uint8_t, 29> credentials{
+                0x30, 0x1b,
+                0xa0, 0x03, 0x02, 0x01, 0x01,
+                0xa1, 0x14, 0x04, 0x12,
+                0x30, 0x10,
+                0xa0, 0x02, 0x04, 0x00,
+                0xa1, 0x04, 0x04, 0x02, 0x75, 0x00,
+                0xa2, 0x04, 0x04, 0x02, 0x70, 0x00};
+            assert(inspectCredSspCredentials(credentials));
+
+            auto encryptedAuthInfo = client.seal(credentials);
+            OPENSSL_cleanse(credentials.data(), credentials.size());
+            auto authInfoRequest = realKerberosAuthInfoDer(
+                version, encryptedAuthInfo);
+            OPENSSL_cleanse(
+                encryptedAuthInfo.data(), encryptedAuthInfo.size());
+            encryptedAuthInfo.clear();
+
+            const std::size_t expectedAuthInfoBytes =
+                authInfoRequest.size();
+            writeRuntimeTlsClientAll(
+                clientTls.connection.get(), authInfoRequest);
+            OPENSSL_cleanse(
+                authInfoRequest.data(), authInfoRequest.size());
+            authInfoRequest.clear();
+
+            std::size_t authInfoBytesRead = 0;
+            LinuxCredSspStepStatus terminalStatus{
+                LinuxCredSspStepStatus::NeedRead};
+            const auto authInfoDeadline = runtimeTlsFixtureDeadline();
+            for (std::size_t stepIndex = 0;
+                 stepIndex < kMaximumCredSspRequestBytes + 16 &&
+                 RuntimeClock::now() < authInfoDeadline;
+                 ++stepIndex)
+            {
+                const auto step = connection.onCredSspIoReady();
+                authInfoBytesRead += step.plaintextBytesRead;
+                assert(step.plaintextBytesWritten == 0);
+                assert(authInfoBytesRead <= expectedAuthInfoBytes);
+                terminalStatus = step.status;
+
+                if (terminalStatus ==
+                    LinuxCredSspStepStatus::UnsupportedFinalCredentials)
+                {
+                    break;
+                }
+                assert(terminalStatus ==
+                           LinuxCredSspStepStatus::Progress ||
+                       terminalStatus ==
+                           LinuxCredSspStepStatus::NeedRead ||
+                       terminalStatus ==
+                           LinuxCredSspStepStatus::NeedWrite);
+                if (terminalStatus != LinuxCredSspStepStatus::Progress)
+                    std::this_thread::sleep_for(
+                        std::chrono::milliseconds{1});
+            }
+
+            assert(terminalStatus ==
+                   LinuxCredSspStepStatus::UnsupportedFinalCredentials);
+            assert(authInfoBytesRead == expectedAuthInfoBytes);
+            assert(!connection.ready());
+            assert(connection.gssStage() == SpnegoStage::Failed);
+            assert(connection.admissionState() ==
+                   LinuxConsoleAdmissionState::Revoked);
+            assert(connection.mcsPhase() == McsSessionPhase::Closed);
+            assert(!connection.hasAdmissionLease());
+            assert(connection.onCredSspIoReady().status ==
+                   LinuxCredSspStepStatus::Closed);
+            continue;
+        }
+
         connection.revoke();
         assert(!connection.ready());
         assert(connection.gssStage() == SpnegoStage::Failed);
@@ -7580,6 +7654,22 @@ void testRuntimeRealKerberosOwnedBinding(
         assert(connection.onCredSspIoReady().status ==
                LinuxCredSspStepStatus::Closed);
     }
+}
+
+void testRuntimeRealKerberosOwnedBinding(
+    const char *certificatePath,
+    const char *privateKeyPath)
+{
+    runRuntimeRealKerberosAggregateScenario(
+        certificatePath, privateKeyPath, false);
+}
+
+void testRuntimeRealKerberosAuthInfoDenial(
+    const char *certificatePath,
+    const char *privateKeyPath)
+{
+    runRuntimeRealKerberosAggregateScenario(
+        certificatePath, privateKeyPath, true);
 }
 
 enum class RealKerberosOwnedCredSspScenario : std::uint8_t
@@ -8801,11 +8891,15 @@ int main(int argc, char **argv)
             return 0;
         }
 #ifdef RDP_TEST_REAL_KERBEROS
-        if (fixtureCase == "linux-connection-real-kerberos-binding")
+        if (fixtureCase == "linux-connection-real-kerberos-binding" ||
+            fixtureCase == "linux-connection-real-kerberos-authinfo-denial")
         {
             if (argc != 4 || argv[2] == nullptr || argv[3] == nullptr)
                 return 2;
-            testRuntimeRealKerberosOwnedBinding(argv[2], argv[3]);
+            if (fixtureCase == "linux-connection-real-kerberos-binding")
+                testRuntimeRealKerberosOwnedBinding(argv[2], argv[3]);
+            else
+                testRuntimeRealKerberosAuthInfoDenial(argv[2], argv[3]);
             return 0;
         }
 #endif

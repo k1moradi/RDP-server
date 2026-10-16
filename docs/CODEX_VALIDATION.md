@@ -1,5 +1,28 @@
 ## R5 RandR stale-damage generation fence exact-SHA hosted validation (2026-10-16)
 
+## R2 PAM workflow full reconstruction receipt (2026-10-16)
+
+The first PAM publication `506408ff00617fa86643dcf0cfe832ae108e0b32`
+and partial workflow repair `8733cc9c1fa4925755d7bf311db883f9c5e7f57e`
+both failed before any Actions job was created. The original JavaScript
+replacement-string bug duplicated a sanitizer/workflow suffix after the
+prerelease job; the first repair corrected the intended R9 block but left that
+trailing duplicate in place. Neither failed workflow is compiler, CTest, PAM,
+or sanitizer evidence.
+
+This correction reconstructs `.github/workflows/ci.yml` from the known-valid
+shared-main workflow at `5b5f349f96195c42eaf0e67ab5445d9887d0b195`,
+then reapplies only the intended R2 PAM CI changes and preserves R3's concurrent
+flattened licensing sanitizer selector from
+`dd9ebf76bb1087a25733f74744d155a1f903d1b8`. The rebuilt workflow has one
+prerelease job, one R10 runtime-security sanitizer step, one R2 PAM sanitizer
+step, and no text after the prerelease publish command.
+
+Production PAM verifier semantics are unchanged. The exact-SHA run from this
+correction is the first valid hosted compile/test evidence for the R2 PAM
+boundary.
+
+
 **Production correction:** `741015795132a623033fabfff624a2a4794088e1`.  
 **Actions:** `38977250042` — workflow overall **FAIL** only because the
 concurrently expanded R1/R3 licensing sanitizer selector is rejected by CTest

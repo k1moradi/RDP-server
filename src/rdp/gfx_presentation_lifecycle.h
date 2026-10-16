@@ -99,6 +99,11 @@ public:
     [[nodiscard]] bool requestSurfaceDelete(std::uint64_t generation) noexcept;
 
     [[nodiscard]] bool canSubmitFrame(std::uint64_t generation) const noexcept;
+    // Also preflight the actual frame ID and receipt serial before stateful
+    // encoding. Uses the one authoritative ACK window; it reserves nothing.
+    // The R4 event-thread owner must serialize this check with publication.
+    [[nodiscard]] bool canReserveFrame(
+        std::uint64_t generation, std::uint32_t frameId) const noexcept;
     // Reserve exactly one outbound complete frame at a time; no ACK yet.
     [[nodiscard]] bool beginFrameDelivery(
         std::uint64_t generation, std::uint32_t frameId,

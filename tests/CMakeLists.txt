@@ -1293,6 +1293,7 @@ foreach(case_name IN ITEMS
         x264-segmented-delivery-continuity
         x264-segmented-backpressure-preflight
         x264-segmented-metadata-preflight
+        x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset
         bgra-nv12-bt709-pixel-oracle
         bgra-nv12-stride-padding-lifetime

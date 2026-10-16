@@ -1,3 +1,31 @@
+## R4 frame-ID reservation preflight authoring (2026-10-16)
+
+**Inspected starting main:** `7a83947d7876574f573ac393d3e1311d40eea80f`.
+**Production:** added one read-only `GfxPresentationLifecycle::canReserveFrame()`
+combining existing map/backpressure state, serial bound and one authoritative
+`GfxFrameAckWindow::canRecordFrame()`; both full-frame reservation
+functions and both x264 input paths reuse it before encoder/conversion.
+No wire format, session authorization, transport, scheduler or capture
+API changes.
+
+**Dedicated behavior regression:**
+`graphics.x264-segmented-duplicate-id-reference-continuity` added to
+the shared test executable and centralized CTest registry. Real x264
+NV12 and BGRA paths verify that an ACK-pending duplicate ID is rejected
+before reference advancement, then a fresh frame ID retains a P-slice;
+the ACK count/output stay unchanged on denial.
+
+**Authoring validation:** source and registration review **PASS**;
+owner-local compile/test, sanitizer execution and platform acceptance
+**NOT RUN** in this connector-only environment, with no
+`~/rdp-server` checkout. Required exact canonical command:
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`.
+Exact-SHA hosted CI results must be recorded after commit; previous
+[`39443e93` run](https://github.com/k1moradi/RDP-server/actions/runs/38896116551)
+proved the BGRA reset CTest on Linux and macOS but not the new frame-ID
+regression. Real R3 Graphics DVC admission and client-visible M3/M4/M5
+remain **OPEN**.
+
 ## R6 frame-owner callback lifecycle hosted receipt (2026-10-16)
 
 **Exact SHA:** `1f6240c8d2a4e1a900edd133bfd0be94cd13b9ae`.

@@ -195,13 +195,19 @@ bool GfxPresentationLifecycle::canSubmitFrame(
                 GfxFrameAckWindow::kMaximumPendingFrames);
 }
 
+bool GfxPresentationLifecycle::canReserveFrame(
+    std::uint64_t generation, std::uint32_t frameId) const noexcept
+{
+    return canSubmitFrame(generation) &&
+           lastSerial_ != std::numeric_limits<std::uint64_t>::max() &&
+           acknowledgements_.canRecordFrame(generation, frameId);
+}
+
 bool GfxPresentationLifecycle::beginFrameDelivery(
     std::uint64_t generation, std::uint32_t frameId, std::size_t frameBytes,
     GfxFrameDeliveryReceipt &receipt) noexcept
 {
-    if (!canSubmitFrame(generation) || frameBytes == 0 ||
-        lastSerial_ == std::numeric_limits<std::uint64_t>::max() ||
-        !acknowledgements_.canRecordFrame(generation, frameId))
+    if (frameBytes == 0 || !canReserveFrame(generation, frameId))
         return false;
     pendingFrame_ = {generation, ++lastSerial_, frameId, frameBytes};
     receipt = pendingFrame_;
@@ -218,11 +224,9 @@ bool GfxPresentationLifecycle::prepareAvc420Picture(
         picture.visibleGeometry.widthPixels == 0 &&
         picture.visibleGeometry.heightPixels == 0
             ? picture.codedGeometry : picture.visibleGeometry;
-    if (!canSubmitFrame(generation) ||
+    if (!canReserveFrame(generation, picture.frameId) ||
         picture.surfaceId != surfaceId_ ||
-        visible != geometry_ ||
-        lastSerial_ == std::numeric_limits<std::uint64_t>::max() ||
-        !acknowledgements_.canRecordFrame(generation, picture.frameId))
+        visible != geometry_)
     {
         return false;
     }

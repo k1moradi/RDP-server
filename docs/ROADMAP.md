@@ -1,3 +1,47 @@
+## R4 duplicate ACK-pending frame-ID pre-encode gate (2026-10-16; exact-SHA CI pending)
+
+Starting inspected `main`: `7a83947d7876574f573ac393d3e1311d40eea80f`.
+R4's existing `GfxFrameAckWindow::canRecordFrame()` rejects a frame ID
+already outstanding on the same generation. Previously, the stateful
+`X264Avc420SegmentedFrameProducer::prepare()` and `prepareBgra()`
+preflight only called `GfxPresentationLifecycle::canSubmitFrame()`, which
+checks stage, pending send and ACK-window size but not an individual
+ACK-pending ID. Consequently, a duplicate ID could be encoded before
+`prepareAvc420Picture()` refused the reservation; R4 would then rebuild
+x264 history and force an unnecessary IDR for the next valid frame.
+
+The one existing lifecycle now exposes read-only
+`canReserveFrame(generation, frameId)`, which combines its original
+`canSubmitFrame()` test with the shared serial-overflow bound and *the
+same authoritative ACK window's* `canRecordFrame()`. Both full-frame
+reservation sites reuse this predicate. Both x264 NV12 and BGRA producers
+preflight the specific frame ID before encoding/conversion, retaining the
+existing post-encode recovery path for any truly unexpected reservation
+failure. No duplicate ACK owner, queue, transport or permission authority
+is created. The common event thread continues to serialize preflight and
+publication.
+
+New ordinary offline CTest
+`graphics.x264-segmented-duplicate-id-reference-continuity` uses the
+real vendored x264, RDPGFX packetizer and lifecycle twice: with NV12
+input and with borrowed BGRA input. Each case delivers one initial
+SPS/PPS/IDR picture, intentionally leaves its ID ACK-pending, denies
+a duplicate frame ID before encode, then verifies that a different valid
+ID produces a P-slice without recovery IDR. It verifies no rejected
+output, no ACK count change and the producer remains valid.
+
+**Authoring status:** production, centralized CTest and docs prepared;
+canonical owner `~/rdp-server/build` compile/full CTest **NOT RUN** in
+the GitHub-connector environment. Exact-final-SHA hosted
+Linux/GCC, Windows/MSVC, macOS/Clang, selected sanitizer and policy
+evidence required after publication, including the new named CTest.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang23 and macOS27, real R3
+admitted Graphics DVC/full-send, capture-to-client rendering and graphics
+benchmark remain **NOT RUN**. Gate B, M3/M4/M5 **OPEN**.
+**Next R4 gate:** verify the new exact-SHA CI and any concurrent R1/R3/R6
+failures, then integrate graphics only when R3 exposes actual authorized
+channel/full-send provenance.
+
 ## R6 frame-owner callback lifecycle exact-SHA validation (2026-10-16)
 
 Production/frame-fixture descendant

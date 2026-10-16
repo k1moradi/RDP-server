@@ -1,3 +1,20 @@
+### R4 ACK-pending frame-ID reservation before stateful encode (2026-10-16)
+
+The single `GfxPresentationLifecycle` exposes
+`canReserveFrame(generation, frameId)` as a non-mutating, event-thread-only
+read of its own mapped-surface state, full-wire send receipt status,
+bounded serial and authoritative `GfxFrameAckWindow::canRecordFrame()`.
+The `beginFrameDelivery()` and `prepareAvc420Picture()` reservation
+sites use the identical gate. R4's `X264Avc420SegmentedFrameProducer`
+calls it before stateful x264 encoding, and its borrowed BGRA path also
+calls it before Y/UV conversion. A duplicate ID already delivered but
+not ACKed is therefore an ordinary pre-encode denial, not a
+post-encode packetizer rejection. Neither x264 reference history nor
+outstanding ACK bookkeeping advances. The existing conservative encoder
+rebuild remains necessary if a post-encode publication failure nevertheless
+occurs. This is not R3 channel authorization, does not cache client ACKs
+and introduces no new scheduler/transport authority.
+
 ### R1 explicit TLS-vs-HYBRID negotiation policy (2026-10-16)
 
 Security protocol selection is immutable per-connection configuration, not a

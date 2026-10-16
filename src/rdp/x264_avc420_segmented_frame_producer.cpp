@@ -82,14 +82,15 @@ bool X264Avc420SegmentedFrameProducer::prepare(
         visibleGeometry_,
     };
 
-    // Reject every deterministic lifecycle and AVC420 envelope mismatch
-    // before x264 advances reference state. The encoded Annex-B payload is
-    // intentionally excluded from metadata validation.
+    // Reject every deterministic lifecycle, frame-ID ACK collision and
+    // AVC420 envelope mismatch before x264 advances reference state.
+    // The encoded Annex-B payload is intentionally excluded from metadata
+    // validation.
     if (!valid() || generation != generation_ ||
         request.surfaceId != lifecycle.surfaceId() ||
         request.picture.codedGeometry != codedGeometry_ ||
         !gfxAvc420PictureMetadataValid(metadata) ||
-        !lifecycle.canSubmitFrame(generation))
+        !lifecycle.canReserveFrame(generation, request.frameId))
     {
         return false;
     }
@@ -144,13 +145,13 @@ bool X264Avc420SegmentedFrameProducer::prepareBgra(
         visibleGeometry_,
     };
 
-    // All deterministic pre-encode denial gates precede BGRA conversion.
-    // In particular, a refused in-flight/ACK-window frame never wastes a
-    // conversion or changes x264's reference chain.
+    // All deterministic pre-encode denial gates, including duplicate
+    // ACK-pending frame IDs, precede BGRA conversion. Rejected requests
+    // never waste conversion or alter x264's reference chain.
     if (!valid() || generation != generation_ ||
         request.surfaceId != lifecycle.surfaceId() ||
         !gfxAvc420PictureMetadataValid(metadata) ||
-        !lifecycle.canSubmitFrame(generation))
+        !lifecycle.canReserveFrame(generation, request.frameId))
         return false;
 
     if (!bgraConverter_.convert(request.framebuffer, visibleGeometry_,

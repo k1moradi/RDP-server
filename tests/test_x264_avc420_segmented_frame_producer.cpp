@@ -602,6 +602,82 @@ void x264BgraBackpressureReferenceDenials()
     assert(!hasNalType(second.wireBytes(), 5));
 }
 
+void duplicatePendingFrameIdPreservesReferences()
+{
+    // An ACK-pending ID collides in the one authoritative R4 ACK window,
+    // even after its full wire send has completed. Refuse it before x264
+    // runs so the next distinct picture remains an inter-frame P slice.
+    {
+        constexpr std::uint64_t generation = 6201;
+        GfxPresentationLifecycle lifecycle;
+        mapSurface(lifecycle, generation, kVisible);
+        X264Avc420SegmentedFrameProducer producer;
+        assert(producer.open(generation, kCoded, kVisible));
+
+        const auto firstPixels = makeFrame(kCoded, 4);
+        const auto duplicatePixels = makeFrame(kCoded, 15);
+        const auto secondPixels = makeFrame(kCoded, 23);
+        GfxAvc420SegmentedFrame first;
+        assert(producer.prepare(
+            lifecycle, generation, request(51, firstPixels, 0), first));
+        assert(hasNalType(first.wireBytes(), 5));
+        assert(producer.completeDelivery(
+            lifecycle, first, first.wireBytes().size()));
+        assert(lifecycle.outstandingFrames() == 1);
+        assert(lifecycle.canSubmitFrame(generation));
+        assert(!lifecycle.canReserveFrame(generation, 51));
+        assert(lifecycle.canReserveFrame(generation, 52));
+
+        GfxAvc420SegmentedFrame denied;
+        assert(!producer.prepare(
+            lifecycle, generation, request(51, duplicatePixels, 1), denied));
+        assert(!denied.valid());
+        assert(producer.valid());
+        assert(lifecycle.outstandingFrames() == 1);
+
+        GfxAvc420SegmentedFrame second;
+        assert(producer.prepare(
+            lifecycle, generation, request(52, secondPixels, 2), second));
+        assert(hasNalType(second.wireBytes(), 1));
+        assert(!hasNalType(second.wireBytes(), 5));
+    }
+
+    // The same duplicate-ID preflight must also run before BGRA conversion,
+    // without moving pixels into a second codec or ACK bookkeeping owner.
+    {
+        constexpr std::uint64_t generation = 6202;
+        GfxPresentationLifecycle lifecycle;
+        mapSurface(lifecycle, generation, kVisible);
+        X264Avc420SegmentedFrameProducer producer;
+        assert(producer.open(generation, kCoded, kVisible));
+
+        auto firstPixels = makeBgraFrame(kVisible, 7);
+        firstPixels.solid(70, 100, 140, 0);
+        GfxAvc420SegmentedFrame first;
+        assert(producer.prepareBgra(
+            lifecycle, generation, bgraRequest(61, firstPixels, 0), first));
+        assert(hasNalType(first.wireBytes(), 5));
+        assert(producer.completeDelivery(
+            lifecycle, first, first.wireBytes().size()));
+        assert(lifecycle.outstandingFrames() == 1);
+
+        auto nextPixels = makeBgraFrame(kVisible, 5);
+        nextPixels.solid(90, 120, 150, 255);
+        GfxAvc420SegmentedFrame denied;
+        assert(!producer.prepareBgra(
+            lifecycle, generation, bgraRequest(61, nextPixels, 1), denied));
+        assert(!denied.valid());
+        assert(lifecycle.canReserveFrame(generation, 62));
+        assert(producer.valid());
+
+        GfxAvc420SegmentedFrame second;
+        assert(producer.prepareBgra(
+            lifecycle, generation, bgraRequest(62, nextPixels, 2), second));
+        assert(hasNalType(second.wireBytes(), 1));
+        assert(!hasNalType(second.wireBytes(), 5));
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -622,6 +698,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-metadata-preflight")
     {
         metadataPreflightPreservesReferences();
+        return 0;
+    }
+    if (behavior == "x264-segmented-duplicate-id-reference-continuity")
+    {
+        duplicatePendingFrameIdPreservesReferences();
         return 0;
     }
     if (behavior == "x264-segmented-abort-generation-reset")

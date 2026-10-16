@@ -2,6 +2,7 @@
 #pragma once
 
 #include "linux_runtime_security.h"
+#include "server/security/credssp_tsrequest.h"
 #include "runtime_tls_context.h"
 #include "server/security/linux_console_admission.h"
 #include "server/transport/mcs_channel_connection.h"
@@ -57,6 +58,12 @@ public:
     [[nodiscard]] rdp_server::server::transport::TlsHandshakeStatus
     onTlsIoReady() noexcept;
 
+    // Advance at most one owner-aware R2 TLS/DER frame-read step. WANT
+    // directions are returned to the event loop; a completed frame is
+    // denied until the genuine R2 GSS handoff becomes callable.
+    [[nodiscard]] rdp_server::server::security::TsRequestTlsReadResult
+    onCredSspIoReady() noexcept;
+
     // Positive R2 issuance is possible only after the existing CredSSP/GSS
     // acceptor has established its TLS-bound principal and R1 exposes genuine
     // HYBRID negotiation provenance. The lease never escapes this aggregate.
@@ -109,6 +116,8 @@ private:
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionLease>
         lease_{};
     rdp_server::server::transport::McsSessionLifecycle session_{};
+    // Retired explicitly before the exact borrowed R1 TLS owner is canceled.
+    rdp_server::server::security::TsRequestFrameReader credSspFrameReader_{};
     bool provisioned_{};
 };
 

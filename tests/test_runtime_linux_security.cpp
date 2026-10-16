@@ -281,6 +281,41 @@ void testConnectionAggregateOrderedRevocation(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionCredSspAuthorizationDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-credssp-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    // No TLS or R1-selected HYBRID provenance: deny before GSS/DER.
+    const auto result = connection.onCredSspIoReady();
+    assert(result.status ==
+           rdp_server::server::security::TsRequestTlsReadStatus::Invalid);
+    assert(!connection.ready());
+    assert(connection.gssStage() == SpnegoStage::Failed);
+    assert(connection.admissionState() == LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    // Late callbacks and repeated teardown never resume the R1 owner.
+    assert(connection.onCredSspIoReady().status ==
+           rdp_server::server::security::TsRequestTlsReadStatus::Closed);
+    connection.revoke();
+    assert(connection.onCredSspIoReady().status ==
+           rdp_server::server::security::TsRequestTlsReadStatus::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionAggregatePrematureAdmissionDenial(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -448,6 +483,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-security-keytab-policy-denials")
     {
         testKeytabAndPolicyDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-credssp-authorization-denials")
+    {
+        testConnectionCredSspAuthorizationDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-aggregate-ordered-revocation")

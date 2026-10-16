@@ -8689,3 +8689,30 @@ macOS 27 notification delivery/live capture, R4 cursor publication and
 Microsoft-client M5 acceptance remain **NOT RUN/BLOCKED**. **Next R7:** consume
 a non-forgeable macOS authorization capability if R2 publishes one; otherwise
 do not restore the native capture factory or export native input posting.
+
+## R10 owner-aware CredSSP non-listening frame boundary (2026-10-16; CI pending)
+
+The existing Linux connection now creates its only R1 socket owner with the
+R1 `HybridNla` negotiation policy, and exposes a bounded
+`onCredSspIoReady()` step. The step requires genuine R1-selected HYBRID
+provenance on established server TLS, then invokes the genuine R2
+`TsRequestFrameReader::readOneTlsStep(OwnedPreauthTcpConnection&)`.
+`Progress` advances on a later call; `NeedRead` and `NeedWrite` require
+the matching owner readiness. Malformed/closed input is terminal. Since
+the genuine R2 GSS/CredSSP token-processing and reply issuance contract
+is not yet aggregate-callable, even complete DER is denied with ordered
+R3 close -> R2 lease/GSS/broker -> R2 framing retirement -> R1 cancel.
+
+The new centrally registered
+`runtime.linux-connection-credssp-authorization-denials` test covers
+no-TLS/no-HYBRID and stale-revoked-event denials using real accepted
+loopback socket ownership. Positive owner-framing TLS/DER, reply-write,
+native logind/Kerberos admission and real client validation are **BLOCKED**
+on an R1/R2 fixture with genuinely selected HYBRID and the R2 provider
+handoff; no synthetic authenticated session is claimed. Canonical owner
+checkout build and CTest are **NOT RUN** (checkout absent in this
+environment); hosted exact-SHA CI is **NOT RUN** at authoring.
+No listener, system service, fabricated lease or alternate owner was
+introduced. M2/M3 remain **OPEN**. Next R10 gate is verified genuine
+HYBRID TLS/fragmented DER -> R2 GSS processing and owner-aware reply
+receipt, followed by native console admission before listener work.

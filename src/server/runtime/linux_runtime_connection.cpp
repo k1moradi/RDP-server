@@ -11,7 +11,9 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
     rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket)
     noexcept
     : securityConfiguration_(securityConfiguration),
-      connection_(std::move(acceptedSocket))
+      connection_(
+          std::move(acceptedSocket),
+          rdp_server::server::transport::SecurityNegotiationPolicy::HybridNla)
 {
     const auto *const policy = securityConfiguration_.policy();
     if (!connection_.active() || policy == nullptr ||
@@ -119,6 +121,44 @@ LinuxRuntimeConnection::onTlsIoReady() noexcept
     return result;
 }
 
+rdp_server::server::security::TsRequestTlsReadResult
+LinuxRuntimeConnection::onCredSspIoReady() noexcept
+{
+    using rdp_server::server::security::TsRequestTlsReadStatus;
+
+    if (!ready())
+        return {0, TsRequestTlsReadStatus::Closed};
+
+    // Only the original R1 owner supplies selected HYBRID provenance.
+    // A TLS handshake, principal string, or valid DER cannot substitute.
+    if (!rdp_server::server::security::hasHybridNlaNegotiationProvenance(
+            connection_.securityNegotiationProvenance()))
+    {
+        revoke();
+        return {0, TsRequestTlsReadStatus::Invalid};
+    }
+
+    const auto result = credSspFrameReader_.readOneTlsStep(connection_);
+    switch (result.status)
+    {
+    case TsRequestTlsReadStatus::Progress:
+    case TsRequestTlsReadStatus::NeedRead:
+    case TsRequestTlsReadStatus::NeedWrite:
+        return result;
+    case TsRequestTlsReadStatus::Complete:
+        // R2 owns GSS and authentic CredSSP replies, neither of which is
+        // aggregate-callable yet. Reject instead of granting admission.
+        [[fallthrough]];
+    case TsRequestTlsReadStatus::Invalid:
+    case TsRequestTlsReadStatus::Closed:
+        revoke();
+        return {result.plaintextBytesRead, TsRequestTlsReadStatus::Invalid,
+                result.error};
+    }
+    revoke();
+    return {0, TsRequestTlsReadStatus::Invalid};
+}
+
 bool LinuxRuntimeConnection::issueAdmission(
     const rdp_server::server::security::ConsoleEvidenceRequest &request)
     noexcept
@@ -194,6 +234,9 @@ void LinuxRuntimeConnection::revoke() noexcept
 
     lease_.reset();
     broker_.reset();
+
+    // R2 framing borrows the exact R1 owner; retire before R1 cancellation.
+    credSspFrameReader_.close();
 
     // R1 is deliberately last: its SSL/BIO/socket may be borrowed
     // synchronously by every R2 check above.

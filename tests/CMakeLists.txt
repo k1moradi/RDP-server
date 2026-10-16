@@ -459,6 +459,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-security-explicit-keytab-continuity
             linux-security-keytab-snapshot-mutation-continuity
             linux-security-keytab-policy-denials
+            linux-connection-credssp-authorization-denials
             linux-connection-aggregate-ordered-revocation
             linux-connection-aggregate-premature-admission-denial)
         add_test(NAME "runtime.${runtime_linux_security_case}"

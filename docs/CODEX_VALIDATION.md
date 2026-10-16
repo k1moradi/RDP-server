@@ -15808,3 +15808,31 @@ license-authority issuance material/policy is available. The parallel
 `CLIENT_LICENSE_INFO` path still requires CAL trust/product/expiration/HWID
 authorization. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R1 Server Platform Challenge owned-TLS authoring validation (2026-10-16)
+
+**Reconciled parent:** `e9df0e305f149758553e0a564f72d995262fe791`.
+
+Source/ownership review **PASS**. R3's new
+`RdpServerPlatformChallengeWriteGate` exposes one fixed 94-byte stable
+licensing packet, which is strictly below R1's existing 18 KiB bounded TLS
+application write. No new socket/TLS state, owner, queue, authorization token
+or public transport surface is required.
+
+The new default CTest
+`transport.tcp-owned-r3-platform-challenge-slice` exercises the real R3
+writer through `OwnedPreauthTcpConnection::writeTlsApplicationData` on an
+ephemeral loopback TLS connection. It maps only actual R1 plaintext progress
+to R3 accepted-byte receipts, preserves the same receipt/span on zero-byte
+WANT, requires full delivery before the licensing lifecycle advances, checks
+peer byte parity, and reparses the received packet as
+`ServerPlatformChallenge`. R9's bounded R1/R3 sanitizer registry selector
+now names and fail-closed checks this case.
+
+Canonical owner-local build/full CTest is **NOT RUN** because this environment
+does not expose the synchronized `~/rdp-server/build/` checkout; no alternate
+build root or branch was created. Exact publication-SHA hosted matrix,
+ASan/UBSan, documentation and SDK/package evidence are **PENDING**. This test
+does not prove native admission, licensing issuance, CAL validity, Share
+activation or Microsoft-client acceptance. **M2/M3 remain OPEN.**

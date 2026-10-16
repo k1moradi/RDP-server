@@ -15707,3 +15707,42 @@ license-authority issuance material/policy is available. The parallel
 `CLIENT_LICENSE_INFO` path still requires CAL trust/product/expiration/HWID
 authorization. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R1 Server Platform Challenge owned-TLS compatibility (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `e9df0e305f149758553e0a564f72d995262fe791`.
+
+R3 now exposes the first protected Server Platform Challenge write branch after
+an accepted `CLIENT_NEW_LICENSE_REQUEST`. R1 source does not need a new
+transport API: `kRdpServerPlatformChallengeBytes` is 94 bytes, well below the
+existing 18 KiB `kMaximumTlsApplicationIoBytes` one-operation ceiling.
+
+New centrally registered
+`transport.tcp-owned-r3-platform-challenge-slice` reuses the existing
+production-backed preauth executable. It advances the real licensing lifecycle
+through a delivered Server License Request and complete client new-license
+message, queues the production `RdpServerPlatformChallengeWriteGate`, then
+feeds its borrowed receipt-bound suffix directly to the sole
+`OwnedPreauthTcpConnection::writeTlsApplicationData` over a real ephemeral
+loopback OpenSSL session. Only positive R1 plaintext progress is reported to
+the R3 writer; any zero-byte WANT preserves the exact reply/slice receipt and
+stable span until explicit retry. The TLS peer must receive exact byte parity
+and the delivered bytes must reparse as `ServerPlatformChallenge`.
+
+This is cross-road transport compatibility only. It creates no R2 lease,
+native admission, licensing grant, CAL authority, listener, Share activation
+or authenticated desktop. Production R1/R2/R3 code is unchanged. The bounded
+R9 R1/R3 ASan/UBSan selector explicitly requires the new CTest.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted
+Linux/GCC, macOS/AppleClang, Windows/MSVC Debug/Release, sanitizer,
+documentation-policy and SDK/package evidence are pending. Owner Linux/X11,
+Windows MSYS2 CLANG64/Clang23, macOS 27 and Microsoft-client acceptance remain
+**NOT RUN**. **M2/M3 remain OPEN / NOT ACCEPTED.**
+
+**Next R1:** when R3 lands protected `CLIENT_PLATFORM_CHALLENGE_RESPONSE`
+intake, verify its complete encrypted application envelope fits the same
+bounded R1 read contract and add a production-backed owned-TLS read regression
+only if that transition demonstrates a concrete gap.

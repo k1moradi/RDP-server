@@ -17761,3 +17761,55 @@ explicit registration greps. Production code, CTest registration, authority
 correlation, grant bytes and receipt behavior are unchanged. Exact-SHA
 sanitizer and full hosted validation remain required before acceptance.
 
+## R3 authority-correlated New License receipt-gate hosted validation (2026-10-16)
+
+**Implementation:** `525e235e1cc86ae978cf910020511bfcba4f4338`.  
+**Compile-order correction:** `83d05e8076982545e57b75b78f5f5b212ddde865`.  
+**Sanitizer-selector correction:** `dd9ebf76bb1087a25733f74744d155a1f903d1b8`.  
+**Validated descendant:** `d2a1ac10ac3c5ecd64b7d34b3777e2121119f678`.  
+**Actions:** `38978066830` — **SUCCESS**.
+
+The validated descendant contains the R3 grant-gate production source unchanged
+from the implementation/fix chain plus the flattened bounded sanitizer
+selector. Linux/GCC full CTest is **521/521 PASS Debug** and **521/521 PASS
+Release**. macOS/AppleClang is **442/442 PASS Debug** and **442/442 PASS
+Release**. Windows/MSVC focused native preflight is **51/51 PASS** in both
+configurations and full CTest is **472/472 PASS Debug** plus **472/472 PASS
+Release**. Both new cases,
+`transport.licensing-server-license-grant-write-receipts` and
+`transport.licensing-server-license-grant-write-denials`, pass in all six
+full hosted configurations.
+
+R9 Clang ASan/UBSan is **PASS**. Its bounded R1/R3 licensing selection is
+**90/90 PASS** and explicitly enumerates/runs both new grant receipt cases
+(**PASS**). Other configured groups also pass: clipboard **60/60**, portable
+graphics **34/34**, x264/BGRA **20/20**, RDPGFX capabilities **4/4**, native
+R2/R3 GSS **29/29**, R2 PAM verifier **1/1**, direct Linux runtime security
+**10/10**, native X11 **32/32**, and bounded fuzzer **1/1**. The separate R7
+macOS session-watch ASan/UBSan job also **PASS**.
+
+Documentation policy, installed SDK downstream consumer, package generation,
+digest/artifact upload on Linux/macOS/Windows all **PASS**. Untagged protocol
+prerelease publication is correctly **SKIPPED**.
+
+The validated behavior remains deliberately detached from live R2/session
+publication. A configured `RdpLicensingAuthorityGrant` is correlation data,
+not CAL authority. The gate requires the exact authority generation/fingerprint,
+the cryptographically reached `NewLicenseIssuanceRequired` branch, immutable
+product identity and derived licensing keys; it preserves stable bytes through
+backpressure/partial writes and moves only the detached licensing lifecycle to
+`Licensed` after exact full accepted-byte delivery. Upgrade publication and
+the CLIENT_LICENSE_INFO valid-client path remain unavailable.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, genuine Kerberos/logind positive admission, a real
+CAL-issuing licensing authority, Microsoft-client New License acceptance,
+Share activation and desktop acceptance remain **NOT RUN / OPEN**.
+
+**Next R3:** do not expose this gate through the live session until R10 supplies
+a concrete licensing-authority owner whose current generation/fingerprint can
+be freshly revalidated and R2 can authorize every slice/completion. In
+parallel, implement CLIENT_LICENSE_INFO CAL trust/signature,
+product/version/expiration and HWID validation before any
+STATUS_VALID_CLIENT path. **M2/M3 remain OPEN / NOT ACCEPTED.**
+

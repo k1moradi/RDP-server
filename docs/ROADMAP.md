@@ -3651,10 +3651,16 @@ macOS; all platform Debug/CTest work proceeds in parallel.
   disconnect or poisoned channel makes cached image readiness unavailable,
   and an obsolete-generation response cannot repopulate it. DIB structural
   validation is now allocation-free and reused by BMP wrapping. Dedicated
-  `clipboard.verified-image-readiness` CTest. **At authoring:** local
-  CMake/CTest unavailable in this sandbox; exact-SHA hosted CI, owner
-  Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, native publication
-  and real-client Firefox paste are NOT RUN.
+  `clipboard.verified-image-readiness` CTest. Exact implementation
+  `015217fc304dd7b4beea73a09e1f02bbe44b038f`,
+  [Actions 38865310807](https://github.com/k1moradi/RDP-server/actions/runs/38865310807)
+  **PASS**: Linux/GCC Debug+Release **273/273** each, macOS/Clang
+  Debug+Release **255/255** each, Windows/MSVC Debug+Release **271/271**
+  each; the dedicated R8 test passes all six configurations. R9
+  ASan/UBSan **18/18 clipboard + 10/10 MCS/CredSSP PASS**,
+  documentation-policy PASS, and each installed-package consumer
+  **1/1 PASS**. Owner Linux/X11, Windows MSYS2 CLANG64/Clang23,
+  macOS27, native publication and real-client Firefox paste are NOT RUN.
   **Remaining:** native prefetch scheduling/conversion and actual OS paste
   acceptance; R3 authenticated writer authority remains external.
 - [ ] **Nonblocking clipboard paste readiness**: register a pending OS paste

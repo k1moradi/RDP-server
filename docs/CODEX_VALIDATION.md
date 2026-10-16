@@ -9,7 +9,7 @@ Read **[AGENTS.md](../AGENTS.md)** on every prompt together with
 The detailed acceptance contracts live in `docs/testing_standards.md`.
 This file records the evidence, not an alternative test policy.
 
-## R8 validated image readiness (2026-10-16; CI pending)
+## R8 validated image readiness exact-SHA hosted CI (2026-10-16)
 
 **Starting main SHA:** `a1ae1e7aef0ca67bd155271fc760a6cff70d9a9a`. The existing R8 `RemoteTransfer`
 owner now validates and owns current-generation registered PNG, CF_DIBV5
@@ -27,10 +27,22 @@ allocation-free structural path reused by `wrapDibAsBmp`.
 **Dedicated CTest:** `clipboard.verified-image-readiness` covers valid
 named PNG, corrupt PNG rejection, valid DIBV5/DIB, non-V5 header rejection,
 decoded-size bound, generation invalidation/stale response drain, registered
-PNG numeric-ID collision, disconnect and poison hiding. **NOT RUN at
-authoring:** local compile/full CTest (sandbox has no GitHub DNS checkout),
-exact-SHA hosted Actions, owner Linux/X11 / Windows MSYS2 CLANG64 Clang23 /
-macOS27 one-root commands, genuine R2/R3 authorization, native clipboard,
+PNG numeric-ID collision, disconnect and poison hiding.
+
+**Implementation SHA:** `015217fc304dd7b4beea73a09e1f02bbe44b038f`.
+**Actions run:** [38865310807](https://github.com/k1moradi/RDP-server/actions/runs/38865310807),
+overall **PASS**. Linux/GCC Debug **273/273** and Release **273/273**;
+macOS/Clang Debug **255/255** and Release **255/255**; Windows/MSVC Debug
+**271/271** and Release **271/271**. The dedicated R8 CTest passed in all
+six configurations. R9 Clang ASan/UBSan passed **18/18 clipboard** tests
+(including the new readiness test) plus **10/10 MCS/CredSSP** tests.
+Documentation policy passed. Each platform's staged installed-package
+consumer passed **1/1** and packaging/artifact steps completed; prerelease
+publication was skipped because no release tag was present.
+
+**NOT RUN:** local compile/full CTest in this sandbox (GitHub DNS checkout
+unavailable), owner Linux/X11 / Windows MSYS2 CLANG64 Clang23 / macOS27
+one-root commands, genuine R2/R3 authorization, native OS clipboard,
 Microsoft-client/Firefox image paste and performance. Next R8 gate is native
 nonblocking presentation/conversion over the authorized R3 writer lifecycle.
 

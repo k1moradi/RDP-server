@@ -1,3 +1,67 @@
+## R3 protected post-join Client Info routing boundary (2026-10-16; hosted CI pending)
+
+Previous R3 joined-role implementation `b31d910a7c5f17f16676469bee7e7c8ba1bd69fe`
+has exact-SHA Actions receipt
+[38896370927](https://github.com/k1moradi/RDP-server/actions/runs/38896370927):
+Linux/GCC **377/377 PASS** in Debug and Release; macOS/Clang
+**324/324 Debug PASS** and **323/324 Release**, with sole R1-owned
+`transport.tcp-native-accept-ownership` failure at
+`tests/test_owned_preauth_session.cpp:1616`; Windows/MSVC stopped in
+the R6 preflight compile at `tests/test_windows_desktop_geometry.cpp:491`
+because the then-current frame-info test used unavailable equality.
+R9 sanitizer selections and documentation policy PASS. The three R3
+joined-role tests PASS in all applicable executed configurations.
+Those other-road failures do not turn the exact SHA into a full-matrix pass.
+
+This increment follows MS-RDPBCGR 2.2.1.11, 2.2.8.1.1.2.1 and the
+Enhanced RDP Security sequence: when Standard Security Exchange is not
+used, Client Info follows receipt of the requested MCS Channel Join
+Confirm PDUs; the client SendDataRequest uses the assigned UserId and
+I/O channel, and Client Info still contains a Basic Security Header with
+`SEC_INFO_PKT` even though R1 has already decrypted/authenticated the
+outer PDU through the selected external HYBRID security protocol.
+
+R3 adds a syntax-only `parseEnhancedSecurityClientInfoEnvelope` and
+a private `routeVerifiedR2ClientInfoEnvelope`. Routing requires the
+sole R3 owner in post-Attach Channel Join state, exact bound
+PROTOCOL_HYBRID provenance, all configured user/I/O/static joins fully
+confirmed, one complete joined SendDataRequest from UserId 1002 on I/O
+1003, begin|end MCS segmentation, and an unambiguous Basic Security
+Header. `SEC_INFO_PKT` is mandatory; competing packet-kind,
+Standard-Security encryption/checksum and heartbeat/transport flags fail
+closed. RESET/IGNORE sequence flags and flagsHi are ignored as required.
+Only the caller-owned bytes after the 4-byte header are returned; R3 does
+**not** parse TS_INFO_PACKET, retain its sensitive strings, advance
+licensing, activate Share Control, or dispatch input/clipboard.
+
+The concrete Linux R2 broker is the only positive entry and revalidates
+the genuine native lease, original GSS acceptor, exact R1-owned
+established TLS/HYBRID connection, policy/session generations and view
+permission before this routing step. Invalid routing closes R3 before
+R2/GSS teardown. The existing joined CLIPRDR observation is also tightened
+to require `kConsoleClipboardPermission`, not generic view permission;
+the numeric role remains a transient observation rather than a capability.
+
+Dedicated central-registry CTests:
+`transport.mcs-client-info-protected-route`,
+`transport.mcs-client-info-protected-route-denials`, and Linux-only
+`security.gssapi-r3-client-info-route-contract`. They exercise the
+production security-header parser, all-join completion predicate, exact
+I/O/initiator/segmentation conditions, conflicting flags, truncation,
+static-channel non-equivalence, unforgeable R2/R1 method signatures and
+pre-admission terminal denial. No positive Kerberos/logind lease is
+fabricated.
+
+**Authoring local build/CTest BLOCKED / NOT RUN:** this environment still
+has no `~/rdp-server` checkout and shell GitHub DNS is unavailable.
+Exact-SHA hosted Linux/GCC, macOS/Clang, Windows/MSVC Debug/Release,
+R9 sanitizer and docs-policy are **PENDING after publication**. Owner
+Linux/X11, Windows MSYS2 CLANG64/Clang23, macOS27, real client/KDC/native
+session, TS_INFO semantics, licensing and Share/desktop acceptance remain
+**NOT RUN**. Next R3: add a bounded TS_INFO_PACKET structural validator
+and only then advance the sole session into the server licensing-request
+writer/receipt phase. **M2 NOT ACCEPTED.**
+
 ## R4 ACK-pending frame-ID preflight exact-SHA hosted CI (2026-10-16)
 
 **Source commit:** [`f5e19b8d997ba31501f856e68ec90e61c7c01535`](https://github.com/k1moradi/RDP-server/commit/f5e19b8d997ba31501f856e68ec90e61c7c01535).

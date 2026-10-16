@@ -123,6 +123,46 @@ enum class McsStaticChannelRole : std::uint8_t
     const McsConnectResponseAllocation &allocation,
     McsStaticChannelRole role) noexcept;
 
+// Enhanced RDP Security still carries a 4-byte Basic Security Header
+// on Client Info even though R1/TLS already decrypted and authenticated
+// the complete outer PDU. This syntax-only view never authenticates
+// TS_INFO_PACKET fields, creates admission or advances session state.
+enum class RdpClientInfoEnvelopeError : std::uint8_t
+{
+    None,
+    TruncatedSecurityHeader,
+    InvalidSecurityFlags,
+    TruncatedInfoPacket,
+};
+
+struct RdpClientInfoEnvelopeView
+{
+    std::uint16_t flags{};
+    std::uint16_t flagsHi{};
+    std::span<const std::uint8_t> infoPacket{};
+};
+
+struct RdpClientInfoEnvelopeParseResult
+{
+    RdpClientInfoEnvelopeView value{};
+    RdpClientInfoEnvelopeError error{
+        RdpClientInfoEnvelopeError::TruncatedSecurityHeader};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpClientInfoEnvelopeError::None;
+    }
+};
+
+// MS-RDPBCGR 2.2.1.11 / 2.2.8.1.1.2.1 for PROTOCOL_HYBRID.
+// Require SEC_INFO_PKT and reject every packet-kind/encryption flag that
+// would imply a different RDP security path. RESET/IGNORE sequence bits
+// and flagsHi are ignored as required by the specification.
+// The returned TS_INFO_PACKET bytes remain caller-owned and unparsed.
+[[nodiscard]] RdpClientInfoEnvelopeParseResult
+parseEnhancedSecurityClientInfoEnvelope(
+    std::span<const std::uint8_t> mcsUserData) noexcept;
+
 // T.125 AttachUserConfirm rt-successful with initiator present.
 // 'assignedUserId' is an explicit external allocation, never
 // chosen or reserved by this pure encoder.
@@ -397,6 +437,21 @@ public:
         return false;
     }
 
+    // Connection-sequence diagnostic only: all configured UserId/I/O/static
+    // channels have had their own complete confirmation bytes accepted.
+    // This does not license, activate a share or authorize channel payloads.
+    [[nodiscard]] bool allConfiguredChannelsJoined() const noexcept
+    {
+        if (!configured_ || closed_ || channelCount_ == 0U)
+            return false;
+        for (std::size_t index = 0; index < channelCount_; ++index)
+        {
+            if (!confirmedChannels_[index])
+                return false;
+        }
+        return true;
+    }
+
     // Membership-only check on an ALREADY parsed, complete client MCS
     // SendDataRequest. This never retains borrowed userData, decrypts TLS,
     // reassembles PER segmentation, licenses/activates a share, or permits
@@ -653,6 +708,15 @@ private:
     [[nodiscard]] std::optional<std::uint16_t>
     resolveVerifiedR2JoinedClipboardChannel(
         const SecurityNegotiationProvenance &provenance) noexcept;
+
+    // First protected post-join message route. It accepts only one complete
+    // client SendDataRequest on the joined I/O channel with begin|end
+    // segmentation and a Basic Security Header that marks Client Info.
+    // TS_INFO_PACKET remains unparsed and no licensing state advances.
+    [[nodiscard]] std::optional<RdpClientInfoEnvelopeView>
+    routeVerifiedR2ClientInfoEnvelope(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
 
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};

@@ -1,3 +1,50 @@
+## R3 protected Client Info route authoring validation (2026-10-16)
+
+**Authoring source base:** `4ce39c4b7bf98bd47b7eb934cc5ce5bc5af4da57`;
+documentation/test-registry reconciliation base:
+`7bf2124b1661e1d138f2da2d54608a0fb3e3e509`.
+Normative review used Microsoft MS-RDPBCGR Client Info PDU, Processing
+Client Info PDU, Basic Security Header, Enhanced RDP Security connection
+sequence and client-to-server slow-path rules. Under HYBRID, R1 external
+TLS protection precedes processing; Client Info still requires the Basic
+Security Header with SEC_INFO_PKT and is sent after channel joins.
+
+Production changes prepared in the existing
+`mcs_channel_connection` and `linux_console_admission` owners:
+allocation-free Enhanced-Security Client Info envelope parsing, an
+all-configured-channels-confirmed predicate on the existing join gate,
+private R3 joined-I/O routing, concrete R2 reauthorization and explicit
+clipboard permission for CLIPRDR role observation. The route accepts no
+static channel and no incomplete MCS segmentation. It returns a borrowed
+TS_INFO_PACKET span but does not parse its internal fields or change the
+licensing phase.
+
+**New CTests registered, NOT RUN locally at authoring:**
+`transport.mcs-client-info-protected-route`,
+`transport.mcs-client-info-protected-route-denials`,
+`security.gssapi-r3-client-info-route-contract` (Linux GSSAPI).
+Portable coverage includes SEC_INFO_PKT wire flags, ignored sequence
+bits/flagsHi, truncation, conflicting packet kinds, inner Standard
+Security flags, complete-vs-partial join state, joined static-channel
+non-equivalence, segmentation and initiator mismatch. Linux compile-time
+contracts require the genuine lease/original R1 connection and refuse
+bool/raw-SSL/channel-ID substitutes; runtime coverage remains denial-only.
+
+Previous joined-role SHA `b31d910a7c5f17f16676469bee7e7c8ba1bd69fe`,
+Actions `38896370927`: Linux full Debug/Release **PASS 377/377**;
+macOS Debug **PASS 324/324**, Release **323/324** with an R1 native
+accept assertion; Windows stopped in an R6 preflight compile; R9 sanitizer
+selections and docs-policy PASS. The R3 joined-role cases themselves PASS
+where executed. These are historical exact-SHA results, not evidence for
+this new increment.
+
+Local canonical `~/rdp-server/build` configure/build/full CTest remains
+**BLOCKED / NOT RUN** because the checkout is absent and shell GitHub DNS
+is unavailable. New exact-SHA hosted matrix **PENDING after publication**.
+Owner three-OS runs, positive client-ticket/KDC + native logind admission,
+real Client Info semantics, licensing, Share and Microsoft-client desktop
+acceptance are **NOT RUN**. M2 **NOT ACCEPTED**.
+
 ## R4 ACK-pending frame-ID preflight exact-SHA hosted CI (2026-10-16)
 
 **Source commit:** [`f5e19b8d997ba31501f856e68ec90e61c7c01535`](https://github.com/k1moradi/RDP-server/commit/f5e19b8d997ba31501f856e68ec90e61c7c01535).

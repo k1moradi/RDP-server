@@ -302,6 +302,20 @@ public:
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
 
+    // Route one already-decrypted complete Client Info envelope only after
+    // all requested MCS joins and a fresh native R2/R1 authorization check.
+    // The returned TS_INFO_PACKET span is borrowed syntax, not a credential,
+    // licensing transition, Share activation or reusable admission token.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpClientInfoEnvelopeView>
+    authorizeR3ClientInfoEnvelope(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.

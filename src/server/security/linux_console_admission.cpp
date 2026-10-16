@@ -907,7 +907,7 @@ LinuxConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel(
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, acceptor, connection, session, kConsoleClipboardPermission))
         return std::nullopt;
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
@@ -921,6 +921,32 @@ LinuxConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel(
         rdp_server::server::transport::McsSessionPhase::Closed)
         revokeR3Session(acceptor, session);
     return channel;
+}
+
+std::optional<rdp_server::server::transport::RdpClientInfoEnvelopeView>
+LinuxConsoleAdmissionBroker::authorizeR3ClientInfoEnvelope(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (!authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, kConsoleViewPermission))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto routed =
+        session.routeVerifiedR2ClientInfoEnvelope(*provenance, completeTpkt);
+    if (!routed)
+        revokeR3Session(acceptor, session);
+    return routed;
 }
 
 void LinuxConsoleAdmissionBroker::revokeR3Session(

@@ -560,6 +560,169 @@ void testMcsStaticChannelRoleDenials()
     assert(!early.channelJoinConfirmed(1005U));
 }
 
+void testMcsClientInfoProtectedRoute()
+{
+    // Under PROTOCOL_HYBRID the post-join Client Info still begins with
+    // the Basic Security Header. Keep a fixed-size minimum TS_INFO_PACKET
+    // body here: this test proves routing only, not TS_INFO semantics.
+    std::array<std::uint8_t, 29> mcs{};
+    mcs[0] = 0x64U; // client SendDataRequest
+    mcs[1] = 0x00U;
+    mcs[2] = 0x01U; // UserId 1002 => PER offset 1
+    mcs[3] = 0x03U;
+    mcs[4] = 0xebU; // I/O 1003
+    mcs[5] = 0x70U; // priority high, begin|end segmentation
+    mcs[6] = 22U;   // 4-byte security header + 18-byte TS_INFO fixed prefix
+    mcs[7] = 0x40U; // SEC_INFO_PKT
+    mcs[8] = 0x00U;
+    mcs[9] = 0xa5U; // flagsHi ignored unless/future even when marked valid
+    mcs[10] = 0x5aU;
+
+    const auto frame = frameDomainPdu(mcs);
+    const auto parsed = parseMcsChannelRequest(frame);
+    assert(parsed);
+    assert(parsed.request.kind == McsChannelRequestKind::SendDataRequest);
+    assert(parsed.request.initiator == 1002U);
+    assert(parsed.request.channelId == 1003U);
+    assert(parsed.request.segmentation == 3U);
+    assert(parsed.request.userData.size() == 22U);
+
+    constexpr std::array<std::uint16_t, 3> channels{
+        1002U, 1003U, 1005U};
+    McsChannelJoinWriteGate gate;
+    assert(gate.configure(1002U, channels));
+    assert(!gate.allConfiguredChannelsJoined());
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1002U;
+    for (const auto channel : channels)
+    {
+        join.channelId = channel;
+        assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+        const auto bytes = gate.pendingBytes();
+        assert(bytes.size() == 15U);
+        assert(gate.onReplyBytesWritten(
+            gate.pendingReplySequence(), gate.pendingWriteSliceSequence(),
+            bytes.size()) == McsJoinWriteOutcome::Confirmed);
+    }
+    assert(gate.allConfiguredChannelsJoined());
+    assert(gate.matchesJoinedInboundSendData(parsed.request));
+
+    const auto envelope =
+        parseEnhancedSecurityClientInfoEnvelope(parsed.request.userData);
+    assert(envelope);
+    assert(envelope.value.flags == 0x0040U);
+    assert(envelope.value.flagsHi == 0x5aa5U);
+    assert(envelope.value.infoPacket.size() == 18U);
+    assert(envelope.value.infoPacket.data() ==
+           parsed.request.userData.data() + 4U);
+
+    // Sequence-number flags are explicitly ignored by MS-RDPBCGR.
+    auto ignoredFlags = parsed.request.userData;
+    std::array<std::uint8_t, 22> allowed{};
+    std::copy(ignoredFlags.begin(), ignoredFlags.end(), allowed.begin());
+    allowed[0] = 0x70U; // INFO | RESET_SEQNO | IGNORE_SEQNO
+    allowed[1] = 0x80U; // FLAGSHI_VALID
+    allowed[2] = 0xfeU;
+    allowed[3] = 0xcaU;
+    const auto ignored = parseEnhancedSecurityClientInfoEnvelope(allowed);
+    assert(ignored);
+    assert(ignored.value.flags == 0x8070U);
+    assert(ignored.value.flagsHi == 0xcafeU);
+}
+
+void testMcsClientInfoProtectedRouteDenials()
+{
+    constexpr std::array<std::uint8_t, 22> valid{
+        0x40, 0x00, 0x34, 0x12, // SEC_INFO_PKT + ignored flagsHi
+        0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+    for (std::size_t size = 0; size < 4U; ++size)
+    {
+        const auto result =
+            parseEnhancedSecurityClientInfoEnvelope(
+                std::span(valid).first(size));
+        assert(!result);
+        assert(result.error ==
+               RdpClientInfoEnvelopeError::TruncatedSecurityHeader);
+    }
+    for (std::size_t size = 4U; size < valid.size(); ++size)
+    {
+        const auto result =
+            parseEnhancedSecurityClientInfoEnvelope(
+                std::span(valid).first(size));
+        assert(!result);
+        assert(result.error ==
+               RdpClientInfoEnvelopeError::TruncatedInfoPacket);
+    }
+
+    const auto rejectFlags = [valid](std::uint16_t flags)
+    {
+        auto packet = valid;
+        packet[0] = static_cast<std::uint8_t>(flags);
+        packet[1] = static_cast<std::uint8_t>(flags >> 8U);
+        const auto result = parseEnhancedSecurityClientInfoEnvelope(packet);
+        assert(!result);
+        assert(result.error ==
+               RdpClientInfoEnvelopeError::InvalidSecurityFlags);
+    };
+    rejectFlags(0x0000U); // missing SEC_INFO_PKT
+    rejectFlags(0x0041U); // Standard-Security exchange ambiguity
+    rejectFlags(0x0048U); // inner Standard-Security encryption unsupported
+    rejectFlags(0x00c0U); // simultaneous INFO + LICENSE
+    rejectFlags(0x0840U); // secure-checksum flag without Standard security
+    rejectFlags(0x4040U); // heartbeat is a different packet kind
+
+    constexpr std::array<std::uint16_t, 3> channels{
+        1002U, 1003U, 1005U};
+    McsChannelJoinWriteGate partial;
+    assert(partial.configure(1002U, channels));
+    McsChannelRequest join{};
+    join.kind = McsChannelRequestKind::ChannelJoin;
+    join.initiator = 1002U;
+    join.channelId = 1002U;
+    assert(partial.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    assert(partial.onReplyBytesWritten(
+        partial.pendingReplySequence(), partial.pendingWriteSliceSequence(),
+        partial.pendingBytes().size()) == McsJoinWriteOutcome::Confirmed);
+    assert(!partial.allConfiguredChannelsJoined());
+
+    // Even after all joins, a joined static channel is not the I/O route
+    // for Client Info. MCS membership alone is deliberately insufficient.
+    McsChannelJoinWriteGate joined;
+    assert(joined.configure(1002U, channels));
+    for (const auto channel : channels)
+    {
+        join.channelId = channel;
+        assert(joined.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+        assert(joined.onReplyBytesWritten(
+            joined.pendingReplySequence(), joined.pendingWriteSliceSequence(),
+            joined.pendingBytes().size()) == McsJoinWriteOutcome::Confirmed);
+    }
+    assert(joined.allConfiguredChannelsJoined());
+
+    McsChannelRequest request{};
+    request.kind = McsChannelRequestKind::SendDataRequest;
+    request.initiator = 1002U;
+    request.channelId = 1005U;
+    request.segmentation = 3U;
+    request.userData = valid;
+    assert(joined.matchesJoinedInboundSendData(request));
+    assert(request.channelId != 1003U);
+
+    request.channelId = 1003U;
+    request.segmentation = 2U; // incomplete PER/MCS segment
+    assert(joined.matchesJoinedInboundSendData(request));
+    assert(request.segmentation != 3U);
+
+    request.segmentation = 3U;
+    request.initiator = 1001U;
+    assert(!joined.matchesJoinedInboundSendData(request));
+
+    joined.close();
+    assert(!joined.allConfiguredChannelsJoined());
+}
+
 void testMcsResponseWriteReceipts()
 {
     const auto response=testPlannedConnectResponse();
@@ -4375,7 +4538,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 70> kMcsTestCases{{
+constexpr std::array<McsTestCase, 72> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -4387,6 +4550,8 @@ constexpr std::array<McsTestCase, 70> kMcsTestCases{{
     {"mcs-response-session-allocation-plan", &testMcsResponseSessionAllocationPlan},
     {"mcs-static-channel-role-binding", &testMcsStaticChannelRoleBinding},
     {"mcs-static-channel-role-denials", &testMcsStaticChannelRoleDenials},
+    {"mcs-client-info-protected-route", &testMcsClientInfoProtectedRoute},
+    {"mcs-client-info-protected-route-denials", &testMcsClientInfoProtectedRouteDenials},
     {"mcs-response-write-receipts", &testMcsResponseWriteReceipts},
     {"mcs-response-write-denials", &testMcsResponseWriteDenials},
     {"mcs-response-rejections", &testMcsResponseRejectInvalidInputs},

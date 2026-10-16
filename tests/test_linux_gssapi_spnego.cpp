@@ -1441,7 +1441,8 @@ void testR3JoinedClipboardRoleContract()
 
     ConsoleIdentityPolicy policy;
     assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
-                       1001, kConsoleViewPermission}) ==
+                       1001, kConsoleViewPermission |
+                                 kConsoleClipboardPermission}) ==
            ConsoleRuleError::None);
     GssapiSpnegoAcceptor acceptor;
     LinuxConsoleAdmissionBroker broker(policy);
@@ -1460,6 +1461,69 @@ void testR3JoinedClipboardRoleContract()
     assert(acceptor.stage() == SpnegoStage::Failed);
     broker.revokeR3Session(acceptor, owner);
     assert(owner.phase() == McsSessionPhase::Closed);
+}
+
+void testR3ClientInfoRouteContract()
+{
+    using Method =
+        decltype(&LinuxConsoleAdmissionBroker::authorizeR3ClientInfoEnvelope);
+    using Broker = LinuxConsoleAdmissionBroker &;
+    using Acceptor = GssapiSpnegoAcceptor &;
+    using Connection = const OwnedPreauthTcpConnection &;
+    using Session = McsSessionLifecycle &;
+    using Packet = std::span<const std::uint8_t>;
+    using View =
+        rdp_server::server::transport::RdpClientInfoEnvelopeView;
+
+    static_assert(std::is_invocable_r_v<
+        std::optional<View>, Method, Broker,
+        const LinuxConsoleAdmissionLease &, Acceptor,
+        Connection, Session, Packet>);
+    static_assert(!std::is_invocable_v<
+        Method, Broker, bool, Acceptor, Connection, Session, Packet>);
+    static_assert(!std::is_invocable_v<
+        Method, Broker, const SSL *, Acceptor, Connection, Session, Packet>);
+    static_assert(!std::is_invocable_v<
+        Method, Broker, std::uint16_t, Acceptor, Connection, Session, Packet>);
+
+    constexpr std::array<std::uint8_t, 36> clientInfo{
+        0x03,0x00,0x00,0x24,0x02,0xf0,0x80,
+        0x64,0x00,0x01,0x03,0xeb,0x70,0x16,
+        0x40,0x00,0x00,0x00,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    const auto parsed =
+        rdp_server::server::transport::parseMcsChannelRequest(clientInfo);
+    assert(parsed);
+    assert(parsed.request.kind ==
+           rdp_server::server::transport::McsChannelRequestKind::
+               SendDataRequest);
+    assert(parsed.request.initiator == 1002U);
+    assert(parsed.request.channelId == 1003U);
+    assert(parsed.request.segmentation == 3U);
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    GssapiSpnegoAcceptor acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+
+    // Ordinary CI must not mint an R2 lease merely to obtain a positive
+    // Client Info route. The public R3 domain entry remains terminal denial.
+    assert(session.onDomainPdu(clientInfo) ==
+           McsSessionIntake::ValidButNotAdmitted);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+    assert(session.allocatedUserId() == 0U);
+    assert(session.pendingJoinConfirmation().empty());
+
+    broker.revokeR3Session(acceptor, session);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    (void)connection;
 }
 
 void testR3NativeChangeRevocation()
@@ -1698,6 +1762,11 @@ int main(int argc, char **argv)
             testR3JoinedClipboardRoleContract();
             return 0;
         }
+        if (name == "gssapi-r3-client-info-route-contract")
+        {
+            testR3ClientInfoRouteContract();
+            return 0;
+        }
         if (name == "gssapi-r3-native-change-revocation")
         {
             testR3NativeChangeRevocation();
@@ -1735,6 +1804,7 @@ int main(int argc, char **argv)
     testR3ProtectedChannelJoinContract();
     testR3ChannelJoinTerminalReplayFence();
     testR3JoinedClipboardRoleContract();
+    testR3ClientInfoRouteContract();
     testR3NativeChangeRevocation();
     testR3McsDisconnectRevocationFence();
     return 0;

@@ -290,6 +290,43 @@ std::optional<std::uint16_t> resolveMcsStaticChannelRole(
     return found;
 }
 
+RdpClientInfoEnvelopeParseResult parseEnhancedSecurityClientInfoEnvelope(
+    std::span<const std::uint8_t> mcsUserData) noexcept
+{
+    constexpr std::size_t kBasicSecurityHeaderBytes = 4U;
+    constexpr std::size_t kInfoPacketFixedBytes = 18U;
+    constexpr std::uint16_t kSecInfoPkt = 0x0040U;
+    constexpr std::uint16_t kSecResetSeqNo = 0x0010U;
+    constexpr std::uint16_t kSecIgnoreSeqNo = 0x0020U;
+    constexpr std::uint16_t kSecFlagsHiValid = 0x8000U;
+    constexpr std::uint16_t kAllowed =
+        kSecInfoPkt | kSecResetSeqNo | kSecIgnoreSeqNo | kSecFlagsHiValid;
+
+    if (mcsUserData.size() < kBasicSecurityHeaderBytes)
+        return {{}, RdpClientInfoEnvelopeError::TruncatedSecurityHeader};
+
+    const std::uint16_t flags =
+        static_cast<std::uint16_t>(mcsUserData[0]) |
+        (static_cast<std::uint16_t>(mcsUserData[1]) << 8U);
+    const std::uint16_t flagsHi =
+        static_cast<std::uint16_t>(mcsUserData[2]) |
+        (static_cast<std::uint16_t>(mcsUserData[3]) << 8U);
+
+    // PROTOCOL_HYBRID already protects the outer RDP PDU through R1 TLS.
+    // Client Info must still identify itself using SEC_INFO_PKT, while
+    // Standard-Security encryption and every competing packet-kind flag
+    // are rejected here rather than ambiguously reinterpreting the payload.
+    if ((flags & kSecInfoPkt) == 0U ||
+        (flags & static_cast<std::uint16_t>(~kAllowed)) != 0U)
+        return {{}, RdpClientInfoEnvelopeError::InvalidSecurityFlags};
+
+    const auto info = mcsUserData.subspan(kBasicSecurityHeaderBytes);
+    if (info.size() < kInfoPacketFixedBytes)
+        return {{}, RdpClientInfoEnvelopeError::TruncatedInfoPacket};
+
+    return {{flags, flagsHi, info}, RdpClientInfoEnvelopeError::None};
+}
+
 McsChannelConfirm encodeMcsAttachUserConfirm(
     std::uint32_t assignedUserId) noexcept
 {
@@ -886,6 +923,54 @@ McsSessionLifecycle::resolveVerifiedR2JoinedClipboardChannel(
         !joins_.channelJoinConfirmed(*id))
         return std::nullopt;
     return id;
+}
+
+std::optional<RdpClientInfoEnvelopeView>
+McsSessionLifecycle::routeVerifiedR2ClientInfoEnvelope(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitChannelJoin ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        completeTpkt.size() > kMaximumInitialMcsTpktBytes)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    // Under Enhanced RDP Security the Client Info PDU follows completion
+    // of all requested MCS joins when no Standard-Security Exchange PDU is
+    // used. Do not route early I/O or static-channel data around that order.
+    if (!joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed ||
+        !joins_.matchesJoinedInboundSendData(parsed.request) ||
+        parsed.request.channelId != connectResponseAllocation_.ioChannelId ||
+        parsed.request.segmentation != 3U)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto envelope =
+        parseEnhancedSecurityClientInfoEnvelope(parsed.request.userData);
+    if (!envelope)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    // The borrowed TS_INFO_PACKET is only routed. A later R3 increment must
+    // validate its exact internal lengths and then advance licensing order.
+    return envelope.value;
 }
 
 McsSessionIntake McsSessionLifecycle::onDomainPdu(

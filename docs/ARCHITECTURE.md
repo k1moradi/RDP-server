@@ -1,3 +1,42 @@
+### R3 protected Enhanced-Security Client Info route (2026-10-16)
+
+After complete Attach User and Channel Join confirmation, the single R3
+owner may identify the first post-join client message without creating a
+second dispatcher. For the current HYBRID/NLA path, Microsoft requires
+Client Info after all requested Channel Join confirms when no Standard
+Security Exchange PDU is used. The MCS SendDataRequest originates from
+the assigned client UserId and targets the server-selected I/O channel.
+Although R1 has already decrypted and integrity-checked the complete PDU
+with the external security protocol, Client Info still begins with the
+4-byte Basic Security Header and carries `SEC_INFO_PKT`.
+
+`parseEnhancedSecurityClientInfoEnvelope` is a pure, allocation-free
+envelope check. It accepts only SEC_INFO_PKT plus the sequence-number bits
+which receivers must ignore and optional FLAGSHI_VALID; flagsHi itself is
+opaque/ignored. Standard-Security `SEC_ENCRYPT`, secure-checksum,
+licensing, exchange, transport, redirection, auto-detect and heartbeat
+packet-kind flags cannot be reinterpreted as Client Info. At least the
+fixed 18-byte TS_INFO prefix must be present, but its internal lengths,
+strings and extraInfo are intentionally not validated by this increment.
+
+The private `McsSessionLifecycle::routeVerifiedR2ClientInfoEnvelope`
+requires immutable HYBRID provenance, all configured user/I/O/static MCS
+joins completely delivered, joined membership, assigned initiator, exact
+I/O channel and begin|end segmentation. It returns only a borrowed view
+into the current caller-owned packet and does not mutate licensing phase.
+A malformed, early, static-channel, partially segmented or wrong-owner
+request closes R3. The Linux R2 broker reauthorizes the native lease,
+GSS/TLS binding, generations and view permission immediately before the
+route. The separately exposed CLIPRDR role now requires clipboard
+permission. Neither route is a reusable authority token.
+
+No TS_INFO credential is trusted, copied or logged here. No Client Info
+state transition, Server License Request, Demand Active, Share Control,
+MCS application dispatch, clipboard, graphics or input is activated.
+The next R3 state change must accompany a bounded TS_INFO parser and
+receipt-bound licensing output so that a valid outer header alone can
+never skip connection-sequence validation.
+
 ### R2 owner-driven CredSSP/GSS progression ownership (2026-10-16)
 
 R2 owns CredSSP/GSS semantics but never R1 application I/O.

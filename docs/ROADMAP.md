@@ -1,3 +1,41 @@
+## R10 sealed-keytab publication receipt (2026-10-16; exact-SHA workflow queued)
+
+Implementation commit: `14ba20d89ec784241ec451eaeb1fdc371f751fba`
+(`security(r10): seal Linux keytab snapshot`), published directly to
+`main` from `b41269ed75628285767dc3a59d7bedacfc3dcc8b` using an
+expected-head non-force update. Exact workflow: Actions `38883815450`,
+currently **QUEUED**, therefore hosted compile/CTest is **NOT RUN yet** for
+this SHA.
+
+Authoring commands/evidence under the mandatory
+`~/rdp-server/build/r10-probe/` root:
+- `./keytab_probe` prepares the synthetic explicit service keytab.
+- `./mutable_fd_probe` rewrites that same inode and confirms an ordinary
+  retained-source procfd no longer yields a complete GSS acquisition.
+- `./sealed_keytab_probe` performs the sealed snapshot and reports
+  `acquire=0 minor=0 seals=0xf` after the same source rewrite.
+- `clang++ -std=c++23 -O1 -g -Wall -Wextra -Wpedantic -Werror
+  -fno-omit-frame-pointer -fsanitize=address,undefined
+  -fno-sanitize-recover=all sealed_keytab_probe.cpp
+  -o sealed_keytab_probe_san -lgssapi_krb5`, followed by
+  `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1
+  UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+  ./sealed_keytab_probe_san`: **PASS**, same complete acquisition and seals,
+  no sanitizer finding.
+
+The new registered production-backed CTest is
+`runtime.linux-security-keytab-snapshot-mutation-continuity`; the previously
+added positive `runtime.validates-linux-security-provisioning`, pathname
+replacement, policy denials and missing-provisioning denial remain registered.
+Full repository build/CTest on this execution host is **NOT RUN** because the
+checkout cannot be materialized through local GitHub DNS. Owner-platform,
+KDC/client-ticket, positive native R2 admission, R3, external client and
+listener/service evidence remain **NOT RUN**.
+
+**Gate remains:** wait for exact-SHA Linux compile/CTest evidence before
+promoting R10 Linux provisioning or adding a listener. This receipt records
+publication and authoring evidence only; it is not milestone acceptance.
+
 ## R10 sealed immutable Linux keytab snapshot (2026-10-16; exact-SHA CI pending)
 
 Starting shared `main`: `b41269ed75628285767dc3a59d7bedacfc3dcc8b`. Review of the new explicit-keytab owner

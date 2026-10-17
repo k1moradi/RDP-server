@@ -434,9 +434,14 @@ X11DesktopResources::acknowledgePointerPosition(
 
 bool
 X11DesktopResources::handleAuthorizedInput(
+    std::uint64_t expectedGeneration,
     const X11InputEvent &event) noexcept
 {
-    if (!valid())
+    // The capture epoch is also the one geometry-bound XTEST-owner epoch.
+    // Recheck beside native injection so no caller can treat the scalar as
+    // authority or accidentally target a replacement RandR generation.
+    if (!valid() || expectedGeneration == 0 ||
+        expectedGeneration != captureGeneration_)
     {
         return false;
     }

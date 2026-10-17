@@ -1813,9 +1813,10 @@ if(TARGET rdp-server-linux-x11-desktop)
     endif()
 endif()
 
-# R5 R2/R3-authorized XTEST route. The ordinary case uses only ephemeral Xvfb
-# and deliberately supplies no admission lease, proving policy/native desktop
-# availability alone cannot reach XTEST and terminally revokes all owners.
+# R5 R2/R3-authorized XTEST route. These cases use only ephemeral Xvfb and
+# deliberately supply no admission lease. They prove both that native desktop
+# freshness cannot authorize XTEST and that a mismatched geometry generation
+# is terminal before input can cross into a replacement native owner.
 if(TARGET rdp-server-linux-x11-authorized-input AND
    RDP_SERVER_XVFB_RUN_EXECUTABLE)
     add_executable(test_x11_authorized_input_route
@@ -1828,8 +1829,14 @@ if(TARGET rdp-server-linux-x11-authorized-input AND
         COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
             "-screen 0 1280x720x24 -nolisten tcp"
             $<TARGET_FILE:test_x11_authorized_input_route>)
+    add_test(NAME x11.input-native-generation-mismatch-denial
+        COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+            "-screen 0 1280x720x24 -nolisten tcp"
+            $<TARGET_FILE:test_x11_authorized_input_route>
+            generation-mismatch)
     set_tests_properties(
         x11.input-r3-admission-route-denials-and-revocation
+        x11.input-native-generation-mismatch-denial
         PROPERTIES LABELS "x11;linux-adapter;native;security;synthetic-display"
                    TIMEOUT 20)
 endif()

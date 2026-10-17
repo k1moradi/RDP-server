@@ -150,6 +150,7 @@ private:
     friend class X11AuthorizedInputRoute;
 
     [[nodiscard]] bool handleAuthorizedInput(
+        std::uint64_t expectedGeneration,
         const X11InputEvent &event) noexcept;
     void fail(const char *reason) noexcept;
     void cancelGeometryBoundResources() noexcept;

@@ -3,7 +3,9 @@
 #include "x11/x11_authorized_input_route.h"
 
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <string_view>
 #include <type_traits>
 
@@ -34,6 +36,7 @@ static_assert(std::is_invocable_r_v<
               const OwnedPreauthTcpConnection &,
               McsSessionLifecycle &,
               X11DesktopResources &,
+              std::uint64_t,
               const X11InputEvent &>);
 static_assert(!std::is_invocable_v<
               Dispatch,
@@ -43,11 +46,22 @@ static_assert(!std::is_invocable_v<
               const SSL *,
               McsSessionLifecycle &,
               X11DesktopResources &,
+              std::uint64_t,
               const X11InputEvent &>);
 static_assert(!std::is_invocable_v<
               Dispatch,
               LinuxConsoleAdmissionBroker &,
               bool,
+              GssapiSpnegoAcceptor &,
+              const OwnedPreauthTcpConnection &,
+              McsSessionLifecycle &,
+              X11DesktopResources &,
+              std::uint64_t,
+              const X11InputEvent &>);
+static_assert(!std::is_invocable_v<
+              Dispatch,
+              LinuxConsoleAdmissionBroker &,
+              const LinuxConsoleAdmissionLease *,
               GssapiSpnegoAcceptor &,
               const OwnedPreauthTcpConnection &,
               McsSessionLifecycle &,
@@ -81,18 +95,59 @@ missingAdmissionRevokesInputPath()
     assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
 
     const X11InputEvent event = X11PointerMoveInput{16, 16};
+    const std::uint64_t nativeGeneration = desktop.captureGeneration();
+    assert(nativeGeneration != 0);
 
     // A native desktop plus a policy that *could* grant input is insufficient.
     // Without the unforgeable broker-issued lease no XTEST call is reachable.
     assert(!X11AuthorizedInputRoute::dispatch(
-        broker, nullptr, acceptor, connection, session, desktop, event));
+        broker, nullptr, acceptor, connection, session, desktop,
+        nativeGeneration, event));
     assert(!desktop.valid());
     assert(session.phase() == McsSessionPhase::Closed);
     assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
 
     // Late/replayed input cannot revive any owner after revocation.
     assert(!X11AuthorizedInputRoute::dispatch(
-        broker, nullptr, acceptor, connection, session, desktop, event));
+        broker, nullptr, acceptor, connection, session, desktop,
+        nativeGeneration, event));
+    assert(!desktop.valid());
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+}
+
+void
+mismatchedNativeGenerationRevokesInputPath()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission |
+                                 kConsoleInputPermission}) ==
+           ConsoleRuleError::None);
+
+    LinuxConsoleAdmissionBroker broker(policy);
+    GssapiSpnegoAcceptor acceptor;
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+    X11DesktopResources desktop(syntheticDisplay(), 256U * 1024U);
+    assert(desktop.valid());
+
+    const std::uint64_t nativeGeneration = desktop.captureGeneration();
+    assert(nativeGeneration != 0);
+    const std::uint64_t mismatchedGeneration =
+        nativeGeneration == (std::numeric_limits<std::uint64_t>::max)()
+            ? nativeGeneration - 1U
+            : nativeGeneration + 1U;
+    assert(mismatchedGeneration != 0);
+    assert(mismatchedGeneration != nativeGeneration);
+
+    const X11InputEvent event = X11PointerMoveInput{16, 16};
+
+    // A caller-supplied generation is never authorization, and a stale/future
+    // geometry epoch is rejected before a missing lease could reach XTEST.
+    assert(!X11AuthorizedInputRoute::dispatch(
+        broker, nullptr, acceptor, connection, session, desktop,
+        mismatchedGeneration, event));
     assert(!desktop.valid());
     assert(session.phase() == McsSessionPhase::Closed);
     assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
@@ -100,8 +155,17 @@ missingAdmissionRevokesInputPath()
 
 } // namespace
 
-int main()
+int main(int argc, char **argv)
 {
-    missingAdmissionRevokesInputPath();
-    return 0;
+    if (argc == 1)
+    {
+        missingAdmissionRevokesInputPath();
+        return 0;
+    }
+    if (argc == 2 && std::string_view{argv[1]} == "generation-mismatch")
+    {
+        mismatchedNativeGenerationRevokesInputPath();
+        return 0;
+    }
+    return 2;
 }

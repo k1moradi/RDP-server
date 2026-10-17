@@ -1234,12 +1234,17 @@ endforeach()
 # is compile/link checked but ordinary CTest cannot invoke live AppKit state.
 foreach(case_name IN ITEMS
         native-sampler-quarantine owned-shape validation-denials
-        topology-revocation session-watch-revocation)
+        topology-revocation topology-publication-revocation
+        geometry-generation-publication-denials session-watch-revocation)
     add_test(NAME "macos.cursor-${case_name}"
         COMMAND test_macos_capture_pixel_buffer "cursor-${case_name}")
     set_tests_properties("macos.cursor-${case_name}" PROPERTIES
         LABELS "macos;cursor;offline")
 endforeach()
+set_tests_properties(
+    macos.cursor-topology-publication-revocation
+    macos.cursor-geometry-generation-publication-denials
+    PROPERTIES LABELS "macos;cursor;geometry;security;offline")
 
 # R7 macOS input state/translation tests are permission-free on every OS.
 # Apple compile/links the dormant Quartz emitter, but ordinary CTest reaches

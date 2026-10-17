@@ -1,3 +1,45 @@
+## R7 current-display cursor publication fence (2026-10-16; exact-SHA CI pending)
+
+**Starting shared main:** `3069b2f1e07198d0e060c1619924f9654ffb8826`.  
+**Reconciled publication parent:** `c800ef3cacc59d3cc4bc442f5d3a1c88c01ac555`.
+
+R7 cursor construction already pinned display generation/topology and the
+process GUI-session watch, but later `MacCursorSnapshot::valid()` /
+`pixels()` could not compare a preserved snapshot with the caller's current
+`NativeDisplayGeometryRefresh`. An owned shape therefore remained inspectable
+after a display-generation replacement as long as the GUI-session revision was
+unchanged.
+
+This increment adds synchronous, allocation-free `validFor(geometry)` and
+`pixelsFor(geometry)` consumption checks. They require existing structural and
+GUI-session validity, the exact nonzero saved generation to remain
+`geometry.usable()`, an existing current topology revision equal to the saved
+revision, and the visible snapshot's display identity to remain present. The
+geometry owner is caller-supplied and never retained, so no stack-borrow can
+dangle. Existing `valid()` / `pixels()` are documented as owned-storage
+inspection only and are not a current-desktop publication gate. Geometry
+freshness still grants no R2/R3 authorization and performs no R4 publication.
+
+Dedicated portable CTests
+`macos.cursor-topology-publication-revocation` and
+`macos.cursor-geometry-generation-publication-denials` use the existing
+synthetic display/session seams. They prove stale publication denial after a
+real production topology revision, a same-bounds geometry refresh, explicit
+geometry invalidation and a failed refresh; a later successful refresh never
+resurrects an old snapshot, while a newly observed current-generation snapshot
+succeeds. The existing cursor session-watch case remains the independent
+GUI-session axis and now exercises the same checked consumption API. The R7
+GCC ASan/UBSan job performs a fail-closed `ctest -N` registry check for all
+three cursor revocation/publication cases before executing them.
+
+Canonical owner-local `~/rdp-server/build/`, owner macOS 27/TCC/fast-user
+switch testing and real Microsoft-client publication are **NOT RUN** in this
+connector environment. Exact publication-SHA hosted Linux/GCC,
+macOS/AppleClang, Windows/MSVC Debug/Release, R7 sanitizer,
+documentation-policy, SDK/package/digest evidence are **PENDING**. M1 and M5
+remain **OPEN / NOT ACCEPTED**; genuine R2/R3 macOS admission and R4 cursor
+composition remain prerequisites.
+
 ## R3 existing-client CAL certificate-chain trust boundary (2026-10-16; exact-SHA CI pending)
 
 ## R10 service-owned licensing authority boundary (2026-10-17; hosted CI pending)

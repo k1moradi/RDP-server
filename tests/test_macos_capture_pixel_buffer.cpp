@@ -1081,6 +1081,16 @@ void testMacCursorNativeSamplerQuarantine() {
            rdp::macos::NativeDisplayGeometryRefresh>);
 }
 
+[[nodiscard]] std::unique_ptr<std::byte[]>
+makeCursorTestPixels(const std::uint8_t seed) {
+    constexpr std::size_t kByteCount = 16;
+    auto storage = std::make_unique_for_overwrite<std::byte[]>(kByteCount);
+    for (std::size_t index = 0; index < kByteCount; ++index) {
+        storage[index] = static_cast<std::byte>(seed + index);
+    }
+    return storage;
+}
+
 void testMacCursorOwnedShape() {
     using namespace rdp::macos;
     NativeDisplayGeometryRefresh geometry;
@@ -1088,10 +1098,7 @@ void testMacCursorOwnedShape() {
     const auto generation = geometry.refresh(&readSyntheticNativeDisplays, &fixture);
     assert(generation && geometry.usable(*generation));
 
-    auto storage = std::make_unique_for_overwrite<std::byte[]>(16);
-    for (std::size_t index = 0; index < 16; ++index) {
-        storage[index] = static_cast<std::byte>(index);
-    }
+    auto storage = makeCursorTestPixels(0);
     auto* const ownedAddress = storage.get();
     MacNativeCursorObservation observation{
         true, {0.5, 0.5}, 2, 2, 1, 1, 8};
@@ -1110,6 +1117,8 @@ void testMacCursorOwnedShape() {
     assert(snapshot->hotspotX == 1 && snapshot->hotspotY == 1);
     assert(snapshot->bytesPerRow == 8 && snapshot->pixels().size() == 16);
     assert(snapshot->pixels().data() == ownedAddress);
+    assert(snapshot->validFor(geometry));
+    assert(snapshot->pixelsFor(geometry).data() == ownedAddress);
     assert(snapshot->geometryGeneration == *generation);
     assert(snapshot->topologyRevision != 0);
     assert(snapshot->sessionWatchRevision == currentCursorSessionRevision());
@@ -1130,7 +1139,9 @@ void testMacCursorValidationDenials() {
         geometry, *generation, currentCursorSessionRevision(),
         MacNativeCursorObservation{}, {}, 0);
     assert(hidden && hidden->valid() && !hidden->visible);
+    assert(hidden->validFor(geometry));
     assert(hidden->pixels().empty());
+    assert(hidden->pixelsFor(geometry).empty());
 
     const auto missingSession = makeMacCursorSnapshot(
         geometry, *generation, 0, MacNativeCursorObservation{}, {}, 0);
@@ -1240,6 +1251,157 @@ void testMacCursorTopologyRevocation() {
 }
 
 
+void testMacCursorTopologyPublicationRevocation() {
+    using namespace rdp::macos;
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto generation =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(generation && geometry.usable(*generation));
+
+    const auto sessionRevision = currentCursorSessionRevision();
+    std::array<std::byte, 16> expectedPixels{};
+    auto storage = std::make_unique_for_overwrite<std::byte[]>(
+        expectedPixels.size());
+    for (std::size_t index = 0; index < expectedPixels.size(); ++index) {
+        expectedPixels[index] = static_cast<std::byte>(0x40U + index);
+        storage[index] = expectedPixels[index];
+    }
+
+    const MacNativeCursorObservation observation{
+        true, {0.5, 0.5}, 2, 2, 1, 1, 8};
+    auto snapshot = makeMacCursorSnapshot(
+        geometry, *generation, sessionRevision, observation,
+        std::move(storage), expectedPixels.size());
+    assert(snapshot && snapshot->validFor(geometry));
+    const auto publishedPixels = snapshot->pixelsFor(geometry);
+    assert(publishedPixels.size() == expectedPixels.size());
+    assert(std::equal(publishedPixels.begin(), publishedPixels.end(),
+                      expectedPixels.begin(), expectedPixels.end()));
+
+    const auto savedGeneration = snapshot->geometryGeneration;
+    const auto savedTopologyRevision = snapshot->topologyRevision;
+    NativeDisplayReconfigurationWatch::recordTopologyChange();
+
+    // Topology is an independent revocation axis: GUI-session coverage and
+    // owned bytes remain intact, but old desktop state is no longer eligible
+    // for current-geometry publication.
+    assert(currentCursorSessionRevision() == sessionRevision);
+    assert(geometry.generation() == savedGeneration);
+    assert(snapshot->geometryGeneration == savedGeneration);
+    assert(snapshot->topologyRevision == savedTopologyRevision);
+    assert(snapshot->valid());
+    assert(snapshot->pixels().size() == expectedPixels.size());
+    assert(!snapshot->validFor(geometry));
+    assert(snapshot->pixelsFor(geometry).empty());
+
+    fixture = nativeDisplayFixture();
+    const auto replacementGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(replacementGeneration &&
+           *replacementGeneration > savedGeneration);
+    assert(!snapshot->validFor(geometry));
+
+    auto replacementStorage = std::make_unique_for_overwrite<std::byte[]>(
+        expectedPixels.size());
+    std::copy(expectedPixels.begin(), expectedPixels.end(),
+              replacementStorage.get());
+    auto replacement = makeMacCursorSnapshot(
+        geometry, *replacementGeneration, sessionRevision, observation,
+        std::move(replacementStorage), expectedPixels.size());
+    assert(replacement && replacement->validFor(geometry));
+    assert(replacement->geometryGeneration == *replacementGeneration);
+    assert(replacement->topologyRevision != savedTopologyRevision);
+    assert(replacement->pixelsFor(geometry).size() ==
+           expectedPixels.size());
+
+    NativeDisplayReconfigurationWatch::recordTopologyChange();
+    assert(currentCursorSessionRevision() == sessionRevision);
+    assert(!replacement->validFor(geometry));
+    assert(replacement->pixelsFor(geometry).empty());
+}
+
+void testMacCursorGeometryGenerationPublicationDenials() {
+    using namespace rdp::macos;
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto initialGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(initialGeneration && geometry.usable(*initialGeneration));
+    const auto initialVirtualSize =
+        geometry.virtualPixelSize(*initialGeneration);
+    assert(initialVirtualSize);
+
+    const auto sessionRevision = currentCursorSessionRevision();
+    const MacNativeCursorObservation observation{
+        true, {0.5, 0.5}, 2, 2, 1, 1, 8};
+    auto initial = makeMacCursorSnapshot(
+        geometry, *initialGeneration, sessionRevision, observation,
+        makeCursorTestPixels(0x10), 16);
+    assert(initial && initial->validFor(geometry));
+
+    // A fresh read of identical display facts still creates a new geometry
+    // identity. Bounds equality cannot relabel an older cursor observation.
+    fixture = nativeDisplayFixture();
+    const auto replacementGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(replacementGeneration &&
+           *replacementGeneration != *initialGeneration);
+    const auto replacementVirtualSize =
+        geometry.virtualPixelSize(*replacementGeneration);
+    assert(replacementVirtualSize &&
+           *replacementVirtualSize == *initialVirtualSize);
+    assert(initial->valid());
+    assert(!initial->validFor(geometry));
+    assert(initial->pixelsFor(geometry).empty());
+
+    auto replacement = makeMacCursorSnapshot(
+        geometry, *replacementGeneration, sessionRevision, observation,
+        makeCursorTestPixels(0x20), 16);
+    assert(replacement && replacement->validFor(geometry));
+
+    geometry.invalidate();
+    assert(replacement->valid());
+    assert(!replacement->validFor(geometry));
+    assert(replacement->pixelsFor(geometry).empty());
+
+    fixture = nativeDisplayFixture();
+    const auto recoveredGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(recoveredGeneration && geometry.usable(*recoveredGeneration));
+    auto beforeFailedRefresh = makeMacCursorSnapshot(
+        geometry, *recoveredGeneration, sessionRevision, observation,
+        makeCursorTestPixels(0x30), 16);
+    assert(beforeFailedRefresh &&
+           beforeFailedRefresh->validFor(geometry));
+
+    fixture = nativeDisplayFixture();
+    fixture.failingCall = 2;
+    const auto failedRefresh =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(!failedRefresh &&
+           failedRefresh.error() ==
+               NativeDisplayRefreshError::DisplayUnavailable);
+    assert(beforeFailedRefresh->valid());
+    assert(!beforeFailedRefresh->validFor(geometry));
+    assert(beforeFailedRefresh->pixelsFor(geometry).empty());
+
+    fixture = nativeDisplayFixture();
+    const auto laterGeneration =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(laterGeneration && geometry.usable(*laterGeneration));
+    assert(*laterGeneration > *recoveredGeneration);
+    assert(!initial->validFor(geometry));
+    assert(!replacement->validFor(geometry));
+    assert(!beforeFailedRefresh->validFor(geometry));
+
+    auto latest = makeMacCursorSnapshot(
+        geometry, *laterGeneration, sessionRevision, observation,
+        makeCursorTestPixels(0x40), 16);
+    assert(latest && latest->validFor(geometry));
+    assert(latest->pixelsFor(geometry).size() == 16);
+}
+
 void testMacCursorSessionWatchRevocation() {
     using namespace rdp::macos;
     assert(gCursorSessionWatchFixture != nullptr);
@@ -1260,7 +1422,9 @@ void testMacCursorSessionWatchRevocation() {
         geometry, *generation, pinnedSessionRevision, observation,
         std::move(storage), 16);
     assert(snapshot && snapshot->valid());
+    assert(snapshot->validFor(geometry));
     assert(snapshot->pixels().size() == 16);
+    assert(snapshot->pixelsFor(geometry).size() == 16);
 
     // A switch-away/back may leave display geometry and topology identical.
     // The old cursor lifetime must still become terminal and unreadable.
@@ -1269,7 +1433,9 @@ void testMacCursorSessionWatchRevocation() {
     assert(geometry.generation() == *generation);
     assert(geometry.topologyRevision(*generation) == topologyRevision);
     assert(!snapshot->valid());
+    assert(!snapshot->validFor(geometry));
     assert(snapshot->pixels().empty());
+    assert(snapshot->pixelsFor(geometry).empty());
 
     const auto stale = makeMacCursorSnapshot(
         geometry, *generation, pinnedSessionRevision,
@@ -1285,6 +1451,8 @@ void testMacCursorSessionWatchRevocation() {
         geometry, *generation, replacementSessionRevision,
         MacNativeCursorObservation{}, {}, 0);
     assert(replacement && replacement->valid() && !replacement->visible);
+    assert(replacement->validFor(geometry));
+    assert(replacement->pixelsFor(geometry).empty());
     assert(replacement->sessionWatchRevision == replacementSessionRevision);
 }
 
@@ -1344,6 +1512,10 @@ int main(const int argument_count, const char* const arguments[]) {
         testMacCursorValidationDenials();
     } else if (test_case == "cursor-topology-revocation") {
         testMacCursorTopologyRevocation();
+    } else if (test_case == "cursor-topology-publication-revocation") {
+        testMacCursorTopologyPublicationRevocation();
+    } else if (test_case == "cursor-geometry-generation-publication-denials") {
+        testMacCursorGeometryGenerationPublicationDenials();
     } else if (test_case == "cursor-session-watch-revocation") {
         testMacCursorSessionWatchRevocation();
     } else if (test_case == "geometry-native-single-retina") {

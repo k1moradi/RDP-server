@@ -487,14 +487,22 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
+          set -euo pipefail
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R '^macos\.desktop-session-' --output-on-failure
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R '^macos\.input-controller-session-watch-revocation$' \
             --output-on-failure
+
+          cursor_publication_selection='^macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$cursor_publication_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'macos.cursor-session-watch-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-topology-publication-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-geometry-generation-publication-denials' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^macos\.cursor-session-watch-revocation$' \
-            --output-on-failure
+            -R "$cursor_publication_selection" --output-on-failure
 
   documentation-policy:
     if: github.event_name == 'push'

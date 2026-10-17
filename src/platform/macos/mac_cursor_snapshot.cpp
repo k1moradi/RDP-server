@@ -59,9 +59,32 @@ bool MacCursorSnapshot::valid() const noexcept {
     }
     const std::size_t expectedBytesPerRow =
         static_cast<std::size_t>(widthPixels) * 4U;
+    const std::size_t expectedByteCount =
+        expectedBytesPerRow * heightPixels;
     return bytesPerRow == expectedBytesPerRow &&
-           byteCount == expectedBytesPerRow * heightPixels &&
+           byteCount == expectedByteCount &&
            byteCount <= kMaximumMacCursorBytes;
+}
+
+bool MacCursorSnapshot::validFor(
+    const NativeDisplayGeometryRefresh& geometry) const noexcept {
+    if (!valid() || !geometry.usable(geometryGeneration)) {
+        return false;
+    }
+
+    const auto currentTopologyRevision =
+        geometry.topologyRevision(geometryGeneration);
+    if (!currentTopologyRevision ||
+        *currentTopologyRevision != topologyRevision) {
+        return false;
+    }
+
+    // Hidden is a current no-shape observation and intentionally has no
+    // display identity. Visible state must still name a display in this exact
+    // current geometry generation before its owned bytes are consumable.
+    return !visible ||
+           geometry.displayMapping(position.displayId, geometryGeneration)
+               .has_value();
 }
 
 std::expected<MacCursorSnapshot, MacCursorSnapshotError>

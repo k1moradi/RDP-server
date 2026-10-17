@@ -67,15 +67,31 @@ struct MacCursorSnapshot final {
     MacCursorSnapshot(MacCursorSnapshot&&) noexcept = default;
     MacCursorSnapshot& operator=(MacCursorSnapshot&&) noexcept = default;
 
+    // Owned-storage/session inspection only. These accessors do not establish
+    // that this snapshot still belongs to the caller's current display
+    // geometry and must not be used as a cursor-publication gate.
     [[nodiscard]] std::span<const std::byte> pixels() const noexcept {
-        if (storage == nullptr ||
-            !NativeSessionChangeWatch::current(sessionWatchRevision)) {
+        if (!valid() || storage == nullptr) {
             return {};
         }
         return {storage.get(), byteCount};
     }
 
     [[nodiscard]] bool valid() const noexcept;
+
+    // Current-desktop consumption is a separate synchronous check. The caller
+    // owns and serializes geometry lifetime; no borrowed geometry pointer is
+    // retained by the snapshot. These checks grant no R2/R3 authorization and
+    // perform no native sampling or R4 protocol publication.
+    [[nodiscard]] bool
+    validFor(const NativeDisplayGeometryRefresh& geometry) const noexcept;
+    [[nodiscard]] std::span<const std::byte>
+    pixelsFor(const NativeDisplayGeometryRefresh& geometry) const noexcept {
+        if (!validFor(geometry) || storage == nullptr) {
+            return {};
+        }
+        return {storage.get(), byteCount};
+    }
 };
 
 // Validates one synthetic/native observation against a caller-pinned display

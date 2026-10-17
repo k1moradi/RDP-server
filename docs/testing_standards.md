@@ -281,15 +281,23 @@ Sanitizer CI uses a dedicated Ubuntu/GCC ASan+UBSan job that explicitly builds
 `test_macos_desktop_session_guard`, `test_macos_input_controller` and
 `test_macos_capture_pixel_buffer`, then runs the anchored
 `^macos\.desktop-session-` family plus the exact
-`macos.input-controller-session-watch-revocation` and
-`macos.cursor-session-watch-revocation` cases. Keep this road-local
+`macos.input-controller-session-watch-revocation` case and a fail-closed,
+registry-preflighted cursor selection containing
+`macos.cursor-session-watch-revocation`,
+`macos.cursor-topology-publication-revocation` and
+`macos.cursor-geometry-generation-publication-denials`. Keep this road-local
 rather than retuning the shared R9 Clang toolchain: hosted Clang 18 with
 libstdc++ does not expose the C++23 `std::expected` used by the R7 headers.
 
 The dedicated job covers registration, retirement, delayed-callback,
 partial-install, destructor, reentry, guard revocation, stale held-input
-suppression, input-callback races and stale owned-cursor suppression without
-AppKit, TCC, a live desktop, native cursor sampling or native input posting.
+suppression, input-callback races and stale cursor publication across
+GUI-session, topology and geometry-generation replacement without AppKit, TCC,
+a live desktop, native cursor sampling or native input posting. Cursor tests
+must distinguish owned shape lifetime from current-desktop eligibility: a
+same-dimensions geometry refresh, explicit invalidation, failed refresh or
+topology revision change must deny `validFor` / `pixelsFor` and a later
+successful refresh must never resurrect the old snapshot.
 The Apple-only
 `macos.capture-stream-session-watch-frame-retirement` and
 `macos.capture-stream-session-watch-consumer-race` cases use synthetic

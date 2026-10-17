@@ -1,3 +1,43 @@
+## R10 personal Server License Request R1-write composition (2026-10-17)
+
+**Reconciled dependencies:** R10 post-admission MCS framing
+`5f0c16833ff9192d18729211f66d719d95946eec`, R2 personal broker wrappers
+`483be256489aebc6006fc8977bacf4445d4cd9c5`, and R10 immutable policy
+`67506c6e43ff0ed76b00e757ad07db8fab370727`.
+
+The aggregate now retains only the exact service-lifetime PersonalDesktop
+policy identity after successful R2-authorized selection. The first personal
+Server License Request publication is no longer a detached write-view plus
+caller-provided receipt path: one serialized step borrows the current R3 slice
+through the existing R2 broker, performs at most one R1
+`writeTlsApplicationData()`, and immediately sends R1's exact accepted
+plaintext byte count back through R2's protected receipt completion. R1
+WANT_READ/WANT_WRITE direction is retained for an unfinished SSL operation;
+positive partial progress retires that R1 operation and lets R3 rotate only its
+slice receipt. Policy replacement, missing admission, unconfigured licensing
+identity, R2 denial, stale/late receipt, TLS closure and cancellation are
+terminal. No second SSL writer, listener, service, CAL issuer or desktop
+authority is added.
+
+Dedicated production-backed CTest:
+`runtime.linux-connection-personal-license-request-r1-write-denials`.
+Ordinary CI intentionally does not mint a genuine Linux lease; the case proves
+correct/wrong policy cannot reach the R1 write path before real admission and
+that replay remains closed. Existing R3 licensing tests provide positive
+protocol mechanics, while a real positive aggregate write remains owner-host
+only. The direct Linux ASan/UBSan runtime-security selector advances **18→19**
+and explicitly requires the new case.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** in this connector
+environment; no alternate build root was created. Exact publication-SHA hosted
+CI: **PENDING** at authoring time.
+
+**Next R10:** add bounded R1-owned client licensing TPKT intake, then Valid
+Client and Share writes/intakes using the same policy/R2/R1 receipt chain.
+Earliest live-client blocker remains a genuine owner-authorized Linux
+Kerberos/PAM/NSS/logind physical-X11 admission lease; no live listener or
+desktop capture is authorized.
+
 ## R4 ClearCodec lifecycle-regression correction (2026-10-17)
 
 **Observed on exact SHA `70da5c898f1322fd52615298007f175b10a00cd1`:** Ubuntu/GCC Debug compiled the complete graph and executed **638** registered CTests. All four new ClearCodec cases passed. The sole CTest failure was existing `graphics.channel-lifecycle-denials` (#322): it still asserted that a VERSION81 capability advertisement with AVC420_ENABLED clear must be rejected. That assertion encoded the former AVC420-only policy and is invalid once mandatory ClearCodec is implemented.

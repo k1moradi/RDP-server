@@ -62,6 +62,8 @@ namespace
 using rdp_server::server::runtime::LinuxCredSspStepStatus;
 using rdp_server::server::runtime::LinuxPreAdmissionStepStatus;
 using rdp_server::server::runtime::LinuxPostAdmissionMcsStepStatus;
+using rdp_server::server::runtime::
+    LinuxPersonalDesktopLicenseWriteStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameReader;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
@@ -1491,6 +1493,60 @@ void testConnectionNativeDesktopSelectionDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPersonalDesktopLicenseRequestR1WriteDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPersonalDesktopLicenseWriteStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-license-r1-write.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+    RuntimeLicensingContext licensingContext;
+
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        const auto denied =
+            connection.advancePersonalDesktopServerLicenseRequestWrite(
+                personalPolicy, licensingContext, false, true);
+        assert(denied.status == Step::AdmissionDenied);
+        assert(denied.plaintextBytesWritten == 0U);
+        assert(!connection.ready());
+
+        const auto replay =
+            connection.advancePersonalDesktopServerLicenseRequestWrite(
+                personalPolicy, licensingContext, true, true);
+        assert(replay.status == Step::Closed);
+        assert(replay.plaintextBytesWritten == 0U);
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        const auto denied =
+            connection.advancePersonalDesktopServerLicenseRequestWrite(
+                appServerPolicy, licensingContext, true, true);
+        assert(denied.status == Step::AdmissionDenied);
+        assert(denied.plaintextBytesWritten == 0U);
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPersonalDesktopR3AuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1831,6 +1887,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-native-desktop-selection-denials")
     {
         testConnectionNativeDesktopSelectionDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-license-request-r1-write-denials")
+    {
+        testConnectionPersonalDesktopLicenseRequestR1WriteDenials(
+            fixtureDirectory);
         return 0;
     }
     if (testCase ==

@@ -604,7 +604,8 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectInitial(
 bool LinuxRuntimeConnection::selectPersonalDesktopLicensingMode(
     const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
 {
-    if (!deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+    if (personalDesktopPolicy_ != nullptr ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
         !deploymentPolicy.requiresNativeSessionRevocation() ||
         deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
             1U ||
@@ -615,7 +616,113 @@ bool LinuxRuntimeConnection::selectPersonalDesktopLicensingMode(
         revoke();
         return false;
     }
+    personalDesktopPolicy_ = &deploymentPolicy;
     return true;
+}
+
+LinuxPersonalDesktopLicenseWriteStepResult
+LinuxRuntimeConnection::advancePersonalDesktopServerLicenseRequestWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    const RuntimeLicensingContext &licensingContext,
+    bool readable, bool writable) noexcept
+{
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using Outcome =
+        rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
+    using Step = LinuxPersonalDesktopLicenseWriteStepStatus;
+
+    if (!ready())
+        return {0U, Step::Closed};
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    const auto *const identity = licensingContext.identity();
+    const auto *const credential = licensingContext.credential();
+    if (identity == nullptr || credential == nullptr ||
+        !licensingContext.configured() || !credential->matches(*identity))
+    {
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    if (personalLicenseRequestTlsWritePending_)
+    {
+        const Interest required = connection_.ioInterest();
+        if (required == Interest::Read && !readable)
+            return {0U, Step::NeedRead};
+        if (required == Interest::Write && !writable)
+            return {0U, Step::NeedWrite};
+        if (required != Interest::Read && required != Interest::Write)
+        {
+            revoke();
+            return {0U, Step::Invalid};
+        }
+    }
+    else if (!writable)
+    {
+        return {0U, Step::NeedWrite};
+    }
+
+    const auto pending = broker_->authorizeR3ServerLicenseRequestWrite(
+        *lease_, acceptor_, connection_, session_, *identity, *credential);
+    if (!pending)
+    {
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    const auto io = connection_.writeTlsApplicationData(pending->bytes);
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        personalLicenseRequestTlsWritePending_ = false;
+        if (io.bytes == 0U || io.bytes > pending->bytes.size())
+        {
+            revoke();
+            return {0U, Step::Invalid};
+        }
+        const auto outcome = broker_->completeR3ServerLicenseRequestWrite(
+            lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+            acceptor_, connection_, session_,
+            pending->replySequence, pending->writeSliceSequence, io.bytes);
+        if (outcome == Outcome::Pending)
+            return {io.bytes, Step::Progress};
+        if (outcome == Outcome::Delivered)
+            return {io.bytes, Step::Delivered};
+        revoke();
+        return {io.bytes, Step::AdmissionDenied};
+    }
+    case IoOutcome::NeedRead:
+        personalLicenseRequestTlsWritePending_ = true;
+        return {0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        personalLicenseRequestTlsWritePending_ = true;
+        return {0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        personalLicenseRequestTlsWritePending_ = false;
+        revoke();
+        return {0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        personalLicenseRequestTlsWritePending_ = false;
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    revoke();
+    return {0U, Step::Invalid};
 }
 
 std::optional<
@@ -1039,6 +1146,8 @@ void LinuxRuntimeConnection::revoke() noexcept
     // Retire untrusted post-admission framing before any authority or transport
     // owner disappears. The complete span is never retained across R2/R3 use.
     mcsConnectInitialFrameReader_.close();
+    personalDesktopPolicy_ = nullptr;
+    personalLicenseRequestTlsWritePending_ = false;
 
     // Never close R2's borrowed monitor fd. Real poller removal precedes any
     // registered callback/revocation; this discards only aggregate identity.

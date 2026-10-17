@@ -126,6 +126,24 @@ struct LinuxPostAdmissionMcsStepResult
         LinuxPostAdmissionMcsStepStatus::Closed};
 };
 
+enum class LinuxPersonalDesktopLicenseWriteStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Delivered,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPersonalDesktopLicenseWriteStepResult
+{
+    std::size_t plaintextBytesWritten{};
+    LinuxPersonalDesktopLicenseWriteStepStatus status{
+        LinuxPersonalDesktopLicenseWriteStepStatus::Closed};
+};
+
 // Exact identity for one borrowed R2 logind watcher registration. R10 never
 // duplicates or closes descriptor; R2 admission/session generations prevent
 // stale reconnect reuse even if the kernel later reuses the fd number.
@@ -240,6 +258,12 @@ public:
     // sole TLS writer and R3 remains the sole wire/session owner.
     [[nodiscard]] bool selectPersonalDesktopLicensingMode(
         const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
+    [[nodiscard]] LinuxPersonalDesktopLicenseWriteStepResult
+    advancePersonalDesktopServerLicenseRequestWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        const RuntimeLicensingContext &licensingContext,
+        bool readable, bool writable) noexcept;
 
     [[nodiscard]] std::optional<
         rdp_server::server::transport::
@@ -382,6 +406,8 @@ private:
         lease_{};
     rdp_server::server::transport::McsSessionLifecycle session_{};
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
+    const RuntimeDeploymentPolicy *personalDesktopPolicy_{};
+    bool personalLicenseRequestTlsWritePending_{};
     std::optional<RuntimeExistingCalValidationBinding>
         existingCalValidation_{};
     std::optional<LinuxRuntimeNativeChangeRegistration>

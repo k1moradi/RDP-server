@@ -1210,8 +1210,12 @@ R9 Clang ASan/UBSan passed the direct runtime-security set **12/12**. The full
 Ubuntu suite remained red only at the independent R1 native-loopback TLS case.
 
 Canonical local `~/rdp-server/build/` execution is **NOT RUN** because that
-checkout is not mounted in this connector environment. Exact hosted evidence
-for this administrator-provisioning publication is **PENDING**. Genuine
+checkout is not mounted in this connector environment. Follow-up test-plumbing
+commit from shared parent `d9c0747fdd64a325d532252f876e8e7645123dcb` also propagates the PAM-enabled fixture
+flag through the existing licensing/startup meta-tests so their recursive Linux
+security preflight exercises the same administrator configuration contract;
+production code is unchanged. Exact hosted evidence for the combined
+administrator-provisioning descendant is **PENDING**. Genuine
 positive Kerberos/PAM/NSS/logind admission and Microsoft-client acceptance
 remain **NOT RUN / BLOCKED**.
 

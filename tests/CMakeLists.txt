@@ -755,6 +755,10 @@ set(runtime_licensing_cli_arguments
 if(TARGET test_runtime_linux_security)
     list(APPEND runtime_licensing_cli_arguments
         "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=$<TARGET_FILE:test_runtime_linux_security>")
+    if(TARGET rdp-server-linux-pam-password-verifier)
+        list(APPEND runtime_licensing_cli_arguments
+            "-DRDP_RUNTIME_HAVE_LINUX_PAM=ON")
+    endif()
 endif()
 foreach(runtime_licensing_cli_case IN ITEMS
         licensing-cli-valid-provisioning

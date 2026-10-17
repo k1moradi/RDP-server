@@ -48,6 +48,10 @@ if(RDP_RUNTIME_TEST_CASE STREQUAL
            NOT RDP_RUNTIME_LINUX_SECURITY_HELPER STREQUAL "")
             list(APPEND authority_startup_arguments
                 "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=${RDP_RUNTIME_LINUX_SECURITY_HELPER}")
+            if(RDP_RUNTIME_HAVE_LINUX_PAM)
+                list(APPEND authority_startup_arguments
+                    "-DRDP_RUNTIME_HAVE_LINUX_PAM=ON")
+            endif()
         endif()
         execute_process(
             COMMAND "${CMAKE_COMMAND}"
@@ -97,6 +101,10 @@ if(RDP_RUNTIME_TEST_CASE MATCHES "^licensing-cli-")
                "validates-linux-security-provisioning")
                 list(APPEND compatibility_arguments
                     "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=${RDP_RUNTIME_LINUX_SECURITY_HELPER}")
+                if(RDP_RUNTIME_HAVE_LINUX_PAM)
+                    list(APPEND compatibility_arguments
+                        "-DRDP_RUNTIME_HAVE_LINUX_PAM=ON")
+                endif()
             endif()
             execute_process(
                 COMMAND "${CMAKE_COMMAND}"

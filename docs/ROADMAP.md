@@ -1,3 +1,20 @@
+## R9 workflow repair reconciliation with concurrent selectors (2026-10-16; exact-SHA CI pending)
+
+The syntactically repaired workflow commit
+`5419ad7f657a30d745a40eb62a0a1c083af715b4` restored from an older workflow
+snapshot and unintentionally removed newer R4 sanitizer-selection entries. Its
+Actions run `39009402865` is **superseded** and is not shared-matrix
+acceptance evidence.
+
+This correction reconstructs from immediate pre-repair shared workflow
+`3a98aa4e26316346b494e82d84bb909fc3d39904`: it preserves the current prefix, replaces only the corrupted
+R9 CredSSP-fuzzer region, and resumes at the second genuine R7 job marker.
+Publication checks require the concurrent R4 unsent-cancellation,
+partial-terminal and x264/BGRA cancellation selectors to remain present, along
+with one R9/R7/docs/publish job and the exact CredSSP registration preflight.
+No production behavior or corpus changes. Exact corrected-SHA CI is
+**PENDING**.
+
 ## R8 Windows/macOS planned completed-set hosted validation (2026-10-17)
 
 **Implementation:** `2e0f2814b8943fa8a83fccd97b7294a43f873b9f`.  

@@ -213,7 +213,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          portable_graphics_selection='^graphics\.(surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack)))$'
+          portable_graphics_selection='^graphics\.(surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation|unsent-cancellation|partial-send-remains-terminal)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack|unsent-cancellation)))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$portable_graphics_selection")"
           printf '%s\n' "$selected_tests"
           grep -Fq 'graphics.surface-zero-id-wire' <<< "$selected_tests"
@@ -222,9 +222,12 @@ jobs:
           grep -Fq 'graphics.frame-ack-decode-progress' <<< "$selected_tests"
           grep -Fq 'graphics.frame-ack-decode-progress-observation' <<< "$selected_tests"
           grep -Fq 'graphics.frame-delivery-abort-revocation' <<< "$selected_tests"
+          grep -Fq 'graphics.frame-delivery-unsent-cancellation' <<< "$selected_tests"
+          grep -Fq 'graphics.frame-delivery-partial-send-remains-terminal' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-zero-frame-id-wire' <<< "$selected_tests"
           grep -Fq 'graphics.segmented-data-denials-inplace' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-segmented-frame-delivery-ack' <<< "$selected_tests"
+          grep -Fq 'graphics.avc420-segmented-frame-unsent-cancellation' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$portable_graphics_selection" --output-on-failure
 
@@ -233,7 +236,14 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: ctest --test-dir build --build-config Debug --timeout 60 -L x264 --output-on-failure
+        run: |
+          set -euo pipefail
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -L x264)"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'graphics.x264-segmented-unsent-cancel-idr' <<< "$selected_tests"
+          grep -Fq 'graphics.x264-bgra-unsent-cancel-idr' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -L x264 --output-on-failure
 
       - name: Run R4 RDPGFX capability CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

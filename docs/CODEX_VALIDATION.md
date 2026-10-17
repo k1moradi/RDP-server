@@ -1,3 +1,17 @@
+## R9 workflow repair reconciliation receipt (2026-10-16)
+
+`5419ad7f657a30d745a40eb62a0a1c083af715b4` fixed YAML syntax but sourced
+the full workflow from a commit that predated later R4 sanitizer selectors.
+That rollback is R9-owned and the SHA is superseded for cross-road validation.
+
+The correction derives the workflow from `3a98aa4e26316346b494e82d84bb909fc3d39904`, whose corrupted
+CredSSP insertion has two R7 markers. It retains everything before the R9
+fuzzer step, inserts the repaired fail-closed block, and resumes at the second
+R7 marker, preserving the genuine suffix and newer R4 selections. Prepublication
+checks require one R9/R7/docs/publish job, one of each fuzzer step, the exact
+CredSSP registration grep, and the R4 unsent/partial-terminal plus x264/BGRA
+cancellation selectors.
+
 ## R8 planned completed-set exact-SHA validation (2026-10-17)
 
 **Implementation:** `2e0f2814b8943fa8a83fccd97b7294a43f873b9f`.  

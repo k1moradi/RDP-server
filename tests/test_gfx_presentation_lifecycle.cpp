@@ -123,13 +123,16 @@ void denials()
     assert(lifecycle.stage() == GfxPresentationStage::Rejected);
     assert(!lifecycle.acceptCapabilities(1, advertisement()));
     assert(lifecycle.open(2));
-    assert(!lifecycle.acceptCapabilities(2, advertisement(std::byte{0})));
+    // A VERSION81 offer without AVC420 is now a valid mandatory-ClearCodec
+    // profile. It must not authorize the independent x264 path.
+    assert(lifecycle.acceptCapabilities(2, advertisement(std::byte{0})));
+    assert(!lifecycle.avc420Enabled());
     assert(lifecycle.open(3));
     assert(lifecycle.acceptCapabilities(3, advertisement()));
+    assert(lifecycle.avc420Enabled());
     assert(!lifecycle.acceptCapabilities(3, advertisement()));
     assert(lifecycle.completeCommand(emit(lifecycle, 3, std::byte{19}, 20), 20));
     for (const PixelSize size : {PixelSize{0, 480}, PixelSize{640, 0},
-                                 PixelSize{641, 480}, PixelSize{640, 479},
                                  PixelSize{65536, 480}, PixelSize{640, 65536}})
         assert(!lifecycle.configureSurface(3, 1, size));
     assert(lifecycle.configureSurface(3, 1, {640, 480}));

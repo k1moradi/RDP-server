@@ -1,3 +1,13 @@
+## R4 ClearCodec lifecycle-regression correction (2026-10-17)
+
+**Observed on exact SHA `70da5c898f1322fd52615298007f175b10a00cd1`:** Ubuntu/GCC Debug compiled the complete graph and executed **638** registered CTests. All four new ClearCodec cases passed. The sole CTest failure was existing `graphics.channel-lifecycle-denials` (#322): it still asserted that a VERSION81 capability advertisement with AVC420_ENABLED clear must be rejected. That assertion encoded the former AVC420-only policy and is invalid once mandatory ClearCodec is implemented.
+
+This correction preserves the denial boundary rather than weakening it: zero/oversize surface dimensions remain denied; generic capability negotiation accepts the ClearCodec-only VERSION81 profile while `avc420Enabled()` remains false; an AVC420-enabled profile still sets it true. The production-backed `graphics.clearcodec-owned-delivery-recovery` fixture now uses a 3x1 surface to prove odd ClearCodec geometry traverses the same presentation receipt, RDP8 segmented owner, zero-cancel/full-complete/terminal-abort and ACK separation path. AVC420 preparation retains its explicit even-visible-dimension check.
+
+R3 coordination was also reconciled to current shared main: `08cb727bcac844bb84ff7f18994304f14298a033` owns DRDYNVC v1 capability negotiation plus `Microsoft::Windows::RDS::Graphics` CREATE/control write receipts, but no DVC DATA/DATA_FIRST application sender or immutable R4 interval mapping exists yet. Therefore frame-publication integration remains **BLOCKED / NOT RUN**, while the control boundary itself is reviewed and compatible.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN**. Publication-SHA hosted CI: **PENDING**.
+
 ## R9 ClearCodec sanitizer and compact-roadmap repair (2026-10-17)
 
 **Reconciled parent:** `5c887c1611b8b61f15a8c4b12b17af759e55a9fc`.

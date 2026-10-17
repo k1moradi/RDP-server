@@ -312,16 +312,17 @@ void ownedDeliveryRecovery()
         !std::is_move_assignable_v<
             GfxAvc420SegmentedFrame>);
 
-    constexpr PixelSize geometry{2U, 2U};
-    const std::array<std::byte, 16> pixels{
+    // Odd geometry proves the shared lifecycle no longer imposes AVC420's
+    // even-dimension restriction on the mandatory ClearCodec fallback.
+    constexpr PixelSize geometry{3U, 1U};
+    const std::array<std::byte, 12> pixels{
         std::byte{10}, std::byte{20}, std::byte{30}, std::byte{0xFF},
         std::byte{40}, std::byte{50}, std::byte{60}, std::byte{0xFF},
         std::byte{70}, std::byte{80}, std::byte{90}, std::byte{0xFF},
-        std::byte{100}, std::byte{110}, std::byte{120}, std::byte{0xFF},
     };
     const FramebufferView framebuffer{
         pixels, geometry.widthPixels,
-        geometry.heightPixels, 8U};
+        geometry.heightPixels, 12U};
 
     constexpr std::uint64_t firstGeneration = 9401U;
     GfxPresentationLifecycle lifecycle;

@@ -1522,9 +1522,15 @@ if(TARGET rdp-server-linux-x11-desktop)
                     "-screen 0 1280x720x24 -nolisten tcp"
                     $<TARGET_FILE:test_x11_desktop_resources>
                     pointer-randr-rebuild)
+            add_test(NAME x11.desktop-resource-pointer-randr-stale-motion-isolation
+                COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                    "-screen 0 1280x720x24 -nolisten tcp"
+                    $<TARGET_FILE:test_x11_desktop_resources>
+                    pointer-randr-stale-motion-isolation)
             set_tests_properties(
                 x11.desktop-resource-pointer-event-routing
                 x11.desktop-resource-pointer-randr-rebuild
+                x11.desktop-resource-pointer-randr-stale-motion-isolation
                 PROPERTIES
                     LABELS "x11;linux-adapter;native;synthetic-display"
                     TIMEOUT 20)

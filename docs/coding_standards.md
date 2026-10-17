@@ -1,3 +1,12 @@
+## Geometry-bound XI2 events need explicit generation provenance (2026-10-16)
+
+A rebuilt XI2 observer must not accept an already-queued motion merely because
+its extension opcode, event type and root window match the replacement
+subscription. Record the successful subscription request sequence and reject
+older XCB `full_sequence` values with bounded serial arithmetic. Keep a
+synchronous replacement-time pointer query separate from queued event
+provenance: it is a current-state snapshot, not an old motion notification.
+
 ## Native X11 resource IDs are not generation provenance (2026-10-16)
 
 When an X11 child resource is retired and replaced on the same XCB connection,

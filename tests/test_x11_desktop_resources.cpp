@@ -1119,6 +1119,119 @@ syntheticXvfbPointerRandrRebuild()
 #endif
 
 void
+syntheticXvfbPointerRandrStaleMotionIsolation()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "pointer RandR stale-motion isolation");
+    assert(resources.pointerPositionAvailable());
+    assert(resources.randrAvailable());
+
+    const int originalDescriptor = resources.fileDescriptor();
+    xcb_connection_t *const originalConnection = resources.nativeConnection();
+    assert(originalDescriptor >= 0);
+    assert(originalConnection != nullptr);
+
+    X11PointerPosition initial{};
+    if (resources.pendingPointerPosition(initial))
+    {
+        resources.acknowledgePointerPosition(initial, false);
+    }
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+
+    constexpr PixelSize resizedGeometry{1024, 600};
+    constexpr X11PointerPosition staleGeneration{800, 500};
+
+    // Resize first, then move the pointer through the independent helper while
+    // the production aggregate still owns the old XI2 generation. The helper
+    // request ordering places this motion behind the RandR transition.
+    disableRandrCrtcsAndResize(
+        *helper, helperScreen->root, resizedGeometry);
+    warpSyntheticPointer(*helper, helperScreen->root, staleGeneration);
+    synchronizeXcbConnection(*originalConnection);
+
+    bool rebuilt = false;
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(64, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+        if (resources.sourceGeometry() == resizedGeometry)
+        {
+            assert(workMayRemain);
+            rebuilt = true;
+            break;
+        }
+    }
+    assert(rebuilt);
+    assert(resources.valid());
+    assert(resources.pointerPositionAvailable());
+    assert(resources.fileDescriptor() == originalDescriptor);
+    assert(resources.nativeConnection() == originalConnection);
+
+    // A replacement tracker snapshots the current root pointer during
+    // construction. Consume only that synchronous snapshot before testing the
+    // queued old-generation XI2 event.
+    X11PointerPosition replacementSnapshot{};
+    if (resources.pendingPointerPosition(replacementSnapshot))
+    {
+        assert(replacementSnapshot.x >= 0);
+        assert(replacementSnapshot.y >= 0);
+        assert(static_cast<std::uint32_t>(replacementSnapshot.x) <
+               resizedGeometry.widthPixels);
+        assert(static_cast<std::uint32_t>(replacementSnapshot.y) <
+               resizedGeometry.heightPixels);
+        resources.acknowledgePointerPosition(replacementSnapshot, false);
+    }
+
+    bool queuedEventsDrained = false;
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(64, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+        X11PointerPosition stale{};
+        assert(!resources.pendingPointerPosition(stale));
+        if (!workMayRemain)
+        {
+            queuedEventsDrained = true;
+            break;
+        }
+    }
+    assert(queuedEventsDrained);
+
+    // A genuinely new motion after the replacement subscription must still
+    // publish normally through that generation.
+    constexpr X11PointerPosition freshGeneration{123, 234};
+    warpSyntheticPointer(*helper, helperScreen->root, freshGeneration);
+    synchronizeXcbConnection(*originalConnection);
+
+    bool observedFreshMotion = false;
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(16, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+        X11PointerPosition observed{};
+        if (resources.pendingPointerPosition(observed))
+        {
+            assert(observed == freshGeneration);
+            observedFreshMotion = true;
+            break;
+        }
+    }
+
+    assert(observedFreshMotion);
+    assert(resources.shouldForwardPointerPosition(freshGeneration));
+    resources.acknowledgePointerPosition(freshGeneration, false);
+    assert(resources.valid());
+    resources.disconnect();
+}
+
+void
 syntheticXvfbRandrRebuild()
 {
     const char *display = syntheticDisplay();
@@ -1221,6 +1334,11 @@ main(int argc, char **argv)
     if (behavior == "pointer-randr-rebuild")
     {
         syntheticXvfbPointerRandrRebuild();
+        return 0;
+    }
+    if (behavior == "pointer-randr-stale-motion-isolation")
+    {
+        syntheticXvfbPointerRandrStaleMotionIsolation();
         return 0;
     }
 #endif

@@ -1,3 +1,18 @@
+## R5 XI2 pointer generation fence across RandR (2026-10-16)
+
+The geometry-bound XI2 pointer observer uses the same single XCB owner as
+capture/damage/input. A RandR transition can leave a motion event generated for
+the retiring observer queued after the aggregate has already subscribed a
+replacement tracker. Extension opcode, XI2 event type and root window are not
+sufficient generation provenance.
+
+Each `X11PointerPositionTracker` records the request sequence of the successful
+`XISelectEvents` subscription that creates its generation. `handles()`
+accepts motion only when XCB's reconstructed `full_sequence` is at or after
+that floor using bounded 32-bit serial arithmetic. The replacement tracker's
+synchronous `QueryPointer` snapshot remains valid current-state observation;
+the sequence fence only rejects older queued XI2 events.
+
 ## R5 XDamage event generation fence (2026-10-16)
 
 ## R2 Linux PAM verifier boundary (2026-10-16)

@@ -1,3 +1,37 @@
+## R5 XI2 stale-motion generation-isolation authoring validation (2026-10-16)
+
+**Reconciled parent:** `deabb822e2f795a2b2cde37979246beb7e876334`.
+
+Current-tree review confirms R3 still has no Share/Input or Fast-Path Input
+decoder/handoff surface for R5 to consume. The next safe R5 boundary is
+therefore native generation isolation rather than protocol parsing.
+
+The existing `pointer-randr-rebuild` behavior consumes its named
+`staleGeneration` XI2 motion before resizing, so it proves replacement
+geometry/clipping but not queued-event provenance. The new
+`x11.desktop-resource-pointer-randr-stale-motion-isolation` case deliberately
+orders a real helper-client RandR resize followed by a real pointer warp,
+performs a checked round trip on the production owner, and lets the display
+dispatcher stop exactly at the RandR event. The replacement XI2 tracker may
+publish its synchronous `QueryPointer` snapshot; the test acknowledges only
+that snapshot, then requires the queued old-generation motion to remain
+invisible. A fresh post-rebuild warp must still publish on the same XCB
+connection.
+
+Production adds only a request-sequence floor to
+`X11PointerPositionTracker`. The floor is the successful checked
+`XISelectEvents` subscription sequence. Queued XGE motion whose reconstructed
+XCB `full_sequence` is older is rejected before root-coordinate handling.
+Existing synthetic pointer tests now populate a current synchronized sequence
+on their injected motion records so malformed/type/root/coalescing/echo tests
+continue to reach the intended code paths.
+
+Canonical local `~/rdp-server/build/` execution is **NOT RUN** because this
+connector environment does not expose the synchronized owner checkout and
+project policy forbids another persistent build root. Exact publication-SHA
+hosted platform/sanitizer/docs/package validation is **PENDING**. No real user
+desktop, admitted XTEST path or Microsoft-client acceptance is claimed.
+
 ## R10 licensing provisioning preflight hosted receipt (2026-10-16)
 
 R10 implementation `35cfda594f45c15e14966579f05cadb4bc5db8f1` plus the

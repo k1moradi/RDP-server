@@ -73,6 +73,22 @@ screenFor(xcb_connection_t &connection, int screenNumber)
     return iterator.data;
 }
 
+std::uint32_t
+synchronizedRequestSequence(xcb_connection_t &connection) noexcept
+{
+    xcb_generic_error_t *error = nullptr;
+    const xcb_get_input_focus_cookie_t cookie =
+        xcb_get_input_focus(&connection);
+    xcb_get_input_focus_reply_t *reply =
+        xcb_get_input_focus_reply(&connection, cookie, &error);
+    assert(error == nullptr);
+    std::free(error);
+    assert(reply != nullptr);
+    std::free(reply);
+    assert(xcb_connection_has_error(&connection) == 0);
+    return cookie.sequence;
+}
+
 xcb_input_motion_event_t
 motionEvent(xcb_connection_t &connection, xcb_window_t root,
             std::int64_t rootXFixed, std::int64_t rootYFixed) noexcept
@@ -89,6 +105,8 @@ motionEvent(xcb_connection_t &connection, xcb_window_t root,
     motion.root = root;
     motion.root_x = static_cast<decltype(motion.root_x)>(rootXFixed);
     motion.root_y = static_cast<decltype(motion.root_y)>(rootYFixed);
+    reinterpret_cast<xcb_generic_event_t &>(motion).full_sequence =
+        synchronizedRequestSequence(connection);
     return motion;
 }
 

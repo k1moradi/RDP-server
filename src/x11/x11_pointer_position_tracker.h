@@ -58,6 +58,9 @@ private:
     xcb_window_t rootWindow_{XCB_WINDOW_NONE};
     PixelSize sourceGeometry_{};
     std::uint8_t majorOpcode_{0};
+    // XI2 event type/root identity does not prove geometry generation. Reject
+    // events older than the successful subscription that created this tracker.
+    std::uint32_t generationSequenceFloor_{0};
     X11PointerPosition pendingPosition_{};
     X11PointerPosition remotePosition_{};
     X11PointerPosition lastForwardedPosition_{};

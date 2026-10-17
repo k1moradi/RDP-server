@@ -36,6 +36,18 @@ checkRequest(xcb_connection_t *connection, xcb_void_cookie_t cookie) noexcept
     return false;
 }
 
+[[nodiscard]] constexpr bool
+sequenceAtOrAfter(std::uint32_t sequence, std::uint32_t floor) noexcept
+{
+    // XCB reconstructs a 32-bit sequence from the wire's 16-bit serial.
+    // The event queue is bounded far below half the serial space, so modular
+    // subtraction distinguishes recent post-floor events from stale ones.
+    constexpr std::uint32_t kHalfSequenceRange =
+        std::uint32_t{1} << 31U;
+    return static_cast<std::uint32_t>(sequence - floor) <
+           kHalfSequenceRange;
+}
+
 } // namespace
 
 X11PointerPositionTracker::X11PointerPositionTracker(
@@ -86,13 +98,15 @@ X11PointerPositionTracker::X11PointerPositionTracker(
     selectedMask.header.deviceid = XCB_INPUT_DEVICE_ALL_MASTER;
     selectedMask.header.mask_len = 1;
     selectedMask.mask = XCB_INPUT_XI_EVENT_MASK_MOTION;
-    if (!checkRequest(connection_, xcb_input_xi_select_events_checked(
-                                       connection_, rootWindow_, 1,
-                                       &selectedMask.header)))
+    const xcb_void_cookie_t selectionCookie =
+        xcb_input_xi_select_events_checked(
+            connection_, rootWindow_, 1, &selectedMask.header);
+    if (!checkRequest(connection_, selectionCookie))
     {
         failureReason_ = "XInput2 root motion subscription failed";
         return;
     }
+    generationSequenceFloor_ = selectionCookie.sequence;
     subscribed_ = true;
 
     xcb_generic_error_t *pointerError = nullptr;
@@ -145,6 +159,13 @@ X11PointerPositionTracker::handles(
         static_cast<std::uint8_t>(event.response_type & 0x7fU);
     if (responseType != XCB_GE_GENERIC || !valid())
     {
+        return false;
+    }
+    if (!sequenceAtOrAfter(event.full_sequence, generationSequenceFloor_))
+    {
+        // RandR can leave an old XI2 motion queued after the replacement
+        // tracker subscribes. Do not let extension/root identity cross the
+        // geometry-generation boundary.
         return false;
     }
 
@@ -299,6 +320,7 @@ X11PointerPositionTracker::disconnect() noexcept
     rootWindow_ = XCB_WINDOW_NONE;
     sourceGeometry_ = {};
     majorOpcode_ = 0;
+    generationSequenceFloor_ = 0;
     pendingPosition_ = {};
     remotePosition_ = {};
     lastForwardedPosition_ = {};

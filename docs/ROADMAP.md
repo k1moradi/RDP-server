@@ -1,3 +1,47 @@
+## R5 XI2 stale-motion generation isolation (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `deabb822e2f795a2b2cde37979246beb7e876334`.
+
+Current R3 source still exports no authenticated already-decoded Share/Input or
+Fast-Path Input event handoff, so functional R5 translation remains blocked and
+this increment stays inside the existing native owner. The prior XDamage RandR
+regression established that queued native events need explicit generation
+provenance. Source review found the geometry-bound XI2 pointer tracker had the
+same class of gap: after RandR rebuild it matched queued motion only by XGE
+extension opcode, XI2 motion type and root window.
+
+`X11PointerPositionTracker` now records the request sequence of its successful
+checked `XISelectEvents` subscription. Its event matcher rejects XCB
+`full_sequence` values older than that generation floor using bounded 32-bit
+serial arithmetic; disconnect clears the floor with the rest of the borrowed
+native identity. The constructor's synchronous `QueryPointer` snapshot remains
+a current-state observation and is intentionally not treated as a queued event.
+
+New production-backed CTest
+`x11.desktop-resource-pointer-randr-stale-motion-isolation` remains in the
+existing `test_x11_desktop_resources` executable and uses the same one
+production XCB connection. An independent helper completes the real Xvfb resize
+from 1280x720 to 1024x600, then warps the root pointer before the aggregate
+consumes RandR. After the transactional rebuild, the test consumes only the
+replacement tracker's synchronous pointer snapshot, drains the queued old XI2
+motion without allowing a pending coordinate to reappear, then requires a fresh
+post-rebuild warp to publish normally. The existing pointer tracker synthetic
+fixtures now stamp their injected XGE records with a synchronized current XCB
+request sequence so they continue exercising the production generation check.
+
+The shared R9 Clang ASan/UBSan R5 selector and exact-name preflight include the
+new case, expanding the expected native-X11 selection from **32** to **33**
+behaviors. No second XCB owner, event loop, RDP parser, scheduler or authority
+surface is added.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest is **NOT
+RUN** in this connector environment; no alternate persistent build root is
+created. Exact publication-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC,
+R9 sanitizer, documentation-policy and SDK/package evidence are **PENDING**.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27, genuine admitted
+XTEST operation and Microsoft-client M3 acceptance remain **NOT RUN / OPEN**.
+Functional R5 input integration remains **BLOCKED ON R3**.
+
 ## R10 licensing provisioning hosted validation (2026-10-16)
 
 **Implementation:** `35cfda594f45c15e14966579f05cadb4bc5db8f1`.  

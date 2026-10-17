@@ -82,6 +82,16 @@ then generate a fresh post-rebuild event and require that one to be observed.
 Keep this synchronization request/reply based and bounded rather than relying
 on sleeps.
 
+The same generation-isolation rule applies to geometry-bound XI2 pointer
+observation. Queue a real helper-client pointer motion after the server-side
+RandR resize but before the production aggregate consumes that transition.
+After replacement, explicitly consume only the new tracker's synchronous
+QueryPointer snapshot, then drain the queued old-generation motion and require
+that it does not republish a pending coordinate. A fresh post-rebuild motion
+must still be observed on the same production XCB connection. Use a checked
+round trip to establish queue ordering; do not infer event readiness from a
+sleep.
+
 For the XShm child itself, a failed-connection cancellation test is not enough
 to prove the native retirement path. Under ephemeral Xvfb, first establish a
 real attached capture and finish consuming its borrowed `FramebufferView`.

@@ -558,10 +558,13 @@ commit's hosted Ubuntu Debug suite registered and passed
 overall failed because the concurrent R1
 `transport.tcp-native-loopback-tls` case timed out on both Linux and macOS,
 and because the implementation commit lacked a same-commit Markdown co-change.
-The follow-up R2 correction adds the new runtime case to the R9 bounded
-ASan/UBSan direct-runtime selector with an exact registry preflight and carries
-this documentation in the same commit. Positive PAM/native authority remains
-**NOT RUN**.
+The first selector publication, `0e02825fd8b89770ad12229440ada781386e88c1`,
+created zero CI jobs because its authoring tool accidentally interpreted the
+literal shell-regex suffix `$'` as a replacement token and duplicated the
+workflow tail. It is negative evidence only. This repair restores the workflow
+verbatim from the last structure-guarded parent and reapplies only the R2
+runtime selector addition plus its exact registry preflight using literal-safe
+editing. Positive PAM/native authority remains **NOT RUN**.
 
 ## R2 authenticated PAM invocation hosted validation (2026-10-17)
 

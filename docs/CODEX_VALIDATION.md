@@ -1,3 +1,40 @@
+## R10 Windows fixture-DACL repair evidence (2026-10-17; owner native NOT RUN)
+
+Owner evidence before this repair shows **53 failures out of 507**, with the
+common harness failure occurring before production assertions while preparing
+synthetic config, TLS and licensing files. The transcript excerpt suppresses
+the underlying `icacls` diagnostic, so the exact owner-machine mechanism is
+**not yet demonstrated** and must not be guessed.
+
+Control evidence: hosted MSYS2 CLANG64 at
+`03f7675cfedd2691ff2e446d8b960170bd7625a4`, Actions
+`39010975844`, provisions Clang **23.1.3-1**, MinGW-w64 headers/CRT
+**14.0.0.r426.g4564ee4b5-1**, CMake **4.4.4-3** and OpenSSL **3.6.5-1**.
+The previously owner-blocked licensing-context, licensing CLI, runtime TLS,
+Windows config-DACL and TLS credential permission cases all **PASS** there.
+The complete hosted CLANG64 Debug result is **519/520 PASS**; the only failure
+is unrelated `transport.tcp-native-loopback-tls` (`0xc0000409`), so Release
+was skipped by the fail-fast job.
+
+This repair changes only test-fixture preparation and central CTest
+registration. The shared helper uses a native absolute path and current SID,
+avoids unnecessary `/setowner`, separates inheritance removal from grant
+replacement, validates the resulting owner/protected DACL, and emits native
+stdout/stderr and exit code on failure. Negative Everyone, Authenticated Users,
+Built-in Users and private-key public-read fixtures still deliberately add
+their unsafe ACE only after a verified private baseline and still rely on the
+production validator to reject them.
+
+New Windows-only registrations:
+`runtime.windows-private-fixture-dacl-creation`,
+`runtime.windows-private-fixture-broad-access-denials`,
+`runtime.windows-private-fixture-owner-consistency`.
+
+Publication-SHA owner MSYS2 CLANG64 and full hosted regression evidence are
+**PENDING**. The owner must record `git rev-parse HEAD`, `clang++ --version`,
+full CTest totals and the exact new ACL diagnostic if any fixture setup still
+fails. No owner-native PASS is claimed from hosted CI.
+
 ## R7 P1 hosted Apple lifecycle-gate authoring receipt (2026-10-17)
 
 **Starting reconciled shared `main`:** `1332fd044773b9da53bff2d81403204ecd137484`.  

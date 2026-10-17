@@ -8,6 +8,10 @@ foreach(required_argument IN ITEMS
     endif()
 endforeach()
 
+if(WIN32)
+    include("${CMAKE_CURRENT_LIST_DIR}/windows_private_fixture_acl.cmake")
+endif()
+
 file(MAKE_DIRECTORY "${RDP_RUNTIME_FIXTURE_DIRECTORY}")
 set(certificate_file
     "${RDP_RUNTIME_FIXTURE_DIRECTORY}/runtime-licensing.bin")
@@ -40,26 +44,8 @@ if(UNIX)
     file(CHMOD "${encrypted_premaster_file}" PERMISSIONS
         OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 elseif(WIN32)
-    execute_process(COMMAND whoami.exe
-        RESULT_VARIABLE whoami_result
-        OUTPUT_VARIABLE runtime_account
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT whoami_result STREQUAL "0" OR runtime_account STREQUAL "")
-        message(FATAL_ERROR "Cannot discover synthetic fixture owner")
-    endif()
     foreach(material IN ITEMS "${certificate_file}" "${private_key_file}")
-        execute_process(COMMAND icacls.exe "${material}"
-            /inheritance:r /grant:r "${runtime_account}:(F)"
-            RESULT_VARIABLE acl_result OUTPUT_QUIET ERROR_QUIET)
-        if(NOT acl_result STREQUAL "0")
-            message(FATAL_ERROR "Cannot set licensing fixture DACL")
-        endif()
-        execute_process(COMMAND icacls.exe "${material}"
-            /setowner "${runtime_account}"
-            RESULT_VARIABLE owner_result OUTPUT_QUIET ERROR_QUIET)
-        if(NOT owner_result STREQUAL "0")
-            message(FATAL_ERROR "Cannot set licensing fixture owner")
-        endif()
+        rdp_windows_make_private_fixture_acl("${material}")
     endforeach()
 endif()
 
@@ -100,30 +86,10 @@ if(RDP_RUNTIME_LICENSING_CASE STREQUAL
         expect_runtime_licensing_denial(
             "${certificate_file}" "${key_link}")
     elseif(WIN32)
-        execute_process(COMMAND icacls.exe "${restricted_key}"
-            /inheritance:r /grant:r "${runtime_account}:(F)"
-            RESULT_VARIABLE restricted_acl_result
-            OUTPUT_QUIET ERROR_QUIET)
-        if(NOT restricted_acl_result STREQUAL "0")
-            message(FATAL_ERROR
-                "Cannot set restricted licensing-key baseline DACL")
-        endif()
-        execute_process(COMMAND icacls.exe "${restricted_key}"
-            /setowner "${runtime_account}"
-            RESULT_VARIABLE restricted_owner_result
-            OUTPUT_QUIET ERROR_QUIET)
-        if(NOT restricted_owner_result STREQUAL "0")
-            message(FATAL_ERROR
-                "Cannot set restricted licensing-key owner")
-        endif()
-        execute_process(COMMAND icacls.exe "${restricted_key}"
-            /grant "*S-1-1-0:(R)"
-            RESULT_VARIABLE public_read_result
-            OUTPUT_QUIET ERROR_QUIET)
-        if(NOT public_read_result STREQUAL "0")
-            message(FATAL_ERROR
-                "Cannot grant synthetic public licensing-key read ACE")
-        endif()
+        rdp_windows_make_private_fixture_acl("${restricted_key}")
+        rdp_windows_fixture_add_insecure_test_ace(
+            "${restricted_key}" "S-1-1-0" "R"
+            "grant synthetic public licensing-key read ACE")
         expect_runtime_licensing_denial(
             "${certificate_file}" "${restricted_key}")
     endif()

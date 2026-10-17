@@ -1,3 +1,52 @@
+## R10 Windows MSYS2 CLANG64 synthetic-DACL fixture blocker (2026-10-17; owner rerun required)
+
+The owner supplied a native MSYS2 CLANG64 full-CTest transcript with **507
+tests, 454 PASS and 53 FAIL**. The dominant failures occur in test-fixture
+preparation before the intended production assertion and report only generic
+messages such as `Cannot set private synthetic fixture DACL`,
+`Cannot set private synthetic config DACL` and
+`Cannot set synthetic TLS fixture DACL`. The supplied excerpt does not
+contain `git rev-parse HEAD` or the captured `icacls` stdout/stderr, so it
+cannot establish an exact-SHA M1 receipt or honestly distinguish executable
+resolution, account-name mapping, path formatting, filesystem ACL support or a
+specific ACL operation.
+
+A hosted MSYS2 CLANG64 control at
+`03f7675cfedd2691ff2e446d8b960170bd7625a4`, Actions
+`39010975844`, uses Clang **23.1.3** and CMake **4.4.4**. Its Debug run
+reaches the same production-backed licensing/config/TLS fixture families and
+passes the previously reported DACL-blocked cases. The full hosted CLANG64
+Debug suite is **519/520 PASS**; its sole unrelated failure is
+`transport.tcp-native-loopback-tls` with Windows exit `0xc0000409`. This
+proves the owner failure is not a universal Clang 23/MinGW-w64 fixture failure.
+
+R10 centralizes disposable Windows fixture preparation in one test-only
+helper. It resolves native System32 security tools, converts CMake paths to
+native absolute paths, resolves the current SID instead of granting by localized
+account name, checks the actual file-owner SID, skips `/setowner` when
+ownership already matches, and fails closed if a required ownership correction
+cannot be performed. Inheritance removal and owner grant replacement are
+separate `icacls` operations. Every failure reports the exact operation,
+native path, executable, exit code, stdout and stderr. A post-operation
+descriptor check requires protected inheritance, current-SID ownership,
+explicit owner FullControl, and no allow ACE outside owner, LocalSystem or
+Administrators. No production authorization code or
+`hasRestrictedCredentialDacl()` policy is changed.
+
+Dedicated Windows CTests
+`runtime.windows-private-fixture-dacl-creation`,
+`runtime.windows-private-fixture-broad-access-denials` and
+`runtime.windows-private-fixture-owner-consistency` exercise the shared
+helper and reuse the real runtime config/TLS checks for positive and
+broad-principal negative assertions. Owner-native validation is **NOT RUN**
+until the owner fast-forwards to the publication SHA. If it still fails, the
+new diagnostic is the required root-cause evidence; do not weaken DACL checks
+or run elevated by default.
+
+**M1 Windows status:** **OPEN / owner rerun required**. Listener startup,
+admission/licensing gates and production credential authorization remain
+unchanged.
+
 ## R7 P1 hosted Apple capture/session fail-closed gate (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `1332fd044773b9da53bff2d81403204ecd137484`.

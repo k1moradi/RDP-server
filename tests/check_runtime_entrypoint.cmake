@@ -6,6 +6,10 @@ foreach(required_argument IN ITEMS RDP_RUNTIME_EXECUTABLE RDP_RUNTIME_VERSION RD
     endif()
 endforeach()
 
+if(WIN32)
+    include("${CMAKE_CURRENT_LIST_DIR}/windows_private_fixture_acl.cmake")
+endif()
+
 # R10 licensing-authority startup isolation. Reuse the existing process
 # expectations rather than creating a second CLI oracle. The positive provider
 # fixture is not linked into rdp-server and no case below can configure one.
@@ -133,36 +137,11 @@ if(RDP_RUNTIME_TEST_CASE MATCHES "^licensing-cli-")
     set(config_file
         "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TEST_CASE}.conf")
 
-    if(WIN32)
-        execute_process(COMMAND whoami.exe
-            RESULT_VARIABLE whoami_result
-            OUTPUT_VARIABLE runtime_account
-            OUTPUT_STRIP_TRAILING_WHITESPACE)
-        if(NOT whoami_result STREQUAL "0" OR runtime_account STREQUAL "")
-            message(FATAL_ERROR "Cannot discover synthetic fixture owner")
-        endif()
-    endif()
-
     function(set_private_runtime_file_metadata path)
         if(UNIX)
             file(CHMOD "${path}" PERMISSIONS OWNER_READ OWNER_WRITE)
         elseif(WIN32)
-            execute_process(COMMAND icacls.exe "${path}"
-                /inheritance:r /grant:r "${runtime_account}:(F)"
-                RESULT_VARIABLE acl_result
-                OUTPUT_QUIET ERROR_VARIABLE acl_error)
-            if(NOT acl_result STREQUAL "0")
-                message(FATAL_ERROR
-                    "Cannot set private synthetic fixture DACL")
-            endif()
-            execute_process(COMMAND icacls.exe "${path}"
-                /setowner "${runtime_account}"
-                RESULT_VARIABLE owner_result
-                OUTPUT_QUIET ERROR_VARIABLE owner_error)
-            if(NOT owner_result STREQUAL "0")
-                message(FATAL_ERROR
-                    "Cannot set synthetic fixture owner")
-            endif()
+            rdp_windows_make_private_fixture_acl("${path}")
         endif()
     endfunction()
 
@@ -410,14 +389,9 @@ if(RDP_RUNTIME_TEST_CASE MATCHES "^licensing-cli-")
             file(CHMOD "${licensing_private_key}" PERMISSIONS
                 OWNER_READ OWNER_WRITE GROUP_READ)
         elseif(WIN32)
-            execute_process(COMMAND icacls.exe "${licensing_private_key}"
-                /grant "*S-1-1-0:(R)"
-                RESULT_VARIABLE public_read_result
-                OUTPUT_QUIET ERROR_QUIET)
-            if(NOT public_read_result STREQUAL "0")
-                message(FATAL_ERROR
-                    "Cannot grant synthetic public licensing-key read ACE")
-            endif()
+            rdp_windows_fixture_add_insecure_test_ace(
+                "${licensing_private_key}" "S-1-1-0" "R"
+                "grant synthetic public licensing-key read ACE")
         endif()
         run_runtime_cli(
             "--check-licensing-credentials" "${full_config}" 3
@@ -739,36 +713,18 @@ E0U+IoGqDg==
             file(CHMOD "${config_file}" PERMISSIONS OWNER_READ OWNER_WRITE)
         endif()
         if(WIN32 AND NOT RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
-            # Ensure every Windows config fixture has an explicit private
-            # baseline DACL, independent of CI checkout inheritance.
-            execute_process(COMMAND whoami.exe
-                RESULT_VARIABLE whoami_result
-                OUTPUT_VARIABLE runtime_account
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-            if(NOT whoami_result STREQUAL "0" OR runtime_account STREQUAL "")
-                message(FATAL_ERROR "Cannot discover synthetic fixture owner")
-            endif()
-            execute_process(COMMAND icacls.exe "${config_file}"
-                /inheritance:r /grant:r "${runtime_account}:(F)"
-                RESULT_VARIABLE private_acl_result
-                OUTPUT_QUIET ERROR_VARIABLE private_acl_error)
-            if(NOT private_acl_result STREQUAL "0")
-                message(FATAL_ERROR "Cannot set private synthetic config DACL")
-            endif()
+            rdp_windows_make_private_fixture_acl("${config_file}")
             if(RDP_RUNTIME_TEST_CASE MATCHES "^rejects-configuration-windows-(everyone|authenticated|users)-write$")
                 if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-everyone-write")
-                    set(broad_sid "*S-1-1-0")
+                    set(broad_sid "S-1-1-0")
                 elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-authenticated-write")
-                    set(broad_sid "*S-1-5-11")
+                    set(broad_sid "S-1-5-11")
                 else()
-                    set(broad_sid "*S-1-5-32-545")
+                    set(broad_sid "S-1-5-32-545")
                 endif()
-                execute_process(COMMAND icacls.exe "${config_file}"
-                    /grant "${broad_sid}:(M)"
-                    RESULT_VARIABLE grant_result OUTPUT_QUIET ERROR_QUIET)
-                if(NOT grant_result STREQUAL "0")
-                    message(FATAL_ERROR "Cannot grant synthetic broad write ACE")
-                endif()
+                rdp_windows_fixture_add_insecure_test_ace(
+                    "${config_file}" "${broad_sid}" "M"
+                    "grant synthetic broad write ACE")
             endif()
         endif()
         if(WIN32 AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-configuration-windows-directory")
@@ -814,22 +770,9 @@ E0U+IoGqDg==
                     OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
                 file(CHMOD "${private_key_file}" PERMISSIONS
                     OWNER_READ OWNER_WRITE)
-            else()
+            elseif(WIN32)
                 foreach(material IN ITEMS "${certificate_file}" "${private_key_file}")
-                    execute_process(COMMAND icacls.exe "${material}"
-                        /inheritance:r /grant:r "${runtime_account}:(F)"
-                        RESULT_VARIABLE acl_result OUTPUT_QUIET ERROR_QUIET)
-                    if(NOT acl_result STREQUAL "0")
-                        message(FATAL_ERROR "Cannot set synthetic TLS-file ACL")
-                    endif()
-                    # A runner account and auto-assigned file owner can be
-                    # distinct SIDs. The strict key checker requires identity.
-                    execute_process(COMMAND icacls.exe "${material}"
-                        /setowner "${runtime_account}"
-                        RESULT_VARIABLE owner_result OUTPUT_QUIET ERROR_QUIET)
-                    if(NOT owner_result STREQUAL "0")
-                        message(FATAL_ERROR "Cannot set synthetic TLS-file owner")
-                    endif()
+                    rdp_windows_make_private_fixture_acl("${material}")
                 endforeach()
             endif()
             if(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-credentials-client-only-certificate")
@@ -902,12 +845,9 @@ E0U+IoGqDg==
                 file(REMOVE "${private_key_file}")
                 file(MAKE_DIRECTORY "${private_key_file}")
             elseif(WIN32 AND RDP_RUNTIME_TEST_CASE STREQUAL "rejects-tls-files-windows-key-public-read")
-                execute_process(COMMAND icacls.exe "${private_key_file}"
-                    /grant "*S-1-1-0:(R)"
-                    RESULT_VARIABLE grant_result OUTPUT_QUIET ERROR_QUIET)
-                if(NOT grant_result STREQUAL "0")
-                    message(FATAL_ERROR "Cannot grant synthetic TLS key public read ACE")
-                endif()
+                rdp_windows_fixture_add_insecure_test_ace(
+                    "${private_key_file}" "S-1-1-0" "R"
+                    "grant synthetic TLS key public read ACE")
             endif()
             if(check_linux_security)
                 if(NOT DEFINED RDP_RUNTIME_LINUX_SECURITY_HELPER OR

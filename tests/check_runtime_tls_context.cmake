@@ -10,6 +10,10 @@ foreach(required_argument IN ITEMS
     endif()
 endforeach()
 
+if(WIN32)
+    include("${CMAKE_CURRENT_LIST_DIR}/windows_private_fixture_acl.cmake")
+endif()
+
 file(MAKE_DIRECTORY "${RDP_RUNTIME_FIXTURE_DIRECTORY}")
 set(certificate_file
     "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TLS_CONTEXT_CASE}.crt")
@@ -57,26 +61,8 @@ if(UNIX)
         OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
     file(CHMOD "${private_key_file}" PERMISSIONS OWNER_READ OWNER_WRITE)
 elseif(WIN32)
-    execute_process(COMMAND whoami.exe
-        RESULT_VARIABLE whoami_result
-        OUTPUT_VARIABLE runtime_account
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT whoami_result STREQUAL "0" OR runtime_account STREQUAL "")
-        message(FATAL_ERROR "Cannot discover synthetic fixture owner")
-    endif()
     foreach(material IN ITEMS "${certificate_file}" "${private_key_file}")
-        execute_process(COMMAND icacls.exe "${material}"
-            /inheritance:r /grant:r "${runtime_account}:(F)"
-            RESULT_VARIABLE acl_result OUTPUT_QUIET ERROR_QUIET)
-        if(NOT acl_result STREQUAL "0")
-            message(FATAL_ERROR "Cannot set synthetic TLS fixture DACL")
-        endif()
-        execute_process(COMMAND icacls.exe "${material}"
-            /setowner "${runtime_account}"
-            RESULT_VARIABLE owner_result OUTPUT_QUIET ERROR_QUIET)
-        if(NOT owner_result STREQUAL "0")
-            message(FATAL_ERROR "Cannot set synthetic TLS fixture owner")
-        endif()
+        rdp_windows_make_private_fixture_acl("${material}")
     endforeach()
 endif()
 

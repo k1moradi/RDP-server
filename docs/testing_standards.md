@@ -1,3 +1,27 @@
+## Windows synthetic private-file fixtures use SID-native ACL setup (2026-10-17)
+
+Windows CTest fixtures that must satisfy production credential-file DACL checks
+share one test-only ACL helper. Resolve the current Windows SID rather than
+granting by localized account text, convert CMake paths to native absolute
+paths, and prefer the System32 native security tools. Treat owner assignment,
+inheritance removal and grant replacement as distinct operations: do not
+perform `/setowner` when a newly created synthetic file already belongs to
+the current SID, and never assume a non-elevated process can change ownership.
+
+After mutation, inspect the resulting security descriptor. A private baseline
+must have inheritance protected, the expected current owner, an explicit owner
+FullControl allow ACE, and no allow principal outside the owner, LocalSystem or
+Administrators. If the filesystem cannot provide that descriptor or any native
+operation fails, the test fails closed and reports executable, native path,
+operation, exit code, stdout and stderr. Do not skip the test, grant broad
+access, elevate the server, or weaken production
+`hasRestrictedCredentialDacl()` checks.
+
+Negative permission fixtures start from that verified private baseline and only
+then add the exact unsafe Everyone, Authenticated Users or Built-in Users ACE
+required by the case. Their success condition remains production rejection of
+the insecure file.
+
 ## R7 hosted Apple lifecycle coverage must fail closed
 
 The ordinary hosted macOS protocol matrix must make Apple-only R7 lifetime

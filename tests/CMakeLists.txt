@@ -1153,6 +1153,25 @@ foreach(runtime_case IN ITEMS
         set_tests_properties("runtime.${runtime_case}" PROPERTIES TIMEOUT 10)
     endif()
 endforeach()
+
+if(WIN32)
+    foreach(windows_fixture_case IN ITEMS
+            dacl-creation
+            broad-access-denials
+            owner-consistency)
+        add_test(NAME "runtime.windows-private-fixture-${windows_fixture_case}"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
+                "-DRDP_RUNTIME_VERSION=${PROJECT_VERSION}"
+                "-DRDP_WINDOWS_FIXTURE_CASE=${windows_fixture_case}"
+                "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/windows-private-fixture-${windows_fixture_case}"
+                -P "${PROJECT_SOURCE_DIR}/tests/check_windows_private_fixture_acl.cmake")
+        set_tests_properties(
+            "runtime.windows-private-fixture-${windows_fixture_case}" PROPERTIES
+            LABELS "runtime;security;windows;offline"
+            TIMEOUT 30)
+    endforeach()
+endif()
 # The native cursor conversion is compiled into the isolated headless
 # test without adding XCB dependencies to the portable protocol archive.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

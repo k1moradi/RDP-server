@@ -1224,7 +1224,7 @@ verbatim from the last structure-guarded parent and reapplies only the R2
 runtime selector addition plus its exact registry preflight using literal-safe
 editing. Positive PAM/native authority remains **NOT RUN**.
 
-## R2 administrator PAM-service provisioning authoring receipt (2026-10-17)
+## R2 administrator PAM-service provisioning hosted validation (2026-10-17)
 
 **Starting shared `main`:** `313140fdd5d803e6b0ae934b0d02f859d7548328`.
 
@@ -1249,15 +1249,31 @@ Ubuntu ran its dedicated final-credential admission denial successfully and
 R9 Clang ASan/UBSan passed the direct runtime-security set **12/12**. The full
 Ubuntu suite remained red only at the independent R1 native-loopback TLS case.
 
+Follow-up test-plumbing commit
+`f7f8f83c968332cf2b3d86d999cfe2142bec1045` propagates the PAM-enabled
+fixture flag through the existing licensing/startup meta-tests so their
+recursive Linux security preflight exercises the same administrator
+configuration contract; production code is unchanged.
+
+Hosted validation for that descendant is Actions `39014765641`, with
+standalone workflow-structure Actions `39014765654` **SUCCESS**.
+Documentation policy passes. Ubuntu/GCC compiles the PAM-enabled Debug graph
+and executes **581/582 PASS**; the sole failure is the independent R1
+`transport.tcp-native-loopback-tls` test. The positive
+`runtime.validates-linux-security-provisioning`, all four new PAM-service
+configuration denials, `runtime.licensing-cli-existing-check-compatibility`,
+and `runtime.licensing-authority-no-startup-bypass` pass.
+
+The exact descendant's R9 Clang ASan/UBSan job is **SUCCESS**: native R2/R3
+GSSAPI **30/30 PASS**, Linux PAM verifier denials **3/3 PASS**, and direct
+runtime security **12/12 PASS**. macOS/AppleClang and Windows/MSVC both
+configure and compile their non-PAM Debug graphs, confirming that the
+conditional configuration grammar does not alter those builds.
+
 Canonical local `~/rdp-server/build/` execution is **NOT RUN** because that
-checkout is not mounted in this connector environment. Follow-up test-plumbing
-commit from shared parent `d9c0747fdd64a325d532252f876e8e7645123dcb` also propagates the PAM-enabled fixture
-flag through the existing licensing/startup meta-tests so their recursive Linux
-security preflight exercises the same administrator configuration contract;
-production code is unchanged. Exact hosted evidence for the combined
-administrator-provisioning descendant is **PENDING**. Genuine
-positive Kerberos/PAM/NSS/logind admission and Microsoft-client acceptance
-remain **NOT RUN / BLOCKED**.
+checkout is not mounted in this connector environment. Genuine positive
+Kerberos + PAM + NSS/logind physical-desktop admission/revocation and
+Microsoft-client acceptance remain **NOT RUN / BLOCKED**; M2 is not accepted.
 
 ## R2 authenticated PAM invocation hosted validation (2026-10-17)
 

@@ -209,7 +209,7 @@ including the final-credential/native-admission denial. Structure,
 documentation-policy and the R7 sanitizer/lifecycle jobs also passed. This is
 not positive authentication or native-owner acceptance.
 
-### R2 administrator PAM-service provisioning (2026-10-17; authoring)
+### R2 administrator PAM-service provisioning (2026-10-17; hosted validated)
 
 **Starting reconciled shared `main`:** `313140fdd5d803e6b0ae934b0d02f859d7548328`.
 
@@ -229,15 +229,40 @@ echoes those values. The positive existing Linux provisioning test now proves
 that the explicit service can be configured while the command remains offline
 and non-authorizing.
 
-Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
-connector environment. Hosted exact-publication evidence is **PENDING** for the
-commit containing this section.
+Source/test publication `d9c0747fdd64a325d532252f876e8e7645123dcb`
+and meta-fixture correction `f7f8f83c968332cf2b3d86d999cfe2142bec1045`
+are hosted-validated on Actions `39014765641`; standalone workflow-structure
+run `39014765654` is **SUCCESS**. Documentation policy is **SUCCESS**.
 
-**Next R2 gate:** run the new administrator-provisioning cases on hosted
-Linux/GCC and preserve the R9 native R2/runtime sanitizer evidence. Then genuine
-positive Kerberos + PAM + NSS/logind owner/watch acceptance must be performed
-in a controlled owner environment before M2 can close; ordinary CI must not
-manufacture that authority.
+Ubuntu/GCC built the complete PAM-enabled Debug graph. Full Debug CTest reached
+**581/582 PASS**; its only failure was the independent R1
+`transport.tcp-native-loopback-tls` case. R2's positive configuration-only
+`runtime.validates-linux-security-provisioning` and all four new fail-closed
+cases passed:
+`runtime.rejects-linux-security-missing-pam-service`,
+`runtime.rejects-linux-security-invalid-pam-service`,
+`runtime.rejects-linux-security-password-config`, and
+`runtime.rejects-linux-security-authorization-result-config`. The recursive
+licensing compatibility and licensing-authority no-startup-bypass cases also
+passed with the PAM fixture flag propagated. Release/package stages were
+skipped after the unrelated Debug failure and are not claimed.
+
+R9 Clang ASan/UBSan is **SUCCESS**. Its bounded native R2/R3 GSSAPI selection
+is **30/30 PASS**, the Linux PAM verifier selection is **3/3 PASS**, and the
+direct Linux runtime-security selection is **12/12 PASS**, including the
+final-credential/native-admission denial and runtime PAM provisioning cases.
+macOS/AppleClang and Windows/MSVC both configured and compiled their non-PAM
+Debug graphs successfully, preserving the prior grammar on those platforms;
+their full-suite status is not used as R2 authority evidence.
+
+Canonical owner-local `~/rdp-server/build/` execution remains **NOT RUN** in
+this connector environment.
+
+**Next R2 gate:** the remaining gate is genuine positive Kerberos + PAM +
+NSS/logind physical-desktop ownership with the installed logind revocation
+watch, exercised in a controlled owner environment and then through an
+authenticated Microsoft client. Ordinary CI must not manufacture that
+authority. Until that evidence exists, M2 remains **OPEN / NOT ACCEPTED**.
 
 ## R6 P2 Windows sanitizer continuation-fence correction (2026-10-17)
 

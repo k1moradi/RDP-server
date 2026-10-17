@@ -1,3 +1,19 @@
+## R8 hierarchy-provenance tests are structural and non-authorizing (2026-10-17)
+
+Test relative File List hierarchy only through production descriptor parsing and
+generation owners. Positive cases prove exact descriptor-index parentage,
+directory attributes, bounded depth and leaf-only public names. Negative cases
+cover duplicate nodes, missing explicit parents, file-as-parent,
+caller-placement cycles, excess depth, absolute/UNC/drive/traversal syntax and
+generation replacement. When hierarchy verification fails, assert no hierarchy
+node is observable while otherwise-valid flat descriptors remain usable.
+
+Do not create local children, traverse directories, open user paths or use a
+live clipboard in ordinary hierarchy tests. Native directory capability tests
+remain duplicate/close-only. Keep every hierarchy CTest under the broad
+`clipboard` label and require its sentinel name in R9's complete clipboard
+sanitizer preflight.
+
 ## R6/R4 production-ingress convergence (2026-10-17)
 
 The three existing `windows.capture-r4-*` CTests now execute R4's production

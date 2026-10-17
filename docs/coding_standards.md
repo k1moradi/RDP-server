@@ -1,3 +1,19 @@
+## Relative CLIPRDR hierarchy is metadata, never path authority (R8 P2, 2026-10-17)
+
+MS-RDPECLIP File List names can carry bounded relative components even when
+`CB_FILECLIP_NO_FILE_PATHS` forbids disclosure of the source path. Treat those
+components only as protocol structure. Keep native-facing file names leaf-only;
+never return the relative string as a filesystem path, concatenate it with a
+local directory, or reopen anything by name.
+
+A hierarchy proof is valid only for one exact clipboard generation when every
+node name is unique, every non-root immediate prefix names an explicit
+directory descriptor, depth/count bounds hold and the parent graph is acyclic.
+Failure is transactional for the hierarchy proof: no partial parent mapping is
+visible. Flat descriptor-index streaming may remain usable independently.
+Caller-selected local placement and verified remote parentage are separate
+facts and may differ.
+
 ## R4 native framebuffer ingress is generation-fenced before dereference (2026-10-17)
 
 Keep `FramebufferView` as the single shared platform/R4 framebuffer

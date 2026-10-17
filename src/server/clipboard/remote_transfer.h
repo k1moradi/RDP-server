@@ -33,6 +33,7 @@ public:
     static constexpr std::size_t kMaximumFormats = 64;
     static constexpr std::size_t kMaximumCapabilitySets = 16;
     static constexpr std::size_t kMaximumRemoteFiles = 64;
+    static constexpr std::size_t kMaximumRemoteHierarchyDepth = 16U;
     static constexpr std::size_t kMaximumFileContentsChunkBytes = 64U * 1024U;
     // MS-RDPECLIP generalFlags: capability version is informational only.
     // The bounded lock/unlock boundary below is intentionally offline until
@@ -259,12 +260,43 @@ public:
     // file body is retained here.
     struct RemoteFileView
     {
+        // Safe leaf only. Relative hierarchy components are intentionally not
+        // exposed as a pathname or filesystem-placement hint.
         std::span<const char16_t> name{};
         std::uint64_t size{};
         std::uint32_t attributes{};
         bool sizeKnown{};
         bool directory{};
     };
+
+    enum class RemoteHierarchyStatus : std::uint8_t
+    {
+        Unavailable,
+        VerifiedRelativePaths,
+        UnsupportedSourcePathsAllowed,
+        UnsupportedDuplicateNode,
+        UnsupportedMissingParent,
+        UnsupportedParentNotDirectory,
+        UnsupportedParentCycle,
+        UnsupportedDepthExceeded,
+    };
+
+    struct RemoteHierarchyNodeView
+    {
+        std::size_t remoteFileIndex{};
+        std::optional<std::size_t> parentRemoteFileIndex{};
+        std::uint16_t depth{};
+        bool directory{};
+    };
+
+    // Non-authorizing CLIPRDR structure only. A verified node is bound to the
+    // current FileGroupDescriptorW generation and exact descriptor index.
+    // No relative path string is exposed, opened or converted into a local
+    // path. Missing/ambiguous parents make the whole hierarchy unavailable
+    // transactionally while flat file streaming remains usable.
+    [[nodiscard]] RemoteHierarchyStatus remoteHierarchyStatus() const noexcept;
+    [[nodiscard]] std::optional<RemoteHierarchyNodeView>
+    remoteHierarchyNode(std::size_t fileIndex) const noexcept;
 
     [[nodiscard]] bool fileStreamingAvailable() const noexcept;
     [[nodiscard]] bool beginFileGroupDescriptorRequest(
@@ -499,10 +531,18 @@ private:
 
     struct RemoteFileDescriptor
     {
+        // The protocol can carry a bounded relative name such as
+        // "folder\\child.bin". Keep it as untrusted structural metadata only;
+        // native adapters continue to see name/nameLength as a safe leaf.
+        std::array<char16_t, 260> relativePath{};
         std::array<char16_t, 260> name{};
+        std::uint16_t relativePathLength{};
         std::uint16_t nameLength{};
+        std::uint16_t hierarchyDepth{};
+        std::size_t hierarchyParentIndex{};
         std::uint64_t size{};
         std::uint32_t attributes{};
+        bool hierarchyParentPresent{};
         bool sizeKnown{};
         bool directory{};
     };
@@ -567,6 +607,9 @@ private:
     std::array<RemoteFileDescriptor, kMaximumRemoteFiles> remoteFiles_{};
     std::size_t remoteFileCount_{};
     std::uint64_t remoteFileGeneration_{};
+    std::uint64_t remoteHierarchyGeneration_{};
+    RemoteHierarchyStatus remoteHierarchyStatus_{
+        RemoteHierarchyStatus::Unavailable};
 
     // One retained generation, fixed to the same 64-descriptor bound as the
     // current offer. Receipt and clipDataId counters never reset or recycle.
@@ -645,7 +688,12 @@ public:
     {
         std::size_t remoteFileIndex{};
         std::uint64_t localSelectionIdentity{};
+        // Caller-selected local placement metadata; never remote authority.
         std::optional<std::size_t> parentRemoteFileIndex{};
+        // Wire-provenance metadata, present only for a fully verified relative
+        // hierarchy. Still not a local filesystem capability.
+        std::optional<std::size_t> verifiedRemoteParentFileIndex{};
+        std::uint16_t verifiedRemoteDepth{};
         RemoteEntryRole remoteRole{RemoteEntryRole::File};
     };
 
@@ -689,6 +737,7 @@ public:
     enum class RemoteHierarchyStatus : std::uint8_t
     {
         UnsupportedWithRetainedMetadata,
+        VerifiedRelativePaths,
     };
 
     RemoteFileDestinationPlan() noexcept = default;
@@ -728,7 +777,15 @@ public:
     }
     [[nodiscard]] RemoteHierarchyStatus hierarchyStatus() const noexcept
     {
-        return RemoteHierarchyStatus::UnsupportedWithRetainedMetadata;
+        if (state_ != State::Committed || source_ == nullptr ||
+            !current(*source_))
+        {
+            return RemoteHierarchyStatus::UnsupportedWithRetainedMetadata;
+        }
+        return source_->remoteHierarchyStatus() ==
+                       RemoteTransfer::RemoteHierarchyStatus::VerifiedRelativePaths
+                   ? RemoteHierarchyStatus::VerifiedRelativePaths
+                   : RemoteHierarchyStatus::UnsupportedWithRetainedMetadata;
     }
 
     // Cancellation is terminal. close() is idempotent and preserves an

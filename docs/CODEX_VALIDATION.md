@@ -1,3 +1,27 @@
+## R8 relative hierarchy-provenance authoring receipt (2026-10-17)
+
+**Authoring parent:** `71f85638aa8b9fbafef03197cab878b19935795e`. **Publication:** this commit; exact-SHA hosted
+results are **PENDING**.
+
+Normative review used MS-RDPECLIP File List, Packed File List, File Descriptor,
+General Capability Set, File Contents Request and Direct File Access sections.
+The wire provides relative File List names plus directory attributes and stable
+descriptor indices, but no filesystem permission. R8 derives a parent only
+when the immediate relative prefix is itself an explicit directory descriptor.
+
+Production changes stay in the existing `RemoteTransfer` and
+`RemoteFileDestinationPlan` owners. Native directory-capability and platform
+file-destination implementations are unchanged. Relative wire components are
+private structural metadata; the public remote-file view remains leaf-only.
+A verified graph is bounded to 64 nodes/depth 16, generation-fenced,
+exact-index keyed and all-or-nothing. No live clipboard or filesystem
+destination is accessed.
+
+Dedicated CTests cover verified relative structure, duplicate/missing/file
+parents, caller-cycle and excess-depth denials, generation replacement and
+no-path-authority separation. R9's complete clipboard sanitizer preflight is
+extended with the new positive and cycle/depth registrations.
+
 ## R6 P2 DXGI-to-R4 native ownership exact-SHA validation (2026-10-17)
 
 **Production handoff:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.  

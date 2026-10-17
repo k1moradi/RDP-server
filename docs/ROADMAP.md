@@ -1,3 +1,54 @@
+## R8 P2 relative File List hierarchy provenance (2026-10-17; exact-SHA CI pending)
+
+**Starting shared main:** `71f85638aa8b9fbafef03197cab878b19935795e`.
+
+MS-RDPECLIP's File List is an indexed array of FILEDESCRIPTOR records. The
+descriptor carries a 260-code-unit Unicode `fileName` and can mark a directory
+with `FILE_ATTRIBUTE_DIRECTORY`; File Contents requests identify payloads by
+the exact descriptor `lindex`. The protocol's File List example uses relative
+names such as `temp\\file1.txt`. Negotiated
+`CB_FILECLIP_NO_FILE_PATHS` forbids descriptions from including the **source
+path**; it does not create filesystem authority from a relative name. R8 does
+not implement Direct File Access.
+
+R8 now accepts only bounded safe **relative backslash components** as wire
+structure. Absolute/rooted/UNC/drive paths, forward-slash alternatives, empty
+components, `.`, `..`, controls and Windows-reserved punctuation remain
+rejected. Native-facing `RemoteFileView::name` still exposes only the final
+safe leaf. The relative wire string is never returned as a path and is never
+opened or joined to a local path.
+
+`RemoteTransfer` computes an optional generation-bound hierarchy proof. It is
+`VerifiedRelativePaths` only when `CB_FILECLIP_NO_FILE_PATHS` is negotiated,
+every exact relative node is unique, each non-root immediate prefix has an
+explicit directory descriptor, and depth is at most 16 across at most 64
+descriptors. Parent indices strictly reduce depth; a defensive cycle check
+also fails closed. Duplicate nodes, missing parents, file-as-parent, cycles or
+excess depth make the entire hierarchy proof unavailable transactionally while
+leaving independently safe flat descriptors usable.
+
+`RemoteFileDestinationPlan` keeps caller-selected local placement separate
+from verified remote parent/depth metadata. They may intentionally differ.
+Directory associations still report `UnsupportedDirectoryMaterialization`;
+`RemoteDirectoryCapabilityBinding` still only duplicates/closes an already
+authorized native directory object. No file/directory creation or traversal is
+added.
+
+Dedicated production-backed CTests are
+`clipboard.file-hierarchy-relative-tree-provenance`,
+`clipboard.file-hierarchy-provenance-unsupported-denials`,
+`clipboard.file-hierarchy-parent-cycle-and-depth-denials`,
+`clipboard.file-hierarchy-generation-replacement`, and
+`clipboard.file-hierarchy-no-path-authority`. R9's complete clipboard
+sanitizer preflight requires all five. Exact publication-SHA hosted execution
+is **PENDING**; canonical owner `~/rdp-server/build/` is **NOT RUN** here.
+
+**Safe future materialization decision:** verified parent indices can later be
+combined with a separately authorized `RemoteDirectoryCapabilityBinding` and
+a reviewed handle-relative child-creation primitive. That future boundary must
+retain no-follow/reparse protections and may not fall back to pathname reopen.
+Until then directory-tree materialization remains unsupported.
+
 ## R6 P2 DXGI-to-R4 native ownership exact-SHA validation (2026-10-17)
 
 **Production handoff:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.  

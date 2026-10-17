@@ -86,81 +86,98 @@ void write32(std::span<std::uint8_t> bytes, std::size_t offset,
     bytes[offset + 3U] = static_cast<std::uint8_t>(value >> 24U);
 }
 
-[[nodiscard]] bool parseRemoteLeafFileName(
+[[nodiscard]] bool parseRemoteRelativeFileName(
     std::span<const std::uint8_t> bytes,
-    std::array<char16_t, 260> &name,
-    std::uint16_t &nameLength) noexcept
+    std::array<char16_t, 260> &relativePath,
+    std::uint16_t &relativePathLength,
+    std::array<char16_t, 260> &leafName,
+    std::uint16_t &leafNameLength,
+    std::uint16_t &depth) noexcept
 {
-    if (bytes.size() != name.size() * 2U)
-    {
+    if (bytes.size() != relativePath.size() * 2U)
         return false;
-    }
 
-    name.fill(u'\0');
-    nameLength = 0;
+    relativePath.fill(u'\0');
+    leafName.fill(u'\0');
+    relativePathLength = 0;
+    leafNameLength = 0;
+    depth = 0;
+
+    const auto validComponent = [&](const std::size_t begin,
+                                    const std::size_t end) noexcept
+    {
+        if (begin >= end)
+            return false;
+        const std::size_t length = end - begin;
+        return !(length == 1U && relativePath[begin] == u'.') &&
+               !(length == 2U && relativePath[begin] == u'.' &&
+                 relativePath[begin + 1U] == u'.');
+    };
+
     bool terminated = false;
     bool pendingHighSurrogate = false;
-    for (std::size_t index = 0; index < name.size(); ++index)
+    std::size_t componentStart = 0U;
+    for (std::size_t index = 0; index < relativePath.size(); ++index)
     {
         const std::uint16_t codeUnit = read16(bytes, index * 2U);
         if (terminated)
         {
-            if (codeUnit != 0)
-            {
+            if (codeUnit != 0U)
                 return false;
-            }
             continue;
         }
-        if (codeUnit == 0)
+        if (codeUnit == 0U)
         {
-            if (pendingHighSurrogate || index == 0)
-            {
+            if (pendingHighSurrogate ||
+                !validComponent(componentStart, index))
                 return false;
-            }
             terminated = true;
-            nameLength = static_cast<std::uint16_t>(index);
+            relativePathLength = static_cast<std::uint16_t>(index);
+            leafNameLength =
+                static_cast<std::uint16_t>(index - componentStart);
+            std::copy(relativePath.begin() + componentStart,
+                      relativePath.begin() + index,
+                      leafName.begin());
             continue;
         }
 
+        // MS-RDPECLIP File List names can be relative. Backslash is retained
+        // only as protocol structure; absolute/source-path forms remain
+        // impossible because leading separators, drive colons, slash and
+        // traversal components are rejected.
         if (codeUnit < 0x20U || codeUnit == '<' || codeUnit == '>' ||
             codeUnit == ':' || codeUnit == '"' || codeUnit == '/' ||
-            codeUnit == '\\' || codeUnit == '|' || codeUnit == '?' ||
-            codeUnit == '*')
-        {
+            codeUnit == '|' || codeUnit == '?' || codeUnit == '*')
             return false;
+        if (codeUnit == '\\')
+        {
+            if (pendingHighSurrogate ||
+                !validComponent(componentStart, index))
+                return false;
+            if (depth == (std::numeric_limits<std::uint16_t>::max)())
+                return false;
+            ++depth;
+            relativePath[index] = u'\\';
+            componentStart = index + 1U;
+            continue;
         }
         if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
         {
             if (pendingHighSurrogate)
-            {
                 return false;
-            }
             pendingHighSurrogate = true;
         }
         else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
         {
             if (!pendingHighSurrogate)
-            {
                 return false;
-            }
             pendingHighSurrogate = false;
         }
         else if (pendingHighSurrogate)
-        {
             return false;
-        }
-        name[index] = static_cast<char16_t>(codeUnit);
+        relativePath[index] = static_cast<char16_t>(codeUnit);
     }
-    if (!terminated)
-    {
-        return false;
-    }
-    if ((nameLength == 1U && name[0] == u'.') ||
-        (nameLength == 2U && name[0] == u'.' && name[1] == u'.'))
-    {
-        return false;
-    }
-    return true;
+    return terminated;
 }
 
 // Registered names used for image/file negotiation are ASCII, but on the
@@ -303,6 +320,8 @@ bool RemoteTransfer::receiveFormatList(
     remoteFiles_.fill({});
     remoteFileCount_ = 0;
     remoteFileGeneration_ = 0;
+    remoteHierarchyGeneration_ = 0;
+    remoteHierarchyStatus_ = RemoteHierarchyStatus::Unavailable;
     if (poisoned_ ||
         generation_ == std::numeric_limits<std::uint64_t>::max() ||
         sourceEpoch_ == std::numeric_limits<std::uint64_t>::max() ||
@@ -1249,18 +1268,179 @@ bool RemoteTransfer::storeFileGroupDescriptors(
             file.size = static_cast<std::uint64_t>(low) |
                         (static_cast<std::uint64_t>(high) << 32U);
         }
-        if (!parseRemoteLeafFileName(
+        if (!parseRemoteRelativeFileName(
                 descriptor.subspan(kNameOffset, kNameBytes),
-                file.name, file.nameLength))
+                file.relativePath, file.relativePathLength,
+                file.name, file.nameLength, file.hierarchyDepth))
         {
             return false;
         }
     }
 
+    RemoteHierarchyStatus hierarchyStatus =
+        count == 0U ? RemoteHierarchyStatus::Unavailable :
+                      RemoteHierarchyStatus::VerifiedRelativePaths;
+    if (count != 0U &&
+        (negotiatedGeneralFlags_ & kFileclipNoFilePaths) == 0U)
+    {
+        hierarchyStatus =
+            RemoteHierarchyStatus::UnsupportedSourcePathsAllowed;
+    }
+
+    if (hierarchyStatus == RemoteHierarchyStatus::VerifiedRelativePaths)
+    {
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            if (candidate[index].hierarchyDepth >
+                kMaximumRemoteHierarchyDepth)
+            {
+                hierarchyStatus =
+                    RemoteHierarchyStatus::UnsupportedDepthExceeded;
+                break;
+            }
+            for (std::size_t previous = 0; previous < index; ++previous)
+            {
+                if (candidate[previous].relativePathLength ==
+                        candidate[index].relativePathLength &&
+                    std::equal(
+                        candidate[index].relativePath.begin(),
+                        candidate[index].relativePath.begin() +
+                            candidate[index].relativePathLength,
+                        candidate[previous].relativePath.begin()))
+                {
+                    hierarchyStatus =
+                        RemoteHierarchyStatus::UnsupportedDuplicateNode;
+                    break;
+                }
+            }
+            if (hierarchyStatus !=
+                RemoteHierarchyStatus::VerifiedRelativePaths)
+                break;
+        }
+    }
+
+    if (hierarchyStatus == RemoteHierarchyStatus::VerifiedRelativePaths)
+    {
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            auto &file = candidate[index];
+            if (file.hierarchyDepth == 0U)
+                continue;
+
+            std::size_t parentPathLength = 0U;
+            for (std::size_t offset = file.relativePathLength;
+                 offset != 0U; --offset)
+            {
+                if (file.relativePath[offset - 1U] == u'\\')
+                {
+                    parentPathLength = offset - 1U;
+                    break;
+                }
+            }
+            if (parentPathLength == 0U)
+            {
+                hierarchyStatus =
+                    RemoteHierarchyStatus::UnsupportedMissingParent;
+                break;
+            }
+
+            std::optional<std::size_t> parentIndex;
+            for (std::size_t candidateIndex = 0;
+                 candidateIndex < count; ++candidateIndex)
+            {
+                const auto &parentCandidate = candidate[candidateIndex];
+                if (parentCandidate.relativePathLength != parentPathLength ||
+                    !std::equal(
+                        file.relativePath.begin(),
+                        file.relativePath.begin() + parentPathLength,
+                        parentCandidate.relativePath.begin()))
+                    continue;
+                parentIndex = candidateIndex;
+                break;
+            }
+            if (!parentIndex)
+            {
+                hierarchyStatus =
+                    RemoteHierarchyStatus::UnsupportedMissingParent;
+                break;
+            }
+            if (!candidate[*parentIndex].directory)
+            {
+                hierarchyStatus =
+                    RemoteHierarchyStatus::UnsupportedParentNotDirectory;
+                break;
+            }
+            file.hierarchyParentIndex = *parentIndex;
+            file.hierarchyParentPresent = true;
+        }
+    }
+
+    if (hierarchyStatus == RemoteHierarchyStatus::VerifiedRelativePaths)
+    {
+        for (std::size_t start = 0; start < count; ++start)
+        {
+            std::array<bool, kMaximumRemoteFiles> visited{};
+            std::size_t current = start;
+            while (candidate[current].hierarchyParentPresent)
+            {
+                if (visited[current])
+                {
+                    hierarchyStatus =
+                        RemoteHierarchyStatus::UnsupportedParentCycle;
+                    break;
+                }
+                visited[current] = true;
+                current = candidate[current].hierarchyParentIndex;
+                if (current >= count)
+                {
+                    hierarchyStatus =
+                        RemoteHierarchyStatus::UnsupportedMissingParent;
+                    break;
+                }
+            }
+            if (hierarchyStatus !=
+                RemoteHierarchyStatus::VerifiedRelativePaths)
+                break;
+        }
+    }
+
+    // Flat descriptors remain independently usable even when the optional
+    // hierarchy proof is unavailable. Commit both descriptor and hierarchy
+    // facts together for this generation; node queries fail closed unless the
+    // complete graph verified.
     remoteFiles_ = candidate;
     remoteFileCount_ = count;
     remoteFileGeneration_ = generation_;
+    remoteHierarchyGeneration_ = generation_;
+    remoteHierarchyStatus_ = hierarchyStatus;
     return true;
+}
+
+RemoteTransfer::RemoteHierarchyStatus
+RemoteTransfer::remoteHierarchyStatus() const noexcept
+{
+    if (poisoned_ || remoteHierarchyGeneration_ != generation_)
+        return RemoteHierarchyStatus::Unavailable;
+    return remoteHierarchyStatus_;
+}
+
+std::optional<RemoteTransfer::RemoteHierarchyNodeView>
+RemoteTransfer::remoteHierarchyNode(const std::size_t fileIndex) const noexcept
+{
+    if (remoteHierarchyStatus() !=
+            RemoteHierarchyStatus::VerifiedRelativePaths ||
+        fileIndex >= remoteFileCount_)
+        return std::nullopt;
+
+    const auto &file = remoteFiles_[fileIndex];
+    return RemoteHierarchyNodeView{
+        fileIndex,
+        file.hierarchyParentPresent
+            ? std::optional<std::size_t>{file.hierarchyParentIndex}
+            : std::nullopt,
+        file.hierarchyDepth,
+        file.directory,
+    };
 }
 
 std::size_t RemoteTransfer::remoteFileCount() const noexcept
@@ -2373,10 +2553,15 @@ RemoteFileDestinationPlan::prepare(
             return PrepareStatus::DescriptorUnavailable;
         }
 
+        const auto hierarchyNode =
+            source.remoteHierarchyNode(remoteFileIndex);
         candidates[remoteFileIndex] = Association{
             remoteFileIndex,
             selection.localSelectionIdentity,
             selection.parentRemoteFileIndex,
+            hierarchyNode ? hierarchyNode->parentRemoteFileIndex :
+                            std::nullopt,
+            hierarchyNode ? hierarchyNode->depth : 0U,
             file->directory ? RemoteEntryRole::Directory :
                               RemoteEntryRole::File,
         };

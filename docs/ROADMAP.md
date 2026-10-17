@@ -1,3 +1,27 @@
+## R5 P1 registry-cardinality parser correction (2026-10-17; exact-SHA CI pending)
+
+**First publication:** `910cdad63b2b0cb384bf85d63731482c42e340cd`.  
+**First Actions:** `39011106741` — R5 preflight **FAIL before execution**.
+
+The new fail-closed preflight correctly enumerated **33** R5 registrations, but
+its AWK matcher was over-escaped and counted those printed `x11.*` lines as
+zero. This is an R5-owned workflow parser defect, not an X11 production or
+CTest failure. The ordinary Ubuntu/GCC full suite at that SHA still executed
+the native X11 cases: pixel parity, RandR capture generation, stale-damage
+isolation, pointer stale-motion isolation and R3 admission-route denial all
+passed. The full Linux/macOS suites failed separately in R1
+`transport.tcp-native-loopback-tls`.
+
+The correction removes exactly one redundant backslash from the AWK regular
+expression so it counts the actual `ctest -N` entries while retaining the
+expected cardinality of **33** and all existing exact-name sentinels. No
+production source, CTest registration, Xvfb discovery, authorization or native
+input/capture behavior changes.
+
+Canonical owner Linux/X11 remains **NOT RUN**. Exact correction-SHA R9 native
+X11 execution is **PENDING**; M1 remains under R10's same-SHA owner gate and M3
+remains blocked on R3's authenticated decoded input handoff.
+
 ## R3 CAL intermediate issuer-authorization boundary (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `dcbf605fc11c10db65b4e14b522c4806777b2bec`.

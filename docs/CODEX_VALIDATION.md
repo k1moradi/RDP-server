@@ -1,3 +1,18 @@
+## R5 P1 registry-cardinality parser correction receipt (2026-10-17)
+
+At `910cdad63b2b0cb384bf85d63731482c42e340cd`, Actions
+`39011106741`, `ctest -N` printed **Total Tests: 33** for the R5 selector,
+but the newly added AWK expression contained `x11\\.` and therefore reported
+zero matching entries. The R5 sanitizer step stopped before execution as
+designed.
+
+The correction changes only that matcher to `x11\.`. Ordinary Ubuntu/GCC on
+the failed first publication still ran the full suite and the inspected R5
+native cases passed; its sole full-suite failure was the unrelated R1
+`transport.tcp-native-loopback-tls` fixture. Exact correction-SHA R5
+sanitizer evidence is **PENDING**. Owner Linux/X11 and Microsoft-client M3
+acceptance remain **NOT RUN**.
+
 ## R3 CAL intermediate issuer-constraints authoring receipt (2026-10-17; exact-SHA CI pending)
 
 **Starting shared `main`:** `dcbf605fc11c10db65b4e14b522c4806777b2bec`.

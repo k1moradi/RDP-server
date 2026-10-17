@@ -1636,6 +1636,27 @@ void nativeReadAll(TcpNonblockingIo &io, std::span<std::uint8_t> output)
     return {};
 }
 
+[[nodiscard]] TcpAcceptBatchResult waitForAcceptedLoopbackBatch(
+    std::uintptr_t listener, std::size_t budget,
+    TcpAcceptedSocketCallback callback, void *context)
+{
+    // Darwin may report connect() success before the listening socket's
+    // accept queue is observable. Retry only a zero-transfer WouldBlock at
+    // this TEST boundary; production batch semantics remain single-pass.
+    for (int attempt = 0; attempt < 2048; ++attempt)
+    {
+        auto accepted = acceptNonblockingTcpBatch(
+            listener, budget, callback, context);
+        if (accepted.outcome != TcpAcceptBatchOutcome::WouldBlock)
+            return accepted;
+        assert(accepted.accepted == 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(false && "loopback peer was never observable by native batch accept");
+    return {};
+}
+
 void waitForNativeRequest(PreauthTcpAdapter &adapter)
 {
     // A connected NONBLOCKING peer may legitimately have no readable
@@ -1683,7 +1704,7 @@ void testNativeTcpAcceptOwnershipAndCancellation()
     }
 #endif
 
-    auto accepted = acceptNonblockingTcpConnection(
+    auto accepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(pair.listener.value));
     assert(accepted.outcome == TcpAcceptOutcome::Accepted);
     assert(accepted.connection.valid());
@@ -1809,9 +1830,9 @@ void testNativeTcpAcceptMoveReplacement()
     // close precisely the old accepted connection, not either listener.
     LoopbackSocketPair first{false};
     LoopbackSocketPair second{false};
-    auto firstAccepted = acceptNonblockingTcpConnection(
+    auto firstAccepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(first.listener.value));
-    auto secondAccepted = acceptNonblockingTcpConnection(
+    auto secondAccepted = waitForAcceptedLoopbackConnection(
         static_cast<std::uintptr_t>(second.listener.value));
     assert(firstAccepted.outcome == TcpAcceptOutcome::Accepted);
     assert(secondAccepted.outcome == TcpAcceptOutcome::Accepted);
@@ -5398,7 +5419,7 @@ void testNativeTcpAcceptBatchBudgetAndHandoff()
         return true;
     };
 
-    const auto first = acceptNonblockingTcpBatch(
+    const auto first = waitForAcceptedLoopbackBatch(
         static_cast<std::uintptr_t>(pair.listener.value),
         1, handoff, &state);
     assert(first.outcome == Outcome::BudgetReached);
@@ -5406,7 +5427,7 @@ void testNativeTcpAcceptBatchBudgetAndHandoff()
     assert(pair.listener.value != kInvalidLocalSocket);
     connectAdditionalLoopbackClient(secondClient, pair.listener.value);
 
-    const auto next = acceptNonblockingTcpBatch(
+    const auto next = waitForAcceptedLoopbackBatch(
         static_cast<std::uintptr_t>(pair.listener.value),
         2, handoff, &state);
     // The callback's connect() completion does not guarantee that the newly
@@ -5494,8 +5515,8 @@ void testNativeTcpAcceptBatchStopsAndDenials()
     assert(nonListener.outcome == Outcome::Failure);
     assert(nonListener.accepted == 0 && state.calls == 0);
 
-    const auto stopped = acceptNonblockingTcpBatch(listener, 8,
-                                                    stop, &state);
+    const auto stopped = waitForAcceptedLoopbackBatch(
+        listener, 8, stop, &state);
     assert(stopped.outcome == Outcome::CallbackStopped);
     assert(stopped.accepted == 1 && state.calls == 1);
 #ifdef _WIN32
@@ -5785,7 +5806,7 @@ void testNativeTcpListenerRoleAndModeDenials()
 
     // The original queued client is STILL available and transferred
     // once into the same existing nonmoving preauth connection owner.
-    const auto accepted = acceptNonblockingTcpBatch(
+    const auto accepted = waitForAcceptedLoopbackBatch(
         listener, 1, callback, &calls);
     assert(accepted.outcome == Batch::BudgetReached);
     assert(accepted.accepted == 1 && calls == 1);

@@ -1,3 +1,27 @@
+## macOS native-accept fixture visibility authoring (2026-10-16)
+
+**Starting shared main:** `04d4e7c559012fa4e3636ac7f778d32445d3bc4d`.
+
+Owner macOS full CTest reports five subprocess aborts in native loopback accept
+behaviors: ownership, move replacement, batch budget/handoff, batch stop/denial
+and listener role/mode denial. The report did not include the checkout SHA, so
+the local evidence is recorded as **FAIL at those five behaviors / exact SHA
+unknown from supplied output**, rather than being attached to a guessed commit.
+
+The failing cases shared a stale fixture assumption: they called the production
+nonblocking accept/batch immediately after a successful loopback `connect()`
+and required the peer to be visible synchronously. Other tests in the same
+translation unit already use bounded caller-side retries because Darwin may
+make the pending peer observable later. The correction reuses that existing
+one-shot helper and adds one DRY test-only batch helper. It retries only
+`TcpAcceptBatchOutcome::WouldBlock` with zero transferred sockets and has a
+finite ceiling; any production failure or semantic batch result is returned
+unchanged for the behavior assertion.
+
+No production socket implementation or RDP state machine changes. Hosted
+exact-SHA validation and owner macOS rerun are **PENDING**. The owner should
+rerun the unchanged canonical command after pulling the published descendant.
+
 ## R1 cross-road CI recovery for handshake validation (2026-10-17; exact-SHA CI pending)
 
 **Starting shared \`main\`:** \`7d07fae0196c9e857f0200d9f4b6365210a72279\`.

@@ -1,3 +1,30 @@
+## macOS native-accept fixture visibility correction (2026-10-16; owner re-test pending)
+
+The owner reports five macOS full-CTest aborts in the native R1 loopback accept
+family: `tcp-native-accept-ownership`, `tcp-native-accept-move-replacement`,
+`tcp-native-accept-batch-budget-handoff`,
+`tcp-native-accept-batch-stops-denials` and
+`tcp-native-listener-role-and-mode-denials`. The reported output did not
+include the exact pulled SHA, so that local failure is not assigned to an
+invented commit.
+
+Source review found one common test-harness race: these five cases still
+assumed that synchronous loopback `connect()` completion made the listener's
+next nonblocking `accept()` immediately observable. The same file already
+contains a bounded one-shot wait helper and the testing standard explicitly
+forbids that assumption. The fixtures now reuse that helper for direct accepts
+and one new shared test-only batch helper that retries only zero-transfer
+`WouldBlock`. Production `acceptNonblockingTcpConnection` and
+`acceptNonblockingTcpBatch` remain retry-free, nonblocking and unchanged;
+`Drained`, `BudgetReached`, `CallbackStopped` and hard failures retain
+their exact semantics.
+
+Starting shared main: `04d4e7c559012fa4e3636ac7f778d32445d3bc4d`. Canonical owner-local macOS rerun and
+exact-publication-SHA hosted Linux/macOS/Windows plus sanitizer evidence are
+**PENDING**. No R5 native X11 production source, protocol parser, admission
+authority, listener runtime or desktop state is changed by this portability
+repair.
+
 ## R1 cross-road CI recovery for handshake validation (2026-10-17; exact-SHA CI pending)
 
 **Starting shared \`main\`:** \`7d07fae0196c9e857f0200d9f4b6365210a72279\`.

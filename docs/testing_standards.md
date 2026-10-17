@@ -1,3 +1,19 @@
+## R10 Graphics DVC control aggregate stays denial-only without genuine Share authority (2026-10-17)
+
+`runtime.linux-connection-personal-graphics-dvc-r1-io-denials` exercises the
+production connection aggregate but must not fabricate a lease, ShareActivated
+state or dynamic channel merely to reach R1. It proves an ordinary configured
+socket plus PersonalDesktop policy is non-authorizing, wrong product mode is
+terminal, and replay after revocation remains closed.
+
+Positive DRDYNVC capabilities, Graphics CREATE, RDPGFX CAPS_ADVERTISE and
+CAPS_CONFIRM mechanics stay in R3's six production-backed Graphics tests.
+R2's separate Graphics late-receipt denial proves a positive plaintext count
+cannot cross lost authority. Positive aggregate R1→R2→R3 control I/O is
+owner-host only after genuine admission and Share activation. Current control
+readiness is not evidence for application DATA publication; that requires the
+future R3 DATA_FIRST/DATA sender.
+
 ## R10 Share aggregate composition stays denial-only without genuine R2 admission (2026-10-17)
 
 `runtime.linux-connection-personal-share-r1-io-denials` exercises the reusable
@@ -41,7 +57,7 @@ run. This specifically models a late R1 write completion after logout,
 disconnect, monitor revocation or equivalent authority loss.
 
 The direct Linux runtime-security ASan/UBSan selection is now carried forward
-into the **24-case** R10 Share pipeline selector and still requires this
+into the **25-case** R10 Graphics control selector and still requires this
 Graphics authority case by exact name. Positive Graphics CREATE/CAPS mechanics remain
 in R3's separate six-case sanitizer gate; neither those tests nor this denial
 fixture substitutes for a genuine Kerberos/PAM/NSS/logind physical-session
@@ -75,7 +91,7 @@ R3 protocol bookkeeping and the non-authorizing policy pointer; it never mints
 a lease, authenticates a user or supplies native-session evidence. Together
 with the existing personal Valid Client/Share partial-revocation tests, this is
 the ordinary-CI late-write fence. The direct Linux runtime sanitizer selection
-is **24** cases after the R10 Share pipeline increment and must continue to require this sentinel by name.
+is **25** cases after the R10 Graphics control increment and must continue to require this sentinel by name.
 
 The genuine Linux positive is **NOT RUN** unless the owner explicitly authorizes
 a real host and Microsoft-client session. On that host: use the restricted real
@@ -106,18 +122,19 @@ CTest sentinel and the grouped selector fragment that can actually match its
 registered spelling. Do not compress alternatives under a shared prefix unless
 every expanded name preserves the literal CTest name.
 
-The direct Linux runtime-security gate now contains seven PersonalDesktop-related
+The direct Linux runtime-security gate now contains eight PersonalDesktop-related
 cases:
 `runtime.linux-connection-personal-desktop-r3-authority-denials`,
 `runtime.linux-connection-personal-desktop-policy-receipt-denials`,
 `runtime.linux-connection-personal-desktop-graphics-dvc-authority-denials`,
 `runtime.linux-connection-personal-license-request-r1-write-denials`,
 `runtime.linux-connection-personal-client-licensing-r1-intake-denials`,
-`runtime.linux-connection-personal-valid-client-r1-write-denials`, and
-`runtime.linux-connection-personal-share-r1-io-denials`.
+`runtime.linux-connection-personal-valid-client-r1-write-denials`,
+`runtime.linux-connection-personal-share-r1-io-denials`, and
+`runtime.linux-connection-personal-graphics-dvc-r1-io-denials`.
 Their grouped expression is
-`personal-(desktop-(r3-authority|policy-receipt|graphics-dvc-authority)|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io)-denials`.
-Keep the exact **24-case** count check and sentinel checks before execution. A
+`personal-(desktop-(r3-authority|policy-receipt|graphics-dvc-authority)|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io|graphics-dvc-r1-io)-denials`.
+Keep the exact **25-case** count check and sentinel checks before execution. A
 cardinality mismatch is a CI/registry assurance failure and must not be
 reported as a failing CTest.
 

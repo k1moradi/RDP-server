@@ -104,6 +104,8 @@ using rdp_server::server::runtime::
     LinuxPersonalDesktopValidClientWriteStepStatus;
 using rdp_server::server::runtime::
     LinuxPersonalDesktopShareActivationStepStatus;
+using rdp_server::server::runtime::
+    LinuxPersonalDesktopGraphicsDvcStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameReader;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
@@ -1872,6 +1874,60 @@ void testConnectionPersonalDesktopShareR1IoDenials(
     }
 }
 
+void testConnectionPersonalDesktopGraphicsDvcR1IoDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPersonalDesktopGraphicsDvcStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-graphics-dvc-r1-io.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+
+    // A post-Share Graphics control transcript cannot begin from a socket and
+    // product policy alone. No DVC bytes may reach R1 without genuine R2
+    // admission plus the preceding ShareActivated state.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+
+        assert(!connection.startPersonalDesktopGraphicsDynamicVirtualChannel(
+            personalPolicy));
+        assert(!connection.ready());
+
+        const auto replay =
+            connection.advancePersonalDesktopGraphicsDynamicVirtualChannel(
+                personalPolicy, true, true);
+        assert(replay.status == Step::Closed);
+        assert(replay.plaintextBytesRead == 0U);
+        assert(replay.plaintextBytesWritten == 0U);
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // AppServerIssuerBacked cannot enter the PersonalDesktop Graphics route.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+
+        assert(!connection.startPersonalDesktopGraphicsDynamicVirtualChannel(
+            appServerPolicy));
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2285,6 +2341,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-share-r1-io-denials")
     {
         testConnectionPersonalDesktopShareR1IoDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-graphics-dvc-r1-io-denials")
+    {
+        testConnectionPersonalDesktopGraphicsDvcR1IoDenials(
+            fixtureDirectory);
         return 0;
     }
     if (testCase ==

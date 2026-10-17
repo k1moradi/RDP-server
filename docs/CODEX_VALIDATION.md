@@ -1,3 +1,51 @@
+## R10 post-Share Graphics DVC control/CAPS R1 pipeline (2026-10-17)
+
+**Reconciled shared-main parent:** `b0d39b081ab67f22e00c7fd746e5f8282a8fbd80`.
+The parent composes PersonalDesktop Share through R1. R2's policy-bound Graphics
+DVC authority wrappers from `361ea05e65200bf7768376c588a878f1f20f1bb2`
+are now consumed directly instead of bypassing the broker.
+
+`startPersonalDesktopGraphicsDynamicVirtualChannel()` starts R3's existing
+post-Share DRDYNVC/Graphics lifecycle only through R2 and does not expose its
+initial wire borrow. The serialized advance method retains only next-I/O
+direction plus R1 WANT retry direction. Server DRDYNVC capabilities, Graphics
+CREATE and RDPGFX CAPS_CONFIRM slices are freshly reauthorized/borrowed through
+R2, submitted only through R1 `writeTlsApplicationData()`, and completed only
+from R1's positive plaintext accepted-byte receipt. Short writes remain
+R3-owned suffixes.
+
+Client DRDYNVC capabilities, CREATE response and RDPGFX CAPS_ADVERTISE arrive
+only through R1 `readTlsApplicationData()`. R2 revalidates immediately before
+each actual read. The reusable fixed-capacity frame owner consumes exactly one
+TPKT and resets only after a complete accepted packet. R3's protected intake
+outcome alone determines the next read/write action. A fully accepted
+CAPS_CONFIRM is the only path to the aggregate `Ready` status. R10 retains no
+channel generation, DVC ID, capability profile or protocol phase copy.
+
+Dedicated production-backed CTest:
+`runtime.linux-connection-personal-graphics-dvc-r1-io-denials`. It proves a
+configured socket and PersonalDesktop policy cannot begin post-Share Graphics
+control without a genuine R2 lease/Share lifetime, wrong mode is terminal, and
+replay after revocation stays closed. It does not fabricate a lease or DVC.
+R2's separate late-receipt denial and R3's six Graphics CREATE/CAPS tests remain
+the authority and positive protocol-mechanics coverage. The direct Linux
+runtime-security selector advances **24→25** and requires the exact new
+sentinel.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** in this connector
+environment; no alternate persistent build root is created. Exact publication
+SHA hosted CI is recorded after publication. No listener, credentials, native
+desktop or Microsoft client is activated.
+
+**First unresolved protocol API:** R3 does not yet publish fragmented
+DYNVC DATA_FIRST/DATA records for R4 frame bytes, negotiated static-channel
+chunks, or the immutable payload-to-outer-plaintext receipt map. R10 must not
+invent that mapping or treat current CREATE/CAPS readiness as application-DATA
+authority. Once R3 lands it, R10 can compose its records through the same
+R2/R1 receipt boundary. Genuine positive end-to-end evidence separately
+requires explicit owner authorization for a real Linux Kerberos/CredSSP,
+PAM/NSS and logind physical-X11 admission.
+
 ## R10 PersonalDesktop Share activation R1 pipeline (2026-10-17)
 
 **Reconciled shared-main parent:** `2c0d116fceea990d55193cb7c113cfc69178aa11`.

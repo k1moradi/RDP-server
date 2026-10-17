@@ -970,11 +970,11 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           set -euo pipefail
-          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-dispatch|post-admission-mcs-framing-denials|personal-(desktop-(r3-authority|policy-receipt|graphics-dvc-authority)|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io)-denials|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))$'
+          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-dispatch|post-admission-mcs-framing-denials|personal-(desktop-(r3-authority|policy-receipt|graphics-dvc-authority)|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io|graphics-dvc-r1-io)-denials|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$runtime_security_selection")"
           printf '%s\n' "$selected_tests"
-          readonly runtime_security_expected_test_count=24
+          readonly runtime_security_expected_test_count=25
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$runtime_security_expected_test_count" ]]; then
             printf 'R9 M2 runtime-security registry mismatch: expected %s tests, found %s\n' \
@@ -996,6 +996,7 @@ jobs:
           grep -Fq 'runtime.linux-connection-personal-client-licensing-r1-intake-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-valid-client-r1-write-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-share-r1-io-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-graphics-dvc-r1-io-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-credssp-revocation-order' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-credssp-authorization-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-final-credential-native-admission-denials' <<< "$selected_tests"

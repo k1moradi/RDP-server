@@ -1,3 +1,19 @@
+## R10 Graphics control composition stops at R3 CAPS readiness (2026-10-17)
+
+Post-Share DRDYNVC/Graphics control follows the same single-owner rule as Share:
+R10 retains only next-I/O and R1 WANT retry direction. R3 owns the dynamic
+channel ID/generation, capabilities, CREATE lifecycle and CAPS negotiation; R2
+reauthorizes every borrow, receipt and complete client TPKT. Do not copy those
+identities or infer readiness from a previous Boolean.
+
+A fully accepted server CAPS_CONFIRM may let the control scheduler report
+Ready, but this does not authorize or define graphics application DATA
+publication. R10 must not synthesize DYNVC DATA_FIRST/DATA fragmentation,
+static-channel chunking or an R4-payload-to-outer-record map. Those mappings
+belong to R3 because it owns the DVC/static-VC/MCS/TPKT envelopes and their
+receipt identities. Until R3 exposes that sender, R4 frame bytes are
+non-publishable even when CREATE/CAPS mechanics are ready.
+
 ## R10 multi-packet Share composition keeps only next-I/O state (2026-10-17)
 
 R3 remains the sole Share activation phase and packet owner. R10 may retain only

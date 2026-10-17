@@ -204,6 +204,25 @@ struct LinuxPersonalDesktopShareActivationStepResult
         LinuxPersonalDesktopShareActivationStepStatus::Closed};
 };
 
+enum class LinuxPersonalDesktopGraphicsDvcStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Ready,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPersonalDesktopGraphicsDvcStepResult
+{
+    std::size_t plaintextBytesRead{};
+    std::size_t plaintextBytesWritten{};
+    LinuxPersonalDesktopGraphicsDvcStepStatus status{
+        LinuxPersonalDesktopGraphicsDvcStepStatus::Closed};
+};
+
 // Exact identity for one borrowed R2 logind watcher registration. R10 never
 // duplicates or closes descriptor; R2 admission/session generations prevent
 // stale reconnect reuse even if the kernel later reuses the fd number.
@@ -408,6 +427,19 @@ public:
         const RuntimeDeploymentPolicy &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Begin the existing R3 DRDYNVC/Graphics control transcript only after
+    // genuine Share activation. The initial server borrow is not exposed;
+    // advance... below owns every R1 read/write and R2 receipt boundary.
+    [[nodiscard]] bool startPersonalDesktopGraphicsDynamicVirtualChannel(
+        const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
+    // Drive DRDYNVC capabilities, Graphics CREATE and RDPGFX CAPS control
+    // through R1 while R3 remains the sole channel/protocol state owner.
+    [[nodiscard]] LinuxPersonalDesktopGraphicsDvcStepResult
+    advancePersonalDesktopGraphicsDynamicVirtualChannel(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable) noexcept;
+
     [[nodiscard]] bool authorizePersonalDesktopApplicationTraffic(
         const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 
@@ -485,6 +517,14 @@ public:
     }
 
 private:
+    enum class PersonalDesktopGraphicsDvcIoAction : std::uint8_t
+    {
+        Idle,
+        Write,
+        Read,
+        Ready,
+    };
+
     enum class PersonalDesktopShareIoAction : std::uint8_t
     {
         Idle,
@@ -516,12 +556,16 @@ private:
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalShareActivationFrameReader_{};
+    LinuxRuntimeMcsTpktFrameReader personalGraphicsDvcFrameReader_{};
     const RuntimeDeploymentPolicy *personalDesktopPolicy_{};
     bool personalLicenseRequestTlsWritePending_{};
     bool personalValidClientTlsWritePending_{};
     PersonalDesktopShareIoAction personalShareIoAction_{
         PersonalDesktopShareIoAction::Idle};
     bool personalShareTlsWritePending_{};
+    PersonalDesktopGraphicsDvcIoAction personalGraphicsDvcIoAction_{
+        PersonalDesktopGraphicsDvcIoAction::Idle};
+    bool personalGraphicsDvcTlsWritePending_{};
     std::optional<RuntimeExistingCalValidationBinding>
         existingCalValidation_{};
     std::optional<LinuxRuntimeNativeChangeRegistration>

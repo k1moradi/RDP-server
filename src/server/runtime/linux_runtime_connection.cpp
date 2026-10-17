@@ -1497,6 +1497,325 @@ LinuxRuntimeConnection::acceptPersonalDesktopShareActivationPdu(
     return intake;
 }
 
+bool LinuxRuntimeConnection::
+startPersonalDesktopGraphicsDynamicVirtualChannel(
+    const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
+{
+    using Kind =
+        rdp_server::server::transport::RdpGraphicsDvcWriteKind;
+
+    if (personalGraphicsDvcIoAction_ !=
+            PersonalDesktopGraphicsDvcIoAction::Idle ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return false;
+    }
+
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopGraphicsDynamicVirtualChannel(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+    if (!pending || pending->kind != Kind::CapabilitiesRequest ||
+        !personalGraphicsDvcFrameReader_.reset())
+    {
+        revoke();
+        return false;
+    }
+
+    personalGraphicsDvcTlsWritePending_ = false;
+    personalGraphicsDvcIoAction_ =
+        PersonalDesktopGraphicsDvcIoAction::Write;
+    return true;
+}
+
+LinuxPersonalDesktopGraphicsDvcStepResult
+LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    bool readable, bool writable) noexcept
+{
+    using Action = PersonalDesktopGraphicsDvcIoAction;
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Intake =
+        rdp_server::server::transport::RdpGraphicsDvcClientIntake;
+    using Kind =
+        rdp_server::server::transport::RdpGraphicsDvcWriteKind;
+    using Outcome =
+        rdp_server::server::transport::RdpGraphicsDvcWriteOutcome;
+    using Step = LinuxPersonalDesktopGraphicsDvcStepStatus;
+
+    if (!ready())
+        return {0U, 0U, Step::Closed};
+
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !broker_ || !lease_ || lease_->isRevoked())
+    {
+        personalGraphicsDvcFrameReader_.close();
+        personalGraphicsDvcTlsWritePending_ = false;
+        revoke();
+        return {0U, 0U, Step::AdmissionDenied};
+    }
+
+    if (personalGraphicsDvcIoAction_ == Action::Ready)
+        return {0U, 0U, Step::Ready};
+    if (personalGraphicsDvcIoAction_ == Action::Idle)
+    {
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    if (personalGraphicsDvcIoAction_ == Action::Write)
+    {
+        if (personalGraphicsDvcTlsWritePending_)
+        {
+            const Interest required = connection_.ioInterest();
+            if (required == Interest::Read && !readable)
+                return {0U, 0U, Step::NeedRead};
+            if (required == Interest::Write && !writable)
+                return {0U, 0U, Step::NeedWrite};
+            if (required != Interest::Read &&
+                required != Interest::Write)
+            {
+                personalGraphicsDvcTlsWritePending_ = false;
+                revoke();
+                return {0U, 0U, Step::Invalid};
+            }
+        }
+        else if (!writable)
+        {
+            return {0U, 0U, Step::NeedWrite};
+        }
+
+        const auto pending =
+            broker_->
+                authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
+                    *lease_, acceptor_, connection_, session_,
+                    deploymentPolicy);
+        if (!pending)
+        {
+            personalGraphicsDvcTlsWritePending_ = false;
+            revoke();
+            return {0U, 0U, Step::AdmissionDenied};
+        }
+
+        const Kind completedKind = pending->kind;
+        const auto io = connection_.writeTlsApplicationData(pending->bytes);
+        switch (io.outcome)
+        {
+        case IoOutcome::Progress:
+        {
+            personalGraphicsDvcTlsWritePending_ = false;
+            if (io.bytes == 0U || io.bytes > pending->bytes.size())
+            {
+                revoke();
+                return {0U, 0U, Step::Invalid};
+            }
+
+            const auto outcome =
+                broker_->
+                    completeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
+                        lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+                        acceptor_, connection_, session_, deploymentPolicy,
+                        pending->replySequence,
+                        pending->writeSliceSequence, io.bytes);
+            if (outcome == Outcome::Pending)
+                return {0U, io.bytes, Step::Progress};
+            if (outcome != Outcome::Delivered)
+            {
+                revoke();
+                return {0U, io.bytes, Step::AdmissionDenied};
+            }
+
+            switch (completedKind)
+            {
+            case Kind::CapabilitiesRequest:
+            case Kind::CreateRequest:
+                personalGraphicsDvcIoAction_ = Action::Read;
+                return {0U, io.bytes, Step::Progress};
+            case Kind::GraphicsCapabilitiesConfirm:
+                personalGraphicsDvcFrameReader_.close();
+                personalGraphicsDvcIoAction_ = Action::Ready;
+                return {0U, io.bytes, Step::Ready};
+            case Kind::None:
+                revoke();
+                return {0U, io.bytes, Step::Invalid};
+            }
+            revoke();
+            return {0U, io.bytes, Step::Invalid};
+        }
+        case IoOutcome::NeedRead:
+            personalGraphicsDvcTlsWritePending_ = true;
+            return {0U, 0U, Step::NeedRead};
+        case IoOutcome::NeedWrite:
+            personalGraphicsDvcTlsWritePending_ = true;
+            return {0U, 0U, Step::NeedWrite};
+        case IoOutcome::TlsClosed:
+        case IoOutcome::TransportClosed:
+            personalGraphicsDvcTlsWritePending_ = false;
+            personalGraphicsDvcFrameReader_.close();
+            revoke();
+            return {0U, 0U, Step::Closed};
+        case IoOutcome::FatalTlsFailure:
+        case IoOutcome::Invalid:
+            personalGraphicsDvcTlsWritePending_ = false;
+            personalGraphicsDvcFrameReader_.close();
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    const Interest required = connection_.ioInterest();
+    if (required == Interest::Closed)
+    {
+        personalGraphicsDvcFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Closed};
+    }
+
+    const bool bufferedRead =
+        required == Interest::Read &&
+        connection_.tlsApplicationReadReady();
+    if (required == Interest::Read && !readable && !bufferedRead)
+        return {0U, 0U, Step::NeedRead};
+    if (required == Interest::Write && !writable)
+        return {0U, 0U, Step::NeedWrite};
+    if (required != Interest::Read && required != Interest::Write)
+    {
+        personalGraphicsDvcFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    {
+        personalGraphicsDvcFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::AdmissionDenied};
+    }
+
+    constexpr std::size_t kReadChunkBytes = 512U;
+    std::array<std::uint8_t, kReadChunkBytes> plaintext{};
+    const std::size_t needed =
+        personalGraphicsDvcFrameReader_.bytesNeeded();
+    if (needed == 0U ||
+        needed >
+            rdp_server::server::transport::kMaximumInitialMcsTpktBytes)
+    {
+        personalGraphicsDvcFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    const std::size_t requested =
+        (std::min)(plaintext.size(), needed);
+    const auto io = connection_.readTlsApplicationData(
+        std::span<std::uint8_t>{plaintext}.first(requested));
+
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        if (io.bytes == 0U || io.bytes > requested)
+        {
+            personalGraphicsDvcFrameReader_.close();
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+
+        const auto framed = personalGraphicsDvcFrameReader_.consume(
+            std::span<const std::uint8_t>{plaintext}.first(io.bytes));
+        std::fill(plaintext.begin(), plaintext.begin() + io.bytes, 0U);
+        if (framed.bytesConsumed != io.bytes ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Closed)
+        {
+            personalGraphicsDvcFrameReader_.close();
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
+        }
+        if (framed.status == LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+            return {io.bytes, 0U, Step::Progress};
+
+        const auto completeTpkt =
+            personalGraphicsDvcFrameReader_.completeTpkt();
+        if (completeTpkt.empty())
+        {
+            personalGraphicsDvcFrameReader_.close();
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
+        }
+
+        const auto intake =
+            broker_->
+                authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
+                    *lease_, acceptor_, connection_, session_,
+                    deploymentPolicy, completeTpkt);
+        if (intake == Intake::Rejected ||
+            intake == Intake::CreateRejected ||
+            intake == Intake::Closed ||
+            !personalGraphicsDvcFrameReader_.reset())
+        {
+            personalGraphicsDvcFrameReader_.close();
+            revoke();
+            return {
+                io.bytes, 0U,
+                intake == Intake::Closed ? Step::Closed : Step::Invalid};
+        }
+
+        switch (intake)
+        {
+        case Intake::CapabilitiesAccepted:
+            personalGraphicsDvcIoAction_ = Action::Write;
+            break;
+        case Intake::CreateAccepted:
+            personalGraphicsDvcIoAction_ = Action::Read;
+            break;
+        case Intake::GraphicsCapabilitiesAccepted:
+            personalGraphicsDvcIoAction_ = Action::Write;
+            break;
+        case Intake::CreateRejected:
+        case Intake::Rejected:
+        case Intake::Closed:
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
+        }
+        return {io.bytes, 0U, Step::Progress};
+    }
+    case IoOutcome::NeedRead:
+        return {0U, 0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        return {0U, 0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        personalGraphicsDvcFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        personalGraphicsDvcFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    personalGraphicsDvcFrameReader_.close();
+    revoke();
+    return {0U, 0U, Step::Invalid};
+}
+
 bool LinuxRuntimeConnection::authorizePersonalDesktopApplicationTraffic(
     const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
 {
@@ -1781,6 +2100,9 @@ void LinuxRuntimeConnection::revoke() noexcept
     mcsConnectInitialFrameReader_.close();
     personalClientLicensingFrameReader_.close();
     personalShareActivationFrameReader_.close();
+    personalGraphicsDvcFrameReader_.close();
+    personalGraphicsDvcIoAction_ = PersonalDesktopGraphicsDvcIoAction::Idle;
+    personalGraphicsDvcTlsWritePending_ = false;
     personalShareIoAction_ = PersonalDesktopShareIoAction::Idle;
     personalShareTlsWritePending_ = false;
     personalValidClientTlsWritePending_ = false;

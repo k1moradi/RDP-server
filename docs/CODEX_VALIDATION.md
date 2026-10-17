@@ -1,3 +1,17 @@
+## R7 macOS protocol-only test-bundle delivery (2026-10-17)
+
+Source based on shared main before publication. The new
+`macos.package-offline-integrity-and-idempotence` CTest exercises
+the Python archive checksum, architecture and path denial, same-content
+idempotent install/removal, foreign-architecture refusal and no subprocess
+activation with a temporary per-user test directory. No TCC, capture,
+input or network API is called. The existing **21-case focused** native
+and **2-case ASan/UBSan** authority-loss selectors remain unchanged.
+Exact publication SHA and hosted job results: **NOT RUN / PENDING** at
+authoring time. Owner macOS 27 full Debug CTest and live native serving:
+**NOT RUN / BLOCKED** on R2 authenticated macOS lease and R10/R3
+composition. Bundle is protocol-only, not a functioning RDP server.
+
 ## R10 post-Share Graphics DVC control/CAPS R1 pipeline (2026-10-17)
 
 **Reconciled shared-main parent:** `b0d39b081ab67f22e00c7fd746e5f8282a8fbd80`.

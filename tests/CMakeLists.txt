@@ -10,6 +10,13 @@ set_tests_properties(project.local-checkout-path-comparison PROPERTIES
     LABELS "policy;build")
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# R7 offline test-bundle policy: no desktop, TCC, network or process activation.
+add_test(NAME macos.package-offline-integrity-and-idempotence
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/test_macos_test_bundle.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_test_bundle.py")
+set_tests_properties(macos.package-offline-integrity-and-idempotence PROPERTIES
+    LABELS "macos;packaging;security;offline")
 add_test(NAME project.ci-workflow-structure-denials
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/scripts/validate_ci_workflow.py"

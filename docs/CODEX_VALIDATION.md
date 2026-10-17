@@ -17767,6 +17767,31 @@ accepted. Genuine R2 final credential authorization, a concrete R10
 CAL-issuing authority, R2-authorized live grant publication and Share
 activation remain open, so M2/M3 remain **OPEN / NOT ACCEPTED**.
 
+
+
+**Current shared-main descendant validation:** \`a9a656e9c5dc93b8316a6ae1298d658ff4ffcba6\`,
+Actions \`38978665476\` — **SUCCESS**. No R1 transport source changed between
+the implementation SHA and this descendant; the intervening transport-source
+changes are confined to R3 licensing. Linux/GCC full CTest is **521/521 PASS**
+in both Debug and Release, macOS/AppleClang is **442/442 PASS** in both, and
+Windows/MSVC is **472/472 PASS** in both with the focused native preflight
+**51/51 PASS** in both configurations. The R1 cancellation cases remain tests
+#159 and #161 and pass in all six full hosted runs. The bounded R9
+Clang ASan/UBSan R1/R3 licensing selection is **90/90 PASS**; it explicitly
+runs the License Request cancellation case as item 71/90 and the Platform
+Challenge cancellation case as item 73/90. Documentation policy, R7
+session-watch sanitizers, installed SDK consumers, package generation and
+artifact upload also pass; the untagged prerelease remains correctly skipped.
+
+This newer evidence does not unblock another R1 implementation. R2's validated
+PAM component is still a denial-only subordinate verifier and cannot mint final
+CredSSP/native admission. R3's validated License Grant receipt gate remains
+detached from the live MCS session and has no R2 publication API, while R10
+still has no real CAL-issuing authority owner. Per the existing Next R1 gate,
+adding another transport writer, direct SSL path, detached grant-through-TLS
+fixture or second coordinator now would duplicate already-bounded ownership
+without proving the required live authorization boundary.
+
 **Next R1:** do not enlarge or duplicate the transport for R3's new
 \`RdpServerLicenseGrantWriteGate\` yet. Its complete New License packet is
 already bounded below R1's 18 KiB application-I/O ceiling, and the gate is

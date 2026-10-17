@@ -1,3 +1,28 @@
+## R9 bounded CredSSP coverage-guided fuzzing (2026-10-16; exact-SHA CI pending)
+
+R9 extends the existing opt-in Linux/Clang libFuzzer gate to the portable
+CredSSP structural boundary. New target `fuzz_credssp` links
+`rdp-server-protocol` and drives the production TSRequest parser, manual
+fragment framer, credential classifier and delegated-account extractor on the
+same bounded input. It enforces only documented invariants: deterministic
+classification, no client-controlled TSRequest views after failure, bounded
+token metadata, clean frame release, and zero rejected delegated-account
+output.
+
+The fuzz input ceiling is exactly the production 16 KiB TSRequest limit.
+CTest uses 5,000 deterministic runs, a fixed seed, 512 MiB RSS / 64 MiB malloc
+limits and a 30-second test watchdog. Checked-in non-secret seeds include one
+canonical v6 negotiation TSRequest and one canonical password-credential DER
+envelope. Mutable corpus and crash artifacts remain under the single CI
+`build/` root. The existing MCS/CLIPRDR fuzzer is unchanged and executes in a
+separate failure-isolated CI step.
+
+This is structural memory-safety sampling only. It does not perform TLS, GSS,
+PAM, NSS/logind authorization, native admission or Microsoft-client
+interoperability. Canonical owner-local `~/rdp-server/build/` execution and
+owner-platform/real-provider gates remain **NOT RUN** here. Exact publication
+SHA hosted sanitizer evidence is **PENDING**.
+
 ## macOS native-accept fixture visibility correction (2026-10-16; owner re-test pending)
 
 The owner reports five macOS full-CTest aborts in the native R1 loopback accept

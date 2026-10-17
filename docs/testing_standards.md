@@ -2385,6 +2385,32 @@ FAIL and preserve the reproducer. A bounded fuzz PASS is sampling,
 not exhaustive security proof or real-client admission.
 
 
+
+## R9 bounded CredSSP coverage-guided fuzzing
+
+The opt-in Linux/Clang sanitizer configuration must also build and execute
+`fuzz_credssp` as a separate bounded CTest. Link the real portable protocol
+library and call the production `parseCredSspTsRequest`,
+`TsRequestFrameReader`, `inspectCredSspCredentials` and
+`inspectCredSspDelegatedAccount` surfaces directly. Keep the maximum fuzz
+input at the production TSRequest ceiling (16 KiB), use a fixed seed and finite
+run count, and keep mutable corpus/artifacts only below the existing
+`build/` root.
+
+The checked-in corpus must contain only synthetic non-secret DER seeds: at
+least one canonical TSRequest negotiation frame and one canonical
+`TSPasswordCreds` envelope. The fuzzer may assert documented fail-closed
+invariants such as deterministic classification, zero borrowed metadata on
+TSRequest failure, zero rejected delegated-account output, bounded token
+counts/sizes and successful manual-frame release. It must not fabricate TLS
+provenance, GSS completion, PAM authorization, a native admission lease or
+real credentials.
+
+Keep this fuzzer in its own CTest/CI step rather than folding it into the
+MCS/CLIPRDR target so crashes and reproducers remain attributable. A bounded
+PASS is coverage-guided sampling only and does not replace the deterministic
+credential corpora or real-client/provider acceptance gates.
+
 ## R1 cross-road write-slice compatibility
 
 When a higher-layer R3 writer is expected to feed R1's bounded TLS

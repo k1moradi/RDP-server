@@ -1,3 +1,25 @@
+## R9 bounded CredSSP fuzzing authoring receipt (2026-10-16)
+
+Starting reconciled shared `main`: `d8e731ca488f1f8d545348b19a97756be660db46`.
+
+Added one opt-in production-linked libFuzzer target, `fuzz_credssp`, without
+changing production CredSSP code. The entry point is bounded to 16 KiB and
+drives the real TSRequest parser, manual `TsRequestFrameReader`, canonical
+credential inspection and delegated-account extraction. Invariant failures
+abort so ASan/UBSan/libFuzzer preserve a reproducer; malformed inputs are
+otherwise expected and fail closed.
+
+The target has two synthetic checked-in seeds (canonical v6 negotiation
+TSRequest and canonical `TSPasswordCreds`), 5,000 fixed-seed runs, bounded
+RSS/malloc limits and its own `fuzz.credssp-bounded` CTest/CI step. It is
+separate from `fuzz.mcs-cliprdr-bounded` for attribution. No TLS identity,
+GSS/PAM provider, native admission or real credential is introduced.
+
+Canonical local execution is **NOT RUN** in this connector environment because
+the owner checkout is unavailable and project policy forbids creating another
+persistent build root. Exact-SHA hosted compilation and ASan/UBSan/libFuzzer
+execution are **PENDING**.
+
 ## macOS native-accept fixture visibility authoring (2026-10-16)
 
 **Starting shared main:** `04d4e7c559012fa4e3636ac7f778d32445d3bc4d`.

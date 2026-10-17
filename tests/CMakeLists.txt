@@ -1855,6 +1855,37 @@ if(RDP_SERVER_BUILD_FUZZERS)
         LABELS "fuzz;protocol;security;offline"
         TIMEOUT 30
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+    # R9 CredSSP parser/framing fuzzing stays separate from MCS/CLIPRDR so
+    # either reproducer remains attributable and independently observable.
+    add_executable(fuzz_credssp fuzz_credssp.cpp)
+    target_link_libraries(fuzz_credssp PRIVATE rdp-server-protocol)
+    target_compile_options(fuzz_credssp PRIVATE
+        -Wall -Wextra -Wpedantic -Werror
+        -fsanitize=fuzzer,address,undefined
+        -fno-omit-frame-pointer -fno-sanitize-recover=all)
+    target_link_options(fuzz_credssp PRIVATE
+        -fsanitize=fuzzer,address,undefined)
+    set(rdp_credssp_fuzz_corpus_dir
+        "${CMAKE_BINARY_DIR}/fuzz-corpus-credssp")
+    set(rdp_credssp_fuzz_artifact_dir
+        "${CMAKE_BINARY_DIR}/fuzz-artifacts-credssp")
+    file(MAKE_DIRECTORY
+        "${rdp_credssp_fuzz_corpus_dir}"
+        "${rdp_credssp_fuzz_artifact_dir}")
+    file(COPY "${PROJECT_SOURCE_DIR}/tests/fixtures/fuzz_credssp/"
+        DESTINATION "${rdp_credssp_fuzz_corpus_dir}")
+    add_test(NAME fuzz.credssp-bounded
+        COMMAND fuzz_credssp
+            "${rdp_credssp_fuzz_corpus_dir}"
+            -runs=5000 -seed=1592594996 -max_len=16384
+            -rss_limit_mb=512 -malloc_limit_mb=64
+            -timeout=2 -print_final_stats=1
+            "-artifact_prefix=${rdp_credssp_fuzz_artifact_dir}/")
+    set_tests_properties(fuzz.credssp-bounded PROPERTIES
+        LABELS "fuzz;protocol;security;offline"
+        TIMEOUT 30
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 endif()
 
 add_test(NAME project.policy

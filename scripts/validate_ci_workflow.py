@@ -267,9 +267,10 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
 def self_test(workflow: Path, fixture_root: Path) -> None:
     backend, count = validate(workflow, True)
     validate(fixture_root / "valid.yml", False)
+    validate(fixture_root / "valid-powershell.yml", False)
     expected = {
         "duplicate-jobs.yml": "duplicate",
-        "unterminated-shell.yml": "shell",
+        "unterminated-shell.yml": "syntax",
         "malformed-expression.yml": "expression",
     }
     for name, diagnostic in expected.items():

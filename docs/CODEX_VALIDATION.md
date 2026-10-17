@@ -1,3 +1,19 @@
+## R6 P1 structure self-test blocker correction (2026-10-17)
+
+**Blocked descendant:** `9cfeabe694e89c3fc89c714fb4e461236c6e61c9`.  
+**Structure run:** `39010778228` — **FAIL before dependent jobs**.
+
+R9's shell-aware validator correctly stopped treating explicit PowerShell as
+Bash, then exposed a self-test oracle mismatch: the malformed Bash fixture was
+correctly rejected with `bash syntax failure`, while the harness required the
+literal substring `shell`. The oracle now requires `syntax` and a dedicated
+PowerShell-positive fixture locks the interpreter distinction.
+
+This changes only CI validation infrastructure. R6 production code, existing
+Windows CTests, COM ownership assertions, WTS semantics and SendInput behavior
+are unchanged. CLANG64 compilation still has not run past configuration in a
+structure-gated candidate.
+
 ## R9 P0 structure-gate correction receipt (2026-10-17)
 
 First P0 SHA `24a57c8e5b2805bb326b461e896b9068ec95ab38`:

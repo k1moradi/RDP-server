@@ -1,0 +1,11 @@
+name: workflow PowerShell structure positive fixture
+on: push
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Explicit PowerShell block is not Bash
+        shell: pwsh
+        run: |
+          $dirs = @('C:\Program Files\OpenSSL-Win64')
+          if (-not $dirs) { throw 'missing fixture value' }

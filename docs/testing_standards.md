@@ -1,3 +1,11 @@
+## CI structure shell self-test diagnostics (2026-10-17)
+
+The workflow structure self-test must prove both sides of shell handling:
+explicit PowerShell is a positive fixture and malformed Bash remains a negative
+fixture. The malformed Bash oracle keys on the stable diagnostic category
+`syntax`, not the incidental word `shell`; the validator still executes
+`bash -n` and still requires that malformed fixture to fail.
+
 ## CI workflow structure tests fail closed before heavyweight validation
 
 The primary GitHub Actions workflow is executable project policy, not disposable

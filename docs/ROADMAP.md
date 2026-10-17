@@ -826,7 +826,7 @@ OPEN**. Real R2/R3 authorization, R10 serialized native notification delivery,
 an actually authorized Windows desktop and Microsoft-client acceptance also
 remain prerequisites. **M1 and M4 remain OPEN.**
 
-## R2 authenticated PAM invocation boundary (2026-10-17; exact-SHA CI pending)
+## R2 authenticated PAM invocation boundary (2026-10-17; hosted validated)
 
 **Reconciled shared-main parent:** `8ee59f77a0db27df3bb06096955cee07ed8b938a`.
 
@@ -857,11 +857,45 @@ account against the real host PAM provider. R9 sanitizer selectors now preflight
 all three names. No fake positive PAM, GSS identity or native admission fixture
 is introduced.
 
-Exact-SHA hosted validation is pending this publication. The canonical
-owner-local `~/rdp-server/build/` is unavailable in this connector
-environment and is therefore **NOT RUN**. Positive Kerberos/PAM/NSS/logind,
-owner Linux/X11 and authenticated Microsoft-client acceptance remain
-**BLOCKED / NOT RUN**.
+Exact-SHA hosted validation is **SUCCESS** at
+`92ddb689b0ca3200b2ef420f818c04cd630da147`, Actions `39009841176`.
+Documentation policy, Linux/GCC, macOS/AppleClang, Windows/MSVC, R7 sanitizer
+and R9 Clang ASan/UBSan jobs all passed. The R9 job includes the bounded native
+R2/R3 GSSAPI selection and the dedicated Linux PAM denial/lifetime selection.
+The canonical owner-local `~/rdp-server/build/` is unavailable in this
+connector environment and is therefore **NOT RUN**. Positive
+Kerberos/PAM/NSS/logind, owner Linux/X11 and authenticated Microsoft-client
+acceptance remain **BLOCKED / NOT RUN**.
+
+### R2 explicit runtime PAM provisioning (2026-10-17; exact-SHA CI pending)
+
+Source commit `14c2e5995e3eb83e0d89725ec41f46837860708f` advances only the
+configuration/ownership prerequisite for the later positive completion
+contract. In Linux GSS+PAM builds, `LinuxRuntimeSecurityConfiguration` may be
+configured with an explicit PAM service name in the same one-shot operation
+that seals the keytab and installs the immutable identity rule. It owns the
+`LinuxPamPasswordVerifier` for the configuration lifetime and binds that
+already-configured verifier into each per-connection
+`GssapiSpnegoAcceptor` after the same identity policy and before GSS provider
+configuration.
+
+There is still no implicit `login`/`other` PAM fallback and the production
+process configuration does not silently opt into PAM. The existing
+three-argument runtime-security configuration remains non-PAM. The new
+`runtime.linux-security-pam-verifier-provisioning` CTest proves explicit
+service acceptance, invalid-service one-shot denial, per-connection acceptor
+configuration and that mere provisioning creates neither a native change
+watch nor admission authority. The private final-CredSSP completion latch
+remains false, no `LinuxConsoleAdmissionLease` is minted and R3 remains
+closed.
+
+The next R2 authority-bearing step remains deliberately separate: a genuine
+`Authorized` PAM result from the live GSS-unwrapped credential must be tied
+privately to the exact delegated account/principal/policy generation, then
+fresh concrete NSS/logind owner evidence and an active revocation watch must
+succeed before the private completion latch may be set and the existing broker
+may issue a lease. Ordinary CI must not manufacture a positive PAM/GSS/native
+owner to exercise that transition.
 
 ## R7 ScreenCaptureKit geometry-generation retirement fence (2026-10-16; hosted validated, owner macOS 27 pending)
 

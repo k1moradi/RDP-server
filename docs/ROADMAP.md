@@ -1,3 +1,18 @@
+## R10 Windows ACL helper PowerShell-module correction (2026-10-17)
+
+R10 publication `e782cd642f574e7ef45792c8fe168dfad70c8d2a`, Actions
+`39011665925`, exposed a helper-only hosted Windows/MSVC defect before any
+`icacls` mutation: Windows PowerShell found `Get-Acl` but could not
+autoload `Microsoft.PowerShell.Security`. The new diagnostics correctly
+identified the executable, native path, exit code and stderr, but this was not
+the owner's original failure mechanism.
+
+The helper now obtains the same native `FileSecurity` descriptor through the
+Windows PowerShell 5.1 .NET Framework API
+`[System.IO.File]::GetAccessControl()`, avoiding module discovery entirely.
+Owner-SID, protected-DACL and explicit ACE verification are unchanged. No
+production credential policy, listener, admission or licensing path changes.
+
 ## R9 P1 Windows CLANG64 security-fixture regression gate (2026-10-17; exact-SHA CI pending)
 
 **Authoring parent:** `611e3279d7bffc3678bcd8ec899210e14a446cd8`.

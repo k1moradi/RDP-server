@@ -101,7 +101,8 @@ function(rdp_windows_fixture_get_owner_sid path output_variable)
     _rdp_windows_fixture_native_regular_path("${path}" native_path)
     string(REPLACE "'" "''" powershell_path "${native_path}")
     set(owner_command
-        "$acl = Get-Acl -LiteralPath '${powershell_path}'; "
+        "$ErrorActionPreference = 'Stop'; "
+        "$acl = [System.IO.File]::GetAccessControl('${powershell_path}'); "
         "$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value")
     execute_process(
         COMMAND "${RDP_WINDOWS_FIXTURE_POWERSHELL}"
@@ -127,7 +128,7 @@ function(_rdp_windows_fixture_verify_private_descriptor path expected_sid)
     string(REPLACE "'" "''" powershell_path "${native_path}")
     set(verify_command [=[
 $ErrorActionPreference = 'Stop'
-$acl = Get-Acl -LiteralPath '@PATH@'
+$acl = [System.IO.File]::GetAccessControl('@PATH@')
 $expected = '@SID@'
 $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
 if ($owner -ne $expected) { throw "owner SID $owner does not match current SID $expected" }

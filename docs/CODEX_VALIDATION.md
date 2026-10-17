@@ -1,3 +1,19 @@
+## R10 first hosted ACL-helper diagnostic and correction (2026-10-17)
+
+At `e782cd642f574e7ef45792c8fe168dfad70c8d2a`, hosted Windows/MSVC reached
+the new fixture helper and failed with a concrete helper diagnostic:
+`WindowsPowerShell/v1.0/powershell.exe` exited 1 because `Get-Acl` could
+not autoload `Microsoft.PowerShell.Security`. The full Debug suite therefore
+reported **57/524 FAIL**, including the three new dedicated fixture tests.
+This is negative evidence for that R10 publication and must not be confused
+with the owner's earlier generic `icacls` failure.
+
+The correction removes the PowerShell-module dependency and reads the same
+native security descriptor via
+`[System.IO.File]::GetAccessControl()`. All SID and DACL assertions remain
+fail closed. Corrected-SHA hosted Windows/MSVC, hosted CLANG64 and owner-native
+results are **PENDING**.
+
 ## R9 P1 Windows CLANG64 fixture-gate authoring receipt (2026-10-17)
 
 **Authoring parent:** `611e3279d7bffc3678bcd8ec899210e14a446cd8`. Exact publication-SHA Actions: **PENDING**.

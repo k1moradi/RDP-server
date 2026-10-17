@@ -3354,3 +3354,16 @@ forbids another persistent build root). Hosted exact-publication-SHA CI:
 Windows CLANG64/Clang 23 and macOS 27 receipts. M2 remains **BLOCKED** on a
 documented supported authenticated issuer interface/infrastructure plus a
 genuine R3 positive result transition.
+
+### R10 CI authoring correction for connection composition (2026-10-17)
+
+Initial publication `b35fe8cc2a1da47f917f57e1812ee459d73e03c4` failed before compilation. Structure Actions
+39040560442 reports duplicate YAML mapping key
+`r7-macos-native-lifecycle`; primary Actions 39040559343 could not schedule
+the invalid workflow. The duplicate was introduced by the R10 workflow text
+authoring step, not by R2/R3 production composition. The corrective descendant
+rebuilds `.github/workflows/ci.yml` from the reconciled parent
+`8f3c2f06b305eca60708867c9e50f9a6a59a79cb` and reapplies only the R10
+selector/count additions: existing-CAL **6** and direct Linux runtime-security
+**15**. Production code and CTest bodies are unchanged. Canonical local build:
+**NOT RUN**; corrective exact-SHA hosted CI: **PENDING**.

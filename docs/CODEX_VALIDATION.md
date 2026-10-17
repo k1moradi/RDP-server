@@ -1,3 +1,29 @@
+## R9 workflow publication repair after suffix duplication (2026-10-17)
+
+**Failed authoring SHA:** `9b8fd7616e8e1a3a436dfc892afd4e77d792ba20`.
+The intended six-case R3 Graphics-DVC selector edit was correct, but the
+GitHub-side publication transform used a replacement string ending in the
+shell regex text `$'`. JavaScript replacement semantics interpreted that
+sequence as “insert the unmatched suffix”, duplicating roughly the latter half
+of `.github/workflows/ci.yml`. GitHub rejected primary Actions
+`39054882873` before any job started, and independent structure Actions
+`39054883683` failed with
+`duplicate YAML mapping key 'r7-macos-native-lifecycle'`.
+
+This repair reconstructs `.github/workflows/ci.yml` from the clean reconciled
+parent `49dae580e61a87779b2d89427aa91ecee73523b1` and reapplies only the
+intended R9 delta with function-based replacements: R3 Graphics-DVC **4→6**,
+both exact CAPS sentinels, and the six-case comment. The already-published
+structure validator and testing/docs changes from `9b8fd761` remain in place.
+Static prepublication checks require the repaired workflow to be exactly two
+lines longer than the clean parent and require each major job mapping key to
+occur exactly once. No production source or CTest registration changes.
+
+Canonical owner-local build: **NOT RUN**. Exact publication-SHA hosted primary
+and structure workflows are **PENDING** at authoring. The failed `9b8fd761`
+workflow is CI authoring evidence only and must not be reported as a failing
+CTest or production boundary.
+
 ## R9 concurrent Graphics-DVC sanitizer inventory reconciliation (2026-10-17)
 
 **Reconciled shared-main parent:** `49dae580e61a87779b2d89427aa91ecee73523b1`.

@@ -1,3 +1,32 @@
+## R9 Graphics DVC sanitizer reconciliation (2026-10-17)
+
+**Audited R3 SHA:** `08cb727bcac844bb84ff7f18994304f14298a033`
+(parent `6ebe2fd8d860126093ed394f37445899b4825aeb`). Its four
+`transport.dvc-graphics-*` behaviors are centrally registered and its
+structure Actions `39049922121` are **SUCCESS**, but the production commit
+did not add those stateful parser/receipt/generation cases to any sanitizer
+selector or structure sentinel.
+
+This R9 correction adds one dedicated anchored ASan/UBSan selection requiring
+exactly **4** registrations and all four behavior names. It does not enlarge
+the already-large 93-case R1/R3 expression and changes no production source or
+CTest body. Offline DVC success remains non-authorizing: the test can exercise
+R3 protocol mechanics without an R2 lease, but the private live path still
+requires current R2 admission, the exact R1 owner and Share activation.
+
+Prior integration audit remains intact: R2 `483be256` added the personal
+runtime denial; R10 `5f0c1683` correctly reconciled it with the new
+post-admission MCS framing denial in the direct runtime sanitizer selector,
+which is proven **18/18 PASS** on Actions job `117445409714`. R7 no-post
+retirement is **2/2** under its ASan/UBSan input selector, and R5
+`6ebe2fd8` carries an exact **38**-case native selector. R1 buffered TLS and
+all four R8 source-epoch names remain structure-required.
+
+M1 remains **OPEN / NOT ACCEPTED**; no complete one-SHA owner-native Linux/X11,
+Windows CLANG64/Clang 23 and macOS 27 receipt set exists. M2 live-client rows
+remain **NOT RUN**, with exact client versions not yet recorded. Exact
+corrective-publication CI is **PENDING**.
+
 ## R5 X11 authority-loss no-post retirement authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `5f0c16833ff9192d18729211f66d719d95946eec`. The latest fully completed hosted

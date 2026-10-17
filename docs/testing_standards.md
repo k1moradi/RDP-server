@@ -3450,3 +3450,14 @@ log out/replace the session during a pending write and verify the late receipt
 cannot advance R3. Never place passwords in CMake cache, CLI arguments,
 environment variables or logs. Ordinary CI must report this positive path
 **NOT RUN**, never fixture-mint a lease.
+
+
+## R3 Graphics DVC control sanitizer gate (2026-10-17)
+
+The four production-backed `transport.dvc-graphics-*` behaviors are an exact
+ASan/UBSan registry gate: **4** tests, covering successful control mechanics,
+malformed/wrong-ID/duplicate CREATE response denials, generation/cancellation
+retirement and pre-Share denial. Offline CREATE success is protocol-mechanics
+evidence only. It must never be treated as R2 admission, Share authority,
+visible desktop authorization or a live Graphics endpoint; live use remains
+behind freshly reauthorized R2/R10 wrappers and the exact R1 owner.

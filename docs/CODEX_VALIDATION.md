@@ -204,7 +204,7 @@ machine result and must not be substituted for the candidate workflow.
 | --- | --- | --- | --- | --- | --- |
 | Owner Linux/X11 | Candidate required | Native owner machine; Debug; canonical `~/rdp-server/build/` | Await owner full CTest summary | **NOT RUN** | Await owner transcript |
 | Owner Windows MSYS2 CLANG64 / Clang 23 | Candidate required | Native owner machine; Debug; canonical `~/rdp-server/build/` | Await owner full CTest summary | **NOT RUN** | Await owner transcript |
-| Owner macOS 27 | Candidate required | Native owner machine; Debug; canonical `~/rdp-server/build/` | Await owner full CTest summary | **NOT RUN** | Await owner transcript |
+| Owner macOS 27 | Candidate required | Native owner machine; macOS 27; exact Xcode + AppleClang; Debug; canonical `~/rdp-server/build/` | Await owner full CTest summary | **NOT RUN** | Await owner transcript |
 | Hosted Linux/GCC | Containing candidate commit | Debug + Release | Candidate workflow required | **PENDING** | Candidate Actions run |
 | Hosted macOS/AppleClang | Containing candidate commit | Debug + Release | Candidate workflow required | **PENDING** | Candidate Actions run |
 | Hosted Windows/MSVC | Containing candidate commit | native preflight + Debug + Release | Candidate workflow required | **PENDING** | Candidate Actions run |
@@ -215,7 +215,10 @@ machine result and must not be substituted for the candidate workflow.
 
 Owner evidence must capture the exact SHA, OS version, compiler version, build
 type, total tests, failures, skipped/not-run tests and complete
-`--output-on-failure` diagnostics. The required Debug command is the exact
+`--output-on-failure` diagnostics. The macOS row additionally records
+`xcodebuild -version`, `xcode-select -p` and
+`xcrun clang++ --version`; `sw_vers -productVersion` must report major
+version 27. The required Debug command is the exact
 one in `docs/compile.md`:
 
 ```sh
@@ -236,6 +239,42 @@ a new candidate and invalidates same-SHA convergence from the previous one.
 when the complete candidate hosted workflow and all three owner-native Debug
 runs are PASS on the exact same SHA. Hosted Windows/MSVC is explicitly not
 owner Windows MSYS2 CLANG64/Clang 23 evidence.
+
+## R7 generation-fence exact-SHA hosted validation and owner handoff (2026-10-17)
+
+**Implementation:** `8ee59f77a0db27df3bb06096955cee07ed8b938a`.  
+**Actions:** `39009608665` — **SUCCESS**.
+
+Hosted macOS executed on macOS **26.6.2 (25G83)**,
+`macos-26-arm64` image `20261013.0424.1`, whose manifest selects
+**Xcode 26.6 (17F113)**. CMake identified
+**AppleClang 21.0.0.21000101** for C, C++ and Objective-C++. Debug and Release
+full CTest are both **484/484 PASS**. The two new dedicated R7 cases execute in
+both configurations:
+`macos.desktop-geometry-epoch-generation-fence-revocation` (#394) and
+`macos.capture-stream-geometry-generation-retirement` (#428). The installed
+SDK consumer is **1/1 PASS**, package/digest generation passes, R7 sanitizer,
+R9 ASan/UBSan and documentation policy all pass.
+
+This proves Apple compilation/execution of the injected CoreVideo capture
+lifecycle and portable generation fence, including same-dimensions replacement.
+It does not prove a live ScreenCaptureKit stream, native fast-user-switch
+delivery, real cursor/input, macOS 27, TCC grant state or M5.
+
+The R7 production/test bodies remain unchanged from `8ee59f77...` through
+R10's matrix publication `a503fb558cee88cea2d03f97929136caec77171b`.
+Owner macOS 27 evidence therefore uses R10's exact-candidate rule and same
+canonical build root. The owner transcript must include the candidate SHA,
+`sw_vers`, `xcodebuild -version`, `xcode-select -p`,
+`xcrun clang++ --version`, CMake's effective AppleClang, the complete Debug
+CTest summary, then the optional R7 focused selector recorded in
+`docs/ROADMAP.md`. R7 owns capture/session failures; R10 owns the matrix.
+
+**Owner macOS 27:** **NOT RUN**.  
+**TCC/live desktop:** **NOT RUN; no permission request issued**.  
+**M1:** **OPEN / NOT ACCEPTED** until the R10 matrix has same-SHA owner evidence.  
+**M5:** **OPEN / NOT ACCEPTED**; live execution remains blocked on explicit
+authorization plus genuine positive R2/R3 macOS desktop admission.
 
 ## R3 CAL leaf-validity authoring receipt (2026-10-17; exact-SHA CI pending)
 
@@ -429,7 +468,7 @@ acceptance and M2 remain **BLOCKED / NOT RUN**.
 ## R7 capture geometry-generation retirement authoring receipt (2026-10-16)
 
 **Starting reconciled shared `main`:** `17fd924eb642a21b9f985800097d975fe551752b`.  
-Exact publication-SHA hosted validation: **PENDING**.
+Exact publication-SHA hosted validation: **SUCCESS** — Actions `39009608665`.
 
 R7 now gives asynchronous capture callback state a revocation-only generation
 fence from `NativeDisplayGeometryRefresh`. It is shared because queued native

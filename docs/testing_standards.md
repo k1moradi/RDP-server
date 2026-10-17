@@ -440,6 +440,69 @@ those paths, while owner macOS 27 remains the real fast-user-switch delivery
 gate. Do not treat synthetic coverage or Apple SDK compilation as authenticated
 R2/R3 admission or live desktop acceptance.
 
+## R7 owner macOS 27 M5 native validation is explicit opt-in
+
+M5 is not part of ordinary CTest and must never be inferred from hosted Apple
+SDK compilation. Execution requires a separately recorded owner authorization
+for live desktop access, an exact shared-main SHA that already passed the R10
+M1 candidate workflow and owner macOS 27 Debug gate, and a genuine positive
+R2/R3 macOS desktop-admission capability. If any prerequisite is missing, mark
+the live phase **NOT RUN**; do not expose the quarantined ScreenCaptureKit
+factory, substitute a test-only admission capability or turn a TCC grant into
+R2/R3 authority merely to obtain M5 evidence.
+
+Use a disposable local test account/desktop with no personal content and a
+second disposable account for fast-user switching. Record the exact SHA,
+`sw_vers`, `xcodebuild -version`, `xcode-select -p`,
+`xcrun clang++ --version` and effective CMake AppleClang before any native
+activity. TCC checks are read-only: Screen Recording uses the existing
+preflight behavior and Accessibility uses the existing non-prompting trust
+query. A denied/unavailable preflight stops that subtest. Never call a
+permission-request API automatically; the owner may grant permissions manually
+in System Settings before a separately authorized rerun.
+
+When the authority-bearing composition exists and the owner has explicitly
+authorized live access, validate in this order:
+
+1. Start from fresh native geometry/session state in GUI session A and use only
+   a known test-pattern window/desktop. Bind capture, cursor and input to the
+   same current geometry generation and session revision.
+2. With topology and pixel dimensions unchanged, perform a fresh native geometry
+   refresh. The old capture state must retire as
+   `StaleGeometryGeneration`; queued prepare/start/output callbacks may finish
+   but may not publish an old frame. A successful late native start owns exactly
+   one native stop request. A replacement stream may be created only from the
+   fresh generation and fresh authorization.
+3. Snapshot a visible cursor, then replace the geometry generation without
+   changing dimensions. The old snapshot must immediately fail
+   `validFor`/`pixelsFor` and must never become valid again after another
+   refresh. Repeat for topology invalidation.
+4. While capture is starting/capturing, fast-user-switch from disposable
+   session A to B and back to A. The native GUI-session watch must advance its
+   revision. Capture becomes terminal, stale frames cannot publish, held input
+   is retired/released, and old cursor snapshots remain invalid. Returning to A
+   must not auto-resurrect capture/input/cursor; a new geometry generation and
+   fresh R2/R3 admission are required.
+5. Accessibility-authorized input, when separately authorized, targets only a
+   dedicated event-recorder test application. Confirm stale-generation and
+   stale-session events are denied and no queued native event posts after
+   terminal revocation.
+6. Clipboard validation uses only synthetic text/PNG or files created for this
+   run in the disposable account. Do not read or preserve pre-existing personal
+   pasteboard data. Verify generation/owner revocation prevents stale
+   publication and that session teardown leaves no delayed old-owner write.
+7. Close/terminal-retire every native owner and wait for already submitted
+   completions. No callback may publish a frame, cursor, input event or clipboard
+   mutation after terminal state, and stop/close retirement must remain
+   exact-once/idempotent.
+
+Record observable pass/fail facts only: generation/session revisions, lifecycle
+state, frame disposition/drop reason, exact-once stop ownership and whether the
+controlled test app received an event. Do not retain screen pixels, clipboard
+payloads or credentials as validation artifacts. A full pass establishes only
+the approved native behavior exercised at that SHA; M5 still requires the
+project's authenticated Microsoft-client end-to-end acceptance where specified.
+
 ## Linux clipboard file-destination tests use build-root files only
 
 Exercise the Linux file-descriptor destination through the real production

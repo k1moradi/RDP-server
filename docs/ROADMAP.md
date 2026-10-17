@@ -273,7 +273,7 @@ point; it is **not** owner-native M1 evidence.
 | --- | --- | --- |
 | Owner Linux/X11 | Exact candidate SHA; OS/version; effective C++ compiler/version; Debug configure/build/full CTest from only `~/rdp-server/build/`; total, failed, skipped and failure log | **NOT RUN** |
 | Owner Windows MSYS2 CLANG64 / Clang 23 | Exact candidate SHA; Windows/MSYS2 version; `clang++ --version` proving Clang 23; Debug configure/build/full CTest from only `~/rdp-server/build/`; total, failed, skipped and failure log | **NOT RUN** |
-| Owner macOS 27 | Exact candidate SHA; `sw_vers`; effective AppleClang/version; Debug configure/build/full CTest from only `~/rdp-server/build/`; total, failed, skipped and failure log | **NOT RUN** |
+| Owner macOS 27 | Exact candidate SHA; `sw_vers`; `xcodebuild -version`; `xcode-select -p`; `xcrun clang++ --version`; CMake effective AppleClang; Debug configure/build/full CTest from only `~/rdp-server/build/`; total, failed, skipped and failure log | **NOT RUN** |
 | Hosted Linux/GCC | Candidate workflow Debug + Release full CTest, SDK consumer, package/digest/artifact | **PENDING candidate workflow** |
 | Hosted macOS/AppleClang | Candidate workflow Debug + Release full CTest, SDK consumer, package/digest/artifact | **PENDING candidate workflow** |
 | Hosted Windows/MSVC | Candidate workflow native preflight plus Debug + Release full CTest, SDK consumer, package/digest/artifact | **PENDING candidate workflow** |
@@ -306,8 +306,10 @@ cmake --version
 Record the platform-native OS version and effective compiler version as well:
 Linux/X11 records `cat /etc/os-release` (or equivalent) and
 `c++ --version`; Windows MSYS2 CLANG64 records `uname -a` and
-`clang++ --version`; macOS records `sw_vers` and
-`clang++ --version`. Do not delete or replace `build/`; CMake's configure
+`clang++ --version`; macOS records `sw_vers`, `xcodebuild -version`,
+`xcode-select -p` and `xcrun clang++ --version`. The macOS M1 row is valid
+only when `sw_vers -productVersion` reports major version 27. Do not delete or
+replace `build/`; CMake's configure
 output must be checked to ensure the reused cache selected the intended
 compiler. Report the complete CTest summary, including total tests, failures,
 skips/not-run tests, and the `--output-on-failure` diagnostics for every
@@ -343,6 +345,64 @@ be mixed into acceptance.
 rows and the complete hosted rows are PASS on one exact SHA. No evidence-format
 checker is added: the current matrix is deterministic without new production
 or test code, and fabricated validation output is prohibited.
+
+## R7 macOS generation-fence hosted validation and owner M1/M5 gate (2026-10-17)
+
+**Implementation:** `8ee59f77a0db27df3bb06096955cee07ed8b938a`.  
+**Exact-SHA Actions:** `39009608665` — **SUCCESS**.
+
+The exact implementation workflow proves the new generation fence and Apple
+capture-state integration on hosted macOS. The hosted runner was macOS
+**26.6.2 (25G83)** on image `macos-26-arm64`
+`20261013.0424.1`; the image manifest selects **Xcode 26.6 (17F113)** and CMake
+reported **AppleClang 21.0.0.21000101** for C, C++ and Objective-C++. Full
+CTest is **484/484 PASS Debug** and **484/484 PASS Release**. In both
+configurations
+`macos.desktop-geometry-epoch-generation-fence-revocation` (#394) and
+`macos.capture-stream-geometry-generation-retirement` (#428) execute and pass.
+The installed-SDK consumer is **1/1 PASS**, package/digest generation passes,
+the R7 GCC ASan/UBSan job passes, the complete R9 Clang ASan/UBSan job passes,
+and documentation policy passes. This is deterministic SDK/CoreVideo and
+state-machine evidence only; the hosted job does not run macOS 27, a live
+ScreenCaptureKit stream, native cursor/input, a real session switch or any TCC
+prompt.
+
+Comparison from `8ee59f77...` through R10's M1 coordination publication
+`a503fb558cee88cea2d03f97929136caec77171b` changes none of the R7 macOS
+capture, geometry, cursor, input, desktop-session or session-watch production
+files and none of their four dedicated test sources. R7 therefore joins R10's
+same-SHA owner matrix rather than creating a second M1 candidate rule. Any
+later candidate must still contain those R7 bodies unchanged or obtain fresh R7
+hosted validation before its owner result is accepted.
+
+On the owner macOS 27 candidate, first run R10's unchanged canonical Debug
+configure/build/full-CTest command and record the exact SHA plus
+`sw_vers`, `xcodebuild -version`, `xcode-select -p` and
+`xcrun clang++ --version`. The CMake configure output must identify the
+effective AppleClang from the reused `~/rdp-server/build/` cache. After the
+full CTest gate, this additional attribution-only focused selection may be run
+from the same build root; it does not replace the full suite:
+
+```sh
+r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.cursor-(topology-publication-revocation|geometry-generation-publication-denials|session-watch-revocation)|macos\.input-controller-session-watch-revocation|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+ctest --test-dir build -C Debug -N -R "$r7_focus"
+ctest --test-dir build -C Debug --output-on-failure -R "$r7_focus"
+ctest --test-dir build -C Debug -N -R '^runtime\.licensing-authority-'
+ctest --test-dir build -C Debug --output-on-failure -R '^runtime\.licensing-authority-'
+```
+
+R7 owns any macOS capture/session failure from that same-SHA run; R10 retains
+matrix coordination. No M1 result may combine a hosted SHA and an owner SHA
+that differ. Owner macOS 27 execution remains **NOT RUN** until that transcript
+exists, so **M1 remains OPEN / NOT ACCEPTED**.
+
+The live M5 protocol is separately authorization-gated in
+`docs/testing_standards.md`. It requires a disposable test desktop, read-only
+Screen Recording/Accessibility preflight, same-generation-replacement and
+fast-user-switch retirement observations, and synthetic clipboard content. The
+current tree still has no genuine positive R2/R3 macOS desktop-admission
+capability and keeps the native ScreenCaptureKit factory quarantined, so the
+live phase is **BLOCKED / NOT RUN** and **M5 remains OPEN / NOT ACCEPTED**.
 
 ## R3 deterministic CAL leaf-certificate validity boundary (2026-10-17; exact-SHA CI pending)
 
@@ -547,7 +607,7 @@ environment and is therefore **NOT RUN**. Positive Kerberos/PAM/NSS/logind,
 owner Linux/X11 and authenticated Microsoft-client acceptance remain
 **BLOCKED / NOT RUN**.
 
-## R7 ScreenCaptureKit geometry-generation retirement fence (2026-10-16; exact-SHA CI pending)
+## R7 ScreenCaptureKit geometry-generation retirement fence (2026-10-16; hosted validated, owner macOS 27 pending)
 
 **Starting reconciled shared `main`:** `17fd924eb642a21b9f985800097d975fe551752b`.
 
@@ -581,11 +641,13 @@ completion, pre-frame replacement, replacement inside the synchronous consumer,
 old-state non-resurrection and fresh-generation publication. No live
 ScreenCaptureKit stream, AppKit event source, TCC prompt or desktop is touched.
 
-Canonical owner-local `~/rdp-server/build/` and owner macOS 27 native/TCC
-testing are **NOT RUN** in this connector environment. Exact publication-SHA
-hosted validation is **PENDING**. The next authority-bearing R7 gate remains
-**BLOCKED** on a genuine non-forgeable R2/R3 macOS desktop admission capability;
-M1 and M5 remain **OPEN / NOT ACCEPTED**.
+Exact implementation-SHA hosted validation is **SUCCESS** at
+`8ee59f77a0db27df3bb06096955cee07ed8b938a`, Actions `39009608665`;
+the current R7 validation section above records the platform/toolchain and
+focused-test evidence. Canonical owner-local `~/rdp-server/build/` and owner
+macOS 27 native/TCC testing remain **NOT RUN**. The next authority-bearing R7
+gate remains **BLOCKED** on a genuine non-forgeable R2/R3 macOS desktop
+admission capability; M1 and M5 remain **OPEN / NOT ACCEPTED**.
 
 ## R3 CAL changed-signed-content DER fixture correction (2026-10-17; exact-SHA CI pending)
 

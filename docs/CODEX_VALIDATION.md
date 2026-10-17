@@ -1,3 +1,78 @@
+## R1 owned-TLS handshake readiness hosted validation (2026-10-17)
+
+**Implementation:** \`31abf200efa83bf4fc7badf3b35f30b8ff2db127\`.  
+**Implementation Actions:** \`39006099373\`.  
+**Unchanged-R1 descendant:** \`a7d724e3988e88f8bb3440b19f76e760b3870cf7\`.  
+**Descendant Actions:** \`39006137656\`.
+
+The R1 implementation removes the remaining scheduler sleep/yield from the
+common real-loopback application-TLS handshake fixture and the duplicate
+HYBRID negotiation handshake. Client OpenSSL still advances one step at a
+time; the server progresses only through
+\`OwnedPreauthTcpConnection::pollSocketOnce\` with
+\`kMaximumTcpPollWait\` under a five-second monotonic deadline. Production R1
+socket/BIO/SSL code, the 18 KiB application-I/O ceiling and all authority
+surfaces are unchanged.
+
+The implementation-SHA hosted run was cross-road blocked rather than R1
+failing. Ubuntu/GCC stopped before the R1 test executable on R10
+\`tests/test_runtime_licensing_authority.cpp:658\`: strict
+\`-Werror=range-loop-construct\` rejects a by-value structured binding. macOS
+and Windows reached the R1 cases successfully but their full suites later
+failed solely in the concurrent R3
+\`transport.licensing-client-cal-product-extension-denials\` regression.
+The bounded R9 R1/R3 sanitizer selection itself passed **91/91**, including
+\`transport.tcp-owned-hybrid-nla-negotiation\` as item 64/91,
+\`transport.tcp-owned-tls-application-partial-write\` as 68/91,
+\`transport.tcp-owned-r3-license-request-slice\` as 70/91 and
+\`transport.tcp-owned-tls-terminal-readiness\` as 76/91. R9 later failed only
+because the R10 licensing-authority executable was absent after that R10
+target failed to build.
+
+R3 corrected its CAL fixture in descendant
+\`a7d724e3988e88f8bb3440b19f76e760b3870cf7\`. Comparison from the R1
+implementation to that descendant changes only
+\`tests/test_owned_mcs_connect_initial.cpp\` plus documentation; the R1
+\`test_owned_preauth_session.cpp\` source is unchanged. On that descendant:
+
+- macOS/AppleClang full CTest is **470/470 PASS Debug** and **470/470 PASS
+  Release**. The affected R1 cases all pass in both configurations, including
+  HYBRID NLA (#158), application I/O (#162), partial write (#163), R3 License
+  Request slice (#165) and terminal readiness (#171). Installed SDK consumer
+  is **1/1 PASS**.
+- Windows/MSVC focused native preflight is **51/51 PASS** in Debug and Release.
+  Full CTest is **500/500 PASS Debug** and **500/500 PASS Release**. The same
+  affected R1 cases pass in both configurations and installed SDK consumer is
+  **1/1 PASS**.
+- The descendant R9 bounded R1/R3 sanitizer group again passes **91/91** with
+  the affected handshake-backed cases executing successfully. Native GSS
+  subsequently passes **30/30**, PAM **1/1**, direct runtime security **10/10**,
+  native X11 **33/33** and the bounded fuzzer **1/1**. The job's overall
+  failure remains the separate R10 licensing-authority target absence.
+- Ubuntu/GCC full CTest remains **NOT RUN** because the same R10 strict-warning
+  compilation failure occurs before R1 execution. This is not counted as an
+  R1 PASS.
+
+Documentation policy and the independent R7 sanitizer job pass on both the
+implementation and descendant runs. The R1 implementation has therefore
+direct hosted execution on macOS, Windows and Linux/Clang ASan+UBSan, but a
+clean Linux/GCC full-suite descendant is still pending the R10 test correction.
+Canonical owner-local \`~/rdp-server/build/\`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 remain **NOT RUN** here.
+
+The new R10 \`RuntimeLicensingAuthority\` does not change R1's live-publication
+gate. Production still supports only \`NoVerifiedIssuer\`; positive issuer
+providers remain test-only. R2 still does not invoke PAM in the live final
+CredSSP path or mint a final native admission/reauthorization capability.
+Therefore R1 must not fabricate a grant-through-TLS success path.
+
+**Next R1:** retain the dependency gate. Once a genuine supported CAL issuer
+adapter exists and R2 exposes fresh positive authorization for each R3 grant
+slice and accepted-byte completion, verify the released grant through the sole
+R1-owned TLS application writer. Otherwise wait for a concrete Share-activation
+transport mismatch. Linux/GCC clean-descendant validation remains outstanding
+until R10 repairs its warning-clean authority test.
+
 ## R7 cursor publication exact-SHA validation receipt (2026-10-16)
 
 **Implementation:** `32f46276add9b387e71962376da4329537eff2d8`  

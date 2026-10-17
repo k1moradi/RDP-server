@@ -369,6 +369,39 @@ void testStrictPasswordCredentialFields()
 }
 
 
+[[nodiscard]] bool validUtf16LeForTest(
+    std::span<const std::uint8_t> text,
+    bool allowEmpty) noexcept
+{
+    if (text.empty())
+        return allowEmpty;
+    if ((text.size() & 1U) != 0)
+        return false;
+
+    for (std::size_t offset = 0; offset < text.size(); offset += 2U)
+    {
+        const auto codeUnit = static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(text[offset]) |
+            (static_cast<std::uint16_t>(text[offset + 1U]) << 8U));
+        if (codeUnit == 0)
+            return false;
+        if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
+        {
+            if (offset + 3U >= text.size())
+                return false;
+            const auto trailing = static_cast<std::uint16_t>(
+                static_cast<std::uint16_t>(text[offset + 2U]) |
+                (static_cast<std::uint16_t>(text[offset + 3U]) << 8U));
+            if (trailing < 0xdc00U || trailing > 0xdfffU)
+                return false;
+            offset += 2U;
+        }
+        else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
+            return false;
+    }
+    return true;
+}
+
 void assertDeterministicCredentialInspection(const Bytes &input)
 {
     const Bytes original = input;
@@ -404,11 +437,13 @@ void testPasswordCredentialNestedDerMutations()
     const Bytes username = utf16Le(u"alice");
     const Bytes password = utf16Le(u"secret");
     const Bytes seed = passwordCredentials(domain, username, password);
+    assert(seed.size() == 59U);
     assertPasswordCredentialAccepted(seed);
 
     // Every one-byte complement of this short seed is deterministic and
-    // bounded. Only changes inside the three UTF-16LE contents may produce
-    // another structurally valid password credential.
+    // bounded. A successful mutation may occur only inside a known text
+    // payload, and the independent test-only Unicode oracle must still accept
+    // all three unchanged-length payloads.
     const auto payloadStart = [&](const Bytes &field)
     {
         const auto found = std::search(seed.begin(), seed.end(),
@@ -421,43 +456,66 @@ void testPasswordCredentialNestedDerMutations()
         {payloadStart(username), username.size()},
         {payloadStart(password), password.size()},
     }};
+
+    std::size_t bytewiseMutationCount = 0;
     for (std::size_t index = 0; index < seed.size(); ++index)
     {
         Bytes mutated = seed;
         mutated[index] ^= 0xffU;
+        ++bytewiseMutationCount;
         assertDeterministicCredentialInspection(mutated);
         const auto inspection = inspectCredSspCredentials(mutated);
         if (inspection.kind == CredSspCredentialKind::Password)
         {
-            bool insideText = false;
-            for (const auto &[start, length] : payloadRanges)
-                insideText |= index >= start && index - start < length;
-            assert(insideText);
+            std::size_t changedField = payloadRanges.size();
+            for (std::size_t fieldIndex = 0;
+                 fieldIndex < payloadRanges.size(); ++fieldIndex)
+            {
+                const auto [fieldStart, fieldLength] =
+                    payloadRanges[fieldIndex];
+                if (index >= fieldStart && index - fieldStart < fieldLength)
+                {
+                    changedField = fieldIndex;
+                    break;
+                }
+            }
+            assert(changedField < payloadRanges.size());
+            for (std::size_t fieldIndex = 0;
+                 fieldIndex < payloadRanges.size(); ++fieldIndex)
+            {
+                const auto [fieldStart, fieldLength] =
+                    payloadRanges[fieldIndex];
+                assert(validUtf16LeForTest(
+                    std::span(mutated).subspan(fieldStart, fieldLength),
+                    fieldIndex == 0));
+            }
             assert(inspection.error == CredSspCredentialError::None);
         }
         else
             assert(inspection.error != CredSspCredentialError::None);
     }
 
-    // Insertions, removals and truncated nested messages must not be
-    // accepted merely because their original prefix was valid.
+    // Insertions, removals and truncations preserve the original parent
+    // lengths, so none can remain a canonical complete TSCredentials value.
     for (std::size_t index = 0; index < seed.size(); ++index)
     {
         Bytes inserted = seed;
         inserted.insert(inserted.begin() + static_cast<std::ptrdiff_t>(index),
                         0x00);
+        ++bytewiseMutationCount;
         assertPasswordCredentialDenied(inserted);
+
         Bytes removed = seed;
         removed.erase(removed.begin() + static_cast<std::ptrdiff_t>(index));
+        ++bytewiseMutationCount;
         assertPasswordCredentialDenied(removed);
+
         Bytes truncated(seed.begin(),
                         seed.begin() + static_cast<std::ptrdiff_t>(index));
+        ++bytewiseMutationCount;
         assertPasswordCredentialDenied(truncated);
     }
-
-    Bytes trailing = seed;
-    trailing.push_back(0);
-    assertPasswordCredentialDenied(trailing);
+    assert(bytewiseMutationCount == 236U);
 
     const Bytes domainField = octetContext(0xa0, domain);
     const Bytes userField = octetContext(0xa1, username);
@@ -469,15 +527,30 @@ void testPasswordCredentialNestedDerMutations()
         return wrap(0x30, append(typeField,
                    octetContext(0xa1, wrap(0x30, fields))));
     };
-    assertPasswordCredentialDenied(credentialFromFields(
+
+    std::size_t structuredCaseCount = 0;
+    const auto denied = [&](const Bytes &candidate)
+    {
+        ++structuredCaseCount;
+        assertPasswordCredentialDenied(candidate);
+    };
+    const auto accepted = [&](const Bytes &candidate)
+    {
+        ++structuredCaseCount;
+        assertPasswordCredentialAccepted(candidate);
+    };
+
+    Bytes trailing = seed;
+    trailing.push_back(0);
+    denied(trailing);
+    denied(credentialFromFields(
         append(append(domainField, userField), userField)));
-    assertPasswordCredentialDenied(credentialFromFields(
-        append(domainField, passwordField)));
-    assertPasswordCredentialDenied(credentialFromFields(
+    denied(credentialFromFields(append(domainField, passwordField)));
+    denied(credentialFromFields(
         append(append(userField, domainField), passwordField)));
-    assertPasswordCredentialDenied(credentialFromFields(
+    denied(credentialFromFields(
         append(append(domainField, passwordField), userField)));
-    assertPasswordCredentialAccepted(credentialFromFields(
+    accepted(credentialFromFields(
         append(append(domainField, userField), passwordField)));
 
     // Explicitly damage a nested context and an inner OCTET tag while
@@ -488,19 +561,33 @@ void testPasswordCredentialNestedDerMutations()
     assert(usernameFieldStart != seed.end());
     corruptContext[static_cast<std::size_t>(
         usernameFieldStart - seed.begin())] = 0xa0;
-    assertPasswordCredentialDenied(corruptContext);
+    denied(corruptContext);
+
     Bytes corruptOctet = seed;
     corruptOctet[static_cast<std::size_t>(
         usernameFieldStart - seed.begin()) + 2U] = 0x05;
-    assertPasswordCredentialDenied(corruptOctet);
+    denied(corruptOctet);
+    assert(structuredCaseCount == 8U);
 }
 
 void testPasswordCredentialLengthBoundaryDenials()
 {
     const Bytes username = utf16Le(u"a");
     const Bytes password = utf16Le(u"b");
+    std::size_t corpusCaseCount = 0;
+    const auto accepted = [&](const Bytes &candidate)
+    {
+        ++corpusCaseCount;
+        assertPasswordCredentialAccepted(candidate);
+    };
+    const auto denied = [&](const Bytes &candidate)
+    {
+        ++corpusCaseCount;
+        assertPasswordCredentialDenied(candidate);
+    };
 
-    // Canonical DER crosses short, 0x81, and 0x82 length forms.
+    // Canonical DER crosses short, 0x81, and 0x82 length forms while the
+    // UTF-16 field oracle independently distinguishes even and odd lengths.
     for (const std::size_t bytes : std::array<std::size_t, 14>{
              0, 1, 2, 3, 126, 127, 128, 129,
              254, 255, 256, 257, 4094, 4096})
@@ -511,9 +598,9 @@ void testPasswordCredentialLengthBoundaryDenials()
         const auto credentials = passwordCredentials(domain, username,
                                                      password);
         if (bytes % 2 == 0 && bytes <= 4096)
-            assertPasswordCredentialAccepted(credentials);
+            accepted(credentials);
         else
-            assertPasswordCredentialDenied(credentials);
+            denied(credentials);
     }
     for (const std::size_t bytes : std::array<std::size_t, 4>{
              4094, 4095, 4096, 4097})
@@ -523,15 +610,26 @@ void testPasswordCredentialLengthBoundaryDenials()
             field[offset] = 0;
         const auto credentials = passwordCredentials({}, field, password);
         if (bytes % 2 == 0 && bytes <= 4096)
-            assertPasswordCredentialAccepted(credentials);
+            accepted(credentials);
         else
-            assertPasswordCredentialDenied(credentials);
+            denied(credentials);
     }
 
-    const Bytes seed = passwordCredentials({}, username, password);
-    assertPasswordCredentialAccepted(seed);
-    // All malformed outer length encodings fail closed, without allocating
-    // any storage based on untrusted declared lengths.
+    const auto canonicalShort = passwordCredentials({}, username, password);
+    const auto canonical81 =
+        passwordCredentials(Bytes(128, 0x41), username, password);
+    const auto canonical82 =
+        passwordCredentials(Bytes(256, 0x41), username, password);
+    assert(canonicalShort[1] < 0x80U);
+    assert(canonical81[1] == 0x81U);
+    assert(canonical82[1] == 0x82U);
+
+    const Bytes seed = canonicalShort;
+    accepted(seed);
+
+    // Malformed outer lengths cover BER indefinite form, nonminimal long
+    // forms, leading zero, truncated/excessive length-of-length and hostile
+    // declarations larger than the physically supplied input.
     for (const Bytes &length : std::array<Bytes, 9>{{
              {0x80}, {0x81}, {0x81, 0x01}, {0x82, 0x00, 0x7f},
              {0x83, 0x00, 0x00, 0x7f}, {0xff}, {0x82, 0xff, 0xff},
@@ -540,30 +638,88 @@ void testPasswordCredentialLengthBoundaryDenials()
         Bytes malformed{0x30};
         malformed.insert(malformed.end(), length.begin(), length.end());
         malformed.insert(malformed.end(), seed.begin() + 2, seed.end());
-        assertPasswordCredentialDenied(malformed);
+        denied(malformed);
     }
 
-    // Valid near-cap payloads must account for the complete wrapper cost.
-    Bytes longest;
-    for (std::size_t domainBytes = 0; domainBytes <= 4096;
-         domainBytes += 2)
+    const Bytes domainField = octetContext(0xa0, {});
+    const Bytes userField = octetContext(0xa1, username);
+    const Bytes passwordField = octetContext(0xa2, password);
+    const Bytes typeField = wrap(0xa0, wrap(
+        0x02, std::array<std::uint8_t, 1>{1}));
+    const auto credentialFromFields = [&](const Bytes &fields)
     {
-        const Bytes domain(domainBytes, 0x41);
-        const Bytes user(4096, 0x42);
-        const auto credentials = passwordCredentials(domain, user, password);
+        return wrap(0x30, append(typeField,
+                   octetContext(0xa1, wrap(0x30, fields))));
+    };
+    const auto withRawUserContext = [&](const Bytes &rawUserContext)
+    {
+        return credentialFromFields(
+            append(append(domainField, rawUserContext), passwordField));
+    };
+    const auto withRawUserOctet = [&](const Bytes &rawUserOctet)
+    {
+        return withRawUserContext(wrap(0xa1, rawUserOctet));
+    };
+
+    // The malformed length is deliberately nested under otherwise canonical
+    // parents so rejection is attributable to the nested boundary.
+    std::array<Bytes, 9> nestedMalformed{{
+        withRawUserOctet(Bytes{0x04, 0x81, 0x02, 0x61, 0x00}),
+        withRawUserOctet(Bytes{0x04, 0x82, 0x00, 0x02, 0x61, 0x00}),
+        withRawUserOctet(Bytes{0x04, 0x80, 0x61, 0x00}),
+        withRawUserOctet(Bytes{0x04, 0x82, 0x01}),
+        withRawUserOctet(
+            Bytes{0x04, 0x83, 0x00, 0x00, 0x02, 0x61, 0x00}),
+        withRawUserOctet(Bytes{0x04, 0x03, 0x61, 0x00}),
+        withRawUserContext(
+            Bytes{0xa1, 0x81, 0x04, 0x04, 0x02, 0x61, 0x00}),
+        {},
+        {},
+    }};
+    nestedMalformed[7] = userField;
+    nestedMalformed[7][1] =
+        static_cast<std::uint8_t>(nestedMalformed[7][1] + 1U);
+    nestedMalformed[7] = withRawUserContext(nestedMalformed[7]);
+    nestedMalformed[8] = userField;
+    nestedMalformed[8][1] =
+        static_cast<std::uint8_t>(nestedMalformed[8][1] - 1U);
+    nestedMalformed[8] = withRawUserContext(nestedMalformed[8]);
+    for (const auto &malformed : nestedMalformed)
+        denied(malformed);
+
+    // The largest valid encoding under the complete 8192-byte cap is found
+    // with a bounded descending scan, not by allocating from hostile lengths.
+    Bytes longest;
+    for (std::size_t domainBytes = 4096;; domainBytes -= 2U)
+    {
+        const auto credentials = passwordCredentials(
+            Bytes(domainBytes, 0x41), Bytes(4096, 0x42), password);
         if (credentials.size() <= kMaximumDecryptedCredentialsBytes)
+        {
             longest = credentials;
+            break;
+        }
+        assert(domainBytes != 0);
     }
-    assert(!longest.empty());
-    assertPasswordCredentialAccepted(longest);
-    Bytes overLimit = longest;
-    overLimit.resize(kMaximumDecryptedCredentialsBytes + 1, 0);
-    assertPasswordCredentialDenied(overLimit);
+    assert(longest.size() == 8191U);
+    accepted(longest);
+
+    Bytes exactBound = longest;
+    exactBound.push_back(0);
+    assert(exactBound.size() == kMaximumDecryptedCredentialsBytes);
+    denied(exactBound);
+
+    Bytes overLimit = exactBound;
+    overLimit.push_back(0);
+    assert(overLimit.size() == kMaximumDecryptedCredentialsBytes + 1U);
+    denied(overLimit);
+    assert(corpusCaseCount == 40U);
 }
 
 void testPasswordCredentialUtf16MutationBoundaries()
 {
     const Bytes baseline = utf16Le(u"abcde");
+    std::size_t corpusCaseCount = 0;
     for (std::size_t fieldIndex = 0; fieldIndex < 3; ++fieldIndex)
     {
         const auto inspectField = [&](const Bytes &field)
@@ -574,10 +730,14 @@ void testPasswordCredentialUtf16MutationBoundaries()
         };
         const auto accepted = [&](const Bytes &field)
         {
+            ++corpusCaseCount;
+            assert(validUtf16LeForTest(field, fieldIndex == 0));
             assertPasswordCredentialAccepted(inspectField(field));
         };
         const auto denied = [&](const Bytes &field)
         {
+            ++corpusCaseCount;
+            assert(!validUtf16LeForTest(field, fieldIndex == 0));
             assertPasswordCredentialDenied(inspectField(field));
         };
         for (std::size_t position : std::array<std::size_t, 3>{0, 2, 4})
@@ -593,6 +753,7 @@ void testPasswordCredentialUtf16MutationBoundaries()
             auto invalidHigh = std::u16string(u"abcde");
             invalidHigh[position] = static_cast<char16_t>(0xd800);
             denied(utf16Le(invalidHigh));
+
             auto invalidLow = std::u16string(u"abcde");
             invalidLow[position] = static_cast<char16_t>(0xdc00);
             denied(utf16Le(invalidLow));
@@ -623,6 +784,7 @@ void testPasswordCredentialUtf16MutationBoundaries()
                 truncatedPair.begin() + static_cast<std::ptrdiff_t>(
                     position * 2 + 2));
             denied(truncatedPair);
+
             truncatedPair = utf16Le(validPair);
             truncatedPair.erase(
                 truncatedPair.begin() + static_cast<std::ptrdiff_t>(
@@ -639,6 +801,7 @@ void testPasswordCredentialUtf16MutationBoundaries()
         else
             denied({});
     }
+    assert(corpusCaseCount == 96U);
 }
 
 void testStreamAllFragmentBoundaries()

@@ -1,3 +1,24 @@
+## R9 CredSSP bounded-oracle authoring refinement (2026-10-16)
+
+The adversarial credential corpus has been tightened before final acceptance.
+The nested-DER case fixes its deterministic seed at 59 bytes and asserts an
+exact 236 bytewise mutation ceiling plus 8 structured vectors. Successful
+payload mutations are independently validated by a compact test-only UTF-16LE
+oracle; the test does not reproduce the production DER parser.
+
+The length-boundary case now has an explicit 40-vector parsed corpus, including
+9 outer and 9 nested malformed length encodings. It demonstrates canonical
+short/0x81/0x82 transitions, field limits, nested inflation/deflation, the
+largest valid representable credential at 8191 bytes, malformed input exactly
+at the 8192-byte total cap, and the fail-fast 8193-byte over-limit case. The
+Unicode matrix is fixed at 96 vectors and independently classifies every tested
+field before invoking production parsing.
+
+No production source or admission behavior changes. Existing GSS/PAM/native
+admission denials remain the cross-boundary authentication evidence. Hosted
+Debug/Release and the corrected R9 ASan/UBSan selector are pending exact-SHA
+execution for this refinement.
+
 ## R8 multi-file X11 disconnect compile repair (2026-10-16; exact-SHA CI pending)
 
 Implementation `013b834eaab7b863d1257d8e4730677260746581` reached hosted CI

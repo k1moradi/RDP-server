@@ -1,3 +1,33 @@
+## R9 CredSSP adversarial-corpus oracle refinement (2026-10-16; exact-SHA CI pending)
+
+The three production-backed credential tests now carry explicit bounded corpus
+oracles rather than relying on production acceptance as their own expectation.
+The canonical password seed is exactly 59 bytes; its nested-DER test performs
+236 bytewise complement/insertion/removal/truncation cases plus 8 explicit
+structured field/tag/trailing cases. Any successful one-byte mutation must lie
+inside one of the known unchanged-length text payloads and independently pass
+the small test-only UTF-16LE oracle.
+
+The length test contains exactly 40 parsed vectors: the required small and DER
+transition sizes, 4094..4097 field boundaries, 9 malformed outer length
+encodings, 9 malformed nested length encodings (including nonminimal,
+leading-zero, indefinite, truncated/excessive length-of-length, unavailable
+declared length, and inflation/deflation), the largest representable valid
+8191-byte credential, an exactly-8192-byte trailing-data denial, and an
+8193-byte over-limit denial. The near-cap fixture is found by a bounded
+descending scan and never allocates from hostile declared lengths.
+
+The Unicode test contains exactly 96 vectors across domain, username and
+password and beginning/middle/end positions. A separate test-only oracle checks
+BMP characters, valid surrogate pairs, malformed high/low ordering, embedded
+NUL, pair truncation, odd byte counts and permitted/forbidden empty fields.
+This remains structural evidence only; existing
+`security.gssapi-credssp-authinfo-terminal-denials`,
+`security.gssapi-native-os-admission-capability-denials`, and
+`runtime.linux-connection-aggregate-premature-admission-denial` retain the
+independent no-native-admission boundary. Exact hosted and sanitizer evidence
+for this refinement is **PENDING**.
+
 ## R8 multi-file X11 disconnect compile repair (2026-10-16; exact-SHA CI pending)
 
 Implementation `013b834eaab7b863d1257d8e4730677260746581` reached hosted CI

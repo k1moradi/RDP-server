@@ -241,17 +241,22 @@ def cmake_runtime_dependencies(
     report_path = output_directory / "resolved-runtime-dependencies.txt"
     helper_path = output_directory / "collect-runtime-dependencies.cmake"
     search_directories: list[Path] = [executable.parent]
+    openssl_root = os.environ.get("OPENSSL_ROOT_DIR", "")
+    if openssl_root:
+        # Prefer the exact OpenSSL installation used by CMake over unrelated
+        # same-named DLLs that may appear earlier on a hosted runner's PATH.
+        search_directories.append(Path(openssl_root) / "bin")
     for entry in os.environ.get("PATH", "").split(os.pathsep):
         if entry:
             search_directories.append(Path(entry))
-    openssl_root = os.environ.get("OPENSSL_ROOT_DIR", "")
-    if openssl_root:
-        search_directories.append(Path(openssl_root) / "bin")
     append_lines = "\n".join(
         f"list(APPEND search_directories [==[{directory}]==])"
         for directory in dict.fromkeys(search_directories)
     )
     helper = f"""cmake_minimum_required(VERSION 3.22)
+if(POLICY CMP0207)
+  cmake_policy(SET CMP0207 NEW)
+endif()
 set(test_executable [==[{executable}]==])
 set(report_path [==[{report_path}]==])
 set(search_directories)
@@ -260,7 +265,8 @@ if(WIN32)
   file(GET_RUNTIME_DEPENDENCIES
     EXECUTABLES "${{test_executable}}"
     DIRECTORIES ${{search_directories}}
-    PRE_EXCLUDE_REGEXES "^api-ms-win-" "^ext-ms-win-"
+    PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-"
+    POST_EXCLUDE_REGEXES "^[A-Za-z]:/[Ww][Ii][Nn][Dd][Oo][Ww][Ss]/"
     RESOLVED_DEPENDENCIES_VAR resolved_dependencies
     UNRESOLVED_DEPENDENCIES_VAR unresolved_dependencies)
 else()
@@ -292,11 +298,16 @@ endforeach()
     return dependencies
 
 
-def dependency_report(dependencies: list[Path]) -> str:
+def dependency_report(dependencies: list[Path], os_name: str) -> str:
     lines = [
         "# Resolved runtime dependency closure from CMake file(GET_RUNTIME_DEPENDENCIES).",
         "# Paths identify the exact hosted build environment; no dependency is implied by name alone.",
     ]
+    if os_name == "windows":
+        lines.append(
+            "# Windows/System32 and Windows API-set DLLs are OS-supplied and excluded "
+            "from the redistributable dependency closure."
+        )
     lines.extend(str(path) for path in dependencies)
     return "\n".join(lines) + "\n"
 
@@ -805,7 +816,10 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path, Path]:
 
     add(executable_relative, executable.read_bytes())
     add("config/rdp-server.conf.example", sample_config(os_name).encode())
-    add("metadata/DEPENDENCIES.txt", dependency_report(dependencies).encode())
+    add(
+        "metadata/DEPENDENCIES.txt",
+        dependency_report(dependencies, os_name).encode(),
+    )
     add(
         "docs/INSTALL-START-STOP-UNINSTALL.md",
         bundle_readme(artifact_name, args.git_sha, os_name, architecture, compiler).encode(),

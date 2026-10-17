@@ -110,6 +110,13 @@ class ServerTestBundleTests(unittest.TestCase):
             bundle.uninstall_archive(archive, destination)
         self.assertTrue(installed.exists())
 
+    def test_windows_dependency_report_marks_os_supplied_boundary(self) -> None:
+        report = bundle.dependency_report(
+            [Path("C:/OpenSSL/bin/libcrypto-3-x64.dll")], "windows"
+        )
+        self.assertIn("Windows/System32", report)
+        self.assertIn("libcrypto-3-x64.dll", report)
+
     def test_sensitive_payload_markers_and_unsafe_paths_are_rejected(self) -> None:
         with self.assertRaisesRegex(bundle.BundleError, "sensitive marker"):
             bundle.write_payload_file(

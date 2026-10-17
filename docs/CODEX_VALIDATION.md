@@ -1,3 +1,28 @@
+## R9 Windows SERVER-TEST first package failure (2026-10-17)
+
+Corrective SHA `ef0feac1ad6dc15273d695d7fedf4b8a14e72714` repaired the R7
+denial-message regression. Exact-head primary run `39065727144` then produced
+and smoke-passed the actual executable previews on Linux
+(`rdp-server-test-0.1.0-linux-x86_64-ef0feac1ad6d`) and macOS
+(`rdp-server-test-0.1.0-macos-arm64-ef0feac1ad6d`). Windows completed full
+Debug and Release CTest, but job `117492883778` failed in the SERVER-TEST
+dependency scan before its archive was created.
+
+The first Windows R9 failure was CMake recursively scanning resolved
+`Windows/System32` DLLs and reporting protected/optional OS components such as
+`AzureAttestManager.dll` and API-set forwarders as unresolved. These are not
+application redistributables. R9 now uses CMake's post-exclude boundary for the
+OS-owned Windows tree (which also stops recursive traversal there), pre-excludes
+API-set forwarders, opts into normalized-path policy CMP0207 when available,
+and searches the build-selected OpenSSL root before generic PATH. Any unresolved
+non-system DLL remains fatal. Linux/macOS behavior is unchanged.
+
+At `ef0feac1`, structure, documentation policy, R9 sanitizers, R6 CLANG64 and
+R7 focused/sanitizer jobs were green; the aggregate SERVER-TEST status job was
+correctly skipped because Windows had no accepted artifact. No three-platform
+bundle acceptance or deployment success is claimed for that SHA. Corrective
+exact-head Windows package/aggregate evidence is **PENDING**.
+
 ## R9 exact-head first failure reconciliation (2026-10-17)
 
 Initial SERVER-TEST publication SHA `4a42e7e32dcaa1db8999b3210ed426cbaf17fe6a`

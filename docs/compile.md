@@ -1,3 +1,23 @@
+## R9 Windows SERVER-TEST dependency-resolution boundary (2026-10-17)
+
+Exact-head run `39065727144` at `ef0feac1` passed Linux/macOS SERVER-TEST
+smoke but Windows failed before archive creation because recursive CMake runtime
+resolution descended into already-resolved `Windows/System32` DLLs and then
+encountered optional/protected OS components that are not application
+redistributables. The correction sets CMP0207 NEW when available, pre-excludes
+Windows API-set forwarders and post-excludes resolved `Windows/` paths; per
+CMake's dependency-filter semantics, a post-excluded system DLL is not added and
+its dependencies are not recursively resolved. Non-system unresolved DLLs still
+fail packaging. `OPENSSL_ROOT_DIR/bin` is searched before generic PATH entries
+so the report binds to the OpenSSL installation used by the build rather than an
+unrelated hosted-tool DLL with the same name.
+
+The Windows dependency report explicitly states that Windows/System32 and API
+set DLLs are OS-supplied and outside the redistributable closure. The bundle
+still records every resolved non-system runtime dependency and does not claim
+those files are embedded. This changes assurance only; it does not enable
+server startup, service installation or deployment.
+
 ## R9 SERVER-TEST preview build contract (2026-10-17)
 
 SERVER-TEST packaging reuses the ordinary checkout-local `build/` after the

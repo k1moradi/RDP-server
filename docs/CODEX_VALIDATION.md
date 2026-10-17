@@ -1,3 +1,18 @@
+## R2 PAM sanitizer selector repair receipt (2026-10-17)
+
+Commit `dcac5920949d697d517ba08b9c0ab5d0f33438a1` repairs only the R2 exact-name sanitizer selectors after the
+preceding feature publication exposed a malformed workflow edit. The failed
+feature run `39009664731` created zero jobs and is not test evidence. This
+documentation co-change records the repair explicitly so the repository's
+per-commit documentation policy can validate the follow-up publication.
+
+The repaired workflow requires registry preflight for
+`security.credssp-password-field-synchronous-visitor`,
+`security.credssp-pam-password-field-verifier-denials`, and
+`security.gssapi-pam-verifier-binding-denials`. It does not alter the R2
+authentication boundary, enable positive PAM authority, set the private
+completion latch, issue a native lease, or open R3.
+
 ## R2 authenticated PAM invocation authoring (2026-10-17)
 
 **Reconciled shared-main parent:** `8ee59f77a0db27df3bb06096955cee07ed8b938a`.

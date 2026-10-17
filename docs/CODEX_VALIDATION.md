@@ -1,3 +1,17 @@
+## R9 P0 structure-gate correction receipt (2026-10-17)
+
+First P0 SHA `24a57c8e5b2805bb326b461e896b9068ec95ab38`:
+primary Actions `39010503457` **FAIL before jobs**; independent guard
+`39010504332` **executed and failed closed** on duplicate
+`r7-macos-session-sanitizers`. This was an R9 authoring failure, not a road
+test failure. Current reconciled parent `484877ce8157ab146f1f6c0e166d5022f1be090f` inherits the R6
+runnable-workflow repair with seven unique primary job IDs and zero duplicates.
+
+This correction keeps the independent guard, policy CTest and three denial
+fixtures, reinstates fail-closed registry preflight for the MCS/CLIPRDR fuzzer
+and R7 desktop/input groups, and skips explicit PowerShell blocks during
+`bash -n` validation. Exact correction-SHA hosted evidence is **PENDING**.
+
 ## R6 P1 shared-workflow structural blocker reconciliation (2026-10-17)
 
 **Blocked R6 correction:** `c6e650ba586e3ecc00306e6aacc38a99fa8aba60`.  

@@ -1,3 +1,19 @@
+## R9 P0 structure-gate correction (2026-10-17; exact-SHA CI pending)
+
+The first P0 publication `24a57c8e5b2805bb326b461e896b9068ec95ab38`
+is negative evidence. Primary run `39010503457` failed before jobs; independent
+guard run `39010504332` executed and rejected duplicate YAML job mappings.
+The duplicate suffix was removed by the intervening R6 runnable-workflow repair
+`4811d75279379b739ca851deb0a178fd141ffabb`, leaving seven unique primary
+jobs and zero duplicate IDs while retaining the P0 structure job.
+
+This R9 correction restores the two intended `ctest -N` additions lost in that
+workflow repair: MCS/CLIPRDR fuzzer registration preflight and R7 desktop/input
+session preflights. It also narrows `bash -n` validation to Bash/default/MSYS2
+block scalars so explicit PowerShell is not parsed as Bash. The independent
+duplicate/expression/YAML checks remain global. Exact-SHA CI is pending; M1 is
+OPEN and cannot be accepted from hosted CI alone.
+
 ## R6 P1 shared-workflow structural blocker reconciliation (2026-10-17)
 
 **Blocked R6 correction:** `c6e650ba586e3ecc00306e6aacc38a99fa8aba60`.  

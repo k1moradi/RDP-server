@@ -68,14 +68,26 @@ def validate_expressions(text: str) -> None:
         cursor = end + len(closing)
 
 
-def run_blocks(lines: list[str]) -> list[tuple[int, str]]:
+def run_blocks(lines: list[str]) -> list[tuple[int, str, str]]:
     marker = re.compile(r"^(\s*)run:\s*[|>][-+]?\s*$")
-    result: list[tuple[int, str]] = []
+    result: list[tuple[int, str, str]] = []
     for index, line in enumerate(lines):
         match = marker.match(line)
         if not match:
             continue
         base = len(match.group(1))
+        shell = "default"
+        for prior_index in range(index - 1, -1, -1):
+            prior = lines[prior_index]
+            if not prior.strip():
+                continue
+            indent = len(prior) - len(prior.lstrip(" "))
+            if indent < base:
+                break
+            shell_match = re.match(r"^\s*shell:\s*(\S+)", prior)
+            if indent == base and shell_match:
+                shell = shell_match.group(1)
+                break
         body: list[str] = []
         for candidate in lines[index + 1 :]:
             if not candidate.strip():
@@ -86,7 +98,7 @@ def run_blocks(lines: list[str]) -> list[tuple[int, str]]:
                 break
             body.append(candidate[min(len(candidate), base + 2) :])
         require(body, f"empty shell run block at line {index + 1}")
-        result.append((index + 1, "\n".join(body) + "\n"))
+        result.append((index + 1, "\n".join(body) + "\n", shell))
     return result
 
 
@@ -111,7 +123,10 @@ def validate_shell(lines: list[str]) -> None:
     bash = shutil.which("bash")
     opening = "$" + "{{"
     expression = re.compile(re.escape(opening) + r".*?\}\}", re.S)
-    for line, script in run_blocks(lines):
+    for line, script, shell in run_blocks(lines):
+        shell_name = shell.lower()
+        if shell_name not in {"default", "bash", "sh"} and not shell_name.startswith("msys2"):
+            continue
         masked = expression.sub("GITHUB_EXPRESSION", script)
         if not bash:
             quote_fallback(masked, line)

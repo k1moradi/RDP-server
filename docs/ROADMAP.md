@@ -1,3 +1,38 @@
+## R5 P1 native-X11 registry cardinality exact-SHA validation (2026-10-17)
+
+**Correction:** `3e2962cb22c03a30ebc34ad736da7f53cdc70da6`.  
+**Actions:** `39011365665` — overall **FAIL** only in cross-road ordinary
+full-suite execution; the R5 sanitizer gate itself is **PASS**.
+
+On Ubuntu 24.04 with Clang **18.1.3**, Xvfb **21.1.12** and the complete
+XCB XShm/RandR/XFixes/XDamage/XTEST/XI2 development profile, the corrected
+fail-closed preflight enumerates exactly **33** selected R5 registrations.
+The cardinality assertion passes, all existing named sentinels pass, and the
+same anchored selector executes **33/33 PASS** under ASan/UBSan with leak
+detection. Pixel parity is **25/33**, RandR capture generation **26/33**,
+stale-damage isolation **27/33**, terminal capture denial **28/33**, pointer
+stale-motion isolation **32/33**, and R3 admission-route denial/revocation
+**33/33**.
+
+The ordinary Ubuntu/GCC 13.3 Debug full suite also reaches the R5 native cases;
+the inspected pixel, RandR/damage, pointer-generation and input-route cases all
+pass. That suite finishes **571/572 PASS** because the unrelated R1
+`transport.tcp-native-loopback-tls` fixture aborts. The same R1 behavior is
+the failure in the macOS, Windows/MSVC and Windows CLANG64 full suites at this
+SHA, so Release/full-matrix green evidence is not claimed for R5 from this
+workflow. Documentation policy, the independent workflow-structure gate, R7
+sanitizers and the complete R9 sanitizer job pass.
+
+The supported-profile registration gap is therefore closed: no expected
+non-sentinel R5 native/Xvfb behavior can silently disappear while the focused
+gate remains green. No production X11 source or CTest behavior changed in this
+increment.
+
+Canonical owner Linux/X11 remains **NOT RUN**, so M1 is still open under R10's
+same-SHA owner matrix. M3 remains **BLOCKED ON R3** for authenticated,
+already-decoded bounded Share/Input or Fast-Path Input delivery; no live XTEST,
+capture or Microsoft-client acceptance is enabled or claimed.
+
 ## R10 Windows MSYS2 CLANG64 synthetic-DACL fixture blocker (2026-10-17; owner rerun required)
 
 The owner supplied a native MSYS2 CLANG64 full-CTest transcript with **507

@@ -1,3 +1,25 @@
+## R5 P1 native-X11 registry cardinality exact-SHA receipt (2026-10-17)
+
+`3e2962cb22c03a30ebc34ad736da7f53cdc70da6`, Actions
+`39011365665`: the R9 Linux/Clang R5 preflight prints **Total Tests: 33**,
+the corrected exact-cardinality matcher accepts all 33 entries, and the same
+selector completes **33/33 PASS** under ASan/UBSan.
+
+Environment: Ubuntu 24.04, Clang **18.1.3**, Xvfb **21.1.12**, with the hosted
+XCB XShm/RandR/XFixes/XDamage/XTEST/XI2 development packages. The focused
+selection reports **23 synthetic-display**, **30 native**, **33 linux-adapter**
+and **33 x11** labeled executions.
+
+The ordinary Ubuntu/GCC 13.3 Debug full suite executes the R5 pixel-parity,
+RandR capture-generation/stale-damage, pointer stale-motion and input-route
+revocation cases successfully, but the full job is **571/572 PASS** because
+R1's `transport.tcp-native-loopback-tls` aborts. That R1 fixture also causes
+the other full-platform job failures. The R9 sanitizer job itself, structure
+gate, documentation policy and R7 sanitizer job are green.
+
+No R5 production failure is present at this SHA. Owner Linux/X11 and
+Microsoft-client M3 acceptance remain **NOT RUN**.
+
 ## R10 Windows fixture-DACL repair evidence (2026-10-17; owner native NOT RUN)
 
 Owner evidence before this repair shows **53 failures out of 507**, with the

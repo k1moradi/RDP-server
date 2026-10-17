@@ -92,11 +92,22 @@ bool WindowsInputController::generationUnchanged() noexcept
     {
         return false;
     }
+    if (retirementWithoutNativeInputRequested_)
+    {
+        invalidateWithoutNativeInput();
+        return false;
+    }
+
     WindowsCaptureGeneration current{};
     generationReadInProgress_ = true;
     const bool observed =
         generationReader_.read(generationReader_.context, current);
     generationReadInProgress_ = false;
+    if (retirementWithoutNativeInputRequested_)
+    {
+        invalidateWithoutNativeInput();
+        return false;
+    }
     if (!observed || current != pinnedGeneration_ ||
         current.session == 0 || current.device == 0)
     {
@@ -330,12 +341,19 @@ void WindowsInputController::invalidateWithoutNativeInput() noexcept
 {
     closed_ = true;
     cancellationRequested_ = false;
+    retirementWithoutNativeInputRequested_ = false;
     pressedKeys_.fill(false);
     pressedButtons_.fill(false);
 }
 
 void WindowsInputController::finishDeferredCancellation() noexcept
 {
+    if (retirementWithoutNativeInputRequested_ &&
+        !operationInProgress_ && !generationReadInProgress_)
+    {
+        invalidateWithoutNativeInput();
+        return;
+    }
     if (!cancellationRequested_ || operationInProgress_)
     {
         return;
@@ -350,10 +368,35 @@ void WindowsInputController::finishDeferredCancellation() noexcept
     pressedButtons_.fill(false);
 }
 
+void WindowsInputController::retireWithoutNativeInput() noexcept
+{
+    if (closed_)
+    {
+        return;
+    }
+    if (operationInProgress_ || generationReadInProgress_)
+    {
+        // Authority loss outranks a pending graceful cancellation. The outer
+        // operation observes this terminal request before any later cleanup.
+        retirementWithoutNativeInputRequested_ = true;
+        cancellationRequested_ = false;
+        return;
+    }
+    invalidateWithoutNativeInput();
+}
+
 void WindowsInputController::cancel() noexcept
 {
     if (closed_)
     {
+        return;
+    }
+    if (retirementWithoutNativeInputRequested_)
+    {
+        if (!operationInProgress_ && !generationReadInProgress_)
+        {
+            invalidateWithoutNativeInput();
+        }
         return;
     }
     if (operationInProgress_ || generationReadInProgress_)
@@ -367,6 +410,7 @@ void WindowsInputController::cancel() noexcept
     }
     closed_ = true;
     cancellationRequested_ = false;
+    retirementWithoutNativeInputRequested_ = false;
     pressedKeys_.fill(false);
     pressedButtons_.fill(false);
 }

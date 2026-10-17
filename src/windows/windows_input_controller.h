@@ -114,8 +114,18 @@ public:
     WindowsInputController &operator=(WindowsInputController &&) = delete;
 
     [[nodiscard]] bool handle(const WindowsInputEvent &event) noexcept;
-    // Best-effort release of keys/buttons only while the pinned generation is
-    // still current, then terminally invalidate this controller.
+
+    // Terminal retirement for upstream R2 admission revocation or R3
+    // Share/input-authority loss. Held state is discarded without invoking
+    // the native callback, even when retirement is requested reentrantly from
+    // an in-flight callback. An already accepted native event cannot be
+    // retracted, but no cleanup/release event may be posted afterward.
+    void retireWithoutNativeInput() noexcept;
+
+    // Best-effort release of keys/buttons only while both upstream input
+    // authority and the pinned native generation remain current, then
+    // terminally invalidate this controller. Authority loss must use
+    // retireWithoutNativeInput().
     void cancel() noexcept;
 
     [[nodiscard]] bool closed() const noexcept { return closed_; }
@@ -153,6 +163,7 @@ private:
     bool generationReadInProgress_{};
     bool operationInProgress_{};
     bool cancellationRequested_{};
+    bool retirementWithoutNativeInputRequested_{};
     bool closed_{};
 };
 

@@ -1,3 +1,12 @@
+## R6 authority-loss input retirement build note (2026-10-17)
+
+The dedicated Windows input authority-loss CTest reuses the existing
+`test_windows_desktop_geometry` executable and injected input callback seam.
+It adds no native API, package, build option or build root. The current
+`^windows\.(geometry|capture|cursor|input)-` CLANG64 Debug, Release and
+ASan/UBSan selector therefore advances from **58** to **59** cases; all three
+preflights use the same exact cardinality and sentinel.
+
 ## R6 DXGI-to-R4 compatibility build note (2026-10-17)
 
 The production `rdp-server-windows-desktop` target remains independent of

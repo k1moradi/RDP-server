@@ -1,3 +1,21 @@
+## R6 upstream-authority input retirement is no-post (2026-10-17)
+
+`windows.input-sendinput-authority-retirement-no-native-post` exercises the
+production `WindowsInputController::retireWithoutNativeInput()` seam without
+creating R2 admission, R3 Share authority or host input. It proves held
+key/button state is discarded while the native generation is still current,
+authority loss requested reentrantly from an already-entered native callback
+allows no later cleanup post, and retirement requested during generation
+observation stops before the native callback. Existing
+`windows.input-sendinput-lifecycle` continues to prove graceful cancellation
+may release held state while authority remains current.
+
+The current anchored R6 selector is exactly **59** cases. Debug, Release and
+CLANG64 ASan/UBSan preflights must require this authority-loss sentinel in
+addition to the four whole-owner retirement sentinels and three DXGI-to-R4
+sentinels. This case is revocation-only and cannot stand in for a positive
+Windows admission capability.
+
 ## R8 R3-channel retirement is a revocation test, not synthetic authority (2026-10-17)
 
 `clipboard.r3-channel-retirement-revokes-state` exercises the production
@@ -52,7 +70,9 @@ callback.
 
 These tests do not invent R2 authorization, R3 licensing/Share activation,
 DRDYNVC/Graphics-DVC ownership, network receipts, WTS delivery or
-`SendInput`. The anchored R6 registry remains exactly **58** cases.
+`SendInput`. That convergence increment left the anchored R6 registry at
+**58** cases; the later authority-loss input retirement case raises the current
+registry to **59** without changing these three DXGI-to-R4 cases.
 
 ## R4 native BGRA ingress compatibility gate (2026-10-17)
 
@@ -132,8 +152,9 @@ generation distinct. Neither scalar is native authentication or R3 authority.
 
 The ordinary CLANG64 Debug and Release R6 preflights must independently
 enumerate `^windows\.(geometry|capture|cursor|input)-`, require exactly
-**58** registrations, require the four whole-owner retirement sentinels plus
-the three DXGI-to-R4 handoff sentinels, and only then execute the selection.
+**59** registrations, require the authority-loss no-post sentinel, the four
+whole-owner retirement sentinels and the three DXGI-to-R4 handoff sentinels,
+and only then execute the selection.
 Do not concatenate sentinel names into one literal search and do not rely on
 the sanitizer-only cardinality check to prove ordinary configuration
 registration.
@@ -160,11 +181,11 @@ report a publishable frame. The monitor/resize case separately changes the
 device epoch with unchanged geometry and mutates topology during a callback;
 both retire the old cycle without stale publication.
 
-The anchored Windows selector is now **58** cases. Hosted CLANG64 sanitizer
-preflight must require all three new sentinel names and exact 58-case
-cardinality before ASan/UBSan execution. Existing whole-owner COM-order,
-WTS/session revocation and held-input/no-post-revocation-`SendInput` tests
-remain unchanged and mandatory.
+The anchored Windows selector is now **59** cases. Hosted CLANG64 sanitizer
+preflight must require all three DXGI-to-R4 sentinel names, the authority-loss
+no-post sentinel and exact 59-case cardinality before ASan/UBSan execution.
+Existing whole-owner COM-order and WTS/session revocation tests remain
+unchanged and mandatory.
 
 ## R4 segmented-frame retirement reuse is symmetric (2026-10-17)
 

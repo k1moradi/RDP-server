@@ -61,6 +61,7 @@ void windowsDxgiPointerShapeOwnedLifetime();
 void windowsDxgiPointerShapeGenerationDenials();
 void windowsInputSendInputLifecycle();
 void windowsInputSendInputRevocationDenials();
+void windowsInputAuthorityRetirementNoNativePost();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
 void windowsCaptureCycleLifecycleDenials();
@@ -1013,6 +1014,10 @@ int main(int argc, char **argv)
     else if (behavior == "sendinput-revocation-denials")
     {
         windowsInputSendInputRevocationDenials();
+    }
+    else if (behavior == "sendinput-authority-retirement-no-native-post")
+    {
+        windowsInputAuthorityRetirementNoNativePost();
     }
     else if (behavior == "cursor-snapshot-visible-and-hidden")
     {

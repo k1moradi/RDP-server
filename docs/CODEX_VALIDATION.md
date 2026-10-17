@@ -1,3 +1,49 @@
+## R6 Windows upstream-authority no-post input retirement authoring receipt (2026-10-17)
+
+**Reconciled shared-main parent:** `70da5c898f1322fd52615298007f175b10a00cd1`.
+**Publication:** this atomic R6 code/CTest/standards/roadmap commit; exact
+publication-SHA hosted CI is **PENDING**. Canonical owner-local
+`~/rdp-server/build/` configure/build/CTest is **NOT RUN** in this connector
+environment; no alternate build root was created.
+
+The latest fully green R6 evidence remains parent-independent production source
+at `67506c6e43ff0ed76b00e757ad07db8fab370727`, primary Actions
+`39045944788`, job `117434587610`: MSYS2 CLANG64 / Clang 23.1.3 executes
+the anchored Windows selector **58/58 PASS Debug + 58/58 PASS Release +
+58/58 PASS ASan/UBSan**. The three production-backed DXGI-to-R4 cases pass in
+all three executions. Later changes through this reconciled parent do not modify
+R6 production/test source.
+
+Audit found one R6-owned prerequisite for future live authority composition.
+`WindowsInputController::cancel()` intentionally emits best-effort held
+key/button releases while its pinned native generation is current. That is
+correct for graceful teardown while upstream authority is still valid, but it
+must not be used after an R2 admission or R3 Share/input-authority revocation
+that leaves the same native generation observable. The new
+`retireWithoutNativeInput()` terminally discards held state without invoking
+the native callback. If requested reentrantly during the generation read or an
+already-entered native callback, the outer operation terminates and no later
+cleanup event is posted; an already accepted native command cannot be retracted.
+
+Dedicated CTest
+`windows.input-sendinput-authority-retirement-no-native-post` covers held
+state, callback-time retirement and generation-read retirement. The ordinary
+R6 selector therefore advances **58→59** in Debug, Release and the same-root
+CLANG64 ASan/UBSan preflight, with the new case required as a sentinel. Existing
+WTS retirement remains unchanged: the guard is revoked first, then the existing
+`retireWindowsNativeConsumersOnSessionChange(...)` path retires input/capture
+and deferred close completes only at the capture-safe point. DXGI/D3D11/R4
+ownership and COM teardown are unchanged.
+
+No Windows admission lease, WTS dispatcher, capture owner, encoder, Graphics
+authority or live `SendInput` path was added. R2 still must publish the
+genuine authentication-bound Windows lease; R10 must compose that lease and
+serialized WTS lifetime. R3 now owns post-Share Graphics DVC creation mechanics,
+but live Graphics publication and decoded input still require the same freshly
+reauthorized R2/R3 route. The later positive R6 seam will consume only those
+authorities and add wrong-session, revoked, stale-device, numeric-session-reuse
+and reconnect denials.
+
 ## R4 mandatory ClearCodec fallback authoring receipt (2026-10-17)
 
 **Starting reconciled shared `main`:** `3de3c6c38832e7d5578c648d4e9371b131aaf93e`. **Publication:** this atomic R4 production/test/roadmap commit; exact publication-SHA hosted results are **PENDING**.

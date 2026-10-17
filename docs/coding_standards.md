@@ -1,3 +1,19 @@
+## Native input authority loss never synthesizes cleanup (R6/R7, 2026-10-17)
+
+Native lifetime freshness and upstream R2/R3 authority are separate facts.
+When R2 admission or R3 Share/input authority is lost, stop routing first and
+terminally retire native input without invoking `SendInput` or Quartz cleanup,
+even if a key/button is held and the native generation is still current. A
+native call already entered before revocation cannot be retracted, but no
+release/cleanup event may be posted afterward.
+
+Graceful cancellation may best-effort release held state only while upstream
+input authority remains current. R6 uses
+`WindowsInputController::retireWithoutNativeInput()` for upstream authority
+loss; its existing guard-first WTS retirement remains revocation-only and makes
+ordinary `cancel()` unable to post into a revoked session. Neither a WTS
+notification nor a native generation scalar grants authority.
+
 ## R3-authorized CLIPRDR stays R3-owned and generation-correlated (R8 P1, 2026-10-17)
 
 Live CLIPRDR ingress and egress require one authoritative R3 route that is

@@ -1147,7 +1147,8 @@ if(TARGET rdp-server-windows-desktop)
     # command/state logic only; ordinary CTest never injects host input.
     foreach(case_name IN ITEMS
             sendinput-lifecycle
-            sendinput-revocation-denials)
+            sendinput-revocation-denials
+            sendinput-authority-retirement-no-native-post)
         add_test(NAME "windows.input-${case_name}"
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.input-${case_name}" PROPERTIES

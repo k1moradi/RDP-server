@@ -17,6 +17,7 @@ struct FakeGeneration final
     unsigned reads{};
     bool fail{};
     bool cancelDuringRead{};
+    bool retireWithoutNativeInputDuringRead{};
     bool reenterDuringRead{};
     WindowsInputController *controller{};
     bool reentrantResult{true};
@@ -34,6 +35,12 @@ struct FakeGeneration final
         {
             self.cancelDuringRead = false;
             self.controller->cancel();
+        }
+        if (self.retireWithoutNativeInputDuringRead &&
+            self.controller != nullptr)
+        {
+            self.retireWithoutNativeInputDuringRead = false;
+            self.controller->retireWithoutNativeInput();
         }
         if (self.fail)
         {
@@ -59,6 +66,7 @@ struct FakeInputBackend final
     WindowsInputController *controller{};
     WindowsInputEvent reentrantEvent{WindowsKeyInput{0x20, false, true}};
     bool cancelDuringSend{};
+    bool retireWithoutNativeInputDuringSend{};
     bool reenterDuringSend{};
     bool changeGenerationDuringSend{};
     FakeGeneration *generation{};
@@ -84,6 +92,12 @@ struct FakeInputBackend final
         {
             self.cancelDuringSend = false;
             self.controller->cancel();
+        }
+        if (self.retireWithoutNativeInputDuringSend &&
+            self.controller != nullptr)
+        {
+            self.retireWithoutNativeInputDuringSend = false;
+            self.controller->retireWithoutNativeInput();
         }
         if (self.changeGenerationDuringSend && self.generation != nullptr)
         {
@@ -314,5 +328,67 @@ void windowsInputSendInputRevocationDenials()
         WindowsInputController invalid(invalidLayout, backend.callbacks(),
                                        generation.reader(), {11, 23});
         assert(invalid.closed());
+    }
+}
+
+
+void windowsInputAuthorityRetirementNoNativePost()
+{
+    // Upstream authority can end while the native generation is still
+    // current. Held state must then be forgotten without synthesizing key-up
+    // or button-up through SendInput.
+    {
+        FakeGeneration generation{};
+        FakeInputBackend backend{};
+        WindowsInputController controller(sampleInputLayout(), backend.callbacks(),
+                                          generation.reader(), {11, 23});
+        assert(controller.handle(WindowsKeyInput{0x1e, false, true}));
+        assert(controller.handle(WindowsPointerButtonInput{
+            {100, 50}, WindowsPointerButton::left, true}));
+        assert(backend.commandCount == 3);
+
+        controller.retireWithoutNativeInput();
+        assert(controller.closed());
+        assert(backend.commandCount == 3);
+        assert(!controller.handle(WindowsKeyInput{0x1e, false, false}));
+        controller.cancel();
+        controller.retireWithoutNativeInput();
+        assert(backend.commandCount == 3);
+    }
+
+    // If authority is retired from inside the already-entered native callback,
+    // that accepted command cannot be retracted. The outer operation must
+    // nevertheless fail terminally and emit no cleanup command afterward.
+    {
+        FakeGeneration generation{};
+        FakeInputBackend backend{};
+        WindowsInputController controller(sampleInputLayout(), backend.callbacks(),
+                                          generation.reader(), {11, 23});
+        backend.controller = &controller;
+        backend.retireWithoutNativeInputDuringSend = true;
+
+        assert(!controller.handle(WindowsKeyInput{0x20, false, true}));
+        assert(controller.closed());
+        assert(backend.commandCount == 1 && backend.batchCount == 1);
+        assertCommand(backend.commands[0], WindowsNativeInputKind::keyDown);
+        controller.cancel();
+        assert(backend.commandCount == 1);
+    }
+
+    // Retirement requested by the serialized authority check while the native
+    // generation reader is active must stop before any SendInput callback.
+    {
+        FakeGeneration generation{};
+        FakeInputBackend backend{};
+        WindowsInputController controller(sampleInputLayout(), backend.callbacks(),
+                                          generation.reader(), {11, 23});
+        generation.controller = &controller;
+        generation.retireWithoutNativeInputDuringRead = true;
+
+        assert(!controller.handle(WindowsKeyInput{0x30, false, true}));
+        assert(controller.closed());
+        assert(backend.commandCount == 0 && backend.batchCount == 0);
+        controller.cancel();
+        assert(backend.commandCount == 0);
     }
 }

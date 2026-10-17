@@ -1,3 +1,80 @@
+## R8 P2 native multi-file verification receipt and acceptance checklist (2026-10-17)
+
+**Audited shared-main SHA:** `24a57c8e5b2805bb326b461e896b9068ec95ab38`.  
+**Corrected R8 source:** `583b59272cb51f95c967e3f0af9d13553e581e3a`.  
+**Green hosted baseline:** `6457f259840fbfe3998f50517593cfd9185e75fe`, Actions `39009925959` — **SUCCESS**.
+
+A compare from the corrected R8 source to the audit SHA shows no changes in the
+Windows/macOS/X11 clipboard adapters or the three dedicated multi-file test
+source files. Current-main review confirms the Windows
+`renderFormatInternal` correction is present, the Windows and macOS
+plan-consuming completed-set collectors still reject partial/stale/duplicate
+membership, and the X11 completed-set path still requires every member to be a
+current-generation `Complete` destination.
+
+Hosted evidence from the unchanged green descendant is direct:
+Linux/GCC **568/568 Debug + 568/568 Release**, macOS/AppleClang
+**485/485 Debug + Release**, Windows/MSVC **518/518 Debug + Release**. The three
+required multi-file registrations pass in those ordinary suites where
+applicable. R9's fail-closed clipboard preflight enumerates all three and the
+complete Clang ASan/UBSan clipboard selection is **68/68 PASS**. Within that
+selection, the Linux/macOS/Windows size-cancel and denial cases plus
+`clipboard.file-destination-plan-index-generation` and
+`clipboard.file-destination-plan-cancel-replay` also pass.
+
+The Windows multi-file test validates the native CF_HDROP representation:
+20-byte DROPFILES header, `pFiles=20`, `fWide=TRUE`, two caller-selected
+fully qualified UTF-16 paths with per-path NULs and the final list NUL. It
+deliberately uses duplicate remote leaf names, independent native destination
+objects and reverse caller ordering; publication normalizes by the committed
+plan's exact remote descriptor index. A partial second member, duplicate
+destination, local takeover, cancelled plan or reentrant cancellation cannot
+leave a completed set published.
+
+The macOS multi-file test likewise uses duplicate remote leaf names and two
+independently completed destinations. The portable seam observes two distinct
+file URL entries in plan-index order. The production AppKit bridge bounds the
+set to 64, rejects duplicate/invalid entries, constructs one NSURL per file and
+writes the complete array in one `writeObjects:` operation. Partial,
+duplicate, local-takeover and cancelled-plan states are denied/rolled back.
+
+The Linux/X11 case independently binds descriptor 0 and 1 to separate
+caller-opened local descriptors, refuses publication before both are complete,
+rejects duplicate URIs, emits the exact CRLF `text/uri-list`, GNOME
+`copy\n...` form and KDE cut-selection byte, and rejects the set after a
+new remote generation. No local filesystem path on any platform is synthesized
+from the remote FILEDESCRIPTORW leaf name.
+
+### Live acceptance gating
+
+No live clipboard, filesystem, Finder, Explorer, Nautilus or RDP client was
+accessed for this receipt. Execution requires explicit owner authorization and
+must use the exact M1 candidate SHA declared by R10 after a complete SUCCESS
+hosted workflow. The same SHA must have the required owner-native Debug evidence
+for Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27; a later main commit
+supersedes the candidate.
+
+The approved run sheet must cover text, PNG plus Windows DIB/DIBV5, one file,
+multiple files, mid-transfer/batch cancellation, disconnect/reconnect and
+session revocation. For file cases, record the exact source descriptor index,
+caller-authorized local destination, completion size/hash and file-manager
+visible result. For cancellation/reconnect/revocation, record that no stale or
+partial native publication survives and that a fresh generation requires fresh
+materialization. Use only an owner-approved disposable destination directory.
+
+R6 and R7 evidence must be joined rather than inferred: Windows WTS/session
+revocation and macOS session/TCC revocation must retire the existing native
+owners before any R8 live acceptance can count toward M4/M5. R10's hosted M1
+baseline is stable, but its same-SHA owner matrix is still open. R2 still does
+not expose a final non-forgeable native desktop admission capability and R3
+licensing remains non-authorizing, so no positive real Microsoft-client
+clipboard/file result may be produced through a detached synthetic R3 channel.
+
+**Acceptance status:** synthetic/native-bridge R8 handoff validation **PASS**;
+owner-machine real file-manager/client acceptance **NOT RUN**; M1/M3/M4/M5
+**OPEN / NOT ACCEPTED**. There is no R8-owned CI regression in the last fully
+green hosted baseline.
+
 ## R9 P0 CI workflow structural gate authoring receipt (2026-10-17)
 
 **Authoring parent:** `ca56ededf527a46bcf535a5c3396d3b9e4d69db4`. **Publication:** this commit; exact-SHA

@@ -1,3 +1,97 @@
+## R8 P2 native multi-file verification and real-client acceptance gate (2026-10-17)
+
+**Audited shared-main SHA:** `24a57c8e5b2805bb326b461e896b9068ec95ab38`.  
+**Multi-file implementation:** `2e0f2814b8943fa8a83fccd97b7294a43f873b9f`.  
+**Windows render-helper correction / validated R8 source:** `583b59272cb51f95c967e3f0af9d13553e581e3a`.  
+**Known-green hosted M1 baseline:** `6457f259840fbfe3998f50517593cfd9185e75fe`, Actions `39009925959` — **SUCCESS**.
+
+R8 production and dedicated multi-file test sources are unchanged between the
+corrected source SHA and this audit SHA. The current central CTest registry
+still contains
+`clipboard.x11-completed-multi-file-uri-handoff`,
+`clipboard.windows-completed-multi-file-hdrop-handoff`, and
+`clipboard.macos-completed-multi-file-url-handoff`; R9's complete clipboard
+sanitizer preflight fail-closes on all three exact names before executing the
+full clipboard label.
+
+The known-green hosted baseline executes the unchanged R8 implementation:
+Linux/GCC full CTest is **568/568 PASS Debug + 568/568 PASS Release**,
+macOS/AppleClang is **485/485 PASS Debug + Release**, Windows/MSVC is
+**518/518 PASS Debug + Release**, and R9 Clang ASan/UBSan clipboard coverage is
+**68/68 PASS**. All three multi-file handoff cases pass. The same sanitizer
+selection passes the existing Linux/macOS/Windows file-destination size-cancel
+and denial cases plus the destination-plan generation and cancel/replay cases,
+so partial materializations and stale/cancelled associations are not omitted
+from P2 evidence.
+
+Windows multi-file publication is plan-indexed rather than name-indexed:
+each destination must be `Complete`, current-generation and a
+`CurrentFile` association for its exact `RemoteTransfer` descriptor index.
+The test uses two identical remote leaf names, completes descriptor 0 and 1
+independently into separately supplied native destinations, passes the finished
+objects in reverse order and verifies one CF_HDROP payload in descriptor-index
+order. The payload uses `DROPFILES.pFiles=20`, `fWide=TRUE`, one
+NUL-terminated UTF-16 path per file and the final list NUL. The pre-existing
+`renderFormatInternal` helper restored in `583b5927...` remains present.
+
+macOS applies the same current-plan/current-generation checks and publishes the
+completed local URLs through the existing AppKit bridge. The bridge rejects an
+empty, duplicate or >64 URL set, converts every entry to a file `NSURL`, and
+uses one `writeObjects:` call. The dedicated test proves two distinct file URL
+entries are delivered in descriptor-index order even when the caller span is
+reversed, while partial, duplicate, takeover and cancelled-plan states remain
+unpublished.
+
+Linux/X11 continues to materialize each member independently through its
+caller-opened descriptor and bound remote `fileIndex`, then exposes the set
+only when every destination is `Complete` for the current generation. Its
+multi-file test proves partial-set invisibility, duplicate URI denial, exact
+URI-list/GNOME/KDE formats and stale-generation refusal. No platform derives a
+local path from FILEDESCRIPTORW names, and no directory-tree fidelity is
+claimed from leaf metadata.
+
+### R8 owner-approved real-client interoperability checklist
+
+This checklist is **prepared, not executed**. It authorizes no clipboard,
+filesystem, desktop-session or client access. Before any live case, the owner
+must explicitly approve the platform/test destination and R10 must name the
+literal current M1 candidate SHA after that SHA's complete hosted workflow is
+SUCCESS. The owner-native M1 Debug runs for Linux/X11, Windows MSYS2 CLANG64 /
+Clang 23 and macOS 27 must be recorded on that same SHA. R6/R7 revocation
+evidence and the genuine R2/R3 authorization state must be current; a detached
+synthetic R3 channel must never be used to manufacture a positive client path.
+
+| Scenario | Required live check | Pass condition |
+| --- | --- | --- |
+| Clipboard text | Copy/paste both directions with non-ASCII text; repeat after local ownership takeover | Exact text, no stale-generation republish, local owner wins until a fresh remote generation |
+| PNG / DIB | Exercise PNG on all supported paths and Windows DIB/DIBV5 where advertised | Correct image payload/format, no delayed-render network wait, no publication after generation/session retirement |
+| One file | Use one owner-approved disposable destination; record source descriptor index, caller-selected native destination and final size/hash | File appears only after exact completion/flush/close; content/hash match; remote leaf name is never used to choose the local path |
+| Multiple files | Use at least two files, including same remote leaf names where practical; inspect Explorer/Finder/Nautilus result | One atomic set; every member independently complete/current; no partial visibility; Windows paths and macOS URLs remain distinct and index-correlated |
+| Cancellation | Cancel during a file and after one member of a batch is complete | Partial native object is retired/truncated per destination contract and no file-manager batch is published |
+| Reconnect | Replace/disconnect before publication, reconnect, then attempt old and fresh sets | Old generation is refused; only newly materialized current-generation destinations can publish |
+| Session revocation | Trigger the platform's approved logout/lock/session/TCC/WTS/X11-owner revocation path while transfer/publication state exists | Native owners/resources retire once, held input/capture paths remain revoked, no stale clipboard/file set survives or reappears |
+
+For every live run record the exact Git SHA, OS/client versions, effective
+compiler, owner build/CTest receipt, RDP client identity, approved test
+directory, scenario result and failure diagnostics. Do not enable live
+clipboard/filesystem access as part of ordinary M1 CTest, and do not treat
+hosted synthetic clipboard tests as Finder/Explorer/Nautilus acceptance.
+
+**Owner-machine coordination status:** R10's M1 same-SHA matrix is established,
+but owner Linux/X11, owner Windows CLANG64/Clang 23 and owner macOS 27 results
+are still **NOT RUN / PENDING**. R6's Windows CLANG64 parity gate is hosted
+compiler/SDK evidence only, not an owner-machine substitute; R7 likewise still
+requires owner macOS 27/TCC/native-session evidence. R2 does not yet mint final
+native desktop admission and R3 licensing remains non-authorizing, so genuine
+Microsoft-client file-copy acceptance is **BLOCKED / NOT RUN**. M1, M3, M4 and
+M5 remain **OPEN / NOT ACCEPTED**.
+
+**Next R8:** after R10 declares a same-SHA M1 PASS and the owner explicitly
+authorizes live clipboard/filesystem testing, execute the checklist on the
+supported real clients. Directory-tree materialization remains a separate
+reviewed capability requiring verified hierarchy plus race-safe relative
+creation and symlink policy.
+
 ## R9 P0 trustworthy main-branch CI gate (2026-10-17; exact-SHA CI pending)
 
 **Authoring parent:** `ca56ededf527a46bcf535a5c3396d3b9e4d69db4`. **Implementation:** this publication.

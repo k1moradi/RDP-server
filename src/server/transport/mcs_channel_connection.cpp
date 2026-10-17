@@ -1212,6 +1212,21 @@ McsSessionLifecycle::acceptVerifiedR2ClientInfoPacket(
     return info.value;
 }
 
+bool McsSessionLifecycle::selectVerifiedR2PersonalDesktopLicensingMode() noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitServerLicenseRequest ||
+        admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
+        personalDesktopPolicySelected_ ||
+        licensing_.phase() != RdpLicensingPhase::NotStarted ||
+        !licensing_.selectPersonalDesktopProtocolMode())
+    {
+        close();
+        return false;
+    }
+    personalDesktopPolicySelected_ = true;
+    return true;
+}
+
 std::optional<RdpServerLicenseRequestWriteView>
 McsSessionLifecycle::prepareServerLicenseRequestWrite(
     const SecurityNegotiationProvenance &provenance,
@@ -1367,7 +1382,40 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
         return std::nullopt;
     }
 
-    if (licensingKeyMaterialReady_)
+    if (personalDesktopPolicySelected_)
+    {
+        if (licensing_.protocolMode() !=
+                RdpLicensingProtocolMode::PersonalDesktop ||
+            licensingKeyMaterialReady_)
+        {
+            close();
+            return std::nullopt;
+        }
+
+        // Personal-terminal-server semantics intentionally stop after
+        // structural validation. A presented CAL is not signature/HWID
+        // validated and no CAL owner/provider request is created.
+        const auto intake =
+            licensing_.onClientMessage(envelope.value.licensingMessage);
+        if ((intake != RdpLicensingIntake::ClientLicenseInfoAccepted &&
+             intake != RdpLicensingIntake::ClientNewLicenseRequestAccepted) ||
+            licensing_.phase() != RdpLicensingPhase::AwaitServerDecision ||
+            licensing_.decisionBranch() !=
+                RdpLicensingDecisionBranch::
+                    PersonalDesktopCompletionRequired)
+        {
+            close();
+            return std::nullopt;
+        }
+
+        acceptedInitialLicensingIntake_ = intake;
+        phase_ = McsSessionPhase::AwaitPersonalDesktopValidClientWrite;
+        return intake;
+    }
+
+    if (licensing_.protocolMode() !=
+            RdpLicensingProtocolMode::AppServerAuthority ||
+        licensingKeyMaterialReady_)
     {
         close();
         return std::nullopt;
@@ -1455,6 +1503,96 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
     acceptedInitialLicensingIntake_ = intake;
     phase_ = McsSessionPhase::AwaitServerLicenseDecision;
     return intake;
+}
+
+std::optional<RdpPersonalDesktopValidClientWriteView>
+McsSessionLifecycle::preparePersonalDesktopValidClientWrite(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitPersonalDesktopValidClientWrite ||
+        !personalDesktopPolicySelected_ ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.protocolMode() !=
+            RdpLicensingProtocolMode::PersonalDesktop ||
+        licensing_.phase() != RdpLicensingPhase::AwaitServerDecision ||
+        licensing_.decisionBranch() !=
+            RdpLicensingDecisionBranch::
+                PersonalDesktopCompletionRequired ||
+        !acceptedInitialLicensingIntake_.has_value() ||
+        !joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return std::nullopt;
+    }
+
+    auto pending = personalDesktopValidClientWrite_.pendingWrite();
+    if (!pending)
+    {
+        if (!personalDesktopValidClientWrite_.queue(
+                connectResponseAllocation_.ioChannelId))
+        {
+            close();
+            return std::nullopt;
+        }
+        pending = personalDesktopValidClientWrite_.pendingWrite();
+    }
+    if (!pending)
+    {
+        close();
+        return std::nullopt;
+    }
+    return pending;
+}
+
+RdpPersonalDesktopValidClientWriteOutcome
+McsSessionLifecycle::completePersonalDesktopValidClientWrite(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitPersonalDesktopValidClientWrite ||
+        !personalDesktopPolicySelected_ ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.protocolMode() !=
+            RdpLicensingProtocolMode::PersonalDesktop ||
+        licensing_.phase() != RdpLicensingPhase::AwaitServerDecision ||
+        licensing_.decisionBranch() !=
+            RdpLicensingDecisionBranch::
+                PersonalDesktopCompletionRequired ||
+        !joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return RdpPersonalDesktopValidClientWriteOutcome::Rejected;
+    }
+
+    const auto outcome = personalDesktopValidClientWrite_.onBytesWritten(
+        replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == RdpPersonalDesktopValidClientWriteOutcome::Rejected)
+    {
+        close();
+        return outcome;
+    }
+    if (outcome == RdpPersonalDesktopValidClientWriteOutcome::Delivered)
+    {
+        if (licensing_.phase() != RdpLicensingPhase::Licensed)
+        {
+            close();
+            return RdpPersonalDesktopValidClientWriteOutcome::Rejected;
+        }
+        existingCalAuthorityRequest_.retire();
+        acceptedInitialLicensingIntake_.reset();
+        cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
+        licensingKeyMaterialReady_ = false;
+        phase_ = McsSessionPhase::AwaitDemandActive;
+    }
+    return outcome;
 }
 
 std::optional<RdpServerPlatformChallengeWriteView>
@@ -1611,6 +1749,147 @@ McsSessionLifecycle::acceptVerifiedR2ClientPlatformChallengeResponse(
     return intake;
 }
 
+std::optional<RdpShareActivationWriteView>
+McsSessionLifecycle::beginVerifiedR2ShareActivation(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint32_t shareId,
+    std::uint32_t sessionId,
+    std::span<const std::uint8_t> sourceDescriptor,
+    std::uint16_t capabilityCount,
+    std::span<const std::uint8_t> capabilitySets) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitDemandActive ||
+        admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() != RdpLicensingPhase::Licensed ||
+        !joins_.allConfiguredChannelsJoined() ||
+        !shareActivation_.begin(
+            allocatedUserId_, connectResponseAllocation_.ioChannelId,
+            shareId, sessionId, sourceDescriptor, capabilityCount,
+            capabilitySets))
+    {
+        close();
+        return std::nullopt;
+    }
+
+    phase_ = McsSessionPhase::ShareActivation;
+    const auto pending = shareActivation_.pendingServerWrite();
+    if (!pending)
+    {
+        close();
+        return std::nullopt;
+    }
+    return pending;
+}
+
+std::optional<RdpShareActivationWriteView>
+McsSessionLifecycle::pendingVerifiedR2ShareActivationWrite(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (phase_ != McsSessionPhase::ShareActivation ||
+        admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() != RdpLicensingPhase::Licensed ||
+        !joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return std::nullopt;
+    }
+    const auto pending = shareActivation_.pendingServerWrite();
+    return pending ? std::optional<RdpShareActivationWriteView>{pending}
+                   : std::nullopt;
+}
+
+RdpShareActivationWriteOutcome
+McsSessionLifecycle::completeVerifiedR2ShareActivationWrite(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (phase_ != McsSessionPhase::ShareActivation ||
+        admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() != RdpLicensingPhase::Licensed ||
+        !joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return RdpShareActivationWriteOutcome::Rejected;
+    }
+
+    const auto outcome = shareActivation_.onServerBytesWritten(
+        replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == RdpShareActivationWriteOutcome::Rejected)
+    {
+        close();
+        return outcome;
+    }
+    if (outcome == RdpShareActivationWriteOutcome::Activated)
+        phase_ = McsSessionPhase::ShareActivated;
+    return outcome;
+}
+
+RdpShareActivationClientIntake
+McsSessionLifecycle::acceptVerifiedR2ShareActivationPdu(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ != McsSessionPhase::ShareActivation ||
+        admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        licensing_.phase() != RdpLicensingPhase::Licensed ||
+        !joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return RdpShareActivationClientIntake::Rejected;
+    }
+
+    const auto intake = shareActivation_.onClientTpkt(completeTpkt);
+    if (intake == RdpShareActivationClientIntake::Rejected ||
+        intake == RdpShareActivationClientIntake::Closed)
+        close();
+    return intake;
+}
+
+bool McsSessionLifecycle::verifiedR2ApplicationTrafficReady(
+    const SecurityNegotiationProvenance &provenance) const noexcept
+{
+    return phase_ == McsSessionPhase::ShareActivated &&
+           admissionGeneration_ != 0U && sessionGeneration_ != 0U &&
+           connectResponseProvenanceBound_ &&
+           provenance == connectResponseBoundProvenance_ &&
+           provenance.serverSelectedProtocol == kRdpProtocolHybrid &&
+           licensing_.phase() == RdpLicensingPhase::Licensed &&
+           shareActivation_.activated() &&
+           joins_.allConfiguredChannelsJoined();
+}
+
+std::optional<std::uint16_t>
+McsSessionLifecycle::resolveVerifiedR2ActivatedDynamicVirtualChannel(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance))
+    {
+        close();
+        return std::nullopt;
+    }
+    const auto id = resolveMcsStaticChannelRole(
+        connectResponseClientSettings_, connectResponseAllocation_,
+        McsStaticChannelRole::DynamicVirtualChannels);
+    if (!id || !joins_.channelJoinConfirmed(*id))
+        return std::nullopt;
+    return id;
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
@@ -1729,6 +2008,133 @@ std::optional<std::size_t> encodeMcsSendDataIndication(
         output[13] = static_cast<std::uint8_t>(userData.size());
     }
     return packetBytes;
+}
+
+bool RdpPersonalDesktopValidClientWriteGate::advanceReplySequence() noexcept
+{
+    if (replySequence_ == UINT64_MAX)
+        return false;
+    ++replySequence_;
+    return replySequence_ != 0U;
+}
+
+bool RdpPersonalDesktopValidClientWriteGate::
+advanceWriteSliceSequence() noexcept
+{
+    if (writeSliceSequence_ == UINT64_MAX)
+        return false;
+    ++writeSliceSequence_;
+    return writeSliceSequence_ != 0U;
+}
+
+bool RdpPersonalDesktopValidClientWriteGate::queue(
+    std::uint16_t ioChannelId) noexcept
+{
+    if (closed_ || queued_ || delivered_ || ioChannelId == 0U ||
+        licensing_ == nullptr ||
+        licensing_->protocolMode() !=
+            RdpLicensingProtocolMode::PersonalDesktop ||
+        licensing_->phase() != RdpLicensingPhase::AwaitServerDecision ||
+        licensing_->decisionBranch() !=
+            RdpLicensingDecisionBranch::
+                PersonalDesktopCompletionRequired)
+    {
+        close();
+        return false;
+    }
+
+    std::array<std::uint8_t, 4U + kRdpValidClientLicensingMessageBytes>
+        userData{};
+    userData[0] = 0x80U; // SEC_LICENSE_PKT, Basic Security Header.
+    const auto licensingMessage = encodeRdpValidClientLicensingMessage();
+    std::copy(
+        licensingMessage.begin(), licensingMessage.end(),
+        userData.begin() + 4U);
+
+    const auto packetBytes = encodeMcsSendDataIndication(
+        1002U, ioChannelId, 1U, 3U, userData, pending_);
+    if (!packetBytes ||
+        *packetBytes != kRdpPersonalDesktopValidClientPacketBytes ||
+        !advanceReplySequence() || !advanceWriteSliceSequence())
+    {
+        close();
+        return false;
+    }
+
+    bytesWritten_ = 0U;
+    queued_ = true;
+    return true;
+}
+
+RdpPersonalDesktopValidClientWriteView
+RdpPersonalDesktopValidClientWriteGate::pendingWrite() const noexcept
+{
+    if (closed_ || delivered_ || !queued_ ||
+        bytesWritten_ >= pending_.size())
+        return {};
+    return {
+        std::span<const std::uint8_t>{pending_}.subspan(bytesWritten_),
+        replySequence_, writeSliceSequence_};
+}
+
+RdpPersonalDesktopValidClientWriteOutcome
+RdpPersonalDesktopValidClientWriteGate::onBytesWritten(
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (closed_ || delivered_ || !queued_ || licensing_ == nullptr ||
+        licensing_->protocolMode() !=
+            RdpLicensingProtocolMode::PersonalDesktop ||
+        licensing_->phase() != RdpLicensingPhase::AwaitServerDecision ||
+        licensing_->decisionBranch() !=
+            RdpLicensingDecisionBranch::
+                PersonalDesktopCompletionRequired ||
+        replySequence == 0U || replySequence != replySequence_ ||
+        writeSliceSequence == 0U ||
+        writeSliceSequence != writeSliceSequence_ ||
+        acceptedBytes > pending_.size() - bytesWritten_)
+    {
+        close();
+        return RdpPersonalDesktopValidClientWriteOutcome::Rejected;
+    }
+
+    if (acceptedBytes == 0U)
+        return RdpPersonalDesktopValidClientWriteOutcome::Pending;
+
+    bytesWritten_ += acceptedBytes;
+    if (bytesWritten_ != pending_.size())
+    {
+        if (!advanceWriteSliceSequence())
+        {
+            close();
+            return RdpPersonalDesktopValidClientWriteOutcome::Rejected;
+        }
+        return RdpPersonalDesktopValidClientWriteOutcome::Pending;
+    }
+
+    if (!licensing_->onPersonalDesktopValidClientWritten())
+    {
+        close();
+        return RdpPersonalDesktopValidClientWriteOutcome::Rejected;
+    }
+
+    pending_.fill(0U);
+    bytesWritten_ = 0U;
+    queued_ = false;
+    delivered_ = true;
+    return RdpPersonalDesktopValidClientWriteOutcome::Delivered;
+}
+
+void RdpPersonalDesktopValidClientWriteGate::close() noexcept
+{
+    pending_.fill(0U);
+    bytesWritten_ = 0U;
+    queued_ = false;
+    delivered_ = false;
+    closed_ = true;
+    if (licensing_ != nullptr)
+        licensing_->close();
 }
 
 RdpShareControlParseResult parseRdpShareControlHeader(
@@ -1930,6 +2336,34 @@ RdpControlParseResult parseRdpControlPdu(
     // A valid enum and raw IDs do not prove grant, session owner,
     // direction, MCS membership or active share negotiation.
     return {value, RdpFinalizationError::None};
+}
+
+RdpFontListParseResult parseRdpClientFontListPdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    const auto data = parseRdpShareDataHeader(completeSharePdu);
+    if (!data)
+        return {};
+    if (data.value.pduType2 != 0x27U)
+        return {{}, RdpFontListError::WrongDataPduType};
+    if (data.value.body.size() != 8U)
+        return {{}, RdpFontListError::InvalidBodyLength};
+
+    const auto readLe16 = [](std::span<const std::uint8_t> bytes,
+                             std::size_t offset) noexcept
+    {
+        return static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(bytes[offset]) |
+            (static_cast<std::uint16_t>(bytes[offset + 1U]) << 8U));
+    };
+    RdpFontListPdu value{};
+    value.pduSource = data.value.pduSource;
+    value.shareId = data.value.shareId;
+    value.numberFonts = readLe16(data.value.body, 0U);
+    value.totalNumFonts = readLe16(data.value.body, 2U);
+    value.listFlags = readLe16(data.value.body, 4U);
+    value.entrySize = readLe16(data.value.body, 6U);
+    return {value, RdpFontListError::None};
 }
 
 RdpActivePduParseResult parseRdpActivePdu(
@@ -2270,6 +2704,22 @@ std::optional<std::size_t> encodeRdpServerControlPdu(
     return size;
 }
 
+std::optional<std::size_t> encodeRdpServerFontMapPdu(
+    std::uint32_t shareId,
+    std::span<std::uint8_t> output) noexcept
+{
+    constexpr std::size_t size = 26U;
+    if (shareId == 0U || output.size() < size)
+        return std::nullopt;
+    const auto bytes = output.first(size);
+    writeServerShareDataHeader(bytes, 26U, shareId, 0x28U, 2U);
+    writeLe16(bytes, 18U, 0U);
+    writeLe16(bytes, 20U, 0U);
+    writeLe16(bytes, 22U, 0x0003U);
+    writeLe16(bytes, 24U, 0x0004U);
+    return size;
+}
+
 RdpActiveExchangeCorrelation correlateRdpActiveExchange(
     std::span<const std::uint8_t> serverDemandSharePdu,
     std::span<const std::uint8_t> clientConfirmSharePdu,
@@ -2365,6 +2815,375 @@ RdpFinalizationCorrelation correlateRdpFinalizationExchange(
     // A borrowed packet comparison does not prove transport delivery
     // order, TLS/NLA identity, OS permission, license or share activation.
     return RdpFinalizationCorrelation::ConsistentSyntaxOnly;
+}
+
+bool RdpShareActivationLifecycle::advanceReplySequence() noexcept
+{
+    if (replySequence_ == UINT64_MAX)
+        return false;
+    ++replySequence_;
+    return replySequence_ != 0U;
+}
+
+bool RdpShareActivationLifecycle::advanceWriteSliceSequence() noexcept
+{
+    if (writeSliceSequence_ == UINT64_MAX)
+        return false;
+    ++writeSliceSequence_;
+    return writeSliceSequence_ != 0U;
+}
+
+void RdpShareActivationLifecycle::fail() noexcept
+{
+    pending_.fill(0U);
+    demandSharePdu_.fill(0U);
+    demandShareLength_ = 0U;
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    pendingKind_ = RdpShareServerWriteKind::None;
+    phase_ = RdpShareActivationPhase::Failed;
+}
+
+void RdpShareActivationLifecycle::close() noexcept
+{
+    pending_.fill(0U);
+    demandSharePdu_.fill(0U);
+    demandShareLength_ = 0U;
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    clientUserId_ = 0U;
+    ioChannelId_ = 0U;
+    shareId_ = 0U;
+    pendingKind_ = RdpShareServerWriteKind::None;
+    clientStage_ = ClientStage::ConfirmActive;
+    demandDelivered_ = false;
+    serverSynchronizeDelivered_ = false;
+    serverCooperateDelivered_ = false;
+    clientRequestControlSeen_ = false;
+    serverGrantedControlDelivered_ = false;
+    clientFontListSeen_ = false;
+    phase_ = RdpShareActivationPhase::Closed;
+}
+
+bool RdpShareActivationLifecycle::queueSharePdu(
+    RdpShareServerWriteKind kind,
+    std::span<const std::uint8_t> sharePdu) noexcept
+{
+    if (kind == RdpShareServerWriteKind::None || sharePdu.empty() ||
+        pendingLength_ != 0U || ioChannelId_ == 0U)
+        return false;
+    const auto packetBytes = encodeMcsSendDataIndication(
+        1002U, ioChannelId_, 1U, 3U, sharePdu, pending_);
+    if (!packetBytes || !advanceReplySequence() ||
+        !advanceWriteSliceSequence())
+        return false;
+    pendingLength_ = *packetBytes;
+    bytesWritten_ = 0U;
+    pendingKind_ = kind;
+    return true;
+}
+
+bool RdpShareActivationLifecycle::queueSynchronize() noexcept
+{
+    std::array<std::uint8_t, 22> pdu{};
+    const auto bytes = encodeRdpServerSynchronizePdu(
+        shareId_, static_cast<std::uint16_t>(clientUserId_), pdu);
+    return bytes && queueSharePdu(
+        RdpShareServerWriteKind::Synchronize,
+        std::span<const std::uint8_t>{pdu}.first(*bytes));
+}
+
+bool RdpShareActivationLifecycle::queueCooperate() noexcept
+{
+    std::array<std::uint8_t, 26> pdu{};
+    const auto bytes = encodeRdpServerControlPdu(
+        shareId_, RdpControlAction::Cooperate, 0U, pdu);
+    return bytes && queueSharePdu(
+        RdpShareServerWriteKind::Cooperate,
+        std::span<const std::uint8_t>{pdu}.first(*bytes));
+}
+
+bool RdpShareActivationLifecycle::queueGrantedControl() noexcept
+{
+    std::array<std::uint8_t, 26> pdu{};
+    const auto bytes = encodeRdpServerControlPdu(
+        shareId_, RdpControlAction::GrantedControl, clientUserId_, pdu);
+    return bytes && queueSharePdu(
+        RdpShareServerWriteKind::GrantedControl,
+        std::span<const std::uint8_t>{pdu}.first(*bytes));
+}
+
+bool RdpShareActivationLifecycle::queueFontMap() noexcept
+{
+    std::array<std::uint8_t, 26> pdu{};
+    const auto bytes = encodeRdpServerFontMapPdu(shareId_, pdu);
+    return bytes && queueSharePdu(
+        RdpShareServerWriteKind::FontMap,
+        std::span<const std::uint8_t>{pdu}.first(*bytes));
+}
+
+bool RdpShareActivationLifecycle::begin(
+    std::uint32_t clientUserId,
+    std::uint16_t ioChannelId,
+    std::uint32_t shareId,
+    std::uint32_t sessionId,
+    std::span<const std::uint8_t> sourceDescriptor,
+    std::uint16_t capabilityCount,
+    std::span<const std::uint8_t> capabilitySets) noexcept
+{
+    if (phase_ != RdpShareActivationPhase::NotStarted ||
+        clientUserId < 1001U || clientUserId > 65535U ||
+        ioChannelId == 0U || shareId == 0U)
+    {
+        fail();
+        return false;
+    }
+    const auto demandBytes = encodeRdpDemandActivePdu(
+        shareId, sessionId, sourceDescriptor, capabilityCount,
+        capabilitySets, demandSharePdu_);
+    if (!demandBytes)
+    {
+        fail();
+        return false;
+    }
+    clientUserId_ = clientUserId;
+    ioChannelId_ = ioChannelId;
+    shareId_ = shareId;
+    demandShareLength_ = *demandBytes;
+    clientStage_ = ClientStage::ConfirmActive;
+    if (!queueSharePdu(
+            RdpShareServerWriteKind::DemandActive,
+            std::span<const std::uint8_t>{demandSharePdu_}.first(
+                demandShareLength_)))
+    {
+        fail();
+        return false;
+    }
+    phase_ = RdpShareActivationPhase::DemandActivePending;
+    return true;
+}
+
+RdpShareActivationWriteView
+RdpShareActivationLifecycle::pendingServerWrite() const noexcept
+{
+    if (phase_ == RdpShareActivationPhase::Failed ||
+        phase_ == RdpShareActivationPhase::Closed ||
+        pendingLength_ == 0U || bytesWritten_ >= pendingLength_ ||
+        pendingKind_ == RdpShareServerWriteKind::None)
+        return {};
+    return {
+        std::span<const std::uint8_t>{pending_}
+            .first(pendingLength_).subspan(bytesWritten_),
+        pendingKind_, replySequence_, writeSliceSequence_};
+}
+
+RdpShareActivationWriteOutcome
+RdpShareActivationLifecycle::onServerBytesWritten(
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    if (phase_ == RdpShareActivationPhase::Failed ||
+        phase_ == RdpShareActivationPhase::Closed ||
+        pendingLength_ == 0U ||
+        replySequence == 0U || replySequence != replySequence_ ||
+        writeSliceSequence == 0U ||
+        writeSliceSequence != writeSliceSequence_ ||
+        acceptedBytes > pendingLength_ - bytesWritten_)
+    {
+        fail();
+        return RdpShareActivationWriteOutcome::Rejected;
+    }
+    if (acceptedBytes == 0U)
+        return RdpShareActivationWriteOutcome::Pending;
+    bytesWritten_ += acceptedBytes;
+    if (bytesWritten_ != pendingLength_)
+    {
+        if (!advanceWriteSliceSequence())
+        {
+            fail();
+            return RdpShareActivationWriteOutcome::Rejected;
+        }
+        return RdpShareActivationWriteOutcome::Pending;
+    }
+
+    const auto completedKind = pendingKind_;
+    pending_.fill(0U);
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    pendingKind_ = RdpShareServerWriteKind::None;
+
+    switch (completedKind)
+    {
+    case RdpShareServerWriteKind::DemandActive:
+        demandDelivered_ = true;
+        phase_ = RdpShareActivationPhase::AwaitConfirmActive;
+        break;
+    case RdpShareServerWriteKind::Synchronize:
+        serverSynchronizeDelivered_ = true;
+        phase_ = RdpShareActivationPhase::Finalizing;
+        if (!queueCooperate())
+        {
+            fail();
+            return RdpShareActivationWriteOutcome::Rejected;
+        }
+        break;
+    case RdpShareServerWriteKind::Cooperate:
+        serverCooperateDelivered_ = true;
+        if (clientRequestControlSeen_ && !queueGrantedControl())
+        {
+            fail();
+            return RdpShareActivationWriteOutcome::Rejected;
+        }
+        break;
+    case RdpShareServerWriteKind::GrantedControl:
+        serverGrantedControlDelivered_ = true;
+        if (clientFontListSeen_ && !queueFontMap())
+        {
+            fail();
+            return RdpShareActivationWriteOutcome::Rejected;
+        }
+        break;
+    case RdpShareServerWriteKind::FontMap:
+        if (!clientFontListSeen_ ||
+            clientStage_ != ClientStage::Complete)
+        {
+            fail();
+            return RdpShareActivationWriteOutcome::Rejected;
+        }
+        phase_ = RdpShareActivationPhase::Activated;
+        return RdpShareActivationWriteOutcome::Activated;
+    case RdpShareServerWriteKind::None:
+        fail();
+        return RdpShareActivationWriteOutcome::Rejected;
+    }
+    return RdpShareActivationWriteOutcome::Delivered;
+}
+
+RdpShareActivationClientIntake
+RdpShareActivationLifecycle::onClientTpkt(
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (phase_ == RdpShareActivationPhase::Closed)
+        return RdpShareActivationClientIntake::Closed;
+    if (phase_ == RdpShareActivationPhase::Failed ||
+        !demandDelivered_ ||
+        (phase_ != RdpShareActivationPhase::AwaitConfirmActive &&
+         phase_ != RdpShareActivationPhase::Finalizing))
+    {
+        fail();
+        return RdpShareActivationClientIntake::Rejected;
+    }
+
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed ||
+        parsed.request.kind != McsChannelRequestKind::SendDataRequest ||
+        parsed.request.initiator != clientUserId_ ||
+        parsed.request.channelId != ioChannelId_ ||
+        parsed.request.segmentation != 3U)
+    {
+        fail();
+        return RdpShareActivationClientIntake::Rejected;
+    }
+
+    const auto sharePdu = parsed.request.userData;
+    switch (clientStage_)
+    {
+    case ClientStage::ConfirmActive:
+        if (correlateRdpActiveExchange(
+                std::span<const std::uint8_t>{demandSharePdu_}.first(
+                    demandShareLength_),
+                sharePdu, clientUserId_) !=
+            RdpActiveExchangeCorrelation::ConsistentSyntaxOnly)
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        clientStage_ = ClientStage::Synchronize;
+        phase_ = RdpShareActivationPhase::Finalizing;
+        if (!queueSynchronize())
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        return RdpShareActivationClientIntake::ConfirmActiveAccepted;
+
+    case ClientStage::Synchronize:
+    {
+        const auto sync = parseRdpSynchronizePdu(sharePdu);
+        if (!sync || sync.value.pduSource != clientUserId_ ||
+            sync.value.shareId != shareId_ ||
+            sync.value.targetUser != 1002U)
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        clientStage_ = ClientStage::Cooperate;
+        return RdpShareActivationClientIntake::SynchronizeAccepted;
+    }
+    case ClientStage::Cooperate:
+    {
+        const auto control = parseRdpControlPdu(sharePdu);
+        if (!control || control.value.pduSource != clientUserId_ ||
+            control.value.shareId != shareId_ ||
+            control.value.action != RdpControlAction::Cooperate ||
+            control.value.grantId != 0U ||
+            control.value.controlId != 0U)
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        clientStage_ = ClientStage::RequestControl;
+        return RdpShareActivationClientIntake::CooperateAccepted;
+    }
+    case ClientStage::RequestControl:
+    {
+        const auto control = parseRdpControlPdu(sharePdu);
+        if (!control || control.value.pduSource != clientUserId_ ||
+            control.value.shareId != shareId_ ||
+            control.value.action != RdpControlAction::RequestControl ||
+            control.value.grantId != 0U ||
+            control.value.controlId != 0U)
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        clientRequestControlSeen_ = true;
+        clientStage_ = ClientStage::FontList;
+        if (serverCooperateDelivered_ && pendingLength_ == 0U &&
+            !queueGrantedControl())
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        return RdpShareActivationClientIntake::RequestControlAccepted;
+    }
+    case ClientStage::FontList:
+    {
+        const auto fontList = parseRdpClientFontListPdu(sharePdu);
+        if (!fontList ||
+            fontList.value.pduSource != clientUserId_ ||
+            fontList.value.shareId != shareId_)
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        clientFontListSeen_ = true;
+        clientStage_ = ClientStage::Complete;
+        if (serverGrantedControlDelivered_ && pendingLength_ == 0U &&
+            !queueFontMap())
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        return RdpShareActivationClientIntake::FontListAccepted;
+    }
+    case ClientStage::Complete:
+        fail();
+        return RdpShareActivationClientIntake::Rejected;
+    }
+    fail();
+    return RdpShareActivationClientIntake::Rejected;
 }
 
 } // namespace rdp_server::server::transport

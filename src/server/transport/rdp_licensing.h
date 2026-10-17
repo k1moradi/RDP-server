@@ -1153,6 +1153,23 @@ encodeEnhancedSecurityServerLicenseRequest(
     const RdpServerLicenseRequestFields &fields,
     std::span<std::uint8_t> output) noexcept;
 
+// Protocol behavior only; this enum is not deployment authorization.
+// McsSessionLifecycle defaults to AppServerAuthority and can select the
+// personal branch only through its private R2-authorized handoff.
+enum class RdpLicensingProtocolMode : std::uint8_t
+{
+    AppServerAuthority,
+    PersonalDesktop,
+};
+
+inline constexpr std::size_t kRdpValidClientLicensingMessageBytes = 16U;
+
+// MS-RDPBCGR 2.2.1.12.1 / MS-RDPELE personal-terminal-server completion.
+// Exact ERROR_ALERT / STATUS_VALID_CLIENT / ST_NO_TRANSITION payload.
+// This raw licensing PDU contains no Security Header, MCS or TLS framing.
+[[nodiscard]] std::array<std::uint8_t, kRdpValidClientLicensingMessageBytes>
+encodeRdpValidClientLicensingMessage() noexcept;
+
 enum class RdpLicensingDecisionBranch : std::uint8_t
 {
     None,
@@ -1160,6 +1177,7 @@ enum class RdpLicensingDecisionBranch : std::uint8_t
     PlatformChallengeRequired,
     AwaitPlatformChallengeResponse,
     NewLicenseIssuanceRequired,
+    PersonalDesktopCompletionRequired,
 };
 
 enum class RdpLicensingPhase : std::uint8_t
@@ -1194,12 +1212,20 @@ class RdpLicensingLifecycle final
 {
 public:
     RdpLicensingLifecycle() noexcept = default;
+    explicit RdpLicensingLifecycle(RdpLicensingProtocolMode protocolMode) noexcept
+        : protocolMode_(protocolMode)
+    {
+    }
     RdpLicensingLifecycle(const RdpLicensingLifecycle &) = delete;
     RdpLicensingLifecycle &operator=(const RdpLicensingLifecycle &) = delete;
     RdpLicensingLifecycle(RdpLicensingLifecycle &&) = delete;
     RdpLicensingLifecycle &operator=(RdpLicensingLifecycle &&) = delete;
 
     [[nodiscard]] RdpLicensingPhase phase() const noexcept { return phase_; }
+    [[nodiscard]] RdpLicensingProtocolMode protocolMode() const noexcept
+    {
+        return protocolMode_;
+    }
     [[nodiscard]] RdpLicensingDecisionBranch decisionBranch() const noexcept
     {
         return decisionBranch_;
@@ -1251,6 +1277,8 @@ private:
     friend class RdpServerLicenseRequestWriteGate;
     friend class RdpServerPlatformChallengeWriteGate;
     friend class RdpServerLicenseGrantWriteGate;
+    friend class McsSessionLifecycle;
+    friend class RdpPersonalDesktopValidClientWriteGate;
 
     // Only the receipt gate may advance this transition after every byte of
     // its stable owned SERVER_LICENSE_REQUEST has been accepted.
@@ -1260,6 +1288,8 @@ private:
         std::span<const std::uint8_t> plaintextChallenge) noexcept;
     [[nodiscard]] bool onServerLicenseGrantWritten(
         RdpServerLicenseGrantKind kind) noexcept;
+    [[nodiscard]] bool selectPersonalDesktopProtocolMode() noexcept;
+    [[nodiscard]] bool onPersonalDesktopValidClientWritten() noexcept;
     void fail() noexcept
     {
         serverRandom_.fill(0U);
@@ -1273,6 +1303,8 @@ private:
     std::array<std::uint8_t, kRdpLicensingRandomBytes> serverRandom_{};
     std::array<std::uint8_t, kRdpPlatformChallengePlaintextBytes>
         platformChallenge_{};
+    RdpLicensingProtocolMode protocolMode_{
+        RdpLicensingProtocolMode::AppServerAuthority};
     RdpLicensingPhase phase_{RdpLicensingPhase::NotStarted};
     RdpLicensingDecisionBranch decisionBranch_{
         RdpLicensingDecisionBranch::None};

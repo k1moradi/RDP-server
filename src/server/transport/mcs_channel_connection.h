@@ -624,6 +624,210 @@ private:
 // admission/session generations before state or writer progress changes.
 // A second envelope, wrong-order domain PDU, revocation or teardown closes the
 // same owner; reconnect constructs a fresh instance. No second MCS controller.
+inline constexpr std::size_t
+    kRdpPersonalDesktopValidClientPacketBytes = 34U;
+inline constexpr std::size_t kMaximumRdpShareActivationPduBytes = 4096U;
+inline constexpr std::size_t kMaximumRdpShareActivationPacketBytes =
+    kMaximumRdpShareActivationPduBytes + 15U;
+
+struct RdpPersonalDesktopValidClientWriteView
+{
+    std::span<const std::uint8_t> bytes{};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return !bytes.empty() && replySequence != 0U &&
+               writeSliceSequence != 0U;
+    }
+};
+
+enum class RdpPersonalDesktopValidClientWriteOutcome : std::uint8_t
+{
+    Pending,
+    Delivered,
+    Rejected,
+};
+
+// Owns the complete Enhanced-Security Valid Client packet:
+// TPKT/X.224/MCS SDin + Basic Security Header + 16-byte ERROR_ALERT.
+// It is protocol mechanics only. The live McsSessionLifecycle exposes it
+// solely after its private R2-authorized personal-policy selection.
+class RdpPersonalDesktopValidClientWriteGate final
+{
+public:
+    explicit RdpPersonalDesktopValidClientWriteGate(
+        RdpLicensingLifecycle &licensing) noexcept
+        : licensing_(&licensing)
+    {
+    }
+    RdpPersonalDesktopValidClientWriteGate(
+        const RdpPersonalDesktopValidClientWriteGate &) = delete;
+    RdpPersonalDesktopValidClientWriteGate &operator=(
+        const RdpPersonalDesktopValidClientWriteGate &) = delete;
+
+    [[nodiscard]] bool queue(std::uint16_t ioChannelId) noexcept;
+    [[nodiscard]] RdpPersonalDesktopValidClientWriteView
+    pendingWrite() const noexcept;
+    [[nodiscard]] RdpPersonalDesktopValidClientWriteOutcome onBytesWritten(
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    void close() noexcept;
+
+private:
+    [[nodiscard]] bool advanceReplySequence() noexcept;
+    [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
+
+    std::array<std::uint8_t, kRdpPersonalDesktopValidClientPacketBytes>
+        pending_{};
+    RdpLicensingLifecycle *licensing_{};
+    std::size_t bytesWritten_{};
+    std::uint64_t replySequence_{};
+    std::uint64_t writeSliceSequence_{};
+    bool queued_{};
+    bool delivered_{};
+    bool closed_{};
+};
+
+enum class RdpShareActivationPhase : std::uint8_t
+{
+    NotStarted,
+    DemandActivePending,
+    AwaitConfirmActive,
+    Finalizing,
+    Activated,
+    Failed,
+    Closed,
+};
+
+enum class RdpShareServerWriteKind : std::uint8_t
+{
+    None,
+    DemandActive,
+    Synchronize,
+    Cooperate,
+    GrantedControl,
+    FontMap,
+};
+
+struct RdpShareActivationWriteView
+{
+    std::span<const std::uint8_t> bytes{};
+    RdpShareServerWriteKind kind{RdpShareServerWriteKind::None};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return !bytes.empty() && kind != RdpShareServerWriteKind::None &&
+               replySequence != 0U && writeSliceSequence != 0U;
+    }
+};
+
+enum class RdpShareActivationWriteOutcome : std::uint8_t
+{
+    Pending,
+    Delivered,
+    Activated,
+    Rejected,
+};
+
+enum class RdpShareActivationClientIntake : std::uint8_t
+{
+    ConfirmActiveAccepted,
+    SynchronizeAccepted,
+    CooperateAccepted,
+    RequestControlAccepted,
+    FontListAccepted,
+    Rejected,
+    Closed,
+};
+
+// Serialized, allocation-free Share activation transcript owner. It owns no
+// R2 authority; the live R3 session invokes it only after licensing completes.
+// Client ingress is exact MCS I/O-channel SendDataRequest framing. Server
+// output is complete MCS SendDataIndication packets with receipt-bound slices.
+class RdpShareActivationLifecycle final
+{
+public:
+    RdpShareActivationLifecycle() noexcept = default;
+    RdpShareActivationLifecycle(const RdpShareActivationLifecycle &) = delete;
+    RdpShareActivationLifecycle &operator=(
+        const RdpShareActivationLifecycle &) = delete;
+
+    [[nodiscard]] RdpShareActivationPhase phase() const noexcept
+    {
+        return phase_;
+    }
+    [[nodiscard]] bool activated() const noexcept
+    {
+        return phase_ == RdpShareActivationPhase::Activated;
+    }
+    [[nodiscard]] bool begin(
+        std::uint32_t clientUserId,
+        std::uint16_t ioChannelId,
+        std::uint32_t shareId,
+        std::uint32_t sessionId,
+        std::span<const std::uint8_t> sourceDescriptor,
+        std::uint16_t capabilityCount,
+        std::span<const std::uint8_t> capabilitySets) noexcept;
+    [[nodiscard]] RdpShareActivationWriteView
+    pendingServerWrite() const noexcept;
+    [[nodiscard]] RdpShareActivationWriteOutcome onServerBytesWritten(
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] RdpShareActivationClientIntake onClientTpkt(
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    void close() noexcept;
+
+private:
+    enum class ClientStage : std::uint8_t
+    {
+        ConfirmActive,
+        Synchronize,
+        Cooperate,
+        RequestControl,
+        FontList,
+        Complete,
+    };
+
+    [[nodiscard]] bool queueSharePdu(
+        RdpShareServerWriteKind kind,
+        std::span<const std::uint8_t> sharePdu) noexcept;
+    [[nodiscard]] bool queueSynchronize() noexcept;
+    [[nodiscard]] bool queueCooperate() noexcept;
+    [[nodiscard]] bool queueGrantedControl() noexcept;
+    [[nodiscard]] bool queueFontMap() noexcept;
+    [[nodiscard]] bool advanceReplySequence() noexcept;
+    [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
+    void fail() noexcept;
+
+    std::array<std::uint8_t, kMaximumRdpShareActivationPduBytes>
+        demandSharePdu_{};
+    std::array<std::uint8_t, kMaximumRdpShareActivationPacketBytes>
+        pending_{};
+    std::size_t demandShareLength_{};
+    std::size_t pendingLength_{};
+    std::size_t bytesWritten_{};
+    std::uint32_t clientUserId_{};
+    std::uint16_t ioChannelId_{};
+    std::uint32_t shareId_{};
+    std::uint64_t replySequence_{};
+    std::uint64_t writeSliceSequence_{};
+    RdpShareActivationPhase phase_{RdpShareActivationPhase::NotStarted};
+    RdpShareServerWriteKind pendingKind_{RdpShareServerWriteKind::None};
+    ClientStage clientStage_{ClientStage::ConfirmActive};
+    bool demandDelivered_{};
+    bool serverSynchronizeDelivered_{};
+    bool serverCooperateDelivered_{};
+    bool clientRequestControlSeen_{};
+    bool serverGrantedControlDelivered_{};
+    bool clientFontListSeen_{};
+};
+
 enum class McsSessionPhase : std::uint8_t
 {
     AwaitVerifiedR2Admission,
@@ -636,6 +840,10 @@ enum class McsSessionPhase : std::uint8_t
     AwaitClientLicenseResponse,
     AwaitServerLicenseDecision,
     AwaitClientPlatformChallengeResponse,
+    AwaitPersonalDesktopValidClientWrite,
+    AwaitDemandActive,
+    ShareActivation,
+    ShareActivated,
     Closed,
 };
 
@@ -772,12 +980,15 @@ public:
         connectResponseWrite_.close();
         serverLicenseRequestWrite_.close();
         serverPlatformChallengeWrite_.close();
+        personalDesktopValidClientWrite_.close();
+        shareActivation_.close();
         licensingCredentialFingerprint_.fill(0U);
         licensingCredentialBound_ = false;
         cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
         licensingKeyMaterialReady_ = false;
         acceptedInitialLicensingIntake_.reset();
         existingCalAuthorityRequest_.retire();
+        personalDesktopPolicySelected_ = false;
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
@@ -858,6 +1069,14 @@ private:
         const SecurityNegotiationProvenance &provenance,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Select the personal-desktop protocol branch only after the concrete R2
+    // broker has freshly authorized the same admitted connection and R10 has
+    // supplied its explicit immutable deployment policy. This is private so
+    // an arbitrary Boolean/generation cannot turn an app-server session into
+    // the personal branch.
+    [[nodiscard]] bool
+    selectVerifiedR2PersonalDesktopLicensingMode() noexcept;
+
     // R3 remains the sole licensing writer owner. The concrete R2 broker
     // reauthorizes the exact lease/R1 owner before every borrowed slice and
     // every accepted-byte receipt. Provisioned fields are sampled only when
@@ -886,6 +1105,20 @@ private:
         const RdpLicensingServiceCredential &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Personal desktop completion is a separate branch: both structurally
+    // valid CLIENT_NEW_LICENSE_REQUEST and CLIENT_LICENSE_INFO terminate with
+    // exact STATUS_VALID_CLIENT/ST_NO_TRANSITION. No CAL validation or
+    // issuance occurs here, and the app-server authority branch is unchanged.
+    [[nodiscard]] std::optional<RdpPersonalDesktopValidClientWriteView>
+    preparePersonalDesktopValidClientWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] RdpPersonalDesktopValidClientWriteOutcome
+    completePersonalDesktopValidClientWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     // Standards-required outbound branch after a successfully prepared
     // CLIENT_NEW_LICENSE_REQUEST. R3 owns challenge generation, keys and
     // receipt state; the concrete R2 broker must reauthorize before every
@@ -911,6 +1144,45 @@ private:
         const RdpLicensingServiceCredential &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Share activation can begin only after selected-mode licensing has
+    // completed. Every method remains private to the R2 broker/test shim;
+    // successful syntax alone never creates application-routing authority.
+    [[nodiscard]] std::optional<RdpShareActivationWriteView>
+    beginVerifiedR2ShareActivation(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint32_t shareId,
+        std::uint32_t sessionId,
+        std::span<const std::uint8_t> sourceDescriptor,
+        std::uint16_t capabilityCount,
+        std::span<const std::uint8_t> capabilitySets) noexcept;
+    [[nodiscard]] std::optional<RdpShareActivationWriteView>
+    pendingVerifiedR2ShareActivationWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] RdpShareActivationWriteOutcome
+    completeVerifiedR2ShareActivationWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] RdpShareActivationClientIntake
+    acceptVerifiedR2ShareActivationPdu(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Sole future DVC/Graphics/input publication gate. It grants nothing by
+    // itself and is intentionally private: only a freshly reauthorized R2
+    // transition may query it immediately before protocol application I/O.
+    [[nodiscard]] bool verifiedR2ApplicationTrafficReady(
+        const SecurityNegotiationProvenance &provenance) const noexcept;
+
+    // The negotiated drdynvc static channel becomes routable only after the
+    // same post-Share gate. This does not create a Dynamic Virtual Channel;
+    // it only returns the already joined DRDYNVC MCS channel for the future
+    // CREATE/Graphics state machine.
+    [[nodiscard]] std::optional<std::uint16_t>
+    resolveVerifiedR2ActivatedDynamicVirtualChannel(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
     McsConnectResponseAllocation connectResponseAllocation_{};
@@ -923,6 +1195,9 @@ private:
     RdpServerLicenseRequestWriteGate serverLicenseRequestWrite_{licensing_};
     RdpServerPlatformChallengeWriteGate
         serverPlatformChallengeWrite_{licensing_};
+    RdpPersonalDesktopValidClientWriteGate
+        personalDesktopValidClientWrite_{licensing_};
+    RdpShareActivationLifecycle shareActivation_{};
     std::array<std::uint8_t, 32> licensingCredentialFingerprint_{};
     bool licensingCredentialBound_{};
     RdpLicensingKeyMaterial licensingKeyMaterial_{};
@@ -932,6 +1207,7 @@ private:
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};
     std::uint64_t sessionGeneration_{};
+    bool personalDesktopPolicySelected_{};
     McsSessionPhase phase_{McsSessionPhase::AwaitVerifiedR2Admission};
 };
 
@@ -1162,6 +1438,40 @@ struct RdpControlParseResult
 [[nodiscard]] RdpControlParseResult parseRdpControlPdu(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
 
+enum class RdpFontListError : std::uint8_t
+{
+    None,
+    InvalidShareData,
+    WrongDataPduType,
+    InvalidBodyLength,
+};
+
+struct RdpFontListPdu
+{
+    std::uint16_t pduSource{};
+    std::uint32_t shareId{};
+    std::uint16_t numberFonts{};
+    std::uint16_t totalNumFonts{};
+    std::uint16_t listFlags{};
+    std::uint16_t entrySize{};
+};
+
+struct RdpFontListParseResult
+{
+    RdpFontListPdu value{};
+    RdpFontListError error{RdpFontListError::InvalidShareData};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpFontListError::None;
+    }
+};
+
+// Exact 8-byte TS_FONT_LIST_PDU body. The legacy count/flags/entry-size
+// fields are preserved as protocol metadata because the specification marks
+// their canonical values as SHOULD, not authorization requirements.
+[[nodiscard]] RdpFontListParseResult parseRdpClientFontListPdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
 // MS-RDPBCGR 2.2.1.13.1.1 / 2.2.1.13.2.1, capability-exchange
 // TS_DEMAND_ACTIVE_PDU and TS_CONFIRM_ACTIVE_PDU. The caller MUST first
 // isolate exactly one decrypted, intact Share Control PDU from the
@@ -1351,6 +1661,14 @@ struct RdpBitmapCapabilityParseResult
     std::uint32_t shareId,
     RdpControlAction action,
     std::uint32_t assignedClientUserId,
+    std::span<std::uint8_t> output) noexcept;
+
+// MS-RDPBCGR 2.2.1.22.1 Server Font Map, the final server PDU in the
+// connection finalization sequence. Emit the empty FIRST|LAST map used by
+// current Microsoft clients: numberEntries=0, totalNumEntries=0,
+// mapFlags=0x0003, entrySize=0x0004. Pure Share PDU; no activation authority.
+[[nodiscard]] std::optional<std::size_t> encodeRdpServerFontMapPdu(
+    std::uint32_t shareId,
     std::span<std::uint8_t> output) noexcept;
 
 // OFFLINE transcript-correlation check for the single Demand Active

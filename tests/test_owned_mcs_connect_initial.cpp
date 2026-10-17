@@ -3257,6 +3257,37 @@ void testRdpServerFinalizationEncodeRejections()
     assert(parseRdpControlPdu(control));
 }
 
+[[nodiscard]] std::vector<std::uint8_t> makeClientShareTpkt(
+    std::uint32_t clientUserId,
+    std::uint16_t ioChannelId,
+    std::span<const std::uint8_t> sharePdu)
+{
+    assert(clientUserId >= 1001U && clientUserId <= 65536U);
+    assert(ioChannelId != 0U);
+    assert(sharePdu.size() < 128U);
+    const std::size_t totalBytes = 14U + sharePdu.size();
+    assert(totalBytes <= UINT16_MAX);
+
+    std::vector<std::uint8_t> packet(totalBytes);
+    packet[0] = 0x03U;
+    packet[1] = 0x00U;
+    packet[2] = static_cast<std::uint8_t>(totalBytes >> 8U);
+    packet[3] = static_cast<std::uint8_t>(totalBytes);
+    packet[4] = 0x02U;
+    packet[5] = 0xf0U;
+    packet[6] = 0x80U;
+    packet[7] = 0x64U;
+    const auto offset = clientUserId - 1001U;
+    packet[8] = static_cast<std::uint8_t>(offset >> 8U);
+    packet[9] = static_cast<std::uint8_t>(offset);
+    packet[10] = static_cast<std::uint8_t>(ioChannelId >> 8U);
+    packet[11] = static_cast<std::uint8_t>(ioChannelId);
+    packet[12] = 0x70U;
+    packet[13] = static_cast<std::uint8_t>(sharePdu.size());
+    std::copy(sharePdu.begin(), sharePdu.end(), packet.begin() + 14U);
+    return packet;
+}
+
 void testRdpActiveExchangeCorrelation()
 {
     // Both fixtures already independently pass the strict T.128
@@ -3532,6 +3563,187 @@ void testRdpFinalizationExchangeDenials()
     serverGranted[22] ^= 1; assert(check() == denied); serverGranted[22] ^= 1;
     serverGranted[15] = 0x20; assert(check() == denied); serverGranted[15] = 0;
     assert(check() == consistent);
+}
+
+void testPersonalDesktopShareActivationOrdering()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t ioChannelId = 1003U;
+    constexpr std::uint32_t shareId = 0x000103eaU;
+    constexpr std::uint32_t sessionId = 0x11223344U;
+    const auto source = std::span(kOfflineDemandActive).subspan(14U, 4U);
+    const auto capabilities =
+        std::span(kOfflineDemandActive).subspan(22U, 12U);
+
+    RdpShareActivationLifecycle share;
+    assert(share.begin(
+        clientUserId, ioChannelId, shareId, sessionId,
+        source, 2U, capabilities));
+    auto write = share.pendingServerWrite();
+    assert(write && write.kind == RdpShareServerWriteKind::DemandActive);
+    assert(share.phase() ==
+           RdpShareActivationPhase::DemandActivePending);
+    assert(share.onServerBytesWritten(
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Delivered);
+    assert(share.phase() == RdpShareActivationPhase::AwaitConfirmActive);
+
+    const auto confirm = makeClientShareTpkt(
+        clientUserId, ioChannelId, kOfflineConfirmActive);
+    assert(share.onClientTpkt(confirm) ==
+           RdpShareActivationClientIntake::ConfirmActiveAccepted);
+    write = share.pendingServerWrite();
+    assert(write && write.kind == RdpShareServerWriteKind::Synchronize);
+
+    constexpr std::array<std::uint8_t, 22> clientSync{{
+        0x16,0x00,0x17,0x00,0xef,0x03,
+        0xea,0x03,0x01,0x00,0x00,0x01,
+        0x08,0x00,0x1f,0x00,0x00,0x00,
+        0x01,0x00,0xea,0x03
+    }};
+    constexpr std::array<std::uint8_t, 26> clientCooperate{{
+        0x1a,0x00,0x17,0x00,0xef,0x03,
+        0xea,0x03,0x01,0x00,0x00,0x01,
+        0x0c,0x00,0x14,0x00,0x00,0x00,
+        0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+    }};
+    auto clientRequest = clientCooperate;
+    clientRequest[18] = 0x01U;
+    constexpr std::array<std::uint8_t, 26> clientFontList{{
+        0x1a,0x00,0x17,0x00,0xef,0x03,
+        0xea,0x03,0x01,0x00,0x00,0x01,
+        0x1a,0x00,0x27,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x03,0x00,0x32,0x00
+    }};
+
+    assert(share.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, clientSync)) ==
+           RdpShareActivationClientIntake::SynchronizeAccepted);
+    assert(share.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, clientCooperate)) ==
+           RdpShareActivationClientIntake::CooperateAccepted);
+    assert(share.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, clientRequest)) ==
+           RdpShareActivationClientIntake::RequestControlAccepted);
+    assert(share.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, clientFontList)) ==
+           RdpShareActivationClientIntake::FontListAccepted);
+
+    write = share.pendingServerWrite();
+    assert(write && write.kind == RdpShareServerWriteKind::Synchronize);
+    assert(share.onServerBytesWritten(
+               write.replySequence, write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Delivered);
+
+    write = share.pendingServerWrite();
+    assert(write && write.kind == RdpShareServerWriteKind::Cooperate);
+    assert(share.onServerBytesWritten(
+               write.replySequence, write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Delivered);
+
+    write = share.pendingServerWrite();
+    assert(write && write.kind == RdpShareServerWriteKind::GrantedControl);
+    assert(share.onServerBytesWritten(
+               write.replySequence, write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Delivered);
+
+    write = share.pendingServerWrite();
+    assert(write && write.kind == RdpShareServerWriteKind::FontMap);
+    assert(write.bytes.size() == 40U);
+    const auto fontMap =
+        parseRdpShareDataHeader(write.bytes.subspan(14U));
+    assert(fontMap && fontMap.value.pduType2 == 0x28U);
+    assert(fontMap.value.pduSource == 1002U);
+    assert(fontMap.value.shareId == shareId);
+    assert(share.onServerBytesWritten(
+               write.replySequence, write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Activated);
+    assert(share.activated());
+    assert(!share.pendingServerWrite());
+}
+
+void testPersonalDesktopShareActivationDenials()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t ioChannelId = 1003U;
+    constexpr std::uint32_t shareId = 0x000103eaU;
+    const auto source = std::span(kOfflineDemandActive).subspan(14U, 4U);
+    const auto capabilities =
+        std::span(kOfflineDemandActive).subspan(22U, 12U);
+    const auto confirm = makeClientShareTpkt(
+        clientUserId, ioChannelId, kOfflineConfirmActive);
+
+    {
+        RdpShareActivationLifecycle share;
+        assert(share.begin(
+            clientUserId, ioChannelId, shareId, 1U,
+            source, 2U, capabilities));
+        assert(share.onClientTpkt(confirm) ==
+               RdpShareActivationClientIntake::Rejected);
+        assert(share.phase() == RdpShareActivationPhase::Failed);
+    }
+
+    {
+        RdpShareActivationLifecycle share;
+        assert(share.begin(
+            clientUserId, ioChannelId, shareId, 1U,
+            source, 2U, capabilities));
+        auto write = share.pendingServerWrite();
+        assert(share.onServerBytesWritten(
+                   write.replySequence, write.writeSliceSequence,
+                   write.bytes.size()) ==
+               RdpShareActivationWriteOutcome::Delivered);
+        assert(share.onClientTpkt(makeClientShareTpkt(
+                   clientUserId,
+                   static_cast<std::uint16_t>(ioChannelId + 1U),
+                   kOfflineConfirmActive)) ==
+               RdpShareActivationClientIntake::Rejected);
+    }
+
+    {
+        RdpShareActivationLifecycle share;
+        assert(share.begin(
+            clientUserId, ioChannelId, shareId, 1U,
+            source, 2U, capabilities));
+        auto write = share.pendingServerWrite();
+        assert(share.onServerBytesWritten(
+                   write.replySequence, write.writeSliceSequence,
+                   write.bytes.size()) ==
+               RdpShareActivationWriteOutcome::Delivered);
+        assert(share.onClientTpkt(confirm) ==
+               RdpShareActivationClientIntake::ConfirmActiveAccepted);
+        assert(share.onClientTpkt(confirm) ==
+               RdpShareActivationClientIntake::Rejected);
+        assert(share.phase() == RdpShareActivationPhase::Failed);
+    }
+
+    {
+        RdpShareActivationLifecycle share;
+        assert(share.begin(
+            clientUserId, ioChannelId, shareId, 1U,
+            source, 2U, capabilities));
+        const auto first = share.pendingServerWrite();
+        assert(first);
+        assert(share.onServerBytesWritten(
+                   first.replySequence, first.writeSliceSequence, 5U) ==
+               RdpShareActivationWriteOutcome::Pending);
+        const auto remaining = share.pendingServerWrite();
+        assert(remaining);
+        assert(remaining.writeSliceSequence != first.writeSliceSequence);
+        share.close();
+        assert(share.onServerBytesWritten(
+                   remaining.replySequence,
+                   remaining.writeSliceSequence,
+                   remaining.bytes.size()) ==
+               RdpShareActivationWriteOutcome::Rejected);
+        assert(share.phase() == RdpShareActivationPhase::Failed);
+    }
 }
 
 void testMcsSessionJoinConfirmReceipts()
@@ -4839,6 +5051,167 @@ constexpr std::array<std::uint8_t, 6> kServerLicenseScope{
                pending.writeSliceSequence,
                pending.bytes.size()) ==
                RdpServerLicenseRequestWriteOutcome::Delivered;
+}
+
+void testPersonalDesktopNoCalValidClientCompletion()
+{
+    RdpLicensingLifecycle lifecycle{
+        RdpLicensingProtocolMode::PersonalDesktop};
+    assert(deliverServerLicenseRequest(lifecycle));
+    assert(lifecycle.onClientMessage(makeClientNewLicenseRequest()) ==
+           RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::
+               PersonalDesktopCompletionRequired);
+
+    RdpPersonalDesktopValidClientWriteGate gate{lifecycle};
+    assert(gate.queue(1003U));
+    const auto pending = gate.pendingWrite();
+    assert(pending);
+    constexpr std::array<std::uint8_t,
+        kRdpPersonalDesktopValidClientPacketBytes> expected{{
+        0x03,0x00,0x00,0x22,0x02,0xf0,0x80,
+        0x68,0x00,0x01,0x03,0xeb,0x70,0x14,
+        0x80,0x00,0x00,0x00,
+        0xff,0x03,0x10,0x00,
+        0x07,0x00,0x00,0x00,
+        0x02,0x00,0x00,0x00,
+        0x04,0x00,0x00,0x00
+    }};
+    assert(pending.bytes.size() == expected.size());
+    assert(std::equal(
+        pending.bytes.begin(), pending.bytes.end(), expected.begin()));
+
+    assert(gate.onBytesWritten(
+               pending.replySequence,
+               pending.writeSliceSequence, 0U) ==
+           RdpPersonalDesktopValidClientWriteOutcome::Pending);
+    const auto retry = gate.pendingWrite();
+    assert(retry);
+    assert(retry.replySequence == pending.replySequence);
+    assert(retry.writeSliceSequence == pending.writeSliceSequence);
+    assert(retry.bytes.data() == pending.bytes.data());
+
+    assert(gate.onBytesWritten(
+               retry.replySequence,
+               retry.writeSliceSequence,
+               retry.bytes.size()) ==
+           RdpPersonalDesktopValidClientWriteOutcome::Delivered);
+    assert(!gate.pendingWrite());
+    assert(lifecycle.phase() == RdpLicensingPhase::Licensed);
+}
+
+void testPersonalDesktopPresentedCalValidClientCompletion()
+{
+    const auto presented = makeClientLicenseInfo();
+    RdpLicensingLifecycle lifecycle{
+        RdpLicensingProtocolMode::PersonalDesktop};
+    assert(deliverServerLicenseRequest(lifecycle));
+    assert(lifecycle.onClientMessage(presented) ==
+           RdpLicensingIntake::ClientLicenseInfoAccepted);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::
+               PersonalDesktopCompletionRequired);
+
+    RdpPersonalDesktopValidClientWriteGate gate{lifecycle};
+    assert(gate.queue(1003U));
+    const auto pending = gate.pendingWrite();
+    assert(pending);
+    assert(gate.onBytesWritten(
+               pending.replySequence,
+               pending.writeSliceSequence,
+               pending.bytes.size()) ==
+           RdpPersonalDesktopValidClientWriteOutcome::Delivered);
+    assert(lifecycle.phase() == RdpLicensingPhase::Licensed);
+}
+
+void testPersonalDesktopModeAndMalformedDenials()
+{
+    {
+        RdpLicensingLifecycle applicationServer;
+        assert(deliverServerLicenseRequest(applicationServer));
+        assert(applicationServer.onClientMessage(
+                   makeClientNewLicenseRequest()) ==
+               RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+        assert(applicationServer.decisionBranch() ==
+               RdpLicensingDecisionBranch::PlatformChallengeRequired);
+        RdpPersonalDesktopValidClientWriteGate wrongMode{
+            applicationServer};
+        assert(!wrongMode.queue(1003U));
+        assert(applicationServer.phase() == RdpLicensingPhase::Closed);
+    }
+
+    {
+        RdpLicensingLifecycle personal{
+            RdpLicensingProtocolMode::PersonalDesktop};
+        assert(deliverServerLicenseRequest(personal));
+        auto malformed = makeClientNewLicenseRequest();
+        malformed.pop_back();
+        assert(personal.onClientMessage(malformed) ==
+               RdpLicensingIntake::MalformedMessage);
+        assert(personal.phase() == RdpLicensingPhase::Failed);
+        RdpPersonalDesktopValidClientWriteGate denied{personal};
+        assert(!denied.queue(1003U));
+    }
+}
+
+void testPersonalDesktopDuplicateAndPartialRevocation()
+{
+    {
+        RdpLicensingLifecycle lifecycle{
+            RdpLicensingProtocolMode::PersonalDesktop};
+        assert(deliverServerLicenseRequest(lifecycle));
+        assert(lifecycle.onClientMessage(
+                   makeClientNewLicenseRequest()) ==
+               RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+        RdpPersonalDesktopValidClientWriteGate gate{lifecycle};
+        assert(gate.queue(1003U));
+        const auto pending = gate.pendingWrite();
+        assert(gate.onBytesWritten(
+                   pending.replySequence,
+                   pending.writeSliceSequence,
+                   pending.bytes.size()) ==
+               RdpPersonalDesktopValidClientWriteOutcome::Delivered);
+        assert(lifecycle.phase() == RdpLicensingPhase::Licensed);
+
+        RdpPersonalDesktopValidClientWriteGate duplicate{lifecycle};
+        assert(!duplicate.queue(1003U));
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+    }
+
+    {
+        RdpLicensingLifecycle lifecycle{
+            RdpLicensingProtocolMode::PersonalDesktop};
+        assert(deliverServerLicenseRequest(lifecycle));
+        assert(lifecycle.onClientMessage(
+                   makeClientNewLicenseRequest()) ==
+               RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+        RdpPersonalDesktopValidClientWriteGate gate{lifecycle};
+        assert(gate.queue(1003U));
+        const auto first = gate.pendingWrite();
+        constexpr std::size_t partialBytes = 7U;
+        assert(gate.onBytesWritten(
+                   first.replySequence,
+                   first.writeSliceSequence,
+                   partialBytes) ==
+               RdpPersonalDesktopValidClientWriteOutcome::Pending);
+        const auto remaining = gate.pendingWrite();
+        assert(remaining);
+        assert(remaining.replySequence == first.replySequence);
+        assert(remaining.writeSliceSequence !=
+               first.writeSliceSequence);
+        assert(remaining.bytes.size() ==
+               first.bytes.size() - partialBytes);
+
+        gate.close();
+        assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+        assert(gate.onBytesWritten(
+                   remaining.replySequence,
+                   remaining.writeSliceSequence,
+                   remaining.bytes.size()) ==
+               RdpPersonalDesktopValidClientWriteOutcome::Rejected);
+        assert(!gate.pendingWrite());
+    }
 }
 
 void testRdpServerLicenseRequestWire()
@@ -9255,7 +9628,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 128> kMcsTestCases{{
+constexpr std::array<McsTestCase, 134> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -9299,6 +9672,10 @@ constexpr std::array<McsTestCase, 128> kMcsTestCases{{
     {"mcs-session-unadmitted-domain-size-bounds", &testMcsSessionUnadmittedDomainSizeBounds},
     {"mcs-session-first-failure-boundaries", &testMcsSessionFirstFailureBoundaries},
     {"mcs-session-domain-failure-boundaries", &testMcsSessionDomainFailureBoundaries},
+    {"licensing-personal-no-cal-valid-client-completion", &testPersonalDesktopNoCalValidClientCompletion},
+    {"licensing-personal-presented-cal-valid-client-completion", &testPersonalDesktopPresentedCalValidClientCompletion},
+    {"licensing-personal-mode-and-malformed-denials", &testPersonalDesktopModeAndMalformedDenials},
+    {"licensing-personal-valid-client-duplicate-and-partial-revocation", &testPersonalDesktopDuplicateAndPartialRevocation},
     {"licensing-server-request-wire", &testRdpServerLicenseRequestWire},
     {"licensing-server-identity-configuration", &testRdpServerLicenseIdentityConfiguration},
     {"licensing-server-request-certificate-required", &testRdpServerLicenseRequestCertificateRequired},
@@ -9380,6 +9757,8 @@ constexpr std::array<McsTestCase, 128> kMcsTestCases{{
     {"share-demand-active-encode-rejections", &testRdpDemandActiveEncodeRejections},
     {"share-server-finalization-encode-wire", &testRdpServerFinalizationEncodeWire},
     {"share-server-finalization-encode-rejections", &testRdpServerFinalizationEncodeRejections},
+    {"share-personal-activation-ordering", &testPersonalDesktopShareActivationOrdering},
+    {"share-personal-activation-denials", &testPersonalDesktopShareActivationDenials},
     {"share-active-exchange-correlation", &testRdpActiveExchangeCorrelation},
     {"share-active-exchange-denials", &testRdpActiveExchangeDenials},
     {"share-finalization-exchange-correlation", &testRdpFinalizationExchangeCorrelation},

@@ -79,6 +79,10 @@ function(add_rdp_test source_file suite behavior)
                 mcs-session-unadmitted-domain-size-bounds
                 mcs-session-first-failure-boundaries
                 mcs-session-domain-failure-boundaries
+                licensing-personal-no-cal-valid-client-completion
+                licensing-personal-presented-cal-valid-client-completion
+                licensing-personal-mode-and-malformed-denials
+                licensing-personal-valid-client-duplicate-and-partial-revocation
                 licensing-server-request-wire
                 licensing-server-identity-configuration
                 licensing-server-request-certificate-required
@@ -160,6 +164,8 @@ function(add_rdp_test source_file suite behavior)
                 share-demand-active-encode-rejections
                 share-server-finalization-encode-wire
                 share-server-finalization-encode-rejections
+                share-personal-activation-ordering
+                share-personal-activation-denials
                 share-active-exchange-correlation
                 share-active-exchange-denials
                 share-finalization-exchange-correlation

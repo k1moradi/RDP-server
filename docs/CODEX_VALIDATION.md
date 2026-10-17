@@ -3560,3 +3560,24 @@ provider blocker**. macOS genuine credential-verifier UID-bound admission:
 **NOT RUN / provider blocker**. R1's positive final-CredSSP-plus-first-MCS path
 remains dependent on a real R2 lease; no fixture-minted positive lease was
 introduced.
+
+
+## R3 personal-desktop Valid Client + Share activation authoring receipt (2026-10-17)
+
+**Reconciled shared-main parent at authoring:** `bf0d990bfa3b6a86f34d6b38e499d62c4d5844b6`. **Publication:** this atomic R3 production/test/roadmap commit; exact publication-SHA hosted results are **PENDING**.
+
+Normative review follows MS-RDPELE personal-terminal-server behavior: both a structurally valid Client New License Request and Client License Information terminate with a Licensing Error Message carrying `STATUS_VALID_CLIENT` and `ST_NO_TRANSITION`; a presented CAL is not issuer/HWID validated in this selected personal mode. The default app-server protocol mode, existing-CAL visitor/correlation and issuer-backed denial path remain unchanged. MS-RDPBCGR Valid Client framing is emitted as one Enhanced-Security packet with server MCS channel 1002, negotiated I/O channel, mandatory Basic Security Header `SEC_LICENSE_PKT`, and the exact 16-byte `ERROR_ALERT` payload.
+
+R3 additionally owns an allocation-free Share activation transcript from Demand Active through Confirm Active and connection finalization. Server writes are complete MCS Send Data Indications with monotonic reply/slice receipts; zero-byte backpressure is retryable, positive partial progress rotates the slice receipt, and cancellation/revocation makes stale completion terminal. Client Confirm Active, Synchronize, Cooperate, Request Control and Font List are accepted only on the exact client UserId/I/O channel/share sequence. Server Synchronize, Cooperate, Granted Control and Font Map follow the normative dependency ordering, and only complete Font Map delivery reaches `ShareActivated`. A private post-Share predicate gates future decoded input/graphics publication and the negotiated joined `drdynvc` static channel.
+
+Dedicated central CTests added to `test_owned_mcs_connect_initial`:
+- `transport.licensing-personal-no-cal-valid-client-completion`
+- `transport.licensing-personal-presented-cal-valid-client-completion`
+- `transport.licensing-personal-mode-and-malformed-denials`
+- `transport.licensing-personal-valid-client-duplicate-and-partial-revocation`
+- `transport.share-personal-activation-ordering`
+- `transport.share-personal-activation-denials`
+
+Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN**. This execution environment had no owner checkout and a direct attempt to materialize `~/rdp-server` from GitHub failed with `Could not resolve host: github.com`; policy forbids switching to another persistent build root. No local PASS is claimed.
+
+**Next live gate:** R10 must expose an immutable explicit PersonalDesktop deployment-policy capability. R2 must consume that capability only while the genuine current admission lease and exact R1 TLS owner are freshly reauthorized, call R3's private mode selector before Server License Request, and reauthorize every subsequent write/read transition. R1 remains the sole accepted-byte TLS writer. DRDYNVC CREATE/Graphics and decoded input remain blocked until that private live composition reaches `ShareActivated`.

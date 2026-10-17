@@ -2180,6 +2180,16 @@ RdpServerLicenseGrantEncodeResult encodeRdpServerLicenseGrant(
     return {offset, RdpServerLicenseGrantEncodeError::None};
 }
 
+std::array<std::uint8_t, kRdpValidClientLicensingMessageBytes>
+encodeRdpValidClientLicensingMessage() noexcept
+{
+    return {
+        0xffU, 0x03U, 0x10U, 0x00U,
+        0x07U, 0x00U, 0x00U, 0x00U,
+        0x02U, 0x00U, 0x00U, 0x00U,
+        0x04U, 0x00U, 0x00U, 0x00U};
+}
+
 RdpServerLicenseRequestEncodeResult
 encodeEnhancedSecurityServerLicenseRequest(
     const RdpServerLicenseRequestFields &fields,
@@ -2794,6 +2804,40 @@ bool RdpLicensingLifecycle::onServerLicenseGrantWritten(
     return true;
 }
 
+bool RdpLicensingLifecycle::selectPersonalDesktopProtocolMode() noexcept
+{
+    if (phase_ != RdpLicensingPhase::NotStarted ||
+        protocolMode_ != RdpLicensingProtocolMode::AppServerAuthority)
+    {
+        fail();
+        return false;
+    }
+    protocolMode_ = RdpLicensingProtocolMode::PersonalDesktop;
+    return true;
+}
+
+bool RdpLicensingLifecycle::onPersonalDesktopValidClientWritten() noexcept
+{
+    if (phase_ == RdpLicensingPhase::Closed)
+        return false;
+    if (protocolMode_ != RdpLicensingProtocolMode::PersonalDesktop ||
+        phase_ != RdpLicensingPhase::AwaitServerDecision ||
+        decisionBranch_ !=
+            RdpLicensingDecisionBranch::PersonalDesktopCompletionRequired)
+    {
+        fail();
+        return false;
+    }
+
+    serverRandom_.fill(0U);
+    platformChallenge_.fill(0U);
+    serverRandomReady_ = false;
+    platformChallengeReady_ = false;
+    decisionBranch_ = RdpLicensingDecisionBranch::None;
+    phase_ = RdpLicensingPhase::Licensed;
+    return true;
+}
+
 RdpLicensingIntake
 RdpLicensingLifecycle::onClientPlatformChallengeResponse(
     std::span<const std::uint8_t> completeMessage,
@@ -2861,7 +2905,10 @@ RdpLicensingIntake RdpLicensingLifecycle::onClientMessage(
             return RdpLicensingIntake::MalformedMessage;
         }
         decisionBranch_ =
-            RdpLicensingDecisionBranch::PlatformChallengeRequired;
+            protocolMode_ == RdpLicensingProtocolMode::PersonalDesktop
+                ? RdpLicensingDecisionBranch::
+                      PersonalDesktopCompletionRequired
+                : RdpLicensingDecisionBranch::PlatformChallengeRequired;
         phase_ = RdpLicensingPhase::AwaitServerDecision;
         return RdpLicensingIntake::ClientNewLicenseRequestAccepted;
     }
@@ -2875,7 +2922,11 @@ RdpLicensingIntake RdpLicensingLifecycle::onClientMessage(
             return RdpLicensingIntake::MalformedMessage;
         }
         decisionBranch_ =
-            RdpLicensingDecisionBranch::ClientLicenseInfoValidation;
+            protocolMode_ == RdpLicensingProtocolMode::PersonalDesktop
+                ? RdpLicensingDecisionBranch::
+                      PersonalDesktopCompletionRequired
+                : RdpLicensingDecisionBranch::
+                      ClientLicenseInfoValidation;
         phase_ = RdpLicensingPhase::AwaitServerDecision;
         return RdpLicensingIntake::ClientLicenseInfoAccepted;
     }

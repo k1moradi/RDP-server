@@ -1,3 +1,42 @@
+## R1 legacy native-loopback handshake readiness hardening (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared \`main\`:** \`04a272c8b9b52f59a24401643a46d495978d1f95\`.
+
+A standards audit found two older R1 real-loopback handshake fixtures still
+using scheduler \`yield()\` as the readiness oracle even though
+\`docs/testing_standards.md\` now requires bounded native readiness for TLS
+handshakes. The affected existing behaviors are
+\`transport.tcp-owned-connection-tls-lifecycle\` and
+\`transport.tcp-native-loopback-tls\`.
+
+The owned-connection lifecycle now advances the server only through
+\`OwnedPreauthTcpConnection::pollSocketOnce\` with
+\`kMaximumTcpPollWait\` under one five-second monotonic deadline while the
+client performs one \`SSL_do_handshake\` step per loop. The attached-adapter
+diagnostic preserves its distinct \`PreauthTcpAdapter\` path: after one client
+and one server handshake step, it waits only for the exact server
+NeedRead/NeedWrite direction on the real accepted socket; after server
+establishment, any remaining client WANT is waited on the exact client socket
+direction. Neither fixture fabricates readable/writable readiness or sleeps
+during handshake.
+
+This is test-harness hardening only. Production socket/BIO/SSL ownership,
+one-step callbacks, the 18 KiB application-I/O ceiling, authorization,
+licensing and listener behavior are unchanged. Existing behavior names and
+central CTest registration remain authoritative; no duplicate test executable
+or transport surface is added.
+
+Canonical owner-local \`~/rdp-server/build/\` execution is **NOT RUN** in this
+connector environment. Exact publication-SHA hosted Linux/GCC,
+macOS/AppleClang, Windows/MSVC Debug/Release, R9 sanitizer,
+documentation-policy and SDK/package evidence are **PENDING**.
+
+**Next R1:** after exact hosted validation, retain the live-publication
+dependency gate. R10 still lacks a genuine production CAL issuer and R2 still
+withholds final native admission/positive grant reauthorization, so do not
+fabricate grant-through-TLS success. The M1 owner-native exact-SHA matrix also
+remains an owner-run gate, not something hosted CI can substitute for.
+
 ## R6 P1 structure self-test blocker correction (2026-10-17)
 
 **Blocked descendant:** `9cfeabe694e89c3fc89c714fb4e461236c6e61c9`.  

@@ -2024,14 +2024,17 @@ void testOwnedTcpConnectionTlsLifecycle()
     assert(!server);
     assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
     bool clientEstablished = false;
-    bool serverEstablished = false;
-    for (int pass = 0; pass < 16384; ++pass)
+    const auto handshakeDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    while (std::chrono::steady_clock::now() < handshakeDeadline)
     {
         if (!clientEstablished)
         {
             const int success = SSL_do_handshake(tls.client.get());
             if (success == 1)
+            {
                 clientEstablished = true;
+            }
             else
             {
                 const int error = SSL_get_error(tls.client.get(), success);
@@ -2039,18 +2042,25 @@ void testOwnedTcpConnectionTlsLifecycle()
                        error == SSL_ERROR_WANT_WRITE);
             }
         }
-        if (!serverEstablished)
+
+        if (owner.establishedTls() == nullptr)
         {
-            const auto outcome = owner.onTlsIoReady();
-            assert(outcome == TlsHandshakeStatus::NeedRead ||
-                   outcome == TlsHandshakeStatus::NeedWrite ||
-                   outcome == TlsHandshakeStatus::Established);
-            serverEstablished = outcome == TlsHandshakeStatus::Established;
+            const auto polled =
+                owner.pollSocketOnce(handshakeDeadline,
+                                     kMaximumTcpPollWait);
+            assert(polled.outcome ==
+                       TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome ==
+                       TcpConnectionPollOutcome::NoEvent);
+            assert(polled.nextInterest == TcpConnectionIoInterest::Read ||
+                   polled.nextInterest == TcpConnectionIoInterest::Write);
         }
-        if (clientEstablished && serverEstablished) break;
-        std::this_thread::yield();
+
+        if (clientEstablished && owner.establishedTls() != nullptr)
+            break;
     }
-    assert(clientEstablished && serverEstablished);
+    assert(clientEstablished);
+    assert(owner.establishedTls() != nullptr);
     assert(owner.active());
     assert(owner.stage() == PreauthStage::AwaitMcsConnectInitial);
 
@@ -5976,31 +5986,55 @@ void testNativeLoopbackTlsAndMcs()
 
     bool clientEstablished = false;
     bool serverEstablished = false;
-    for (int pass = 0; pass < 16384; ++pass)
+    int clientWant = SSL_ERROR_WANT_WRITE;
+    TlsHandshakeStatus serverStatus = TlsHandshakeStatus::NeedRead;
+    const auto handshakeDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    while (std::chrono::steady_clock::now() < handshakeDeadline)
     {
         if (!clientEstablished)
         {
             const int clientResult = SSL_do_handshake(tls.client.get());
             if (clientResult == 1)
+            {
                 clientEstablished = true;
+            }
             else
             {
-                const int error = SSL_get_error(tls.client.get(),
-                                                clientResult);
-                assert(error == SSL_ERROR_WANT_READ ||
-                       error == SSL_ERROR_WANT_WRITE);
+                clientWant = SSL_get_error(tls.client.get(), clientResult);
+                assert(clientWant == SSL_ERROR_WANT_READ ||
+                       clientWant == SSL_ERROR_WANT_WRITE);
             }
         }
+
         if (!serverEstablished)
         {
-            const auto status = adapter.onAttachedTlsIoReady();
-            assert(status == TlsHandshakeStatus::NeedRead ||
-                   status == TlsHandshakeStatus::NeedWrite ||
-                   status == TlsHandshakeStatus::Established);
-            serverEstablished = status == TlsHandshakeStatus::Established;
+            serverStatus = adapter.onAttachedTlsIoReady();
+            assert(serverStatus == TlsHandshakeStatus::NeedRead ||
+                   serverStatus == TlsHandshakeStatus::NeedWrite ||
+                   serverStatus == TlsHandshakeStatus::Established);
+            serverEstablished =
+                serverStatus == TlsHandshakeStatus::Established;
         }
+
         if (clientEstablished && serverEstablished) break;
-        std::this_thread::yield();
+
+        if (!serverEstablished)
+        {
+            assert(waitForLocalSocketReady(
+                pair.server.value,
+                serverStatus == TlsHandshakeStatus::NeedRead,
+                serverStatus == TlsHandshakeStatus::NeedWrite,
+                handshakeDeadline));
+        }
+        else if (!clientEstablished)
+        {
+            assert(waitForLocalSocketReady(
+                pair.client.value,
+                clientWant == SSL_ERROR_WANT_READ,
+                clientWant == SSL_ERROR_WANT_WRITE,
+                handshakeDeadline));
+        }
     }
     assert(clientEstablished);
     assert(serverEstablished);

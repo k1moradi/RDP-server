@@ -1,3 +1,28 @@
+## R2 authenticated PAM invocation hosted validation (2026-10-17)
+
+Exact code SHA `92ddb689b0ca3200b2ef420f818c04cd630da147` completed GitHub Actions
+run `39009841176` successfully. Documentation policy, Linux, macOS and Windows
+hosted protocol jobs, the R7 macOS sanitizer job, and the R9 Clang ASan/UBSan
+security job all passed. The Linux and macOS jobs passed Debug and Release
+CTest runs plus downstream SDK packaging/digest checks; Windows passed its
+portable Debug/Release matrix and packaging. R9's sanitizer job specifically
+passed both the bounded native R2/R3 GSSAPI selection and the R2 Linux PAM
+denial selection, including the new synchronous password-field visitor and PAM
+verifier-binding cases.
+
+The preceding exact-SHA attempts are retained as negative evidence:
+`680d15e563f5fd4a8a2d70b481821f3ae960828f` / run `39009664731`
+failed before creating jobs because of a malformed workflow edit, and
+`dcac5920949d697d517ba08b9c0ab5d0f33438a1` / run `39009725570`
+then exposed the empty-account visitor defect in hosted Debug testing. Both
+issues were corrected before the successful exact-SHA run above.
+
+This evidence proves the new denial/lifetime boundary only. No positive PAM
+fixture, real Kerberos client authentication, NSS/logind native desktop
+admission, private final-authentication latch, LinuxConsoleAdmissionLease, or
+R3 Share activation is claimed. Those gates remain BLOCKED / NOT RUN where a
+controlled real-provider/owner environment is required.
+
 ## R3 existing-client CAL signature-fixture exact-SHA validation (2026-10-17)
 
 **Implementation:** `17fd924eb642a21b9f985800097d975fe551752b`.  

@@ -1,3 +1,31 @@
+## Cross-platform local checkout-path portability authoring (2026-10-16)
+
+**Reported failing SHA:** `bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`.
+
+Owner macOS evidence is an early **CONFIGURE FAIL / build NOT RUN / CTest NOT
+RUN**. The exact documented command successfully performed `cd ~/rdp-server`
+and fast-forwarded main, but CMake rejected the checkout because the filesystem
+reported its case-preserving spelling as
+`/Users/keivanmoradi/RDP-server`. The old guard normalized path syntax without
+resolving the existing filesystem object, so a valid case-insensitive alias was
+treated as a different checkout.
+
+The authored correction resolves both the actual source and each existing
+home-checkout candidate before comparison. macOS/Windows allow case-only
+spelling differences only after the candidate exists; Linux keeps strict case.
+For Windows/MSYS2, the shell `HOME` is retained as a candidate and translated
+through `cygpath -m` when available, with `USERPROFILE` as an additional
+native candidate. The existing `CMAKE_BINARY_DIR == <checkout>/build` fatal
+check is unchanged.
+
+CTest `project.local-checkout-path-comparison` verifies exact equality,
+case-insensitive case-only equality, strict-case rejection, and Windows-style
+drive/case comparison through the same helper used by configuration. No
+alternate build tree, live desktop, listener, credentials or RDP behavior is
+introduced. Hosted exact-SHA evidence and the owner's unchanged-command macOS
+rerun remain **PENDING**; Windows MSYS2 CLANG64/Clang 23 owner evidence also
+remains **NOT RUN**.
+
 ## R1 terminal TLS/EOF readiness exact-SHA validation (2026-10-16)
 
 **Implementation:** \`9b8f6092e4a0265688ec3bbf51b10cd34db8746e\`.  

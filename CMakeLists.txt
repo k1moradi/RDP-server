@@ -11,24 +11,84 @@ if(NOT CMAKE_BINARY_DIR STREQUAL "${PROJECT_SOURCE_DIR}/build")
     message(FATAL_ERROR "Reuse only ${PROJECT_SOURCE_DIR}/build; local path: ~/rdp-server/build")
 endif()
 
+include("${PROJECT_SOURCE_DIR}/cmake/validate_local_checkout.cmake")
+
 # Hosted CI has an isolated ephemeral checkout; ordinary local builds must
-# also use the specified home checkout, not merely a same-named build subdir.
+# also use the specified shell-home checkout, not merely a same-named build
+# subdir. Resolve filesystem aliases so case-preserving macOS/Windows paths
+# reached through ~/rdp-server do not fail a lexical spelling comparison.
 if(NOT "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+    set(rdp_home_candidates)
+    if(NOT "$ENV{HOME}" STREQUAL "")
+        list(APPEND rdp_home_candidates "$ENV{HOME}")
+    endif()
+
     if(WIN32)
-        set(rdp_home_directory "$ENV{USERPROFILE}")
-    else()
-        set(rdp_home_directory "$ENV{HOME}")
+        # Native CMake uses Windows path syntax, while MSYS2 commonly exposes
+        # ~ through a POSIX HOME. Preserve both meanings and translate the
+        # shell HOME when cygpath is available.
+        if(NOT "$ENV{USERPROFILE}" STREQUAL "")
+            list(APPEND rdp_home_candidates "$ENV{USERPROFILE}")
+        endif()
+        if(NOT "$ENV{MSYSTEM}" STREQUAL "" AND
+           NOT "$ENV{HOME}" STREQUAL "")
+            find_program(rdp_cygpath_executable NAMES cygpath)
+            if(rdp_cygpath_executable)
+                execute_process(
+                    COMMAND "${rdp_cygpath_executable}" -m "$ENV{HOME}"
+                    RESULT_VARIABLE rdp_cygpath_result
+                    OUTPUT_VARIABLE rdp_msys_home_directory
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+                if(rdp_cygpath_result EQUAL 0 AND
+                   NOT rdp_msys_home_directory STREQUAL "")
+                    list(APPEND rdp_home_candidates
+                        "${rdp_msys_home_directory}")
+                endif()
+            endif()
+        endif()
     endif()
-    if(rdp_home_directory STREQUAL "")
-        message(FATAL_ERROR "Cannot determine home directory for ~/rdp-server")
-    endif()
-    file(TO_CMAKE_PATH "${rdp_home_directory}" normalized_rdp_home)
-    set(required_rdp_source_directory "${normalized_rdp_home}/rdp-server")
-    cmake_path(NORMAL_PATH required_rdp_source_directory)
-    cmake_path(NORMAL_PATH PROJECT_SOURCE_DIR OUTPUT_VARIABLE actual_rdp_source_directory)
-    if(NOT actual_rdp_source_directory STREQUAL required_rdp_source_directory)
+
+    if(NOT rdp_home_candidates)
         message(FATAL_ERROR
-            "Local checkout must be ~/rdp-server (actual: ${PROJECT_SOURCE_DIR}). "
+            "Cannot determine home directory for ~/rdp-server from HOME/USERPROFILE")
+    endif()
+    list(REMOVE_DUPLICATES rdp_home_candidates)
+
+    file(REAL_PATH "${PROJECT_SOURCE_DIR}" actual_rdp_source_directory)
+    set(rdp_checkout_case_insensitive FALSE)
+    if(APPLE OR WIN32)
+        set(rdp_checkout_case_insensitive TRUE)
+    endif()
+
+    set(rdp_local_checkout_matches FALSE)
+    foreach(rdp_home_directory IN LISTS rdp_home_candidates)
+        file(TO_CMAKE_PATH "${rdp_home_directory}" normalized_rdp_home)
+        set(required_rdp_source_directory
+            "${normalized_rdp_home}/rdp-server")
+        cmake_path(NORMAL_PATH required_rdp_source_directory)
+
+        # Do not case-fold an invented path on a case-sensitive volume. The
+        # shell spelling itself must resolve to an existing checkout first.
+        if(EXISTS "${required_rdp_source_directory}" AND
+           IS_DIRECTORY "${required_rdp_source_directory}")
+            file(REAL_PATH "${required_rdp_source_directory}"
+                resolved_required_rdp_source_directory)
+            rdp_server_paths_equivalent(
+                rdp_candidate_matches
+                "${actual_rdp_source_directory}"
+                "${resolved_required_rdp_source_directory}"
+                "${rdp_checkout_case_insensitive}")
+            if(rdp_candidate_matches)
+                set(rdp_local_checkout_matches TRUE)
+                break()
+            endif()
+        endif()
+    endforeach()
+
+    if(NOT rdp_local_checkout_matches)
+        message(FATAL_ERROR
+            "Local checkout must resolve from ~/rdp-server (actual: ${PROJECT_SOURCE_DIR}). "
             "Only ~/rdp-server/build may contain local build output.")
     endif()
 endif()

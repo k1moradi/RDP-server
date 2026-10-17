@@ -1,5 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Reuse one registry and preserve test executable/source file identities.
+# Build-policy regression: path spelling is lexical only after the caller has
+# proved that the ~/rdp-server candidate exists. macOS/Windows may then compare
+# the resolved spelling case-insensitively; Linux remains case-sensitive.
+add_test(NAME project.local-checkout-path-comparison
+    COMMAND "${CMAKE_COMMAND}" -P
+        "${PROJECT_SOURCE_DIR}/tests/check_local_checkout_path.cmake")
+set_tests_properties(project.local-checkout-path-comparison PROPERTIES
+    LABELS "policy;build")
+
 function(add_rdp_test source_file suite behavior)
     get_filename_component(test_target "${source_file}" NAME_WE)
     add_executable("${test_target}" "${source_file}")

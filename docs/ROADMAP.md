@@ -1,3 +1,26 @@
+## Cross-platform owner-command checkout-path correction (2026-10-16; owner re-test pending)
+
+The owner's first macOS execution of the mandated one-line command at
+`bdcb68520c5339aa9866f2e7d5949cf6b5c9c056` is **CONFIGURE FAIL** before any
+compile or CTest. The shell successfully entered `~/rdp-server`, while CMake
+reported the same case-preserving checkout as
+`/Users/keivanmoradi/RDP-server`; the local-path guard compared those strings
+lexically and rejected the case-only alias.
+
+The correction keeps both policy fences: local work must still resolve from
+`~/rdp-server`, and the only build root is still `<checkout>/build`. Existing
+filesystem paths are now resolved before comparison, with case-insensitive
+spelling accepted on macOS/Windows only after the `~/rdp-server` candidate is
+known to exist. Windows/MSYS2 additionally translates the shell `HOME` through
+`cygpath -m` when available and also considers `USERPROFILE`; this avoids
+assuming that MSYS2 `~` and the Windows profile directory are identical.
+
+New CTest `project.local-checkout-path-comparison` locks exact,
+case-insensitive and strict-case comparison behavior without creating another
+build root. Hosted exact-SHA configure/build/full CTest and the owner's rerun of
+the unchanged command are **PENDING**. Do not claim owner macOS or Windows
+MSYS2 PASS until those reports arrive.
+
 ## R1 terminal TLS/EOF readiness exact-SHA validation (2026-10-16)
 
 **Implementation:** \`9b8f6092e4a0265688ec3bbf51b10cd34db8746e\`.  

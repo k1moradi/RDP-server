@@ -514,6 +514,21 @@ passed Linux, macOS and Windows with the explicit hosted-CI workspace
 exception. No claim is made about directly executing a build on the
 owner's local machine.
 
+The owner's first reported macOS execution on
+`bdcb68520c5339aa9866f2e7d5949cf6b5c9c056` reached the checkout through
+`~/rdp-server` but CMake exposed the same case-preserving directory as
+`/Users/keivanmoradi/RDP-server`. The old guard used only
+`cmake_path(NORMAL_PATH)`, so it rejected that valid filesystem alias before
+configuration. The corrected guard resolves the existing source and
+`~/rdp-server` candidate with `file(REAL_PATH)` before comparison. It permits
+case-only spelling differences on macOS/Windows only after that candidate is
+known to exist; Linux remains case-sensitive. Windows also considers the MSYS2
+shell `HOME` and, when present, converts it with `cygpath -m` instead of
+assuming that `USERPROFILE` is the shell's `~`. The one-build-root check is
+unchanged: only `<that checkout>/build` is accepted. Owner rerun of the exact
+cross-platform command is still required before local macOS or MSYS2 PASS is
+claimed.
+
 ## Automated compilation, tests and artifact delivery (2026-10-14)
 
 The existing `.github/workflows/ci.yml` owns one unified pipeline for

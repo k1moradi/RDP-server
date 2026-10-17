@@ -1,3 +1,74 @@
+## R7 P2 macOS capture-to-R4 exact-SHA validation (2026-10-17)
+
+**Validated implementation:** `f037d4b6445950767a126830e391057fcd3417ec`.  
+**Primary Actions:** `39023191435` — **SUCCESS**.  
+**Workflow-structure Actions:** `39023191420` — **SUCCESS**.
+
+R7 P2 is hosted-validated after reconciliation with R4's shared
+`openBgraCapture()` ingress epoch. The R7 test composition keeps the
+synthetic R4 presentation generation distinct from native capture freshness,
+binds the real R7 geometry generation as R4's `captureGeneration`, and carries
+that exact epoch in every `X264BgraFrameRequest`. Production
+ScreenCaptureKit/CoreVideo ownership and R4 source are unchanged by R7.
+
+Hosted Apple reports macOS **26.6.2 (25G83)**, **Xcode 26.6 (17F113)**,
+Apple clang **21.0.0 (clang-2100.1.1.101)**, effective CMake
+**AppleClang 21.0.0.21000101**, and macOS SDK **26.5**. The isolated R7
+lifecycle gate is **20/20 PASS Debug + 20/20 PASS Release**. The P2 cases are
+#458-#460 in both configurations:
+`macos.capture-r4-bgra-layout-contract`,
+`macos.capture-r4-pixel-lifetime-retirement`, and
+`macos.capture-r4-display-generation-denials`.
+
+The authoritative hosted macOS full suite is **512/512 PASS Debug + 512/512
+PASS Release**, with the same three P2 cases executing and passing as
+#458-#460. The installed SDK consumer, package/digest/upload, documentation
+policy, R7 GCC ASan/UBSan session-lifetime job and complete R9 Clang
+ASan/UBSan job pass. Linux/GCC, Windows/MSVC and hosted MSYS2
+CLANG64/Clang 23 also complete successfully; untagged prerelease publication
+is correctly skipped. Later shared-main work retains the R7 P2 test source,
+registrations, 20-case selector and testing-standard contract.
+
+The verified boundary is synchronous and fail-closed:
+
+- ScreenCaptureKit requests exact `kCVPixelFormatType_32BGRA` physical-pixel
+  frames; padded CoreVideo row pitch reaches R4 unchanged.
+- `LockedBgraPixelBuffer` keeps the pixel buffer retained and read-locked for
+  the complete synchronous R4 BGRA -> NV12 -> x264/AVC420 preparation.
+- The test drops the caller's CoreVideo reference inside the R4 consumer and
+  proves release cannot occur until the synchronous borrow ends; the resulting
+  R4 frame remains independently owned after source retirement.
+- Wrong pixel format, stale display generation, session revocation, terminal
+  native failure and late start/stop completion cannot publish.
+- If geometry/session replacement races after R4 has already prepared owned
+  bytes, the outer R7 result is `RetireStream`, not `Published`; that exact
+  conclusively unwritten R4 frame is canceled before any hypothetical R3 send.
+- A fresh geometry generation creates a fresh stream and a fresh matching R4
+  capture epoch; capture freshness remains correlation only and is not R2/R3
+  authority.
+
+This is synthetic/injected Apple SDK and lifecycle evidence. It does **not**
+start a live ScreenCaptureKit stream, prompt/request Screen Recording or
+Accessibility, sample a live cursor, post Quartz input, switch a real GUI
+session or exercise a live clipboard. Hosted macOS 26.6.2 is not owner macOS
+27 evidence and a TCC preflight result is never R2 admission.
+
+**Owner acceptance prerequisites:** R10 must name one exact shared-main M1
+candidate; the owner must run the canonical Debug configure/build/full CTest
+from only `~/rdp-server/build/` on macOS **27**, recording exact SHA,
+`sw_vers`, Xcode/developer-directory, `xcrun clang++ --version` and effective
+CMake AppleClang. The 20-case R7 selector may then be rerun from that same root
+for attribution, but never replaces the full suite and must not enable live
+desktop/TCC behavior.
+
+**M5 remains BLOCKED / NOT ACCEPTED** until all of the following are true:
+owner macOS 27 M1 on one exact candidate SHA; separately recorded owner
+authorization for live desktop access; genuine positive non-forgeable R2/R3
+macOS desktop admission; and the authenticated/licensed/Share-active R3
+Graphics DVC publication path. Screen Recording/Accessibility may be granted
+manually only for a separately authorized live rerun; R7 must never trigger a
+permission request automatically.
+
 ## R8 P2 remote hierarchy provenance exact hosted validation (2026-10-17)
 
 **Implementation:** `3315a44cba849d0d48ddb1709458557f86591e70`.  

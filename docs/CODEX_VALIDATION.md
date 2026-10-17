@@ -1,3 +1,31 @@
+## R7 P2 ScreenCaptureKit/CoreVideo -> R4 exact-SHA receipt (2026-10-17)
+
+**Implementation:** `f037d4b6445950767a126830e391057fcd3417ec`.  
+**Actions:** `39023191435` — **SUCCESS**.  
+**Structure:** `39023191420` — **SUCCESS**.
+
+Hosted Apple: macOS **26.6.2 (25G83)**, Xcode **26.6 (17F113)**, Apple clang
+**21.0.0 (clang-2100.1.1.101)**, CMake AppleClang
+**21.0.0.21000101**, SDK **26.5**. Focused R7 lifecycle coverage is **20/20
+PASS Debug + 20/20 PASS Release**; the three new P2 cases are #458-#460. Full
+macOS CTest is **512/512 PASS Debug + 512/512 PASS Release**, again running all
+three cases. R7 ASan/UBSan, R9 Clang ASan/UBSan, documentation policy,
+Linux/GCC, Windows/MSVC, hosted CLANG64/Clang 23, SDK consumer and package
+stages pass; prerelease publication is skipped as intended.
+
+The final fixture consumes R4's shared `openBgraCapture()` API. R7's actual
+geometry generation is the nonzero capture epoch; an unrelated fixed synthetic
+presentation generation drives the offline R4 lifecycle, preventing capture
+freshness from being mistaken for R3 authority. Exact BGRA format, padded
+stride, Retina physical geometry, retained/read-locked pixel lifetime, source
+retirement, post-consumer session/geometry races, unwritten-frame cancellation,
+native terminal failure, late asynchronous completion and fresh-generation
+re-entry are covered through injected callbacks and synthetic CoreVideo buffers.
+
+No live ScreenCaptureKit/TCC/input/session-switch/clipboard action occurred.
+Owner macOS 27 M1 and M5 remain **NOT RUN / BLOCKED** under the roadmap's
+authorization prerequisites.
+
 ## R8 P2 remote hierarchy provenance exact-SHA receipt (2026-10-17)
 
 **Implementation:** `3315a44cba849d0d48ddb1709458557f86591e70`.  

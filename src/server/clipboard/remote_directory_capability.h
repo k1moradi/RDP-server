@@ -122,4 +122,17 @@ private:
     bool nativeCapabilityHeld_{};
 };
 
+#if defined(_WIN32)
+// Duplicate/close an already-open Win32 directory HANDLE. The factory never
+// opens a pathname and rejects non-disk, non-directory and reparse-point
+// handles before duplication.
+[[nodiscard]] RemoteDirectoryNativeOperations
+makeWindowsRemoteDirectoryNativeOperations() noexcept;
+#elif defined(__APPLE__) || defined(__linux__)
+// Duplicate/close an already-open POSIX directory descriptor. The factory uses
+// only fstat/fcntl/close on the supplied object and never reopens a pathname.
+[[nodiscard]] RemoteDirectoryNativeOperations
+makePosixRemoteDirectoryNativeOperations() noexcept;
+#endif
+
 } // namespace rdp_server::server::clipboard

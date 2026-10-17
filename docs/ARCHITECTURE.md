@@ -326,6 +326,31 @@ the held native directory capability. POSIX creation must remain descriptor
 relative and no-follow; Windows must use a reviewed handle-relative mechanism
 or pre-authorized child handles rather than reconstructing/reopening paths.
 
+## R8 native directory-object duplication (2026-10-17)
+
+The directory-capability binding's native seam now has first-party duplicate
+and close factories on supported OS families. These factories operate only on
+an object the caller already opened and authorized; no pathname enters the
+production API.
+
+On POSIX, the opaque token is range-checked to an `int`, inspected with
+`fstat`, required to be `S_ISDIR`, and duplicated with
+`F_DUPFD_CLOEXEC`. Close is never retried, avoiding descriptor-number reuse
+hazards. Linux and macOS share this object-level contract.
+
+On Windows, the opaque token is interpreted only inside the native factory.
+The HANDLE must be a disk object, `FileStandardInfo` must identify a
+directory, and `FileAttributeTagInfo` must not mark the final object as a
+reparse point. Only then is `DuplicateHandle(..., DUPLICATE_SAME_ACCESS)`
+used. The factory never calls `CreateFile` and therefore cannot reconstruct a
+local path from remote metadata.
+
+The binding intentionally does not return the duplicate. Future child
+materialization must be added as operations on the held capability, not by
+leaking authority into an unstructured token/path API. That later contract must
+also solve component-relative no-follow/reparse behavior and verified remote
+hierarchy; neither is implied by successful duplication.
+
 ## R8 planned Windows/macOS completed-set presentation (2026-10-17)
 
 The Windows and macOS adapters now consume a committed

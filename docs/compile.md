@@ -1,3 +1,18 @@
+## R8 native directory-capability build boundary (2026-10-17)
+
+The noninstalled `rdp-server-clipboard-directory-capability` target remains
+outside the protocol SDK/package. It compiles the portable binding everywhere
+and conditionally compiles only native duplicate/close callbacks: POSIX
+`fstat/fcntl/close` on Linux/macOS or Win32 handle metadata,
+`DuplicateHandle` and `CloseHandle` on Windows. It adds no filesystem-path,
+portal, shell or file-manager dependency.
+
+Ordinary platform CTest registers one native object test for the current OS.
+The tests use the existing checkout-local build working directory and anonymous
+pipe handles/descriptors only; they do not access a user's clipboard or chosen
+filesystem destination. The canonical owner configure/build/CTest command is
+unchanged.
+
 ## CI workflow policy-test dependency
 
 Ordinary `BUILD_TESTING=ON` configuration requires a Python 3 interpreter for

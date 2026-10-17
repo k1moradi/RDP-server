@@ -601,6 +601,22 @@ foreach(case_name IN ITEMS
     set_tests_properties("clipboard.${case_name}" PROPERTIES
         LABELS "protocol;clipboard;security;offline")
 endforeach()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_test(NAME clipboard.linux-directory-capability-native
+        COMMAND test_owned_remote_transfer linux-directory-capability-native)
+    set_tests_properties(clipboard.linux-directory-capability-native PROPERTIES
+        LABELS "protocol;clipboard;security;native;offline")
+elseif(APPLE)
+    add_test(NAME clipboard.macos-directory-capability-native
+        COMMAND test_owned_remote_transfer macos-directory-capability-native)
+    set_tests_properties(clipboard.macos-directory-capability-native PROPERTIES
+        LABELS "protocol;clipboard;security;native;offline")
+elseif(WIN32)
+    add_test(NAME clipboard.windows-directory-capability-native
+        COMMAND test_owned_remote_transfer windows-directory-capability-native)
+    set_tests_properties(clipboard.windows-directory-capability-native PROPERTIES
+        LABELS "protocol;clipboard;security;native;offline")
+endif()
 add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)
 # R9 bounded fragmentation, ownership and reset regression; reuse test binary.
 add_test(NAME clipboard.chunk-reassembly-reset-bounds

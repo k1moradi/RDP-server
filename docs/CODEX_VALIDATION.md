@@ -1,3 +1,30 @@
+## R8 native directory-capability duplication authoring receipt (2026-10-17)
+
+The preceding portable binding at
+`446f13677d57d2ef3bead65bb65dcc460e1fde3a` has direct hosted R8 evidence:
+both new binding cases pass on Linux/GCC and macOS/AppleClang, and R9's complete
+clipboard ASan/UBSan selection is **70/70 PASS** with both registrations
+executed. Those platform full-suite failures are cross-road: R1 loopback TLS on
+Linux/macOS and concurrent R10 Windows private-fixture setup.
+
+The follow-on production change adds no creation API. The POSIX factory accepts
+only an already-open directory descriptor, verifies it with `fstat`, and
+duplicates it using `F_DUPFD_CLOEXEC`. The Windows factory accepts only an
+already-open disk-directory HANDLE, verifies directory metadata, rejects a
+final reparse-point object, and uses `DuplicateHandle`. Both factories expose
+only the existing duplicate/close seam.
+
+The platform-native tests directly exercise each factory before passing it into
+`RemoteDirectoryCapabilityBinding`: a directory object duplicates
+successfully, a pipe is rejected as the wrong native type, the duplicate is
+independently owned, and the caller can close its original after bind without
+changing the binding's generation/plan currentness. No test opens a user
+destination or creates a remote-derived path.
+
+Exact publication-SHA compile/CTest/sanitizer evidence for these factories is
+required before the native boundary is called green. Directory hierarchy and
+relative child materialization remain unsupported.
+
 ## R7 P1 hosted lifecycle isolation authoring receipt (2026-10-17)
 
 **Starting reconciled shared `main`:** `75375ccfeb7523d58d40024f783ebfe84f4db50b`.  

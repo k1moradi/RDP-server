@@ -20,6 +20,21 @@
 #include <type_traits>
 #include <vector>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#elif defined(__APPLE__) || defined(__linux__)
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 using rdp_server::server::clipboard::RemoteDirectoryCapabilityBinding;
 using rdp_server::server::clipboard::RemoteDirectoryNativeOperations;
 using rdp_server::server::clipboard::RemoteDirectoryNativeToken;
@@ -2381,6 +2396,148 @@ void testDirectoryCapabilityBindingRetirement()
     }
 }
 
+
+void installSingleDirectoryPlan(
+    RemoteTransfer &source,
+    RemoteFileDestinationPlan &plan,
+    const std::uint32_t fileListFormatId)
+{
+    initializeFileStreamSession(source);
+    const std::array<TestRemoteFileDescriptor, 1> descriptors{{
+        {u"folder", 0U, false, true},
+    }};
+    installRemoteFileOffer(source, fileListFormatId, descriptors);
+    const std::array<RemoteFileDestinationPlan::Selection, 1> selections{{
+        {0U, 0x6301U, std::nullopt},
+    }};
+    assert(plan.prepare(
+               source, source.generation(), selections) ==
+           RemoteFileDestinationPlan::PrepareStatus::Prepared);
+}
+
+#if defined(__APPLE__) || defined(__linux__)
+void testPosixDirectoryCapabilityNative()
+{
+    auto operations =
+        rdp_server::server::clipboard::
+            makePosixRemoteDirectoryNativeOperations();
+    assert(operations.duplicateDirectoryCapability != nullptr);
+    assert(operations.closeDirectoryCapability != nullptr);
+
+    const int directory = ::open(".", O_RDONLY | O_CLOEXEC);
+    assert(directory >= 0);
+
+    RemoteDirectoryNativeToken duplicate{};
+    assert(operations.duplicateDirectoryCapability(
+        operations.context,
+        static_cast<RemoteDirectoryNativeToken>(directory),
+        duplicate));
+    assert(duplicate <=
+           static_cast<RemoteDirectoryNativeToken>(
+               std::numeric_limits<int>::max()));
+
+    struct stat metadata{};
+    assert(::fstat(static_cast<int>(duplicate), &metadata) == 0);
+    assert(S_ISDIR(metadata.st_mode));
+    operations.closeDirectoryCapability(
+        operations.context, duplicate);
+    errno = 0;
+    assert(::fcntl(static_cast<int>(duplicate), F_GETFD) == -1);
+    assert(errno == EBADF);
+
+    int pipeDescriptors[2]{-1, -1};
+    assert(::pipe(pipeDescriptors) == 0);
+    duplicate = {};
+    assert(!operations.duplicateDirectoryCapability(
+        operations.context,
+        static_cast<RemoteDirectoryNativeToken>(
+            pipeDescriptors[0]),
+        duplicate));
+    assert(duplicate == 0U);
+    (void)::close(pipeDescriptors[0]);
+    (void)::close(pipeDescriptors[1]);
+
+    RemoteTransfer source;
+    RemoteFileDestinationPlan plan;
+    installSingleDirectoryPlan(source, plan, 0xc770U);
+    RemoteDirectoryCapabilityBinding binding{
+        source, plan, operations};
+    assert(binding.bind(
+        0U, static_cast<RemoteDirectoryNativeToken>(directory)));
+    assert(binding.current());
+
+    // The binding owns its duplicate; the caller may retire its original
+    // capability without changing the binding's plan/currentness state.
+    (void)::close(directory);
+    assert(binding.current());
+    binding.close();
+    assert(binding.status() ==
+           RemoteDirectoryCapabilityBinding::Status::Closed);
+}
+#elif defined(_WIN32)
+void testWindowsDirectoryCapabilityNative()
+{
+    auto operations =
+        rdp_server::server::clipboard::
+            makeWindowsRemoteDirectoryNativeOperations();
+    assert(operations.duplicateDirectoryCapability != nullptr);
+    assert(operations.closeDirectoryCapability != nullptr);
+
+    HANDLE directory = ::CreateFileW(
+        L".",
+        FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+        nullptr);
+    assert(directory != INVALID_HANDLE_VALUE);
+
+    RemoteDirectoryNativeToken duplicate{};
+    assert(operations.duplicateDirectoryCapability(
+        operations.context,
+        reinterpret_cast<RemoteDirectoryNativeToken>(directory),
+        duplicate));
+    HANDLE duplicateHandle =
+        reinterpret_cast<HANDLE>(duplicate);
+    FILE_STANDARD_INFO standard{};
+    assert(::GetFileInformationByHandleEx(
+        duplicateHandle, FileStandardInfo,
+        &standard, sizeof(standard)));
+    assert(standard.Directory);
+    operations.closeDirectoryCapability(
+        operations.context, duplicate);
+
+    HANDLE pipeRead = nullptr;
+    HANDLE pipeWrite = nullptr;
+    assert(::CreatePipe(
+        &pipeRead, &pipeWrite, nullptr, 0));
+    duplicate = {};
+    assert(!operations.duplicateDirectoryCapability(
+        operations.context,
+        reinterpret_cast<RemoteDirectoryNativeToken>(pipeRead),
+        duplicate));
+    assert(duplicate == 0U);
+    (void)::CloseHandle(pipeRead);
+    (void)::CloseHandle(pipeWrite);
+
+    RemoteTransfer source;
+    RemoteFileDestinationPlan plan;
+    installSingleDirectoryPlan(source, plan, 0xc770U);
+    RemoteDirectoryCapabilityBinding binding{
+        source, plan, operations};
+    assert(binding.bind(
+        0U,
+        reinterpret_cast<RemoteDirectoryNativeToken>(directory)));
+    assert(binding.current());
+
+    (void)::CloseHandle(directory);
+    assert(binding.current());
+    binding.close();
+    assert(binding.status() ==
+           RemoteDirectoryCapabilityBinding::Status::Closed);
+}
+#endif
+
 // R8 file-list metadata stays bounded and generation scoped. The wire
 // FILEDESCRIPTORW names are accepted only as safe leaf names; no whole file
 // body is copied into this owner.
@@ -3635,6 +3792,25 @@ int main(int argumentCount, char **arguments)
             testDirectoryCapabilityBindingRetirement();
             return 0;
         }
+#if defined(__linux__)
+        if (caseName == "linux-directory-capability-native")
+        {
+            testPosixDirectoryCapabilityNative();
+            return 0;
+        }
+#elif defined(__APPLE__)
+        if (caseName == "macos-directory-capability-native")
+        {
+            testPosixDirectoryCapabilityNative();
+            return 0;
+        }
+#elif defined(_WIN32)
+        if (caseName == "windows-directory-capability-native")
+        {
+            testWindowsDirectoryCapabilityNative();
+            return 0;
+        }
+#endif
         if (caseName == "file-descriptor-metadata-validation")
         {
             testFileDescriptorMetadataValidation();

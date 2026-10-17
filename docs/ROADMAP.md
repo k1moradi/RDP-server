@@ -1,3 +1,41 @@
+## R8 native directory-capability duplication boundary (2026-10-17; exact-SHA CI pending)
+
+**Portable binding:** `446f13677d57d2ef3bead65bb65dcc460e1fde3a`, Actions `39011707625`.  
+**Documentation receipt:** `611e3279d7bffc3678bcd8ec899210e14a446cd8`.
+
+The portable binding is executable-green for R8. Linux/GCC and
+macOS/AppleClang compile the new target and pass
+`clipboard.directory-capability-binding-authority` plus
+`clipboard.directory-capability-binding-retirement`; their full suites fail
+only at the unrelated R1 `transport.tcp-native-loopback-tls` readiness case.
+R9's complete Clang ASan/UBSan clipboard selection expands to **70/70 PASS**
+and explicitly executes both new bindings. The Windows full suite is blocked by
+concurrent R10 synthetic owner-SID fixture failures, not an R8 compile or
+binding-test failure.
+
+R8's next bounded increment adds platform-native **duplicate/close only**
+factories for already-open caller-authorized directory objects. POSIX validates
+the supplied descriptor with `fstat`, requires a directory object and
+duplicates it with `F_DUPFD_CLOEXEC`; it never reopens a path. Windows
+validates the supplied HANDLE as a disk directory, rejects a final reparse-point
+object, and duplicates it with `DuplicateHandle`; it never constructs or
+opens a pathname.
+
+Dedicated native-object CTests are platform-scoped:
+`clipboard.linux-directory-capability-native`,
+`clipboard.macos-directory-capability-native`, and
+`clipboard.windows-directory-capability-native`. They use only the
+CTest/build working directory as the positive existing directory object and an
+anonymous pipe as a wrong-object negative. The Linux case is required by R9's
+clipboard sanitizer preflight.
+
+This still does **not** create a child directory/file, expose a native
+capability to callers, infer a remote hierarchy, or change
+`UnsupportedDirectoryMaterialization`. Relative child creation remains the
+next separate review. POSIX must remain descriptor-relative with no-follow
+semantics; Windows must use a reviewed handle-relative mechanism or
+pre-authorized child handles rather than falling back to absolute-path reopen.
+
 ## R7 P1 isolated hosted Apple lifecycle evidence (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `75375ccfeb7523d58d40024f783ebfe84f4db50b`.

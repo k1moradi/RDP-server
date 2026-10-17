@@ -268,6 +268,27 @@ is not an acceptable substitute for a held directory capability. R9 sanitizer
 CI must enumerate every directory-capability CTest before the complete
 clipboard-labelled run.
 
+## Native directory-capability tests inspect objects, not paths
+
+Each platform factory must have a dedicated native CTest. The positive fixture
+may open only an existing build/CTest working directory and must pass that
+already-open object into the production duplicate seam. The negative fixture
+must use an unmistakably wrong native object type, such as an anonymous pipe,
+so rejection does not depend on pathname parsing.
+
+For POSIX, verify the duplicate itself is a directory descriptor and is
+independently closeable. For Windows, query the duplicated HANDLE as a
+directory object. Then bind through the production
+`RemoteDirectoryCapabilityBinding`, retire the caller's original object, and
+require the plan/generation binding to remain current until the owned duplicate
+is explicitly retired.
+
+Do not use a symlink pathname as proof of creation safety: the duplication
+contract has no child traversal. Symlink/reparse race tests belong to the later
+component-relative creation API and must exercise that API directly. R9 must
+fail closed on the Linux native registration before the complete clipboard
+sanitizer run.
+
 ## Multi-file clipboard handoff tests prove atomic completed-set visibility
 
 For a multi-file native handoff, materialize at least two files through the

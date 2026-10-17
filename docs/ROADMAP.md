@@ -1,3 +1,38 @@
+## R5 P1 X11/R4 capture-epoch convergence and sanitizer correction (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `17e2e3d624a73cb1fce5bbef65da4243bebf7ac8`.
+
+The production X11 borrow boundary from the preceding R5 P1 implementation is
+unchanged: `X11DesktopResources` owns XCB/XShm/Damage/input resources and one
+monotonic native capture generation, and `consumeR4Frame()` lends only the
+full current BGRX surface during a synchronous callback. R4 remains the sole
+BGRA -> NV12/x264/AVC420 owner.
+
+This convergence strengthens the three dedicated Xvfb fixtures to exercise
+R4's actual nonzero capture-epoch contract instead of its legacy externally
+fenced `open()` path. The test producer now opens with
+`openBgraCapture(presentationGeneration, captureGeneration, ...)`, and every
+`X264BgraFrameRequest` produced by the R5 callback carries the exact native
+generation. Thus stale RandR generations are denied first by R5 and a
+generation/geometry replacement that reaches the synchronous consumer is also
+denied by R4 before framebuffer dereference. Fresh replacement generations
+rebind R4 explicitly.
+
+The R9 workflow also contained a stale duplicate pre-P1 cardinality block:
+after running the intended **36** R5 tests it re-enumerated the same selector
+and required **33**, guaranteeing a false failure. The duplicate block is
+removed; the single fail-closed selector remains exactly **36** and retains all
+three new sentinel names.
+
+No X11 production source, capture engine, framebuffer owner, network graphics
+writer, XTEST route or authorization rule changes. Ordinary tests remain
+ephemeral Xvfb only. Live composition still requires genuine R2 native desktop
+admission and current R3 Share/View authority; R3 owns Graphics DVC delivery
+and R4 owns graphics receipts.
+
+Exact publication-SHA Linux/GCC full CTest and R9 Clang ASan/UBSan 36-case
+evidence are **PENDING**.
+
 ## R7 P2 macOS capture-to-R4 exact-SHA validation (2026-10-17)
 
 **Validated implementation:** `f037d4b6445950767a126830e391057fcd3417ec`.  

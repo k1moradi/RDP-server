@@ -1,3 +1,23 @@
+## R5 X11/R4 capture-epoch convergence authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `17e2e3d624a73cb1fce5bbef65da4243bebf7ac8`. Exact publication-SHA CI is
+**PENDING**.
+
+The existing production R5 generation-aware XShm borrow seam is retained.
+`x11.capture-r4-bgra-ingress`,
+`x11.capture-r4-stride-layout-denials`, and
+`x11.capture-r4-generation-retirement` now bind the R4 producer with
+`openBgraCapture()` and propagate the exact X11 capture generation in
+`X264BgraFrameRequest`, so the dedicated cross-road fixtures exercise both
+R5 native generation retirement and R4's pre-dereference epoch gate.
+
+The stale duplicate R9 check that required 33 tests after the new 36-case R5
+selection is removed. The one supported-profile R5 selector remains
+fail-closed at exactly 36 registrations.
+
+No real desktop, network graphics or native input is enabled. R2/R3 authority
+remains mandatory for live use.
+
 ## R4 P1 native BGRA-to-AVC420 compatibility exact-SHA receipt (2026-10-17)
 
 **Implementation:** `162093d3f50f0c9793b1eafc2cba637c98473559`.  

@@ -535,11 +535,18 @@ mapR4Surface(GfxPresentationLifecycle &lifecycle,
 void
 openR4Producer(X264Avc420SegmentedFrameProducer &producer,
                std::uint64_t generation,
-               PixelSize geometry) noexcept
+               PixelSize geometry,
+               std::uint64_t captureGeneration = 0) noexcept
 {
     const PixelSize coded = gfxAvc420CodedGeometry(geometry);
     assert(coded.widthPixels != 0 && coded.heightPixels != 0);
-    assert(producer.open(generation, coded, geometry));
+    if (captureGeneration == 0)
+    {
+        assert(producer.open(generation, coded, geometry));
+        return;
+    }
+    assert(producer.openBgraCapture(
+        generation, captureGeneration, coded, geometry));
 }
 
 bool
@@ -549,13 +556,15 @@ prepareR4Bgra(GfxPresentationLifecycle &lifecycle,
               std::uint32_t frameId,
               const FramebufferView &framebuffer,
               GfxAvc420SegmentedFrame &output,
-              std::int64_t pts = 0) noexcept
+              std::int64_t pts = 0,
+              std::uint64_t captureGeneration = 0) noexcept
 {
     const std::array<Rectangle, 1> regions{{
         {0, 0, framebuffer.widthPixels, framebuffer.heightPixels}}};
     const std::array<GfxAvc420QuantQuality, 1> qualities{{{23, 80}}};
     const X264BgraFrameRequest request{
-        7, frameId, framebuffer, pts, regions, qualities};
+        7, frameId, framebuffer, pts, regions, qualities,
+        captureGeneration};
     return producer.prepareBgra(lifecycle, generation, request, output);
 }
 
@@ -612,7 +621,8 @@ struct R4IngressConsumer final
         }
         return prepareR4Bgra(
             *self.lifecycle, *self.producer, self.presentationGeneration,
-            self.frameId, framebuffer, *self.output, self.pts);
+            self.frameId, framebuffer, *self.output, self.pts,
+            captureGeneration);
     }
 
     [[nodiscard]] X11R4BgraFrameConsumer callbacks() noexcept
@@ -1445,8 +1455,12 @@ syntheticXvfbCaptureR4BgraIngress()
     mapR4Surface(ingressLifecycle, presentationGeneration, {320, 240});
     X264Avc420SegmentedFrameProducer controlProducer;
     X264Avc420SegmentedFrameProducer ingressProducer;
-    openR4Producer(controlProducer, presentationGeneration, {320, 240});
-    openR4Producer(ingressProducer, presentationGeneration, {320, 240});
+    openR4Producer(
+        controlProducer, presentationGeneration, {320, 240},
+        captureGeneration);
+    openR4Producer(
+        ingressProducer, presentationGeneration, {320, 240},
+        captureGeneration);
 
     std::vector<std::byte> controlPixels =
         packedSyntheticPixels(full, kFirstPixelPattern);
@@ -1456,7 +1470,7 @@ syntheticXvfbCaptureR4BgraIngress()
     GfxAvc420SegmentedFrame ingressFrame;
     assert(prepareR4Bgra(
         controlLifecycle, controlProducer, presentationGeneration,
-        1U, controlView, controlFrame, 17));
+        1U, controlView, controlFrame, 17, captureGeneration));
 
     R4IngressConsumer consumer{
         &ingressLifecycle, &ingressProducer, &ingressFrame,
@@ -1485,28 +1499,30 @@ syntheticXvfbCaptureR4StrideLayoutDenials()
     constexpr PixelSize visible{16, 16};
     GfxPresentationLifecycle lifecycle;
     constexpr std::uint64_t presentationGeneration = 9200;
+    constexpr std::uint64_t captureGeneration = 77;
     mapR4Surface(lifecycle, presentationGeneration, visible);
     X264Avc420SegmentedFrameProducer producer;
-    openR4Producer(producer, presentationGeneration, visible);
+    openR4Producer(
+        producer, presentationGeneration, visible, captureGeneration);
 
     std::vector<std::byte> exact(16U * 16U * 4U);
     GfxAvc420SegmentedFrame denied;
     const FramebufferView shortStride{exact, 16, 16, 63};
     assert(!prepareR4Bgra(
         lifecycle, producer, presentationGeneration, 1U,
-        shortStride, denied));
+        shortStride, denied, 0, captureGeneration));
     const FramebufferView shortBuffer{
         std::span<const std::byte>(exact).first(exact.size() - 1U),
         16, 16, 64};
     assert(!prepareR4Bgra(
         lifecycle, producer, presentationGeneration, 1U,
-        shortBuffer, denied));
+        shortBuffer, denied, 0, captureGeneration));
     FramebufferView wrongGeometry{exact, 16, 16, 64};
     wrongGeometry.widthPixels =
         std::numeric_limits<std::uint32_t>::max();
     assert(!prepareR4Bgra(
         lifecycle, producer, presentationGeneration, 1U,
-        wrongGeometry, denied));
+        wrongGeometry, denied, 0, captureGeneration));
     assert(!denied.valid());
 
     X11DesktopResources bounded(syntheticDisplay(), 320U);
@@ -1516,10 +1532,11 @@ syntheticXvfbCaptureR4StrideLayoutDenials()
     mapR4Surface(
         boundedLifecycle, presentationGeneration + 1U, {320, 240});
     X264Avc420SegmentedFrameProducer boundedProducer;
-    openR4Producer(
-        boundedProducer, presentationGeneration + 1U, {320, 240});
-    GfxAvc420SegmentedFrame boundedFrame;
     const std::uint64_t generation = bounded.captureGeneration();
+    openR4Producer(
+        boundedProducer, presentationGeneration + 1U, {320, 240},
+        generation);
+    GfxAvc420SegmentedFrame boundedFrame;
     R4IngressConsumer consumer{
         &boundedLifecycle, &boundedProducer, &boundedFrame,
         presentationGeneration + 1U, generation, 2U, 0};
@@ -1551,7 +1568,9 @@ syntheticXvfbCaptureR4GenerationRetirement()
     GfxPresentationLifecycle oldLifecycle;
     mapR4Surface(oldLifecycle, oldPresentationGeneration, {320, 240});
     X264Avc420SegmentedFrameProducer oldProducer;
-    openR4Producer(oldProducer, oldPresentationGeneration, {320, 240});
+    openR4Producer(
+        oldProducer, oldPresentationGeneration, {320, 240},
+        firstGeneration);
     GfxAvc420SegmentedFrame firstFrame;
     R4IngressConsumer firstConsumer{
         &oldLifecycle, &oldProducer, &firstFrame,
@@ -1600,7 +1619,9 @@ syntheticXvfbCaptureR4GenerationRetirement()
     GfxPresentationLifecycle freshLifecycle;
     mapR4Surface(freshLifecycle, freshPresentationGeneration, resized);
     X264Avc420SegmentedFrameProducer freshProducer;
-    openR4Producer(freshProducer, freshPresentationGeneration, resized);
+    openR4Producer(
+        freshProducer, freshPresentationGeneration, resized,
+        freshGeneration);
     GfxAvc420SegmentedFrame freshFrame;
     R4IngressConsumer freshConsumer{
         &freshLifecycle, &freshProducer, &freshFrame,

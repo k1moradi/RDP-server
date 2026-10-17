@@ -1576,6 +1576,88 @@ private:
 }
 
 
+struct LocalSocketPairReadiness final
+{
+    bool first{};
+    bool second{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return first || second;
+    }
+};
+
+[[nodiscard]] LocalSocketPairReadiness waitForEitherLocalSocketReady(
+    LocalSocketId firstSocket,
+    bool firstWantRead,
+    bool firstWantWrite,
+    LocalSocketId secondSocket,
+    bool secondWantRead,
+    bool secondWantWrite,
+    std::chrono::steady_clock::time_point deadline) noexcept
+{
+    using Clock = std::chrono::steady_clock;
+    using Microseconds = std::chrono::microseconds;
+
+    assert(firstSocket != kInvalidLocalSocket);
+    assert(secondSocket != kInvalidLocalSocket);
+    assert(firstWantRead || firstWantWrite ||
+           secondWantRead || secondWantWrite);
+
+    while (Clock::now() < deadline)
+    {
+        fd_set readSet;
+        fd_set writeSet;
+        FD_ZERO(&readSet);
+        FD_ZERO(&writeSet);
+        if (firstWantRead) FD_SET(firstSocket, &readSet);
+        if (firstWantWrite) FD_SET(firstSocket, &writeSet);
+        if (secondWantRead) FD_SET(secondSocket, &readSet);
+        if (secondWantWrite) FD_SET(secondSocket, &writeSet);
+
+        const auto now = Clock::now();
+        if (now >= deadline) return {};
+        const auto remaining =
+            std::chrono::duration_cast<Microseconds>(deadline - now);
+        const auto maximumWait =
+            std::chrono::duration_cast<Microseconds>(kMaximumTcpPollWait);
+        const auto boundedWait =
+            remaining < maximumWait ? remaining : maximumWait;
+
+        timeval timeout{};
+        timeout.tv_sec = static_cast<long>(boundedWait.count() / 1'000'000);
+        timeout.tv_usec = static_cast<long>(boundedWait.count() % 1'000'000);
+
+#ifdef _WIN32
+        const int selected =
+            ::select(0, &readSet, &writeSet, nullptr, &timeout);
+        if (selected == SOCKET_ERROR) return {};
+#else
+        const LocalSocketId highestSocket =
+            firstSocket > secondSocket ? firstSocket : secondSocket;
+        const int selected = ::select(
+            highestSocket + 1, &readSet, &writeSet, nullptr, &timeout);
+        if (selected < 0)
+        {
+            if (errno == EINTR) continue;
+            return {};
+        }
+#endif
+        if (selected == 0) continue;
+
+        LocalSocketPairReadiness readiness{};
+        readiness.first =
+            (firstWantRead && FD_ISSET(firstSocket, &readSet) != 0) ||
+            (firstWantWrite && FD_ISSET(firstSocket, &writeSet) != 0);
+        readiness.second =
+            (secondWantRead && FD_ISSET(secondSocket, &readSet) != 0) ||
+            (secondWantWrite && FD_ISSET(secondSocket, &writeSet) != 0);
+        if (readiness) return readiness;
+    }
+    return {};
+}
+
+
 void nativeSendAll(TcpNonblockingIo &io,
                    std::span<const std::uint8_t> payload)
 {
@@ -5986,13 +6068,15 @@ void testNativeLoopbackTlsAndMcs()
 
     bool clientEstablished = false;
     bool serverEstablished = false;
+    bool clientReady = true;
+    bool serverReady = true;
     int clientWant = SSL_ERROR_WANT_WRITE;
     TlsHandshakeStatus serverStatus = TlsHandshakeStatus::NeedRead;
     const auto handshakeDeadline =
         std::chrono::steady_clock::now() + std::chrono::seconds{5};
     while (std::chrono::steady_clock::now() < handshakeDeadline)
     {
-        if (!clientEstablished)
+        if (!clientEstablished && clientReady)
         {
             const int clientResult = SSL_do_handshake(tls.client.get());
             if (clientResult == 1)
@@ -6007,7 +6091,7 @@ void testNativeLoopbackTlsAndMcs()
             }
         }
 
-        if (!serverEstablished)
+        if (!serverEstablished && serverReady)
         {
             serverStatus = adapter.onAttachedTlsIoReady();
             assert(serverStatus == TlsHandshakeStatus::NeedRead ||
@@ -6019,22 +6103,19 @@ void testNativeLoopbackTlsAndMcs()
 
         if (clientEstablished && serverEstablished) break;
 
-        if (!serverEstablished)
-        {
-            assert(waitForLocalSocketReady(
-                pair.server.value,
+        const auto readiness = waitForEitherLocalSocketReady(
+            pair.client.value,
+            !clientEstablished && clientWant == SSL_ERROR_WANT_READ,
+            !clientEstablished && clientWant == SSL_ERROR_WANT_WRITE,
+            pair.server.value,
+            !serverEstablished &&
                 serverStatus == TlsHandshakeStatus::NeedRead,
+            !serverEstablished &&
                 serverStatus == TlsHandshakeStatus::NeedWrite,
-                handshakeDeadline));
-        }
-        else if (!clientEstablished)
-        {
-            assert(waitForLocalSocketReady(
-                pair.client.value,
-                clientWant == SSL_ERROR_WANT_READ,
-                clientWant == SSL_ERROR_WANT_WRITE,
-                handshakeDeadline));
-        }
+            handshakeDeadline);
+        assert(readiness);
+        clientReady = readiness.first;
+        serverReady = readiness.second;
     }
     assert(clientEstablished);
     assert(serverEstablished);

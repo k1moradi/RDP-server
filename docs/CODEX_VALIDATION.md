@@ -1,3 +1,17 @@
+## R1 P1 runtime TLS verification and native-loopback readiness correction (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `9fe503cfe03722b1145d1fc9eaf4b28a417a1c9c`.
+
+R10's Windows synthetic credential-fixture correction is present on shared main: SID-native/private-DACL setup was centralized at `e782cd642f574e7ef45792c8fe168dfad70c8d2a`, the PowerShell ACL-module dependency was removed at `75375ccfeb7523d58d40024f783ebfe84f4db50b`, and explicit broad-principal ACE normalization landed at `4a116fb2501b7cbd5c9314d37337508fd7ed3824`.
+
+The P1 target cases are centrally generated once from the existing `runtime_transport_case` list: `transport.tcp-owned-runtime-tls-handshake` and `transport.tcp-owned-runtime-tls-identity-continuity`. On hosted MSYS2 CLANG64 at `4a116fb2...`, Actions `39012368322`, Clang **23.1.3** / OpenSSL **3.6.5**, all three R10 private-fixture ACL tests pass first. The runtime TLS handshake then passes in the focused five-case security preflight, and both runtime TLS cases pass in the complete Debug and Release 527-test registries. The tests therefore progress beyond fixture setup into the production `RuntimeServerTlsContext` and R1 `OwnedPreauthTcpConnection` path, including real loopback handshake, exact certificate comparison, negotiation provenance, bounded application I/O and terminal cancellation. This hosted evidence does not replace the owner's same-SHA persistent MSYS2 CLANG64 run.
+
+The required wider R1 regression sweep exposed a separate test-driver defect: `transport.tcp-native-loopback-tls` failed on Linux/GCC, macOS/AppleClang, Windows/MSVC and hosted CLANG64 at the five-second readiness assertion. The test advanced both nonblocking TLS peers once and then waited only on the server socket whenever the server was unfinished. When both peers were unfinished and the client needed to consume server-produced handshake bytes, that serialized wait could starve the client until the deadline.
+
+This correction is test-only. The loopback fixture now records each peer's current WANT direction and performs one bounded native `select` over the union of both sockets. The next SSL step is invoked only for the peer whose current read/write readiness was observed. No production TCP/BIO/SSL source, TLS owner, certificate pinning, 18 KiB application-I/O ceiling, reader/writer authority or cancellation behavior changes. The existing dedicated `transport.tcp-native-loopback-tls` CTest remains the behavior gate; no duplicate test or executable is added.
+
+Canonical owner `~/rdp-server/build/` MSYS2 CLANG64 execution is **NOT RUN** in this connector environment. Exact publication-SHA hosted Linux/GCC, macOS/AppleClang, Windows/MSVC, hosted CLANG64, R9 sanitizer and documentation-policy evidence are **PENDING**.
+
 ## R4 segmented-frame retirement reuse authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `f7f8f83c968332cf2b3d86d999cfe2142bec1045`. Exact publication-SHA hosted

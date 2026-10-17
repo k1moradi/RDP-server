@@ -839,6 +839,10 @@ same R1-owned established TLS object before application framing. This is a test
 fixture rule only; do not expose a raw descriptor or add a production retry
 loop solely to make a test wait.
 
+## R1 two-peer nonblocking TLS readiness fixtures (2026-10-17)
+
+When an ordinary loopback fixture drives both OpenSSL client and server endpoints, do not serialize progress by waiting on one unfinished peer while the other unfinished peer has its own current WANT direction. After each one-step SSL advancement, wait on the union of both sockets' exact WANT_READ/WANT_WRITE interests with one bounded monotonic readiness call, then invoke the next SSL step only for the endpoint whose readiness was observed. This prevents a test scheduler from creating a false TLS deadlock while preserving production's no-hidden-retry rule.
+
 ## R1 terminal TLS/EOF readiness fixtures (2026-10-16)
 
 After application TLS is established, tests for peer \`close_notify\`, raw TCP

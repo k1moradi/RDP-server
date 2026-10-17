@@ -1,3 +1,24 @@
+## R9 exact-head first failure reconciliation (2026-10-17)
+
+Initial SERVER-TEST publication SHA `4a42e7e32dcaa1db8999b3210ed426cbaf17fe6a`
+kept both structure validators, documentation policy, R9 sanitizer coverage and
+the new `packaging.server-test-cross-platform-offline-contract` CTest green.
+Primary Actions run `39065465283` then stopped Linux and macOS in the full
+Debug CTest before package creation on the same pre-existing R7 regression:
+`macos.package-offline-integrity-and-idempotence` expected an invalid
+architecture denial to name the architecture, while
+`validated_manifest()` had combined kind and architecture failures into
+`unsupported bundle identity`. The first macOS job failure was
+`117492102179`; Linux job `117492102088` reproduced the identical failure.
+
+This correction changes no accepted archive or installer behavior. It separates
+the existing R7 manifest-kind denial from the architecture denial so malformed
+architectures fail as `unsupported bundle architecture`, matching the
+dedicated test and making the rejected field explicit. SERVER-TEST package
+artifacts remain **NOT PRODUCED** for `4a42e7e3`; no deployment or bundle
+acceptance is inferred from its earlier green structure/sanitizer evidence.
+Exact-head package smoke remains **PENDING** on the corrective publication SHA.
+
 ## R9 SERVER-TEST preview pipeline and exact-SHA acceptance (2026-10-17)
 
 **Reconciled shared-main parent:** `6ca6dbe7548c3430e554b8b317d0d1426f3a6af9`. R7 had already repaired the

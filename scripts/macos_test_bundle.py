@@ -38,8 +38,10 @@ def validated_manifest(archive):
     if set(manifest) != {"kind", "version", "source_sha", "architecture", "minimum_macos",
                           "runtime", "licenses", "files"}:
         raise ValueError("unknown manifest contract")
-    if manifest["kind"] != BUNDLE_KIND or manifest["architecture"] not in ("arm64", "x86_64"):
+    if manifest["kind"] != BUNDLE_KIND:
         raise ValueError("unsupported bundle identity")
+    if manifest["architecture"] not in ("arm64", "x86_64"):
+        raise ValueError("unsupported bundle architecture")
     if not isinstance(manifest["source_sha"], str) or len(manifest["source_sha"]) != 40 or any(
             ch not in "0123456789abcdef" for ch in manifest["source_sha"]):
         raise ValueError("invalid source SHA")

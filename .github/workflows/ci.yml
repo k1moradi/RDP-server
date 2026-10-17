@@ -754,6 +754,23 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$authority_selection" --output-on-failure
 
+          existing_cal_selection='^runtime\.licensing-existing-cal-'
+          existing_cal_tests="$(ctest --test-dir build --build-config Debug -N -R "$existing_cal_selection")"
+          printf '%s\n' "$existing_cal_tests"
+          readonly existing_cal_expected_test_count=4
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$existing_cal_tests")"
+          if [[ "$selected_test_count" -ne "$existing_cal_expected_test_count" ]]; then
+            printf 'R9 M2 existing-CAL registry mismatch: expected %s tests, found %s\n' \
+              "$existing_cal_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'runtime.licensing-existing-cal-provider-unavailable' <<< "$existing_cal_tests"
+          grep -Fq 'runtime.licensing-existing-cal-request-correlation' <<< "$existing_cal_tests"
+          grep -Fq 'runtime.licensing-existing-cal-policy-generation-revocation' <<< "$existing_cal_tests"
+          grep -Fq 'runtime.licensing-existing-cal-result-retirement' <<< "$existing_cal_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$existing_cal_selection" --output-on-failure
+
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

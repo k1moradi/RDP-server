@@ -1,3 +1,42 @@
+## R10 existing-client CAL validation authority boundary (2026-10-17)
+
+Existing-client CAL validation is a separate service-authority operation from
+New/Upgrade CAL issuance. R3 owns the client-facing CLIENT_LICENSE_INFO
+cryptography and defensive bounded parsing; only R10 may convert the protected
+CAL/HWID facts into a licensing-policy decision, and only through the currently
+authenticated licensing provider.
+
+`RuntimeLicensingAuthority::beginExistingCalValidation()` copies one bounded
+presented CAL, the exact MAC-verified decrypted 20-byte HWID, an explicit
+verification timestamp and one nonzero 32-byte R3 session/request correlation.
+The provider request also carries the immutable Server License Request
+product/company/product-id/scope policy, current private authority generation,
+authenticated provider-policy fingerprint and a SHA-256 digest over all of
+those exact inputs. Provider completion must return the exact request sequence,
+correlation and digest and must still authenticate to the same provider identity
+and trust configuration.
+
+A provider result is one of `ValidPermanentNoUpgrade`,
+`UpgradeRequired` or `Denied`. The result object has no public configurator:
+a caller cannot manufacture a positive result from a Boolean, generation,
+fingerprint, CAL certificate, TLS certificate or terminal-server licensing key.
+R10 freshly rechecks provider authentication when releasing and when
+reauthorizing the one result; explicit retirement makes it unusable and permits
+the next operation. Provider/trust drift, authority revocation, request-digest
+mismatch, cancellation or teardown invalidates the operation fail-closed.
+
+Production remains `NoVerifiedIssuer`. No genuine RD Licensing provider
+adapter is implemented because the project has not established a documented,
+supportable RD Session Host-to-RD Licensing Server validation/issuance backend
+and its required activated licensing-server infrastructure. The positive
+provider used by CTest remains noninstalled and test-only. Consequently this
+boundary cannot emit a production-positive existing-CAL decision, cannot set
+`STATUS_VALID_CLIENT`, cannot advance R3 to Licensed/Share and cannot enable a
+listener. A future adapter must authenticate the supported provider and obtain
+the backend's real CAL semantics for product/version/scope, license
+lifetime/classification and CAL-to-HWID binding; it must not infer proprietary
+licensing-extension payloads locally.
+
 ## Windows DXGI -> R4 synchronous BGRA borrow boundary (R6 P2, 2026-10-17)
 
 `WindowsDxgiCaptureCycle::consumeR4Frame()` is the native Windows

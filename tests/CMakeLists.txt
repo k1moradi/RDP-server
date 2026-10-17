@@ -810,6 +810,23 @@ foreach(runtime_licensing_authority_case IN ITEMS
         LABELS "runtime;security;licensing;offline")
 endforeach()
 
+# Existing-client CAL validation is a separate R10 provider operation. Positive
+# decisions in these cases come only from the noninstalled provider fixture in
+# test_runtime_licensing_authority; production configureUnavailable() remains
+# incapable of producing a positive decision.
+foreach(runtime_existing_cal_case IN ITEMS
+        licensing-existing-cal-provider-unavailable
+        licensing-existing-cal-request-correlation
+        licensing-existing-cal-policy-generation-revocation
+        licensing-existing-cal-result-retirement)
+    add_test(NAME "runtime.${runtime_existing_cal_case}"
+        COMMAND test_runtime_licensing_authority
+            "${runtime_existing_cal_case}")
+    set_tests_properties(
+        "runtime.${runtime_existing_cal_case}" PROPERTIES
+        LABELS "runtime;security;licensing;offline")
+endforeach()
+
 # Exercise the real process separately so the test-only provider cannot become
 # a startup path. This meta-case reuses the existing process checker for every
 # supported offline preflight plus normal/wrong-argument startup refusal.

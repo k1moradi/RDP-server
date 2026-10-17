@@ -1,3 +1,45 @@
+## R10 M1 evidence assessment and existing-CAL authority authoring receipt (2026-10-17)
+
+**Initial hosted evidence SHA:** `e2c1e51d22c2c33cd0de1ca40fc2bf7f45d3c5ae`.  
+**Reconciled implementation parent:** `9dc693440cd14d2a372eb48514df70353826c7df`.
+
+Primary Actions `39018706447` and independent workflow validation
+`39018706418` are **SUCCESS**. Hosted `e2c1e51d...` results are Linux/GCC
+13.3.0 **584/584 Debug + Release**, macOS 26.6.2 / AppleClang 21.0.0
+**495/495 Debug + Release** plus **17/17** R7 focus, Windows/MSVC
+19.51.36260.0 **531/531 Debug + Release** after **55/55** native focus, and
+MSYS2 CLANG64 Clang **23.1.3** **531/531 Debug + Release** after **55/55**,
+**3/3** and **5/5** preflights. R9 sanitizer/fuzzer and structure jobs are
+green.
+
+The owner's statement that all tests pass is not a formal receipt. No
+owner-native record naming this SHA with the required OS/compiler,
+configure/build and complete CTest facts is available for Linux/X11, Windows
+MSYS2 CLANG64/Clang 23 or macOS 27. **M1 remains OPEN / NOT ACCEPTED.**
+
+The new R10 existing-CAL operation copies one bounded CAL, protected 20-byte
+HWID, explicit verification time, exact licensing identity and R3 correlation,
+then binds them with SHA-256 to request sequence, private authority generation
+and authenticated provider-policy fingerprint. Completion must echo exact
+sequence/correlation/digest and the same provider identity/trust. Decisions are
+`ValidPermanentNoUpgrade`, `UpgradeRequired` or `Denied`; callers cannot
+configure the released result, and release/reauthorization/retirement are
+provider-fresh and one-shot.
+
+Production still has no positive provider and returns `Unavailable`; the
+positive provider is test-only. No trust is inferred from TLS, the terminal
+licensing key, arbitrary CAL roots or caller values, and no RD Licensing RPC
+backend is invented.
+
+New CTests:
+`runtime.licensing-existing-cal-provider-unavailable`,
+`runtime.licensing-existing-cal-request-correlation`,
+`runtime.licensing-existing-cal-policy-generation-revocation`,
+`runtime.licensing-existing-cal-result-retirement`.
+R9 fail-closes on exactly these four registrations. Canonical local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment;
+publication-SHA hosted evidence is **PENDING**.
+
 ## R7 P2 macOS capture-to-R4 ingress authoring receipt (2026-10-17)
 
 **Authoring parent:** `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`.  

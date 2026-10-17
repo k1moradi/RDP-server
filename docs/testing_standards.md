@@ -296,22 +296,32 @@ be identified separately from a production lifetime failure.
 
 ## R10 licensing-authority sanitizer registry (2026-10-17)
 
-The service-owned licensing-authority boundary has one flat sanitizer
-selection, `^runtime\.licensing-authority-`, rather than another alternative
-inside the already-large cross-road R1/R3 licensing regular expression. The
-workflow must enumerate and grep all six centrally registered behavior names
-before execution: unavailable denials, issuer/policy correlation,
+The service-owned licensing-authority boundary keeps issuance and existing-CAL
+validation as two flat sanitizer selections rather than extending the already
+large cross-road R1/R3 licensing expression. The existing
+`^runtime\.licensing-authority-` group must retain its six centrally
+registered behaviors: unavailable denials, issuer/policy correlation,
 generation/revocation, result bounds/cancellation, sensitive retirement and
-real-process startup isolation. A selector compile failure, missing name or
-zero-test run is a CI failure, not sanitizer evidence.
+real-process startup isolation.
 
-The positive provider used by the first five cases is defined only in the test
+Existing-client validation uses the separate flat
+`^runtime\.licensing-existing-cal-` selector. The workflow must enumerate
+exactly four registrations before execution:
+`runtime.licensing-existing-cal-provider-unavailable`,
+`runtime.licensing-existing-cal-request-correlation`,
+`runtime.licensing-existing-cal-policy-generation-revocation`, and
+`runtime.licensing-existing-cal-result-retirement`. A missing name, wrong
+cardinality, selector compile failure, Not Run result or zero-test run is a CI
+failure rather than validation evidence.
+
+The positive provider used by both groups is defined only in the test
 translation unit and reaches production lifetime logic through a private friend
 seam. It must never be linked into `rdp-server`, exposed as runtime
-configuration, or described as genuine CAL issuance. The startup-isolation
-case executes the real process and reuses the existing CLI oracle, proving
-that the test seam cannot bypass normal startup refusal or any supported
-offline preflight.
+configuration, or described as genuine CAL issuance or validation authority.
+Production `configureUnavailable()` must remain unable to produce a positive
+existing-CAL decision. The startup-isolation case executes the real process and
+reuses the existing CLI oracle, proving that the test seam cannot bypass normal
+startup refusal or any supported offline preflight.
 
 
 Credential extraction tests must call the production canonical parser, not a

@@ -1,3 +1,74 @@
+## R10 P0 M1 evidence decision and existing-CAL authority contract (2026-10-17)
+
+### M1 formal decision
+
+**Hosted evidence SHA:** `e2c1e51d22c2c33cd0de1ca40fc2bf7f45d3c5ae`.  
+**Primary Actions:** `39018706447` — **SUCCESS**.  
+**Independent workflow structure:** `39018706418` — **SUCCESS**.
+
+The hosted matrix is complete on that SHA: Linux/GCC 13.3.0 is **584/584
+PASS Debug + 584/584 PASS Release** with installed consumer **1/1 PASS**;
+hosted macOS 26.6.2 / Xcode 26.6 / AppleClang 21.0.0 is **495/495 PASS
+Debug + 495/495 PASS Release**, with native R7 focus **17/17 PASS** in both;
+Windows/MSVC 19.51.36260.0 is **531/531 PASS Debug + 531/531 PASS Release**
+after **55/55** native R6 preflight in both; hosted MSYS2 CLANG64 Clang
+**23.1.3** is **531/531 PASS Debug + 531/531 PASS Release** after **55/55**
+R6, **3/3** private-DACL and **5/5** security preflights in both, plus
+**55/55** sanitizer native coverage. R9 Clang 18.1.3 and both structure gates
+are green.
+
+The owner has reported informally that all tests now pass, but no actual
+owner-native receipt for this SHA is present in repository issues/comments or
+available validation material. Missing for all three owner rows are the exact
+tested SHA, native OS/version, effective compiler/toolchain, configure/build
+results, complete Debug CTest total/pass/fail/skipped-or-Not-Run counts and
+failure output. Windows additionally must prove MSYS2 CLANG64 / Clang 23;
+macOS must prove major version 27. Hosted runners are not owner evidence.
+
+**M1 status: OPEN / NOT ACCEPTED.** No `M1 ACCEPTED` fact is recorded.
+
+### Existing-client CAL authority operation
+
+**Reconciled implementation parent:** `9dc693440cd14d2a372eb48514df70353826c7df`.
+
+R10 extends `RuntimeLicensingAuthority` with a separate existing-CAL
+validation operation. One request owns the bounded presented CAL, exact
+protected 20-byte HWID, immutable product/company/product-id/scope identity,
+explicit verification time and nonzero 32-byte R3 correlation. A SHA-256 digest
+binds those exact inputs to the request sequence, private authority generation
+and authenticated provider-policy fingerprint.
+
+Provider completion must echo the exact sequence/correlation/digest while still
+authenticating to the same provider identity/trust configuration. Decisions are
+exactly `ValidPermanentNoUpgrade`, `UpgradeRequired` or `Denied`. The
+released result has no public configurator, is freshly reauthorized against the
+same provider and exact generation/fingerprint/digest/correlation, and is
+one-shot retired. Provider/trust drift, revocation, digest mismatch,
+cancellation and destruction fail closed.
+
+Production remains `NoVerifiedIssuer`: it cannot return a positive decision.
+The deterministic positive provider exists only in the noninstalled test
+executable. TLS identity, terminal-server licensing credentials, peer CAL roots
+and caller scalars are never issuer authority. No listener, R2 lease,
+`STATUS_VALID_CLIENT`, R3 Licensed transition, Demand Active or Share
+activation is enabled.
+
+The external M2 dependency is still a genuine documented/supportable RD
+Licensing provider/backend with activated licensing-server infrastructure that
+actually owns CAL product/version/scope, lifetime/classification and
+CAL-to-HWID semantics. No RD Licensing RPC backend or proprietary extension
+encoding is invented.
+
+Dedicated CTests are
+`runtime.licensing-existing-cal-provider-unavailable`,
+`runtime.licensing-existing-cal-request-correlation`,
+`runtime.licensing-existing-cal-policy-generation-revocation`, and
+`runtime.licensing-existing-cal-result-retirement`. R9 has a separate
+exact-cardinality sanitizer selector for these four cases. Exact
+publication-SHA hosted validation is **PENDING** at authoring time.
+
+**M2 status: OPEN / NOT ACCEPTED.** Normal listener startup remains disabled.
+
 ## R7 P2 ScreenCaptureKit/CoreVideo -> R4 ingress readiness (2026-10-17; exact-SHA CI pending)
 
 **Authoring parent:** `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`.  

@@ -60,11 +60,21 @@ namespace
 using rdp_server::server::runtime::RuntimeLicensingAuthority;
 using rdp_server::server::runtime::RuntimeLicensingAuthorityOperation;
 using rdp_server::server::runtime::RuntimeLicensingAuthorityState;
+using rdp_server::server::runtime::RuntimeLicensingExistingCalDecision;
+using rdp_server::server::runtime::RuntimeLicensingExistingCalOperation;
+using rdp_server::server::runtime::
+    RuntimeLicensingExistingCalValidationResult;
 using rdp_server::server::runtime::RuntimeLicensingAuthorityTestAccess;
 using rdp_server::server::runtime::
     kRuntimeLicensingAuthorityRequestCorrelationBytes;
 using rdp_server::server::runtime::detail::
     RuntimeLicensingAuthorityProvider;
+using rdp_server::server::runtime::detail::
+    RuntimeLicensingExistingCalProviderCompletionStatus;
+using rdp_server::server::runtime::detail::
+    RuntimeLicensingExistingCalProviderCompletionView;
+using rdp_server::server::runtime::detail::
+    RuntimeLicensingExistingCalProviderRequestView;
 using rdp_server::server::runtime::detail::
     RuntimeLicensingProviderBeginStatus;
 using rdp_server::server::runtime::detail::
@@ -81,10 +91,12 @@ using rdp_server::server::transport::RdpLicensingAuthorityGrant;
 using rdp_server::server::transport::RdpLicensingAuthorityGrantError;
 using rdp_server::server::transport::RdpServerLicenseGrantKind;
 using rdp_server::server::transport::RdpServerLicenseIdentity;
+using rdp_server::server::transport::kMaximumRdpClientCalBytes;
 using rdp_server::server::transport::
     kMaximumRdpServerLicenseGrantCalBytes;
 using rdp_server::server::transport::
     kRdpLicensingAuthorityFingerprintBytes;
+using rdp_server::server::transport::kRdpLicensingHardwareIdBytes;
 
 struct ProviderCounters
 {
@@ -92,6 +104,9 @@ struct ProviderCounters
     std::size_t beginCalls{};
     std::size_t pollCalls{};
     std::size_t cancelCalls{};
+    std::size_t existingCalBeginCalls{};
+    std::size_t existingCalPollCalls{};
+    std::size_t existingCalCancelCalls{};
     std::size_t closeCalls{};
     std::size_t destructorCalls{};
 };
@@ -142,6 +157,71 @@ public:
     void mutateCal(std::uint8_t value) noexcept
     {
         std::fill_n(issuedCal_.begin(), issuedCalLength_, value);
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t>
+    capturedExistingCal() const noexcept
+    {
+        return std::span<const std::uint8_t>{
+            capturedExistingCal_.data(), capturedExistingCalLength_};
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t>
+    capturedExistingHardwareId() const noexcept
+    {
+        return capturedExistingHardwareId_;
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t>
+    capturedExistingRequestDigest() const noexcept
+    {
+        return capturedExistingRequestDigest_;
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t>
+    capturedExistingCorrelation() const noexcept
+    {
+        return capturedExistingCorrelation_;
+    }
+
+    [[nodiscard]] std::uint32_t capturedExistingProductVersion() const noexcept
+    {
+        return capturedExistingProductVersion_;
+    }
+
+    [[nodiscard]] std::int64_t
+    capturedExistingVerificationTime() const noexcept
+    {
+        return capturedExistingVerificationTime_;
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t>
+    capturedExistingCompanyName() const noexcept
+    {
+        return std::span<const std::uint8_t>{
+            capturedExistingCompanyName_.data(),
+            capturedExistingCompanyNameLength_};
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t>
+    capturedExistingProductId() const noexcept
+    {
+        return std::span<const std::uint8_t>{
+            capturedExistingProductId_.data(),
+            capturedExistingProductIdLength_};
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t>
+    capturedExistingScope() const noexcept
+    {
+        return std::span<const std::uint8_t>{
+            capturedExistingScope_.data(),
+            capturedExistingScopeLength_};
+    }
+
+    void corruptExistingCompletionDigest() noexcept
+    {
+        capturedExistingRequestDigest_[0] ^= 0x80U;
     }
 
     [[nodiscard]] RuntimeLicensingProviderVerificationView
@@ -195,6 +275,97 @@ public:
         ++counters_->cancelCalls;
     }
 
+    [[nodiscard]] RuntimeLicensingProviderBeginStatus
+    beginExistingCalValidation(
+        const RuntimeLicensingExistingCalProviderRequestView &request)
+        noexcept override
+    {
+        ++counters_->existingCalBeginCalls;
+        assert(request.authorityGeneration != 0U);
+        assert(request.authorityFingerprint.size() ==
+               kRdpLicensingAuthorityFingerprintBytes);
+        assert(request.requestCorrelation.size() ==
+               capturedExistingCorrelation_.size());
+        assert(request.requestDigest.size() ==
+               capturedExistingRequestDigest_.size());
+        assert(!request.presentedCal.empty());
+        assert(request.presentedCal.size() <=
+               capturedExistingCal_.size());
+        assert(request.protectedHardwareId.size() ==
+               capturedExistingHardwareId_.size());
+        assert(request.companyNameUtf16.size() <=
+               capturedExistingCompanyName_.size());
+        assert(request.productIdUtf16.size() <=
+               capturedExistingProductId_.size());
+        assert(request.scopeAnsi.size() <=
+               capturedExistingScope_.size());
+
+        capturedExistingRequestSequence_ = request.requestSequence;
+        capturedExistingProductVersion_ = request.productVersion;
+        capturedExistingVerificationTime_ =
+            request.verificationUnixSeconds;
+        capturedExistingCalLength_ = request.presentedCal.size();
+        std::copy(
+            request.presentedCal.begin(),
+            request.presentedCal.end(),
+            capturedExistingCal_.begin());
+        std::copy(
+            request.protectedHardwareId.begin(),
+            request.protectedHardwareId.end(),
+            capturedExistingHardwareId_.begin());
+        std::copy(
+            request.requestCorrelation.begin(),
+            request.requestCorrelation.end(),
+            capturedExistingCorrelation_.begin());
+        std::copy(
+            request.requestDigest.begin(),
+            request.requestDigest.end(),
+            capturedExistingRequestDigest_.begin());
+
+        capturedExistingCompanyNameLength_ =
+            request.companyNameUtf16.size();
+        std::copy(
+            request.companyNameUtf16.begin(),
+            request.companyNameUtf16.end(),
+            capturedExistingCompanyName_.begin());
+        capturedExistingProductIdLength_ = request.productIdUtf16.size();
+        std::copy(
+            request.productIdUtf16.begin(),
+            request.productIdUtf16.end(),
+            capturedExistingProductId_.begin());
+        capturedExistingScopeLength_ = request.scopeAnsi.size();
+        std::copy(
+            request.scopeAnsi.begin(),
+            request.scopeAnsi.end(),
+            capturedExistingScope_.begin());
+        return existingCalBeginStatus_;
+    }
+
+    [[nodiscard]] RuntimeLicensingExistingCalProviderCompletionView
+    pollExistingCalValidation() noexcept override
+    {
+        ++counters_->existingCalPollCalls;
+        return {
+            existingCalCompletionStatus_,
+            existingCalDecision_,
+            capturedExistingRequestSequence_,
+            std::span<const std::uint8_t>{
+                capturedExistingCorrelation_.data(),
+                existingCalCompletionCorrelationLength_},
+            std::span<const std::uint8_t>{
+                capturedExistingRequestDigest_.data(),
+                existingCalCompletionRequestDigestLength_},
+            std::span<const std::uint8_t>{
+                providerIdentity_.data(), providerIdentityLength_},
+            std::span<const std::uint8_t>{
+                trustConfiguration_.data(), trustConfigurationLength_}};
+    }
+
+    void cancelExistingCalValidation() noexcept override
+    {
+        ++counters_->existingCalCancelCalls;
+    }
+
     void close() noexcept override
     {
         if (!closed_)
@@ -210,6 +381,16 @@ public:
         RuntimeLicensingProviderBeginStatus::Accepted};
     RuntimeLicensingProviderCompletionStatus completionStatus_{
         RuntimeLicensingProviderCompletionStatus::Issued};
+    RuntimeLicensingProviderBeginStatus existingCalBeginStatus_{
+        RuntimeLicensingProviderBeginStatus::Accepted};
+    RuntimeLicensingExistingCalProviderCompletionStatus
+        existingCalCompletionStatus_{
+            RuntimeLicensingExistingCalProviderCompletionStatus::Decision};
+    RuntimeLicensingExistingCalDecision existingCalDecision_{
+        RuntimeLicensingExistingCalDecision::Denied};
+    std::size_t existingCalCompletionCorrelationLength_{
+        kRuntimeLicensingAuthorityRequestCorrelationBytes};
+    std::size_t existingCalCompletionRequestDigestLength_{32U};
     std::size_t providerIdentityLength_{};
     std::size_t trustConfigurationLength_{};
     std::size_t completionCorrelationLength_{
@@ -226,6 +407,26 @@ private:
     std::array<std::uint8_t,
         kRuntimeLicensingAuthorityRequestCorrelationBytes>
         capturedCorrelation_{};
+
+    std::array<std::uint8_t, kMaximumRdpClientCalBytes>
+        capturedExistingCal_{};
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes>
+        capturedExistingHardwareId_{};
+    std::array<std::uint8_t,
+        kRuntimeLicensingAuthorityRequestCorrelationBytes>
+        capturedExistingCorrelation_{};
+    std::array<std::uint8_t, 32U> capturedExistingRequestDigest_{};
+    std::array<std::uint8_t, 128U> capturedExistingCompanyName_{};
+    std::array<std::uint8_t, 128U> capturedExistingProductId_{};
+    std::array<std::uint8_t, 128U> capturedExistingScope_{};
+    std::size_t capturedExistingCalLength_{};
+    std::size_t capturedExistingCompanyNameLength_{};
+    std::size_t capturedExistingProductIdLength_{};
+    std::size_t capturedExistingScopeLength_{};
+    std::uint64_t capturedExistingRequestSequence_{};
+    std::uint32_t capturedExistingProductVersion_{};
+    std::int64_t capturedExistingVerificationTime_{};
+
     std::uint64_t capturedRequestSequence_{};
     RdpServerLicenseGrantKind capturedKind_{
         RdpServerLicenseGrantKind::NewLicense};
@@ -267,6 +468,18 @@ makeCorrelation(std::uint8_t seed) noexcept
             seed + static_cast<std::uint8_t>(index));
     }
     return correlation;
+}
+
+[[nodiscard]] std::array<std::uint8_t, kRdpLicensingHardwareIdBytes>
+makeHardwareId(std::uint8_t seed) noexcept
+{
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId{};
+    for (std::size_t index = 0U; index < hardwareId.size(); ++index)
+    {
+        hardwareId[index] = static_cast<std::uint8_t>(
+            seed + static_cast<std::uint8_t>(index));
+    }
+    return hardwareId;
 }
 
 [[nodiscard]] TestLicensingProvider *configureVerifiedAuthority(
@@ -845,6 +1058,301 @@ void testSensitiveRetirement()
     assert(duplicateCloseCounters.destructorCalls == 1U);
 }
 
+
+void testExistingCalProviderUnavailable()
+{
+    RdpServerLicenseIdentity identity;
+    configureIdentity(identity);
+    const std::array<std::uint8_t, 4U> cal{0x30U, 0x01U, 0x02U, 0x03U};
+    const auto hardwareId = makeHardwareId(0x20U);
+    const auto correlation = makeCorrelation(0x21U);
+
+    RuntimeLicensingAuthority defaultAuthority;
+    assert(defaultAuthority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'000'000LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+
+    RuntimeLicensingAuthority unavailableAuthority;
+    assert(unavailableAuthority.configureUnavailable(identity));
+    assert(unavailableAuthority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'000'000LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::Unavailable);
+    RuntimeLicensingExistingCalValidationResult unavailableResult;
+    assert(!unavailableAuthority.releaseExistingCalValidationResult(
+        correlation, unavailableResult));
+    assert(!unavailableResult.configured());
+
+    ProviderCounters counters;
+    RuntimeLicensingAuthority verifiedAuthority;
+    (void)configureVerifiedAuthority(
+        verifiedAuthority, identity, counters);
+    const std::array<std::uint8_t, kRdpLicensingHardwareIdBytes - 1U>
+        shortHardwareId{};
+    const std::array<std::uint8_t,
+        kRuntimeLicensingAuthorityRequestCorrelationBytes>
+        zeroCorrelation{};
+    assert(verifiedAuthority.beginExistingCalValidation(
+               {}, hardwareId, 1'800'000'000LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(verifiedAuthority.beginExistingCalValidation(
+               cal, shortHardwareId, 1'800'000'000LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(verifiedAuthority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'000'000LL, zeroCorrelation) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(counters.existingCalBeginCalls == 0U);
+}
+
+void testExistingCalRequestCorrelation()
+{
+    RdpServerLicenseIdentity identity;
+    configureIdentity(identity);
+    std::array<std::uint8_t, 6U> cal{
+        0x30U, 0x04U, 0x11U, 0x22U, 0x33U, 0x44U};
+    auto hardwareId = makeHardwareId(0x31U);
+    const auto correlation = makeCorrelation(0x32U);
+    constexpr std::int64_t verificationTime = 1'800'000'123LL;
+
+    ProviderCounters counters;
+    RuntimeLicensingAuthority authority;
+    TestLicensingProvider *const provider =
+        configureVerifiedAuthority(authority, identity, counters);
+    provider->existingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::ValidPermanentNoUpgrade;
+
+    const auto expectedCal = cal;
+    const auto expectedHardwareId = hardwareId;
+    assert(authority.beginExistingCalValidation(
+               cal, hardwareId, verificationTime, correlation) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    assert(counters.existingCalBeginCalls == 1U);
+    assert(std::equal(
+        provider->capturedExistingCal().begin(),
+        provider->capturedExistingCal().end(),
+        expectedCal.begin(),
+        expectedCal.end()));
+    assert(std::equal(
+        provider->capturedExistingHardwareId().begin(),
+        provider->capturedExistingHardwareId().end(),
+        expectedHardwareId.begin(),
+        expectedHardwareId.end()));
+    assert(std::equal(
+        provider->capturedExistingCorrelation().begin(),
+        provider->capturedExistingCorrelation().end(),
+        correlation.begin(),
+        correlation.end()));
+    assert(provider->capturedExistingProductVersion() == 0x00060001U);
+    assert(provider->capturedExistingVerificationTime() ==
+           verificationTime);
+    assert(provider->capturedExistingCompanyName().size() == 4U);
+    assert(provider->capturedExistingProductId().size() == 4U);
+    assert(provider->capturedExistingScope().size() == 2U);
+    assert(!std::all_of(
+        provider->capturedExistingRequestDigest().begin(),
+        provider->capturedExistingRequestDigest().end(),
+        [](std::uint8_t byte) { return byte == 0U; }));
+
+    cal.fill(0xeeU);
+    hardwareId.fill(0xddU);
+    assert(authority.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::DecisionAvailable);
+    assert(counters.existingCalPollCalls == 1U);
+
+    const auto wrongCorrelation = makeCorrelation(0x33U);
+    RuntimeLicensingExistingCalValidationResult result;
+    assert(!authority.releaseExistingCalValidationResult(
+        wrongCorrelation, result));
+    assert(authority.releaseExistingCalValidationResult(
+        correlation, result));
+    assert(result.configured());
+    assert(result.decision() ==
+           RuntimeLicensingExistingCalDecision::ValidPermanentNoUpgrade);
+    assert(result.authorityGeneration() != 0U);
+    assert(result.authorityFingerprint().size() ==
+           kRdpLicensingAuthorityFingerprintBytes);
+    assert(result.requestDigest().size() == 32U);
+    assert(authority.authorizeReleasedExistingCalValidationResult(
+        correlation, result));
+    assert(!authority.authorizeReleasedExistingCalValidationResult(
+        wrongCorrelation, result));
+    assert(authority.retireReleasedExistingCalValidationResult(
+        correlation));
+
+    ProviderCounters upgradeCounters;
+    RuntimeLicensingAuthority upgradeAuthority;
+    TestLicensingProvider *const upgradeProvider =
+        configureVerifiedAuthority(
+            upgradeAuthority, identity, upgradeCounters);
+    upgradeProvider->existingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::UpgradeRequired;
+    assert(upgradeAuthority.beginExistingCalValidation(
+               expectedCal,
+               expectedHardwareId,
+               verificationTime,
+               correlation) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    assert(upgradeAuthority.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::DecisionAvailable);
+    RuntimeLicensingExistingCalValidationResult upgradeResult;
+    assert(upgradeAuthority.releaseExistingCalValidationResult(
+        correlation, upgradeResult));
+    assert(upgradeResult.decision() ==
+           RuntimeLicensingExistingCalDecision::UpgradeRequired);
+}
+
+void testExistingCalPolicyGenerationRevocation()
+{
+    RdpServerLicenseIdentity identity;
+    configureIdentity(identity);
+    const std::array<std::uint8_t, 3U> cal{0x30U, 0x01U, 0x7fU};
+    const auto hardwareId = makeHardwareId(0x41U);
+    const auto correlation = makeCorrelation(0x42U);
+
+    ProviderCounters driftCounters;
+    RuntimeLicensingAuthority driftAuthority;
+    TestLicensingProvider *const driftProvider =
+        configureVerifiedAuthority(
+            driftAuthority, identity, driftCounters);
+    driftProvider->existingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::ValidPermanentNoUpgrade;
+    assert(driftAuthority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'001'000LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    assert(driftAuthority.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::DecisionAvailable);
+    driftProvider->setTrustConfiguration("trust-root-drifted");
+    RuntimeLicensingExistingCalValidationResult driftResult;
+    assert(!driftAuthority.releaseExistingCalValidationResult(
+        correlation, driftResult));
+    assert(driftAuthority.state() ==
+           RuntimeLicensingAuthorityState::Revoked);
+    assert(!driftResult.configured());
+
+    ProviderCounters digestCounters;
+    RuntimeLicensingAuthority digestAuthority;
+    TestLicensingProvider *const digestProvider =
+        configureVerifiedAuthority(
+            digestAuthority, identity, digestCounters);
+    digestProvider->existingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::UpgradeRequired;
+    assert(digestAuthority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'001'100LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    digestProvider->corruptExistingCompletionDigest();
+    assert(digestAuthority.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(digestAuthority.state() ==
+           RuntimeLicensingAuthorityState::Revoked);
+
+    ProviderCounters zeroGenerationCounters;
+    RuntimeLicensingAuthority zeroGenerationAuthority;
+    (void)configureVerifiedAuthority(
+        zeroGenerationAuthority, identity, zeroGenerationCounters);
+    RuntimeLicensingAuthorityTestAccess::forceGeneration(
+        zeroGenerationAuthority, 0U);
+    assert(zeroGenerationAuthority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'001'200LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(zeroGenerationAuthority.state() ==
+           RuntimeLicensingAuthorityState::Revoked);
+
+    ProviderCounters sourceCounters;
+    RuntimeLicensingAuthority sourceAuthority;
+    TestLicensingProvider *const sourceProvider =
+        configureVerifiedAuthority(
+            sourceAuthority, identity, sourceCounters);
+    sourceProvider->existingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::ValidPermanentNoUpgrade;
+    assert(sourceAuthority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'001'300LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    assert(sourceAuthority.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::DecisionAvailable);
+    RuntimeLicensingExistingCalValidationResult sourceResult;
+    assert(sourceAuthority.releaseExistingCalValidationResult(
+        correlation, sourceResult));
+
+    ProviderCounters replacementCounters;
+    RuntimeLicensingAuthority replacementAuthority;
+    (void)configureVerifiedAuthority(
+        replacementAuthority, identity, replacementCounters);
+    RuntimeLicensingAuthorityTestAccess::forceGeneration(
+        replacementAuthority, sourceResult.authorityGeneration());
+    assert(!replacementAuthority.
+        authorizeReleasedExistingCalValidationResult(
+            correlation, sourceResult));
+}
+
+void testExistingCalResultRetirement()
+{
+    RdpServerLicenseIdentity identity;
+    configureIdentity(identity);
+    const std::array<std::uint8_t, 4U> cal{0x30U, 0x02U, 0x55U, 0xaaU};
+    const auto hardwareId = makeHardwareId(0x51U);
+    const auto correlation = makeCorrelation(0x52U);
+
+    ProviderCounters counters;
+    RuntimeLicensingAuthority authority;
+    TestLicensingProvider *const provider =
+        configureVerifiedAuthority(authority, identity, counters);
+    provider->existingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::Denied;
+    assert(authority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'002'000LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    assert(authority.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::DecisionAvailable);
+
+    RuntimeLicensingExistingCalValidationResult deniedResult;
+    assert(authority.releaseExistingCalValidationResult(
+        correlation, deniedResult));
+    assert(deniedResult.configured());
+    assert(deniedResult.decision() ==
+           RuntimeLicensingExistingCalDecision::Denied);
+    assert(authority.authorizeReleasedExistingCalValidationResult(
+        correlation, deniedResult));
+
+    RuntimeLicensingExistingCalValidationResult duplicateResult;
+    assert(!authority.releaseExistingCalValidationResult(
+        correlation, duplicateResult));
+    const auto wrongCorrelation = makeCorrelation(0x53U);
+    assert(!authority.retireReleasedExistingCalValidationResult(
+        wrongCorrelation));
+    assert(authority.retireReleasedExistingCalValidationResult(
+        correlation));
+    assert(!authority.authorizeReleasedExistingCalValidationResult(
+        correlation, deniedResult));
+    assert(!authority.retireReleasedExistingCalValidationResult(
+        correlation));
+
+    provider->existingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::UpgradeRequired;
+    assert(authority.beginExistingCalValidation(
+               cal, hardwareId, 1'800'002'100LL, correlation) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    assert(authority.cancelExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::Cancelled);
+    assert(counters.existingCalCancelCalls == 1U);
+    assert(authority.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+
+    ProviderCounters destructionCounters;
+    {
+        RuntimeLicensingAuthority pendingAuthority;
+        (void)configureVerifiedAuthority(
+            pendingAuthority, identity, destructionCounters);
+        assert(pendingAuthority.beginExistingCalValidation(
+                   cal,
+                   hardwareId,
+                   1'800'002'200LL,
+                   correlation) ==
+               RuntimeLicensingExistingCalOperation::InProgress);
+    }
+    assert(destructionCounters.existingCalCancelCalls == 1U);
+    assert(destructionCounters.closeCalls == 1U);
+    assert(destructionCounters.destructorCalls == 1U);
+}
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
@@ -876,6 +1384,27 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "licensing-authority-sensitive-retirement")
     {
         testSensitiveRetirement();
+        return 0;
+    }
+    if (testCase == "licensing-existing-cal-provider-unavailable")
+    {
+        testExistingCalProviderUnavailable();
+        return 0;
+    }
+    if (testCase == "licensing-existing-cal-request-correlation")
+    {
+        testExistingCalRequestCorrelation();
+        return 0;
+    }
+    if (testCase ==
+        "licensing-existing-cal-policy-generation-revocation")
+    {
+        testExistingCalPolicyGenerationRevocation();
+        return 0;
+    }
+    if (testCase == "licensing-existing-cal-result-retirement")
+    {
+        testExistingCalResultRetirement();
         return 0;
     }
 

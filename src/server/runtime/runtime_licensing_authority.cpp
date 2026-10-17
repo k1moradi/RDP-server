@@ -23,6 +23,10 @@ using rdp_server::server::runtime::detail::
 using rdp_server::server::runtime::detail::
     RuntimeLicensingProviderCompletionView;
 using rdp_server::server::runtime::detail::
+    RuntimeLicensingExistingCalProviderCompletionStatus;
+using rdp_server::server::runtime::detail::
+    RuntimeLicensingExistingCalProviderCompletionView;
+using rdp_server::server::runtime::detail::
     RuntimeLicensingProviderVerificationStatus;
 using rdp_server::server::runtime::detail::
     RuntimeLicensingProviderVerificationView;
@@ -36,6 +40,10 @@ constexpr std::array<std::uint8_t, 39U> kGrantDigestDomain{
     'r','d','p','-','s','e','r','v','e','r','/',
     'l','i','c','e','n','s','i','n','g','-','a','u','t','h','o','r','i','t','y',
     '/','v','1','/','g','r','a','n','t'};
+constexpr std::array<std::uint8_t, 46U> kExistingCalRequestDigestDomain{
+    'r','d','p','-','s','e','r','v','e','r','/',
+    'l','i','c','e','n','s','i','n','g','-','a','u','t','h','o','r','i','t','y',
+    '/','v','1','/','e','x','i','s','t','i','n','g','-','c','a','l'};
 
 struct DigestContextDeleter
 {
@@ -61,6 +69,21 @@ using OwnedDigestContext =
     EVP_MD_CTX *context, std::uint32_t value) noexcept
 {
     const std::array<std::uint8_t, 4U> encoded{
+        static_cast<std::uint8_t>((value >> 24U) & 0xffU),
+        static_cast<std::uint8_t>((value >> 16U) & 0xffU),
+        static_cast<std::uint8_t>((value >> 8U) & 0xffU),
+        static_cast<std::uint8_t>(value & 0xffU)};
+    return updateDigest(context, encoded);
+}
+
+[[nodiscard]] bool updateBe64(
+    EVP_MD_CTX *context, std::uint64_t value) noexcept
+{
+    const std::array<std::uint8_t, 8U> encoded{
+        static_cast<std::uint8_t>((value >> 56U) & 0xffU),
+        static_cast<std::uint8_t>((value >> 48U) & 0xffU),
+        static_cast<std::uint8_t>((value >> 40U) & 0xffU),
+        static_cast<std::uint8_t>((value >> 32U) & 0xffU),
         static_cast<std::uint8_t>((value >> 24U) & 0xffU),
         static_cast<std::uint8_t>((value >> 16U) & 0xffU),
         static_cast<std::uint8_t>((value >> 8U) & 0xffU),
@@ -123,7 +146,54 @@ using OwnedDigestContext =
            !allZero(requestCorrelation);
 }
 
+[[nodiscard]] bool validExistingCalDecision(
+    RuntimeLicensingExistingCalDecision decision) noexcept
+{
+    switch (decision)
+    {
+    case RuntimeLicensingExistingCalDecision::Denied:
+    case RuntimeLicensingExistingCalDecision::ValidPermanentNoUpgrade:
+    case RuntimeLicensingExistingCalDecision::UpgradeRequired:
+        return true;
+    }
+    return false;
+}
+
 } // namespace
+
+bool RuntimeLicensingExistingCalValidationResult::configure(
+    RuntimeLicensingExistingCalDecision decision,
+    std::uint64_t authorityGeneration,
+    std::span<const std::uint8_t> authorityFingerprint,
+    std::span<const std::uint8_t> requestDigest) noexcept
+{
+    if (attempted_)
+        return false;
+    attempted_ = true;
+
+    if (!validExistingCalDecision(decision) ||
+        authorityGeneration == 0U ||
+        authorityFingerprint.size() != authorityFingerprint_.size() ||
+        requestDigest.size() != requestDigest_.size() ||
+        allZero(authorityFingerprint) ||
+        allZero(requestDigest))
+    {
+        return false;
+    }
+
+    decision_ = decision;
+    authorityGeneration_ = authorityGeneration;
+    std::copy(
+        authorityFingerprint.begin(),
+        authorityFingerprint.end(),
+        authorityFingerprint_.begin());
+    std::copy(
+        requestDigest.begin(),
+        requestDigest.end(),
+        requestDigest_.begin());
+    configured_ = true;
+    return true;
+}
 
 RuntimeLicensingAuthority::~RuntimeLicensingAuthority()
 {
@@ -290,6 +360,66 @@ bool RuntimeLicensingAuthority::computeGrantDigest(
     return true;
 }
 
+bool RuntimeLicensingAuthority::computeExistingCalRequestDigest(
+    std::span<const std::uint8_t> presentedCal,
+    std::span<const std::uint8_t> protectedHardwareId,
+    std::int64_t verificationUnixSeconds,
+    std::span<const std::uint8_t> requestCorrelation,
+    std::array<std::uint8_t, 32U> &digest) const noexcept
+{
+    if (requestSequence_ == 0U ||
+        authorityGeneration_ == 0U ||
+        allZero(authorityFingerprint_) ||
+        presentedCal.empty() ||
+        presentedCal.size() >
+            rdp_server::server::transport::kMaximumRdpClientCalBytes ||
+        protectedHardwareId.size() !=
+            rdp_server::server::transport::kRdpLicensingHardwareIdBytes ||
+        !validRequestCorrelation(requestCorrelation))
+    {
+        return false;
+    }
+
+    OwnedDigestContext context{::EVP_MD_CTX_new()};
+    if (!context ||
+        ::EVP_DigestInit_ex(context.get(), ::EVP_sha256(), nullptr) != 1 ||
+        !updateDigest(context.get(), kExistingCalRequestDigestDomain) ||
+        !updateBe64(context.get(), requestSequence_) ||
+        !updateBe64(context.get(), authorityGeneration_) ||
+        !updateLengthPrefixed(context.get(), authorityFingerprint_) ||
+        !updateLengthPrefixed(context.get(), requestCorrelation) ||
+        !updateBe32(context.get(), productVersion_) ||
+        !updateLengthPrefixed(
+            context.get(),
+            std::span<const std::uint8_t>{
+                companyNameUtf16_.data(), companyNameUtf16Length_}) ||
+        !updateLengthPrefixed(
+            context.get(),
+            std::span<const std::uint8_t>{
+                productIdUtf16_.data(), productIdUtf16Length_}) ||
+        !updateLengthPrefixed(
+            context.get(),
+            std::span<const std::uint8_t>{
+                scopeAnsi_.data(), scopeAnsiLength_}) ||
+        !updateBe64(
+            context.get(),
+            static_cast<std::uint64_t>(verificationUnixSeconds)) ||
+        !updateLengthPrefixed(context.get(), protectedHardwareId) ||
+        !updateLengthPrefixed(context.get(), presentedCal) ||
+        !finishSha256(context, digest))
+    {
+        digest.fill(0U);
+        return false;
+    }
+
+    if (allZero(digest))
+    {
+        digest.fill(0U);
+        return false;
+    }
+    return true;
+}
+
 bool RuntimeLicensingAuthority::refreshProviderAuthentication() noexcept
 {
     if (!provider_)
@@ -421,7 +551,11 @@ RuntimeLicensingAuthorityOperation RuntimeLicensingAuthority::beginIssuance(
     }
     if (!validRequestCorrelation(requestCorrelation) ||
         requestPending_ ||
-        state_ == RuntimeLicensingAuthorityState::IssuanceResultAvailable)
+        existingCalValidationPending_ ||
+        state_ == RuntimeLicensingAuthorityState::IssuanceResultAvailable ||
+        state_ ==
+            RuntimeLicensingAuthorityState::
+                ExistingCalValidationResultAvailable)
     {
         return RuntimeLicensingAuthorityOperation::Rejected;
     }
@@ -600,6 +734,350 @@ RuntimeLicensingAuthority::cancelIssuance() noexcept
     return RuntimeLicensingAuthorityOperation::Cancelled;
 }
 
+RuntimeLicensingExistingCalOperation
+RuntimeLicensingAuthority::beginExistingCalValidation(
+    std::span<const std::uint8_t> presentedCal,
+    std::span<const std::uint8_t> protectedHardwareId,
+    std::int64_t verificationUnixSeconds,
+    std::span<const std::uint8_t> requestCorrelation) noexcept
+{
+    if (!configured_)
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    if (state_ == RuntimeLicensingAuthorityState::NoVerifiedIssuer)
+        return RuntimeLicensingExistingCalOperation::Unavailable;
+    if (!currentAuthorityValid())
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+    if (presentedCal.empty() ||
+        presentedCal.size() >
+            rdp_server::server::transport::kMaximumRdpClientCalBytes ||
+        protectedHardwareId.size() !=
+            rdp_server::server::transport::kRdpLicensingHardwareIdBytes ||
+        !validRequestCorrelation(requestCorrelation) ||
+        requestPending_ ||
+        existingCalValidationPending_ ||
+        state_ == RuntimeLicensingAuthorityState::IssuanceResultAvailable ||
+        state_ ==
+            RuntimeLicensingAuthorityState::
+                ExistingCalValidationResultAvailable)
+    {
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+    if (requestSequence_ ==
+        (std::numeric_limits<std::uint64_t>::max)())
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Failed;
+    }
+    if (!providerAuthenticationMatchesCurrent())
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Failed;
+    }
+
+    ++requestSequence_;
+    if (requestSequence_ == 0U)
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Failed;
+    }
+
+    std::copy(
+        requestCorrelation.begin(),
+        requestCorrelation.end(),
+        requestCorrelation_.begin());
+    std::copy(
+        presentedCal.begin(), presentedCal.end(), existingCal_.begin());
+    existingCalLength_ = presentedCal.size();
+    std::copy(
+        protectedHardwareId.begin(),
+        protectedHardwareId.end(),
+        existingCalHardwareId_.begin());
+    existingCalVerificationUnixSeconds_ = verificationUnixSeconds;
+    existingCalDecision_ = RuntimeLicensingExistingCalDecision::Denied;
+    existingCalRequestDigest_.fill(0U);
+
+    if (!computeExistingCalRequestDigest(
+            std::span<const std::uint8_t>{
+                existingCal_.data(), existingCalLength_},
+            existingCalHardwareId_,
+            existingCalVerificationUnixSeconds_,
+            requestCorrelation_,
+            existingCalRequestDigest_))
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Failed;
+    }
+
+    const detail::RuntimeLicensingExistingCalProviderRequestView request{
+        requestSequence_,
+        authorityGeneration_,
+        authorityFingerprint_,
+        requestCorrelation_,
+        existingCalRequestDigest_,
+        productVersion_,
+        std::span<const std::uint8_t>{
+            companyNameUtf16_.data(), companyNameUtf16Length_},
+        std::span<const std::uint8_t>{
+            productIdUtf16_.data(), productIdUtf16Length_},
+        std::span<const std::uint8_t>{
+            scopeAnsi_.data(), scopeAnsiLength_},
+        std::span<const std::uint8_t>{
+            existingCal_.data(), existingCalLength_},
+        existingCalHardwareId_,
+        existingCalVerificationUnixSeconds_};
+
+    switch (provider_->beginExistingCalValidation(request))
+    {
+    case RuntimeLicensingProviderBeginStatus::Accepted:
+        existingCalValidationPending_ = true;
+        state_ = RuntimeLicensingAuthorityState::VerifiedIssuerReady;
+        return RuntimeLicensingExistingCalOperation::InProgress;
+    case RuntimeLicensingProviderBeginStatus::Denied:
+        clearExistingCalRequest();
+        requestCorrelation_.fill(0U);
+        state_ = RuntimeLicensingAuthorityState::ExistingCalValidationDenied;
+        return RuntimeLicensingExistingCalOperation::Denied;
+    case RuntimeLicensingProviderBeginStatus::Unavailable:
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Unavailable;
+    case RuntimeLicensingProviderBeginStatus::Failed:
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Failed;
+    }
+
+    failClosed();
+    return RuntimeLicensingExistingCalOperation::Failed;
+}
+
+RuntimeLicensingExistingCalOperation
+RuntimeLicensingAuthority::pollExistingCalValidation() noexcept
+{
+    if (!existingCalValidationPending_ || !currentAuthorityValid())
+        return RuntimeLicensingExistingCalOperation::Rejected;
+
+    const RuntimeLicensingExistingCalProviderCompletionView completion =
+        provider_->pollExistingCalValidation();
+
+    if (completion.status ==
+        RuntimeLicensingExistingCalProviderCompletionStatus::Pending)
+    {
+        return RuntimeLicensingExistingCalOperation::InProgress;
+    }
+    if (completion.status ==
+        RuntimeLicensingExistingCalProviderCompletionStatus::Cancelled)
+    {
+        existingCalValidationPending_ = false;
+        clearExistingCalRequest();
+        requestCorrelation_.fill(0U);
+        state_ = RuntimeLicensingAuthorityState::ExistingCalValidationDenied;
+        return RuntimeLicensingExistingCalOperation::Cancelled;
+    }
+    if (completion.status ==
+        RuntimeLicensingExistingCalProviderCompletionStatus::TimedOut)
+    {
+        existingCalValidationPending_ = false;
+        clearExistingCalRequest();
+        requestCorrelation_.fill(0U);
+        state_ = RuntimeLicensingAuthorityState::ExistingCalValidationDenied;
+        return RuntimeLicensingExistingCalOperation::TimedOut;
+    }
+    if (completion.status ==
+            RuntimeLicensingExistingCalProviderCompletionStatus::Unavailable ||
+        completion.status ==
+            RuntimeLicensingExistingCalProviderCompletionStatus::Failed)
+    {
+        const auto operation =
+            completion.status ==
+                    RuntimeLicensingExistingCalProviderCompletionStatus::
+                        Unavailable
+                ? RuntimeLicensingExistingCalOperation::Unavailable
+                : RuntimeLicensingExistingCalOperation::Failed;
+        failClosed();
+        return operation;
+    }
+    if (completion.status !=
+        RuntimeLicensingExistingCalProviderCompletionStatus::Decision)
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+
+    if (!validExistingCalDecision(completion.decision) ||
+        completion.requestSequence != requestSequence_ ||
+        !requestCorrelationMatches(completion.requestCorrelation) ||
+        completion.requestDigest.size() !=
+            existingCalRequestDigest_.size() ||
+        ::CRYPTO_memcmp(
+            completion.requestDigest.data(),
+            existingCalRequestDigest_.data(),
+            existingCalRequestDigest_.size()) != 0)
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+
+    std::array<std::uint8_t,
+        rdp_server::server::transport::
+            kRdpLicensingAuthorityFingerprintBytes>
+        completionFingerprint{};
+    if (!computeAuthorityFingerprint(
+            completion.providerIdentity,
+            completion.trustConfiguration,
+            completionFingerprint) ||
+        ::CRYPTO_memcmp(
+            completionFingerprint.data(),
+            authorityFingerprint_.data(),
+            authorityFingerprint_.size()) != 0)
+    {
+        failClosed();
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+
+    existingCalValidationPending_ = false;
+    existingCalDecision_ = completion.decision;
+    existingCalResultReleased_ = false;
+    clearExistingCalInput();
+    state_ =
+        RuntimeLicensingAuthorityState::ExistingCalValidationResultAvailable;
+    return RuntimeLicensingExistingCalOperation::DecisionAvailable;
+}
+
+RuntimeLicensingExistingCalOperation
+RuntimeLicensingAuthority::cancelExistingCalValidation() noexcept
+{
+    if (!existingCalValidationPending_ || !provider_ ||
+        state_ == RuntimeLicensingAuthorityState::Revoked)
+    {
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+
+    provider_->cancelExistingCalValidation();
+    existingCalValidationPending_ = false;
+    clearExistingCalRequest();
+    requestCorrelation_.fill(0U);
+    state_ = RuntimeLicensingAuthorityState::ExistingCalValidationDenied;
+    return RuntimeLicensingExistingCalOperation::Cancelled;
+}
+
+bool RuntimeLicensingAuthority::releaseExistingCalValidationResult(
+    std::span<const std::uint8_t> requestCorrelation,
+    RuntimeLicensingExistingCalValidationResult &result) noexcept
+{
+    const bool authenticationCurrent =
+        providerAuthenticationMatchesCurrent();
+    if (state_ !=
+            RuntimeLicensingAuthorityState::
+                ExistingCalValidationResultAvailable ||
+        existingCalValidationPending_ ||
+        existingCalResultReleased_ ||
+        allZero(existingCalRequestDigest_) ||
+        !requestCorrelationMatches(requestCorrelation) ||
+        !authenticationCurrent)
+    {
+        if (currentAuthorityValid() &&
+            state_ ==
+                RuntimeLicensingAuthorityState::
+                    ExistingCalValidationResultAvailable &&
+            !authenticationCurrent)
+        {
+            failClosed();
+        }
+        return false;
+    }
+
+    if (!result.configure(
+            existingCalDecision_,
+            authorityGeneration_,
+            authorityFingerprint_,
+            existingCalRequestDigest_))
+    {
+        return false;
+    }
+
+    releasedExistingCalRequestDigest_ = existingCalRequestDigest_;
+    releasedExistingCalRequestCorrelation_ = requestCorrelation_;
+    releasedExistingCalDecision_ = existingCalDecision_;
+    existingCalResultReleased_ = true;
+    existingCalRequestDigest_.fill(0U);
+    return true;
+}
+
+bool RuntimeLicensingAuthority::
+authorizeReleasedExistingCalValidationResult(
+    std::span<const std::uint8_t> requestCorrelation,
+    const RuntimeLicensingExistingCalValidationResult &result) noexcept
+{
+    const bool authenticationCurrent =
+        providerAuthenticationMatchesCurrent();
+    const auto resultFingerprint = result.authorityFingerprint();
+    const auto resultDigest = result.requestDigest();
+    const bool fingerprintMatches =
+        resultFingerprint.size() == authorityFingerprint_.size() &&
+        ::CRYPTO_memcmp(
+            resultFingerprint.data(),
+            authorityFingerprint_.data(),
+            authorityFingerprint_.size()) == 0;
+    const bool digestMatches =
+        resultDigest.size() == releasedExistingCalRequestDigest_.size() &&
+        ::CRYPTO_memcmp(
+            resultDigest.data(),
+            releasedExistingCalRequestDigest_.data(),
+            releasedExistingCalRequestDigest_.size()) == 0;
+
+    if (state_ !=
+            RuntimeLicensingAuthorityState::
+                ExistingCalValidationResultAvailable ||
+        !existingCalResultReleased_ ||
+        !validRequestCorrelation(requestCorrelation) ||
+        ::CRYPTO_memcmp(
+            requestCorrelation.data(),
+            releasedExistingCalRequestCorrelation_.data(),
+            releasedExistingCalRequestCorrelation_.size()) != 0 ||
+        !result.configured() ||
+        result.decision() != releasedExistingCalDecision_ ||
+        result.authorityGeneration() != authorityGeneration_ ||
+        !fingerprintMatches ||
+        !digestMatches ||
+        !authenticationCurrent)
+    {
+        if (existingCalResultReleased_ &&
+            currentAuthorityValid() &&
+            !authenticationCurrent)
+        {
+            failClosed();
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool RuntimeLicensingAuthority::retireReleasedExistingCalValidationResult(
+    std::span<const std::uint8_t> requestCorrelation) noexcept
+{
+    if (state_ !=
+            RuntimeLicensingAuthorityState::
+                ExistingCalValidationResultAvailable ||
+        !existingCalResultReleased_ ||
+        !validRequestCorrelation(requestCorrelation) ||
+        ::CRYPTO_memcmp(
+            requestCorrelation.data(),
+            releasedExistingCalRequestCorrelation_.data(),
+            releasedExistingCalRequestCorrelation_.size()) != 0)
+    {
+        return false;
+    }
+
+    clearReleasedExistingCalValidationResult();
+    requestCorrelation_.fill(0U);
+    existingCalDecision_ = RuntimeLicensingExistingCalDecision::Denied;
+    state_ = RuntimeLicensingAuthorityState::VerifiedIssuerReady;
+    return true;
+}
+
 bool RuntimeLicensingAuthority::releaseIssuedGrant(
     std::span<const std::uint8_t> requestCorrelation,
     rdp_server::server::transport::RdpLicensingAuthorityGrant
@@ -715,6 +1193,33 @@ void RuntimeLicensingAuthority::clearReleasedGrant() noexcept
     resultReleased_ = false;
 }
 
+void RuntimeLicensingAuthority::clearExistingCalInput() noexcept
+{
+    if (existingCalLength_ != 0U)
+        ::OPENSSL_cleanse(existingCal_.data(), existingCalLength_);
+    existingCalLength_ = 0U;
+    ::OPENSSL_cleanse(
+        existingCalHardwareId_.data(), existingCalHardwareId_.size());
+    existingCalVerificationUnixSeconds_ = 0;
+}
+
+void RuntimeLicensingAuthority::clearExistingCalRequest() noexcept
+{
+    clearExistingCalInput();
+    existingCalRequestDigest_.fill(0U);
+    existingCalDecision_ = RuntimeLicensingExistingCalDecision::Denied;
+}
+
+void RuntimeLicensingAuthority::
+clearReleasedExistingCalValidationResult() noexcept
+{
+    releasedExistingCalRequestDigest_.fill(0U);
+    releasedExistingCalRequestCorrelation_.fill(0U);
+    releasedExistingCalDecision_ =
+        RuntimeLicensingExistingCalDecision::Denied;
+    existingCalResultReleased_ = false;
+}
+
 void RuntimeLicensingAuthority::closeProvider() noexcept
 {
     if (!provider_)
@@ -727,9 +1232,14 @@ void RuntimeLicensingAuthority::failClosed() noexcept
 {
     if (requestPending_ && provider_)
         provider_->cancel();
+    if (existingCalValidationPending_ && provider_)
+        provider_->cancelExistingCalValidation();
     requestPending_ = false;
+    existingCalValidationPending_ = false;
     clearPendingResult();
     clearReleasedGrant();
+    clearExistingCalRequest();
+    clearReleasedExistingCalValidationResult();
     closeProvider();
     authorityFingerprint_.fill(0U);
     authorityGeneration_ = 0U;

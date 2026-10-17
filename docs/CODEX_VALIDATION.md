@@ -1,3 +1,48 @@
+## R8 P2 relative hierarchy provenance exact-SHA receipt (2026-10-17)
+
+**Validated SHA:** `441b890ac779596d54fd72fc4fbbdd008e227f5a`.  
+**Primary workflow:** `39024844285` — **SUCCESS**.  
+**Structure guard:** `39024844361` — **SUCCESS**.
+
+Normative review of MS-RDPECLIP confirms that ordinary File Lists can carry
+relative names without exposing the exact source-file location, while Direct
+File Access separately permits absolute paths only when the peer filesystem is
+already directly accessible. File Descriptor metadata supplies
+`FILE_ATTRIBUTE_DIRECTORY`; File Contents requests identify one File List
+member by `lindex`. The production implementation uses those facts only to
+establish non-authorizing same-generation structure: an immediate relative
+prefix is accepted as a parent only when an exact explicit directory descriptor
+for that prefix exists in the same list.
+
+The public native-facing file view still exposes only the final safe leaf.
+Private relative components are never a local path, destination choice or
+filesystem capability. The hierarchy proof is all-or-nothing, bounded to 64
+nodes/depth 16 and rejects duplicates, missing parents, file parents, cycles,
+unsafe path forms and stale generations. Destination-plan caller placement
+remains distinct from verified remote parentage.
+
+Exact hosted execution:
+- Linux/GCC: **603/603 Debug + 603/603 Release PASS**.
+- macOS/AppleClang: **514/514 Debug + 514/514 Release PASS**.
+- Windows/MSVC: **550/550 Debug + 550/550 Release PASS**.
+- MSYS2 CLANG64 / Clang 23: **550/550 Debug + 550/550 Release PASS**.
+- R9 Clang ASan/UBSan complete clipboard label: **76/76 PASS**, with all five
+  hierarchy sentinels required before execution.
+- Workflow structure and documentation policy are green.
+
+The five dedicated hierarchy cases all execute successfully:
+`clipboard.file-hierarchy-relative-tree-provenance`,
+`clipboard.file-hierarchy-provenance-unsupported-denials`,
+`clipboard.file-hierarchy-parent-cycle-and-depth-denials`,
+`clipboard.file-hierarchy-generation-replacement`, and
+`clipboard.file-hierarchy-no-path-authority`.
+
+No file or directory is created or traversed by this increment. No live
+clipboard, filesystem destination, Direct File Access path or remote-name-based
+local path is used. Future tree materialization remains blocked until a separate
+reviewed capability combines verified parent indices with caller-authorized
+native directory objects and race-safe handle-relative child creation.
+
 ## R8 destination-plan stale-expectation correction receipt (2026-10-17)
 
 **Validated behavior before correction:** implementation/test SHA

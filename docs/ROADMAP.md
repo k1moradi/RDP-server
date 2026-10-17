@@ -1,3 +1,57 @@
+## R8 P2 relative hierarchy provenance exact-SHA validation (2026-10-17)
+
+**Validated shared-main SHA:** `441b890ac779596d54fd72fc4fbbdd008e227f5a`.  
+**Primary Actions:** `39024844285` — **SUCCESS**.  
+**Independent workflow structure:** `39024844361` — **SUCCESS**.
+
+The validated contract follows the supported MS-RDPECLIP File List semantics.
+The protocol's File List example uses relative entries such as
+`temp\\file1.txt` while explicitly noting that the exact source-file location is
+not specified. Direct File Access is the separate case in which absolute paths
+can identify peer-accessible source files. The File Descriptor supplies the
+directory attribute, and File Contents `lindex` identifies the exact File List
+member. R8 therefore treats a bounded safe relative name as structural metadata
+only and derives a parent only when that immediate relative prefix is also an
+explicit directory descriptor in the same current generation.
+
+No filesystem authority follows from that proof. `RemoteFileView` remains
+leaf-only; relative components are private protocol metadata and are never
+returned as a local pathname, concatenated with a caller-selected destination,
+opened, traversed or used to manufacture a directory capability. Caller-selected
+placement remains independently authorized. Absolute/rooted/UNC/drive forms,
+forward slashes, empty components, `.`, `..`, controls and reserved punctuation
+remain denied. Direct File Access is not implemented.
+
+The graph is fixed-capacity and transactional: at most 64 descriptor nodes,
+depth at most 16, exact descriptor-index identity, unique relative node names,
+explicit directory parents for every non-root node, no file-as-parent, no
+missing parent and no cycle. A failed hierarchy proof exposes no partial
+hierarchy nodes; independently valid flat descriptor streaming remains usable.
+Generation replacement/disconnect invalidates prior hierarchy and destination
+plans through the existing generation/source-epoch fences.
+
+Dedicated production-backed CTests are:
+`clipboard.file-hierarchy-relative-tree-provenance`,
+`clipboard.file-hierarchy-provenance-unsupported-denials`,
+`clipboard.file-hierarchy-parent-cycle-and-depth-denials`,
+`clipboard.file-hierarchy-generation-replacement`, and
+`clipboard.file-hierarchy-no-path-authority`. All five pass in the exact-SHA
+hosted matrix. Linux/GCC full CTest is **603/603 PASS Debug + 603/603 PASS
+Release**; macOS/AppleClang is **514/514 PASS Debug + 514/514 PASS Release**;
+Windows/MSVC is **550/550 PASS Debug + 550/550 PASS Release**; hosted MSYS2
+CLANG64 / Clang 23 is **550/550 PASS Debug + 550/550 PASS Release**. R9's
+complete clipboard Clang ASan/UBSan selection is **76/76 PASS** and fail-closed
+preflights all five hierarchy registrations. No live clipboard or user
+filesystem destination is accessed by these tests.
+
+**Safe future materialization decision:** directory-tree creation remains
+unsupported. A later increment may combine only the verified remote parent
+index/depth facts with separately authorized native directory capabilities and
+a reviewed handle-relative child-creation primitive. POSIX must remain
+descriptor-relative/no-follow; Windows must use an approved handle-relative or
+pre-authorized-child mechanism. Remote relative names may never become local
+path authority, and no absolute-path reopen fallback is permitted.
+
 ## R8 destination-plan hierarchy expectation correction (2026-10-17; exact-SHA CI pending)
 
 At `46c6e7877e1d35e72f5f87e4bc681315bd9878ea`, Actions

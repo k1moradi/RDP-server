@@ -1,3 +1,29 @@
+## R3 CAL issuer-constraints exact-SHA validation receipt (2026-10-17)
+
+`1332fd044773b9da53bff2d81403204ecd137484`, Actions
+`39011519138`: **R3 scoped PASS / workflow overall FAIL from independent R1**.
+
+The first issuer-constraint publication `586101c7e50326f583ab0479bbfb6785353807b7`
+failed macOS/OpenSSL 4 compilation before CTest because its borrowed
+`X509_EXTENSION` pointer discarded constness. Correction `1332fd044773...`
+changes only that borrowed pointer to `const X509_EXTENSION *const`.
+
+On the corrected SHA:
+- Linux/GCC Debug: all eight CAL cases #67-#74 **PASS**; the 572-test suite later
+  fails only at R1 `transport.tcp-native-loopback-tls`.
+- macOS/AppleClang/OpenSSL 4 Debug: all eight CAL cases #67-#74 **PASS**; the
+  488-test suite later fails at the same R1 case.
+- Windows/MSVC Debug: all eight CAL cases #67-#74 **PASS**; the 521-test suite
+  later times out at the same R1 case.
+- R9 Clang ASan/UBSan: flat CAL registry preflight enumerates exactly eight
+  cases and executes **8/8 PASS**; the larger bounded R1/R3 group is **91/91
+  PASS**.
+- CI structure, R7 sanitizer and documentation policy are **PASS**.
+
+Ordinary Release, installed-consumer/package and publication stages are
+**NOT RUN** because ordinary Debug fails later outside R3. Canonical local
+testing and real Microsoft-client CAL acceptance are **NOT RUN**.
+
 ## R5 P1 native-X11 registry cardinality exact-SHA receipt (2026-10-17)
 
 `3e2962cb22c03a30ebc34ad736da7f53cdc70da6`, Actions

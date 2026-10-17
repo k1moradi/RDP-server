@@ -1,3 +1,48 @@
+## R3 CAL issuer-constraints scoped hosted validation (2026-10-17)
+
+**Implementation:** `586101c7e50326f583ab0479bbfb6785353807b7`.  
+**OpenSSL 4 correction / validated R3 source:** `1332fd044773b9da53bff2d81403204ecd137484`.  
+**Actions:** `39011519138` — overall **FAIL** from the independent R1
+`transport.tcp-native-loopback-tls` readiness regression; R3-specific
+ordinary Debug and sanitizer evidence **PASS**.
+
+The const-corrected issuer gate compiles on Linux/GCC, macOS/AppleClang with
+OpenSSL 4 and Windows/MSVC. In each ordinary Debug suite all eight flat
+`transport.licensing-client-cal-*` cases pass before the suite later reaches
+the unrelated R1 loopback-TLS failure:
+
+- Linux/GCC: CAL #67-#74 **8/8 PASS** inside the 572-test Debug registry.
+- macOS/AppleClang/OpenSSL 4: CAL #67-#74 **8/8 PASS** inside the 488-test
+  Debug registry.
+- Windows/MSVC: CAL #67-#74 **8/8 PASS** inside the 521-test Debug registry.
+
+The new `transport.licensing-client-cal-issuer-constraints` case passes on
+all three ordinary hosted toolchains. R9 Clang ASan/UBSan fail-closed
+preflights exactly the same eight CAL registrations and executes **8/8 PASS**;
+the larger bounded R1/R3 sanitizer selection also passes **91/91**. Workflow
+structure, R7 sanitizer and documentation-policy jobs pass.
+
+Ordinary Release CTest, installed-SDK/package gates and publication are
+**NOT RUN** because each ordinary Debug suite stops later at the independent R1
+native loopback-TLS test. That cross-road failure does not invalidate the
+executed R3 tests, but this roadmap item is not called fully platform-complete
+until an unchanged-R3 descendant reaches Release after R1 recovery.
+
+This gate remains non-authorizing. It proves only that peer-supplied
+intermediates are X.509 certificate-signing CAs after cryptographic signature
+verification and exact independent-root matching. Product/version correlation,
+CAL-specific expiration/renewal/classification, revocation and path-length
+policy, proprietary Microsoft licensing-extension payload decoding,
+CAL-to-HWID binding and a genuine issuing authority remain incomplete. No
+`STATUS_VALID_CLIENT`, synthetic CAL issuance or Share activation is enabled.
+
+Canonical owner-local `~/rdp-server/build/` and real-client acceptance are
+**NOT RUN** in this connector environment.
+
+**Next R3 gate:** use an unchanged-R3 descendant after the R1 loopback-TLS
+recovery to complete ordinary Linux/macOS/Windows Release execution. Do not
+advance additional CAL semantics before that validation gate closes.
+
 ## R5 P1 native-X11 registry cardinality exact-SHA validation (2026-10-17)
 
 **Correction:** `3e2962cb22c03a30ebc34ad736da7f53cdc70da6`.  

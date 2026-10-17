@@ -1,3 +1,20 @@
+## R10 multi-packet Share composition keeps only next-I/O state (2026-10-17)
+
+R3 remains the sole Share activation phase and packet owner. R10 may retain only
+the scheduler fact that the next operation is a read or write, plus R1's pending
+WANT direction. Determine that next operation exclusively from R3's protected
+write kind / completion and client-intake outcomes; do not mirror Confirm
+Active, Synchronize, Control or Font stages in a second runtime state machine.
+
+A fixed-capacity TPKT framing owner may be reused for a multi-packet transcript
+only after its complete packet was synchronously consumed through R2/R3. Reset
+must clear the prior bytes/length and return to NeedMore; Invalid and Closed
+states are terminal and cannot be revived. Every real client read is freshly R2
+reauthorized immediately before R1 I/O and is capped at the exact remaining
+TPKT boundary. Every server write follows the R10 outbound rule: freshly
+reauthorize/borrow through R2, submit only the borrowed R3 span through R1, and
+commit only R1's exact positive plaintext accepted-byte receipt.
+
 ## R10 outbound TLS writers never accept caller progress (2026-10-17)
 
 For a serialized post-admission outbound protocol record, R10 may accept only

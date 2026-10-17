@@ -102,6 +102,8 @@ using rdp_server::server::runtime::
     LinuxPersonalDesktopClientLicensingStepStatus;
 using rdp_server::server::runtime::
     LinuxPersonalDesktopValidClientWriteStepStatus;
+using rdp_server::server::runtime::
+    LinuxPersonalDesktopShareActivationStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameReader;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
@@ -1794,6 +1796,82 @@ void testConnectionPersonalDesktopValidClientR1WriteDenials(
     }
 }
 
+void testConnectionPersonalDesktopShareR1IoDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPersonalDesktopShareActivationStepStatus;
+
+    // Share needs several client TPKTs, so the production fixed-capacity
+    // framer must be reusable only after a completed packet is consumed.
+    {
+        LinuxRuntimeMcsTpktFrameReader reader;
+        constexpr std::array<std::uint8_t, 8> packet{
+            3U, 0U, 0U, 8U, 0x02U, 0xf0U, 0x80U, 0U};
+        const auto first = reader.consume(packet);
+        assert(first.bytesConsumed == packet.size());
+        assert(first.status == LinuxRuntimeMcsTpktFrameStatus::Complete);
+        assert(reader.completeTpkt().size() == packet.size());
+        assert(reader.reset());
+        assert(reader.status() == LinuxRuntimeMcsTpktFrameStatus::NeedMore);
+        assert(reader.bytesNeeded() == 4U);
+
+        const auto second = reader.consume(packet);
+        assert(second.bytesConsumed == packet.size());
+        assert(second.status == LinuxRuntimeMcsTpktFrameStatus::Complete);
+        reader.close();
+        assert(!reader.reset());
+    }
+
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-share-r1-io.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+    constexpr std::array<std::uint8_t, 4> sourceDescriptor{
+        'r', 'd', 'p', 0};
+
+    // Share cannot begin from configuration or a socket alone. Failure
+    // revokes the aggregate and a later scheduler call stays closed.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+
+        assert(!connection.startPersonalDesktopShareActivation(
+            personalPolicy, 0x10001U, 1U, sourceDescriptor, 0U, {}));
+        assert(!connection.ready());
+
+        const auto replay =
+            connection.advancePersonalDesktopShareActivation(
+                personalPolicy, true, true);
+        assert(replay.status == Step::Closed);
+        assert(replay.plaintextBytesRead == 0U);
+        assert(replay.plaintextBytesWritten == 0U);
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // Wrong product mode is terminal before Demand Active can reach R1.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+
+        assert(!connection.startPersonalDesktopShareActivation(
+            appServerPolicy, 0x10001U, 1U, sourceDescriptor, 0U, {}));
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2201,6 +2279,12 @@ int main(int argumentCount, char **argumentValues)
     {
         testConnectionPersonalDesktopClientLicensingR1IntakeDenials(
             fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-share-r1-io-denials")
+    {
+        testConnectionPersonalDesktopShareR1IoDenials(fixtureDirectory);
         return 0;
     }
     if (testCase ==

@@ -1,3 +1,53 @@
+## R10 PersonalDesktop Share activation R1 pipeline (2026-10-17)
+
+**Reconciled shared-main parent:** `2c0d116fceea990d55193cb7c113cfc69178aa11`.
+The parent contains the R10 `STATUS_VALID_CLIENT` writer; R2's policy-bound
+Graphics DVC wrappers at `361ea05e65200bf7768376c588a878f1f20f1bb2`
+also remain present.
+
+This increment composes R3's existing Share activation lifecycle without
+duplicating its protocol state. `startPersonalDesktopShareActivation()` begins
+the already-protected Demand Active transcript through R2 but exposes no wire
+borrow to the scheduler. `advancePersonalDesktopShareActivation()` owns only
+the next serialized I/O direction. Every server Demand Active, Synchronize,
+Cooperate, Granted Control and Font Map slice is freshly reauthorized/borrowed
+through R2, submitted solely through R1 `writeTlsApplicationData()`, and
+completed only with R1's positive plaintext accepted-byte count. WANT_READ and
+WANT_WRITE preserve only retry direction; short writes remain R3-owned suffixes.
+
+Client Confirm Active, Synchronize, Cooperate, Request Control and Font List
+arrive only through R1 `readTlsApplicationData()`. Before every actual read,
+R2 revalidates the live lease/R1/native-session owner. One fixed-capacity TPKT
+owner consumes exactly the remaining packet boundary; after R2/R3 accepts the
+complete TPKT it is cleared and reset for the next Share packet. Invalid/closed
+framing is not resettable. R3's returned server-write kind and client-intake
+outcome alone determine whether R10 next reads or writes, so R10 introduces no
+second Share phase state machine.
+
+Dedicated production-backed CTest:
+`runtime.linux-connection-personal-share-r1-io-denials`. It proves the
+production fixed-capacity frame owner can be reused only after a completed
+packet, cannot be revived after close, and that neither a correctly configured
+PersonalDesktop socket nor the wrong product mode can start Demand Active
+without a genuine R2 lease. Replay after aggregate revocation stays closed. No
+positive lease is fabricated. Existing R3 Share tests remain the positive
+protocol-mechanics evidence for exact Demand/Confirm/Synchronize/Control/Font
+ordering, short/zero write receipts, late Confirm Active and revocation.
+
+The direct Linux runtime-security sanitizer selector advances **23→24** and
+requires this exact sentinel. Canonical owner-local `~/rdp-server/build/` is
+**NOT RUN** in this connector environment; no alternate persistent build root
+is created. Exact publication-SHA hosted CI is recorded after publication. No
+listener, genuine credentials, native desktop or Microsoft client is activated.
+
+**Next R10:** R2's post-Share Graphics DVC authority wrappers now exist, so the
+former API blocker is resolved. Compose Graphics begin/pending-write/receipt and
+client-TPKT control/CAPS traffic through the same R1 I/O owner. R3 still owes
+DYNVC DATA_FIRST/DATA frame publication and the immutable R4-payload to outer
+plaintext mapping before live graphics DATA can be delivered. Positive
+end-to-end evidence also remains gated on an owner-authorized genuine Linux
+Kerberos/PAM/NSS/logind physical-X11 lease.
+
 ## R10 STATUS_VALID_CLIENT R1-owned writer composition (2026-10-17)
 
 **Reconciled shared-main parent:** `361ea05e65200bf7768376c588a878f1f20f1bb2`.

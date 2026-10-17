@@ -94,6 +94,10 @@ public:
     {
         return status_;
     }
+    // Reuse this bounded owner only after the previous complete TPKT has been
+    // synchronously consumed by its R2/R3 owner. Invalid/closed state is not
+    // recoverable through reset.
+    [[nodiscard]] bool reset() noexcept;
     void close() noexcept;
 
 private:
@@ -179,6 +183,25 @@ struct LinuxPersonalDesktopValidClientWriteStepResult
     std::size_t plaintextBytesWritten{};
     LinuxPersonalDesktopValidClientWriteStepStatus status{
         LinuxPersonalDesktopValidClientWriteStepStatus::Closed};
+};
+
+enum class LinuxPersonalDesktopShareActivationStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Activated,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPersonalDesktopShareActivationStepResult
+{
+    std::size_t plaintextBytesRead{};
+    std::size_t plaintextBytesWritten{};
+    LinuxPersonalDesktopShareActivationStepStatus status{
+        LinuxPersonalDesktopShareActivationStepStatus::Closed};
 };
 
 // Exact identity for one borrowed R2 logind watcher registration. R10 never
@@ -337,6 +360,25 @@ public:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // Begin R3's one Share transcript without publishing bytes. The returned
+    // R3 Demand Active borrow is deliberately not exposed; advance... below
+    // reauthorizes it and performs all actual TLS I/O through R1.
+    [[nodiscard]] bool startPersonalDesktopShareActivation(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint32_t shareId,
+        std::uint32_t sessionId,
+        std::span<const std::uint8_t> sourceDescriptor,
+        std::uint16_t capabilityCount,
+        std::span<const std::uint8_t> capabilitySets) noexcept;
+
+    // Drive exactly one serialized Share I/O step. R10 owns only whether the
+    // next scheduler operation is an R1 read or write; R3 owns Demand Active,
+    // Confirm Active, Synchronize/Control/Font sequencing and all wire state.
+    [[nodiscard]] LinuxPersonalDesktopShareActivationStepResult
+    advancePersonalDesktopShareActivation(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable) noexcept;
+
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpShareActivationWriteView>
     beginPersonalDesktopShareActivation(
@@ -443,6 +485,15 @@ public:
     }
 
 private:
+    enum class PersonalDesktopShareIoAction : std::uint8_t
+    {
+        Idle,
+        Write,
+        Read,
+        Activated,
+    };
+
+private:
     [[nodiscard]] bool credSspReplyPending() const noexcept;
     [[nodiscard]] bool reauthorizeExistingCalValidation() noexcept;
     [[nodiscard]] bool nativeChangeRegistrationMatches(
@@ -464,9 +515,13 @@ private:
     rdp_server::server::transport::McsSessionLifecycle session_{};
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
+    LinuxRuntimeMcsTpktFrameReader personalShareActivationFrameReader_{};
     const RuntimeDeploymentPolicy *personalDesktopPolicy_{};
     bool personalLicenseRequestTlsWritePending_{};
     bool personalValidClientTlsWritePending_{};
+    PersonalDesktopShareIoAction personalShareIoAction_{
+        PersonalDesktopShareIoAction::Idle};
+    bool personalShareTlsWritePending_{};
     std::optional<RuntimeExistingCalValidationBinding>
         existingCalValidation_{};
     std::optional<LinuxRuntimeNativeChangeRegistration>

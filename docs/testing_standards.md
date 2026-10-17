@@ -1,3 +1,18 @@
+## R10 Share aggregate composition stays denial-only without genuine R2 admission (2026-10-17)
+
+`runtime.linux-connection-personal-share-r1-io-denials` exercises the reusable
+production TPKT boundary owner and the production connection aggregate. It may
+prove frame reset after synchronous completion, closed-state non-revival,
+unadmitted Demand Active denial, wrong-mode denial and replay closure. It must
+not fabricate a private R2 lease, stage positive aggregate Share state or drive
+a synthetic TLS peer merely to claim positive R10 progress.
+
+Positive Share protocol mechanics stay in R3's production-backed tests,
+including Demand/Confirm correlation, mandatory Synchronize and Control
+ordering, Font finalization, zero/short write receipts, late input and
+retirement. Positive R10/R1→R2→R3 Share I/O requires the owner-authorized
+genuine host so TLS progress and native admission are both real.
+
 ## R10 Valid Client aggregate writer stays denial-only without real admission (2026-10-17)
 
 `runtime.linux-connection-personal-valid-client-r1-write-denials` exercises
@@ -26,7 +41,7 @@ run. This specifically models a late R1 write completion after logout,
 disconnect, monitor revocation or equivalent authority loss.
 
 The direct Linux runtime-security ASan/UBSan selection is now carried forward
-into the **23-case** R10 Valid Client writer selector and still requires this
+into the **24-case** R10 Share pipeline selector and still requires this
 Graphics authority case by exact name. Positive Graphics CREATE/CAPS mechanics remain
 in R3's separate six-case sanitizer gate; neither those tests nor this denial
 fixture substitutes for a genuine Kerberos/PAM/NSS/logind physical-session
@@ -60,8 +75,7 @@ R3 protocol bookkeeping and the non-authorizing policy pointer; it never mints
 a lease, authenticates a user or supplies native-session evidence. Together
 with the existing personal Valid Client/Share partial-revocation tests, this is
 the ordinary-CI late-write fence. The direct Linux runtime sanitizer selection
-is **23** cases after the R2 Graphics authority and R10 Valid Client writer
-increments and must continue to require this sentinel by name.
+is **24** cases after the R10 Share pipeline increment and must continue to require this sentinel by name.
 
 The genuine Linux positive is **NOT RUN** unless the owner explicitly authorizes
 a real host and Microsoft-client session. On that host: use the restricted real
@@ -92,17 +106,18 @@ CTest sentinel and the grouped selector fragment that can actually match its
 registered spelling. Do not compress alternatives under a shared prefix unless
 every expanded name preserves the literal CTest name.
 
-The direct Linux runtime-security gate now contains six PersonalDesktop-related
+The direct Linux runtime-security gate now contains seven PersonalDesktop-related
 cases:
 `runtime.linux-connection-personal-desktop-r3-authority-denials`,
 `runtime.linux-connection-personal-desktop-policy-receipt-denials`,
 `runtime.linux-connection-personal-desktop-graphics-dvc-authority-denials`,
 `runtime.linux-connection-personal-license-request-r1-write-denials`,
-`runtime.linux-connection-personal-client-licensing-r1-intake-denials`, and
-`runtime.linux-connection-personal-valid-client-r1-write-denials`.
+`runtime.linux-connection-personal-client-licensing-r1-intake-denials`,
+`runtime.linux-connection-personal-valid-client-r1-write-denials`, and
+`runtime.linux-connection-personal-share-r1-io-denials`.
 Their grouped expression is
-`personal-(desktop-(r3-authority|policy-receipt|graphics-dvc-authority)|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write)-denials`.
-Keep the exact **23-case** count check and sentinel checks before execution. A
+`personal-(desktop-(r3-authority|policy-receipt|graphics-dvc-authority)|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io)-denials`.
+Keep the exact **24-case** count check and sentinel checks before execution. A
 cardinality mismatch is a CI/registry assurance failure and must not be
 reported as a failing CTest.
 

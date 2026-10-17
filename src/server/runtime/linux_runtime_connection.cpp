@@ -81,6 +81,19 @@ LinuxRuntimeMcsTpktFrameReader::completeTpkt() const noexcept
                : std::span<const std::uint8_t>{};
 }
 
+bool LinuxRuntimeMcsTpktFrameReader::reset() noexcept
+{
+    if (status_ == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+        status_ == LinuxRuntimeMcsTpktFrameStatus::Closed)
+        return false;
+
+    std::fill(buffer_.begin(), buffer_.begin() + bufferedBytes_, 0U);
+    bufferedBytes_ = 0U;
+    expectedBytes_ = 0U;
+    status_ = LinuxRuntimeMcsTpktFrameStatus::NeedMore;
+    return true;
+}
+
 void LinuxRuntimeMcsTpktFrameReader::close() noexcept
 {
     std::fill(buffer_.begin(), buffer_.begin() + bufferedBytes_, 0U);
@@ -1061,6 +1074,336 @@ LinuxRuntimeConnection::completePersonalDesktopValidClientWrite(
     return outcome;
 }
 
+bool LinuxRuntimeConnection::startPersonalDesktopShareActivation(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::uint32_t shareId,
+    std::uint32_t sessionId,
+    std::span<const std::uint8_t> sourceDescriptor,
+    std::uint16_t capabilityCount,
+    std::span<const std::uint8_t> capabilitySets) noexcept
+{
+    using Kind = rdp_server::server::transport::RdpShareServerWriteKind;
+
+    if (personalShareIoAction_ != PersonalDesktopShareIoAction::Idle ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return false;
+    }
+
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopShareActivation(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            shareId, sessionId, sourceDescriptor, capabilityCount,
+            capabilitySets);
+    if (!pending || pending->kind != Kind::DemandActive ||
+        !personalShareActivationFrameReader_.reset())
+    {
+        revoke();
+        return false;
+    }
+
+    personalShareTlsWritePending_ = false;
+    personalShareIoAction_ = PersonalDesktopShareIoAction::Write;
+    return true;
+}
+
+LinuxPersonalDesktopShareActivationStepResult
+LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    bool readable, bool writable) noexcept
+{
+    using Action = PersonalDesktopShareIoAction;
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Intake =
+        rdp_server::server::transport::RdpShareActivationClientIntake;
+    using Kind =
+        rdp_server::server::transport::RdpShareServerWriteKind;
+    using Outcome =
+        rdp_server::server::transport::RdpShareActivationWriteOutcome;
+    using Step = LinuxPersonalDesktopShareActivationStepStatus;
+
+    if (!ready())
+        return {0U, 0U, Step::Closed};
+
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !broker_ || !lease_ || lease_->isRevoked())
+    {
+        personalShareActivationFrameReader_.close();
+        personalShareTlsWritePending_ = false;
+        revoke();
+        return {0U, 0U, Step::AdmissionDenied};
+    }
+
+    if (personalShareIoAction_ == Action::Activated)
+    {
+        if (session_.phase() ==
+            rdp_server::server::transport::McsSessionPhase::ShareActivated)
+            return {0U, 0U, Step::Activated};
+
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+    if (personalShareIoAction_ == Action::Idle)
+    {
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    if (personalShareIoAction_ == Action::Write)
+    {
+        if (personalShareTlsWritePending_)
+        {
+            const Interest required = connection_.ioInterest();
+            if (required == Interest::Read && !readable)
+                return {0U, 0U, Step::NeedRead};
+            if (required == Interest::Write && !writable)
+                return {0U, 0U, Step::NeedWrite};
+            if (required != Interest::Read &&
+                required != Interest::Write)
+            {
+                personalShareTlsWritePending_ = false;
+                revoke();
+                return {0U, 0U, Step::Invalid};
+            }
+        }
+        else if (!writable)
+        {
+            return {0U, 0U, Step::NeedWrite};
+        }
+
+        const auto pending =
+            broker_->authorizeR3PersonalDesktopShareActivationWrite(
+                *lease_, acceptor_, connection_, session_, deploymentPolicy);
+        if (!pending)
+        {
+            personalShareTlsWritePending_ = false;
+            revoke();
+            return {0U, 0U, Step::AdmissionDenied};
+        }
+
+        const Kind completedKind = pending->kind;
+        const auto io = connection_.writeTlsApplicationData(pending->bytes);
+        switch (io.outcome)
+        {
+        case IoOutcome::Progress:
+        {
+            personalShareTlsWritePending_ = false;
+            if (io.bytes == 0U || io.bytes > pending->bytes.size())
+            {
+                revoke();
+                return {0U, 0U, Step::Invalid};
+            }
+
+            const auto outcome =
+                broker_->completeR3PersonalDesktopShareActivationWrite(
+                    lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+                    acceptor_, connection_, session_, deploymentPolicy,
+                    pending->replySequence, pending->writeSliceSequence,
+                    io.bytes);
+            if (outcome == Outcome::Pending)
+                return {0U, io.bytes, Step::Progress};
+            if (outcome == Outcome::Activated)
+            {
+                personalShareActivationFrameReader_.close();
+                personalShareIoAction_ = Action::Activated;
+                return {0U, io.bytes, Step::Activated};
+            }
+            if (outcome != Outcome::Delivered)
+            {
+                revoke();
+                return {0U, io.bytes, Step::AdmissionDenied};
+            }
+
+            switch (completedKind)
+            {
+            case Kind::DemandActive:
+                personalShareIoAction_ = Action::Read;
+                break;
+            case Kind::Synchronize:
+                personalShareIoAction_ = Action::Write;
+                break;
+            case Kind::Cooperate:
+            case Kind::GrantedControl:
+                personalShareIoAction_ = Action::Read;
+                break;
+            case Kind::FontMap:
+            case Kind::None:
+                revoke();
+                return {0U, io.bytes, Step::Invalid};
+            }
+            return {0U, io.bytes, Step::Progress};
+        }
+        case IoOutcome::NeedRead:
+            personalShareTlsWritePending_ = true;
+            return {0U, 0U, Step::NeedRead};
+        case IoOutcome::NeedWrite:
+            personalShareTlsWritePending_ = true;
+            return {0U, 0U, Step::NeedWrite};
+        case IoOutcome::TlsClosed:
+        case IoOutcome::TransportClosed:
+            personalShareTlsWritePending_ = false;
+            personalShareActivationFrameReader_.close();
+            revoke();
+            return {0U, 0U, Step::Closed};
+        case IoOutcome::FatalTlsFailure:
+        case IoOutcome::Invalid:
+            personalShareTlsWritePending_ = false;
+            personalShareActivationFrameReader_.close();
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    const Interest required = connection_.ioInterest();
+    if (required == Interest::Closed)
+    {
+        personalShareActivationFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Closed};
+    }
+
+    const bool bufferedRead =
+        required == Interest::Read &&
+        connection_.tlsApplicationReadReady();
+    if (required == Interest::Read && !readable && !bufferedRead)
+        return {0U, 0U, Step::NeedRead};
+    if (required == Interest::Write && !writable)
+        return {0U, 0U, Step::NeedWrite};
+    if (required != Interest::Read && required != Interest::Write)
+    {
+        personalShareActivationFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    {
+        personalShareActivationFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::AdmissionDenied};
+    }
+
+    constexpr std::size_t kReadChunkBytes = 512U;
+    std::array<std::uint8_t, kReadChunkBytes> plaintext{};
+    const std::size_t needed =
+        personalShareActivationFrameReader_.bytesNeeded();
+    if (needed == 0U ||
+        needed >
+            rdp_server::server::transport::kMaximumInitialMcsTpktBytes)
+    {
+        personalShareActivationFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    const std::size_t requested =
+        (std::min)(plaintext.size(), needed);
+    const auto io = connection_.readTlsApplicationData(
+        std::span<std::uint8_t>{plaintext}.first(requested));
+
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        if (io.bytes == 0U || io.bytes > requested)
+        {
+            personalShareActivationFrameReader_.close();
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+
+        const auto framed = personalShareActivationFrameReader_.consume(
+            std::span<const std::uint8_t>{plaintext}.first(io.bytes));
+        std::fill(plaintext.begin(), plaintext.begin() + io.bytes, 0U);
+        if (framed.bytesConsumed != io.bytes ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Closed)
+        {
+            personalShareActivationFrameReader_.close();
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
+        }
+        if (framed.status == LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+            return {io.bytes, 0U, Step::Progress};
+
+        const auto completeTpkt =
+            personalShareActivationFrameReader_.completeTpkt();
+        if (completeTpkt.empty())
+        {
+            personalShareActivationFrameReader_.close();
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
+        }
+
+        const auto intake =
+            broker_->authorizeR3PersonalDesktopShareActivationPdu(
+                *lease_, acceptor_, connection_, session_, deploymentPolicy,
+                completeTpkt);
+        if (intake == Intake::Rejected || intake == Intake::Closed ||
+            !personalShareActivationFrameReader_.reset())
+        {
+            personalShareActivationFrameReader_.close();
+            revoke();
+            return {
+                io.bytes, 0U,
+                intake == Intake::Closed ? Step::Closed : Step::Invalid};
+        }
+
+        switch (intake)
+        {
+        case Intake::ConfirmActiveAccepted:
+        case Intake::RequestControlAccepted:
+        case Intake::FontListAccepted:
+            personalShareIoAction_ = Action::Write;
+            break;
+        case Intake::SynchronizeAccepted:
+        case Intake::CooperateAccepted:
+            personalShareIoAction_ = Action::Read;
+            break;
+        case Intake::Rejected:
+        case Intake::Closed:
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
+        }
+        return {io.bytes, 0U, Step::Progress};
+    }
+    case IoOutcome::NeedRead:
+        return {0U, 0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        return {0U, 0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        personalShareActivationFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        personalShareActivationFrameReader_.close();
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    personalShareActivationFrameReader_.close();
+    revoke();
+    return {0U, 0U, Step::Invalid};
+}
+
 std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
 LinuxRuntimeConnection::beginPersonalDesktopShareActivation(
     const RuntimeDeploymentPolicy &deploymentPolicy,
@@ -1437,6 +1780,9 @@ void LinuxRuntimeConnection::revoke() noexcept
     // owner disappears. The complete span is never retained across R2/R3 use.
     mcsConnectInitialFrameReader_.close();
     personalClientLicensingFrameReader_.close();
+    personalShareActivationFrameReader_.close();
+    personalShareIoAction_ = PersonalDesktopShareIoAction::Idle;
+    personalShareTlsWritePending_ = false;
     personalValidClientTlsWritePending_ = false;
     personalDesktopPolicy_ = nullptr;
     personalLicenseRequestTlsWritePending_ = false;

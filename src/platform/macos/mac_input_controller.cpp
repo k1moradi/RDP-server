@@ -60,6 +60,7 @@ void MacInputController::clearHeldState() noexcept {
 void MacInputController::invalidateWithoutNativeInput() noexcept {
     closed_ = true;
     cancellationRequested_ = false;
+    retirementWithoutNativeInputRequested_ = false;
     geometry_ = nullptr;
     pinnedGeneration_ = 0;
     pinnedTopologyRevision_ = 0;
@@ -273,6 +274,10 @@ bool MacInputController::handle(const MacInputEvent& event) noexcept {
         },
         event);
 
+    if (retirementWithoutNativeInputRequested_) {
+        invalidateWithoutNativeInput();
+        return false;
+    }
     if (!handled) {
         if (!closed_) {
             cancellationRequested_ = true;
@@ -330,6 +335,21 @@ void MacInputController::finishDeferredCancellation() noexcept {
     pinnedTopologyRevision_ = 0;
     pinnedSessionWatchRevision_ = 0;
     clearHeldState();
+}
+
+void MacInputController::retireWithoutNativeInput() noexcept {
+    if (closed_) {
+        return;
+    }
+    if (operationInProgress_) {
+        // Authority loss outranks a pending graceful cancellation. The outer
+        // handle() path discards held state after the in-flight native callback
+        // returns and emits no key/button release events.
+        retirementWithoutNativeInputRequested_ = true;
+        cancellationRequested_ = false;
+        return;
+    }
+    invalidateWithoutNativeInput();
 }
 
 void MacInputController::cancel() noexcept {

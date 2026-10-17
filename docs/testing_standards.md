@@ -913,7 +913,16 @@ The dedicated job covers registration, retirement, delayed-callback,
 partial-install, destructor, reentry, guard revocation, stale held-input
 suppression, input-callback races and stale cursor publication across
 GUI-session, topology and geometry-generation replacement without AppKit, TCC,
-a live desktop, native cursor sampling or native input posting. Cursor tests
+a live desktop, native cursor sampling or native input posting. Independently,
+`macos.input-controller-authority-retirement-no-native-post` must prove that
+R2 admission revocation or R3 Share/input-authority loss can terminally retire
+held input while geometry/session freshness is still current **without** calling
+the native posting callback. The same case covers revocation requested from an
+already-active native callback: the accepted event cannot be retracted, but the
+outer operation fails and no cleanup/release event follows. Keep
+`MacInputController::cancel()` for graceful teardown only while upstream input
+authority is still current; use `retireWithoutNativeInput()` after authority
+loss. Cursor tests
 must distinguish owned shape lifetime from current-desktop eligibility: a
 same-dimensions geometry refresh, explicit invalidation, failed refresh or
 topology revision change must deny `validFor` / `pixelsFor` and a later

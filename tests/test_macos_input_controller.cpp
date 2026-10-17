@@ -121,6 +121,7 @@ struct FakeInputBackend final {
     std::size_t forcedAccepted{static_cast<std::size_t>(-1)};
     MacInputController* controller{};
     bool cancelDuringSend{};
+    bool retireWithoutNativeInputDuringSend{};
     bool reenterDuringSend{};
     bool revokeTopologyDuringSend{};
     bool revokeSessionDuringSend{};
@@ -143,6 +144,11 @@ struct FakeInputBackend final {
         if (self.cancelDuringSend && self.controller != nullptr) {
             self.cancelDuringSend = false;
             self.controller->cancel();
+        }
+        if (self.retireWithoutNativeInputDuringSend &&
+            self.controller != nullptr) {
+            self.retireWithoutNativeInputDuringSend = false;
+            self.controller->retireWithoutNativeInput();
         }
         if (self.revokeTopologyDuringSend) {
             self.revokeTopologyDuringSend = false;
@@ -393,6 +399,58 @@ void testRevocationAndCleanup() {
     }
 }
 
+void testAuthorityRetirementNoNativePost() {
+    // R2 admission or R3 Share/input-authority loss is terminal even while
+    // native display/session freshness itself remains current. Held state is
+    // discarded rather than released through the native callback.
+    {
+        NativeDisplayGeometryRefresh geometry;
+        auto fixture = retinaFixture();
+        const auto generation = refresh(geometry, fixture);
+        FakeInputBackend backend;
+        MacInputController controller(
+            geometry, backend.callbacks(), generation);
+
+        assert(controller.handle(MacKeyInput{13, 0x24, false, true}));
+        assert(controller.handle(MacPointerButtonInput{
+            20, 20, MacPointerButton::Left, true}));
+        const std::size_t acceptedBeforeRetirement = backend.commandCount;
+        assert(acceptedBeforeRetirement == 3);
+
+        controller.retireWithoutNativeInput();
+        assert(controller.closed() && controller.generation() == 0);
+        assert(backend.commandCount == acceptedBeforeRetirement);
+
+        controller.retireWithoutNativeInput();
+        controller.cancel();
+        assert(!controller.handle(MacKeyInput{13, 0x24, false, false}));
+        assert(backend.commandCount == acceptedBeforeRetirement);
+    }
+
+    // Revocation may be serialized while one native callback is already
+    // active. That accepted event cannot be retracted, but the outer handle
+    // must fail terminally and no release/cleanup callback may follow it.
+    {
+        NativeDisplayGeometryRefresh geometry;
+        auto fixture = retinaFixture();
+        const auto generation = refresh(geometry, fixture);
+        FakeInputBackend backend;
+        MacInputController controller(
+            geometry, backend.callbacks(), generation);
+        backend.controller = &controller;
+        backend.retireWithoutNativeInputDuringSend = true;
+
+        assert(!controller.handle(MacKeyInput{14, 0x25, false, true}));
+        assert(controller.closed() && controller.generation() == 0);
+        assert(backend.commandCount == 1);
+        assert(backend.commands[0].kind == MacNativeInputKind::KeyDown);
+
+        controller.cancel();
+        controller.retireWithoutNativeInput();
+        assert(backend.commandCount == 1);
+    }
+}
+
 void testSessionWatchRevocation() {
     assert(gSessionWatchFixture != nullptr);
 
@@ -462,6 +520,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testValidationDenials();
     } else if (testCase == "revocation-cleanup") {
         testRevocationAndCleanup();
+    } else if (testCase == "authority-retirement-no-native-post") {
+        testAuthorityRetirementNoNativePost();
     } else if (testCase == "session-watch-revocation") {
         testSessionWatchRevocation();
     } else {

@@ -110,8 +110,19 @@ public:
     MacInputController& operator=(MacInputController&&) = delete;
 
     [[nodiscard]] bool handle(const MacInputEvent& event) noexcept;
+
+    // Terminal retirement for upstream R2 admission revocation or R3
+    // Share/input-authority loss. Held state is discarded without invoking
+    // the native callback, even when retirement is requested reentrantly from
+    // an in-flight callback. An already accepted native event cannot be
+    // retracted, but no cleanup/release event may be posted afterward.
+    void retireWithoutNativeInput() noexcept;
+
     // Best-effort release of held keys/buttons only while the pinned display
     // epoch remains current, then terminally invalidate this controller.
+    // R10 may use this only for graceful teardown while upstream R2/R3 input
+    // authority is still current. Authority loss must use
+    // retireWithoutNativeInput().
     void cancel() noexcept;
 
     [[nodiscard]] bool closed() const noexcept { return closed_; }
@@ -159,6 +170,7 @@ private:
     bool havePointerPosition_{};
     bool operationInProgress_{};
     bool cancellationRequested_{};
+    bool retirementWithoutNativeInputRequested_{};
     bool closed_{};
 };
 

@@ -1,3 +1,55 @@
+## R7 macOS authority-loss no-post retirement authoring receipt (2026-10-17)
+
+**Green verification baseline:** `67506c6e43ff0ed76b00e757ad07db8fab370727`.
+Primary Actions `39045944788` and structure Actions `39045944783` are
+**SUCCESS**. The primary run's `r7-macos-native-lifecycle` job
+`117434587582` passes Debug and Release; its preflight requires all three
+`macos.capture-r4-bgra-layout-contract`,
+`macos.capture-r4-pixel-lifetime-retirement`, and
+`macos.capture-r4-display-generation-denials` names before executing the
+focused selection. `r7-macos-session-sanitizers` job `117434587571` is
+**SUCCESS**, and full `protocol (macos-latest)` job `117434587790` is
+**SUCCESS** in Debug and Release. This is hosted deterministic evidence only,
+not owner macOS 27 or live Microsoft-client acceptance.
+
+R7 capture source is unchanged. `LockedBgraPixelBuffer` retains the
+CoreVideo object and holds `kCVPixelBufferLock_ReadOnly` across the synchronous
+`MacCaptureFrameConsumer::consume` call, so the borrowed `FramebufferView`
+does not escape into asynchronous ScreenCaptureKit work. The native
+ScreenCaptureKit backend remains unexposed; callbacks retain shared state/native
+objects, not a borrowed CoreVideo pointer. Late successful start after owner
+retirement still claims one stop, and geometry/topology/session replacement is
+terminal. A post-consumer stale fence returns `RetireStream`; any prepared
+R4 owner is therefore unwritten and must be canceled before R3 publication.
+
+The input audit found one independently actionable R7 lifecycle defect for
+future R10 composition. `MacInputController::cancel()` deliberately emits
+best-effort held key/button releases while native freshness is current. That is
+correct for a graceful authorized shutdown but unsafe as the R2-admission/R3-
+Share revocation primitive because it could post Quartz events after authority
+has ended. This increment adds `retireWithoutNativeInput()`, which discards
+held state without invoking the native callback. If requested reentrantly while
+one callback is active, retirement is deferred until that callback returns; the
+outer `handle()` fails and emits no cleanup/release event. Dedicated CTest
+`macos.input-controller-authority-retirement-no-native-post` covers both the
+held-state and in-flight-callback cases.
+
+R2/R10 contract is recorded in the canonical roadmap: R2 authenticates the
+local user and alone mints/revokes the private lifetime after console/effective/
+audit UID agreement, nonzero audit session and graphical non-remote/non-root
+Security-session evidence. R10 alone owns AppKit main-loop session-watch
+composition and may reach future private ScreenCaptureKit/Quartz operations
+only while that R2 lifetime and the same connection's R3 PersonalDesktop
+`ShareActivated` authority are current. Screen Recording and Accessibility
+remain independent non-prompting prerequisites, never authentication.
+
+Canonical owner-local `~/rdp-server/build/` execution for this new change:
+**NOT RUN** in the connector environment; no alternate build root was created.
+Exact publication-SHA hosted CI: **PENDING**. No live desktop enumeration,
+capture, TCC prompt or Quartz posting was performed. macOS 27 owner-native and
+genuine Microsoft-client personal-desktop acceptance remain **NOT RUN** pending
+upstream authority-bearing composition and explicit owner authorization.
+
 ## R9 duplicate workflow-tail correction (2026-10-17)
 
 Corrective SHA `b116837f04818caf37ee167b0731a6454e4ff498` restored the

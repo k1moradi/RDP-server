@@ -1513,7 +1513,7 @@ else()
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
 foreach(case_name IN ITEMS lifecycle validation-denials revocation-cleanup
-        session-watch-revocation)
+        authority-retirement-no-native-post session-watch-revocation)
     add_test(NAME "macos.input-controller-${case_name}"
         COMMAND test_macos_input_controller "${case_name}")
     set_tests_properties("macos.input-controller-${case_name}" PROPERTIES

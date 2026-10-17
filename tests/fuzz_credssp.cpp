@@ -70,7 +70,7 @@ void exerciseTsRequestParser(std::span<const std::uint8_t> bytes) noexcept
         requireInvariant(first.value.encryptedAuthInfo.empty());
         requireInvariant(first.value.encryptedPubKeyAuth.empty());
         requireInvariant(first.value.clientNonce.empty());
-        for (const auto token : first.value.tokens)
+        for (const auto &token : first.value.tokens)
             requireInvariant(token.empty());
         return;
     }
@@ -214,7 +214,7 @@ extern "C" int LLVMFuzzerTestOneInput(
     const std::uint8_t *data, std::size_t size)
 {
     constexpr std::size_t kMaximumFuzzInputBytes =
-        kMaximumCredSspRequestBytes;
+        rdp_server::server::security::kMaximumCredSspRequestBytes;
     if (size > kMaximumFuzzInputBytes)
         return 0;
 

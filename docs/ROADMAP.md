@@ -1,3 +1,14 @@
+## R9 CredSSP fuzzer compile-scope correction (2026-10-16; exact-SHA CI pending)
+
+Static review after workflow recovery found two test-only source issues before
+claiming executable evidence. The C-linkage libFuzzer entry point is outside the
+anonymous namespace that imports the CredSSP symbols, so the production 16-KiB
+limit is now explicitly namespace-qualified. The failure-token loop also binds
+each `std::span` by const reference to stay warning-clean under strict
+range-loop diagnostics. Fuzzer behavior, corpus, bounds and production code are
+unchanged. The preceding workflow remains non-authoritative until the corrected
+SHA executes.
+
 ## R9 CredSSP fuzzer workflow-generation correction (2026-10-16; exact-SHA CI pending)
 
 The first fuzzing publication `8ad5f1285fa2e37b0ee19b2b04e74e42ec2d8c46`

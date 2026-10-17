@@ -11,6 +11,7 @@
 #include "server/transport/mcs_channel_connection.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -56,6 +57,73 @@ struct LinuxPreAdmissionStepResult
     std::size_t plaintextBytesRead{};
     std::size_t plaintextBytesWritten{};
     LinuxPreAdmissionStepStatus status{LinuxPreAdmissionStepStatus::Closed};
+};
+
+enum class LinuxRuntimeMcsTpktFrameStatus : std::uint8_t
+{
+    NeedMore,
+    Complete,
+    Invalid,
+    Closed,
+};
+
+struct LinuxRuntimeMcsTpktFrameResult
+{
+    std::size_t bytesConsumed{};
+    LinuxRuntimeMcsTpktFrameStatus status{
+        LinuxRuntimeMcsTpktFrameStatus::NeedMore};
+};
+
+// R10-owned fixed-capacity framing only. It recognizes exactly one RFC1006
+// TPKT boundary and never parses/admit MCS, reads TLS, or retains caller
+// storage. R3 remains the sole MCS/GCC parser after R2 authorization.
+class LinuxRuntimeMcsTpktFrameReader final
+{
+public:
+    LinuxRuntimeMcsTpktFrameReader() noexcept = default;
+    LinuxRuntimeMcsTpktFrameReader(
+        const LinuxRuntimeMcsTpktFrameReader &) = delete;
+    LinuxRuntimeMcsTpktFrameReader &operator=(
+        const LinuxRuntimeMcsTpktFrameReader &) = delete;
+
+    [[nodiscard]] LinuxRuntimeMcsTpktFrameResult consume(
+        std::span<const std::uint8_t> plaintext) noexcept;
+    [[nodiscard]] std::size_t bytesNeeded() const noexcept;
+    [[nodiscard]] std::span<const std::uint8_t> completeTpkt() const noexcept;
+    [[nodiscard]] LinuxRuntimeMcsTpktFrameStatus status() const noexcept
+    {
+        return status_;
+    }
+    void close() noexcept;
+
+private:
+    [[nodiscard]] LinuxRuntimeMcsTpktFrameResult reject(
+        std::size_t bytesConsumed) noexcept;
+
+    std::array<std::uint8_t,
+        rdp_server::server::transport::kMaximumInitialMcsTpktBytes> buffer_{};
+    std::size_t bufferedBytes_{};
+    std::size_t expectedBytes_{};
+    LinuxRuntimeMcsTpktFrameStatus status_{
+        LinuxRuntimeMcsTpktFrameStatus::NeedMore};
+};
+
+enum class LinuxPostAdmissionMcsStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    AdmittedConnectInitial,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPostAdmissionMcsStepResult
+{
+    std::size_t plaintextBytesRead{};
+    LinuxPostAdmissionMcsStepStatus status{
+        LinuxPostAdmissionMcsStepStatus::Closed};
 };
 
 // Exact identity for one borrowed R2 logind watcher registration. R10 never
@@ -154,6 +222,17 @@ public:
     [[nodiscard]] rdp_server::server::transport::McsSessionIntake
     authorizeMcsConnectInitial(
         std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // First post-admission application-data scheduler step. Only after a
+    // genuine current R2 lease exists, read at most one bounded plaintext
+    // chunk through the sole R1 SSL owner. Exact TPKT framing prevents
+    // consuming bytes from the following PDU. Buffered OpenSSL plaintext may
+    // progress without a fresh socket POLLIN; pending WANT direction wins.
+    // A completed TPKT is synchronously passed to the existing R2-authorized
+    // R3 Connect Initial entry and is never retained after that call.
+    [[nodiscard]] LinuxPostAdmissionMcsStepResult
+    advancePostAdmissionMcsConnectInitial(
+        bool readable, bool writable) noexcept;
 
     // R10-facing personal-desktop security boundary. The immutable policy is
     // the only product-mode input; R2 keeps the lease and generation pair
@@ -302,6 +381,7 @@ private:
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionLease>
         lease_{};
     rdp_server::server::transport::McsSessionLifecycle session_{};
+    LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
     std::optional<RuntimeExistingCalValidationBinding>
         existingCalValidation_{};
     std::optional<LinuxRuntimeNativeChangeRegistration>

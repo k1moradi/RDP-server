@@ -5,6 +5,7 @@
 
 #include <krb5.h>
 
+#include <algorithm>
 #include <cassert>
 #include <array>
 #include <cerrno>
@@ -60,7 +61,10 @@ namespace
 {
 using rdp_server::server::runtime::LinuxCredSspStepStatus;
 using rdp_server::server::runtime::LinuxPreAdmissionStepStatus;
+using rdp_server::server::runtime::LinuxPostAdmissionMcsStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
+using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameReader;
+using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
 using rdp_server::server::runtime::LinuxRuntimeNativeChangeRegistration;
 using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
 using rdp_server::server::runtime::RuntimeLicensingAuthority;
@@ -831,6 +835,98 @@ void testConnectionCredSspProgressAccounting(
     assert(!connection.ready());
     assert(connection.onCredSspIoReady().status ==
            LinuxCredSspStepStatus::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
+void testConnectionPostAdmissionMcsFramingDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using FrameStatus = LinuxRuntimeMcsTpktFrameStatus;
+    using Step = LinuxPostAdmissionMcsStepStatus;
+
+    constexpr std::array<std::uint8_t, 8U> minimalTpkt{
+        0x03U, 0x00U, 0x00U, 0x08U,
+        0x02U, 0xf0U, 0x80U, 0x00U};
+
+    {
+        LinuxRuntimeMcsTpktFrameReader reader;
+        assert(reader.bytesNeeded() == 4U);
+        auto framed = reader.consume(std::span{minimalTpkt}.first(2U));
+        assert(framed.bytesConsumed == 2U);
+        assert(framed.status == FrameStatus::NeedMore);
+        assert(reader.bytesNeeded() == 2U);
+
+        framed = reader.consume(std::span{minimalTpkt}.subspan(2U, 2U));
+        assert(framed.bytesConsumed == 2U);
+        assert(framed.status == FrameStatus::NeedMore);
+        assert(reader.bytesNeeded() == 4U);
+
+        std::array<std::uint8_t, 5U> finalAndFollowing{
+            minimalTpkt[4], minimalTpkt[5], minimalTpkt[6], minimalTpkt[7],
+            0xaaU};
+        framed = reader.consume(finalAndFollowing);
+        assert(framed.bytesConsumed == 4U);
+        assert(framed.status == FrameStatus::Complete);
+        assert(reader.bytesNeeded() == 0U);
+        const auto complete = reader.completeTpkt();
+        assert(complete.size() == minimalTpkt.size());
+        assert(std::equal(
+            complete.begin(), complete.end(), minimalTpkt.begin()));
+        reader.close();
+        assert(reader.status() == FrameStatus::Closed);
+        assert(reader.completeTpkt().empty());
+    }
+
+    for (const std::array<std::uint8_t, 4U> invalidHeader : {
+             std::array<std::uint8_t, 4U>{0x02U, 0x00U, 0x00U, 0x08U},
+             std::array<std::uint8_t, 4U>{0x03U, 0x01U, 0x00U, 0x08U},
+             std::array<std::uint8_t, 4U>{0x03U, 0x00U, 0x00U, 0x07U},
+             std::array<std::uint8_t, 4U>{0x03U, 0x00U, 0x20U, 0x01U}})
+    {
+        LinuxRuntimeMcsTpktFrameReader reader;
+        const auto framed = reader.consume(invalidHeader);
+        assert(framed.bytesConsumed == invalidHeader.size());
+        assert(framed.status == FrameStatus::Invalid);
+        assert(reader.bytesNeeded() == 0U);
+        assert(reader.completeTpkt().empty());
+    }
+
+    {
+        LinuxRuntimeMcsTpktFrameReader truncated;
+        auto framed = truncated.consume(std::span{minimalTpkt}.first(6U));
+        assert(framed.bytesConsumed == 6U);
+        assert(framed.status == FrameStatus::NeedMore);
+        assert(truncated.bytesNeeded() == 2U);
+        truncated.close();
+        assert(truncated.status() == FrameStatus::Closed);
+        assert(truncated.completeTpkt().empty());
+    }
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-post-admission-mcs.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    const auto denied =
+        connection.advancePostAdmissionMcsConnectInitial(true, true);
+    assert(denied.status == Step::AdmissionDenied);
+    assert(denied.plaintextBytesRead == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    const auto replay =
+        connection.advancePostAdmissionMcsConnectInitial(true, true);
+    assert(replay.status == Step::Closed);
+    assert(replay.plaintextBytesRead == 0U);
     assert(::close(clientDescriptor) == 0);
 }
 
@@ -1691,6 +1787,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-pre-admission-dispatch")
     {
         testConnectionPreAdmissionDispatch(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-post-admission-mcs-framing-denials")
+    {
+        testConnectionPostAdmissionMcsFramingDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

@@ -8,6 +8,87 @@
 namespace rdp_server::server::runtime
 {
 
+LinuxRuntimeMcsTpktFrameResult
+LinuxRuntimeMcsTpktFrameReader::reject(
+    std::size_t bytesConsumed) noexcept
+{
+    std::fill(buffer_.begin(), buffer_.begin() + bufferedBytes_, 0U);
+    bufferedBytes_ = 0U;
+    expectedBytes_ = 0U;
+    status_ = LinuxRuntimeMcsTpktFrameStatus::Invalid;
+    return {bytesConsumed, status_};
+}
+
+LinuxRuntimeMcsTpktFrameResult
+LinuxRuntimeMcsTpktFrameReader::consume(
+    std::span<const std::uint8_t> plaintext) noexcept
+{
+    if (status_ == LinuxRuntimeMcsTpktFrameStatus::Closed ||
+        status_ == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+        status_ == LinuxRuntimeMcsTpktFrameStatus::Complete)
+        return {0U, status_};
+
+    std::size_t consumed = 0U;
+    while (consumed < plaintext.size() &&
+           status_ == LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+    {
+        const std::size_t needed = bytesNeeded();
+        if (needed == 0U || needed > buffer_.size() - bufferedBytes_)
+            return reject(consumed);
+
+        const std::size_t count =
+            (std::min)(needed, plaintext.size() - consumed);
+        std::copy_n(
+            plaintext.data() + consumed, count,
+            buffer_.data() + bufferedBytes_);
+        bufferedBytes_ += count;
+        consumed += count;
+
+        if (expectedBytes_ == 0U && bufferedBytes_ >= 4U)
+        {
+            const std::size_t length =
+                (static_cast<std::size_t>(buffer_[2]) << 8U) |
+                static_cast<std::size_t>(buffer_[3]);
+            if (buffer_[0] != 3U || buffer_[1] != 0U ||
+                length < 8U || length > buffer_.size())
+                return reject(consumed);
+            expectedBytes_ = length;
+        }
+
+        if (expectedBytes_ != 0U && bufferedBytes_ == expectedBytes_)
+            status_ = LinuxRuntimeMcsTpktFrameStatus::Complete;
+    }
+    return {consumed, status_};
+}
+
+std::size_t LinuxRuntimeMcsTpktFrameReader::bytesNeeded() const noexcept
+{
+    if (status_ != LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+        return 0U;
+    if (bufferedBytes_ < 4U)
+        return 4U - bufferedBytes_;
+    if (expectedBytes_ == 0U || expectedBytes_ <= bufferedBytes_)
+        return 0U;
+    return expectedBytes_ - bufferedBytes_;
+}
+
+std::span<const std::uint8_t>
+LinuxRuntimeMcsTpktFrameReader::completeTpkt() const noexcept
+{
+    return status_ == LinuxRuntimeMcsTpktFrameStatus::Complete &&
+                   expectedBytes_ == bufferedBytes_
+               ? std::span<const std::uint8_t>{buffer_}.first(expectedBytes_)
+               : std::span<const std::uint8_t>{};
+}
+
+void LinuxRuntimeMcsTpktFrameReader::close() noexcept
+{
+    std::fill(buffer_.begin(), buffer_.begin() + bufferedBytes_, 0U);
+    bufferedBytes_ = 0U;
+    expectedBytes_ = 0U;
+    status_ = LinuxRuntimeMcsTpktFrameStatus::Closed;
+}
+
 LinuxRuntimeConnection::LinuxRuntimeConnection(
     LinuxRuntimeSecurityConfiguration &securityConfiguration,
     rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket)
@@ -395,6 +476,129 @@ LinuxRuntimeConnection::authorizeMcsConnectInitial(
         revoke();
     }
     return result;
+}
+
+LinuxPostAdmissionMcsStepResult
+LinuxRuntimeConnection::advancePostAdmissionMcsConnectInitial(
+    bool readable, bool writable) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Stage = rdp_server::server::transport::PreauthStage;
+    using Step = LinuxPostAdmissionMcsStepStatus;
+    using Intake = rdp_server::server::transport::McsSessionIntake;
+
+    if (!provisioned_ || !connection_.active())
+        return {0U, Step::Closed};
+
+    if (!broker_ || !lease_ || lease_->isRevoked() ||
+        credSspReplyPending() ||
+        connection_.stage() != Stage::AwaitMcsConnectInitial ||
+        session_.phase() !=
+            rdp_server::server::transport::McsSessionPhase::
+                AwaitVerifiedR2Admission)
+    {
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    const Interest required = connection_.ioInterest();
+    if (required == Interest::Closed)
+    {
+        revoke();
+        return {0U, Step::Closed};
+    }
+    const bool bufferedRead =
+        required == Interest::Read &&
+        connection_.tlsApplicationReadReady();
+    if (required == Interest::Read && !readable && !bufferedRead)
+        return {0U, Step::NeedRead};
+    if (required == Interest::Write && !writable)
+        return {0U, Step::NeedWrite};
+    if (required != Interest::Read && required != Interest::Write)
+    {
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    {
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    constexpr std::size_t kReadChunkBytes = 512U;
+    std::array<std::uint8_t, kReadChunkBytes> plaintext{};
+    const std::size_t needed = mcsConnectInitialFrameReader_.bytesNeeded();
+    if (needed == 0U ||
+        needed >
+            rdp_server::server::transport::kMaximumInitialMcsTpktBytes)
+    {
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    const std::size_t requested = (std::min)(plaintext.size(), needed);
+    const auto io = connection_.readTlsApplicationData(
+        std::span<std::uint8_t>{plaintext}.first(requested));
+
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        if (io.bytes == 0U || io.bytes > requested)
+        {
+            revoke();
+            return {0U, Step::Invalid};
+        }
+        const auto framed = mcsConnectInitialFrameReader_.consume(
+            std::span<const std::uint8_t>{plaintext}.first(io.bytes));
+        std::fill(plaintext.begin(), plaintext.begin() + io.bytes, 0U);
+        if (framed.bytesConsumed != io.bytes ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Closed)
+        {
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+        if (framed.status == LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+            return {io.bytes, Step::Progress};
+
+        const auto completeTpkt =
+            mcsConnectInitialFrameReader_.completeTpkt();
+        if (completeTpkt.empty())
+        {
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+
+        const Intake intake = authorizeMcsConnectInitial(completeTpkt);
+        mcsConnectInitialFrameReader_.close();
+        if (intake == Intake::AdmittedConnectInitial)
+            return {io.bytes, Step::AdmittedConnectInitial};
+        return {
+            io.bytes,
+            intake == Intake::AdmissionDenied ? Step::AdmissionDenied
+                                              : Step::Invalid};
+    }
+    case IoOutcome::NeedRead:
+        return {0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        return {0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        mcsConnectInitialFrameReader_.close();
+        revoke();
+        return {0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        mcsConnectInitialFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    revoke();
+    return {0U, Step::Invalid};
 }
 
 bool LinuxRuntimeConnection::selectPersonalDesktopLicensingMode(
@@ -832,6 +1036,10 @@ LinuxRuntimeConnection::cancelExistingCalValidation() noexcept
 
 void LinuxRuntimeConnection::revoke() noexcept
 {
+    // Retire untrusted post-admission framing before any authority or transport
+    // owner disappears. The complete span is never retained across R2/R3 use.
+    mcsConnectInitialFrameReader_.close();
+
     // Never close R2's borrowed monitor fd. Real poller removal precedes any
     // registered callback/revocation; this discards only aggregate identity.
     nativeChangeRegistration_.reset();

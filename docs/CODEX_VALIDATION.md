@@ -1,3 +1,49 @@
+## R10 post-admission R1-owned MCS TPKT composition authoring receipt (2026-10-17)
+
+**Reconciled starting main:** `483be256489aebc6006fc8977bacf4445d4cd9c5`
+(R2 personal-desktop wrappers). This increment preserves those wrappers and
+changes only the serialized R10 first-MCS intake, its dedicated Linux CTest,
+the directly affected R9 selector/structure sentinel and canonical roadmap
+evidence.
+
+After genuine R2 admission has moved the exact R1 HYBRID owner to
+`AwaitMcsConnectInitial`, `advancePostAdmissionMcsConnectInitial()` performs
+at most one bounded R1 `readTlsApplicationData()` operation per event-loop
+step. It never calls the legacy diagnostic MCS reader. Current R1 WANT
+direction wins; wrong-direction readiness performs zero TLS I/O. With read
+interest, `tlsApplicationReadReady()` allows already-decrypted plaintext to
+progress without fresh native POLLIN.
+
+A fixed 8 KiB R10 frame owner first reads the exact four-byte RFC1006 header,
+rejects wrong version/reserved byte and lengths outside 8..8192, then requests
+only the declared remaining bytes. It cannot consume a following plaintext PDU.
+R2 `revalidate()` runs immediately before each actual R1 read. On completion,
+the exact frame is borrowed synchronously by the existing
+`authorizeR3McsConnectInitial()` broker path, which reauthorizes again while
+binding R3 to the genuine lease generations; R10 then wipes the frame.
+Revocation retires framing before R3/R2 and before R1 SSL/BIO/socket teardown.
+
+Dedicated production-backed CTest:
+`runtime.linux-connection-post-admission-mcs-framing-denials`. It covers
+fragmented exact-length framing, following-byte preservation, wrong
+version/reserved/short/oversized TPKT lengths, truncated retirement,
+pre-admission aggregate denial and terminal replay. Ordinary CI does not mint a
+positive Linux lease. Existing R1
+`transport.tcp-owned-buffered-tls-credssp-mcs-readiness` retains the
+buffered-plaintext and WANT-direction transport regression.
+
+Concurrent R2 `483be256` also registered
+`runtime.linux-connection-personal-desktop-r3-authority-denials` without yet
+adding it to the direct runtime-security sanitizer selector. This reconciled
+increment selects both that landed R2 case and the new R10 framing case, moving
+the direct Linux sanitizer census **16→18** instead of overwriting R2 work.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest:
+**NOT RUN** in this connector environment; no alternate checkout/build root was
+created. Exact publication-SHA hosted Linux/full cross-platform/sanitizer CI:
+**PENDING** at authoring time. Live positive final-CredSSP + first-MCS remains
+**NOT RUN** pending an owner-authorized real Kerberos/PAM/NSS/logind lease.
+
 ## R7 macOS authority-loss no-post retirement verification (2026-10-17)
 
 **Exact landed SHA:** `d93f1a0e8b31a43401e3b0cfae5bd439caae7664`.

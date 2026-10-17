@@ -1,16 +1,21 @@
-## R7 macOS authority-loss no-post retirement authoring receipt (2026-10-17)
+## R7 macOS authority-loss no-post retirement verification (2026-10-17)
 
-**Green verification baseline:** `67506c6e43ff0ed76b00e757ad07db8fab370727`.
-Primary Actions `39045944788` and structure Actions `39045944783` are
-**SUCCESS**. The primary run's `r7-macos-native-lifecycle` job
-`117434587582` passes Debug and Release; its preflight requires all three
-`macos.capture-r4-bgra-layout-contract`,
-`macos.capture-r4-pixel-lifetime-retirement`, and
-`macos.capture-r4-display-generation-denials` names before executing the
-focused selection. `r7-macos-session-sanitizers` job `117434587571` is
-**SUCCESS**, and full `protocol (macos-latest)` job `117434587790` is
-**SUCCESS** in Debug and Release. This is hosted deterministic evidence only,
-not owner macOS 27 or live Microsoft-client acceptance.
+**Exact landed SHA:** `d93f1a0e8b31a43401e3b0cfae5bd439caae7664`.
+Structure Actions `39047429642` and primary Actions `39047429733` are
+**SUCCESS**. Full `protocol (macos-latest)` job `117438899886` is
+**533/533 PASS Debug + 533/533 PASS Release**; the dedicated
+`macos.input-controller-authority-retirement-no-native-post` is test #446
+and passes in both configurations. `r7-macos-native-lifecycle` job
+`117438899841` is **SUCCESS** in Debug and Release and still requires/executes
+all three `macos.capture-r4-*` cases. `r7-macos-session-sanitizers` job
+`117438899850` is **SUCCESS**, but its exact-head log proves it selected only
+`macos.input-controller-session-watch-revocation`; the newly landed authority-
+loss case therefore lacked sanitizer execution. This follow-up changes only CI
+selection/structure policy so the existing CTest becomes a required focused
+macOS Debug/Release sentinel and one of exactly two ASan/UBSan input-lifetime
+tests. Production R7 code and the CTest body remain unchanged. This is hosted
+deterministic evidence only, not owner macOS 27 or live Microsoft-client
+acceptance.
 
 R7 capture source is unchanged. `LockedBgraPixelBuffer` retains the
 CoreVideo object and holds `kCVPixelBufferLock_ReadOnly` across the synchronous
@@ -43,12 +48,13 @@ only while that R2 lifetime and the same connection's R3 PersonalDesktop
 `ShareActivated` authority are current. Screen Recording and Accessibility
 remain independent non-prompting prerequisites, never authentication.
 
-Canonical owner-local `~/rdp-server/build/` execution for this new change:
-**NOT RUN** in the connector environment; no alternate build root was created.
-Exact publication-SHA hosted CI: **PENDING**. No live desktop enumeration,
-capture, TCC prompt or Quartz posting was performed. macOS 27 owner-native and
-genuine Microsoft-client personal-desktop acceptance remain **NOT RUN** pending
-upstream authority-bearing composition and explicit owner authorization.
+Canonical owner-local `~/rdp-server/build/` execution remains **NOT RUN** in
+the connector environment; no alternate build root was created. Exact
+publication-SHA hosted CI for the focused/sanitizer selector correction is
+**PENDING**. No live desktop enumeration, capture, TCC prompt or Quartz posting
+was performed. macOS 27 owner-native and genuine Microsoft-client
+personal-desktop acceptance remain **NOT RUN** pending upstream authority-
+bearing composition and explicit owner authorization.
 
 ## R9 duplicate workflow-tail correction (2026-10-17)
 

@@ -900,9 +900,10 @@ synthetic session/permission/registration/native-command/cursor observations.
 Sanitizer CI uses a dedicated Ubuntu/GCC ASan+UBSan job that explicitly builds
 `test_macos_desktop_session_guard`, `test_macos_input_controller` and
 `test_macos_capture_pixel_buffer`, then runs the anchored
-`^macos\.desktop-session-` family plus the exact
-`macos.input-controller-session-watch-revocation` case and a fail-closed,
-registry-preflighted cursor selection containing
+`^macos\.desktop-session-` family plus exactly the two input-lifetime cases
+`macos.input-controller-session-watch-revocation` and
+`macos.input-controller-authority-retirement-no-native-post`, followed by a
+fail-closed, registry-preflighted cursor selection containing
 `macos.cursor-session-watch-revocation`,
 `macos.cursor-topology-publication-revocation` and
 `macos.cursor-geometry-generation-publication-denials`. Keep this road-local

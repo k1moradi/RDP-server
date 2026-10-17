@@ -231,6 +231,8 @@ REQUIRED_TOKENS = (
     "macos.desktop-geometry-epoch-generation-fence-revocation",
     "macos.capture-stream-geometry-generation-retirement",
     "macos.capture-stream-session-watch-consumer-race",
+    "macos.input-controller-authority-retirement-no-native-post",
+    "input_session_expected_test_count=2",
     "macos.cursor-geometry-generation-publication-denials",
     "clipboard.macos-completed-multi-file-url-handoff",
     "clipboard.windows-completed-multi-file-hdrop-handoff",

@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-session-watch-revocation|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -122,6 +122,7 @@ jobs:
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \
             macos.input-controller-session-watch-revocation \
+            macos.input-controller-authority-retirement-no-native-post \
             macos.desktop-session-switch-away-back-revocation \
             macos.desktop-session-mid-operation-epoch-change \
             macos.desktop-session-watch-retirement-callback-race \
@@ -144,7 +145,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-session-watch-revocation|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Release -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -164,6 +165,7 @@ jobs:
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \
             macos.input-controller-session-watch-revocation \
+            macos.input-controller-authority-retirement-no-native-post \
             macos.desktop-session-switch-away-back-revocation \
             macos.desktop-session-mid-operation-epoch-change \
             macos.desktop-session-watch-retirement-callback-race \
@@ -1046,7 +1048,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-session-watch-revocation|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -1066,6 +1068,7 @@ jobs:
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \
             macos.input-controller-session-watch-revocation \
+            macos.input-controller-authority-retirement-no-native-post \
             macos.desktop-session-switch-away-back-revocation \
             macos.desktop-session-mid-operation-epoch-change \
             macos.desktop-session-watch-retirement-callback-race \
@@ -1091,7 +1094,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-session-watch-revocation|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Release -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -1111,6 +1114,7 @@ jobs:
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \
             macos.input-controller-session-watch-revocation \
+            macos.input-controller-authority-retirement-no-native-post \
             macos.desktop-session-switch-away-back-revocation \
             macos.desktop-session-mid-operation-epoch-change \
             macos.desktop-session-watch-retirement-callback-race \
@@ -1174,11 +1178,19 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$desktop_session_selection" --output-on-failure
 
-          input_session_selection='^macos\.input-controller-session-watch-revocation$'
+          input_session_selection='^macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)$'
           input_session_tests="$(ctest --test-dir build --build-config Debug -N \
             -R "$input_session_selection")"
           printf '%s\n' "$input_session_tests"
+          readonly input_session_expected_test_count=2
+          input_session_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$input_session_tests")"
+          if [[ "$input_session_test_count" -ne "$input_session_expected_test_count" ]]; then
+            printf 'R7 input sanitizer registry mismatch: expected %s tests, found %s\n' \
+              "$input_session_expected_test_count" "$input_session_test_count" >&2
+            exit 1
+          fi
           grep -Fq 'macos.input-controller-session-watch-revocation' <<< "$input_session_tests"
+          grep -Fq 'macos.input-controller-authority-retirement-no-native-post' <<< "$input_session_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$input_session_selection" --output-on-failure
 

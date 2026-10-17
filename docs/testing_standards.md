@@ -406,6 +406,17 @@ an externally reachable listener. If a full-suite build is blocked by another
 road before these cases execute, record the R1 cases as **NOT RUN** rather
 than inferring either PASS or FAIL.
 
+## R1 loopback TLS handshake readiness fixtures (2026-10-16)
+
+Real native-loopback TLS fixtures must not use scheduler sleep/yield loops to
+stand in for handshake readiness. Drive one client \`SSL_do_handshake\` step at
+a time, accept only exact WANT_READ/WANT_WRITE backpressure, and advance the
+R1-owned server only through \`OwnedPreauthTcpConnection::pollSocketOnce\`
+under a finite monotonic deadline. Require both client init completion and the
+same R1-owned established TLS object before application framing. This is a test
+fixture rule only; do not expose a raw descriptor or add a production retry
+loop solely to make a test wait.
+
 ## R1 terminal TLS/EOF readiness fixtures (2026-10-16)
 
 After application TLS is established, tests for peer \`close_notify\`, raw TCP

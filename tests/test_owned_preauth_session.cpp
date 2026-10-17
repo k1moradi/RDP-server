@@ -2898,6 +2898,53 @@ void testOwnedRuntimeTlsIdentityContinuity(
 }
 
 
+void finishOwnedApplicationTlsHandshake(
+    OwnedPreauthTcpConnection &owner,
+    TlsHandshakeFixture &tls)
+{
+    using Clock = std::chrono::steady_clock;
+    using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+
+    bool clientEstablished = false;
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    while (Clock::now() < deadline)
+    {
+        if (!clientEstablished)
+        {
+            const int result = SSL_do_handshake(tls.client.get());
+            if (result == 1)
+            {
+                clientEstablished = true;
+            }
+            else
+            {
+                const int error = SSL_get_error(tls.client.get(), result);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+
+        if (owner.establishedTls() == nullptr)
+        {
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome == PollOutcome::Dispatched ||
+                   polled.outcome == PollOutcome::NoEvent);
+            assert(polled.nextInterest == Interest::Read ||
+                   polled.nextInterest == Interest::Write);
+        }
+
+        if (clientEstablished && owner.establishedTls() != nullptr)
+            break;
+    }
+
+    assert(clientEstablished);
+    assert(SSL_is_init_finished(tls.client.get()) == 1);
+    assert(owner.establishedTls() != nullptr);
+    assert(owner.ioInterest() == Interest::Read);
+}
+
 void testOwnedHybridNlaNegotiation()
 {
     using Interest = TcpConnectionIoInterest;
@@ -2975,37 +3022,7 @@ void testOwnedHybridNlaNegotiation()
         assert(!server);
         assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
 
-        bool clientEstablished = false;
-        bool serverEstablished = false;
-        for (int pass = 0; pass < 16384; ++pass)
-        {
-            if (!clientEstablished)
-            {
-                const int result = SSL_do_handshake(tls.client.get());
-                if (result == 1)
-                    clientEstablished = true;
-                else
-                {
-                    const int error =
-                        SSL_get_error(tls.client.get(), result);
-                    assert(error == SSL_ERROR_WANT_READ ||
-                           error == SSL_ERROR_WANT_WRITE);
-                }
-            }
-            if (!serverEstablished)
-            {
-                const auto result = owner.onTlsIoReady();
-                assert(result == TlsHandshakeStatus::NeedRead ||
-                       result == TlsHandshakeStatus::NeedWrite ||
-                       result == TlsHandshakeStatus::Established);
-                serverEstablished =
-                    result == TlsHandshakeStatus::Established;
-            }
-            if (clientEstablished && serverEstablished) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
-        }
-        assert(clientEstablished && serverEstablished);
-        assert(owner.establishedTls() != nullptr);
+        finishOwnedApplicationTlsHandshake(owner, tls);
 
         const auto provenance = owner.securityNegotiationProvenance();
         assert(provenance.has_value());
@@ -3044,37 +3061,8 @@ void establishOwnedApplicationTlsForRequest(
     assert(!server);
     assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
 
-    bool clientEstablished = false;
-    bool serverEstablished = false;
-    for (int pass = 0; pass < 16384; ++pass)
-    {
-        if (!clientEstablished)
-        {
-            const int result = SSL_do_handshake(tls.client.get());
-            if (result == 1)
-                clientEstablished = true;
-            else
-            {
-                const int error = SSL_get_error(tls.client.get(), result);
-                assert(error == SSL_ERROR_WANT_READ ||
-                       error == SSL_ERROR_WANT_WRITE);
-            }
-        }
-        if (!serverEstablished)
-        {
-            const auto result = owner.onTlsIoReady();
-            assert(result == TlsHandshakeStatus::NeedRead ||
-                   result == TlsHandshakeStatus::NeedWrite ||
-                   result == TlsHandshakeStatus::Established);
-            serverEstablished =
-                result == TlsHandshakeStatus::Established;
-        }
-        if (clientEstablished && serverEstablished) break;
-        std::this_thread::yield();
-    }
-    assert(clientEstablished && serverEstablished);
-    assert(owner.establishedTls() != nullptr);
-    assert(owner.ioInterest() == Interest::Read);
+    finishOwnedApplicationTlsHandshake(owner, tls);
+
 }
 
 void establishOwnedApplicationTls(

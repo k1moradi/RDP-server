@@ -162,7 +162,27 @@ R2 lease construction or live grant bypass is added. Exact hosted
 Linux/macOS/Windows Debug/Release and ASan/UBSan evidence is pending this
 publication. M1 and M2 remain open.
 
-## R9 delegated-account failure-output audit (2026-10-16; exact-SHA CI pending)
+## R9 delegated-account failure-output audit (2026-10-16; exact-SHA validated)
+
+**Correction:** `3069b2f1e07198d0e060c1619924f9654ffb8826`.  
+**Actions:** `39005416459` — **SUCCESS**.
+
+Hosted Linux/GCC completed **538/538 PASS** in Debug and Release; macOS/AppleClang
+completed **456/456 PASS** in Debug and Release; Windows/MSVC completed the native
+preflight **51/51 PASS** in both configurations and the full suite **486/486 PASS**
+in Debug and Release. The corrected adversarial behavior is test #255 on Linux,
+#240 on macOS/Windows and passes in every full suite. Installed SDK consumers,
+package creation, reproducible digests/artifact upload, documentation policy and
+the independent R7 sanitizer job also pass.
+
+R9 Clang ASan/UBSan explicitly preflights and executes the portable delegated
+account selection **5/5 PASS**, including
+`security.credssp-delegated-account-adversarial-boundaries` as item 4/5. The
+same job keeps the original password-credential structural corpus separate and
+green at **4/4 PASS**, and the native GSS selection is **30/30 PASS** including
+`security.gssapi-credssp-delegated-account-origin-denials`. The PAM denial-only
+selection remains **1/1 PASS**. No parser test or sanitizer result is being used
+as positive authentication evidence.
 
 R9 independently reviewed R2's newly landed delegated-account extraction
 boundary. The account result is intentionally an owning, non-secret local
@@ -189,11 +209,13 @@ bounds and explicit rejected-prefix forms, and requires every failed result to
 contain no residual candidate bytes. Password mutation remains syntax-only and
 does not imply authentication.
 
-The R9 sanitizer job's existing delegated-account group now preflights this
-new registration explicitly and executes it under ASan/UBSan with leak
-detection and without the MIT-krb5 suppression. No PAM invocation, completion
-latch, native admission lease, listener or R3 state is enabled. Exact hosted
-Debug/Release/sanitizer results are **PENDING**.
+The R9 sanitizer job's existing delegated-account group preflights this
+registration explicitly and executes it under ASan/UBSan with leak detection
+and without the MIT-krb5 suppression. No PAM invocation, completion latch,
+native admission lease, listener or R3 state is enabled. Canonical owner-local
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27, positive Kerberos/PAM/NSS/logind admission and real Microsoft-client
+acceptance remain **NOT RUN / BLOCKED**.
 
 ## R2 delegated-account binding hosted validation receipt (2026-10-16)
 

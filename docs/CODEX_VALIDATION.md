@@ -148,6 +148,38 @@ Canonical owner-local `~/rdp-server/build/`, hosted Linux/macOS/Windows
 Debug/Release, the R9 ASan/UBSan CAL selector, installed SDK/package gates and
 exact-SHA Actions are **PENDING/NOT YET CLAIMED** for this publication.
 
+## R9 delegated-account adversarial audit exact-SHA validation (2026-10-16)
+
+**Correction:** `3069b2f1e07198d0e060c1619924f9654ffb8826`.  
+**Actions:** `39005416459` — **SUCCESS**.
+
+Linux/GCC full CTest is **538/538 PASS Debug** and **538/538 PASS Release**.
+macOS/AppleClang is **456/456 PASS** in both configurations. Windows/MSVC
+native preflight is **51/51 PASS Debug + Release**, and full CTest is
+**486/486 PASS Debug** plus **486/486 PASS Release**. The dedicated
+`security.credssp-delegated-account-adversarial-boundaries` case passes in all
+six full hosted configurations. Installed SDK downstream consumer **1/1**,
+package generation, digest/artifact upload, documentation policy and the
+independent R7 sanitizer job pass; untagged prerelease publication is skipped.
+
+The R9 Clang ASan/UBSan job proves actual instrumented execution rather than
+mere registration. The original password-credential corpus is **4/4 PASS**:
+strict fields plus nested-DER mutations, length-boundary denials and UTF-16
+mutation boundaries. The delegated-account selector is **5/5 PASS**, with
+`security.credssp-delegated-account-adversarial-boundaries` item 4/5. Native
+GSS/R2/R3 is **30/30 PASS** and includes
+`security.gssapi-credssp-delegated-account-origin-denials`; PAM denial-only
+coverage is **1/1 PASS**. The account corpus uses no MIT-krb5 leak suppression.
+
+The defect was limited to rejected local-account output hygiene: a valid prefix
+could remain in the fixed result buffer after an invalid later code unit.
+Password bytes were never exposed. The correction clears all candidate bytes
+and length on failure. It does not complete final CredSSP authentication,
+invoke a positive PAM fixture, issue a native admission lease, enable the
+listener or alter R3. Owner-local `~/rdp-server/build/`, owner Linux/X11,
+Windows MSYS2 CLANG64/Clang 23, macOS 27, positive Kerberos/PAM/NSS/logind and
+real Microsoft-client acceptance remain **NOT RUN / BLOCKED**.
+
 ## R9 delegated-account adversarial audit authoring (2026-10-16)
 
 R9 reviewed R2 commit `a4315bf38144ff390ae5ef12170d645c5458bb0b`

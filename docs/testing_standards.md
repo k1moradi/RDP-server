@@ -1,3 +1,23 @@
+## R7 hosted Apple lifecycle coverage must fail closed
+
+The ordinary hosted macOS protocol matrix must make Apple-only R7 lifetime
+coverage independently observable in addition to the full CTest suite. After
+both Debug and Release compilation, run a focused anchored selection and first
+enumerate it with `ctest -N`. The registry preflight must require the exact
+same-dimensions geometry-generation case; capture generation, callback,
+consumer, native-stop, backend-reentry, late-start and session-watch retirement
+cases; cursor session/topology/generation freshness; input session-watch
+revocation; and GUI-session switch/mid-operation/watch-race/destructor
+retirement. A missing required name is a CI failure rather than silently reduced
+coverage.
+
+The macOS job must also record `sw_vers`, `xcodebuild -version`,
+`xcode-select -p`, `xcrun clang++ --version` and the active macOS SDK
+version so an exact-SHA receipt identifies the hosted Apple environment. This
+metadata and the focused synthetic tests are not owner macOS 27 evidence, TCC
+grant evidence or M5 live-desktop acceptance. The full Debug/Release CTest
+remains authoritative and still runs after the focused selection.
+
 ## Supported focused selectors assert exact registry cardinality
 
 When a hosted profile intentionally provisions every optional dependency needed

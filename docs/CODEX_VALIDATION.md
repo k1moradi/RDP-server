@@ -1,3 +1,22 @@
+## R7 P1 hosted Apple lifecycle-gate authoring receipt (2026-10-17)
+
+**Starting reconciled shared `main`:** `1332fd044773b9da53bff2d81403204ecd137484`.  
+Exact publication-SHA hosted validation: **PENDING**.
+
+The macOS protocol matrix now records host/toolchain metadata and fail-closes on
+the current R7 native-lifecycle registrations in both Debug and Release. The
+focused selection preflights and runs seventeen cases spanning
+`macos.desktop-geometry-epoch-generation-fence-revocation`, the generation,
+callback, consumer, native-stop, late-start and session-watch
+`macos.capture-stream-*` retirement cases, current-generation/session cursor
+publication cases, input session-watch revocation and GUI-session
+switch/terminal watch races.
+
+This is CI/test-only hardening. It performs no live ScreenCaptureKit capture,
+native cursor sampling or input posting and issues no Screen Recording or
+Accessibility request. R2/R3 desktop admission remains independent and
+non-forgeable; owner macOS 27/TCC/native-session evidence remains **NOT RUN**.
+
 ## R3 CAL issuer-constraints OpenSSL 4 compile correction receipt (2026-10-17)
 
 `586101c7e50326f583ab0479bbfb6785353807b7`, Actions

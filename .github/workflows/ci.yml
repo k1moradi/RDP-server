@@ -35,6 +35,16 @@ jobs:
       - name: Install OpenSSL (macOS)
         if: runner.os == 'macOS'
         run: brew install openssl@3
+      - name: Record hosted macOS toolchain evidence
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+          xcrun clang++ --version
+          xcrun --sdk macosx --show-sdk-version
       - name: Locate or install Windows OpenSSL
         if: runner.os == 'Windows'
         shell: pwsh
@@ -87,6 +97,36 @@ jobs:
           ctest --test-dir build --build-config Release --timeout 20 -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
+      - name: Preflight and run focused R7 macOS lifecycle tests (Debug)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-session-watch-revocation|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r7_focus")"
+          printf '%s\n' "$selected_tests"
+          for required_test in \
+            macos.desktop-geometry-epoch-generation-fence-revocation \
+            macos.capture-stream-geometry-generation-retirement \
+            macos.capture-stream-callback-retirement \
+            macos.capture-stream-consumer-cancellation \
+            macos.capture-stream-native-stop-single-ownership \
+            macos.capture-stream-backend-callback-reentry-retirement \
+            macos.capture-stream-start-retirement-after-completion \
+            macos.capture-stream-session-watch-frame-retirement \
+            macos.capture-stream-session-watch-consumer-race \
+            macos.cursor-session-watch-revocation \
+            macos.cursor-topology-publication-revocation \
+            macos.cursor-geometry-generation-publication-denials \
+            macos.input-controller-session-watch-revocation \
+            macos.desktop-session-switch-away-back-revocation \
+            macos.desktop-session-mid-operation-epoch-change \
+            macos.desktop-session-watch-retirement-callback-race \
+            macos.desktop-session-watch-destructor-retirement; do
+            grep -Fq "$required_test" <<< "$selected_tests"
+          done
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$r7_focus" --output-on-failure
       - name: Run Debug protocol and project-policy tests
         run: ctest --test-dir build --build-config Debug --timeout 60 --output-on-failure
 
@@ -96,6 +136,36 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
       - name: Compile Release
         run: cmake --build build --config Release --parallel 2
+      - name: Preflight and run focused R7 macOS lifecycle tests (Release)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-session-watch-revocation|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          selected_tests="$(ctest --test-dir build --build-config Release -N -R "$r7_focus")"
+          printf '%s\n' "$selected_tests"
+          for required_test in \
+            macos.desktop-geometry-epoch-generation-fence-revocation \
+            macos.capture-stream-geometry-generation-retirement \
+            macos.capture-stream-callback-retirement \
+            macos.capture-stream-consumer-cancellation \
+            macos.capture-stream-native-stop-single-ownership \
+            macos.capture-stream-backend-callback-reentry-retirement \
+            macos.capture-stream-start-retirement-after-completion \
+            macos.capture-stream-session-watch-frame-retirement \
+            macos.capture-stream-session-watch-consumer-race \
+            macos.cursor-session-watch-revocation \
+            macos.cursor-topology-publication-revocation \
+            macos.cursor-geometry-generation-publication-denials \
+            macos.input-controller-session-watch-revocation \
+            macos.desktop-session-switch-away-back-revocation \
+            macos.desktop-session-mid-operation-epoch-change \
+            macos.desktop-session-watch-retirement-callback-race \
+            macos.desktop-session-watch-destructor-retirement; do
+            grep -Fq "$required_test" <<< "$selected_tests"
+          done
+          ctest --test-dir build --build-config Release --timeout 60 \
+            -R "$r7_focus" --output-on-failure
       - name: Run Release protocol tests
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
       - name: Stage installable protocol SDK

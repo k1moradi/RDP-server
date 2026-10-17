@@ -1,3 +1,35 @@
+## R7 P1 hosted Apple capture/session fail-closed gate (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `1332fd044773b9da53bff2d81403204ecd137484`.
+
+R7's Apple-only capture lifecycle has direct exact-SHA evidence at
+`8ee59f77a0db27df3bb06096955cee07ed8b938a`, but the ordinary macOS matrix
+previously relied on the aggregate full CTest suite to keep those registrations
+observable. A removed or accidentally renamed Apple-only R7 test could therefore
+reduce coverage without a road-local registry failure as long as the remaining
+full suite stayed green.
+
+This increment changes CI/test evidence only. The hosted macOS protocol job now
+records `sw_vers`, exact Xcode version, active developer directory,
+`xcrun clang++ --version`, and macOS SDK version. After each Debug and Release
+compile it performs a fail-closed `ctest -N` preflight over the focused R7
+capture/session selection, requires all seventeen named lifetime tests to be
+registered, and then executes the same anchored selection before the ordinary
+full CTest. The gate includes the same-dimensions display-generation fence,
+ScreenCaptureKit callback/start/stop retirement, session-watch frame/consumer
+races, cursor publication freshness, input session revocation and GUI-session
+switch/terminal retirement.
+
+No production source, TCC probe/request behavior, ScreenCaptureKit factory
+visibility, R2/R3 authority or live desktop path changes. The tests remain
+injected/synthetic and permission-free; the ordinary full Debug/Release suites
+remain authoritative after the focused gate. Owner macOS 27 execution is still
+required by R10's same-SHA M1 matrix, and live M5 remains blocked on explicit
+authorization plus genuine positive R2/R3 macOS desktop admission.
+
+Exact publication-SHA hosted validation is **PENDING**. M1 and M5 remain
+**OPEN / NOT ACCEPTED**.
+
 ## R3 CAL issuer-constraints OpenSSL 4 constness correction (2026-10-17; exact-SHA CI pending)
 
 **Implementation:** `586101c7e50326f583ab0479bbfb6785353807b7`.  

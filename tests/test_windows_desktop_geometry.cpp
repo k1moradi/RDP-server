@@ -50,6 +50,10 @@ void windowsDxgiDuplicationOwnerOpenCancelReentry();
 void windowsDxgiDuplicationOwnerPartialResultCleanup();
 void windowsDxgiDuplicationOwnerAmbiguousReentry();
 void windowsDxgiDuplicationOwnerChildCloseOrder();
+void windowsCaptureSessionChangeDuplicationOwnerRetirement();
+void windowsCaptureSessionChangeDuplicationReleaseOrder();
+void windowsCaptureSessionChangeDuplicationCallbackRetirement();
+void windowsCaptureSessionChangeDuplicationPriorRevocation();
 void windowsDxgiPointerShapeOwnedLifetime();
 void windowsDxgiPointerShapeGenerationDenials();
 void windowsInputSendInputLifecycle();
@@ -958,6 +962,26 @@ int main(int argc, char **argv)
     else if (behavior == "dxgi-duplication-owner-child-close-order")
     {
         windowsDxgiDuplicationOwnerChildCloseOrder();
+    }
+    else if (behavior ==
+             "capture-session-change-duplication-owner-retirement")
+    {
+        windowsCaptureSessionChangeDuplicationOwnerRetirement();
+    }
+    else if (behavior ==
+             "capture-session-change-duplication-release-order")
+    {
+        windowsCaptureSessionChangeDuplicationReleaseOrder();
+    }
+    else if (behavior ==
+             "capture-session-change-duplication-callback-retirement")
+    {
+        windowsCaptureSessionChangeDuplicationCallbackRetirement();
+    }
+    else if (behavior ==
+             "capture-session-change-duplication-prior-revocation")
+    {
+        windowsCaptureSessionChangeDuplicationPriorRevocation();
     }
     else if (behavior == "cursor-dxgi-shape-owned-lifetime")
     {

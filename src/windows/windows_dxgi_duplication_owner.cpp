@@ -48,11 +48,47 @@ bool matches(const WindowsDxgiOutputDescription &description,
            description.bounds.widthPixels != 0 &&
            description.bounds.heightPixels != 0;
 }
+
+bool hasAnyCaptureCallback(
+    const WindowsDxgiOwnedCaptureCallbacks &callbacks) noexcept
+{
+    return callbacks.frame.context != nullptr ||
+           callbacks.frame.acquire != nullptr ||
+           callbacks.frame.release != nullptr ||
+           callbacks.staging.context != nullptr ||
+           callbacks.staging.stageAndMap != nullptr ||
+           callbacks.staging.unmapAndRelease != nullptr ||
+           callbacks.damage.context != nullptr ||
+           callbacks.damage.read != nullptr ||
+           callbacks.pointerShape.context != nullptr ||
+           callbacks.pointerShape.read != nullptr;
+}
+
+bool hasValidCaptureCallbacks(
+    const WindowsDxgiOwnedCaptureCallbacks &callbacks) noexcept
+{
+    const bool damageValid =
+        (callbacks.damage.context == nullptr) ==
+        (callbacks.damage.read == nullptr);
+    const bool pointerValid =
+        (callbacks.pointerShape.context == nullptr) ==
+        (callbacks.pointerShape.read == nullptr);
+    return callbacks.frame.context != nullptr &&
+           callbacks.frame.acquire != nullptr &&
+           callbacks.frame.release != nullptr &&
+           callbacks.staging.context != nullptr &&
+           callbacks.staging.stageAndMap != nullptr &&
+           callbacks.staging.unmapAndRelease != nullptr &&
+           damageValid && pointerValid;
+}
 } // namespace
 
 WindowsDxgiDuplicationOwner::WindowsDxgiDuplicationOwner(
-    WindowsDxgiNativeCallbacks callbacks) noexcept
-    : callbacks_(callbacks), closed_(!hasCallbacks())
+    WindowsDxgiNativeCallbacks callbacks,
+    WindowsDxgiOwnedCaptureCallbacks captureCallbacks) noexcept
+    : callbacks_(callbacks),
+      captureCallbacks_(captureCallbacks),
+      closed_(!hasCallbacks())
 {
 }
 
@@ -82,6 +118,10 @@ void WindowsDxgiDuplicationOwner::releaseOwnedResources() noexcept
 {
     if (operationInProgress_ || teardownInProgress_)
         return;
+#ifdef _WIN32
+    if (captureCycle_ != nullptr && captureCycle_->operationInProgress_)
+        return;
+#endif
 
     teardownInProgress_ = true;
 #ifdef _WIN32
@@ -354,8 +394,25 @@ void WindowsDxgiDuplicationOwner::close() noexcept
     deviceEpoch_ = 0;
     if (operationInProgress_ || teardownInProgress_)
         return;
+#ifdef _WIN32
+    if (captureCycle_ != nullptr && captureCycle_->operationInProgress_)
+    {
+        // Cancellation makes the child unusable immediately, but its
+        // unique_ptr must survive until the active member function returns.
+        captureCycle_->cancel();
+        return;
+    }
+#endif
     releaseOwnedResources();
 }
+
+void WindowsDxgiDuplicationOwner::completeDeferredClose() noexcept
+{
+    if (!closed_ || operationInProgress_ || teardownInProgress_)
+        return;
+    releaseOwnedResources();
+}
+
 bool WindowsDxgiDuplicationOwner::ready() const noexcept
 {
     return !closed_ && duplication_ != nullptr && deviceEpoch_ != 0;
@@ -421,19 +478,43 @@ bool WindowsDxgiDuplicationOwner::attachCaptureCycle(
     if (matchingOutputs != 1)
         return false;
 
-    // Keep attachment transactional: a rejected subordinate must not leave a
-    // closed capture cycle/staging context installed and block later recovery.
-    auto stagingContext = std::make_unique<WindowsD3D11NativeStagingContext>(
-        *static_cast<ID3D11Device *>(device_),
-        *static_cast<ID3D11DeviceContext *>(context_));
+    const bool injectedCapture = hasAnyCaptureCallback(captureCallbacks_);
+    if (injectedCapture && !hasValidCaptureCallbacks(captureCallbacks_))
+        return false;
+
+    WindowsDxgiFrameCallbacks frame{};
+    WindowsD3D11StagingCallbacks staging{};
+    WindowsDxgiDamageReadCallbacks damage{};
+    WindowsDxgiPointerShapeReadCallbacks pointerShape{};
+    PortableRectangle pointerBounds{};
+    std::unique_ptr<WindowsD3D11NativeStagingContext> stagingContext{};
+
+    if (injectedCapture)
+    {
+        frame = captureCallbacks_.frame;
+        staging = captureCallbacks_.staging;
+        damage = captureCallbacks_.damage;
+        pointerShape = captureCallbacks_.pointerShape;
+        if (pointerShape.read != nullptr)
+            pointerBounds = selected_.expectedBounds;
+    }
+    else
+    {
+        stagingContext = std::make_unique<WindowsD3D11NativeStagingContext>(
+            *static_cast<ID3D11Device *>(device_),
+            *static_cast<ID3D11DeviceContext *>(context_));
+        frame = frameCallbacks();
+        staging = stagingContext->callbacks();
+        pointerShape = windowsDxgiPointerShapeReadCallbacks(
+            *static_cast<IDXGIOutputDuplication *>(duplication_));
+        pointerBounds = selected_.expectedBounds;
+    }
+
     auto captureCycle = std::make_unique<WindowsDxgiCaptureCycle>(
-        layout, frameCallbacks(), stagingContext->callbacks(),
-        WindowsDxgiDamageReadCallbacks{},
+        layout, frame, staging, damage,
         WindowsCaptureGenerationReader{this, &observeGeneration},
         WindowsCaptureGeneration{pinnedSessionEpoch, deviceEpoch_},
-        windowsDxgiPointerShapeReadCallbacks(
-            *static_cast<IDXGIOutputDuplication *>(duplication_)),
-        selected_.expectedBounds);
+        pointerShape, pointerBounds);
     if (captureCycle->closed())
         return false;
 

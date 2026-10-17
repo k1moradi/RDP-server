@@ -60,16 +60,31 @@ struct WindowsDxgiNativeCallbacks
     void (*release)(void *, WindowsDxgiNativeResource, void *) noexcept{};
 };
 
+// Deterministic child-callback injection for offline whole-owner lifetime
+// CTests. It replaces only frame/staging/metadata adapters; the production
+// duplication owner still owns the real WindowsDxgiCaptureCycle unique_ptr.
+// These callbacks are lifetime plumbing and never authorize a desktop.
+struct WindowsDxgiOwnedCaptureCallbacks final
+{
+    WindowsDxgiFrameCallbacks frame{};
+    WindowsD3D11StagingCallbacks staging{};
+    WindowsDxgiDamageReadCallbacks damage{};
+    WindowsDxgiPointerShapeReadCallbacks pointerShape{};
+};
+
 // Nonmoving, single-thread-affine RAII owner. No implicit authentication,
 // desktop access, device recreation or R4 scheduler. Only call open AFTER
 // R2/R3 independently bind an authorized target, never as an admission test.
 // Native callback reentry may request terminal close; teardown is deferred
 // until the active open/release boundary returns on the serialized thread.
+// The owner object itself must outlive every subordinate capture call; object
+// destruction is a safe-point action, not a reentrant callback operation.
 class WindowsDxgiDuplicationOwner final
 {
 public:
     explicit WindowsDxgiDuplicationOwner(
-        WindowsDxgiNativeCallbacks callbacks) noexcept;
+        WindowsDxgiNativeCallbacks callbacks,
+        WindowsDxgiOwnedCaptureCallbacks captureCallbacks = {}) noexcept;
     ~WindowsDxgiDuplicationOwner() noexcept;
     WindowsDxgiDuplicationOwner(const WindowsDxgiDuplicationOwner &) = delete;
     WindowsDxgiDuplicationOwner &operator=(const WindowsDxgiDuplicationOwner &) = delete;
@@ -79,8 +94,14 @@ public:
     [[nodiscard]] WindowsDxgiDuplicationResult open(
         WindowsDxgiTarget target) noexcept;
     // Closing is terminal: fresh R2/R3 authorization and a NEW owner are
-    // required for any device/output/duplication reconstruction.
+    // required for any device/output/duplication reconstruction. If an owned
+    // capture callback is active, logical revocation is immediate while child
+    // destruction and parent COM release are deferred.
     void close() noexcept;
+    // Same-thread safe-point drain for callback-deferred close. Call only
+    // after the outer capture-cycle operation has returned. Early/repeated
+    // calls are harmless and cannot reopen this owner.
+    void completeDeferredClose() noexcept;
     [[nodiscard]] bool ready() const noexcept;
     [[nodiscard]] std::uint64_t deviceEpoch() const noexcept;
     [[nodiscard]] WindowsDxgiFrameCallbacks frameCallbacks() const noexcept;
@@ -105,6 +126,7 @@ private:
         void *, WindowsCaptureGeneration &) noexcept;
 
     WindowsDxgiNativeCallbacks callbacks_{};
+    WindowsDxgiOwnedCaptureCallbacks captureCallbacks_{};
     void *factory_{};
     void *adapter_{};
     void *output_{};

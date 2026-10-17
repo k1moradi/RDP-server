@@ -1,3 +1,47 @@
+## R6 whole-owner Windows session revocation (2026-10-17; hosted validation pending)
+
+**Authoring base:** `339f760d3c718eaf7a4192cbf17347f70552deec`.
+
+R6 now extends the existing revocation-only coordinator to the complete
+`WindowsDxgiDuplicationOwner` graph without adding another DXGI owner,
+watcher, service loop or authorization source. Terminal ordering is guard ->
+input -> parent close. Parent close cancels its owned capture cycle before
+parent release; a close requested from an active child callback is logically
+terminal immediately but keeps the child's `unique_ptr` and parent COM
+resources alive until `completeDeferredClose()` runs after the outer capture
+operation returns.
+
+The owned-cycle attachment accepts deterministic frame/staging callbacks for
+ordinary CTests, so the production parent/cycle ownership path is exercised
+without dereferencing fake COM tokens or touching a live desktop. Native
+production attachment still creates the existing D3D11 staging context and
+DXGI adapters. Reconnect remains fresh-owner only; WTS observations,
+generation numbers and injected callbacks remain non-authorizing.
+
+Four behavior-specific CTests are registered once in the existing
+`test_windows_desktop_geometry` executable:
+`windows.capture-session-change-duplication-owner-retirement`,
+`windows.capture-session-change-duplication-release-order`,
+`windows.capture-session-change-duplication-callback-retirement`, and
+`windows.capture-session-change-duplication-prior-revocation`.
+They cover unrelated-session no-op, target revocation, held-input suppression,
+unmap-before-frame-release, child-before-parent COM retirement, callback-time
+safe-point deferral, duplicate close/notification, reopen denial, and prior
+guard failures from WTS/read/generation/reentrant observations.
+
+The canonical checkout was absent in this execution environment; an attempted
+clone into the required `~/rdp-server` path failed because shell networking
+could not resolve GitHub. No alternate checkout, branch or build root was
+created. Earlier shared-main run `39008734992` failed before creating jobs;
+later shared-main workflows restored the normal platform matrix. Local
+Windows/MSVC Debug/Release, owner Windows MSYS2 CLANG64/Clang 23 and direct
+Windows sanitizer evidence for this increment are therefore **PENDING / NOT
+RUN** until exact-publication-SHA CI/owner execution.
+
+M1 and M4 remain open: this lifetime work does not create R2/R3 authorization,
+R10 notification delivery, a live Windows desktop capability or Microsoft
+client acceptance.
+
 ## macOS listener-poll readiness authoring (2026-10-16)
 
 Owner-local macOS evidence reports subprocess aborts only in

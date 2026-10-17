@@ -165,6 +165,8 @@ public:
     [[nodiscard]] bool closed() const noexcept;
 
 private:
+    friend class WindowsDxgiDuplicationOwner;
+
     enum class FrameReleaseOutcome
     {
         released,

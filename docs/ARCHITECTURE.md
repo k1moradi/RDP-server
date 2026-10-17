@@ -1948,11 +1948,32 @@ frame exactly once. When the notification arrives inside a native capture
 callback, logical closure is immediate while the cycle's established callback
 guard defers physical unmap/release until the callback returns.
 
-The coordinator owns nothing, starts no watcher and grants no admission. If
-the supplied cycle is a child of `WindowsDxgiDuplicationOwner`, the caller
-must still invoke that outer owner's terminal `close()` when retiring its
-duplication/device/output resources; its existing child-before-parent cleanup
-remains authoritative. Ordinary CTests execute synthetic callbacks only.
+The coordinator owns nothing, starts no watcher and grants no admission. It
+has a whole-owner overload for `WindowsDxgiDuplicationOwner`: guard revocation
+still happens first, input is invalidated second, and terminal parent close then
+cancels its owned capture cycle before releasing parent DXGI/D3D11 resources.
+A healthy unrelated-session notification remains a no-op; an already-closed
+guard still retires the complete native owner.
+
+Parent close distinguishes synchronous logical revocation from physical
+teardown. `ready()` becomes false and `deviceEpoch()` becomes zero
+immediately. If the owned cycle is inside a native callback, `close()` marks
+that child cancelled but deliberately keeps its `unique_ptr` and parent COM
+references alive. After the outer capture operation returns, the serialized
+owner calls `completeDeferredClose()`; only then may the child be destroyed,
+the native staging context retired, and duplication/output/device/adapter/
+factory references released. The owner object itself must therefore outlive
+the active child call; object destruction is a safe-point action, not a
+reentrant callback primitive. Reconnect requires fresh R2/R3 authorization and
+fresh R6 owners.
+
+Offline whole-owner tests may inject frame/staging callbacks into the real
+parent attachment path so fake COM tokens are never dereferenced through SDK
+methods. Those callbacks verify guard/input closure, unmap before
+`ReleaseFrame`, child destruction before parent duplication release, exact
+parent COM order and exact-once release. The production native staging-context
+reset remains structurally between child destruction and duplication release;
+the injected fixture does not pretend to be a real D3D11 context.
 
 ### R6 read-only Win32 cursor metadata snapshot
 

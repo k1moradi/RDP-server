@@ -906,6 +906,19 @@ if(TARGET rdp-server-windows-desktop)
         PROPERTIES
             LABELS "windows;desktop-capture;desktop-input;security;offline"
             TIMEOUT 20)
+    # Whole-owner R6 retirement: production parent/cycle/input/guard objects
+    # with injected callbacks only; no live DXGI desktop or host SendInput.
+    foreach(case_name IN ITEMS
+            capture-session-change-duplication-owner-retirement
+            capture-session-change-duplication-release-order
+            capture-session-change-duplication-callback-retirement
+            capture-session-change-duplication-prior-revocation)
+        add_test(NAME "windows.${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;desktop-input;security;offline"
+            TIMEOUT 20)
+    endforeach()
     # R6 DXGI pointer position/shape ownership. Synthetic callbacks exercise
     # the same acquired-frame/generation path; no CTest captures a live cursor.
     foreach(case_name IN ITEMS

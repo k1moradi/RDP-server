@@ -167,9 +167,23 @@ borrowed capture view is invalidated before exactly one D3D11 unmap and one
 DXGI frame release, and duplicate notification/cancellation is idempotent.
 When notification is delivered from a native capture callback, require logical
 closure before the callback returns while allowing only the capture cycle's
-existing deferred physical teardown. Keep orderly input shutdown as a separate
-case: held keys/buttons are best-effort released exactly once only while the
-original pinned generation remains current.
+existing deferred physical teardown. For a parent-owned cycle, additionally
+require the real `WindowsDxgiDuplicationOwner` to remain logically terminal
+while retaining the child object and parent resources until the outer capture
+operation returns. An early `completeDeferredClose()` from inside the callback
+must be harmless; the same serialized safe-point call after return must then
+destroy the child and release parent resources exactly once. Keep the owner
+object itself alive across that callback/safe-point boundary.
+
+Whole-owner fixtures must use injected frame/staging callbacks rather than
+calling SDK methods through fake COM addresses. Verify guard -> input ->
+capture retirement ordering, unmap before frame release, child retirement
+before parent duplication release, the established parent COM order, and
+idempotent duplicate notification/close. A synthetic injected staging seam
+does not independently prove native D3D11 context destruction; document that
+scope instead of fabricating a COM oracle. Keep orderly input shutdown as a
+separate case: held keys/buttons are best-effort released exactly once only
+while the original pinned generation remains current.
 
 ## R9 native file-destination destructor retirement
 

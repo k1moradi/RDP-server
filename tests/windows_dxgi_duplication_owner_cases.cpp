@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "windows/windows_capture_session_guard.h"
 #include "windows/windows_dxgi_duplication_owner.h"
+#include "windows/windows_input_controller.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
+#include <span>
 
 using namespace rdp_server::windows;
 
@@ -63,6 +68,8 @@ struct FakeDxgiBackend
     unsigned deviceReleasedAt{};
     unsigned outputReleasedAt{};
     unsigned adapterReleasedAt{};
+    const unsigned *requiredChildUnmaps{};
+    const unsigned *requiredFrameReleases{};
     unsigned factoryReleasedAt{};
 
     static FakeDxgiBackend &backend(void *context) noexcept
@@ -258,6 +265,10 @@ struct FakeDxgiBackend
         {
             assert(self.owner != nullptr);
             assert(self.owner->captureCycle() == nullptr);
+            if (self.requiredChildUnmaps != nullptr)
+                assert(*self.requiredChildUnmaps == 1);
+            if (self.requiredFrameReleases != nullptr)
+                assert(*self.requiredFrameReleases == 1);
         }
         const bool shouldReenter =
             self.owner != nullptr && !self.releaseReentryIssued &&
@@ -323,7 +334,510 @@ bool readGeneration(
     assert(makeWindowsDesktopLayout(monitors, layout));
     return layout;
 }
+
+struct WholeOwnerSessionSource
+{
+    std::uint32_t processSessionId{42};
+    bool active{true};
+    bool fail{};
+    bool reenterRead{};
+    bool nestedReadResult{true};
+    WindowsCaptureSessionGenerationGuard *guard{};
+
+    static bool read(
+        void *context, std::uint32_t targetSessionId,
+        WindowsCaptureSessionObservation &observation) noexcept
+    {
+        auto &self = *static_cast<WholeOwnerSessionSource *>(context);
+        if (self.fail)
+            return false;
+        if (self.reenterRead)
+        {
+            self.reenterRead = false;
+            assert(self.guard != nullptr);
+            WindowsCaptureGeneration nested{};
+            const auto reader = self.guard->reader();
+            self.nestedReadResult =
+                reader.read != nullptr &&
+                reader.read(reader.context, nested);
+        }
+        observation = {
+            targetSessionId, self.processSessionId, self.active};
+        return true;
+    }
+
+    [[nodiscard]] WindowsCaptureSessionReadCallbacks callbacks() noexcept
+    {
+        return {this, &read};
+    }
+};
+
+struct WholeOwnerGenerationSource
+{
+    WindowsCaptureGeneration current{101, 202};
+    bool fail{};
+
+    static bool read(
+        void *context, WindowsCaptureGeneration &generation) noexcept
+    {
+        auto &self = *static_cast<WholeOwnerGenerationSource *>(context);
+        if (self.fail)
+            return false;
+        generation = self.current;
+        return true;
+    }
+
+    [[nodiscard]] WindowsCaptureGenerationReader callbacks() noexcept
+    {
+        return {this, &read};
+    }
+};
+
+struct WholeOwnerInputBackend
+{
+    std::array<WindowsNativeInputCommand, 16> commands{};
+    std::size_t commandCount{};
+    WindowsCaptureSessionGenerationGuard *guard{};
+    bool sentAfterRevocation{};
+
+    static std::size_t send(
+        void *context,
+        std::span<const WindowsNativeInputCommand> commands) noexcept
+    {
+        auto &self = *static_cast<WholeOwnerInputBackend *>(context);
+        if (self.guard != nullptr && self.guard->closed())
+            self.sentAfterRevocation = true;
+        assert(self.commandCount + commands.size() <= self.commands.size());
+        std::copy(commands.begin(), commands.end(),
+                  self.commands.begin() +
+                      static_cast<std::ptrdiff_t>(self.commandCount));
+        self.commandCount += commands.size();
+        return commands.size();
+    }
+
+    [[nodiscard]] WindowsInputCallbacks callbacks() noexcept
+    {
+        return {this, &send};
+    }
+};
+
+struct WholeOwnerCapturePipeline
+{
+    std::array<std::byte, 4> pixels{};
+    std::byte frameToken{};
+    unsigned acquisitions{};
+    unsigned maps{};
+    unsigned unmaps{};
+    unsigned releases{};
+    std::array<char, 2> retirementOrder{};
+    std::size_t retirementOrderCount{};
+    bool revokeDuringMap{};
+    bool childRetainedDuringCallback{};
+    bool parentResourcesRetainedDuringCallback{};
+    bool teardownDeferredDuringMap{};
+    bool postRevocationInputAccepted{true};
+    WindowsCaptureSessionChangeResult notificationResult{
+        WindowsCaptureSessionChangeResult::ignored};
+    WindowsCaptureCycleResult nestedCaptureResult{
+        WindowsCaptureCycleResult::failed};
+    WindowsDxgiDuplicationOwner *owner{};
+    FakeDxgiBackend *parentBackend{};
+    WindowsCaptureSessionGenerationGuard *guard{};
+    WindowsInputController *input{};
+
+    static WindowsDxgiAcquireResult acquire(
+        void *context, std::uint32_t, void *&resource,
+        WindowsDxgiFrameInfo &frameInfo) noexcept
+    {
+        auto &self = *static_cast<WholeOwnerCapturePipeline *>(context);
+        ++self.acquisitions;
+        resource = &self.frameToken;
+        frameInfo = {};
+        return WindowsDxgiAcquireResult::acquired;
+    }
+
+    static WindowsDxgiReleaseResult release(
+        void *context, void *resource) noexcept
+    {
+        auto &self = *static_cast<WholeOwnerCapturePipeline *>(context);
+        assert(resource == &self.frameToken);
+        ++self.releases;
+        assert(self.retirementOrderCount < self.retirementOrder.size());
+        self.retirementOrder[self.retirementOrderCount++] = 'R';
+        return WindowsDxgiReleaseResult::released;
+    }
+
+    static WindowsD3D11MapResult stageAndMap(
+        void *context, void *resource,
+        WindowsD3D11MappedData &output) noexcept
+    {
+        auto &self = *static_cast<WholeOwnerCapturePipeline *>(context);
+        assert(resource == &self.frameToken);
+        ++self.maps;
+        output = {
+            self.pixels.data(), self.pixels.size(), {1, 1}, 4,
+            &self.frameToken};
+
+        if (self.revokeDuringMap)
+        {
+            self.revokeDuringMap = false;
+            assert(self.owner != nullptr && self.parentBackend != nullptr &&
+                   self.guard != nullptr && self.input != nullptr);
+            self.notificationResult =
+                retireWindowsNativeConsumersOnSessionChange(
+                    *self.guard, *self.owner, *self.input, 42);
+            // This safe-point call is deliberately too early. It must not
+            // destroy the child whose member function is currently executing.
+            self.owner->completeDeferredClose();
+            self.childRetainedDuringCallback =
+                self.owner->captureCycle() != nullptr;
+            self.parentResourcesRetainedDuringCallback =
+                self.parentBackend->duplicationReleasedAt == 0;
+            self.teardownDeferredDuringMap =
+                self.unmaps == 0 && self.releases == 0;
+            assert(self.owner->captureCycle() != nullptr);
+            self.nestedCaptureResult =
+                self.owner->captureCycle()->captureFrame(0);
+            self.postRevocationInputAccepted =
+                self.input->handle(WindowsKeyInput{0x20, false, true});
+        }
+        return WindowsD3D11MapResult::mapped;
+    }
+
+    static void unmap(void *context, void *mappingHandle) noexcept
+    {
+        auto &self = *static_cast<WholeOwnerCapturePipeline *>(context);
+        assert(mappingHandle == &self.frameToken);
+        if (self.guard != nullptr)
+            assert(self.guard->closed());
+        if (self.input != nullptr)
+            assert(self.input->closed());
+        ++self.unmaps;
+        assert(self.retirementOrderCount < self.retirementOrder.size());
+        self.retirementOrder[self.retirementOrderCount++] = 'U';
+    }
+
+    [[nodiscard]] WindowsDxgiOwnedCaptureCallbacks callbacks() noexcept
+    {
+        return {
+            WindowsDxgiFrameCallbacks{this, &acquire, &release},
+            WindowsD3D11StagingCallbacks{this, &stageAndMap, &unmap},
+            {},
+            {}};
+    }
+};
+
+enum class PriorGuardFailure
+{
+    unavailableSession,
+    inactiveTarget,
+    wrongProcessSession,
+    unavailableGeneration,
+    zeroGeneration,
+    nestedRead,
+};
+
+void exercisePriorGuardFailure(PriorGuardFailure failure)
+{
+    WholeOwnerSessionSource session{};
+    WholeOwnerGenerationSource generation{};
+    WindowsCaptureSessionGenerationGuard guard(
+        42, session.callbacks(), generation.callbacks());
+    session.guard = &guard;
+    WindowsCaptureGeneration pinned{};
+    const auto reader = guard.reader();
+    assert(reader.read != nullptr &&
+           reader.read(reader.context, pinned));
+
+    WholeOwnerCapturePipeline capture{};
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(
+        backend.callbacks(), capture.callbacks());
+    backend.owner = &owner;
+    capture.owner = &owner;
+    capture.parentBackend = &backend;
+    capture.guard = &guard;
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+    assert(owner.attachCaptureCycle(selectedLayout(), guard.reader(),
+                                    pinned.session));
+
+    WholeOwnerInputBackend inputBackend{};
+    inputBackend.guard = &guard;
+    WindowsInputController input(
+        selectedLayout(), inputBackend.callbacks(), guard.reader(), pinned);
+    capture.input = &input;
+    assert(input.handle(WindowsKeyInput{0x1e, false, true}));
+    assert(owner.captureCycle() != nullptr);
+    assert(owner.captureCycle()->captureFrame(0) ==
+           WindowsCaptureCycleResult::mapped);
+
+    switch (failure)
+    {
+    case PriorGuardFailure::unavailableSession: session.fail = true; break;
+    case PriorGuardFailure::inactiveTarget: session.active = false; break;
+    case PriorGuardFailure::wrongProcessSession:
+        session.processSessionId = 43; break;
+    case PriorGuardFailure::unavailableGeneration:
+        generation.fail = true; break;
+    case PriorGuardFailure::zeroGeneration:
+        generation.current.session = 0; break;
+    case PriorGuardFailure::nestedRead: session.reenterRead = true; break;
+    }
+
+    WindowsCaptureGeneration unchanged{7, 9};
+    assert(!reader.read(reader.context, unchanged));
+    assert((unchanged == WindowsCaptureGeneration{7, 9}));
+    assert(guard.closed());
+    if (failure == PriorGuardFailure::nestedRead)
+        assert(!session.nestedReadResult);
+    assert(owner.ready() && owner.captureCycle() != nullptr &&
+           !input.closed());
+
+    backend.requireChildRetiredBeforeRelease = true;
+    backend.requiredChildUnmaps = &capture.unmaps;
+    backend.requiredFrameReleases = &capture.releases;
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, owner, input, 43) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+    assert(!owner.ready() && owner.deviceEpoch() == 0);
+    assert(owner.captureCycle() == nullptr && input.closed());
+    assert(capture.unmaps == 1 && capture.releases == 1);
+    assert(capture.retirementOrderCount == 2 &&
+           capture.retirementOrder[0] == 'U' &&
+           capture.retirementOrder[1] == 'R');
+    assert(!inputBackend.sentAfterRevocation);
+    assert(inputBackend.commandCount == 1);
+    backend.assertReleased();
+
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::closed);
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, owner, input, 42) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+    owner.close();
+    owner.completeDeferredClose();
+    assert(capture.unmaps == 1 && capture.releases == 1);
+}
 } // namespace
+
+
+void windowsCaptureSessionChangeDuplicationOwnerRetirement()
+{
+    WholeOwnerSessionSource session{};
+    WholeOwnerGenerationSource generation{};
+    WindowsCaptureSessionGenerationGuard guard(
+        42, session.callbacks(), generation.callbacks());
+    session.guard = &guard;
+    WindowsCaptureGeneration pinned{};
+    const auto reader = guard.reader();
+    assert(reader.read != nullptr &&
+           reader.read(reader.context, pinned));
+
+    WholeOwnerCapturePipeline capture{};
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(
+        backend.callbacks(), capture.callbacks());
+    backend.owner = &owner;
+    capture.owner = &owner;
+    capture.parentBackend = &backend;
+    capture.guard = &guard;
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+    assert(owner.attachCaptureCycle(selectedLayout(), guard.reader(),
+                                    pinned.session));
+
+    WholeOwnerInputBackend inputBackend{};
+    inputBackend.guard = &guard;
+    WindowsInputController input(
+        selectedLayout(), inputBackend.callbacks(), guard.reader(), pinned);
+    capture.input = &input;
+    assert(input.handle(WindowsKeyInput{0x1e, false, true}));
+    assert(input.handle(WindowsPointerButtonInput{
+        {0, 0}, WindowsPointerButton::left, true}));
+    assert(inputBackend.commandCount == 3);
+    assert(owner.captureCycle() != nullptr);
+    assert(owner.captureCycle()->captureFrame(0) ==
+           WindowsCaptureCycleResult::mapped);
+
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, owner, input, 43) ==
+           WindowsCaptureSessionChangeResult::ignored);
+    assert(!guard.closed() && !input.closed() && owner.ready());
+    assert(owner.captureCycle() != nullptr &&
+           !owner.captureCycle()->closed());
+    assert(capture.unmaps == 0 && capture.releases == 0 &&
+           backend.duplicationReleasedAt == 0);
+
+    backend.requireChildRetiredBeforeRelease = true;
+    backend.requiredChildUnmaps = &capture.unmaps;
+    backend.requiredFrameReleases = &capture.releases;
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, owner, input, 42) ==
+           WindowsCaptureSessionChangeResult::revoked);
+    assert(guard.closed() && input.closed());
+    assert(!inputBackend.sentAfterRevocation);
+    assert(inputBackend.commandCount == 3);
+    assert(!owner.ready() && owner.deviceEpoch() == 0);
+    assert(owner.captureCycle() == nullptr);
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::closed);
+    assert(capture.unmaps == 1 && capture.releases == 1);
+    backend.assertReleased();
+    assert(backend.duplication.releases == 1 &&
+           backend.output1.releases == 1 &&
+           backend.context.releases == 1 &&
+           backend.device.releases == 1 &&
+           backend.outputs[1][1].releases == 1 &&
+           backend.adapters[1].releases == 1 &&
+           backend.factory.releases == 1);
+
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, owner, input, 42) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+    owner.close();
+    owner.completeDeferredClose();
+    assert(capture.unmaps == 1 && capture.releases == 1);
+    assert(inputBackend.commandCount == 3);
+    backend.assertReleased();
+}
+
+void windowsCaptureSessionChangeDuplicationReleaseOrder()
+{
+    WholeOwnerSessionSource session{};
+    WholeOwnerGenerationSource generation{};
+    WindowsCaptureSessionGenerationGuard guard(
+        42, session.callbacks(), generation.callbacks());
+    WindowsCaptureGeneration pinned{};
+    const auto reader = guard.reader();
+    assert(reader.read != nullptr &&
+           reader.read(reader.context, pinned));
+
+    WholeOwnerCapturePipeline capture{};
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(
+        backend.callbacks(), capture.callbacks());
+    backend.owner = &owner;
+    capture.owner = &owner;
+    capture.parentBackend = &backend;
+    capture.guard = &guard;
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+    assert(owner.attachCaptureCycle(selectedLayout(), guard.reader(),
+                                    pinned.session));
+
+    WholeOwnerInputBackend inputBackend{};
+    inputBackend.guard = &guard;
+    WindowsInputController input(
+        selectedLayout(), inputBackend.callbacks(), guard.reader(), pinned);
+    capture.input = &input;
+    assert(input.handle(WindowsKeyInput{0x30, false, true}));
+    assert(owner.captureCycle()->captureFrame(0) ==
+           WindowsCaptureCycleResult::mapped);
+
+    backend.requireChildRetiredBeforeRelease = true;
+    backend.requiredChildUnmaps = &capture.unmaps;
+    backend.requiredFrameReleases = &capture.releases;
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, owner, input, 42) ==
+           WindowsCaptureSessionChangeResult::revoked);
+
+    assert(capture.retirementOrderCount == 2);
+    assert(capture.retirementOrder[0] == 'U' &&
+           capture.retirementOrder[1] == 'R');
+    assert(backend.duplicationReleasedAt != 0);
+    assert(backend.duplicationReleasedAt < backend.output1ReleasedAt);
+    assert(backend.output1ReleasedAt < backend.contextReleasedAt);
+    assert(backend.contextReleasedAt < backend.deviceReleasedAt);
+    assert(backend.deviceReleasedAt < backend.outputReleasedAt);
+    assert(backend.outputReleasedAt < backend.adapterReleasedAt);
+    assert(backend.adapterReleasedAt < backend.factoryReleasedAt);
+    assert(!inputBackend.sentAfterRevocation);
+    assert(inputBackend.commandCount == 1);
+    backend.assertReleased();
+}
+
+void windowsCaptureSessionChangeDuplicationCallbackRetirement()
+{
+    WholeOwnerSessionSource session{};
+    WholeOwnerGenerationSource generation{};
+    WindowsCaptureSessionGenerationGuard guard(
+        42, session.callbacks(), generation.callbacks());
+    WindowsCaptureGeneration pinned{};
+    const auto reader = guard.reader();
+    assert(reader.read != nullptr &&
+           reader.read(reader.context, pinned));
+
+    WholeOwnerCapturePipeline capture{};
+    FakeDxgiBackend backend{};
+    WindowsDxgiDuplicationOwner owner(
+        backend.callbacks(), capture.callbacks());
+    backend.owner = &owner;
+    capture.owner = &owner;
+    capture.parentBackend = &backend;
+    capture.guard = &guard;
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::ready);
+    assert(owner.attachCaptureCycle(selectedLayout(), guard.reader(),
+                                    pinned.session));
+
+    WholeOwnerInputBackend inputBackend{};
+    inputBackend.guard = &guard;
+    WindowsInputController input(
+        selectedLayout(), inputBackend.callbacks(), guard.reader(), pinned);
+    capture.input = &input;
+    assert(input.handle(WindowsKeyInput{0x1e, false, true}));
+    assert(inputBackend.commandCount == 1);
+
+    auto *const activeCycle = owner.captureCycle();
+    assert(activeCycle != nullptr);
+    capture.revokeDuringMap = true;
+    assert(activeCycle->captureFrame(0) ==
+           WindowsCaptureCycleResult::closed);
+    assert(capture.notificationResult ==
+           WindowsCaptureSessionChangeResult::revoked);
+    assert(capture.childRetainedDuringCallback);
+    assert(capture.parentResourcesRetainedDuringCallback);
+    assert(capture.teardownDeferredDuringMap);
+    assert(capture.nestedCaptureResult == WindowsCaptureCycleResult::closed);
+    assert(!capture.postRevocationInputAccepted);
+    assert(guard.closed() && input.closed());
+    assert(!owner.ready() && owner.deviceEpoch() == 0);
+    assert(owner.captureCycle() == activeCycle);
+    assert(activeCycle->frame().pixels.empty());
+    assert(capture.unmaps == 1 && capture.releases == 1);
+    assert(capture.retirementOrderCount == 2 &&
+           capture.retirementOrder[0] == 'U' &&
+           capture.retirementOrder[1] == 'R');
+    assert(backend.duplicationReleasedAt == 0);
+    assert(!inputBackend.sentAfterRevocation);
+    assert(inputBackend.commandCount == 1);
+
+    backend.requireChildRetiredBeforeRelease = true;
+    backend.requiredChildUnmaps = &capture.unmaps;
+    backend.requiredFrameReleases = &capture.releases;
+    owner.completeDeferredClose();
+    assert(owner.captureCycle() == nullptr);
+    backend.assertReleased();
+    assert(backend.duplication.releases == 1);
+    assert(owner.open(selectedTarget) == WindowsDxgiDuplicationResult::closed);
+
+    owner.completeDeferredClose();
+    owner.close();
+    assert(retireWindowsNativeConsumersOnSessionChange(
+               guard, owner, input, 42) ==
+           WindowsCaptureSessionChangeResult::alreadyClosed);
+    assert(capture.unmaps == 1 && capture.releases == 1);
+    assert(backend.duplication.releases == 1);
+}
+
+void windowsCaptureSessionChangeDuplicationPriorRevocation()
+{
+    for (const auto failure : {
+             PriorGuardFailure::unavailableSession,
+             PriorGuardFailure::inactiveTarget,
+             PriorGuardFailure::wrongProcessSession,
+             PriorGuardFailure::unavailableGeneration,
+             PriorGuardFailure::zeroGeneration,
+             PriorGuardFailure::nestedRead})
+    {
+        exercisePriorGuardFailure(failure);
+    }
+}
 
 void windowsDxgiDuplicationOwnerLifecycle()
 {

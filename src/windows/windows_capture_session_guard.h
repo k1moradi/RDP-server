@@ -9,6 +9,7 @@ namespace rdp_server::windows
 {
 
 class WindowsInputController;
+class WindowsDxgiDuplicationOwner;
 
 // Read-only facts about one caller-selected Windows session. A target ID is
 // merely a selector supplied by the future R2/R3 authorization owner; these
@@ -80,13 +81,23 @@ private:
 // terminal event can never emit held-input cleanup into another generation;
 // capture cancellation then reuses the existing map/frame owners.
 //
-// This retires the supplied capture cycle only. If that cycle is owned by a
-// WindowsDxgiDuplicationOwner, its caller must still close that outer owner to
-// release the parent duplication/device/output resources child-before-parent.
+// This overload retires a standalone capture cycle.
 [[nodiscard]] WindowsCaptureSessionChangeResult
 retireWindowsNativeConsumersOnSessionChange(
     WindowsCaptureSessionGenerationGuard &guard,
     WindowsDxgiCaptureCycle &captureCycle,
+    WindowsInputController &inputController,
+    std::uint32_t sessionId) noexcept;
+
+// Whole-owner variant for a parent-owned DXGI capture graph. Guard revocation
+// still precedes input invalidation; owner close then cancels the child before
+// parent resources. A callback-time close is logically terminal immediately;
+// completeDeferredClose() must run at the serialized safe point after the
+// outer capture operation returns.
+[[nodiscard]] WindowsCaptureSessionChangeResult
+retireWindowsNativeConsumersOnSessionChange(
+    WindowsCaptureSessionGenerationGuard &guard,
+    WindowsDxgiDuplicationOwner &duplicationOwner,
     WindowsInputController &inputController,
     std::uint32_t sessionId) noexcept;
 

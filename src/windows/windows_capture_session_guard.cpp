@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "windows_capture_session_guard.h"
 
+#include "windows_dxgi_duplication_owner.h"
 #include "windows_input_controller.h"
 
 #include <cstring>
@@ -95,6 +96,35 @@ retireWindowsNativeConsumersOnSessionChange(
     // notifySessionChange() intentionally ignores an unrelated valid session
     // ID before consulting closed_. At this composition boundary an already
     // invalid guard is nevertheless terminal for both native consumers.
+    return notification == WindowsCaptureSessionChangeResult::ignored
+               ? WindowsCaptureSessionChangeResult::alreadyClosed
+               : notification;
+}
+
+
+WindowsCaptureSessionChangeResult
+retireWindowsNativeConsumersOnSessionChange(
+    WindowsCaptureSessionGenerationGuard &guard,
+    WindowsDxgiDuplicationOwner &duplicationOwner,
+    WindowsInputController &inputController,
+    std::uint32_t sessionId) noexcept
+{
+    const auto notification = guard.notifySessionChange(sessionId);
+    if (notification == WindowsCaptureSessionChangeResult::ignored &&
+        !guard.closed())
+    {
+        return notification;
+    }
+
+    // Guard revocation deliberately precedes input retirement, so held state
+    // can only be discarded and never synthesized into another generation.
+    inputController.cancel();
+
+    // Parent close is immediately terminal. It cancels an attached child
+    // before parent release and defers unique_ptr destruction if this call
+    // arrived from that child's active callback.
+    duplicationOwner.close();
+
     return notification == WindowsCaptureSessionChangeResult::ignored
                ? WindowsCaptureSessionChangeResult::alreadyClosed
                : notification;

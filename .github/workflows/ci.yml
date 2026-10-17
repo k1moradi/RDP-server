@@ -894,7 +894,31 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|input-r3-admission-route-denials-and-revocation)$'
+          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-r4-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|input-r3-admission-route-denials-and-revocation)
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
+          printf '%s\n' "$selected_tests"
+
+          readonly r5_expected_test_count=36
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:[[:space:]]+x11\./ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$r5_expected_test_count" ]]; then
+            printf 'R5 native X11 registry mismatch: expected %s tests, found %s\n' \
+              "$r5_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'x11.capture-r4-bgra-ingress' <<< "$selected_tests"
+          grep -Fq 'x11.capture-r4-stride-layout-denials' <<< "$selected_tests"
+          grep -Fq 'x11.capture-r4-generation-retirement' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-capture-pixel-parity' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-randr-capture-generation' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-randr-stale-damage-isolation' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-pointer-randr-stale-motion-isolation' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-capture-terminal-denial' <<< "$selected_tests"
+          grep -Fq 'x11.capture-native-destructor-retirement' <<< "$selected_tests"
+
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$r5_x11_selection" --output-on-failure
+
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
           printf '%s\n' "$selected_tests"

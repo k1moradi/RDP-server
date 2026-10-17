@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "x11/x11_desktop_resources.h"
+#include "rdp/x264_avc420_segmented_frame_producer.h"
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -14,6 +18,8 @@
 
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
+
+using namespace rdp_server::rdp;
 
 namespace
 {
@@ -406,6 +412,41 @@ requireSyntheticDamage(X11DesktopResources &resources,
     synchronizeXcbConnection(*connection);
 }
 
+std::uint64_t
+requireSyntheticDamageGeneration(X11DesktopResources &resources,
+                                 std::uint64_t notificationCountBefore,
+                                 Rectangle expectedRectangle) noexcept
+{
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
+
+    bool observed = false;
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(resources.processEvents(32, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+        if (resources.damageNotificationCount() > notificationCountBefore)
+        {
+            observed = true;
+            break;
+        }
+    }
+    assert(observed);
+    assert(resources.damagePending());
+
+    DamageRegion damage;
+    std::uint64_t captureGeneration = 0;
+    assert(resources.snapshotDamage(damage, captureGeneration));
+    assert(captureGeneration != 0);
+    assert(!damage.rectangles().empty());
+    assert(damage.intersects(expectedRectangle));
+    assert(!resources.damagePending());
+    synchronizeXcbConnection(*connection);
+    return captureGeneration;
+}
+
 void
 requireSyntheticRandrRebuild(X11DesktopResources &resources,
                              xcb_connection_t &helper,
@@ -455,6 +496,130 @@ warpSyntheticPointer(xcb_connection_t &connection, xcb_window_t root,
     std::free(warpError);
     assert(xcb_flush(&connection) > 0);
 }
+
+std::array<std::byte, 22>
+r4Advertisement()
+{
+    return {std::byte{0x12}, {}, {}, {}, std::byte{22}, {}, {}, {},
+            std::byte{1}, {}, std::byte{5}, std::byte{1}, std::byte{8}, {},
+            std::byte{4}, {}, {}, {}, std::byte{0x10}, {}, {}, {}};
+}
+
+GfxPresentationReceipt
+emitR4Command(GfxPresentationLifecycle &lifecycle,
+              std::uint64_t generation)
+{
+    std::array<std::byte, 24> bytes{};
+    GfxPresentationReceipt receipt{};
+    assert(lifecycle.prepareCommand(generation, bytes, receipt));
+    return receipt;
+}
+
+void
+mapR4Surface(GfxPresentationLifecycle &lifecycle,
+             std::uint64_t generation,
+             PixelSize geometry) noexcept
+{
+    assert(lifecycle.open(generation));
+    assert(lifecycle.acceptCapabilities(generation, r4Advertisement()));
+    auto receipt = emitR4Command(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.configureSurface(generation, 7, geometry));
+    receipt = emitR4Command(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    receipt = emitR4Command(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+}
+
+void
+openR4Producer(X264Avc420SegmentedFrameProducer &producer,
+               std::uint64_t generation,
+               PixelSize geometry) noexcept
+{
+    const PixelSize coded = gfxAvc420CodedGeometry(geometry);
+    assert(coded.widthPixels != 0 && coded.heightPixels != 0);
+    assert(producer.open(generation, coded, geometry));
+}
+
+bool
+prepareR4Bgra(GfxPresentationLifecycle &lifecycle,
+              X264Avc420SegmentedFrameProducer &producer,
+              std::uint64_t generation,
+              std::uint32_t frameId,
+              const FramebufferView &framebuffer,
+              GfxAvc420SegmentedFrame &output,
+              std::int64_t pts = 0) noexcept
+{
+    const std::array<Rectangle, 1> regions{{
+        {0, 0, framebuffer.widthPixels, framebuffer.heightPixels}}};
+    const std::array<GfxAvc420QuantQuality, 1> qualities{{{23, 80}}};
+    const X264BgraFrameRequest request{
+        7, frameId, framebuffer, pts, regions, qualities};
+    return producer.prepareBgra(lifecycle, generation, request, output);
+}
+
+std::vector<std::byte>
+packedSyntheticPixels(Rectangle bounds,
+                      const SyntheticPixelPattern &pattern)
+{
+    const std::size_t stride =
+        static_cast<std::size_t>(bounds.widthPixels) * 4U;
+    std::vector<std::byte> pixels(
+        stride * static_cast<std::size_t>(bounds.heightPixels));
+    for (std::uint32_t y = 0; y < bounds.heightPixels; ++y)
+    {
+        for (std::uint32_t x = 0; x < bounds.widthPixels; ++x)
+        {
+            const auto color = expectedSyntheticColor(
+                bounds, pattern,
+                bounds.x + static_cast<std::int32_t>(x),
+                bounds.y + static_cast<std::int32_t>(y));
+            const std::size_t at =
+                static_cast<std::size_t>(y) * stride +
+                static_cast<std::size_t>(x) * 4U;
+            pixels[at] = static_cast<std::byte>(color.blue);
+            pixels[at + 1U] = static_cast<std::byte>(color.green);
+            pixels[at + 2U] = static_cast<std::byte>(color.red);
+            pixels[at + 3U] = std::byte{};
+        }
+    }
+    return pixels;
+}
+
+struct R4IngressConsumer final
+{
+    GfxPresentationLifecycle *lifecycle{};
+    X264Avc420SegmentedFrameProducer *producer{};
+    GfxAvc420SegmentedFrame *output{};
+    std::uint64_t presentationGeneration{};
+    std::uint64_t expectedCaptureGeneration{};
+    std::uint32_t frameId{};
+    std::int64_t pts{};
+    unsigned calls{};
+
+    static bool consume(void *raw, const FramebufferView &framebuffer,
+                        std::uint64_t captureGeneration) noexcept
+    {
+        auto &self = *static_cast<R4IngressConsumer *>(raw);
+        ++self.calls;
+        assert(framebuffer.valid());
+        assert(framebuffer.strideBytes ==
+               static_cast<std::size_t>(framebuffer.widthPixels) * 4U);
+        if (captureGeneration != self.expectedCaptureGeneration)
+        {
+            return false;
+        }
+        return prepareR4Bgra(
+            *self.lifecycle, *self.producer, self.presentationGeneration,
+            self.frameId, framebuffer, *self.output, self.pts);
+    }
+
+    [[nodiscard]] X11R4BgraFrameConsumer callbacks() noexcept
+    {
+        return {this, &consume};
+    }
+};
 
 class PointerRoutingObservationSink final : public X11EventSink
 {
@@ -1257,6 +1422,212 @@ syntheticXvfbPointerRandrStaleMotionIsolation()
 #endif
 
 void
+syntheticXvfbCaptureR4BgraIngress()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "R4 BGRA ingress");
+    assert((resources.sourceGeometry() == PixelSize{320, 240}));
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *screen = screenFor(*helper, helperScreenNumber);
+    const Rectangle full{0, 0, 320, 240};
+    const auto before = resources.damageNotificationCount();
+    drawSyntheticPattern(*helper, screen->root, full, kFirstPixelPattern);
+    const std::uint64_t captureGeneration =
+        requireSyntheticDamageGeneration(resources, before, full);
+
+    constexpr std::uint64_t presentationGeneration = 9101;
+    GfxPresentationLifecycle controlLifecycle;
+    GfxPresentationLifecycle ingressLifecycle;
+    mapR4Surface(controlLifecycle, presentationGeneration, {320, 240});
+    mapR4Surface(ingressLifecycle, presentationGeneration, {320, 240});
+    X264Avc420SegmentedFrameProducer controlProducer;
+    X264Avc420SegmentedFrameProducer ingressProducer;
+    openR4Producer(controlProducer, presentationGeneration, {320, 240});
+    openR4Producer(ingressProducer, presentationGeneration, {320, 240});
+
+    std::vector<std::byte> controlPixels =
+        packedSyntheticPixels(full, kFirstPixelPattern);
+    const FramebufferView controlView{
+        controlPixels, 320, 240, 320U * 4U};
+    GfxAvc420SegmentedFrame controlFrame;
+    GfxAvc420SegmentedFrame ingressFrame;
+    assert(prepareR4Bgra(
+        controlLifecycle, controlProducer, presentationGeneration,
+        1U, controlView, controlFrame, 17));
+
+    R4IngressConsumer consumer{
+        &ingressLifecycle, &ingressProducer, &ingressFrame,
+        presentationGeneration, captureGeneration, 1U, 17};
+    assert(resources.consumeR4Frame(
+        captureGeneration, consumer.callbacks()));
+    assert(consumer.calls == 1U);
+    assert(controlFrame.wireBytes().size() ==
+           ingressFrame.wireBytes().size());
+    assert(std::equal(
+        controlFrame.wireBytes().begin(), controlFrame.wireBytes().end(),
+        ingressFrame.wireBytes().begin()));
+
+    resources.disconnect();
+    assert(resources.captureGeneration() == 0);
+    assert(ingressFrame.valid());
+    assert(controlProducer.cancelUnwrittenDelivery(
+        controlLifecycle, controlFrame));
+    assert(ingressProducer.cancelUnwrittenDelivery(
+        ingressLifecycle, ingressFrame));
+}
+
+void
+syntheticXvfbCaptureR4StrideLayoutDenials()
+{
+    constexpr PixelSize visible{16, 16};
+    GfxPresentationLifecycle lifecycle;
+    constexpr std::uint64_t presentationGeneration = 9200;
+    mapR4Surface(lifecycle, presentationGeneration, visible);
+    X264Avc420SegmentedFrameProducer producer;
+    openR4Producer(producer, presentationGeneration, visible);
+
+    std::vector<std::byte> exact(16U * 16U * 4U);
+    GfxAvc420SegmentedFrame denied;
+    const FramebufferView shortStride{exact, 16, 16, 63};
+    assert(!prepareR4Bgra(
+        lifecycle, producer, presentationGeneration, 1U,
+        shortStride, denied));
+    const FramebufferView shortBuffer{
+        std::span<const std::byte>(exact).first(exact.size() - 1U),
+        16, 16, 64};
+    assert(!prepareR4Bgra(
+        lifecycle, producer, presentationGeneration, 1U,
+        shortBuffer, denied));
+    FramebufferView wrongGeometry{exact, 16, 16, 64};
+    wrongGeometry.widthPixels =
+        std::numeric_limits<std::uint32_t>::max();
+    assert(!prepareR4Bgra(
+        lifecycle, producer, presentationGeneration, 1U,
+        wrongGeometry, denied));
+    assert(!denied.valid());
+
+    X11DesktopResources bounded(syntheticDisplay(), 320U);
+    requireValidResources(bounded, "R4 bounded arena");
+    assert((bounded.sourceGeometry() == PixelSize{320, 240}));
+    GfxPresentationLifecycle boundedLifecycle;
+    mapR4Surface(
+        boundedLifecycle, presentationGeneration + 1U, {320, 240});
+    X264Avc420SegmentedFrameProducer boundedProducer;
+    openR4Producer(
+        boundedProducer, presentationGeneration + 1U, {320, 240});
+    GfxAvc420SegmentedFrame boundedFrame;
+    const std::uint64_t generation = bounded.captureGeneration();
+    R4IngressConsumer consumer{
+        &boundedLifecycle, &boundedProducer, &boundedFrame,
+        presentationGeneration + 1U, generation, 2U, 0};
+    assert(!bounded.consumeR4Frame(generation, consumer.callbacks()));
+    assert(consumer.calls == 0U);
+    assert(!boundedFrame.valid());
+    assert(!bounded.valid());
+}
+
+void
+syntheticXvfbCaptureR4GenerationRetirement()
+{
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, kCaptureArenaPixels);
+    requireValidResources(resources, "R4 generation retirement");
+    assert((resources.sourceGeometry() == PixelSize{320, 240}));
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *screen = screenFor(*helper, helperScreenNumber);
+    const Rectangle firstFull{0, 0, 320, 240};
+    const auto before = resources.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, screen->root, firstFull, kFirstPixelPattern);
+    const std::uint64_t firstGeneration =
+        requireSyntheticDamageGeneration(resources, before, firstFull);
+
+    constexpr std::uint64_t oldPresentationGeneration = 9301;
+    GfxPresentationLifecycle oldLifecycle;
+    mapR4Surface(oldLifecycle, oldPresentationGeneration, {320, 240});
+    X264Avc420SegmentedFrameProducer oldProducer;
+    openR4Producer(oldProducer, oldPresentationGeneration, {320, 240});
+    GfxAvc420SegmentedFrame firstFrame;
+    R4IngressConsumer firstConsumer{
+        &oldLifecycle, &oldProducer, &firstFrame,
+        oldPresentationGeneration, firstGeneration, 10U, 0};
+    assert(resources.consumeR4Frame(
+        firstGeneration, firstConsumer.callbacks()));
+    assert(oldProducer.cancelUnwrittenDelivery(
+        oldLifecycle, firstFrame));
+
+    constexpr PixelSize resized{256, 192};
+    requireSyntheticRandrRebuild(
+        resources, *helper, screen->root, resized);
+    const std::uint64_t replacementGeneration =
+        resources.captureGeneration();
+    assert(replacementGeneration == firstGeneration + 1U);
+
+    GfxAvc420SegmentedFrame staleFrame;
+    R4IngressConsumer staleConsumer{
+        &oldLifecycle, &oldProducer, &staleFrame,
+        oldPresentationGeneration, firstGeneration, 11U, 0};
+    assert(!resources.consumeR4Frame(
+        firstGeneration, staleConsumer.callbacks()));
+    assert(staleConsumer.calls == 0U);
+    assert(!resources.capture(
+        firstGeneration, {0, 0, 256, 192}).valid());
+    assert(resources.valid());
+
+    R4IngressConsumer wrongGeometryConsumer{
+        &oldLifecycle, &oldProducer, &staleFrame,
+        oldPresentationGeneration, replacementGeneration, 11U, 0};
+    assert(!resources.consumeR4Frame(
+        replacementGeneration, wrongGeometryConsumer.callbacks()));
+    assert(wrongGeometryConsumer.calls == 1U);
+    assert(!staleFrame.valid());
+
+    const Rectangle freshFull{0, 0, 256, 192};
+    const auto freshBefore = resources.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, screen->root, freshFull, kSecondPixelPattern);
+    const std::uint64_t freshGeneration =
+        requireSyntheticDamageGeneration(
+            resources, freshBefore, freshFull);
+    assert(freshGeneration == replacementGeneration);
+
+    constexpr std::uint64_t freshPresentationGeneration = 9302;
+    GfxPresentationLifecycle freshLifecycle;
+    mapR4Surface(freshLifecycle, freshPresentationGeneration, resized);
+    X264Avc420SegmentedFrameProducer freshProducer;
+    openR4Producer(freshProducer, freshPresentationGeneration, resized);
+    GfxAvc420SegmentedFrame freshFrame;
+    R4IngressConsumer freshConsumer{
+        &freshLifecycle, &freshProducer, &freshFrame,
+        freshPresentationGeneration, freshGeneration, 12U, 0};
+    assert(resources.consumeR4Frame(
+        freshGeneration, freshConsumer.callbacks()));
+    assert(freshFrame.valid());
+    assert(freshProducer.cancelUnwrittenDelivery(
+        freshLifecycle, freshFrame));
+
+    resources.disconnect();
+    assert(resources.captureGeneration() == 0);
+    DamageRegion disconnectedDamage;
+    std::uint64_t disconnectedGeneration = 99;
+    assert(!resources.snapshotDamage(
+        disconnectedDamage, disconnectedGeneration));
+    assert(disconnectedGeneration == 0);
+    GfxAvc420SegmentedFrame postDisconnect;
+    R4IngressConsumer postDisconnectConsumer{
+        &freshLifecycle, &freshProducer, &postDisconnect,
+        freshPresentationGeneration, replacementGeneration, 13U, 0};
+    assert(!resources.consumeR4Frame(
+        replacementGeneration, postDisconnectConsumer.callbacks()));
+    assert(postDisconnectConsumer.calls == 0U);
+}
+
+void
 syntheticXvfbRandrRebuild()
 {
     const char *display = syntheticDisplay();
@@ -1380,6 +1751,21 @@ main(int argc, char **argv)
     if (behavior == "r4-read-boundary")
     {
         syntheticXvfbR4ReadBoundary();
+        return 0;
+    }
+    if (behavior == "capture-r4-bgra-ingress")
+    {
+        syntheticXvfbCaptureR4BgraIngress();
+        return 0;
+    }
+    if (behavior == "capture-r4-stride-layout-denials")
+    {
+        syntheticXvfbCaptureR4StrideLayoutDenials();
+        return 0;
+    }
+    if (behavior == "capture-r4-generation-retirement")
+    {
+        syntheticXvfbCaptureR4GenerationRetirement();
         return 0;
     }
     if (behavior == "capture-pixel-parity")

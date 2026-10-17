@@ -2,6 +2,7 @@
 
 #include "x11_desktop_resources.h"
 
+#include <limits>
 #include <variant>
 
 namespace
@@ -114,6 +115,7 @@ X11DesktopResources::X11DesktopResources(
     }
 
     resourceGeometry_ = geometry;
+    captureGeneration_ = 1;
     failureReason_ = nullptr;
 }
 
@@ -126,7 +128,8 @@ bool
 X11DesktopResources::valid() const noexcept
 {
     return failureReason_ == nullptr && display_.valid() &&
-           childrenValid() && resourceGeometry_ == display_.sourceGeometry();
+           childrenValid() && captureGeneration_ != 0 &&
+           resourceGeometry_ == display_.sourceGeometry();
 }
 
 const char *
@@ -159,6 +162,12 @@ X11DesktopResources::sourceGeometry() const noexcept
     return valid() ? resourceGeometry_ : PixelSize{};
 }
 
+std::uint64_t
+X11DesktopResources::captureGeneration() const noexcept
+{
+    return valid() ? captureGeneration_ : 0;
+}
+
 bool
 X11DesktopResources::randrAvailable() const noexcept
 {
@@ -180,7 +189,17 @@ X11DesktopResources::damageNotificationCount() const noexcept
 bool
 X11DesktopResources::snapshotDamage(DamageRegion &damageRegion) noexcept
 {
+    std::uint64_t ignoredGeneration = 0;
+    return snapshotDamage(damageRegion, ignoredGeneration);
+}
+
+bool
+X11DesktopResources::snapshotDamage(
+    DamageRegion &damageRegion,
+    std::uint64_t &captureGeneration) noexcept
+{
     damageRegion.clear();
+    captureGeneration = 0;
     if (!valid())
     {
         return false;
@@ -193,13 +212,23 @@ X11DesktopResources::snapshotDamage(DamageRegion &damageRegion) noexcept
         cancelNativeResources();
         return false;
     }
+    captureGeneration = captureGeneration_;
     return true;
 }
 
 FramebufferView
 X11DesktopResources::capture(Rectangle rectangle) noexcept
 {
-    if (!valid())
+    return capture(captureGeneration(), rectangle);
+}
+
+FramebufferView
+X11DesktopResources::capture(
+    std::uint64_t expectedGeneration,
+    Rectangle rectangle) noexcept
+{
+    if (!valid() || expectedGeneration == 0 ||
+        expectedGeneration != captureGeneration_)
     {
         return {};
     }
@@ -213,6 +242,53 @@ X11DesktopResources::capture(Rectangle rectangle) noexcept
         return {};
     }
     return frame;
+}
+
+bool
+X11DesktopResources::consumeR4Frame(
+    std::uint64_t expectedGeneration,
+    X11R4BgraFrameConsumer consumer) noexcept
+{
+    if (!valid() || expectedGeneration == 0 ||
+        expectedGeneration != captureGeneration_ ||
+        consumer.context == nullptr || consumer.consume == nullptr)
+    {
+        return false;
+    }
+
+    const PixelSize geometry = resourceGeometry_;
+    if (geometry.widthPixels >
+        std::numeric_limits<std::size_t>::max() / 4U)
+    {
+        return false;
+    }
+    const std::size_t expectedStride =
+        static_cast<std::size_t>(geometry.widthPixels) * 4U;
+    if (expectedStride == 0 ||
+        geometry.heightPixels >
+            std::numeric_limits<std::size_t>::max() / expectedStride)
+    {
+        return false;
+    }
+
+    const FramebufferView framebuffer = capture(
+        expectedGeneration,
+        {0, 0, geometry.widthPixels, geometry.heightPixels});
+    if (!framebuffer.valid() ||
+        framebuffer.widthPixels != geometry.widthPixels ||
+        framebuffer.heightPixels != geometry.heightPixels ||
+        framebuffer.strideBytes != expectedStride ||
+        framebuffer.pixels.size() !=
+            expectedStride * geometry.heightPixels)
+    {
+        return false;
+    }
+
+    const bool consumed =
+        consumer.consume(consumer.context, framebuffer, expectedGeneration);
+    return consumed && valid() &&
+           captureGeneration_ == expectedGeneration &&
+           resourceGeometry_ == geometry;
 }
 
 bool
@@ -534,6 +610,15 @@ X11DesktopResources::rebuildGeometryBoundResources(
         return false;
     }
 
+    if (captureGeneration_ == 0 ||
+        captureGeneration_ == std::numeric_limits<std::uint64_t>::max())
+    {
+        fail("X11 desktop capture generation cannot advance");
+        cancelNativeResources();
+        return false;
+    }
+    const std::uint64_t nextCaptureGeneration = captureGeneration_ + 1U;
+
     // Commit-or-revoke transaction: no public call can observe the interval
     // between old-generation cancellation and complete new construction.
     cancelGeometryBoundResources();
@@ -570,6 +655,7 @@ X11DesktopResources::rebuildGeometryBoundResources(
     }
 
     resourceGeometry_ = geometry;
+    captureGeneration_ = nextCaptureGeneration;
     return true;
 }
 

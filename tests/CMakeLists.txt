@@ -1688,7 +1688,8 @@ if(TARGET rdp-server-linux-x11-desktop)
     add_rdp_test(test_x11_desktop_resources.cpp x11
         desktop-resource-owner-connection-denial)
     target_link_libraries(test_x11_desktop_resources PRIVATE
-        rdp-server-linux-x11-desktop)
+        rdp-server-linux-x11-desktop
+        rdp-server-graphics)
     target_compile_options(test_x11_desktop_resources PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     if(TARGET rdp-server-linux-xinput-pointer)
@@ -1719,6 +1720,29 @@ if(TARGET rdp-server-linux-x11-desktop)
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources> r4-read-boundary)
+        add_test(NAME x11.capture-r4-bgra-ingress
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 320x240x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                capture-r4-bgra-ingress)
+        add_test(NAME x11.capture-r4-stride-layout-denials
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 320x240x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                capture-r4-stride-layout-denials)
+        add_test(NAME x11.capture-r4-generation-retirement
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 320x240x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                capture-r4-generation-retirement)
+        set_tests_properties(
+            x11.capture-r4-bgra-ingress
+            x11.capture-r4-stride-layout-denials
+            x11.capture-r4-generation-retirement
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;graphics"
+                TIMEOUT 20)
+
         add_test(NAME x11.desktop-resource-capture-pixel-parity
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"

@@ -1,3 +1,37 @@
+## R5 P1 native Linux/X11 -> R4 framebuffer ownership boundary (2026-10-17; exact-SHA CI pending)
+
+**Authoring parent:** `f037d4b6445950767a126830e391057fcd3417ec`.
+
+R5 now carries an explicit geometry-bound capture generation on the existing
+`X11DesktopResources` owner. Damage snapshots can return that generation;
+stale generation capture/consume requests fail without revoking a fresh owner.
+Successful RandR replacement advances the generation only after the complete
+replacement XShm/Damage/input set commits, while disconnect exposes generation
+zero.
+
+The production seam follows the R6/R7 borrow-only pattern and remains
+R4/x264-independent. `consumeR4Frame()` captures the complete visible surface,
+calls `X11R4BgraFrameConsumer` synchronously with the borrowed
+`FramebufferView` and exact native generation, then revalidates generation and
+geometry. No borrowed XShm span escapes, no second capture engine or framebuffer
+copy/owner is added, and R4's existing BGRA->NV12 scratch remains the sole
+conversion copy.
+
+The existing X11 fixture privately links `rdp-server-graphics` and adds
+`x11.capture-r4-bgra-ingress`,
+`x11.capture-r4-stride-layout-denials`, and
+`x11.capture-r4-generation-retirement`. They prove real Xvfb B,G,R,X/stride
+parity through `prepareBgra()`, R4 malformed-layout plus R5 arena denials,
+owned encoded-frame survival after X11 teardown, RandR retirement of old
+Damage/capture provenance, fresh-geometry acceptance and post-disconnect denial.
+R9's fail-closed R5 selector expands **33 -> 36**.
+
+Ordinary execution uses only ephemeral Xvfb and enables no logged-in desktop,
+network graphics or XTEST input. This boundary is authorization-neutral:
+genuine R2 admission and current R3 Share/View authority remain mandatory for
+live composition; R3 owns Graphics DVC delivery and R4 owns encoding/receipts.
+Exact publication-SHA hosted validation is **PENDING**.
+
 ## R7 P2 R4 capture-epoch reconciliation (2026-10-17; exact-SHA CI pending)
 
 **Starting shared `main`:** `162093d3f50f0c9793b1eafc2cba637c98473559`.

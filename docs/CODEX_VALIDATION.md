@@ -1,3 +1,19 @@
+## R5 X11 -> R4 framebuffer boundary authoring receipt (2026-10-17)
+
+**Authoring parent:** `f037d4b6445950767a126830e391057fcd3417ec`. Exact publication-SHA Actions are
+**PENDING**.
+
+Production R5 adds capture-generation provenance, generation-tagged Damage
+snapshots, stale-generation capture denial and one synchronous
+generation-carrying `consumeR4Frame()` callback. Production R5 remains
+R4/x264-independent; only the existing X11 fixture privately links graphics.
+
+Dedicated CTests are `x11.capture-r4-bgra-ingress`,
+`x11.capture-r4-stride-layout-denials`, and
+`x11.capture-r4-generation-retirement`. R9's exact native-X11 cardinality is
+**36**. No R2/R3 authority, DVC sender, second capture implementation or XTEST
+input path is added.
+
 ## R7 P2 R4 capture-epoch reconciliation authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `162093d3f50f0c9793b1eafc2cba637c98473559`. Exact publication-SHA CI is

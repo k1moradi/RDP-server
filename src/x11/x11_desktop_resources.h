@@ -18,6 +18,16 @@
 
 class X11AuthorizedInputRoute;
 
+// R5 -> R4 borrow-only framebuffer boundary. captureGeneration is native
+// revocation provenance, not R4 presentation or session authorization.
+// The framebuffer is valid only during consume().
+struct X11R4BgraFrameConsumer final
+{
+    void *context{};
+    bool (*consume)(void *context, const FramebufferView &framebuffer,
+                    std::uint64_t captureGeneration) noexcept{};
+};
+
 struct X11CursorImageView final
 {
     std::span<const std::byte> pixels{};
@@ -79,6 +89,7 @@ public:
     [[nodiscard]] xcb_connection_t *nativeConnection() const noexcept;
     [[nodiscard]] xcb_window_t rootWindow() const noexcept;
     [[nodiscard]] PixelSize sourceGeometry() const noexcept;
+    [[nodiscard]] std::uint64_t captureGeneration() const noexcept;
     [[nodiscard]] bool randrAvailable() const noexcept;
     [[nodiscard]] bool damagePending() const noexcept;
     [[nodiscard]] std::uint64_t damageNotificationCount() const noexcept;
@@ -88,7 +99,18 @@ public:
     // refresh/capture, RandR rebuild, or disconnect. These methods schedule
     // nothing and confer no R2/R3 authorization.
     [[nodiscard]] bool snapshotDamage(DamageRegion &damageRegion) noexcept;
+    [[nodiscard]] bool snapshotDamage(
+        DamageRegion &damageRegion,
+        std::uint64_t &captureGeneration) noexcept;
     [[nodiscard]] FramebufferView capture(Rectangle rectangle) noexcept;
+    [[nodiscard]] FramebufferView capture(
+        std::uint64_t expectedGeneration,
+        Rectangle rectangle) noexcept;
+    // Full-current-surface borrow. The callback must synchronously consume or
+    // convert pixels and must not reenter this X11 owner.
+    [[nodiscard]] bool consumeR4Frame(
+        std::uint64_t expectedGeneration,
+        X11R4BgraFrameConsumer consumer) noexcept;
     [[nodiscard]] bool cursorPending() const noexcept;
     [[nodiscard]] bool refreshCursor() noexcept;
     [[nodiscard]] X11CursorImageView cursorImage() const noexcept;
@@ -147,6 +169,7 @@ private:
     std::optional<X11PointerPositionTracker> pointerPosition_{};
     std::optional<X11InputController> input_{};
     PixelSize resourceGeometry_{};
+    std::uint64_t captureGeneration_{};
     std::uint64_t maximumCapturePixels_{};
     const char *pointerPositionFailureReason_{
         "XInput2 pointer observation is unavailable in this build"};

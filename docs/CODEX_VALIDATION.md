@@ -18434,3 +18434,47 @@ semantics. Both are included in the portable R4 ASan/UBSan selector.
 Canonical owner-local execution is **NOT RUN** because this environment does
 not expose `~/rdp-server`; exact publication-SHA hosted CI is the first
 executable gate.
+
+
+## R4 client decoded-frame observation exact-SHA hosted receipt (2026-10-16)
+
+**Implementation:** `631ceb3b5d9e212a1a7ddaf399a91d8ad57ad183`.  
+**Actions:** `39004943407` — **SUCCESS**.
+
+The existing generation-bound FRAME_ACKNOWLEDGE owner now retains the raw
+latest valid `totalFramesDecoded` value plus explicit availability, and the
+sole `GfxPresentationLifecycle` exposes that observation beside the existing
+queue-depth facts. Zero remains a valid observed counter value; malformed and
+stale-generation PDUs cannot mutate it; valid unmatched ACKs can update it;
+the suspension PDU's value remains inspectable while ACK expectation is false;
+disconnect/reconnect clears both value and availability. No monotonic/wrap
+rule, derived decode rate, timer or frame-rate threshold was introduced.
+
+Dedicated production-backed cases
+`graphics.frame-ack-decode-progress` and
+`graphics.frame-ack-decode-progress-observation` pass in every ordinary
+hosted configuration and under the portable R4 sanitizer gate:
+
+- **Linux/GCC:** Debug **530/530 PASS**, Release **530/530 PASS**; the new
+  cases are **#273** and **#280** in both configurations.
+- **macOS/AppleClang:** Debug **449/449 PASS**, Release **449/449 PASS**; the
+  new cases are **#258** and **#265** in both configurations.
+- **Windows/MSVC:** focused native preflight **51/51 PASS** in Debug and
+  Release; full Debug **479/479 PASS**, Release **479/479 PASS**; the new
+  cases are **#258** and **#265** in both full suites.
+- **Clang ASan+UBSan portable R4 RDPGFX:** **36/36 PASS**; registry preflight
+  explicitly finds both new cases and they pass as items **9/36** and
+  **16/36**. Existing R4 x264/BGRA remains **20/20 PASS** and RDPGFX
+  capability negotiation remains **4/4 PASS**.
+- Documentation policy, independent R7 sanitizer, installed-SDK
+  consumer/package/digest/upload and all other configured sanitizer/fuzzer
+  groups pass; ordinary prerelease publication is correctly **SKIPPED**.
+
+This closes decode-progress **observation** only. MS-RDPEGFX recommends using
+finite nonzero queue depth to judge client decode lag and throttle frame rate,
+but the protocol does not prescribe thresholds. R4 therefore does not guess a
+cadence policy without measured/client evidence. Canonical owner-local
+`~/rdp-server/build`, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and
+macOS 27, authenticated R3 Graphics DVC/full-send, native capture performance
+and Microsoft-client visible graphics remain **NOT RUN/BLOCKED**. Gate B and
+M3/M4/M5 remain **OPEN**.

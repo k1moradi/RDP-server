@@ -1,3 +1,40 @@
+## R9 exact-head runtime sanitizer selector correction (2026-10-17)
+
+**Failed baseline:** `3f5c2434840181afc8d6cef2765098d7b609f946`.
+Independent structure Actions `39051114055` passed. Primary Actions
+`39051114121` failed only in `r9-security-protocol-sanitizers`, step
+`Run all direct R10 Linux runtime security CTests with sanitizers`, before
+executing that selection.
+
+CTest registration is correct: the target tree registers
+`runtime.linux-connection-personal-license-request-r1-write-denials`.
+The workflow expected **19** direct runtime-security cases and required that
+exact sentinel, but its grouped regex spelled
+`personal-desktop-(r3-authority|license-request-r1-write)-denials`.
+Consequently `ctest -N` selected **18** cases and correctly tripped the
+cardinality guard. The correction changes only that selector to
+`personal-(desktop-r3-authority|license-request-r1-write)-denials` and adds
+the corrected grouped fragment to the structure validator so the earlier
+damaged-shell-regex class is rejected statically.
+
+On the failed baseline, unaffected sanitizer selections remained green:
+R3 Graphics DVC **4/4**, R4 ClearCodec **4/4**, R5 X11 **38/38**, and R8
+clipboard **81/81**. The R6 CLANG64 job passed its **59-case** native gates.
+R7 focused native lifecycle passed its **21-case** Debug and Release
+selections, and the authority-loss input sanitizer selection passed **2/2**.
+Ubuntu, Windows and macOS protocol matrix jobs all completed successfully;
+the primary workflow failure is therefore CI selection structure, not a
+failing production CTest.
+
+No production source, CTest registration, licensing mode, lease authority,
+native input/capture path or live-client ledger is changed by this correction.
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** here. This
+correction publication's exact-head hosted workflows are **PENDING** until
+GitHub Actions completes. M1 owner-native same-SHA reconciliation remains
+separate from M2 client acceptance. The next real-client gate is still an
+owner-authorized genuine Linux Kerberos/PAM/NSS/logind physical-X11 admission
+lease before positive PersonalDesktop licensing/Share traffic.
+
 ## R10 personal Server License Request R1-write composition (2026-10-17)
 
 **Reconciled dependencies:** R10 post-admission MCS framing

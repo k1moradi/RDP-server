@@ -1,3 +1,19 @@
+## R9 sanitizer selector grouping must match registered CTest names (2026-10-17)
+
+When an anchored sanitizer selector changes cardinality, require both the exact
+new CTest sentinel and the grouped selector fragment that can actually match
+its registered spelling. Do not compress alternatives under a shared prefix
+unless every expanded name preserves the literal CTest name.
+
+For the direct Linux runtime-security gate, the two personal cases are
+`runtime.linux-connection-personal-desktop-r3-authority-denials` and
+`runtime.linux-connection-personal-license-request-r1-write-denials`; the
+shared expression is therefore
+`personal-(desktop-r3-authority|license-request-r1-write)-denials`.
+Keep the exact **19-case** count check and sentinel checks before execution.
+A cardinality mismatch is a CI/registry assurance failure and must not be
+reported as a failing CTest.
+
 ## R6 upstream-authority input retirement is no-post (2026-10-17)
 
 `windows.input-sendinput-authority-retirement-no-native-post` exercises the

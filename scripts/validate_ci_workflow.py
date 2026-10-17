@@ -290,6 +290,7 @@ REQUIRED_TOKENS = (
     "runtime.linux-connection-native-desktop-selection-denials",
     "runtime.linux-connection-personal-desktop-r3-authority-denials",
     "runtime.linux-connection-personal-license-request-r1-write-denials",
+    "personal-(desktop-r3-authority|license-request-r1-write)-denials",
     "runtime.linux-connection-post-admission-mcs-framing-denials",
     "post-admission-mcs-framing-denials",
     "runtime.linux-connection-existing-cal-unadmitted-denial",

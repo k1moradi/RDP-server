@@ -1,3 +1,15 @@
+## R5 offline Linux user test bundle (2026-10-17)
+
+Atomic source increment: fixed-member ZIP of actual existing Linux server
+executable, source/version/file SHA manifest, user-private install/verify/remove
+and disabled graphical-session user service. Dedicated CTest:
+`packaging.linux-user-bundle-offline-lifecycle`; tests are offline and
+must not call the payload, network, systemd, X11 or XTEST. Commands:
+`ctest --test-dir build -R '^packaging.linux-user-bundle-offline-lifecycle$' --output-on-failure`.
+Canonical owner build/CTest **NOT RUN** in connector environment; hosted
+exact-SHA CI **NOT RUN** pending publication; live M3 **BLOCKED** on
+R10/R3/authenticated human host. R9 still owes actual bundle/ELF receipts.
+
 ## R7 macOS protocol-only test-bundle delivery (2026-10-17)
 
 Source based on shared main before publication. The new

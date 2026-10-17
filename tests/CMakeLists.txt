@@ -2295,3 +2295,17 @@ foreach(case_name IN ITEMS
     set_tests_properties("graphics.${case_name}" PROPERTIES
         LABELS "protocol;graphics;x264;offline")
 endforeach()
+
+# R5 Linux server bundle install/verify/remove does not execute the payload
+# or invoke service management, capture, XTEST or a TCP listener.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME packaging.linux-user-bundle-offline-lifecycle
+            COMMAND "${Python3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/tests/test_linux_server_bundle.py"
+                "${PROJECT_SOURCE_DIR}/packaging/linux/server_test_bundle.py")
+        set_tests_properties(packaging.linux-user-bundle-offline-lifecycle
+            PROPERTIES LABELS "packaging;linux;security;offline" TIMEOUT 30)
+    endif()
+endif()

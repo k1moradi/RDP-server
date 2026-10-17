@@ -1,0 +1,10 @@
+# Template only: no embedded credentials or owner authorization.
+# Install a separate mode-0600 server.conf before authorized use.
+listen_address=127.0.0.1
+listen_port=3389
+tls_certificate=/absolute/private/path/server.crt
+tls_private_key=/absolute/private/path/server.key
+authentication=required
+os_authorization=required
+max_connections=1
+# Genuine R2 Linux GSS/PAM/native identity fields must be added by owner.

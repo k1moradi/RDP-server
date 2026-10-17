@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Disabled on installation. Graphical-session.target must actually be managed
+# by the user's desktop. No linger, system daemon or DISPLAY fallback.
+[Unit]
+Description=Authorized personal RDP test server (blocked pending R10/R3)
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionPathExists=%h/.config/rdp-server-test/authorized
+
+[Service]
+Type=simple
+UMask=0077
+WorkingDirectory=%h
+ExecStartPre=%h/.local/share/rdp-server-test/bin/rdp-server --check-linux-security %h/.config/rdp-server-test/server.conf
+# Future R10 CLI; currently rejects startup. Never enable before human gate.
+ExecStart=%h/.local/share/rdp-server-test/bin/rdp-server serve --config %h/.config/rdp-server-test/server.conf
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=graphical-session.target

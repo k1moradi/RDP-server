@@ -1385,9 +1385,7 @@ X11ClipboardAdapter::disconnect() noexcept
     atoms_ = {};
     publicationGeneration_ = 0;
     yieldedGeneration_ = 0;
-    fileHandoffGeneration_ = 0;
-    fileUri_.fill(0);
-    fileUriLength_ = 0;
+    clearFileHandoff();
     textOffered_ = false;
     pngOffered_ = false;
     fileOffered_ = false;

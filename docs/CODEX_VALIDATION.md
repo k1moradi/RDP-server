@@ -1,3 +1,20 @@
+## R8 multi-file X11 disconnect compile repair (2026-10-16; exact-SHA CI pending)
+
+Implementation `013b834eaab7b863d1257d8e4730677260746581` reached hosted CI
+Actions `39004341947`. Linux/GCC Debug failed during
+`rdp-server-linux-x11-clipboard` compilation because the final
+`disconnect()` cleanup still named the pre-multi-file fields
+`fileUri_`/`fileUriLength_`. The production multi-file state itself had
+already replaced those fields with the canonical list owner. macOS compiled
+successfully because the X11 target is Linux-only.
+
+This follow-up removes the stale duplicate cleanup and reuses
+`clearFileHandoff()`, which already clears the canonical URI list, file count,
+generation and file-offered state. No protocol, ownership, native-format or
+test semantics change. The original exact-SHA run is **FAIL** for Linux compile
+and cannot validate this R8 increment; descendant exact-SHA hosted CI is
+required.
+
 ## R1 owned-TLS terminal close readiness hardening (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared \`main\`:** \`c1112051ed5a81db34bdfc4cf8193e9bc114cdb5\`.

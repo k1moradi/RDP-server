@@ -1,3 +1,27 @@
+## R9 delegated-account adversarial audit authoring (2026-10-16)
+
+R9 reviewed R2 commit `a4315bf38144ff390ae5ef12170d645c5458bb0b`
+after it introduced the bounded owning local-account candidate. A deterministic
+reproducer showed that `copyUnixAccount()` could write a valid prefix into
+the public result array before rejecting a later character, leaving partial
+identity bytes observable on an `InvalidUnixAccount` result. Password data
+was not exposed.
+
+The production correction is deliberately narrow: the caller clears
+`account[]` and `accountLength` whenever UNIX-account conversion fails.
+New CTest
+`security.credssp-delegated-account-adversarial-boundaries` independently
+checks 640 bounded code-unit mutations plus explicit prefix, ownership,
+domain and 32/33-byte boundary cases. Invalid results must be fully empty,
+successful candidates must survive mutation/retirement of the input buffer,
+and identical input must classify identically without modifying caller bytes.
+
+The existing R9 delegated-account sanitizer selector is extended—not replaced—
+and the new name is required by its fail-closed `ctest -N` preflight.
+Exact-SHA hosted validation is pending. Positive PAM/NSS/logind authorization,
+native admission and real-client acceptance remain unavailable and are not
+simulated.
+
 ## R2 delegated-account binding exact-SHA validation (2026-10-16)
 
 Validated implementation SHA

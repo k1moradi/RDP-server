@@ -323,12 +323,13 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$credential_selection" --output-on-failure
 
-          delegated_account_selection='^security\.(credssp-delegated-(account-(extraction|sensitive-retirement)|domain-identity-denials)|console-policy-delegated-account-binding)$'
+          delegated_account_selection='^security\.(credssp-delegated-(account-(extraction|sensitive-retirement|adversarial-boundaries)|domain-identity-denials)|console-policy-delegated-account-binding)$'
           delegated_account_tests="$(ctest --test-dir build --build-config Debug -N -R "$delegated_account_selection")"
           printf '%s\n' "$delegated_account_tests"
           grep -Fq 'security.credssp-delegated-account-extraction' <<< "$delegated_account_tests"
           grep -Fq 'security.credssp-delegated-domain-identity-denials' <<< "$delegated_account_tests"
           grep -Fq 'security.credssp-delegated-account-sensitive-retirement' <<< "$delegated_account_tests"
+          grep -Fq 'security.credssp-delegated-account-adversarial-boundaries' <<< "$delegated_account_tests"
           grep -Fq 'security.console-policy-delegated-account-binding' <<< "$delegated_account_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$delegated_account_selection" --output-on-failure

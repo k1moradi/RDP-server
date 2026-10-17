@@ -328,6 +328,11 @@ CredSspDelegatedAccountInspection inspectCredSspDelegatedAccount(
     }
     if (!copyUnixAccount(fields.user, result))
     {
+        // A rejected account is not a candidate. copyUnixAccount() may have
+        // examined and copied a valid prefix before finding a bad code unit;
+        // retire that partial identity before returning a failure result.
+        result.account.fill('\0');
+        result.accountLength = 0;
         result.error = CredSspDelegatedAccountError::InvalidUnixAccount;
         return result;
     }

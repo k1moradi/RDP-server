@@ -1,3 +1,36 @@
+## R9 delegated-account failure-output audit (2026-10-16; exact-SHA CI pending)
+
+R9 independently reviewed R2's newly landed delegated-account extraction
+boundary. The account result is intentionally an owning, non-secret local
+identity candidate, while password bytes remain inside the GSS plaintext
+lifetime and final CredSSP remains terminal deny-only.
+
+The audit found one fail-closed output-hygiene defect: an invalid UNIX account
+whose prefix was syntactically valid (for example `alice.name`) could return
+`InvalidUnixAccount` with that rejected prefix still present in the public
+fixed `account[]` result buffer even though `accountLength==0` and
+`accountName()` was empty. This is not password disclosure, but a failed
+parse must not publish a partial rejected identity. The smallest R2 boundary
+correction now clears the account array and length on every failed account
+conversion.
+
+New production-backed CTest
+`security.credssp-delegated-account-adversarial-boundaries` stays in the
+existing `test_owned_credssp_tsrequest` executable. It runs a deterministic
+640-case ASCII/non-ASCII code-unit mutation corpus against the real
+`inspectCredSspDelegatedAccount`, uses a compact independent account-syntax
+oracle, verifies repeated results and immutable caller input, proves successful
+results own their account bytes after input retirement, checks 32/33-character
+bounds and explicit rejected-prefix forms, and requires every failed result to
+contain no residual candidate bytes. Password mutation remains syntax-only and
+does not imply authentication.
+
+The R9 sanitizer job's existing delegated-account group now preflights this
+new registration explicitly and executes it under ASan/UBSan with leak
+detection and without the MIT-krb5 suppression. No PAM invocation, completion
+latch, native admission lease, listener or R3 state is enabled. Exact hosted
+Debug/Release/sanitizer results are **PENDING**.
+
 ## R2 delegated-account binding hosted validation receipt (2026-10-16)
 
 Implementation SHA `a4315bf38144ff390ae5ef12170d645c5458bb0b`,

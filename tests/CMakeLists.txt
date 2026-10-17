@@ -300,6 +300,7 @@ function(add_rdp_test source_file suite behavior)
                 credssp-delegated-account-extraction
                 credssp-delegated-domain-identity-denials
                 credssp-delegated-account-sensitive-retirement
+                credssp-delegated-account-adversarial-boundaries
                 credssp-stream-fragments
                 credssp-stream-coalesced
                 credssp-stream-rejections

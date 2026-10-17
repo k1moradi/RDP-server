@@ -504,6 +504,146 @@ void testDelegatedAccountSensitiveRetirement()
         [](std::uint8_t value) { return value == 0; }));
 }
 
+
+[[nodiscard]] bool validDelegatedUnixAccountForTest(
+    std::span<const std::uint8_t> userUtf16Le) noexcept
+{
+    if (userUtf16Le.empty() || (userUtf16Le.size() & 1U) != 0 ||
+        userUtf16Le.size() > kMaximumDelegatedUnixAccountBytes * 2U)
+    {
+        return false;
+    }
+
+    std::array<char, kMaximumDelegatedUnixAccountBytes + 1U> account{};
+    const std::size_t characterCount = userUtf16Le.size() / 2U;
+    for (std::size_t index = 0; index < characterCount; ++index)
+    {
+        const std::size_t offset = index * 2U;
+        if (userUtf16Le[offset + 1U] != 0)
+            return false;
+        const char character = static_cast<char>(userUtf16Le[offset]);
+        const bool lowercase = character >= 'a' && character <= 'z';
+        const bool digit = character >= '0' && character <= '9';
+        if ((index == 0 && !lowercase && character != '_') ||
+            (!lowercase && !digit && character != '_' && character != '-'))
+        {
+            return false;
+        }
+        account[index] = character;
+    }
+    return std::string_view(account.data(), characterCount) != "root";
+}
+
+void testDelegatedAccountAdversarialBoundaries()
+{
+    const Bytes password = utf16Le(u"secret");
+    const Bytes seedUser = utf16Le(u"alice");
+    const Bytes seed = passwordCredentials({}, seedUser, password);
+    const Bytes original = seed;
+
+    const auto owned = inspectCredSspDelegatedAccount(seed);
+    assert(owned && owned.accountName() == "alice");
+    assert(seed == original);
+
+    // The published candidate owns its non-secret account bytes. It must not
+    // borrow the decrypted credential buffer or any password bytes.
+    Bytes retiredInput = seed;
+    const auto retained = inspectCredSspDelegatedAccount(retiredInput);
+    std::fill(retiredInput.begin(), retiredInput.end(), 0);
+    assert(retained && retained.accountName() == "alice");
+
+    const auto assertInspection = [&](const Bytes &credentials,
+                                      bool expectedAccount)
+    {
+        const Bytes before = credentials;
+        const auto first = inspectCredSspDelegatedAccount(credentials);
+        const auto second = inspectCredSspDelegatedAccount(credentials);
+        assert(credentials == before);
+        assert(first.error == second.error);
+        assert(first.accountLength == second.accountLength);
+        assert(first.account == second.account);
+
+        if (expectedAccount)
+        {
+            assert(first);
+            assert(first.error == CredSspDelegatedAccountError::None);
+            assert(first.accountLength != 0);
+            assert(first.account[first.accountLength] == '\0');
+        }
+        else
+        {
+            assert(!first);
+            assert(first.accountLength == 0);
+            assert(first.accountName().empty());
+            assert(std::all_of(
+                first.account.begin(), first.account.end(),
+                [](char value) { return value == '\0'; }));
+        }
+    };
+
+    // Exhaust every ASCII replacement at every code-unit position of the
+    // short account seed. The test-only syntax oracle decides whether the
+    // changed username remains a valid local-account candidate.
+    std::size_t mutationCount = 0;
+    for (std::size_t codeUnit = 0; codeUnit < seedUser.size() / 2U; ++codeUnit)
+    {
+        for (std::uint16_t replacement = 1; replacement <= 0x7fU;
+             ++replacement)
+        {
+            Bytes mutatedUser = seedUser;
+            mutatedUser[codeUnit * 2U] =
+                static_cast<std::uint8_t>(replacement);
+            mutatedUser[codeUnit * 2U + 1U] = 0;
+            const bool expected =
+                validDelegatedUnixAccountForTest(mutatedUser);
+            assertInspection(
+                passwordCredentials({}, mutatedUser, password), expected);
+            ++mutationCount;
+        }
+
+        // Structurally valid non-ASCII UTF-16 must never be silently folded
+        // into an ASCII UNIX account candidate.
+        Bytes nonAsciiUser = seedUser;
+        nonAsciiUser[codeUnit * 2U + 1U] = 1;
+        assert(validUtf16LeForTest(nonAsciiUser, false));
+        assertInspection(
+            passwordCredentials({}, nonAsciiUser, password), false);
+        ++mutationCount;
+    }
+    assert(mutationCount == 640U);
+
+    // Rejected values with a long valid prefix are the failure-output hygiene
+    // regression: no partial identity may remain in the public result array.
+    for (const auto user : std::array<std::u16string_view, 7>{
+             u"alice.name", u"alice@realm", u"alice\\domain",
+             u"alice+tag", u"alice!", u"Alice", u"root"})
+    {
+        assertInspection(
+            passwordCredentials({}, utf16Le(user), password), false);
+    }
+
+    std::u16string maximum(32U, u'a');
+    assertInspection(
+        passwordCredentials({}, utf16Le(maximum), password), true);
+    std::u16string tooLong(33U, u'a');
+    assertInspection(
+        passwordCredentials({}, utf16Le(tooLong), password), false);
+
+    const auto nonEmptyDomain = inspectCredSspDelegatedAccount(
+        passwordCredentials(utf16Le(u"EXAMPLE"), seedUser, password));
+    assert(nonEmptyDomain.error == CredSspDelegatedAccountError::NonEmptyDomain);
+    assert(nonEmptyDomain.accountLength == 0);
+    assert(std::all_of(
+        nonEmptyDomain.account.begin(), nonEmptyDomain.account.end(),
+        [](char value) { return value == '\0'; }));
+
+    // Password changes do not influence the account candidate; parsing is
+    // still syntax-only and remains insufficient for authentication.
+    const auto otherPassword = inspectCredSspDelegatedAccount(
+        passwordCredentials({}, seedUser, utf16Le(u"different")));
+    assert(otherPassword && otherPassword.accountName() == "alice");
+}
+
 void assertDeterministicCredentialInspection(const Bytes &input)
 {
     const Bytes original = input;
@@ -1394,7 +1534,7 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 21> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 22> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
@@ -1413,6 +1553,8 @@ constexpr std::array<CredSspTestCase, 21> kCredSspTests{{
      &testDelegatedDomainIdentityDenials},
     {"credssp-delegated-account-sensitive-retirement",
      &testDelegatedAccountSensitiveRetirement},
+    {"credssp-delegated-account-adversarial-boundaries",
+     &testDelegatedAccountAdversarialBoundaries},
     {"credssp-stream-fragments", &testStreamAllFragmentBoundaries},
     {"credssp-stream-coalesced", &testStreamCoalescedAndLongDer},
     {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},

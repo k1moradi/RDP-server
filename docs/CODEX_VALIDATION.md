@@ -1,3 +1,27 @@
+## R4 P1 native BGRA ingress authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `c852d782eedab341371f193d3f20ae386ff7f5d2`. Exact publication-SHA hosted
+validation is **PENDING**.
+
+The implementation reuses `FramebufferView`, `BgraNv12Converter`, vendored
+x264, segmented ownership and the presentation lifecycle. It adds an optional
+nonzero R4 capture epoch: generic `open()` preserves current externally
+generation-fenced R6/R7 integration at epoch zero, while
+`openBgraCapture()` gives composition an additional mismatch check before
+source-byte access.
+
+New ordinary production-linked CTests are
+`graphics.x264-native-bgra-frame-ingress`,
+`graphics.x264-native-bgra-resize-recovery`, and
+`graphics.avc420-capture-generation-denials`. The R9 x264/BGRA fail-closed
+expected count becomes **27**; portable R4 remains **41**.
+
+Hosted execution and full platform counts are **NOT RUN / PENDING** at
+authoring. Canonical owner `~/rdp-server/build/` is unavailable here, so no
+local CTest or alternate persistent build root is claimed. No live native
+desktop, Microsoft client, benchmark, R3 Graphics DVC or network publication
+was run. M1/M3 remain open.
+
 ## R3 P0 existing-client CAL authority-request implementation (2026-10-17)
 
 **Starting reconciled shared `main`:**

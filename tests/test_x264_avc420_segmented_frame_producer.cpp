@@ -86,6 +86,21 @@ void mapSurface(GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
     assert(lifecycle.stage() == GfxPresentationStage::Mapped);
 }
 
+void resizeSurface(GfxPresentationLifecycle &lifecycle,
+                   std::uint64_t generation, PixelSize visible,
+                   std::uint16_t surfaceId = 7)
+{
+    assert(lifecycle.requestSurfaceDelete(generation));
+    auto receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.configureSurface(generation, surfaceId, visible));
+    receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+}
+
 std::array<std::byte, 20> acknowledge(std::uint32_t frameId)
 {
     std::array<std::byte, 20> pdu{
@@ -140,6 +155,7 @@ constexpr PixelSize kVisible{160, 90};
 constexpr std::array<Rectangle, 1> kRegions{
     Rectangle{0, 0, kVisible.widthPixels, kVisible.heightPixels}};
 constexpr std::array<GfxAvc420QuantQuality, 1> kQuality{{{23, 80}}};
+constexpr std::uint64_t kDefaultCaptureGeneration = 1;
 
 X264Avc420FrameRequest request(std::uint32_t frameId,
                                const Nv12Frame &frame,
@@ -461,11 +477,12 @@ BgraFrame makeBgraFrame(PixelSize visible, std::size_t rowPadding = 0)
     return frame;
 }
 
-X264BgraFrameRequest bgraRequest(std::uint32_t frameId,
-                                 const BgraFrame &frame,
-                                 std::int64_t pts) noexcept
+X264BgraFrameRequest bgraRequest(
+    std::uint32_t frameId, const BgraFrame &frame, std::int64_t pts,
+    std::uint64_t captureGeneration = kDefaultCaptureGeneration) noexcept
 {
-    return {7, frameId, frame.view(), pts, kRegions, kQuality};
+    return {7, frameId, frame.view(), pts, kRegions, kQuality,
+            captureGeneration};
 }
 
 void bgraBt709PixelOracle()
@@ -650,7 +667,8 @@ void x264BgraSegmentedProductionChain()
     constexpr std::uint64_t generation = 6001;
     mapSurface(lifecycle, generation, kVisible);
     X264Avc420SegmentedFrameProducer producer;
-    assert(producer.open(generation, kCoded, kVisible));
+    assert(producer.openBgraCapture(
+        generation, kDefaultCaptureGeneration, kCoded, kVisible));
     auto firstPixels = makeBgraFrame(kVisible, 9);
     firstPixels.solid(64, 128, 192, 0);
     GfxAvc420SegmentedFrame first;
@@ -698,7 +716,8 @@ void x264BgraBackpressureReferenceDenials()
     constexpr std::uint64_t generation = 6002;
     mapSurface(lifecycle, generation, kVisible);
     X264Avc420SegmentedFrameProducer producer;
-    assert(producer.open(generation, kCoded, kVisible));
+    assert(producer.openBgraCapture(
+        generation, kDefaultCaptureGeneration, kCoded, kVisible));
     auto pixels = makeBgraFrame(kVisible);
     pixels.solid(70, 90, 110, 0);
 
@@ -787,7 +806,8 @@ void duplicatePendingFrameIdPreservesReferences()
         GfxPresentationLifecycle lifecycle;
         mapSurface(lifecycle, generation, kVisible);
         X264Avc420SegmentedFrameProducer producer;
-        assert(producer.open(generation, kCoded, kVisible));
+        assert(producer.openBgraCapture(
+            generation, kDefaultCaptureGeneration, kCoded, kVisible));
 
         auto firstPixels = makeBgraFrame(kVisible, 7);
         firstPixels.solid(70, 100, 140, 0);
@@ -978,7 +998,8 @@ void x264BgraUnsentCancelIdr()
     GfxPresentationLifecycle lifecycle;
     mapSurface(lifecycle, generation, kVisible);
     X264Avc420SegmentedFrameProducer producer;
-    assert(producer.open(generation, kCoded, kVisible));
+    assert(producer.openBgraCapture(
+        generation, kDefaultCaptureGeneration, kCoded, kVisible));
 
     // Padded stride exercises the native-framebuffer conversion boundary.
     auto pixels = makeBgraFrame(kVisible, 13);
@@ -1119,6 +1140,322 @@ void zeroSurfaceIdDelivery()
     assert(!hasNalType(next.wireBytes(), 5));
 }
 
+
+void nativeBgraFrameIngress()
+{
+    constexpr std::uint64_t generation = 7101;
+    constexpr std::uint64_t captureGeneration = 101;
+    constexpr PixelSize visible{18, 18};
+    constexpr PixelSize coded{32, 32};
+    constexpr std::array<Rectangle, 1> regions{{
+        {0, 0, visible.widthPixels, visible.heightPixels}}};
+    constexpr std::array<GfxAvc420QuantQuality, 1> quality{{{23, 80}}};
+
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, visible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.openBgraCapture(
+        generation, captureGeneration, coded, visible));
+    assert(producer.captureGeneration() == captureGeneration);
+
+    auto source = makeBgraFrame(visible, 29);
+    source.solid(60, 120, 180, 0);
+    GfxAvc420SegmentedFrame first;
+    X264BgraFrameRequest firstRequest{
+        7, 201U, source.view(), 0, regions, quality, captureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, firstRequest, first));
+    assert(hasNalType(first.wireBytes(), 7));
+    assert(hasNalType(first.wireBytes(), 8));
+    assert(hasNalType(first.wireBytes(), 5));
+
+    const std::vector<std::byte> ownedWire(
+        first.wireBytes().begin(), first.wireBytes().end());
+    source.pixels.clear();
+    source.pixels.shrink_to_fit();
+    assert(std::vector<std::byte>(
+               first.wireBytes().begin(), first.wireBytes().end()) ==
+           ownedWire);
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(201U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    auto continuationSource = makeBgraFrame(visible, 7);
+    continuationSource.solid(61, 121, 179, 255);
+    GfxAvc420SegmentedFrame continuation;
+    X264BgraFrameRequest continuationRequest{
+        7, 202U, continuationSource.view(), 1,
+        regions, quality, captureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, continuationRequest, continuation));
+    assert(hasNalType(continuation.wireBytes(), 1));
+    assert(!hasNalType(continuation.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, continuation, continuation.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(202U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    continuationSource.solid(70, 130, 170, 64);
+    GfxAvc420SegmentedFrame canceled;
+    X264BgraFrameRequest cancelRequest{
+        7, 203U, continuationSource.view(), 2,
+        regions, quality, captureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, cancelRequest, canceled));
+    assert(hasNalType(canceled.wireBytes(), 1));
+    assert(producer.cancelUnwrittenDelivery(lifecycle, canceled));
+    assert(!canceled.valid());
+    assert(producer.captureGeneration() == captureGeneration);
+
+    continuationSource.solid(80, 140, 160, 192);
+    GfxAvc420SegmentedFrame recovery;
+    X264BgraFrameRequest recoveryRequest{
+        7, 204U, continuationSource.view(), 3,
+        regions, quality, captureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, recoveryRequest, recovery));
+    assert(hasNalType(recovery.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, recovery, recovery.wireBytes().size()));
+
+    constexpr std::uint64_t edgeGeneration = 7102;
+    constexpr std::uint64_t edgeCaptureGeneration = 102;
+    constexpr PixelSize edgeVisible{2, 2};
+    constexpr PixelSize edgeCoded{16, 16};
+    constexpr std::array<Rectangle, 1> edgeRegions{{{0, 0, 2, 2}}};
+    GfxPresentationLifecycle edgeLifecycle;
+    mapSurface(edgeLifecycle, edgeGeneration, edgeVisible);
+    X264Avc420SegmentedFrameProducer edgeProducer;
+    assert(edgeProducer.openBgraCapture(
+        edgeGeneration, edgeCaptureGeneration, edgeCoded, edgeVisible));
+    auto edgeSource = makeBgraFrame(edgeVisible, 31);
+    edgeSource.solid(255, 0, 0, 255);
+    GfxAvc420SegmentedFrame edgeFrame;
+    const X264BgraFrameRequest edgeRequest{
+        7, 1U, edgeSource.view(), 0,
+        edgeRegions, quality, edgeCaptureGeneration};
+    assert(edgeProducer.prepareBgra(
+        edgeLifecycle, edgeGeneration, edgeRequest, edgeFrame));
+    assert(hasNalType(edgeFrame.wireBytes(), 5));
+    assert(edgeProducer.completeDelivery(
+        edgeLifecycle, edgeFrame, edgeFrame.wireBytes().size()));
+}
+
+void nativeBgraResizeRecovery()
+{
+    constexpr std::uint64_t generation = 7201;
+    constexpr std::uint64_t firstCaptureGeneration = 201;
+    constexpr std::uint64_t resizedCaptureGeneration = 202;
+    constexpr PixelSize firstVisible{18, 18};
+    constexpr PixelSize firstCoded{32, 32};
+    constexpr PixelSize resizedVisible{34, 20};
+    constexpr PixelSize resizedCoded{48, 32};
+    constexpr std::array<Rectangle, 1> firstRegions{{{0, 0, 18, 18}}};
+    constexpr std::array<Rectangle, 1> resizedRegions{{{0, 0, 34, 20}}};
+    constexpr std::array<GfxAvc420QuantQuality, 1> quality{{{24, 79}}};
+
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, firstVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.openBgraCapture(
+        generation, firstCaptureGeneration, firstCoded, firstVisible));
+    auto firstSource = makeBgraFrame(firstVisible, 5);
+    firstSource.solid(20, 80, 140, 255);
+    GfxAvc420SegmentedFrame first;
+    const X264BgraFrameRequest firstRequest{
+        7, 301U, firstSource.view(), 0,
+        firstRegions, quality, firstCaptureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, firstRequest, first));
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(301U), result));
+
+    resizeSurface(lifecycle, generation, resizedVisible);
+    assert(producer.openBgraCapture(
+        generation, resizedCaptureGeneration,
+        resizedCoded, resizedVisible));
+    assert(producer.captureGeneration() == resizedCaptureGeneration);
+
+    auto resizedSource = makeBgraFrame(resizedVisible, 17);
+    resizedSource.solid(25, 85, 145, 0);
+    GfxAvc420SegmentedFrame resizedFirst;
+    const X264BgraFrameRequest resizedFirstRequest{
+        7, 302U, resizedSource.view(), 1,
+        resizedRegions, quality, resizedCaptureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, resizedFirstRequest, resizedFirst));
+    assert(hasNalType(resizedFirst.wireBytes(), 7));
+    assert(hasNalType(resizedFirst.wireBytes(), 8));
+    assert(hasNalType(resizedFirst.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, resizedFirst, resizedFirst.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(302U), result));
+
+    resizedSource.solid(26, 86, 146, 255);
+    GfxAvc420SegmentedFrame resizedSecond;
+    const X264BgraFrameRequest resizedSecondRequest{
+        7, 303U, resizedSource.view(), 2,
+        resizedRegions, quality, resizedCaptureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, resizedSecondRequest, resizedSecond));
+    assert(hasNalType(resizedSecond.wireBytes(), 1));
+    assert(!hasNalType(resizedSecond.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, resizedSecond, resizedSecond.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(303U), result));
+
+    resizedSource.solid(27, 87, 147, 128);
+    GfxAvc420SegmentedFrame aborted;
+    const X264BgraFrameRequest abortedRequest{
+        7, 304U, resizedSource.view(), 3,
+        resizedRegions, quality, resizedCaptureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, generation, abortedRequest, aborted));
+    assert(producer.abortDelivery(lifecycle, aborted));
+    assert(!producer.valid());
+    assert(producer.captureGeneration() == 0);
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+
+    constexpr std::uint64_t reconnectGeneration = generation + 1U;
+    constexpr std::uint64_t reconnectCaptureGeneration = 301;
+    mapSurface(lifecycle, reconnectGeneration, resizedVisible);
+    assert(producer.openBgraCapture(
+        reconnectGeneration, reconnectCaptureGeneration,
+        resizedCoded, resizedVisible));
+    GfxAvc420SegmentedFrame reconnect;
+    const X264BgraFrameRequest reconnectRequest{
+        7, 305U, resizedSource.view(), 0,
+        resizedRegions, quality, reconnectCaptureGeneration};
+    assert(producer.prepareBgra(
+        lifecycle, reconnectGeneration, reconnectRequest, reconnect));
+    assert(hasNalType(reconnect.wireBytes(), 5));
+    assert(!producer.completeDelivery(
+        lifecycle, aborted, aborted.wireBytes().size()));
+}
+
+void captureGenerationDenials()
+{
+    constexpr std::uint64_t generation = 7301;
+    constexpr std::uint64_t captureGeneration = 401;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible);
+
+    auto pixels = makeBgraFrame(kVisible, 11);
+    pixels.solid(33, 99, 155, 255);
+
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+    GfxAvc420SegmentedFrame denied;
+    // Generic open() retains the pre-existing externally generation-fenced
+    // BGRA path at epoch zero, but cannot accept a claimed nonzero R4 epoch.
+    assert(!producer.prepareBgra(
+        lifecycle, generation,
+        bgraRequest(401U, pixels, 0, captureGeneration), denied));
+    assert(!denied.valid());
+    assert(!producer.openBgraCapture(
+        generation, 0, kCoded, kVisible));
+    assert(!producer.valid());
+    assert(!producer.openBgraCapture(
+        generation, captureGeneration,
+        PixelSize{kCoded.widthPixels + 16U, kCoded.heightPixels},
+        kVisible));
+    assert(!producer.valid());
+    assert(!producer.openBgraCapture(
+        generation, captureGeneration, kCoded,
+        PixelSize{kVisible.widthPixels - 1U, kVisible.heightPixels}));
+    assert(!producer.valid());
+
+    assert(producer.openBgraCapture(
+        generation, captureGeneration, kCoded, kVisible));
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepareBgra(
+        lifecycle, generation,
+        bgraRequest(401U, pixels, 0, captureGeneration), first));
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(401U), result));
+
+    const auto reject = [&](X264BgraFrameRequest request)
+    {
+        GfxAvc420SegmentedFrame rejected;
+        assert(!producer.prepareBgra(
+            lifecycle, generation, request, rejected));
+        assert(!rejected.valid());
+        assert(producer.valid());
+        assert(producer.captureGeneration() == captureGeneration);
+        assert(lifecycle.canReserveFrame(generation, request.frameId));
+    };
+
+    reject(bgraRequest(402U, pixels, 1, captureGeneration - 1U));
+    reject(bgraRequest(402U, pixels, 1, captureGeneration + 1U));
+    reject(bgraRequest(402U, pixels, 1, 0));
+
+    auto malformed = bgraRequest(402U, pixels, 1, captureGeneration);
+    malformed.framebuffer.pixels =
+        malformed.framebuffer.pixels.first(
+            malformed.framebuffer.pixels.size() - 1U);
+    reject(malformed);
+
+    malformed = bgraRequest(402U, pixels, 1, captureGeneration);
+    malformed.framebuffer.strideBytes =
+        std::numeric_limits<std::size_t>::max();
+    reject(malformed);
+
+    malformed = bgraRequest(402U, pixels, 1, captureGeneration);
+    malformed.framebuffer.widthPixels -= 2U;
+    reject(malformed);
+
+    malformed = bgraRequest(402U, pixels, 1, captureGeneration);
+    malformed.framebuffer.heightPixels -= 2U;
+    reject(malformed);
+
+    malformed = bgraRequest(402U, pixels, 1, captureGeneration);
+    malformed.framebuffer.strideBytes =
+        static_cast<std::size_t>(kVisible.widthPixels) * 4U - 1U;
+    reject(malformed);
+
+    pixels.solid(34, 100, 156, 0);
+    GfxAvc420SegmentedFrame second;
+    assert(producer.prepareBgra(
+        lifecycle, generation,
+        bgraRequest(402U, pixels, 2, captureGeneration), second));
+    assert(hasNalType(second.wireBytes(), 1));
+    assert(!hasNalType(second.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, second, second.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(402U), result));
+
+    constexpr std::uint64_t replacementCaptureGeneration = 402;
+    assert(producer.openBgraCapture(
+        generation, replacementCaptureGeneration, kCoded, kVisible));
+    GfxAvc420SegmentedFrame stale;
+    assert(!producer.prepareBgra(
+        lifecycle, generation,
+        bgraRequest(403U, pixels, 3, captureGeneration), stale));
+    assert(!stale.valid());
+
+    GfxAvc420SegmentedFrame replacement;
+    assert(producer.prepareBgra(
+        lifecycle, generation,
+        bgraRequest(403U, pixels, 3, replacementCaptureGeneration),
+        replacement));
+    assert(hasNalType(replacement.wireBytes(), 5));
+}
+
 void fixedCfrPtsPreserveReferenceContinuity()
 {
     // NV12: arbitrary caller PTS values must not become a second ordering
@@ -1172,7 +1509,8 @@ void fixedCfrPtsPreserveReferenceContinuity()
         GfxPresentationLifecycle lifecycle;
         mapSurface(lifecycle, generation, kVisible);
         X264Avc420SegmentedFrameProducer producer;
-        assert(producer.open(generation, kCoded, kVisible));
+        assert(producer.openBgraCapture(
+            generation, kDefaultCaptureGeneration, kCoded, kVisible));
         auto pixels = makeBgraFrame(kVisible, 13);
         pixels.solid(94, 121, 149, 255);
         constexpr std::array<std::int64_t, 5> ptsValues{
@@ -1275,6 +1613,21 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-zero-surface-id-delivery")
     {
         zeroSurfaceIdDelivery();
+        return 0;
+    }
+    if (behavior == "x264-native-bgra-frame-ingress")
+    {
+        nativeBgraFrameIngress();
+        return 0;
+    }
+    if (behavior == "x264-native-bgra-resize-recovery")
+    {
+        nativeBgraResizeRecovery();
+        return 0;
+    }
+    if (behavior == "avc420-capture-generation-denials")
+    {
+        captureGenerationDenials();
         return 0;
     }
     if (behavior == "x264-segmented-cfr-pts-reference-continuity")

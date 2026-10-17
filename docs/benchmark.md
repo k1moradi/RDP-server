@@ -88,8 +88,10 @@ Update this file and existing TODO in the same implementation commit.
 ## R4 graphics recovery repeatability and future end-to-end benchmark gate
 
 Before an authorized R3 Graphics DVC sender exists, x264/BGRA CTest timings
-are regression-repeatability diagnostics only. Reuse the canonical checkout
-and build root:
+are regression-repeatability diagnostics only. Native-BGRA ingress CTests add
+layout, lifetime and generation correctness evidence but do **not** measure
+capture throughput, frame rate, latency or a client-visible threshold. Reuse
+the canonical checkout and build root:
 
 ```bash
 cd ~/rdp-server

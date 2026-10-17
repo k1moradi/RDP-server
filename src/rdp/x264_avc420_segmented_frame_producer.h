@@ -30,6 +30,12 @@ struct X264BgraFrameRequest final
     std::int64_t pts{};
     std::span<const Rectangle> regions{};
     std::span<const GfxAvc420QuantQuality> quantQualities{};
+    // Nonzero R4 ingress epoch supplied by the composition owner. Platform
+    // capture owners can carry richer native generations (for example R6's
+    // session/device pair); the composition owner advances this epoch whenever
+    // that native identity is replaced. R4 rejects a request unless the epoch
+    // exactly matches openBgraCapture(), before dereferencing framebuffer pixels.
+    std::uint64_t captureGeneration{};
 };
 
 // One R4 codec producer bound to one presentation generation and geometry.
@@ -60,10 +66,23 @@ public:
     [[nodiscard]] bool open(std::uint64_t generation,
                             PixelSize codedGeometry,
                             PixelSize visibleGeometry) noexcept;
+
+    // Bind one nonzero capture-ingress epoch to this codec lifetime.
+    // This scalar is R4-local freshness correlation, not a lossy encoding of
+    // any platform's richer native generation. FramebufferView remains the one
+    // shared platform/R4 representation.
+    // The coded geometry must be exactly gfxAvc420CodedGeometry(visible), not
+    // merely any larger x264-valid surface. Rebinding resets x264 reference
+    // history and converter readiness; callers
+    // must retire any prepared frame and every old framebuffer borrow first.
+    [[nodiscard]] bool openBgraCapture(
+        std::uint64_t generation, std::uint64_t captureGeneration,
+        PixelSize codedGeometry, PixelSize visibleGeometry) noexcept;
     void reset() noexcept;
 
     [[nodiscard]] bool valid() const noexcept;
     [[nodiscard]] std::uint64_t generation() const noexcept;
+    [[nodiscard]] std::uint64_t captureGeneration() const noexcept;
     [[nodiscard]] PixelSize codedGeometry() const noexcept;
     [[nodiscard]] PixelSize visibleGeometry() const noexcept;
 
@@ -79,10 +98,18 @@ public:
         const X264Avc420FrameRequest &request,
         GfxAvc420SegmentedFrame &output) noexcept;
 
-    // Consume a complete synchronously borrowed BGRA/XRGB desktop frame.
-    // Reject occupied-output/envelope/lifecycle denials before converting.
-    // The R4-owned NV12
-    // scratch is borrowed only by this producer's synchronous prepare().
+    // Consume one complete synchronously borrowed BGRA/BGRX desktop frame.
+    // Native memory is top-left row-major B,G,R,ignored-alpha, four bytes per
+    // visible pixel. width/height must exactly match visibleGeometry(); stride
+    // must cover width*4 and the span must cover stride*height without
+    // overflow. The request's nonzero capture generation must exactly match
+    // openBgraCapture() and is checked before any framebuffer dereference.
+    // R4 copies into owned NV12 scratch and synchronously completes x264 before
+    // returning, so the native source may be unmapped/retired immediately
+    // after success. A producer opened with generic open() keeps the existing
+    // externally generation-fenced path and accepts only captureGeneration==0;
+    // openBgraCapture() opts into R4-local epoch matching. Publication
+    // authority remains outside R4.
     [[nodiscard]] bool prepareBgra(
         GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
         const X264BgraFrameRequest &request,
@@ -117,6 +144,7 @@ private:
     X264Avc420Encoder encoder_{};
     BgraNv12Converter bgraConverter_{};
     std::uint64_t generation_{};
+    std::uint64_t captureGeneration_{};
     PixelSize codedGeometry_{};
     PixelSize visibleGeometry_{};
 };

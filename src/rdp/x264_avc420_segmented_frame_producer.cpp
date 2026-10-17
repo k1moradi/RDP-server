@@ -20,11 +20,28 @@ bool X264Avc420SegmentedFrameProducer::open(
     return true;
 }
 
+bool X264Avc420SegmentedFrameProducer::openBgraCapture(
+    std::uint64_t generation, std::uint64_t captureGeneration,
+    PixelSize codedGeometry, PixelSize visibleGeometry) noexcept
+{
+    if (captureGeneration == 0 ||
+        gfxAvc420CodedGeometry(visibleGeometry) != codedGeometry)
+    {
+        reset();
+        return false;
+    }
+    if (!open(generation, codedGeometry, visibleGeometry))
+        return false;
+    captureGeneration_ = captureGeneration;
+    return true;
+}
+
 void X264Avc420SegmentedFrameProducer::reset() noexcept
 {
     encoder_.reset();
     bgraConverter_.reset();
     generation_ = 0;
+    captureGeneration_ = 0;
     codedGeometry_ = {};
     visibleGeometry_ = {};
 }
@@ -37,6 +54,12 @@ bool X264Avc420SegmentedFrameProducer::valid() const noexcept
 std::uint64_t X264Avc420SegmentedFrameProducer::generation() const noexcept
 {
     return valid() ? generation_ : 0;
+}
+
+std::uint64_t
+X264Avc420SegmentedFrameProducer::captureGeneration() const noexcept
+{
+    return valid() ? captureGeneration_ : 0;
 }
 
 PixelSize X264Avc420SegmentedFrameProducer::codedGeometry() const noexcept
@@ -154,6 +177,7 @@ bool X264Avc420SegmentedFrameProducer::prepareBgra(
     // never waste conversion or alter x264's reference chain. Occupied output
     // is denied here as well, before touching conversion scratch.
     if (output.valid() || !valid() || generation != generation_ ||
+        request.captureGeneration != captureGeneration_ ||
         request.surfaceId != lifecycle.surfaceId() ||
         !gfxAvc420PictureMetadataValid(metadata) ||
         !lifecycle.canReserveFrame(generation, request.frameId))

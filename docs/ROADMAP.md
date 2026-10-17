@@ -1,3 +1,51 @@
+## R4 P1 native BGRA-to-AVC420 compatibility gate (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `c852d782eedab341371f193d3f20ae386ff7f5d2`.
+
+R4 owns only the common producer-side ingress contract. R5 X11 production
+capture is unchanged, and the concurrently landed R6/R7 native generation and
+lifetime owners remain authoritative. `FramebufferView` stays the one shared
+borrowed framebuffer representation.
+
+R4 adds optional `openBgraCapture(presentationGeneration, captureGeneration,
+codedGeometry, visibleGeometry)`. It binds a nonzero R4-local freshness epoch,
+requires exactly `gfxAvc420CodedGeometry(visibleGeometry)`, and resets x264
+references on rebind. Generic `open()` remains compatible with native owners
+that already fence generation around their synchronous callback and uses epoch
+zero. `prepareBgra()` rejects any request epoch mismatch before framebuffer
+dereference.
+
+The existing converter contract remains: nonzero even visible geometry; exact
+framebuffer width/height; top-left row-major B/G/R/ignored-alpha bytes; stride
+at least `width*4`; full pitched storage with checked arithmetic; bounded owned
+NV12 scratch. Conversion, real x264 encode and segmented ownership complete
+synchronously, so native memory may retire after return.
+
+Dedicated real-x264 cases are
+`graphics.x264-native-bgra-frame-ingress`,
+`graphics.x264-native-bgra-resize-recovery`, and
+`graphics.avc420-capture-generation-denials`. They cover padded scanlines,
+2x2 edge geometry, source retirement, truncated/overflow and layout denials,
+zero/stale/future epochs, surface resize, normal P continuity after full
+delivery, cancellation->IDR, terminal abort and reconnect->IDR. R9 x264/BGRA
+expands **24 -> 27** with exact cardinality; portable R4 remains **41**.
+
+R6/R7's post-consumer rule is preserved: if native generation changes after
+synchronous R4 preparation, the owned frame is not publishable. Before any R3
+submit, use the existing exact unwritten cancellation, then bind the replacement
+capture epoch. No cancellation/abort/ACK behavior is reimplemented.
+
+Canonical owner-local `~/rdp-server/build/` is **NOT RUN** here because the
+sole checkout is unavailable and no alternate persistent root is permitted.
+Publication-SHA hosted Debug/Release, R9 ASan/UBSan and full CI are **PENDING**.
+No benchmark threshold is introduced.
+
+No R3 DRDYNVC/Graphics sender, network writer, scheduler or authorization is
+added. A segmented R4 frame is not permission to publish. M3 remains blocked on
+finalized Share authority, joined `drdynvc`, successful
+`Microsoft::Windows::RDS::Graphics` setup/capabilities and cumulative
+accepted-byte receipts. **M1 and M3 remain OPEN / NOT ACCEPTED.**
+
 ## R3 P0 existing-client CAL authority-request snapshot (implementation, 2026-10-17)
 
 **Starting reconciled shared `main`:** `dc81628a9b4431ef6ffd3e69a7156fd44f0b4d06`.

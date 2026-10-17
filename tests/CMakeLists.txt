@@ -2108,7 +2108,10 @@ foreach(case_name IN ITEMS
         bgra-nv12-reset-scratch-reuse
         x264-bgra-segmented-production-chain
         x264-bgra-backpressure-reference-denials
-        x264-bgra-unsent-cancel-idr)
+        x264-bgra-unsent-cancel-idr
+        x264-native-bgra-frame-ingress
+        x264-native-bgra-resize-recovery
+        avc420-capture-generation-denials)
     add_test(NAME "graphics.${case_name}"
         COMMAND test_x264_avc420_segmented_frame_producer "${case_name}")
     set_tests_properties("graphics.${case_name}" PROPERTIES

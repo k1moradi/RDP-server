@@ -1,3 +1,31 @@
+## R4 native BGRA ingress compatibility gate (2026-10-17)
+
+R4 keeps `FramebufferView` as the shared borrowed pixel representation.
+Platform roads keep native generation authority: R6 carries its validated
+session/device pair and R7 its display-geometry/post-consumer retirement fence.
+Composition may opt into an additional R4-local capture epoch with
+`openBgraCapture()`; do not pack/hash richer native identity into this scalar.
+
+Generic `open()` remains compatible with already generation-fenced callbacks
+at epoch zero. `openBgraCapture()` requires a nonzero exact matching epoch,
+checked before framebuffer dereference. In either path require exact visible
+width/height, nonzero even visible geometry, B/G/R/ignored-alpha bytes, stride
+>= `width*4`, and a span covering every pitched row with checked arithmetic.
+
+Focused R4 tests cover padded scanlines, minimum even geometry, source
+retirement after synchronous encode, truncated/overflow layouts,
+width/height/stride mismatch, zero/stale/future epochs, surface resize,
+full-delivery P continuity, exact unwritten cancellation followed by IDR,
+terminal abort and fresh reconnect IDR. If a platform post-consumer generation
+check rejects after preparation, submit no R3 bytes; cancel that exact unwritten
+frame before rebinding a replacement epoch.
+
+Dedicated cases are `graphics.x264-native-bgra-frame-ingress`,
+`graphics.x264-native-bgra-resize-recovery`, and
+`graphics.avc420-capture-generation-denials`. R9 must enumerate exactly
+**27** x264/BGRA cases and require all three names. Portable R4 wire/lifecycle
+remains **41** cases.
+
 ## R3 existing-CAL authority-request tests remain non-authorizing (2026-10-17)
 
 The R3 P0 snapshot boundary has four ordinary production-backed CTests:
@@ -2941,7 +2969,7 @@ The one Linux/Clang sanitizer job must compile both existing R4 graphics test
 executables, `test_x264_avc420_encoder` and
 `test_x264_avc420_segmented_frame_producer`, then run the complete
 `x264` CTest label as its own failure-isolated group. The label currently
-contains 24 production-backed cases covering the pinned x264 encoder,
+contains 27 production-backed cases covering the pinned x264 encoder,
 NV12 validation/reference continuity, BGRA-to-NV12 conversion, segmented
 RDP8 publication, ACK/backpressure, zero-valued wire identifiers and fixed-CFR
 PTS behavior.
@@ -3041,7 +3069,7 @@ zero-valued surface IDs, stale-generation ACK handling, terminal frame-delivery
 abort, zero-valued frame IDs, segmented-data denial/in-place safety, and
 segmented AVC420 delivery/ACK, exact unsent-frame cancellation and retained
 terminal abort for ambiguous/partial progress. Keep this group separate from
-the existing 4-case capability selector and 24-case x264/BGRA label so
+the existing 4-case capability selector and 27-case x264/BGRA label so
 failures remain
 attributable and one R4 group cannot hide later road evidence. No native X11,
 Windows or macOS graphics test belongs in this portable selection.

@@ -1,3 +1,24 @@
+## R4 native framebuffer ingress is generation-fenced before dereference (2026-10-17)
+
+Keep `FramebufferView` as the single shared platform/R4 framebuffer
+representation. Native BGRA/BGRX ingress is a synchronous borrowed read:
+top-left row-major bytes are B, G, R, ignored alpha; width and height exactly
+match visible geometry; stride covers at least four bytes per visible pixel;
+and the span covers every pitched row with checked arithmetic.
+
+Platform capture owners retain their richer native generation/revocation rules.
+A serialized composition owner may additionally bind a nonzero R4 capture epoch
+with `openBgraCapture()`; advance it whenever the validated native capture
+lifetime is replaced. Reject an epoch mismatch before reading source bytes.
+Rebinding resets x264 reference history, so replacement/resize starts IDR.
+Generic `open()` remains epoch zero for already generation-fenced synchronous
+owners such as the current R6/R7 callbacks.
+
+Conversion/x264/segmented ownership completes synchronously, so native mappings
+may retire after successful preparation. Capture epochs are freshness
+correlation only, never R2 authorization, R3 Graphics-DVC authority, scheduling
+or publication receipts.
+
 ## Proof-bearing protected plaintext must not degrade to a Boolean (R3 P0, 2026-10-17)
 
 When protected protocol plaintext is allowed to cross an ownership boundary

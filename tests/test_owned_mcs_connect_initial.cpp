@@ -6751,8 +6751,6 @@ using LicensingPkcs7Pointer =
     std::unique_ptr<PKCS7, decltype(&PKCS7_free)>;
 using LicensingAsn1ObjectPointer =
     std::unique_ptr<ASN1_OBJECT, decltype(&ASN1_OBJECT_free)>;
-using LicensingAsn1IntegerPointer =
-    std::unique_ptr<ASN1_INTEGER, decltype(&ASN1_INTEGER_free)>;
 using LicensingAsn1OctetStringPointer =
     std::unique_ptr<ASN1_OCTET_STRING, decltype(&ASN1_OCTET_STRING_free)>;
 using LicensingExtensionPointer =
@@ -7279,19 +7277,51 @@ void testRdpClientCalIssuerSignatureDenials()
                fixture.rootDer).error ==
            RdpClientCalChainError::SignatureVerificationFailure);
 
+    // Mutate already-signed DER and parse a fresh X509 object. Setter calls on
+    // X509_dup() can retain provider-specific cached TBSCertificate bytes, so
+    // they are not a reliable way to build a changed-signed-content fixture.
+    auto changedSignedLeaf = makeLicensingFixtureCertificate(
+        fixture.leafKey.get(), fixture.issuerCertificate.get(),
+        fixture.issuerKey.get(), 108L, "rdp-cal-changed-signed-content",
+        EVP_sha1());
+    addRequiredClientCalFixtureExtensions(changedSignedLeaf.get());
+    constexpr std::array<std::uint8_t, 16> signedContentMarker{
+        0x91U, 0x26U, 0xe4U, 0x73U, 0x5bU, 0x0cU, 0xa8U, 0x3dU,
+        0xf1U, 0x44U, 0x62U, 0x9eU, 0x17U, 0xb5U, 0x38U, 0xc0U};
+    addClientCalFixtureExtension(
+        changedSignedLeaf.get(), "1.3.6.1.4.1.55555.88",
+        signedContentMarker);
+    assert(X509_sign(
+               changedSignedLeaf.get(), fixture.issuerKey.get(),
+               EVP_sha1()) > 0);
+
+    auto changedLeafDer =
+        licensingFixtureCertificateDer(changedSignedLeaf.get());
+    const auto markerBegin = std::search(
+        changedLeafDer.begin(), changedLeafDer.end(),
+        signedContentMarker.begin(), signedContentMarker.end());
+    assert(markerBegin != changedLeafDer.end());
+    const auto afterMarker = std::next(
+        markerBegin,
+        static_cast<std::ptrdiff_t>(signedContentMarker.size()));
+    assert(std::search(
+               afterMarker, changedLeafDer.end(),
+               signedContentMarker.begin(),
+               signedContentMarker.end()) == changedLeafDer.end());
+    *markerBegin ^= 0x01U;
+
+    const unsigned char *changedCursor = changedLeafDer.data();
+    const unsigned char *const changedEnd =
+        changedLeafDer.data() + changedLeafDer.size();
     LicensingCertificatePointer changedLeaf{
-        X509_dup(fixture.leafCertificate.get()), X509_free};
-    assert(changedLeaf);
-    LicensingAsn1IntegerPointer changedSerial{
-        ASN1_INTEGER_new(), ASN1_INTEGER_free};
-    assert(changedSerial);
-    assert(ASN1_INTEGER_set(changedSerial.get(), 999L) == 1);
-    // Use the setter rather than mutating X509_get_serialNumber() storage so
-    // OpenSSL invalidates any cached TBSCertificate encoding on every provider.
-    assert(X509_set_serialNumber(
-               changedLeaf.get(), changedSerial.get()) == 1);
+        d2i_X509(
+            nullptr, &changedCursor,
+            static_cast<long>(changedLeafDer.size())),
+        X509_free};
+    assert(changedLeaf && changedCursor == changedEnd);
     assert(X509_verify(
                changedLeaf.get(), fixture.issuerKey.get()) != 1);
+
     const std::array<X509 *, 3> changedCertificates{
         changedLeaf.get(),
         fixture.rootCertificate.get(),

@@ -1,3 +1,33 @@
+## R3 CAL changed-signed-content DER fixture correction (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `f0f852f7da2b7b0dc7c277efe63016ab32b339db`.
+
+The first unchanged-R3 validation descendant after workflow recovery,
+`5419ad7f657a30d745a40eb62a0a1c083af715b4` / Actions
+`39009402865`, reaches the ordinary macOS Debug suite and still fails
+`transport.licensing-client-cal-issuer-signature-denials`. The failure is now
+earlier and conclusive: direct `X509_verify()` returns success after
+`X509_set_serialNumber()` on an `X509_dup()`, so the negative fixture still
+depends on provider-specific cached TBSCertificate behavior and never reaches
+the production CAL inspector.
+
+This correction removes that setter/cache dependency. The test creates a fresh
+valid leaf with one noncritical synthetic marker extension, signs it, serializes
+it to DER, mutates one byte of the unique marker inside the already-signed DER,
+and reparses those bytes into a fresh `X509`. Direct `X509_verify()` must
+then fail before the certificate is placed into the production PKCS#7 CAL
+inspection path, which must report `SignatureVerificationFailure`. Issuer and
+subject names, chain topology, signature algorithm and certificate lengths are
+unchanged by the mutation.
+
+Production R3 source, CAL grammar, trust-anchor matching, licensing extension
+policy, lifecycle and CTest registration are unchanged. Canonical owner-local
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment.
+
+**Next R3 gate:** exact/unchanged-descendant Linux/GCC, macOS/AppleClang,
+Windows/MSVC and R9 ASan/UBSan execution of all six CAL cases. Additional CAL
+product/expiry/HWID policy remains gated on this result.
+
 ## R9 workflow repair reconciliation with concurrent selectors (2026-10-16; exact-SHA CI pending)
 
 The syntactically repaired workflow commit

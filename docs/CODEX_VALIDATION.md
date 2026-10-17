@@ -1,3 +1,20 @@
+## R3 CAL DER-mutation fixture authoring receipt (2026-10-17; exact-SHA CI pending)
+
+**Starting shared `main`:** `f0f852f7da2b7b0dc7c277efe63016ab32b339db`. On Actions `39009402865`, macOS
+Debug executes 482 tests and fails only R3 CAL test #67 at the fixture's direct
+`X509_verify()` assertion: mutating the serial of an `X509_dup()` through
+the setter does not reliably invalidate cached signed bytes on that provider.
+
+The revised fixture mutates a unique 16-byte noncritical extension payload only
+after the valid leaf has been signed and encoded. It reparses the changed DER
+into a fresh `X509`, requires direct signature verification to fail, and only
+then invokes `inspectRdpClientCalCertificateChain()`. This is test-only; no
+production CAL source or acceptance rule changes.
+
+Canonical local build/CTest is **NOT RUN** because the required
+`~/rdp-server/` checkout is unavailable here. Hosted exact-SHA execution is
+**PENDING**.
+
 ## R9 workflow repair reconciliation receipt (2026-10-16)
 
 `5419ad7f657a30d745a40eb62a0a1c083af715b4` fixed YAML syntax but sourced

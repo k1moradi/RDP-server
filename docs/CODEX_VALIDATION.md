@@ -1,3 +1,31 @@
+## R4 segmented-frame retirement reuse exact hosted receipt (2026-10-17)
+
+**Implementation:** `9fe503cfe03722b1145d1fc9eaf4b28a417a1c9c`.  
+**Validated unchanged-R4 descendant:** `e0fc1b3b33a6e1e98a0bf2cb19e8ecd46949b39c`.  
+**Actions:** `39014912488` — **SUCCESS**.
+
+The implementation-SHA run `39014837758` already proved the new R4 cases on
+Linux, macOS, Windows/MSVC Debug and R9, but its full platform jobs were red
+only at the independent R1 `transport.tcp-native-loopback-tls` fixture. R1
+then corrected that test driver without touching R4. The unchanged-R4
+descendant is fully green.
+
+Hosted evidence: Linux/GCC **584/584 Debug + Release**; macOS/AppleClang
+**495/495 Debug + Release**; Windows/MSVC **531/531 Debug + Release** after
+**55/55** native preflight in both; MSYS2 CLANG64 Clang **23.1.3**
+**531/531 Debug + Release**. The two new R4 cases pass in every full ordinary
+configuration.
+
+R9 is **SUCCESS** with portable graphics **41/41** and x264/BGRA **24/24**.
+`graphics.avc420-segmented-frame-retirement-reuse` passes as item **41/41**;
+`graphics.x264-segmented-retirement-reuse` passes as **10/24**. The latter
+proves completed-slot reuse retains P-frame reference continuity and
+post-abort fresh-generation reuse starts IDR.
+
+No live Graphics DVC, native desktop, benchmark or Microsoft-client acceptance
+is claimed. Canonical owner-local execution remains **NOT RUN** in this
+connector environment.
+
 ## R1 P1 runtime TLS verification and native-loopback readiness correction (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `9fe503cfe03722b1145d1fc9eaf4b28a417a1c9c`.

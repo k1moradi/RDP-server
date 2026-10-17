@@ -1,3 +1,49 @@
+## R4 segmented-frame retirement reuse exact hosted validation (2026-10-17)
+
+**Implementation:** `9fe503cfe03722b1145d1fc9eaf4b28a417a1c9c`.  
+**Validated unchanged-R4 descendant:** `e0fc1b3b33a6e1e98a0bf2cb19e8ecd46949b39c`.  
+**Actions:** `39014912488` — **SUCCESS**.
+
+No R4 graphics source, dedicated R4 test source, R4 CTest registration or R9
+R4 selector changes between the implementation and validated descendant. The
+intervening R1 change corrects only the independent native-loopback TLS test
+driver that had kept the implementation-SHA full platform jobs red.
+
+Exact hosted ordinary CTest on the validated descendant is:
+
+- Linux/GCC: **584/584 PASS Debug + 584/584 PASS Release**.
+- macOS/AppleClang: **495/495 PASS Debug + 495/495 PASS Release**.
+- Windows/MSVC: native preflight **55/55 PASS Debug + 55/55 PASS Release**;
+  full **531/531 PASS Debug + 531/531 PASS Release**.
+- Windows MSYS2 CLANG64 / Clang **23.1.3**: full **531/531 PASS Debug +
+  531/531 PASS Release**; R6's separate 55-case native sanitizer gate also
+  remains green.
+
+Both new R4 cases execute and pass in every full ordinary configuration:
+`graphics.avc420-segmented-frame-retirement-reuse` is #329 on Linux and
+#314 on macOS/Windows; `graphics.x264-segmented-retirement-reuse` is #570
+on Linux, #481 on macOS and #517 on Windows.
+
+R9 Clang ASan/UBSan registry-preflights and passes portable R4 graphics
+**41/41**, with the direct retirement case **41/41**, and x264/BGRA **24/24**,
+with the real-x264 retirement/reference case **10/24**. RDPGFX capabilities
+remain **4/4 PASS**. Documentation policy, R7 sanitizer/native-lifecycle jobs,
+installed SDK consumers and package/digest stages all pass where configured.
+
+The owner contract is therefore validated: exact full completion and exact
+terminal abort consume and invalidate the one segmented-frame publication
+owner just like exact unwritten cancellation; rejected/short retirement keeps
+the owner intact. Completion preserves x264 reference history and slot reuse
+continues with a P picture, while terminal abort resets the codec and a fresh
+generation starts IDR.
+
+Canonical owner-local `~/rdp-server/build/`, real native capture performance
+and Microsoft-client visible graphics remain **NOT RUN**. No R3/DVC writer,
+scheduler or authority has been added. The next R4 code-bearing gate remains
+the dedicated cross-component compatibility test once R3 lands the one
+authorized Graphics DVC sender with cumulative accepted-byte receipts.
+M3/M4/M5 remain **OPEN / NOT ACCEPTED**.
+
 ## R1 P1 runtime TLS verification and native-loopback readiness correction (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `9fe503cfe03722b1145d1fc9eaf4b28a417a1c9c`.

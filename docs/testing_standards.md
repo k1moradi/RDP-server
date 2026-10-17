@@ -1,3 +1,28 @@
+## R7 macOS capture-to-R4 ingress tests preserve the native commit point (2026-10-17)
+
+The Apple-only R7 compatibility cases may link the existing noninstalled
+`rdp-server-graphics` target from `test_macos_capture_stream`, but production
+`rdp-server-macos-capture` must remain independent of R4/x264. Exercise only
+the existing injected ScreenCaptureKit backend and synthetic CoreVideo buffers;
+never expose the quarantined native factory, query/request TCC as test
+authorization, enumerate a live desktop or post native input.
+
+A `FramebufferView` remains borrowed only for the synchronous
+`MacCaptureFrameConsumer::consume` call. Tests should release the caller's
+CoreVideo reference during that call to prove `LockedBgraPixelBuffer` retains
+and read-locks storage through R4 conversion/encode, then prove the encoded R4
+owner survives after source release without retaining the borrowed BGRA span.
+Padded row stride and physical Retina backing dimensions must reach the real R4
+BGRA ingestion unchanged.
+
+The post-consumer R7 generation/topology/session check is the publication commit
+point. If the consumer has already prepared an R4 frame but the outer
+`consumeFrame` returns `RetireStream`, that R4 frame is conclusively
+unwritten and must be canceled through the existing R4 cancellation contract
+before any R3 handoff. Only `Published` is eligible for later transport.
+Synthetic TCC denial/native-failure callbacks prove fail-closed state only;
+they are neither R2 admission nor evidence of an actual permission revocation.
+
 ## R6 CLANG64 native-preflight registry correction (2026-10-17)
 
 The ordinary CLANG64 Debug and Release R6 preflights must independently
@@ -118,7 +143,7 @@ evidence and cannot count as M4 desktop/client acceptance.
 
 The primary macOS protocol job remains the authoritative full Debug/Release
 suite. In addition, `r7-macos-native-lifecycle` must independently compile the
-four production-backed R7 macOS test targets and run the required seventeen-case
+four production-backed R7 macOS test targets and run the required twenty-case
 registry-preflighted selection in Debug and Release from one build root. This
 job exists so an unrelated protocol failure cannot erase R7 Release evidence;
 it must not use `continue-on-error`, alter full-suite status, request TCC
@@ -184,7 +209,8 @@ both Debug and Release compilation, run a focused anchored selection and first
 enumerate it with `ctest -N`. The registry preflight must require the exact
 same-dimensions geometry-generation case; capture generation, callback,
 consumer, native-stop, backend-reentry, late-start and session-watch retirement
-cases; cursor session/topology/generation freshness; input session-watch
+cases; capture-to-R4 BGRA layout, pixel-lifetime and display-generation cases;
+cursor session/topology/generation freshness; input session-watch
 revocation; and GUI-session switch/mid-operation/watch-race/destructor
 retirement. A missing required name is a CI failure rather than silently reduced
 coverage.

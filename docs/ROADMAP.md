@@ -1,3 +1,54 @@
+## R7 P2 ScreenCaptureKit/CoreVideo -> R4 ingress readiness (2026-10-17; exact-SHA CI pending)
+
+**Authoring parent:** `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`.  
+**Publication:** this direct-to-main implementation; exact-SHA Actions pending.
+
+The R7/R4 audit found no missing production ownership API. ScreenCaptureKit
+already configures exact `kCVPixelFormatType_32BGRA` physical-pixel output;
+`LockedBgraPixelBuffer` retains and read-locks the CoreVideo storage;
+`FramebufferView` carries the validated native row pitch; and
+`MacCaptureFrameConsumer` already passes the capture geometry generation
+synchronously. R4's existing `X264Avc420SegmentedFrameProducer::prepareBgra`
+consumes that borrow synchronously into R4-owned NV12/x264/segmented-frame
+storage. No R4 source, second capture stream, AppKit owner, frame scheduler or
+authorization owner is added.
+
+Three Apple-only production-backed CTests now close the compatibility gap:
+`macos.capture-r4-bgra-layout-contract` verifies explicit BGRA format,
+padded CoreVideo row stride, Retina logical-to-physical dimensions and the real
+R4 BGRA->NV12->x264/AVC420 producer; `macos.capture-r4-pixel-lifetime-retirement`
+releases the caller's CoreVideo reference inside the synchronous R4 consumer,
+proves R7's retained/read-locked lifetime spans conversion, and checks
+permission/session/native-failure/stop retirement; and
+`macos.capture-r4-display-generation-denials` proves same-facts display
+replacement, a replacement racing after encode and a late successful native
+start cannot publish the old generation, while a fresh geometry generation plus
+fresh stream/R4 producer is admissible.
+
+The tests make the commit point explicit. A session or geometry revocation may
+race after R4 has synchronously prepared owned encoded bytes. In that case the
+outer R7 result is `RetireStream`, never `Published`, and the test cancels
+the conclusively unwritten R4 frame before any hypothetical R3 handoff. Thus no
+borrowed CoreVideo pixels escape the callback and no stale native generation can
+be converted into publication authority.
+
+The existing hosted Apple lifecycle selector expands **17 -> 20** in both
+Debug and Release and fail-closed requires all three new names. Only the
+existing `test_macos_capture_stream` test target gains a private
+`rdp-server-graphics` link; production `rdp-server-macos-capture` remains
+R4/x264-independent. Ordinary execution uses injected backends and synthetic
+CoreVideo storage and never starts `SCStream`, prompts for Screen Recording or
+Accessibility, samples a native cursor or posts input. A successful synthetic
+preflight remains permission state only and never R2 admission.
+
+Canonical owner `~/rdp-server/build/`, owner macOS 27, real Screen Recording
+permission, native Retina/multi-display capture, fast-user-switch delivery,
+native cursor/input and Microsoft-client desktop acceptance are **NOT RUN** by
+this agent. M5 remains **BLOCKED / NOT ACCEPTED** until the owner separately
+authorizes live desktop access, the exact shared-main candidate passes owner
+macOS 27 M1, and R2/R3 supplies genuine positive macOS desktop admission plus
+the authenticated/licensed/Share-active Graphics DVC publication path.
+
 ## R6 P2 DXGI-to-R4 CLANG64 preflight correction (2026-10-17)
 
 **Initial implementation:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.  

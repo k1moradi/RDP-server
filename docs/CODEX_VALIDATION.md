@@ -1,3 +1,35 @@
+## R7 P2 macOS capture-to-R4 ingress authoring receipt (2026-10-17)
+
+**Authoring parent:** `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`.  
+**Publication:** this direct-to-main implementation; exact-SHA hosted evidence pending.
+
+The existing R7 production lifetime is unchanged. New cross-road tests privately
+link the Apple capture fixture to the real R4 BGRA converter/x264 AVC420
+producer and exercise synthetic CoreVideo buffers through the production
+`MacScreenCaptureState::consumeFrame` path. Dedicated CTests are
+`macos.capture-r4-bgra-layout-contract`,
+`macos.capture-r4-pixel-lifetime-retirement`, and
+`macos.capture-r4-display-generation-denials`.
+
+The layout case uses a 2x Retina observation (2x1 logical points -> 4x2 physical
+pixels), a 24-byte padded BGRA row pitch, exact
+`kCVPixelFormatType_32BGRA` acceptance and wrong-format rejection before
+running the real R4 producer. The lifetime case releases the caller's
+CoreVideo reference from inside the R4 consumer and requires the release
+callback to stay pending until synchronous conversion/encode returns; it also
+proves a session race after encode yields `RetireStream` and the owned,
+unwritten R4 frame is canceled. The generation case denies an old same-facts
+display generation, denies/cancels a generation replaced after encode, rejects
+late asynchronous start completion, and admits only a fresh geometry-bound
+stream/producer.
+
+The hosted R7 Apple focused selection is expanded from **17 to 20** and its
+registry preflight requires the new names in Debug and Release. No native
+ScreenCaptureKit factory is exposed and no ordinary test performs a real TCC
+query/request, desktop capture or native input. Owner `~/rdp-server/build/`,
+owner macOS 27 and M5 live-desktop acceptance are **NOT RUN**. Exact publication
+SHA AppleClang/full-suite/R7 focused evidence is required after publication.
+
 ## R6 P2 DXGI-to-R4 CLANG64 preflight correction (2026-10-17)
 
 **Initial implementation:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.  

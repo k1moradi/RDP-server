@@ -2,6 +2,7 @@
 #include "platform/macos/native_display_reconfiguration.h"
 #include "platform/macos/native_session_change_watch.h"
 #include "platform/macos/screen_capture_stream.h"
+#include "rdp/x264_avc420_segmented_frame_producer.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreVideo/CoreVideo.h>
@@ -11,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -19,6 +21,7 @@
 namespace {
 
 using namespace rdp::macos;
+using namespace rdp_server::rdp;
 using rdp::macos::detail::MacScreenCaptureBackend;
 using rdp::macos::detail::MacScreenCaptureState;
 
@@ -118,9 +121,14 @@ struct PixelBufferOwner {
         }
         return *this;
     }
-    ~PixelBufferOwner() {
-        if (value != nullptr) CVPixelBufferRelease(value);
+    void release() noexcept {
+        if (value != nullptr) {
+            CVPixelBufferRelease(value);
+            value = nullptr;
+        }
     }
+
+    ~PixelBufferOwner() { release(); }
 };
 
 [[nodiscard]] PixelBufferOwner makePixelBuffer(
@@ -133,6 +141,187 @@ struct PixelBufferOwner {
     assert(status == kCVReturnSuccess && owner.value != nullptr);
     return owner;
 }
+
+struct PixelBufferReleaseTracker final {
+    bool released{};
+    const void* baseAddress{};
+};
+
+void trackPixelBufferRelease(void* const context,
+                             const void* const baseAddress) {
+    auto& tracker = *static_cast<PixelBufferReleaseTracker*>(context);
+    assert(!tracker.released);
+    tracker.released = true;
+    tracker.baseAddress = baseAddress;
+}
+
+[[nodiscard]] PixelBufferOwner makeTrackedPixelBuffer(
+    std::span<std::byte> bytes, const std::size_t width,
+    const std::size_t height, const OSType format,
+    const std::size_t bytesPerRow, PixelBufferReleaseTracker& tracker) {
+    PixelBufferOwner owner;
+    const auto status = CVPixelBufferCreateWithBytes(
+        kCFAllocatorDefault, width, height, format, bytes.data(), bytesPerRow,
+        &trackPixelBufferRelease, &tracker, nullptr, &owner.value);
+    assert(status == kCVReturnSuccess && owner.value != nullptr);
+    return owner;
+}
+
+[[nodiscard]] std::array<std::byte, 22> r4CapabilitiesAdvertisement() {
+    return {std::byte{0x12}, {}, {}, {}, std::byte{22}, {}, {}, {},
+            std::byte{1}, {}, std::byte{5}, std::byte{1}, std::byte{8}, {},
+            std::byte{4}, {}, {}, {}, std::byte{0x10}, {}, {}, {}};
+}
+
+[[nodiscard]] GfxPresentationReceipt emitR4Command(
+    GfxPresentationLifecycle& lifecycle, const std::uint64_t generation) {
+    std::array<std::byte, 24> bytes{};
+    GfxPresentationReceipt receipt{};
+    assert(lifecycle.prepareCommand(generation, bytes, receipt));
+    return receipt;
+}
+
+void mapR4Surface(GfxPresentationLifecycle& lifecycle,
+                  const std::uint64_t generation,
+                  const PixelSize visibleGeometry) {
+    assert(lifecycle.open(generation));
+    const auto capabilities = r4CapabilitiesAdvertisement();
+    assert(lifecycle.acceptCapabilities(generation, capabilities));
+    auto receipt = emitR4Command(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.configureSurface(generation, 7, visibleGeometry));
+    receipt = emitR4Command(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    receipt = emitR4Command(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+}
+
+// Test-only composition of the existing R7 synchronous borrow with the real
+// R4 BGRA -> NV12 -> x264/AVC420 producer. This object is not R3 authority:
+// its lifecycle is an offline fixture used only to prove memory/generation
+// compatibility before a future authenticated Graphics DVC handoff exists.
+class R4IngressConsumer final : public MacCaptureFrameConsumer {
+public:
+    R4IngressConsumer(const std::uint64_t generation,
+                      const PixelSize visibleGeometry)
+        : generation_(generation),
+          visibleGeometry_(visibleGeometry),
+          codedGeometry_(gfxAvc420CodedGeometry(visibleGeometry)) {
+        assert(generation_ != 0);
+        assert(codedGeometry_.widthPixels != 0 &&
+               codedGeometry_.heightPixels != 0);
+        mapR4Surface(lifecycle_, generation_, visibleGeometry_);
+        assert(producer_.open(generation_, codedGeometry_, visibleGeometry_));
+    }
+
+    void consume(const FramebufferView& frame,
+                 const std::uint64_t generation) noexcept override {
+        ++calls;
+        assert(frame.valid());
+        assert(generation == generation_);
+        assert(frame.widthPixels == visibleGeometry_.widthPixels);
+        assert(frame.heightPixels == visibleGeometry_.heightPixels);
+        if (expectedStride != 0) {
+            assert(frame.strideBytes == expectedStride);
+        }
+        if (expectedPixels != nullptr) {
+            assert(frame.pixels.data() == expectedPixels);
+        }
+        observedStride = frame.strideBytes;
+
+        // Drop the caller's CoreVideo reference before R4 reads a single
+        // pixel. LockedBgraPixelBuffer must keep storage retained/read-locked
+        // across this entire synchronous conversion and encode operation.
+        if (externalPixelBufferToRelease != nullptr) {
+            externalPixelBufferToRelease->release();
+            assert(releaseTracker != nullptr);
+            assert(!releaseTracker->released);
+        }
+
+        const std::array<Rectangle, 1> regions{{
+            Rectangle{0, 0, visibleGeometry_.widthPixels,
+                      visibleGeometry_.heightPixels},
+        }};
+        const std::array<GfxAvc420QuantQuality, 1> quantQualities{{{23, 80}}};
+        const X264BgraFrameRequest request{
+            7,
+            nextFrameId_,
+            frame,
+            pts_,
+            regions,
+            quantQualities,
+        };
+        assert(!preparedFrame_.valid());
+        assert(producer_.prepareBgra(
+            lifecycle_, generation_, request, preparedFrame_));
+        assert(preparedFrame_.valid());
+        assert(preparedFrame_.generation() == generation_);
+        assert(preparedFrame_.frameId() == nextFrameId_);
+        ++nextFrameId_;
+        ++pts_;
+
+        if (releaseTracker != nullptr) {
+            assert(!releaseTracker->released);
+        }
+
+        // These mutations deliberately happen only after R4 owns encoded
+        // output. MacScreenCaptureState's post-consumer fence is the commit
+        // point: RetireStream means this frame is conclusively unwritten and
+        // must be canceled before any future R3 handoff.
+        if (refreshGeometryAfterPrepare && geometryToRefresh != nullptr) {
+            refreshGeometryAfterPrepare = false;
+            refreshedGeneration = geometryToRefresh->refresh();
+        }
+        if (revokeSessionAfterPrepare) {
+            revokeSessionAfterPrepare = false;
+            assert(gSessionWatchFixture != nullptr);
+            gSessionWatchFixture->recordChange();
+        }
+    }
+
+    [[nodiscard]] bool hasPreparedFrame() const noexcept {
+        return preparedFrame_.valid();
+    }
+
+    [[nodiscard]] std::size_t preparedWireBytes() const noexcept {
+        return preparedFrame_.wireBytes().size();
+    }
+
+    [[nodiscard]] bool completePreparedFrame() noexcept {
+        if (!preparedFrame_.valid()) {
+            return false;
+        }
+        const auto wireBytes = preparedFrame_.wireBytes().size();
+        return producer_.completeDelivery(
+            lifecycle_, preparedFrame_, wireBytes);
+    }
+
+    [[nodiscard]] bool cancelPreparedFrame() noexcept {
+        return producer_.cancelUnwrittenDelivery(lifecycle_, preparedFrame_);
+    }
+
+    std::size_t calls{};
+    std::size_t expectedStride{};
+    std::size_t observedStride{};
+    const std::byte* expectedPixels{};
+    PixelBufferOwner* externalPixelBufferToRelease{};
+    PixelBufferReleaseTracker* releaseTracker{};
+    GeometryFixture* geometryToRefresh{};
+    std::uint64_t refreshedGeneration{};
+    bool refreshGeometryAfterPrepare{};
+    bool revokeSessionAfterPrepare{};
+
+private:
+    GfxPresentationLifecycle lifecycle_{};
+    X264Avc420SegmentedFrameProducer producer_{};
+    GfxAvc420SegmentedFrame preparedFrame_{};
+    std::uint64_t generation_{};
+    PixelSize visibleGeometry_{};
+    PixelSize codedGeometry_{};
+    std::uint32_t nextFrameId_{1};
+    std::int64_t pts_{};
+};
 
 class RecordingConsumer final : public MacCaptureFrameConsumer {
 public:
@@ -346,6 +535,33 @@ struct StreamFixture {
     std::unique_ptr<MacScreenCaptureStream> stream;
 };
 
+struct R4StreamFixture final {
+    std::shared_ptr<R4IngressConsumer> consumer{};
+    FakeBackend* backend{};
+    std::unique_ptr<MacScreenCaptureStream> stream{};
+};
+
+[[nodiscard]] R4StreamFixture makeR4Stream(
+    const MacScreenCaptureBinding binding) {
+    assert(binding.widthPixels <=
+           std::numeric_limits<std::uint32_t>::max());
+    assert(binding.heightPixels <=
+           std::numeric_limits<std::uint32_t>::max());
+    const PixelSize visibleGeometry{
+        static_cast<std::uint32_t>(binding.widthPixels),
+        static_cast<std::uint32_t>(binding.heightPixels),
+    };
+    auto consumer =
+        std::make_shared<R4IngressConsumer>(
+            binding.geometryGeneration, visibleGeometry);
+    auto backend = std::make_unique<FakeBackend>();
+    auto* const backendPointer = backend.get();
+    auto created = MacScreenCaptureStream::createForTesting(
+        binding, consumer, std::move(backend));
+    assert(created);
+    return {std::move(consumer), backendPointer, std::move(*created)};
+}
+
 [[nodiscard]] StreamFixture makeStream(const MacScreenCaptureBinding streamBinding) {
     auto fake = std::make_unique<FakeBackend>();
     auto* const fakePointer = fake.get();
@@ -366,6 +582,17 @@ struct StreamFixture {
 }
 
 void prepareAndStart(StreamFixture& fixture) {
+    assert(fixture.stream->prepare());
+    assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Preparing);
+    fixture.backend->state->prepared();
+    assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Ready);
+    assert(fixture.stream->start());
+    assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Starting);
+    fixture.backend->state->startCompleted(true);
+    assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Capturing);
+}
+
+void prepareAndStart(R4StreamFixture& fixture) {
     assert(fixture.stream->prepare());
     assert(fixture.stream->state() == MacScreenCaptureLifecycleState::Preparing);
     fixture.backend->state->prepared();
@@ -1161,6 +1388,271 @@ void testSessionWatchConsumerRace() {
     assert(fixture.backend->closeCalls == 1);
 }
 
+void testR4BgraLayoutContract() {
+    GeometryFixture geometry;
+    // Two logical points become four physical pixels: the capture/R4 boundary
+    // must use physical Retina backing dimensions, not logical point sizes.
+    geometry.snapshotFixture.display =
+        NativeDisplayObservation{100, 0, 0, 2, 1, 4, 2, 0, 0};
+    const auto generation = geometry.refresh();
+    const auto binding = geometry.bindingFor(100, generation);
+    assert(binding.widthPixels == 4 && binding.heightPixels == 2);
+
+    auto fixture = makeR4Stream(binding);
+    prepareAndStart(fixture);
+    fixture.consumer->expectedStride = 24;
+
+    alignas(64) std::array<std::byte, 48> pixels{};
+    for (std::size_t row = 0; row < 2; ++row) {
+        const std::size_t rowOffset = row * 24;
+        for (std::size_t column = 0; column < 4; ++column) {
+            const std::size_t pixelOffset = rowOffset + column * 4;
+            pixels[pixelOffset] =
+                static_cast<std::byte>(20U + column + row);
+            pixels[pixelOffset + 1U] =
+                static_cast<std::byte>(60U + column + row);
+            pixels[pixelOffset + 2U] =
+                static_cast<std::byte>(100U + column + row);
+            pixels[pixelOffset + 3U] = std::byte{0x7f};
+        }
+        for (std::size_t padding = 16; padding < 24; ++padding) {
+            pixels[rowOffset + padding] = std::byte{0xee};
+        }
+    }
+    fixture.consumer->expectedPixels = pixels.data();
+
+    auto wrongFormat = makePixelBuffer(
+        pixels, 4, 2, kCVPixelFormatType_32ARGB, 24);
+    assert(fixture.backend->state->consumeFrame(
+               wrongFormat.value, MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Dropped);
+    assert(fixture.stream->lastFrameDrop() ==
+           MacScreenCaptureFrameDrop::UnsupportedFormat);
+    assert(fixture.consumer->calls == 0);
+
+    auto pixelBuffer = makePixelBuffer(
+        pixels, 4, 2, kCVPixelFormatType_32BGRA, 24);
+    assert(fixture.backend->state->consumeFrame(
+               pixelBuffer.value, MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Published);
+    assert(fixture.consumer->calls == 1);
+    assert(fixture.consumer->observedStride == 24);
+    assert(fixture.consumer->hasPreparedFrame());
+    assert(fixture.consumer->preparedWireBytes() != 0);
+    assert(fixture.consumer->completePreparedFrame());
+    assert(!fixture.consumer->hasPreparedFrame());
+}
+
+void testR4PixelLifetimeRetirement() {
+    // A denied synthetic Screen Recording preflight is permission state only.
+    // It stops before ScreenCaptureKit setup and is never R2 admission.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeR4Stream(
+            geometry.bindingFor(100, generation));
+        fixture.backend->preflightStatus =
+            ScreenCapturePreflightStatus::NotGranted;
+        const auto prepared = fixture.stream->prepare();
+        assert(!prepared &&
+               prepared.error() ==
+                   MacScreenCaptureError::PermissionNotGranted);
+        assert(fixture.backend->prepareCalls == 0);
+        assert(fixture.consumer->calls == 0);
+        assert(!fixture.consumer->hasPreparedFrame());
+    }
+
+    // Release the caller's only CoreVideo reference from inside the consumer.
+    // R7's retained/read-locked owner must keep bytes alive through synchronous
+    // R4 conversion+encode, then release them immediately after callback return.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeR4Stream(
+            geometry.bindingFor(100, generation));
+        prepareAndStart(fixture);
+
+        alignas(64) std::array<std::byte, 32> pixels{};
+        PixelBufferReleaseTracker releaseTracker{};
+        auto pixelBuffer = makeTrackedPixelBuffer(
+            pixels, 2, 2, kCVPixelFormatType_32BGRA, 16, releaseTracker);
+        fixture.consumer->expectedStride = 16;
+        fixture.consumer->expectedPixels = pixels.data();
+        fixture.consumer->externalPixelBufferToRelease = &pixelBuffer;
+        fixture.consumer->releaseTracker = &releaseTracker;
+
+        assert(!releaseTracker.released);
+        assert(fixture.backend->state->consumeFrame(
+                   pixelBuffer.value,
+                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::Published);
+        assert(pixelBuffer.value == nullptr);
+        assert(releaseTracker.released);
+        assert(releaseTracker.baseAddress == pixels.data());
+        assert(fixture.consumer->calls == 1);
+        assert(fixture.consumer->hasPreparedFrame());
+        assert(fixture.consumer->preparedWireBytes() != 0);
+
+        // Source pixels are already gone; the encoded R4 frame is independent.
+        assert(fixture.consumer->completePreparedFrame());
+        assert(!fixture.consumer->hasPreparedFrame());
+    }
+
+    // A session revocation racing after synchronous R4 encode cannot retract
+    // bytes already converted, but RetireStream is the publication commit
+    // denial. The prepared frame is conclusively unwritten and must be canceled.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeR4Stream(
+            geometry.bindingFor(100, generation));
+        prepareAndStart(fixture);
+        fixture.consumer->revokeSessionAfterPrepare = true;
+
+        alignas(64) std::array<std::byte, 16> pixels{};
+        auto pixelBuffer = makePixelBuffer(
+            pixels, 2, 2, kCVPixelFormatType_32BGRA, 8);
+        assert(fixture.backend->state->consumeFrame(
+                   pixelBuffer.value,
+                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::RetireStream);
+        assert(fixture.consumer->calls == 1);
+        assert(fixture.consumer->hasPreparedFrame());
+        assert(fixture.stream->lastError() ==
+               MacScreenCaptureError::StaleSession);
+        assert(fixture.consumer->cancelPreparedFrame());
+        assert(!fixture.consumer->hasPreparedFrame());
+    }
+
+    // The native delegate routes terminal ScreenCaptureKit errors, including
+    // permission-loss failures, through nativeFailed(). This synthetic path
+    // verifies fail-closed publication without claiming a real TCC event.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeR4Stream(
+            geometry.bindingFor(100, generation));
+        prepareAndStart(fixture);
+        const auto state = fixture.backend->state;
+        state->nativeFailed();
+        assert(state->lifecycleState() ==
+               MacScreenCaptureLifecycleState::Failed);
+
+        alignas(64) std::array<std::byte, 16> pixels{};
+        auto pixelBuffer = makePixelBuffer(
+            pixels, 2, 2, kCVPixelFormatType_32BGRA, 8);
+        assert(state->consumeFrame(
+                   pixelBuffer.value,
+                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::Dropped);
+        assert(fixture.consumer->calls == 0);
+        assert(!fixture.consumer->hasPreparedFrame());
+    }
+
+    // Stop completion after terminal owner close is inert and cannot
+    // resurrect capture or permit a fresh R4 callback.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeR4Stream(
+            geometry.bindingFor(100, generation));
+        prepareAndStart(fixture);
+        const auto state = fixture.backend->state;
+        assert(fixture.stream->stop());
+        fixture.stream->close();
+        state->stopCompleted(true);
+        assert(state->lifecycleState() ==
+               MacScreenCaptureLifecycleState::Closed);
+
+        alignas(64) std::array<std::byte, 16> pixels{};
+        auto pixelBuffer = makePixelBuffer(
+            pixels, 2, 2, kCVPixelFormatType_32BGRA, 8);
+        assert(state->consumeFrame(
+                   pixelBuffer.value,
+                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::Dropped);
+        assert(fixture.consumer->calls == 0);
+    }
+}
+
+void testR4DisplayGenerationDenials() {
+    GeometryFixture geometry;
+    const auto firstGeneration = geometry.refresh();
+    auto oldFixture = makeR4Stream(
+        geometry.bindingFor(100, firstGeneration));
+    prepareAndStart(oldFixture);
+
+    alignas(64) std::array<std::byte, 16> pixels{};
+    auto pixelBuffer = makePixelBuffer(
+        pixels, 2, 2, kCVPixelFormatType_32BGRA, 8);
+
+    const auto secondGeneration = geometry.refresh();
+    assert(secondGeneration > firstGeneration);
+    assert(oldFixture.backend->state->consumeFrame(
+               pixelBuffer.value,
+               MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::RetireStream);
+    assert(oldFixture.consumer->calls == 0);
+    assert(!oldFixture.consumer->hasPreparedFrame());
+    assert(oldFixture.stream->lastError() ==
+           MacScreenCaptureError::StaleGeometryGeneration);
+
+    // A same-facts replacement racing after R4 encode reaches the same commit
+    // denial: the old generation's owned but unwritten frame must be canceled.
+    auto racingFixture = makeR4Stream(
+        geometry.bindingFor(100, secondGeneration));
+    prepareAndStart(racingFixture);
+    racingFixture.consumer->geometryToRefresh = &geometry;
+    racingFixture.consumer->refreshGeometryAfterPrepare = true;
+    assert(racingFixture.backend->state->consumeFrame(
+               pixelBuffer.value,
+               MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::RetireStream);
+    assert(racingFixture.consumer->calls == 1);
+    assert(racingFixture.consumer->hasPreparedFrame());
+    assert(racingFixture.consumer->refreshedGeneration > secondGeneration);
+    assert(racingFixture.stream->lastError() ==
+           MacScreenCaptureError::StaleGeometryGeneration);
+    assert(racingFixture.consumer->cancelPreparedFrame());
+    assert(!racingFixture.consumer->hasPreparedFrame());
+
+    const auto thirdGeneration =
+        racingFixture.consumer->refreshedGeneration;
+
+    // A late successful native start after another same-facts replacement is
+    // terminal and cannot resurrect an old R4 ingress generation.
+    auto startingFixture = makeR4Stream(
+        geometry.bindingFor(100, thirdGeneration));
+    assert(startingFixture.stream->prepare());
+    startingFixture.backend->state->prepared();
+    assert(startingFixture.stream->start());
+    const auto startingState = startingFixture.backend->state;
+    const auto fourthGeneration = geometry.refresh();
+    assert(fourthGeneration > thirdGeneration);
+    startingState->startCompleted(true);
+    assert(startingState->lifecycleState() ==
+           MacScreenCaptureLifecycleState::Failed);
+    assert(startingState->lastError() ==
+           MacScreenCaptureError::StaleGeometryGeneration);
+    assert(startingState->claimNativeStopAfterStarted());
+    assert(!startingState->claimNativeStopAfterStarted());
+    assert(startingFixture.consumer->calls == 0);
+    assert(!startingFixture.consumer->hasPreparedFrame());
+
+    // Only a fresh stream + fresh R4 producer bound to the new geometry
+    // generation may accept the next physical BGRA frame.
+    auto freshFixture = makeR4Stream(
+        geometry.bindingFor(100, fourthGeneration));
+    prepareAndStart(freshFixture);
+    assert(freshFixture.backend->state->consumeFrame(
+               pixelBuffer.value,
+               MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Published);
+    assert(freshFixture.consumer->calls == 1);
+    assert(freshFixture.consumer->hasPreparedFrame());
+    assert(freshFixture.consumer->completePreparedFrame());
+}
+
 } // namespace
 
 int main(const int argumentCount, const char* const arguments[]) {
@@ -1194,6 +1686,12 @@ int main(const int argumentCount, const char* const arguments[]) {
         testSessionWatchFrameRetirement();
     } else if (testCase == "session-watch-consumer-race") {
         testSessionWatchConsumerRace();
+    } else if (testCase == "r4-bgra-layout-contract") {
+        testR4BgraLayoutContract();
+    } else if (testCase == "r4-pixel-lifetime-retirement") {
+        testR4PixelLifetimeRetirement();
+    } else if (testCase == "r4-display-generation-denials") {
+        testR4DisplayGenerationDenials();
     } else {
         return 2;
     }

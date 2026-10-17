@@ -1486,6 +1486,7 @@ if(APPLE)
         "${PROJECT_SOURCE_DIR}/src")
     target_link_libraries(test_macos_capture_stream PRIVATE
         rdp-server-macos-capture
+        rdp-server-graphics
         "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}")
     if(MSVC)
         target_compile_options(test_macos_capture_stream PRIVATE /W4 /UNDEBUG)
@@ -1505,6 +1506,17 @@ if(APPLE)
             COMMAND test_macos_capture_stream "${case_name}")
         set_tests_properties("macos.capture-stream-${case_name}" PROPERTIES
             LABELS "macos;capture;offline;native")
+    endforeach()
+    # R7 -> R4 synchronous BGRA compatibility. Production macOS capture keeps
+    # no R4/x264 dependency; only this existing Apple fixture links graphics.
+    foreach(case_name IN ITEMS
+            r4-bgra-layout-contract
+            r4-pixel-lifetime-retirement
+            r4-display-generation-denials)
+        add_test(NAME "macos.capture-${case_name}"
+            COMMAND test_macos_capture_stream "${case_name}")
+        set_tests_properties("macos.capture-${case_name}" PROPERTIES
+            LABELS "macos;capture;graphics;x264;security;offline;native")
     endforeach()
 endif()
 

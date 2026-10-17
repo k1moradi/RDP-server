@@ -883,7 +883,7 @@ jobs:
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$runtime_security_selection")"
           printf '%s\n' "$selected_tests"
-          readonly runtime_security_expected_test_count=15
+          readonly runtime_security_expected_test_count=16
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$runtime_security_expected_test_count" ]]; then
             printf 'R9 M2 runtime-security registry mismatch: expected %s tests, found %s\n' \
@@ -904,6 +904,7 @@ jobs:
           grep -Fq 'runtime.linux-connection-aggregate-premature-admission-denial' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-native-monitor-borrow-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-native-monitor-registration-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-native-desktop-selection-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-existing-cal-unadmitted-denial' <<< "$selected_tests"
 
           ctest --test-dir build --build-config Debug --timeout 60 --verbose \

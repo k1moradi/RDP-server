@@ -1,3 +1,18 @@
+## R3 CAL exact-SHA CI blocker receipt (2026-10-17)
+
+Implementation `4cbe0168f9f0996d44d3f589ec6cafb335d62844`, Actions
+`39009166683`: **FAIL before job creation / R3 NOT RUN**. The implementation
+touches only the CAL denial fixture and R3 documentation, but inherits malformed
+workflow text from parent R9 commit `7751e079a56e15034845ab61e4ad5e527204efc6`.
+That commit's CredSSP fuzzer edit leaves the `fuzz_selection` shell quote
+unterminated and embeds subsequent YAML job definitions inside the run block.
+
+No compiler, CTest, ASan/UBSan or platform result is claimed for the R3
+implementation SHA. The previous executable sanitizer run `39008819773`
+selected all six CAL cases, passed five, and failed only the changed-signed-
+property assertion now corrected. Re-run exact or unchanged-R3 descendant CI
+after R9 repairs workflow syntax; do not bypass the fail-closed selectors.
+
 ## R3 CAL issuer-signature fixture portability correction (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `7751e079a56e15034845ab61e4ad5e527204efc6`. Actions `39008819773`

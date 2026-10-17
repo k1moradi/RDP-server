@@ -1,3 +1,28 @@
+## R3 CAL signed-property exact-SHA CI blocker receipt (2026-10-17)
+
+**Implementation:** `4cbe0168f9f0996d44d3f589ec6cafb335d62844`.  
+**Actions:** `39009166683` — **FAIL before job creation; R3 tests NOT RUN**.
+
+The exact implementation-SHA push created the standard CI workflow, but GitHub
+rejected execution before any job existed. Inspection of the inherited parent
+`7751e079a56e15034845ab61e4ad5e527204efc6` identifies an R9-only workflow
+authoring defect: the CredSSP fuzzer step begins an unterminated
+`fuzz_selection='^fuzz\.credssp-bounded` shell string and splices later job
+definitions into that run block. R3 did not modify `.github/workflows/ci.yml`.
+
+Therefore the new CAL fixture correction has **no exact-SHA compile, CTest or
+sanitizer evidence yet**. The last executable R3 evidence remains Actions
+`39008819773`: all six CAL registrations were selected, five passed under
+ASan/UBSan, and only
+`transport.licensing-client-cal-issuer-signature-denials` failed at the
+provider-sensitive changed-signed-property fixture that this increment changes.
+
+Do not treat the workflow parse failure as an R3 pass or failure. The next R3
+gate is an unchanged-code descendant after R9 restores valid workflow syntax:
+run all six CAL CTests under ASan/UBSan plus the full Linux/macOS/Windows
+Debug/Release matrix. `CLIENT_LICENSE_INFO` remains non-authorizing and no
+live licensing-success or Share transition is enabled.
+
 ## R3 CAL signed-property fixture portability correction (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `7751e079a56e15034845ab61e4ad5e527204efc6`.

@@ -3482,3 +3482,14 @@ retirement and pre-Share denial. Offline CREATE success is protocol-mechanics
 evidence only. It must never be treated as R2 admission, Share authority,
 visible desktop authorization or a live Graphics endpoint; live use remains
 behind freshly reauthorized R2/R10 wrappers and the exact R1 owner.
+
+
+## R4 ClearCodec sanitizer gate (2026-10-17)
+
+The mandatory ClearCodec fallback is a separate exact ASan/UBSan registry gate.
+CI must build `test_gfx_clearcodec_fallback`, enumerate exactly **4**
+`graphics.clearcodec-*` behaviors, require all four names and execute them:
+wire serialization, capability fallback, owned delivery/recovery and
+malformed/layout/alias denials. Ordinary full CTest or AVC420/x264 coverage
+does not substitute for this gate because ClearCodec has distinct residual
+layout and checked length arithmetic.

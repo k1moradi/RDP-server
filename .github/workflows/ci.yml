@@ -491,6 +491,7 @@ jobs:
             test_linux_clipboard_file_destination \
             test_gfx_surface_lifecycle test_gfx_frame_acknowledge \
             test_gfx_presentation_lifecycle test_gfx_avc420_picture \
+            test_gfx_clearcodec_fallback \
             test_gfx_segmented_data test_gfx_avc420_segmented_frame \
             test_gfx_avc420_capabilities \
             test_x264_avc420_encoder \
@@ -618,6 +619,30 @@ jobs:
           grep -Fq 'graphics.avc420-capabilities-highest-supported-selection' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$capability_selection" --output-on-failure
+
+      - name: Run R4 ClearCodec CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          clearcodec_selection='^graphics\.clearcodec-(residual-frame-wire|capability-fallback|owned-delivery-recovery|denials)$'
+          clearcodec_tests="$(ctest --test-dir build --build-config Debug -N -R "$clearcodec_selection")"
+          printf '%s\n' "$clearcodec_tests"
+          readonly clearcodec_expected_test_count=4
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$clearcodec_tests")"
+          if [[ "$selected_test_count" -ne "$clearcodec_expected_test_count" ]]; then
+            printf 'R9 R4 ClearCodec registry mismatch: expected %s tests, found %s\n' \
+              "$clearcodec_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'graphics.clearcodec-residual-frame-wire' <<< "$clearcodec_tests"
+          grep -Fq 'graphics.clearcodec-capability-fallback' <<< "$clearcodec_tests"
+          grep -Fq 'graphics.clearcodec-owned-delivery-recovery' <<< "$clearcodec_tests"
+          grep -Fq 'graphics.clearcodec-denials' <<< "$clearcodec_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$clearcodec_selection" --output-on-failure
 
       - name: Run bounded R1/R3 MCS, CredSSP and licensing CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

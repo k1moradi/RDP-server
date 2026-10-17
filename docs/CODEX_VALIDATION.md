@@ -1,3 +1,22 @@
+## R9 ClearCodec sanitizer and compact-roadmap repair (2026-10-17)
+
+**Reconciled parent:** `5c887c1611b8b61f15a8c4b12b17af759e55a9fc`.
+R4's ClearCodec increment centrally registers four production-backed tests, but
+the R9 sanitizer job neither built `test_gfx_clearcodec_fallback` nor selected
+any `graphics.clearcodec-*` behavior. This left the new wire/layout/receipt
+implementation covered only by ordinary full CTest.
+
+This publication changes CI assurance only: build the existing test target,
+require exactly **4** ClearCodec registrations, require all four behavior names,
+and execute that selection under ASan/UBSan. No production source or CTest body
+changes. The compact R9 roadmap row is also restored from the earlier
+replacement-string documentation corruption; that is a correction of existing
+state, not a new acceptance claim.
+
+The R2/R10/R3 chain remains separately gated: runtime security **18**, Graphics
+DVC **4**, R5 **38**, R6 **59**, R7 input **2**, and R8 source-epoch/clipboard
+coverage remain structurally required. Exact publication-SHA CI is **PENDING**.
+
 ## R4 ClearCodec strict-Clang compile correction (2026-10-17)
 
 **Failing exact SHA:** `70da5c898f1322fd52615298007f175b10a00cd1`. Structure Actions `39050214599` passed. Primary Actions `39050214619` reached successful Ubuntu/GCC Debug compilation, but the first R4-owned compile diagnostic was identical in R9 Clang ASan/UBSan, hosted macOS AppleClang and Windows MSYS2 CLANG64/Clang 23: `gfx_clearcodec.cpp:49` triggered `-Werror,-Wtautological-constant-out-of-range-compare` for comparing the already-u16-bounded `widthPixels` against 64-bit `size_t::max()/4`. R6/R7 job names are not failure ownership; the common production boundary is R4 ClearCodec compilation.

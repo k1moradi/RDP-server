@@ -1,3 +1,26 @@
+## R7 P1 hosted lifecycle isolation authoring receipt (2026-10-17)
+
+**Starting reconciled shared `main`:** `75375ccfeb7523d58d40024f783ebfe84f4db50b`.  
+Exact publication-SHA hosted validation: **PENDING**.
+
+Preceding R7 CI SHA `dc8ad556c6f306b2678aee8d3c1d29284f6d1f85`
+registered and passed the focused macOS Debug selection **17/17** on Actions
+`39011565660`. Its full macOS Debug suite then failed only R1
+`transport.tcp-native-loopback-tls` (#178) at the readiness assertion, so
+Release was skipped. Unchanged-R7 descendant `e782cd642f574e7ef45792c8fe168dfad70c8d2a`
+again passed **17/17** focused R7 Debug cases before the same R1 failure.
+
+This increment adds a separate `r7-macos-native-lifecycle` hosted Apple job so
+R7's Debug and Release registration/execution evidence remains observable across
+unrelated full-suite failures. It builds only
+`test_macos_capture_pixel_buffer`, `test_macos_input_controller`,
+`test_macos_desktop_session_guard` and Apple-only
+`test_macos_capture_stream`, records exact Apple host/toolchain metadata, and
+runs the same fail-closed seventeen-case selector in both configurations. The
+primary protocol job remains unchanged and authoritative for the full suite.
+
+No live desktop or TCC request occurs. Owner macOS 27 and M5 remain **NOT RUN**.
+
 ## R10 first hosted ACL-helper diagnostic and correction (2026-10-17)
 
 At `e782cd642f574e7ef45792c8fe168dfad70c8d2a`, hosted Windows/MSVC reached

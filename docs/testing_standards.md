@@ -1,3 +1,19 @@
+## R7 hosted Apple lifecycle evidence is failure-isolated, not failure-masking
+
+The primary macOS protocol job remains the authoritative full Debug/Release
+suite. In addition, `r7-macos-native-lifecycle` must independently compile the
+four production-backed R7 macOS test targets and run the required seventeen-case
+registry-preflighted selection in Debug and Release from one build root. This
+job exists so an unrelated protocol failure cannot erase R7 Release evidence;
+it must not use `continue-on-error`, alter full-suite status, request TCC
+permission or substitute for owner macOS 27 M1 evidence.
+
+The workflow structure validator must require this job plus sentinel names for
+the display-generation fence and Apple capture generation/session retirement.
+A green isolated R7 job alongside a red full protocol matrix means only that the
+R7 lifetime boundary passed; M1 remains red/open until the full same-SHA matrix
+and owner-native rows pass.
+
 ## Windows CLANG64 private-fixture security preflight
 
 The hosted MSYS2 CLANG64 parity job must make the Windows synthetic-DACL

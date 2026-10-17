@@ -1,3 +1,39 @@
+## R7 P1 isolated hosted Apple lifecycle evidence (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `75375ccfeb7523d58d40024f783ebfe84f4db50b`.
+
+R7 CI hardening `dc8ad556c6f306b2678aee8d3c1d29284f6d1f85`,
+Actions `39011565660`, proved the new in-matrix fail-closed Debug selection:
+all **17/17** required macOS lifetime cases were registered and passed on hosted
+macOS **26.6.2 (25G83)**, **Xcode 26.6 (17F113)**,
+**Apple clang 21.0.0 (clang-2100.1.1.101)** / CMake
+**AppleClang 21.0.0.21000101**, SDK **26.5**. The exact SHA's structure guard,
+documentation policy, R7 GCC ASan/UBSan job and R9 Clang ASan/UBSan job also
+passed.
+
+The subsequent full Debug suite failed only cross-road R1 test
+`transport.tcp-native-loopback-tls` (#178), at
+`test_owned_preauth_session.cpp:6028` on macOS and the same readiness assertion
+on Ubuntu/Windows/Windows CLANG64. macOS therefore reported **487/488 PASS** and
+skipped Release. Unchanged-R7 descendant
+`e782cd642f574e7ef45792c8fe168dfad70c8d2a`, Actions `39011665925`,
+again passed the focused R7 Debug gate **17/17** before reproducing the same R1
+failure. R7 does not alter or suppress that transport failure.
+
+To preserve road-local Release evidence without weakening the authoritative
+full matrix, this increment adds independent hosted job
+`r7-macos-native-lifecycle`. It uses one ephemeral build root, builds only the
+production-backed macOS capture/session test targets, fail-closed preflights the
+same seventeen names, and runs them in Debug and Release. The primary macOS job
+still runs the focused gate plus the complete suite; a full-suite failure still
+fails M1 and prerelease acceptance. The repository workflow validator now
+requires the new R7 job and the generation/session sentinel names.
+
+No production code, native factory exposure, TCC behavior or R2/R3 authority is
+changed. Owner macOS 27 remains a separate R10 same-SHA gate and M5 remains
+**BLOCKED / NOT RUN** pending explicit authorization and genuine positive
+macOS desktop admission.
+
 ## R10 Windows ACL helper PowerShell-module correction (2026-10-17)
 
 R10 publication `e782cd642f574e7ef45792c8fe168dfad70c8d2a`, Actions

@@ -3749,3 +3749,24 @@ Dedicated central CTests added to `test_owned_mcs_connect_initial`:
 Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN**. This execution environment had no owner checkout and a direct attempt to materialize `~/rdp-server` from GitHub failed with `Could not resolve host: github.com`; policy forbids switching to another persistent build root. No local PASS is claimed.
 
 **Next live gate:** R10 must expose an immutable explicit PersonalDesktop deployment-policy capability. R2 must consume that capability only while the genuine current admission lease and exact R1 TLS owner are freshly reauthorized, call R3's private mode selector before Server License Request, and reauthorize every subsequent write/read transition. R1 remains the sole accepted-byte TLS writer. DRDYNVC CREATE/Graphics and decoded input remain blocked until that private live composition reaches `ShareActivated`.
+
+## R2 personal-desktop licensing/Share broker wrappers (2026-10-17)
+
+Authoring base: `646d37782f82533f92b1d687e4ffb6041d46d041`. This increment does not modify R3 wire ownership
+or R10 policy semantics. The concrete Linux R2 broker now invokes R3's existing
+private personal-mode selector exactly once after fresh R2 authorization and
+binds the exact service-lifetime `RuntimeDeploymentPolicy` object. New
+protected wrappers cover Valid Client prepare/accepted-byte completion, Share
+begin/pending write/accepted-byte completion/client intake and post-Share
+application readiness. The R10-facing aggregate exposes no lease, admission
+Boolean or generation arguments.
+
+Dedicated CTest:
+`runtime.linux-connection-personal-desktop-r3-authority-denials`. It covers
+pre-admission denial, wrong mode, repeated selection, stale R3 generation
+fencing, cancellation/repeated close and late Valid Client/Share callbacks
+without creating a positive R2 lease. Canonical local
+`~/rdp-server/build/`: **NOT RUN** because this execution environment cannot
+resolve github.com for a checkout; no alternate build root was created.
+Owner-authorized real Kerberos/PAM/NSS/logind/X11 `seat0` positive personal
+mode remains **NOT RUN**. Exact-SHA hosted Actions: **PENDING** at publication.

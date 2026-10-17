@@ -2,6 +2,7 @@
 #pragma once
 
 #include "linux_runtime_security.h"
+#include "runtime_deployment_policy.h"
 #include "runtime_licensing_authority.h"
 #include "runtime_licensing_context.h"
 #include "server/security/credssp_tsrequest.h"
@@ -153,6 +154,60 @@ public:
     [[nodiscard]] rdp_server::server::transport::McsSessionIntake
     authorizeMcsConnectInitial(
         std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // R10-facing personal-desktop security boundary. The immutable policy is
+    // the only product-mode input; R2 keeps the lease and generation pair
+    // private and freshly reauthorizes every operation below. R1 remains the
+    // sole TLS writer and R3 remains the sole wire/session owner.
+    [[nodiscard]] bool selectPersonalDesktopLicensingMode(
+        const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::
+            RdpPersonalDesktopValidClientWriteView>
+    authorizePersonalDesktopValidClientWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
+    [[nodiscard]]
+    rdp_server::server::transport::
+        RdpPersonalDesktopValidClientWriteOutcome
+    completePersonalDesktopValidClientWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpShareActivationWriteView>
+    beginPersonalDesktopShareActivation(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint32_t shareId,
+        std::uint32_t sessionId,
+        std::span<const std::uint8_t> sourceDescriptor,
+        std::uint16_t capabilityCount,
+        std::span<const std::uint8_t> capabilitySets) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpShareActivationWriteView>
+    authorizePersonalDesktopShareActivationWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
+    [[nodiscard]]
+    rdp_server::server::transport::RdpShareActivationWriteOutcome
+    completePersonalDesktopShareActivationWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
+    [[nodiscard]]
+    rdp_server::server::transport::RdpShareActivationClientIntake
+    acceptPersonalDesktopShareActivationPdu(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    [[nodiscard]] bool authorizePersonalDesktopApplicationTraffic(
+        const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 
     // Borrow the R2-owned logind monitor fd and libsystemd poll mask only
     // after genuine admission with a live lease. Both are -1 otherwise.

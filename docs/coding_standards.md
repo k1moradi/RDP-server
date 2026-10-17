@@ -1839,3 +1839,23 @@ freshness/permission checks, never authentication. Any future R2 lease must
 store the native session identity and revoke terminally on logout/switch,
 evidence mismatch, policy change or connection teardown; there is no public
 capability constructor or caller-supplied success flag.
+
+## R2 personal-desktop broker boundary (2026-10-17)
+
+Personal-desktop product mode is selected only through the concrete Linux R2
+broker after the current move-only lease has been rebound to the exact R1
+HYBRID/TLS/GSS owner and fresh NSS/logind session evidence. R10 supplies the
+service-lifetime, nonmoving `RuntimeDeploymentPolicy` object by const reference.
+R2 stores only that object's identity after successful one-shot selection and
+requires the exact same object plus `PersonalDesktop`, native-session
+revocation and one-console invariants on every later personal transition.
+
+R2 never accepts admission/session generations from R10. Every wrapper invokes
+the existing `revokeUnlessAdmissionBindingMatches()` path through
+`authorizeR3ProtectedTransition()` before borrowing or mutating R3. R3 remains
+the sole owner of Valid Client and Share bytes/receipt state; R1 remains the
+sole TLS writer. Null/missing leases are permitted only on accepted-byte
+completion paths so late callbacks can be rejected without inventing a
+replacement capability. Any wrong policy, duplicate selection, stale
+generation, missing TLS provenance, native-session failure, R3 rejection or
+late receipt closes R3 before revoking R2/GSS.

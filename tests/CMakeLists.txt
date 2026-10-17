@@ -720,6 +720,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-native-monitor-borrow-denials
             linux-connection-native-monitor-registration-denials
             linux-connection-native-desktop-selection-denials
+            linux-connection-personal-desktop-r3-authority-denials
             linux-connection-existing-cal-unadmitted-denial)
         add_test(NAME "runtime.${runtime_linux_security_case}"
             COMMAND test_runtime_linux_security

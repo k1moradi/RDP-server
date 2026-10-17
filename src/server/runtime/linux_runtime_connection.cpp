@@ -397,6 +397,175 @@ LinuxRuntimeConnection::authorizeMcsConnectInitial(
     return result;
 }
 
+bool LinuxRuntimeConnection::selectPersonalDesktopLicensingMode(
+    const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
+{
+    if (!deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        !broker_->authorizeR3PersonalDesktopLicensingMode(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy))
+    {
+        revoke();
+        return false;
+    }
+    return true;
+}
+
+std::optional<
+    rdp_server::server::transport::RdpPersonalDesktopValidClientWriteView>
+LinuxRuntimeConnection::authorizePersonalDesktopValidClientWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return std::nullopt;
+    }
+
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopValidClientWrite(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+    if (!pending)
+        revoke();
+    return pending;
+}
+
+rdp_server::server::transport::RdpPersonalDesktopValidClientWriteOutcome
+LinuxRuntimeConnection::completePersonalDesktopValidClientWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome = rdp_server::server::transport::
+        RdpPersonalDesktopValidClientWriteOutcome;
+
+    if (!broker_)
+    {
+        revoke();
+        return Outcome::Rejected;
+    }
+
+    const rdp_server::server::security::LinuxConsoleAdmissionLease *lease =
+        lease_ && !lease_->isRevoked() ? &*lease_ : nullptr;
+    const auto outcome =
+        broker_->completeR3PersonalDesktopValidClientWrite(
+            lease, acceptor_, connection_, session_, deploymentPolicy,
+            replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revoke();
+    return outcome;
+}
+
+std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
+LinuxRuntimeConnection::beginPersonalDesktopShareActivation(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::uint32_t shareId,
+    std::uint32_t sessionId,
+    std::span<const std::uint8_t> sourceDescriptor,
+    std::uint16_t capabilityCount,
+    std::span<const std::uint8_t> capabilitySets) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return std::nullopt;
+    }
+
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopShareActivation(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            shareId, sessionId, sourceDescriptor, capabilityCount,
+            capabilitySets);
+    if (!pending)
+        revoke();
+    return pending;
+}
+
+std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
+LinuxRuntimeConnection::authorizePersonalDesktopShareActivationWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return std::nullopt;
+    }
+
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopShareActivationWrite(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+    if (!pending)
+        revoke();
+    return pending;
+}
+
+rdp_server::server::transport::RdpShareActivationWriteOutcome
+LinuxRuntimeConnection::completePersonalDesktopShareActivationWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome =
+        rdp_server::server::transport::RdpShareActivationWriteOutcome;
+
+    if (!broker_)
+    {
+        revoke();
+        return Outcome::Rejected;
+    }
+
+    const rdp_server::server::security::LinuxConsoleAdmissionLease *lease =
+        lease_ && !lease_->isRevoked() ? &*lease_ : nullptr;
+    const auto outcome =
+        broker_->completeR3PersonalDesktopShareActivationWrite(
+            lease, acceptor_, connection_, session_, deploymentPolicy,
+            replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revoke();
+    return outcome;
+}
+
+rdp_server::server::transport::RdpShareActivationClientIntake
+LinuxRuntimeConnection::acceptPersonalDesktopShareActivationPdu(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using Intake =
+        rdp_server::server::transport::RdpShareActivationClientIntake;
+
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return Intake::Rejected;
+    }
+
+    const auto intake =
+        broker_->authorizeR3PersonalDesktopShareActivationPdu(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            completeTpkt);
+    if (intake == Intake::Rejected || intake == Intake::Closed)
+        revoke();
+    return intake;
+}
+
+bool LinuxRuntimeConnection::authorizePersonalDesktopApplicationTraffic(
+    const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        !broker_->authorizeR3PersonalDesktopApplicationTraffic(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy))
+    {
+        revoke();
+        return false;
+    }
+    return true;
+}
+
 int LinuxRuntimeConnection::nativeChangeFd() const noexcept
 {
     return ready() && hasAdmissionLease() && broker_ &&

@@ -30,6 +30,32 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 
+namespace rdp_server::server::transport
+{
+// This fixture stages only R3 protocol bookkeeping to prove the private
+// personal-mode selector is one-shot and the production generation fence is
+// terminal. It never constructs or substitutes an R2 admission lease.
+class McsSessionLifecycleTestAccess final
+{
+public:
+    static void stagePersonalDesktopSelection(
+        McsSessionLifecycle &session,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept
+    {
+        session.admissionGeneration_ = admissionGeneration;
+        session.sessionGeneration_ = sessionGeneration;
+        session.phase_ = McsSessionPhase::AwaitServerLicenseRequest;
+    }
+
+    [[nodiscard]] static bool selectPersonalDesktop(
+        McsSessionLifecycle &session) noexcept
+    {
+        return session.selectVerifiedR2PersonalDesktopLicensingMode();
+    }
+};
+} // namespace rdp_server::server::transport
+
 namespace
 {
 using rdp_server::server::runtime::LinuxCredSspStepStatus;
@@ -40,6 +66,7 @@ using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
 using rdp_server::server::runtime::RuntimeLicensingAuthority;
 using rdp_server::server::runtime::RuntimeLicensingContext;
 using rdp_server::server::runtime::RuntimeLicensingExistingCalOperation;
+using rdp_server::server::runtime::RuntimeDeploymentPolicy;
 using rdp_server::server::runtime::RuntimeServerTlsContext;
 using rdp_server::server::security::ConsoleEvidenceRequest;
 using rdp_server::server::security::ConsoleIdentityRuleInput;
@@ -52,7 +79,13 @@ using rdp_server::server::security::SpnegoStage;
 using rdp_server::server::security::kConsoleClipboardPermission;
 using rdp_server::server::security::kConsoleInputPermission;
 using rdp_server::server::security::kConsoleViewPermission;
+using rdp_server::server::transport::McsSessionLifecycle;
+using rdp_server::server::transport::McsSessionLifecycleTestAccess;
 using rdp_server::server::transport::McsSessionPhase;
+using rdp_server::server::transport::
+    RdpPersonalDesktopValidClientWriteOutcome;
+using rdp_server::server::transport::RdpShareActivationClientIntake;
+using rdp_server::server::transport::RdpShareActivationWriteOutcome;
 using rdp_server::server::transport::OwnedNativeTcpSocket;
 using rdp_server::server::transport::TcpAcceptOutcome;
 using rdp_server::server::transport::TcpConnectionIoInterest;
@@ -1362,6 +1395,113 @@ void testConnectionNativeDesktopSelectionDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPersonalDesktopR3AuthorityDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-desktop-r3-authority.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+    RuntimeDeploymentPolicy wrongModePolicy;
+    assert(wrongModePolicy.configureAppServerIssuerBacked());
+
+    // Mode mismatch is terminal even though this fixture has no admission
+    // lease. Configuration policy alone can never select the R3 branch.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(connection.ready());
+        assert(!connection.hasAdmissionLease());
+        assert(!connection.selectPersonalDesktopLicensingMode(
+            wrongModePolicy));
+        assert(!connection.ready());
+        assert(connection.mcsPhase() == McsSessionPhase::Closed);
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // A correct immutable policy is still powerless before genuine final
+    // CredSSP/PAM/NSS/logind admission. Repeated selection cannot create a
+    // capability and late callbacks remain terminal.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(connection.ready());
+        assert(!connection.hasAdmissionLease());
+        assert(!connection.selectPersonalDesktopLicensingMode(personalPolicy));
+        assert(!connection.selectPersonalDesktopLicensingMode(personalPolicy));
+        assert(!connection.authorizePersonalDesktopValidClientWrite(
+            personalPolicy));
+        assert(connection.completePersonalDesktopValidClientWrite(
+                   personalPolicy, 1U, 1U, 1U) ==
+               RdpPersonalDesktopValidClientWriteOutcome::Rejected);
+
+        constexpr std::array<std::uint8_t, 4> sourceDescriptor{
+            'r', 'd', 'p', 0};
+        assert(!connection.beginPersonalDesktopShareActivation(
+            personalPolicy, 0x10001U, 1U, sourceDescriptor, 0U, {}));
+        assert(!connection.authorizePersonalDesktopShareActivationWrite(
+            personalPolicy));
+        assert(connection.completePersonalDesktopShareActivationWrite(
+                   personalPolicy, 1U, 1U, 1U) ==
+               RdpShareActivationWriteOutcome::Rejected);
+        assert(connection.acceptPersonalDesktopShareActivationPdu(
+                   personalPolicy, {}) ==
+               RdpShareActivationClientIntake::Rejected);
+        assert(!connection.authorizePersonalDesktopApplicationTraffic(
+            personalPolicy));
+
+        // Explicit cancellation and repeated teardown cannot make a late
+        // accepted-byte receipt or intake durable.
+        connection.revoke();
+        connection.revoke();
+        assert(connection.completePersonalDesktopValidClientWrite(
+                   personalPolicy, 1U, 1U, 1U) ==
+               RdpPersonalDesktopValidClientWriteOutcome::Rejected);
+        assert(connection.completePersonalDesktopShareActivationWrite(
+                   personalPolicy, 1U, 1U, 1U) ==
+               RdpShareActivationWriteOutcome::Rejected);
+        assert(connection.acceptPersonalDesktopShareActivationPdu(
+                   personalPolicy, {}) ==
+               RdpShareActivationClientIntake::Rejected);
+        assert(!connection.authorizePersonalDesktopApplicationTraffic(
+            personalPolicy));
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // R3's existing private selector/fence are exercised without fabricating
+    // R2 authority: test-only protocol bookkeeping proves duplicate selection
+    // and stale generation replacement are terminal before any wire owner can
+    // be reused. Positive broker admission remains owner-host-only.
+    {
+        McsSessionLifecycle duplicate;
+        McsSessionLifecycleTestAccess::stagePersonalDesktopSelection(
+            duplicate, 41U, 73U);
+        assert(McsSessionLifecycleTestAccess::selectPersonalDesktop(
+            duplicate));
+        assert(!McsSessionLifecycleTestAccess::selectPersonalDesktop(
+            duplicate));
+        assert(duplicate.phase() == McsSessionPhase::Closed);
+
+        McsSessionLifecycle stale;
+        McsSessionLifecycleTestAccess::stagePersonalDesktopSelection(
+            stale, 43U, 79U);
+        stale.revokeUnlessAdmissionBindingMatches(43U, 79U);
+        assert(stale.phase() == McsSessionPhase::AwaitServerLicenseRequest);
+        stale.revokeUnlessAdmissionBindingMatches(43U, 80U);
+        assert(stale.phase() == McsSessionPhase::Closed);
+    }
+}
+
 void testConnectionAggregatePrematureAdmissionDenial(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1590,6 +1730,12 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-native-desktop-selection-denials")
     {
         testConnectionNativeDesktopSelectionDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-desktop-r3-authority-denials")
+    {
+        testConnectionPersonalDesktopR3AuthorityDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-existing-cal-unadmitted-denial")

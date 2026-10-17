@@ -3415,3 +3415,26 @@ Passwords must be entered only through protected interactive/provider
 mechanisms: never CMake cache, command-line arguments, environment variables or
 logs. Windows/macOS positive admission stays **NOT RUN** until their genuine R2
 authentication providers exist; native evidence alone is never a positive.
+
+## R2 personal-desktop broker wrapper gate (2026-10-17)
+
+`runtime.linux-connection-personal-desktop-r3-authority-denials` is a
+production-backed Linux runtime CTest. It uses the real aggregate/broker with a
+real sealed service keytab but deliberately never fabricates final CredSSP,
+PAM/NSS/logind admission. It verifies pre-admission denial, immutable deployment
+mode mismatch, repeated/late selector denial, Valid Client and Share
+accepted-byte rejection after cancellation, repeated close, late client intake
+and post-Share readiness denial. A small R3 test-access subcase stages protocol
+bookkeeping only (never an R2 lease) to prove the already-production one-shot
+private selector closes on duplicate use and the existing admission/session
+generation fence closes on replacement.
+
+A positive test is opt-in only on an owner-authorized Linux host with genuine
+Kerberos final CredSSP credentials, the configured PAM service, matching NSS
+identity and a physical X11/logind `seat0` session. Select the exact immutable
+PersonalDesktop policy after protected Client Info and before Server License
+Request, drive Valid Client plus Share entirely through the R2 wrappers, then
+log out/replace the session during a pending write and verify the late receipt
+cannot advance R3. Never place passwords in CMake cache, CLI arguments,
+environment variables or logs. Ordinary CI must report this positive path
+**NOT RUN**, never fixture-mint a lease.

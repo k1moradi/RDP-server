@@ -1,3 +1,16 @@
+## CLANG64 cross-road failures do not suppress security evidence
+
+The hosted Windows CLANG64 job remains fail-closed as one job, while road-local
+evidence steps continue after unrelated test failures when their configure/build
+prerequisites succeeded. Use explicit `always()` conditions bound to named
+configure/build step outcomes. A failed R6 focused test, R10 fixture test or full
+Debug CTest must remain a job failure, but it must not by itself suppress the
+other road's independently buildable Debug/Release fixture evidence.
+
+Never run a CTest selection after its build prerequisite failed and never claim
+a skipped step as evidence. The same-root Debug-to-Release reconfiguration rule
+remains mandatory; no additional persistent build root is permitted.
+
 ## R6 Windows CLANG64 native lifetime sanitizers (2026-10-17)
 
 The hosted Windows CLANG64 gate must instrument the production

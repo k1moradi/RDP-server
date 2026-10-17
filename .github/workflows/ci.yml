@@ -232,6 +232,7 @@ jobs:
           ninja --version
           pacman -Q             mingw-w64-clang-x86_64-clang             mingw-w64-clang-x86_64-headers             mingw-w64-clang-x86_64-crt             mingw-w64-clang-x86_64-libc++             mingw-w64-clang-x86_64-cmake             mingw-w64-clang-x86_64-openssl
       - name: Configure Debug with CLANG64
+        id: r9_clang_debug_configure
         shell: msys2 {0}
         run: |
           set -euo pipefail
@@ -251,11 +252,14 @@ jobs:
           grep -Fq 'windows.capture-session-change-duplication-prior-revocation'             <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 20             -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Build Debug CLANG64 test graph
+        id: r9_clang_debug_build
+        if: ${{ always() && steps.r9_clang_debug_configure.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
           cmake --build build --config Debug --parallel 2
       - name: Run Debug R10 private-fixture security preflight
+        if: ${{ always() && steps.r9_clang_debug_build.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
@@ -291,25 +295,32 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$windows_security_regression" --output-on-failure
       - name: Run full Debug CTest under CLANG64
+        if: ${{ always() && steps.r9_clang_debug_build.outcome == 'success' }}
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Debug --timeout 60 --output-on-failure
       - name: Reconfigure same root for Release
+        id: r9_clang_release_configure
+        if: ${{ always() && steps.r9_clang_debug_configure.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
           cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Release             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
       - name: Run Release R6 native preflight
+        if: ${{ always() && steps.r9_clang_release_configure.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
           cmake --build build --config Release             --target test_windows_desktop_geometry --parallel 2
           ctest --test-dir build --build-config Release --timeout 20             -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Build Release CLANG64 test graph
+        id: r9_clang_release_build
+        if: ${{ always() && steps.r9_clang_release_configure.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
           cmake --build build --config Release --parallel 2
       - name: Run Release R10 private-fixture security preflight
+        if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
@@ -345,9 +356,11 @@ jobs:
           ctest --test-dir build --build-config Release --timeout 60 \
             -R "$windows_security_regression" --output-on-failure
       - name: Run full Release CTest under CLANG64
+        if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
       - name: Reconfigure same root for R6 Windows sanitizers
+        if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail

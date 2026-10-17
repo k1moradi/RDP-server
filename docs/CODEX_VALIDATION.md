@@ -1,3 +1,16 @@
+## R9 P1 CLANG64 cross-road evidence authoring receipt (2026-10-17)
+
+Parent `c94c001f7e876df3f353948609a326f78481c1f3`; exact publication-SHA Actions **PENDING**. The existing
+Debug/Release 3-case R10 fixture and 5-case production-backed security
+preflights remain unchanged. Explicit `always()` conditions are tied to
+successful configure/build outcomes so unrelated test failures cannot suppress
+Release fixture/full-suite evidence. Failed steps remain job failures.
+
+R10's demonstrated hosted Windows/MSVC failure was a PowerShell
+`Microsoft.PowerShell.Security` autoload failure in the test helper. The
+current R10 .NET `File.GetAccessControl()` correction is preserved verbatim;
+R9 changes no ACL fixture code or production validator.
+
 ## R5 deterministic native-X11 event-readiness authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `bcf8736ce12b061ba62538f2404669b8b4fa1157`. Exact publication-SHA CI is

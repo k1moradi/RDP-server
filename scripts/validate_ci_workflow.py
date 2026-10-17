@@ -219,6 +219,8 @@ REQUIRED_TOKENS = (
     "runtime.validates-configuration-windows-private-dacl",
     "runtime.validates-tls-files-private-regular",
     "transport.tcp-owned-runtime-tls-handshake",
+    "steps.r9_clang_debug_build.outcome == 'success'",
+    "steps.r9_clang_release_build.outcome == 'success'",
     "fuzz.mcs-cliprdr-bounded",
     "fuzz.credssp-bounded",
     'git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main',

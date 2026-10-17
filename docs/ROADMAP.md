@@ -1,3 +1,32 @@
+## R9 P1 CLANG64 cross-road evidence isolation (2026-10-17; exact-SHA CI pending)
+
+**Authoring parent:** `c94c001f7e876df3f353948609a326f78481c1f3`.
+
+R9's first P1 gate at `9e9456aa578db43525786868465072db3344edde`
+proved the Debug R10 private-fixture preflight can pass under hosted MSYS2
+CLANG64 before full CTest. R10 separately demonstrated a Windows/MSVC
+helper-only failure at `e782cd642f574e7ef45792c8fe168dfad70c8d2a`:
+Windows PowerShell 5.1 could not autoload
+`Microsoft.PowerShell.Security` for `Get-Acl`. R10 owns and corrected the
+helper at `75375ccfeb7523d58d40024f783ebfe84f4db50b`; R9 does not alter it.
+
+The CLANG64 parity job now preserves road-local evidence across failures. After
+successful Debug configuration, the full Debug graph is built with an explicit
+prerequisite condition even if the earlier R6 focused step failed. After a
+successful Debug build, R10's 3-case fixture gate, 5-case representative
+security gate and the full Debug suite each execute independently. Release
+reconfiguration depends only on successful Debug configuration, not Debug test
+results. A successful Release configuration independently permits the R6
+preflight and full Release build, and a successful Release build permits R10's
+Release fixture/security gate, full Release CTest and the subsequent R6
+sanitizer reconfiguration even if an earlier test step failed.
+
+This does **not** mask failures: every failed step still makes the job fail and
+no selected count is reduced or skipped. It prevents unrelated R1/R6/R10
+failures from suppressing mandated evidence for another road. No production ACL,
+credential, TLS, licensing, transport or admission behavior changes. Exact-SHA
+hosted validation and owner-native same-SHA CLANG64 rerun remain pending.
+
 ## R5 P1 deterministic native-X11 event-readiness fixtures (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `bcf8736ce12b061ba62538f2404669b8b4fa1157`.

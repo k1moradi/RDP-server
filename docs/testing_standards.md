@@ -724,6 +724,72 @@ disconnect/idempotence separately and require another replacement generation.
 Do not retain a framebuffer span across either retirement boundary, inspect a
 logged-in display, or infer R4/RDP delivery from this native lifetime proof.
 
+
+## R5 owner-authorized Linux/X11 M3 acceptance
+
+Live M3 is an explicit opt-in and is never part of ordinary CTest. Run it only
+after the project owner authorizes real desktop capture/input for the exact
+shared-main SHA, hosted CI is green, genuine R2 Linux admission is available,
+R10 has composed that admission into the serialized runtime, and R3 has
+activated Share plus its authenticated Graphics/input routes. If any
+prerequisite is absent, record **NOT RUN**; do not substitute Xvfb, configured
+`DISPLAY`, a generation scalar, or a synthetic admission fixture.
+
+Use a disposable physical `seat0` X11 login containing only controlled test
+content. R10 must enter through
+`LinuxRuntimeConnection::visitNativeDesktopSelection()`. Inside that
+synchronous callback require a nonempty session ID, exact `seat0`, the
+R2-observed local X11 display, and nonzero admission/session generations, then
+construct exactly one `X11DesktopResources` from that display. Do not copy the
+selection strings into a second authority object; retain only the generations
+needed to correlate later R2/R3 reauthorization. If R2's post-callback
+revalidation fails, retire the just-created X11 owner without publishing or
+injecting anything.
+
+The event loop registers only R2's borrowed logind fd/mask record. It never
+duplicates or closes that descriptor. Before any connection revoke or watcher
+dispatch, remove the exact registration from the external poller first; then
+acknowledge unregistration and dispatch readiness. Late queued records must be
+matched against the exact admission/session registration and discarded after
+retirement. A kernel fd number reused by a later connection is not identity.
+On logout/session replacement, retire R5 on the same serialized owner thread:
+held XTEST input first, then XI2/Damage/XShm, then the sole XCB connection.
+Do not destroy the owner concurrently with a synchronous XShm→R4 callback.
+
+For each supported client, record the exact client build and execute the same
+bounded sequence independently: Windows 11 built-in `mstsc.exe`, Windows App
+on Windows, and Windows App on macOS.
+
+1. Complete genuine TLS/CredSSP, R2 physical-`seat0` admission, personal-mode
+   licensing and Share activation. Record generations and lifecycle states,
+   never credentials or screen pixels.
+2. Display one controlled test-pattern frame through the existing
+   XShm → R4 → authenticated R3 Graphics path. The XShm span is borrowed only
+   synchronously; R3 publication is reauthorized after native work and before
+   application-byte submission.
+3. Send pointer motion/button and keyboard input only to a dedicated test
+   recorder. Each decoded event carries the R5 generation observed when it was
+   accepted; immediately before XTEST require current R2/R3 input authority and
+   exact equality with the live R5 generation.
+4. Trigger a RandR geometry replacement while at least one decoded pointer and
+   one keyboard event from the old generation are pending. Neither old event may
+   reach XTEST. A fresh event bound to the replacement generation must succeed,
+   and capture/Damage/XI2 must use only the replacement resources.
+5. While the owner is active, log out or replace the admitted `seat0` session.
+   The logind watch must revoke the connection, no later Damage may cause frame
+   publication, no queued input may reach XTEST, and R5 retirement must preserve
+   input-before-Damage/XShm/XCB teardown. Work already synchronously encoded is
+   non-authorizing and must be dropped unless R3 can still freshly authorize
+   publication, which a revoked session cannot.
+6. Reconnect only after a new genuine R2 admission. Construct a new X11 owner
+   from the new visitor callback and prove no old watcher record, R2 generation,
+   R5 generation, frame or decoded input is reusable.
+
+A PASS records only observable state/generation transitions, client-visible
+test-pattern presentation, controlled input-recorder delivery, resize outcome,
+logout revocation and fresh reconnect. Do not retain screenshots, clipboard
+payloads, credentials or native input logs containing user data.
+
 ## macOS clipboard file-destination tests separate state from native I/O
 
 Compile the macOS file-destination state machine on every hosted OS through

@@ -84,8 +84,9 @@ remains **41** cases.
 
 ## R3 existing-CAL authority-request tests remain non-authorizing (2026-10-17)
 
-The R3 P0 snapshot boundary has four ordinary production-backed CTests:
-ownership, HWID-proof gate, product/correlation denials, and revocation/replay.
+The R3 existing-CAL snapshot/borrow boundary has five ordinary production-backed
+CTests: ownership, HWID-proof gate, product/correlation denials,
+revocation/replay, and the synchronous live-visit lifetime gate.
 Positive assertions may prove only production cryptographic proof creation,
 exact bounded snapshot ownership and continuity. Test CAL bytes remain opaque
 and cannot stand in for a genuine issuer decision.
@@ -427,6 +428,24 @@ The positive provider used by both groups is defined only in the test
 translation unit and reaches production lifetime logic through a private friend
 seam. It must never be linked into `rdp-server`, exposed as runtime
 configuration, or described as genuine CAL issuance or validation authority.
+## Personal-desktop protocol and policy sanitizer gates (2026-10-17)
+
+Personal-desktop licensing mechanics never substitute for native admission.
+The sanitizer job must explicitly enumerate and execute exactly **six** R3
+`transport.licensing-personal-*` / `transport.share-personal-*` behaviors,
+including `transport.licensing-personal-mode-and-malformed-denials` and
+`transport.share-personal-activation-denials`. These cases may verify
+MS-RDPELE Valid Client and Share ordering, but they must not construct a genuine
+private R2 lease or expose desktop/input authority.
+
+R10's configuration-only deployment policy is a separate **two-case** sanitizer
+selection. Build `test_runtime_deployment_policy` under ASan/UBSan and require
+both `runtime.personal-desktop-policy-immutable-denials` and
+`runtime.personal-desktop-loopback-listener-denials`. Wrong mode,
+non-loopback/wildcard addressing, invalid port/listener combinations and policy
+mutation remain fail-closed. A policy object, loopback candidate or positive
+protocol fixture never authorizes desktop access.
+
 Production `configureUnavailable()` must remain unable to produce a positive
 existing-CAL decision. The startup-isolation case executes the real process and
 reuses the existing CLI oracle, proving that the test seam cannot bypass normal

@@ -1,3 +1,39 @@
+## R9 personal-mode sanitizer coverage repair (2026-10-17)
+
+**Green audit parent:** `67506c6e43ff0ed76b00e757ad07db8fab370727`.
+Primary Actions `39045944788` and structure Actions `39045944783` are
+**SUCCESS**. The parent full registry is logically Linux **626**, macOS **532**,
+Windows/MSVC **568** and Windows CLANG64 **568**: start from the verified
+`7ac63a25` census 617/523/559, add one platform-specific R2 native-evidence
+case per host family, six portable R3 personal-mode cases and two portable R10
+deployment-policy cases.
+
+The prior Linux compiler failure remains attributed to R10's public-header
+incomplete-provider constructor, not R1 `2d295603` or R8 `8c303b40`.
+R10 `8d980a20` repaired that ownership boundary and restored Ubuntu
+**617/617 Debug + 617/617 Release** plus the then-current sanitizer groups.
+R1 buffered TLS and all four R8 source-epoch regressions remain centrally
+registered; the portable R8 cases were already proven on Windows/MSVC and
+MSYS2 CLANG64, and Linux additionally executes the X11 stale-INCR epoch fence.
+
+This audit found one new coverage gap after the previous R9 synchronization:
+R3's six personal-mode licensing/Share CTests and R10's two immutable
+deployment-policy CTests passed ordinary full CTest but had no dedicated
+ASan/UBSan registry gates. This publication changes CI/structure policy only:
+it builds the existing `test_runtime_deployment_policy`, requires and runs
+exactly **6** R3 personal-mode tests and exactly **2** R10 policy tests, and
+keeps wrong-mode/malformed licensing plus policy/listener denials explicit.
+No test body, protocol assertion, R2 admission rule, licensing semantics or
+desktop authority is weakened.
+
+M1 owner-native evidence remains **NOT VERIFIED**: repository evidence still
+does not contain one same-SHA set of Linux/X11, Windows MSYS2 CLANG64/Clang 23
+and macOS 27 receipts with exact SHA, effective OS/compiler, complete CTest
+totals and failure/skip fields. Do not request a redundant rerun where a future
+receipt is otherwise complete; request only missing receipt fields. M2 client
+acceptance remains the separate three-client matrix in `docs/ROADMAP.md`, all
+cells currently **NOT RUN**.
+
 ## R10 immutable personal-desktop product policy authoring receipt (2026-10-17)
 
 **Reconciled dependency:** R3 personal Valid Client + Share mechanics

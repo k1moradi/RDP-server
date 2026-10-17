@@ -1,3 +1,21 @@
+## R9 SERVER-TEST preview build contract (2026-10-17)
+
+SERVER-TEST packaging reuses the ordinary checkout-local `build/` after the
+Release full CTest; it creates only `build/server-test/` and no second CMake
+build tree. `scripts/server_test_bundle.py` locates the actual `rdp-server`
+target, reads CMake's compiler identity, validates ELF64/PE32+/Mach-O ABI, and
+uses CMake `file(GET_RUNTIME_DEPENDENCIES)` in script mode to fail on an
+unresolved runtime dependency. The existing protocol CPack/SDK install route is
+unchanged.
+
+The cross-platform artifact name is
+`rdp-server-test-<version>-<platform>-<architecture>-<short-sha>`.
+Linux includes R5's disabled service template; R6 Windows and R7 macOS remain
+extraction-only until native serving/install contracts are authorized. No
+credential, keytab, certificate private key, desktop content or CI secret is a
+build input. Packaging does not start `rdp-server`; the later smoke executes
+only offline CLI commands plus the expected failing unconfigured `serve`.
+
 ## R6 authority-loss input retirement build note (2026-10-17)
 
 The dedicated Windows input authority-loss CTest reuses the existing

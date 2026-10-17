@@ -180,6 +180,7 @@ def yaml_backend(text: str) -> str:
 REQUIRED_JOBS = {
     "ci-workflow-structure",
     "protocol",
+    "server-test-preview-status",
     "r6-windows-clang23",
     "r9-security-protocol-sanitizers",
     "r7-macos-native-lifecycle",
@@ -309,6 +310,13 @@ REQUIRED_TOKENS = (
     "transport.tcp-owned-runtime-tls-handshake",
     "steps.r9_clang_debug_build.outcome == 'success'",
     "steps.r9_clang_release_build.outcome == 'success'",
+    "server_test_preview:",
+    "scripts/server_test_bundle.py build",
+    "server-test-package-${{ matrix.os }}",
+    "rdp-server-test-*-STATUS.json",
+    "server-test-preview-status",
+    "scripts/server_test_bundle.py verify-statuses",
+    "server-test-status-${{ github.sha }}",
     "fuzz.mcs-cliprdr-bounded",
     "fuzz.credssp-bounded",
     'git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main',
@@ -318,6 +326,7 @@ REQUIRED_TOKENS = (
 )
 
 REQUIRED_BUILD_TARGETS = (
+    "rdp-server",
     "test_owned_mcs_connect_initial",
     "test_owned_preauth_session",
     "test_owned_credssp_tsrequest",
@@ -366,6 +375,14 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
             "needs: [ci-workflow-structure, protocol, documentation-policy]"
             in text,
             "prerelease job lost structural/protocol/docs dependency",
+        )
+        require(
+            text.count("gh release create") == 1,
+            "SERVER-TEST preview must not add a second release publisher",
+        )
+        require(
+            "server-test-v" not in text,
+            "SERVER-TEST preview must not introduce a release tag convention yet",
         )
     return backend, len(found_jobs)
 

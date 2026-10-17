@@ -6,6 +6,12 @@ on:
     tags: ['protocol-v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      server_test_preview:
+        description: Build startup-disabled SERVER-TEST preview bundles from main
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -232,6 +238,64 @@ jobs:
           path: |
             build/rdp-server-protocol-*.zip
             build/SHA256SUMS-${{ matrix.os }}.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      # R9 SERVER-TEST is a distinct startup-disabled preview built from the
+      # actual executable after the full Release CTest. It is never the SDK ZIP.
+      - name: Build and smoke startup-disabled SERVER-TEST preview
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.server_test_preview && github.ref == 'refs/heads/main') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python_executable=python3
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            python_executable=python
+          fi
+          "$python_executable" scripts/server_test_bundle.py build \
+            --source-root . \
+            --build-root build \
+            --git-sha "$GITHUB_SHA" \
+            --build-config Release \
+            --output-dir build/server-test
+      - name: Upload startup-disabled SERVER-TEST preview
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.server_test_preview && github.ref == 'refs/heads/main') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-package-${{ matrix.os }}
+          path: |
+            build/server-test/rdp-server-test-*.zip
+            build/server-test/rdp-server-test-*.zip.sha256
+            build/server-test/rdp-server-test-*-STATUS.json
+          if-no-files-found: error
+          retention-days: 30
+
+
+  # R9 cross-platform acceptance for disabled previews only. This job does not
+  # publish a release and does not substitute for M1 owner-native or M2 clients.
+  server-test-preview-status:
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.server_test_preview && github.ref == 'refs/heads/main') }}
+    needs: [ci-workflow-structure, protocol]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download three SERVER-TEST preview artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: server-test-package-*
+          merge-multiple: true
+          path: build/server-test-acceptance
+      - name: Verify exact-SHA SERVER-TEST preview statuses and outer digests
+        run: |
+          set -euo pipefail
+          python3 scripts/server_test_bundle.py verify-statuses \
+            --directory build/server-test-acceptance \
+            --git-sha "$GITHUB_SHA"
+      - name: Upload SERVER-TEST preview acceptance statuses
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-status-${{ github.sha }}
+          path: build/server-test-acceptance/rdp-server-test-*-STATUS.json
           if-no-files-found: error
           retention-days: 30
 

@@ -11,6 +11,16 @@ set_tests_properties(project.local-checkout-path-comparison PROPERTIES
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+# R9 cross-platform SERVER-TEST package contract. This synthetic archive test
+# never executes a server, opens a socket, touches a service manager or uses a
+# native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.
+add_test(NAME packaging.server-test-cross-platform-offline-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_server_test_bundle.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/server_test_bundle.py")
+set_tests_properties(packaging.server-test-cross-platform-offline-contract PROPERTIES
+    LABELS "packaging;release;server-test;offline" TIMEOUT 30)
+
 # R7 offline test-bundle policy: no desktop, TCC, network or process activation.
 add_test(NAME macos.package-offline-integrity-and-idempotence
     COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/test_macos_test_bundle.py"

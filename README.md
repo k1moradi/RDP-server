@@ -164,6 +164,37 @@ the static protocol library, headers, CMake package exports,
 license/attribution files and SHA-256 checksums. Packages are attached
 to the workflow as GitHub Actions artifacts (30-day retention).
 
+## SERVER-TEST preview delivery
+
+Main-branch CI also creates a **separate** startup-disabled SERVER-TEST artifact
+family from the actual `rdp-server` executable after the full Release CTest:
+`rdp-server-test-<version>-<platform>-<architecture>-<short-sha>.zip`.
+These ZIPs are never copies or renames of `rdp-server-protocol-*.zip`.
+
+Each SERVER-TEST preview records the exact Git SHA, OS/architecture/ABI,
+compiler identity and Release configuration; resolved runtime dependencies;
+per-file and outer SHA-256 digests; LICENSE/NOTICE/third-party attribution; a
+loopback-only non-secret sample config; and explicit install/start/stop/uninstall
+instructions. CI extracts the archive into an ephemeral directory, validates
+the binary ABI, `--version`, `--help`, config syntax, refusal of unconfigured
+`serve`, no installation-time listener, idempotent install/uninstall,
+absence of autostart and a credential-marker scan. A final R9 job downloads all
+three platform previews and re-verifies their exact-SHA statuses and outer
+digests.
+
+Linux additionally carries R5's disabled user-service template without
+installing or enabling it. Windows (R6) and macOS (R7) remain extraction-only
+preview manifests until their native serving contracts exist. R7's separate
+macOS **protocol-only** test bundle remains exactly that and is not a server.
+
+A manual dispatch may opt in with `server_test_preview=true`; ordinary
+main pushes build the same disabled previews for assurance. There is **no
+SERVER-TEST release tag or GitHub release publisher yet**. A RUNNABLE human-test
+prerelease remains blocked on R10 secure startup, exact-head green CI and
+explicit owner acceptance. Hosted preview CI is not an M1 owner-native receipt
+and never substitutes for the three-client M2 human acceptance matrix.
+
+
 **Automatic deployment of available artifacts:** pushing an authorized
 version tag `protocol-v0.1.0` (matching `project(... VERSION 0.1.0)`
 and pointing to a commit already on `main`) runs all checks and,

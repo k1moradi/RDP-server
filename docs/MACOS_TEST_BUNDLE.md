@@ -6,6 +6,18 @@ injector is shipped. It must never be advertised as an interactive server or a
 universal binary. R2 authenticated-UID lease, R10 AppKit session-watch owner
 and R3 Graphics DATA/input composition remain BLOCKED.
 
+## Relationship to R9 SERVER-TEST previews
+
+This R7 artifact remains **protocol-only** and is never renamed into the server
+family. R9 separately builds
+`rdp-server-test-<version>-macos-<architecture>-<short-sha>.zip` from the
+actual current `rdp-server` executable. That executable preview is also
+startup-disabled and uses an extraction-only manifest under a distinct
+`server-test` location; it does not install a LaunchAgent, ScreenCaptureKit
+owner, Quartz injector or authenticated R2 lease. Hosted SERVER-TEST smoke is
+therefore package/CLI evidence only and is not owner-native macOS acceptance.
+
+
 ## Hosted release inputs and verification
 
 The `protocol` macOS Actions matrix job builds Release on `macos-latest`

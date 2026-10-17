@@ -1,3 +1,28 @@
+## R9 SERVER-TEST preview pipeline and exact-SHA acceptance (2026-10-17)
+
+**Reconciled shared-main parent:** `6ca6dbe7548c3430e554b8b317d0d1426f3a6af9`. R7 had already repaired the
+earlier malformed duplicated workflow tail before this increment; R9 preserves
+that correction rather than restoring the failed YAML.
+
+This increment adds the distinct
+`rdp-server-test-<version>-<platform>-<architecture>-<short-sha>` artifact
+family from the real `rdp-server` executable on Linux, Windows and macOS.
+Every preview carries exact source/build/compiler/ABI identity, dependency
+closure, internal and outer SHA-256, licenses, safe config and disabled
+lifecycle documentation. Matrix smoke validates ABI/CLI/config/startup refusal,
+no install-time listener, idempotent extraction/removal, no autostart and
+credential-marker absence. `server-test-preview-status` downloads all three
+previews and re-verifies exact SHA/status/digests. The protocol SDK CPack and
+`protocol-vX.Y.Z` prerelease route are unchanged.
+
+Dedicated portable CTest:
+`packaging.server-test-cross-platform-offline-contract`. Canonical owner
+`~/rdp-server/build` build/CTest is **NOT RUN** in this connector environment.
+Exact publication-SHA hosted SERVER-TEST results are **PENDING** until this
+commit lands and Actions completes. The preview is explicitly startup-disabled;
+no deployment success, M1 owner-native result, M2 Microsoft-client acceptance,
+credential provisioning or live desktop is claimed.
+
 ## R7 packaging CI structure correction (2026-10-17)
 
 Initial packaging insertion `90fe8a45` left invalid primary CI YAML;

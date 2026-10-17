@@ -1,3 +1,25 @@
+## R9 cross-platform SERVER-TEST preview assurance (2026-10-17)
+
+`packaging.server-test-cross-platform-offline-contract` is the portable,
+synthetic archive/integrity lifecycle CTest. It validates safe paths, exact
+manifest/checksum coverage, secret-marker denial, identical reinstall/removal,
+tamper refusal and exact-SHA three-platform status acceptance without executing
+a payload or touching a service manager/native desktop.
+
+The hosted protocol matrix performs the real preview smoke only after the full
+Release CTest: actual executable ABI, resolved dependency closure,
+`--version`, `--help`, safe sample `--check-config`, exit-2 refusal of
+unconfigured `serve`, an installation-time loopback bind probe, idempotent
+extract/remove, no autostart contract and captured-output credential-marker
+scan. R9 then downloads all three artifacts and rechecks the outer SHA-256 and
+embedded exact SHA. These are **disabled preview** receipts only.
+
+Sanitizer/test-registry inventories stay unchanged and failure-closed:
+R10 runtime-security **25**, R3 Graphics DVC **6**, R4 portable **42**,
+ClearCodec **4**, R5 **38**, R6 **59**, R7 authority-loss input **2**, and R8
+clipboard **81**. M1 owner-native same-SHA receipts and the M2 three-client
+human matrix remain separate from hosted artifact CI.
+
 ## R10 Graphics DVC control aggregate stays denial-only without genuine Share authority (2026-10-17)
 
 `runtime.linux-connection-personal-graphics-dvc-r1-io-denials` exercises the

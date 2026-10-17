@@ -5,6 +5,19 @@
 It is independent of the existing protocol SDK, whose CMake install/CPack
 exports are unchanged.
 
+## R9 common SERVER-TEST relationship
+
+R5's Linux-specific installer/service template is now an input to R9's
+cross-platform SERVER-TEST assurance, not a replacement artifact. The common
+Linux preview is named
+`rdp-server-test-<version>-linux-<architecture>-<short-sha>.zip`, contains the
+same actual built `rdp-server`, includes this disabled R5 user-service template,
+and records the dependency closure actually resolved on the hosted build plus
+internal/outer SHA-256. R9's extracted-binary smoke verifies offline CLI/config
+behavior and the required startup refusal. The R5 installer remains the
+Linux-native install manifest; neither path enables systemd or claims live M3.
+
+
 ## R9 package and integrity
 
 Build the actual `rdp-server` executable inside the one `build/` root:

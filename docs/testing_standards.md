@@ -3212,3 +3212,36 @@ Never write the password into CMake cache, command-line arguments,
 environment variables or logs. Obtain human authorization before live desktop
 or service interaction. A positive test must be explicitly opt-in and must not
 be simulated in CI.
+
+## R2 native desktop admission/evidence regression gates (2026-10-17)
+
+`runtime.linux-connection-native-desktop-selection-denials` is an ordinary
+production-backed Linux-provider CTest. It proves that an accepted socket plus
+configured policy cannot invoke the R10 desktop-selection visitor before a
+genuine final CredSSP/PAM/NSS/logind lease, and that replay after terminal
+revocation remains denied. It deliberately does not fabricate a positive lease.
+
+On Windows,
+`security.windows-native-session-evidence-provider-denials` compiles and calls
+the production token/LSA/WTS evidence reader. An observed native snapshot is
+tested only as candidate data (including SID/session replay mismatch); lack of a
+physical interactive host is a fail-closed unavailable observation, not an
+admission failure. The CTest never manufactures an authenticated SID or a lease.
+
+On macOS,
+`security.macos-native-session-evidence-provider-denials` calls the production
+primary-console, audit-session and Security-session reader without requesting
+TCC or starting AppKit/capture/input. Any observed snapshot is candidate data
+only; mismatched UID/session replay is denied. No test may promote its own UID,
+TCC status, `CGSession` dictionary or synthetic session callback to R2
+authorization.
+
+Positive Linux acceptance is opt-in and **NOT RUN** unless the owner authorizes
+a real Kerberos/PAM/NSS/logind physical X11 `seat0` host. Drive the existing
+HYBRID TLS + GSS/CredSSP final protected credentials through real PAM, issue the
+real lease, consume the desktop-selection visitor, register the borrowed logind
+monitor, then log out/replace that exact session and verify terminal revocation.
+Passwords must be entered only through protected interactive/provider
+mechanisms: never CMake cache, command-line arguments, environment variables or
+logs. Windows/macOS positive admission stays **NOT RUN** until their genuine R2
+authentication providers exist; native evidence alone is never a positive.

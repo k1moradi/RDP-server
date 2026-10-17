@@ -3474,3 +3474,22 @@ friend `RdpExistingClientCalAuthorityRequestTestAccess`. This recovery changes
 only those two fixture calls to use that helper; production R3 visitor/request
 behavior and R10 composition are unchanged. Failed exact-SHA primary Actions:
 39040673613. Canonical owner build remains **NOT RUN**.
+
+## R2 cross-platform native admission evidence increment (2026-10-17)
+
+Authoring base: `7ac63a255e41a9f2786629b31a1af53d2b7ab164`. Linux adds the synchronous, noncopyable admitted
+desktop-selection visitor and its dedicated pre-admission/replay denial CTest.
+Windows adds a real token + LSA + physical WTS evidence reader; macOS adds a
+real primary-console + audit + Security-session evidence reader. The Windows
+and macOS readers intentionally mint **no** authorization capability because no
+genuine R2 authentication provider for those platforms is yet integrated.
+
+Canonical local `~/rdp-server/build/`: **NOT RUN** in this GitHub-connector
+execution environment; no alternate build root was created. Hosted Actions for
+the publication SHA: **PENDING** at authoring time. Linux owner-authorized real
+Kerberos/PAM/NSS/logind X11 `seat0` final-CredSSP admission/logout replacement:
+**NOT RUN**. Windows genuine SSPI/CredSSP SID-bound admission: **NOT RUN /
+provider blocker**. macOS genuine credential-verifier UID-bound admission:
+**NOT RUN / provider blocker**. R1's positive final-CredSSP-plus-first-MCS path
+remains dependent on a real R2 lease; no fixture-minted positive lease was
+introduced.

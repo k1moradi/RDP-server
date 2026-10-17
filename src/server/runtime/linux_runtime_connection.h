@@ -169,6 +169,17 @@ public:
     // either a spurious readiness notification or terminal revocation.
     [[nodiscard]] bool onNativeSessionChangeReady() noexcept;
 
+    // Synchronously expose only the native desktop selected by the current
+    // genuine R2 lease. The callback receives a noncopyable borrowed view;
+    // it must construct/refresh its native owner before returning and retain
+    // only the generations for later R2 reauthorization. Configured DISPLAY,
+    // principal text, UID values and caller-supplied session metadata never
+    // enter this API. Any failure is terminal.
+    [[nodiscard]] bool visitNativeDesktopSelection(
+        rdp_server::server::security::LinuxNativeDesktopSelectionVisitor
+            visitor,
+        void *context) noexcept;
+
     // Register only the current R2 borrow. The serialized caller must remove
     // this exact record from its poller before acknowledging unregistration.
     [[nodiscard]] std::optional<LinuxRuntimeNativeChangeRegistration>

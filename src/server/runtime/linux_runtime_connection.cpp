@@ -434,6 +434,20 @@ bool LinuxRuntimeConnection::onNativeSessionChangeReady() noexcept
     return remainsAuthorized;
 }
 
+bool LinuxRuntimeConnection::visitNativeDesktopSelection(
+    rdp_server::server::security::LinuxNativeDesktopSelectionVisitor visitor,
+    void *context) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        !broker_->visitNativeDesktopSelection(
+            *lease_, acceptor_, connection_, visitor, context))
+    {
+        revoke();
+        return false;
+    }
+    return true;
+}
+
 bool LinuxRuntimeConnection::nativeChangeRegistrationMatches(
     const LinuxRuntimeNativeChangeRegistration &registration) const noexcept
 {

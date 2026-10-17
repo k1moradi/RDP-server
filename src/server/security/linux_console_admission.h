@@ -36,6 +36,70 @@ namespace rdp_server::server::security
 }
 
 class LinuxConsoleAdmissionControl;
+class LinuxConsoleAdmissionBroker;
+
+// Ephemeral R2-only view of the native desktop selected by genuine admission.
+// Construction is private and the view cannot be copied, moved or retained.
+// It is valid only during LinuxConsoleAdmissionBroker's synchronous visitor.
+// Session/display strings and generation numbers are selectors/freshness only;
+// this object is never an independently reusable authorization capability.
+class LinuxNativeDesktopSelectionView final
+{
+public:
+    LinuxNativeDesktopSelectionView(
+        const LinuxNativeDesktopSelectionView &) = delete;
+    LinuxNativeDesktopSelectionView &operator=(
+        const LinuxNativeDesktopSelectionView &) = delete;
+    LinuxNativeDesktopSelectionView(
+        LinuxNativeDesktopSelectionView &&) = delete;
+    LinuxNativeDesktopSelectionView &operator=(
+        LinuxNativeDesktopSelectionView &&) = delete;
+
+    [[nodiscard]] std::string_view sessionId() const noexcept
+    {
+        return sessionId_;
+    }
+    [[nodiscard]] std::string_view seat() const noexcept { return seat_; }
+    [[nodiscard]] std::string_view display() const noexcept
+    {
+        return display_;
+    }
+    [[nodiscard]] std::uint64_t admissionGeneration() const noexcept
+    {
+        return admissionGeneration_;
+    }
+    [[nodiscard]] std::uint64_t sessionGeneration() const noexcept
+    {
+        return sessionGeneration_;
+    }
+
+private:
+    friend class LinuxConsoleAdmissionBroker;
+
+    LinuxNativeDesktopSelectionView(
+        std::string_view sessionId,
+        std::string_view seat,
+        std::string_view display,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept
+        : sessionId_(sessionId),
+          seat_(seat),
+          display_(display),
+          admissionGeneration_(admissionGeneration),
+          sessionGeneration_(sessionGeneration)
+    {
+    }
+
+    std::string_view sessionId_{};
+    std::string_view seat_{};
+    std::string_view display_{};
+    std::uint64_t admissionGeneration_{};
+    std::uint64_t sessionGeneration_{};
+};
+
+using LinuxNativeDesktopSelectionVisitor = bool (*)(
+    const LinuxNativeDesktopSelectionView &selection,
+    void *context) noexcept;
 
 enum class LinuxConsoleAdmissionState : std::uint8_t
 {
@@ -422,6 +486,19 @@ public:
     // Connection/R3 teardown path: terminally invalidates the capability and
     // clears the GSS context. Idempotent.
     void revoke(GssapiSpnegoAcceptor &acceptor) noexcept;
+
+    // R10 may synchronously consume the admitted native desktop selection
+    // only through this visitor. R2 revalidates TLS/GSS, PAM-derived account
+    // binding, NSS/logind evidence and its change monitor immediately before
+    // and after the visitor. The view must not escape the callback. A missing
+    // lease, failed revalidation or consumer failure is terminal.
+    [[nodiscard]] bool visitNativeDesktopSelection(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        LinuxNativeDesktopSelectionVisitor visitor,
+        void *context) noexcept;
 
     [[nodiscard]] LinuxConsoleAdmissionState state() const noexcept;
     [[nodiscard]] int nativeChangeFd() const noexcept;

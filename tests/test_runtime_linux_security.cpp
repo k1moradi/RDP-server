@@ -1312,6 +1312,56 @@ void testConnectionExistingCalUnadmittedDenial(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionNativeDesktopSelectionDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-native-desktop-selection-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    bool visitorInvoked = false;
+    const auto visitor =
+        [](const rdp_server::server::security::
+               LinuxNativeDesktopSelectionView &,
+           void *context) noexcept {
+            *static_cast<bool *>(context) = true;
+            return true;
+        };
+
+    // Policy-shaped configuration and an accepted socket cannot expose a
+    // DISPLAY/session selector. Only a genuine final CredSSP + PAM + NSS/
+    // logind lease can enter the synchronous selection visitor.
+    assert(!connection.visitNativeDesktopSelection(
+        visitor, &visitorInvoked));
+    assert(!visitorInvoked);
+    assert(!connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.admissionState() ==
+           LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+
+    // Late/replayed consumer attempts stay terminal and never invoke R10.
+    assert(!connection.visitNativeDesktopSelection(
+        visitor, &visitorInvoked));
+    assert(!visitorInvoked);
+    connection.revoke();
+    connection.revoke();
+    assert(!connection.visitNativeDesktopSelection(
+        visitor, &visitorInvoked));
+    assert(!visitorInvoked);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionAggregatePrematureAdmissionDenial(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1534,6 +1584,12 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-native-monitor-registration-denials")
     {
         testConnectionNativeMonitorRegistrationDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-native-desktop-selection-denials")
+    {
+        testConnectionNativeDesktopSelectionDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-existing-cal-unadmitted-denial")

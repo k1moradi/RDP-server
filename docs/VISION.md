@@ -50,3 +50,13 @@ Mandatory standards:
 [coding](coding_standards.md), [testing](testing_standards.md),
 [compilation](compile.md), [benchmarks](benchmark.md).
 All agents follow [AGENTS.md](../AGENTS.md) on every task.
+
+## Personal desktop admission mode
+
+The selected near-term product mode is one personal desktop reached by
+Microsoft Windows App or Windows 11 `mstsc.exe`. This mode does **not** depend
+on an RD Licensing CAL decision. That removes a licensing gate only; it does
+not weaken authentication or native desktop admission. Every desktop access
+must still bind the exact TLS/CredSSP authenticated identity to independently
+verified native OS login/session evidence and a revocable R2 lifetime before
+R3 Share/graphics/input/clipboard can consume it.

@@ -1190,6 +1190,49 @@ void LinuxConsoleAdmissionBroker::revoke(
     state_ = LinuxConsoleAdmissionState::Revoked;
 }
 
+bool LinuxConsoleAdmissionBroker::visitNativeDesktopSelection(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
+    LinuxNativeDesktopSelectionVisitor visitor,
+    void *context) noexcept
+{
+    const auto before = r1HybridNlaSecurityView(connection);
+    if (visitor == nullptr || !before ||
+        !authorizationChecksPass(
+            lease, acceptor, before->activeServerTls,
+            kConsoleViewPermission))
+    {
+        deny(acceptor);
+        return false;
+    }
+
+    const LinuxNativeDesktopSelectionView selection{
+        std::string_view(lease.sessionId_.data(), lease.sessionIdLength_),
+        std::string_view(seat_.data(), seatLength_),
+        std::string_view(display_.data(), displayLength_),
+        lease.admissionGeneration_, lease.sessionGeneration_};
+
+    if (!visitor(selection, context))
+    {
+        deny(acceptor);
+        return false;
+    }
+
+    // The consumer may allocate/open its native owner synchronously. Re-sample
+    // every R1/R2/native fact after it returns so a concurrent logout/session
+    // replacement cannot turn the just-consumed selector into authorization.
+    const auto after = r1HybridNlaSecurityView(connection);
+    if (!after ||
+        !revalidationChecksPass(lease, acceptor, after->activeServerTls))
+    {
+        deny(acceptor);
+        return false;
+    }
+    return true;
+}
+
 LinuxConsoleAdmissionState LinuxConsoleAdmissionBroker::state() const noexcept
 {
     if (state_ == LinuxConsoleAdmissionState::Active &&

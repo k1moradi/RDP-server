@@ -875,3 +875,20 @@ instruments the real codec while the existing R4 C++ converter/producer and
 test executables are instrumented through the C++ flags. Link sanitizer flags
 remain on the test executables. No system x264, alternate build directory or
 new dependency is introduced.
+
+## R2 Windows/macOS native admission evidence build boundaries (2026-10-17)
+
+Windows builds a noninstalled `rdp-server-windows-native-session-evidence`
+static target from the real Win32 token, LSA and WTS APIs and links only
+`advapi32`, `secur32` and `wtsapi32`. The dedicated CTest is
+`security.windows-native-session-evidence-provider-denials`. It does not
+enumerate/capture a desktop or authenticate a client.
+
+Apple builds a noninstalled `rdp-server-macos-native-session-evidence` static
+target and links CoreFoundation, Security and SystemConfiguration. Its
+`security.macos-native-session-evidence-provider-denials` CTest performs only
+read-only console/audit/Security-session observations. It does not request TCC,
+start ScreenCaptureKit, post input or start an AppKit observer. Linux and the
+portable installed SDK gain neither dependency. Use the existing canonical
+`build/` root and ordinary full CTest; no second build root or opt-in credential
+cache is introduced.

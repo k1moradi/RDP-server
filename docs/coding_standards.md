@@ -1808,3 +1808,34 @@ before replacing mutable geometry, and callbacks compare only the immutable
 expected generation. Shared ownership is justified solely because callback
 state can outlive the mutable owner; never allocate per frame or treat this
 fence as R2/R3 admission.
+
+## R2 cross-platform native desktop evidence and capability boundary (2026-10-17)
+
+Keep one R2 authorization domain. Linux remains the only implemented positive
+native-admission issuer: the existing broker binds exact HYBRID TLS/GSS final
+credentials, real PAM account verification, NSS identity, logind physical
+session ownership and the R2-owned change monitor. R10/R5 may obtain its
+display/session selection only through the synchronous noncopyable
+`LinuxNativeDesktopSelectionView` visitor. The broker revalidates before and
+after that callback. The view must not escape it; configured `DISPLAY`,
+principal/account strings, numeric UID values and copied generation numbers are
+never authorization.
+
+Windows and macOS native readers are **evidence adapters, not admission
+controllers**. The Windows adapter proves only that the running process is in a
+nonzero physical-console WTS session whose primary-token SID/session/logon LUID
+agree with LSA logon-session data and whose WTS state is active. A future R2
+SSPI/CredSSP provider must privately supply the authenticated SID; R10/R6 may
+not supply or override it. Session 0/service execution fails closed in this
+adapter and needs a separately reviewed privileged service-session design.
+
+The macOS adapter proves only that the current primary-console UID equals the
+process effective UID and audit UID, that the audit session is nonzero, and that
+the caller Security session is local and has graphical access. A future genuine
+R2 credential verifier must privately bind the authenticated local account to
+that UID before capability issuance. TCC, `CGSessionCopyCurrentDictionary`,
+AppKit notifications and `MacDesktopSessionGuard` are downstream
+freshness/permission checks, never authentication. Any future R2 lease must
+store the native session identity and revoke terminally on logout/switch,
+evidence mismatch, policy change or connection teardown; there is no public
+capability constructor or caller-supplied success flag.

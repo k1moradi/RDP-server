@@ -252,6 +252,32 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUILD_TESTING AND
     endif()
 endif()
 
+# R2 Windows native-session evidence is a read-only, noninstalled adapter.
+# It does not authenticate a client or mint a lease: a future R2 SSPI/CredSSP
+# provider must supply the authenticated SID privately before this evidence can
+# participate in admission. The current process must itself be in the physical
+# interactive WTS session; service Session 0 therefore fails closed.
+if(WIN32)
+    add_library(rdp-server-windows-native-session-evidence STATIC
+        src/server/security/windows_native_session_evidence.cpp)
+    target_compile_features(
+        rdp-server-windows-native-session-evidence PUBLIC cxx_std_23)
+    target_include_directories(
+        rdp-server-windows-native-session-evidence PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(
+        rdp-server-windows-native-session-evidence PRIVATE
+        advapi32 secur32 wtsapi32)
+    if(MSVC)
+        target_compile_options(
+            rdp-server-windows-native-session-evidence PRIVATE /W4)
+    else()
+        target_compile_options(
+            rdp-server-windows-native-session-evidence PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endif()
+
 # R6 native monitor geometry is a separate, noninstalled Windows adapter:
 # it does not pull user32/Win32 headers into the portable protocol archive.
 if(WIN32)
@@ -799,6 +825,27 @@ if(APPLE)
     find_library(RDP_SERVER_APPLICATIONSERVICES_FRAMEWORK ApplicationServices REQUIRED)
     find_library(RDP_SERVER_COREMEDIA_FRAMEWORK CoreMedia REQUIRED)
     find_library(RDP_SERVER_SCREENCAPTUREKIT_FRAMEWORK ScreenCaptureKit REQUIRED)
+    find_library(RDP_SERVER_SECURITY_FRAMEWORK Security REQUIRED)
+    find_library(RDP_SERVER_SYSTEMCONFIGURATION_FRAMEWORK SystemConfiguration REQUIRED)
+
+    # R2 macOS native-session evidence is read-only and noninstalled. It binds
+    # the caller's console UID, audit session and Security session as candidate
+    # native evidence only; no TCC/AppKit fact can mint authentication.
+    add_library(rdp-server-macos-native-session-evidence STATIC
+        src/server/security/macos_native_session_evidence.cpp)
+    target_compile_features(
+        rdp-server-macos-native-session-evidence PUBLIC cxx_std_23)
+    target_include_directories(
+        rdp-server-macos-native-session-evidence PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(
+        rdp-server-macos-native-session-evidence PRIVATE
+        "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}"
+        "${RDP_SERVER_SECURITY_FRAMEWORK}"
+        "${RDP_SERVER_SYSTEMCONFIGURATION_FRAMEWORK}")
+    target_compile_options(
+        rdp-server-macos-native-session-evidence PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
 
     # R8 native pasteboard callbacks stay separate from R7 capture/input and
     # are never linked into the installed portable protocol SDK.
@@ -888,7 +935,9 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "credssp_credentials_internal.h" EXCLUDE
     PATTERN "runtime_licensing_authority.h" EXCLUDE
     PATTERN "runtime_licensing_authority_internal.h" EXCLUDE
-    PATTERN "linux_pam_password_verifier.h" EXCLUDE)
+    PATTERN "linux_pam_password_verifier.h" EXCLUDE
+    PATTERN "windows_native_session_evidence.h" EXCLUDE
+    PATTERN "macos_native_session_evidence.h" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake
     NAMESPACE RDPServer::

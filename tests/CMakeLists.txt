@@ -713,6 +713,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-aggregate-premature-admission-denial
             linux-connection-native-monitor-borrow-denials
             linux-connection-native-monitor-registration-denials
+            linux-connection-native-desktop-selection-denials
             linux-connection-existing-cal-unadmitted-denial)
         add_test(NAME "runtime.${runtime_linux_security_case}"
             COMMAND test_runtime_linux_security
@@ -872,6 +873,29 @@ add_test(NAME runtime.licensing-authority-no-startup-bypass
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
 set_tests_properties(runtime.licensing-authority-no-startup-bypass PROPERTIES
     LABELS "runtime;security;licensing;offline" TIMEOUT 60)
+
+# R2 Windows native-session evidence. The production reader is exercised on
+# the actual hosted Windows process/WTS/LSA context, but the test never treats
+# an observed SID/session as authenticated RDP admission.
+if(TARGET rdp-server-windows-native-session-evidence)
+    add_executable(test_windows_native_session_evidence
+        test_windows_native_session_evidence.cpp)
+    target_link_libraries(test_windows_native_session_evidence PRIVATE
+        rdp-server-windows-native-session-evidence)
+    if(MSVC)
+        target_compile_options(
+            test_windows_native_session_evidence PRIVATE /W4 /UNDEBUG)
+    else()
+        target_compile_options(
+            test_windows_native_session_evidence PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME security.windows-native-session-evidence-provider-denials
+        COMMAND test_windows_native_session_evidence)
+    set_tests_properties(
+        security.windows-native-session-evidence-provider-denials PROPERTIES
+        LABELS "security;native-admission;windows;offline")
+endif()
 
 # R6 fixture-only checks: do not enumerate a real desktop, capture pixels,
 # or inject input during an ordinary Windows CTest run.
@@ -1465,6 +1489,23 @@ foreach(case_name IN ITEMS lifecycle validation-denials revocation-cleanup
     set_tests_properties("macos.input-controller-${case_name}" PROPERTIES
         LABELS "macos;input;offline")
 endforeach()
+
+# R2 macOS native-session evidence. This calls only read-only production
+# console/audit/Security-session APIs; it requests no TCC permission and never
+# promotes the observed UID/session to authenticated RDP admission.
+if(TARGET rdp-server-macos-native-session-evidence)
+    add_executable(test_macos_native_session_evidence
+        test_macos_native_session_evidence.cpp)
+    target_link_libraries(test_macos_native_session_evidence PRIVATE
+        rdp-server-macos-native-session-evidence)
+    target_compile_options(test_macos_native_session_evidence PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME security.macos-native-session-evidence-provider-denials
+        COMMAND test_macos_native_session_evidence)
+    set_tests_properties(
+        security.macos-native-session-evidence-provider-denials PROPERTIES
+        LABELS "security;native-admission;macos;offline")
+endif()
 
 # R7 macOS desktop session/permission guard. Ordinary tests use synthetic
 # session observations and permission probes; Apple compile/links the native

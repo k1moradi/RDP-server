@@ -4105,3 +4105,8 @@ Dedicated central CTests added to the existing production-backed `test_owned_mcs
 Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** in this connector environment because no owner checkout is available and direct GitHub checkout access is unavailable; no alternate persistent build root was created.
 
 **Next gate:** implement R3 DATA_FIRST/DATA fragmentation and negotiated static-VC/MCS/TPKT publication with exact R4-payload mapping. Live Microsoft-client graphics remains blocked until R10/R2 freshly reauthorize the post-Share Graphics-DVC intake/write/receipt calls around the genuine R2 lease and submit each resulting plaintext slice only through R1's sole TLS application-write boundary.
+
+
+## R3 RDPGFX CAPS compile correction (2026-10-17)
+
+Exact source SHA `2569226efa03f4aeafbf8e55fe0148d3b14ecc4f` reached Actions run `39054215660`; Ubuntu job `117458783817` failed during Debug compilation because the existing fixed `kMcsTestCases` registry bound remained 138 after two new registered Graphics CAPS cases were added. The production R3 implementation compiled before the test target reached this declaration; no protocol behavior failure was reported. This corrective commit changes only that fixed test registry bound to 140 and records the failed receipt. The two dedicated CAPS CTests remain the production-backed acceptance cases from the preceding atomic increment.

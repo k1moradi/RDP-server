@@ -1,3 +1,50 @@
+## R10 immutable personal-desktop product policy authoring receipt (2026-10-17)
+
+**Reconciled dependency:** R3 personal Valid Client + Share mechanics
+`a9cca209b9ae8d1c9595a1e71fc9c77a7c56ed56` are consumed only as a
+published contract; this R10 increment does not edit R3-owned wire state.
+The earlier incomplete-provider repair is
+`8d980a202eafeefd958213f65344e955ce1b2415`. Its former failing Linux
+boundary was the inline-defaulted `RuntimeLicensingAuthority` constructor
+instantiating `unique_ptr<RuntimeLicensingAuthorityProvider>` cleanup with an
+incomplete provider. Moving construction out of line is already evidenced by
+Ubuntu **617/617 Debug + 617/617 Release**; R9 later synchronized stale
+sanitizer selectors separately.
+
+This increment adds `RuntimeDeploymentPolicy` as one-shot service-lifetime
+configuration. `AppServerIssuerBacked` remains distinct and keeps production
+`NoVerifiedIssuer` fail-closed. `PersonalDesktop` records only the
+MS-RDPELE personal-terminal-server product mode: one interactive console
+session per connection, mandatory native-session revocation, no CAL
+validation/issuance claim, and no ability to turn licensing construction into
+GSS/PAM/native or desktop/input authority.
+
+The optional listener candidate is explicit and configuration-only. It admits
+only exact 127.0.0.1 or ::1 address bytes with a nonzero configured port and
+never opens, binds, listens on or accepts a socket. R2 admission and R3
+activation are deliberately not represented as caller Booleans; a future
+controlled listener needs their non-forgeable live composition plus explicit
+owner authorization.
+
+Dedicated production-backed CTests are
+`runtime.personal-desktop-policy-immutable-denials` and
+`runtime.personal-desktop-loopback-listener-denials`. They cover one-shot
+mode immutability, invalid listener/port pairings, app-server wrong-mode
+denials, disabled-listener denial, non-loopback/alternate-loopback/wildcard
+denials and the exact 127.0.0.1/::1 candidate boundary. They create no R2
+lease, R3 state, socket or desktop authority.
+
+Normative basis: MS-RDPELE 1.3.1 distinguishes personal terminal servers from
+app-server terminal servers; 1.3.3 requires a personal server to finish the
+licensing exchange with `STATUS_VALID_CLIENT` and `ST_NO_TRANSITION`
+without validating a presented license. R3 now owns that wire/state behavior
+at `a9cca209`; R10 owns only immutable mode/service composition.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest:
+**NOT RUN** in this connector environment; no alternate build root was created.
+Exact publication-SHA hosted Linux, sanitizer and cross-platform CI:
+**PENDING** at authoring time.
+
 ## R1 Linux buffered-TLS verification and Microsoft-client transport review (2026-10-17)
 
 **Verified shared-main SHA:** `7ac63a255e41a9f2786629b31a1af53d2b7ab164`.

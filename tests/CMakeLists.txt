@@ -820,6 +820,30 @@ set_tests_properties(
     runtime.licensing-authority-public-header-consumer-lifetime PROPERTIES
     LABELS "runtime;security;licensing;offline")
 
+# R10 immutable product mode and future loopback-only listener candidate gate.
+# These cases exercise production policy code only; no socket is opened and no
+# R2/R3 positive authority is synthesized.
+add_executable(test_runtime_deployment_policy
+    test_runtime_deployment_policy.cpp)
+target_link_libraries(test_runtime_deployment_policy PRIVATE
+    rdp-server-runtime-licensing)
+if(MSVC)
+    target_compile_options(test_runtime_deployment_policy PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_runtime_deployment_policy PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(runtime_deployment_policy_case IN ITEMS
+        personal-desktop-policy-immutable-denials
+        personal-desktop-loopback-listener-denials)
+    add_test(NAME "runtime.${runtime_deployment_policy_case}"
+        COMMAND test_runtime_deployment_policy
+            "${runtime_deployment_policy_case}")
+    set_tests_properties(
+        "runtime.${runtime_deployment_policy_case}" PROPERTIES
+        LABELS "runtime;security;licensing;service-policy;offline")
+endforeach()
+
 # R10 service-owned licensing-authority lifecycle. The production runtime
 # exposes no positive provider configuration; this executable owns the sole
 # deterministic positive provider fixture and is never installed or linked

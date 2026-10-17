@@ -657,7 +657,8 @@ endif()
 # This component is noninstalled and grants no R2 admission or licensing result.
 add_library(rdp-server-runtime-licensing STATIC
     src/server/runtime/runtime_licensing_context.cpp
-    src/server/runtime/runtime_licensing_authority.cpp)
+    src/server/runtime/runtime_licensing_authority.cpp
+    src/server/runtime/runtime_deployment_policy.cpp)
 target_compile_features(rdp-server-runtime-licensing PUBLIC cxx_std_23)
 target_include_directories(rdp-server-runtime-licensing PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")

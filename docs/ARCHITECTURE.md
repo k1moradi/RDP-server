@@ -1,3 +1,33 @@
+## R8 bounded multi-file X11 completed-set presentation (2026-10-16)
+
+The Linux descriptor sink remains one-file-at-a-time because
+`RemoteTransfer` intentionally owns a single FileContents request. Multi-file
+support therefore does not add another transfer scheduler: files are
+materialized sequentially through the same owner, and only their independently
+completed native destination proofs are grouped for presentation.
+
+`X11ClipboardAdapter` may borrow up to
+`RemoteTransfer::kMaximumRemoteFiles` completed destination objects during
+one synchronous publication call. It verifies exact current generation and
+completion on every object and copies only their caller-bound local
+`file:///` URIs into a fixed canonical metadata buffer. Duplicate URIs,
+partial/stale destinations, oversized aggregate metadata and same-generation
+payload mutation are refused before changing X11 ownership.
+
+The canonical form uses LF separators and no trailing newline. X11
+`text/uri-list` is derived as CRLF-terminated URI records;
+`x-special/gnome-copied-files` prepends `copy\n` and retains LF separators;
+KDE's supplemental cut-selection byte remains `0`. The aggregate size is
+chosen so the URI-list expansion still fits the existing 64-KiB direct property
+ceiling; file bytes are never duplicated into presentation state.
+
+This is not directory-tree reconstruction. The existing file descriptor parser
+accepts safe leaf names and rejects path separators, so no trusted parent/child
+hierarchy survives the wire boundary today. R8 must not infer hierarchy or
+construct local paths from those names. A future tree materializer needs an
+explicit caller-selected local mapping for each node and bounded hierarchy
+metadata before native directory creation can be considered.
+
 ## R5 XI2 pointer generation fence across RandR (2026-10-16)
 
 The geometry-bound XI2 pointer observer uses the same single XCB owner as

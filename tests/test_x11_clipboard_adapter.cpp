@@ -349,6 +349,45 @@ void installSingleFileOffer(
     assert(transfer.storeFileGroupDescriptors(response));
 }
 
+void installTwoFileOffer(
+    RemoteTransfer &transfer, std::uint64_t fileBytes)
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t kFileFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+    constexpr std::uint32_t kFdFileSize = 0x00000040U;
+
+    assert(transfer.receiveCapabilitiesPdu(
+        capabilitiesPdu(kFileFlags), kFileFlags));
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(
+        formats, kFileListFormatId, "FileGroupDescriptorW");
+    assert(transfer.receiveLongFormatListPdu(longFormatPdu(formats)));
+
+    std::vector<std::uint8_t> request;
+    assert(transfer.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> list(
+        4U + 2U * kFileDescriptorBytes, 0);
+    put32(list, 0U, 2U);
+    for (std::size_t index = 0; index < 2U; ++index)
+    {
+        auto descriptor = std::span(list).subspan(
+            4U + index * kFileDescriptorBytes,
+            kFileDescriptorBytes);
+        put32(descriptor, 0U, kFdFileSize);
+        putDescriptorFileSize(descriptor, fileBytes);
+        putFileName(
+            descriptor, index == 0U ? u"first.bin" : u"second.bin");
+    }
+
+    const auto responseWire = responsePdu(list);
+    const auto response = transfer.receiveResponse(responseWire);
+    assert(response.status == RemoteTransfer::ResponseStatus::Received);
+    assert(transfer.storeFileGroupDescriptors(response));
+    assert(transfer.remoteFileCount() == 2U);
+}
+
 class ScopedTestFile final
 {
 public:
@@ -763,6 +802,73 @@ void completedFileUriHandoff()
         std::array<std::uint32_t, 1>{
             rdp_server::clipboard::kFormatUnicodeText}));
     assert(!adapter.publishCompletedFile(destination, start));
+}
+
+void completedMultiFileUriHandoff()
+{
+    constexpr std::string_view kFirstUri{
+        "file:///rdp-server-tests/first.bin"};
+    constexpr std::string_view kSecondUri{
+        "file:///rdp-server-tests/second%20file.bin"};
+
+    RemoteTransfer transfer;
+    installTwoFileOffer(transfer, 4U);
+    ScopedTestFile firstFile{"x11-completed-multi-first"};
+    ScopedTestFile secondFile{"x11-completed-multi-second"};
+    LinuxClipboardFileDestination first{transfer};
+    LinuxClipboardFileDestination second{transfer};
+    assert(first.begin(0U, firstFile.descriptor(), kFirstUri));
+    assert(second.begin(1U, secondFile.descriptor(), kSecondUri));
+
+    FakeNative native;
+    X11ClipboardAdapter adapter(
+        transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{10}};
+    const std::array<
+        const LinuxClipboardFileDestination *, 2>
+        destinations{&first, &second};
+
+    // A set is atomic from the file-manager's perspective: every member must
+    // already be complete before X11 ownership can expose any URI.
+    assert(!adapter.publishCompletedFiles(destinations, start));
+    completeFileDestination(transfer, first);
+    assert(!adapter.publishCompletedFiles(destinations, start));
+    completeFileDestination(transfer, second);
+
+    const std::array<
+        const LinuxClipboardFileDestination *, 2>
+        duplicateDestinations{&first, &first};
+    assert(!adapter.publishCompletedFiles(
+        duplicateDestinations, start));
+    assert(adapter.publishCompletedFiles(destinations, start));
+    assert(adapter.ownsClipboard());
+    assert(adapter.publicationGeneration() == transfer.generation());
+
+    dispatchRequest(adapter, requestFor(kUriListAtom, 861, 61), start);
+    assert(native.propertyWrites.back().type == kUriListAtom);
+    assert(propertyText(native.propertyWrites.back()) ==
+           std::string{kFirstUri} + "\r\n" +
+               std::string{kSecondUri} + "\r\n");
+
+    dispatchRequest(
+        adapter, requestFor(kGnomeCopiedFilesAtom, 862, 62), start);
+    assert(native.propertyWrites.back().type == kGnomeCopiedFilesAtom);
+    assert(propertyText(native.propertyWrites.back()) ==
+           std::string{"copy\n"} + std::string{kFirstUri} + "\n" +
+               std::string{kSecondUri});
+
+    dispatchRequest(
+        adapter, requestFor(kKdeCutSelectionAtom, 863, 63), start);
+    assert(propertyText(native.propertyWrites.back()) == "0");
+
+    // Mutating the completed set behind the same X11 owner/generation is
+    // rejected; file managers must observe a distinct ownership transition.
+    assert(!adapter.publishCompletedFile(first, start));
+
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(!adapter.publishCompletedFiles(destinations, start));
 }
 
 void incrLargeTextProgression()
@@ -1180,6 +1286,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-completed-file-uri-handoff")
     {
         completedFileUriHandoff();
+        return 0;
+    }
+    if (behavior == "x11-completed-multi-file-uri-handoff")
+    {
+        completedMultiFileUriHandoff();
         return 0;
     }
     if (behavior == "x11-selection-owner-loss")

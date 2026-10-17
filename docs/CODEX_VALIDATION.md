@@ -1,3 +1,27 @@
+## R8 multi-file X11 handoff authoring validation (2026-10-16)
+
+**Base:** `2cdb16e42e1b642fcfb02c0a34f581b53e202598`. Source changes are limited to the existing X11 clipboard
+presentation owner, its production-backed test executable, central CTest
+registration, sanitizer enumeration and documentation. No CLIPRDR codec,
+FileContents owner, Linux descriptor-write path or R3 authorization surface is
+changed.
+
+The new behavior test uses two real build-root regular files and two existing
+`LinuxClipboardFileDestination` objects under one remote generation.
+FileContents requests/results are executed sequentially through the genuine
+`RemoteTransfer` owner. Publication is denied while either destination is
+partial, denied for duplicate URI capabilities, then accepted only after both
+are complete. The test checks exact multi-file `text/uri-list`,
+GNOME copied-files and KDE copy payloads, same-generation set immutability and
+generation-stale denial.
+
+Canonical local `~/rdp-server/build` execution is **NOT RUN** because this
+connector environment has no owner checkout and a second build root is
+prohibited. Exact publication-SHA hosted CI/sanitizer evidence is **PENDING**.
+Live X11 file-manager paste, Wayland portals, remote directory-tree hierarchy,
+authenticated Microsoft-client file copy and performance remain **NOT RUN /
+OPEN**.
+
 ## R5 XI2 optional-build guard correction authoring (2026-10-16)
 
 **Correction parent:** `366303f35156cdd00c125dfa976d72bc23016bb3`.

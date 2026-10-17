@@ -1,3 +1,19 @@
+## Completed multi-file presentation is metadata, not a transfer scheduler
+
+Group only independently completed native file destinations. Do not add a
+second FileContents scheduler or prefetch a whole set: the one
+`RemoteTransfer` owner remains single-flight and files materialize
+sequentially. A presentation set may retain bounded caller-selected local URI
+metadata only after every member proves exact completion and current
+generation.
+
+Reject null/partial/stale members, duplicate local URIs, aggregate metadata
+overflow and attempts to mutate the set behind one native clipboard ownership
+transition. Derive native list formats from one canonical bounded representation
+instead of retaining duplicate per-format lists. Never reconstruct directory
+hierarchy or a local path from FILEDESCRIPTORW leaf names; absent an explicit
+trusted destination mapping, hierarchy is unknown.
+
 ## Geometry-bound XI2 events need explicit generation provenance (2026-10-16)
 
 A rebuilt XI2 observer must not accept an already-queued motion merely because

@@ -1,3 +1,56 @@
+## R8 bounded multi-file X11 handoff (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `2cdb16e42e1b642fcfb02c0a34f581b53e202598`. The existing R8 Linux
+descriptor materializer and completed-file X11 URI handoff remain the native
+building blocks. This increment extends only the completed presentation set:
+up to the existing 64 remote-file bound may be published atomically after each
+caller-selected destination independently reaches `Complete`.
+
+`X11ClipboardAdapter::publishCompletedFiles` accepts a span of completed
+`LinuxClipboardFileDestination` proofs. Every member must be non-null,
+complete, from the exact current synchronized `RemoteTransfer` generation,
+and expose a caller-bound strict local `file:///` URI. Duplicate URIs are
+rejected. The adapter copies only bounded URI metadata into one fixed
+allocation-free canonical LF-separated buffer; it never copies file bodies,
+opens paths or derives a local path from FILEDESCRIPTORW.
+
+The aggregate canonical URI metadata is capped below 64 KiB so the derived
+`text/uri-list` payload (CRLF after every URI) remains within one direct X11
+property write. GNOME/Nautilus receives `copy\n<uri1>\n<uri2>...` without a
+trailing empty URI; KDE's copy marker remains `0`. The existing single-file
+API delegates to the multi-file path. Once one completed set owns X11 for a
+generation, changing that set behind the same ownership transition is refused;
+a new remote generation or genuine local owner transition is required.
+
+Dedicated CTest:
+`clipboard.x11-completed-multi-file-uri-handoff`. It materializes two real
+build-root files sequentially through the production `RemoteTransfer`
+FileContents owner, proves a partially completed set is not publishable,
+rejects duplicate destination URIs, validates exact URI-list/GNOME/KDE
+payloads, rejects same-generation set mutation, and rejects the stale set after
+generation replacement. Ordinary CTest uses the injected XCB seam and never
+touches a live user's clipboard or file manager. R9 sanitizer selection now
+enumerates this case before running the complete clipboard label.
+
+This advances bounded **multi-file** handoff only. The current portable
+FILEDESCRIPTORW parser intentionally retains safe leaf names and rejects path
+separators, so it does not preserve authoritative remote tree hierarchy.
+Directory-tree reconstruction therefore remains **BLOCKED** until R8 has an
+explicit bounded hierarchy/mapping contract that cannot synthesize local paths
+from untrusted remote names. Live Nautilus/Dolphin paste, Wayland portal
+FileTransfer, authenticated Microsoft-client file copy, owner Linux/X11 and
+performance remain **NOT RUN/OPEN**.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate build root was
+created. Exact-publication-SHA hosted Linux/GCC, R9 ASan/UBSan, full
+cross-platform regression and documentation-policy evidence are **PENDING**.
+
+**Next R8 after hosted validation:** define the bounded explicit directory-tree
+mapping/capability contract (caller-selected local destinations, no remote-name
+path construction), then extend completed-set handoff across Windows/macOS and
+real-client acceptance.
+
 ## R5 XI2 optional-build guard correction (2026-10-16; exact-SHA CI pending)
 
 **Correction parent:** `366303f35156cdd00c125dfa976d72bc23016bb3`.

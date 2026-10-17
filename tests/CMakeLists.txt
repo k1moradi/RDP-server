@@ -1720,6 +1720,7 @@ if(TARGET rdp-server-linux-x11-clipboard)
             x11-targets-publication
             x11-selection-request-nonblocking
             x11-completed-file-uri-handoff
+            x11-completed-multi-file-uri-handoff
             x11-selection-owner-loss
             x11-disconnect-late-paste-fence
             x11-incr-large-text-progression

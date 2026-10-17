@@ -1,3 +1,16 @@
+## Multi-file clipboard handoff tests prove atomic completed-set visibility
+
+For a multi-file native handoff, materialize at least two files through the
+real one-at-a-time `RemoteTransfer` FileContents path. Require publication to
+fail while any member is partial, then verify the entire completed set appears
+atomically. Cover duplicate URI rejection, exact native list delimiters,
+same-generation set mutation denial and stale-generation refusal.
+
+Keep file bytes in ordinary build-root fixtures and clipboard operations behind
+the existing injected native seam. The test must not imply directory hierarchy:
+current FILEDESCRIPTORW validation preserves leaf metadata only. Real
+file-manager/portal directory-tree acceptance remains a separate live gate.
+
 ## Windows completed-file handoff tests stay host-clipboard free
 
 Exercise CF_HDROP handoff through the production Windows destination and clipboard-adapter state machines with injected clipboard callbacks. Ordinary CTest must never call the real host clipboard. Require: no publication while the destination is partial; exact completed caller path retention; `DROPFILES.pFiles=20`, `fWide=TRUE`, one fully qualified UTF-16 path and the final double NUL; relative/device-path metadata rejection before native destination duplication; local owner takeover with same-generation reclaim denial; and stale-generation refusal.

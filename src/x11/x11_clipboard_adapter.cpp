@@ -456,7 +456,8 @@ X11ClipboardAdapter::lastOwnershipTransitionSource() const noexcept
 bool
 X11ClipboardAdapter::fileHandoffAvailable() const noexcept
 {
-    return fileUriLength_ != 0U &&
+    return fileUriListLength_ != 0U &&
+           fileHandoffFileCount_ != 0U &&
            fileHandoffGeneration_ != 0U &&
            fileHandoffGeneration_ == remoteTransfer_.generation();
 }
@@ -489,50 +490,111 @@ X11ClipboardAdapter::publishCompletedFile(
     const rdp::linux_platform::LinuxClipboardFileDestination &destination,
     PasteClock::time_point now) noexcept
 {
+    const std::array<
+        const rdp::linux_platform::LinuxClipboardFileDestination *, 1>
+        destinations{&destination};
+    return publishCompletedFiles(destinations, now);
+}
+
+bool
+X11ClipboardAdapter::publishCompletedFiles(
+    std::span<const rdp::linux_platform::
+                  LinuxClipboardFileDestination *const> destinations,
+    PasteClock::time_point now) noexcept
+{
     static_assert(
         kMaximumFileUriBytes ==
         rdp::linux_platform::LinuxClipboardFileDestination::
             kMaximumLocalFileUriBytes);
 
-    if (!valid() ||
-        destination.status() !=
-            rdp::linux_platform::LinuxClipboardFileDestination::
-                Status::Complete ||
-        destination.generation() == 0U ||
-        destination.generation() != remoteTransfer_.generation() ||
-        !remoteTransfer_.synchronized() ||
-        (yieldedGeneration_ == destination.generation() &&
-         !ownsClipboard_))
+    if (!valid() || destinations.empty() ||
+        destinations.size() > kMaximumCompletedFiles ||
+        !remoteTransfer_.synchronized())
     {
         return false;
     }
 
-    const auto uri = destination.completedFileUri();
-    if (!uri || uri->empty() ||
-        uri->size() > fileUri_.size())
+    const std::uint64_t generation = remoteTransfer_.generation();
+    if (generation == 0U ||
+        (yieldedGeneration_ == generation && !ownsClipboard_))
     {
         return false;
     }
 
-    if (fileHandoffGeneration_ == destination.generation() &&
-        fileUriLength_ != 0U)
+    std::array<char, kMaximumFileHandoffBytes> candidate{};
+    std::size_t candidateBytes = 0U;
+    for (std::size_t index = 0; index < destinations.size(); ++index)
     {
-        const std::string_view publishedUri{
-            fileUri_.data(), fileUriLength_};
-        if (publishedUri != *uri)
+        const auto *destination = destinations[index];
+        if (destination == nullptr ||
+            destination->status() !=
+                rdp::linux_platform::LinuxClipboardFileDestination::
+                    Status::Complete ||
+            destination->generation() != generation)
         {
-            // One completed local file per remote generation. Changing the
-            // payload behind the same X11 owner would not produce a new
-            // selection-owner transition for file managers to observe.
+            return false;
+        }
+
+        const auto uri = destination->completedFileUri();
+        if (!uri || uri->empty() ||
+            uri->size() > kMaximumFileUriBytes)
+        {
+            return false;
+        }
+
+        for (std::size_t previous = 0; previous < index; ++previous)
+        {
+            const auto previousUri =
+                destinations[previous]->completedFileUri();
+            if (previousUri && *previousUri == *uri)
+            {
+                return false;
+            }
+        }
+
+        const std::size_t separatorBytes = index == 0U ? 0U : 1U;
+        const std::size_t remainingBytes =
+            candidate.size() - candidateBytes;
+        if (separatorBytes > remainingBytes ||
+            uri->size() > remainingBytes - separatorBytes)
+        {
+            return false;
+        }
+        if (separatorBytes != 0U)
+        {
+            candidate[candidateBytes++] = '\n';
+        }
+        std::copy(
+            uri->begin(), uri->end(),
+            candidate.begin() +
+                static_cast<std::ptrdiff_t>(candidateBytes));
+        candidateBytes += uri->size();
+    }
+
+    if (fileHandoffGeneration_ == generation &&
+        fileUriListLength_ != 0U)
+    {
+        if (fileHandoffFileCount_ != destinations.size() ||
+            fileUriListLength_ != candidateBytes ||
+            !std::equal(
+                candidate.begin(),
+                candidate.begin() +
+                    static_cast<std::ptrdiff_t>(candidateBytes),
+                fileUriList_.begin()))
+        {
+            // Do not silently mutate file-manager payload behind one X11
+            // ownership transition. A later generation can publish a new set.
             return false;
         }
         return publishCurrentRemoteOffer(now);
     }
 
-    fileUri_.fill(0);
-    std::copy(uri->begin(), uri->end(), fileUri_.begin());
-    fileUriLength_ = uri->size();
-    fileHandoffGeneration_ = destination.generation();
+    fileUriList_.fill(0);
+    std::copy_n(
+        candidate.begin(), candidateBytes, fileUriList_.begin());
+    fileUriListLength_ = candidateBytes;
+    fileHandoffFileCount_ = destinations.size();
+    fileHandoffGeneration_ = generation;
 
     if (!publishCurrentRemoteOffer(now))
     {
@@ -881,15 +943,26 @@ X11ClipboardAdapter::publishUriList(
         return sendFailureNotify(request);
     }
 
-    std::array<char, kMaximumFileUriBytes + 2U> payload{};
-    std::copy_n(
-        fileUri_.begin(), fileUriLength_, payload.begin());
-    payload[fileUriLength_] = '\r';
-    payload[fileUriLength_ + 1U] = '\n';
+    std::array<
+        char, kMaximumFileHandoffBytes + kMaximumCompletedFiles + 1U>
+        payload{};
+    std::size_t payloadBytes = 0U;
+    for (std::size_t index = 0; index < fileUriListLength_; ++index)
+    {
+        if (fileUriList_[index] == '\n')
+        {
+            payload[payloadBytes++] = '\r';
+            payload[payloadBytes++] = '\n';
+            continue;
+        }
+        payload[payloadBytes++] = fileUriList_[index];
+    }
+    payload[payloadBytes++] = '\r';
+    payload[payloadBytes++] = '\n';
     return publishPropertyAndNotify(
         request, property, atoms_.uriList, 8,
         std::as_bytes(std::span<const char>{
-            payload.data(), fileUriLength_ + 2U}));
+            payload.data(), payloadBytes}));
 }
 
 bool
@@ -904,17 +977,17 @@ X11ClipboardAdapter::publishGnomeCopiedFiles(
 
     constexpr std::array<char, 5> kCopyPrefix{
         'c', 'o', 'p', 'y', '\n'};
-    std::array<char, kMaximumFileUriBytes + kCopyPrefix.size()> payload{};
+    std::array<char, kMaximumFileHandoffBytes + kCopyPrefix.size()> payload{};
     std::copy(
         kCopyPrefix.begin(), kCopyPrefix.end(),
         payload.begin());
     std::copy_n(
-        fileUri_.begin(), fileUriLength_,
+        fileUriList_.begin(), fileUriListLength_,
         payload.begin() + kCopyPrefix.size());
     return publishPropertyAndNotify(
         request, property, atoms_.gnomeCopiedFiles, 8,
         std::as_bytes(std::span<const char>{
-            payload.data(), kCopyPrefix.size() + fileUriLength_}));
+            payload.data(), kCopyPrefix.size() + fileUriListLength_}));
 }
 
 bool
@@ -1239,8 +1312,9 @@ X11ClipboardAdapter::yieldToLocalOwner() noexcept
 void
 X11ClipboardAdapter::clearFileHandoff() noexcept
 {
-    fileUri_.fill(0);
-    fileUriLength_ = 0;
+    fileUriList_.fill(0);
+    fileUriListLength_ = 0;
+    fileHandoffFileCount_ = 0;
     fileHandoffGeneration_ = 0;
     fileOffered_ = false;
 }

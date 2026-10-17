@@ -67,6 +67,12 @@ public:
     static constexpr std::size_t kMaximumDirectPropertyBytes = 64U * 1024U;
     static constexpr std::size_t kIncrChunkBytes = 64U * 1024U;
     static constexpr std::size_t kMaximumFileUriBytes = 4096U;
+    static constexpr std::size_t kMaximumCompletedFiles =
+        RemoteTransfer::kMaximumRemoteFiles;
+    // Canonical LF-separated URI metadata stays small enough that adding one
+    // CR per file plus the final CRLF still fits one direct X11 property.
+    static constexpr std::size_t kMaximumFileHandoffBytes =
+        kMaximumDirectPropertyBytes - kMaximumCompletedFiles - 1U;
     static constexpr auto kPasteTimeout = std::chrono::seconds{2};
     static constexpr auto kIncrTimeout = std::chrono::seconds{5};
 
@@ -131,6 +137,16 @@ public:
      */
     [[nodiscard]] bool publishCompletedFile(
         const rdp::linux_platform::LinuxClipboardFileDestination &destination,
+        PasteClock::time_point now) noexcept;
+
+    /**
+     * Publish a bounded completed set from one exact remote generation.
+     * Each pointer is borrowed only during this call. Every destination must
+     * independently prove Complete and expose its caller-bound local URI.
+     */
+    [[nodiscard]] bool publishCompletedFiles(
+        std::span<const rdp::linux_platform::
+                       LinuxClipboardFileDestination *const> destinations,
         PasteClock::time_point now) noexcept;
 
     /**
@@ -277,8 +293,11 @@ private:
     std::uint64_t ownershipEpoch_{};
     std::uint64_t yieldedGeneration_{};
     std::uint64_t fileHandoffGeneration_{};
-    std::array<char, kMaximumFileUriBytes> fileUri_{};
-    std::size_t fileUriLength_{};
+    // Canonical local URI metadata: one URI per line, LF separators, no
+    // trailing newline. This is local presentation state, never file content.
+    std::array<char, kMaximumFileHandoffBytes> fileUriList_{};
+    std::size_t fileUriListLength_{};
+    std::size_t fileHandoffFileCount_{};
     bool textOffered_{};
     bool pngOffered_{};
     bool fileOffered_{};

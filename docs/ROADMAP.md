@@ -1,3 +1,20 @@
+## R10 Windows explicit broad-ACE normalization (2026-10-17)
+
+Corrected helper SHA `75375ccfeb7523d58d40024f783ebfe84f4db50b`,
+Actions `39012029960`, removed the PowerShell module dependency and the
+dedicated hosted MSYS2 CLANG64 R10 private-fixture preflight **PASSed**.
+Hosted Windows/MSVC then exposed a distinct filesystem baseline: after
+`/inheritance:r`, a synthetic file retained an explicit Built-in Users
+(`S-1-5-32-545`) allow ACE, so the helper's descriptor verification correctly
+failed closed before production assertions.
+
+The private baseline now explicitly removes allow grants for the same broad
+well-known principals guarded by production policy (Everyone, Authenticated
+Users, Built-in Users, Guests, Anonymous, Interactive and Network) after
+inheritance removal and before the current-owner FullControl grant. Unknown
+allow principals still fail descriptor verification. Negative tests continue
+to add only their intended broad ACE after this verified baseline.
+
 ## R9 P1 CLANG64 cross-road evidence isolation (2026-10-17; exact-SHA CI pending)
 
 **Authoring parent:** `c94c001f7e876df3f353948609a326f78481c1f3`.

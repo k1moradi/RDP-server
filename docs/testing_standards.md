@@ -1,3 +1,13 @@
+### Explicit broad Windows ACEs must be normalized, not tolerated
+
+`/inheritance:r` is not sufficient evidence of a private synthetic file:
+some Windows creation contexts can retain explicit broad-principal ACEs.
+After inheritance removal, the shared fixture helper removes allow grants for
+Everyone, Authenticated Users, Built-in Users, Guests, Anonymous, Interactive
+and Network before granting the current owner. Any remaining unknown allow
+principal fails descriptor verification. Permission-denial tests may re-add
+only the exact broad ACE required for the negative case.
+
 ## CLANG64 cross-road failures do not suppress security evidence
 
 The hosted Windows CLANG64 job remains fail-closed as one job, while road-local

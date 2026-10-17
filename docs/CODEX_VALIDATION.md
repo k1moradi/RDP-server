@@ -1,3 +1,19 @@
+## R10 hosted Windows explicit-ACE evidence (2026-10-17)
+
+At `75375ccfeb7523d58d40024f783ebfe84f4db50b`, the hosted MSYS2 CLANG64
+dedicated R10 fixture preflight **PASSed**. Hosted Windows/MSVC reached the
+descriptor verifier but failed because the resulting synthetic file still had
+an explicit Built-in Users (`S-1-5-32-545`) allow ACE after inheritance
+removal. The diagnostic named the SID and native path, proving this was a
+fixture normalization difference rather than a production authorization
+failure.
+
+The helper now removes broad-principal allow ACEs explicitly before applying
+the owner SID grant. This remains test-only and stricter than merely trusting
+`icacls` success. Owner-native classification of the original generic
+failure remains **NOT RUN** until the owner reruns the corrected publication
+SHA.
+
 ## R9 P1 CLANG64 cross-road evidence authoring receipt (2026-10-17)
 
 Parent `c94c001f7e876df3f353948609a326f78481c1f3`; exact publication-SHA Actions **PENDING**. The existing

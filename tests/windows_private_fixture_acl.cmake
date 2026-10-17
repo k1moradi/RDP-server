@@ -184,6 +184,20 @@ function(rdp_windows_make_private_fixture_acl path)
     endif()
     _rdp_windows_fixture_run_icacls(
         "${path}" "remove inherited ACEs" /inheritance:r)
+    # Some Windows creation contexts leave explicit broad-principal grants
+    # after inherited ACEs are removed. Normalize those grants away before
+    # applying the owner-only baseline. Negative tests deliberately re-add
+    # exactly one broad ACE after this verified private state.
+    _rdp_windows_fixture_run_icacls(
+        "${path}" "remove broad-principal allow ACEs"
+        /remove:g
+        "*S-1-1-0"
+        "*S-1-5-11"
+        "*S-1-5-32-545"
+        "*S-1-5-32-546"
+        "*S-1-5-7"
+        "*S-1-5-4"
+        "*S-1-5-2")
     _rdp_windows_fixture_run_icacls(
         "${path}" "replace current-owner grant" /grant:r "*${current_sid}:F")
     _rdp_windows_fixture_verify_private_descriptor("${path}" "${current_sid}")

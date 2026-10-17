@@ -796,6 +796,48 @@ void testNativeDisplayRefreshEpoch() {
     assert(tracker.logicalAtVirtualPixel(15, 15, *updated));
 }
 
+void testNativeDisplayGenerationFenceRevocation() {
+    using namespace rdp::macos;
+
+    std::optional<NativeDisplayGenerationFence> survivingFence;
+    {
+        auto fixture = nativeDisplayFixture();
+        NativeDisplayGeometryRefresh geometry;
+        const auto first =
+            geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+        assert(first && geometry.usable(*first));
+
+        const auto firstFence = geometry.generationFence(*first);
+        assert(firstFence && firstFence->generation() == *first);
+        assert(firstFence->current());
+        assert(!geometry.generationFence(*first + 1));
+
+        // A same-facts refresh is still a new geometry identity. The old
+        // asynchronous fence is revoked even though topology did not change.
+        fixture = nativeDisplayFixture();
+        const auto second =
+            geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+        assert(second && *second > *first && geometry.usable(*second));
+        assert(!firstFence->current());
+
+        survivingFence = geometry.generationFence(*second);
+        assert(survivingFence && survivingFence->current());
+        geometry.invalidate();
+        assert(!survivingFence->current());
+
+        fixture = nativeDisplayFixture();
+        const auto third =
+            geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+        assert(third && geometry.usable(*third));
+        survivingFence = geometry.generationFence(*third);
+        assert(survivingFence && survivingFence->current());
+    }
+
+    // Late native callback state may outlive the serialized geometry owner.
+    // Destruction must revoke without dereferencing the retired owner.
+    assert(survivingFence && !survivingFence->current());
+}
+
 void testNativeDisplayTopologyInvalidation() {
     using namespace rdp::macos;
     auto fixture = nativeDisplayFixture();
@@ -1494,6 +1536,8 @@ int main(const int argument_count, const char* const arguments[]) {
         testNativeDisplayChangedDuringRead();
     } else if (test_case == "geometry-epoch-refresh") {
         testNativeDisplayRefreshEpoch();
+    } else if (test_case == "geometry-epoch-generation-fence-revocation") {
+        testNativeDisplayGenerationFenceRevocation();
     } else if (test_case == "geometry-epoch-invalidate") {
         testNativeDisplayTopologyInvalidation();
     } else if (test_case == "geometry-epoch-failed-refresh") {

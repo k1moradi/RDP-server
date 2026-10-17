@@ -376,15 +376,22 @@ must distinguish owned shape lifetime from current-desktop eligibility: a
 same-dimensions geometry refresh, explicit invalidation, failed refresh or
 topology revision change must deny `validFor` / `pixelsFor` and a later
 successful refresh must never resurrect the old snapshot.
-The Apple-only
+The portable `macos.desktop-geometry-epoch-generation-fence-revocation`
+case must prove a same-facts refresh, explicit invalidation and geometry-owner
+destruction revoke an asynchronous generation fence without dereferencing the
+retired geometry owner. The Apple-only
+`macos.capture-stream-geometry-generation-retirement`,
 `macos.capture-stream-session-watch-frame-retirement` and
 `macos.capture-stream-session-watch-consumer-race` cases use synthetic
-CoreVideo buffers and injected backends, so do not claim them as Linux
-sanitizer execution. Hosted Apple full builds remain deterministic
-compile/link/CoreVideo evidence for those paths, while owner macOS 27 remains
-the real fast-user-switch delivery gate. Do not treat synthetic coverage or
-Apple SDK compilation as authenticated R2/R3 admission or live desktop
-acceptance.
+CoreVideo buffers and injected backends. The generation case must exercise
+replacement before and during prepare/start, asynchronous start completion,
+before frame consumption and inside the synchronous consumer; old state must
+never report `Published`, while a fresh replacement-generation stream may
+publish. Do not claim Apple-only cases as Linux sanitizer execution. Hosted
+Apple full builds remain deterministic compile/link/CoreVideo evidence for
+those paths, while owner macOS 27 remains the real fast-user-switch delivery
+gate. Do not treat synthetic coverage or Apple SDK compilation as authenticated
+R2/R3 admission or live desktop acceptance.
 
 ## Linux clipboard file-destination tests use build-root files only
 

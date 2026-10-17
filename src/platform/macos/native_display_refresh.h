@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <optional>
 
 namespace rdp::macos {
@@ -18,6 +19,34 @@ enum class NativeDisplayRefreshError : std::uint8_t {
     TopologyCoverageUnavailable,
 };
 
+namespace detail {
+struct NativeDisplayGenerationFenceState;
+}
+
+// Copyable, asynchronous-safe R7 revocation fact for one geometry generation.
+// It retains only a small shared atomic state, never the mutable geometry owner,
+// native display objects, permission state, or authorization. Late native
+// callbacks may use current() after the geometry owner refreshes or is destroyed.
+class NativeDisplayGenerationFence final {
+public:
+    NativeDisplayGenerationFence() noexcept = default;
+
+    [[nodiscard]] bool current() const noexcept;
+    [[nodiscard]] std::uint64_t generation() const noexcept {
+        return generation_;
+    }
+
+private:
+    friend class NativeDisplayGeometryRefresh;
+
+    NativeDisplayGenerationFence(
+        std::shared_ptr<const detail::NativeDisplayGenerationFenceState> state,
+        std::uint64_t generation) noexcept;
+
+    std::shared_ptr<const detail::NativeDisplayGenerationFenceState> state_{};
+    std::uint64_t generation_{};
+};
+
 // A synchronous R7 geometry epoch guard, NOT an RDP session, capture stream,
 // authorization capability, or graphics scheduler. Caller serializes refresh,
 // invalidation and translations, and signals native topology changes promptly.
@@ -26,7 +55,9 @@ enum class NativeDisplayRefreshError : std::uint8_t {
 // mapping usable for a new input/capture operation.
 class NativeDisplayGeometryRefresh final {
 public:
-    NativeDisplayGeometryRefresh() noexcept = default;
+    NativeDisplayGeometryRefresh();
+    ~NativeDisplayGeometryRefresh() noexcept;
+
     NativeDisplayGeometryRefresh(const NativeDisplayGeometryRefresh&) = delete;
     NativeDisplayGeometryRefresh& operator=(const NativeDisplayGeometryRefresh&) = delete;
     NativeDisplayGeometryRefresh(NativeDisplayGeometryRefresh&&) = delete;
@@ -46,6 +77,10 @@ public:
 
     [[nodiscard]] std::uint64_t generation() const noexcept { return generation_; }
     [[nodiscard]] bool usable(std::uint64_t generation) const noexcept;
+    // This fence is for asynchronous retirement only. It is issued only for
+    // the exact currently usable generation and never grants capture authority.
+    [[nodiscard]] std::optional<NativeDisplayGenerationFence>
+    generationFence(std::uint64_t generation) const noexcept;
     [[nodiscard]] std::optional<PixelSize>
     virtualPixelSize(std::uint64_t generation) const noexcept;
     [[nodiscard]] std::optional<DesktopDisplayMapping>
@@ -66,6 +101,8 @@ private:
                                 NativeDisplaySnapshotError>& observed,
             std::uint64_t topologyRevision) noexcept;
 
+    std::shared_ptr<detail::NativeDisplayGenerationFenceState>
+        generationFenceState_;
     std::uint64_t generation_{};
     std::uint64_t topologyRevision_{};
     std::optional<DesktopDisplayGeometry> active_{};

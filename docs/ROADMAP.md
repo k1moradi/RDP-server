@@ -1,3 +1,43 @@
+## R7 ScreenCaptureKit geometry-generation retirement fence (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `17fd924eb642a21b9f985800097d975fe551752b`.
+
+The R7 audit found one remaining lifetime asymmetry below the still-blocked
+R2/R3 authority boundary. Input, desktop-session guard and cursor consumption
+already reject a replaced `NativeDisplayGeometryRefresh` generation even when
+display facts and Quartz topology are unchanged. `MacScreenCaptureState`,
+however, retained only scalar generation metadata plus the process topology
+revision, so a voluntary same-topology geometry refresh could leave queued old
+capture callbacks eligible to report `Published`.
+
+This increment adds a revocation-only `NativeDisplayGenerationFence`. One
+shared atomic state belongs to each serialized geometry owner; capture bindings
+copy only that state plus their immutable expected generation. Refresh,
+invalidate and geometry-owner destruction publish revocation before replacing
+mutable geometry, while successful install publishes the new generation last.
+Late capture callbacks therefore never retain or dereference a mutable geometry
+pointer. Prepare/start boundaries, asynchronous completion and frame
+publication recheck generation, topology and GUI-session lifetime. A stale
+generation retires with `StaleGeometryGeneration` and frames use the distinct
+`StaleGeometryGeneration` drop reason. This fence is lifetime evidence only:
+it grants no TCC permission, R2 authentication/admission, R3 session authority,
+R4 scheduling or native factory access.
+
+New behavior CTests are
+`macos.desktop-geometry-epoch-generation-fence-revocation` (portable) and
+Apple-only `macos.capture-stream-geometry-generation-retirement`. The latter
+uses only the existing injected backend and synthetic CoreVideo storage to
+cover same-dimensions replacement before/during prepare and start, late start
+completion, pre-frame replacement, replacement inside the synchronous consumer,
+old-state non-resurrection and fresh-generation publication. No live
+ScreenCaptureKit stream, AppKit event source, TCC prompt or desktop is touched.
+
+Canonical owner-local `~/rdp-server/build/` and owner macOS 27 native/TCC
+testing are **NOT RUN** in this connector environment. Exact publication-SHA
+hosted validation is **PENDING**. The next authority-bearing R7 gate remains
+**BLOCKED** on a genuine non-forgeable R2/R3 macOS desktop admission capability;
+M1 and M5 remain **OPEN / NOT ACCEPTED**.
+
 ## R3 CAL changed-signed-content DER fixture correction (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `f0f852f7da2b7b0dc7c277efe63016ab32b339db`.

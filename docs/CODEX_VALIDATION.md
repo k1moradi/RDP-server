@@ -1,3 +1,25 @@
+## R7 capture geometry-generation retirement authoring receipt (2026-10-16)
+
+**Starting reconciled shared `main`:** `17fd924eb642a21b9f985800097d975fe551752b`.  
+Exact publication-SHA hosted validation: **PENDING**.
+
+R7 now gives asynchronous capture callback state a revocation-only generation
+fence from `NativeDisplayGeometryRefresh`. It is shared because queued native
+callbacks can outlive the mutable geometry owner, but carries no geometry
+pointer, display handle, TCC state or authorization. Refresh/invalidate/owner
+destruction revoke old generations; successful geometry install publishes the
+new generation only after install. Capture prepare/start/completion/frame
+boundaries combine this fence with the existing topology and GUI-session
+checks.
+
+New production-backed tests:
+`macos.desktop-geometry-epoch-generation-fence-revocation` and Apple-only
+`macos.capture-stream-geometry-generation-retirement`. The Apple test uses
+synthetic CoreVideo plus the injected backend only and proves a same-topology
+refresh cannot let an old callback report `Published`; a fresh generation can
+still publish. Native ScreenCaptureKit factory exposure and R2/R3/R4 authority
+remain unchanged.
+
 ## R3 CAL DER-mutation fixture authoring receipt (2026-10-17; exact-SHA CI pending)
 
 **Starting shared `main`:** `f0f852f7da2b7b0dc7c277efe63016ab32b339db`. On Actions `39009402865`, macOS

@@ -26,6 +26,10 @@ makeMacScreenCaptureBinding(const NativeDisplayGeometryRefresh& geometry,
     if (!display) {
         return std::unexpected(MacScreenCaptureError::MissingDisplay);
     }
+    const auto generationFence = geometry.generationFence(geometryGeneration);
+    if (!generationFence) {
+        return std::unexpected(MacScreenCaptureError::StaleGeometryGeneration);
+    }
     const auto topologyRevision = geometry.topologyRevision(geometryGeneration);
     if (!topologyRevision) {
         return std::unexpected(MacScreenCaptureError::StaleTopology);
@@ -38,6 +42,7 @@ makeMacScreenCaptureBinding(const NativeDisplayGeometryRefresh& geometry,
                                    display->physicalPixels.widthPixels,
                                    display->physicalPixels.heightPixels,
                                    geometryGeneration,
+                                   *generationFence,
                                    *topologyRevision,
                                    *sessionWatchRevision};
 }
@@ -45,9 +50,9 @@ makeMacScreenCaptureBinding(const NativeDisplayGeometryRefresh& geometry,
 namespace detail {
 
 MacScreenCaptureState::MacScreenCaptureState(
-    const MacScreenCaptureBinding binding,
+    MacScreenCaptureBinding binding,
     std::shared_ptr<MacCaptureFrameConsumer> consumer) noexcept
-    : binding_(binding), consumer_(std::move(consumer)) {}
+    : binding_(std::move(binding)), consumer_(std::move(consumer)) {}
 
 std::expected<void, MacScreenCaptureError>
 MacScreenCaptureState::beginPrepare() noexcept {
@@ -55,13 +60,9 @@ MacScreenCaptureState::beginPrepare() noexcept {
     if (lifecycleState_ != MacScreenCaptureLifecycleState::Idle) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
-    if (!topologyCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleTopology);
-        return std::unexpected(MacScreenCaptureError::StaleTopology);
-    }
-    if (!sessionCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleSession);
-        return std::unexpected(MacScreenCaptureError::StaleSession);
+    if (const auto stale = staleLifetimeErrorLocked()) {
+        failLocked(*stale);
+        return std::unexpected(*stale);
     }
     lifecycleState_ = MacScreenCaptureLifecycleState::Preparing;
     return {};
@@ -73,13 +74,9 @@ MacScreenCaptureState::beginStart() noexcept {
     if (lifecycleState_ != MacScreenCaptureLifecycleState::Ready) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
-    if (!topologyCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleTopology);
-        return std::unexpected(MacScreenCaptureError::StaleTopology);
-    }
-    if (!sessionCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleSession);
-        return std::unexpected(MacScreenCaptureError::StaleSession);
+    if (const auto stale = staleLifetimeErrorLocked()) {
+        failLocked(*stale);
+        return std::unexpected(*stale);
     }
     lifecycleState_ = MacScreenCaptureLifecycleState::Starting;
     return {};
@@ -98,12 +95,8 @@ MacScreenCaptureState::beginStop() noexcept {
 void MacScreenCaptureState::prepared() noexcept {
     std::scoped_lock lock(mutex_);
     if (lifecycleState_ != MacScreenCaptureLifecycleState::Preparing) return;
-    if (!topologyCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleTopology);
-        return;
-    }
-    if (!sessionCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleSession);
+    if (const auto stale = staleLifetimeErrorLocked()) {
+        failLocked(*stale);
         return;
     }
     lifecycleState_ = MacScreenCaptureLifecycleState::Ready;
@@ -128,12 +121,8 @@ void MacScreenCaptureState::startCompleted(const bool succeeded) noexcept {
         failLocked(MacScreenCaptureError::StartFailed);
         return;
     }
-    if (!topologyCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleTopology);
-        return;
-    }
-    if (!sessionCurrentLocked()) {
-        failLocked(MacScreenCaptureError::StaleSession);
+    if (const auto stale = staleLifetimeErrorLocked()) {
+        failLocked(*stale);
         return;
     }
     lifecycleState_ = MacScreenCaptureLifecycleState::Capturing;
@@ -206,14 +195,8 @@ MacScreenCaptureFrameDisposition MacScreenCaptureState::consumeFrame(
             lastFrameDrop_ = MacScreenCaptureFrameDrop::NotCapturing;
             return MacScreenCaptureFrameDisposition::Dropped;
         }
-        if (!topologyCurrentLocked()) {
-            lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleTopology;
-            failLocked(MacScreenCaptureError::StaleTopology);
-            return MacScreenCaptureFrameDisposition::RetireStream;
-        }
-        if (!sessionCurrentLocked()) {
-            lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleSession;
-            failLocked(MacScreenCaptureError::StaleSession);
+        if (const auto stale = staleLifetimeErrorLocked()) {
+            failStaleFrameLocked(*stale);
             return MacScreenCaptureFrameDisposition::RetireStream;
         }
         if (frameStatus != MacScreenCaptureFrameStatus::Complete) {
@@ -257,14 +240,8 @@ MacScreenCaptureFrameDisposition MacScreenCaptureState::consumeFrame(
             lastFrameDrop_ = MacScreenCaptureFrameDrop::NotCapturing;
             return MacScreenCaptureFrameDisposition::Dropped;
         }
-        if (!topologyCurrentLocked()) {
-            lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleTopology;
-            failLocked(MacScreenCaptureError::StaleTopology);
-            return MacScreenCaptureFrameDisposition::RetireStream;
-        }
-        if (!sessionCurrentLocked()) {
-            lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleSession;
-            failLocked(MacScreenCaptureError::StaleSession);
+        if (const auto stale = staleLifetimeErrorLocked()) {
+            failStaleFrameLocked(*stale);
             return MacScreenCaptureFrameDisposition::RetireStream;
         }
     }
@@ -274,16 +251,11 @@ MacScreenCaptureFrameDisposition MacScreenCaptureState::consumeFrame(
     consumer->consume(framebuffer, binding_.geometryGeneration);
 
     std::scoped_lock lock(mutex_);
-    if (!topologyCurrentLocked()) {
-        lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleTopology;
-        failLocked(MacScreenCaptureError::StaleTopology);
-        return MacScreenCaptureFrameDisposition::RetireStream;
-    }
-    if (!sessionCurrentLocked()) {
+    if (const auto stale = staleLifetimeErrorLocked()) {
         // Bytes already observed by the synchronous consumer cannot be
-        // retracted, but this lifetime must not report successful publication.
-        lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleSession;
-        failLocked(MacScreenCaptureError::StaleSession);
+        // retracted, but a revoked generation/topology/session lifetime must
+        // not report successful publication.
+        failStaleFrameLocked(*stale);
         return MacScreenCaptureFrameDisposition::RetireStream;
     }
     if (lifecycleState_ != MacScreenCaptureLifecycleState::Capturing) {
@@ -297,6 +269,12 @@ MacScreenCaptureFrameDisposition MacScreenCaptureState::consumeFrame(
 MacScreenCaptureLifecycleState MacScreenCaptureState::lifecycleState() const noexcept {
     std::scoped_lock lock(mutex_);
     return lifecycleState_;
+}
+
+std::optional<MacScreenCaptureError>
+MacScreenCaptureState::staleLifetimeError() const noexcept {
+    std::scoped_lock lock(mutex_);
+    return staleLifetimeErrorLocked();
 }
 
 std::optional<MacScreenCaptureError> MacScreenCaptureState::lastError() const noexcept {
@@ -315,12 +293,50 @@ void MacScreenCaptureState::failLocked(const MacScreenCaptureError error) noexce
     consumer_.reset();
 }
 
+void MacScreenCaptureState::failStaleFrameLocked(
+    const MacScreenCaptureError error) noexcept {
+    switch (error) {
+    case MacScreenCaptureError::StaleGeometryGeneration:
+        lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleGeometryGeneration;
+        break;
+    case MacScreenCaptureError::StaleTopology:
+        lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleTopology;
+        break;
+    case MacScreenCaptureError::StaleSession:
+        lastFrameDrop_ = MacScreenCaptureFrameDrop::StaleSession;
+        break;
+    default:
+        lastFrameDrop_ = MacScreenCaptureFrameDrop::NotCapturing;
+        break;
+    }
+    failLocked(error);
+}
+
+bool MacScreenCaptureState::generationCurrentLocked() const noexcept {
+    return binding_.generationFence.generation() == binding_.geometryGeneration &&
+           binding_.generationFence.current();
+}
+
 bool MacScreenCaptureState::topologyCurrentLocked() const noexcept {
     return !NativeDisplayReconfigurationWatch::changedSince(binding_.topologyRevision);
 }
 
 bool MacScreenCaptureState::sessionCurrentLocked() const noexcept {
     return NativeSessionChangeWatch::current(binding_.sessionWatchRevision);
+}
+
+std::optional<MacScreenCaptureError>
+MacScreenCaptureState::staleLifetimeErrorLocked() const noexcept {
+    if (!generationCurrentLocked()) {
+        return MacScreenCaptureError::StaleGeometryGeneration;
+    }
+    if (!topologyCurrentLocked()) {
+        return MacScreenCaptureError::StaleTopology;
+    }
+    if (!sessionCurrentLocked()) {
+        return MacScreenCaptureError::StaleSession;
+    }
+    return std::nullopt;
 }
 
 } // namespace detail
@@ -343,9 +359,17 @@ MacScreenCaptureStream::createForTesting(
     std::unique_ptr<detail::MacScreenCaptureBackend> backend) {
     if (binding.displayId == 0 || binding.widthPixels == 0 ||
         binding.heightPixels == 0 || binding.geometryGeneration == 0 ||
+        binding.generationFence.generation() != binding.geometryGeneration ||
         binding.topologyRevision == 0 || binding.sessionWatchRevision == 0 ||
         !consumer || !backend) {
         return std::unexpected(MacScreenCaptureError::InvalidBinding);
+    }
+    if (!binding.generationFence.current()) {
+        return std::unexpected(MacScreenCaptureError::StaleGeometryGeneration);
+    }
+    if (NativeDisplayReconfigurationWatch::changedSince(
+            binding.topologyRevision)) {
+        return std::unexpected(MacScreenCaptureError::StaleTopology);
     }
     if (!NativeSessionChangeWatch::current(binding.sessionWatchRevision)) {
         return std::unexpected(MacScreenCaptureError::StaleSession);
@@ -414,24 +438,21 @@ std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::prepare() noe
         finishBackendOperation(ownerLock);
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
-    if (!NativeSessionChangeWatch::current(
-            state_->binding().sessionWatchRevision)) {
-        state_->fail(MacScreenCaptureError::StaleSession);
+    if (const auto stale = state_->staleLifetimeError()) {
+        state_->fail(*stale);
         backendRetirementPending_ = true;
         finishBackendOperation(ownerLock);
-        return std::unexpected(MacScreenCaptureError::StaleSession);
+        return std::unexpected(*stale);
     }
 
     ownerLock.unlock();
     auto submitted = backend_->prepare(state_->binding(), state_);
     ownerLock.lock();
     const bool revoked = backendRetirementPending_;
-    const bool staleSession =
-        !revoked &&
-        !NativeSessionChangeWatch::current(
-            state_->binding().sessionWatchRevision);
-    if (staleSession) {
-        state_->fail(MacScreenCaptureError::StaleSession);
+    const auto stale = revoked ? std::optional<MacScreenCaptureError>{}
+                               : state_->staleLifetimeError();
+    if (stale) {
+        state_->fail(*stale);
         backendRetirementPending_ = true;
     } else if (!submitted && !revoked) {
         state_->prepareFailed(submitted.error());
@@ -440,8 +461,8 @@ std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::prepare() noe
     if (revoked) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
-    if (staleSession) {
-        return std::unexpected(MacScreenCaptureError::StaleSession);
+    if (stale) {
+        return std::unexpected(*stale);
     }
     return submitted;
 }
@@ -463,12 +484,10 @@ std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::start() noexc
     auto submitted = backend_->start(state_);
     ownerLock.lock();
     const bool revoked = backendRetirementPending_;
-    const bool staleSession =
-        !revoked &&
-        !NativeSessionChangeWatch::current(
-            state_->binding().sessionWatchRevision);
-    if (staleSession) {
-        state_->fail(MacScreenCaptureError::StaleSession);
+    const auto stale = revoked ? std::optional<MacScreenCaptureError>{}
+                               : state_->staleLifetimeError();
+    if (stale) {
+        state_->fail(*stale);
         backendRetirementPending_ = true;
     } else if (!submitted && !revoked) {
         state_->fail(submitted.error());
@@ -477,8 +496,8 @@ std::expected<void, MacScreenCaptureError> MacScreenCaptureStream::start() noexc
     if (revoked) {
         return std::unexpected(MacScreenCaptureError::IllegalTransition);
     }
-    if (staleSession) {
-        return std::unexpected(MacScreenCaptureError::StaleSession);
+    if (stale) {
+        return std::unexpected(*stale);
     }
     return submitted;
 }

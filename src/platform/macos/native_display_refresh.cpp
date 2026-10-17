@@ -4,12 +4,42 @@
 #include "platform/macos/native_display_geometry.h"
 #include "platform/macos/native_display_reconfiguration.h"
 
+#include <atomic>
 #include <limits>
+#include <memory>
 #include <utility>
 
 namespace rdp::macos {
+namespace detail {
+
+struct NativeDisplayGenerationFenceState final {
+    std::atomic<std::uint64_t> activeGeneration{};
+};
+
+} // namespace detail
+
+NativeDisplayGenerationFence::NativeDisplayGenerationFence(
+    std::shared_ptr<const detail::NativeDisplayGenerationFenceState> state,
+    const std::uint64_t generation) noexcept
+    : state_(std::move(state)), generation_(generation) {}
+
+bool NativeDisplayGenerationFence::current() const noexcept {
+    return state_ != nullptr && generation_ != 0 &&
+           state_->activeGeneration.load(std::memory_order_acquire) ==
+               generation_;
+}
+
+NativeDisplayGeometryRefresh::NativeDisplayGeometryRefresh()
+    : generationFenceState_(
+          std::make_shared<detail::NativeDisplayGenerationFenceState>()) {}
+
+NativeDisplayGeometryRefresh::~NativeDisplayGeometryRefresh() noexcept {
+    generationFenceState_->activeGeneration.store(0, std::memory_order_release);
+}
 
 void NativeDisplayGeometryRefresh::invalidate() noexcept {
+    // Revoke asynchronous users before mutating the serialized geometry owner.
+    generationFenceState_->activeGeneration.store(0, std::memory_order_release);
     active_.reset();
     topologyRevision_ = 0;
     if (generation_ != std::numeric_limits<std::uint64_t>::max()) {
@@ -19,7 +49,10 @@ void NativeDisplayGeometryRefresh::invalidate() noexcept {
 
 bool NativeDisplayGeometryRefresh::advance() noexcept {
     if (generation_ == std::numeric_limits<std::uint64_t>::max()) {
+        generationFenceState_->activeGeneration.store(
+            0, std::memory_order_release);
         active_.reset();
+        topologyRevision_ = 0;
         return false;
     }
     invalidate();
@@ -42,6 +75,10 @@ NativeDisplayGeometryRefresh::install(
     }
     active_.emplace(std::move(*geometry));
     topologyRevision_ = topologyRevision;
+    // Publish the async-visible generation only after the complete geometry
+    // and its topology revision have been installed.
+    generationFenceState_->activeGeneration.store(
+        generation_, std::memory_order_release);
     return generation_;
 }
 
@@ -73,6 +110,15 @@ NativeDisplayGeometryRefresh::refreshNative() noexcept {
 bool NativeDisplayGeometryRefresh::usable(const std::uint64_t generation) const noexcept {
     return generation != 0 && generation == generation_ && active_.has_value() &&
            !NativeDisplayReconfigurationWatch::changedSince(topologyRevision_);
+}
+
+std::optional<NativeDisplayGenerationFence>
+NativeDisplayGeometryRefresh::generationFence(
+    const std::uint64_t generation) const noexcept {
+    if (!usable(generation)) {
+        return std::nullopt;
+    }
+    return NativeDisplayGenerationFence{generationFenceState_, generation};
 }
 
 std::optional<PixelSize> NativeDisplayGeometryRefresh::virtualPixelSize(

@@ -20,6 +20,7 @@ struct MacScreenCaptureBinding {
     std::size_t widthPixels{};
     std::size_t heightPixels{};
     std::uint64_t geometryGeneration{};
+    NativeDisplayGenerationFence generationFence{};
     std::uint64_t topologyRevision{};
     std::uint64_t sessionWatchRevision{};
 };
@@ -72,6 +73,7 @@ enum class MacScreenCaptureFrameDrop : std::uint8_t {
     InvalidDimensions,
     LockFailed,
     InvalidFramebuffer,
+    StaleGeometryGeneration,
     StaleTopology,
     StaleSession,
 };
@@ -138,14 +140,22 @@ public:
                  MacScreenCaptureFrameStatus frameStatus) noexcept;
 
     [[nodiscard]] MacScreenCaptureLifecycleState lifecycleState() const noexcept;
+    // Safe for owner-side checks after synchronous backend callbacks. This
+    // reads only revocation fences retained by the callback state.
+    [[nodiscard]] std::optional<MacScreenCaptureError>
+    staleLifetimeError() const noexcept;
     [[nodiscard]] std::optional<MacScreenCaptureError> lastError() const noexcept;
     [[nodiscard]] MacScreenCaptureFrameDrop lastFrameDrop() const noexcept;
     [[nodiscard]] const MacScreenCaptureBinding& binding() const noexcept { return binding_; }
 
 private:
     void failLocked(MacScreenCaptureError error) noexcept;
+    void failStaleFrameLocked(MacScreenCaptureError error) noexcept;
+    [[nodiscard]] bool generationCurrentLocked() const noexcept;
     [[nodiscard]] bool topologyCurrentLocked() const noexcept;
     [[nodiscard]] bool sessionCurrentLocked() const noexcept;
+    [[nodiscard]] std::optional<MacScreenCaptureError>
+    staleLifetimeErrorLocked() const noexcept;
 
     const MacScreenCaptureBinding binding_;
     mutable std::mutex mutex_;

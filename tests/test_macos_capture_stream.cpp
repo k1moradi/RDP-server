@@ -157,6 +157,10 @@ public:
             assert(gSessionWatchFixture != nullptr);
             gSessionWatchFixture->recordChange();
         }
+        if (refreshGeometryDuringConsume && geometryToRefresh != nullptr) {
+            refreshGeometryDuringConsume = false;
+            refreshedGeneration = geometryToRefresh->refresh();
+        }
         if (stopDuringConsume && streamToStop != nullptr) {
             stopDuringConsume = false;
             stopSucceeded = streamToStop->stop().has_value();
@@ -177,8 +181,11 @@ public:
     const std::byte* expectedPixels{};
     MacScreenCaptureStream* streamToStop{};
     MacScreenCaptureStream* streamToClose{};
+    GeometryFixture* geometryToRefresh{};
+    std::uint64_t refreshedGeneration{};
     bool changeTopologyDuringConsume{};
     bool changeSessionDuringConsume{};
+    bool refreshGeometryDuringConsume{};
     bool stopDuringConsume{};
     bool stopSucceeded{};
     bool closeDuringConsume{};
@@ -195,10 +202,17 @@ public:
         Close,
     };
     enum class ReentryAction : std::uint8_t { Close, InvalidateTopology };
+    enum class GeometryRefreshStage : std::uint8_t {
+        None,
+        Preflight,
+        Prepare,
+        Start,
+    };
 
     ScreenCapturePreflightStatus preflight() noexcept override {
         ++preflightCalls;
         reenterOwner(ReentryStage::Preflight);
+        refreshGeometry(GeometryRefreshStage::Preflight);
         if (revokeSessionDuringPreflight) {
             revokeSessionDuringPreflight = false;
             assert(gSessionWatchFixture != nullptr);
@@ -214,6 +228,7 @@ public:
         lastBinding = receivedBinding;
         state = receivedState;
         reenterOwner(ReentryStage::Prepare);
+        refreshGeometry(GeometryRefreshStage::Prepare);
         if (revokeSessionDuringPrepare) {
             revokeSessionDuringPrepare = false;
             assert(gSessionWatchFixture != nullptr);
@@ -228,6 +243,7 @@ public:
         ++startCalls;
         state = receivedState;
         reenterOwner(ReentryStage::Start);
+        refreshGeometry(GeometryRefreshStage::Start);
         if (revokeSessionDuringStart) {
             revokeSessionDuringStart = false;
             assert(gSessionWatchFixture != nullptr);
@@ -264,6 +280,9 @@ public:
     bool revokeSessionDuringPreflight{};
     bool revokeSessionDuringPrepare{};
     bool revokeSessionDuringStart{};
+    GeometryFixture* geometryToRefresh{};
+    GeometryRefreshStage geometryRefreshStage{GeometryRefreshStage::None};
+    std::uint64_t refreshedGeneration{};
     MacScreenCaptureStream* owner{};
     ReentryStage reentryStage{ReentryStage::None};
     ReentryAction reentryAction{ReentryAction::Close};
@@ -278,6 +297,14 @@ public:
     std::size_t nativeStopClaims{};
 
 private:
+    void refreshGeometry(const GeometryRefreshStage stage) noexcept {
+        if (geometryToRefresh == nullptr || geometryRefreshStage != stage) {
+            return;
+        }
+        geometryRefreshStage = GeometryRefreshStage::None;
+        refreshedGeneration = geometryToRefresh->refresh();
+    }
+
     void reenterOwner(const ReentryStage stage) noexcept {
         if (owner == nullptr || reentryStage != stage) {
             return;
@@ -309,8 +336,13 @@ private:
 };
 
 struct StreamFixture {
-    std::shared_ptr<RecordingConsumer> consumer = std::make_shared<RecordingConsumer>();
+    std::shared_ptr<RecordingConsumer> consumer =
+        std::make_shared<RecordingConsumer>();
     FakeBackend* backend{};
+    // The production binding carries an async revocation fence, not a borrowed
+    // geometry pointer. This owner is only for makeStream() test convenience,
+    // and precedes the stream so reverse destruction retires capture first.
+    std::unique_ptr<GeometryFixture> ownedGeometry{};
     std::unique_ptr<MacScreenCaptureStream> stream;
 };
 
@@ -321,13 +353,16 @@ struct StreamFixture {
     auto created = MacScreenCaptureStream::createForTesting(
         streamBinding, consumer, std::move(fake));
     assert(created);
-    return StreamFixture{std::move(consumer), fakePointer, std::move(*created)};
+    return StreamFixture{
+        std::move(consumer), fakePointer, {}, std::move(*created)};
 }
 
 [[nodiscard]] StreamFixture makeStream() {
-    GeometryFixture geometry;
-    const auto generation = geometry.refresh();
-    return makeStream(geometry.bindingFor(100, generation));
+    auto geometry = std::make_unique<GeometryFixture>();
+    const auto generation = geometry->refresh();
+    auto fixture = makeStream(geometry->bindingFor(100, generation));
+    fixture.ownedGeometry = std::move(geometry);
+    return fixture;
 }
 
 void prepareAndStart(StreamFixture& fixture) {
@@ -739,6 +774,186 @@ void testStartRetirementAfterCompletion() {
     }
 }
 
+void testGeometryGenerationRetirement() {
+    using GeometryRefreshStage = FakeBackend::GeometryRefreshStage;
+
+    auto expectStaleGeneration = [](const auto& result) {
+        assert(!result &&
+               result.error() ==
+                   MacScreenCaptureError::StaleGeometryGeneration);
+    };
+
+    // Same-display/same-topology refresh before prepare invalidates the stream
+    // without relying on a Quartz topology notification.
+    {
+        GeometryFixture geometry;
+        const auto oldGeneration = geometry.refresh();
+        const auto oldBinding = geometry.bindingFor(100, oldGeneration);
+        auto fixture = makeStream(oldBinding);
+        const auto replacementGeneration = geometry.refresh();
+        const auto replacementBinding =
+            geometry.bindingFor(100, replacementGeneration);
+        assert(replacementGeneration > oldGeneration);
+        assert(replacementBinding.widthPixels == oldBinding.widthPixels);
+        assert(replacementBinding.heightPixels == oldBinding.heightPixels);
+        assert(replacementBinding.topologyRevision ==
+               oldBinding.topologyRevision);
+
+        const auto prepared = fixture.stream->prepare();
+        expectStaleGeneration(prepared);
+        assert(fixture.backend->preflightCalls == 0);
+        assert(fixture.backend->prepareCalls == 0);
+        assert(fixture.backend->closeCalls == 1);
+    }
+
+    // Refresh during preflight: no native prepare may be submitted.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        fixture.backend->geometryToRefresh = &geometry;
+        fixture.backend->geometryRefreshStage =
+            GeometryRefreshStage::Preflight;
+        const auto prepared = fixture.stream->prepare();
+        expectStaleGeneration(prepared);
+        assert(fixture.backend->refreshedGeneration > generation);
+        assert(fixture.backend->preflightCalls == 1);
+        assert(fixture.backend->prepareCalls == 0);
+        assert(fixture.backend->closeCalls == 1);
+    }
+
+    // Refresh during an already-entered native prepare submission: the call
+    // cannot be retracted, but success cannot escape the stale lifetime.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        fixture.backend->geometryToRefresh = &geometry;
+        fixture.backend->geometryRefreshStage =
+            GeometryRefreshStage::Prepare;
+        const auto prepared = fixture.stream->prepare();
+        expectStaleGeneration(prepared);
+        assert(fixture.backend->prepareCalls == 1);
+        assert(fixture.backend->refreshedGeneration > generation);
+        assert(fixture.backend->closeCalls == 1);
+    }
+
+    // Refresh after asynchronous preparation completion but before start.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        assert(fixture.stream->state() ==
+               MacScreenCaptureLifecycleState::Ready);
+        const auto replacementGeneration = geometry.refresh();
+        assert(replacementGeneration > generation);
+        const auto started = fixture.stream->start();
+        expectStaleGeneration(started);
+        assert(fixture.backend->startCalls == 0);
+        assert(fixture.backend->closeCalls == 1);
+    }
+
+    // Refresh during an already-entered start submission.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        fixture.backend->geometryToRefresh = &geometry;
+        fixture.backend->geometryRefreshStage = GeometryRefreshStage::Start;
+        const auto started = fixture.stream->start();
+        expectStaleGeneration(started);
+        assert(fixture.backend->startCalls == 1);
+        assert(fixture.backend->refreshedGeneration > generation);
+        assert(fixture.backend->closeCalls == 1);
+    }
+
+    // Successful native start completion after replacement is terminal and
+    // leaves exactly one deferred stop claim for the late native start.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        assert(fixture.stream->prepare());
+        fixture.backend->state->prepared();
+        assert(fixture.stream->start());
+        const auto state = fixture.backend->state;
+        const auto replacementGeneration = geometry.refresh();
+        assert(replacementGeneration > generation);
+        state->startCompleted(true);
+        assert(state->lifecycleState() ==
+               MacScreenCaptureLifecycleState::Failed);
+        assert(state->lastError() ==
+               MacScreenCaptureError::StaleGeometryGeneration);
+        assert(state->claimNativeStopAfterStarted());
+        assert(!state->claimNativeStopAfterStarted());
+    }
+
+    alignas(64) std::array<std::byte, 16> bytes{};
+    auto pixelBuffer = makePixelBuffer(
+        bytes, 2, 2, kCVPixelFormatType_32BGRA, 8);
+
+    // A refresh before the callback reaches its consumer suppresses all old
+    // frame bytes and retires the callback state.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto fixture = makeStream(geometry.bindingFor(100, generation));
+        prepareAndStart(fixture);
+        const auto state = fixture.backend->state;
+        const auto replacementGeneration = geometry.refresh();
+        assert(replacementGeneration > generation);
+        assert(state->consumeFrame(pixelBuffer.value,
+                                   MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::RetireStream);
+        assert(fixture.consumer->calls == 0);
+        assert(state->lastError() ==
+               MacScreenCaptureError::StaleGeometryGeneration);
+        assert(state->lastFrameDrop() ==
+               MacScreenCaptureFrameDrop::StaleGeometryGeneration);
+    }
+
+    // A replacement racing inside the synchronous consumer cannot retract
+    // bytes already observed there, but cannot report Published or revive old
+    // callback state. A fresh current-generation stream still publishes.
+    {
+        GeometryFixture geometry;
+        const auto generation = geometry.refresh();
+        auto oldFixture = makeStream(geometry.bindingFor(100, generation));
+        prepareAndStart(oldFixture);
+        const auto oldState = oldFixture.backend->state;
+        oldFixture.consumer->geometryToRefresh = &geometry;
+        oldFixture.consumer->refreshGeometryDuringConsume = true;
+        assert(oldState->consumeFrame(pixelBuffer.value,
+                                      MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::RetireStream);
+        assert(oldFixture.consumer->calls == 1);
+        assert(oldFixture.consumer->refreshedGeneration > generation);
+        assert(oldState->lastError() ==
+               MacScreenCaptureError::StaleGeometryGeneration);
+        assert(oldState->lastFrameDrop() ==
+               MacScreenCaptureFrameDrop::StaleGeometryGeneration);
+
+        const auto currentGeneration =
+            oldFixture.consumer->refreshedGeneration;
+        auto freshFixture =
+            makeStream(geometry.bindingFor(100, currentGeneration));
+        prepareAndStart(freshFixture);
+        assert(freshFixture.backend->state->consumeFrame(
+                   pixelBuffer.value, MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::Published);
+        assert(freshFixture.consumer->calls == 1);
+        assert(freshFixture.consumer->lastGeneration == currentGeneration);
+        assert(oldState->consumeFrame(pixelBuffer.value,
+                                      MacScreenCaptureFrameStatus::Complete) ==
+               MacScreenCaptureFrameDisposition::Dropped);
+        assert(oldFixture.consumer->calls == 1);
+    }
+}
+
 void testCallbackRetirement() {
     GeometryFixture geometry;
     const auto oldGeneration = geometry.refresh();
@@ -959,6 +1174,8 @@ int main(const int argumentCount, const char* const arguments[]) {
         testLifecycle();
     } else if (testCase == "stale-generation-denials") {
         testDenials();
+    } else if (testCase == "geometry-generation-retirement") {
+        testGeometryGenerationRetirement();
     } else if (testCase == "callback-retirement") {
         testCallbackRetirement();
     } else if (testCase == "consumer-cancellation") {

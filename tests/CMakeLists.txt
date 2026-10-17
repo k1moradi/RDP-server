@@ -1242,7 +1242,8 @@ foreach(case_name IN ITEMS
 endforeach()
 # R7 topology-epoch guard: synthetic reads, no CoreGraphics display,
 # screen-capture stream, TCC prompt, native input or service activation.
-foreach(case_name IN ITEMS refresh invalidate failed-refresh)
+foreach(case_name IN ITEMS
+        refresh generation-fence-revocation invalidate failed-refresh)
     add_test(NAME "macos.desktop-geometry-epoch-${case_name}"
         COMMAND test_macos_capture_pixel_buffer "geometry-epoch-${case_name}")
     set_tests_properties("macos.desktop-geometry-epoch-${case_name}"
@@ -1387,7 +1388,8 @@ if(APPLE)
             -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     endif()
     foreach(case_name IN ITEMS
-            lifecycle stale-generation-denials callback-retirement
+            lifecycle stale-generation-denials
+            geometry-generation-retirement callback-retirement
             consumer-cancellation native-stop-single-ownership
             backend-callback-reentry-retirement
             start-retirement-after-completion

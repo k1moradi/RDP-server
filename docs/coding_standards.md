@@ -1699,3 +1699,13 @@ to `Stopping` must still complete that state, while completion after terminal
 `Closed`/`Failed` retirement is inert except for fail-closed native errors.
 The claim is lifecycle coordination only: it grants no capture permission,
 identity, session admission, graphics scheduling or transport authority.
+
+For asynchronous ScreenCaptureKit callbacks, do not retain a raw
+`NativeDisplayGeometryRefresh*`: the serialized geometry owner may be
+refreshed or destroyed while queued callbacks still hold state. Bind each
+capture lifetime to a copyable generation-revocation fence backed by one
+shared atomic state per geometry owner. Refresh/invalidate/destruction revokes
+before replacing mutable geometry, and callbacks compare only the immutable
+expected generation. Shared ownership is justified solely because callback
+state can outlive the mutable owner; never allocate per frame or treat this
+fence as R2/R3 admission.

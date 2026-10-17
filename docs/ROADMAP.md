@@ -1,3 +1,48 @@
+## R8 bounded multi-file X11 handoff exact-SHA validation (2026-10-16)
+
+**Implementation/fix:** `013b834eaab7b863d1257d8e4730677260746581` +
+`7318bb23fbcde4f9051f08eec06ff8c6b9a218ba`.
+**Actions:** [39004494523](https://github.com/k1moradi/RDP-server/actions/runs/39004494523).
+
+The first implementation run exposed one R8-owned Linux compile error from a
+stale single-file cleanup field in `disconnect()`; the follow-up fix reuses
+the canonical `clearFileHandoff()` path. At the fixed SHA, Linux/GCC full
+CTest is **527/527 PASS** in Debug and **527/527 PASS** in Release. The new
+`clipboard.x11-completed-multi-file-uri-handoff` case passes in both. The
+installed SDK consumer is **1/1 PASS**, and Linux package/artifact steps pass.
+
+R9 Clang ASan/UBSan completes successfully. The complete clipboard-labelled
+selection is **61/61 PASS**, including the new multi-file case. Its additional
+selected groups are also green: portable RDPGFX **34/34**, x264/BGRA **20/20**,
+RDPGFX capabilities **4/4**, bounded R1/R3 transport/security **91/91**,
+runtime security **4/4**, native GSS/R2/R3 **29/29**, direct runtime-security
+**10/10**, native X11 **33/33**, and bounded fuzzer **1/1**.
+
+macOS/AppleClang full CTest is **446/446 PASS** in Debug and Release with its
+downstream consumer/package gates green. The Linux-only X11 multi-file target
+is not registered there. Windows focused native preflight is **51/51 PASS**,
+but full Windows Debug compilation stops in unrelated R1
+`tests/test_owned_preauth_session.cpp:1541` with MSVC C2589 before ordinary
+full CTest; Windows Release/package are therefore **NOT RUN** in this workflow.
+No R8 source appears in that failing diagnostic. A descendant R1 commit later
+addresses that Windows fixture boundary; it is not an R8 ownership change.
+Documentation policy and the independent R7 macOS sanitizer job pass.
+
+Accordingly, the R8 multi-file X11 boundary has exact-SHA Linux Debug/Release
+and ASan/UBSan evidence, plus unaffected macOS regression evidence. The overall
+workflow conclusion is **FAIL** solely because of the unrelated R1 Windows
+compile blocker; do not reinterpret that as Windows or real-client acceptance
+for this Linux-only increment.
+
+Canonical owner-local `~/rdp-server/build`, owner Linux/X11, Windows
+MSYS2 CLANG64/Clang23, macOS27, live Nautilus/Dolphin/Wayland portal use,
+authenticated Microsoft-client file copy, remote directory-tree mapping and
+performance remain **NOT RUN/OPEN**.
+
+**Next R8:** define a bounded explicit directory-tree mapping/capability
+contract that never constructs local paths from untrusted remote names, then
+extend completed-set handoff to Windows/macOS and real-client acceptance.
+
 ## R1 terminal-readiness Win32 macro correction (2026-10-16; exact-SHA CI pending)
 
 **Implementation:** \`9b8f6092e4a0265688ec3bbf51b10cd34db8746e\`.  

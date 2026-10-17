@@ -45,8 +45,7 @@ struct ClearCodecLayout final
         framebuffer.widthPixels >
             std::numeric_limits<std::uint16_t>::max() ||
         framebuffer.heightPixels >
-            std::numeric_limits<std::uint16_t>::max() ||
-        framebuffer.widthPixels > maxSize / 4U)
+            std::numeric_limits<std::uint16_t>::max())
     {
         return false;
     }
@@ -63,9 +62,8 @@ struct ClearCodecLayout final
 
     const std::size_t width = framebuffer.widthPixels;
     const std::size_t height = framebuffer.heightPixels;
-    if (height > maxSize / width)
-        return false;
-
+    // Both dimensions are <= uint16 max, so their product is <=
+    // 4,294,836,225 and fits every supported 32/64-bit size_t target.
     layout.pixelCount = width * height;
     if (layout.pixelCount > maxSize / kResidualBytesPerPixel)
         return false;

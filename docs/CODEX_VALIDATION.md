@@ -1,3 +1,11 @@
+## R4 ClearCodec strict-Clang compile correction (2026-10-17)
+
+**Failing exact SHA:** `70da5c898f1322fd52615298007f175b10a00cd1`. Structure Actions `39050214599` passed. Primary Actions `39050214619` reached successful Ubuntu/GCC Debug compilation, but the first R4-owned compile diagnostic was identical in R9 Clang ASan/UBSan, hosted macOS AppleClang and Windows MSYS2 CLANG64/Clang 23: `gfx_clearcodec.cpp:49` triggered `-Werror,-Wtautological-constant-out-of-range-compare` for comparing the already-u16-bounded `widthPixels` against 64-bit `size_t::max()/4`. R6/R7 job names are not failure ownership; the common production boundary is R4 ClearCodec compilation.
+
+The correction removes the redundant width and width×height overflow branches after the existing `uint16_t` dimension preflight. Their maximum product is 65,535² = 4,294,836,225, which fits the project's supported 32/64-bit `size_t`; the later checked residual-size multiplication remains necessary. No wire byte, codec selection, receipt, sequence, ACK, x264 or native-generation behavior changes. The four dedicated ClearCodec CTests from `70da5c89` remain the production behavior coverage.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** in this connector environment. Correction-SHA hosted CI: **PENDING** at publication.
+
 ## R6 Windows upstream-authority no-post input retirement authoring receipt (2026-10-17)
 
 **Reconciled shared-main parent:** `70da5c898f1322fd52615298007f175b10a00cd1`.

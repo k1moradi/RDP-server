@@ -239,6 +239,7 @@ enum class RdpClientCalChainError : std::uint8_t
     UnsupportedSignatureAlgorithm,
     UnsupportedKeyType,
     SignatureVerificationFailure,
+    InvalidIssuerConstraints,
     MissingTrustAnchor,
     MalformedTrustAnchor,
     UntrustedTrustAnchor,
@@ -268,6 +269,7 @@ struct RdpClientCalChainFacts
     std::size_t certificateCount{};
     bool signaturesVerified{};
     bool trustedIssuerMatched{};
+    bool issuerConstraintsVerified{};
     RdpClientCalPolicyStatus policyStatus{
         RdpClientCalPolicyStatus::NotEvaluated};
     RdpClientCalLeafCertificateValidityStatus leafCertificateValidity{

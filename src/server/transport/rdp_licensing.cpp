@@ -15,6 +15,7 @@
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -810,6 +811,46 @@ constexpr std::array<const char *, 5> kRdpCalLicensingExtensionOids{
            OBJ_cmp(object, expected.get()) == 0;
 }
 
+[[nodiscard]] bool validCalIntermediateIssuer(
+    X509 *certificate) noexcept
+{
+    if (certificate == nullptr)
+        return false;
+
+    const int basicConstraintsIndex =
+        X509_get_ext_by_NID(certificate, NID_basic_constraints, -1);
+    if (basicConstraintsIndex < 0 ||
+        X509_get_ext_by_NID(
+            certificate, NID_basic_constraints,
+            basicConstraintsIndex) >= 0)
+    {
+        return false;
+    }
+
+    X509_EXTENSION *const basicConstraints =
+        X509_get_ext(certificate, basicConstraintsIndex);
+    if (basicConstraints == nullptr ||
+        X509_EXTENSION_get_critical(basicConstraints) != 1 ||
+        X509_check_ca(certificate) != 1)
+    {
+        return false;
+    }
+
+    const int keyUsageIndex =
+        X509_get_ext_by_NID(certificate, NID_key_usage, -1);
+    if (keyUsageIndex < 0)
+        return true;
+    if (X509_get_ext_by_NID(
+            certificate, NID_key_usage, keyUsageIndex) >= 0)
+    {
+        return false;
+    }
+
+    const std::uint32_t keyUsage = X509_get_key_usage(certificate);
+    return keyUsage != UINT32_MAX &&
+           (keyUsage & KU_KEY_CERT_SIGN) != 0U;
+}
+
 [[nodiscard]] RdpClientCalPolicyStatus inspectCalPolicyStatus(
     X509 *leaf) noexcept
 {
@@ -1188,9 +1229,11 @@ inspectRdpClientCalCertificateChainImpl(
     }
 
     std::array<bool, kMaximumRdpClientCalCertificateCount> used{};
+    std::array<X509 *, kMaximumRdpClientCalCertificateCount> path{};
     X509 *issuer = certificates[rootIndex];
     X509 *leaf = issuer;
     used[rootIndex] = true;
+    path[0] = issuer;
 
     OwnedPkey rootPublicKey{X509_get_pubkey(issuer)};
     if (!rootPublicKey ||
@@ -1241,6 +1284,7 @@ inspectRdpClientCalCertificateChainImpl(
         used[childIndex] = true;
         issuer = certificates[childIndex];
         leaf = issuer;
+        path[depth] = issuer;
     }
 
     if (std::any_of(
@@ -1286,6 +1330,16 @@ inspectRdpClientCalCertificateChainImpl(
     }
 
     result.facts.trustedIssuerMatched = true;
+    for (std::size_t index = 1U;
+         index + 1U < result.facts.certificateCount; ++index)
+    {
+        if (!validCalIntermediateIssuer(path[index]))
+        {
+            result.error = RdpClientCalChainError::InvalidIssuerConstraints;
+            return result;
+        }
+    }
+    result.facts.issuerConstraintsVerified = true;
     if (evaluateLeafCertificateValidity)
     {
         result.facts.leafCertificateValidity =

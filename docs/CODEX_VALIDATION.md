@@ -1,3 +1,21 @@
+## R3 CAL intermediate issuer-constraints authoring receipt (2026-10-17; exact-SHA CI pending)
+
+**Starting shared `main`:** `dcbf605fc11c10db65b4e14b522c4806777b2bec`.
+
+Production CAL inspection now rejects signature-valid chains whose
+peer-supplied intermediate is not a proper RFC 3280 certificate-signing CA.
+The independently configured root remains the trust anchor. New CTest
+`transport.licensing-client-cal-issuer-constraints` exercises missing,
+false and non-critical basic constraints, denied `keyCertSign`, and the
+permitted absence of key usage. Existing signature-denial assertions remain
+cryptographic and unchanged.
+
+The R9 flat CAL selector explicitly requires the new registration, bringing the
+focused family to eight cases. Canonical local build/CTest and benchmark
+execution are **NOT RUN** because this connector environment does not expose
+the mandated `~/rdp-server/` checkout. Hosted exact-SHA evidence is
+**PENDING**.
+
 ## R4 post-structure-recovery exact hosted validation (2026-10-17)
 
 **Validated SHA:** `04a272c8b9b52f59a24401643a46d495978d1f95`.  

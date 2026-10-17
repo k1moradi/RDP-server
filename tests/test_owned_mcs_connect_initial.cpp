@@ -18,6 +18,7 @@
 #include <openssl/pkcs7.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -6883,6 +6884,47 @@ void addClientCalFixtureExtension(
     assert(X509_add_ext(certificate, extension.get(), -1) == 1);
 }
 
+void addLicensingFixtureStandardExtension(
+    X509 *certificate, int nid, std::string_view value)
+{
+    assert(certificate != nullptr);
+    std::string mutableValue{value};
+    LicensingExtensionPointer extension{
+        X509V3_EXT_conf_nid(
+            nullptr, nullptr, nid, mutableValue.data()),
+        X509_EXTENSION_free};
+    assert(extension);
+    assert(X509_add_ext(certificate, extension.get(), -1) == 1);
+}
+
+void addLicensingFixtureIssuerConstraints(
+    X509 *certificate,
+    bool certificateAuthority = true,
+    bool criticalBasicConstraints = true,
+    bool includeKeyUsage = true,
+    bool allowCertificateSigning = true)
+{
+    const std::string_view basicConstraints =
+        certificateAuthority
+        ? (criticalBasicConstraints
+               ? "critical,CA:TRUE"
+               : "CA:TRUE")
+        : (criticalBasicConstraints
+               ? "critical,CA:FALSE"
+               : "CA:FALSE");
+    addLicensingFixtureStandardExtension(
+        certificate, NID_basic_constraints, basicConstraints);
+
+    if (!includeKeyUsage)
+        return;
+
+    addLicensingFixtureStandardExtension(
+        certificate, NID_key_usage,
+        allowCertificateSigning
+            ? "critical,keyCertSign"
+            : "critical,digitalSignature");
+}
+
 void addRequiredClientCalFixtureExtensions(X509 *certificate)
 {
     for (std::size_t index = 0U;
@@ -6972,6 +7014,10 @@ struct ClientCalFixture final
         issuerCertificate = makeLicensingFixtureCertificate(
             issuerKey.get(), rootCertificate.get(), rootKey.get(), 102L,
             "rdp-cal-test-issuer", EVP_sha1());
+        addLicensingFixtureIssuerConstraints(issuerCertificate.get());
+        assert(X509_sign(
+                   issuerCertificate.get(), rootKey.get(),
+                   EVP_sha1()) > 0);
         leafCertificate = makeLicensingFixtureCertificate(
             leafKey.get(), issuerCertificate.get(), issuerKey.get(), 103L,
             "rdp-cal-test-leaf", EVP_sha1());
@@ -7423,6 +7469,84 @@ void testRdpClientCalIssuerSignatureDenials()
                encodeClientCalFixture(missingIssuerCertificates),
                fixture.rootDer).error ==
            RdpClientCalChainError::MissingIssuer);
+}
+
+void testRdpClientCalIssuerConstraints()
+{
+    ClientCalFixture fixture;
+    const auto accepted =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(accepted.error == RdpClientCalChainError::None);
+    assert(accepted.facts.signaturesVerified);
+    assert(accepted.facts.trustedIssuerMatched);
+    assert(accepted.facts.issuerConstraintsVerified);
+
+    const auto inspectWithIssuer =
+        [&fixture](X509 *issuer)
+        {
+            const std::array<X509 *, 3> certificates{
+                fixture.leafCertificate.get(),
+                fixture.rootCertificate.get(),
+                issuer};
+            return inspectRdpClientCalCertificateChain(
+                encodeClientCalFixture(certificates), fixture.rootDer);
+        };
+
+    auto missingBasicConstraints = makeLicensingFixtureCertificate(
+        fixture.issuerKey.get(), fixture.rootCertificate.get(),
+        fixture.rootKey.get(), 301L, "rdp-cal-test-issuer", EVP_sha1());
+    const auto missing = inspectWithIssuer(
+        missingBasicConstraints.get());
+    assert(missing.error ==
+           RdpClientCalChainError::InvalidIssuerConstraints);
+    assert(missing.facts.signaturesVerified);
+    assert(missing.facts.trustedIssuerMatched);
+    assert(!missing.facts.issuerConstraintsVerified);
+
+    auto nonCaIssuer = makeLicensingFixtureCertificate(
+        fixture.issuerKey.get(), fixture.rootCertificate.get(),
+        fixture.rootKey.get(), 302L, "rdp-cal-test-issuer", EVP_sha1());
+    addLicensingFixtureIssuerConstraints(
+        nonCaIssuer.get(), false, true, false, false);
+    assert(X509_sign(
+               nonCaIssuer.get(), fixture.rootKey.get(), EVP_sha1()) > 0);
+    assert(inspectWithIssuer(nonCaIssuer.get()).error ==
+           RdpClientCalChainError::InvalidIssuerConstraints);
+
+    auto nonCriticalCa = makeLicensingFixtureCertificate(
+        fixture.issuerKey.get(), fixture.rootCertificate.get(),
+        fixture.rootKey.get(), 303L, "rdp-cal-test-issuer", EVP_sha1());
+    addLicensingFixtureIssuerConstraints(
+        nonCriticalCa.get(), true, false, false, false);
+    assert(X509_sign(
+               nonCriticalCa.get(), fixture.rootKey.get(), EVP_sha1()) > 0);
+    assert(inspectWithIssuer(nonCriticalCa.get()).error ==
+           RdpClientCalChainError::InvalidIssuerConstraints);
+
+    auto deniedKeyUsage = makeLicensingFixtureCertificate(
+        fixture.issuerKey.get(), fixture.rootCertificate.get(),
+        fixture.rootKey.get(), 304L, "rdp-cal-test-issuer", EVP_sha1());
+    addLicensingFixtureIssuerConstraints(
+        deniedKeyUsage.get(), true, true, true, false);
+    assert(X509_sign(
+               deniedKeyUsage.get(), fixture.rootKey.get(),
+               EVP_sha1()) > 0);
+    assert(inspectWithIssuer(deniedKeyUsage.get()).error ==
+           RdpClientCalChainError::InvalidIssuerConstraints);
+
+    auto absentKeyUsage = makeLicensingFixtureCertificate(
+        fixture.issuerKey.get(), fixture.rootCertificate.get(),
+        fixture.rootKey.get(), 305L, "rdp-cal-test-issuer", EVP_sha1());
+    addLicensingFixtureIssuerConstraints(
+        absentKeyUsage.get(), true, true, false, false);
+    assert(X509_sign(
+               absentKeyUsage.get(), fixture.rootKey.get(),
+               EVP_sha1()) > 0);
+    const auto withoutKeyUsage = inspectWithIssuer(absentKeyUsage.get());
+    assert(withoutKeyUsage.error == RdpClientCalChainError::None);
+    assert(withoutKeyUsage.facts.issuerConstraintsVerified);
+    assert(withoutKeyUsage.facts.policyStatus ==
+           RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
 }
 
 void testRdpClientCalProductExtensionDenials()
@@ -8559,7 +8683,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 122> kMcsTestCases{{
+constexpr std::array<McsTestCase, 123> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -8624,6 +8748,7 @@ constexpr std::array<McsTestCase, 122> kMcsTestCases{{
     {"licensing-client-license-info-hwid-fresh-verification", &testRdpClientLicenseInfoHardwareIdFreshVerification},
     {"licensing-client-cal-chain-structure", &testRdpClientCalChainStructure},
     {"licensing-client-cal-issuer-signature-denials", &testRdpClientCalIssuerSignatureDenials},
+    {"licensing-client-cal-issuer-constraints", &testRdpClientCalIssuerConstraints},
     {"licensing-client-cal-product-extension-denials", &testRdpClientCalProductExtensionDenials},
     {"licensing-client-cal-certificate-validity", &testRdpClientCalCertificateValidity},
     {"licensing-client-cal-expiry-hwid-denials", &testRdpClientCalExpiryHwidDenials},

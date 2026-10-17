@@ -1,3 +1,26 @@
+## R3 CAL intermediate issuer-signing constraints (2026-10-17)
+
+The existing-client CAL inspector now distinguishes cryptographic signature
+success from certificate-signing authorization. MS-RDPELE 2.2.2.9 says
+licensing certificates conform to X.509 v3 / RFC 3280. After the independently
+provisioned root has been matched exactly, every peer-supplied intermediate in
+the reconstructed root-to-leaf path must therefore be a proper X.509 v3 CA:
+exactly one `basicConstraints` extension, marked critical, with `CA:TRUE`.
+If a key-usage extension is present it must include `keyCertSign`.
+
+The explicit trusted root remains the out-of-band trust anchor and is not
+reclassified from peer certificate extensions. A two-certificate
+trust-anchor-to-leaf path therefore has no peer-supplied intermediate to
+authorize. Intermediate constraints are checked only after all chain signatures
+verify and the exact root anchor matches; success is recorded separately as
+`issuerConstraintsVerified`.
+
+This is a necessary X.509 path prerequisite, not Microsoft CAL policy.
+Product/version data, CAL-specific expiry/renewal/classification, revocation,
+path-length processing, the five proprietary licensing-extension payloads and
+CAL-to-HWID binding remain incomplete. No `STATUS_VALID_CLIENT`, license
+grant, Share activation or R2 admission transition is added.
+
 ## R3 CAL leaf-certificate validity fact (2026-10-17)
 
 R3 now exposes one explicit-time extension of the existing CAL chain inspector.

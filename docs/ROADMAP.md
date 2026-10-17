@@ -1,3 +1,43 @@
+## R3 CAL intermediate issuer-authorization boundary (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `dcbf605fc11c10db65b4e14b522c4806777b2bec`.
+
+MS-RDPELE 2.2.2.9 defines license-server/client certificates as X.509 v3 under
+RFC 3280. The existing inspector already reconstructs one unique chain, checks
+RSA/SHA-1 signatures and requires an independent exact root trust anchor, but
+it previously accepted a cryptographically valid peer-supplied intermediate
+even when that certificate was not authorized as a CA.
+
+This increment adds the missing fail-closed intermediate issuer prerequisite.
+Every non-root, non-leaf path certificate must carry exactly one critical
+`basicConstraints` extension with `CA:TRUE`. When key usage is present,
+`keyCertSign` must be asserted. The trust anchor itself remains out-of-band
+policy and is not required to derive authority from its peer-provided
+extensions. A dedicated production-backed CTest
+`transport.licensing-client-cal-issuer-constraints` covers the positive
+constrained issuer plus signature-valid chains with missing constraints,
+`CA:FALSE`, non-critical CA constraints and denied key usage; it also proves
+that absent key usage is allowed when the critical CA constraint is valid.
+R9's flat CAL sanitizer selector now fail-closed preflights the new case.
+
+The prior signature, root-match, leaf-validity and licensing-extension behavior
+is unchanged. Product/version correlation, CAL-specific license expiry,
+renewal/permanent/temporary classification, revocation/path-length handling,
+proprietary extension decoding, CAL-to-HWID binding and a genuine issuing
+authority remain incomplete and non-authorizing. No `STATUS_VALID_CLIENT`,
+Platform Challenge decision, Share activation or R2 admission behavior changes.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest and
+benchmarks are **NOT RUN** in this connector environment. The change is
+connection-time certificate validation, not a hot graphics/input loop; no
+performance claim is made. Exact publication-SHA Linux/GCC,
+macOS/AppleClang, Windows/MSVC, R9 ASan/UBSan, documentation and package
+evidence is **PENDING**.
+
+**Next R3:** validate this issuer-authorization gate. Then continue only with
+standards-defined X.509/path prerequisites or authoritative CAL encodings;
+do not infer Microsoft licensing-extension payload layouts.
+
 ## R4 P2 post-structure-recovery hosted validation (2026-10-17)
 
 **Validated unchanged-R4 SHA:** `04a272c8b9b52f59a24401643a46d495978d1f95`.  

@@ -34,7 +34,10 @@ void GfxPresentationLifecycle::disconnect() noexcept
     generation_ = 0;
     pending_ = {};
     pendingFrame_ = {};
+    pendingFrameCodec_ = PendingFrameCodec::None;
     surfaceId_ = 0;
+    clearCodecSequence_ = 0;
+    avc420Enabled_ = false;
     geometry_ = {};
     originX_ = 0;
     originY_ = 0;
@@ -52,14 +55,16 @@ bool GfxPresentationLifecycle::acceptCapabilities(
     {
         return false;
     }
-    const auto negotiated = negotiateGfxAvc420(advertisement);
-    if (!negotiated.accepted() || negotiated.confirmationBytes != confirmation_.size())
+    const auto negotiated = negotiateGfxCapabilities(advertisement);
+    if (!negotiated.accepted() ||
+        negotiated.confirmationBytes != confirmation_.size())
     {
         stage_ = GfxPresentationStage::Rejected;
         acknowledgements_.reset(0);
         return false;
     }
     confirmation_ = negotiated.confirmation;
+    avc420Enabled_ = negotiated.avc420Enabled;
     stage_ = GfxPresentationStage::ConfirmReady;
     return true;
 }
@@ -72,8 +77,7 @@ bool GfxPresentationLifecycle::configureSurface(
     if (!active(generation) ||
         stage_ != GfxPresentationStage::SurfaceUnconfigured ||
         geometry.widthPixels == 0 ||
-        geometry.heightPixels == 0 || (geometry.widthPixels & 1U) != 0 ||
-        (geometry.heightPixels & 1U) != 0 ||
+        geometry.heightPixels == 0 ||
         geometry.widthPixels > std::numeric_limits<std::uint16_t>::max() ||
         geometry.heightPixels > std::numeric_limits<std::uint16_t>::max())
     {
@@ -211,6 +215,7 @@ bool GfxPresentationLifecycle::beginFrameDelivery(
     if (frameBytes == 0 || !canReserveFrame(generation, frameId))
         return false;
     pendingFrame_ = {generation, ++lastSerial_, frameId, frameBytes};
+    pendingFrameCodec_ = PendingFrameCodec::None;
     receipt = pendingFrame_;
     return true;
 }
@@ -225,7 +230,10 @@ bool GfxPresentationLifecycle::prepareAvc420Picture(
         picture.visibleGeometry.widthPixels == 0 &&
         picture.visibleGeometry.heightPixels == 0
             ? picture.codedGeometry : picture.visibleGeometry;
-    if (!canReserveFrame(generation, picture.frameId) ||
+    if (!avc420Enabled_ ||
+        (visible.widthPixels & 1U) != 0U ||
+        (visible.heightPixels & 1U) != 0U ||
+        !canReserveFrame(generation, picture.frameId) ||
         picture.surfaceId != surfaceId_ ||
         visible != geometry_)
     {
@@ -236,7 +244,37 @@ bool GfxPresentationLifecycle::prepareAvc420Picture(
         return false; // Builder validates before writing any output.
     // No concurrent state mutation is possible on this single-owner
     // synchronous path between preflight and reservation.
-    return beginFrameDelivery(generation, picture.frameId, written, receipt);
+    if (!beginFrameDelivery(generation, picture.frameId, written, receipt))
+        return false;
+    pendingFrameCodec_ = PendingFrameCodec::Avc420;
+    return true;
+}
+
+bool GfxPresentationLifecycle::prepareClearCodecFrame(
+    std::uint64_t generation,
+    const GfxClearCodecFrameRequest &request,
+    std::span<std::byte> output,
+    GfxFrameDeliveryReceipt &receipt) noexcept
+{
+    if (!canReserveFrame(generation, request.frameId) ||
+        request.surfaceId != surfaceId_ ||
+        request.framebuffer.widthPixels != geometry_.widthPixels ||
+        request.framebuffer.heightPixels != geometry_.heightPixels)
+    {
+        return false;
+    }
+
+    const std::size_t written = buildGfxClearCodecFrame(
+        request, clearCodecSequence_, output);
+    if (written == 0U ||
+        !beginFrameDelivery(
+            generation, request.frameId, written, receipt))
+    {
+        return false;
+    }
+
+    pendingFrameCodec_ = PendingFrameCodec::ClearCodec;
+    return true;
 }
 
 bool GfxPresentationLifecycle::cancelUnwrittenFrameDelivery(
@@ -251,7 +289,9 @@ bool GfxPresentationLifecycle::cancelUnwrittenFrameDelivery(
 
     // Only the exact unsent reservation is retired. Earlier ACK-tracked
     // frames, client observations, mapped surface and generation survive.
+    // ClearCodec sequence is deliberately not consumed by zero publication.
     pendingFrame_ = {};
+    pendingFrameCodec_ = PendingFrameCodec::None;
     return true;
 }
 
@@ -262,13 +302,22 @@ bool GfxPresentationLifecycle::completeFrameDelivery(
     if (!active(receipt.generation) || pendingFrame_.serial == 0 ||
         receipt != pendingFrame_ || deliveredBytes != pendingFrame_.bytes)
         return false;
+    const PendingFrameCodec deliveredCodec = pendingFrameCodec_;
+
     // Only R3's complete send receipt can publish an ACK-tracked frame.
     if (!acknowledgements_.noteFrameSent(receipt.generation, receipt.frameId))
     {
         disconnect(); // ACK correlation lost after send: fail closed.
         return false;
     }
+
+    if (deliveredCodec == PendingFrameCodec::ClearCodec)
+    {
+        clearCodecSequence_ = static_cast<std::uint8_t>(
+            static_cast<unsigned>(clearCodecSequence_) + 1U);
+    }
     pendingFrame_ = {};
+    pendingFrameCodec_ = PendingFrameCodec::None;
     return true;
 }
 

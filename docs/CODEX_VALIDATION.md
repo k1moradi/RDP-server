@@ -1,3 +1,17 @@
+## R4 mandatory ClearCodec fallback authoring receipt (2026-10-17)
+
+**Starting reconciled shared `main`:** `3de3c6c38832e7d5578c648d4e9371b131aaf93e`. **Publication:** this atomic R4 production/test/roadmap commit; exact publication-SHA hosted results are **PENDING**.
+
+Normative review used published MS-RDPEGFX revision 19.0 (2026-05-11). Section 1.7 requires Graphics Pipeline Extension implementers to support ClearCodec, while AVC/H.264 use is capability-set/flag dependent. The prior R4 lifecycle accepted only VERSION81 advertisements with AVC420_ENABLED, so ClearCodec-only VERSION8/VERSION81 clients were rejected: this is a demonstrated standards gap, not a speculative optimization.
+
+The correction adds allocation-free `gfx_clearcodec.{h,cpp}`: one complete START_FRAME + WIRE_TO_SURFACE_1(codec 0x0008) + END_FRAME using the mandatory lossless ClearCodec residual layer, B/G/R source bytes, explicit u16 dimensions and checked u32 protocol lengths. It deliberately uses no glyph, band or subcodec cache and emits one legal run per source pixel. Generic capability selection now confirms the highest R4-supported VERSION81 or VERSION8 set. The historical `negotiateGfxAvc420()` API remains source-compatible and still succeeds only for selected VERSION81 AVC420_ENABLED, preventing accidental H.264 publication on a ClearCodec-only offer.
+
+No second graphics owner is introduced. `GfxPresentationLifecycle` owns the ClearCodec sequence and advances it only after the same exact frame-delivery receipt enters ACK tracking. Zero-byte cancellation preserves the sequence; terminal abort/disconnect resets it. `prepareGfxClearCodecSegmentedFrame()` reuses the existing move-only `GfxAvc420SegmentedFrame`, RDP8 segmented-data envelope and existing cancel/complete/abort functions. Existing AVC420/x264 producer, IDR recovery, FRAME_ACKNOWLEDGE semantics and native R5/R6/R7 generation fences are unchanged.
+
+Dedicated central CTests are `graphics.clearcodec-residual-frame-wire`, `graphics.clearcodec-capability-fallback`, `graphics.clearcodec-owned-delivery-recovery` and `graphics.clearcodec-denials`. They are ordinary production-linked offline tests. Canonical owner-local `~/rdp-server/build/` configure/build/CTest is **NOT RUN** in this connector environment; no alternate persistent build root was created. Exact publication-SHA hosted CI is **PENDING**. No real Microsoft client, desktop capture, authenticated Graphics DVC, QoE acknowledgement or visible frame was exercised.
+
+R3 authenticated Graphics DVC integration is still **BLOCKED / NOT RUN**: current shared main exposes post-Share `drdynvc` resolution but no completed sender or immutable R4-payload-to-outer-write interval receipt. When that owner lands, its first integration test must prove ordered gap-free/non-overlapping R4 payload coverage, separate outer-header accounting, conclusive-zero cancellation, full mapped completion and terminal positive-partial/header-only abort. R4 intentionally does not select VERSION10+ until the required additional protocol behavior exists.
+
 ## R9 Graphics DVC workflow authoring correction (2026-10-17)
 
 Initial R9 publication `7ad942ce0af65f0cb578f877618030c5d0c4ea7a`

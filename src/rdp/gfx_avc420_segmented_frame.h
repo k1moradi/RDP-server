@@ -7,15 +7,17 @@
 #include <vector>
 
 #include "gfx_avc420_picture.h"
+#include "gfx_clearcodec.h"
 #include "gfx_presentation_lifecycle.h"
 
 namespace rdp_server::rdp
 {
 
-// Stable R4-owned bytes for one already-encoded AVC420 frame after RDP8
-// segmented-data framing. This is not a DVC, transport, scheduler or
-// authorization object. R3 must retain it until its authorized full-send
-// callback reports completion or failure.
+// Stable R4-owned bytes for one already-encoded graphics frame after RDP8
+// segmented-data framing. The historical type name is retained to avoid an
+// API rename; the same move-only owner now carries AVC420 or the mandatory
+// ClearCodec fallback. This is not a DVC, transport, scheduler or authorization
+// object. R3 must retain it through its authorized publication receipt.
 class GfxAvc420SegmentedFrame final
 {
 public:
@@ -53,6 +55,10 @@ private:
     friend bool prepareGfxAvc420SegmentedFrame(
         GfxPresentationLifecycle &, std::uint64_t,
         const GfxAvc420Picture &, GfxAvc420SegmentedFrame &) noexcept;
+    friend bool prepareGfxClearCodecSegmentedFrame(
+        GfxPresentationLifecycle &, std::uint64_t,
+        const GfxClearCodecFrameRequest &,
+        GfxAvc420SegmentedFrame &) noexcept;
     friend bool cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
         GfxPresentationLifecycle &, GfxAvc420SegmentedFrame &) noexcept;
     friend bool completeGfxAvc420SegmentedFrameDelivery(
@@ -84,6 +90,14 @@ private:
 [[nodiscard]] bool prepareGfxAvc420SegmentedFrame(
     GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
     const GfxAvc420Picture &picture,
+    GfxAvc420SegmentedFrame &output) noexcept;
+
+// Mandatory ClearCodec fallback uses the identical move-only publication owner,
+// RDP8 segmentation and receipt retirement path; only frame serialization
+// differs. Output remains unchanged on deterministic rejection.
+[[nodiscard]] bool prepareGfxClearCodecSegmentedFrame(
+    GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
+    const GfxClearCodecFrameRequest &request,
     GfxAvc420SegmentedFrame &output) noexcept;
 
 // R3 may call this only after conclusively proving that no byte from this

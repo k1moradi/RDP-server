@@ -172,6 +172,7 @@ add_library(rdp-server-protocol STATIC
     src/rdp/gfx_frame_acknowledge.cpp
     src/rdp/gfx_presentation_lifecycle.cpp
     src/rdp/gfx_avc420_picture.cpp
+    src/rdp/gfx_clearcodec.cpp
     src/rdp/gfx_segmented_data.cpp
     src/rdp/gfx_avc420_segmented_frame.cpp
     src/rdp/verified_bitmap_cache16.cpp)

@@ -8,6 +8,7 @@
 
 #include "gfx_avc420_capabilities.h"
 #include "gfx_avc420_picture.h"
+#include "gfx_clearcodec.h"
 #include "gfx_frame_acknowledge.h"
 #include "gfx_surface_lifecycle.h"
 
@@ -81,9 +82,10 @@ public:
     [[nodiscard]] bool acceptCapabilities(
         std::uint64_t generation,
         std::span<const std::byte> advertisement) noexcept;
-    // Configure exactly one AVC420-compatible even-size surface per mapping.
-    // surfaceId spans the full MS-RDPEGFX u16 domain, including zero; stage_
-    // carries configured/unconfigured state and must not be inferred from ID.
+    // Configure exactly one u16-sized graphics surface per mapping. ClearCodec
+    // supports odd dimensions; AVC420 retains its existing even-visible guard
+    // at frame preparation. surfaceId spans the full MS-RDPEGFX u16 domain,
+    // including zero; stage_ carries configuredness, not the numeric ID.
     [[nodiscard]] bool configureSurface(
         std::uint64_t generation, std::uint16_t surfaceId,
         PixelSize geometry, std::uint32_t originX = 0,
@@ -117,6 +119,21 @@ public:
     [[nodiscard]] bool prepareAvc420Picture(
         std::uint64_t generation, const GfxAvc420Picture &picture,
         std::span<std::byte> output, GfxFrameDeliveryReceipt &receipt) noexcept;
+
+    // Serialize one lossless mandatory ClearCodec fallback frame through the
+    // same receipt/ACK owner. The lifecycle owns the remote-session sequence;
+    // cancellation does not advance it and only exact complete delivery does.
+    [[nodiscard]] bool prepareClearCodecFrame(
+        std::uint64_t generation, const GfxClearCodecFrameRequest &request,
+        std::span<std::byte> output, GfxFrameDeliveryReceipt &receipt) noexcept;
+
+    // True only when the selected and confirmed-capability candidate included
+    // VERSION81 AVC420_ENABLED. This does not imply mapped/publishable state.
+    [[nodiscard]] bool avc420Enabled() const noexcept
+    {
+        return avc420Enabled_;
+    }
+
     // Withdraw exactly the pending frame without changing the mapped
     // presentation. R3 may call this only after conclusively proving that
     // cumulative accepted wire bytes are zero and all outbound borrows are
@@ -169,6 +186,13 @@ public:
     [[nodiscard]] std::uint16_t surfaceId() const noexcept { return surfaceId_; }
 
 private:
+    enum class PendingFrameCodec : std::uint8_t
+    {
+        None,
+        Avc420,
+        ClearCodec,
+    };
+
     [[nodiscard]] bool active(std::uint64_t generation) const noexcept;
 
     GfxPresentationStage stage_{GfxPresentationStage::Inactive};
@@ -179,7 +203,10 @@ private:
     std::uint64_t lastSerial_{};
     GfxPresentationReceipt pending_{};
     GfxFrameDeliveryReceipt pendingFrame_{};
+    PendingFrameCodec pendingFrameCodec_{PendingFrameCodec::None};
     std::uint16_t surfaceId_{};
+    std::uint8_t clearCodecSequence_{};
+    bool avc420Enabled_{};
     PixelSize geometry_{};
     std::uint32_t originX_{};
     std::uint32_t originY_{};

@@ -70,6 +70,54 @@ bool prepareGfxAvc420SegmentedFrame(
     }
 }
 
+bool prepareGfxClearCodecSegmentedFrame(
+    GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
+    const GfxClearCodecFrameRequest &request,
+    GfxAvc420SegmentedFrame &output) noexcept
+{
+    if (output.valid())
+        return false;
+
+    const std::size_t graphicsBytes =
+        gfxClearCodecFrameBytes(request);
+    const std::size_t segmentedBytes =
+        gfxSegmentedDataBytes(graphicsBytes);
+    if (graphicsBytes == 0U || segmentedBytes == 0U)
+        return false;
+
+    try
+    {
+        std::vector<std::byte> wireBytes(segmentedBytes);
+        GfxFrameDeliveryReceipt receipt{};
+        if (!lifecycle.prepareClearCodecFrame(
+                generation, request,
+                std::span<std::byte>{wireBytes}.first(graphicsBytes),
+                receipt))
+        {
+            return false;
+        }
+
+        const std::size_t written = buildGfxSegmentedData(
+            std::span<const std::byte>{wireBytes}.first(graphicsBytes),
+            wireBytes);
+        if (written != segmentedBytes ||
+            receipt.bytes != graphicsBytes)
+        {
+            (void)lifecycle.abortFrameDelivery(receipt);
+            return false;
+        }
+
+        output.wireBytes_ = std::move(wireBytes);
+        output.receipt_ = receipt;
+        output.graphicsBytes_ = graphicsBytes;
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 bool cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
     GfxPresentationLifecycle &lifecycle,
     GfxAvc420SegmentedFrame &frame) noexcept

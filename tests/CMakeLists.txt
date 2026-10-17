@@ -364,6 +364,17 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("graphics.${case_name}" PROPERTIES
                 LABELS "protocol;graphics;offline")
         endforeach()
+    elseif(test_target STREQUAL "test_gfx_clearcodec_fallback")
+        foreach(case_name IN ITEMS
+                clearcodec-residual-frame-wire
+                clearcodec-capability-fallback
+                clearcodec-owned-delivery-recovery
+                clearcodec-denials)
+            add_test(NAME "graphics.${case_name}"
+                COMMAND "${test_target}" "${case_name}")
+            set_tests_properties("graphics.${case_name}" PROPERTIES
+                LABELS "protocol;graphics;offline")
+        endforeach()
     elseif(test_target STREQUAL "test_gfx_segmented_data")
         foreach(case_name IN ITEMS
                 segmented-data-single
@@ -666,6 +677,7 @@ add_rdp_test(test_gfx_avc420_capabilities.cpp graphics avc420-capabilities)
 add_rdp_test(test_gfx_frame_acknowledge.cpp graphics frame-ack-wire)
 add_rdp_test(test_gfx_presentation_lifecycle.cpp graphics channel-lifecycle)
 add_rdp_test(test_gfx_avc420_picture.cpp graphics avc420-picture)
+add_rdp_test(test_gfx_clearcodec_fallback.cpp graphics clearcodec-fallback)
 add_rdp_test(test_gfx_segmented_data.cpp graphics segmented-data)
 add_rdp_test(test_gfx_avc420_segmented_frame.cpp graphics avc420-segmented-frame)
 if(TARGET rdp-server-linux-gssapi)

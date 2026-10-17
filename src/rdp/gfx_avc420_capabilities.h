@@ -10,13 +10,37 @@
 namespace rdp_server::rdp
 {
 
-// MS-RDPEGFX 2.2.2.18/19. The returned confirmation is a complete graphics
-// command PDU; R3 owns any DVC fragmentation and the channel lifetime.
-enum class GfxAvc420NegotiationStatus
+inline constexpr std::uint32_t kGfxCapabilityVersion8 = 0x00080004U;
+inline constexpr std::uint32_t kGfxCapabilityVersion81 = 0x00080105U;
+
+enum class GfxCapabilityNegotiationStatus
 {
     Accepted,
     MalformedAdvertisement,
     UnsupportedCapability,
+};
+
+// Keep the historical R4 AVC420 status name source-compatible.
+using GfxAvc420NegotiationStatus = GfxCapabilityNegotiationStatus;
+
+// MS-RDPEGFX CAPS_ADVERTISE/CAPS_CONFIRM selection for the profiles R4 can
+// actually implement. ClearCodec is mandatory for the Graphics Pipeline
+// Extension and is available for every accepted profile. AVC420 is optional
+// and true only when the selected VERSION81 set explicitly enables it.
+struct GfxCapabilityNegotiationResult final
+{
+    GfxCapabilityNegotiationStatus status{
+        GfxCapabilityNegotiationStatus::MalformedAdvertisement};
+    std::array<std::byte, 20> confirmation{};
+    std::size_t confirmationBytes{};
+    std::uint32_t selectedVersion{};
+    std::uint32_t selectedFlags{};
+    bool avc420Enabled{};
+
+    [[nodiscard]] bool accepted() const noexcept
+    {
+        return status == GfxCapabilityNegotiationStatus::Accepted;
+    }
 };
 
 struct GfxAvc420NegotiationResult final
@@ -33,10 +57,18 @@ struct GfxAvc420NegotiationResult final
 };
 
 // Parses exactly one complete CAPS_ADVERTISE command (not a DVC fragment).
-// Stateless and allocation-free; safe to invoke from the R3 session thread.
-// The only supported profile is MS-RDPEGFX version 8.1 with explicit AVC420.
+// R4 currently supports VERSION8 and VERSION81. The highest supported
+// advertised set is confirmed; newer sets are not inferred as supported.
 // A caller MUST NOT transmit graphics before confirmation is delivered.
+[[nodiscard]] GfxCapabilityNegotiationResult
+negotiateGfxCapabilities(
+    std::span<const std::byte> advertisement) noexcept;
+
+// Historical AVC420-only query retained for the existing encoder path. It
+// succeeds only when generic negotiation selects VERSION81 with the explicit
+// AVC420_ENABLED flag. ClearCodec-only capability sets remain unsupported here.
 [[nodiscard]] GfxAvc420NegotiationResult
-negotiateGfxAvc420(std::span<const std::byte> advertisement) noexcept;
+negotiateGfxAvc420(
+    std::span<const std::byte> advertisement) noexcept;
 
 } // namespace rdp_server::rdp

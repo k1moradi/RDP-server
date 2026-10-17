@@ -1,3 +1,23 @@
+## R3 CAL issuer-signature fixture portability correction (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `7751e079a56e15034845ab61e4ad5e527204efc6`. Actions `39008819773`
+proves the flat R9 CAL selector enumerates and executes all six dedicated tests:
+five pass and `transport.licensing-client-cal-issuer-signature-denials` fails
+at the changed-signed-property assertion.
+
+This correction is test-only. A duplicated signed leaf receives a new serial
+through the owning OpenSSL setter `X509_set_serialNumber()`, backed by RAII
+`ASN1_INTEGER` storage. The fixture asserts direct `X509_verify()` failure
+before exercising `inspectRdpClientCalCertificateChain()`, so provider cache
+behavior fails at the fixture boundary rather than being mistaken for
+production verifier behavior.
+
+No production source, CAL acceptance rule, CTest registration, trust-anchor
+contract, licensing lifecycle or R2/R10 authority path changes. Canonical local
+`~/rdp-server/build/` execution is **NOT RUN** because that checkout is not
+available in this connector environment. Exact-SHA hosted matrix and sanitizer
+evidence is **PENDING**.
+
 ## R9 CredSSP fuzzer executable receipt and hardening (2026-10-16)
 
 **Executable evidence:** `ec8f9df25f9986a2d51fb258f7798ac8596cfed3`,

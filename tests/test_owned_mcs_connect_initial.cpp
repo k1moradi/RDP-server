@@ -6751,6 +6751,8 @@ using LicensingPkcs7Pointer =
     std::unique_ptr<PKCS7, decltype(&PKCS7_free)>;
 using LicensingAsn1ObjectPointer =
     std::unique_ptr<ASN1_OBJECT, decltype(&ASN1_OBJECT_free)>;
+using LicensingAsn1IntegerPointer =
+    std::unique_ptr<ASN1_INTEGER, decltype(&ASN1_INTEGER_free)>;
 using LicensingAsn1OctetStringPointer =
     std::unique_ptr<ASN1_OCTET_STRING, decltype(&ASN1_OCTET_STRING_free)>;
 using LicensingExtensionPointer =
@@ -7280,18 +7282,16 @@ void testRdpClientCalIssuerSignatureDenials()
     LicensingCertificatePointer changedLeaf{
         X509_dup(fixture.leafCertificate.get()), X509_free};
     assert(changedLeaf);
-    LicensingX509NamePointer changedSubject{
-        X509_NAME_dup(X509_get_subject_name(changedLeaf.get())),
-        X509_NAME_free};
-    assert(changedSubject);
-    constexpr std::string_view changedSubjectMarker{"changed-after-sign"};
-    assert(X509_NAME_add_entry_by_txt(
-               changedSubject.get(), "OU", MBSTRING_ASC,
-               reinterpret_cast<const unsigned char *>(
-                   changedSubjectMarker.data()),
-               static_cast<int>(changedSubjectMarker.size()), -1, 0) == 1);
-    assert(X509_set_subject_name(
-               changedLeaf.get(), changedSubject.get()) == 1);
+    LicensingAsn1IntegerPointer changedSerial{
+        ASN1_INTEGER_new(), ASN1_INTEGER_free};
+    assert(changedSerial);
+    assert(ASN1_INTEGER_set(changedSerial.get(), 999L) == 1);
+    // Use the setter rather than mutating X509_get_serialNumber() storage so
+    // OpenSSL invalidates any cached TBSCertificate encoding on every provider.
+    assert(X509_set_serialNumber(
+               changedLeaf.get(), changedSerial.get()) == 1);
+    assert(X509_verify(
+               changedLeaf.get(), fixture.issuerKey.get()) != 1);
     const std::array<X509 *, 3> changedCertificates{
         changedLeaf.get(),
         fixture.rootCertificate.get(),

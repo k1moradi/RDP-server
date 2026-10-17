@@ -1,3 +1,29 @@
+## R3 CAL signed-property fixture portability correction (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `7751e079a56e15034845ab61e4ad5e527204efc6`.
+
+Actions `39008819773` executes all six R3 client-CAL tests under the existing
+R9 ASan/UBSan selector. Five pass; the remaining
+`transport.licensing-client-cal-issuer-signature-denials` case aborts at the
+changed-signed-property assertion because that synthetic leaf mutation does not
+reliably yield `SignatureVerificationFailure` on Linux/OpenSSL.
+
+The negative fixture now changes a duplicated leaf serial through
+`X509_set_serialNumber()` with a separately owned `ASN1_INTEGER`, then
+asserts direct `X509_verify()` failure before the chain reaches
+`inspectRdpClientCalCertificateChain()`. This avoids direct mutation of
+getter-owned ASN.1 storage and avoids changing issuer/subject path semantics
+while still proving that modified signed contents are rejected.
+
+Production CAL parsing, PKCS#7 grammar, signature-algorithm policy, explicit
+trust-anchor matching, licensing-extension handling and the non-authorizing
+`ClientLicenseInfoValidation` lifecycle are unchanged. The existing
+behavior-named CTest remains the gate; no new production behavior is introduced.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment. Exact publication-SHA hosted Linux/GCC,
+macOS/AppleClang, Windows/MSVC and R9 ASan/UBSan evidence is **PENDING**.
+
 ## R9 CredSSP fuzzer registry/framing hardening (2026-10-16; exact-SHA CI pending)
 
 **Reconciled shared-main parent:** `2ad37e35e9c1109e2e5509a19025a6a7551030f2`.

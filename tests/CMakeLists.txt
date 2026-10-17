@@ -569,6 +569,18 @@ add_test(NAME clipboard.remote-transfer-framing-rejections
     COMMAND test_owned_remote_transfer framing-rejections)
 set_tests_properties(clipboard.remote-transfer-framing-rejections PROPERTIES
     LABELS "protocol;clipboard;security")
+# R8 fixed-capacity, generation-pinned local destination planning. These cases
+# reuse the production RemoteTransfer and are centrally registered exactly once.
+foreach(case_name IN ITEMS
+        file-destination-plan-index-generation
+        file-destination-plan-directory-traversal-denials
+        file-destination-plan-transactional-commit
+        file-destination-plan-cancel-replay)
+    add_test(NAME "clipboard.${case_name}"
+        COMMAND test_owned_remote_transfer "${case_name}")
+    set_tests_properties("clipboard.${case_name}" PROPERTIES
+        LABELS "protocol;clipboard;security;offline")
+endforeach()
 add_rdp_test(test_clipboard_protocol.cpp clipboard protocol)
 # R9 bounded fragmentation, ownership and reset regression; reuse test binary.
 add_test(NAME clipboard.chunk-reassembly-reset-bounds
@@ -1740,7 +1752,8 @@ foreach(case_name IN ITEMS
         windows-file-destination-size-cancel
         windows-file-destination-destructor-retirement
         windows-file-destination-denials
-        windows-completed-file-hdrop-handoff)
+        windows-completed-file-hdrop-handoff
+        file-destination-plan-native-capability-integration)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_windows_clipboard_file_destination "${case_name}")
     set_tests_properties("clipboard.${case_name}" PROPERTIES

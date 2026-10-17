@@ -165,6 +165,51 @@ invoke the existing explicit-service PAM verifier synchronously inside this same
 provenance/secret lifetime, then define final private completion before native
 admission can run.
 
+## R8 bounded generation-pinned file-destination plan (2026-10-16)
+
+`RemoteFileDestinationPlan` is a fixed-capacity child contract of the one
+`RemoteTransfer` owner. It records no remote filename and performs no
+filesystem I/O. Each committed association contains only the exact remote
+descriptor index, a nonzero caller-controlled local selection identity, the
+remote descriptor's file/directory role, and an optional caller-selected parent
+descriptor index. The numeric selection identity exists for stable duplicate
+and conflict detection only; it is not a descriptor, HANDLE, path capability or
+authorization result.
+
+Preparation is transactional over the complete current descriptor manifest:
+the plan rejects out-of-range or duplicate indices, missing or duplicate
+selection identities, missing/self/file parents, ambiguous duplicate placement,
+cycles and hierarchy depth beyond 16 before publishing any association.
+Validation uses fixed 64-entry candidate/presence arrays and commits into a
+fixed 64-entry association array; no file body or tree is prefetched. Once
+committed, the plan is one-shot. Cancellation and close are terminal and
+idempotent.
+
+Currentness binds three facts: the exact `RemoteTransfer` object, its public
+clipboard generation, and a private monotonic accepted-offer epoch. The epoch
+is intentionally not reset by disconnect, because `generation()` restarts
+from zero and a later offer can reuse the same number. This prevents a stale
+plan from acquiring currentness by ABA after reconnect without changing
+existing wire generation semantics.
+
+The retained FILEDESCRIPTORW contract still cannot prove a remote hierarchy.
+Directory role is present only when the descriptor supplies
+`FD_ATTRIBUTES`/`FILE_ATTRIBUTE_DIRECTORY`. With
+`CB_FILECLIP_NO_FILE_PATHS` negotiated, source paths are prohibited, and the
+existing R8 parser rejects path separators and unsafe/malformed leaf names
+rather than retaining parent components. Therefore an optional plan parent is
+only caller-selected local placement metadata; `hierarchyStatus()` remains
+`UnsupportedWithRetainedMetadata`, and a directory association returns
+`UnsupportedDirectoryMaterialization`.
+
+Actual bytes continue through the existing platform destinations. They receive
+the planned descriptor index plus an independently selected, already-open
+native descriptor/HANDLE, duplicate that resource under their existing
+ownership rules, and use the sole `RemoteTransfer` SIZE/RANGE request stream.
+The plan cannot open, create, truncate, write, flush or publish anything and
+cannot produce a native clipboard offer. Windows/macOS completed-set
+publication and any directory-relative native creation remain later contracts.
+
 ## R8 bounded multi-file X11 completed-set presentation (2026-10-16)
 
 The Linux descriptor sink remains one-file-at-a-time because

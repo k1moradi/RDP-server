@@ -1,3 +1,67 @@
+## R8 bounded file-destination planning contract (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `541a9460a19f7cfca1c5c73fdb74cc1630e21772`.
+
+R8 now has a fixed-capacity, non-authorizing
+`RemoteFileDestinationPlan` between retained FileGroupDescriptorW metadata
+and the existing native file destinations. A complete plan maps every current
+remote descriptor index to one nonzero caller selection identity, optionally
+records an explicit caller-selected parent index, derives only the descriptor's
+file/directory role, and commits atomically only after the full manifest is
+valid. The representation is bounded to the existing 64 remote descriptors,
+one active mapping per index, unique local selection identities and placement
+depth 16. It owns no path, descriptor, HANDLE, file bytes, request scheduler or
+clipboard publication state.
+
+The hierarchy audit is deliberately fail-closed. MS-RDPECLIP
+FileGroupDescriptorW can identify directories through `FD_ATTRIBUTES` plus
+`FILE_ATTRIBUTE_DIRECTORY`; the filename field can describe path-bearing
+names in protocol modes that allow them. The negotiated
+`CB_FILECLIP_NO_FILE_PATHS` capability forbids source paths, and R8's existing
+parser is stricter still: it retains only bounded safe UTF-16 leaf names and
+rejects slash, backslash, drive-colon/path syntax, embedded-NUL tails and
+malformed surrogate sequences. Consequently the retained descriptor list
+contains no verified parent identity. A caller-supplied parent relation is only
+local placement metadata and never proof of a remote tree. Directory entries
+therefore report `UnsupportedDirectoryMaterialization`; no mkdir/openat,
+CreateFile, symlink traversal or path synthesis is added.
+
+A committed plan is pinned to the exact `RemoteTransfer` owner, its public
+clipboard generation and a private monotonic accepted-offer epoch. The epoch
+does not reset on disconnect, so a numeric generation reused after reconnect
+cannot resurrect an old mapping. Source replacement, disconnect/reconnect,
+cancellation or close makes the association unusable. Native materialization
+still requires the independently supplied caller-opened descriptor/HANDLE
+already consumed by `LinuxClipboardFileDestination`,
+`WindowsClipboardFileDestination` or `MacClipboardFileDestination`; the
+plan's numeric selection identity is explicitly not such a capability.
+
+Dedicated production-backed CTests are
+`clipboard.file-destination-plan-index-generation`,
+`clipboard.file-destination-plan-directory-traversal-denials`,
+`clipboard.file-destination-plan-transactional-commit`,
+`clipboard.file-destination-plan-cancel-replay`, and
+`clipboard.file-destination-plan-native-capability-integration`. The last
+case composes the production Windows destination with injected native
+operations and proves that using the plan identity as a handle fails, while an
+independently supplied caller handle is duplicated and remains the actual
+writable capability. R9's clipboard ASan/UBSan registry preflight enumerates
+all five names before executing the complete clipboard-labelled selection.
+
+Canonical owner-local `~/rdp-server/build/` Debug/Release execution is
+**NOT RUN** in this connector environment because the canonical checkout could
+not be synchronized and project policy forbids an alternate persistent checkout
+or build root. Exact-publication-SHA hosted Linux/GCC, macOS/AppleClang,
+Windows/MSVC, R9 ASan/UBSan, documentation, SDK consumer and package evidence
+is **PENDING**. Live Finder/Explorer/Nautilus interoperability, authenticated
+Microsoft-client file copy, owner-native M1 platforms and directory-tree
+materialization remain **NOT RUN / OPEN**. This increment does not accept M1-M6.
+
+**Next R8 after validation:** consume completed planned sets in bounded Windows
+multi-file `CF_HDROP` and macOS multi-NSURL publication, then design a
+separately reviewed race-safe native directory capability/symlink policy before
+any directory creation.
+
 ## R1 owned-TLS handshake readiness hosted validation (2026-10-17)
 
 **Implementation:** \`31abf200efa83bf4fc7badf3b35f30b8ff2db127\`.  

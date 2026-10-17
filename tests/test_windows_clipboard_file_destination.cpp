@@ -29,6 +29,7 @@
 #include <windows.h>
 #endif
 
+using rdp_server::server::clipboard::RemoteFileDestinationPlan;
 using rdp_server::server::clipboard::RemoteTransfer;
 using namespace rdp_server::windows;
 
@@ -679,6 +680,90 @@ void windowsFileDestinationDenials()
     }
 }
 
+
+void fileDestinationPlanNativeCapabilityIntegration()
+{
+    using Plan = RemoteFileDestinationPlan;
+    constexpr std::u16string_view kLocalPath{
+        u"C:\\Temp\\rdp-server-plan-capability.bin"};
+
+    RemoteTransfer owner;
+    installSingleFileOffer(owner, u"remote.bin", true, 4U);
+
+    const std::array<Plan::Selection, 1> selections{{
+        {0U, 0x303U, std::nullopt},
+    }};
+    Plan plan;
+    assert(plan.prepare(owner, owner.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+    const auto association = plan.association(owner, 0U);
+    assert(association);
+    assert(plan.associationStatus(owner, 0U) ==
+           Plan::AssociationStatus::CurrentFile);
+
+    // Stable selection metadata is deliberately not a writable capability.
+    FakeNative metadataOnlyNative;
+    WindowsClipboardFileDestination metadataOnlyDestination{
+        owner, metadataOnlyNative.operations()};
+    assert(!metadataOnlyDestination.begin(
+        association->remoteFileIndex,
+        static_cast<WindowsClipboardFileHandleToken>(
+            association->localSelectionIdentity)));
+    assert(metadataOnlyNative.duplicateCalls == 1U);
+    assert(metadataOnlyNative.bytes.empty());
+
+    // The real materializer gets the planned source index plus a separate
+    // caller-selected native handle and remains the writable-resource owner.
+    FakeNative native;
+    WindowsClipboardFileDestination destination{
+        owner, native.operations()};
+    assert(destination.begin(
+        association->remoteFileIndex, native.sourceToken, kLocalPath));
+    assert(native.duplicateCalls == 1U);
+
+    FakeClipboard clipboard;
+    WindowsClipboardAdapter adapter{
+        owner, clipboard.operations(), FakeClipboard::kOwnerWindow};
+    clipboard.adapter = &adapter;
+    assert(!adapter.publishCompletedFileDestination(destination));
+
+    const auto intent = destination.nextRequestIntent();
+    assert(intent && intent->fileIndex == association->remoteFileIndex);
+    std::vector<std::uint8_t> request;
+    const auto receipt = owner.beginFileRangeRequest(
+        intent->fileIndex, intent->offset,
+        intent->requestedBytes, request);
+    assert(receipt);
+    assert(destination.bindRequest(*receipt));
+    assert(owner.hasOutstandingFileContentsRequest());
+
+    plan.cancel();
+    destination.cancel();
+    assert(destination.status() ==
+           WindowsClipboardFileDestination::Status::Cancelled);
+    assert(!destination.completedFilePath());
+    assert(native.bytes.empty());
+    assert(!adapter.publishCompletedFileDestination(destination));
+
+    // RemoteTransfer drains the one exact outstanding response, but neither
+    // cancelled association can become complete or publishable again.
+    const std::array<std::uint8_t, 4> bytes{1U, 2U, 3U, 4U};
+    const auto wire = fileContentsResponsePdu(
+        rdp_server::clipboard::kResponseOk,
+        receipt->streamId, bytes);
+    const auto result = owner.receiveFileContentsResponse(wire);
+    assert(result.status ==
+           RemoteTransfer::FileContentsStatus::ReceivedRange);
+    assert(!owner.hasOutstandingFileContentsRequest());
+    assert(!destination.acceptResult(result));
+    assert(destination.status() ==
+           WindowsClipboardFileDestination::Status::Cancelled);
+    assert(plan.associationStatus(owner, 0U) ==
+           Plan::AssociationStatus::Cancelled);
+    assert(!adapter.publishCompletedFileDestination(destination));
+    assert(clipboard.writes.empty());
+}
+
 void windowsCompletedFileHdropHandoff()
 {
     constexpr std::u16string_view kLocalPath{
@@ -858,6 +943,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-completed-file-hdrop-handoff")
     {
         windowsCompletedFileHdropHandoff();
+        return 0;
+    }
+    if (behavior == "file-destination-plan-native-capability-integration")
+    {
+        fileDestinationPlanNativeCapabilityIntegration();
         return 0;
     }
 #ifdef _WIN32

@@ -20,6 +20,8 @@ struct McsChannelRequest;
 namespace rdp_server::server::clipboard
 {
 
+class RemoteFileDestinationPlan;
+
 // A source-owned, single-session CLIPRDR response coordinator.
 // The channel transports one Format Data Request at a time: responses have
 // no wire request ID. A new Format List cannot make an in-flight response
@@ -487,6 +489,8 @@ public:
     [[nodiscard]] bool advertises(std::uint32_t formatId) const noexcept;
 
 private:
+    friend class RemoteFileDestinationPlan;
+
     struct PendingRequest
     {
         std::uint64_t generation{};
@@ -586,6 +590,9 @@ private:
     bool joinedFileContentsActive_{};
     std::array<std::uint32_t, 4> attemptedPrefetchIds_{};
     std::uint64_t generation_{};
+    // Monotonic accepted-offer identity. Unlike generation_, this never resets
+    // on disconnect, so generation-number reuse cannot revive stale mappings.
+    std::uint64_t sourceEpoch_{};
     std::uint32_t negotiatedGeneralFlags_{};
     // Keep the raw exchange only to prove the offline Lock prerequisite;
     // negotiatedGeneralFlags_ still masks CB_CAN_LOCK_CLIPDATA.
@@ -601,6 +608,142 @@ private:
     std::size_t joinedRequestWrittenBytes_{};
     bool joinedRequestActive_{};
     bool poisoned_{};
+};
+
+// Fixed-capacity, non-authorizing association metadata for one exact remote
+// clipboard offer generation. It never opens, creates, writes, flushes or
+// publishes a local filesystem object. localSelectionIdentity is caller-owned
+// stable metadata used only to detect conflicting selections; it is NOT a
+// native filesystem capability. Actual materialization still requires an
+// independently supplied open descriptor/HANDLE in the platform destination.
+//
+// Thread-safety: event-loop/thread confined, like RemoteTransfer. A committed
+// plan must not outlive its bound RemoteTransfer object.
+class RemoteFileDestinationPlan final
+{
+public:
+    static constexpr std::size_t kMaximumAssociations =
+        RemoteTransfer::kMaximumRemoteFiles;
+    static constexpr std::size_t kMaximumPlacementDepth = 16U;
+
+    enum class RemoteEntryRole : std::uint8_t
+    {
+        File,
+        Directory,
+    };
+
+    struct Selection
+    {
+        std::size_t remoteFileIndex{};
+        std::uint64_t localSelectionIdentity{};
+        // Explicit caller-selected local placement relation only. This is not
+        // evidence that the remote source advertised the same hierarchy.
+        std::optional<std::size_t> parentRemoteFileIndex{};
+    };
+
+    struct Association
+    {
+        std::size_t remoteFileIndex{};
+        std::uint64_t localSelectionIdentity{};
+        std::optional<std::size_t> parentRemoteFileIndex{};
+        RemoteEntryRole remoteRole{RemoteEntryRole::File};
+    };
+
+    enum class PrepareStatus : std::uint8_t
+    {
+        Prepared,
+        AlreadyCommitted,
+        Cancelled,
+        Closed,
+        SourceNotSynchronized,
+        GenerationRequired,
+        StaleGeneration,
+        NoRemoteDescriptors,
+        EmptyManifest,
+        TooManySelections,
+        IncompleteManifest,
+        RemoteIndexOutOfRange,
+        DuplicateRemoteIndex,
+        AmbiguousPlacement,
+        MissingDestination,
+        DuplicateDestination,
+        DescriptorUnavailable,
+        MissingParent,
+        SelfParent,
+        ParentNotDirectory,
+        ParentCycle,
+        PlacementDepthExceeded,
+    };
+
+    enum class AssociationStatus : std::uint8_t
+    {
+        CurrentFile,
+        UnsupportedDirectoryMaterialization,
+        NotCommitted,
+        Cancelled,
+        Closed,
+        StaleSource,
+        MissingAssociation,
+    };
+
+    enum class RemoteHierarchyStatus : std::uint8_t
+    {
+        UnsupportedWithRetainedMetadata,
+    };
+
+    [[nodiscard]] PrepareStatus prepare(
+        const RemoteTransfer &source, std::uint64_t expectedGeneration,
+        std::span<const Selection> selections) noexcept;
+
+    // Returns metadata only while the exact source object, offer epoch and
+    // generation remain current. No native capability is returned or implied.
+    [[nodiscard]] std::optional<Association> association(
+        const RemoteTransfer &source,
+        std::size_t remoteFileIndex) const noexcept;
+    [[nodiscard]] AssociationStatus associationStatus(
+        const RemoteTransfer &source,
+        std::size_t remoteFileIndex) const noexcept;
+    [[nodiscard]] bool current(const RemoteTransfer &source) const noexcept;
+
+    [[nodiscard]] bool committed() const noexcept
+    {
+        return state_ == State::Committed;
+    }
+    [[nodiscard]] std::size_t size() const noexcept
+    {
+        return associationCount_;
+    }
+    [[nodiscard]] std::uint64_t generation() const noexcept
+    {
+        return generation_;
+    }
+    [[nodiscard]] RemoteHierarchyStatus hierarchyStatus() const noexcept
+    {
+        return RemoteHierarchyStatus::UnsupportedWithRetainedMetadata;
+    }
+
+    // Cancellation is terminal. close() is idempotent and preserves an
+    // already-cancelled terminal state.
+    void cancel() noexcept;
+    void close() noexcept;
+
+private:
+    enum class State : std::uint8_t
+    {
+        Empty,
+        Committed,
+        Cancelled,
+        Closed,
+    };
+
+    void retireMetadata(State terminalState) noexcept;
+
+    std::array<Association, kMaximumAssociations> associations_{};
+    std::size_t associationCount_{};
+    std::uint64_t generation_{};
+    std::uint64_t sourceEpoch_{};
+    const RemoteTransfer *source_{};
+    State state_{State::Empty};
 };
 
 } // namespace rdp_server::server::clipboard

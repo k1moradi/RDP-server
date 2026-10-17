@@ -1,3 +1,43 @@
+## R8 bounded destination-plan authoring validation (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `541a9460a19f7cfca1c5c73fdb74cc1630e21772`.
+
+Source/protocol review confirms the retained R8 FileGroupDescriptorW list is an
+ordered set of at most 64 safe leaf descriptors, not a verified directory tree.
+`FD_ATTRIBUTES` plus `FILE_ATTRIBUTE_DIRECTORY` can mark a directory, but
+the current parser rejects both slash forms, drive/path punctuation, malformed
+UTF-16 and nonzero data after the terminating NUL. With negotiated
+`CB_FILECLIP_NO_FILE_PATHS`, no source path is available to reconstruct a
+parent. The implementation therefore adds only explicit caller placement
+metadata and reports remote hierarchy/directory materialization unsupported.
+
+The production `RemoteFileDestinationPlan` uses only fixed-capacity state:
+64 associations, maximum placement depth 16, exact descriptor indices, unique
+nonzero selection identities and transactional all-member validation. It is
+bound to the exact `RemoteTransfer` object, public generation and a private
+monotonic offer epoch that survives disconnect to prevent generation-number
+ABA. It has no path strings, native handles, FileContents coordinator,
+background work or native clipboard writer.
+
+Five behavior CTests are centrally registered:
+`clipboard.file-destination-plan-index-generation`,
+`clipboard.file-destination-plan-directory-traversal-denials`,
+`clipboard.file-destination-plan-transactional-commit`,
+`clipboard.file-destination-plan-cancel-replay`, and
+`clipboard.file-destination-plan-native-capability-integration`. The first
+four reuse `test_owned_remote_transfer`; the fifth composes the existing
+production Windows materializer/adapter using deterministic injected native
+operations. The R9 clipboard sanitizer preflight requires every name and then
+runs the full clipboard label.
+
+Canonical local configure/build/CTest is **NOT RUN**: this execution environment
+cannot synchronize `~/rdp-server` from GitHub, and project policy forbids a
+second persistent checkout/build root. Hosted Debug/Release, exact clipboard
+ASan/UBSan, documentation policy, installed-SDK consumer and package/digest
+evidence are **PENDING** for the publication SHA. No live desktop clipboard,
+native file manager, authenticated Microsoft client, directory creation or
+M1-M6 acceptance is claimed.
+
 ## R1 owned-TLS handshake readiness hosted validation (2026-10-17)
 
 **Implementation:** \`31abf200efa83bf4fc7badf3b35f30b8ff2db127\`.  

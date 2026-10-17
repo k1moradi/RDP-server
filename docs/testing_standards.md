@@ -62,6 +62,37 @@ existing cross-road selection and move the new bounded family to a small flat
 selector rather than weakening coverage or treating zero selected tests as a
 pass.
 
+## File-destination-plan tests separate metadata from native authority
+
+Destination-plan coverage must use the real `RemoteTransfer` descriptor list
+and exact remote descriptor indices. Build at least two same-name descriptors
+to prove names do not collapse identity, then exercise nonzero generation,
+source replacement and disconnect/reconnect generation-number reuse. A plan
+test must not construct a local path from the remote leaf name.
+
+Batch preparation is all-or-nothing: cover out-of-range/duplicate source
+indices, zero/duplicate local selection identities, incomplete and over-64
+manifests, later-member failure, one-shot recommit, idempotent close and stale
+source retirement. When explicit caller placement parents are represented,
+cover missing/self/file parents, ambiguous duplicate placement, cycles and the
+fixed depth bound. A directory mapping may exist as metadata only and must
+return an explicit unsupported-materialization result.
+
+Traversal syntax belongs at the parser boundary, not in a planner sanitizer.
+Exercise slash/backslash, parent traversal, absolute/drive/UNC-like names,
+embedded-NUL tails and malformed UTF-16 against the production
+FILEDESCRIPTORW parser; then verify the planner sees only already-retained leaf
+metadata. Caller parent relations are local placement choices, never evidence
+of remote tree fidelity.
+
+At least one native integration case must pass a planned descriptor index to an
+existing platform destination and separately supply the real caller-selected
+native writable capability. Deliberately passing the plan's numeric selection
+identity as that capability must fail. Cancellation must retire partial native
+state while `RemoteTransfer` drains any exact in-flight receipt, and a late
+success must not make the plan or destination publishable. Sanitizer CI must
+enumerate every dedicated plan CTest before the full clipboard-labelled run.
+
 ## Multi-file clipboard handoff tests prove atomic completed-set visibility
 
 For a multi-file native handoff, materialize at least two files through the

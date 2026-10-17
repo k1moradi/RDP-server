@@ -303,7 +303,9 @@ bool RemoteTransfer::receiveFormatList(
     remoteFiles_.fill({});
     remoteFileCount_ = 0;
     remoteFileGeneration_ = 0;
-    if (poisoned_ || generation_ == std::numeric_limits<std::uint64_t>::max() ||
+    if (poisoned_ ||
+        generation_ == std::numeric_limits<std::uint64_t>::max() ||
+        sourceEpoch_ == std::numeric_limits<std::uint64_t>::max() ||
         advertisedFormatIds.size() > kMaximumFormats)
     {
         poisoned_ = true;
@@ -341,6 +343,7 @@ bool RemoteTransfer::receiveFormatList(
     fileGroupDescriptorFormatId_ = 0;
     attemptedPrefetchIds_.fill(0);
     ++generation_;
+    ++sourceEpoch_;
     // pending_ deliberately survives a new format list: CLIPRDR wire
     // responses carry no request generation. A stale response must be drained.
     return true;
@@ -2246,9 +2249,10 @@ void RemoteTransfer::resetAfterDisconnect() noexcept
     joinedRequestFrameBytes_ = 0;
     joinedRequestWrittenBytes_ = 0;
     joinedRequestActive_ = false;
-    // Request/file/lock receipt sequences and clipDataIdSequence_ remain
-    // monotonic across reconnects so stale callbacks cannot acquire a fresh
-    // identity or resurrect an old locked generation.
+    // Request/file/lock receipt sequences, clipDataIdSequence_ and
+    // sourceEpoch_ remain monotonic across reconnects so stale callbacks or
+    // destination plans cannot acquire a fresh identity or resurrect an old
+    // generation.
     poisoned_ = false;
 }
 
@@ -2279,6 +2283,279 @@ bool RemoteTransfer::advertises(std::uint32_t formatId) const noexcept
                      advertisedFormats_.begin() + advertisedCount_,
                      formatId) !=
                advertisedFormats_.begin() + advertisedCount_;
+}
+
+
+RemoteFileDestinationPlan::PrepareStatus
+RemoteFileDestinationPlan::prepare(
+    const RemoteTransfer &source, const std::uint64_t expectedGeneration,
+    const std::span<const Selection> selections) noexcept
+{
+    if (state_ == State::Committed)
+    {
+        return PrepareStatus::AlreadyCommitted;
+    }
+    if (state_ == State::Cancelled)
+    {
+        return PrepareStatus::Cancelled;
+    }
+    if (state_ == State::Closed)
+    {
+        return PrepareStatus::Closed;
+    }
+    if (!source.synchronized())
+    {
+        return PrepareStatus::SourceNotSynchronized;
+    }
+    if (expectedGeneration == 0U)
+    {
+        return PrepareStatus::GenerationRequired;
+    }
+    if (source.generation() != expectedGeneration)
+    {
+        return PrepareStatus::StaleGeneration;
+    }
+
+    const std::size_t remoteFileCount = source.remoteFileCount();
+    if (remoteFileCount == 0U)
+    {
+        return PrepareStatus::NoRemoteDescriptors;
+    }
+    if (selections.size() > kMaximumAssociations)
+    {
+        return PrepareStatus::TooManySelections;
+    }
+    if (selections.empty())
+    {
+        return PrepareStatus::EmptyManifest;
+    }
+
+    std::array<Association, kMaximumAssociations> candidates{};
+    std::array<bool, kMaximumAssociations> mapped{};
+    for (const Selection &selection : selections)
+    {
+        if (selection.remoteFileIndex >= remoteFileCount)
+        {
+            return PrepareStatus::RemoteIndexOutOfRange;
+        }
+        if (selection.localSelectionIdentity == 0U)
+        {
+            return PrepareStatus::MissingDestination;
+        }
+
+        const std::size_t remoteFileIndex = selection.remoteFileIndex;
+        if (mapped[remoteFileIndex])
+        {
+            const Association &existing = candidates[remoteFileIndex];
+            if (existing.localSelectionIdentity !=
+                    selection.localSelectionIdentity ||
+                existing.parentRemoteFileIndex !=
+                    selection.parentRemoteFileIndex)
+            {
+                return PrepareStatus::AmbiguousPlacement;
+            }
+            return PrepareStatus::DuplicateRemoteIndex;
+        }
+
+        for (std::size_t index = 0; index < remoteFileCount; ++index)
+        {
+            if (mapped[index] &&
+                candidates[index].localSelectionIdentity ==
+                    selection.localSelectionIdentity)
+            {
+                return PrepareStatus::DuplicateDestination;
+            }
+        }
+
+        const auto file = source.remoteFile(remoteFileIndex);
+        if (!file)
+        {
+            return PrepareStatus::DescriptorUnavailable;
+        }
+
+        candidates[remoteFileIndex] = Association{
+            remoteFileIndex,
+            selection.localSelectionIdentity,
+            selection.parentRemoteFileIndex,
+            file->directory ? RemoteEntryRole::Directory :
+                              RemoteEntryRole::File,
+        };
+        mapped[remoteFileIndex] = true;
+    }
+
+    // A batch is all-or-nothing. A caller that selects only a subset must use
+    // a separate future contract rather than accidentally publishing a partial
+    // manifest as a completed set.
+    if (selections.size() != remoteFileCount)
+    {
+        return PrepareStatus::IncompleteManifest;
+    }
+    for (std::size_t index = 0; index < remoteFileCount; ++index)
+    {
+        if (!mapped[index])
+        {
+            return PrepareStatus::IncompleteManifest;
+        }
+
+        const auto parent = candidates[index].parentRemoteFileIndex;
+        if (!parent)
+        {
+            continue;
+        }
+        if (*parent >= remoteFileCount || !mapped[*parent])
+        {
+            return PrepareStatus::MissingParent;
+        }
+        if (*parent == index)
+        {
+            return PrepareStatus::SelfParent;
+        }
+        if (candidates[*parent].remoteRole != RemoteEntryRole::Directory)
+        {
+            return PrepareStatus::ParentNotDirectory;
+        }
+    }
+
+    // Parent metadata is caller-selected local placement only. Bound it anyway
+    // so a future native directory capability cannot inherit cycles or
+    // unbounded traversal from this contract.
+    for (std::size_t startIndex = 0;
+         startIndex < remoteFileCount; ++startIndex)
+    {
+        std::array<bool, kMaximumAssociations> inPath{};
+        inPath[startIndex] = true;
+        std::size_t depth = 0U;
+        auto parent = candidates[startIndex].parentRemoteFileIndex;
+        while (parent)
+        {
+            if (*parent >= remoteFileCount || !mapped[*parent])
+            {
+                return PrepareStatus::MissingParent;
+            }
+            if (inPath[*parent])
+            {
+                return PrepareStatus::ParentCycle;
+            }
+            inPath[*parent] = true;
+            ++depth;
+            if (depth > kMaximumPlacementDepth)
+            {
+                return PrepareStatus::PlacementDepthExceeded;
+            }
+            parent = candidates[*parent].parentRemoteFileIndex;
+        }
+    }
+
+    associations_ = candidates;
+    associationCount_ = remoteFileCount;
+    generation_ = expectedGeneration;
+    sourceEpoch_ = source.sourceEpoch_;
+    source_ = &source;
+    state_ = State::Committed;
+    return PrepareStatus::Prepared;
+}
+
+bool RemoteFileDestinationPlan::current(
+    const RemoteTransfer &source) const noexcept
+{
+    if (state_ != State::Committed || source_ != &source ||
+        !source.synchronized() || generation_ == 0U ||
+        source.generation() != generation_ ||
+        source.sourceEpoch_ != sourceEpoch_ ||
+        source.remoteFileCount() != associationCount_)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < associationCount_; ++index)
+    {
+        const auto file = source.remoteFile(index);
+        if (!file)
+        {
+            return false;
+        }
+        const RemoteEntryRole currentRole =
+            file->directory ? RemoteEntryRole::Directory :
+                              RemoteEntryRole::File;
+        if (associations_[index].remoteFileIndex != index ||
+            associations_[index].remoteRole != currentRole)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::optional<RemoteFileDestinationPlan::Association>
+RemoteFileDestinationPlan::association(
+    const RemoteTransfer &source,
+    const std::size_t remoteFileIndex) const noexcept
+{
+    if (!current(source) || remoteFileIndex >= associationCount_)
+    {
+        return std::nullopt;
+    }
+    return associations_[remoteFileIndex];
+}
+
+RemoteFileDestinationPlan::AssociationStatus
+RemoteFileDestinationPlan::associationStatus(
+    const RemoteTransfer &source,
+    const std::size_t remoteFileIndex) const noexcept
+{
+    if (state_ == State::Empty)
+    {
+        return AssociationStatus::NotCommitted;
+    }
+    if (state_ == State::Cancelled)
+    {
+        return AssociationStatus::Cancelled;
+    }
+    if (state_ == State::Closed)
+    {
+        return AssociationStatus::Closed;
+    }
+    if (!current(source))
+    {
+        return AssociationStatus::StaleSource;
+    }
+    if (remoteFileIndex >= associationCount_)
+    {
+        return AssociationStatus::MissingAssociation;
+    }
+    return associations_[remoteFileIndex].remoteRole ==
+                   RemoteEntryRole::Directory
+               ? AssociationStatus::UnsupportedDirectoryMaterialization
+               : AssociationStatus::CurrentFile;
+}
+
+void RemoteFileDestinationPlan::retireMetadata(
+    const State terminalState) noexcept
+{
+    associations_.fill({});
+    associationCount_ = 0U;
+    generation_ = 0U;
+    sourceEpoch_ = 0U;
+    source_ = nullptr;
+    state_ = terminalState;
+}
+
+void RemoteFileDestinationPlan::cancel() noexcept
+{
+    if (state_ == State::Cancelled || state_ == State::Closed)
+    {
+        return;
+    }
+    retireMetadata(State::Cancelled);
+}
+
+void RemoteFileDestinationPlan::close() noexcept
+{
+    if (state_ == State::Cancelled || state_ == State::Closed)
+    {
+        return;
+    }
+    retireMetadata(State::Closed);
 }
 
 } // namespace rdp_server::server::clipboard

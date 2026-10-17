@@ -195,6 +195,11 @@ jobs:
           grep -Fq 'clipboard.macos-completed-file-url-handoff' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-completed-file-hdrop-handoff' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-completed-multi-file-uri-handoff' <<< "$selected_tests"
+          grep -Fq 'clipboard.file-destination-plan-index-generation' <<< "$selected_tests"
+          grep -Fq 'clipboard.file-destination-plan-directory-traversal-denials' <<< "$selected_tests"
+          grep -Fq 'clipboard.file-destination-plan-transactional-commit' <<< "$selected_tests"
+          grep -Fq 'clipboard.file-destination-plan-cancel-replay' <<< "$selected_tests"
+          grep -Fq 'clipboard.file-destination-plan-native-capability-integration' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -L clipboard --output-on-failure
       - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers

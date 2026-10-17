@@ -18,6 +18,7 @@
 #include <string_view>
 #include <vector>
 
+using rdp_server::server::clipboard::RemoteFileDestinationPlan;
 using rdp_server::server::clipboard::RemoteTransfer;
 using rdp_server::clipboard::PduView;
 using rdp_server::clipboard::decodePdu;
@@ -408,6 +409,85 @@ void installSingleFileOffer(
     assert(file && file->sizeKnown && file->size == fileSize);
 }
 
+
+
+struct TestRemoteFileDescriptor final
+{
+    std::u16string_view name{};
+    std::uint64_t size{};
+    bool sizeKnown{true};
+    bool directory{};
+};
+
+void installRemoteFileOffer(
+    RemoteTransfer &owner, const std::uint32_t fileListFormatId,
+    const std::span<const TestRemoteFileDescriptor> descriptors)
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::size_t kDescriptorBytes = 592U;
+    constexpr std::uint32_t kFdAttributes = 0x00000004U;
+    constexpr std::uint32_t kFdFileSize = 0x00000040U;
+    constexpr std::uint32_t kFileAttributeDirectory = 0x00000010U;
+
+    assert(descriptors.size() <= RemoteTransfer::kMaximumRemoteFiles);
+    std::vector<std::uint8_t> formats;
+    appendLongFormat(
+        formats, fileListFormatId, "FileGroupDescriptorW");
+    assert(owner.receiveLongFormatListPdu(longFormatPdu(formats)));
+
+    std::vector<std::uint8_t> request;
+    assert(owner.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> list(
+        4U + descriptors.size() * kDescriptorBytes, 0U);
+    put32(list, 0, static_cast<std::uint32_t>(descriptors.size()));
+
+    for (std::size_t index = 0; index < descriptors.size(); ++index)
+    {
+        const TestRemoteFileDescriptor &source = descriptors[index];
+        auto descriptor = std::span(list).subspan(
+            4U + index * kDescriptorBytes, kDescriptorBytes);
+        std::uint32_t flags = 0U;
+        if (source.directory)
+        {
+            flags |= kFdAttributes;
+            put32(descriptor, 36U, kFileAttributeDirectory);
+        }
+        if (source.sizeKnown)
+        {
+            flags |= kFdFileSize;
+            putDescriptorFileSize(descriptor, source.size);
+        }
+        put32(descriptor, 0, flags);
+        putFileName(descriptor, source.name);
+    }
+
+    const auto wire = responsePdu(kResponseOk, list);
+    const auto response = owner.receiveResponse(wire);
+    assert(response.status == RemoteTransfer::ResponseStatus::Received);
+    assert(owner.storeFileGroupDescriptors(response));
+    assert(owner.remoteFileCount() == descriptors.size());
+}
+
+void expectRemoteDescriptorNameRejected(
+    RemoteTransfer &owner, const std::u16string_view name)
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::size_t kDescriptorBytes = 592U;
+
+    std::vector<std::uint8_t> request;
+    assert(owner.beginFileGroupDescriptorRequest(request));
+    std::vector<std::uint8_t> list(4U + kDescriptorBytes, 0U);
+    put32(list, 0, 1U);
+    auto descriptor =
+        std::span(list).subspan(4U, kDescriptorBytes);
+    putFileName(descriptor, name);
+
+    const auto wire = responsePdu(kResponseOk, list);
+    const auto response = owner.receiveResponse(wire);
+    assert(response.status == RemoteTransfer::ResponseStatus::Received);
+    assert(!owner.storeFileGroupDescriptors(response));
+    assert(owner.synchronized());
+}
 
 void testLongFormatListGeneration()
 {
@@ -1661,6 +1741,410 @@ void testJoinedFormatDataRequestGenerationCancellation()
     assert(!tooEarly.synchronized());
 }
 
+// R8 exact-index local selection metadata. Duplicate remote leaf names remain
+// distinct descriptors; caller selection identity never replaces the index.
+void testFileDestinationPlanIndexGeneration()
+{
+    using Plan = RemoteFileDestinationPlan;
+    using PrepareStatus = Plan::PrepareStatus;
+    using AssociationStatus = Plan::AssociationStatus;
+
+    constexpr std::uint32_t kFileListFormatId = 0xc710U;
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    const std::array<TestRemoteFileDescriptor, 2> descriptors{{
+        {u"duplicate.txt", 4U, true, false},
+        {u"duplicate.txt", 9U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+    const std::uint64_t generation = source.generation();
+
+    const std::array<Plan::Selection, 2> selections{{
+        {0U, 0x1001U, std::nullopt},
+        {1U, 0x1002U, std::nullopt},
+    }};
+    Plan plan;
+    assert(plan.prepare(source, generation, selections) ==
+           PrepareStatus::Prepared);
+    assert(plan.committed());
+    assert(plan.current(source));
+    assert(plan.size() == 2U);
+    assert(plan.generation() == generation);
+    const auto first = plan.association(source, 0U);
+    const auto second = plan.association(source, 1U);
+    assert(first && second);
+    assert(first->remoteFileIndex == 0U);
+    assert(second->remoteFileIndex == 1U);
+    assert(first->localSelectionIdentity == 0x1001U);
+    assert(second->localSelectionIdentity == 0x1002U);
+    assert(first->remoteRole == Plan::RemoteEntryRole::File);
+    assert(second->remoteRole == Plan::RemoteEntryRole::File);
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::CurrentFile);
+
+    {
+        Plan rejected;
+        const std::array<Plan::Selection, 2> invalid{{
+            {0U, 0x1101U, std::nullopt},
+            {2U, 0x1102U, std::nullopt},
+        }};
+        assert(rejected.prepare(source, generation, invalid) ==
+               PrepareStatus::RemoteIndexOutOfRange);
+        assert(!rejected.committed());
+    }
+    {
+        Plan rejected;
+        const std::array<Plan::Selection, 2> duplicate{{
+            {0U, 0x1201U, std::nullopt},
+            {0U, 0x1201U, std::nullopt},
+        }};
+        assert(rejected.prepare(source, generation, duplicate) ==
+               PrepareStatus::DuplicateRemoteIndex);
+    }
+    {
+        Plan rejected;
+        const std::array<Plan::Selection, 2> missing{{
+            {0U, 0x1301U, std::nullopt},
+            {1U, 0U, std::nullopt},
+        }};
+        assert(rejected.prepare(source, generation, missing) ==
+               PrepareStatus::MissingDestination);
+    }
+    {
+        Plan rejected;
+        assert(rejected.prepare(source, 0U, selections) ==
+               PrepareStatus::GenerationRequired);
+        assert(rejected.prepare(source, generation + 1U, selections) ==
+               PrepareStatus::StaleGeneration);
+    }
+
+    const std::array<TestRemoteFileDescriptor, 2> replacement{{
+        {u"replacement-a.bin", 5U, true, false},
+        {u"replacement-b.bin", 6U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId + 1U, replacement);
+    assert(!plan.current(source));
+    assert(!plan.association(source, 0U));
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::StaleSource);
+    assert(plan.prepare(source, source.generation(), selections) ==
+           PrepareStatus::AlreadyCommitted);
+
+    const std::array<Plan::Selection, 2> replacementSelections{{
+        {0U, 0x1401U, std::nullopt},
+        {1U, 0x1402U, std::nullopt},
+    }};
+    Plan replacementPlan;
+    assert(replacementPlan.prepare(
+               source, source.generation(), replacementSelections) ==
+           PrepareStatus::Prepared);
+    assert(replacementPlan.current(source));
+
+    // generation_ intentionally restarts after disconnect. The private
+    // monotonic offer epoch keeps an old committed plan stale even when the
+    // same RemoteTransfer object reaches the same numeric generation again.
+    RemoteTransfer reconnectSource;
+    initializeFileStreamSession(reconnectSource);
+    installRemoteFileOffer(
+        reconnectSource, kFileListFormatId, descriptors);
+    const std::uint64_t repeatedGeneration =
+        reconnectSource.generation();
+    Plan reconnectPlan;
+    assert(reconnectPlan.prepare(
+               reconnectSource, repeatedGeneration, selections) ==
+           PrepareStatus::Prepared);
+    reconnectSource.resetAfterDisconnect();
+    initializeFileStreamSession(reconnectSource);
+    installRemoteFileOffer(
+        reconnectSource, kFileListFormatId, descriptors);
+    assert(reconnectSource.generation() == repeatedGeneration);
+    assert(!reconnectPlan.current(reconnectSource));
+    assert(reconnectPlan.associationStatus(reconnectSource, 0U) ==
+           AssociationStatus::StaleSource);
+
+    const std::array<Plan::Selection, 2> freshSelections{{
+        {0U, 0x1501U, std::nullopt},
+        {1U, 0x1502U, std::nullopt},
+    }};
+    Plan freshPlan;
+    assert(freshPlan.prepare(
+               reconnectSource, reconnectSource.generation(),
+               freshSelections) == PrepareStatus::Prepared);
+    assert(freshPlan.current(reconnectSource));
+}
+
+void testFileDestinationPlanDirectoryTraversalDenials()
+{
+    using Plan = RemoteFileDestinationPlan;
+    using PrepareStatus = Plan::PrepareStatus;
+    using AssociationStatus = Plan::AssociationStatus;
+
+    constexpr std::uint32_t kFileListFormatId = 0xc720U;
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    const std::array<TestRemoteFileDescriptor, 3> descriptors{{
+        {u"root", 0U, false, true},
+        {u"child", 0U, false, true},
+        {u"leaf.txt", 3U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+
+    const std::array<Plan::Selection, 3> valid{{
+        {0U, 0x2001U, std::nullopt},
+        {1U, 0x2002U, 0U},
+        {2U, 0x2003U, 1U},
+    }};
+    Plan plan;
+    assert(plan.prepare(source, source.generation(), valid) ==
+           PrepareStatus::Prepared);
+    assert(plan.hierarchyStatus() ==
+           Plan::RemoteHierarchyStatus::UnsupportedWithRetainedMetadata);
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::UnsupportedDirectoryMaterialization);
+    assert(plan.associationStatus(source, 1U) ==
+           AssociationStatus::UnsupportedDirectoryMaterialization);
+    assert(plan.associationStatus(source, 2U) ==
+           AssociationStatus::CurrentFile);
+
+    // Path-bearing wire names are denied by RemoteTransfer before planning.
+    expectRemoteDescriptorNameRejected(source, u"../escape.txt");
+    expectRemoteDescriptorNameRejected(source, u"..\\escape.txt");
+    expectRemoteDescriptorNameRejected(source, u"/absolute.txt");
+    expectRemoteDescriptorNameRejected(source, u"C:drive.txt");
+    expectRemoteDescriptorNameRejected(source, u"\\\\server\\share.txt");
+    expectRemoteDescriptorNameRejected(source, u"folder/file.txt");
+    expectRemoteDescriptorNameRejected(source, u"folder\\file.txt");
+    const std::array<char16_t, 3> embeddedNul{
+        u'a', u'\0', u'b'};
+    expectRemoteDescriptorNameRejected(
+        source, {embeddedNul.data(), embeddedNul.size()});
+    const std::array<char16_t, 1> malformedUtf16{
+        static_cast<char16_t>(0xd800U)};
+    expectRemoteDescriptorNameRejected(
+        source, {malformedUtf16.data(), malformedUtf16.size()});
+    assert(plan.current(source));
+
+    {
+        Plan rejected;
+        auto missingParent = valid;
+        missingParent[2].parentRemoteFileIndex = 9U;
+        assert(rejected.prepare(
+                   source, source.generation(), missingParent) ==
+               PrepareStatus::MissingParent);
+    }
+    {
+        Plan rejected;
+        auto selfParent = valid;
+        selfParent[0].parentRemoteFileIndex = 0U;
+        assert(rejected.prepare(
+                   source, source.generation(), selfParent) ==
+               PrepareStatus::SelfParent);
+    }
+    {
+        Plan rejected;
+        auto fileParent = valid;
+        fileParent[1].parentRemoteFileIndex = 2U;
+        assert(rejected.prepare(
+                   source, source.generation(), fileParent) ==
+               PrepareStatus::ParentNotDirectory);
+    }
+    {
+        Plan rejected;
+        auto cycle = valid;
+        cycle[0].parentRemoteFileIndex = 1U;
+        cycle[1].parentRemoteFileIndex = 0U;
+        assert(rejected.prepare(source, source.generation(), cycle) ==
+               PrepareStatus::ParentCycle);
+    }
+    {
+        Plan rejected;
+        const std::array<Plan::Selection, 4> ambiguous{{
+            valid[0], valid[1], valid[2],
+            Plan::Selection{2U, 0x2999U, 0U},
+        }};
+        assert(rejected.prepare(
+                   source, source.generation(), ambiguous) ==
+               PrepareStatus::AmbiguousPlacement);
+    }
+
+    RemoteTransfer deepSource;
+    initializeFileStreamSession(deepSource);
+    constexpr std::size_t kDeepEntries =
+        Plan::kMaximumPlacementDepth + 2U;
+    std::array<TestRemoteFileDescriptor, kDeepEntries> deepDescriptors{};
+    for (std::size_t index = 0; index + 1U < kDeepEntries; ++index)
+    {
+        deepDescriptors[index] =
+            TestRemoteFileDescriptor{u"directory", 0U, false, true};
+    }
+    deepDescriptors.back() =
+        TestRemoteFileDescriptor{u"leaf.bin", 1U, true, false};
+    installRemoteFileOffer(
+        deepSource, kFileListFormatId + 1U, deepDescriptors);
+
+    std::array<Plan::Selection, kDeepEntries> deepSelections{};
+    for (std::size_t index = 0; index < kDeepEntries; ++index)
+    {
+        deepSelections[index].remoteFileIndex = index;
+        deepSelections[index].localSelectionIdentity =
+            0x3000U + index;
+        if (index != 0U)
+        {
+            deepSelections[index].parentRemoteFileIndex =
+                index - 1U;
+        }
+    }
+    Plan depthRejected;
+    assert(depthRejected.prepare(
+               deepSource, deepSource.generation(), deepSelections) ==
+           PrepareStatus::PlacementDepthExceeded);
+}
+
+void testFileDestinationPlanTransactionalCommit()
+{
+    using Plan = RemoteFileDestinationPlan;
+    using PrepareStatus = Plan::PrepareStatus;
+
+    constexpr std::uint32_t kFileListFormatId = 0xc730U;
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    const std::array<TestRemoteFileDescriptor, 3> descriptors{{
+        {u"one.bin", 1U, true, false},
+        {u"two.bin", 2U, true, false},
+        {u"three.bin", 3U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+
+    const std::array<Plan::Selection, 3> valid{{
+        {0U, 0x4001U, std::nullopt},
+        {1U, 0x4002U, std::nullopt},
+        {2U, 0x4003U, std::nullopt},
+    }};
+
+    Plan transactional;
+    auto badLater = valid;
+    badLater[2].localSelectionIdentity = 0U;
+    assert(transactional.prepare(
+               source, source.generation(), badLater) ==
+           PrepareStatus::MissingDestination);
+    assert(!transactional.committed());
+    assert(transactional.size() == 0U);
+    assert(!transactional.association(source, 0U));
+    assert(transactional.prepare(
+               source, source.generation(), valid) ==
+           PrepareStatus::Prepared);
+    assert(transactional.association(source, 0U));
+    assert(transactional.prepare(
+               source, source.generation(), valid) ==
+           PrepareStatus::AlreadyCommitted);
+
+    Plan duplicateDestination;
+    auto duplicate = valid;
+    duplicate[2].localSelectionIdentity =
+        duplicate[0].localSelectionIdentity;
+    assert(duplicateDestination.prepare(
+               source, source.generation(), duplicate) ==
+           PrepareStatus::DuplicateDestination);
+    assert(!duplicateDestination.committed());
+
+    Plan partial;
+    const std::array<Plan::Selection, 2> partialSelections{{
+        valid[0], valid[1],
+    }};
+    assert(partial.prepare(
+               source, source.generation(), partialSelections) ==
+           PrepareStatus::IncompleteManifest);
+    assert(!partial.association(source, 0U));
+
+    Plan oversized;
+    std::array<Plan::Selection,
+               RemoteTransfer::kMaximumRemoteFiles + 1U> tooMany{};
+    assert(oversized.prepare(
+               source, source.generation(), tooMany) ==
+           PrepareStatus::TooManySelections);
+    assert(!oversized.committed());
+
+    Plan unused;
+    unused.close();
+    unused.close();
+    assert(unused.prepare(source, source.generation(), valid) ==
+           PrepareStatus::Closed);
+
+    assert(source.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(!transactional.current(source));
+    assert(!transactional.association(source, 0U));
+}
+
+void testFileDestinationPlanCancelReplay()
+{
+    using Plan = RemoteFileDestinationPlan;
+    using PrepareStatus = Plan::PrepareStatus;
+    using AssociationStatus = Plan::AssociationStatus;
+
+    constexpr std::uint32_t kFileListFormatId = 0xc740U;
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    const std::array<TestRemoteFileDescriptor, 1> descriptors{{
+        {u"payload.bin", 4U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+
+    const std::array<Plan::Selection, 1> selection{{
+        {0U, 0x5001U, std::nullopt},
+    }};
+    Plan plan;
+    assert(plan.prepare(source, source.generation(), selection) ==
+           PrepareStatus::Prepared);
+
+    std::vector<std::uint8_t> request;
+    const auto receipt =
+        source.beginFileRangeRequest(0U, 0U, 4U, request);
+    assert(receipt);
+    assert(source.hasOutstandingFileContentsRequest());
+
+    plan.cancel();
+    plan.cancel();
+    assert(!plan.committed());
+    assert(!plan.association(source, 0U));
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::Cancelled);
+    assert(plan.prepare(source, source.generation(), selection) ==
+           PrepareStatus::Cancelled);
+
+    const std::array<std::uint8_t, 4> bytes{1U, 2U, 3U, 4U};
+    const auto wire = fileContentsResponsePdu(
+        rdp_server::clipboard::kResponseOk,
+        receipt->streamId, bytes);
+    const auto result = source.receiveFileContentsResponse(wire);
+    assert(result.status ==
+           RemoteTransfer::FileContentsStatus::ReceivedRange);
+    assert(!source.hasOutstandingFileContentsRequest());
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::Cancelled);
+    plan.close();
+    plan.close();
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::Cancelled);
+
+    source.resetAfterDisconnect();
+    initializeFileStreamSession(source);
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+    const std::array<Plan::Selection, 1> freshSelection{{
+        {0U, 0x5002U, std::nullopt},
+    }};
+    Plan freshPlan;
+    assert(freshPlan.prepare(
+               source, source.generation(), freshSelection) ==
+           PrepareStatus::Prepared);
+    assert(freshPlan.current(source));
+    const auto fresh = freshPlan.association(source, 0U);
+    assert(fresh && fresh->localSelectionIdentity == 0x5002U);
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::Cancelled);
+}
+
 // R8 file-list metadata stays bounded and generation scoped. The wire
 // FILEDESCRIPTORW names are accepted only as safe leaf names; no whole file
 // body is copied into this owner.
@@ -2883,6 +3367,26 @@ int main(int argumentCount, char **arguments)
         if (caseName == "mcs-joined-response-teardown")
         {
             testMcsJoinedClipboardResponseTeardown();
+            return 0;
+        }
+        if (caseName == "file-destination-plan-index-generation")
+        {
+            testFileDestinationPlanIndexGeneration();
+            return 0;
+        }
+        if (caseName == "file-destination-plan-directory-traversal-denials")
+        {
+            testFileDestinationPlanDirectoryTraversalDenials();
+            return 0;
+        }
+        if (caseName == "file-destination-plan-transactional-commit")
+        {
+            testFileDestinationPlanTransactionalCommit();
+            return 0;
+        }
+        if (caseName == "file-destination-plan-cancel-replay")
+        {
+            testFileDestinationPlanCancelReplay();
             return 0;
         }
         if (caseName == "file-descriptor-metadata-validation")

@@ -1,3 +1,17 @@
+## R3 CAL leaf-validity compile correction receipt (2026-10-17)
+
+Actions `39010291382` for implementation
+`3822ca6d230336f8db2e20d1c4ae6153e22b92a3` reached macOS Debug compile
+and failed in `test_owned_mcs_connect_initial.cpp`: the fixed 121-element
+behavior dispatch array had 122 initializers after registering
+`licensing-client-cal-certificate-validity`. No R3 CTest executed in that
+macOS job.
+
+The correction raises the test-only dispatch bound to 122 and changes the
+fixed 2026/2027 certificate fixtures to canonical RFC 5280 UTCTime spelling.
+Production leaf-validity inspection is unchanged. Exact correction-SHA hosted
+evidence is **PENDING**; canonical owner-local testing remains **NOT RUN**.
+
 ## R6 P1 Windows CLANG64/Clang 23 authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `a503fb558cee88cea2d03f97929136caec77171b`.  

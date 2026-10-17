@@ -1,3 +1,23 @@
+## R3 CAL leaf-validity fixture/registry correction (2026-10-17; exact-SHA CI pending)
+
+**Implementation being corrected:** `3822ca6d230336f8db2e20d1c4ae6153e22b92a3`.  
+**First Actions:** `39010291382` — macOS Debug compile **FAIL** before CTest.
+
+The first hosted compile exposed test-only registration bookkeeping: adding the
+seventh CAL behavior left the fixed `kMcsTestCases` dispatch array at 121
+entries, so AppleClang rejected the 122nd initializer. The correction updates
+only that array bound.
+
+The same fixture is also canonicalized to RFC 5280 certificate time encoding.
+Dates in 2026/2027 are now encoded as UTCTime (`YYMMDDHHMMSSZ`) rather than
+four-digit GeneralizedTime. The injected Unix timestamps and production
+validity logic are unchanged. This avoids relying on provider tolerance where
+X.509 requires UTCTime through 2049.
+
+No production source, API, CAL decision, trust rule, CTest name or sanitizer
+selector changes in this correction. Exact correction-SHA Linux/GCC,
+macOS/AppleClang, Windows/MSVC and ASan/UBSan evidence is **PENDING**.
+
 ## R6 P1 Windows CLANG64/Clang 23 evidence gate (2026-10-17; publication validation pending)
 
 **Starting reconciled shared `main`:** `a503fb558cee88cea2d03f97929136caec77171b`.

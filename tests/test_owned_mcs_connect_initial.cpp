@@ -7533,7 +7533,7 @@ void testRdpClientCalCertificateValidity()
     ClientCalFixture fixture{false};
     setLicensingFixtureCertificateValidity(
         fixture.leafCertificate.get(),
-        "20260101000000Z", "20261231235959Z");
+        "260101000000Z", "261231235959Z");
     addRequiredClientCalFixtureExtensions(fixture.leafCertificate.get());
     assert(X509_sign(
                fixture.leafCertificate.get(), fixture.issuerKey.get(),
@@ -7574,7 +7574,7 @@ void testRdpClientCalCertificateValidity()
     ClientCalFixture invertedWindow{false};
     setLicensingFixtureCertificateValidity(
         invertedWindow.leafCertificate.get(),
-        "20270101000000Z", "20260101000000Z");
+        "270101000000Z", "260101000000Z");
     addRequiredClientCalFixtureExtensions(
         invertedWindow.leafCertificate.get());
     assert(X509_sign(
@@ -7590,8 +7590,8 @@ void testRdpClientCalCertificateValidity()
     ClientCalFixture malformedWindow{false};
     setLicensingFixtureCertificateValidity(
         malformedWindow.leafCertificate.get(),
-        "20260101000000Z", "20261231235959Z");
-    constexpr std::string_view malformedNotAfter{"20261301000000Z"};
+        "260101000000Z", "261231235959Z");
+    constexpr std::string_view malformedNotAfter{"261301000000Z"};
     assert(ASN1_STRING_set(
                X509_getm_notAfter(malformedWindow.leafCertificate.get()),
                malformedNotAfter.data(),
@@ -8559,7 +8559,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 121> kMcsTestCases{{
+constexpr std::array<McsTestCase, 122> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},

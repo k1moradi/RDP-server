@@ -1,3 +1,13 @@
+## R10 licensing-authority incomplete-provider consumer compile repair (2026-10-17)
+
+**Failing shared main:** `8c303b40a4c7edc3503b49c050c053a2ff555f09`. Primary Actions `39042364266` failed only on Linux compilation while the standalone structure guard `39042364269` passed. Ubuntu job `117424279349` (GCC/libstdc++ 13) and R9 sanitizer job `117424279302` (Clang with libstdc++ 14) both fail while compiling `tests/test_runtime_linux_security.cpp`, which includes the public runtime header and default-constructs `RuntimeLicensingAuthority` without the internal provider definition.
+
+The exact boundary is `runtime_licensing_authority.h:152`: `RuntimeLicensingAuthority() noexcept = default` causes `std::unique_ptr<detail::RuntimeLicensingAuthorityProvider>` cleanup instantiation in the consumer translation unit. GCC reports `invalid application of ‘sizeof’ to incomplete type`; Clang reports the same incomplete-type `sizeof` error and points from the defaulted constructor to the consumer construction at `test_runtime_linux_security.cpp:1300`.
+
+The repair changes only construction ownership placement: the public header now declares the constructor and `runtime_licensing_authority.cpp`, which already includes the complete provider definition, defaults it out of line beside the existing out-of-line destructor. No provider state, verification, CAL semantics, result path or production authority capability changes. Dedicated `runtime.licensing-authority-public-header-consumer-lifetime` includes only the public header, constructs/destroys the production authority and verifies the default fail-closed state, so an incomplete-provider regression fails at compile time before CTest execution.
+
+Canonical owner-local `~/rdp-server/build/` execution: **NOT RUN** in this connector environment; no alternate checkout/build root was created. Exact publication-SHA hosted CI: **PENDING** at publication.
+
 ## R8 source-epoch native revocation authoring receipt (2026-10-17)
 
 **Starting reconciled shared `main`:** `2d295603f73fba313dad468d4f7dbb0d733bf87b`. **Publication:** this

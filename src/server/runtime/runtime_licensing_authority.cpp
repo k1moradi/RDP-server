@@ -195,6 +195,8 @@ bool RuntimeLicensingExistingCalValidationResult::configure(
     return true;
 }
 
+RuntimeLicensingAuthority::RuntimeLicensingAuthority() noexcept = default;
+
 RuntimeLicensingAuthority::~RuntimeLicensingAuthority()
 {
     revoke();

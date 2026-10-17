@@ -149,7 +149,7 @@ private:
 class RuntimeLicensingAuthority final
 {
 public:
-    RuntimeLicensingAuthority() noexcept = default;
+    RuntimeLicensingAuthority() noexcept;
     ~RuntimeLicensingAuthority();
 
     RuntimeLicensingAuthority(const RuntimeLicensingAuthority &) = delete;

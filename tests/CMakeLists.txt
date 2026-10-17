@@ -793,6 +793,26 @@ foreach(runtime_licensing_cli_case IN ITEMS
         PROPERTIES LABELS "runtime;security;licensing;offline" TIMEOUT 60)
 endforeach()
 
+# Public-header lifetime regression: this consumer intentionally does not
+# include runtime_licensing_authority_internal.h. Construction/destruction must
+# remain valid while the provider implementation type is only forward-declared.
+add_executable(test_runtime_licensing_authority_public_header
+    test_runtime_licensing_authority_public_header.cpp)
+target_link_libraries(test_runtime_licensing_authority_public_header PRIVATE
+    rdp-server-runtime-licensing)
+if(MSVC)
+    target_compile_options(test_runtime_licensing_authority_public_header PRIVATE
+        /W4 /UNDEBUG)
+else()
+    target_compile_options(test_runtime_licensing_authority_public_header PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+add_test(NAME runtime.licensing-authority-public-header-consumer-lifetime
+    COMMAND test_runtime_licensing_authority_public_header)
+set_tests_properties(
+    runtime.licensing-authority-public-header-consumer-lifetime PROPERTIES
+    LABELS "runtime;security;licensing;offline")
+
 # R10 service-owned licensing-authority lifecycle. The production runtime
 # exposes no positive provider configuration; this executable owns the sole
 # deterministic positive provider fixture and is never installed or linked

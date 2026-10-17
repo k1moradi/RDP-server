@@ -1,3 +1,47 @@
+## R5 P1 X11/R4 capture-epoch exact-SHA validation (2026-10-17)
+
+**Validated implementation:** `1b7ecaec4811e4d937a34ce6d03fbabfb7cb2e5c`.  
+**Primary Actions:** `39024082795` — **SUCCESS**.  
+**Workflow-structure Actions:** `39024082681` — **SUCCESS**.
+
+The R5/R4 framebuffer boundary is now hosted-validated with R4's actual
+nonzero capture-ingress epoch. The production R5 seam remains ownership-neutral:
+`X11DesktopResources` owns the XCB/XShm/Damage/input generation and
+`consumeR4Frame()` lends the complete current BGRX surface only during one
+synchronous callback. The R4 test consumer opens
+`X264Avc420SegmentedFrameProducer::openBgraCapture()` with that exact native
+generation and passes the same value in `X264BgraFrameRequest`; R4 checks the
+epoch before framebuffer dereference and copies synchronously into its owned
+NV12/x264 path.
+
+Ubuntu/GCC **13.3.0** full CTest is **601/601 PASS Debug + 601/601 PASS
+Release**. The three dedicated production-backed Xvfb cases pass in both:
+`x11.capture-r4-bgra-ingress`,
+`x11.capture-r4-stride-layout-denials`, and
+`x11.capture-r4-generation-retirement`. The ingress case proves exact
+B/G/R/X pixels and packed XShm stride produce the same owned AVC420 bytes as
+the equivalent packed control frame; the encoded frame remains valid after
+R5 disconnect. The denial case covers short stride/storage, impossible
+geometry and bounded XShm arena failure. The retirement case proves stale
+pre-RandR generation calls never enter the consumer, replacement generation
+is rejected by an old R4 capture epoch, a fresh rebind succeeds, and
+post-disconnect capture/damage publication is denied.
+
+R9 on Ubuntu/Clang **18.1.3** enumerates exactly **36** R5 cases and completes
+**36/36 PASS** under ASan/UBSan with leak detection. The three ingress cases
+are items 25–27 and all pass. The corrected selector now has one cardinality
+check only; the stale duplicate 33-case check is gone. The complete primary
+matrix also passes macOS/AppleClang, Windows/MSVC, hosted MSYS2
+CLANG64/Clang 23, R7 native/session gates, documentation policy, SDK/package
+and artifact checks. Untagged prerelease publication is correctly skipped.
+
+No real user desktop, network graphics publication or XTEST input is enabled by
+this boundary. Live Linux composition still requires genuine R2 native desktop
+admission and current R3 Share/View authorization. R3 owns joined DRDYNVC /
+`Microsoft::Windows::RDS::Graphics` delivery and accepted-byte receipts; R4
+owns encoding and graphics receipts. M3 remains **OPEN / NOT ACCEPTED** until
+those authority/publication pieces and real-client evidence exist.
+
 ## R8 hierarchy-provenance assert-macro portability correction (2026-10-17; exact-SHA CI pending)
 
 Correction `836c2e7d8d3f61cb2e243423d93debb482b4874d`, Actions

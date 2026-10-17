@@ -1,3 +1,26 @@
+## R5 X11/R4 capture-epoch exact-SHA receipt (2026-10-17)
+
+`1b7ecaec4811e4d937a34ce6d03fbabfb7cb2e5c`, Actions
+`39024082795`: **SUCCESS**. Standalone workflow structure
+`39024082681`: **SUCCESS**.
+
+Hosted Ubuntu/GCC 13.3.0 full CTest is **601/601 PASS Debug + Release**.
+R9 Clang 18.1.3 ASan/UBSan enumerates exactly **36** R5 native/Xvfb cases and
+executes **36/36 PASS**. The dedicated X11 -> R4 tests all pass:
+`x11.capture-r4-bgra-ingress`,
+`x11.capture-r4-stride-layout-denials`, and
+`x11.capture-r4-generation-retirement`.
+
+The fixtures use R4 `openBgraCapture()` plus the exact X11 capture generation
+in every `X264BgraFrameRequest`; stale native generations are denied before
+the R5 consumer and mismatched R4 epochs are denied before framebuffer
+dereference. No borrowed XShm view is retained after the synchronous callback;
+R4's owned encoded frame survives native teardown.
+
+The complete hosted matrix is green. This is synthetic Xvfb/native-extension
+evidence only, not a live authorized user desktop or Microsoft-client M3
+acceptance. Genuine R2/R3 authority remains mandatory.
+
 ## R8 hierarchy test assert-macro correction receipt (2026-10-17)
 
 **Failed correction:** `836c2e7d8d3f61cb2e243423d93debb482b4874d`.  

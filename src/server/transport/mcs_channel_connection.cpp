@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -12,6 +13,7 @@
 #include <optional>
 #include <cstdint>
 #include <span>
+#include <utility>
 
 namespace rdp_server::server::transport
 {
@@ -1229,6 +1231,21 @@ McsSessionLifecycle::prepareServerLicenseRequestWrite(
         return std::nullopt;
     }
 
+    if (existingCalAuthorityRequest_.productIdentityBound())
+    {
+        if (!existingCalAuthorityRequest_.matchesProductIdentity(identity))
+        {
+            close();
+            return std::nullopt;
+        }
+    }
+    else if (existingCalAuthorityRequest_.bindProductIdentity(identity) !=
+             RdpExistingClientCalAuthorityRequestError::None)
+    {
+        close();
+        return std::nullopt;
+    }
+
     if (licensingCredentialBound_)
     {
         if (!std::equal(
@@ -1314,6 +1331,7 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
         provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
         licensing_.phase() != RdpLicensingPhase::AwaitClientLicenseResponse ||
         !licensingCredentialBound_ ||
+        !existingCalAuthorityRequest_.productIdentityBound() ||
         credentialFingerprint.size() !=
             licensingCredentialFingerprint_.size() ||
         !std::equal(
@@ -1364,16 +1382,31 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
         return std::nullopt;
     }
 
+    std::optional<RdpClientLicenseInfoHardwareIdProof> hardwareIdProof;
+    std::span<const std::uint8_t> existingCal;
     if (prepared.messageType == RdpLicensingMessageType::ClientLicenseInfo)
     {
-        const auto hardwareId = verifyRdpClientLicenseInfoHardwareId(
-            envelope.value.licensingMessage, prepared.value);
-        if (!hardwareId)
+        const auto info =
+            parseRdpClientLicenseInfo(envelope.value.licensingMessage);
+        if (!info || info.value.licenseInfo.empty() ||
+            info.value.licenseInfo.size() > kMaximumRdpClientCalBytes)
         {
             cleanseRdpLicensingKeyMaterial(prepared.value);
             close();
             return std::nullopt;
         }
+
+        auto verifiedHardwareId =
+            verifyAndRetainRdpClientLicenseInfoHardwareId(
+                envelope.value.licensingMessage, prepared.value);
+        if (!verifiedHardwareId)
+        {
+            cleanseRdpLicensingKeyMaterial(prepared.value);
+            close();
+            return std::nullopt;
+        }
+        hardwareIdProof.emplace(std::move(verifiedHardwareId.proof));
+        existingCal = info.value.licenseInfo;
     }
 
     licensingKeyMaterial_ = prepared.value;
@@ -1392,6 +1425,31 @@ McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage(
     {
         close();
         return std::nullopt;
+    }
+
+    if (intake == RdpLicensingIntake::ClientLicenseInfoAccepted)
+    {
+        if (!hardwareIdProof || existingCal.empty())
+        {
+            close();
+            return std::nullopt;
+        }
+
+        const auto verificationUnixSeconds =
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+        if (verificationUnixSeconds <= 0 ||
+            existingCalAuthorityRequest_.complete(
+                std::move(*hardwareIdProof),
+                existingCal,
+                static_cast<std::int64_t>(verificationUnixSeconds),
+                admissionGeneration_,
+                sessionGeneration_) !=
+                RdpExistingClientCalAuthorityRequestError::None)
+        {
+            close();
+            return std::nullopt;
+        }
     }
 
     acceptedInitialLicensingIntake_ = intake;

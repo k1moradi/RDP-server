@@ -1,3 +1,37 @@
+## R3 P0 existing-client CAL authority-request implementation (2026-10-17)
+
+**Starting reconciled shared `main`:**
+`dc81628a9b4431ef6ffd3e69a7156fd44f0b4d06`.
+
+This increment implements the roadmap-selected non-authorizing request
+boundary. Production R3 adds a move-only HWID proof produced only by the
+existing licensing-key decryption/MAC path and a move-only fixed-capacity
+existing-CAL request owner. The live MCS path binds the exact Server License
+Request product identity, retains the verified HWID and bounded CAL only on the
+CLIENT_LICENSE_INFO branch, captures verification time, generates a fresh
+32-byte correlation and records the already-bound R2 admission/session
+generations. Teardown and stale-generation paths cleanse the request.
+
+The concurrently landed R10 existing-CAL validation operation is preserved.
+This commit only aliases its correlation width to R3's request constant; it
+does not call that operation, add a provider, or consume a result. The R3
+snapshot's CAL/HWID/time/correlation fields map directly to R10's public
+validation inputs, while exact product identity remains independently owned on
+both sides for a future equality check.
+
+No positive CAL authority, synthetic production issuer,
+`STATUS_VALID_CLIENT`, Demand Active, graphics, clipboard or input permission
+is introduced. Four dedicated CTests cover ownership/bounds, the cryptographic
+HWID proof gate, product/correlation denials and revocation/replay. R9 adds a
+separate four-case exact-cardinality R3 sanitizer preflight; the existing R10
+four-case authority selector remains separate.
+
+At authoring time the canonical owner-local `~/rdp-server/build/` command is
+**NOT RUN** because that checkout is unavailable in this connector
+environment. Hosted publication-SHA matrix/R9 evidence is **PENDING** and will
+be recorded after Actions executes the direct-to-`main` commit. Genuine R10
+provider validation and Microsoft-client M2 acceptance are **NOT RUN**.
+
 ## R10 M1 evidence assessment and existing-CAL authority authoring receipt (2026-10-17)
 
 **Initial hosted evidence SHA:** `e2c1e51d22c2c33cd0de1ca40fc2bf7f45d3c5ae`.  

@@ -1,3 +1,82 @@
+## R3 P0 existing-client CAL authority-request snapshot (implementation, 2026-10-17)
+
+**Starting reconciled shared `main`:** `dc81628a9b4431ef6ffd3e69a7156fd44f0b4d06`.
+This is the first code-bearing R3 increment selected by the M2 audit. It does
+not relax the outstanding owner-native M1 evidence requirement and does not
+claim M2 acceptance.
+
+R3 now owns a bounded, non-authorizing existing-CAL request snapshot. The
+production CLIENT_LICENSE_INFO path may retain the 20-byte plaintext HWID only
+through the same licensing-key RC4 decryption and MS-RDPELE MAC verification
+used by the existing verifier. Successful verification creates a move-only
+proof object whose verified state is private; callers cannot construct it from
+raw HWID bytes or a Boolean. The proof is consumed into the request snapshot
+and cleansed on retirement.
+
+The request owns one exact CAL capped by `kMaximumRdpClientCalBytes`, and
+copies the exact product version, company name, product ID and scope from the
+immutable `RdpServerLicenseIdentity` used to prepare the live Server License
+Request. It also records the explicit verification Unix time, a fresh nonzero
+32-byte CSPRNG request correlation, and the R2 admission/native-session
+generation pair already bound into the sole `McsSessionLifecycle`. Repeated
+Server License Request preparation must use the same product identity.
+
+The concurrent R10 existing-CAL authority boundary is now present on shared
+`main`. Its `beginExistingCalValidation()` inputs are the exact CAL,
+20-byte protected HWID, verification time and 32-byte correlation; R10 owns its
+immutable configured product/company/product-id/scope policy and hashes those
+facts into its provider request. R3 and R10 therefore share the same correlation
+width, while R3 retains a copy of the exact Server License Request identity so a
+future composition can require exact identity agreement before calling R10.
+This P0 deliberately does not yet call R10 or consume an R10 result.
+
+The snapshot is continuity evidence only. It does not inspect proprietary CAL
+extension payloads, choose an issuer, classify CAL lifetime, decide CAL-to-HWID
+binding, emit `STATUS_VALID_CLIENT`, advance `RdpLicensingLifecycle`, or
+enter Share. R10 production still has no genuine positive provider.
+
+Terminal disconnect closes R3 and cleanses the snapshot. Admission/session
+generation mismatch closes the same owner. Exact request cancellation retires
+the matching request and closes R3; wrong/stale cancellation also fails closed
+rather than allowing the request to continue. An old correlation cannot match
+after retirement or replacement.
+
+Dedicated ordinary production-backed CTests are:
+
+- `transport.licensing-existing-cal-authority-request-ownership`
+- `transport.licensing-existing-cal-authority-request-hwid-proof-gate`
+- `transport.licensing-existing-cal-authority-request-product-and-correlation-denials`
+- `transport.licensing-existing-cal-authority-request-revocation-replay`
+
+They prove exact 16-KiB ownership, immutable product/correlation data, the
+production HWID/MAC proof gate, malformed CLIENT_LICENSE_INFO framing, empty/
+oversized request denial, wrong product/scope, zero verification time,
+zero/stale R2 generations, duplicate request denial, wrong correlation,
+generation retirement, cancellation and late replay denial. The CAL payload in
+ordinary tests remains opaque/synthetic and is never treated as a valid CAL or
+issuer evidence.
+
+R9 has a separate anchored four-test R3 snapshot sanitizer selector with exact
+registry cardinality and workflow-structure sentinels. It is distinct from the
+concurrent four-test R10 `runtime.licensing-existing-cal-` authority selector.
+Existing CAL chain/signature/issuer-constraint/X.509-validity and licensing
+lifecycle suites remain registered unchanged.
+
+**Validation at authoring time:** canonical owner-local
+`~/rdp-server/build/` is **NOT RUN** in this connector environment because the
+owner checkout is not available here. Exact publication-SHA hosted Debug/
+Release matrix, CLANG64 and R9 sanitizer evidence are **PENDING** until the
+direct-to-`main` commit triggers Actions. No genuine licensing-provider or
+Microsoft-client operation is performed.
+
+**Next R3/R10 gate:** compose this exact snapshot into R10's authenticated
+existing-CAL operation only after verifying R10's configured licensing identity
+matches the snapshot, then correlate the one-shot result back to the same R2
+generations and request. A production-positive result still requires a genuine
+supported provider. Only that result plus fresh R2 authorization may unlock the
+subsequent receipt-bound licensing transition. **M2 remains OPEN / NOT
+ACCEPTED.**
+
 ## R10 P0 M1 evidence decision and existing-CAL authority contract (2026-10-17)
 
 ### M1 formal decision
@@ -317,10 +396,11 @@ composition exist and pass the complete matrix.
 
 ## R3 M2 licensing-to-Share critical path (planning-only M1 freeze, 2026-10-17)
 
-**Production freeze:** the current M1 candidate is preserved unchanged until
-the owner-native M1 matrix is complete on one exact SHA. This section is a
-protocol/ownership plan only. No production source, test behavior, licensing
-state or Share state is changed by this documentation increment.
+**Historical planning freeze:** this audit originally preserved the M1
+candidate until the owner-native matrix completed. The explicit R3 P0 mission
+recorded above subsequently authorizes only the non-authorizing existing-CAL
+request snapshot selected by this plan. M1 evidence remains open; no positive
+licensing or Share transition is authorized by that P0 implementation.
 
 Normative order comes from
 [MS-RDPBCGR 1.3.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee):

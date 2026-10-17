@@ -31,10 +31,43 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 using namespace rdp_server::server::transport;
 using rdp_server::server::runtime::RuntimeLicensingContext;
+
+namespace rdp_server::server::transport
+{
+class RdpExistingClientCalAuthorityRequestTestAccess final
+{
+public:
+    [[nodiscard]] static RdpExistingClientCalAuthorityRequestError
+    bindProductIdentity(
+        RdpExistingClientCalAuthorityRequest &request,
+        const RdpServerLicenseIdentity &identity) noexcept
+    {
+        return request.bindProductIdentity(identity);
+    }
+
+    [[nodiscard]] static RdpExistingClientCalAuthorityRequestError complete(
+        RdpExistingClientCalAuthorityRequest &request,
+        RdpClientLicenseInfoHardwareIdProof &&hardwareIdProof,
+        std::span<const std::uint8_t> licenseInfo,
+        std::int64_t verificationUnixSeconds,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept
+    {
+        return request.complete(
+            std::move(hardwareIdProof),
+            licenseInfo,
+            verificationUnixSeconds,
+            admissionGeneration,
+            sessionGeneration);
+    }
+};
+} // namespace rdp_server::server::transport
 
 namespace
 {
@@ -6738,6 +6771,405 @@ void testRdpClientLicenseInfoHardwareIdFreshVerification()
         [](std::uint8_t value) { return value == 0U; }));
 }
 
+constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes>
+    kExistingCalProofKey{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes>
+    kExistingCalEncryptedHardwareId{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+constexpr std::array<std::uint8_t, kRdpLicensingMacBytes>
+    kExistingCalHardwareIdMac{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes>
+    kExistingCalPlainHardwareId{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,
+        0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x10,0x11,0x12,0x13};
+
+[[nodiscard]] RdpLicensingKeyMaterial
+existingCalProofKeys() noexcept
+{
+    RdpLicensingKeyMaterial keys{};
+    keys.macSaltKey = kExistingCalProofKey;
+    keys.encryptionKey = kExistingCalProofKey;
+    return keys;
+}
+
+[[nodiscard]] RdpClientLicenseInfoHardwareIdProofResult
+makeExistingCalHardwareIdProof(
+    std::span<const std::uint8_t> licenseInfo)
+{
+    auto keys = existingCalProofKeys();
+    const auto message = makeClientLicenseInfoWithHardwareProof(
+        kExistingCalEncryptedHardwareId,
+        kExistingCalHardwareIdMac,
+        licenseInfo);
+    auto result = verifyAndRetainRdpClientLicenseInfoHardwareId(
+        message, keys);
+    cleanseRdpLicensingKeyMaterial(keys);
+    return result;
+}
+
+void testExistingCalAuthorityRequestOwnership()
+{
+    static_assert(
+        !std::is_copy_constructible_v<
+            RdpExistingClientCalAuthorityRequest>);
+    static_assert(
+        std::is_move_constructible_v<
+            RdpExistingClientCalAuthorityRequest>);
+    static_assert(
+        !std::is_move_assignable_v<
+            RdpExistingClientCalAuthorityRequest>);
+
+    std::vector<std::uint8_t> exactMaximumCal(
+        kMaximumRdpClientCalBytes, 0x42U);
+    auto hardwareProof =
+        makeExistingCalHardwareIdProof(exactMaximumCal);
+    assert(hardwareProof);
+
+    RdpExistingClientCalAuthorityRequest request;
+    {
+        RdpServerLicenseIdentity identity;
+        assert(configureServerLicenseIdentity(identity));
+        assert(
+            RdpExistingClientCalAuthorityRequestTestAccess::
+                bindProductIdentity(request, identity) ==
+            RdpExistingClientCalAuthorityRequestError::None);
+        assert(request.productIdentityBound());
+        assert(request.matchesProductIdentity(identity));
+    }
+
+    constexpr std::int64_t verificationUnixSeconds = 1780315200LL;
+    constexpr std::uint64_t admissionGeneration = 0x1020304050607080ULL;
+    constexpr std::uint64_t sessionGeneration = 0x8877665544332211ULL;
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(hardwareProof.proof),
+            exactMaximumCal, verificationUnixSeconds,
+            admissionGeneration, sessionGeneration) ==
+        RdpExistingClientCalAuthorityRequestError::None);
+    assert(request.active());
+    assert(request.productVersion() == 0x00060001U);
+    assert(std::equal(
+        request.companyNameUtf16().begin(),
+        request.companyNameUtf16().end(),
+        kServerLicenseCompany.begin()));
+    assert(std::equal(
+        request.productIdUtf16().begin(),
+        request.productIdUtf16().end(),
+        kServerLicenseProduct.begin()));
+    assert(std::equal(
+        request.scopeAnsi().begin(), request.scopeAnsi().end(),
+        kServerLicenseScope.begin()));
+    assert(request.licenseInfo().size() == kMaximumRdpClientCalBytes);
+    assert(std::all_of(
+        request.licenseInfo().begin(), request.licenseInfo().end(),
+        [](std::uint8_t value) { return value == 0x42U; }));
+    assert(std::equal(
+        request.hardwareId().begin(), request.hardwareId().end(),
+        kExistingCalPlainHardwareId.begin()));
+    assert(request.verificationUnixSeconds() == verificationUnixSeconds);
+    assert(request.admissionGeneration() == admissionGeneration);
+    assert(request.sessionGeneration() == sessionGeneration);
+    assert(request.requestCorrelation().size() ==
+           kRdpExistingClientCalAuthorityRequestCorrelationBytes);
+    assert(!std::all_of(
+        request.requestCorrelation().begin(),
+        request.requestCorrelation().end(),
+        [](std::uint8_t value) { return value == 0U; }));
+
+    // Request storage owns the exact bytes independently of peer/test buffers.
+    std::fill(exactMaximumCal.begin(), exactMaximumCal.end(), 0U);
+    assert(std::all_of(
+        request.licenseInfo().begin(), request.licenseInfo().end(),
+        [](std::uint8_t value) { return value == 0x42U; }));
+
+    RdpExistingClientCalAuthorityRequest moved{std::move(request)};
+    assert(!request.active());
+    assert(moved.active());
+    assert(std::equal(
+        moved.hardwareId().begin(), moved.hardwareId().end(),
+        kExistingCalPlainHardwareId.begin()));
+    moved.retire();
+    assert(!moved.active());
+    assert(moved.licenseInfo().empty());
+    assert(moved.hardwareId().empty());
+    assert(moved.requestCorrelation().empty());
+}
+
+void testExistingCalAuthorityRequestHardwareProofGate()
+{
+    static_assert(
+        !std::is_constructible_v<
+            RdpClientLicenseInfoHardwareIdProof,
+            std::span<const std::uint8_t>, bool>);
+    static_assert(
+        !std::is_constructible_v<
+            RdpExistingClientCalAuthorityRequest,
+            std::span<const std::uint8_t>, bool>);
+
+    constexpr std::array<std::uint8_t, 3> opaqueCal{0x41U, 0x42U, 0x43U};
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+    RdpExistingClientCalAuthorityRequest request;
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::
+            bindProductIdentity(request, identity) ==
+        RdpExistingClientCalAuthorityRequestError::None);
+
+    RdpClientLicenseInfoHardwareIdProof missingProof;
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(missingProof), opaqueCal,
+            1780315200LL, 11U, 22U) ==
+        RdpExistingClientCalAuthorityRequestError::MissingHardwareProof);
+    assert(!request.active());
+
+    auto keys = existingCalProofKeys();
+    auto badMac = kExistingCalHardwareIdMac;
+    badMac[0] ^= 0x01U;
+    const auto badMacMessage = makeClientLicenseInfoWithHardwareProof(
+        kExistingCalEncryptedHardwareId, badMac, opaqueCal);
+    const auto badMacProof =
+        verifyAndRetainRdpClientLicenseInfoHardwareId(
+            badMacMessage, keys);
+    assert(!badMacProof);
+    assert(badMacProof.error ==
+           RdpClientLicenseInfoHardwareIdError::MacMismatch);
+
+    auto alteredHardwareId = kExistingCalEncryptedHardwareId;
+    alteredHardwareId[7] ^= 0x80U;
+    const auto alteredMessage = makeClientLicenseInfoWithHardwareProof(
+        alteredHardwareId, kExistingCalHardwareIdMac, opaqueCal);
+    const auto alteredProof =
+        verifyAndRetainRdpClientLicenseInfoHardwareId(
+            alteredMessage, keys);
+    assert(!alteredProof);
+    assert(alteredProof.error ==
+           RdpClientLicenseInfoHardwareIdError::MacMismatch);
+
+    const auto unsupportedBranch =
+        verifyAndRetainRdpClientLicenseInfoHardwareId(
+            makeClientNewLicenseRequest(), keys);
+    assert(!unsupportedBranch);
+    assert(unsupportedBranch.error ==
+           RdpClientLicenseInfoHardwareIdError::InvalidMessage);
+
+    auto malformedMessage = makeClientLicenseInfoWithHardwareProof(
+        kExistingCalEncryptedHardwareId,
+        kExistingCalHardwareIdMac,
+        opaqueCal);
+    const auto parsed = parseRdpClientLicenseInfo(malformedMessage);
+    assert(parsed);
+    const auto licenseOffset = static_cast<std::size_t>(
+        parsed.value.licenseInfo.data() - malformedMessage.data());
+    assert(licenseOffset >= 2U);
+    malformedMessage[licenseOffset - 2U] = 0U;
+    malformedMessage[licenseOffset - 1U] = 0U;
+    const auto malformedProof =
+        verifyAndRetainRdpClientLicenseInfoHardwareId(
+            malformedMessage, keys);
+    assert(!malformedProof);
+    assert(malformedProof.error ==
+           RdpClientLicenseInfoHardwareIdError::InvalidMessage);
+    cleanseRdpLicensingKeyMaterial(keys);
+
+    auto emptyCalProof = makeExistingCalHardwareIdProof(opaqueCal);
+    assert(emptyCalProof);
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(emptyCalProof.proof), {},
+            1780315200LL, 11U, 22U) ==
+        RdpExistingClientCalAuthorityRequestError::InvalidLicense);
+    assert(!request.active());
+
+    std::vector<std::uint8_t> oversizedCal(
+        kMaximumRdpClientCalBytes + 1U, 0x33U);
+    auto oversizedProof = makeExistingCalHardwareIdProof(opaqueCal);
+    assert(oversizedProof);
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(oversizedProof.proof), oversizedCal,
+            1780315200LL, 11U, 22U) ==
+        RdpExistingClientCalAuthorityRequestError::OversizedLicense);
+    assert(!request.active());
+
+    auto validProof = makeExistingCalHardwareIdProof(opaqueCal);
+    assert(validProof);
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(validProof.proof), opaqueCal,
+            1780315200LL, 11U, 22U) ==
+        RdpExistingClientCalAuthorityRequestError::None);
+    assert(request.active());
+    assert(std::equal(
+        request.hardwareId().begin(), request.hardwareId().end(),
+        kExistingCalPlainHardwareId.begin()));
+}
+
+void testExistingCalAuthorityRequestProductAndCorrelationDenials()
+{
+    constexpr std::array<std::uint8_t, 3> opaqueCal{0x41U, 0x42U, 0x43U};
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+
+    auto differentProduct = kServerLicenseProduct;
+    differentProduct[0] = 0x42U;
+    RdpServerLicenseIdentity wrongProduct;
+    assert(wrongProduct.configure(
+        0x00060001U, kServerLicenseCompany, differentProduct,
+        kServerLicenseCertificate, kServerLicenseScope));
+
+    auto differentScope = kServerLicenseScope;
+    differentScope[0] = 0x78U;
+    RdpServerLicenseIdentity wrongScope;
+    assert(wrongScope.configure(
+        0x00060001U, kServerLicenseCompany, kServerLicenseProduct,
+        kServerLicenseCertificate, differentScope));
+
+    RdpExistingClientCalAuthorityRequest request;
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::
+            bindProductIdentity(request, identity) ==
+        RdpExistingClientCalAuthorityRequestError::None);
+    assert(request.matchesProductIdentity(identity));
+    assert(!request.matchesProductIdentity(wrongProduct));
+    assert(!request.matchesProductIdentity(wrongScope));
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::
+            bindProductIdentity(request, identity) ==
+        RdpExistingClientCalAuthorityRequestError::AlreadyBound);
+
+    auto invalidTimeProof = makeExistingCalHardwareIdProof(opaqueCal);
+    assert(invalidTimeProof);
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(invalidTimeProof.proof), opaqueCal,
+            0, 31U, 41U) ==
+        RdpExistingClientCalAuthorityRequestError::InvalidVerificationTime);
+    assert(!request.active());
+
+    auto zeroGenerationProof = makeExistingCalHardwareIdProof(opaqueCal);
+    assert(zeroGenerationProof);
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(zeroGenerationProof.proof), opaqueCal,
+            1780315200LL, 0U, 41U) ==
+        RdpExistingClientCalAuthorityRequestError::InvalidAdmissionGeneration);
+    assert(!request.active());
+
+    constexpr std::uint64_t admissionGeneration = 31U;
+    constexpr std::uint64_t sessionGeneration = 41U;
+    auto validProof = makeExistingCalHardwareIdProof(opaqueCal);
+    assert(validProof);
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(validProof.proof), opaqueCal,
+            1780315200LL, admissionGeneration, sessionGeneration) ==
+        RdpExistingClientCalAuthorityRequestError::None);
+
+    std::array<std::uint8_t,
+        kRdpExistingClientCalAuthorityRequestCorrelationBytes>
+        correlation{};
+    std::copy(
+        request.requestCorrelation().begin(),
+        request.requestCorrelation().end(),
+        correlation.begin());
+    assert(request.matchesRequest(
+        correlation, admissionGeneration, sessionGeneration));
+
+    auto wrongCorrelation = correlation;
+    wrongCorrelation[0] ^= 0x80U;
+    assert(!request.matchesRequest(
+        wrongCorrelation, admissionGeneration, sessionGeneration));
+    assert(!request.matchesRequest(
+        correlation, admissionGeneration + 1U, sessionGeneration));
+    assert(!request.matchesRequest(
+        correlation, admissionGeneration, sessionGeneration + 1U));
+    assert(!request.retireRequest(
+        wrongCorrelation, admissionGeneration, sessionGeneration));
+    assert(request.active());
+
+    auto duplicateProof = makeExistingCalHardwareIdProof(opaqueCal);
+    assert(duplicateProof);
+    assert(
+        RdpExistingClientCalAuthorityRequestTestAccess::complete(
+            request, std::move(duplicateProof.proof), opaqueCal,
+            1780315201LL, admissionGeneration, sessionGeneration) ==
+        RdpExistingClientCalAuthorityRequestError::AlreadyCompleted);
+    assert(request.matchesRequest(
+        correlation, admissionGeneration, sessionGeneration));
+}
+
+void testExistingCalAuthorityRequestRevocationReplay()
+{
+    constexpr std::array<std::uint8_t, 3> opaqueCal{0x41U, 0x42U, 0x43U};
+    constexpr std::uint64_t admissionGeneration = 51U;
+    constexpr std::uint64_t sessionGeneration = 61U;
+
+    const auto makeRequest =
+        [&]() -> RdpExistingClientCalAuthorityRequest
+        {
+            RdpServerLicenseIdentity identity;
+            assert(configureServerLicenseIdentity(identity));
+            RdpExistingClientCalAuthorityRequest request;
+            assert(
+                RdpExistingClientCalAuthorityRequestTestAccess::
+                    bindProductIdentity(request, identity) ==
+                RdpExistingClientCalAuthorityRequestError::None);
+            auto proof = makeExistingCalHardwareIdProof(opaqueCal);
+            assert(proof);
+            assert(
+                RdpExistingClientCalAuthorityRequestTestAccess::complete(
+                    request, std::move(proof.proof), opaqueCal,
+                    1780315200LL,
+                    admissionGeneration, sessionGeneration) ==
+                RdpExistingClientCalAuthorityRequestError::None);
+            return request;
+        };
+
+    auto generationRequest = makeRequest();
+    std::array<std::uint8_t,
+        kRdpExistingClientCalAuthorityRequestCorrelationBytes>
+        generationCorrelation{};
+    std::copy(
+        generationRequest.requestCorrelation().begin(),
+        generationRequest.requestCorrelation().end(),
+        generationCorrelation.begin());
+    generationRequest.revokeUnlessAdmissionBindingMatches(
+        admissionGeneration, sessionGeneration);
+    assert(generationRequest.active());
+    generationRequest.revokeUnlessAdmissionBindingMatches(
+        admissionGeneration + 1U, sessionGeneration);
+    assert(!generationRequest.active());
+    assert(generationRequest.licenseInfo().empty());
+    assert(generationRequest.hardwareId().empty());
+    assert(generationRequest.requestCorrelation().empty());
+    assert(!generationRequest.matchesRequest(
+        generationCorrelation, admissionGeneration, sessionGeneration));
+
+    auto cancelledRequest = makeRequest();
+    std::array<std::uint8_t,
+        kRdpExistingClientCalAuthorityRequestCorrelationBytes>
+        cancellationCorrelation{};
+    std::copy(
+        cancelledRequest.requestCorrelation().begin(),
+        cancelledRequest.requestCorrelation().end(),
+        cancellationCorrelation.begin());
+    assert(cancelledRequest.retireRequest(
+        cancellationCorrelation, admissionGeneration, sessionGeneration));
+    assert(!cancelledRequest.active());
+    // A late provider response or duplicate cancellation cannot revive the
+    // retired request even if it repeats the exact old correlation/generations.
+    assert(!cancelledRequest.matchesRequest(
+        cancellationCorrelation, admissionGeneration, sessionGeneration));
+    assert(!cancelledRequest.retireRequest(
+        cancellationCorrelation, admissionGeneration, sessionGeneration));
+}
+
 using LicensingKeyPointer =
     std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using LicensingCertificatePointer =
@@ -8683,7 +9115,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 123> kMcsTestCases{{
+constexpr std::array<McsTestCase, 127> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -8746,6 +9178,10 @@ constexpr std::array<McsTestCase, 123> kMcsTestCases{{
     {"licensing-client-license-info-hwid-proof", &testRdpClientLicenseInfoHardwareIdProof},
     {"licensing-client-license-info-hwid-denials", &testRdpClientLicenseInfoHardwareIdDenials},
     {"licensing-client-license-info-hwid-fresh-verification", &testRdpClientLicenseInfoHardwareIdFreshVerification},
+    {"licensing-existing-cal-authority-request-ownership", &testExistingCalAuthorityRequestOwnership},
+    {"licensing-existing-cal-authority-request-hwid-proof-gate", &testExistingCalAuthorityRequestHardwareProofGate},
+    {"licensing-existing-cal-authority-request-product-and-correlation-denials", &testExistingCalAuthorityRequestProductAndCorrelationDenials},
+    {"licensing-existing-cal-authority-request-revocation-replay", &testExistingCalAuthorityRequestRevocationReplay},
     {"licensing-client-cal-chain-structure", &testRdpClientCalChainStructure},
     {"licensing-client-cal-issuer-signature-denials", &testRdpClientCalIssuerSignatureDenials},
     {"licensing-client-cal-issuer-constraints", &testRdpClientCalIssuerConstraints},

@@ -708,6 +708,19 @@ public:
         std::uint64_t admissionGeneration,
         std::uint64_t sessionGeneration) noexcept;
 
+    // Revocation-only hook for a cancelled R10 existing-CAL validation
+    // request. Exact correlation and the live R2 generation pair must match
+    // the active snapshot; either exact cancellation or any mismatch closes
+    // the R3 owner. No caller can use cancellation to advance licensing.
+    void cancelExistingClientCalAuthorityRequest(
+        std::span<const std::uint8_t> requestCorrelation) noexcept
+    {
+        const bool retired = existingCalAuthorityRequest_.retireRequest(
+            requestCorrelation, admissionGeneration_, sessionGeneration_);
+        close();
+        (void)retired;
+    }
+
     [[nodiscard]] bool channelJoinConfirmed(
         std::uint16_t channelId) const noexcept
     {
@@ -738,6 +751,7 @@ public:
         cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
         licensingKeyMaterialReady_ = false;
         acceptedInitialLicensingIntake_.reset();
+        existingCalAuthorityRequest_.retire();
         licensing_.close();
         joins_.close();
         phase_ = McsSessionPhase::Closed;
@@ -886,6 +900,7 @@ private:
     bool licensingCredentialBound_{};
     RdpLicensingKeyMaterial licensingKeyMaterial_{};
     bool licensingKeyMaterialReady_{};
+    RdpExistingClientCalAuthorityRequest existingCalAuthorityRequest_{};
     std::optional<RdpLicensingIntake> acceptedInitialLicensingIntake_{};
     McsChannelJoinWriteGate joins_{};
     std::uint64_t admissionGeneration_{};

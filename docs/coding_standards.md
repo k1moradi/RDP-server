@@ -1,3 +1,18 @@
+## Proof-bearing protected plaintext must not degrade to a Boolean (R3 P0, 2026-10-17)
+
+When protected protocol plaintext is allowed to cross an ownership boundary
+only after cryptographic verification, represent that fact with a type that
+callers cannot synthesize. For CLIENT_LICENSE_INFO HWID, the production
+decrypt+MAC routine alone may construct the move-only proof; raw bytes and a
+`verified=true` parameter are not an API.
+
+Consume the proof into one bounded non-overwriteable request owner. Copy exact
+immutable protocol identity and correlation inputs transactionally, cleanse
+sensitive plaintext/correlation on retirement, and make generation replacement,
+disconnect and cancellation terminal. The request object carries provenance;
+it does not inherit or manufacture the external policy authority that will
+decide the request.
+
 ## Receipt-bearing move-only owners are not overwriteable (R4, 2026-10-17)
 
 When a move-only object carries an unresolved receipt owned by another state

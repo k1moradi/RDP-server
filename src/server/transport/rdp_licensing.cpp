@@ -645,14 +645,41 @@ verifyRdpClientPlatformChallengeResponse(
             : RdpClientPlatformChallengeResponseError::MacMismatch};
 }
 
-RdpClientLicenseInfoHardwareIdResult
-verifyRdpClientLicenseInfoHardwareId(
+RdpClientLicenseInfoHardwareIdProof::~RdpClientLicenseInfoHardwareIdProof()
+{
+    retire();
+}
+
+RdpClientLicenseInfoHardwareIdProof::
+RdpClientLicenseInfoHardwareIdProof(
+    RdpClientLicenseInfoHardwareIdProof &&other) noexcept
+{
+    if (other.verified_)
+    {
+        hardwareId_ = other.hardwareId_;
+        verified_ = true;
+    }
+    other.retire();
+}
+
+void RdpClientLicenseInfoHardwareIdProof::retire() noexcept
+{
+    OPENSSL_cleanse(hardwareId_.data(), hardwareId_.size());
+    verified_ = false;
+}
+
+RdpClientLicenseInfoHardwareIdProofResult
+verifyAndRetainRdpClientLicenseInfoHardwareId(
     std::span<const std::uint8_t> completeMessage,
     const RdpLicensingKeyMaterial &keyMaterial) noexcept
 {
+    RdpClientLicenseInfoHardwareIdProofResult result{};
     const auto info = parseRdpClientLicenseInfo(completeMessage);
     if (!info)
-        return {RdpClientLicenseInfoHardwareIdError::InvalidMessage};
+    {
+        result.error = RdpClientLicenseInfoHardwareIdError::InvalidMessage;
+        return result;
+    }
 
     std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId{};
     const auto decrypted = cryptRdpLicensingData(
@@ -662,7 +689,8 @@ verifyRdpClientLicenseInfoHardwareId(
     if (!decrypted)
     {
         OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
-        return {RdpClientLicenseInfoHardwareIdError::DecryptFailure};
+        result.error = RdpClientLicenseInfoHardwareIdError::DecryptFailure;
+        return result;
     }
 
     auto mac = generateRdpLicensingMac(
@@ -671,7 +699,8 @@ verifyRdpClientLicenseInfoHardwareId(
     {
         OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
         OPENSSL_cleanse(mac.value.data(), mac.value.size());
-        return {RdpClientLicenseInfoHardwareIdError::MacFailure};
+        result.error = RdpClientLicenseInfoHardwareIdError::MacFailure;
+        return result;
     }
 
     const bool matches =
@@ -679,11 +708,32 @@ verifyRdpClientLicenseInfoHardwareId(
         CRYPTO_memcmp(
             info.value.macData.data(), mac.value.data(),
             mac.value.size()) == 0;
+    if (matches)
+    {
+        result.proof.hardwareId_ = hardwareId;
+        result.proof.verified_ = true;
+        result.error = RdpClientLicenseInfoHardwareIdError::None;
+    }
+    else
+    {
+        result.error = RdpClientLicenseInfoHardwareIdError::MacMismatch;
+    }
+
     OPENSSL_cleanse(hardwareId.data(), hardwareId.size());
     OPENSSL_cleanse(mac.value.data(), mac.value.size());
-    return {
-        matches ? RdpClientLicenseInfoHardwareIdError::None
-                : RdpClientLicenseInfoHardwareIdError::MacMismatch};
+    return result;
+}
+
+RdpClientLicenseInfoHardwareIdResult
+verifyRdpClientLicenseInfoHardwareId(
+    std::span<const std::uint8_t> completeMessage,
+    const RdpLicensingKeyMaterial &keyMaterial) noexcept
+{
+    auto retained = verifyAndRetainRdpClientLicenseInfoHardwareId(
+        completeMessage, keyMaterial);
+    const auto error = retained.error;
+    retained.proof.retire();
+    return {error};
 }
 
 namespace
@@ -1686,6 +1736,224 @@ bool RdpServerLicenseIdentity::configure(
     std::copy(scopeAnsi.begin(), scopeAnsi.end(), scopeAnsi_.begin());
     configured_ = true;
     return true;
+}
+
+RdpExistingClientCalAuthorityRequest::~RdpExistingClientCalAuthorityRequest()
+{
+    retire();
+}
+
+RdpExistingClientCalAuthorityRequest::
+RdpExistingClientCalAuthorityRequest(
+    RdpExistingClientCalAuthorityRequest &&other) noexcept
+{
+    companyNameUtf16_ = other.companyNameUtf16_;
+    productIdUtf16_ = other.productIdUtf16_;
+    scopeAnsi_ = other.scopeAnsi_;
+    licenseInfo_ = other.licenseInfo_;
+    hardwareId_ = other.hardwareId_;
+    requestCorrelation_ = other.requestCorrelation_;
+    productVersion_ = other.productVersion_;
+    companyNameUtf16Length_ = other.companyNameUtf16Length_;
+    productIdUtf16Length_ = other.productIdUtf16Length_;
+    scopeAnsiLength_ = other.scopeAnsiLength_;
+    licenseInfoLength_ = other.licenseInfoLength_;
+    verificationUnixSeconds_ = other.verificationUnixSeconds_;
+    admissionGeneration_ = other.admissionGeneration_;
+    sessionGeneration_ = other.sessionGeneration_;
+    productIdentityBound_ = other.productIdentityBound_;
+    active_ = other.active_;
+    other.retire();
+}
+
+RdpExistingClientCalAuthorityRequestError
+RdpExistingClientCalAuthorityRequest::bindProductIdentity(
+    const RdpServerLicenseIdentity &identity) noexcept
+{
+    if (productIdentityBound_)
+        return RdpExistingClientCalAuthorityRequestError::AlreadyBound;
+    if (!identity.configured() || identity.productVersion() == 0U)
+        return RdpExistingClientCalAuthorityRequestError::InvalidProductIdentity;
+
+    const auto companyName = identity.companyNameUtf16();
+    const auto productId = identity.productIdUtf16();
+    const auto scope = identity.scopeAnsi();
+    if (companyName.empty() || productId.empty() || scope.empty() ||
+        companyName.size() > companyNameUtf16_.size() ||
+        productId.size() > productIdUtf16_.size() ||
+        scope.size() > scopeAnsi_.size())
+    {
+        return RdpExistingClientCalAuthorityRequestError::InvalidProductIdentity;
+    }
+
+    std::copy(
+        companyName.begin(), companyName.end(), companyNameUtf16_.begin());
+    std::copy(productId.begin(), productId.end(), productIdUtf16_.begin());
+    std::copy(scope.begin(), scope.end(), scopeAnsi_.begin());
+    productVersion_ = identity.productVersion();
+    companyNameUtf16Length_ = companyName.size();
+    productIdUtf16Length_ = productId.size();
+    scopeAnsiLength_ = scope.size();
+    productIdentityBound_ = true;
+    return RdpExistingClientCalAuthorityRequestError::None;
+}
+
+bool RdpExistingClientCalAuthorityRequest::matchesProductIdentity(
+    const RdpServerLicenseIdentity &identity) const noexcept
+{
+    if (!productIdentityBound_ || !identity.configured() ||
+        productVersion_ != identity.productVersion())
+    {
+        return false;
+    }
+
+    const auto companyName = identity.companyNameUtf16();
+    const auto productId = identity.productIdUtf16();
+    const auto scope = identity.scopeAnsi();
+    return companyName.size() == companyNameUtf16Length_ &&
+           productId.size() == productIdUtf16Length_ &&
+           scope.size() == scopeAnsiLength_ &&
+           std::equal(
+               companyName.begin(), companyName.end(),
+               companyNameUtf16_.begin()) &&
+           std::equal(
+               productId.begin(), productId.end(), productIdUtf16_.begin()) &&
+           std::equal(scope.begin(), scope.end(), scopeAnsi_.begin());
+}
+
+RdpExistingClientCalAuthorityRequestError
+RdpExistingClientCalAuthorityRequest::complete(
+    RdpClientLicenseInfoHardwareIdProof &&hardwareIdProof,
+    std::span<const std::uint8_t> licenseInfo,
+    std::int64_t verificationUnixSeconds,
+    std::uint64_t admissionGeneration,
+    std::uint64_t sessionGeneration) noexcept
+{
+    if (active_)
+        return RdpExistingClientCalAuthorityRequestError::AlreadyCompleted;
+    if (!productIdentityBound_)
+        return RdpExistingClientCalAuthorityRequestError::ProductIdentityNotBound;
+    if (!hardwareIdProof.verified() ||
+        hardwareIdProof.hardwareId().size() != hardwareId_.size())
+    {
+        return RdpExistingClientCalAuthorityRequestError::MissingHardwareProof;
+    }
+    if (licenseInfo.empty())
+        return RdpExistingClientCalAuthorityRequestError::InvalidLicense;
+    if (licenseInfo.size() > licenseInfo_.size())
+        return RdpExistingClientCalAuthorityRequestError::OversizedLicense;
+    if (verificationUnixSeconds <= 0)
+        return RdpExistingClientCalAuthorityRequestError::InvalidVerificationTime;
+    if (admissionGeneration == 0U || sessionGeneration == 0U)
+        return RdpExistingClientCalAuthorityRequestError::InvalidAdmissionGeneration;
+
+    std::array<std::uint8_t,
+        kRdpExistingClientCalAuthorityRequestCorrelationBytes>
+        correlation{};
+    constexpr std::size_t maximumAttempts = 4U;
+    bool correlationReady = false;
+    for (std::size_t attempt = 0U; attempt < maximumAttempts; ++attempt)
+    {
+        if (RAND_priv_bytes(
+                correlation.data(),
+                static_cast<int>(correlation.size())) != 1)
+        {
+            break;
+        }
+        if (!std::all_of(
+                correlation.begin(), correlation.end(),
+                [](std::uint8_t value) { return value == 0U; }))
+        {
+            correlationReady = true;
+            break;
+        }
+    }
+    if (!correlationReady)
+    {
+        OPENSSL_cleanse(correlation.data(), correlation.size());
+        return RdpExistingClientCalAuthorityRequestError::
+            CorrelationGenerationFailure;
+    }
+
+    std::copy(licenseInfo.begin(), licenseInfo.end(), licenseInfo_.begin());
+    std::copy(
+        hardwareIdProof.hardwareId().begin(),
+        hardwareIdProof.hardwareId().end(),
+        hardwareId_.begin());
+    requestCorrelation_ = correlation;
+    OPENSSL_cleanse(correlation.data(), correlation.size());
+
+    licenseInfoLength_ = licenseInfo.size();
+    verificationUnixSeconds_ = verificationUnixSeconds;
+    admissionGeneration_ = admissionGeneration;
+    sessionGeneration_ = sessionGeneration;
+    active_ = true;
+    hardwareIdProof.retire();
+    return RdpExistingClientCalAuthorityRequestError::None;
+}
+
+bool RdpExistingClientCalAuthorityRequest::matchesRequest(
+    std::span<const std::uint8_t> requestCorrelation,
+    std::uint64_t admissionGeneration,
+    std::uint64_t sessionGeneration) const noexcept
+{
+    return active_ &&
+           admissionGeneration != 0U && sessionGeneration != 0U &&
+           admissionGeneration == admissionGeneration_ &&
+           sessionGeneration == sessionGeneration_ &&
+           requestCorrelation.size() == requestCorrelation_.size() &&
+           CRYPTO_memcmp(
+               requestCorrelation.data(),
+               requestCorrelation_.data(),
+               requestCorrelation_.size()) == 0;
+}
+
+bool RdpExistingClientCalAuthorityRequest::retireRequest(
+    std::span<const std::uint8_t> requestCorrelation,
+    std::uint64_t admissionGeneration,
+    std::uint64_t sessionGeneration) noexcept
+{
+    if (!matchesRequest(
+            requestCorrelation, admissionGeneration, sessionGeneration))
+    {
+        return false;
+    }
+    retire();
+    return true;
+}
+
+void RdpExistingClientCalAuthorityRequest::
+revokeUnlessAdmissionBindingMatches(
+    std::uint64_t admissionGeneration,
+    std::uint64_t sessionGeneration) noexcept
+{
+    if (active_ &&
+        (admissionGeneration == 0U || sessionGeneration == 0U ||
+         admissionGeneration != admissionGeneration_ ||
+         sessionGeneration != sessionGeneration_))
+    {
+        retire();
+    }
+}
+
+void RdpExistingClientCalAuthorityRequest::retire() noexcept
+{
+    OPENSSL_cleanse(companyNameUtf16_.data(), companyNameUtf16_.size());
+    OPENSSL_cleanse(productIdUtf16_.data(), productIdUtf16_.size());
+    OPENSSL_cleanse(scopeAnsi_.data(), scopeAnsi_.size());
+    OPENSSL_cleanse(licenseInfo_.data(), licenseInfo_.size());
+    OPENSSL_cleanse(hardwareId_.data(), hardwareId_.size());
+    OPENSSL_cleanse(requestCorrelation_.data(), requestCorrelation_.size());
+    productVersion_ = 0U;
+    companyNameUtf16Length_ = 0U;
+    productIdUtf16Length_ = 0U;
+    scopeAnsiLength_ = 0U;
+    licenseInfoLength_ = 0U;
+    verificationUnixSeconds_ = 0;
+    admissionGeneration_ = 0U;
+    sessionGeneration_ = 0U;
+    productIdentityBound_ = false;
+    active_ = false;
 }
 
 RdpNewLicenseInfoEncodeResult encodeRdpNewLicenseInformation(

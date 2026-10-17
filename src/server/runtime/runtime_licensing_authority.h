@@ -20,7 +20,9 @@ class RuntimeLicensingAuthorityProvider;
 class RuntimeLicensingAuthorityTestAccess;
 
 inline constexpr std::size_t kRuntimeLicensingAuthorityRequestCorrelationBytes =
-    32U;
+    rdp_server::server::transport::
+        kRdpExistingClientCalAuthorityRequestCorrelationBytes;
+static_assert(kRuntimeLicensingAuthorityRequestCorrelationBytes == 32U);
 inline constexpr std::size_t kMaximumRuntimeLicensingIssuerIdentityBytes =
     1024U;
 inline constexpr std::size_t kMaximumRuntimeLicensingTrustConfigurationBytes =

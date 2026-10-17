@@ -1,3 +1,20 @@
+## R3 existing-CAL authority-request tests remain non-authorizing (2026-10-17)
+
+The R3 P0 snapshot boundary has four ordinary production-backed CTests:
+ownership, HWID-proof gate, product/correlation denials, and revocation/replay.
+Positive assertions may prove only production cryptographic proof creation,
+exact bounded snapshot ownership and continuity. Test CAL bytes remain opaque
+and cannot stand in for a genuine issuer decision.
+
+R9 sanitizer CI enumerates
+`^transport\.licensing-existing-cal-authority-request-`, requires exactly
+four registrations and all four behavior names, then executes that selection.
+This is intentionally separate from both the large cross-road licensing regex
+and R10's `^runtime\.licensing-existing-cal-` four-case authority selector.
+Malformed CLIENT_LICENSE_INFO framing, empty/oversized CAL request payloads,
+altered protected HWID, wrong product/scope/correlation/generation, duplicate
+completion, cancellation and late replay must all fail closed.
+
 ## R7 macOS capture-to-R4 ingress tests preserve the native commit point (2026-10-17)
 
 The Apple-only R7 compatibility cases may link the existing noninstalled

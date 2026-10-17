@@ -223,6 +223,67 @@ verifyRdpClientLicenseInfoHardwareId(
     std::span<const std::uint8_t> completeMessage,
     const RdpLicensingKeyMaterial &keyMaterial) noexcept;
 
+// Move-only proof that the exact CLIENT_LICENSE_INFO encrypted HWID was
+// decrypted with the live licensing keys and its MAC matched. Callers cannot
+// construct a verified instance from raw bytes or a Boolean. The proof is
+// sensitive session material only; it is not CAL validity or issuer authority.
+struct RdpClientLicenseInfoHardwareIdProofResult;
+class RdpClientLicenseInfoHardwareIdProof final
+{
+public:
+    RdpClientLicenseInfoHardwareIdProof() noexcept = default;
+    ~RdpClientLicenseInfoHardwareIdProof();
+
+    RdpClientLicenseInfoHardwareIdProof(
+        const RdpClientLicenseInfoHardwareIdProof &) = delete;
+    RdpClientLicenseInfoHardwareIdProof &operator=(
+        const RdpClientLicenseInfoHardwareIdProof &) = delete;
+    RdpClientLicenseInfoHardwareIdProof(
+        RdpClientLicenseInfoHardwareIdProof &&other) noexcept;
+    RdpClientLicenseInfoHardwareIdProof &operator=(
+        RdpClientLicenseInfoHardwareIdProof &&) = delete;
+
+    [[nodiscard]] bool verified() const noexcept { return verified_; }
+    [[nodiscard]] std::span<const std::uint8_t> hardwareId() const noexcept
+    {
+        return verified_
+            ? std::span<const std::uint8_t>{hardwareId_}
+            : std::span<const std::uint8_t>{};
+    }
+    void retire() noexcept;
+
+private:
+    friend RdpClientLicenseInfoHardwareIdProofResult
+    verifyAndRetainRdpClientLicenseInfoHardwareId(
+        std::span<const std::uint8_t> completeMessage,
+        const RdpLicensingKeyMaterial &keyMaterial) noexcept;
+    friend class RdpExistingClientCalAuthorityRequest;
+
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId_{};
+    bool verified_{};
+};
+
+struct RdpClientLicenseInfoHardwareIdProofResult
+{
+    RdpClientLicenseInfoHardwareIdProof proof{};
+    RdpClientLicenseInfoHardwareIdError error{
+        RdpClientLicenseInfoHardwareIdError::InvalidMessage};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpClientLicenseInfoHardwareIdError::None &&
+               proof.verified();
+    }
+};
+
+// Same production decryption/MAC path as verifyRdpClientLicenseInfoHardwareId,
+// but retains the plaintext HWID in an unforgeable move-only proof for the
+// existing-CAL authority-request owner. No CAL decision is made here.
+[[nodiscard]] RdpClientLicenseInfoHardwareIdProofResult
+verifyAndRetainRdpClientLicenseInfoHardwareId(
+    std::span<const std::uint8_t> completeMessage,
+    const RdpLicensingKeyMaterial &keyMaterial) noexcept;
+
 enum class RdpClientCalChainError : std::uint8_t
 {
     None,
@@ -741,6 +802,172 @@ private:
     std::size_t scopeAnsiLength_{};
     bool attempted_{};
     bool configured_{};
+};
+
+// R3 -> R10 request correlation is a fresh random token, not authority.
+// R10 aliases this exact width so no cross-road adapter can silently truncate
+// or widen one active existing-CAL request identity.
+inline constexpr std::size_t
+    kRdpExistingClientCalAuthorityRequestCorrelationBytes = 32U;
+
+enum class RdpExistingClientCalAuthorityRequestError : std::uint8_t
+{
+    None,
+    AlreadyBound,
+    InvalidProductIdentity,
+    ProductIdentityNotBound,
+    MissingHardwareProof,
+    InvalidLicense,
+    OversizedLicense,
+    InvalidVerificationTime,
+    InvalidAdmissionGeneration,
+    CorrelationGenerationFailure,
+    AlreadyCompleted,
+};
+
+class RdpExistingClientCalAuthorityRequestTestAccess;
+
+// Non-authorizing R3-owned snapshot for one protected CLIENT_LICENSE_INFO.
+// Product identity is bound when the exact Server License Request is queued;
+// completion can occur only with the move-only production HWID/MAC proof.
+// The bounded CAL remains opaque for R10: this type never decides issuer trust,
+// licensing extensions, CAL lifetime/classification, HWID binding or validity.
+//
+// Serialized session-owner use only. It is move-constructible into a fresh
+// owner but intentionally not move-assignable, so an unresolved request cannot
+// be overwritten. Disconnect/generation replacement call retire(); an exact
+// cancellation correlation can call retireRequest(). A positive matchesRequest
+// result is continuity evidence only and can never license a session.
+class RdpExistingClientCalAuthorityRequest final
+{
+public:
+    RdpExistingClientCalAuthorityRequest() noexcept = default;
+    ~RdpExistingClientCalAuthorityRequest();
+
+    RdpExistingClientCalAuthorityRequest(
+        const RdpExistingClientCalAuthorityRequest &) = delete;
+    RdpExistingClientCalAuthorityRequest &operator=(
+        const RdpExistingClientCalAuthorityRequest &) = delete;
+    RdpExistingClientCalAuthorityRequest(
+        RdpExistingClientCalAuthorityRequest &&other) noexcept;
+    RdpExistingClientCalAuthorityRequest &operator=(
+        RdpExistingClientCalAuthorityRequest &&) = delete;
+
+    [[nodiscard]] bool productIdentityBound() const noexcept
+    {
+        return productIdentityBound_;
+    }
+    [[nodiscard]] bool active() const noexcept { return active_; }
+    [[nodiscard]] std::uint32_t productVersion() const noexcept
+    {
+        return active_ ? productVersion_ : 0U;
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    companyNameUtf16() const noexcept
+    {
+        return active_
+            ? std::span<const std::uint8_t>{
+                  companyNameUtf16_.data(), companyNameUtf16Length_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    productIdUtf16() const noexcept
+    {
+        return active_
+            ? std::span<const std::uint8_t>{
+                  productIdUtf16_.data(), productIdUtf16Length_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t> scopeAnsi() const noexcept
+    {
+        return active_
+            ? std::span<const std::uint8_t>{
+                  scopeAnsi_.data(), scopeAnsiLength_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t> licenseInfo() const noexcept
+    {
+        return active_
+            ? std::span<const std::uint8_t>{
+                  licenseInfo_.data(), licenseInfoLength_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::span<const std::uint8_t> hardwareId() const noexcept
+    {
+        return active_
+            ? std::span<const std::uint8_t>{hardwareId_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::int64_t verificationUnixSeconds() const noexcept
+    {
+        return active_ ? verificationUnixSeconds_ : 0;
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    requestCorrelation() const noexcept
+    {
+        return active_
+            ? std::span<const std::uint8_t>{requestCorrelation_}
+            : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::uint64_t admissionGeneration() const noexcept
+    {
+        return active_ ? admissionGeneration_ : 0U;
+    }
+    [[nodiscard]] std::uint64_t sessionGeneration() const noexcept
+    {
+        return active_ ? sessionGeneration_ : 0U;
+    }
+
+    [[nodiscard]] bool matchesProductIdentity(
+        const RdpServerLicenseIdentity &identity) const noexcept;
+    [[nodiscard]] bool matchesRequest(
+        std::span<const std::uint8_t> requestCorrelation,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) const noexcept;
+    [[nodiscard]] bool retireRequest(
+        std::span<const std::uint8_t> requestCorrelation,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept;
+    void revokeUnlessAdmissionBindingMatches(
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept;
+    void retire() noexcept;
+
+private:
+    friend class McsSessionLifecycle;
+    friend class RdpExistingClientCalAuthorityRequestTestAccess;
+
+    [[nodiscard]] RdpExistingClientCalAuthorityRequestError
+    bindProductIdentity(
+        const RdpServerLicenseIdentity &identity) noexcept;
+    [[nodiscard]] RdpExistingClientCalAuthorityRequestError complete(
+        RdpClientLicenseInfoHardwareIdProof &&hardwareIdProof,
+        std::span<const std::uint8_t> licenseInfo,
+        std::int64_t verificationUnixSeconds,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept;
+
+    std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
+        companyNameUtf16_{};
+    std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
+        productIdUtf16_{};
+    std::array<std::uint8_t, kMaximumRdpServerLicenseIdentityTextBytes>
+        scopeAnsi_{};
+    std::array<std::uint8_t, kMaximumRdpClientCalBytes> licenseInfo_{};
+    std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> hardwareId_{};
+    std::array<std::uint8_t,
+        kRdpExistingClientCalAuthorityRequestCorrelationBytes>
+        requestCorrelation_{};
+    std::uint32_t productVersion_{};
+    std::size_t companyNameUtf16Length_{};
+    std::size_t productIdUtf16Length_{};
+    std::size_t scopeAnsiLength_{};
+    std::size_t licenseInfoLength_{};
+    std::int64_t verificationUnixSeconds_{};
+    std::uint64_t admissionGeneration_{};
+    std::uint64_t sessionGeneration_{};
+    bool productIdentityBound_{};
+    bool active_{};
 };
 
 // MS-RDPELE 2.2.2.6.1 NEW_LICENSE_INFO plaintext serializer. It reuses the

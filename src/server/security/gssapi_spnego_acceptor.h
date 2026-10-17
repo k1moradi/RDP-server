@@ -18,6 +18,8 @@
 namespace rdp_server::server::security
 {
 
+class LinuxPamPasswordVerifier;
+
 // A Linux MIT GSSAPI acceptor adapter, not a CredSSP/NLA authorization
 // decision. Only explicit keytabs and exact TERMSRV/host@REALM service principals
 // may be used. No implicit default keytab, host login or credentials.
@@ -142,6 +144,13 @@ public:
     // generation and grants no authentication or native authority.
     [[nodiscard]] bool bindConsoleIdentityPolicy(
         const ConsoleIdentityPolicy &policy) noexcept;
+
+    // Linux-only, service-owned PAM verifier binding for the final password
+    // credential boundary. The verifier must already have one explicit PAM
+    // service configured and must outlive this acceptor. Binding grants no
+    // authentication or native admission authority.
+    [[nodiscard]] bool bindLinuxPamPasswordVerifier(
+        const LinuxPamPasswordVerifier &verifier) noexcept;
 
     // Call exactly once per incoming CredSSP TSRequest negoToken. Only a
     // COMPLETE GSS context with authenticated Kerberos, mutual, confidentiality,
@@ -356,6 +365,7 @@ private:
 
     const ConsoleIdentityPolicy *identityPolicy_{};
     std::uint64_t identityPolicyGeneration_{};
+    const LinuxPamPasswordVerifier *passwordVerifier_{};
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
     // Borrowed from the one TLS-bound framing owner, never owning SSL.

@@ -303,6 +303,7 @@ function(add_rdp_test source_file suite behavior)
                 credssp-password-credential-nested-der-mutations
                 credssp-password-credential-length-boundary-denials
                 credssp-password-credential-utf16-mutation-boundaries
+                credssp-password-field-synchronous-visitor
                 credssp-delegated-account-extraction
                 credssp-delegated-domain-identity-denials
                 credssp-delegated-account-sensitive-retirement
@@ -622,10 +623,19 @@ if(TARGET rdp-server-linux-pam-password-verifier)
         test_linux_pam_password_verifier.cpp
         security linux-pam-password-verifier-denials)
     target_link_libraries(test_linux_pam_password_verifier PRIVATE
-        rdp-server-linux-pam-password-verifier)
+        rdp-server-linux-pam-password-verifier
+        rdp-server-linux-gssapi)
     set_tests_properties(
         security.linux-pam-password-verifier-denials
         PROPERTIES LABELS "security;linux-provider;pam;offline")
+    foreach(case_name IN ITEMS
+            credssp-pam-password-field-verifier-denials
+            gssapi-pam-verifier-binding-denials)
+        add_test(NAME "security.${case_name}"
+            COMMAND test_linux_pam_password_verifier "${case_name}")
+        set_tests_properties("security.${case_name}" PROPERTIES
+            LABELS "security;linux-provider;pam;offline")
+    endforeach()
 endif()
 
 if(TARGET rdp-server-linux-runtime-security)

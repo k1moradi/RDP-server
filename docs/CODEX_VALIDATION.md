@@ -1,3 +1,29 @@
+## R2 authenticated PAM invocation authoring (2026-10-17)
+
+**Reconciled shared-main parent:** `8ee59f77a0db27df3bb06096955cee07ed8b938a`.
+
+This R2 publication wires the existing explicit-service Linux PAM verifier only
+inside the already authenticated final-CredSSP plaintext lifetime. The portable
+canonical parser gains a noninstalled synchronous field visitor; the GSS owner
+gains a one-shot borrowed verifier binding; exact account policy matching still
+precedes the PAM call. Every PAM outcome remains subordinate evidence and is
+discarded before the existing terminal rejection, so this change cannot mint
+final CredSSP completion, a native admission lease or R3 authority.
+
+Dedicated CTests are
+`security.credssp-password-field-synchronous-visitor`,
+`security.credssp-pam-password-field-verifier-denials` and
+`security.gssapi-pam-verifier-binding-denials`. The PAM credential case uses
+a deliberately nonexistent synthetic account with the real provider and accepts
+only Denied or ProviderFailure. R9's bounded portable and PAM sanitizer
+selectors include exact registry preflight checks for the new names.
+
+No canonical local checkout/build root is mounted in this connector, so local
+Debug/Release/ASan/UBSan execution is **NOT RUN** rather than inferred. Exact-SHA
+hosted results are **PENDING** until the publication workflow completes.
+Positive Kerberos, positive PAM, NSS/logind native admission, Microsoft-client
+acceptance and M2 remain **BLOCKED / NOT RUN**.
+
 ## R7 capture geometry-generation retirement authoring receipt (2026-10-16)
 
 **Starting reconciled shared `main`:** `17fd924eb642a21b9f985800097d975fe551752b`.  

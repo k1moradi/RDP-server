@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gssapi_spnego_acceptor.h"
+#include "credssp_credentials_internal.h"
+
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+#include "linux_pam_password_verifier.h"
+#endif
 
 #include <gssapi/gssapi.h>
 
@@ -12,6 +17,55 @@ namespace rdp_server::server::security
 {
 namespace
 {
+struct DelegatedPasswordVerificationContext final
+{
+    const ConsoleIdentityPolicy *policy{};
+    std::string_view authenticatedPrincipal{};
+    std::uint64_t policyGeneration{};
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    const LinuxPamPasswordVerifier *passwordVerifier{};
+    LinuxPamPasswordVerificationStatus passwordStatus{
+        LinuxPamPasswordVerificationStatus::InvalidInput};
+#endif
+    bool exactCandidate{};
+};
+
+void verifyDelegatedPasswordCandidate(
+    std::string_view unixAccount,
+    std::span<const std::uint8_t> passwordUtf16Le,
+    void *opaqueContext) noexcept
+{
+    auto &context = *static_cast<DelegatedPasswordVerificationContext *>(
+        opaqueContext);
+    if (context.policy == nullptr)
+    {
+        return;
+    }
+
+    context.exactCandidate =
+        context.policy->matchPrincipalAccountCandidate(
+            context.authenticatedPrincipal, unixAccount,
+            context.policyGeneration) == ConsolePolicyMatch::CandidateOnly;
+    if (!context.exactCandidate)
+    {
+        return;
+    }
+
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (context.passwordVerifier != nullptr)
+    {
+        // PAM is invoked only while passwordUtf16Le still borrows the live,
+        // GSS-unwrapped plaintext guarded by SensitiveBytesGuard. Even an
+        // Authorized result is deliberately not persisted or promoted to the
+        // private final-authentication latch in this increment.
+        context.passwordStatus = context.passwordVerifier->verify(
+            unixAccount, passwordUtf16Le);
+    }
+#else
+    (void)passwordUtf16Le;
+#endif
+}
+
 [[nodiscard]] bool permittedCredentialMessage(
     const TsRequestResult &request) noexcept
 {
@@ -85,18 +139,23 @@ void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
         if (major == GSS_S_COMPLETE && confidential != 0 &&
             bytes.size() <= kMaximumDecryptedCredentialsBytes)
         {
-            const auto account = inspectCredSspDelegatedAccount(bytes);
-            if (account)
-            {
-                const bool exactCandidate =
-                    identityPolicy_->matchPrincipalAccountCandidate(
-                        authenticatedPrincipal, account.accountName(),
-                        identityPolicyGeneration_) ==
-                    ConsolePolicyMatch::CandidateOnly;
-                // CandidateOnly is intentionally not persisted. A future PAM
-                // call must remain synchronous inside this plaintext lifetime.
-                (void)exactCandidate;
-            }
+            DelegatedPasswordVerificationContext verification;
+            verification.policy = identityPolicy_;
+            verification.authenticatedPrincipal = authenticatedPrincipal;
+            verification.policyGeneration = identityPolicyGeneration_;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+            verification.passwordVerifier = passwordVerifier_;
+#endif
+            const auto visitStatus = visitCredSspPasswordCredential(
+                bytes, &verifyDelegatedPasswordCandidate, &verification);
+            // Syntax, exact mapping and PAM are still subordinate evidence.
+            // This path remains terminal deny-only until final completion and
+            // native admission are separately audited.
+            (void)visitStatus;
+            (void)verification.exactCandidate;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+            (void)verification.passwordStatus;
+#endif
         }
     }
 

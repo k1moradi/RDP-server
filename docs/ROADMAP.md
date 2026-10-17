@@ -1,3 +1,40 @@
+## R2 authenticated PAM invocation boundary (2026-10-17; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `8ee59f77a0db27df3bb06096955cee07ed8b938a`.
+
+The completed delegated-account binding now feeds the existing real Linux PAM
+verifier synchronously, but still cannot authorize a desktop. A new
+noninstalled `credssp_credentials_internal.h` visitor reuses the one canonical
+credential parser and exposes validated account/password views only during one
+stack callback. The GSS final-authInfo path reaches that visitor only after the
+existing original-R1 HYBRID/TLS, certificate, GSS principal, binding-reply and
+policy-generation fences. PAM is called only after exact
+principal-to-delegated-account `CandidateOnly` matching and before the GSS
+plaintext is cleansed and released.
+
+`GssapiSpnegoAcceptor` can bind one already-configured
+`LinuxPamPasswordVerifier` after its identity policy and before provider
+configuration. No implicit PAM service is selected. PAM remains Linux-only and
+noninstalled. Even `Authorized` is intentionally discarded: the private final
+credential latch remains false, no native lease is issued and R3 remains
+closed. Positive PAM still needs to be joined to fresh NSS/logind owner evidence
+and revocation in a later audited R2 completion contract.
+
+New production-backed coverage is
+`security.credssp-password-field-synchronous-visitor`,
+`security.credssp-pam-password-field-verifier-denials` and
+`security.gssapi-pam-verifier-binding-denials`. The first is portable; the
+latter two remain behind Linux GSS+PAM mode and use only a nonexistent synthetic
+account against the real host PAM provider. R9 sanitizer selectors now preflight
+all three names. No fake positive PAM, GSS identity or native admission fixture
+is introduced.
+
+Exact-SHA hosted validation is pending this publication. The canonical
+owner-local `~/rdp-server/build/` is unavailable in this connector
+environment and is therefore **NOT RUN**. Positive Kerberos/PAM/NSS/logind,
+owner Linux/X11 and authenticated Microsoft-client acceptance remain
+**BLOCKED / NOT RUN**.
+
 ## R7 ScreenCaptureKit geometry-generation retirement fence (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `17fd924eb642a21b9f985800097d975fe551752b`.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "security/credssp_tsrequest.h"
 #include "security/credssp_credentials.h"
+#include "security/credssp_credentials_internal.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -400,6 +401,80 @@ void testStrictPasswordCredentialFields()
             return false;
     }
     return true;
+}
+
+struct PasswordFieldVisitorObservation final
+{
+    const std::uint8_t *plaintextBegin{};
+    const std::uint8_t *plaintextEnd{};
+    std::array<char, kMaximumDelegatedUnixAccountBytes + 1U> account{};
+    std::size_t accountLength{};
+    std::size_t passwordLength{};
+    bool passwordBorrowedFromPlaintext{};
+    bool called{};
+};
+
+void observePasswordCredential(
+    std::string_view unixAccount,
+    std::span<const std::uint8_t> passwordUtf16Le,
+    void *opaqueContext) noexcept
+{
+    auto &observation =
+        *static_cast<PasswordFieldVisitorObservation *>(opaqueContext);
+    assert(!observation.called);
+    assert(unixAccount.size() <= kMaximumDelegatedUnixAccountBytes);
+    std::copy(unixAccount.begin(), unixAccount.end(),
+              observation.account.begin());
+    observation.accountLength = unixAccount.size();
+    observation.passwordLength = passwordUtf16Le.size();
+    observation.passwordBorrowedFromPlaintext =
+        passwordUtf16Le.data() >= observation.plaintextBegin &&
+        passwordUtf16Le.data() + passwordUtf16Le.size() <=
+            observation.plaintextEnd;
+    observation.called = true;
+}
+
+void testPasswordFieldSynchronousVisitor()
+{
+    Bytes plaintext = passwordCredentials(
+        {}, utf16Le(u"alice"), utf16Le(u"p\u00e4ss\U0001F512"));
+    PasswordFieldVisitorObservation observation{
+        plaintext.data(), plaintext.data() + plaintext.size()};
+    assert(visitCredSspPasswordCredential(
+               plaintext, &observePasswordCredential, &observation) ==
+           CredSspPasswordFieldVisitStatus::Visited);
+    assert(observation.called);
+    assert(std::string_view(
+               observation.account.data(), observation.accountLength) ==
+           "alice");
+    assert(observation.passwordLength ==
+           utf16Le(u"p\u00e4ss\U0001F512").size());
+    assert(observation.passwordBorrowedFromPlaintext);
+
+    // The helper itself retains no field view. Retirement of the caller-owned
+    // plaintext therefore cannot alter the copied non-secret observation.
+    std::fill(plaintext.begin(), plaintext.end(), 0);
+    assert(std::string_view(
+               observation.account.data(), observation.accountLength) ==
+           "alice");
+
+    PasswordFieldVisitorObservation denied{};
+    const auto nonEmptyDomain = passwordCredentials(
+        utf16Le(u"EXAMPLE"), utf16Le(u"alice"), utf16Le(u"secret"));
+    assert(visitCredSspPasswordCredential(
+               nonEmptyDomain, &observePasswordCredential, &denied) ==
+           CredSspPasswordFieldVisitStatus::NonEmptyDomain);
+    assert(!denied.called);
+
+    const auto smartCard = passwordCredentials(
+        {}, utf16Le(u"alice"), utf16Le(u"secret"), 2);
+    assert(visitCredSspPasswordCredential(
+               smartCard, &observePasswordCredential, &denied) ==
+           CredSspPasswordFieldVisitStatus::UnsupportedCredentialType);
+    assert(!denied.called);
+    assert(visitCredSspPasswordCredential(
+               smartCard, nullptr, nullptr) ==
+           CredSspPasswordFieldVisitStatus::InvalidVisitor);
 }
 
 void testDelegatedAccountExtraction()
@@ -1534,7 +1609,7 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 22> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 23> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
@@ -1548,6 +1623,8 @@ constexpr std::array<CredSspTestCase, 22> kCredSspTests{{
      &testPasswordCredentialLengthBoundaryDenials},
     {"credssp-password-credential-utf16-mutation-boundaries",
      &testPasswordCredentialUtf16MutationBoundaries},
+    {"credssp-password-field-synchronous-visitor",
+     &testPasswordFieldSynchronousVisitor},
     {"credssp-delegated-account-extraction", &testDelegatedAccountExtraction},
     {"credssp-delegated-domain-identity-denials",
      &testDelegatedDomainIdentityDenials},

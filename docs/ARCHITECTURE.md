@@ -1,3 +1,29 @@
+## R2 authenticated PAM invocation boundary (2026-10-17)
+
+R2 now connects the existing explicit-service Linux PAM verifier to the final
+credential path without promoting it to admission authority. A noninstalled
+internal CredSSP visitor reuses the canonical TSCredentials/TSPasswordCreds
+parser and lends the validated local-account copy plus password UTF-16LE span
+only for one synchronous callback. The password view continues to borrow the
+single GSS plaintext buffer; no password getter, session field, queue or
+asynchronous callback is introduced.
+
+The GSS owner may bind one already-configured `LinuxPamPasswordVerifier` only
+after its service-owned `ConsoleIdentityPolicy` is bound and before GSS
+configuration. In PAM-enabled Linux builds, the genuine final-authInfo path
+invokes PAM only after the provider-derived Kerberos principal exactly matches
+the delegated account at the captured policy generation. PAM executes while
+`SensitiveBytesGuard` still owns the complete GSS plaintext. Provider buffer
+release, reader retirement and acceptor rejection remain the terminal path.
+
+This increment deliberately discards every PAM result, including
+`Authorized`. It does not set
+`ownedCredSspCredentialAuthorizationComplete_`, issue a
+`LinuxConsoleAdmissionLease`, admit NSS/logind evidence or open R3. The next
+R2 boundary must define how a real positive PAM result is combined with fresh
+native account/session evidence and revocation before the private completion
+latch can become true.
+
 ## R3 OpenSSL 4 synthetic-signature fixture portability (2026-10-16)
 
 The production CAL inspector is OpenSSL 4 source-compatible. The synthetic

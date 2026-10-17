@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "credssp_credentials.h"
+#include "credssp_credentials_internal.h"
 
 #include <openssl/crypto.h>
 
@@ -339,6 +340,50 @@ CredSspDelegatedAccountInspection inspectCredSspDelegatedAccount(
 
     result.error = CredSspDelegatedAccountError::None;
     return result;
+}
+
+CredSspPasswordFieldVisitStatus visitCredSspPasswordCredential(
+    std::span<const std::uint8_t> plaintext,
+    CredSspPasswordFieldVisitor visitor,
+    void *context) noexcept
+{
+    if (visitor == nullptr)
+    {
+        return CredSspPasswordFieldVisitStatus::InvalidVisitor;
+    }
+
+    CredentialEnvelope envelope;
+    if (!parseCredentialEnvelope(plaintext, envelope))
+    {
+        return CredSspPasswordFieldVisitStatus::InvalidCredential;
+    }
+    if (envelope.type != 1)
+    {
+        return CredSspPasswordFieldVisitStatus::UnsupportedCredentialType;
+    }
+
+    PasswordCredentialFields fields;
+    if (!parsePasswordFields(envelope.credentials, fields))
+    {
+        return CredSspPasswordFieldVisitStatus::InvalidCredential;
+    }
+    if (!fields.domain.empty())
+    {
+        return CredSspPasswordFieldVisitStatus::NonEmptyDomain;
+    }
+
+    CredSspDelegatedAccountInspection account;
+    if (!copyUnixAccount(fields.user, account))
+    {
+        OPENSSL_cleanse(account.account.data(), account.account.size());
+        account.accountLength = 0;
+        return CredSspPasswordFieldVisitStatus::InvalidUnixAccount;
+    }
+
+    visitor(account.accountName(), fields.password, context);
+    OPENSSL_cleanse(account.account.data(), account.account.size());
+    account.accountLength = 0;
+    return CredSspPasswordFieldVisitStatus::Visited;
 }
 
 SensitiveBytesGuard::~SensitiveBytesGuard()

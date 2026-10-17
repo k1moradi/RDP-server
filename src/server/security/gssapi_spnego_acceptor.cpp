@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gssapi_spnego_acceptor.h"
+#include "linux_pam_password_verifier.h"
 
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/tpkt_x224.h"
@@ -192,6 +193,7 @@ void GssapiSpnegoAcceptor::reject() noexcept
     ownedCredSspCredentialAuthorizationComplete_ = false;
     identityPolicy_ = nullptr;
     identityPolicyGeneration_ = 0;
+    passwordVerifier_ = nullptr;
     deleteContext();
     if (credentials_ != GSS_C_NO_CREDENTIAL)
     {
@@ -242,6 +244,25 @@ bool GssapiSpnegoAcceptor::bindConsoleIdentityPolicy(
     identityPolicy_ = &policy;
     identityPolicyGeneration_ = generation;
     return true;
+}
+
+bool GssapiSpnegoAcceptor::bindLinuxPamPasswordVerifier(
+    const LinuxPamPasswordVerifier &verifier) noexcept
+{
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (stage_ != SpnegoStage::Unconfigured || identityPolicy_ == nullptr ||
+        passwordVerifier_ != nullptr || !verifier.configured())
+    {
+        reject();
+        return false;
+    }
+    passwordVerifier_ = &verifier;
+    return true;
+#else
+    (void)verifier;
+    reject();
+    return false;
+#endif
 }
 
 bool GssapiSpnegoAcceptor::configure(

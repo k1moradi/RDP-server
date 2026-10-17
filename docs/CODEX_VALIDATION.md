@@ -1,3 +1,37 @@
+## R8 P2 hierarchy provenance protocol-limit receipt (2026-10-17; exact-SHA CI pending)
+
+**Starting shared `main`:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.
+
+MS-RDPECLIP review confirms the supported streaming contract has no trustworthy
+remote parent edge. `CB_FILECLIP_NO_FILE_PATHS` requires source paths to be
+omitted from file descriptions; `CLIPRDR_FILEDESCRIPTOR` supplies per-entry
+metadata including the directory attribute, and File Contents `lindex`
+addresses only the exact File List entry. There is no parent identifier.
+The separate Direct File Access path applies only when one endpoint already has
+direct access to the peer filesystem and is not implemented by R8.
+
+No production behavior is broadened. Existing production code remains the
+tested contract: path-bearing FILEDESCRIPTORW names are rejected, descriptor
+indices/generations/private offer epochs stay authoritative, caller parent
+metadata is bounded/acyclic and non-authorizing, and directory materialization
+remains unsupported despite a separately authorized native directory
+capability.
+
+New ordinary production-backed registrations are
+`clipboard.file-hierarchy-provenance-unsupported-denials`,
+`clipboard.file-hierarchy-generation-replacement`, and
+`clipboard.file-hierarchy-no-path-authority`. The existing
+`clipboard.file-destination-plan-directory-traversal-denials` continues to
+exercise missing parent, self parent, file-as-parent, parent cycle and maximum
+depth rejection; existing index-generation and transactional tests cover
+unique exact indices/count and all-or-nothing commit. R9's clipboard sanitizer
+preflight now requires the three new registrations before executing the entire
+clipboard label.
+
+No local compile/CTest, native filesystem materialization, live clipboard or
+real client is executed in this connector environment. Exact publication-SHA
+hosted evidence is **PENDING**.
+
 ## R6 P2 DXGI-to-R4 handoff authoring receipt (2026-10-17)
 
 **Authoring parent:** `2fa14da2fcfe2a78fe849c69f0051e796f4a8321`.  

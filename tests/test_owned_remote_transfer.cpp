@@ -2068,6 +2068,168 @@ void testFileDestinationPlanDirectoryTraversalDenials()
            PrepareStatus::PlacementDepthExceeded);
 }
 
+
+void testFileHierarchyProvenanceUnsupportedDenials()
+{
+    using Plan = RemoteFileDestinationPlan;
+    using AssociationStatus = Plan::AssociationStatus;
+
+    constexpr std::uint32_t kFileListFormatId = 0xc721U;
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    const std::array<TestRemoteFileDescriptor, 2> descriptors{{
+        {u"folder", 0U, false, true},
+        {u"child.bin", 4U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+
+    const std::array<Plan::Selection, 2> selections{{
+        {0U, 0x2101U, std::nullopt},
+        {1U, 0x2102U, 0U},
+    }};
+    Plan plan;
+    assert(plan.prepare(source, source.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+    assert(plan.current(source));
+    assert(plan.hierarchyStatus() ==
+           Plan::RemoteHierarchyStatus::UnsupportedWithRetainedMetadata);
+
+    const auto directory = plan.association(source, 0U);
+    const auto child = plan.association(source, 1U);
+    assert(directory && child);
+    assert(directory->remoteFileIndex == 0U &&
+           !directory->parentRemoteFileIndex);
+    assert(child->remoteFileIndex == 1U &&
+           child->parentRemoteFileIndex == std::optional<std::size_t>{0U});
+    assert(plan.associationStatus(source, 0U) ==
+           AssociationStatus::UnsupportedDirectoryMaterialization);
+    assert(plan.associationStatus(source, 1U) ==
+           AssociationStatus::CurrentFile);
+
+    // A separately authorized native directory object still cannot turn
+    // caller-selected placement metadata into remote hierarchy provenance.
+    FakeDirectoryCapabilityNative native;
+    RemoteDirectoryCapabilityBinding binding{
+        source, plan, native.operations()};
+    assert(binding.bind(
+        0U, FakeDirectoryCapabilityNative::kSourceCapability));
+    assert(binding.current());
+    assert(plan.hierarchyStatus() ==
+           Plan::RemoteHierarchyStatus::UnsupportedWithRetainedMetadata);
+    binding.close();
+}
+
+void testFileHierarchyGenerationReplacement()
+{
+    using Plan = RemoteFileDestinationPlan;
+
+    constexpr std::uint32_t kFileListFormatId = 0xc722U;
+    const std::array<TestRemoteFileDescriptor, 2> initial{{
+        {u"folder", 0U, false, true},
+        {u"old.bin", 4U, true, false},
+    }};
+    const std::array<Plan::Selection, 2> selections{{
+        {0U, 0x2201U, std::nullopt},
+        {1U, 0x2202U, 0U},
+    }};
+
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    installRemoteFileOffer(source, kFileListFormatId, initial);
+    Plan oldPlan;
+    assert(oldPlan.prepare(
+               source, source.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+    assert(oldPlan.current(source));
+
+    const std::array<TestRemoteFileDescriptor, 2> replacement{{
+        {u"new-folder", 0U, false, true},
+        {u"new.bin", 8U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId + 1U, replacement);
+    assert(!oldPlan.current(source));
+    assert(!oldPlan.association(source, 0U));
+    assert(oldPlan.associationStatus(source, 0U) ==
+           Plan::AssociationStatus::StaleSource);
+
+    const std::array<Plan::Selection, 2> freshSelections{{
+        {0U, 0x2211U, std::nullopt},
+        {1U, 0x2212U, 0U},
+    }};
+    Plan freshPlan;
+    assert(freshPlan.prepare(
+               source, source.generation(), freshSelections) ==
+           Plan::PrepareStatus::Prepared);
+    assert(freshPlan.current(source));
+    assert(freshPlan.hierarchyStatus() ==
+           Plan::RemoteHierarchyStatus::UnsupportedWithRetainedMetadata);
+
+    // Numeric generation reuse after disconnect cannot revive an older plan;
+    // the private source epoch remains part of the production freshness fence.
+    RemoteTransfer reconnect;
+    initializeFileStreamSession(reconnect);
+    installRemoteFileOffer(reconnect, kFileListFormatId, initial);
+    const std::uint64_t repeatedGeneration = reconnect.generation();
+    Plan reconnectPlan;
+    assert(reconnectPlan.prepare(
+               reconnect, repeatedGeneration, selections) ==
+           Plan::PrepareStatus::Prepared);
+    reconnect.resetAfterDisconnect();
+    initializeFileStreamSession(reconnect);
+    installRemoteFileOffer(reconnect, kFileListFormatId, initial);
+    assert(reconnect.generation() == repeatedGeneration);
+    assert(!reconnectPlan.current(reconnect));
+    assert(reconnectPlan.associationStatus(reconnect, 1U) ==
+           Plan::AssociationStatus::StaleSource);
+}
+
+void testFileHierarchyNoPathAuthority()
+{
+    using namespace rdp_server::clipboard;
+    using Plan = RemoteFileDestinationPlan;
+
+    static_assert(
+        (RemoteTransfer::kSupportedGeneralFlags & kFileclipNoFilePaths) != 0U);
+
+    constexpr std::uint32_t kFileListFormatId = 0xc723U;
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    assert((source.negotiatedGeneralFlags() & kFileclipNoFilePaths) != 0U);
+
+    const std::array<TestRemoteFileDescriptor, 2> descriptors{{
+        {u"folder", 0U, false, true},
+        {u"child.bin", 4U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+    const std::uint64_t generation = source.generation();
+
+    const std::array<Plan::Selection, 2> selections{{
+        {0U, 0x2301U, std::nullopt},
+        {1U, 0x2302U, 0U},
+    }};
+    Plan plan;
+    assert(plan.prepare(source, generation, selections) ==
+           Plan::PrepareStatus::Prepared);
+    assert(plan.current(source));
+
+    // CB_FILECLIP_NO_FILE_PATHS forbids treating source paths as file
+    // descriptions. Reject both separator forms and Windows path syntax rather
+    // than deriving any parent relation or local filesystem destination.
+    expectRemoteDescriptorNameRejected(source, u"folder\\child.bin");
+    expectRemoteDescriptorNameRejected(source, u"folder/child.bin");
+    expectRemoteDescriptorNameRejected(source, u"C:\\folder\\child.bin");
+    expectRemoteDescriptorNameRejected(source, u"\\\\server\\share\\child.bin");
+
+    // Failed path-bearing alternatives do not replace the already validated
+    // pathless descriptor set or grant hierarchy/path authority.
+    assert(source.generation() == generation);
+    assert(source.remoteFileCount() == descriptors.size());
+    assert(plan.current(source));
+    assert(plan.hierarchyStatus() ==
+           Plan::RemoteHierarchyStatus::UnsupportedWithRetainedMetadata);
+}
+
+
 void testFileDestinationPlanTransactionalCommit()
 {
     using Plan = RemoteFileDestinationPlan;
@@ -3770,6 +3932,21 @@ int main(int argumentCount, char **arguments)
         if (caseName == "file-destination-plan-directory-traversal-denials")
         {
             testFileDestinationPlanDirectoryTraversalDenials();
+            return 0;
+        }
+        if (caseName == "file-hierarchy-provenance-unsupported-denials")
+        {
+            testFileHierarchyProvenanceUnsupportedDenials();
+            return 0;
+        }
+        if (caseName == "file-hierarchy-generation-replacement")
+        {
+            testFileHierarchyGenerationReplacement();
+            return 0;
+        }
+        if (caseName == "file-hierarchy-no-path-authority")
+        {
+            testFileHierarchyNoPathAuthority();
             return 0;
         }
         if (caseName == "file-destination-plan-transactional-commit")

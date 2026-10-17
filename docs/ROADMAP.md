@@ -1,3 +1,65 @@
+## R8 P2 remote directory hierarchy provenance limitation (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.
+
+Normative MS-RDPECLIP review does not provide a trustworthy parent-child graph
+for the file-streaming mode this server actually supports. The General
+Capability Set requires that when `CB_FILECLIP_NO_FILE_PATHS` is set, file
+descriptions must not include source paths. R8 advertises that flag. A
+`CLIPRDR_FILEDESCRIPTOR` can identify one list entry as a directory through
+`FILE_ATTRIBUTE_DIRECTORY`, and `CLIPRDR_FILECONTENTS_REQUEST.lindex`
+selects one exact File List index, but neither structure carries a parent node
+identifier or parent edge. Direct File Access can use absolute paths only when
+an endpoint already has direct access to the peer filesystem; R8 does not
+implement that distinct mechanism and it cannot be repurposed as streaming
+hierarchy authority.
+
+Therefore this increment deliberately adds **no positive remote hierarchy
+representation and no filesystem operation**. The existing production contract
+remains authoritative: FileGroupDescriptorW names are retained only as bounded
+safe leaves; both slash forms, drive/path punctuation, malformed UTF-16 and
+dot/dot-dot leaves are rejected. `RemoteFileDestinationPlan` keeps exact
+descriptor-index identity, generation plus private offer-epoch freshness,
+fixed count/depth bounds and transactional all-member validation.
+`parentRemoteFileIndex` remains caller-selected **local placement metadata
+only**. Its missing-parent, self-parent, file-as-parent, cycle and depth checks
+protect future native code from unsafe caller graphs, but cannot prove that the
+remote peer advertised the same tree. `hierarchyStatus()` consequently
+continues to report `UnsupportedWithRetainedMetadata`, and directory
+associations continue to report `UnsupportedDirectoryMaterialization`.
+
+Three new production-backed CTests make that protocol limitation explicit:
+`clipboard.file-hierarchy-provenance-unsupported-denials` proves that even a
+valid caller placement graph plus a separately duplicated native directory
+capability cannot upgrade remote provenance;
+`clipboard.file-hierarchy-generation-replacement` proves offer replacement
+and disconnect/reconnect generation-number reuse leave old plans stale; and
+`clipboard.file-hierarchy-no-path-authority` proves the negotiated no-path
+capability plus path-bearing descriptor rejection never creates hierarchy or
+filesystem authority. Existing
+`clipboard.file-destination-plan-directory-traversal-denials` remains the
+single graph-safety gate for missing/self/file parents, cycles and bounded
+depth, while index-generation and transactional-commit cases continue to cover
+unique descriptor identity, count and all-or-nothing commit.
+
+R9's complete clipboard ASan/UBSan selection still executes every
+`LABELS clipboard` case and now fail-closed preflights all three new names.
+No file, directory or symlink is created; no parent path is traversed; the
+platform file-destination and directory-capability implementations are
+unchanged.
+
+**Safe future materialization decision:** directory-tree materialization
+remains **BLOCKED**. It may advance only if a supported, authenticated wire
+mechanism supplies an explicit verifiable parent relation, or a separately
+reviewed contract makes every local child placement independently
+caller-authorized without claiming remote-tree fidelity. Never derive parent
+edges or local paths from descriptor names, File List order, or directory bits.
+Handle-relative creation/symlink-race policy remains a separate future review.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment. Publication-SHA hosted Debug/Release, R9 sanitizer and
+documentation-policy evidence are pending.
+
 ## R6 P2 DXGI-to-R4 native frame ownership boundary (2026-10-17; exact-SHA CI pending)
 
 **Authoring parent:** `2fa14da2fcfe2a78fe849c69f0051e796f4a8321`.

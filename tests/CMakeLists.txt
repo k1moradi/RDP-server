@@ -594,6 +594,9 @@ set_tests_properties(clipboard.remote-transfer-framing-rejections PROPERTIES
 foreach(case_name IN ITEMS
         file-destination-plan-index-generation
         file-destination-plan-directory-traversal-denials
+        file-hierarchy-provenance-unsupported-denials
+        file-hierarchy-generation-replacement
+        file-hierarchy-no-path-authority
         file-destination-plan-transactional-commit
         file-destination-plan-cancel-replay
         directory-capability-binding-authority

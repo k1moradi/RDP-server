@@ -1,3 +1,19 @@
+## R8 R3-channel retirement is a revocation test, not synthetic authority (2026-10-17)
+
+`clipboard.r3-channel-retirement-revokes-state` exercises the production
+revocation-only R8 seam with fresh joined-channel gates that deliberately reuse
+the same numeric CLIPRDR ID. It must prove old format-write receipts,
+FileContents request/stream correlations, verified native-ready bytes, pending
+paste receipts and destination-plan associations cannot cross retirement, while
+monotonic receipt/stream identities do not ABA when the clipboard generation
+number repeats.
+
+This test does not manufacture R2 admission, licensing or Share activation and
+does not duplicate File List hierarchy parsing or native adapter tests. Existing
+Windows/macOS generation-owner-loss cases and X11 disconnect/late-paste fences
+remain the production-backed native publication retirement coverage. Live
+positive CLIPRDR testing waits for R3's genuine activated authority.
+
 ## R8 hierarchy-provenance tests are structural and non-authorizing (2026-10-17)
 
 Test relative File List hierarchy only through production descriptor parsing and

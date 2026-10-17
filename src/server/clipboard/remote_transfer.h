@@ -512,6 +512,15 @@ public:
     // A lost, timed-out or ambiguous response cannot be correlated with
     // subsequent traffic. Fail closed until an actual channel disconnect.
     void abandonRequest() noexcept;
+
+    // Revocation-only R3 integration seam. The authoritative R3 owner must
+    // call this before replacing/reusing an authenticated, licensed, activated
+    // CLIPRDR channel or whenever its exact session/channel generation stops
+    // matching. This grants no authority and accepts no caller-supplied
+    // generation scalar; it applies disconnect cleanup while preserving
+    // monotonic receipt/source identities so late callbacks cannot alias a
+    // replacement.
+    void retireR3ChannelState() noexcept;
     void resetAfterDisconnect() noexcept;
 
     [[nodiscard]] bool synchronized() const noexcept;

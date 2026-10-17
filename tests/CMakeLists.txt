@@ -446,6 +446,7 @@ function(add_rdp_test source_file suite behavior)
                 capabilities-negotiation-format-gating
                 format-list-response-joined-mcs-envelope
                 joined-static-channel-inbound-gates
+                r3-channel-retirement-revokes-state
                 prefetch-unicode-png-dib-single-flight
                 format-data-request-joined-mcs-envelope
                 format-data-request-generation-cancellation

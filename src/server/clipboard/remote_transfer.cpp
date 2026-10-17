@@ -2380,6 +2380,11 @@ void RemoteTransfer::abandonRequest() noexcept
     }
 }
 
+void RemoteTransfer::retireR3ChannelState() noexcept
+{
+    resetAfterDisconnect();
+}
+
 void RemoteTransfer::resetAfterDisconnect() noexcept
 {
     if (pasteRequestPresent_ &&

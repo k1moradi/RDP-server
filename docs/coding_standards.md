@@ -1,3 +1,30 @@
+## R3-authorized CLIPRDR stays R3-owned and generation-correlated (R8 P1, 2026-10-17)
+
+Live CLIPRDR ingress and egress require one authoritative R3 route that is
+already authenticated through current R2 authority, genuinely licensed and
+Share-activated. A joined MCS channel ID, an admission Boolean, or
+`RemoteTransfer::generation()` is not that authority. The live composition
+boundary must correlate the current R2 admission/session generations, R3's
+exact session lifetime and exact CLIPRDR-channel generation, and the negotiated
+CLIPRDR channel ID/role.
+
+R3 must revalidate that exact binding before every inbound clipboard dispatch,
+outbound prepare/write slice and accepted-byte receipt, FileContents
+request/response, and native publish/render callback. R8's clipboard generation
+remains a separate remote-offer identity. On R2 revocation, R3 channel/session
+replacement, disconnect, or either R3 generation changing, stop routing first
+and call `RemoteTransfer::retireR3ChannelState()` before any replacement can
+use R8 state. That revocation-only hook grants no authority; it reuses the
+disconnect cleanup while monotonic receipt, stream and source identities prevent
+ABA. The owning native adapter must retire its publication/handoff state in the
+same serialized lifecycle before a replacement can publish.
+
+Caller-authorized native destinations remain independent capabilities. Verified
+relative File List hierarchy is structural metadata only and never participates
+in the R3 authority tuple or becomes a local path. Directory-tree creation
+remains unsupported until separately reviewed native directory capabilities and
+race-safe handle-relative creation exist.
+
 ## Relative CLIPRDR hierarchy is metadata, never path authority (R8 P2, 2026-10-17)
 
 MS-RDPECLIP File List names can carry bounded relative components even when

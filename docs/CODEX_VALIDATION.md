@@ -1,3 +1,36 @@
+## R8 authenticated-CLIPRDR retirement authoring receipt (2026-10-17)
+
+**Starting reconciled shared `main`:** `b737ff20aea60afa814ac70649709791d5f20a4c`. **Publication:** this
+atomic code/test/roadmap commit; exact publication-SHA hosted results are
+**PENDING**.
+
+Audit preserves the production hierarchy delivered at `441b890a`: exact File
+List descriptor indices, at most 64 nodes, depth at most 16, unique safe
+relative names, explicit directory parents, generation-bound invalidation and
+leaf-only native names. Its five dedicated hierarchy CTests are unchanged.
+
+The narrow production correction adds only
+`RemoteTransfer::retireR3ChannelState()`, a revocation-only alias of the
+existing full disconnect cleanup for authoritative R3 channel/session
+replacement. It creates no R8 session authority and no live clipboard route.
+The dedicated `clipboard.r3-channel-retirement-revokes-state` CTest covers
+same-numeric-channel replacement, stale format-write receipts, FileContents
+stream/receipt retirement, verified native-ready data, pending paste receipt
+termination and destination-plan invalidation. Existing platform adapter tests
+remain authoritative for native ownership cleanup.
+
+The live integration contract is intentionally still blocked: R3 must first
+have genuine licensing + Share activation and must revalidate current R2
+authority plus exact R3 session/channel generations around every clipboard
+ingress, outbound write/receipt, FileContents operation and native publication.
+Remote relative hierarchy remains structural metadata only; no path traversal
+or directory materialization was added.
+
+Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** because
+this GitHub connector environment does not expose that required checkout/build
+root and project policy forbids creating an alternate persistent build root.
+Hosted exact-SHA CI is **PENDING**.
+
 ## R8 P2 relative hierarchy provenance exact-SHA receipt (2026-10-17)
 
 **Validated SHA:** `441b890ac779596d54fd72fc4fbbdd008e227f5a`.  

@@ -1809,6 +1809,147 @@ void testJoinedFormatDataRequestGenerationCancellation()
     assert(!tooEarly.synchronized());
 }
 
+
+void testR3ChannelRetirementRevokesState()
+{
+    using namespace rdp_server::clipboard;
+    using namespace rdp_server::server::transport;
+    using Clock = RemoteTransfer::PasteClock;
+    using PasteStatus = RemoteTransfer::PasteStatus;
+    using Plan = RemoteFileDestinationPlan;
+
+    constexpr std::uint16_t kCliprdrChannelId = 1003U;
+    constexpr std::uint32_t kFileListFormatId = 0xc730U;
+    const Clock::time_point start{std::chrono::seconds{1}};
+    const auto deadline = start + std::chrono::milliseconds{100};
+    const std::array<std::uint32_t, 1> textFormats{kFormatUnicodeText};
+
+    McsChannelJoinWriteGate originalGate;
+    confirmJoinedClipboardChannel(originalGate);
+
+    // Retiring the R3 channel invalidates native-ready data and the exact
+    // pending native request, not merely the joined channel's numeric ID.
+    RemoteTransfer owner;
+    assert(owner.receiveFormatList(textFormats));
+    std::vector<std::uint8_t> request;
+    assert(owner.beginRequest(kFormatUnicodeText, request));
+    const std::array<std::uint8_t, 6> textPayload{'O', 0, 'K', 0, 0, 0};
+    const auto textWire = responsePdu(kResponseOk, textPayload);
+    const auto textResponse = owner.receiveResponse(textWire);
+    assert(textResponse.status == RemoteTransfer::ResponseStatus::Received);
+    assert(owner.storeVerifiedUnicodeText(textResponse));
+    const auto readyText = owner.verifiedUnicodeText();
+    assert(readyText && *readyText == "OK");
+
+    const auto paste = owner.beginPasteRequest(
+        RemoteTransfer::PasteKind::UnicodeText, start, deadline);
+    assert(paste);
+    std::array<std::uint8_t, 96> output{};
+    const auto oldWrite = owner.prepareJoinedFormatDataRequest(
+        originalGate, kCliprdrChannelId, kCliprdrChannelId,
+        kFormatUnicodeText, output);
+    assert(oldWrite && owner.joinedRequestMayWrite(oldWrite->sequence));
+    const std::uint64_t oldClipboardGeneration = owner.generation();
+
+    owner.retireR3ChannelState();
+    assert(owner.synchronized());
+    assert(owner.generation() == 0U);
+    assert(!owner.advertises(kFormatUnicodeText));
+    assert(!owner.verifiedUnicodeText());
+    assert(!owner.hasOutstandingRequest());
+    assert(!owner.joinedRequestMayWrite(oldWrite->sequence));
+    assert(!owner.recordJoinedRequestWritten(oldWrite->sequence, 1U));
+    assert(!owner.cancelUnwrittenJoinedRequest(oldWrite->sequence));
+    assert(!owner.abandonJoinedRequest(oldWrite->sequence));
+    const auto retiredPaste = owner.pollPasteRequest(
+        paste->sequence, start + std::chrono::milliseconds{1});
+    assert(retiredPaste.status == PasteStatus::Disconnected);
+    assert(retiredPaste.sequence == paste->sequence);
+    assert(retiredPaste.generation == paste->generation);
+    assert(owner.pollPasteRequest(
+               paste->sequence, start + std::chrono::milliseconds{2})
+               .status == PasteStatus::InvalidSequence);
+
+    originalGate.close();
+    McsChannelJoinWriteGate replacementGate;
+    confirmJoinedClipboardChannel(replacementGate);
+    assert(owner.receiveFormatList(textFormats));
+    // Clipboard generation can repeat after retirement. The writer receipt
+    // sequence cannot, so a same-ID replacement channel cannot acquire the
+    // prior write callback.
+    assert(owner.generation() == oldClipboardGeneration);
+    const auto replacementWrite = owner.prepareJoinedFormatDataRequest(
+        replacementGate, kCliprdrChannelId, kCliprdrChannelId,
+        kFormatUnicodeText, output);
+    assert(replacementWrite &&
+           replacementWrite->sequence > oldWrite->sequence);
+    assert(!owner.recordJoinedRequestWritten(oldWrite->sequence, 1U));
+    assert(owner.cancelUnwrittenJoinedRequest(replacementWrite->sequence));
+
+    // FileContents correlation, exact descriptor association and native
+    // destination planning retire through the same R3 boundary. This uses one
+    // flat descriptor only; hierarchy parsing/materialization is not retested.
+    owner.retireR3ChannelState();
+    replacementGate.close();
+    McsChannelJoinWriteGate fileGate;
+    confirmJoinedClipboardChannel(fileGate);
+    initializeFileStreamSession(owner);
+    const std::array<TestRemoteFileDescriptor, 1> descriptors{{
+        {u"stream.bin", 64U, true, false},
+    }};
+    installRemoteFileOffer(owner, kFileListFormatId, descriptors);
+    const std::uint64_t oldFileGeneration = owner.generation();
+    const std::array<Plan::Selection, 1> selections{{
+        {0U, 0x8801U, std::nullopt},
+    }};
+    Plan plan;
+    assert(plan.prepare(owner, oldFileGeneration, selections) ==
+           Plan::PrepareStatus::Prepared);
+    assert(plan.current(owner));
+
+    const auto oldStream = owner.prepareJoinedFileRangeRequest(
+        fileGate, kCliprdrChannelId, kCliprdrChannelId,
+        0U, 8U, 8U, output);
+    assert(oldStream);
+    assert(owner.joinedFileContentsRequestMayWrite(
+        oldStream->request.sequence));
+
+    owner.retireR3ChannelState();
+    assert(owner.synchronized());
+    assert(owner.generation() == 0U);
+    assert(owner.remoteFileCount() == 0U);
+    assert(!plan.current(owner));
+    assert(!owner.hasOutstandingFileContentsRequest());
+    assert(!owner.joinedFileContentsRequestMayWrite(
+        oldStream->request.sequence));
+    assert(!owner.recordJoinedFileContentsRequestWritten(
+        oldStream->request.sequence, 1U));
+    assert(!owner.cancelUnwrittenJoinedFileContentsRequest(
+        oldStream->request.sequence));
+    assert(!owner.abandonJoinedFileContentsRequest(
+        oldStream->request.sequence));
+
+    fileGate.close();
+    McsChannelJoinWriteGate replacementFileGate;
+    confirmJoinedClipboardChannel(replacementFileGate);
+    initializeFileStreamSession(owner);
+    installRemoteFileOffer(owner, kFileListFormatId, descriptors);
+    assert(owner.generation() == oldFileGeneration);
+    assert(!plan.current(owner));
+    const auto replacementStream = owner.prepareJoinedFileRangeRequest(
+        replacementFileGate, kCliprdrChannelId, kCliprdrChannelId,
+        0U, 8U, 8U, output);
+    assert(replacementStream);
+    assert(replacementStream->request.sequence >
+           oldStream->request.sequence);
+    assert(replacementStream->request.streamId !=
+           oldStream->request.streamId);
+    assert(!owner.recordJoinedFileContentsRequestWritten(
+        oldStream->request.sequence, 1U));
+    assert(owner.cancelUnwrittenJoinedFileContentsRequest(
+        replacementStream->request.sequence));
+}
+
 // R8 exact-index local selection metadata. Duplicate remote leaf names remain
 // distinct descriptors; caller selection identity never replaces the index.
 void testFileDestinationPlanIndexGeneration()
@@ -4234,6 +4375,11 @@ int main(int argumentCount, char **arguments)
         if (caseName == "joined-static-channel-inbound-gates")
         {
             testJoinedStaticChannelInboundGates();
+            return 0;
+        }
+        if (caseName == "r3-channel-retirement-revokes-state")
+        {
+            testR3ChannelRetirementRevokesState();
             return 0;
         }
         if (caseName == "format-list-response-joined-mcs-envelope")

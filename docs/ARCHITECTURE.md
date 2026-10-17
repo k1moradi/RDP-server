@@ -35,7 +35,15 @@ asynchronous callback is introduced.
 
 The GSS owner may bind one already-configured `LinuxPamPasswordVerifier` only
 after its service-owned `ConsoleIdentityPolicy` is bound and before GSS
-configuration. In PAM-enabled Linux builds, the genuine final-authInfo path
+configuration. In PAM-enabled Linux builds,
+`LinuxRuntimeSecurityConfiguration` can own that verifier alongside the
+sealed keytab and immutable policy when an explicit PAM service is supplied to
+its one-shot opt-in configuration. Per-connection acceptors borrow the verifier
+for no longer than the runtime-security owner lifetime; they do not own,
+replace or reconfigure it. The existing non-PAM configuration path remains
+unchanged and no default PAM service exists.
+
+In PAM-enabled Linux builds, the genuine final-authInfo path
 invokes PAM only after the provider-derived Kerberos principal exactly matches
 the delegated account at the captured policy generation. PAM executes while
 `SensitiveBytesGuard` still owns the complete GSS plaintext. Provider buffer

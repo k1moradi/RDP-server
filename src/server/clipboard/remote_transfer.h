@@ -691,6 +691,15 @@ public:
         UnsupportedWithRetainedMetadata,
     };
 
+    RemoteFileDestinationPlan() noexcept = default;
+    ~RemoteFileDestinationPlan() noexcept = default;
+    RemoteFileDestinationPlan(const RemoteFileDestinationPlan &) = delete;
+    RemoteFileDestinationPlan &operator=(
+        const RemoteFileDestinationPlan &) = delete;
+    RemoteFileDestinationPlan(RemoteFileDestinationPlan &&) = delete;
+    RemoteFileDestinationPlan &operator=(
+        RemoteFileDestinationPlan &&) = delete;
+
     [[nodiscard]] PrepareStatus prepare(
         const RemoteTransfer &source, std::uint64_t expectedGeneration,
         std::span<const Selection> selections) noexcept;

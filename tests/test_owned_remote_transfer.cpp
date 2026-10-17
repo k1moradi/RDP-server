@@ -16,6 +16,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 using rdp_server::server::clipboard::RemoteFileDestinationPlan;
@@ -2004,6 +2005,10 @@ void testFileDestinationPlanTransactionalCommit()
 {
     using Plan = RemoteFileDestinationPlan;
     using PrepareStatus = Plan::PrepareStatus;
+    static_assert(!std::is_copy_constructible_v<Plan>);
+    static_assert(!std::is_copy_assignable_v<Plan>);
+    static_assert(!std::is_move_constructible_v<Plan>);
+    static_assert(!std::is_move_assignable_v<Plan>);
 
     constexpr std::uint32_t kFileListFormatId = 0xc730U;
     RemoteTransfer source;

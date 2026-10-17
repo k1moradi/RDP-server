@@ -181,9 +181,10 @@ the plan rejects out-of-range or duplicate indices, missing or duplicate
 selection identities, missing/self/file parents, ambiguous duplicate placement,
 cycles and hierarchy depth beyond 16 before publishing any association.
 Validation uses fixed 64-entry candidate/presence arrays and commits into a
-fixed 64-entry association array; no file body or tree is prefetched. Once
-committed, the plan is one-shot. Cancellation and close are terminal and
-idempotent.
+fixed 64-entry association array; no file body or tree is prefetched. The plan
+is non-copyable and non-movable so one committed lifecycle cannot be duplicated
+before retirement. Once committed, it is one-shot. Cancellation and close are
+terminal and idempotent.
 
 Currentness binds three facts: the exact `RemoteTransfer` object, its public
 clipboard generation, and a private monotonic accepted-offer epoch. The epoch

@@ -1,3 +1,43 @@
+## R5 P1 deterministic native-X11 event-readiness exact-SHA validation (2026-10-17)
+
+**Implementation:** `c94c001f7e876df3f353948609a326f78481c1f3`.  
+**Actions:** `39012274592` — overall **FAIL** in cross-road jobs; the complete
+R9 sanitizer job and R5 native-X11 selection are **PASS**.
+
+The R5 test-only readiness hardening removes all seven scheduler sleeps from
+the affected native Xvfb desktop/display fixtures. On Ubuntu 24.04 with Clang
+**18.1.3**, the fail-closed R5 preflight still enumerates exactly **33**
+registrations and the same selector completes **33/33 PASS** under ASan/UBSan
+with leak detection. The directly changed native cases pass:
+`x11.display-event-failure-defers-owner-teardown` **8/33**,
+`x11.desktop-resource-event-routing` **22/33**,
+`x11.desktop-resource-randr-rebuild` **23/33**,
+`x11.desktop-resource-r4-read-boundary` **24/33**,
+`x11.desktop-resource-pointer-event-routing` **30/33**, and
+`x11.desktop-resource-pointer-randr-rebuild` **31/33**. The unchanged pixel,
+RandR generation, stale-damage, stale-motion, terminal-capture and authorized
+input-denial boundaries also remain green.
+
+Ubuntu/GCC **13.3** Debug executes **575** tests and finishes **574/575 PASS**;
+all inspected R5 native cases pass. Its sole failure is the R1-owned
+`transport.tcp-native-loopback-tls`. macOS likewise finishes **490/491 PASS**
+with only that R1 fixture failing. Windows CLANG64 reaches **526/527 PASS** with
+the same R1 failure. The ordinary Windows/MSVC job additionally has the
+separate R10 private-ACL fixture failures. Therefore the hosted workflow is
+correctly reported red overall and is not an M1 candidate, while no R5 failure
+is present at this SHA.
+
+Documentation policy, standalone/primary workflow-structure validation, R7
+session sanitizers, R7 native lifecycle and the complete R9 sanitizer job pass.
+No X11 production source or CTest registry changed in this increment.
+
+**Next R5:** retain the deterministic queued-event fixtures and do not add a
+second capture/input path. R5 is ready to classify/fix any Linux/X11 failure
+when R10 names a fully green same-SHA M1 candidate and the owner runs the
+canonical Linux/X11 Debug build/full CTest. Until then owner Linux/X11 remains
+**NOT RUN** and M3 remains **BLOCKED ON R3** for authenticated, already-decoded
+bounded Share/Input or Fast-Path Input delivery.
+
 ## R3 unchanged-descendant Release gate remains blocked (2026-10-17)
 
 **Unchanged-R3 descendant:** `75375ccfeb7523d58d40024f783ebfe84f4db50b`.  

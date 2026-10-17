@@ -1,3 +1,22 @@
+## R5 deterministic native-X11 event-readiness exact-SHA receipt (2026-10-17)
+
+`c94c001f7e876df3f353948609a326f78481c1f3`, Actions
+`39012274592`: R9's supported Linux/X11 profile enumerates exactly **33** R5
+tests and executes **33/33 PASS** under Clang 18.1.3 ASan/UBSan after the seven
+test-harness scheduler sleeps were replaced by checked XCB ordering plus
+production-connection round trips.
+
+The changed display-error, Damage/event-routing, R4 read-boundary, RandR
+rebuild and XI2 pointer event/rebuild cases all pass. Ubuntu/GCC 13.3 Debug is
+**574/575 PASS**; its sole failure is R1
+`transport.tcp-native-loopback-tls`. macOS and Windows CLANG64 fail that same
+R1 fixture, and ordinary Windows/MSVC additionally fails the separate R10
+private-ACL fixtures. The R5 sanitizer block itself, documentation policy and
+workflow-structure checks are green.
+
+No R5 production failure is present. Owner Linux/X11 and Microsoft-client M3
+acceptance remain **NOT RUN**.
+
 ## R3 unchanged-descendant validation follow-up (2026-10-17)
 
 At unchanged-R3 descendant

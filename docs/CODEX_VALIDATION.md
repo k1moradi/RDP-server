@@ -1,3 +1,16 @@
+## R9 duplicate workflow-tail correction (2026-10-17)
+
+Corrective SHA `b116837f04818caf37ee167b0731a6454e4ff498` restored the
+two intended sanitizer selectors, then independent structure Actions
+`39047170592` identified the remaining authoring damage: duplicate YAML
+mapping key `r7-macos-native-lifecycle`. Inspection found four copies of the
+R7/docs/prerelease workflow tail after the first complete prerelease job.
+This correction removes only the duplicated tail after that first complete
+prerelease command. The six-case R3 personal-mode selector, two-case R10
+deployment-policy selector, sanitizer build target, structure sentinels and
+concurrent R4/R5 documentation are preserved. No production source or CTest
+body changes.
+
 ## R9 personal-mode sanitizer workflow authoring correction (2026-10-17)
 
 Initial CI-only publication `f301c398b75822dcfea0aff2926a5c8324c18b71`

@@ -1,3 +1,39 @@
+## R3 existing-client CAL signature-fixture exact-SHA validation (2026-10-17)
+
+**Implementation:** `17fd924eb642a21b9f985800097d975fe551752b`.  
+**Actions:** `39009556082` — **SUCCESS**.
+
+The DER-level changed-signed-content fixture closes the provider-cache
+portability gap. The exact implementation SHA passes the complete hosted matrix:
+Linux/GCC **564/564 Debug** and **564/564 Release**, macOS/AppleClang
+**482/482 Debug** and **482/482 Release**, and Windows/MSVC **516/516 Debug**
+and **516/516 Release**. In every ordinary configuration the six
+`transport.licensing-client-cal-*` cases pass, including
+`transport.licensing-client-cal-issuer-signature-denials`.
+
+The R9 Clang ASan/UBSan job enumerates all six CAL registrations with the flat
+fail-closed selector and passes **6/6**. Documentation policy, downstream
+installed-SDK consumer, packaging, digest generation and artifact upload also
+pass; the overall workflow conclusion is **SUCCESS**.
+
+This validates only the current bounded CAL chain/signature/trust mechanics.
+It does not validate product/version correlation, license expiration/renewal,
+CAL-to-HWID binding, permanent/temporary classification, a genuine issuer or
+any `STATUS_VALID_CLIENT` path. MS-RDPELE 3.2.5.3 still requires a terminal
+server to validate the license-server signature, correct product information,
+license expiration date and client hardware identification before treating a
+client license as valid.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27 and real Microsoft-client CAL acceptance remain
+**NOT RUN** here.
+
+**Next R3:** continue fail-closed CAL policy work only from wire semantics that
+are explicitly supported by MS-RDPELE or an authoritative referenced encoding.
+Do not infer proprietary extension payload layouts from examples. The live
+`ClientLicenseInfoValidation` branch remains non-authorizing until product,
+expiration and HWID policy are all validated with a genuine supported issuer.
+
 ## R6 whole-owner Windows session revocation hosted validation (2026-10-17)
 
 **Implementation:** `3a98aa4e26316346b494e82d84bb909fc3d39904`.  

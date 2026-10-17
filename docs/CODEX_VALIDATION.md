@@ -1,3 +1,27 @@
+## R3 CAL signature-fixture exact-SHA validation receipt (2026-10-17)
+
+`17fd924eb642a21b9f985800097d975fe551752b`, Actions
+`39009556082`: **overall SUCCESS**.
+
+- Linux/GCC: **564/564 PASS Debug**, **564/564 PASS Release**.
+- macOS/AppleClang: **482/482 PASS Debug**, **482/482 PASS Release**.
+- Windows/MSVC: **516/516 PASS Debug**, **516/516 PASS Release**.
+- R9 Clang ASan/UBSan: fail-closed CAL registry preflight finds all six
+  `transport.licensing-client-cal-*` cases and the CAL selection is
+  **6/6 PASS**.
+- Documentation policy, installed-SDK consumer, package/digest and artifact
+  publication gates pass.
+
+The corrected denial fixture signs a fresh leaf, mutates a unique extension
+payload in serialized signed DER, reparses a fresh X.509 object, proves direct
+`X509_verify()` failure, and then requires the production inspector to report
+`SignatureVerificationFailure`. No production source changed in this
+validation fix.
+
+Canonical owner-local testing and real-client/provider acceptance remain
+**NOT RUN** in this connector environment. No valid-client authorization or
+Share activation is claimed.
+
 ## R6 whole-owner Windows session revocation hosted validation (2026-10-17)
 
 **Implementation:** `3a98aa4e26316346b494e82d84bb909fc3d39904`.  

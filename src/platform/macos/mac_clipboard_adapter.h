@@ -4,6 +4,7 @@
 #include "mac_clipboard_file_destination.h"
 #include "server/clipboard/remote_transfer.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -17,11 +18,11 @@ namespace rdp::macos
 struct MacClipboardNativeContent final
 {
     std::string_view utf8Text{};
-    std::string_view fileUrl{};
+    std::span<const std::string_view> fileUrls{};
     std::span<const std::byte> pngBytes{};
     bool hasText{};
     bool hasPng{};
-    bool hasFileUrl{};
+    bool hasFileUrls{};
 };
 
 // Allocation-free native pasteboard seam. Production callbacks are backed by
@@ -48,6 +49,8 @@ class MacClipboardAdapter final
 public:
     using RemoteTransfer =
         rdp_server::server::clipboard::RemoteTransfer;
+    using RemoteFileDestinationPlan =
+        rdp_server::server::clipboard::RemoteFileDestinationPlan;
 
     MacClipboardAdapter(
         RemoteTransfer &remoteTransfer,
@@ -75,6 +78,14 @@ public:
     [[nodiscard]] bool publishCompletedFileDestination(
         const MacClipboardFileDestination &destination) noexcept;
 
+    // Atomically publish one complete current-generation planned set as
+    // multiple file NSURL objects. Input order is irrelevant; publication
+    // follows the committed plan's exact remote descriptor index order.
+    [[nodiscard]] bool publishCompletedFileDestinations(
+        const RemoteFileDestinationPlan &plan,
+        std::span<const MacClipboardFileDestination *const>
+            destinations) noexcept;
+
     // Compare the native pasteboard change count with the count recorded after
     // publication. A mismatch means another owner took the pasteboard.
     [[nodiscard]] bool observePasteboardChange() noexcept;
@@ -92,6 +103,17 @@ private:
     [[nodiscard]] bool nativeOperationsValid() const noexcept;
     [[nodiscard]] bool refreshNativeOwnership() noexcept;
     [[nodiscard]] bool clearOwnedPublication() noexcept;
+    [[nodiscard]] bool collectCompletedFileUrls(
+        const RemoteFileDestinationPlan *plan,
+        std::span<const MacClipboardFileDestination *const>
+            destinations,
+        std::uint64_t generation,
+        std::array<std::string_view,
+                   RemoteTransfer::kMaximumRemoteFiles> &fileUrls) const noexcept;
+    [[nodiscard]] bool publishCompletedFileDestinationsInternal(
+        const RemoteFileDestinationPlan *plan,
+        std::span<const MacClipboardFileDestination *const>
+            destinations) noexcept;
     void clearPublicationState() noexcept;
     void finishDeferredActions() noexcept;
 

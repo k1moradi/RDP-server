@@ -1,3 +1,61 @@
+## R8 planned Windows/macOS completed-set publication (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `ec8f9df25f9986a2d51fb258f7798ac8596cfed3`.
+
+R8 now consumes the generation-pinned `RemoteFileDestinationPlan` in the
+remaining Windows and macOS completed-file presentation paths. The new
+`publishCompletedFileDestinations` APIs accept a bounded span of borrowed
+completed destination objects plus the exact committed plan. Every member must
+belong to the current `RemoteTransfer` generation, be complete, map to one
+unique planned remote descriptor index and have a `CurrentFile` association.
+Input order is ignored: native publication is rebuilt in exact remote descriptor
+index order. Null entries, duplicate indices, duplicate local paths/URLs,
+partial destinations, stale generations, cancelled plans and directory
+associations fail before changing native ownership.
+
+Windows encodes the set as one bounded CF_HDROP payload with
+`DROPFILES.pFiles=20`, `fWide=TRUE`, one NUL-terminated caller-selected
+absolute UTF-16 path per planned file and the final list NUL. Aggregate storage
+is bounded by the existing 64-file descriptor limit and the existing per-path
+32767-code-unit limit. The single-file API delegates through the same
+collection/publication path.
+
+macOS extends the synchronous native pasteboard seam from one borrowed file URL
+to a bounded span of borrowed URL views. The AppKit bridge validates every URL
+as a file URL, creates at most 64 NSURL objects and publishes them together with
+one `writeObjects:` call. File sets cannot be mixed with text or PNG content.
+
+Both adapters copy only bounded presentation metadata before the native call,
+then re-collect and compare the exact set afterward. Reentrant cancellation of
+the committed plan therefore rolls back the just-written native set rather than
+allowing borrowed view aliasing to hide a same-generation mutation.
+
+Dedicated production-backed CTests are
+`clipboard.windows-completed-multi-file-hdrop-handoff` and
+`clipboard.macos-completed-multi-file-url-handoff`. Each materializes two
+same-name remote files sequentially through the real one-request-at-a-time
+`RemoteTransfer` FileContents path, proves partial-set invisibility, supplies
+the completed destinations in reverse order, verifies plan-index ordering and
+atomic native publication, rejects duplicate destination membership, exercises
+same-generation local takeover, and proves reentrant/terminal plan cancellation
+cannot leave the native set published. R9's clipboard sanitizer preflight
+enumerates both registrations.
+
+No local path or URL is derived from FILEDESCRIPTORW metadata; callers still
+supply the native destination capabilities and completed local handoff metadata.
+Directory entries remain explicitly unsupported for materialization/publication,
+so this increment adds no mkdir/openat/CreateFile-relative traversal or symlink
+policy.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment; project policy forbids an alternate persistent checkout
+or build root. Exact-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC,
+ASan/UBSan, documentation, SDK consumer and package evidence is **PENDING**.
+
+**Next R8 after validation:** design the separately reviewed race-safe native
+directory capability, relative-creation and symlink policy before any directory
+materialization, then proceed to real-client file-copy acceptance.
+
 ## R9 CredSSP fuzzer compile-scope correction (2026-10-16; exact-SHA CI pending)
 
 Static review after workflow recovery found two test-only source issues before

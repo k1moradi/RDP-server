@@ -274,17 +274,42 @@ bool WindowsClipboardAdapter::encodeNativeUnicodeText(
 }
 
 bool WindowsClipboardAdapter::encodeFileDrop(
-    const std::u16string_view absolutePath,
+    const std::span<const std::u16string_view> absolutePaths,
     std::vector<std::uint8_t> &bytes) const noexcept
 {
     constexpr std::size_t kDropFilesHeaderBytes = 20U;
     bytes.clear();
-    if (absolutePath.empty() ||
-        absolutePath.size() >
-            WindowsClipboardFileDestination::kMaximumLocalPathCodeUnits ||
-        absolutePath.size() >
-            (std::numeric_limits<std::size_t>::max() -
-             kDropFilesHeaderBytes) / 2U - 2U)
+    if (absolutePaths.empty() ||
+        absolutePaths.size() > RemoteTransfer::kMaximumRemoteFiles)
+    {
+        return false;
+    }
+
+    std::size_t listCodeUnits = 1U; // Final list NUL.
+    for (std::size_t index = 0; index < absolutePaths.size(); ++index)
+    {
+        const std::u16string_view path = absolutePaths[index];
+        if (path.empty() ||
+            path.size() >
+                WindowsClipboardFileDestination::kMaximumLocalPathCodeUnits ||
+            path.size() >
+                std::numeric_limits<std::size_t>::max() - listCodeUnits - 1U)
+        {
+            return false;
+        }
+        for (std::size_t previous = 0; previous < index; ++previous)
+        {
+            if (absolutePaths[previous] == path)
+            {
+                return false;
+            }
+        }
+        listCodeUnits += path.size() + 1U;
+    }
+
+    if (listCodeUnits >
+        (std::numeric_limits<std::size_t>::max() -
+         kDropFilesHeaderBytes) / 2U)
     {
         return false;
     }
@@ -292,8 +317,7 @@ bool WindowsClipboardAdapter::encodeFileDrop(
     try
     {
         bytes.assign(
-            kDropFilesHeaderBytes +
-                (absolutePath.size() + 2U) * 2U,
+            kDropFilesHeaderBytes + listCodeUnits * 2U,
             0U);
     }
     catch (...)
@@ -315,39 +339,145 @@ bool WindowsClipboardAdapter::encodeFileDrop(
     write32(16U, 1U);
 
     std::size_t outputOffset = kDropFilesHeaderBytes;
-    for (const char16_t codeUnit : absolutePath)
+    for (const std::u16string_view path : absolutePaths)
     {
-        const auto value = static_cast<std::uint16_t>(codeUnit);
-        bytes[outputOffset++] = static_cast<std::uint8_t>(value);
-        bytes[outputOffset++] = static_cast<std::uint8_t>(value >> 8U);
+        for (const char16_t codeUnit : path)
+        {
+            const auto value = static_cast<std::uint16_t>(codeUnit);
+            bytes[outputOffset++] = static_cast<std::uint8_t>(value);
+            bytes[outputOffset++] =
+                static_cast<std::uint8_t>(value >> 8U);
+        }
+        outputOffset += 2U; // Per-path NUL from zero-filled storage.
     }
-    // The zero-filled tail supplies the path NUL and final list NUL.
-    return true;
+    // The remaining zero-filled code unit is the final list NUL.
+    return outputOffset + 2U == bytes.size();
+}
+
+bool WindowsClipboardAdapter::collectCompletedFilePaths(
+    const RemoteFileDestinationPlan *const plan,
+    const std::span<const WindowsClipboardFileDestination *const>
+        destinations,
+    const std::uint64_t generation,
+    std::array<std::u16string_view,
+               RemoteTransfer::kMaximumRemoteFiles> &paths) const noexcept
+{
+    paths.fill({});
+    if (generation == 0U || destinations.empty() ||
+        destinations.size() > RemoteTransfer::kMaximumRemoteFiles)
+    {
+        return false;
+    }
+    if (plan == nullptr)
+    {
+        if (destinations.size() != 1U)
+        {
+            return false;
+        }
+    }
+    else if (!plan->current(remoteTransfer_) ||
+             plan->generation() != generation ||
+             plan->size() != destinations.size())
+    {
+        return false;
+    }
+
+    std::array<bool, RemoteTransfer::kMaximumRemoteFiles> seen{};
+    for (std::size_t inputIndex = 0;
+         inputIndex < destinations.size(); ++inputIndex)
+    {
+        const WindowsClipboardFileDestination *const destination =
+            destinations[inputIndex];
+        if (destination == nullptr ||
+            destination->status() !=
+                WindowsClipboardFileDestination::Status::Complete ||
+            destination->generation() != generation)
+        {
+            return false;
+        }
+
+        const std::size_t outputIndex =
+            plan == nullptr ? 0U : destination->fileIndex();
+        if (outputIndex >= destinations.size() || seen[outputIndex])
+        {
+            return false;
+        }
+        if (plan != nullptr &&
+            plan->associationStatus(remoteTransfer_, outputIndex) !=
+                RemoteFileDestinationPlan::AssociationStatus::CurrentFile)
+        {
+            return false;
+        }
+
+        const auto completedPath = destination->completedFilePath();
+        if (!completedPath || completedPath->empty())
+        {
+            return false;
+        }
+        for (std::size_t previous = 0;
+             previous < destinations.size(); ++previous)
+        {
+            if (seen[previous] && paths[previous] == *completedPath)
+            {
+                return false;
+            }
+        }
+
+        paths[outputIndex] = *completedPath;
+        seen[outputIndex] = true;
+    }
+
+    return std::all_of(
+        seen.begin(), seen.begin() + destinations.size(),
+        [](const bool present) { return present; });
 }
 
 bool WindowsClipboardAdapter::publishCompletedFileDestination(
     const WindowsClipboardFileDestination &destination) noexcept
 {
-    const auto completedPath = destination.completedFilePath();
+    const std::array<const WindowsClipboardFileDestination *, 1> destinations{
+        &destination};
+    return publishCompletedFileDestinationsInternal(
+        nullptr, destinations);
+}
+
+bool WindowsClipboardAdapter::publishCompletedFileDestinations(
+    const RemoteFileDestinationPlan &plan,
+    const std::span<const WindowsClipboardFileDestination *const>
+        destinations) noexcept
+{
+    return publishCompletedFileDestinationsInternal(
+        &plan, destinations);
+}
+
+bool WindowsClipboardAdapter::publishCompletedFileDestinationsInternal(
+    const RemoteFileDestinationPlan *const plan,
+    const std::span<const WindowsClipboardFileDestination *const>
+        destinations) noexcept
+{
     if (closed_ || operationInProgress_ ||
-        !remoteTransfer_.synchronized() ||
-        destination.status() !=
-            WindowsClipboardFileDestination::Status::Complete ||
-        !completedPath)
+        !remoteTransfer_.synchronized())
     {
         return false;
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
-    if (generation == 0U ||
-        destination.generation() != generation ||
-        generation == yieldedGeneration_)
+    if (generation == 0U || generation == yieldedGeneration_)
+    {
+        return false;
+    }
+
+    std::array<std::u16string_view,
+               RemoteTransfer::kMaximumRemoteFiles> completedPaths{};
+    if (!collectCompletedFilePaths(
+            plan, destinations, generation, completedPaths))
     {
         return false;
     }
 
     std::vector<std::uint8_t> dropBytes;
-    if (!encodeFileDrop(*completedPath, dropBytes))
+    if (!encodeFileDrop(
+            {completedPaths.data(), destinations.size()}, dropBytes))
     {
         return false;
     }
@@ -386,13 +516,18 @@ bool WindowsClipboardAdapter::publishCompletedFileDestination(
     }
     if (success)
     {
+        std::array<std::u16string_view,
+                   RemoteTransfer::kMaximumRemoteFiles> currentPaths{};
+        std::vector<std::uint8_t> currentDropBytes;
         const bool sourceStillCurrent =
             remoteTransfer_.synchronized() &&
             remoteTransfer_.generation() == generation &&
-            destination.generation() == generation &&
-            destination.status() ==
-                WindowsClipboardFileDestination::Status::Complete &&
-            destination.completedFilePath().has_value();
+            collectCompletedFilePaths(
+                plan, destinations, generation, currentPaths) &&
+            encodeFileDrop(
+                {currentPaths.data(), destinations.size()},
+                currentDropBytes) &&
+            currentDropBytes == dropBytes;
         if (!sourceStillCurrent)
         {
             (void)nativeOperations_.emptyClipboard(
@@ -433,62 +568,6 @@ bool WindowsClipboardAdapter::publishCompletedFileDestination(
     operationInProgress_ = false;
     finishDeferredDisconnect();
     return success && closedClipboard && !closed_;
-}
-
-bool WindowsClipboardAdapter::renderFormatInternal(
-    WindowsClipboardFormat format) noexcept
-{
-    if (!currentPublicationValid())
-    {
-        return false;
-    }
-
-    if (format == kUnicodeTextFormat && textPublished_)
-    {
-        if (textRendered_)
-        {
-            return true;
-        }
-        const auto text = remoteTransfer_.verifiedUnicodeText();
-        if (!text)
-        {
-            return false;
-        }
-        std::vector<std::uint8_t> bytes;
-        if (!encodeNativeUnicodeText(*text, bytes) ||
-            !nativeOperations_.setFormatBytes(
-                nativeOperations_.context, format,
-                std::as_bytes(std::span<const std::uint8_t>{bytes})))
-        {
-            return false;
-        }
-        textRendered_ = true;
-        return true;
-    }
-
-    if (format == publishedImageNativeFormat() && imagePublished_)
-    {
-        if (imageRendered_)
-        {
-            return true;
-        }
-        const auto image = remoteTransfer_.verifiedImage();
-        if (!image || image->generation != publicationGeneration_ ||
-            image->format != publishedImageFormat_)
-        {
-            return false;
-        }
-        if (!nativeOperations_.setFormatBytes(
-                nativeOperations_.context, format,
-                std::as_bytes(image->bytes)))
-        {
-            return false;
-        }
-        imageRendered_ = true;
-        return true;
-    }
-
-    return false;
 }
 
 bool WindowsClipboardAdapter::renderFormat(

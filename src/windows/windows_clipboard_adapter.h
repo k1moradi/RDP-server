@@ -4,6 +4,7 @@
 #include "server/clipboard/remote_transfer.h"
 #include "windows_clipboard_file_destination.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -47,6 +48,8 @@ class WindowsClipboardAdapter final
 public:
     using RemoteTransfer =
         rdp_server::server::clipboard::RemoteTransfer;
+    using RemoteFileDestinationPlan =
+        rdp_server::server::clipboard::RemoteFileDestinationPlan;
 
     static constexpr WindowsClipboardFormat kUnicodeTextFormat = 13U;
     static constexpr WindowsClipboardFormat kFileDropFormat = 15U;
@@ -81,6 +84,14 @@ public:
     [[nodiscard]] bool publishCompletedFileDestination(
         const WindowsClipboardFileDestination &destination) noexcept;
 
+    // Atomically publish one complete current-generation planned set as
+    // CF_HDROP. The destination span may arrive in any order; the encoded list
+    // follows exact remote descriptor index order from the committed plan.
+    [[nodiscard]] bool publishCompletedFileDestinations(
+        const RemoteFileDestinationPlan &plan,
+        std::span<const WindowsClipboardFileDestination *const>
+            destinations) noexcept;
+
     // WM_RENDERFORMAT boundary. The caller MUST NOT open the clipboard first;
     // this method only copies already-ready bytes into the requested format.
     [[nodiscard]] bool renderFormat(
@@ -107,8 +118,19 @@ private:
         WindowsClipboardFormat format) noexcept;
     [[nodiscard]] bool encodeNativeUnicodeText(
         std::string_view text, std::vector<std::uint8_t> &bytes) const noexcept;
+    [[nodiscard]] bool collectCompletedFilePaths(
+        const RemoteFileDestinationPlan *plan,
+        std::span<const WindowsClipboardFileDestination *const>
+            destinations,
+        std::uint64_t generation,
+        std::array<std::u16string_view,
+                   RemoteTransfer::kMaximumRemoteFiles> &paths) const noexcept;
+    [[nodiscard]] bool publishCompletedFileDestinationsInternal(
+        const RemoteFileDestinationPlan *plan,
+        std::span<const WindowsClipboardFileDestination *const>
+            destinations) noexcept;
     [[nodiscard]] bool encodeFileDrop(
-        std::u16string_view absolutePath,
+        std::span<const std::u16string_view> absolutePaths,
         std::vector<std::uint8_t> &bytes) const noexcept;
     void clearPublicationState() noexcept;
     void finishDeferredDisconnect() noexcept;

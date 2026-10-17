@@ -209,7 +209,48 @@ native descriptor/HANDLE, duplicate that resource under their existing
 ownership rules, and use the sole `RemoteTransfer` SIZE/RANGE request stream.
 The plan cannot open, create, truncate, write, flush or publish anything and
 cannot produce a native clipboard offer. Windows/macOS completed-set
-publication and any directory-relative native creation remain later contracts.
+presentation consumes this metadata in a separate adapter boundary below;
+directory-relative native creation remains a later contract.
+
+## R8 planned Windows/macOS completed-set presentation (2026-10-17)
+
+The Windows and macOS adapters now consume a committed
+`RemoteFileDestinationPlan` for multi-file handoff instead of accepting an
+unstructured list. Both adapters borrow at most
+`RemoteTransfer::kMaximumRemoteFiles` destination objects synchronously,
+require the plan to remain current, and require exactly one completed
+non-directory destination for each planned remote index. Caller span ordering
+does not affect native ordering. Duplicate indices and duplicate caller-local
+paths/URLs are denied before native ownership changes.
+
+The adapters do not retain native resource handles from the plan. Each
+`WindowsClipboardFileDestination` or `MacClipboardFileDestination` already
+owns the independently duplicated caller-selected writable capability and only
+exposes local presentation metadata after exact-size completion, flush and
+close. The completed-set adapter therefore groups proofs of already-completed
+local objects; it does not schedule concurrent FileContents requests, reopen
+files or create filesystem paths.
+
+Windows constructs one bounded CF_HDROP byte vector in planned index order.
+The allocation ceiling is implied by the fixed 64-member manifest and the
+existing 32767-code-unit local path bound. Every path is individually
+NUL-terminated and the list receives its final NUL. The single-file entry point
+uses the same internal collector so ownership, takeover and post-callback
+generation checks do not diverge.
+
+macOS passes a bounded span of borrowed `std::string_view` file URLs through
+the synchronous native seam. On Apple, the bridge converts each validated file
+URL into an NSURL and uses one `writeObjects:` call for the complete NSArray.
+The native seam refuses empty/duplicate URL sets, more than 64 items, or a file
+set mixed with text/PNG representations. The portable owner re-collects and
+compares the exact ordered URL set after the native callback before accepting
+the returned change count as ownership proof.
+
+This remains presentation-only. FILEDESCRIPTORW leaf names never become local
+paths, caller-selected plan parents do not prove a remote hierarchy, and
+directory associations still return
+`UnsupportedDirectoryMaterialization`. Native directory creation and symlink
+handling remain a separate reviewed capability boundary.
 
 ## R8 bounded multi-file X11 completed-set presentation (2026-10-16)
 

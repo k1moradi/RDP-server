@@ -1,10 +1,68 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mac_clipboard_adapter.h"
 
+#include <algorithm>
+#include <array>
 #include <optional>
+#include <vector>
 
 namespace rdp::macos
 {
+namespace
+{
+
+[[nodiscard]] bool encodeCanonicalFileUrlSet(
+    const std::span<const std::string_view> fileUrls,
+    std::vector<char> &encoded) noexcept
+{
+    encoded.clear();
+    if (fileUrls.empty() ||
+        fileUrls.size() >
+            rdp_server::server::clipboard::RemoteTransfer::
+                kMaximumRemoteFiles)
+    {
+        return false;
+    }
+
+    std::size_t totalBytes = 0U;
+    for (std::size_t index = 0; index < fileUrls.size(); ++index)
+    {
+        const std::string_view fileUrl = fileUrls[index];
+        if (fileUrl.empty() ||
+            fileUrl.size() >
+                MacClipboardFileDestination::kMaximumLocalFileUrlBytes)
+        {
+            return false;
+        }
+        for (std::size_t previous = 0; previous < index; ++previous)
+        {
+            if (fileUrls[previous] == fileUrl)
+            {
+                return false;
+            }
+        }
+        totalBytes += fileUrl.size() + 1U;
+    }
+
+    try
+    {
+        encoded.reserve(totalBytes);
+        for (const std::string_view fileUrl : fileUrls)
+        {
+            encoded.insert(
+                encoded.end(), fileUrl.begin(), fileUrl.end());
+            encoded.push_back('\0');
+        }
+        return encoded.size() == totalBytes;
+    }
+    catch (...)
+    {
+        encoded.clear();
+        return false;
+    }
+}
+
+} // namespace
 
 MacClipboardAdapter::MacClipboardAdapter(
     RemoteTransfer &remoteTransfer,
@@ -231,23 +289,132 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
     return success && !closed_;
 }
 
+bool MacClipboardAdapter::collectCompletedFileUrls(
+    const RemoteFileDestinationPlan *const plan,
+    const std::span<const MacClipboardFileDestination *const>
+        destinations,
+    const std::uint64_t generation,
+    std::array<std::string_view,
+               RemoteTransfer::kMaximumRemoteFiles> &fileUrls) const noexcept
+{
+    fileUrls.fill({});
+    if (generation == 0U || destinations.empty() ||
+        destinations.size() > RemoteTransfer::kMaximumRemoteFiles)
+    {
+        return false;
+    }
+    if (plan == nullptr)
+    {
+        if (destinations.size() != 1U)
+        {
+            return false;
+        }
+    }
+    else if (!plan->current(remoteTransfer_) ||
+             plan->generation() != generation ||
+             plan->size() != destinations.size())
+    {
+        return false;
+    }
+
+    std::array<bool, RemoteTransfer::kMaximumRemoteFiles> seen{};
+    for (std::size_t inputIndex = 0;
+         inputIndex < destinations.size(); ++inputIndex)
+    {
+        const MacClipboardFileDestination *const destination =
+            destinations[inputIndex];
+        if (destination == nullptr ||
+            destination->status() !=
+                MacClipboardFileDestination::Status::Complete ||
+            destination->generation() != generation)
+        {
+            return false;
+        }
+
+        const std::size_t outputIndex =
+            plan == nullptr ? 0U : destination->fileIndex();
+        if (outputIndex >= destinations.size() || seen[outputIndex])
+        {
+            return false;
+        }
+        if (plan != nullptr &&
+            plan->associationStatus(remoteTransfer_, outputIndex) !=
+                RemoteFileDestinationPlan::AssociationStatus::CurrentFile)
+        {
+            return false;
+        }
+
+        const auto completedFileUrl = destination->completedFileUrl();
+        if (!completedFileUrl || completedFileUrl->empty())
+        {
+            return false;
+        }
+        for (std::size_t previous = 0;
+             previous < destinations.size(); ++previous)
+        {
+            if (seen[previous] &&
+                fileUrls[previous] == *completedFileUrl)
+            {
+                return false;
+            }
+        }
+
+        fileUrls[outputIndex] = *completedFileUrl;
+        seen[outputIndex] = true;
+    }
+
+    return std::all_of(
+        seen.begin(), seen.begin() + destinations.size(),
+        [](const bool present) { return present; });
+}
+
 bool MacClipboardAdapter::publishCompletedFileDestination(
     const MacClipboardFileDestination &destination) noexcept
 {
-    const auto completedFileUrl = destination.completedFileUrl();
+    const std::array<const MacClipboardFileDestination *, 1> destinations{
+        &destination};
+    return publishCompletedFileDestinationsInternal(
+        nullptr, destinations);
+}
+
+bool MacClipboardAdapter::publishCompletedFileDestinations(
+    const RemoteFileDestinationPlan &plan,
+    const std::span<const MacClipboardFileDestination *const>
+        destinations) noexcept
+{
+    return publishCompletedFileDestinationsInternal(
+        &plan, destinations);
+}
+
+bool MacClipboardAdapter::publishCompletedFileDestinationsInternal(
+    const RemoteFileDestinationPlan *const plan,
+    const std::span<const MacClipboardFileDestination *const>
+        destinations) noexcept
+{
     if (closed_ || operationInProgress_ ||
-        !remoteTransfer_.synchronized() ||
-        destination.status() !=
-            MacClipboardFileDestination::Status::Complete ||
-        !completedFileUrl)
+        !remoteTransfer_.synchronized())
     {
         return false;
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
-    if (generation == 0U ||
-        destination.generation() != generation ||
-        generation == yieldedGeneration_)
+    if (generation == 0U || generation == yieldedGeneration_)
+    {
+        return false;
+    }
+
+    std::array<std::string_view,
+               RemoteTransfer::kMaximumRemoteFiles> completedFileUrls{};
+    if (!collectCompletedFileUrls(
+            plan, destinations, generation, completedFileUrls))
+    {
+        return false;
+    }
+
+    std::vector<char> canonicalFileUrls;
+    if (!encodeCanonicalFileUrlSet(
+            {completedFileUrls.data(), destinations.size()},
+            canonicalFileUrls))
     {
         return false;
     }
@@ -276,8 +443,9 @@ bool MacClipboardAdapter::publishCompletedFileDestination(
     if (success)
     {
         MacClipboardNativeContent content{};
-        content.fileUrl = *completedFileUrl;
-        content.hasFileUrl = true;
+        content.fileUrls = {
+            completedFileUrls.data(), destinations.size()};
+        content.hasFileUrls = true;
         success = nativeOperations_.replaceContents(
             nativeOperations_.context, content);
         if (success)
@@ -293,15 +461,20 @@ bool MacClipboardAdapter::publishCompletedFileDestination(
             }
             else
             {
-                const auto currentFileUrl =
-                    destination.completedFileUrl();
+                std::array<std::string_view,
+                           RemoteTransfer::kMaximumRemoteFiles>
+                    currentFileUrls{};
+                std::vector<char> currentCanonicalFileUrls;
                 const bool sourceStillCurrent =
                     remoteTransfer_.synchronized() &&
                     remoteTransfer_.generation() == generation &&
-                    destination.generation() == generation &&
-                    destination.status() ==
-                        MacClipboardFileDestination::Status::Complete &&
-                    currentFileUrl.has_value();
+                    collectCompletedFileUrls(
+                        plan, destinations, generation,
+                        currentFileUrls) &&
+                    encodeCanonicalFileUrlSet(
+                        {currentFileUrls.data(), destinations.size()},
+                        currentCanonicalFileUrls) &&
+                    currentCanonicalFileUrls == canonicalFileUrls;
                 if (!sourceStillCurrent)
                 {
                     if (!nativeOperations_.clearContents(

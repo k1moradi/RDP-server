@@ -1,3 +1,36 @@
+## R8 Windows/macOS planned completed-set authoring validation (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `ec8f9df25f9986a2d51fb258f7798ac8596cfed3`.
+
+The next roadmap increment extends only native presentation of already-completed
+files. Windows and macOS each gain a plan-consuming bounded multi-file
+publication API; the existing one-at-a-time FileContents coordinator and
+platform destination ownership remain unchanged. The APIs borrow at most 64
+destination objects, require exact current plan/generation membership, reorder
+by remote descriptor index, reject duplicate indices and local paths/URLs, and
+revalidate a copied canonical set after the native callback.
+
+Windows emits one CF_HDROP list with exact UTF-16 per-path NULs plus the final
+list NUL. macOS sends one bounded file-URL span through the injected seam and
+the AppKit implementation converts it into one NSArray of NSURL objects.
+Neither path stores whole file bytes in presentation state or derives a local
+name from remote metadata.
+
+New production-backed registrations are
+`clipboard.windows-completed-multi-file-hdrop-handoff` and
+`clipboard.macos-completed-multi-file-url-handoff`. Both use two same-name
+remote descriptors, sequential real FileContents completion, partial-set
+invisibility, reversed input order, duplicate-member denial, atomic publication,
+local owner takeover and reentrant/terminal plan cancellation. The R9 clipboard
+sanitizer registry preflight requires both names.
+
+Canonical local configure/build/CTest is **NOT RUN** because this connector
+environment does not provide the canonical synchronized checkout and policy
+forbids an alternate persistent checkout/build root. Exact publication-SHA
+hosted matrix, sanitizer, documentation and package evidence is **PENDING**.
+Directory materialization, symlink policy and live Finder/Explorer acceptance
+remain **NOT RUN / OPEN**.
+
 ## R9 CredSSP fuzzer compile-scope correction (2026-10-16; exact-SHA CI pending)
 
 Static review after workflow recovery found two test-only source issues before

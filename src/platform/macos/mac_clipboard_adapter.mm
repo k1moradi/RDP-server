@@ -40,12 +40,31 @@ namespace
 [[nodiscard]] bool nativeReplaceContents(
     void *context, const MacClipboardNativeContent &content) noexcept
 {
-    if ((!content.hasText && !content.hasPng && !content.hasFileUrl) ||
+    if ((!content.hasText && !content.hasPng && !content.hasFileUrls) ||
         (content.hasPng && content.pngBytes.empty()) ||
-        (content.hasFileUrl &&
-         (content.fileUrl.empty() || content.hasText || content.hasPng)))
+        (content.hasFileUrls &&
+         (content.fileUrls.empty() ||
+          content.fileUrls.size() >
+              rdp_server::server::clipboard::RemoteTransfer::
+                  kMaximumRemoteFiles ||
+          content.hasText || content.hasPng)))
     {
         return false;
+    }
+    for (std::size_t index = 0; index < content.fileUrls.size(); ++index)
+    {
+        const std::string_view fileUrl = content.fileUrls[index];
+        if (fileUrl.empty())
+        {
+            return false;
+        }
+        for (std::size_t previous = 0; previous < index; ++previous)
+        {
+            if (content.fileUrls[previous] == fileUrl)
+            {
+                return false;
+            }
+        }
     }
 
     @try
@@ -56,21 +75,34 @@ namespace
             return false;
         }
 
-        if (content.hasFileUrl)
+        if (content.hasFileUrls)
         {
-            NSString *urlString = [[NSString alloc]
-                initWithBytes:content.fileUrl.data()
-                       length:content.fileUrl.size()
-                     encoding:NSUTF8StringEncoding];
-            NSURL *fileUrl =
-                urlString != nil ? [NSURL URLWithString:urlString] : nil;
-            if (fileUrl == nil || !fileUrl.isFileURL)
+            NSMutableArray<NSURL *> *fileUrls =
+                [NSMutableArray
+                    arrayWithCapacity:content.fileUrls.size()];
+            if (fileUrls == nil)
             {
                 return false;
             }
+            for (const std::string_view fileUrlView : content.fileUrls)
+            {
+                NSString *urlString = [[NSString alloc]
+                    initWithBytes:fileUrlView.data()
+                           length:fileUrlView.size()
+                         encoding:NSUTF8StringEncoding];
+                NSURL *fileUrl =
+                    urlString != nil
+                        ? [NSURL URLWithString:urlString]
+                        : nil;
+                if (fileUrl == nil || !fileUrl.isFileURL)
+                {
+                    return false;
+                }
+                [fileUrls addObject:fileUrl];
+            }
 
             (void)[pasteboard clearContents];
-            if (![pasteboard writeObjects:@[ fileUrl ]])
+            if (![pasteboard writeObjects:fileUrls])
             {
                 (void)[pasteboard clearContents];
                 return false;

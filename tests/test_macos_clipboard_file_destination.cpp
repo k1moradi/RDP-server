@@ -27,6 +27,7 @@
 #include <unistd.h>
 #endif
 
+using rdp_server::server::clipboard::RemoteFileDestinationPlan;
 using rdp_server::server::clipboard::RemoteTransfer;
 using namespace rdp::macos;
 
@@ -156,12 +157,19 @@ std::vector<std::uint8_t> fileContentsResponsePdu(
     return result;
 }
 
-void installSingleFileOffer(
-    RemoteTransfer &owner,
-    const std::u16string_view name,
-    const bool sizeKnown,
-    const std::uint64_t size)
+struct OfferedFile final
 {
+    std::u16string_view name{};
+    bool sizeKnown{};
+    std::uint64_t size{};
+};
+
+void installFileOffer(
+    RemoteTransfer &owner,
+    const std::span<const OfferedFile> files)
+{
+    assert(!files.empty());
+    assert(files.size() <= RemoteTransfer::kMaximumRemoteFiles);
     assert(owner.receiveCapabilitiesPdu(
         capabilitiesPdu(kFileFlags), kFileFlags));
 
@@ -173,21 +181,38 @@ void installSingleFileOffer(
     std::vector<std::uint8_t> request;
     assert(owner.beginFileGroupDescriptorRequest(request));
 
-    std::vector<std::uint8_t> list(4U + kDescriptorBytes, 0);
-    put32(list, 0, 1U);
-    auto descriptor =
-        std::span(list).subspan(4U, kDescriptorBytes);
-    if (sizeKnown)
+    std::vector<std::uint8_t> list(
+        4U + files.size() * kDescriptorBytes, 0);
+    put32(list, 0, static_cast<std::uint32_t>(files.size()));
+    for (std::size_t index = 0; index < files.size(); ++index)
     {
-        put32(descriptor, 0, kFdFileSize);
-        putDescriptorFileSize(descriptor, size);
+        auto descriptor = std::span(list).subspan(
+            4U + index * kDescriptorBytes, kDescriptorBytes);
+        if (files[index].sizeKnown)
+        {
+            put32(descriptor, 0, kFdFileSize);
+            putDescriptorFileSize(descriptor, files[index].size);
+        }
+        putFileName(descriptor, files[index].name);
     }
-    putFileName(descriptor, name);
 
     const auto wire = formatDataResponsePdu(list);
     const auto response = owner.receiveResponse(wire);
     assert(response.status == RemoteTransfer::ResponseStatus::Received);
     assert(owner.storeFileGroupDescriptors(response));
+    assert(owner.remoteFileCount() == files.size());
+}
+
+void installSingleFileOffer(
+    RemoteTransfer &owner,
+    const std::u16string_view name,
+    const bool sizeKnown,
+    const std::uint64_t size)
+{
+    const std::array<OfferedFile, 1> files{{
+        {name, sizeKnown, size},
+    }};
+    installFileOffer(owner, files);
 }
 
 struct FakeNative final
@@ -311,11 +336,13 @@ struct FakePasteboard final
 {
     std::uint64_t changeCount{31U};
     std::string fileUrl{};
+    std::vector<std::string> fileUrls{};
     unsigned readCalls{};
     unsigned replaceCalls{};
     unsigned clearCalls{};
     bool hasFileUrl{};
     bool failReplace{};
+    RemoteFileDestinationPlan *planToCancelOnReplace{};
 
     static bool readChangeCount(
         void *context, std::uint64_t &value) noexcept
@@ -332,17 +359,40 @@ struct FakePasteboard final
     {
         auto &self = *static_cast<FakePasteboard *>(context);
         ++self.replaceCalls;
-        if (self.failReplace || !content.hasFileUrl ||
-            content.fileUrl.empty() ||
+        if (self.failReplace || !content.hasFileUrls ||
+            content.fileUrls.empty() ||
             content.hasText || content.hasPng)
         {
             return false;
         }
 
-        ++self.changeCount;
-        self.hasFileUrl = true;
-        self.fileUrl = std::string{content.fileUrl};
-        return true;
+        try
+        {
+            std::vector<std::string> replacement;
+            replacement.reserve(content.fileUrls.size());
+            for (const std::string_view fileUrl : content.fileUrls)
+            {
+                if (fileUrl.empty())
+                {
+                    return false;
+                }
+                replacement.emplace_back(fileUrl);
+            }
+            ++self.changeCount;
+            self.hasFileUrl = true;
+            self.fileUrls = std::move(replacement);
+            self.fileUrl = self.fileUrls.front();
+            if (self.planToCancelOnReplace != nullptr)
+            {
+                self.planToCancelOnReplace->cancel();
+                self.planToCancelOnReplace = nullptr;
+            }
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
     }
 
     static bool clearContents(void *context) noexcept
@@ -352,6 +402,7 @@ struct FakePasteboard final
         ++self.changeCount;
         self.hasFileUrl = false;
         self.fileUrl.clear();
+        self.fileUrls.clear();
         return true;
     }
 
@@ -370,6 +421,7 @@ struct FakePasteboard final
         ++changeCount;
         hasFileUrl = true;
         fileUrl = "file:///tmp/local-owner.txt";
+        fileUrls = {fileUrl};
     }
 };
 
@@ -623,6 +675,113 @@ void macosFileDestinationDenials()
     }
 }
 
+
+void macosCompletedMultiFileUrlHandoff()
+{
+    using Plan = RemoteFileDestinationPlan;
+    constexpr std::string_view kFirstFileUrl{
+        "file:///tmp/rdp-server-macos-first.bin"};
+    constexpr std::string_view kSecondFileUrl{
+        "file:///tmp/rdp-server-macos-second.bin"};
+
+    RemoteTransfer owner;
+    const std::array<OfferedFile, 2> files{{
+        {u"duplicate.bin", true, 4U},
+        {u"duplicate.bin", true, 6U},
+    }};
+    installFileOffer(owner, files);
+
+    const std::array<Plan::Selection, 2> selections{{
+        {0U, 0x7201U, std::nullopt},
+        {1U, 0x7202U, std::nullopt},
+    }};
+    Plan plan;
+    assert(plan.prepare(owner, owner.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+
+    FakeNative firstNative;
+    FakeNative secondNative;
+    MacClipboardFileDestination first{
+        owner, firstNative.operations()};
+    MacClipboardFileDestination second{
+        owner, secondNative.operations()};
+    assert(first.begin(
+        0U, firstNative.sourceToken, kFirstFileUrl));
+    assert(second.begin(
+        1U, secondNative.sourceToken, kSecondFileUrl));
+
+    FakePasteboard pasteboard;
+    MacClipboardAdapter adapter{owner, pasteboard.operations()};
+    const std::array<const MacClipboardFileDestination *, 2>
+        reversedDestinations{{&second, &first}};
+
+    const auto firstIntent = first.nextRequestIntent();
+    assert(firstIntent && firstIntent->fileIndex == 0U);
+    receiveRange(
+        owner, first, *firstIntent,
+        makeChunk(firstIntent->offset, firstIntent->requestedBytes));
+    assert(first.status() ==
+           MacClipboardFileDestination::Status::Complete);
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+    assert(pasteboard.replaceCalls == 0U);
+
+    const auto secondIntent = second.nextRequestIntent();
+    assert(secondIntent && secondIntent->fileIndex == 1U);
+    receiveRange(
+        owner, second, *secondIntent,
+        makeChunk(secondIntent->offset, secondIntent->requestedBytes));
+    assert(second.status() ==
+           MacClipboardFileDestination::Status::Complete);
+
+    const std::array<const MacClipboardFileDestination *, 2>
+        duplicateDestinations{{&first, &first}};
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, duplicateDestinations));
+    assert(pasteboard.replaceCalls == 0U);
+
+    assert(adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+    assert(adapter.ownsPasteboard());
+    assert(adapter.publicationGeneration() == owner.generation());
+    assert(pasteboard.hasFileUrl);
+    assert(pasteboard.fileUrls.size() == 2U);
+    assert(pasteboard.fileUrls[0] == kFirstFileUrl);
+    assert(pasteboard.fileUrls[1] == kSecondFileUrl);
+
+    pasteboard.localTakeover();
+    const unsigned replacementsBeforeTakeover =
+        pasteboard.replaceCalls;
+    const unsigned clearsBeforeTakeover = pasteboard.clearCalls;
+    assert(!adapter.observePasteboardChange());
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+    assert(pasteboard.replaceCalls == replacementsBeforeTakeover);
+    assert(pasteboard.clearCalls == clearsBeforeTakeover);
+    assert(pasteboard.fileUrls.size() == 1U);
+    assert(pasteboard.fileUrls[0] ==
+           "file:///tmp/local-owner.txt");
+
+    plan.cancel();
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+
+    Plan rollbackPlan;
+    assert(rollbackPlan.prepare(
+               owner, owner.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+    FakePasteboard rollbackPasteboard;
+    MacClipboardAdapter rollbackAdapter{
+        owner, rollbackPasteboard.operations()};
+    rollbackPasteboard.planToCancelOnReplace = &rollbackPlan;
+    assert(!rollbackAdapter.publishCompletedFileDestinations(
+        rollbackPlan, reversedDestinations));
+    assert(!rollbackPlan.committed());
+    assert(rollbackPasteboard.fileUrls.empty());
+    assert(rollbackPasteboard.clearCalls == 1U);
+    assert(!rollbackAdapter.ownsPasteboard());
+}
+
 void macosCompletedFileUrlHandoff()
 {
     constexpr std::string_view kLocalFileUrl{
@@ -782,6 +941,11 @@ int main(int argc, char **argv)
     if (behavior == "macos-completed-file-url-handoff")
     {
         macosCompletedFileUrlHandoff();
+        return 0;
+    }
+    if (behavior == "macos-completed-multi-file-url-handoff")
+    {
+        macosCompletedMultiFileUrlHandoff();
         return 0;
     }
 #if defined(__APPLE__)

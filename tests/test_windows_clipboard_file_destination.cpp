@@ -159,12 +159,19 @@ std::vector<std::uint8_t> fileContentsResponsePdu(
     return result;
 }
 
-void installSingleFileOffer(
-    RemoteTransfer &owner,
-    const std::u16string_view name,
-    const bool sizeKnown,
-    const std::uint64_t size)
+struct OfferedFile final
 {
+    std::u16string_view name{};
+    bool sizeKnown{};
+    std::uint64_t size{};
+};
+
+void installFileOffer(
+    RemoteTransfer &owner,
+    const std::span<const OfferedFile> files)
+{
+    assert(!files.empty());
+    assert(files.size() <= RemoteTransfer::kMaximumRemoteFiles);
     assert(owner.receiveCapabilitiesPdu(
         capabilitiesPdu(kFileFlags), kFileFlags));
 
@@ -176,21 +183,38 @@ void installSingleFileOffer(
     std::vector<std::uint8_t> request;
     assert(owner.beginFileGroupDescriptorRequest(request));
 
-    std::vector<std::uint8_t> list(4U + kDescriptorBytes, 0);
-    put32(list, 0, 1U);
-    auto descriptor =
-        std::span(list).subspan(4U, kDescriptorBytes);
-    if (sizeKnown)
+    std::vector<std::uint8_t> list(
+        4U + files.size() * kDescriptorBytes, 0);
+    put32(list, 0, static_cast<std::uint32_t>(files.size()));
+    for (std::size_t index = 0; index < files.size(); ++index)
     {
-        put32(descriptor, 0, kFdFileSize);
-        putDescriptorFileSize(descriptor, size);
+        auto descriptor = std::span(list).subspan(
+            4U + index * kDescriptorBytes, kDescriptorBytes);
+        if (files[index].sizeKnown)
+        {
+            put32(descriptor, 0, kFdFileSize);
+            putDescriptorFileSize(descriptor, files[index].size);
+        }
+        putFileName(descriptor, files[index].name);
     }
-    putFileName(descriptor, name);
 
     const auto wire = formatDataResponsePdu(list);
     const auto response = owner.receiveResponse(wire);
     assert(response.status == RemoteTransfer::ResponseStatus::Received);
     assert(owner.storeFileGroupDescriptors(response));
+    assert(owner.remoteFileCount() == files.size());
+}
+
+void installSingleFileOffer(
+    RemoteTransfer &owner,
+    const std::u16string_view name,
+    const bool sizeKnown,
+    const std::uint64_t size)
+{
+    const std::array<OfferedFile, 1> files{{
+        {name, sizeKnown, size},
+    }};
+    installFileOffer(owner, files);
 }
 
 struct FakeNative final
@@ -329,6 +353,7 @@ struct FakeClipboard final
     unsigned closeCalls{};
     bool opened{};
     WindowsClipboardAdapter *adapter{};
+    RemoteFileDestinationPlan *planToCancelOnWrite{};
 
     static WindowsClipboardFormat registerFormat(
         void *context, std::string_view name) noexcept
@@ -385,6 +410,11 @@ struct FakeClipboard final
         }
         self.writes.push_back(
             Write{format, std::vector<std::byte>{bytes.begin(), bytes.end()}});
+        if (self.planToCancelOnWrite != nullptr)
+        {
+            self.planToCancelOnWrite->cancel();
+            self.planToCancelOnWrite = nullptr;
+        }
         return true;
     }
 
@@ -764,6 +794,143 @@ void fileDestinationPlanNativeCapabilityIntegration()
     assert(clipboard.writes.empty());
 }
 
+
+void windowsCompletedMultiFileHdropHandoff()
+{
+    using Plan = RemoteFileDestinationPlan;
+    constexpr std::u16string_view kFirstPath{
+        u"C:\\Temp\\rdp-server-windows-first.bin"};
+    constexpr std::u16string_view kSecondPath{
+        u"C:\\Temp\\rdp-server-windows-second.bin"};
+
+    RemoteTransfer owner;
+    const std::array<OfferedFile, 2> files{{
+        {u"duplicate.bin", true, 4U},
+        {u"duplicate.bin", true, 6U},
+    }};
+    installFileOffer(owner, files);
+
+    const std::array<Plan::Selection, 2> selections{{
+        {0U, 0x7101U, std::nullopt},
+        {1U, 0x7102U, std::nullopt},
+    }};
+    Plan plan;
+    assert(plan.prepare(owner, owner.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+
+    FakeNative firstNative;
+    FakeNative secondNative;
+    WindowsClipboardFileDestination first{
+        owner, firstNative.operations()};
+    WindowsClipboardFileDestination second{
+        owner, secondNative.operations()};
+    assert(first.begin(0U, firstNative.sourceToken, kFirstPath));
+    assert(second.begin(1U, secondNative.sourceToken, kSecondPath));
+
+    FakeClipboard clipboard;
+    WindowsClipboardAdapter adapter{
+        owner, clipboard.operations(), FakeClipboard::kOwnerWindow};
+    clipboard.adapter = &adapter;
+
+    const std::array<const WindowsClipboardFileDestination *, 2>
+        reversedDestinations{{&second, &first}};
+
+    const auto firstIntent = first.nextRequestIntent();
+    assert(firstIntent && firstIntent->fileIndex == 0U);
+    receiveRange(
+        owner, first, *firstIntent,
+        makeChunk(firstIntent->offset, firstIntent->requestedBytes));
+    assert(first.status() ==
+           WindowsClipboardFileDestination::Status::Complete);
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+    assert(clipboard.writes.empty());
+
+    const auto secondIntent = second.nextRequestIntent();
+    assert(secondIntent && secondIntent->fileIndex == 1U);
+    receiveRange(
+        owner, second, *secondIntent,
+        makeChunk(secondIntent->offset, secondIntent->requestedBytes));
+    assert(second.status() ==
+           WindowsClipboardFileDestination::Status::Complete);
+
+    const std::array<const WindowsClipboardFileDestination *, 2>
+        duplicateDestinations{{&first, &first}};
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, duplicateDestinations));
+    assert(clipboard.writes.empty());
+
+    assert(adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+    assert(adapter.ownsClipboard());
+    assert(adapter.publicationGeneration() == owner.generation());
+    assert(clipboard.writes.size() == 1U);
+
+    const auto &drop = clipboard.writes.front();
+    assert(drop.format == WindowsClipboardAdapter::kFileDropFormat);
+    const std::size_t expectedCodeUnits =
+        kFirstPath.size() + 1U +
+        kSecondPath.size() + 1U + 1U;
+    assert(drop.bytes.size() == 20U + expectedCodeUnits * 2U);
+
+    const auto byteAt = [&drop](const std::size_t index)
+    {
+        return static_cast<std::uint8_t>(drop.bytes[index]);
+    };
+    assert(byteAt(0) == 20U && byteAt(1) == 0U &&
+           byteAt(2) == 0U && byteAt(3) == 0U);
+    assert(byteAt(16) == 1U && byteAt(17) == 0U &&
+           byteAt(18) == 0U && byteAt(19) == 0U);
+
+    std::size_t offset = 20U;
+    const auto expectPath =
+        [&byteAt, &offset](const std::u16string_view path)
+    {
+        for (const char16_t codeUnit : path)
+        {
+            const auto value = static_cast<std::uint16_t>(codeUnit);
+            assert(byteAt(offset++) ==
+                   static_cast<std::uint8_t>(value));
+            assert(byteAt(offset++) ==
+                   static_cast<std::uint8_t>(value >> 8U));
+        }
+        assert(byteAt(offset++) == 0U);
+        assert(byteAt(offset++) == 0U);
+    };
+    expectPath(kFirstPath);
+    expectPath(kSecondPath);
+    assert(byteAt(offset++) == 0U);
+    assert(byteAt(offset++) == 0U);
+    assert(offset == drop.bytes.size());
+
+    const std::size_t writesBeforeTakeover = clipboard.writes.size();
+    clipboard.localTakeover();
+    assert(!adapter.ownsClipboard());
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+    assert(clipboard.writes.size() == writesBeforeTakeover);
+
+    plan.cancel();
+    assert(!adapter.publishCompletedFileDestinations(
+        plan, reversedDestinations));
+
+    Plan rollbackPlan;
+    assert(rollbackPlan.prepare(
+               owner, owner.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+    FakeClipboard rollbackClipboard;
+    WindowsClipboardAdapter rollbackAdapter{
+        owner, rollbackClipboard.operations(),
+        FakeClipboard::kOwnerWindow};
+    rollbackClipboard.adapter = &rollbackAdapter;
+    rollbackClipboard.planToCancelOnWrite = &rollbackPlan;
+    assert(!rollbackAdapter.publishCompletedFileDestinations(
+        rollbackPlan, reversedDestinations));
+    assert(!rollbackPlan.committed());
+    assert(rollbackClipboard.writes.empty());
+    assert(!rollbackAdapter.ownsClipboard());
+}
+
 void windowsCompletedFileHdropHandoff()
 {
     constexpr std::u16string_view kLocalPath{
@@ -943,6 +1110,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-completed-file-hdrop-handoff")
     {
         windowsCompletedFileHdropHandoff();
+        return 0;
+    }
+    if (behavior == "windows-completed-multi-file-hdrop-handoff")
+    {
+        windowsCompletedMultiFileHdropHandoff();
         return 0;
     }
     if (behavior == "file-destination-plan-native-capability-integration")

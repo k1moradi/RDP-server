@@ -98,8 +98,11 @@ enumerate every dedicated plan CTest before the full clipboard-labelled run.
 For a multi-file native handoff, materialize at least two files through the
 real one-at-a-time `RemoteTransfer` FileContents path. Require publication to
 fail while any member is partial, then verify the entire completed set appears
-atomically. Cover duplicate URI rejection, exact native list delimiters,
-same-generation set mutation denial and stale-generation refusal.
+atomically. Supply the completed objects out of order and require the committed
+destination plan's exact remote-index order at the native boundary. Cover
+duplicate destination membership/local metadata rejection, exact native list
+delimiters, same-generation owner takeover or set mutation denial, plan
+cancellation and stale-generation refusal.
 
 Keep file bytes in ordinary build-root fixtures and clipboard operations behind
 the existing injected native seam. The test must not imply directory hierarchy:
@@ -108,9 +111,30 @@ file-manager/portal directory-tree acceptance remains a separate live gate.
 
 ## Windows completed-file handoff tests stay host-clipboard free
 
-Exercise CF_HDROP handoff through the production Windows destination and clipboard-adapter state machines with injected clipboard callbacks. Ordinary CTest must never call the real host clipboard. Require: no publication while the destination is partial; exact completed caller path retention; `DROPFILES.pFiles=20`, `fWide=TRUE`, one fully qualified UTF-16 path and the final double NUL; relative/device-path metadata rejection before native destination duplication; local owner takeover with same-generation reclaim denial; and stale-generation refusal.
+Exercise CF_HDROP handoff through the production Windows destination and clipboard-adapter state machines with injected clipboard callbacks. Ordinary CTest must never call the real host clipboard. Require: no publication while any selected destination is partial; exact completed caller path retention; `DROPFILES.pFiles=20`, `fWide=TRUE`, one NUL-terminated fully qualified UTF-16 path per planned index plus the final list NUL; reversed caller span order normalizes to plan index order; duplicate membership is denied before native mutation; relative/device-path metadata rejection occurs before native destination duplication; local owner takeover has same-generation reclaim denial; and stale-generation refusal.
 
-Keep the real Win32 `GlobalAlloc`/`SetClipboardData` branch to hosted Windows compile/link coverage unless a separately authorized native acceptance test is requested. Synthetic CF_HDROP success is not Explorer paste acceptance or authenticated Microsoft-client file-copy proof. The R9 sanitizer preflight must enumerate the dedicated `clipboard.windows-completed-file-hdrop-handoff` registration before running the complete clipboard label.
+Keep the real Win32 `GlobalAlloc`/`SetClipboardData` branch to hosted Windows compile/link coverage unless a separately authorized native acceptance test is requested. Synthetic CF_HDROP success is not Explorer paste acceptance or authenticated Microsoft-client file-copy proof. The R9 sanitizer preflight must enumerate both
+`clipboard.windows-completed-file-hdrop-handoff` and
+`clipboard.windows-completed-multi-file-hdrop-handoff` before running the
+complete clipboard label.
+
+## macOS completed-file set tests publish one NSURL array
+
+Exercise multi-file pasteboard handoff through the production macOS destination
+and clipboard-adapter state machines with injected pasteboard callbacks.
+Materialize every file independently, require zero native replacement while any
+member is partial, then pass the completed destinations in reverse order and
+require one replacement containing file URLs in plan index order. Duplicate
+destination membership, stale/cancelled plans, reentrant plan cancellation and
+same-generation local takeover must deny without leaving a partial remote
+pasteboard publication.
+
+The injected native content exposes only borrowed URL views for the synchronous
+call; test code copies them solely to inspect the native boundary. Apple hosted
+builds compile/link the real AppKit conversion to multiple NSURL objects, while
+ordinary CTest never reads or writes the live general pasteboard. The sanitizer
+preflight must enumerate
+`clipboard.macos-completed-multi-file-url-handoff`.
 
 ## Completed-file handoff tests must prove partial invisibility
 

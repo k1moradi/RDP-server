@@ -1690,7 +1690,8 @@ foreach(case_name IN ITEMS
         macos-file-destination-size-cancel
         macos-file-destination-destructor-retirement
         macos-file-destination-denials
-        macos-completed-file-url-handoff)
+        macos-completed-file-url-handoff
+        macos-completed-multi-file-url-handoff)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_macos_clipboard_file_destination "${case_name}")
     set_tests_properties("clipboard.${case_name}" PROPERTIES
@@ -1753,6 +1754,7 @@ foreach(case_name IN ITEMS
         windows-file-destination-destructor-retirement
         windows-file-destination-denials
         windows-completed-file-hdrop-handoff
+        windows-completed-multi-file-hdrop-handoff
         file-destination-plan-native-capability-integration)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_windows_clipboard_file_destination "${case_name}")

@@ -1026,6 +1026,78 @@ unresolved-write cancellation/replay coverage active. This fixture proves only
 transport scheduling and lifetime; a positive final-CredSSP-plus-MCS scenario
 remains blocked until a genuine R2 admission lease exists.
 
+## R1 Microsoft-client transport compatibility capture checklist (2026-10-17)
+
+Microsoft-client captures are compatibility evidence only. They never
+authenticate the peer, validate delegated credentials, mint a native admission
+lease or authorize MCS/R3. Record the exact client product/platform, OS build,
+client/file version, server SHA and policy or `.rdp` overrides for every run;
+never promote one observed client default into a protocol requirement.
+
+For each supported `mstsc.exe` and Windows App build:
+
+- **X.224 negotiation:** preserve optional cookie/routing-token bytes only as
+  bounded syntax and record the exact `requestedProtocols`. The current R1
+  HybridNla policy selects `PROTOCOL_HYBRID (0x02)` only when HYBRID was
+  offered; it deliberately does not select HYBRID_EX. Public Windows App and
+  Windows 11 capture reports have observed `SSL|HYBRID|HYBRID_EX (0x0b)`, but
+  this is capture evidence, not a required default. If HYBRID_EX is ever
+  enabled, Early User Authorization must follow completed CredSSP plus real
+  authorization and precede post-handshake RDP PDUs.
+- **TLS/certificate:** record TLS version/cipher, target/SNI name, certificate
+  chain/name result and any user trust prompt. Exercise a trusted name-matching
+  certificate and an untrusted/mismatched certificate. A user clicking through
+  a certificate warning is not identity or native-session authority.
+- **CredSSP/NLA:** record every TSRequest version/field shape and negotiated
+  SPNEGO mechanism. MS-CSSP accepts versions 2 through 6; version 5+ adds the
+  32-byte clientNonce hash-binding flow. Keep the existing R2 version and
+  credential-policy gates; a captured NTLM or Kerberos choice is environment
+  evidence, not a server authorization shortcut.
+- **Fragmentation/coalescing:** MS-CSSP Windows product behavior sends a complete
+  TSRequest as one TLS message block subject to TLS maximum-message
+  fragmentation. R1 must nevertheless remain byte-stream correct across TCP
+  segmentation, TLS record boundaries and multiple decrypted records. The
+  CredSSP reader requests exactly the remaining DER bytes, so coalesced first
+  MCS plaintext remains unread in the R1-owned SSL until admission.
+- **Application I/O/backpressure:** one scheduler invocation performs at most
+  one bounded `SSL_read_ex`/`SSL_write_ex`. Preserve the exact WANT_READ or
+  WANT_WRITE retry operation and logical byte count. R3 must never add an SSL
+  reader/writer, transport queue or accepted-byte counter.
+- **Close:** capture a user-initiated MCS Disconnect Provider Ultimatum and/or
+  Shutdown Request path and the following network close. Exercise TLS
+  `close_notify`, raw EOF and RST separately because R1 intentionally
+  distinguishes TLS closure from transport closure and permits no span replay
+  after teardown.
+
+Current evidence to reproduce rather than trust: FreeRDP issue #13549 records
+Windows App for macOS 11.4.2 (3104) offering `0x0b`, negotiating TLS 1.3,
+using CredSSP version 6 with clientNonce and sending final `authInfo`; selecting
+HYBRID (0x02) connected while an incorrectly early HYBRID_EX authorization
+stalled before MCS. A Microsoft Q&A Windows 11 `mstsc.exe` capture also reports
+`0x0b` and an optional `Cookie: mstshash=...`; treat that report as
+non-normative capture evidence and repeat it on the exact Windows build under
+test. Microsoft release notes list Windows App 2.0.1482.0 on Windows and
+11.4.3 (3115) on macOS as current October 2026 reference builds.
+
+### Genuine final-CredSSP + first-MCS positive fixture
+
+Execute this case only in an owner-authorized environment where the existing
+R2 path completes genuine GSS/CredSSP credential verification and the native
+broker issues a current non-forgeable lease. The authenticated client sends
+the final CredSSP `authInfo` immediately followed by the first MCS TPKT in one
+logical TLS application write. Require R1 to consume exactly the CredSSP DER,
+then require real R2 admission, then consume and frame the already-buffered MCS
+bytes through the existing R1 bounded application-I/O boundary before passing
+one complete TPKT to R3 authorization.
+
+The current Linux aggregate exposes `authorizeMcsConnectInitial(completeTpkt)`
+but does not yet expose the post-admission R1-owned bounded read/framing route
+needed to produce that span after CredSSP application I/O has disabled the
+legacy diagnostic MCS reader. That composition is an R10 integration
+prerequisite, not permission to revive the legacy reader or create an R3 SSL
+reader, wrapper queue or duplicate scheduler. Until both the real R2 lease and
+that R1-owned composition exist, record the positive case as **NOT RUN**.
+
 ## R1 loopback TLS handshake readiness fixtures (2026-10-16)
 
 Real native-loopback TLS fixtures must not use scheduler sleep/yield loops to

@@ -1,3 +1,68 @@
+## R1 Linux buffered-TLS verification and Microsoft-client transport review (2026-10-17)
+
+**Verified shared-main SHA:** `7ac63a255e41a9f2786629b31a1af53d2b7ab164`.
+R10 repair `8d980a202eafeefd958213f65344e955ce1b2415` moved the
+incomplete licensing-authority construction out of line; R9 `7ac63a25` only
+synchronized assurance selectors and does not change R1 production source.
+Later R2/R9 denial-only native-desktop evidence does not change R1.
+
+Exact-SHA Ubuntu/GCC job `117431351690` passes **617/617 Debug** and
+**617/617 Release**. In both configurations:
+`transport.tcp-owned-buffered-tls-credssp-mcs-readiness` is #168 PASS,
+`transport.tcp-owned-tls-application-cancellation` is #181 PASS, and
+`runtime.linux-connection-pre-admission-dispatch` is #375 PASS.
+Exact-SHA R9 Clang ASan/UBSan job `117431351644` is **SUCCESS**: its
+synchronized bounded R1/R3 selector is **93/93 PASS** and includes
+`transport.tcp-owned-buffered-tls-credssp-mcs-readiness`; the direct Linux
+runtime-security selector is **15/15 PASS**, including the pre-admission
+scheduler case.
+
+R1 review finds no second transport defect. `SSL_pending()` is used only as a
+readiness fact on the exact R1-owned SSL. R1 suppresses that fact while an
+application write is pending and while a pending read's exact retry direction
+is WANT_WRITE. The query performs no BIO/socket I/O, retains no caller span
+and grants no CredSSP/MCS/session authority. Each runtime scheduler call
+executes at most one bounded application-I/O step. A successful read consumes
+a positive bounded byte count; WANT or terminal outcomes change the required
+direction/status. The CredSSP reader asks for exactly the remaining DER bytes
+(bounded to 16 KiB), so it cannot over-read a coalesced first MCS TPKT.
+
+After final delegated credentials are consumed, the CredSSP reader is closed.
+Only the real R2 LinuxConsoleAdmissionBroker can invoke R1's private
+`completeCredSspAdmission()` after concrete native admission. The pre-admission
+scheduler rejects/revokes an `AwaitMcsConnectInitial` entry rather than falling
+through to R1's legacy diagnostic MCS reader. Because CredSSP already opted
+the connection into R1 application byte-stream mode, that legacy direct SSL
+MCS reader is also terminally fenced from becoming a second plaintext reader.
+
+The authenticated final-CredSSP + first-MCS same-record positive case remains
+**NOT RUN / BLOCKED** for two independent reasons: no owner-authorized genuine
+R2 native admission environment is available here, and the current Linux
+aggregate exposes `authorizeMcsConnectInitial(completeTpkt)` without a
+post-admission aggregate route that reads/frames the already-buffered TPKT via
+the existing R1 bounded application-I/O boundary. R10 must compose that R1
+path before R3 authorization; this is not permission to add an R3 SSL reader,
+wrapper transport queue, duplicate scheduler or revive the legacy diagnostic
+reader.
+
+Microsoft protocol review preserves the current interoperability posture.
+MS-RDPBCGR defines HYBRID/HYBRID_EX negotiation and requires Early User
+Authorization only after CredSSP completes when HYBRID_EX is selected.
+MS-CSSP accepts TSRequest versions 2..6 and records Windows product behavior
+that a complete TSRequest is encrypted as one TLS message block, subject to TLS
+maximum-message fragmentation. Current R1 policy selects HYBRID (0x02), not
+HYBRID_EX. FreeRDP issue #13549 is capture evidence only: Windows App for macOS
+11.4.2 (3104) offered `0x0b`, negotiated TLS 1.3, used CredSSP v6/clientNonce
+and sent final authInfo; HYBRID connected while an incorrectly early HYBRID_EX
+authorization stalled before MCS. Microsoft Q&A separately reports Windows 11
+mstsc captures with `0x0b` and an optional mstshash cookie; this is
+non-normative and must be re-captured on the exact client build. Microsoft
+release notes list Windows App 2.0.1482.0 (Windows) and 11.4.3 (3115, macOS)
+as current October 2026 reference builds.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment; no alternate persistent build root was created.
+
 ## R9 exact-main Linux boundary and sanitizer registry audit (2026-10-17)
 
 **Starting shared `main`:** `8d980a202eafeefd958213f65344e955ce1b2415`. R9 compared Ubuntu/GCC and Clang-sanitizer logs at R10/R3 descendant `dfbad116...`, R1 `2d295603...` and R8 `8c303b40...`. The first compiler diagnostic is unchanged across those descendants: `RuntimeLicensingAuthority() noexcept = default` in the public header instantiates `unique_ptr<detail::RuntimeLicensingAuthorityProvider>` cleanup while the provider is incomplete in `test_runtime_linux_security.cpp`. The failing source boundary is therefore R10 runtime-licensing public-header ownership, not the triggering R1 or R8 commit.

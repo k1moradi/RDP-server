@@ -1,3 +1,48 @@
+## R9 P1 Windows CLANG64 security-fixture hosted validation (2026-10-17)
+
+**Validated SHA:** `1c91b828a18e94e286863197b20d72a7440ae3bf`.  
+**Primary Actions:** `39013412507` — overall **FAIL**, attributed only to R1 full-suite `transport.tcp-native-loopback-tls`.  
+**Structure guard:** `39013412399` — **SUCCESS**.
+
+The Windows synthetic-DACL regression gate is green on hosted MSYS2 CLANG64
+with **Clang 23.1.3**. In both Debug and Release, the fail-closed R10 fixture
+preflight enumerates exactly three cases and executes **3/3 PASS**:
+`runtime.windows-private-fixture-dacl-creation`,
+`runtime.windows-private-fixture-broad-access-denials`, and
+`runtime.windows-private-fixture-owner-consistency`. Only after that private
+baseline succeeds does the representative production-backed security selection
+run; it enumerates exactly five cases and executes **5/5 PASS** in both
+configurations: licensing secure-file snapshot, licensing CLI provisioning,
+Windows private-config DACL, private TLS metadata, and the owned runtime TLS
+handshake.
+
+The complete CLANG64 suite is **528/529 PASS Debug** and **528/529 PASS
+Release**. The sole failure in each configuration is the unrelated R1
+`transport.tcp-native-loopback-tls` case (Windows exit `0xc0000409`). The
+same R1 behavior is the only full-suite failure on hosted Linux/GCC
+(**577/578 PASS Debug**), macOS/AppleClang (**492/493 PASS Debug**), and
+Windows/MSVC (**528/529 PASS Debug**, timeout). Windows/MSVC's R10 fixture and
+security cases therefore also pass under the ordinary Windows job.
+
+R9 Clang ASan/UBSan, R7 sanitizer, R7 isolated macOS lifecycle, documentation
+policy, the primary workflow-structure job and independent structure guard all
+pass on this SHA. The ordinary SDK consumer/package stages are not executed
+because the platform jobs remain fail-closed after the unrelated R1 Debug
+failure; no package PASS is claimed from a skipped stage.
+
+The original owner-native **454 PASS / 53 FAIL out of 507** transcript remains
+negative evidence only. It lacks an exact Git SHA, compiler version and captured
+native `icacls` stdout/stderr, so the owner row still requires a fresh
+canonical `~/rdp-server/build/` MSYS2 CLANG64 / Clang 23 Debug run (and
+Release where the M1 contract requires it) at an agreed green candidate SHA.
+R10's fixture helper remains authoritative; R9 does not rewrite ACL scripts or
+weaken production `hasRestrictedCredentialDacl()` checks.
+
+**M1 remains OPEN / NOT ACCEPTED.** Windows fixture coverage is no longer the
+hosted blocker. Remaining blockers include the owner same-SHA native matrix and
+the independent R1 loopback-TLS failure before downstream SDK/package evidence
+can complete.
+
 ## R6 P2 Windows CLANG64 ASan/UBSan exact-SHA validation (2026-10-17)
 
 **Validated R6 source/gate SHA:** `a97933bf7a2b523dac641e97776e111d46a28be0`.  

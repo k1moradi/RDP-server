@@ -1,3 +1,42 @@
+## R9 P1 Windows CLANG64 security-fixture validation receipt (2026-10-17)
+
+Exact hosted SHA `1c91b828a18e94e286863197b20d72a7440ae3bf`:
+
+- Primary workflow `39013412507`: **FAIL**, solely from
+  `transport.tcp-native-loopback-tls` in the full platform suites.
+- Independent structure guard `39013412399`: **PASS**; primary
+  `ci-workflow-structure`: **PASS**.
+- Hosted MSYS2 CLANG64 reports **Clang 23.1.3**.
+- R10 private-fixture gate: **3/3 PASS Debug + 3/3 PASS Release**.
+- Representative TLS/licensing/config security gate: **5/5 PASS Debug +
+  5/5 PASS Release**.
+- Full CLANG64 CTest: **528/529 PASS Debug + 528/529 PASS Release**; sole
+  failure `transport.tcp-native-loopback-tls` with `0xc0000409`.
+- Windows/MSVC full Debug: **528/529 PASS**; sole failure the same R1 test.
+  Its native R6 preflight is **55/55 PASS**.
+- Linux/GCC full Debug: **577/578 PASS**; sole failure the same R1 test.
+- macOS/AppleClang full Debug: **492/493 PASS** after focused R7 **17/17
+  PASS**; sole failure the same R1 test.
+- R9 Clang ASan/UBSan: **PASS**. R7 sanitizer and isolated Apple lifecycle:
+  **PASS**. Documentation policy: **PASS**.
+
+The dedicated broad-access denial fixture passes only after the shared R10
+helper verifies a private baseline, then deliberately adds the intended broad
+ACE and reaches the production validator. This is evidence that insecure ACL
+negative cases still deny for the intended security reason rather than merely
+failing fixture setup.
+
+SDK consumer, package, digest and artifact-upload stages are **SKIPPED / NOT
+EVIDENCE** on this exact SHA because the ordinary platform jobs stop after the
+unrelated R1 Debug failure. No test regex, platform exclusion or count reduction
+was used to hide the original Windows ACL failures.
+
+The available owner transcript remains **454/507 PASS, 53 FAIL** but does not
+contain `git rev-parse HEAD`, `clang++ --version` or captured native
+`icacls` diagnostics. Therefore the exact owner SHA/compiler/failure
+mechanism cannot be reconstructed honestly from repository evidence; owner
+rerun at the agreed candidate remains required.
+
 ## R6 P2 Windows CLANG64 ASan/UBSan exact-SHA validation (2026-10-17)
 
 **Validated R6 source/gate SHA:** `a97933bf7a2b523dac641e97776e111d46a28be0`.  

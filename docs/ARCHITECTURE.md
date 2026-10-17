@@ -1,3 +1,53 @@
+## M2 licensing-to-Share authorization provenance
+
+The M2 critical path has four distinct authorities and they must never be
+collapsed into one Boolean:
+
+1. **R1 transport provenance** proves the exact TLS/CredSSP connection and
+   bounded application I/O. It is not OS admission or CAL authority.
+2. **R2 native admission** is the sole positive user/session authorization
+   source. `LinuxConsoleAdmissionBroker` revalidates the live admission and
+   session generations plus the permission required by each protected
+   transition: View for R3 connection/licensing/graphics, Input for R5 delivery
+   and Clipboard for R8 delivery.
+3. **R10 licensing authority** is the sole source of genuine CAL issuer trust,
+   existing-CAL policy decisions and New/Upgrade CAL issuance. Provider
+   identity/trust generation, request correlation and exact input/result
+   digests are freshness evidence. The terminal-server TLS identity and RDP
+   licensing key-exchange credential are explicitly not CAL issuers.
+4. **R3 protocol state** is the sole owner of MCS/GCC/channel ordering,
+   client-facing licensing cryptography and message receipts, Share activation,
+   capability negotiation and finalization. R3 may move to Licensed only after
+   an R10-authenticated decision/result and exact outbound delivery under a
+   fresh R2 authorization; only then may it send Demand Active.
+
+The standards sequence is
+`R2 admission -> MCS/GCC -> joins -> Client Info -> Server License Request ->
+client licensing branch -> genuine licensing completion -> Demand Active ->
+Confirm Active -> finalization -> application channel/graphics/input
+handoffs`. See
+[MS-RDPBCGR 1.3.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee) and
+[MS-RDPELE 3.2.5.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpele/89ed5e64-d4c5-4023-8df3-dd02f01e7102).
+
+Existing CAL handling deliberately distinguishes three different facts:
+CLIENT_LICENSE_INFO HWID/MAC integrity, X.509/PKCS#7 certificate mechanics, and
+genuine licensing policy. The first two are R3 defensive protocol checks. The
+third requires R10's authenticated provider to correlate issuer trust,
+product/version/scope, CAL lifetime/classification and CAL-to-HWID binding.
+The five documented Microsoft licensing-extension OIDs are not an invitation to
+invent their payload format.
+
+The future post-license Share owner must reuse the existing offline
+Demand/Confirm Active, General/Bitmap capability, Synchronize and Control
+helpers but add authenticated ordering and accepted-byte receipts. Font List
+intake and Font Map output remain missing. A single finalized Share generation
+then becomes the common downstream revocation key: R4 additionally requires
+authorized DRDYNVC/Graphics DVC creation and cumulative send receipts; R5
+requires bounded decoded Share/Fast-Path input plus fresh R2 Input permission;
+R8 requires joined CLIPRDR routing/reassembly plus fresh R2 Clipboard
+permission. No downstream component may derive authority from a channel ID,
+capability bit or decoded packet.
+
 ## R2 final credential/native admission completion contract (2026-10-17)
 
 Final CredSSP password authentication and native desktop admission are one

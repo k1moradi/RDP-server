@@ -1,3 +1,32 @@
+## R3 M2 licensing-to-Share planning audit (2026-10-17)
+
+This is a documentation-only architecture/roadmap audit. Production code,
+CTest behavior, licensing state and Share state are unchanged.
+
+Reviewed current R3 MCS/GCC/channel, licensing/CAL and offline Share helpers,
+R2 admission/re-authorization ownership, R10 runtime licensing-authority
+ownership, and current R4/R5/R8 cross-road blockers. The audit confirms that
+the stateful `McsSessionLifecycle` currently ends in licensing phases and has
+no post-`Licensed` Demand Active/Confirm Active/finalization phase. Existing
+Share helpers are explicitly offline syntax/correlation utilities.
+
+Normative review used MS-RDPELE 3.2.5.3 and 2.2.2.9 plus MS-RDPBCGR 1.3.1.1,
+2.2.1.12.1.3, 2.2.1.13.1 and 3.3.5.3.13.2. The resulting plan keeps
+CLIENT_LICENSE_INFO fail-closed until genuine issuer trust, exact
+product/version/scope, CAL lifetime/classification and CAL-to-HWID binding are
+established. It keeps Demand Active after licensing completion and preserves
+the required Confirm Active/finalization order.
+
+No compile, CTest, sanitizer, benchmark, owner-native run, licensing-provider
+operation or Microsoft-client connection is executed for this documentation
+audit: all are **NOT RUN**. The current M1 candidate remains production-frozen
+pending the owner-native same-SHA matrix.
+
+The first post-M1 R3 code target is the non-authorizing existing-CAL
+authority-request snapshot described in `docs/ROADMAP.md`. Ordinary positive
+tests may prove only snapshot construction/ownership/correlation; they may not
+manufacture a positive licensing decision.
+
 ## R1 P1 runtime TLS post-ACL exact-SHA validation (2026-10-17)
 
 **R10 Windows fixture correction chain:** \`e782cd642f574e7ef45792c8fe168dfad70c8d2a\`,

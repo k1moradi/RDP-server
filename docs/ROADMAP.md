@@ -1,3 +1,192 @@
+## R3 M2 licensing-to-Share critical path (planning-only M1 freeze, 2026-10-17)
+
+**Production freeze:** the current M1 candidate is preserved unchanged until
+the owner-native M1 matrix is complete on one exact SHA. This section is a
+protocol/ownership plan only. No production source, test behavior, licensing
+state or Share state is changed by this documentation increment.
+
+Normative order comes from
+[MS-RDPBCGR 1.3.1.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee):
+MCS/GCC settings and channel connection precede Client Info and licensing;
+Capabilities Exchange starts only after licensing completes, with Server Demand
+Active followed by Client Confirm Active and Connection Finalization.
+[MS-RDPELE 3.2.5.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpele/89ed5e64-d4c5-4023-8df3-dd02f01e7102)
+requires an existing client license to pass license-server signature, correct
+product information, license expiration and client-HWID validation before a
+valid permanent CAL can complete licensing. Synthetic certificates, fabricated
+CALs, joined channels and decoded PDUs are never authorization.
+
+### Shortest standards-correct M2 order
+
+1. **Genuine R2 admission first.** R1 owns TLS/CredSSP transport provenance.
+   R2's `LinuxConsoleAdmissionBroker` is the sole positive OS/session
+   authorization source. The exact live lease, admission generation and
+   session generation must remain current, and every protected R3 transition
+   must be freshly reauthorized. MCS parsing or TLS success cannot mint this
+   authority.
+2. **R3 MCS/GCC connection ownership.** From that R2 lease, the sole
+   `McsSessionLifecycle` admits Connect-Initial/GCC, writes Connect-Response,
+   accepts Erect Domain and Attach User, writes Attach User Confirm, then
+   accepts and receipt-confirms the user channel, global I/O channel and every
+   configured static channel. A joined channel is routing state only.
+3. **Client Info then Server License Request.** Client Info is accepted only on
+   the authenticated global channel. R3 then publishes the exact configured
+   Server License Request and advances only after accepted-byte delivery. The
+   terminal-server licensing certificate/private key proves the key-exchange
+   credential only; it is not a CAL issuer.
+4. **Branch on the protected client licensing response.**
+   - **Existing CAL / CLIENT_LICENSE_INFO:** R3 unwraps the exact premaster,
+     derives the licensing keys, decrypts the 20-byte HWID and verifies the
+     message MAC. The current CAL inspector additionally proves bounded
+     canonical PKCS#7/X.509 structure, signatures, exact caller-supplied root
+     equality, peer-intermediate CA/key-signing constraints, required licensing
+     OID presence/cardinality and an optional leaf X.509 validity fact.
+     These are necessary facts, not authorization.
+   - **No CAL / CLIENT_NEW_LICENSE_REQUEST:** R3's current New License branch
+     may send the receipt-bound Server Platform Challenge and verify the
+     Client Platform Challenge Response/HWID/MAC, but it still cannot issue a
+     CAL by itself.
+5. **R10 is the genuine CAL authority.** Production R10 must authenticate one
+   supported licensing provider and own its changing trust/policy generation.
+   It must provide two provider operations that R3 cannot manufacture:
+   (a) validate an existing presented CAL against the exact Server License
+   Request product/scope, protected client HWID, current verification time and
+   provider trust/policy; and (b) issue a genuine New or Upgrade CAL from the
+   supported licensing backend, preserving exact request correlation and
+   provider generation/fingerprint through cancellation, result release and
+   retirement. R10's current `configureUnavailable()` and test-only positive
+   provider are not sufficient.
+6. **Complete existing-CAL semantics before any valid-client status.** The
+   remaining decision must distinguish a valid permanent CAL requiring no
+   upgrade from a temporary, expired, within-seven-days-of-expiry,
+   lower-version or otherwise invalid CAL. It must bind the CAL's licensed
+   hardware identity to the exact MAC-verified decrypted HWID and correlate
+   product/version/scope to the exact request. The five Microsoft licensing
+   extension OIDs are known, but their proprietary payload layout must not be
+   inferred from synthetic fixtures. If the supported provider owns those
+   semantics, R10 returns the decision; otherwise R3 waits for an authoritative
+   encoding.
+7. **Receipt-bound licensing completion.**
+   - Valid permanent/no-upgrade: only a genuine R10 existing-CAL decision plus
+     fresh R2 authorization may permit R3 to send Licensing Error Message
+     `STATUS_VALID_CLIENT/ST_NO_TRANSITION`. Full accepted-byte delivery is
+     the licensing-complete receipt.
+   - Upgrade-required: R3 sends Platform Challenge, verifies the client
+     response, then requires a genuine R10 Upgrade License result. Full
+     receipt-bound Server Upgrade License delivery completes licensing.
+   - New license: after the already-verified challenge response, a genuine R10
+     New License result and fresh R2 authorization are required for every write
+     slice/completion; exact full Server New License delivery completes
+     licensing.
+   No scalar generation/fingerprint, opaque CAL, test fixture or packet syntax
+   can set `RdpLicensingPhase::Licensed`.
+8. **Enter Share only from genuine licensing completion.** R3 needs one
+   post-license state owner; the current `McsSessionPhase` ends in licensing
+   states and has no authenticated Share phase. On the exact licensed session,
+   R3 writes Demand Active, records accepted-byte delivery, accepts Confirm
+   Active on the authenticated global channel, stores only capability sets that
+   pass supported semantic policy, and derives the negotiated subset. Demand
+   Active is forbidden before licensing completion.
+9. **Connection Finalization.** After Confirm Active, process the client
+   Synchronize -> Control(Cooperate) -> Control(Request Control) sequence while
+   emitting Server Synchronize -> Server Control(Cooperate) -> Server
+   Control(Granted Control) with stable write receipts. Do not advertise
+   persistent bitmap-cache behavior until implemented, avoiding an unnecessary
+   Persistent Key List branch. R3 still needs a bounded Font List intake and
+   Server Font Map encoder/writer; Font Map is the final connection-sequence
+   PDU. The existing Demand/Confirm, Synchronize and Control helpers are
+   offline syntax/correlation only and do not activate a Share.
+10. **Publish one final session-ready generation.** For the shortest safe
+    cross-road contract, R3 should withhold R4/R5/R8 application handoffs until
+    the finalization generation is current and Font Map has been fully
+    delivered. This is stricter than the protocol's earliest input point after
+    Confirm Active, but standards-correct and gives every downstream road one
+    common revocation boundary.
+
+### Existing-client CAL gaps that remain fail-closed
+
+The current inspector does **not** establish a production trust anchor. An
+arbitrary caller-provided root, a peer root, the TLS certificate and the
+terminal-server licensing key-exchange certificate are not CAL authority.
+R10 must bind trust to the authenticated supported licensing provider.
+Current X.509 work checks signatures/intermediate CA constraints and can check
+the leaf certificate's `notBefore/notAfter`, but this is distinct from the
+CAL license lifetime. A provider-approved trust profile still has to own any
+additional chain/path/time/revocation policy needed for that issuer.
+
+The leaf's five documented licensing-extension OIDs are still opaque.
+Consequently product/version/scope matching, permanent-vs-temporary
+classification, license Validity Period, expired/within-seven-days upgrade
+classification and the CAL's own hardware binding remain incomplete. The
+protected-message HWID MAC proves integrity of CLIENT_LICENSE_INFO; it does not
+prove that the CAL was issued for that hardware.
+
+### R10 provider contract required by M2
+
+R10 must extend the current authority owner with an existing-CAL validation
+operation whose request is bound to the exact CAL, exact decrypted HWID, exact
+`RdpServerLicenseIdentity` product/scope, verification time and one R3
+request/session correlation. Its result must be one-shot and freshness-bound
+to provider identity, trust configuration, authority generation/fingerprint
+and exact input digests, and classify at least
+`ValidPermanentNoUpgrade`, `UpgradeRequired` or `Denied`.
+
+For New/Upgrade issuance, R10's provider request must carry every protected
+client fact required by the supported backend. At minimum the live composition
+must bind the exact product/scope, verified HWID/client correlation and, for an
+upgrade, the presented CAL. The present issuance request's product fields plus
+opaque request correlation are insufficient to claim CAL-to-client binding.
+R10 owns backend authentication/RPC, provider cancellation, revocation and
+issued CAL authenticity; R3 owns client-facing MS-RDPELE packets and receipts.
+
+### Downstream receipts after Share finalization
+
+- **R4 graphics:** R3 must prove the current R2 View permission, active Share
+  generation, protected joined DRDYNVC static channel, successful
+  `Microsoft::Windows::RDS::Graphics` DVC creation and negotiated graphics
+  capability before exposing one outbound sender. That sender owns cumulative
+  accepted-byte receipts and terminal cancellation; R4 remains frame
+  scheduling/encoding owner and cannot self-authorize a DVC.
+- **R5 input:** R3 must own the authenticated global-channel Share/Input and
+  Fast-Path framing/decoding boundary, enforce negotiated input capability and
+  bounded event counts, and obtain fresh R2 `kConsoleInputPermission` before
+  synchronously handing a generation-pinned decoded event batch to R5. Raw
+  input bytes or Confirm Active alone are not input authority.
+- **R8 clipboard:** the existing joined CLIPRDR channel observation is
+  insufficient. R3 must additionally require the finalized Share generation,
+  exact joined CLIPRDR channel, bounded virtual-channel reassembly and fresh R2
+  `kConsoleClipboardPermission`, with accepted-byte/cancellation receipts for
+  outbound channel publication. R8 owns clipboard semantics/materialization,
+  not RDP channel authorization.
+
+### First R3 implementation after owner-native M1
+
+The first code-bearing R3 increment is
+**a non-authorizing existing-CAL authority-request snapshot**. It will own one
+bounded exact CAL, the exact MAC-verified decrypted HWID, exact immutable Server
+License Request product/scope identity, explicit verification time and exact
+session/request correlation for handoff to R10. Construction will not produce a
+validation result, will not call `STATUS_VALID_CLIENT`, will not advance
+`RdpLicensingLifecycle`, and will not enter Share.
+
+Dedicated ordinary positive tests may prove only bounded snapshot ownership,
+immutability and exact correlation. Negative tests must reject missing HWID
+proof, malformed/oversized CAL, product/scope mismatch, stale/zero correlation,
+replacement and retirement misuse. Ordinary tests must not create a positive
+existing-CAL authorization. After R10 supplies a genuine provider validation
+result, the next R3 increment is the authority-bound valid-client/upgrade
+decision plus receipt-bound `STATUS_VALID_CLIENT` or Platform Challenge
+transition.
+
+Canonical owner-local `~/rdp-server/build/`, owner-native M1 verification,
+genuine licensing-provider validation/issuance and Microsoft-client M2
+acceptance are **NOT RUN / OPEN** in this connector environment.
+
+**Next R3:** make no production change until the owner-native M1 matrix is
+accepted on one exact candidate SHA. Then implement only the non-authorizing
+existing-CAL authority-request snapshot above, with its dedicated CTests and
+same-commit documentation. M2 remains **OPEN / NOT ACCEPTED**.
+
 ## R1 P1 runtime TLS post-ACL exact-SHA validation (2026-10-17)
 
 **R10 Windows fixture correction chain:** \`e782cd642f574e7ef45792c8fe168dfad70c8d2a\`,

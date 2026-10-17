@@ -67,6 +67,62 @@ public:
             sessionGeneration);
     }
 };
+// Fixture-only access stages an already MAC-verified CAL through the real
+// R3 request owner and licensing state machine; never a production admission.
+class McsSessionLifecycleTestAccess final
+{
+public:
+    [[nodiscard]] static bool stage(
+        McsSessionLifecycle &session,
+        const RdpServerLicenseIdentity &identity,
+        RdpClientLicenseInfoHardwareIdProof &&proof,
+        std::span<const std::uint8_t> cal,
+        std::span<const std::uint8_t> licenseMessage,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept
+    {
+        RdpServerLicenseRequestWriteGate writer{session.licensing_};
+        if (!writer.queue(identity))
+            return false;
+        const auto pending = writer.pendingWrite();
+        if (!pending ||
+            writer.onBytesWritten(pending.replySequence,
+                                  pending.writeSliceSequence,
+                                  pending.bytes.size()) !=
+                RdpServerLicenseRequestWriteOutcome::Delivered ||
+            session.licensing_.onClientMessage(licenseMessage) !=
+                RdpLicensingIntake::ClientLicenseInfoAccepted ||
+            session.existingCalAuthorityRequest_.bindProductIdentity(identity) !=
+                RdpExistingClientCalAuthorityRequestError::None ||
+            session.existingCalAuthorityRequest_.complete(
+                std::move(proof), cal, 1780315200LL,
+                admissionGeneration, sessionGeneration) !=
+                RdpExistingClientCalAuthorityRequestError::None)
+            return false;
+        session.admissionGeneration_ = admissionGeneration;
+        session.sessionGeneration_ = sessionGeneration;
+        session.acceptedInitialLicensingIntake_ =
+            RdpLicensingIntake::ClientLicenseInfoAccepted;
+        session.phase_ = McsSessionPhase::AwaitServerLicenseDecision;
+        return true;
+    }
+    static void stale(McsSessionLifecycle &session) noexcept
+    {
+        ++session.sessionGeneration_;
+    }
+    static void phaseMismatch(McsSessionLifecycle &session) noexcept
+    {
+        session.phase_ = McsSessionPhase::AwaitClientLicenseResponse;
+    }
+    static void restorePhase(McsSessionLifecycle &session) noexcept
+    {
+        session.phase_ = McsSessionPhase::AwaitServerLicenseDecision;
+    }
+    static void consumed(McsSessionLifecycle &session) noexcept
+    {
+        session.acceptedInitialLicensingIntake_.reset();
+    }
+};
 } // namespace rdp_server::server::transport
 
 namespace
@@ -7104,6 +7160,87 @@ void testExistingCalAuthorityRequestProductAndCorrelationDenials()
         correlation, admissionGeneration, sessionGeneration));
 }
 
+
+void testMcsExistingCalSynchronousReadOnlyLifetime()
+{
+    constexpr std::uint64_t admissionGeneration = 111U;
+    constexpr std::uint64_t sessionGeneration = 222U;
+    std::vector<std::uint8_t> cal(kMaximumRdpClientCalBytes, 0x42U);
+    const auto message = makeClientLicenseInfoWithHardwareProof(
+        kExistingCalEncryptedHardwareId, kExistingCalHardwareIdMac, cal);
+    auto proof = makeExistingCalHardwareIdProof(cal);
+    assert(proof);
+    RdpServerLicenseIdentity identity;
+    assert(configureServerLicenseIdentity(identity));
+
+    McsSessionLifecycle session;
+    std::size_t visits = 0;
+    const auto inspect = +[](
+        const RdpExistingClientCalAuthorityRequest &request,
+        void *opaque) noexcept
+    {
+        auto &count = *static_cast<std::size_t *>(opaque);
+        ++count;
+        assert(request.active());
+        assert(request.licenseInfo().size() == kMaximumRdpClientCalBytes);
+        assert(std::all_of(request.licenseInfo().begin(),
+                           request.licenseInfo().end(),
+                           [](std::uint8_t byte) { return byte == 0x42U; }));
+        assert(std::equal(request.hardwareId().begin(),
+                          request.hardwareId().end(),
+                          kExistingCalPlainHardwareId.begin()));
+        assert(request.verificationUnixSeconds() == 1780315200LL);
+        assert(request.productVersion() == 0x00060001U);
+        assert(std::equal(request.companyNameUtf16().begin(),
+                          request.companyNameUtf16().end(),
+                          kServerLicenseCompany.begin()));
+        assert(std::equal(request.productIdUtf16().begin(),
+                          request.productIdUtf16().end(),
+                          kServerLicenseProduct.begin()));
+        assert(std::equal(request.scopeAnsi().begin(),
+                          request.scopeAnsi().end(),
+                          kServerLicenseScope.begin()));
+        assert(request.requestCorrelation().size() ==
+               kRdpExistingClientCalAuthorityRequestCorrelationBytes);
+        assert(request.admissionGeneration() == admissionGeneration);
+        assert(request.sessionGeneration() == sessionGeneration);
+    };
+    assert(!session.visitExistingClientCalAuthorityRequest(inspect, &visits));
+    assert(McsSessionLifecycleTestAccess::stage(
+        session, identity, std::move(proof.proof), cal, message,
+        admissionGeneration, sessionGeneration));
+    std::fill(cal.begin(), cal.end(), 0U);
+    assert(!session.visitExistingClientCalAuthorityRequest(nullptr, &visits));
+    assert(session.visitExistingClientCalAuthorityRequest(inspect, &visits));
+    assert(visits == 1U);
+    assert(session.licensingPhase() == RdpLicensingPhase::AwaitServerDecision);
+    McsSessionLifecycleTestAccess::phaseMismatch(session);
+    assert(!session.visitExistingClientCalAuthorityRequest(inspect, &visits));
+    McsSessionLifecycleTestAccess::restorePhase(session);
+    assert(session.visitExistingClientCalAuthorityRequest(inspect, &visits));
+    McsSessionLifecycleTestAccess::consumed(session);
+    assert(!session.visitExistingClientCalAuthorityRequest(inspect, &visits));
+    assert(visits == 2U);
+    session.close();
+    assert(!session.visitExistingClientCalAuthorityRequest(inspect, &visits));
+
+    auto secondProof = makeExistingCalHardwareIdProof(
+        std::array<std::uint8_t, 3>{0x41U, 0x42U, 0x43U});
+    assert(secondProof);
+    constexpr std::array<std::uint8_t, 3> smallCal{0x41U, 0x42U, 0x43U};
+    const auto secondMessage = makeClientLicenseInfoWithHardwareProof(
+        kExistingCalEncryptedHardwareId, kExistingCalHardwareIdMac, smallCal);
+    McsSessionLifecycle replacement;
+    assert(McsSessionLifecycleTestAccess::stage(
+        replacement, identity, std::move(secondProof.proof),
+        smallCal, secondMessage, admissionGeneration, sessionGeneration));
+    McsSessionLifecycleTestAccess::stale(replacement);
+    assert(!replacement.visitExistingClientCalAuthorityRequest(inspect, &visits));
+    replacement.cancelExistingClientCalAuthorityRequest({});
+    assert(!replacement.visitExistingClientCalAuthorityRequest(inspect, &visits));
+    assert(visits == 2U);
+}
+
 void testExistingCalAuthorityRequestRevocationReplay()
 {
     constexpr std::array<std::uint8_t, 3> opaqueCal{0x41U, 0x42U, 0x43U};
@@ -9115,7 +9252,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 127> kMcsTestCases{{
+constexpr std::array<McsTestCase, 128> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -9179,6 +9316,7 @@ constexpr std::array<McsTestCase, 127> kMcsTestCases{{
     {"licensing-client-license-info-hwid-denials", &testRdpClientLicenseInfoHardwareIdDenials},
     {"licensing-client-license-info-hwid-fresh-verification", &testRdpClientLicenseInfoHardwareIdFreshVerification},
     {"licensing-existing-cal-authority-request-ownership", &testExistingCalAuthorityRequestOwnership},
+    {"licensing-existing-cal-live-visit-lifetime", &testMcsExistingCalSynchronousReadOnlyLifetime},
     {"licensing-existing-cal-authority-request-hwid-proof-gate", &testExistingCalAuthorityRequestHardwareProofGate},
     {"licensing-existing-cal-authority-request-product-and-correlation-denials", &testExistingCalAuthorityRequestProductAndCorrelationDenials},
     {"licensing-existing-cal-authority-request-revocation-replay", &testExistingCalAuthorityRequestRevocationReplay},

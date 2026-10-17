@@ -721,6 +721,32 @@ public:
         (void)retired;
     }
 
+    // One synchronous read-only inspection of the live existing-CAL request.
+    // The caller must not retain any borrowed reference/span or reenter the
+    // serialized R3 owner. The callback has no authority to grant a license,
+    // advance Share, or publish a channel. R3 owns all request bytes.
+    using ExistingCalRequestVisitor = void (*)(
+        const RdpExistingClientCalAuthorityRequest &, void *) noexcept;
+
+    [[nodiscard]] bool visitExistingClientCalAuthorityRequest(
+        ExistingCalRequestVisitor visitor, void *context) const noexcept
+    {
+        if (visitor == nullptr ||
+            phase_ != McsSessionPhase::AwaitServerLicenseDecision ||
+            acceptedInitialLicensingIntake_ !=
+                RdpLicensingIntake::ClientLicenseInfoAccepted ||
+            licensing_.phase() != RdpLicensingPhase::AwaitServerDecision ||
+            !existingCalAuthorityRequest_.active() ||
+            !existingCalAuthorityRequest_.productIdentityBound() ||
+            admissionGeneration_ == 0 || sessionGeneration_ == 0 ||
+            !existingCalAuthorityRequest_.matchesRequest(
+                existingCalAuthorityRequest_.requestCorrelation(),
+                admissionGeneration_, sessionGeneration_))
+            return false;
+        visitor(existingCalAuthorityRequest_, context);
+        return true;
+    }
+
     [[nodiscard]] bool channelJoinConfirmed(
         std::uint16_t channelId) const noexcept
     {
@@ -759,6 +785,7 @@ public:
 
 private:
     friend class rdp_server::server::security::LinuxConsoleAdmissionBroker;
+    friend class McsSessionLifecycleTestAccess;
 
     // Private positive R2 -> R3 handoff. Only the concrete Linux broker can
     // call this immediately after authorizes(kConsoleViewPermission) succeeds.

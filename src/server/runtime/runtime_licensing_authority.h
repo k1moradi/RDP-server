@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 
 namespace rdp_server::server::runtime
@@ -358,6 +359,78 @@ private:
     bool resultReleased_{};
     bool existingCalValidationPending_{};
     bool existingCalResultReleased_{};
+};
+
+
+// R10 connection-local existing-CAL composition owner. It creates no
+// licensing authority: one authenticated R3 snapshot is bound to one
+// service-owned authority operation and one exact live R2 generation pair.
+// Serialized event-loop use only; the authority must outlive this object.
+class RuntimeExistingCalValidationBinding final
+{
+public:
+    explicit RuntimeExistingCalValidationBinding(
+        RuntimeLicensingAuthority &authority) noexcept : authority_(&authority) {}
+    ~RuntimeExistingCalValidationBinding();
+
+    RuntimeExistingCalValidationBinding(
+        const RuntimeExistingCalValidationBinding &) = delete;
+    RuntimeExistingCalValidationBinding &operator=(
+        const RuntimeExistingCalValidationBinding &) = delete;
+    RuntimeExistingCalValidationBinding(
+        RuntimeExistingCalValidationBinding &&) = delete;
+    RuntimeExistingCalValidationBinding &operator=(
+        RuntimeExistingCalValidationBinding &&) = delete;
+
+    [[nodiscard]] RuntimeLicensingExistingCalOperation begin(
+        const rdp_server::server::transport::
+            RdpExistingClientCalAuthorityRequest &request,
+        const rdp_server::server::transport::RdpServerLicenseIdentity
+            &expectedIdentity,
+        std::uint64_t liveAdmissionGeneration,
+        std::uint64_t liveSessionGeneration) noexcept;
+    [[nodiscard]] RuntimeLicensingExistingCalOperation poll(
+        std::uint64_t liveAdmissionGeneration,
+        std::uint64_t liveSessionGeneration) noexcept;
+    [[nodiscard]] std::optional<RuntimeLicensingExistingCalDecision>
+    authorizeReleasedDecision(
+        std::uint64_t liveAdmissionGeneration,
+        std::uint64_t liveSessionGeneration) noexcept;
+    [[nodiscard]] bool retireReleasedDecision(
+        std::uint64_t liveAdmissionGeneration,
+        std::uint64_t liveSessionGeneration) noexcept;
+    [[nodiscard]] RuntimeLicensingExistingCalOperation cancel(
+        std::uint64_t liveAdmissionGeneration,
+        std::uint64_t liveSessionGeneration) noexcept;
+    void revoke() noexcept;
+
+    [[nodiscard]] bool active() const noexcept
+    {
+        return pending_ || resultReleased_;
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    requestCorrelation() const noexcept
+    {
+        return active() ? std::span<const std::uint8_t>{requestCorrelation_}
+                        : std::span<const std::uint8_t>{};
+    }
+
+private:
+    [[nodiscard]] bool generationsMatch(
+        std::uint64_t liveAdmissionGeneration,
+        std::uint64_t liveSessionGeneration) const noexcept;
+    void clearRequestState() noexcept;
+
+    RuntimeLicensingAuthority *authority_{};
+    std::array<std::uint8_t,
+        kRuntimeLicensingAuthorityRequestCorrelationBytes>
+        requestCorrelation_{};
+    std::optional<RuntimeLicensingExistingCalValidationResult> result_{};
+    std::uint64_t admissionGeneration_{};
+    std::uint64_t sessionGeneration_{};
+    bool pending_{};
+    bool resultReleased_{};
+    bool closed_{};
 };
 
 } // namespace rdp_server::server::runtime

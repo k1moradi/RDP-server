@@ -94,7 +94,7 @@ R9 sanitizer CI enumerates
 `^transport\.licensing-existing-cal-authority-request-`, requires exactly
 four registrations and all four behavior names, then executes that selection.
 This is intentionally separate from both the large cross-road licensing regex
-and R10's `^runtime\.licensing-existing-cal-` four-case authority selector.
+and R10's `^runtime\.licensing-existing-cal-` six-case authority selector.
 Malformed CLIENT_LICENSE_INFO framing, empty/oversized CAL request payloads,
 altered protected HWID, wrong product/scope/correlation/generation, duplicate
 completion, cancellation and late replay must all fail closed.
@@ -410,13 +410,18 @@ real-process startup isolation.
 
 Existing-client validation uses the separate flat
 `^runtime\.licensing-existing-cal-` selector. The workflow must enumerate
-exactly four registrations before execution:
+exactly six registrations before execution:
 `runtime.licensing-existing-cal-provider-unavailable`,
 `runtime.licensing-existing-cal-request-correlation`,
-`runtime.licensing-existing-cal-policy-generation-revocation`, and
-`runtime.licensing-existing-cal-result-retirement`. A missing name, wrong
-cardinality, selector compile failure, Not Run result or zero-test run is a CI
-failure rather than validation evidence.
+`runtime.licensing-existing-cal-policy-generation-revocation`,
+`runtime.licensing-existing-cal-result-retirement`,
+`runtime.licensing-existing-cal-connection-unavailable-denial`, and
+`runtime.licensing-existing-cal-connection-cross-generation-cancellation`.
+The two connection-binding cases are denial/cancellation-only: the existing
+test provider may keep one request pending solely to prove generation
+cancellation, but it must not produce a positive decision. A missing name,
+wrong cardinality, selector compile failure, Not Run result or zero-test run is
+a CI failure rather than validation evidence.
 
 The positive provider used by both groups is defined only in the test
 translation unit and reaches production lifetime logic through a private friend
@@ -3157,6 +3162,21 @@ before dispatching any callback capable of revocation, discard pending events,
 and must never close the borrowed fd. A reconnected aggregate requires a fresh
 registration; fd numbers can be reused. `onNativeSessionChangeReady()` stays
 the sole dispatch; post-revocation callbacks are terminal.
+
+R10 composition adds a two-phase contract around the R2 borrow: the
+serialized event loop installs the exact fd/mask plus genuine admission/session
+generations returned by `registerNativeChange()`, removes that record
+externally, acknowledges it through `unregisterNativeChange()`, and only then
+calls `dispatchNativeChangeReady()`. The aggregate clears registration
+identity before the R2 callback and never duplicates or closes the descriptor.
+A stale record, generation or reconnect is non-authorizing.
+
+`runtime.linux-connection-native-monitor-registration-denials` covers this
+ordinary denial surface without fabricating a live fd, and
+`runtime.linux-connection-existing-cal-unadmitted-denial` proves a connection
+without a genuine R2 lease terminates before borrowing R3 CAL state or touching
+provider state. With the existing borrow case, the direct R10 Linux runtime
+sanitizer selector is **15** cases on the configured Linux CI provider.
 
 The ordinary production-backed Linux-only
 `runtime.linux-connection-native-monitor-borrow-denials` CTest exercises

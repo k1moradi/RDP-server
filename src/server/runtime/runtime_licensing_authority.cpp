@@ -1257,4 +1257,194 @@ void RuntimeLicensingAuthority::revoke() noexcept
     failClosed();
 }
 
+
+RuntimeExistingCalValidationBinding::~RuntimeExistingCalValidationBinding()
+{
+    revoke();
+}
+
+bool RuntimeExistingCalValidationBinding::generationsMatch(
+    std::uint64_t liveAdmissionGeneration,
+    std::uint64_t liveSessionGeneration) const noexcept
+{
+    return active() && liveAdmissionGeneration != 0U &&
+           liveSessionGeneration != 0U &&
+           liveAdmissionGeneration == admissionGeneration_ &&
+           liveSessionGeneration == sessionGeneration_;
+}
+
+void RuntimeExistingCalValidationBinding::clearRequestState() noexcept
+{
+    requestCorrelation_.fill(0U);
+    result_.reset();
+    admissionGeneration_ = 0U;
+    sessionGeneration_ = 0U;
+    pending_ = false;
+    resultReleased_ = false;
+}
+
+RuntimeLicensingExistingCalOperation
+RuntimeExistingCalValidationBinding::begin(
+    const rdp_server::server::transport::
+        RdpExistingClientCalAuthorityRequest &request,
+    const rdp_server::server::transport::RdpServerLicenseIdentity
+        &expectedIdentity,
+    std::uint64_t liveAdmissionGeneration,
+    std::uint64_t liveSessionGeneration) noexcept
+{
+    if (closed_ || authority_ == nullptr || active())
+        return RuntimeLicensingExistingCalOperation::Rejected;
+
+    const auto correlation = request.requestCorrelation();
+    if (!request.active() ||
+        !request.matchesProductIdentity(expectedIdentity) ||
+        !request.matchesRequest(
+            correlation, liveAdmissionGeneration, liveSessionGeneration) ||
+        correlation.size() != requestCorrelation_.size())
+    {
+        clearRequestState();
+        closed_ = true;
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+
+    const auto operation = authority_->beginExistingCalValidation(
+        request.licenseInfo(), request.hardwareId(),
+        request.verificationUnixSeconds(), correlation);
+    if (operation != RuntimeLicensingExistingCalOperation::InProgress)
+    {
+        clearRequestState();
+        closed_ = true;
+        return operation;
+    }
+
+    std::copy(correlation.begin(), correlation.end(),
+              requestCorrelation_.begin());
+    admissionGeneration_ = liveAdmissionGeneration;
+    sessionGeneration_ = liveSessionGeneration;
+    pending_ = true;
+    return operation;
+}
+
+RuntimeLicensingExistingCalOperation
+RuntimeExistingCalValidationBinding::poll(
+    std::uint64_t liveAdmissionGeneration,
+    std::uint64_t liveSessionGeneration) noexcept
+{
+    if (closed_ || !pending_ || authority_ == nullptr)
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    if (!generationsMatch(liveAdmissionGeneration, liveSessionGeneration))
+    {
+        revoke();
+        return RuntimeLicensingExistingCalOperation::Cancelled;
+    }
+
+    const auto operation = authority_->pollExistingCalValidation();
+    if (operation == RuntimeLicensingExistingCalOperation::InProgress)
+        return operation;
+
+    pending_ = false;
+    if (operation != RuntimeLicensingExistingCalOperation::DecisionAvailable)
+    {
+        clearRequestState();
+        closed_ = true;
+        return operation;
+    }
+
+    result_.emplace();
+    if (!authority_->releaseExistingCalValidationResult(
+            requestCorrelation_, *result_))
+    {
+        result_.reset();
+        authority_->revoke();
+        clearRequestState();
+        closed_ = true;
+        return RuntimeLicensingExistingCalOperation::Rejected;
+    }
+    resultReleased_ = true;
+    return RuntimeLicensingExistingCalOperation::DecisionAvailable;
+}
+
+std::optional<RuntimeLicensingExistingCalDecision>
+RuntimeExistingCalValidationBinding::authorizeReleasedDecision(
+    std::uint64_t liveAdmissionGeneration,
+    std::uint64_t liveSessionGeneration) noexcept
+{
+    if (closed_ || !resultReleased_ || !result_ || authority_ == nullptr)
+        return std::nullopt;
+    if (!generationsMatch(liveAdmissionGeneration, liveSessionGeneration) ||
+        !authority_->authorizeReleasedExistingCalValidationResult(
+            requestCorrelation_, *result_))
+    {
+        revoke();
+        return std::nullopt;
+    }
+    return result_->decision();
+}
+
+bool RuntimeExistingCalValidationBinding::retireReleasedDecision(
+    std::uint64_t liveAdmissionGeneration,
+    std::uint64_t liveSessionGeneration) noexcept
+{
+    if (closed_ || !resultReleased_ || !result_ || authority_ == nullptr)
+        return false;
+    if (!generationsMatch(liveAdmissionGeneration, liveSessionGeneration))
+    {
+        revoke();
+        return false;
+    }
+
+    const bool retired =
+        authority_->retireReleasedExistingCalValidationResult(
+            requestCorrelation_);
+    clearRequestState();
+    closed_ = true;
+    return retired;
+}
+
+RuntimeLicensingExistingCalOperation
+RuntimeExistingCalValidationBinding::cancel(
+    std::uint64_t liveAdmissionGeneration,
+    std::uint64_t liveSessionGeneration) noexcept
+{
+    if (closed_ || !active() || authority_ == nullptr)
+        return RuntimeLicensingExistingCalOperation::Rejected;
+
+    const bool exactGeneration =
+        generationsMatch(liveAdmissionGeneration, liveSessionGeneration);
+    if (pending_)
+    {
+        const auto operation = authority_->cancelExistingCalValidation();
+        clearRequestState();
+        closed_ = true;
+        return exactGeneration
+            ? operation
+            : RuntimeLicensingExistingCalOperation::Cancelled;
+    }
+
+    const bool retired =
+        authority_->retireReleasedExistingCalValidationResult(
+            requestCorrelation_);
+    clearRequestState();
+    closed_ = true;
+    return retired || !exactGeneration
+        ? RuntimeLicensingExistingCalOperation::Cancelled
+        : RuntimeLicensingExistingCalOperation::Rejected;
+}
+
+void RuntimeExistingCalValidationBinding::revoke() noexcept
+{
+    if (closed_)
+        return;
+    if (authority_ != nullptr)
+    {
+        if (pending_)
+            (void)authority_->cancelExistingCalValidation();
+        else if (resultReleased_)
+            (void)authority_->retireReleasedExistingCalValidationResult(
+                requestCorrelation_);
+    }
+    clearRequestState();
+    closed_ = true;
+}
+
 } // namespace rdp_server::server::runtime

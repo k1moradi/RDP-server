@@ -55,8 +55,55 @@ public:
 
 } // namespace rdp_server::server::runtime
 
+namespace rdp_server::server::transport
+{
+// Fixture-only staging of an already-R3-owned request. These bytes do not
+// establish CAL validity or issuer authority.
+class RdpExistingClientCalAuthorityRequestTestAccess final
+{
+public:
+    [[nodiscard]] static bool stage(
+        RdpExistingClientCalAuthorityRequest &request,
+        const RdpServerLicenseIdentity &identity,
+        std::span<const std::uint8_t> cal,
+        std::span<const std::uint8_t> hardwareId,
+        std::int64_t verificationUnixSeconds,
+        std::span<const std::uint8_t> correlation,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept
+    {
+        if (!identity.configured() || cal.empty() ||
+            cal.size() > request.licenseInfo_.size() ||
+            hardwareId.size() != request.hardwareId_.size() ||
+            correlation.size() != request.requestCorrelation_.size() ||
+            verificationUnixSeconds <= 0 || admissionGeneration == 0U ||
+            sessionGeneration == 0U)
+            return false;
+
+        request.retire();
+        if (request.bindProductIdentity(identity) !=
+            RdpExistingClientCalAuthorityRequestError::None)
+            return false;
+        std::copy(cal.begin(), cal.end(), request.licenseInfo_.begin());
+        std::copy(hardwareId.begin(), hardwareId.end(),
+                  request.hardwareId_.begin());
+        std::copy(correlation.begin(), correlation.end(),
+                  request.requestCorrelation_.begin());
+        request.licenseInfoLength_ = cal.size();
+        request.verificationUnixSeconds_ = verificationUnixSeconds;
+        request.admissionGeneration_ = admissionGeneration;
+        request.sessionGeneration_ = sessionGeneration;
+        request.active_ = true;
+        return request.matchesProductIdentity(identity) &&
+               request.matchesRequest(
+                   correlation, admissionGeneration, sessionGeneration);
+    }
+};
+} // namespace rdp_server::server::transport
+
 namespace
 {
+using rdp_server::server::runtime::RuntimeExistingCalValidationBinding;
 using rdp_server::server::runtime::RuntimeLicensingAuthority;
 using rdp_server::server::runtime::RuntimeLicensingAuthorityOperation;
 using rdp_server::server::runtime::RuntimeLicensingAuthorityState;
@@ -87,6 +134,9 @@ using rdp_server::server::runtime::detail::
     RuntimeLicensingProviderVerificationStatus;
 using rdp_server::server::runtime::detail::
     RuntimeLicensingProviderVerificationView;
+using rdp_server::server::transport::RdpExistingClientCalAuthorityRequest;
+using rdp_server::server::transport::
+    RdpExistingClientCalAuthorityRequestTestAccess;
 using rdp_server::server::transport::RdpLicensingAuthorityGrant;
 using rdp_server::server::transport::RdpLicensingAuthorityGrantError;
 using rdp_server::server::transport::RdpServerLicenseGrantKind;
@@ -1353,6 +1403,98 @@ void testExistingCalResultRetirement()
     assert(destructionCounters.destructorCalls == 1U);
 }
 
+
+void testExistingCalConnectionUnavailableDenial()
+{
+    RdpServerLicenseIdentity identity;
+    configureIdentity(identity);
+    RdpServerLicenseIdentity mismatchedIdentity;
+    configureIdentity(mismatchedIdentity, 0x00060001U, 'B', 'S');
+
+    const std::array<std::uint8_t, 4U> cal{
+        0x30U, 0x02U, 0x11U, 0x22U};
+    const auto hardwareId = makeHardwareId(0x61U);
+    const auto correlation = makeCorrelation(0x62U);
+    constexpr std::uint64_t admissionGeneration = 0x1001U;
+    constexpr std::uint64_t sessionGeneration = 0x2001U;
+
+    RdpExistingClientCalAuthorityRequest request;
+    assert(RdpExistingClientCalAuthorityRequestTestAccess::stage(
+        request, identity, cal, hardwareId, 1'800'003'000LL,
+        correlation, admissionGeneration, sessionGeneration));
+
+    RuntimeLicensingAuthority authority;
+    assert(authority.configureUnavailable(identity));
+    assert(authority.state() ==
+           RuntimeLicensingAuthorityState::NoVerifiedIssuer);
+
+    RuntimeExistingCalValidationBinding mismatchedBinding{authority};
+    assert(mismatchedBinding.begin(
+               request, mismatchedIdentity,
+               admissionGeneration, sessionGeneration) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(authority.state() ==
+           RuntimeLicensingAuthorityState::NoVerifiedIssuer);
+
+    RuntimeExistingCalValidationBinding binding{authority};
+    assert(binding.begin(
+               request, identity, admissionGeneration, sessionGeneration) ==
+           RuntimeLicensingExistingCalOperation::Unavailable);
+    assert(!binding.active());
+    assert(binding.requestCorrelation().empty());
+    assert(!binding.authorizeReleasedDecision(
+        admissionGeneration, sessionGeneration));
+    assert(binding.poll(admissionGeneration, sessionGeneration) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(authority.state() ==
+           RuntimeLicensingAuthorityState::NoVerifiedIssuer);
+}
+
+void testExistingCalConnectionCrossGenerationCancellation()
+{
+    RdpServerLicenseIdentity identity;
+    configureIdentity(identity);
+    const std::array<std::uint8_t, 5U> cal{
+        0x30U, 0x03U, 0x33U, 0x44U, 0x55U};
+    const auto hardwareId = makeHardwareId(0x71U);
+    const auto correlation = makeCorrelation(0x72U);
+    constexpr std::uint64_t admissionGeneration = 0x3001U;
+    constexpr std::uint64_t sessionGeneration = 0x4001U;
+
+    RdpExistingClientCalAuthorityRequest request;
+    assert(RdpExistingClientCalAuthorityRequestTestAccess::stage(
+        request, identity, cal, hardwareId, 1'800'004'000LL,
+        correlation, admissionGeneration, sessionGeneration));
+
+    ProviderCounters counters;
+    RuntimeLicensingAuthority authority;
+    (void)configureVerifiedAuthority(authority, identity, counters);
+
+    // Test provider only holds the request pending; no positive decision is
+    // produced or polled in this composition regression.
+    RuntimeExistingCalValidationBinding binding{authority};
+    assert(binding.begin(
+               request, identity, admissionGeneration, sessionGeneration) ==
+           RuntimeLicensingExistingCalOperation::InProgress);
+    assert(counters.existingCalBeginCalls == 1U);
+    assert(binding.begin(
+               request, identity, admissionGeneration, sessionGeneration) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(counters.existingCalBeginCalls == 1U);
+
+    assert(binding.poll(
+               admissionGeneration, sessionGeneration + 1U) ==
+           RuntimeLicensingExistingCalOperation::Cancelled);
+    assert(counters.existingCalCancelCalls == 1U);
+    assert(counters.existingCalPollCalls == 0U);
+    assert(!binding.active());
+    assert(binding.requestCorrelation().empty());
+    assert(binding.poll(admissionGeneration, sessionGeneration) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(!binding.authorizeReleasedDecision(
+        admissionGeneration, sessionGeneration));
+}
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
@@ -1405,6 +1547,17 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "licensing-existing-cal-result-retirement")
     {
         testExistingCalResultRetirement();
+        return 0;
+    }
+    if (testCase == "licensing-existing-cal-connection-unavailable-denial")
+    {
+        testExistingCalConnectionUnavailableDenial();
+        return 0;
+    }
+    if (testCase ==
+        "licensing-existing-cal-connection-cross-generation-cancellation")
+    {
+        testExistingCalConnectionCrossGenerationCancellation();
         return 0;
     }
 

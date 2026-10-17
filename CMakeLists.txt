@@ -753,7 +753,8 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
         "${RDP_SERVER_GSSAPI_INCLUDE_DIR}")
     target_link_libraries(rdp-server-linux-runtime-security PUBLIC
         rdp-server-linux-gssapi
-        rdp-server-runtime-tls)
+        rdp-server-runtime-tls
+        rdp-server-runtime-licensing)
     if(RDP_SERVER_TEST_LINUX_PAM)
         target_link_libraries(rdp-server-linux-runtime-security PRIVATE
             rdp-server-linux-pam-password-verifier)

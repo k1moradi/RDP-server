@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "linux_runtime_connection.h"
 
+#include <algorithm>
+#include <array>
 #include <utility>
 
 namespace rdp_server::server::runtime
@@ -428,8 +430,234 @@ bool LinuxRuntimeConnection::onNativeSessionChangeReady() noexcept
     return remainsAuthorized;
 }
 
+bool LinuxRuntimeConnection::nativeChangeRegistrationMatches(
+    const LinuxRuntimeNativeChangeRegistration &registration) const noexcept
+{
+    return nativeChangeRegistration_ &&
+           registration.descriptor == nativeChangeRegistration_->descriptor &&
+           registration.events == nativeChangeRegistration_->events &&
+           registration.admissionGeneration ==
+               nativeChangeRegistration_->admissionGeneration &&
+           registration.sessionGeneration ==
+               nativeChangeRegistration_->sessionGeneration;
+}
+
+std::optional<LinuxRuntimeNativeChangeRegistration>
+LinuxRuntimeConnection::registerNativeChange() noexcept
+{
+    if (nativeChangeRegistration_ || !ready() || !broker_ || !lease_ ||
+        lease_->isRevoked())
+        return std::nullopt;
+
+    LinuxRuntimeNativeChangeRegistration registration{
+        nativeChangeFd(), nativeChangeEvents(),
+        lease_->admissionGeneration(), lease_->sessionGeneration()};
+    if (!registration)
+        return std::nullopt;
+
+    nativeChangeRegistration_ = registration;
+    nativeChangeRegistrationUnregistered_ = false;
+    return registration;
+}
+
+bool LinuxRuntimeConnection::unregisterNativeChange(
+    const LinuxRuntimeNativeChangeRegistration &registration) noexcept
+{
+    if (nativeChangeRegistrationUnregistered_ ||
+        !nativeChangeRegistrationMatches(registration))
+        return false;
+
+    // Caller has already removed this exact borrowed fd/generation record.
+    nativeChangeRegistrationUnregistered_ = true;
+    return true;
+}
+
+bool LinuxRuntimeConnection::dispatchNativeChangeReady(
+    const LinuxRuntimeNativeChangeRegistration &registration) noexcept
+{
+    if (!nativeChangeRegistrationUnregistered_ ||
+        !nativeChangeRegistrationMatches(registration))
+        return false;
+
+    const bool borrowStillMatches =
+        ready() && lease_ && !lease_->isRevoked() &&
+        nativeChangeFd() == registration.descriptor &&
+        nativeChangeEvents() == registration.events &&
+        lease_->admissionGeneration() == registration.admissionGeneration &&
+        lease_->sessionGeneration() == registration.sessionGeneration;
+
+    // Remove aggregate identity before R2 callback; R2 may revoke everything.
+    nativeChangeRegistration_.reset();
+    nativeChangeRegistrationUnregistered_ = false;
+    if (!borrowStillMatches)
+    {
+        revoke();
+        return false;
+    }
+    return onNativeSessionChangeReady();
+}
+
+bool LinuxRuntimeConnection::reauthorizeExistingCalValidation() noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        !broker_->authorizeR3ProtectedTransition(
+            *lease_, acceptor_, connection_, session_,
+            rdp_server::server::security::kConsoleViewPermission))
+    {
+        if (existingCalValidation_)
+            existingCalValidation_->revoke();
+        revoke();
+        return false;
+    }
+    return true;
+}
+
+RuntimeLicensingExistingCalOperation
+LinuxRuntimeConnection::beginExistingCalValidation(
+    const RuntimeLicensingContext &licensingContext,
+    RuntimeLicensingAuthority &authority) noexcept
+{
+    using Operation = RuntimeLicensingExistingCalOperation;
+    if (existingCalValidation_)
+        return Operation::Rejected;
+    if (!reauthorizeExistingCalValidation())
+        return Operation::Rejected;
+
+    const auto *const identity = licensingContext.identity();
+    if (identity == nullptr || !lease_)
+    {
+        revoke();
+        return Operation::Rejected;
+    }
+
+    auto &binding = existingCalValidation_.emplace(authority);
+    struct VisitContext
+    {
+        RuntimeExistingCalValidationBinding *binding{};
+        const rdp_server::server::transport::RdpServerLicenseIdentity
+            *identity{};
+        std::uint64_t admissionGeneration{};
+        std::uint64_t sessionGeneration{};
+        Operation operation{Operation::Rejected};
+        bool invoked{};
+    } context{
+        &binding, identity, lease_->admissionGeneration(),
+        lease_->sessionGeneration(), Operation::Rejected, false};
+
+    const bool visited = session_.visitExistingClientCalAuthorityRequest(
+        [](const rdp_server::server::transport::
+               RdpExistingClientCalAuthorityRequest &request,
+           void *opaque) noexcept {
+            auto *const visit = static_cast<VisitContext *>(opaque);
+            visit->invoked = true;
+            visit->operation = visit->binding->begin(
+                request, *visit->identity, visit->admissionGeneration,
+                visit->sessionGeneration);
+        },
+        &context);
+
+    if (!visited || !context.invoked ||
+        context.operation != Operation::InProgress)
+    {
+        const Operation operation = context.operation;
+        revoke();
+        return operation;
+    }
+    return Operation::InProgress;
+}
+
+RuntimeLicensingExistingCalOperation
+LinuxRuntimeConnection::pollExistingCalValidation() noexcept
+{
+    using Operation = RuntimeLicensingExistingCalOperation;
+    if (!existingCalValidation_ || !reauthorizeExistingCalValidation() ||
+        !lease_)
+        return Operation::Rejected;
+
+    const Operation operation = existingCalValidation_->poll(
+        lease_->admissionGeneration(), lease_->sessionGeneration());
+    if (operation != Operation::InProgress &&
+        operation != Operation::DecisionAvailable)
+        revoke();
+    return operation;
+}
+
+std::optional<RuntimeLicensingExistingCalDecision>
+LinuxRuntimeConnection::authorizeExistingCalValidationDecision() noexcept
+{
+    if (!existingCalValidation_ || !reauthorizeExistingCalValidation() ||
+        !lease_)
+        return std::nullopt;
+
+    const auto decision = existingCalValidation_->authorizeReleasedDecision(
+        lease_->admissionGeneration(), lease_->sessionGeneration());
+    if (!decision)
+        revoke();
+    return decision;
+}
+
+bool LinuxRuntimeConnection::retireExistingCalValidationDecision() noexcept
+{
+    if (!existingCalValidation_ || !reauthorizeExistingCalValidation() ||
+        !lease_)
+        return false;
+
+    const bool retired = existingCalValidation_->retireReleasedDecision(
+        lease_->admissionGeneration(), lease_->sessionGeneration());
+    // R3 has no genuine positive completion consumer yet. Never turn a
+    // test-only authority result into valid-client/Share state.
+    revoke();
+    return retired;
+}
+
+RuntimeLicensingExistingCalOperation
+LinuxRuntimeConnection::cancelExistingCalValidation() noexcept
+{
+    using Operation = RuntimeLicensingExistingCalOperation;
+    if (!existingCalValidation_)
+        return Operation::Rejected;
+
+    std::array<std::uint8_t,
+        kRuntimeLicensingAuthorityRequestCorrelationBytes> correlation{};
+    const auto currentCorrelation = existingCalValidation_->requestCorrelation();
+    const bool haveCorrelation =
+        currentCorrelation.size() == correlation.size();
+    if (haveCorrelation)
+        std::copy(currentCorrelation.begin(), currentCorrelation.end(),
+                  correlation.begin());
+
+    Operation operation = Operation::Cancelled;
+    if (lease_ && !lease_->isRevoked())
+    {
+        operation = existingCalValidation_->cancel(
+            lease_->admissionGeneration(), lease_->sessionGeneration());
+    }
+    else
+    {
+        existingCalValidation_->revoke();
+    }
+
+    if (haveCorrelation)
+        (void)session_.cancelExistingClientCalAuthorityRequest(correlation);
+    revoke();
+    return operation;
+}
+
 void LinuxRuntimeConnection::revoke() noexcept
 {
+    // Never close R2's borrowed monitor fd. Real poller removal precedes any
+    // registered callback/revocation; this discards only aggregate identity.
+    nativeChangeRegistration_.reset();
+    nativeChangeRegistrationUnregistered_ = false;
+
+    // Retire the exact connection-bound authority operation before R3/R2
+    // generations disappear.
+    if (existingCalValidation_)
+    {
+        existingCalValidation_->revoke();
+        existingCalValidation_.reset();
+    }
+
     if (broker_)
     {
         broker_->revokeR3Session(acceptor_, session_);

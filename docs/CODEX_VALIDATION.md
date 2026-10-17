@@ -3311,3 +3311,46 @@ the repository checkout). Hosted Actions for the publication SHA: pending
 verification. Real Kerberos/PAM/NSS/logind physical X11 `seat0` positive
 session/logout replacement: **NOT RUN / owner authorization and provider
 infrastructure required**. No synthetic lease or positive monitor fd claimed.
+
+## R10 R2/R3 connection-bound licensing and logind composition (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `8f3c2f06b305eca60708867c9e50f9a6a59a79cb`.  
+**Consumed publications:** R2 `bb25af3d4e632dadf5ae4a1b812bbb9a227be0e0`;
+R3 `6e2a84a28d2e2aa16d9777277b2f946b0d7a4aba`.
+
+R10 now owns one nonmoving connection-local existing-CAL validation binding.
+It synchronously consumes R3's bounded visitor only after fresh R2 protected
+transition authorization, compares the request's exact immutable product
+identity to the service `RuntimeLicensingContext` identity before provider
+submission, then retains correlation plus admission/session generations
+through poll/release/result reauthorization/retirement. Authority-owned
+protected HWID, verification timestamp, provider generation/fingerprint and
+request digest are not replaced by caller scalars. Generation replacement
+cancels before provider poll and permanently retires that connection binding.
+Production `NoVerifiedIssuer` remains unavailable/denial-only; no listener,
+Share, valid-client status or positive production provider was added.
+
+R2's borrowed logind fd/mask is wrapped by a two-phase aggregate registration:
+register the exact fd/mask/generations, externally remove it, acknowledge that
+removal, then dispatch. Dispatch retires aggregate registration identity before
+calling R2; teardown never duplicates or closes the borrowed fd. Reconnect
+requires a fresh R2 admission generation and registration.
+
+New centrally registered production-backed cases:
+`runtime.licensing-existing-cal-connection-unavailable-denial`,
+`runtime.licensing-existing-cal-connection-cross-generation-cancellation`,
+`runtime.linux-connection-existing-cal-unadmitted-denial`, and
+`runtime.linux-connection-native-monitor-registration-denials`. The
+cross-generation test reuses the existing noninstalled test provider only to
+hold one pending operation and asserts cancellation occurs with **zero provider
+polls**; it contains no positive decision coverage. R9 selector cardinalities
+are synchronized to existing-CAL **6** and direct Linux runtime-security
+**15**.
+
+Canonical local `~/rdp-server/build/` configure/build/CTest: **NOT RUN**
+(the canonical owner checkout is unavailable through this connector and policy
+forbids another persistent build root). Hosted exact-publication-SHA CI:
+**PENDING**. M1 remains **OPEN** pending complete same-SHA owner-native Linux,
+Windows CLANG64/Clang 23 and macOS 27 receipts. M2 remains **BLOCKED** on a
+documented supported authenticated issuer interface/infrastructure plus a
+genuine R3 positive result transition.

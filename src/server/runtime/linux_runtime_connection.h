@@ -2,6 +2,8 @@
 #pragma once
 
 #include "linux_runtime_security.h"
+#include "runtime_licensing_authority.h"
+#include "runtime_licensing_context.h"
 #include "server/security/credssp_tsrequest.h"
 #include "runtime_tls_context.h"
 #include "server/security/linux_console_admission.h"
@@ -53,6 +55,23 @@ struct LinuxPreAdmissionStepResult
     std::size_t plaintextBytesRead{};
     std::size_t plaintextBytesWritten{};
     LinuxPreAdmissionStepStatus status{LinuxPreAdmissionStepStatus::Closed};
+};
+
+// Exact identity for one borrowed R2 logind watcher registration. R10 never
+// duplicates or closes descriptor; R2 admission/session generations prevent
+// stale reconnect reuse even if the kernel later reuses the fd number.
+struct LinuxRuntimeNativeChangeRegistration
+{
+    int descriptor{-1};
+    int events{-1};
+    std::uint64_t admissionGeneration{};
+    std::uint64_t sessionGeneration{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return descriptor >= 0 && events > 0 &&
+               admissionGeneration != 0U && sessionGeneration != 0U;
+    }
 };
 
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.
@@ -148,6 +167,32 @@ public:
     // either a spurious readiness notification or terminal revocation.
     [[nodiscard]] bool onNativeSessionChangeReady() noexcept;
 
+    // Register only the current R2 borrow. The serialized caller must remove
+    // this exact record from its poller before acknowledging unregistration.
+    [[nodiscard]] std::optional<LinuxRuntimeNativeChangeRegistration>
+    registerNativeChange() noexcept;
+    [[nodiscard]] bool unregisterNativeChange(
+        const LinuxRuntimeNativeChangeRegistration &registration) noexcept;
+    // Dispatch is valid only after the exact record has been unregistered.
+    // The aggregate drops registration identity before calling R2 because the
+    // callback may synchronously revoke this whole connection.
+    [[nodiscard]] bool dispatchNativeChangeReady(
+        const LinuxRuntimeNativeChangeRegistration &registration) noexcept;
+
+    // Consume the live R3 existing-CAL snapshot on this exact connection.
+    // RuntimeLicensingContext product identity is checked before provider begin.
+    [[nodiscard]] RuntimeLicensingExistingCalOperation
+    beginExistingCalValidation(
+        const RuntimeLicensingContext &licensingContext,
+        RuntimeLicensingAuthority &authority) noexcept;
+    [[nodiscard]] RuntimeLicensingExistingCalOperation
+    pollExistingCalValidation() noexcept;
+    [[nodiscard]] std::optional<RuntimeLicensingExistingCalDecision>
+    authorizeExistingCalValidationDecision() noexcept;
+    [[nodiscard]] bool retireExistingCalValidationDecision() noexcept;
+    [[nodiscard]] RuntimeLicensingExistingCalOperation
+    cancelExistingCalValidation() noexcept;
+
     // Terminal and idempotent. No object can retain a positive R2/R3
     // capability after the R1 TLS/socket is released.
     void revoke() noexcept;
@@ -171,6 +216,10 @@ public:
 
 private:
     [[nodiscard]] bool credSspReplyPending() const noexcept;
+    [[nodiscard]] bool reauthorizeExistingCalValidation() noexcept;
+    [[nodiscard]] bool nativeChangeRegistrationMatches(
+        const LinuxRuntimeNativeChangeRegistration &registration) const
+        noexcept;
 
     LinuxRuntimeSecurityConfiguration &securityConfiguration_;
 
@@ -185,6 +234,11 @@ private:
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionLease>
         lease_{};
     rdp_server::server::transport::McsSessionLifecycle session_{};
+    std::optional<RuntimeExistingCalValidationBinding>
+        existingCalValidation_{};
+    std::optional<LinuxRuntimeNativeChangeRegistration>
+        nativeChangeRegistration_{};
+    bool nativeChangeRegistrationUnregistered_{};
     // Retired explicitly before the exact borrowed R1 TLS owner is canceled.
     rdp_server::server::security::TsRequestFrameReader credSspFrameReader_{};
     rdp_server::server::security::TsRequestTlsReplyWriter credSspReplyWriter_{};

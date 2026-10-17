@@ -710,7 +710,9 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-final-credential-native-admission-denials
             linux-connection-aggregate-ordered-revocation
             linux-connection-aggregate-premature-admission-denial
-            linux-connection-native-monitor-borrow-denials)
+            linux-connection-native-monitor-borrow-denials
+            linux-connection-native-monitor-registration-denials
+            linux-connection-existing-cal-unadmitted-denial)
         add_test(NAME "runtime.${runtime_linux_security_case}"
             COMMAND test_runtime_linux_security
                 "${runtime_linux_security_case}"
@@ -827,7 +829,9 @@ foreach(runtime_existing_cal_case IN ITEMS
         licensing-existing-cal-provider-unavailable
         licensing-existing-cal-request-correlation
         licensing-existing-cal-policy-generation-revocation
-        licensing-existing-cal-result-retirement)
+        licensing-existing-cal-result-retirement
+        licensing-existing-cal-connection-unavailable-denial
+        licensing-existing-cal-connection-cross-generation-cancellation)
     add_test(NAME "runtime.${runtime_existing_cal_case}"
         COMMAND test_runtime_licensing_authority
             "${runtime_existing_cal_case}")

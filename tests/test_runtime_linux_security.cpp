@@ -35,7 +35,11 @@ namespace
 using rdp_server::server::runtime::LinuxCredSspStepStatus;
 using rdp_server::server::runtime::LinuxPreAdmissionStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
+using rdp_server::server::runtime::LinuxRuntimeNativeChangeRegistration;
 using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
+using rdp_server::server::runtime::RuntimeLicensingAuthority;
+using rdp_server::server::runtime::RuntimeLicensingContext;
+using rdp_server::server::runtime::RuntimeLicensingExistingCalOperation;
 using rdp_server::server::runtime::RuntimeServerTlsContext;
 using rdp_server::server::security::ConsoleEvidenceRequest;
 using rdp_server::server::security::ConsoleIdentityRuleInput;
@@ -1225,6 +1229,70 @@ void testConnectionNativeMonitorBorrowDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionNativeMonitorRegistrationDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-native-registration-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto acceptedSocket = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{
+        configuration, std::move(acceptedSocket)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(!connection.registerNativeChange());
+
+    const LinuxRuntimeNativeChangeRegistration invented{
+        41, 1, 0x1001U, 0x2001U};
+    assert(!connection.unregisterNativeChange(invented));
+    assert(!connection.dispatchNativeChangeReady(invented));
+    assert(connection.ready());
+
+    connection.revoke();
+    assert(!connection.registerNativeChange());
+    assert(!connection.unregisterNativeChange(invented));
+    assert(!connection.dispatchNativeChangeReady(invented));
+    assert(::close(clientDescriptor) == 0);
+}
+
+void testConnectionExistingCalUnadmittedDenial(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-existing-cal-unadmitted.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto acceptedSocket = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{
+        configuration, std::move(acceptedSocket)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    RuntimeLicensingContext licensingContext;
+    RuntimeLicensingAuthority authority;
+    assert(connection.beginExistingCalValidation(
+               licensingContext, authority) ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(connection.pollExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(connection.cancelExistingCalValidation() ==
+           RuntimeLicensingExistingCalOperation::Rejected);
+    assert(!connection.authorizeExistingCalValidationDecision());
+    assert(!connection.retireExistingCalValidationDecision());
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionAggregatePrematureAdmissionDenial(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1441,6 +1509,17 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-native-monitor-borrow-denials")
     {
         testConnectionNativeMonitorBorrowDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-native-monitor-registration-denials")
+    {
+        testConnectionNativeMonitorRegistrationDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-existing-cal-unadmitted-denial")
+    {
+        testConnectionExistingCalUnadmittedDenial(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-aggregate-premature-admission-denial")

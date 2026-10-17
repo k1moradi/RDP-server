@@ -205,7 +205,41 @@ void exerciseFrameReader(std::span<const std::uint8_t> bytes) noexcept
                              TsRequestFrameStatus::Closed);
         }
     }
+    if (fragmented.status() == TsRequestFrameStatus::Complete)
+    {
+        const auto complete = fragmented.completeDer();
+        requireInvariant(!complete.empty());
+        requireInvariant(complete.size() == offset);
+        requireInvariant(complete.size() <= kMaximumCredSspRequestBytes);
+        requireInvariant(static_cast<bool>(parseCredSspTsRequest(complete)));
+        requireInvariant(fragmented.bytesNeeded() == 0);
+        requireInvariant(whole.status == TsRequestFrameStatus::Complete);
+        requireInvariant(fragmented.releaseFrame());
+        requireInvariant(fragmented.status() ==
+                         TsRequestFrameStatus::NeedMore);
+        requireInvariant(fragmented.completeDer().empty());
+        requireInvariant(fragmented.bytesNeeded() == 2);
+    }
+    else if (fragmented.status() == TsRequestFrameStatus::Closed)
+    {
+        // A terminal manual-reader rejection must be independent of how the
+        // same input was fragmented.
+        requireInvariant(whole.status == TsRequestFrameStatus::Invalid);
+        requireInvariant(fragmented.completeDer().empty());
+        requireInvariant(fragmented.bytesNeeded() == 0);
+    }
+    else
+    {
+        requireInvariant(fragmented.status() ==
+                         TsRequestFrameStatus::NeedMore);
+        requireInvariant(fragmented.completeDer().empty());
+        requireInvariant(fragmented.bytesNeeded() != 0);
+    }
+
     fragmented.close();
+    requireInvariant(fragmented.status() == TsRequestFrameStatus::Closed);
+    requireInvariant(fragmented.completeDer().empty());
+    requireInvariant(fragmented.bytesNeeded() == 0);
 }
 
 } // namespace

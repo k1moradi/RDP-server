@@ -1,3 +1,29 @@
+## R9 CredSSP fuzzer executable receipt and hardening (2026-10-16)
+
+**Executable evidence:** `ec8f9df25f9986a2d51fb258f7798ac8596cfed3`,
+Actions `39008900352`. The R9 sanitizer build explicitly built
+`fuzz_credssp`; CTest `fuzz.credssp-bounded` was test #538 and passed
+**1/1** in 0.08 s under the job's ASan/UBSan environment. The same job later
+reported overall failure solely because the independent R3 CAL
+issuer-signature denial aborted; native GSS, PAM, runtime-security, X11 and the
+MCS/CLIPRDR fuzzer groups also continued independently. This receipt therefore
+claims the dedicated CredSSP fuzzer step, not an all-green workflow.
+
+Static/runtime review found the fuzzer CI invocation lacked the repository's
+usual fail-closed registration proof. The new R9 increment adds
+`ctest -N` plus an exact-name grep before execution and strengthens the
+fragmented manual-reader oracle: terminal Complete/Closed outcomes must agree
+with the whole-input path, completed bytes equal the consumed prefix, release
+returns the reader to an empty `NeedMore` state, and close leaves zero pending
+bytes. Production CredSSP code, authentication state and corpus bounds are
+unchanged.
+
+The publication is based on reconciled shared main `2ad37e35e9c1109e2e5509a19025a6a7551030f2`, which currently
+contains an unrelated R8 sanitizer compile/link blocker in
+`test_windows_clipboard_adapter`. Exact-SHA evidence for the new preflight and
+framing assertions remains **PENDING** and must not be inferred from the
+earlier 1/1 fuzzer receipt.
+
 ## R1 hosted convergence after bounded handshake and native-accept hardening (2026-10-17)
 
 **Handshake implementation:** \`31abf200efa83bf4fc7badf3b35f30b8ff2db127\`.  

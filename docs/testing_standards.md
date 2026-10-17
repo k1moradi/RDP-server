@@ -2435,6 +2435,15 @@ MCS/CLIPRDR target so crashes and reproducers remain attributable. A bounded
 PASS is coverage-guided sampling only and does not replace the deterministic
 credential corpora or real-client/provider acceptance gates.
 
+Before invoking the CredSSP fuzzer, enumerate the exact anchored CTest with
+`ctest -N` and require `fuzz.credssp-bounded` by name. Zero selected tests
+are a CI failure, not a fuzz PASS. The deterministic fragmented-reader drive
+must also preserve terminal semantics across chunking: a completed frame must
+match the consumed prefix, reparse successfully and release back to
+`NeedMore`; an invalid fragmented prefix must agree with whole-input
+rejection; and explicit close must leave no completed DER or pending byte
+requirement.
+
 ## R1 cross-road write-slice compatibility
 
 When a higher-layer R3 writer is expected to feed R1's bounded TLS

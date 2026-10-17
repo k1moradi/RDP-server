@@ -1,3 +1,33 @@
+## R9 CredSSP fuzzer registry/framing hardening (2026-10-16; exact-SHA CI pending)
+
+**Reconciled shared-main parent:** `2ad37e35e9c1109e2e5509a19025a6a7551030f2`.
+
+The corrected fuzzer already has direct instrumented evidence at
+`ec8f9df25f9986a2d51fb258f7798ac8596cfed3`, Actions `39008900352`:
+the R9 Clang sanitizer build compiled and linked `fuzz_credssp`, and the
+dedicated `fuzz.credssp-bounded` step completed **1/1 PASS** under
+ASan/UBSan. The R9 job's failure was separately the R3
+`transport.licensing-client-cal-issuer-signature-denials` case; it is not a
+CredSSP/libFuzzer finding.
+
+This increment closes two test-harness gaps without changing production code.
+The dedicated fuzzer CI step now performs an exact `ctest -N` registry
+preflight and requires `fuzz.credssp-bounded` before execution, so regex or
+registration drift cannot report a zero-test green result. The fragmented
+`TsRequestFrameReader` path now verifies terminal equivalence with the
+whole-input drive: completed frames must match the consumed prefix, reparse,
+release cleanly to `NeedMore`, and invalid fragmented prefixes must agree
+with whole-input rejection. Explicit close must leave no frame or pending byte
+requirement.
+
+Current shared main also carries an unrelated R8 sanitizer-link blocker in the
+Windows clipboard adapter (`renderFormatInternal(unsigned int)` undefined
+while linking `test_windows_clipboard_adapter`). R9 does not modify or mask
+that road. Exact publication-SHA execution of this new preflight/framing
+hardening is **PENDING**. Canonical owner-local `~/rdp-server/build/`,
+owner-platform runs, positive Kerberos/PAM/NSS/logind admission and real
+Microsoft-client acceptance remain **NOT RUN / BLOCKED**.
+
 ## R1 hosted convergence after bounded handshake and native-accept hardening (2026-10-17)
 
 **Handshake implementation:** \`31abf200efa83bf4fc7badf3b35f30b8ff2db127\`.  

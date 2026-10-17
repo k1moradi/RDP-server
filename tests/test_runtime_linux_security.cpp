@@ -533,6 +533,41 @@ void testExplicitKeytabContinuity(
     assert(configuration.configured());
 }
 
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+void testPamVerifierProvisioning(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab = fixtureDirectory / "runtime-security-pam.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    const std::string keytabUri = "FILE:" + keytab.string();
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, keytabUri, validRule(), "rdp-server-r2-ci"));
+    assert(configuration.configured());
+    assert(configuration.pamServiceName() == "rdp-server-r2-ci");
+
+    GssapiSpnegoAcceptor connectionAcceptor;
+    assert(configuration.configureAcceptor(connectionAcceptor));
+    assert(connectionAcceptor.stage() == SpnegoStage::AwaitInitialToken);
+
+    // Runtime provisioning does not turn a configured verifier into a user
+    // authentication result, final CredSSP completion or native admission.
+    LinuxConsoleAdmissionBroker broker(*configuration.policy());
+    assert(broker.state() == LinuxConsoleAdmissionState::Ready);
+    assert(broker.nativeChangeFd() == -1);
+
+    LinuxRuntimeSecurityConfiguration invalidPamService;
+    assert(!invalidPamService.configure(
+        kServicePrincipal, keytabUri, validRule(), "../login"));
+    assert(!invalidPamService.configured());
+    assert(invalidPamService.pamServiceName().empty());
+    assert(invalidPamService.policy() == nullptr);
+    assert(!invalidPamService.configure(
+        kServicePrincipal, keytabUri, validRule(), "rdp-server-r2-ci"));
+}
+#endif
+
 void testSealedKeytabSnapshotSurvivesSourceMutation(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1253,6 +1288,13 @@ int main(int argumentCount, char **argumentValues)
         testExplicitKeytabContinuity(fixtureDirectory);
         return 0;
     }
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (testCase == "linux-security-pam-verifier-provisioning")
+    {
+        testPamVerifierProvisioning(fixtureDirectory);
+        return 0;
+    }
+#endif
     if (testCase == "linux-security-keytab-snapshot-mutation-continuity")
     {
         testSealedKeytabSnapshotSurvivesSourceMutation(fixtureDirectory);

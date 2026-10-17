@@ -683,6 +683,16 @@ if(TARGET rdp-server-linux-runtime-security)
             LABELS "runtime;security;linux-provider;offline")
     endforeach()
 
+    if(TARGET rdp-server-linux-pam-password-verifier)
+        add_test(NAME runtime.linux-security-pam-verifier-provisioning
+            COMMAND test_runtime_linux_security
+                linux-security-pam-verifier-provisioning
+                "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+        set_tests_properties(
+            runtime.linux-security-pam-verifier-provisioning PROPERTIES
+            LABELS "runtime;security;linux-provider;pam;offline")
+    endif()
+
     foreach(runtime_linux_process_case IN ITEMS
             validates-linux-security-provisioning
             rejects-linux-security-missing-provisioning)

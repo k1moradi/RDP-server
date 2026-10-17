@@ -320,11 +320,46 @@ bool LinuxRuntimeSecurityConfiguration::configure(
     const rdp_server::server::security::ConsoleIdentityRuleInput &rule)
     noexcept
 {
+    return configureInternal(
+        servicePrincipal, keytabUri, rule, {}, false);
+}
+
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+bool LinuxRuntimeSecurityConfiguration::configure(
+    std::string_view servicePrincipal,
+    std::string_view keytabUri,
+    const rdp_server::server::security::ConsoleIdentityRuleInput &rule,
+    std::string_view pamServiceName) noexcept
+{
+    return configureInternal(
+        servicePrincipal, keytabUri, rule, pamServiceName, true);
+}
+#endif
+
+bool LinuxRuntimeSecurityConfiguration::configureInternal(
+    std::string_view servicePrincipal,
+    std::string_view keytabUri,
+    const rdp_server::server::security::ConsoleIdentityRuleInput &rule,
+    std::string_view pamServiceName,
+    bool requirePamVerifier) noexcept
+{
     if (attempted_)
     {
         return false;
     }
     attempted_ = true;
+
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (requirePamVerifier && !passwordVerifier_.configure(pamServiceName))
+    {
+        return false;
+    }
+#else
+    if (requirePamVerifier || !pamServiceName.empty())
+    {
+        return false;
+    }
+#endif
 
     if (servicePrincipal.empty() ||
         servicePrincipal.size() >= servicePrincipal_.size() ||
@@ -365,6 +400,16 @@ bool LinuxRuntimeSecurityConfiguration::configure(
     // anonymous snapshot, so neither pathname replacement nor later writes to
     // the configured source inode can change per-connection credentials.
     rdp_server::server::security::GssapiSpnegoAcceptor probe;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (requirePamVerifier &&
+        (!probe.bindConsoleIdentityPolicy(policy_) ||
+         !probe.bindLinuxPamPasswordVerifier(passwordVerifier_)))
+    {
+        closeKeytab();
+        clearServicePrincipal();
+        return false;
+    }
+#endif
     if (!configureAcceptorFromDescriptor(
             std::string_view(
                 servicePrincipal_.data(), servicePrincipalLength_),
@@ -393,6 +438,13 @@ bool LinuxRuntimeSecurityConfiguration::configureAcceptor(
     {
         return false;
     }
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (passwordVerifier_.configured() &&
+        !acceptor.bindLinuxPamPasswordVerifier(passwordVerifier_))
+    {
+        return false;
+    }
+#endif
     return configureAcceptorFromDescriptor(
         std::string_view(servicePrincipal_.data(), servicePrincipalLength_),
         keytabDescriptor_, acceptor);
@@ -408,6 +460,14 @@ LinuxRuntimeSecurityConfiguration::servicePrincipal() const noexcept
     return std::string_view(
         servicePrincipal_.data(), servicePrincipalLength_);
 }
+
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+std::string_view
+LinuxRuntimeSecurityConfiguration::pamServiceName() const noexcept
+{
+    return configured_ ? passwordVerifier_.serviceName() : std::string_view{};
+}
+#endif
 
 const rdp_server::server::security::ConsoleIdentityPolicy *
 LinuxRuntimeSecurityConfiguration::policy() const noexcept

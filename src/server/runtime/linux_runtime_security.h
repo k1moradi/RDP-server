@@ -3,6 +3,9 @@
 
 #include "server/security/console_identity_policy.h"
 #include "server/security/gssapi_spnego_acceptor.h"
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+#include "server/security/linux_pam_password_verifier.h"
+#endif
 
 #include <array>
 #include <cstddef>
@@ -55,6 +58,18 @@ public:
         const rdp_server::server::security::ConsoleIdentityRuleInput &rule)
         noexcept;
 
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    // Opt-in R2 password verification is provisioned by the same immutable
+    // service owner. No default PAM service is selected. This only binds the
+    // verifier to per-connection acceptors; it does not complete CredSSP or
+    // grant native/R3 admission.
+    [[nodiscard]] bool configure(
+        std::string_view servicePrincipal,
+        std::string_view keytabUri,
+        const rdp_server::server::security::ConsoleIdentityRuleInput &rule,
+        std::string_view pamServiceName) noexcept;
+#endif
+
     // Configure one existing per-connection R2 acceptor from the retained
     // sealed keytab snapshot. The configuration object must outlive it.
     // False is terminal for the supplied acceptor.
@@ -64,17 +79,29 @@ public:
 
     [[nodiscard]] bool configured() const noexcept { return configured_; }
     [[nodiscard]] std::string_view servicePrincipal() const noexcept;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    [[nodiscard]] std::string_view pamServiceName() const noexcept;
+#endif
     [[nodiscard]]
     const rdp_server::server::security::ConsoleIdentityPolicy *policy()
         const noexcept;
 
 private:
+    [[nodiscard]] bool configureInternal(
+        std::string_view servicePrincipal,
+        std::string_view keytabUri,
+        const rdp_server::server::security::ConsoleIdentityRuleInput &rule,
+        std::string_view pamServiceName,
+        bool requirePamVerifier) noexcept;
     void closeKeytab() noexcept;
     void clearServicePrincipal() noexcept;
 
     std::array<char, 513> servicePrincipal_{};
     std::size_t servicePrincipalLength_{};
     rdp_server::server::security::ConsoleIdentityPolicy policy_{};
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    rdp_server::server::security::LinuxPamPasswordVerifier passwordVerifier_{};
+#endif
     int keytabDescriptor_{-1};
     bool attempted_{};
     bool configured_{};

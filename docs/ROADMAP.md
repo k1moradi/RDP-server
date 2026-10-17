@@ -1,3 +1,19 @@
+## R9 CredSSP fuzzer workflow-generation correction (2026-10-16; exact-SHA CI pending)
+
+The first fuzzing publication `8ad5f1285fa2e37b0ee19b2b04e74e42ec2d8c46`
+created Actions run `39008662630`, which failed before job creation. No
+compiler, CTest, ASan/UBSan or libFuzzer result exists for that SHA. The cause
+was R9 CI authoring only: a JavaScript replacement string contained the
+anchored CTest regex terminator `$'`, triggering suffix expansion and
+splicing later workflow text into the inserted step.
+
+This correction reconstructs the workflow from known-good parent
+`d8e731ca488f1f8d545348b19a97756be660db46`, preserves the intervening R1
+client-CAL selector escape fix from `035e2e8a702abef1304d2aea51e4de960d90fd5b`,
+and reapplies the two intended R9 fuzzer edits using index-based insertion.
+Production code, fuzzer source, seeds and CTest registration are unchanged.
+Exact correction-SHA evidence is **PENDING**.
+
 ## R1/R9 CAL sanitizer selector recovery (2026-10-17; exact-SHA CI pending)
 
 **Starting shared \`main\`:** \`8ad5f1285fa2e37b0ee19b2b04e74e42ec2d8c46\`.

@@ -1,3 +1,17 @@
+## R9 CredSSP fuzzer workflow correction receipt (2026-10-16)
+
+Superseded publication `8ad5f1285fa2e37b0ee19b2b04e74e42ec2d8c46`,
+Actions `39008662630`: **workflow parse failure before jobs**. It supplies no
+compile, sanitizer or fuzzing evidence.
+
+The malformed YAML came from JavaScript replacement-string handling of the
+literal `$'` at the end of the new anchored CTest regex. The correction
+rebuilds from `d8e731ca488f1f8d545348b19a97756be660db46`, carries forward the
+R1 CAL selector correction from `035e2e8a702abef1304d2aea51e4de960d90fd5b`,
+and inserts the R9 target/step by string indices. Uniqueness checks cover the
+R9/R7/publish jobs and the new fuzzer step before publication. Corrected
+exact-SHA CI is **PENDING**.
+
 ## R1/R9 CAL sanitizer selector recovery (2026-10-17; exact-SHA CI pending)
 
 **Starting shared \`main\`:** \`8ad5f1285fa2e37b0ee19b2b04e74e42ec2d8c46\`.

@@ -1,3 +1,12 @@
+## R3 OpenSSL 4 synthetic-signature fixture portability (2026-10-16)
+
+The production CAL inspector is OpenSSL 4 source-compatible. The synthetic
+signature-corruption test also uses accessor APIs
+`ASN1_STRING_get0_data()`/`ASN1_STRING_length()` rather than accessing the
+opaque `ASN1_BIT_STRING` representation directly. This is a test-fixture
+portability correction only; CAL grammar, trust-anchor requirements, signature
+policy and live licensing transitions are unchanged.
+
 ## R3 existing-client CAL trust-inspection boundary (2026-10-16)
 
 ## R10 licensing-authority ownership boundary (2026-10-17)

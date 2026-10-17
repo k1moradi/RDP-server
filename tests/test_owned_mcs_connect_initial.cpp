@@ -7008,10 +7008,13 @@ struct ClientCalFixture final
     X509_get0_signature(
         &signature, &algorithm, fixture.leafCertificate.get());
     assert(signature != nullptr && algorithm != nullptr);
-    assert(signature->data != nullptr && signature->length > 0);
+    const int signatureLength = ASN1_STRING_length(signature);
+    const unsigned char *signatureData =
+        ASN1_STRING_get0_data(signature);
+    assert(signatureData != nullptr && signatureLength > 0);
 
     const std::span<const std::uint8_t> signatureBytes{
-        signature->data, static_cast<std::size_t>(signature->length)};
+        signatureData, static_cast<std::size_t>(signatureLength)};
     const auto signatureBegin = std::search(
         leafDer.begin(), leafDer.end(),
         signatureBytes.begin(), signatureBytes.end());

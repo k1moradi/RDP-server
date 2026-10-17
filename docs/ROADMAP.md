@@ -1,3 +1,64 @@
+## R1 terminal TLS/EOF readiness exact-SHA validation (2026-10-16)
+
+**Implementation:** \`9b8f6092e4a0265688ec3bbf51b10cd34db8746e\`.  
+**Win32 fixture correction:** \`cd3b5173149f4c93fad5c04afdab3bce3b901937\`.  
+**Corrected Actions:** \`39004697959\` — **SUCCESS**.
+
+The implementation publication replaced scheduler-yield terminal-read retries
+with a dedicated real-loopback behavior,
+\`transport.tcp-owned-tls-terminal-readiness\`, while leaving production R1
+socket/BIO/SSL code unchanged. Its first Actions run \`39004463035\` provided
+partial evidence only: macOS/AppleClang passed the new case as test #164 in
+both configurations and full suites were **446/446 PASS** Debug + Release.
+Linux/GCC and R9 stopped before R1 execution on the concurrently inherited R8
+X11 clipboard compile error (\`fileUri_\` / \`fileUriLength_\`), and
+Windows/MSVC exposed the R1 test-only Win32 \`min\` macro collision at the
+client-readiness helper. Those failed legs are not counted as R1 PASS.
+
+Correction \`cd3b5173...\` replaces only the macro-sensitive \`std::min\`
+expression with an equivalent explicit duration comparison. Exact corrected
+hosted evidence:
+
+- Linux/GCC full CTest: **528/528 PASS Debug** and **528/528 PASS Release**;
+  the new test is #164 and passes in both.
+- macOS/AppleClang: **447/447 PASS Debug** and **447/447 PASS Release**;
+  the new test is #164 and passes in both.
+- Windows/MSVC native preflight: **51/51 PASS Debug + Release**; full CTest:
+  **477/477 PASS Debug** and **477/477 PASS Release**; the new test is #164
+  and passes in both.
+- R9 Clang ASan/UBSan bounded R1/R3 MCS/CredSSP/licensing selection:
+  **91/91 PASS**; \`transport.tcp-owned-tls-terminal-readiness\` executes as
+  item **76/91** and passes. The separately flattened CredSSP credential corpus
+  is **4/4 PASS**.
+- Other sanitizer groups also pass: clipboard **61/61**, portable graphics
+  **34/34**, x264/BGRA **20/20**, RDPGFX capabilities **4/4**, native
+  R2/R3 GSS **29/29**, R2 PAM verifier **1/1**, direct Linux runtime security
+  **10/10**, native X11 **33/33**, and bounded fuzzer **1/1**.
+- Documentation policy and the independent R7 sanitizer job pass. Installed
+  SDK consumer **1/1**, package generation and artifact upload pass on all
+  three hosted platforms; untagged prerelease publication is correctly
+  **SKIPPED**.
+
+The new behavior proves two terminal distinctions through real nonblocking
+readiness: client \`close_notify\` becomes R1 \`TlsClosed\`, while raw peer EOF
+becomes \`TransportClosed\`; both leave the sole R1 owner inactive with closed
+I/O interest, and later raw-EOF read replay remains terminal. Client OpenSSL
+WANT direction is waited with a bounded native readiness fixture and the
+server advances only through \`OwnedPreauthTcpConnection::pollSocketOnce\`;
+no scheduler sleep/yield or hidden SSL retry is used in the behavior.
+
+Canonical owner-local \`~/rdp-server/build/\`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 remain **NOT RUN** in this connector
+environment. This is transport-lifetime evidence only: no R2 admission,
+licensing authority, live grant publication, Share activation or client
+acceptance is implied.
+
+**Next R1:** retain the existing dependency gate. Do not add another
+transport/publication surface until R10 supplies a real CAL-issuing authority
+and R2 exposes fresh authorization for live grant slices/completion, or a later
+Share-activation boundary demonstrates a concrete bounded R1 transport
+mismatch.
+
 ## R2 authenticated delegated-account binding boundary (2026-10-16)
 
 R2 now has the next fail-closed final-CredSSP identity boundary. The canonical

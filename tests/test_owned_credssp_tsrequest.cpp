@@ -367,6 +367,279 @@ void testStrictPasswordCredentialFields()
            CredSspCredentialError::UnsupportedType);
 }
 
+
+void assertDeterministicCredentialInspection(const Bytes &input)
+{
+    const Bytes original = input;
+    const auto first = inspectCredSspCredentials(input);
+    const auto second = inspectCredSspCredentials(input);
+    assert(input == original);
+    assert(first.kind == second.kind && first.error == second.error);
+    assert(first.kind <= CredSspCredentialKind::RemoteGuard);
+    assert(first.error <= CredSspCredentialError::InvalidPasswordFields);
+    if (first.error != CredSspCredentialError::None)
+        assert(first.kind == CredSspCredentialKind::None);
+    else
+        assert(first.kind != CredSspCredentialKind::None);
+}
+
+void assertPasswordCredentialAccepted(const Bytes &input)
+{
+    assertDeterministicCredentialInspection(input);
+    const auto inspection = inspectCredSspCredentials(input);
+    assert(inspection.kind == CredSspCredentialKind::Password);
+    assert(inspection.error == CredSspCredentialError::None);
+}
+
+void assertPasswordCredentialDenied(const Bytes &input)
+{
+    assertDeterministicCredentialInspection(input);
+    assert(!inspectCredSspCredentials(input));
+}
+
+void testPasswordCredentialNestedDerMutations()
+{
+    const Bytes domain = utf16Le(u"DOMAIN");
+    const Bytes username = utf16Le(u"alice");
+    const Bytes password = utf16Le(u"secret");
+    const Bytes seed = passwordCredentials(domain, username, password);
+    assertPasswordCredentialAccepted(seed);
+
+    // Every one-byte complement of this short seed is deterministic and
+    // bounded. Only changes inside the three UTF-16LE contents may produce
+    // another structurally valid password credential.
+    const auto payloadStart = [&](const Bytes &field)
+    {
+        const auto found = std::search(seed.begin(), seed.end(),
+                                       field.begin(), field.end());
+        assert(found != seed.end());
+        return static_cast<std::size_t>(found - seed.begin());
+    };
+    const std::array<std::pair<std::size_t, std::size_t>, 3> payloadRanges{{
+        {payloadStart(domain), domain.size()},
+        {payloadStart(username), username.size()},
+        {payloadStart(password), password.size()},
+    }};
+    for (std::size_t index = 0; index < seed.size(); ++index)
+    {
+        Bytes mutated = seed;
+        mutated[index] ^= 0xffU;
+        assertDeterministicCredentialInspection(mutated);
+        const auto inspection = inspectCredSspCredentials(mutated);
+        if (inspection.kind == CredSspCredentialKind::Password)
+        {
+            bool insideText = false;
+            for (const auto &[start, length] : payloadRanges)
+                insideText |= index >= start && index - start < length;
+            assert(insideText);
+            assert(inspection.error == CredSspCredentialError::None);
+        }
+        else
+            assert(inspection.error != CredSspCredentialError::None);
+    }
+
+    // Insertions, removals and truncated nested messages must not be
+    // accepted merely because their original prefix was valid.
+    for (std::size_t index = 0; index < seed.size(); ++index)
+    {
+        Bytes inserted = seed;
+        inserted.insert(inserted.begin() + static_cast<std::ptrdiff_t>(index),
+                        0x00);
+        assertPasswordCredentialDenied(inserted);
+        Bytes removed = seed;
+        removed.erase(removed.begin() + static_cast<std::ptrdiff_t>(index));
+        assertPasswordCredentialDenied(removed);
+        Bytes truncated(seed.begin(),
+                        seed.begin() + static_cast<std::ptrdiff_t>(index));
+        assertPasswordCredentialDenied(truncated);
+    }
+
+    Bytes trailing = seed;
+    trailing.push_back(0);
+    assertPasswordCredentialDenied(trailing);
+
+    const Bytes domainField = octetContext(0xa0, domain);
+    const Bytes userField = octetContext(0xa1, username);
+    const Bytes passwordField = octetContext(0xa2, password);
+    const Bytes typeField = wrap(0xa0, wrap(
+        0x02, std::array<std::uint8_t, 1>{1}));
+    const auto credentialFromFields = [&](const Bytes &fields)
+    {
+        return wrap(0x30, append(typeField,
+                   octetContext(0xa1, wrap(0x30, fields))));
+    };
+    assertPasswordCredentialDenied(credentialFromFields(
+        append(append(domainField, userField), userField)));
+    assertPasswordCredentialDenied(credentialFromFields(
+        append(domainField, passwordField)));
+    assertPasswordCredentialDenied(credentialFromFields(
+        append(append(userField, domainField), passwordField)));
+    assertPasswordCredentialDenied(credentialFromFields(
+        append(append(domainField, passwordField), userField)));
+    assertPasswordCredentialAccepted(credentialFromFields(
+        append(append(domainField, userField), passwordField)));
+
+    // Explicitly damage a nested context and an inner OCTET tag while
+    // preserving the parent's original length.
+    Bytes corruptContext = seed;
+    const auto usernameFieldStart = std::search(
+        seed.begin(), seed.end(), userField.begin(), userField.end());
+    assert(usernameFieldStart != seed.end());
+    corruptContext[static_cast<std::size_t>(
+        usernameFieldStart - seed.begin())] = 0xa0;
+    assertPasswordCredentialDenied(corruptContext);
+    Bytes corruptOctet = seed;
+    corruptOctet[static_cast<std::size_t>(
+        usernameFieldStart - seed.begin()) + 2U] = 0x05;
+    assertPasswordCredentialDenied(corruptOctet);
+}
+
+void testPasswordCredentialLengthBoundaryDenials()
+{
+    const Bytes username = utf16Le(u"a");
+    const Bytes password = utf16Le(u"b");
+
+    // Canonical DER crosses short, 0x81, and 0x82 length forms.
+    for (const std::size_t bytes : std::array<std::size_t, 14>{
+             0, 1, 2, 3, 126, 127, 128, 129,
+             254, 255, 256, 257, 4094, 4096})
+    {
+        Bytes domain(bytes, 0x41);
+        for (std::size_t offset = 1; offset < domain.size(); offset += 2)
+            domain[offset] = 0;
+        const auto credentials = passwordCredentials(domain, username,
+                                                     password);
+        if (bytes % 2 == 0 && bytes <= 4096)
+            assertPasswordCredentialAccepted(credentials);
+        else
+            assertPasswordCredentialDenied(credentials);
+    }
+    for (const std::size_t bytes : std::array<std::size_t, 4>{
+             4094, 4095, 4096, 4097})
+    {
+        Bytes field(bytes, 0x41);
+        for (std::size_t offset = 1; offset < bytes; offset += 2)
+            field[offset] = 0;
+        const auto credentials = passwordCredentials({}, field, password);
+        if (bytes % 2 == 0 && bytes <= 4096)
+            assertPasswordCredentialAccepted(credentials);
+        else
+            assertPasswordCredentialDenied(credentials);
+    }
+
+    const Bytes seed = passwordCredentials({}, username, password);
+    assertPasswordCredentialAccepted(seed);
+    // All malformed outer length encodings fail closed, without allocating
+    // any storage based on untrusted declared lengths.
+    for (const Bytes &length : std::array<Bytes, 9>{{
+             {0x80}, {0x81}, {0x81, 0x01}, {0x82, 0x00, 0x7f},
+             {0x83, 0x00, 0x00, 0x7f}, {0xff}, {0x82, 0xff, 0xff},
+             {0x81, 0x00}, {0x82, 0x01}}})
+    {
+        Bytes malformed{0x30};
+        malformed.insert(malformed.end(), length.begin(), length.end());
+        malformed.insert(malformed.end(), seed.begin() + 2, seed.end());
+        assertPasswordCredentialDenied(malformed);
+    }
+
+    // Valid near-cap payloads must account for the complete wrapper cost.
+    Bytes longest;
+    for (std::size_t domainBytes = 0; domainBytes <= 4096;
+         domainBytes += 2)
+    {
+        const Bytes domain(domainBytes, 0x41);
+        const Bytes user(4096, 0x42);
+        const auto credentials = passwordCredentials(domain, user, password);
+        if (credentials.size() <= kMaximumDecryptedCredentialsBytes)
+            longest = credentials;
+    }
+    assert(!longest.empty());
+    assertPasswordCredentialAccepted(longest);
+    Bytes overLimit = longest;
+    overLimit.resize(kMaximumDecryptedCredentialsBytes + 1, 0);
+    assertPasswordCredentialDenied(overLimit);
+}
+
+void testPasswordCredentialUtf16MutationBoundaries()
+{
+    const Bytes baseline = utf16Le(u"abcde");
+    for (std::size_t fieldIndex = 0; fieldIndex < 3; ++fieldIndex)
+    {
+        const auto inspectField = [&](const Bytes &field)
+        {
+            Bytes fields[3]{baseline, baseline, baseline};
+            fields[fieldIndex] = field;
+            return passwordCredentials(fields[0], fields[1], fields[2]);
+        };
+        const auto accepted = [&](const Bytes &field)
+        {
+            assertPasswordCredentialAccepted(inspectField(field));
+        };
+        const auto denied = [&](const Bytes &field)
+        {
+            assertPasswordCredentialDenied(inspectField(field));
+        };
+        for (std::size_t position : std::array<std::size_t, 3>{0, 2, 4})
+        {
+            auto validBmp = std::u16string(u"abcde");
+            validBmp[position] = u'Z';
+            accepted(utf16Le(validBmp));
+
+            auto validPair = std::u16string(u"abcde");
+            validPair.replace(position, 1, u"\U0001f600");
+            accepted(utf16Le(validPair));
+
+            auto invalidHigh = std::u16string(u"abcde");
+            invalidHigh[position] = static_cast<char16_t>(0xd800);
+            denied(utf16Le(invalidHigh));
+            auto invalidLow = std::u16string(u"abcde");
+            invalidLow[position] = static_cast<char16_t>(0xdc00);
+            denied(utf16Le(invalidLow));
+
+            const auto malformedPair = [&](char16_t second)
+            {
+                auto text = std::u16string(u"abcde");
+                text.replace(position, 1,
+                    std::u16string{static_cast<char16_t>(0xd800),
+                                   second});
+                denied(utf16Le(text));
+            };
+            malformedPair(static_cast<char16_t>(0xd800));
+            malformedPair(u'Q');
+
+            auto reversed = std::u16string(u"abcde");
+            reversed.replace(position, 1,
+                std::u16string{static_cast<char16_t>(0xdc00),
+                               static_cast<char16_t>(0xd800)});
+            denied(utf16Le(reversed));
+
+            auto embeddedNull = std::u16string(u"abcde");
+            embeddedNull[position] = 0;
+            denied(utf16Le(embeddedNull));
+
+            Bytes truncatedPair = utf16Le(validPair);
+            truncatedPair.erase(
+                truncatedPair.begin() + static_cast<std::ptrdiff_t>(
+                    position * 2 + 2));
+            denied(truncatedPair);
+            truncatedPair = utf16Le(validPair);
+            truncatedPair.erase(
+                truncatedPair.begin() + static_cast<std::ptrdiff_t>(
+                    position * 2 + 2),
+                truncatedPair.begin() + static_cast<std::ptrdiff_t>(
+                    position * 2 + 4));
+            denied(truncatedPair);
+        }
+        Bytes odd = baseline;
+        odd.pop_back();
+        denied(odd);
+        if (fieldIndex == 0)
+            accepted({});
+        else
+            denied({});
+    }
+}
+
 void testStreamAllFragmentBoundaries()
 {
     const auto fixture = initialRequest();
@@ -855,7 +1128,7 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 15> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 18> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
@@ -863,6 +1136,12 @@ constexpr std::array<CredSspTestCase, 15> kCredSspTests{{
     {"credssp-der-mutations", &testAllByteMutationsRemainBounded},
     {"credssp-password-credential-strict-fields",
      &testStrictPasswordCredentialFields},
+    {"credssp-password-credential-nested-der-mutations",
+     &testPasswordCredentialNestedDerMutations},
+    {"credssp-password-credential-length-boundary-denials",
+     &testPasswordCredentialLengthBoundaryDenials},
+    {"credssp-password-credential-utf16-mutation-boundaries",
+     &testPasswordCredentialUtf16MutationBoundaries},
     {"credssp-stream-fragments", &testStreamAllFragmentBoundaries},
     {"credssp-stream-coalesced", &testStreamCoalescedAndLongDer},
     {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},

@@ -1,3 +1,7 @@
+## R9 final CredSSP structural-corpus validation (2026-10-16)
+
+Three new behavior-named tests use `test_owned_credssp_tsrequest` and real R2 `inspectCredSspCredentials`: `security.credssp-password-credential-nested-der-mutations`, `security.credssp-password-credential-length-boundary-denials`, and `security.credssp-password-credential-utf16-mutation-boundaries`. The bounded deterministic corpus covers every one-byte complement, insertion, removal and truncation of a domain/user/password seed; duplicate/missing/reordered nested context fields; malformed length headers and 0x81/0x82 boundaries; field sizes through 4096; near-total-8192 rejection; and BMP, surrogate, NUL, odd-length and empty-field cases at multiple code-unit positions. Structural success is not R2 authentication, PAM success or native lease issuance. The R9 CI selection includes all three tests and fail-closed registry checks; actual instrumented results must be confirmed from the exact publication workflow. Owner Linux/X11, Windows CLANG64, macOS 27 and real-client acceptance remain NOT RUN here.
+
 ## R2 Linux PAM verifier exact-SHA validation (2026-10-16)
 
 **Validated implementation/integration SHA:** `d2a1ac10ac3c5ecd64b7d34b3777e2121119f678`.  

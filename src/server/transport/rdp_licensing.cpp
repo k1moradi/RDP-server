@@ -814,7 +814,7 @@ constexpr std::array<const char *, 5> kRdpCalLicensingExtensionOids{
     const int extensionCount = X509_get_ext_count(leaf);
     for (int index = 0; index < extensionCount; ++index)
     {
-        X509_EXTENSION *extension = X509_get_ext(leaf, index);
+        auto *extension = X509_get_ext(leaf, index);
         if (extension == nullptr)
             return RdpClientCalPolicyStatus::UnsupportedCriticalExtension;
         if (X509_EXTENSION_get_critical(extension) == 0)
@@ -1043,7 +1043,7 @@ RdpClientCalChainInspectionResult inspectRdpClientCalCertificateChain(
         container->d.sign->contents == nullptr ||
         OBJ_obj2nid(container->d.sign->contents->type) != NID_pkcs7_data ||
         (container->d.sign->contents->d.data != nullptr &&
-         container->d.sign->contents->d.data->length != 0) ||
+         ASN1_STRING_length(container->d.sign->contents->d.data) != 0) ||
         sk_PKCS7_SIGNER_INFO_num(container->d.sign->signer_info) != 0 ||
         sk_X509_ALGOR_num(container->d.sign->md_algs) != 0 ||
         (container->d.sign->crl != nullptr &&

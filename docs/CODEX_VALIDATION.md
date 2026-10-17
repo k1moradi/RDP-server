@@ -1,3 +1,18 @@
+## R3 CAL OpenSSL 4 portability correction (2026-10-16; exact-SHA CI pending)
+
+The first implementation workflow, Actions run 39005649027 at
+`c498ba29e376c5b2da4848b82699843487118e74`, reached macOS compilation and
+exposed two R3-owned OpenSSL 4 source-compatibility errors in
+`rdp_licensing.cpp`: `X509_get_ext()` now yields a const extension pointer,
+and `ASN1_OCTET_STRING` is opaque. The correction deduces the provider's
+extension-pointer constness with `auto *` and checks the optional SignedData
+content length through `ASN1_STRING_length()`. It changes no CAL grammar,
+trust decision, size bound, signature policy or live licensing transition.
+
+Linux/R9/Windows results from the superseded implementation SHA are not used as
+acceptance evidence. The corrected descendant requires a fresh exact-SHA
+workflow.
+
 ## R3 CAL chain verifier authoring receipt (2026-10-16; exact-SHA CI pending)
 
 **Reconciled parent:** `3069b2f1e07198d0e060c1619924f9654ffb8826`. **Implementation:** this publication.

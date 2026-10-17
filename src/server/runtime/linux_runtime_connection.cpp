@@ -729,6 +729,186 @@ LinuxRuntimeConnection::advancePersonalDesktopServerLicenseRequestWrite(
     return {0U, Step::Invalid};
 }
 
+LinuxPersonalDesktopClientLicensingStepResult
+LinuxRuntimeConnection::advancePersonalDesktopClientLicensingIntake(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    const RuntimeLicensingContext &licensingContext,
+    bool readable, bool writable) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using McsPhase =
+        rdp_server::server::transport::McsSessionPhase;
+    using Intake =
+        rdp_server::server::transport::RdpLicensingIntake;
+    using Step = LinuxPersonalDesktopClientLicensingStepStatus;
+
+    if (!ready())
+        return {0U, Step::Closed};
+
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !broker_ || !lease_ || lease_->isRevoked())
+    {
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    // Do not consume following R1 plaintext until the exact preceding Server
+    // License Request receipt has advanced R3 to this client-response phase.
+    if (session_.phase() != McsPhase::AwaitClientLicenseResponse)
+    {
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    const auto *const identity = licensingContext.identity();
+    const auto *const credential = licensingContext.credential();
+    if (identity == nullptr || credential == nullptr ||
+        !licensingContext.configured() || !credential->matches(*identity))
+    {
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    const Interest required = connection_.ioInterest();
+    if (required == Interest::Closed)
+    {
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::Closed};
+    }
+
+    const bool bufferedRead =
+        required == Interest::Read &&
+        connection_.tlsApplicationReadReady();
+    if (required == Interest::Read && !readable && !bufferedRead)
+        return {0U, Step::NeedRead};
+    if (required == Interest::Write && !writable)
+        return {0U, Step::NeedWrite};
+    if (required != Interest::Read && required != Interest::Write)
+    {
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    {
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    constexpr std::size_t kReadChunkBytes = 512U;
+    std::array<std::uint8_t, kReadChunkBytes> plaintext{};
+    const std::size_t needed =
+        personalClientLicensingFrameReader_.bytesNeeded();
+    if (needed == 0U ||
+        needed >
+            rdp_server::server::transport::kMaximumInitialMcsTpktBytes)
+    {
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    const std::size_t requested =
+        (std::min)(plaintext.size(), needed);
+    const auto io = connection_.readTlsApplicationData(
+        std::span<std::uint8_t>{plaintext}.first(requested));
+
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        if (io.bytes == 0U || io.bytes > requested)
+        {
+            personalClientLicensingFrameReader_.close();
+            revoke();
+            return {0U, Step::Invalid};
+        }
+
+        const auto framed = personalClientLicensingFrameReader_.consume(
+            std::span<const std::uint8_t>{plaintext}.first(io.bytes));
+        std::fill(plaintext.begin(), plaintext.begin() + io.bytes, 0U);
+        if (framed.bytesConsumed != io.bytes ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Closed)
+        {
+            personalClientLicensingFrameReader_.close();
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+        if (framed.status == LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+            return {io.bytes, Step::Progress};
+
+        const auto completeTpkt =
+            personalClientLicensingFrameReader_.completeTpkt();
+        if (completeTpkt.empty())
+        {
+            personalClientLicensingFrameReader_.close();
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+
+        const auto intake =
+            broker_->authorizeR3PersonalDesktopClientLicensingMessage(
+                *lease_, acceptor_, connection_, session_,
+                deploymentPolicy, *credential, completeTpkt);
+        personalClientLicensingFrameReader_.close();
+        if (!intake)
+        {
+            revoke();
+            return {io.bytes, Step::AdmissionDenied};
+        }
+
+        switch (*intake)
+        {
+        case Intake::ClientLicenseInfoAccepted:
+            return {io.bytes, Step::ClientLicenseInfoAccepted};
+        case Intake::ClientNewLicenseRequestAccepted:
+            return {io.bytes, Step::ClientNewLicenseRequestAccepted};
+        case Intake::ClientPlatformChallengeResponseAccepted:
+        case Intake::MalformedMessage:
+        case Intake::UnexpectedMessage:
+        case Intake::Failed:
+        case Intake::Closed:
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+        revoke();
+        return {io.bytes, Step::Invalid};
+    }
+    case IoOutcome::NeedRead:
+        return {0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        return {0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        personalClientLicensingFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    personalClientLicensingFrameReader_.close();
+    revoke();
+    return {0U, Step::Invalid};
+}
+
 std::optional<
     rdp_server::server::transport::RdpPersonalDesktopValidClientWriteView>
 LinuxRuntimeConnection::authorizePersonalDesktopValidClientWrite(
@@ -1150,6 +1330,7 @@ void LinuxRuntimeConnection::revoke() noexcept
     // Retire untrusted post-admission framing before any authority or transport
     // owner disappears. The complete span is never retained across R2/R3 use.
     mcsConnectInitialFrameReader_.close();
+    personalClientLicensingFrameReader_.close();
     personalDesktopPolicy_ = nullptr;
     personalLicenseRequestTlsWritePending_ = false;
 

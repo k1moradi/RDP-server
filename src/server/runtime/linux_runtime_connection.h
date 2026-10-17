@@ -144,6 +144,25 @@ struct LinuxPersonalDesktopLicenseWriteStepResult
         LinuxPersonalDesktopLicenseWriteStepStatus::Closed};
 };
 
+enum class LinuxPersonalDesktopClientLicensingStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    ClientLicenseInfoAccepted,
+    ClientNewLicenseRequestAccepted,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPersonalDesktopClientLicensingStepResult
+{
+    std::size_t plaintextBytesRead{};
+    LinuxPersonalDesktopClientLicensingStepStatus status{
+        LinuxPersonalDesktopClientLicensingStepStatus::Closed};
+};
+
 // Exact identity for one borrowed R2 logind watcher registration. R10 never
 // duplicates or closes descriptor; R2 admission/session generations prevent
 // stale reconnect reuse even if the kernel later reuses the fd number.
@@ -255,12 +274,23 @@ public:
     // R10-facing personal-desktop security boundary. The immutable policy is
     // the only product-mode input; R2 keeps the lease and generation pair
     // private and freshly reauthorizes every operation below. R1 remains the
-    // sole TLS writer and R3 remains the sole wire/session owner.
+    // sole TLS application-I/O owner and R3 remains the sole wire/session owner.
     [[nodiscard]] bool selectPersonalDesktopLicensingMode(
         const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 
     [[nodiscard]] LinuxPersonalDesktopLicenseWriteStepResult
     advancePersonalDesktopServerLicenseRequestWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        const RuntimeLicensingContext &licensingContext,
+        bool readable, bool writable) noexcept;
+
+    // After the Server License Request is fully accepted, consume at most one
+    // complete client licensing TPKT through the same R1 SSL owner. Every
+    // actual read is preceded by fresh R2 reauthorization; the completed
+    // packet is synchronously dispatched through the PersonalDesktop
+    // policy-bound R2 wrapper into R3 and is never retained afterward.
+    [[nodiscard]] LinuxPersonalDesktopClientLicensingStepResult
+    advancePersonalDesktopClientLicensingIntake(
         const RuntimeDeploymentPolicy &deploymentPolicy,
         const RuntimeLicensingContext &licensingContext,
         bool readable, bool writable) noexcept;
@@ -406,6 +436,7 @@ private:
         lease_{};
     rdp_server::server::transport::McsSessionLifecycle session_{};
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
+    LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
     const RuntimeDeploymentPolicy *personalDesktopPolicy_{};
     bool personalLicenseRequestTlsWritePending_{};
     std::optional<RuntimeExistingCalValidationBinding>

@@ -1,3 +1,51 @@
+## R10 bounded PersonalDesktop client licensing R1-owned intake (2026-10-17)
+
+**Reconciled shared-main parent:** `72fd9ebafa3f297802b327e72d65db814c1a6ead`.
+R2 already provides the exact policy-bound
+`authorizeR3PersonalDesktopClientLicensingMessage()` seam at descendant
+`49dae580e61a87779b2d89427aa91ecee73523b1`; this increment consumes it
+rather than adding another R2 parser or authority path. R9's concurrent
+Graphics-DVC sanitizer workflow repairs through this parent are preserved.
+
+After the PersonalDesktop Server License Request has been fully accepted, the
+serialized aggregate may consume exactly one client-licensing TPKT. It requires
+the same service-lifetime `RuntimeDeploymentPolicy` object, a current R2 lease
+and R3's exact `AwaitClientLicenseResponse` phase before any plaintext read.
+R1 remains the sole SSL owner. Pending WANT_READ/WANT_WRITE direction wins,
+already-processed TLS plaintext may progress without a fresh POLLIN, and every
+actual `readTlsApplicationData()` is preceded by fresh R2 revalidation. Each
+read is capped by both a 512-byte stack chunk and the frame owner's exact
+remaining TPKT length, so bytes from a following PDU are not consumed.
+
+The completed TPKT is synchronously handed through R2's policy-bound wrapper,
+which rechecks policy identity and protected R1/R2/native-session authority
+before invoking R3's existing licensing intake. R3 remains the only licensing
+packet/state owner. Policy replacement, wrong mode, missing/revoked admission,
+wrong phase, credential mismatch, malformed/truncated framing, TLS failure and
+replay are terminal. The frame owner is retired before aggregate teardown.
+
+Dedicated production-backed CTest:
+`runtime.linux-connection-personal-client-licensing-r1-intake-denials`.
+It exercises incomplete and invalid production TPKT framing plus unadmitted,
+wrong-mode and replay denial without minting a genuine R2 lease. Existing R2
+policy/late-receipt coverage and R3 `transport.licensing-personal-*` cases
+remain the authority and positive protocol-mechanics evidence. The direct Linux
+ASan/UBSan runtime-security selector advances **20→21** and requires the new
+sentinel by name.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** in this connector
+environment; no alternate build root was created. Exact publication-SHA hosted
+CI is recorded after publication. No real Microsoft client, credential, native
+desktop, listener or service is activated by this increment.
+
+**Next R10 API:** add the serialized `STATUS_VALID_CLIENT` writer in
+`LinuxRuntimeConnection`, borrowing only R2's existing
+`authorizeR3PersonalDesktopValidClientWrite()` view and committing only the
+accepted plaintext count returned by R1 `writeTlsApplicationData()` through
+R2's completion wrapper. The first positive security prerequisite remains an
+owner-authorized genuine Linux Kerberos/PAM/NSS/logind physical-X11 admission
+lease.
+
 ## R9 workflow publication repair after suffix duplication (2026-10-17)
 
 **Failed authoring SHA:** `9b8fd7616e8e1a3a436dfc892afd4e77d792ba20`.

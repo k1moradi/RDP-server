@@ -1,3 +1,21 @@
+## R10 post-admission TLS intake is exact-frame and authority-bound (2026-10-17)
+
+For a post-admission RDP packet consumed from the connection SSL owner, retain
+one bounded frame owner in the serialized connection aggregate. Check the exact
+protocol phase and immutable product-policy identity before reading, preserve
+R1's WANT_READ/WANT_WRITE direction, and allow already-processed TLS plaintext
+to satisfy read readiness. Immediately before every real TLS application read,
+freshly revalidate the current R2 lease and original R1/GSS/native-session
+owner.
+
+Request no more than the frame owner's exact remaining byte count, so one
+scheduler step cannot consume bytes belonging to the following TPKT. Dispatch a
+completed packet synchronously through the policy-bound R2 wrapper into the
+existing R3 parser/state owner; do not retain a borrowed packet span afterward
+or introduce another licensing queue/parser. Close the frame owner before
+authority/transport teardown so truncated input, revocation and replay cannot
+cross a connection lifetime.
+
 ## PersonalDesktop licensing transitions stay policy-bound inside R2 (2026-10-17)
 
 R10 retaining the exact service-lifetime PersonalDesktop policy pointer is not

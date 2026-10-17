@@ -1,3 +1,19 @@
+## R10 client-licensing runtime intake stays denial-only without real admission (2026-10-17)
+
+The ordinary runtime CTest for PersonalDesktop client licensing exercises the
+production fixed-capacity TPKT owner for incomplete/invalid framing and the
+production connection aggregate for unadmitted, wrong-mode and replay denial.
+It must not fabricate the private R2 lease merely to reach an R1 SSL read or a
+positive R3 transition. Positive licensing mechanics remain covered by R3's
+existing PersonalDesktop tests; positive aggregate R1→R2→R3 intake is owner-host
+only after genuine Kerberos/CredSSP, PAM/NSS and logind physical-session
+admission.
+
+Keep this behavior centrally registered and in each direct Linux runtime
+ASan/UBSan selector. Selector cardinality and sentinel names are part of the CI
+contract: a regex typo that silently omits a security case is a failure, not an
+acceptable reduced selection.
+
 ## R2 PersonalDesktop policy/receipt boundary and owner-host positive procedure (2026-10-17)
 
 `runtime.linux-connection-personal-desktop-policy-receipt-denials` is a
@@ -9,7 +25,8 @@ R3 protocol bookkeeping and the non-authorizing policy pointer; it never mints
 a lease, authenticates a user or supplies native-session evidence. Together
 with the existing personal Valid Client/Share partial-revocation tests, this is
 the ordinary-CI late-write fence. The direct Linux runtime sanitizer selection
-is 20 cases and must require this sentinel by name.
+is **21** cases after the R10 client-licensing intake increment and must
+continue to require this sentinel by name.
 
 The genuine Linux positive is **NOT RUN** unless the owner explicitly authorizes
 a real host and Microsoft-client session. On that host: use the restricted real
@@ -35,18 +52,21 @@ arguments, environment variables or logs.
 
 ## R9 sanitizer selector grouping must match registered CTest names (2026-10-17)
 
-When an anchored sanitizer selector changes cardinality, require both the exact
-new CTest sentinel and the grouped selector fragment that can actually match
-its registered spelling. Do not compress alternatives under a shared prefix
-unless every expanded name preserves the literal CTest name.
+When an anchored sanitizer selector changes cardinality, require every exact
+CTest sentinel and the grouped selector fragment that can actually match its
+registered spelling. Do not compress alternatives under a shared prefix unless
+every expanded name preserves the literal CTest name.
 
-For the direct Linux runtime-security gate, the two personal cases are
-`runtime.linux-connection-personal-desktop-r3-authority-denials` and
-`runtime.linux-connection-personal-license-request-r1-write-denials`; the
-shared expression is therefore
-`personal-(desktop-r3-authority|license-request-r1-write)-denials`.
-Keep the exact **19-case** count check and sentinel checks before execution.
-A cardinality mismatch is a CI/registry assurance failure and must not be
+The direct Linux runtime-security gate now contains four PersonalDesktop-related
+cases:
+`runtime.linux-connection-personal-desktop-r3-authority-denials`,
+`runtime.linux-connection-personal-desktop-policy-receipt-denials`,
+`runtime.linux-connection-personal-license-request-r1-write-denials`, and
+`runtime.linux-connection-personal-client-licensing-r1-intake-denials`.
+Their grouped expression is
+`personal-(desktop-(r3-authority|policy-receipt)|license-request-r1-write|client-licensing-r1-intake)-denials`.
+Keep the exact **21-case** count check and sentinel checks before execution. A
+cardinality mismatch is a CI/registry assurance failure and must not be
 reported as a failing CTest.
 
 ## R6 upstream-authority input retirement is no-post (2026-10-17)

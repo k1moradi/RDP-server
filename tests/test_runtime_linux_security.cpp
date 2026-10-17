@@ -88,6 +88,8 @@ using rdp_server::server::runtime::LinuxPreAdmissionStepStatus;
 using rdp_server::server::runtime::LinuxPostAdmissionMcsStepStatus;
 using rdp_server::server::runtime::
     LinuxPersonalDesktopLicenseWriteStepStatus;
+using rdp_server::server::runtime::
+    LinuxPersonalDesktopClientLicensingStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameReader;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
@@ -1634,6 +1636,93 @@ void testConnectionPersonalDesktopPolicyReceiptDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPersonalDesktopClientLicensingR1IntakeDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPersonalDesktopClientLicensingStepStatus;
+
+    // The production fixed-capacity TPKT owner must retain an incomplete
+    // licensing-candidate frame without treating truncation as completion.
+    {
+        LinuxRuntimeMcsTpktFrameReader reader;
+        constexpr std::array<std::uint8_t, 12> licensingCandidate{
+            3U, 0U, 0U, 12U, 0x02U, 0xf0U, 0x80U, 0x64U,
+            0U, 0U, 0U, 0U};
+        const auto partial = reader.consume(
+            std::span<const std::uint8_t>{licensingCandidate}.first(7U));
+        assert(partial.bytesConsumed == 7U);
+        assert(partial.status == LinuxRuntimeMcsTpktFrameStatus::NeedMore);
+        assert(reader.bytesNeeded() == 5U);
+        assert(reader.completeTpkt().empty());
+        reader.close();
+        assert(reader.status() == LinuxRuntimeMcsTpktFrameStatus::Closed);
+    }
+
+    // A TPKT length below the minimum X.224 envelope is terminal before R3.
+    {
+        LinuxRuntimeMcsTpktFrameReader reader;
+        constexpr std::array<std::uint8_t, 4> malformed{
+            3U, 0U, 0U, 7U};
+        const auto rejected = reader.consume(
+            std::span<const std::uint8_t>{malformed});
+        assert(rejected.bytesConsumed == malformed.size());
+        assert(rejected.status == LinuxRuntimeMcsTpktFrameStatus::Invalid);
+        assert(reader.completeTpkt().empty());
+    }
+
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-client-licensing-intake.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+    RuntimeLicensingContext licensingContext;
+
+    // A correctly shaped product policy is powerless without a genuine R2
+    // lease and prior policy selection. No TLS read is attempted and replay is
+    // terminal after the aggregate revokes.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        const auto denied =
+            connection.advancePersonalDesktopClientLicensingIntake(
+                personalPolicy, licensingContext, true, true);
+        assert(denied.status == Step::AdmissionDenied);
+        assert(denied.plaintextBytesRead == 0U);
+        assert(!connection.ready());
+
+        const auto replay =
+            connection.advancePersonalDesktopClientLicensingIntake(
+                personalPolicy, licensingContext, true, true);
+        assert(replay.status == Step::Closed);
+        assert(replay.plaintextBytesRead == 0U);
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // AppServerIssuerBacked cannot enter the PersonalDesktop R1/R2/R3 route.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        const auto denied =
+            connection.advancePersonalDesktopClientLicensingIntake(
+                appServerPolicy, licensingContext, true, true);
+        assert(denied.status == Step::AdmissionDenied);
+        assert(denied.plaintextBytesRead == 0U);
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPersonalDesktopR3AuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1987,6 +2076,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-desktop-policy-receipt-denials")
     {
         testConnectionPersonalDesktopPolicyReceiptDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-client-licensing-r1-intake-denials")
+    {
+        testConnectionPersonalDesktopClientLicensingR1IntakeDenials(
+            fixtureDirectory);
         return 0;
     }
     if (testCase ==

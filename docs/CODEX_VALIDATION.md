@@ -1,3 +1,21 @@
+## R3 CAL leaf-validity authoring receipt (2026-10-17; exact-SHA CI pending)
+
+**Starting shared `main`:** `2f4fd534bc070977582ed899c620cd79171edecf`.
+
+Production adds only deterministic leaf-certificate validity inspection at an
+explicit caller-supplied Unix timestamp. The ordinary chain inspector remains
+clock-free. The new behavior CTest
+`transport.licensing-client-cal-certificate-validity` covers both inclusive
+boundaries, before/inside/after states, malformed and inverted windows, while
+requiring the existing RDP licensing-extension policy to remain unparsed and
+non-authorizing.
+
+The R9 flat CAL selector now fail-closed preflights the new registration in
+addition to the existing six cases. Canonical local build/CTest and benchmark
+execution are **NOT RUN** because this connector environment does not expose
+the mandated `~/rdp-server/` checkout. Hosted exact-SHA evidence is
+**PENDING**.
+
 ## R2 authenticated PAM invocation hosted validation (2026-10-17)
 
 Exact code SHA `92ddb689b0ca3200b2ef420f818c04cd630da147` completed GitHub Actions

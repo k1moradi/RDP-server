@@ -6795,6 +6795,19 @@ using LicensingExtensionPointer =
     return certificate;
 }
 
+void setLicensingFixtureCertificateValidity(
+    X509 *certificate,
+    const char *notBefore,
+    const char *notAfter)
+{
+    assert(certificate != nullptr);
+    assert(notBefore != nullptr && notAfter != nullptr);
+    assert(ASN1_TIME_set_string_X509(
+               X509_getm_notBefore(certificate), notBefore) == 1);
+    assert(ASN1_TIME_set_string_X509(
+               X509_getm_notAfter(certificate), notAfter) == 1);
+}
+
 [[nodiscard]] std::vector<std::uint8_t> licensingFixtureCertificateDer(
     X509 *certificate)
 {
@@ -7507,6 +7520,99 @@ void testRdpClientCalProductExtensionDenials()
     assert(arbitrary.error == RdpClientCalChainError::None);
     assert(arbitrary.facts.policyStatus ==
            RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
+}
+
+void testRdpClientCalCertificateValidity()
+{
+    constexpr std::int64_t beforeNotBefore = 1767225599LL;
+    constexpr std::int64_t exactNotBefore = 1767225600LL;
+    constexpr std::int64_t insideWindow = 1780315200LL;
+    constexpr std::int64_t exactNotAfter = 1798761599LL;
+    constexpr std::int64_t afterNotAfter = 1798761600LL;
+
+    ClientCalFixture fixture{false};
+    setLicensingFixtureCertificateValidity(
+        fixture.leafCertificate.get(),
+        "20260101000000Z", "20261231235959Z");
+    addRequiredClientCalFixtureExtensions(fixture.leafCertificate.get());
+    assert(X509_sign(
+               fixture.leafCertificate.get(), fixture.issuerKey.get(),
+               EVP_sha1()) > 0);
+    fixture.rebuild();
+
+    const auto withoutTime =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(withoutTime.error == RdpClientCalChainError::None);
+    assert(withoutTime.facts.leafCertificateValidity ==
+           RdpClientCalLeafCertificateValidityStatus::NotEvaluated);
+
+    const auto inspectAt =
+        [&fixture](std::int64_t verificationUnixSeconds)
+        {
+            const auto result = inspectRdpClientCalCertificateChainAtTime(
+                fixture.cal, fixture.rootDer, verificationUnixSeconds);
+            assert(result.error == RdpClientCalChainError::None);
+            assert(result.facts.signaturesVerified);
+            assert(result.facts.trustedIssuerMatched);
+            assert(result.facts.policyStatus ==
+                   RdpClientCalPolicyStatus::
+                       RequiredExtensionsPresentButUnparsed);
+            return result.facts.leafCertificateValidity;
+        };
+
+    assert(inspectAt(beforeNotBefore) ==
+           RdpClientCalLeafCertificateValidityStatus::NotYetValid);
+    assert(inspectAt(exactNotBefore) ==
+           RdpClientCalLeafCertificateValidityStatus::Valid);
+    assert(inspectAt(insideWindow) ==
+           RdpClientCalLeafCertificateValidityStatus::Valid);
+    assert(inspectAt(exactNotAfter) ==
+           RdpClientCalLeafCertificateValidityStatus::Valid);
+    assert(inspectAt(afterNotAfter) ==
+           RdpClientCalLeafCertificateValidityStatus::Expired);
+
+    ClientCalFixture invertedWindow{false};
+    setLicensingFixtureCertificateValidity(
+        invertedWindow.leafCertificate.get(),
+        "20270101000000Z", "20260101000000Z");
+    addRequiredClientCalFixtureExtensions(
+        invertedWindow.leafCertificate.get());
+    assert(X509_sign(
+               invertedWindow.leafCertificate.get(),
+               invertedWindow.issuerKey.get(), EVP_sha1()) > 0);
+    invertedWindow.rebuild();
+    const auto inverted = inspectRdpClientCalCertificateChainAtTime(
+        invertedWindow.cal, invertedWindow.rootDer, insideWindow);
+    assert(inverted.error == RdpClientCalChainError::None);
+    assert(inverted.facts.leafCertificateValidity ==
+           RdpClientCalLeafCertificateValidityStatus::MalformedWindow);
+
+    ClientCalFixture malformedWindow{false};
+    setLicensingFixtureCertificateValidity(
+        malformedWindow.leafCertificate.get(),
+        "20260101000000Z", "20261231235959Z");
+    constexpr std::string_view malformedNotAfter{"20261301000000Z"};
+    assert(ASN1_STRING_set(
+               X509_getm_notAfter(malformedWindow.leafCertificate.get()),
+               malformedNotAfter.data(),
+               static_cast<int>(malformedNotAfter.size())) == 1);
+    addRequiredClientCalFixtureExtensions(
+        malformedWindow.leafCertificate.get());
+    assert(X509_sign(
+               malformedWindow.leafCertificate.get(),
+               malformedWindow.issuerKey.get(), EVP_sha1()) > 0);
+    malformedWindow.rebuild();
+    const auto malformed = inspectRdpClientCalCertificateChainAtTime(
+        malformedWindow.cal, malformedWindow.rootDer, insideWindow);
+    assert(malformed.error == RdpClientCalChainError::None);
+    assert(malformed.facts.leafCertificateValidity ==
+           RdpClientCalLeafCertificateValidityStatus::MalformedWindow);
+
+    // X.509 validity is necessary evidence, not CAL expiration/classification
+    // policy. The proprietary licensing extensions remain deliberately
+    // unparsed and cannot authorize STATUS_VALID_CLIENT.
+    assert(inspectAt(insideWindow) ==
+           RdpClientCalLeafCertificateValidityStatus::Valid);
 }
 
 void testRdpClientCalExpiryHwidDenials()
@@ -8519,6 +8625,7 @@ constexpr std::array<McsTestCase, 121> kMcsTestCases{{
     {"licensing-client-cal-chain-structure", &testRdpClientCalChainStructure},
     {"licensing-client-cal-issuer-signature-denials", &testRdpClientCalIssuerSignatureDenials},
     {"licensing-client-cal-product-extension-denials", &testRdpClientCalProductExtensionDenials},
+    {"licensing-client-cal-certificate-validity", &testRdpClientCalCertificateValidity},
     {"licensing-client-cal-expiry-hwid-denials", &testRdpClientCalExpiryHwidDenials},
     {"licensing-client-cal-no-premature-completion", &testRdpClientCalNoPrematureCompletion},
     {"licensing-client-cal-terminal-retirement", &testRdpClientCalTerminalRetirement},

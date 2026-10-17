@@ -253,6 +253,16 @@ enum class RdpClientCalPolicyStatus : std::uint8_t
     RequiredExtensionsPresentButUnparsed,
 };
 
+enum class RdpClientCalLeafCertificateValidityStatus : std::uint8_t
+{
+    NotEvaluated,
+    UnsupportedVerificationTime,
+    MalformedWindow,
+    NotYetValid,
+    Valid,
+    Expired,
+};
+
 struct RdpClientCalChainFacts
 {
     std::size_t certificateCount{};
@@ -260,6 +270,8 @@ struct RdpClientCalChainFacts
     bool trustedIssuerMatched{};
     RdpClientCalPolicyStatus policyStatus{
         RdpClientCalPolicyStatus::NotEvaluated};
+    RdpClientCalLeafCertificateValidityStatus leafCertificateValidity{
+        RdpClientCalLeafCertificateValidityStatus::NotEvaluated};
 };
 
 struct RdpClientCalChainInspectionResult
@@ -278,6 +290,16 @@ struct RdpClientCalChainInspectionResult
 inspectRdpClientCalCertificateChain(
     std::span<const std::uint8_t> licenseInfo,
     std::span<const std::uint8_t> trustedRootDer) noexcept;
+
+// Evaluate the leaf certificate's RFC-defined validity interval at one
+// caller-supplied Unix timestamp. This is a necessary X.509 chain fact only:
+// it does not decode the RDP licensing extensions, classify CAL expiry, bind a
+// CAL to the protected-message HWID or authorize a licensing transition.
+[[nodiscard]] RdpClientCalChainInspectionResult
+inspectRdpClientCalCertificateChainAtTime(
+    std::span<const std::uint8_t> licenseInfo,
+    std::span<const std::uint8_t> trustedRootDer,
+    std::int64_t verificationUnixSeconds) noexcept;
 
 struct RdpLicensingKeyMaterial
 {

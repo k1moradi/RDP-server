@@ -20,9 +20,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <limits>
 #include <memory>
 #include <span>
+#include <utility>
 
 namespace rdp_server::server::transport
 {
@@ -857,6 +859,44 @@ constexpr std::array<const char *, 5> kRdpCalLicensingExtensionOids{
     return RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed;
 }
 
+[[nodiscard]] RdpClientCalLeafCertificateValidityStatus
+inspectCalLeafCertificateValidity(
+    X509 *leaf, std::int64_t verificationUnixSeconds) noexcept
+{
+    if (leaf == nullptr ||
+        !std::in_range<std::time_t>(verificationUnixSeconds))
+    {
+        return RdpClientCalLeafCertificateValidityStatus::
+            UnsupportedVerificationTime;
+    }
+
+    const auto verificationTime =
+        static_cast<std::time_t>(verificationUnixSeconds);
+    const ASN1_TIME *const notBefore = X509_get0_notBefore(leaf);
+    const ASN1_TIME *const notAfter = X509_get0_notAfter(leaf);
+    if (notBefore == nullptr || notAfter == nullptr)
+        return RdpClientCalLeafCertificateValidityStatus::MalformedWindow;
+
+    const int windowOrder = ASN1_TIME_compare(notBefore, notAfter);
+    const int notBeforeOrder =
+        ASN1_TIME_cmp_time_t(notBefore, verificationTime);
+    const int notAfterOrder =
+        ASN1_TIME_cmp_time_t(notAfter, verificationTime);
+    if (windowOrder == -2 || windowOrder > 0 ||
+        notBeforeOrder == -2 || notAfterOrder == -2)
+    {
+        return RdpClientCalLeafCertificateValidityStatus::MalformedWindow;
+    }
+
+    // RFC 3280 4.1.2.5 defines the validity interval as inclusive at both
+    // endpoints, so equality is valid at notBefore and notAfter.
+    if (notBeforeOrder > 0)
+        return RdpClientCalLeafCertificateValidityStatus::NotYetValid;
+    if (notAfterOrder < 0)
+        return RdpClientCalLeafCertificateValidityStatus::Expired;
+    return RdpClientCalLeafCertificateValidityStatus::Valid;
+}
+
 int rejectPrivateKeyPassword(char *, int, int, void *) noexcept
 {
     return 0;
@@ -1009,9 +1049,12 @@ struct X509ChainLeafResult
 }
 } // namespace
 
-RdpClientCalChainInspectionResult inspectRdpClientCalCertificateChain(
+[[nodiscard]] static RdpClientCalChainInspectionResult
+inspectRdpClientCalCertificateChainImpl(
     std::span<const std::uint8_t> licenseInfo,
-    std::span<const std::uint8_t> trustedRootDer) noexcept
+    std::span<const std::uint8_t> trustedRootDer,
+    bool evaluateLeafCertificateValidity,
+    std::int64_t verificationUnixSeconds) noexcept
 {
     RdpClientCalChainInspectionResult result{};
     if (licenseInfo.empty())
@@ -1243,9 +1286,32 @@ RdpClientCalChainInspectionResult inspectRdpClientCalCertificateChain(
     }
 
     result.facts.trustedIssuerMatched = true;
+    if (evaluateLeafCertificateValidity)
+    {
+        result.facts.leafCertificateValidity =
+            inspectCalLeafCertificateValidity(
+                leaf, verificationUnixSeconds);
+    }
     result.facts.policyStatus = inspectCalPolicyStatus(leaf);
     result.error = RdpClientCalChainError::None;
     return result;
+}
+
+RdpClientCalChainInspectionResult inspectRdpClientCalCertificateChain(
+    std::span<const std::uint8_t> licenseInfo,
+    std::span<const std::uint8_t> trustedRootDer) noexcept
+{
+    return inspectRdpClientCalCertificateChainImpl(
+        licenseInfo, trustedRootDer, false, 0);
+}
+
+RdpClientCalChainInspectionResult inspectRdpClientCalCertificateChainAtTime(
+    std::span<const std::uint8_t> licenseInfo,
+    std::span<const std::uint8_t> trustedRootDer,
+    std::int64_t verificationUnixSeconds) noexcept
+{
+    return inspectRdpClientCalCertificateChainImpl(
+        licenseInfo, trustedRootDer, true, verificationUnixSeconds);
 }
 
 void cleanseRdpLicensingKeyMaterial(

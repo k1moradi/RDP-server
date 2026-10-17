@@ -1,3 +1,28 @@
+## R3 CAL leaf-certificate validity fact (2026-10-17)
+
+R3 now exposes one explicit-time extension of the existing CAL chain inspector.
+After canonical PKCS#7 parsing, chain construction, RSA/SHA-1 signature
+verification and exact independent-root matching succeed, the caller may supply
+one Unix timestamp and receive the leaf X.509 certificate's validity status.
+The existing two-argument inspector does not read a clock and reports
+`NotEvaluated`.
+
+The check follows the X.509/RFC 3280 validity interval used by MS-RDPELE
+certificates. `notBefore` and `notAfter` are compared with OpenSSL's
+ASN.1 time primitives; equality at either endpoint is valid. Syntactically
+invalid or inverted windows report `MalformedWindow`, and a timestamp that
+cannot be represented by the platform `time_t` reports
+`UnsupportedVerificationTime`. No heap allocation, timer, retained time
+source or mutable certificate state is added.
+
+This is deliberately a **necessary certificate fact, not complete CAL
+expiration policy**. The five RDP licensing extension payloads remain opaque,
+product/version correlation and CAL-to-HWID binding remain unimplemented, and
+even a trusted chain with a currently valid leaf remains
+`RequiredExtensionsPresentButUnparsed`. It cannot emit
+`STATUS_VALID_CLIENT`, queue a license grant, enter Share activation or
+replace R2/R10 authority.
+
 ## R2 authenticated PAM invocation boundary (2026-10-17)
 
 R2 now connects the existing explicit-service Linux PAM verifier to the final

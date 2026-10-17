@@ -1,3 +1,43 @@
+## R3 deterministic CAL leaf-certificate validity boundary (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `2f4fd534bc070977582ed899c620cd79171edecf`.
+
+With the CAL signature/trust fixture validated green at
+`17fd924eb642a21b9f985800097d975fe551752b`, R3 advances only the next
+standards-defined prerequisite. MS-RDPELE certificates are X.509 v3 under
+RFC 3280, whose validity interval is inclusive from `notBefore` through
+`notAfter`. The existing inspector therefore gains an explicit-time variant
+that reports the leaf certificate as `NotYetValid`, `Valid`, `Expired`,
+`MalformedWindow` or `UnsupportedVerificationTime`.
+
+No wall clock is read implicitly. Tests inject fixed Unix timestamps and cover
+one second before `notBefore`, exact `notBefore`, an interior time, exact
+`notAfter`, one second after `notAfter`, an inverted window and a malformed
+ASN.1 time. The legacy two-argument API remains unchanged and reports
+`NotEvaluated`. A new production-backed CTest,
+`transport.licensing-client-cal-certificate-validity`, is centrally
+registered and explicitly required by the R9 CAL sanitizer preflight.
+
+This does **not** claim complete CAL license-expiration validation. MS-RDPELE
+also requires correct product information and client HWID matching before a
+client license can be valid, while the public specification does not define
+the proprietary payload layouts of the five leaf licensing extensions in a
+way this project can safely infer. `policyStatus` therefore remains
+`RequiredExtensionsPresentButUnparsed` even when the X.509 leaf is currently
+valid. No `STATUS_VALID_CLIENT`, Platform Challenge decision, Share activation
+or R2 admission behavior changes.
+
+Canonical owner-local `~/rdp-server/build/` execution and benchmark execution
+are **NOT RUN** in this connector environment. This path is connection-time
+certificate inspection, not a graphics/input hot loop; no benchmark claim is
+made. Exact publication-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC,
+ASan/UBSan, documentation, SDK and package evidence is **PENDING**.
+
+**Next R3:** validate this necessary certificate-time fact. Then keep
+product/version, CAL-specific expiration/classification and CAL-to-HWID policy
+fail-closed until an authoritative encoding is available; do not infer
+proprietary extension payloads from synthetic examples.
+
 ## R2 authenticated PAM invocation hosted validation (2026-10-17)
 
 Exact code SHA `92ddb689b0ca3200b2ef420f818c04cd630da147` completed GitHub Actions

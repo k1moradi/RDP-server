@@ -1,3 +1,18 @@
+## R9 Graphics DVC workflow authoring correction (2026-10-17)
+
+Initial R9 publication `7ad942ce0af65f0cb578f877618030c5d0c4ea7a`
+failed before primary jobs could schedule (Actions `39050056168`). The defect
+was CI text generation only: replacement-string `$'` expansion truncated the
+new shell regex and duplicated the workflow tail. No production source, CTest
+registration or test assertion changed.
+
+This corrective descendant reconstructs the workflow from clean R3 parent
+`08cb727bcac844bb84ff7f18994304f14298a033` and inserts exactly one intended
+four-case Graphics-DVC sanitizer block. It requires one workflow job graph, the
+**4**-case cardinality and all four behavior-name sentinels. Concurrent
+R2/R10/R5/R7 work in the ancestry is preserved. Exact corrective-SHA CI is
+**PENDING**.
+
 ## R9 Graphics DVC sanitizer reconciliation (2026-10-17)
 
 **Audited R3 SHA:** `08cb727bcac844bb84ff7f18994304f14298a033`

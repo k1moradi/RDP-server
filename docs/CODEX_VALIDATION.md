@@ -1,3 +1,68 @@
+## R6 whole-owner Windows session revocation hosted validation (2026-10-17)
+
+**Implementation:** `3a98aa4e26316346b494e82d84bb909fc3d39904`.  
+**Exact implementation-SHA Actions:** [39009347305](https://github.com/k1moradi/RDP-server/actions/runs/39009347305) — **FAIL before job creation**.  
+**Validated descendant:** `17fd924eb642a21b9f985800097d975fe551752b`.  
+**Descendant Actions:** [39009556082](https://github.com/k1moradi/RDP-server/actions/runs/39009556082) — **SUCCESS**.
+
+The exact implementation-SHA workflow did not compile or execute R6: inherited
+R9 workflow YAML from `7751e079a56e15034845ab61e4ad5e527204efc6`
+contained an unterminated CredSSP fuzzer selector, so Actions created zero
+jobs. R9 repaired that shared workflow independently. On the first runnable
+descendant, all four new R6 whole-owner cases passed, while full platform
+Debug suites stopped only on the unrelated R3 CAL mutation fixture. R3 then
+reparsed the mutated signed leaf in `17fd924eb642a21b9f985800097d975fe551752b`,
+which produced the fully green hosted matrix below.
+
+Windows/MSVC native preflight is **55/55 PASS in Debug** and **55/55 PASS in
+Release**. It includes
+`windows.capture-session-change-duplication-owner-retirement`,
+`windows.capture-session-change-duplication-release-order`,
+`windows.capture-session-change-duplication-callback-retirement`, and
+`windows.capture-session-change-duplication-prior-revocation`; all four pass
+in both configurations. Full Windows CTest is **516/516 PASS in Debug** and
+**516/516 PASS in Release**.
+
+Hosted Linux/GCC full CTest is **564/564 PASS** in both Debug and Release.
+Hosted macOS/AppleClang full CTest is **482/482 PASS** in both Debug and
+Release. Each platform's installed SDK downstream consumer is **1/1 PASS**,
+and package/archive plus digest generation gates pass.
+
+The R7 GCC sanitizer job passes. The R9 Clang ASan/UBSan job also passes all
+of its registered selections, including clipboard **68/68**, portable RDPGFX
+wire/lifecycle **39/39**, x264/BGRA **22/22**, RDPGFX capabilities **4/4**,
+bounded R1/R3 transport/security **91/91**, focused CAL **6/6**, runtime
+licensing authority **6/6**, bounded native R2/R3 GSSAPI **30/30**, Linux PAM
+**1/1**, direct runtime security **10/10**, native X11 **33/33**, and both
+bounded fuzzers **1/1**. This Linux sanitizer evidence does **not** instrument
+the Windows-only R6 owner/callback path and is not claimed as Windows memory
+safety evidence.
+
+The verified whole-owner contract is guard revocation -> input retirement ->
+capture-cycle cancellation -> staging unmap -> DXGI `ReleaseFrame` -> child
+destruction/native staging-context retirement -> duplication -> output1 ->
+D3D11 context -> device -> output -> adapter -> factory. A callback-time
+terminal event makes guard/input/parent logically unusable immediately, but
+keeps the active child object and parent native references alive until the
+serialized `completeDeferredClose()` safe point after the outer capture call
+returns. Repeated notification, close and safe-point drain are idempotent;
+the terminal owner cannot reopen.
+
+The injected whole-owner fixture independently verifies child unmap/frame
+release and parent reference ordering/exact-once release without dereferencing
+fake COM pointers through SDK methods. The production native staging-context
+reset remains structurally ordered between child destruction and duplication
+release; the synthetic fixture does not claim an independent real-D3D11
+destructor oracle.
+
+Canonical owner-local `~/rdp-server/build/` execution remains **NOT RUN** in
+this agent environment because the required checkout was absent and shell
+networking could not resolve GitHub. Owner Windows MSYS2 CLANG64/Clang 23
+validation and any approved direct Windows sanitizer run remain **NOT RUN /
+OPEN**. Real R2/R3 authorization, R10 serialized native notification delivery,
+an actually authorized Windows desktop and Microsoft-client acceptance also
+remain prerequisites. **M1 and M4 remain OPEN.**
+
 ## R2 synchronous visitor validity correction (2026-10-17)
 
 The first hosted execution of the new portable visitor at

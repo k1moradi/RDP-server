@@ -24,9 +24,12 @@ public:
 
     GfxAvc420SegmentedFrame(const GfxAvc420SegmentedFrame &) = delete;
     GfxAvc420SegmentedFrame &operator=(const GfxAvc420SegmentedFrame &) = delete;
+    // A live frame carries a private lifecycle receipt. It can be transferred
+    // into a fresh owner, but never overwritten because this object does not
+    // own the lifecycle needed to retire an existing receipt.
     GfxAvc420SegmentedFrame(GfxAvc420SegmentedFrame && other) noexcept;
     GfxAvc420SegmentedFrame &
-    operator=(GfxAvc420SegmentedFrame && other) noexcept;
+    operator=(GfxAvc420SegmentedFrame &&) = delete;
 
     [[nodiscard]] std::span<const std::byte> wireBytes() const noexcept
     {
@@ -75,8 +78,9 @@ private:
 
 // Serialize through the existing mapped-surface lifecycle, then wrap the
 // complete START_FRAME..END_FRAME graphics bytes in RDP8 segmented data.
-// On ordinary rejection, output remains unchanged and no frame is reserved.
-// Any impossible post-reservation framing inconsistency is terminally aborted.
+// Output must not already own a frame. On ordinary rejection, output remains
+// unchanged and no frame is reserved. Any impossible post-reservation framing
+// inconsistency is terminally aborted.
 [[nodiscard]] bool prepareGfxAvc420SegmentedFrame(
     GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
     const GfxAvc420Picture &picture,

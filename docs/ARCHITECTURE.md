@@ -1,3 +1,13 @@
+## R4 segmented-frame owner is single-assignment (2026-10-17)
+
+`GfxAvc420SegmentedFrame` may be move-constructed into the future R3
+publication owner, but it is deliberately not move-assignable. A valid frame
+contains the private R4 delivery receipt while its lifecycle owns the
+reservation; overwriting it would orphan that receipt. R4 prepare paths require
+an invalid destination and reject an occupied output before conversion or x264
+encoding. Explicit complete/cancel/abort remains the lifecycle retirement
+authority; cancellation invalidates the frame and makes the slot reusable.
+
 ## R3 CAL intermediate issuer-signing constraints (2026-10-17)
 
 The existing-client CAL inspector now distinguishes cryptographic signature

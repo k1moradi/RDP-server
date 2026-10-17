@@ -17,25 +17,17 @@ GfxAvc420SegmentedFrame::GfxAvc420SegmentedFrame(
     other.invalidate();
 }
 
-GfxAvc420SegmentedFrame &
-GfxAvc420SegmentedFrame::operator=(
-    GfxAvc420SegmentedFrame && other) noexcept
-{
-    if (this != &other)
-    {
-        wireBytes_ = std::move(other.wireBytes_);
-        receipt_ = other.receipt_;
-        graphicsBytes_ = other.graphicsBytes_;
-        other.invalidate();
-    }
-    return *this;
-}
-
 bool prepareGfxAvc420SegmentedFrame(
     GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
     const GfxAvc420Picture &picture,
     GfxAvc420SegmentedFrame &output) noexcept
 {
+    // Never overwrite a live receipt. The frame intentionally has no pointer
+    // back to its lifecycle, so only explicit complete/cancel/abort may retire
+    // an existing owner before the same output slot is reused.
+    if (output.valid())
+        return false;
+
     const std::size_t graphicsBytes =
         gfxAvc420PictureBytes(picture.regions.size(),
                               picture.annexBPicture.size());
@@ -67,11 +59,9 @@ bool prepareGfxAvc420SegmentedFrame(
             return false;
         }
 
-        GfxAvc420SegmentedFrame candidate;
-        candidate.wireBytes_ = std::move(wireBytes);
-        candidate.receipt_ = receipt;
-        candidate.graphicsBytes_ = graphicsBytes;
-        output = std::move(candidate);
+        output.wireBytes_ = std::move(wireBytes);
+        output.receipt_ = receipt;
+        output.graphicsBytes_ = graphicsBytes;
         return true;
     }
     catch (...)

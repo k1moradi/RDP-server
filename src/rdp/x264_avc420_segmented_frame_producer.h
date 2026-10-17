@@ -72,14 +72,16 @@ public:
     // backpressure/authorization-state denials are checked before x264 runs.
     // If x264 ran but publication could not be reserved, codec reference
     // history is rebuilt immediately so no later P-frame can depend on an
-    // unsent picture. Output changes only on success.
+    // unsent picture. Output must be invalid on entry and changes only on
+    // success; live frame owners are never overwritten.
     [[nodiscard]] bool prepare(
         GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
         const X264Avc420FrameRequest &request,
         GfxAvc420SegmentedFrame &output) noexcept;
 
     // Consume a complete synchronously borrowed BGRA/XRGB desktop frame.
-    // Reject envelope/lifecycle denials before converting. The R4-owned NV12
+    // Reject occupied-output/envelope/lifecycle denials before converting.
+    // The R4-owned NV12
     // scratch is borrowed only by this producer's synchronous prepare().
     [[nodiscard]] bool prepareBgra(
         GfxPresentationLifecycle &lifecycle, std::uint64_t generation,

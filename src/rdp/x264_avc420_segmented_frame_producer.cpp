@@ -85,8 +85,9 @@ bool X264Avc420SegmentedFrameProducer::prepare(
     // Reject every deterministic lifecycle, frame-ID ACK collision and
     // AVC420 envelope mismatch before x264 advances reference state.
     // The encoded Annex-B payload is intentionally excluded from metadata
-    // validation.
-    if (!valid() || generation != generation_ ||
+    // validation. An occupied output is also deterministic: overwriting it
+    // would discard a live delivery receipt that this producer cannot retire.
+    if (output.valid() || !valid() || generation != generation_ ||
         request.surfaceId != lifecycle.surfaceId() ||
         request.picture.codedGeometry != codedGeometry_ ||
         !gfxAvc420PictureMetadataValid(metadata) ||
@@ -119,9 +120,8 @@ bool X264Avc420SegmentedFrameProducer::prepare(
         visibleGeometry_,
     };
 
-    GfxAvc420SegmentedFrame candidate;
     if (!prepareGfxAvc420SegmentedFrame(
-            lifecycle, generation, picture, candidate))
+            lifecycle, generation, picture, output))
     {
         // x264 already accepted this picture. If R4 cannot reserve the exact
         // corresponding outbound frame, discard the reference history rather
@@ -131,7 +131,6 @@ bool X264Avc420SegmentedFrameProducer::prepare(
         return false;
     }
 
-    output = std::move(candidate);
     return true;
 }
 
@@ -152,8 +151,9 @@ bool X264Avc420SegmentedFrameProducer::prepareBgra(
 
     // All deterministic pre-encode denial gates, including duplicate
     // ACK-pending frame IDs, precede BGRA conversion. Rejected requests
-    // never waste conversion or alter x264's reference chain.
-    if (!valid() || generation != generation_ ||
+    // never waste conversion or alter x264's reference chain. Occupied output
+    // is denied here as well, before touching conversion scratch.
+    if (output.valid() || !valid() || generation != generation_ ||
         request.surfaceId != lifecycle.surfaceId() ||
         !gfxAvc420PictureMetadataValid(metadata) ||
         !lifecycle.canReserveFrame(generation, request.frameId))

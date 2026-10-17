@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <span>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -287,6 +288,44 @@ void unsentCancellation()
         rightLifecycle, rightFrame));
 }
 
+void ownedOutputReuseDenials()
+{
+    static_assert(std::is_move_constructible_v<GfxAvc420SegmentedFrame>);
+    static_assert(!std::is_move_assignable_v<GfxAvc420SegmentedFrame>);
+
+    constexpr std::uint64_t firstGeneration = 3009;
+    constexpr std::uint64_t secondGeneration = 3010;
+    GfxPresentationLifecycle firstLifecycle;
+    GfxPresentationLifecycle secondLifecycle;
+    mapSurface(firstLifecycle, firstGeneration);
+    mapSurface(secondLifecycle, secondGeneration);
+
+    GfxAvc420SegmentedFrame output;
+    assert(prepareGfxAvc420SegmentedFrame(
+        firstLifecycle, firstGeneration, picture(90U), output));
+    const std::vector<std::byte> originalBytes(
+        output.wireBytes().begin(), output.wireBytes().end());
+
+    assert(!prepareGfxAvc420SegmentedFrame(
+        secondLifecycle, secondGeneration, picture(91U), output));
+    assert(output.valid());
+    assert(output.generation() == firstGeneration);
+    assert(output.frameId() == 90U);
+    assert(std::equal(output.wireBytes().begin(), output.wireBytes().end(),
+                      originalBytes.begin(), originalBytes.end()));
+    assert(secondLifecycle.canReserveFrame(secondGeneration, 91U));
+
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        firstLifecycle, output));
+    assert(!output.valid());
+    assert(prepareGfxAvc420SegmentedFrame(
+        secondLifecycle, secondGeneration, picture(91U), output));
+    assert(output.generation() == secondGeneration);
+    assert(output.frameId() == 91U);
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        secondLifecycle, output));
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -317,6 +356,11 @@ int main(int argc, char **argv)
     if (behavior == "avc420-segmented-frame-unsent-cancellation")
     {
         unsentCancellation();
+        return 0;
+    }
+    if (behavior == "avc420-segmented-frame-owned-output-reuse-denials")
+    {
+        ownedOutputReuseDenials();
         return 0;
     }
     return 2;

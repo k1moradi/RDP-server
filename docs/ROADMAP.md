@@ -1,3 +1,37 @@
+## R4 P2 segmented-frame overwrite hardening (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `4a116fb2501b7cbd5c9314d37337508fd7ed3824`.
+
+A road-local ownership audit found that `GfxAvc420SegmentedFrame` carried a
+private live delivery receipt but was publicly move-assignable, so a successful
+prepare into a caller-supplied valid output from another lifecycle could discard
+the only visible receipt while leaving the original lifecycle reserved.
+
+R4 now keeps move construction for the future one-owner R3 handoff but deletes
+move assignment. Direct/NV12/BGRA prepare paths reject an occupied output before
+lifecycle mutation, conversion or x264 encoding. The segmented builder publishes
+directly into the validated empty destination, with no second frame owner or
+extra payload copy.
+
+New production-backed ordinary CTests are
+`graphics.avc420-segmented-frame-owned-output-reuse-denials` and
+`graphics.x264-segmented-owned-output-reuse-preflight`. They prove
+cross-lifecycle byte/receipt preservation, no target reservation, reuse only
+after explicit retirement, and no hidden x264 reference-history advancement.
+R9 expands to **40** portable R4 cases and **23** x264/BGRA cases with both
+names fail-closed in registry preflight and workflow-structure sentinels.
+
+Canonical owner-local `~/rdp-server/build/` is **NOT RUN** in this connector
+environment; exact publication-SHA hosted Linux/GCC, macOS/AppleClang,
+Windows/MSVC, Windows CLANG64, R9 ASan/UBSan and documentation evidence are
+**PENDING**. No benchmark threshold is introduced for this correctness-only
+ownership fix.
+
+The next R4/R3 integration gate remains the authorized R3 DRDYNVC/Graphics DVC
+sender with cumulative accepted-byte receipts. This change enables no graphics
+publication and alters no cancellation transport rule. M3/M4/M5 remain
+**OPEN / NOT ACCEPTED**.
+
 ## R10 Windows explicit broad-ACE normalization (2026-10-17)
 
 Corrected helper SHA `75375ccfeb7523d58d40024f783ebfe84f4db50b`,

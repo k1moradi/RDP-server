@@ -1,3 +1,22 @@
+## R4 segmented-frame overwrite hardening authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `4a116fb2501b7cbd5c9314d37337508fd7ed3824`. Exact publication-SHA hosted
+validation is **PENDING**.
+
+Live `GfxAvc420SegmentedFrame` objects are no longer move-assignable, and
+direct/x264/BGRA prepare paths fail closed on occupied output before lifecycle
+or codec mutation. New ordinary CTests are
+`graphics.avc420-segmented-frame-owned-output-reuse-denials` and
+`graphics.x264-segmented-owned-output-reuse-preflight`; R9 preflights now
+cover **40** portable R4 cases and **23** x264/BGRA cases.
+
+Pre-change shared-main `75375ccfeb7523d58d40024f783ebfe84f4db50b`
+executed all existing R4 graphics cases successfully on Linux and macOS; those
+full jobs failed only at the unrelated R1 native-loopback TLS readiness
+assertion. That is baseline evidence, not validation of this new behavior.
+Canonical local testing and exact publication-SHA hosted validation remain
+**NOT RUN / PENDING**.
+
 ## R10 hosted Windows explicit-ACE evidence (2026-10-17)
 
 At `75375ccfeb7523d58d40024f783ebfe84f4db50b`, the hosted MSYS2 CLANG64

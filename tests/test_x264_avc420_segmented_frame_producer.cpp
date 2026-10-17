@@ -210,6 +210,90 @@ void backpressureDoesNotAdvanceEncoder()
     assert(!hasNalType(second.wireBytes(), 5));
 }
 
+void ownedOutputReusePreflightPreservesReferences()
+{
+    constexpr std::uint64_t subjectGeneration = 6101;
+    constexpr std::uint64_t controlGeneration = 6102;
+    constexpr std::uint64_t foreignGeneration = 6103;
+
+    GfxPresentationLifecycle subjectLifecycle;
+    GfxPresentationLifecycle controlLifecycle;
+    GfxPresentationLifecycle foreignLifecycle;
+    mapSurface(subjectLifecycle, subjectGeneration, kVisible);
+    mapSurface(controlLifecycle, controlGeneration, kVisible);
+    mapSurface(foreignLifecycle, foreignGeneration, kVisible);
+
+    X264Avc420SegmentedFrameProducer subject;
+    X264Avc420SegmentedFrameProducer control;
+    X264Avc420SegmentedFrameProducer foreign;
+    assert(subject.open(subjectGeneration, kCoded, kVisible));
+    assert(control.open(controlGeneration, kCoded, kVisible));
+    assert(foreign.open(foreignGeneration, kCoded, kVisible));
+
+    const auto firstPixels = makeFrame(kCoded, 5);
+    const auto deniedPixels = makeFrame(kCoded, 97);
+    const auto nextPixels = makeFrame(kCoded, 19);
+
+    auto establishReference = [&](GfxPresentationLifecycle &lifecycle,
+                                  X264Avc420SegmentedFrameProducer &producer,
+                                  std::uint64_t generation)
+    {
+        GfxAvc420SegmentedFrame frame;
+        assert(producer.prepare(
+            lifecycle, generation, request(40U, firstPixels, 0), frame));
+        assert(hasNalType(frame.wireBytes(), 5));
+        assert(producer.completeDelivery(
+            lifecycle, frame, frame.wireBytes().size()));
+        GfxFrameAckWindowResult result{};
+        assert(lifecycle.onFrameAcknowledge(
+            generation, acknowledge(40U), result));
+        assert(result == GfxFrameAckWindowResult::Acknowledged);
+    };
+    establishReference(subjectLifecycle, subject, subjectGeneration);
+    establishReference(controlLifecycle, control, controlGeneration);
+
+    GfxAvc420SegmentedFrame occupiedOutput;
+    assert(foreign.prepare(
+        foreignLifecycle, foreignGeneration,
+        request(90U, deniedPixels, 0), occupiedOutput));
+    const std::vector<std::byte> foreignBytes(
+        occupiedOutput.wireBytes().begin(), occupiedOutput.wireBytes().end());
+
+    assert(!subject.prepare(
+        subjectLifecycle, subjectGeneration,
+        request(41U, deniedPixels, 1), occupiedOutput));
+    assert(occupiedOutput.generation() == foreignGeneration);
+    assert(occupiedOutput.frameId() == 90U);
+    assert(std::vector<std::byte>(occupiedOutput.wireBytes().begin(),
+                                  occupiedOutput.wireBytes().end()) ==
+           foreignBytes);
+    assert(subjectLifecycle.canReserveFrame(subjectGeneration, 41U));
+
+    GfxAvc420SegmentedFrame subjectNext;
+    GfxAvc420SegmentedFrame controlNext;
+    assert(subject.prepare(
+        subjectLifecycle, subjectGeneration,
+        request(41U, nextPixels, 1), subjectNext));
+    assert(control.prepare(
+        controlLifecycle, controlGeneration,
+        request(41U, nextPixels, 1), controlNext));
+    assert(hasNalType(subjectNext.wireBytes(), 1));
+    assert(!hasNalType(subjectNext.wireBytes(), 5));
+
+    const std::vector<std::byte> subjectBytes(
+        subjectNext.wireBytes().begin(), subjectNext.wireBytes().end());
+    const std::vector<std::byte> controlBytes(
+        controlNext.wireBytes().begin(), controlNext.wireBytes().end());
+    assert(subjectBytes == controlBytes);
+
+    assert(subject.completeDelivery(
+        subjectLifecycle, subjectNext, subjectNext.wireBytes().size()));
+    assert(control.completeDelivery(
+        controlLifecycle, controlNext, controlNext.wireBytes().size()));
+    assert(foreign.cancelUnwrittenDelivery(
+        foreignLifecycle, occupiedOutput));
+}
+
 void metadataPreflightPreservesReferences()
 {
     GfxPresentationLifecycle lifecycle;
@@ -1093,6 +1177,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-metadata-preflight")
     {
         metadataPreflightPreservesReferences();
+        return 0;
+    }
+    if (behavior == "x264-segmented-owned-output-reuse-preflight")
+    {
+        ownedOutputReusePreflightPreservesReferences();
         return 0;
     }
     if (behavior == "x264-segmented-malformed-nv12-reference-continuity")

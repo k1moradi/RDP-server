@@ -1,3 +1,12 @@
+## Receipt-bearing move-only owners are not overwriteable (R4, 2026-10-17)
+
+When a move-only object carries an unresolved receipt owned by another state
+machine and does not itself own the authority needed to retire that receipt,
+do not provide move assignment. Permit move construction into a fresh owner,
+and require explicit completion/cancellation/abort before a caller reuses an
+output slot. A failed prepare into an occupied slot must leave both the existing
+owner and the target state machine unchanged.
+
 ## Completed multi-file presentation is metadata, not a transfer scheduler
 
 Group only independently completed native file destinations. Do not add a

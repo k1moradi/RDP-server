@@ -3143,3 +3143,37 @@ suspends ACK expectation and clears outstanding-frame waiting. Malformed or
 stale-generation ACKs must not mutate these observations. Test the
 lifecycle-facing observation boundary as well as the parser so later
 scheduling code cannot reinterpret zero as an empty queue or bytes as frames.
+
+## R2 native session monitor borrowing (2026-10-17)
+
+The Linux-only, noninstalled `LinuxRuntimeConnection::nativeChangeFd()` and
+`nativeChangeEvents()` expose the **current** broker-owned logind monitor
+fd and libsystemd event mask, not an fd duplicate, monitor owner or admission
+proof. Both return `-1` before genuine R2 admission, without a live lease,
+after revocation and after teardown. Calls and readiness dispatch are confined
+to the aggregate's one event-loop thread. The composition loop MUST remove
+its monitor registration **before** revoking/destroying the aggregate and
+before dispatching any callback capable of revocation, discard pending events,
+and must never close the borrowed fd. A reconnected aggregate requires a fresh
+registration; fd numbers can be reused. `onNativeSessionChangeReady()` stays
+the sole dispatch; post-revocation callbacks are terminal.
+
+The ordinary production-backed Linux-only
+`runtime.linux-connection-native-monitor-borrow-denials` CTest exercises
+unconfigured/pre-admission `-1`, premature wakeup, revoked lease absence,
+repeated close and late callback. It does NOT fabricate an active lease.
+Positive FD/mask acceptance is **NOT RUN** and requires explicit owner
+permission on a real Kerberos/PAM/NSS/logind physical X11 `seat0` host:
+provision a restricted real `TERMSRV/hostname@REALM` keytab and real client
+Kerberos ticket through protected administrator/user input, configure the
+service-approved PAM policy and UID/session/display identity, then drive the
+existing R1 HYBRID TLS → real GSS/CredSSP final protected password → PAM →
+NSS/logind broker to genuine admission. Verify that both accessor values are
+nonnegative and the fd is pollable with the returned mask; unregister before
+dispatching a native logind change; log out or replace that actual `seat0`
+session and verify terminal R3/R2/R1 revocation, `-1` on both accessors and
+no restoration by stale readiness. A fresh real login must use a new owner.
+Never write the password into CMake cache, command-line arguments,
+environment variables or logs. Obtain human authorization before live desktop
+or service interaction. A positive test must be explicitly opt-in and must not
+be simulated in CI.

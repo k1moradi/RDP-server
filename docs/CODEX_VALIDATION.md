@@ -3301,3 +3301,13 @@ Canonical local testing is **NOT RUN** because the synchronized
 persistent checkout/build root. Real authenticated Graphics DVC admission,
 native capture-to-wire timing and Microsoft-client visible frames remain
 **NOT RUN**.
+
+## R2 aggregate borrowed logind monitor API (2026-10-17)
+
+Code, dedicated Linux-provider CTest and roadmap updated together. Local
+`~/rdp-server/build/` configure/build/CTest: **NOT RUN** (GitHub connector
+available, but this execution container cannot resolve github.com to obtain
+the repository checkout). Hosted Actions for the publication SHA: pending
+verification. Real Kerberos/PAM/NSS/logind physical X11 `seat0` positive
+session/logout replacement: **NOT RUN / owner authorization and provider
+infrastructure required**. No synthetic lease or positive monitor fd claimed.

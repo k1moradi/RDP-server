@@ -1178,6 +1178,53 @@ void testConnectionFinalCredentialNativeAdmissionDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionNativeMonitorBorrowDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    LinuxRuntimeSecurityConfiguration unconfigured;
+    int rejectedClientDescriptor = -1;
+    auto rejectedSocket = acceptLoopbackConnection(rejectedClientDescriptor);
+    LinuxRuntimeConnection rejected{unconfigured, std::move(rejectedSocket)};
+    assert(rejected.nativeChangeFd() == -1);
+    assert(rejected.nativeChangeEvents() == -1);
+    assert(!rejected.onNativeSessionChangeReady());
+    rejected.revoke();
+    assert(rejected.nativeChangeFd() == -1);
+    assert(rejected.nativeChangeEvents() == -1);
+    assert(::close(rejectedClientDescriptor) == 0);
+
+    const auto keytab = fixtureDirectory / "runtime-native-borrow-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    int clientDescriptor = -1;
+    auto acceptedSocket = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(acceptedSocket)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.nativeChangeFd() == -1);
+    assert(connection.nativeChangeEvents() == -1);
+
+    // Premature readiness cannot promote a policy-shaped connection into
+    // logind admission; it terminates the R3/R2/R1 owner instead.
+    assert(!connection.onNativeSessionChangeReady());
+    assert(!connection.ready());
+    assert(connection.nativeChangeFd() == -1);
+    assert(connection.nativeChangeEvents() == -1);
+    assert(connection.admissionState() == LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    connection.revoke();
+    connection.revoke();
+    assert(connection.nativeChangeFd() == -1);
+    assert(connection.nativeChangeEvents() == -1);
+    assert(!connection.onNativeSessionChangeReady());
+    assert(connection.nativeChangeFd() == -1);
+    assert(connection.nativeChangeEvents() == -1);
+    assert(!connection.hasAdmissionLease());
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionAggregatePrematureAdmissionDenial(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1389,6 +1436,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-aggregate-ordered-revocation")
     {
         testConnectionAggregateOrderedRevocation(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-native-monitor-borrow-denials")
+    {
+        testConnectionNativeMonitorBorrowDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-aggregate-premature-admission-denial")

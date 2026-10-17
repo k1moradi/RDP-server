@@ -133,6 +133,17 @@ public:
     authorizeMcsConnectInitial(
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Borrow the R2-owned logind monitor fd and libsystemd poll mask only
+    // after genuine admission with a live lease. Both are -1 otherwise.
+    // Neither value owns/duplicates a descriptor or grants authorization.
+    // Confined to the aggregate's event-loop thread: unregister the fd from
+    // epoll/poll before revoke(), connection destruction or any callback that
+    // can revoke the lease. Never close the borrowed fd. No registration may
+    // outlive the owner or be reused on reconnect; discard queued events and
+    // check the current borrow before dispatching readiness.
+    [[nodiscard]] int nativeChangeFd() const noexcept;
+    [[nodiscard]] int nativeChangeEvents() const noexcept;
+
     // Dispatch the concrete logind revocation source owned by R2. False means
     // either a spurious readiness notification or terminal revocation.
     [[nodiscard]] bool onNativeSessionChangeReady() noexcept;

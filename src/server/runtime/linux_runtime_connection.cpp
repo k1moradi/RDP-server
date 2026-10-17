@@ -391,6 +391,24 @@ LinuxRuntimeConnection::authorizeMcsConnectInitial(
     return result;
 }
 
+int LinuxRuntimeConnection::nativeChangeFd() const noexcept
+{
+    return ready() && hasAdmissionLease() && broker_ &&
+                   broker_->state() ==
+                       rdp_server::server::security::LinuxConsoleAdmissionState::Active
+               ? broker_->nativeChangeFd()
+               : -1;
+}
+
+int LinuxRuntimeConnection::nativeChangeEvents() const noexcept
+{
+    return ready() && hasAdmissionLease() && broker_ &&
+                   broker_->state() ==
+                       rdp_server::server::security::LinuxConsoleAdmissionState::Active
+               ? broker_->nativeChangeEvents()
+               : -1;
+}
+
 bool LinuxRuntimeConnection::onNativeSessionChangeReady() noexcept
 {
     if (!ready() || !broker_ || !lease_ || lease_->isRevoked())

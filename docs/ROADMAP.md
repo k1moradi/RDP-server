@@ -1,3 +1,53 @@
+## R5 XI2 stale-motion generation fence exact-SHA hosted validation (2026-10-16)
+
+**Implementation:** `366303f35156cdd00c125dfa976d72bc23016bb3`.  
+**Optional-build guard correction / validated SHA:** `2cdb16e42e1b642fcfb02c0a34f581b53e202598`.  
+**Actions:** `39004283125` — workflow overall **FAIL** only because the
+separate bounded R1/R3 MCS/CredSSP/licensing sanitizer selector is rejected by
+CTest with `RegularExpression::compile(): Too many parentheses`. The later R5
+native-X11 sanitizer step executes independently and is fully green.
+
+Exact validated evidence:
+- **Linux/GCC:** **525/525 PASS** in Debug and **525/525 PASS** in Release.
+  `x11.desktop-resource-pointer-randr-stale-motion-isolation` is test #471
+  and passes in **0.04 s** in both configurations. Installed SDK consumer
+  **1/1 PASS**, package generation, digest and artifact upload pass.
+- **macOS/AppleClang:** **445/445 PASS** in Debug and **445/445 PASS** in
+  Release. Installed SDK consumer **1/1 PASS**, package/digest/upload pass.
+  Native X11 execution is intentionally absent on this host.
+- **Windows/MSVC:** focused native preflight **51/51 PASS** in Debug and
+  **51/51 PASS** in Release; full CTest **475/475 PASS** in Debug and
+  **475/475 PASS** in Release. Installed SDK consumer **1/1 PASS** and
+  package/digest/upload pass. Native X11 execution is intentionally absent.
+- **R9 Clang ASan/UBSan native X11:** the fail-closed selector discovers
+  exactly **33** R5 behaviors and completes **33/33 PASS**. The new stale-motion
+  case is selected as **32/33** (central test #471) and passes in **0.04 s**.
+  No ASan/UBSan finding is reported in the R5 selection.
+- **Documentation policy:** PASS. The independent R7 sanitizer job also passes.
+  Untagged prerelease publication is skipped as intended.
+
+The validated native sequence is one-XCB-owner only. A helper completes a real
+Xvfb RandR resize from **1280x720 to 1024x600** and then warps the root pointer
+before the production aggregate consumes the queued transition. R5 rebuilds its
+geometry-bound children on the same XCB connection, consumes only the new
+tracker's synchronous `QueryPointer` snapshot, rejects the queued pre-generation
+XI2 motion using the `XISelectEvents` request-sequence floor, then accepts a
+fresh post-rebuild motion normally.
+
+The optional-build correction is also part of the validated SHA: the new
+aggregate behavior is compiled only when `RDP_TEST_XINPUT_POINTER` is present,
+matching its registration and preserving supported Linux builds where optional
+`xcb-xinput` development support is unavailable.
+
+Canonical owner-local `~/rdp-server/build/` testing remains **NOT RUN** in
+this connector environment; no alternate persistent build root was created.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 M1 evidence,
+genuine R2/R3-admitted XTEST operation and Microsoft-client M3 acceptance remain
+**NOT RUN / OPEN**. Current source still exposes no R3 authenticated,
+already-decoded bounded Share/Input or Fast-Path Input handoff, so functional
+R5 input translation remains **BLOCKED ON R3**; R5 does not add a competing
+RDP parser, authorization token, session owner or scheduler.
+
 ## R9 CredSSP adversarial-corpus oracle refinement (2026-10-16; exact-SHA CI pending)
 
 The three production-backed credential tests now carry explicit bounded corpus

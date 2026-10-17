@@ -1,3 +1,55 @@
+## R8 P2 remote hierarchy provenance exact hosted validation (2026-10-17)
+
+**Implementation:** `3315a44cba849d0d48ddb1709458557f86591e70`.  
+**Implementation Actions:** `39022472249` — overall **FAIL outside R8**.  
+**Validated unchanged-R8 descendant:** `162093d3f50f0c9793b1eafc2cba637c98473559`.  
+**Validation Actions:** `39023110195` — **SUCCESS**; independent structure guard
+`39023110193` — **SUCCESS**.
+
+The implementation SHA's R8 hierarchy behavior is executable-green. Linux/GCC
+passes the three new hierarchy cases in full **587/587 Debug + 587/587
+Release**. macOS/AppleClang passes them in **498/498 Debug + Release**.
+Windows/MSVC passes them in **537/537 Debug + Release**. R9's complete
+clipboard ASan/UBSan label is **74/74 PASS**, with
+`clipboard.file-hierarchy-provenance-unsupported-denials`,
+`clipboard.file-hierarchy-generation-replacement`, and
+`clipboard.file-hierarchy-no-path-authority` passing as items 28–30.
+
+That workflow is not called green because the concurrent R6 parent
+`c73ff9c004c453fe30a0341ac11387115cbd32ab` introduced a malformed CLANG64
+focused-registry grep. The R6 job exited after enumerating 58 tests and before
+its first focused Debug CTest. The same job then continued through its wider
+gates: all three R8 hierarchy cases pass in full **537/537 Debug + Release**,
+and the later 58-case R6 sanitizer execution passes. R6 corrected only that
+preflight in `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`.
+
+No R8 production clipboard source or
+`tests/test_owned_remote_transfer.cpp` changes between the implementation and
+validated descendant. Intervening CMake/CI edits retain the three R8
+registrations and fail-closed sanitizer sentinels verbatim. On validated
+descendant `162093d3...`, Linux/GCC is **598/598 Debug + Release**,
+macOS/AppleClang **512/512 Debug + Release**, Windows/MSVC **548/548 Debug +
+Release**, hosted MSYS2 CLANG64/Clang 23 **548/548 Debug + Release**, and R9
+clipboard ASan/UBSan **74/74 PASS**. All three hierarchy cases pass in every
+full ordinary configuration and under R9; the entire hosted workflow is
+SUCCESS.
+
+The accepted R8 decision remains a **protocol limitation**, not a hierarchy
+implementation. Supported streamed FileGroupDescriptorW metadata supplies
+bounded descriptor identity and a directory role but no authenticated parent
+edge; negotiated `CB_FILECLIP_NO_FILE_PATHS` forbids treating source paths as
+file descriptions. Caller `parentRemoteFileIndex` remains bounded local
+placement metadata and never remote provenance. Native directory capabilities
+remain independently authorized objects and do not upgrade that metadata.
+`UnsupportedDirectoryMaterialization` therefore remains the safe production
+answer.
+
+No filesystem object, child path, symlink or directory tree is created by this
+increment. Future tree materialization remains blocked until an actually
+supported authenticated protocol relation provides parent provenance, or a
+separately reviewed local-placement contract independently authorizes every
+child without claiming remote-tree fidelity.
+
 ## R5 P1 X11/R4 ingress Clang overflow-check correction (2026-10-17; exact-SHA CI pending)
 
 **Validated implementation descendant:** `90b8463bfd07f632272a38c52682d808c33c9e53`.  

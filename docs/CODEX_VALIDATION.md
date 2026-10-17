@@ -1,3 +1,47 @@
+## R8 P2 remote hierarchy provenance exact-SHA receipt (2026-10-17)
+
+**Implementation:** `3315a44cba849d0d48ddb1709458557f86591e70`.  
+**Implementation workflow:** `39022472249` — **FAIL outside R8** at the
+concurrent R6 CLANG64 focused-registry preflight.  
+**Validated unchanged-R8 descendant:** `162093d3f50f0c9793b1eafc2cba637c98473559`.  
+**Validation workflow:** `39023110195` — **SUCCESS**.  
+**Structure guard:** `39023110193` — **SUCCESS**.
+
+Implementation-SHA R8 evidence itself passes: Linux full CTest **587/587 Debug
++ Release**, macOS **498/498 Debug + Release**, Windows/MSVC **537/537 Debug +
+Release**, and R9 complete clipboard ASan/UBSan **74/74**. The three new cases
+all execute and pass. The only workflow failure is the inherited R6 preflight
+string bug; the CLANG64 job's later full **537/537 Debug + Release** also passes
+all three R8 cases.
+
+R6 fixed its preflight without touching R8, and unchanged-R8 descendant
+`162093d3...` provides a fully green exact-SHA matrix: Linux **598/598 Debug
++ Release**, macOS **512/512 Debug + Release**, Windows/MSVC **548/548 Debug +
+Release**, CLANG64 **548/548 Debug + Release**, and R9 clipboard sanitizer
+**74/74**. The sanitizer preflight explicitly enumerates
+`clipboard.file-hierarchy-provenance-unsupported-denials`,
+`clipboard.file-hierarchy-generation-replacement`, and
+`clipboard.file-hierarchy-no-path-authority`; they pass as items 28–30.
+
+Static comparison confirms production clipboard hierarchy/file code and
+`tests/test_owned_remote_transfer.cpp` are unchanged between implementation
+and validation. CMake/CI changes from other roads preserve all three R8
+registrations/sentinels. No positive hierarchy graph, filesystem creation or
+path traversal was added.
+
+The normative conclusion is unchanged: the supported MS-RDPECLIP streaming
+wire offers no parent identifier. Directory attributes identify node role, and
+File Contents `lindex` identifies one File List member; neither is a parent
+edge. With `CB_FILECLIP_NO_FILE_PATHS`, path-bearing file descriptions are
+not available as hierarchy evidence. Direct File Access is a distinct mechanism
+for endpoints that already have peer-filesystem access and is not an R8
+streaming hierarchy source.
+
+Canonical owner-local `~/rdp-server/build/` and real-client directory-tree
+materialization remain **NOT RUN**. The safe future decision is to retain
+`UnsupportedDirectoryMaterialization` until trustworthy parent provenance
+exists independently of untrusted remote names.
+
 ## R5 X11/R4 ingress Clang overflow-check correction receipt (2026-10-17)
 
 Actions `39023360920` proved the corrected selector/structure gate and ordinary

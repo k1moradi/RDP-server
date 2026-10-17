@@ -1,3 +1,30 @@
+## R1/R9 CAL sanitizer selector recovery (2026-10-17; exact-SHA CI pending)
+
+**Starting shared \`main\`:** \`8ad5f1285fa2e37b0ee19b2b04e74e42ec2d8c46\`.
+
+The bounded R1/R3 sanitizer step already keeps the new R3 client-CAL family in
+its own flat selector, but the shell single-quoted regex was over-escaped as
+\`^transport\\\\.licensing-client-cal-\`. CTest therefore saw a literal
+backslash pattern and reported \`Total Tests: 0\`; the fail-closed registry
+greps stopped that step before any CAL sanitizer execution.
+
+This CI-only recovery uses the same escaping convention as the adjacent working
+selectors: \`^transport\\.licensing-client-cal-\`. No CTest registration,
+production R1/R3/R10 source, CAL validation rule, TLS ownership or authorization
+path changes. The six explicit registry greps remain unchanged, so the step
+still fails closed if any expected CAL behavior disappears.
+
+Exact publication-SHA R9 execution is **PENDING**. The current Linux/GCC full
+matrix separately reaches and passes R1 handshake/application-I/O cases but
+still has an unrelated R3
+\`transport.licensing-client-cal-issuer-signature-denials\` runtime failure;
+this selector correction does not mask or reinterpret that behavior.
+
+**Next R1:** after exact CI, record whether the CAL group now executes. R1's
+live-publication gate remains unchanged: no grant-through-TLS success path
+until R10 has a genuine supported issuer and R2 exposes fresh positive
+authorization for every grant slice/completion.
+
 ## R9 bounded CredSSP coverage-guided fuzzing (2026-10-16; exact-SHA CI pending)
 
 R9 extends the existing opt-in Linux/Clang libFuzzer gate to the portable

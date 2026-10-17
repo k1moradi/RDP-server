@@ -318,7 +318,7 @@ jobs:
 
           # Keep the new R3 CAL family flat rather than extending the already
           # large cross-road regex; fail closed if any registration is missing.
-          cal_selection='^transport\\.licensing-client-cal-'
+          cal_selection='^transport\.licensing-client-cal-'
           cal_tests="$(ctest --test-dir build --build-config Debug -N -R "$cal_selection")"
           printf '%s\\n' "$cal_tests"
           grep -Fq 'transport.licensing-client-cal-chain-structure' <<< "$cal_tests"

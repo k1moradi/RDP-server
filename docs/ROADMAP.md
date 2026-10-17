@@ -1,3 +1,20 @@
+## R5 P1 framebuffer-ingress CI selector correction (2026-10-17; exact-SHA CI pending)
+
+**Implementation:** `be81242f6fb5fa438376205650472356595f4aeb`.  
+**First Actions:** `39023241910` and structure guard `39023241935` — **FAIL before build/CTest**.
+
+The first publication lost the final regex end-anchor/single quote on the R5
+sanitizer selector while expanding it from 33 to 36 cases. Workflow validation
+correctly rejected the Bash block before any R5 native source compiled or CTest
+executed. This is an R5-owned CI authoring defect, not X11/R4 production
+evidence.
+
+This correction restores the exact anchored selector and makes the structure
+validator require all three framebuffer-ingress CTest names plus
+`r5_expected_test_count=36`. Production R5/R4 source and the three dedicated
+CTest bodies are unchanged from `be81242f...`. Exact correction-SHA
+Linux/GCC and R9 ASan/UBSan validation is **PENDING**.
+
 ## R10 existing-CAL authority exact-SHA hosted validation (2026-10-17)
 
 **Validated source SHA:** `dc81628a9b4431ef6ffd3e69a7156fd44f0b4d06`.  

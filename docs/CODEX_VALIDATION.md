@@ -1,3 +1,16 @@
+## R5 framebuffer-ingress selector correction receipt (2026-10-17)
+
+Implementation `be81242f6fb5fa438376205650472356595f4aeb` reached Actions
+`39023241910`, but CI stopped before build/CTest because the edited R5 selector
+was missing its closing regex anchor/quote; standalone guard
+`39023241935` reported the same Bash syntax failure.
+
+This correction changes CI/validation policy only: restore the selector
+terminator and require `x11.capture-r4-bgra-ingress`,
+`x11.capture-r4-stride-layout-denials`,
+`x11.capture-r4-generation-retirement`, and R5 cardinality **36**. No
+production or CTest-body changes.
+
 ## R10 existing-CAL authority exact-SHA hosted validation (2026-10-17)
 
 **Validated source SHA:** `dc81628a9b4431ef6ffd3e69a7156fd44f0b4d06`.  

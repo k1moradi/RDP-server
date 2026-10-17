@@ -655,7 +655,7 @@ void testResultBoundsAndCancellation()
                RuntimeLicensingAuthorityOperation::Rejected);
     }
 
-    for (const auto [providerStatus, expectedOutcome] :
+    for (const auto &[providerStatus, expectedOutcome] :
          std::array{
              std::pair{
                  RuntimeLicensingProviderCompletionStatus::Failed,

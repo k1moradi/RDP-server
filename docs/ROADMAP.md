@@ -1,3 +1,37 @@
+## R1 cross-road CI recovery for handshake validation (2026-10-17; exact-SHA CI pending)
+
+**Starting shared \`main\`:** \`7d07fae0196c9e857f0200d9f4b6365210a72279\`.
+
+R1's bounded owned-TLS handshake-readiness implementation is unchanged. Its
+remaining Linux/GCC validation was blocked before R1 execution by two
+test/CI-only defects introduced with the new fail-closed R10 licensing
+authority owner:
+
+1. GCC with strict warnings rejects a by-value structured binding in
+   \`test_runtime_licensing_authority.cpp\` under
+   \`-Werror=range-loop-construct\`.
+2. R9 registers the six \`runtime.licensing-authority-*\` CTests but its
+   sanitizer compile step did not build \`test_runtime_licensing_authority\`,
+   leaving five executable-backed cases Not Run while the process-only startup
+   case still executed.
+
+This recovery binds that fixed \`std::array<std::pair<...>>\` element by
+\`const auto&\` and adds the existing authority test executable to the existing
+R9 production-linked target build. There is no production R10 or R1 source
+change, no provider/issuer behavior change, no CTest registration change and no
+new authorization/publication path.
+
+Exact publication-SHA Linux/GCC full Debug/Release, R9 ASan/UBSan, hosted
+macOS/Windows regression, documentation policy and SDK/package evidence are
+**PENDING**. Canonical owner-local \`~/rdp-server/build/\` remains **NOT RUN**
+in this connector environment.
+
+**Next R1:** if this restores clean Linux/GCC and R9 execution, close the
+handshake-readiness validation gap and retain the live-publication dependency
+gate. Do not add a grant-through-TLS success path until R10 has a genuine
+supported issuer and R2 exposes fresh positive authorization for each grant
+slice/completion.
+
 ## R8 bounded file-destination planning contract (2026-10-16; hosted evidence recorded)
 
 **Starting reconciled shared `main`:** `541a9460a19f7cfca1c5c73fdb74cc1630e21772`.  

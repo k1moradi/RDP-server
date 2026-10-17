@@ -174,7 +174,8 @@ jobs:
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_console_identity_policy \
             test_linux_gssapi_spnego test_linux_pam_password_verifier \
-            test_runtime_linux_security rdp-server \
+            test_runtime_linux_security test_runtime_licensing_authority \
+            rdp-server \
             test_x11_clipboard_adapter test_x11_capture_layout \
             test_x11_cursor_reply test_x11_native_capture \
             test_x11_capture_disconnect test_x11_display_events \

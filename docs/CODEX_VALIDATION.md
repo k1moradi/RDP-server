@@ -1,3 +1,18 @@
+## R8 Windows render-helper compile repair (2026-10-17; exact-SHA CI pending)
+
+Actions `39008936302` for
+`2e0f2814b8943fa8a83fccd97b7294a43f873b9f` configured the macOS Debug tree
+and built the new macOS multi-file destination executable successfully, then
+failed while linking the portable Windows clipboard test executables. The sole
+R8 diagnostic was an undefined
+`WindowsClipboardAdapter::renderFormatInternal(unsigned int)` symbol.
+
+The multi-file source replacement had accidentally removed that existing
+private definition while leaving its declaration and callers intact. The
+correction restores the parent implementation verbatim. No R8 test expectation,
+native publication contract, ownership rule or sanitizer selection is changed.
+Exact correction-SHA validation is **PENDING**.
+
 ## R8 Windows/macOS planned completed-set authoring validation (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `ec8f9df25f9986a2d51fb258f7798ac8596cfed3`.

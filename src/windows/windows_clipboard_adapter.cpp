@@ -570,6 +570,61 @@ bool WindowsClipboardAdapter::publishCompletedFileDestinationsInternal(
     return success && closedClipboard && !closed_;
 }
 
+bool WindowsClipboardAdapter::renderFormatInternal(
+    WindowsClipboardFormat format) noexcept
+{
+    if (!currentPublicationValid())
+    {
+        return false;
+    }
+
+    if (format == kUnicodeTextFormat && textPublished_)
+    {
+        if (textRendered_)
+        {
+            return true;
+        }
+        const auto text = remoteTransfer_.verifiedUnicodeText();
+        if (!text)
+        {
+            return false;
+        }
+        std::vector<std::uint8_t> bytes;
+        if (!encodeNativeUnicodeText(*text, bytes) ||
+            !nativeOperations_.setFormatBytes(
+                nativeOperations_.context, format,
+                std::as_bytes(std::span<const std::uint8_t>{bytes})))
+        {
+            return false;
+        }
+        textRendered_ = true;
+        return true;
+    }
+
+    if (format == publishedImageNativeFormat() && imagePublished_)
+    {
+        if (imageRendered_)
+        {
+            return true;
+        }
+        const auto image = remoteTransfer_.verifiedImage();
+        if (!image || image->generation != publicationGeneration_ ||
+            image->format != publishedImageFormat_)
+        {
+            return false;
+        }
+        if (!nativeOperations_.setFormatBytes(
+                nativeOperations_.context, format,
+                std::as_bytes(image->bytes)))
+        {
+            return false;
+        }
+        imageRendered_ = true;
+        return true;
+    }
+
+    return false;
+}
 bool WindowsClipboardAdapter::renderFormat(
     WindowsClipboardFormat format) noexcept
 {

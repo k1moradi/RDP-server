@@ -1,3 +1,25 @@
+## R8 Windows adapter render-helper restoration (2026-10-17; exact-SHA CI pending)
+
+The first planned multi-file publication build exposed one R8-owned link error
+on macOS: the Windows adapter refactor replaced the source range that previously
+contained `WindowsClipboardAdapter::renderFormatInternal`. The declaration and
+its existing callers remained, so the portable Windows adapter archive compiled
+but macOS arm64 link failed for both Windows clipboard test executables.
+
+This correction restores the original `renderFormatInternal` implementation
+verbatim between the new completed-set publisher and `renderFormat`. There is
+no delayed-rendering behavior change, no multi-file contract change and no
+CTest registration change. Existing
+`clipboard.windows-clipboard-*` behavior tests plus the Windows file-
+destination executable provide the compile/link regression gate on every hosted
+OS.
+
+**Implementation being corrected:** `2e0f2814b8943fa8a83fccd97b7294a43f873b9f`.  
+**First Actions run:** `39008936302` — macOS Debug compile/link **FAIL** before
+CTest because `renderFormatInternal` was undefined.
+
+Exact correction-SHA hosted validation is **PENDING**.
+
 ## R8 planned Windows/macOS completed-set publication (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `ec8f9df25f9986a2d51fb258f7798ac8596cfed3`.

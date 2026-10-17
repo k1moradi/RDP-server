@@ -1,3 +1,35 @@
+## R5 P1 native-X11 registry cardinality gate (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `03f7675cfedd2691ff2e446d8b960170bd7625a4`.
+
+R5's supported hosted Linux/X11 profile intentionally installs XShm, RandR,
+XFixes, XDamage, XTEST, XI2, Xvfb and `xvfb-run`. The CMake audit confirms
+that optional local Linux builds may legitimately omit native/Xvfb-only cases
+when those development dependencies are absent, while the hosted profile
+discovers `xvfb-run` before every R5 aggregate/input registration that uses
+it.
+
+The remaining validation gap was fail-closed cardinality. R9 enumerated the
+anchored R5 selector and checked six sentinel names, but a non-sentinel native
+registration could disappear from the supported profile without making that
+preflight fail. The selector now requires exactly **33** listed
+`x11.*` behaviors before any instrumented execution, in addition to the
+existing named sentinels. CTest test names are unique, so the supported profile
+cannot silently lose or duplicate one of the expected R5 registrations and
+still claim the 33-case sanitizer receipt.
+
+This is CI/test-policy hardening only. No X11 production source, CMake optional
+dependency rule, native authority, live desktop access, capture scheduler or
+input path changes. Optional developer builds are not made artificially
+`REQUIRED` merely to satisfy hosted coverage.
+
+Canonical owner-local `~/rdp-server/build/` and genuine owner Linux/X11 are
+**NOT RUN** in this connector environment. Exact publication-SHA hosted
+Linux/GCC and R9 execution are **PENDING**. R10's same-SHA M1 owner gate remains
+the next native acceptance step after a fully green candidate. M3 remains
+**BLOCKED ON R3** for an authenticated, already-decoded bounded Share/Input or
+Fast-Path Input handoff; R5 does not enable live XTEST or capture here.
+
 ## R3 CAL leaf-validity exact-SHA hosted validation (2026-10-17)
 
 **Implementation:** `3822ca6d230336f8db2e20d1c4ae6153e22b92a3`.  

@@ -549,6 +549,14 @@ jobs:
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
           printf '%s\n' "$selected_tests"
+
+          readonly r5_expected_test_count=33
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:[[:space:]]+x11\\./ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$r5_expected_test_count" ]]; then
+            printf 'R5 native X11 registry mismatch: expected %s tests, found %s\n' \
+              "$r5_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
           grep -Fq 'x11.desktop-resource-capture-pixel-parity' <<< "$selected_tests"
           grep -Fq 'x11.desktop-resource-randr-capture-generation' <<< "$selected_tests"
           grep -Fq 'x11.desktop-resource-randr-stale-damage-isolation' <<< "$selected_tests"

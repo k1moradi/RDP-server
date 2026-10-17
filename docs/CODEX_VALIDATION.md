@@ -1,3 +1,19 @@
+## R5 P1 native-X11 registry cardinality authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `03f7675cfedd2691ff2e446d8b960170bd7625a4`. Exact publication-SHA CI is
+**PENDING**.
+
+The supported R9 Linux/Clang profile already provisions all R5 XCB extension
+development packages plus Xvfb/xauth and enumerates the anchored native-X11
+selector before execution. R5 now additionally requires that enumeration to
+contain exactly **33** `x11.*` tests before the existing sentinel-name checks
+and sanitizer run. This turns loss of any non-sentinel Xvfb/native registration
+into an immediate preflight failure instead of a smaller green selection.
+
+The change is workflow/testing-policy only. No production X11 behavior or
+optional local-build dependency policy changes. Owner Linux/X11 and
+Microsoft-client M3 acceptance remain **NOT RUN**.
+
 ## R3 CAL leaf-validity exact-SHA validation receipt (2026-10-17)
 
 `ca56ededf527a46bcf535a5c3396d3b9e4d69db4`, Actions

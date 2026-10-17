@@ -1,3 +1,18 @@
+## Supported focused selectors assert exact registry cardinality
+
+When a hosted profile intentionally provisions every optional dependency needed
+for a road's focused native selector, its `ctest -N` preflight must verify
+the exact expected registration count in addition to representative behavior
+names. A smaller green selection is missing coverage, not success. Count only
+the selected CTest entries, then execute the same anchored selector.
+
+Do not turn optional local development packages into unconditional build
+requirements merely to make the count universal. The exact-count assertion
+belongs to the supported fully provisioned profile; dependency-reduced local
+builds may retain their documented conditional registrations. Update the count,
+selector and relevant named sentinels atomically when an intentional behavior
+is added or retired.
+
 ## CI structure shell self-test diagnostics (2026-10-17)
 
 The workflow structure self-test must prove both sides of shell handling:

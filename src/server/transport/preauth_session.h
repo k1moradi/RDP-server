@@ -16,6 +16,9 @@
 namespace rdp_server::server::transport
 {
 
+class PreauthConnectionStream;
+class OwnedPreauthTcpConnection;
+
 // The single first-decrypted-TPKT cap is in mcs_connect_initial.h.
 // Both this bounded R1 intake and the R3 lifecycle enforce that cap.
 
@@ -68,6 +71,13 @@ public:
     }
 
 private:
+    friend class PreauthConnectionStream;
+
+    // Private R1 phase transition. Only the enclosing connection owner can
+    // reach this through its private R2 admission handoff; no caller-supplied
+    // authentication Boolean can advance HYBRID traffic to MCS.
+    [[nodiscard]] bool completeCredSspAdmission() noexcept;
+
     SecurityNegotiationPolicy negotiationPolicy_{
         SecurityNegotiationPolicy::DiagnosticTlsOnly};
     McsSessionLifecycle mcsSession_{};
@@ -224,6 +234,10 @@ public:
     void close() noexcept;
 
 private:
+    friend class OwnedPreauthTcpConnection;
+
+    [[nodiscard]] bool completeCredSspAdmission(
+        const SSL *serverTls) noexcept;
     void clearIntakeBuffer() noexcept;
 
     PreauthSession session_{};

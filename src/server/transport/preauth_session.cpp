@@ -50,6 +50,18 @@ bool PreauthSession::onTlsHandshake(bool completed) noexcept
     return true;
 }
 
+bool PreauthSession::completeCredSspAdmission() noexcept
+{
+    if (stage_ != PreauthStage::AwaitCredSsp ||
+        selectedProtocol_ != kRdpProtocolHybrid)
+    {
+        close();
+        return false;
+    }
+    stage_ = PreauthStage::AwaitMcsConnectInitial;
+    return true;
+}
+
 bool PreauthSession::onEncryptedMcsConnectInitial(
     std::span<const std::uint8_t> packet) noexcept
 {
@@ -98,6 +110,20 @@ PreauthConnectionStream::securityNegotiationProvenance(
     }
     OPENSSL_cleanse(currentCertificate.data(), currentCertificate.size());
     return securityNegotiationProvenance_;
+}
+
+bool PreauthConnectionStream::completeCredSspAdmission(
+    const SSL *serverTls) noexcept
+{
+    const auto provenance = securityNegotiationProvenance(serverTls);
+    if (stage() != PreauthStage::AwaitCredSsp || !provenance ||
+        provenance->selectedProtocol != kRdpProtocolHybrid ||
+        (provenance->requestedProtocols & kRdpProtocolHybrid) == 0)
+    {
+        close();
+        return false;
+    }
+    return session_.completeCredSspAdmission();
 }
 
 void PreauthConnectionStream::clearIntakeBuffer() noexcept

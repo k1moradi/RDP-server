@@ -128,8 +128,7 @@ public:
     // that owner; neither can be supplied independently by the caller.
     [[nodiscard]] std::optional<LinuxConsoleAdmissionLease> issue(
         GssapiSpnegoAcceptor &acceptor,
-        const rdp_server::server::transport::OwnedPreauthTcpConnection
-            &connection,
+        rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         const ConsoleEvidenceRequest &request) noexcept;
 
     // Legacy compatibility path is intentionally terminal deny-only. A raw

@@ -200,6 +200,9 @@ LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
         case LinuxCredSspStepStatus::BindingVerified:
             return {step.plaintextBytesRead, step.plaintextBytesWritten,
                     Step::BindingVerified};
+        case LinuxCredSspStepStatus::CredentialsVerified:
+            return {step.plaintextBytesRead, step.plaintextBytesWritten,
+                    Step::CredentialsVerified};
         case LinuxCredSspStepStatus::UnsupportedFinalCredentials:
             return {step.plaintextBytesRead, step.plaintextBytesWritten,
                     Step::UnsupportedFinalCredentials};
@@ -324,6 +327,9 @@ LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
     case HandshakeStatus::BindingVerified:
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::BindingVerified};
+    case HandshakeStatus::CredentialsVerified:
+        return {result.plaintextBytesRead, result.plaintextBytesWritten,
+                LinuxCredSspStepStatus::CredentialsVerified};
     case HandshakeStatus::UnsupportedFinalCredentials:
         revoke();
         return {result.plaintextBytesRead, result.plaintextBytesWritten,

@@ -8,6 +8,8 @@
 
 #include <gssapi/gssapi.h>
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -26,6 +28,9 @@ struct DelegatedPasswordVerificationContext final
     const LinuxPamPasswordVerifier *passwordVerifier{};
     LinuxPamPasswordVerificationStatus passwordStatus{
         LinuxPamPasswordVerificationStatus::InvalidInput};
+    std::array<char, kMaximumDelegatedUnixAccountBytes + 1U>
+        authorizedAccount{};
+    std::size_t authorizedAccountLength{};
 #endif
     bool exactCandidate{};
 };
@@ -55,11 +60,20 @@ void verifyDelegatedPasswordCandidate(
     if (context.passwordVerifier != nullptr)
     {
         // PAM is invoked only while passwordUtf16Le still borrows the live,
-        // GSS-unwrapped plaintext guarded by SensitiveBytesGuard. Even an
-        // Authorized result is deliberately not persisted or promoted to the
-        // private final-authentication latch in this increment.
+        // GSS-unwrapped plaintext guarded by SensitiveBytesGuard. Persist only
+        // the already-validated account when PAM authorizes; never password
+        // bytes, a provider handle or a caller-supplied success flag.
         context.passwordStatus = context.passwordVerifier->verify(
             unixAccount, passwordUtf16Le);
+        if (context.passwordStatus ==
+                LinuxPamPasswordVerificationStatus::Authorized &&
+            unixAccount.size() < context.authorizedAccount.size())
+        {
+            std::copy(
+                unixAccount.begin(), unixAccount.end(),
+                context.authorizedAccount.begin());
+            context.authorizedAccountLength = unixAccount.size();
+        }
     }
 #else
     (void)passwordUtf16Le;
@@ -82,9 +96,11 @@ void GssapiSpnegoAcceptor::consumeAndDenyDelegatedCredentials(
     reject();
 }
 
-void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
+bool GssapiSpnegoAcceptor::consumeFramedDelegatedCredentialsForAuthorization(
     TsRequestFrameReader &reader) noexcept
 {
+    clearPendingCredentialAuthorization();
+
     const SSL *sourceTls = reader.completedFrameServerTls();
     std::string_view authenticatedPrincipal;
     if (ownedCredSspConnection_ != nullptr &&
@@ -109,7 +125,7 @@ void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
     {
         reader.close();
         reject();
-        return;
+        return false;
     }
 
     const auto parsed = parseCredSspTsRequest(reader.completeDer());
@@ -118,7 +134,7 @@ void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
     {
         reader.close();
         reject();
-        return;
+        return false;
     }
 
     const auto encryptedBytes = parsed.value.encryptedAuthInfo;
@@ -131,6 +147,7 @@ void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
     const OM_uint32 major = gss_unwrap(
         &minor, context_, &encrypted, &plaintext, &confidential, nullptr);
 
+    bool authorizationPending = false;
     if (plaintext.value != nullptr && plaintext.length != 0)
     {
         auto bytes = std::span<std::uint8_t>(
@@ -148,19 +165,49 @@ void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
 #endif
             const auto visitStatus = visitCredSspPasswordCredential(
                 bytes, &verifyDelegatedPasswordCandidate, &verification);
-            // Syntax, exact mapping and PAM are still subordinate evidence.
-            // This path remains terminal deny-only until final completion and
-            // native admission are separately audited.
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+            const bool providerAuthorized =
+                visitStatus == CredSspPasswordFieldVisitStatus::Visited &&
+                verification.exactCandidate &&
+                verification.passwordStatus ==
+                    LinuxPamPasswordVerificationStatus::Authorized &&
+                verification.authorizedAccountLength != 0 &&
+                identityPolicy_->generation() == identityPolicyGeneration_ &&
+                verifiedPrincipalForOwnedConnection(
+                    *ownedCredSspConnection_) == authenticatedPrincipal &&
+                matchesNegotiatedCertificate(sourceTls);
+            if (providerAuthorized)
+            {
+                std::copy_n(
+                    verification.authorizedAccount.begin(),
+                    verification.authorizedAccountLength,
+                    ownedCredSspAuthorizedAccount_.begin());
+                ownedCredSspAuthorizedAccountLength_ =
+                    verification.authorizedAccountLength;
+                ownedCredSspCredentialAuthorizationPending_ = true;
+                authorizationPending = true;
+            }
+#else
             (void)visitStatus;
             (void)verification.exactCandidate;
-#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
-            (void)verification.passwordStatus;
 #endif
         }
     }
 
     (void)gss_release_buffer(&minor, &plaintext);
     reader.close();
+    if (!authorizationPending)
+    {
+        reject();
+        return false;
+    }
+    return true;
+}
+
+void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
+    TsRequestFrameReader &reader) noexcept
+{
+    (void)consumeFramedDelegatedCredentialsForAuthorization(reader);
     reject();
 }
 

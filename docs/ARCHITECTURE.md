@@ -1,3 +1,35 @@
+## R2 final credential/native admission completion contract (2026-10-17)
+
+Final CredSSP password authentication and native desktop admission are one
+serialized R2 ownership chain, not interchangeable facts. The GSS acceptor may
+retain a successful PAM result only as a private fixed-size delegated-account
+candidate bound to the provider-derived Kerberos principal, exact R1 owner/TLS
+transcript and captured identity-policy generation. No password bytes, PAM
+handle, caller Boolean or public success capability survives the synchronous
+credential visitor.
+
+The concrete `LinuxConsoleAdmissionBroker` is the sole consumer of that
+candidate. Before setting the acceptor's private completion latch it creates the
+real logind session-change source, samples current NSS/logind evidence for the
+exact principal/account/seat/display policy, obtains the candidate session
+fingerprint, then rechecks policy generation, TLS/GSS provenance and that no
+native change was observed. Failure at any point clears GSS/R2 state and cannot
+be retried as a positive admission.
+
+After those checks, the broker alone may set the final private credential
+completion latch and invoke R1's private CredSSP-complete transition. R1 owns
+the phase change from `AwaitCredSsp` to `AwaitMcsConnectInitial`; no public
+transport API accepts an authentication Boolean. The broker then issues the
+existing expiring `LinuxConsoleAdmissionLease`. Every later R3 transition
+continues to revalidate that lease, exact R1 owner, policy generation,
+NSS/logind session fingerprint and native change watch.
+
+`CredentialsVerified` is therefore an intermediate event-loop status, not a
+desktop capability. It means only that the exact final delegated account and
+password/account status passed policy/PAM while the GSS plaintext was live.
+Native admission must immediately consume that private candidate before any MCS
+traffic is allowed.
+
 ## R4 segmented-frame owner is single-assignment (2026-10-17)
 
 `GfxAvc420SegmentedFrame` may be move-constructed into the future R3

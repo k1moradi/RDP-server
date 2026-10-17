@@ -1129,6 +1129,55 @@ void testConnectionCredSspAuthorizationDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionFinalCredentialNativeAdmissionDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-final-credential-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    const std::string keytabUri = "FILE:" + keytab.string();
+
+    LinuxRuntimeSecurityConfiguration configuration;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    assert(configuration.configure(
+        kServicePrincipal, keytabUri, validRule(), "rdp-server-r2-ci"));
+#else
+    assert(configuration.configure(
+        kServicePrincipal, keytabUri, validRule()));
+#endif
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "final-credential-denials");
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    TestSsl clientTls =
+        establishHybridTls(connection, clientDescriptor, tlsContext);
+
+    assert(connection.ready());
+    assert(connection.gssStage() == SpnegoStage::AwaitInitialToken);
+    assert(connection.admissionState() == LinuxConsoleAdmissionState::Ready);
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(!connection.hasAdmissionLease());
+
+    // Exact HYBRID/TLS provenance and explicit PAM provisioning still cannot
+    // reach NSS/logind or advance R1 to MCS. Only the private result of a real
+    // GSS-bound final authInfo + PAM Authorized path can satisfy this gate.
+    const ConsoleEvidenceRequest request{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+    assert(!connection.issueAdmission(request));
+    assert(!connection.ready());
+    assert(connection.gssStage() == SpnegoStage::Failed);
+    assert(connection.admissionState() == LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    clientTls.reset();
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionAggregatePrematureAdmissionDenial(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1328,6 +1377,13 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-credssp-authorization-denials")
     {
         testConnectionCredSspAuthorizationDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-final-credential-native-admission-denials")
+    {
+        testConnectionFinalCredentialNativeAdmissionDenials(
+            fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-aggregate-ordered-revocation")

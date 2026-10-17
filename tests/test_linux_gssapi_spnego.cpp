@@ -530,8 +530,11 @@ using PositiveNativeAdmissionIssue =
     std::optional<LinuxConsoleAdmissionLease> (
         LinuxConsoleAdmissionBroker::*)(
             GssapiSpnegoAcceptor &,
-            const OwnedPreauthTcpConnection &,
+            OwnedPreauthTcpConnection &,
             const ConsoleEvidenceRequest &) noexcept;
+constexpr PositiveNativeAdmissionIssue kPositiveNativeAdmissionIssue =
+    static_cast<PositiveNativeAdmissionIssue>(
+        &LinuxConsoleAdmissionBroker::issue);
 using LegacyNativeAdmissionIssue =
     std::optional<LinuxConsoleAdmissionLease> (
         LinuxConsoleAdmissionBroker::*)(
@@ -555,7 +558,14 @@ static_assert(!std::is_default_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_constructible_v<LinuxConsoleAdmissionLease>);
 static_assert(!std::is_copy_assignable_v<LinuxConsoleAdmissionLease>);
 static_assert(std::is_move_constructible_v<LinuxConsoleAdmissionLease>);
+static_assert(kPositiveNativeAdmissionIssue != nullptr);
 static_assert(std::is_invocable_v<
+              PositiveNativeAdmissionIssue,
+              LinuxConsoleAdmissionBroker &,
+              GssapiSpnegoAcceptor &,
+              OwnedPreauthTcpConnection &,
+              const ConsoleEvidenceRequest &>);
+static_assert(!std::is_invocable_v<
               PositiveNativeAdmissionIssue,
               LinuxConsoleAdmissionBroker &,
               GssapiSpnegoAcceptor &,

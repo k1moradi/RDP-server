@@ -190,6 +190,7 @@ void GssapiSpnegoAcceptor::reject() noexcept
     ownedCredSspWriter_ = nullptr;
     ownedCredSspReplyPending_ = false;
     ownedCredSspBindingVerified_ = false;
+    clearPendingCredentialAuthorization();
     ownedCredSspCredentialAuthorizationComplete_ = false;
     identityPolicy_ = nullptr;
     identityPolicyGeneration_ = 0;
@@ -708,10 +709,9 @@ GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
     if (stage_ == SpnegoStage::ServerBindingPrepared)
     {
         // MS-CSSP requires final authInfo only after the client has accepted
-        // the server public-key proof. The current deployment policy has no
-        // positive delegated-credential authorization. Route only the exact
-        // bounded final shape through the existing real GSS unwrap/inspection/
-        // wipe path, then report the unsupported policy outcome.
+        // the server public-key proof. Route only the exact bounded final
+        // shape through the real GSS unwrap/account/PAM path. PAM success is
+        // an intermediate private fact; native admission remains separate.
         if (!ownedCredSspBindingVerified_ ||
             request.value.version != negotiatedVersion_ ||
             !request.value.finalAuthInfoOnly() ||
@@ -722,10 +722,21 @@ GssapiSpnegoAcceptor::advanceOwnedCredSspHandshake(
                 OwnedCredSspHandshakeStatus::Rejected, bytesRead, 0);
         }
 
-        consumeFramedAndDenyDelegatedCredentials(reader);
-        writer.close();
+        const bool credentialsVerified =
+            consumeFramedDelegatedCredentialsForAuthorization(reader);
+        if (!credentialsVerified)
+        {
+            writer.close();
+            return {
+                OwnedCredSspHandshakeStatus::UnsupportedFinalCredentials,
+                bytesRead, 0};
+        }
+
+        // Final authInfo has no success reply. Keep the idle writer and exact
+        // R1 TLS owner alive until the concrete native-admission broker joins
+        // this private PAM/account fact to fresh NSS/logind evidence.
         return {
-            OwnedCredSspHandshakeStatus::UnsupportedFinalCredentials,
+            OwnedCredSspHandshakeStatus::CredentialsVerified,
             bytesRead, 0};
     }
 
@@ -773,6 +784,59 @@ std::string_view GssapiSpnegoAcceptor::verifiedPrincipalForOwnedConnection(
         return {};
     }
     return verifiedPrincipalForTls(connection.establishedTls());
+}
+
+void GssapiSpnegoAcceptor::clearPendingCredentialAuthorization() noexcept
+{
+    ownedCredSspAuthorizedAccount_.fill('\0');
+    ownedCredSspAuthorizedAccountLength_ = 0;
+    ownedCredSspCredentialAuthorizationPending_ = false;
+}
+
+bool GssapiSpnegoAcceptor::pendingCredentialAuthorizationMatches(
+    const transport::OwnedPreauthTcpConnection &connection,
+    std::string_view kerberosPrincipal,
+    std::string_view unixAccount,
+    std::uint64_t policyGeneration) const noexcept
+{
+    if (!ownedCredSspCredentialAuthorizationPending_ ||
+        ownedCredSspCredentialAuthorizationComplete_ ||
+        ownedCredSspConnection_ != &connection ||
+        identityPolicy_ == nullptr ||
+        policyGeneration == 0 ||
+        identityPolicyGeneration_ != policyGeneration ||
+        identityPolicy_->generation() != policyGeneration ||
+        unixAccount.empty() ||
+        unixAccount.size() != ownedCredSspAuthorizedAccountLength_)
+    {
+        return false;
+    }
+
+    const std::string_view authorizedAccount{
+        ownedCredSspAuthorizedAccount_.data(),
+        ownedCredSspAuthorizedAccountLength_};
+    const std::string_view proven =
+        verifiedPrincipalForOwnedConnection(connection);
+    return !proven.empty() &&
+           proven == kerberosPrincipal &&
+           authorizedAccount == unixAccount;
+}
+
+bool GssapiSpnegoAcceptor::completeCredentialAuthorizationForNativeAdmission(
+    const transport::OwnedPreauthTcpConnection &connection,
+    std::string_view kerberosPrincipal,
+    std::string_view unixAccount,
+    std::uint64_t policyGeneration) noexcept
+{
+    if (!pendingCredentialAuthorizationMatches(
+            connection, kerberosPrincipal, unixAccount, policyGeneration))
+    {
+        return false;
+    }
+
+    ownedCredSspCredentialAuthorizationComplete_ = true;
+    clearPendingCredentialAuthorization();
+    return true;
 }
 
 std::string_view

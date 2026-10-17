@@ -817,6 +817,19 @@ const SSL *OwnedPreauthTcpConnection::establishedTls() const noexcept
     return establishedApplicationTls() ? serverTls_.get() : nullptr;
 }
 
+bool OwnedPreauthTcpConnection::completeCredSspAdmission() noexcept
+{
+    if (!active() ||
+        pendingApplicationOperation_ != TlsApplicationOperation::None ||
+        !establishedApplicationTls() ||
+        !adapter_.connection().completeCredSspAdmission(serverTls_.get()))
+    {
+        cancel();
+        return false;
+    }
+    return true;
+}
+
 void OwnedPreauthTcpConnection::clearPendingTlsApplicationIo() noexcept
 {
     pendingApplicationOperation_ = TlsApplicationOperation::None;

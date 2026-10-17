@@ -336,8 +336,7 @@ ConsoleEvidenceRequest LinuxConsoleAdmissionBroker::requestView(
 std::optional<LinuxConsoleAdmissionLease>
 LinuxConsoleAdmissionBroker::issue(
     GssapiSpnegoAcceptor &acceptor,
-    const rdp_server::server::transport::OwnedPreauthTcpConnection
-        &connection,
+    rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request) noexcept
 {
     if (state_ != LinuxConsoleAdmissionState::Ready)
@@ -346,10 +345,10 @@ LinuxConsoleAdmissionBroker::issue(
         return std::nullopt;
     }
 
-    // Reject invalid protocol/transport provenance and incomplete R2 policy
-    // before constructing a native change monitor or sampling NSS/logind.
-    // HYBRID plus fully delivered GSS public-key binding is necessary but is
-    // not the final supported CredSSP credential-authorization condition.
+    // Reject invalid protocol/transport provenance or a missing private
+    // final-credential proof before constructing a native change monitor or
+    // sampling NSS/logind. HYBRID + GSS binding + PAM are still insufficient
+    // until this exact delegated account is joined to native owner evidence.
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security)
     {
@@ -358,9 +357,11 @@ LinuxConsoleAdmissionBroker::issue(
     }
     const std::uint64_t policyGeneration = policy_.generation();
     const std::string_view proven =
-        acceptor.nativeAdmissionPrincipalForOwnedConnection(connection);
+        acceptor.verifiedPrincipalForOwnedConnection(connection);
     if (policyGeneration == 0 || proven.empty() ||
         proven != request.kerberosPrincipal ||
+        !acceptor.pendingCredentialAuthorizationMatches(
+            connection, proven, request.unixAccount, policyGeneration) ||
         !copyBounded(seat_, seatLength_, request.seat) ||
         !copyBounded(display_, displayLength_, request.display))
     {
@@ -381,8 +382,8 @@ LinuxConsoleAdmissionBroker::issue(
     }
 
     if (changes_->nativeFd() < 0 || changes_->nativeEvents() <= 0 ||
-        acceptor.nativeAdmissionPrincipalForOwnedConnection(connection) !=
-            proven ||
+        !acceptor.pendingCredentialAuthorizationMatches(
+            connection, proven, request.unixAccount, policyGeneration) ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
         deny(acceptor);
@@ -399,8 +400,8 @@ LinuxConsoleAdmissionBroker::issue(
         request.kerberosPrincipal.size() >= 129 ||
         request.unixAccount.size() >= 33 ||
         policy_.generation() != policyGeneration ||
-        acceptor.nativeAdmissionPrincipalForOwnedConnection(connection) !=
-            proven)
+        !acceptor.pendingCredentialAuthorizationMatches(
+            connection, proven, request.unixAccount, policyGeneration))
     {
         deny(acceptor);
         return std::nullopt;
@@ -423,6 +424,17 @@ LinuxConsoleAdmissionBroker::issue(
     if (generation == 0 || !now.has_value() ||
         *now > std::numeric_limits<std::int64_t>::max() -
                    kAdmissionValidityMilliseconds)
+    {
+        deny(acceptor);
+        return std::nullopt;
+    }
+
+    // All native facts and the change watch are live at this exact boundary.
+    // Only now may R2 set its private completion latch and tell the sole R1
+    // owner that CredSSP is complete. Neither transition is publicly callable.
+    if (!acceptor.completeCredentialAuthorizationForNativeAdmission(
+            connection, proven, request.unixAccount, policyGeneration) ||
+        !connection.completeCredSspAdmission())
     {
         deny(acceptor);
         return std::nullopt;

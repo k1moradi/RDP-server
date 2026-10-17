@@ -695,6 +695,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-pre-admission-dispatch
             linux-connection-credssp-revocation-order
             linux-connection-credssp-authorization-denials
+            linux-connection-final-credential-native-admission-denials
             linux-connection-aggregate-ordered-revocation
             linux-connection-aggregate-premature-admission-denial)
         add_test(NAME "runtime.${runtime_linux_security_case}"

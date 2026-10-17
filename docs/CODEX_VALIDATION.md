@@ -1,3 +1,32 @@
+## R2 final credential/native admission join authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `a97933bf7a2b523dac641e97776e111d46a28be0`.
+
+This publication joins the already validated real PAM invocation boundary to
+the existing concrete Linux NSS/logind admission broker without adding a test
+authority seam. Production changes span only the existing R1 transport owner,
+R2 GSS/CredSSP acceptor, Linux admission broker and Linux runtime aggregate.
+A PAM `Authorized` result retains only the validated local account; the
+password remains synchronous and cleansed. The completion latch and R1
+CredSSP-to-MCS phase transition occur only after concrete native session
+evidence and the revocation watch are current.
+
+Dedicated ordinary coverage is
+`runtime.linux-connection-final-credential-native-admission-denials`. It
+establishes real loopback HYBRID TLS using the existing production transport and
+explicitly provisions the PAM verifier when that build mode is enabled, but
+does not fabricate GSS completion or PAM authorization. It requires an
+otherwise policy-shaped admission request to terminate without a lease. The R9
+direct runtime-security ASan/UBSan selector requires the exact registration in
+addition to the existing runtime cases.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest is
+**NOT RUN** because that checkout is unavailable in this connector environment.
+Exact publication-SHA workflow structure, documentation policy, hosted
+Linux/GCC and R9 sanitizer execution are **PENDING**. Genuine positive
+Kerberos/PAM/NSS/logind owner admission and authenticated Microsoft-client
+acceptance are **NOT RUN** and are not inferred from denial-only CI.
+
 ## R6 P2 Windows sanitizer continuation-fence correction (2026-10-17)
 
 **Initial P2 publication:** `bcf8736ce12b061ba62538f2404669b8b4fa1157`,

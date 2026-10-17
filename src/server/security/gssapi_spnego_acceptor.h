@@ -8,6 +8,7 @@
 
 #include <gssapi/gssapi.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -90,16 +91,19 @@ struct CredSspProtectedReply
 // BindingVerified means the Kerberos mechanism and CredSSP public-key proof
 // completed on the exact TLS transcript and its server reply was fully sent.
 // The required final authInfo step has NOT completed at that point.
-// UnsupportedFinalCredentials means the same owner subsequently delivered a
-// structurally valid, bounded final authInfo to the existing deny-only
-// credential processor. Any provider plaintext is securely wiped before R2
-// terminates. Neither outcome is native authorization or an R3 capability.
+// CredentialsVerified means the same owner delivered final authInfo whose
+// delegated account exactly matched policy and whose password/account status
+// was Authorized by the explicitly bound PAM verifier. Password plaintext is
+// already wiped; this is still only a private candidate for fresh native
+// NSS/logind admission. UnsupportedFinalCredentials is terminal denial.
+// Neither BindingVerified nor CredentialsVerified is an R3 capability.
 enum class OwnedCredSspHandshakeStatus : std::uint8_t
 {
     Progress,
     NeedRead,
     NeedWrite,
     BindingVerified,
+    CredentialsVerified,
     UnsupportedFinalCredentials,
     Rejected,
     TransportClosed,
@@ -203,10 +207,11 @@ public:
     // No CredSSP bytes are consumed or emitted unless the client offered
     // PROTOCOL_HYBRID and R1 actually selected PROTOCOL_HYBRID.
     // BindingVerified proves only the TLS-bound GSS/public-key handshake.
-    // A later call consumes the final authInfo on this same owner. The current
-    // delegated-credential policy is deny-only, so a bounded final credential
-    // step returns UnsupportedFinalCredentials and terminally revokes R2.
-    // Native authorization and R3 admission remain separate.
+    // A later call consumes final authInfo on this same owner. A genuine PAM
+    // Authorized result returns CredentialsVerified only after exact delegated
+    // account/policy binding and secret retirement; native NSS/logind evidence
+    // and R3 admission remain separate. All other final credentials fail
+    // closed as UnsupportedFinalCredentials.
     [[nodiscard]] OwnedCredSspHandshakeResult advanceOwnedCredSspHandshake(
         transport::OwnedPreauthTcpConnection &connection,
         TsRequestFrameReader &reader,
@@ -263,9 +268,9 @@ public:
     // the genuine GSS/CredSSP public-key exchange, in version 5 or 6.
     // GSS-unwraps the protected authInfo synchronously, inspects bounded
     // credential structure without exporting secrets, securely erases
-    // GSS plaintext and terminally closes both reader and provider.
-    // Even a genuine decrypted credential is NEVER OS/session admission:
-    // no audited delegated-credential authorization exists yet.
+    // GSS plaintext and then terminally rejects. This compatibility entry
+    // point never promotes even a genuine PAM result; the owner-driven
+    // handshake is the only positive candidate path.
     void consumeFramedAndDenyDelegatedCredentials(
         TsRequestFrameReader &reader) noexcept;
 
@@ -321,14 +326,27 @@ public:
 private:
     friend class LinuxConsoleAdmissionBroker;
 
-    // Native admission must not be derived from the public binding-level
-    // identity observations above. These private borrows are nonempty only
-    // after an R2-owned final-credential authorization policy completes.
-    // The current deny-only policy never sets that completion state.
+    // Native admission must not be derived from public binding-level identity.
+    // Final PAM success is retained only as an account-bound private candidate;
+    // the completion latch is set solely by the concrete broker after fresh
+    // NSS/logind evidence and a live revocation watch both succeed.
     [[nodiscard]] std::string_view nativeAdmissionPrincipalForTls(
         const SSL *activeServerTls) const noexcept;
     [[nodiscard]] std::string_view nativeAdmissionPrincipalForOwnedConnection(
         const transport::OwnedPreauthTcpConnection &connection) const noexcept;
+    [[nodiscard]] bool pendingCredentialAuthorizationMatches(
+        const transport::OwnedPreauthTcpConnection &connection,
+        std::string_view kerberosPrincipal,
+        std::string_view unixAccount,
+        std::uint64_t policyGeneration) const noexcept;
+    [[nodiscard]] bool completeCredentialAuthorizationForNativeAdmission(
+        const transport::OwnedPreauthTcpConnection &connection,
+        std::string_view kerberosPrincipal,
+        std::string_view unixAccount,
+        std::uint64_t policyGeneration) noexcept;
+    [[nodiscard]] bool consumeFramedDelegatedCredentialsForAuthorization(
+        TsRequestFrameReader &reader) noexcept;
+    void clearPendingCredentialAuthorization() noexcept;
 
     // Shared protected-binding implementation; combinedFinal permits the
     // one final GSS token ONLY after the one-shot framed GSS completion.
@@ -359,8 +377,12 @@ private:
     TsRequestTlsReplyWriter *ownedCredSspWriter_{};
     bool ownedCredSspReplyPending_{};
     bool ownedCredSspBindingVerified_{};
-    // Deliberately false until a future reviewed policy positively authorizes
-    // the final CredSSP credential step. No caller-facing setter exists.
+    // PAM success retains only this already-validated local account until the
+    // concrete broker joins it to native owner/session evidence.
+    std::array<char, 33> ownedCredSspAuthorizedAccount_{};
+    std::size_t ownedCredSspAuthorizedAccountLength_{};
+    bool ownedCredSspCredentialAuthorizationPending_{};
+    // Set only by the friend broker after native evidence + change watch.
     bool ownedCredSspCredentialAuthorizationComplete_{};
 
     const ConsoleIdentityPolicy *identityPolicy_{};

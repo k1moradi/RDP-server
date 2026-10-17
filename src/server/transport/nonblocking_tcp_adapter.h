@@ -15,6 +15,11 @@
 
 #include <openssl/ssl.h>
 
+namespace rdp_server::server::security
+{
+class LinuxConsoleAdmissionBroker;
+}
+
 namespace rdp_server::server::transport
 {
 
@@ -508,6 +513,12 @@ private:
      void cancel() noexcept;
 
  private:
+     friend class rdp_server::server::security::LinuxConsoleAdmissionBroker;
+
+     // Only the concrete R2 broker may advance the exact R1 HYBRID owner
+     // after final credentials and native desktop admission both succeed.
+     [[nodiscard]] bool completeCredSspAdmission() noexcept;
+
      enum class TlsApplicationOperation : std::uint8_t
      {
          None,

@@ -22,6 +22,7 @@ enum class LinuxCredSspStepStatus : std::uint8_t
     NeedRead,
     NeedWrite,
     BindingVerified,
+    CredentialsVerified,
     UnsupportedFinalCredentials,
     Invalid,
     Closed,
@@ -41,6 +42,7 @@ enum class LinuxPreAdmissionStepStatus : std::uint8_t
     NeedWrite,
     TlsEstablished,
     BindingVerified,
+    CredentialsVerified,
     UnsupportedFinalCredentials,
     Invalid,
     Closed,
@@ -112,13 +114,14 @@ public:
     // Delegate one bounded event-loop step to R2's owner-driven CredSSP/GSS
     // progression. R1 remains the sole SSL_read_ex/SSL_write_ex owner; R10
     // maps readiness and owns lifetimes only. BindingVerified is transport/GSS
-    // evidence, not native desktop admission. UnsupportedFinalCredentials is
-    // terminal and means R2 consumed but did not authorize final authInfo.
+    // evidence. CredentialsVerified means exact delegated account + PAM passed,
+    // but native desktop admission is still required. UnsupportedFinalCredentials
+    // is terminal and means final authInfo was not authorized.
     [[nodiscard]] LinuxCredSspStepResult onCredSspIoReady() noexcept;
 
-    // Positive R2 issuance additionally requires R2's private final-credential
-    // authorization completion proof. The current deny-only credential policy
-    // cannot satisfy it, even after BindingVerified. The lease never escapes
+    // Positive R2 issuance consumes the private final-credential candidate,
+    // samples fresh concrete NSS/logind owner evidence, installs its change
+    // watch, and only then completes R1/R2 admission. The lease never escapes
     // this aggregate.
     [[nodiscard]] bool issueAdmission(
         const rdp_server::server::security::ConsoleEvidenceRequest &request)

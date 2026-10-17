@@ -1,3 +1,53 @@
+## R2 final credential/native admission join (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `a97933bf7a2b523dac641e97776e111d46a28be0`.
+
+R2 now implements the authority join that the preceding PAM boundary deliberately
+left open. On the genuine owner-driven CredSSP path, final `authInfo` is still
+GSS-unwrapped only after exact R1 HYBRID/TLS, server-certificate continuity,
+provider-derived Kerberos identity, completed public-key binding and unchanged
+`ConsoleIdentityPolicy` generation. The canonical password visitor must map
+the delegated local account exactly and the explicitly provisioned
+`LinuxPamPasswordVerifier` must return `Authorized`. Password bytes remain
+borrowed only inside `SensitiveBytesGuard` and are cleansed before the GSS
+plaintext is released.
+
+A positive PAM result now retains only one private fixed-capacity account copy
+plus the existing principal/policy-generation provenance. It is not the final
+authorization latch and cannot advance R1. `LinuxConsoleAdmissionBroker::issue`
+requires that exact private account/principal fact, installs the concrete logind
+change watch, samples fresh NSS/logind physical-desktop owner evidence and
+rechecks policy, transport, candidate session and watch state. Only after all
+those checks succeed does the friend-only broker set
+`ownedCredSspCredentialAuthorizationComplete_`, privately advance the sole R1
+owner from `AwaitCredSsp` to `AwaitMcsConnectInitial`, and mint the existing
+short-lived `LinuxConsoleAdmissionLease`. No public Boolean/setter or second
+session authority is added.
+
+The owner-driven handshake reports `CredentialsVerified` between final PAM
+success and native admission. It emits no success TSRequest; the CredSSP reply
+writer stays idle so the same R1 SSL/BIO remains usable. Any PAM denial,
+malformed credential, policy/certificate drift, missing native owner evidence,
+logind watch failure or replay remains terminal and clears the private pending
+account.
+
+Ordinary CI does not fabricate positive Kerberos, PAM or NSS/logind authority.
+New behavior case
+`runtime.linux-connection-final-credential-native-admission-denials` proves
+that exact HYBRID/TLS plus explicit PAM provisioning cannot issue a lease or
+advance R1 without the private final-credential result. R9's direct runtime
+ASan/UBSan selector fail-closed preflights the new registration. Canonical
+`~/rdp-server/build/` execution is **NOT RUN** in this connector environment.
+Genuine positive Kerberos + PAM + NSS/logind/logind-watch execution and
+Microsoft-client acceptance are **NOT RUN / BLOCKED** pending a controlled
+owner environment.
+
+**Next R2 gate:** validate the denial/lifetime implementation on hosted
+Linux/GCC plus R9 ASan/UBSan. Then provision the explicit PAM service through
+the administrator-owned runtime configuration without accepting passwords or
+authorization booleans from CLI input, and run genuine positive owner/provider
+acceptance before M2 can close.
+
 ## R6 P2 Windows sanitizer continuation-fence correction (2026-10-17)
 
 **Initial P2 publication:** `bcf8736ce12b061ba62538f2404669b8b4fa1157`,

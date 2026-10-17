@@ -1,3 +1,24 @@
+## R3 CAL leaf-validity exact-SHA validation receipt (2026-10-17)
+
+`ca56ededf527a46bcf535a5c3396d3b9e4d69db4`, Actions
+`39010430295`:
+
+- Linux/GCC full CTest: **569/569 PASS Debug**, **569/569 PASS Release**.
+- macOS/AppleClang full CTest: **486/486 PASS Debug**, **486/486 PASS Release**.
+- Windows/MSVC full CTest: **519/519 PASS Debug**, **519/519 PASS Release**.
+- `transport.licensing-client-cal-certificate-validity` passes in all six
+  ordinary configurations.
+- R9 Clang ASan/UBSan CAL registry preflight finds all seven
+  `transport.licensing-client-cal-*` cases and executes **7/7 PASS**.
+- Documentation policy and ordinary installed-SDK/package gates pass.
+
+The workflow conclusion is **FAIL** solely because the independent R6
+`r6-windows-clang23` job failed during CLANG64 configuration. That job does
+not compile or execute the R3 CAL test path and is not reported as R3 evidence.
+
+Canonical owner-local and genuine Microsoft-client acceptance remain
+**NOT RUN**. No valid-client authorization or Share activation is claimed.
+
 ## R1 legacy native-loopback handshake readiness hardening (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared \`main\`:** \`04a272c8b9b52f59a24401643a46d495978d1f95\`.

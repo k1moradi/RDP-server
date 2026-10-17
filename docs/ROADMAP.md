@@ -1,3 +1,40 @@
+## R3 CAL leaf-validity exact-SHA hosted validation (2026-10-17)
+
+**Implementation:** `3822ca6d230336f8db2e20d1c4ae6153e22b92a3`.  
+**Test-only correction:** `ca56ededf527a46bcf535a5c3396d3b9e4d69db4`.  
+**Actions:** `39010430295` — overall **FAIL** only in the independent R6
+Windows CLANG64 configure gate; all R3-relevant ordinary and sanitizer jobs
+**PASS**.
+
+The corrected fixed-size test dispatch and canonical RFC 5280 UTCTime fixtures
+leave the production explicit-time CAL leaf-validity API unchanged. Hosted
+ordinary CTest passes Linux/GCC **569/569 Debug + 569/569 Release**,
+macOS/AppleClang **486/486 Debug + 486/486 Release**, and Windows/MSVC
+**519/519 Debug + 519/519 Release**. In every ordinary configuration
+`transport.licensing-client-cal-certificate-validity` passes as test #69.
+
+R9's Clang ASan/UBSan CAL preflight enumerates all seven flat
+`transport.licensing-client-cal-*` registrations and executes **7/7 PASS**,
+including chain structure, issuer-signature denials, product-extension denials,
+certificate validity, expiry/HWID denials, no-premature-completion and terminal
+retirement. Documentation policy and the ordinary downstream installed-SDK,
+package/digest and artifact gates also pass.
+
+This closes only the X.509 leaf certificate validity fact. It does not decode
+the proprietary RDP licensing extension payloads, prove CAL-specific
+expiration/renewal semantics, correlate product/version, bind the CAL to the
+protected-message HWID, establish a genuine CAL issuer, emit
+`STATUS_VALID_CLIENT` or activate Share.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27 and real-client CAL acceptance remain **NOT RUN**
+for this R3 increment.
+
+**Next R3:** keep CLIENT_LICENSE_INFO non-authorizing and advance only another
+standards-defined certificate/path prerequisite or an authority encoding that
+is explicitly documented. Do not infer the five Microsoft licensing-extension
+payload layouts from synthetic certificates.
+
 ## R1 legacy native-loopback handshake readiness hardening (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared \`main\`:** \`04a272c8b9b52f59a24401643a46d495978d1f95\`.

@@ -56,9 +56,11 @@ HYBRID_EX. FreeRDP issue #13549 is capture evidence only: Windows App for macOS
 and sent final authInfo; HYBRID connected while an incorrectly early HYBRID_EX
 authorization stalled before MCS. Microsoft Q&A separately reports Windows 11
 mstsc captures with `0x0b` and an optional mstshash cookie; this is
-non-normative and must be re-captured on the exact client build. Microsoft
-release notes list Windows App 2.0.1482.0 (Windows) and 11.4.3 (3115, macOS)
-as current October 2026 reference builds.
+non-normative and must be re-captured on the exact client build. Microsoft's live release page lists Windows App 2.0.1484.0 on Windows
+(published 2026-10-13). Its macOS latest-release table still lists 11.4.2
+(3104), while the same page's version history lists 11.4.3 (3115, published
+2026-09-29); record the actually installed build rather than resolving that
+documentation/rollout inconsistency by assumption.
 
 Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
 connector environment; no alternate persistent build root was created.

@@ -1076,8 +1076,11 @@ HYBRID (0x02) connected while an incorrectly early HYBRID_EX authorization
 stalled before MCS. A Microsoft Q&A Windows 11 `mstsc.exe` capture also reports
 `0x0b` and an optional `Cookie: mstshash=...`; treat that report as
 non-normative capture evidence and repeat it on the exact Windows build under
-test. Microsoft release notes list Windows App 2.0.1482.0 on Windows and
-11.4.3 (3115) on macOS as current October 2026 reference builds.
+test. Microsoft's live release page lists Windows App 2.0.1484.0 on Windows
+(published 2026-10-13). Its macOS latest-release table still lists 11.4.2
+(3104), while the same page's version history lists 11.4.3 (3115, published
+2026-09-29); record the actually installed build rather than resolving that
+documentation/rollout inconsistency by assumption.
 
 ### Genuine final-CredSSP + first-MCS positive fixture
 

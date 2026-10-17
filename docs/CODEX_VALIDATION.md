@@ -494,6 +494,35 @@ execution are **NOT RUN** because this connector environment does not expose
 the mandated `~/rdp-server/` checkout. Hosted exact-SHA evidence is
 **PENDING**.
 
+## R2 explicit runtime PAM provisioning authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `910cdad63b2b0cb384bf85d63731482c42e340cd`.  
+**Source/test publication:** `14c2e5995e3eb83e0d89725ec41f46837860708f`.
+
+Linux GSS+PAM builds now let the immutable runtime security owner provision one
+explicit `LinuxPamPasswordVerifier` alongside its sealed keytab and
+`ConsoleIdentityPolicy`. The verifier is owned by
+`LinuxRuntimeSecurityConfiguration`; each connection acceptor receives only
+the existing borrowed one-shot binding after the same policy is bound and
+before GSS configuration. The non-PAM overload is unchanged, no default PAM
+service is selected, and the process configuration does not silently enable
+this opt-in path.
+
+Dedicated production-backed coverage is
+`runtime.linux-security-pam-verifier-provisioning`. It uses the existing
+synthetic keytab only to exercise provider configuration, configures the
+non-authorizing PAM service name `rdp-server-r2-ci` without authenticating a
+user, rejects an invalid `../login` service and proves failed configuration
+cannot be retried. It also confirms that provisioning alone leaves the native
+admission broker ready with no session-change watch. No fake positive PAM
+result, Kerberos authentication, NSS/logind ownership, completion latch, lease
+or R3 authority is created.
+
+Canonical local `~/rdp-server/build/` execution is **NOT RUN** because that
+mandated checkout is not mounted in this connector environment. Exact-SHA
+hosted Actions for the source commit are **PENDING** at authoring time; report
+their actual result separately rather than inferring it from registration.
+
 ## R2 authenticated PAM invocation hosted validation (2026-10-17)
 
 Exact code SHA `92ddb689b0ca3200b2ef420f818c04cd630da147` completed GitHub Actions

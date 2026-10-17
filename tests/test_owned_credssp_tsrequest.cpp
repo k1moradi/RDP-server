@@ -402,6 +402,108 @@ void testStrictPasswordCredentialFields()
     return true;
 }
 
+void testDelegatedAccountExtraction()
+{
+    const auto valid = passwordCredentials(
+        {}, utf16Le(u"alice"), utf16Le(u"p\u00e4ss\U0001F512"));
+    const auto alice = inspectCredSspDelegatedAccount(valid);
+    assert(alice && alice.accountName() == "alice");
+
+    std::u16string boundary(32U, u'a');
+    const auto maximum = inspectCredSspDelegatedAccount(passwordCredentials(
+        {}, utf16Le(boundary), utf16Le(u"secret")));
+    assert(maximum && maximum.accountName().size() == 32U);
+
+    std::u16string tooLong(33U, u'a');
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(tooLong), utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+    assert(!inspectCredSspDelegatedAccount(passwordCredentials(
+        {}, {}, utf16Le(u"secret"))));
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"root"), utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"alice.name"), utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"Alice"), utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"al\u0131ce"), utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+
+    auto oddUser = utf16Le(u"alice");
+    oddUser.pop_back();
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, oddUser, utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidCredential);
+    auto embeddedNul = utf16Le(u"alice");
+    embeddedNul[2] = 0;
+    embeddedNul[3] = 0;
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, embeddedNul, utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidCredential);
+
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"alice"), utf16Le(u"secret"), 2)).error ==
+           CredSspDelegatedAccountError::UnsupportedCredentialType);
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"alice"), utf16Le(u"secret"), 6)).error ==
+           CredSspDelegatedAccountError::UnsupportedCredentialType);
+
+    const auto metadata = inspectCredSspCredentials(valid);
+    assert(metadata && metadata.kind == CredSspCredentialKind::Password);
+}
+
+void testDelegatedDomainIdentityDenials()
+{
+    const auto emptyDomain = inspectCredSspDelegatedAccount(
+        passwordCredentials({}, utf16Le(u"alice"), utf16Le(u"secret")));
+    assert(emptyDomain && emptyDomain.accountName() == "alice");
+
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               utf16Le(u"EXAMPLE"), utf16Le(u"alice"),
+               utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::NonEmptyDomain);
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"DOMAIN\\alice"),
+               utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"alice@OTHER.REALM"),
+               utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+    assert(inspectCredSspDelegatedAccount(passwordCredentials(
+               {}, utf16Le(u"\u0430lice"),
+               utf16Le(u"secret"))).error ==
+           CredSspDelegatedAccountError::InvalidUnixAccount);
+}
+
+void testDelegatedAccountSensitiveRetirement()
+{
+    Bytes plaintext = passwordCredentials(
+        {}, utf16Le(u"alice"), utf16Le(u"p\u00e4ss\U0001F512"));
+    {
+        SensitiveBytesGuard guard{plaintext};
+        const auto candidate = inspectCredSspDelegatedAccount(plaintext);
+        assert(candidate && candidate.accountName() == "alice");
+    }
+    assert(std::all_of(
+        plaintext.begin(), plaintext.end(),
+        [](std::uint8_t value) { return value == 0; }));
+
+    Bytes invalid = passwordCredentials(
+        {}, utf16Le(u"root"), utf16Le(u"secret"));
+    {
+        SensitiveBytesGuard guard{invalid};
+        assert(!inspectCredSspDelegatedAccount(invalid));
+    }
+    assert(std::all_of(
+        invalid.begin(), invalid.end(),
+        [](std::uint8_t value) { return value == 0; }));
+}
+
 void assertDeterministicCredentialInspection(const Bytes &input)
 {
     const Bytes original = input;
@@ -1292,7 +1394,7 @@ struct CredSspTestCase
     std::string_view name;
     void (*run)();
 };
-constexpr std::array<CredSspTestCase, 18> kCredSspTests{{
+constexpr std::array<CredSspTestCase, 21> kCredSspTests{{
     {"credssp-der-basic", &testBasicCredSspDer},
     {"credssp-der-opaque", &testCredentialsStayOpaque},
     {"credssp-der-rejections", &testRejectMalformedFields},
@@ -1306,6 +1408,11 @@ constexpr std::array<CredSspTestCase, 18> kCredSspTests{{
      &testPasswordCredentialLengthBoundaryDenials},
     {"credssp-password-credential-utf16-mutation-boundaries",
      &testPasswordCredentialUtf16MutationBoundaries},
+    {"credssp-delegated-account-extraction", &testDelegatedAccountExtraction},
+    {"credssp-delegated-domain-identity-denials",
+     &testDelegatedDomainIdentityDenials},
+    {"credssp-delegated-account-sensitive-retirement",
+     &testDelegatedAccountSensitiveRetirement},
     {"credssp-stream-fragments", &testStreamAllFragmentBoundaries},
     {"credssp-stream-coalesced", &testStreamCoalescedAndLongDer},
     {"credssp-stream-rejections", &testStreamDerFailuresAndCancellation},

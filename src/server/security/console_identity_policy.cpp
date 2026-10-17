@@ -213,4 +213,45 @@ ConsolePolicyMatch ConsoleIdentityPolicy::matchCandidate(
     return ConsolePolicyMatch::Denied;
 }
 
+ConsolePolicyMatch ConsoleIdentityPolicy::matchPrincipalAccountCandidate(
+    std::string_view kerberosPrincipal,
+    std::string_view unixAccount,
+    std::uint64_t expectedGeneration) const noexcept
+{
+    if (expectedGeneration == 0 || generation() != expectedGeneration ||
+        !validPrincipal(kerberosPrincipal) || !validAccount(unixAccount))
+    {
+        return ConsolePolicyMatch::Denied;
+    }
+
+    bool found = false;
+    std::string_view configuredAccount;
+    for (std::size_t index = 0; index < count_; ++index)
+    {
+        const auto &rule = rules_[index];
+        if (view(rule.principal) != kerberosPrincipal)
+        {
+            continue;
+        }
+        const std::string_view account = view(rule.account);
+        if (!found)
+        {
+            configuredAccount = account;
+            found = true;
+        }
+        else if (account != configuredAccount)
+        {
+            return ConsolePolicyMatch::Denied;
+        }
+    }
+
+    if (!found || configuredAccount != unixAccount)
+    {
+        return ConsolePolicyMatch::Denied;
+    }
+    return generation() == expectedGeneration
+        ? ConsolePolicyMatch::CandidateOnly
+        : ConsolePolicyMatch::Denied;
+}
+
 } // namespace rdp_server::server::security

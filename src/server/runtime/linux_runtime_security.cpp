@@ -389,6 +389,10 @@ bool LinuxRuntimeSecurityConfiguration::configureAcceptor(
         acceptor.reject();
         return false;
     }
+    if (!acceptor.bindConsoleIdentityPolicy(policy_))
+    {
+        return false;
+    }
     return configureAcceptorFromDescriptor(
         std::string_view(servicePrincipal_.data(), servicePrincipalLength_),
         keytabDescriptor_, acceptor);

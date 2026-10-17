@@ -250,6 +250,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-console-provenance-before-os-read
                 gssapi-native-os-admission-capability-denials
                 gssapi-native-admission-r1-nla-provenance-denials
+                gssapi-credssp-delegated-account-origin-denials
                 gssapi-r3-initial-nla-owner-fence
                 gssapi-r3-mcs-admission-contract
                 gssapi-r3-protected-transition-generation-fence
@@ -287,6 +288,9 @@ function(add_rdp_test source_file suite behavior)
                 credssp-password-credential-nested-der-mutations
                 credssp-password-credential-length-boundary-denials
                 credssp-password-credential-utf16-mutation-boundaries
+                credssp-delegated-account-extraction
+                credssp-delegated-domain-identity-denials
+                credssp-delegated-account-sensitive-retirement
                 credssp-stream-fragments
                 credssp-stream-coalesced
                 credssp-stream-rejections
@@ -561,6 +565,13 @@ set_tests_properties(clipboard.wire-codec-mutated-boundaries PROPERTIES
     LABELS "protocol;clipboard;security;offline")
 add_rdp_test(test_owned_credssp_binding.cpp security credssp-binding)
 add_rdp_test(test_owned_credssp_tsrequest.cpp security credssp-tsrequest)
+add_rdp_test(test_console_identity_policy.cpp security console-policy-candidate-matching)
+target_link_libraries(test_console_identity_policy PRIVATE
+    rdp-server-console-identity-policy)
+add_test(NAME security.console-policy-delegated-account-binding
+    COMMAND test_console_identity_policy console-policy-delegated-account-binding)
+set_tests_properties(security.console-policy-delegated-account-binding
+    PROPERTIES LABELS "protocol;security;offline")
 add_rdp_test(test_base64_codec.cpp security base64-codec)
 add_rdp_test(test_gfx_surface_lifecycle.cpp graphics surface-lifecycle)
 add_rdp_test(test_gfx_avc420_capabilities.cpp graphics avc420-capabilities)

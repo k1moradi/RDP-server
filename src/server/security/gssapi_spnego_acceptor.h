@@ -4,6 +4,7 @@
 #include "credssp_tsrequest.h"
 #include "credssp_tls_certificate.h"
 #include "credssp_credentials.h"
+#include "console_identity_policy.h"
 
 #include <gssapi/gssapi.h>
 
@@ -136,6 +137,11 @@ public:
     // Failed configuration permanently poisons this object.
     [[nodiscard]] bool configure(std::string_view serviceName,
                                  std::string_view keytabFile) noexcept;
+
+    // One-shot service-owned policy binding. It captures only the revocation
+    // generation and grants no authentication or native authority.
+    [[nodiscard]] bool bindConsoleIdentityPolicy(
+        const ConsoleIdentityPolicy &policy) noexcept;
 
     // Call exactly once per incoming CredSSP TSRequest negoToken. Only a
     // COMPLETE GSS context with authenticated Kerberos, mutual, confidentiality,
@@ -347,6 +353,9 @@ private:
     // Deliberately false until a future reviewed policy positively authorizes
     // the final CredSSP credential step. No caller-facing setter exists.
     bool ownedCredSspCredentialAuthorizationComplete_{};
+
+    const ConsoleIdentityPolicy *identityPolicy_{};
+    std::uint64_t identityPolicyGeneration_{};
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
     // Borrowed from the one TLS-bound framing owner, never owning SSL.

@@ -172,8 +172,8 @@ jobs:
             test_x264_avc420_segmented_frame_producer \
             test_owned_mcs_connect_initial test_owned_preauth_session \
             test_owned_credssp_tsrequest \
-            test_owned_credssp_binding test_linux_gssapi_spnego \
-            test_linux_pam_password_verifier \
+            test_owned_credssp_binding test_console_identity_policy \
+            test_linux_gssapi_spnego test_linux_pam_password_verifier \
             test_runtime_linux_security rdp-server \
             test_x11_clipboard_adapter test_x11_capture_layout \
             test_x11_cursor_reply test_x11_native_capture \
@@ -322,6 +322,16 @@ jobs:
           grep -Fq 'security.credssp-password-credential-utf16-mutation-boundaries' <<< "$credential_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$credential_selection" --output-on-failure
+
+          delegated_account_selection='^security\.(credssp-delegated-(account-(extraction|sensitive-retirement)|domain-identity-denials)|console-policy-delegated-account-binding)$'
+          delegated_account_tests="$(ctest --test-dir build --build-config Debug -N -R "$delegated_account_selection")"
+          printf '%s\n' "$delegated_account_tests"
+          grep -Fq 'security.credssp-delegated-account-extraction' <<< "$delegated_account_tests"
+          grep -Fq 'security.credssp-delegated-domain-identity-denials' <<< "$delegated_account_tests"
+          grep -Fq 'security.credssp-delegated-account-sensitive-retirement' <<< "$delegated_account_tests"
+          grep -Fq 'security.console-policy-delegated-account-binding' <<< "$delegated_account_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$delegated_account_selection" --output-on-failure
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
@@ -332,8 +342,13 @@ jobs:
           # credential. Keep the suppression scoped to these GSS tests only.
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
+          set -euo pipefail
+          native_gss_selection='^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|native-admission-r1-nla-provenance-denials|credssp-delegated-account-origin-denials|r3-initial-nla-owner-fence|r1-owned-credssp-provenance-fence|r1-owned-binding-delivery-fence|credssp-authinfo-terminal-denials|r1-owned-credssp-cancellation-fence|r1-owned-completed-frame-cancellation-fence|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-channel-join-contract|r3-channel-join-terminal-replay-fence|r3-joined-clipboard-role-contract|r3-client-info-route-contract|r3-server-license-request-write-contract|r3-client-licensing-route-contract|r3-server-platform-challenge-write-contract|r3-client-platform-challenge-response-route-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$native_gss_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'security.gssapi-credssp-delegated-account-origin-denials' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 --verbose \
-            -R '^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|native-admission-r1-nla-provenance-denials|r3-initial-nla-owner-fence|r1-owned-credssp-provenance-fence|r1-owned-binding-delivery-fence|credssp-authinfo-terminal-denials|r1-owned-credssp-cancellation-fence|r1-owned-completed-frame-cancellation-fence|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-channel-join-contract|r3-channel-join-terminal-replay-fence|r3-joined-clipboard-role-contract|r3-client-info-route-contract|r3-server-license-request-write-contract|r3-client-licensing-route-contract|r3-server-platform-challenge-write-contract|r3-client-platform-challenge-response-route-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$' --output-on-failure
+            -R "$native_gss_selection" --output-on-failure
 
       - name: Run R2 Linux PAM verifier denials with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

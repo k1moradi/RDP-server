@@ -1,3 +1,21 @@
+## R2 delegated-account binding publication (2026-10-16)
+
+This publication adds bounded username extraction through the canonical CredSSP
+parser, empty-domain-only semantics, generation-fenced exact Kerberos-principal
+to local-account candidate matching, original R1 owner requirements and
+sensitive plaintext retirement. Five behavior-named CTests are centrally
+registered. Portable credential/policy cases run in bounded Clang ASan/UBSan
+without the MIT-krb5 suppression; the new origin denial runs in the native GSS
+selection with the provider-scoped suppression.
+
+Hosted exact-SHA results are **PENDING** for this publication. The connector
+environment has no canonical `~/rdp-server/build/`, so owner-local Debug,
+Release and sanitizer execution is **NOT RUN** here. Do not infer PAM success,
+NSS/logind admission, a completion latch, `LinuxConsoleAdmissionLease`, R3
+activation or Microsoft-client acceptance from syntax/policy CTests. PAM remains
+uninvoked on the live final credential path; positive real-provider/native
+acceptance gates remain **BLOCKED / NOT RUN**.
+
 ## R9 final CredSSP adversarial-parser exact-SHA receipt (2026-10-16)
 
 Validated shared integration SHA

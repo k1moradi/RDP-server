@@ -73,6 +73,16 @@ public:
     [[nodiscard]] ConsolePolicyMatch matchCandidate(
         const ConsoleIdentityRequest &request) const noexcept;
 
+    // Read-only identity-only query for the final CredSSP boundary. This
+    // deliberately ignores seat/display/UID/native evidence and can return
+    // CandidateOnly only. expectedGeneration is the nonzero epoch captured
+    // when this service-owned policy is bound to the GSS owner. If one
+    // principal names different local accounts across rules, deny ambiguity.
+    [[nodiscard]] ConsolePolicyMatch matchPrincipalAccountCandidate(
+        std::string_view kerberosPrincipal,
+        std::string_view unixAccount,
+        std::uint64_t expectedGeneration) const noexcept;
+
     [[nodiscard]] std::size_t size() const noexcept { return count_; }
 
     // Monotonic configuration epoch used to revoke native admission leases.

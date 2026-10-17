@@ -640,6 +640,38 @@ static_assert(std::is_invocable_r_v<
               std::span<const std::uint8_t>>);
 
 
+void testCredSspDelegatedAccountOriginDenials()
+{
+    constexpr std::array<std::uint8_t, 47> detachedCredential{
+        0x30,0x2d,0xa0,0x03,0x02,0x01,0x01,0xa1,0x26,0x04,0x24,0x30,
+        0x22,0xa0,0x02,0x04,0x00,0xa1,0x0c,0x04,0x0a,
+        0x61,0x00,0x6c,0x00,0x69,0x00,0x63,0x00,0x65,0x00,
+        0xa2,0x0e,0x04,0x0c,0x73,0x00,0x65,0x00,0x63,0x00,
+        0x72,0x00,0x65,0x00,0x74,0x00};
+
+    const auto parsed = inspectCredSspDelegatedAccount(detachedCredential);
+    assert(parsed && parsed.accountName() == "alice");
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001U, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    assert(policy.matchPrincipalAccountCandidate(
+               "alice@EXAMPLE.TEST", "alice", policy.generation()) ==
+           ConsolePolicyMatch::CandidateOnly);
+
+    GssapiSpnegoAcceptor detached;
+    assert(detached.bindConsoleIdentityPolicy(policy));
+    detached.consumeAndDenyDelegatedCredentials(detachedCredential);
+    assert(detached.stage() == SpnegoStage::Failed);
+    assert(detached.verifiedPrincipal().empty());
+
+    ConsoleIdentityPolicy emptyPolicy;
+    GssapiSpnegoAcceptor missingMapping;
+    assert(!missingMapping.bindConsoleIdentityPolicy(emptyPolicy));
+    assert(missingMapping.stage() == SpnegoStage::Failed);
+}
+
 void testNativeAdmissionR1NlaProvenanceDenials()
 {
     const std::optional<SecurityNegotiationProvenance> missing{};
@@ -2134,6 +2166,11 @@ int main(int argc, char **argv)
             testNativeAdmissionR1NlaProvenanceDenials();
             return 0;
         }
+        if (name == "gssapi-credssp-delegated-account-origin-denials")
+        {
+            testCredSspDelegatedAccountOriginDenials();
+            return 0;
+        }
         if (name == "gssapi-r3-initial-nla-owner-fence")
         {
             testR3InitialNlaOwnerFence();
@@ -2244,6 +2281,7 @@ int main(int argc, char **argv)
     testConsoleGssProvenanceBeforeOsRead();
     testNativeAdmissionCapabilityDenials();
     testNativeAdmissionR1NlaProvenanceDenials();
+    testCredSspDelegatedAccountOriginDenials();
     testR3InitialNlaOwnerFence();
     testR3McsAdmissionContract();
     testR3ProtectedTransitionGenerationFence();

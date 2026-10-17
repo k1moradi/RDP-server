@@ -3,26 +3,33 @@
 
 #include <openssl/crypto.h>
 
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
 namespace rdp_server::server::security
 {
 namespace
 {
 
-struct Reader
+class Reader final
 {
-    std::span<const std::uint8_t> bytes{};
-    std::size_t pos{};
+public:
+    explicit Reader(std::span<const std::uint8_t> bytes) noexcept
+        : bytes_(bytes) {}
 
-    [[nodiscard]] bool read(std::uint8_t tag,
-                            std::span<const std::uint8_t> &value) noexcept
+    [[nodiscard]] bool read(
+        std::uint8_t expectedTag,
+        std::span<const std::uint8_t> &value) noexcept
     {
-        value = {};
-        if (pos >= bytes.size() || bytes[pos++] != tag ||
-            pos >= bytes.size())
+        if (position_ >= bytes_.size() ||
+            bytes_[position_++] != expectedTag ||
+            position_ >= bytes_.size())
         {
             return false;
         }
-        const std::uint8_t first = bytes[pos++];
+        const std::uint8_t first = bytes_[position_++];
         std::size_t length = 0;
         if ((first & 0x80U) == 0)
         {
@@ -32,13 +39,14 @@ struct Reader
         {
             const std::size_t count = first & 0x7fU;
             if (count == 0 || count > 2 ||
-                count > bytes.size() - pos || bytes[pos] == 0)
+                count > bytes_.size() - position_ ||
+                bytes_[position_] == 0)
             {
                 return false;
             }
             for (std::size_t index = 0; index < count; ++index)
             {
-                length = (length << 8U) | bytes[pos++];
+                length = (length << 8U) | bytes_[position_++];
             }
             if ((count == 1 && length < 128) ||
                 (count == 2 && length < 256))
@@ -46,19 +54,23 @@ struct Reader
                 return false;
             }
         }
-        if (length > bytes.size() - pos)
+        if (length > bytes_.size() - position_)
         {
             return false;
         }
-        value = bytes.subspan(pos, length);
-        pos += length;
+        value = bytes_.subspan(position_, length);
+        position_ += length;
         return true;
     }
 
-    [[nodiscard]] bool finished() const noexcept
+    [[nodiscard]] bool empty() const noexcept
     {
-        return pos == bytes.size();
+        return position_ == bytes_.size();
     }
+
+private:
+    std::span<const std::uint8_t> bytes_{};
+    std::size_t position_{};
 };
 
 [[nodiscard]] bool unwrap(
@@ -66,20 +78,22 @@ struct Reader
     std::uint8_t tag,
     std::span<const std::uint8_t> &value) noexcept
 {
-    Reader reader{encoded};
-    return reader.read(tag, value) && reader.finished();
+    Reader reader(encoded);
+    return reader.read(tag, value) && reader.empty();
 }
 
 [[nodiscard]] bool readCredentialType(
-    std::span<const std::uint8_t> bytes,
+    std::span<const std::uint8_t> explicitValue,
     std::uint8_t &type) noexcept
 {
-    // Canonical DER positive single-byte INTEGER, no high bit or padding.
-    if (bytes.size() != 1 || bytes[0] == 0 || bytes[0] >= 128)
+    std::span<const std::uint8_t> integer;
+    if (!unwrap(explicitValue, 0x02, integer) ||
+        integer.size() != 1 || integer[0] == 0 ||
+        (integer[0] & 0x80U) != 0)
     {
         return false;
     }
-    type = bytes[0];
+    type = integer[0];
     return true;
 }
 
@@ -87,7 +101,7 @@ struct Reader
     std::span<const std::uint8_t> text,
     bool allowEmpty) noexcept
 {
-    if (text.size() > 4096 || (text.size() % 2U) != 0U ||
+    if (text.size() > 4096 || (text.size() % 2U) != 0 ||
         (!allowEmpty && text.empty()))
     {
         return false;
@@ -100,8 +114,6 @@ struct Reader
             (static_cast<std::uint16_t>(text[offset + 1U]) << 8U);
         if (codeUnit == 0)
         {
-            // Embedded NUL would make later native string conversion
-            // ambiguous even though the surrounding OCTET STRING is bounded.
             return false;
         }
         if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
@@ -110,10 +122,10 @@ struct Reader
             {
                 return false;
             }
-            const std::uint16_t trailing =
+            const std::uint16_t low =
                 static_cast<std::uint16_t>(text[offset + 2U]) |
                 (static_cast<std::uint16_t>(text[offset + 3U]) << 8U);
-            if (trailing < 0xdc00U || trailing > 0xdfffU)
+            if (low < 0xdc00U || low > 0xdfffU)
             {
                 return false;
             }
@@ -127,85 +139,201 @@ struct Reader
     return true;
 }
 
-[[nodiscard]] bool parsePasswordFields(
-    std::span<const std::uint8_t> credentials) noexcept
+struct CredentialEnvelope
 {
-    std::span<const std::uint8_t> fields;
-    if (!unwrap(credentials, 0x30, fields))
+    std::uint8_t type{};
+    std::span<const std::uint8_t> credentials{};
+};
+
+[[nodiscard]] bool parseCredentialEnvelope(
+    std::span<const std::uint8_t> plaintext,
+    CredentialEnvelope &output) noexcept
+{
+    if (plaintext.empty() ||
+        plaintext.size() > kMaximumDecryptedCredentialsBytes)
     {
         return false;
     }
-    Reader reader{fields};
-    for (std::uint8_t index = 0; index < 3; ++index)
+
+    std::span<const std::uint8_t> sequence;
+    if (!unwrap(plaintext, 0x30, sequence))
     {
-        std::span<const std::uint8_t> wrapped;
-        std::span<const std::uint8_t> text;
-        if (!reader.read(static_cast<std::uint8_t>(0xa0U + index),
-                         wrapped) ||
-            !unwrap(wrapped, 0x04, text) ||
-            !validUtf16Le(text, index == 0))
+        return false;
+    }
+
+    Reader outer(sequence);
+    std::span<const std::uint8_t> typeValue;
+    std::span<const std::uint8_t> credentialValue;
+    if (!outer.read(0xa0, typeValue) ||
+        !outer.read(0xa1, credentialValue) || !outer.empty() ||
+        !readCredentialType(typeValue, output.type) ||
+        !unwrap(credentialValue, 0x04, output.credentials) ||
+        output.credentials.empty())
+    {
+        return false;
+    }
+    return true;
+}
+
+struct PasswordCredentialFields
+{
+    std::span<const std::uint8_t> domain{};
+    std::span<const std::uint8_t> user{};
+    std::span<const std::uint8_t> password{};
+};
+
+[[nodiscard]] bool parsePasswordFields(
+    std::span<const std::uint8_t> credentials,
+    PasswordCredentialFields &output) noexcept
+{
+    std::span<const std::uint8_t> passwordSequence;
+    if (!unwrap(credentials, 0x30, passwordSequence))
+    {
+        return false;
+    }
+
+    Reader fields(passwordSequence);
+    std::span<const std::uint8_t> domainExplicit;
+    std::span<const std::uint8_t> userExplicit;
+    std::span<const std::uint8_t> passwordExplicit;
+    if (!fields.read(0xa0, domainExplicit) ||
+        !fields.read(0xa1, userExplicit) ||
+        !fields.read(0xa2, passwordExplicit) ||
+        !fields.empty() ||
+        !unwrap(domainExplicit, 0x04, output.domain) ||
+        !unwrap(userExplicit, 0x04, output.user) ||
+        !unwrap(passwordExplicit, 0x04, output.password))
+    {
+        return false;
+    }
+
+    return validUtf16Le(output.domain, true) &&
+           validUtf16Le(output.user, false) &&
+           validUtf16Le(output.password, false);
+}
+
+[[nodiscard]] constexpr bool asciiLower(char value) noexcept
+{
+    return value >= 'a' && value <= 'z';
+}
+
+[[nodiscard]] constexpr bool asciiDigit(char value) noexcept
+{
+    return value >= '0' && value <= '9';
+}
+
+[[nodiscard]] bool copyUnixAccount(
+    std::span<const std::uint8_t> userUtf16Le,
+    CredSspDelegatedAccountInspection &output) noexcept
+{
+    const std::size_t characterCount = userUtf16Le.size() / 2U;
+    if (characterCount == 0 ||
+        characterCount > kMaximumDelegatedUnixAccountBytes)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < characterCount; ++index)
+    {
+        const std::size_t offset = index * 2U;
+        if (userUtf16Le[offset + 1U] != 0)
         {
-            // Unicode domainName may be empty; userName/password are
-            // required nonempty. Every nonempty field must be well-formed
-            // UTF-16LE without embedded NULs before any native conversion.
             return false;
         }
+        const char character = static_cast<char>(userUtf16Le[offset]);
+        if ((index == 0 && !asciiLower(character) &&
+             character != '_') ||
+            (!asciiLower(character) && !asciiDigit(character) &&
+             character != '_' && character != '-'))
+        {
+            return false;
+        }
+        output.account[index] = character;
     }
-    return reader.finished();
+
+    output.accountLength = characterCount;
+    output.account[characterCount] = '\0';
+    if (std::string_view(
+            output.account.data(), output.accountLength) == "root")
+    {
+        output.account.fill('\0');
+        output.accountLength = 0;
+        return false;
+    }
+    return true;
 }
 
 } // namespace
 
 CredSspCredentialInspection inspectCredSspCredentials(
-    std::span<const std::uint8_t> plaintextDer) noexcept
+    std::span<const std::uint8_t> plaintext) noexcept
 {
-    if (plaintextDer.empty() ||
-        plaintextDer.size() > kMaximumDecryptedCredentialsBytes)
+    CredentialEnvelope envelope;
+    if (!parseCredentialEnvelope(plaintext, envelope))
     {
-        return {{}, CredSspCredentialError::InvalidDer};
+        return {CredSspCredentialKind::None,
+                CredSspCredentialError::InvalidDer};
     }
-    std::span<const std::uint8_t> sequence;
-    if (!unwrap(plaintextDer, 0x30, sequence))
+
+    switch (envelope.type)
     {
-        return {{}, CredSspCredentialError::InvalidDer};
-    }
-    Reader reader{sequence};
-    std::span<const std::uint8_t> typeWrapper;
-    std::span<const std::uint8_t> credentialWrapper;
-    std::span<const std::uint8_t> integer;
-    std::span<const std::uint8_t> bytes;
-    if (!reader.read(0xa0, typeWrapper) ||
-        !reader.read(0xa1, credentialWrapper) ||
-        !reader.finished() ||
-        !unwrap(typeWrapper, 0x02, integer) ||
-        !unwrap(credentialWrapper, 0x04, bytes) ||
-        bytes.empty())
+    case 1:
     {
-        return {{}, CredSspCredentialError::InvalidDer};
+        PasswordCredentialFields fields;
+        if (!parsePasswordFields(envelope.credentials, fields))
+        {
+            return {CredSspCredentialKind::None,
+                    CredSspCredentialError::InvalidPasswordFields};
+        }
+        return {CredSspCredentialKind::Password,
+                CredSspCredentialError::None};
     }
-    std::uint8_t type = 0;
-    if (!readCredentialType(integer, type))
+    case 2:
+        return {CredSspCredentialKind::SmartCard,
+                CredSspCredentialError::None};
+    case 6:
+        return {CredSspCredentialKind::RemoteGuard,
+                CredSspCredentialError::None};
+    default:
+        return {CredSspCredentialKind::None,
+                CredSspCredentialError::UnsupportedType};
+    }
+}
+
+CredSspDelegatedAccountInspection inspectCredSspDelegatedAccount(
+    std::span<const std::uint8_t> plaintext) noexcept
+{
+    CredSspDelegatedAccountInspection result;
+    CredentialEnvelope envelope;
+    if (!parseCredentialEnvelope(plaintext, envelope))
     {
-        return {{}, CredSspCredentialError::InvalidDer};
+        return result;
     }
-    switch (type)
+    if (envelope.type != 1)
     {
-        case 1:
-            if (!parsePasswordFields(bytes))
-            {
-                return {{}, CredSspCredentialError::InvalidPasswordFields};
-            }
-            return {CredSspCredentialKind::Password,
-                    CredSspCredentialError::None};
-        case 2:
-            return {CredSspCredentialKind::SmartCard,
-                    CredSspCredentialError::None};
-        case 6:
-            return {CredSspCredentialKind::RemoteGuard,
-                    CredSspCredentialError::None};
-        default:
-            return {{}, CredSspCredentialError::UnsupportedType};
+        result.error =
+            CredSspDelegatedAccountError::UnsupportedCredentialType;
+        return result;
     }
+
+    PasswordCredentialFields fields;
+    if (!parsePasswordFields(envelope.credentials, fields))
+    {
+        return result;
+    }
+    if (!fields.domain.empty())
+    {
+        result.error = CredSspDelegatedAccountError::NonEmptyDomain;
+        return result;
+    }
+    if (!copyUnixAccount(fields.user, result))
+    {
+        result.error = CredSspDelegatedAccountError::InvalidUnixAccount;
+        return result;
+    }
+
+    result.error = CredSspDelegatedAccountError::None;
+    return result;
 }
 
 SensitiveBytesGuard::~SensitiveBytesGuard()

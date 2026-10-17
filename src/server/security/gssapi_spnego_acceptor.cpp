@@ -190,6 +190,8 @@ void GssapiSpnegoAcceptor::reject() noexcept
     ownedCredSspReplyPending_ = false;
     ownedCredSspBindingVerified_ = false;
     ownedCredSspCredentialAuthorizationComplete_ = false;
+    identityPolicy_ = nullptr;
+    identityPolicyGeneration_ = 0;
     deleteContext();
     if (credentials_ != GSS_C_NO_CREDENTIAL)
     {
@@ -221,6 +223,25 @@ bool GssapiSpnegoAcceptor::matchesNegotiatedCertificate(
                       selected.size()) == 0;
     OPENSSL_cleanse(selected.data(), selected.size());
     return unchanged;
+}
+
+bool GssapiSpnegoAcceptor::bindConsoleIdentityPolicy(
+    const ConsoleIdentityPolicy &policy) noexcept
+{
+    if (stage_ != SpnegoStage::Unconfigured || identityPolicy_ != nullptr)
+    {
+        reject();
+        return false;
+    }
+    const std::uint64_t generation = policy.generation();
+    if (generation == 0)
+    {
+        reject();
+        return false;
+    }
+    identityPolicy_ = &policy;
+    identityPolicyGeneration_ = generation;
+    return true;
 }
 
 bool GssapiSpnegoAcceptor::configure(

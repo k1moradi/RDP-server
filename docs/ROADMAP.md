@@ -1,3 +1,43 @@
+## R2 authenticated delegated-account binding boundary (2026-10-16)
+
+R2 now has the next fail-closed final-CredSSP identity boundary. The canonical
+password-credential parser can derive only one bounded 32-byte local UNIX
+account candidate from `TSPasswordCreds.userName`; it still exports no password
+or borrowed field view. The supported form requires an empty `domainName`.
+Nonempty domains, `DOMAIN\\user`, realm suffixes, Unicode/confusable account
+names, uppercase/case rewriting, `root`, overlength names and unsupported
+credential types are denied rather than normalized.
+
+`ConsoleIdentityPolicy::matchPrincipalAccountCandidate()` is a read-only
+`CandidateOnly` query over the service-owned mapping. It requires the exact
+provider-derived Kerberos principal, exact local account and the nonzero policy
+generation captured when the per-connection GSS owner is configured. A changed
+generation, missing rule, mismatch, service principal, or principal with
+multiple configured local accounts denies. It performs no NSS/logind lookup and
+cannot issue a native lease.
+
+The live final-authInfo path now requires the original R1-owned HYBRID
+connection, exact reader/writer, delivered server binding reply, pinned TLS
+certificate, live GSS context/principal and unchanged bound policy generation
+before it will unwrap credentials. Candidate extraction and policy matching
+occur synchronously while provider plaintext is protected by
+`SensitiveBytesGuard`; the plaintext is cleansed before provider-buffer
+release. The candidate is not persisted. This increment remains terminal
+deny-only: PAM is **not invoked**, the private final-credential completion latch
+remains false, no `LinuxConsoleAdmissionLease` is issued and R3 is not opened.
+
+Dedicated coverage is
+`security.credssp-delegated-account-extraction`,
+`security.credssp-delegated-domain-identity-denials`,
+`security.console-policy-delegated-account-binding`,
+`security.gssapi-credssp-delegated-account-origin-denials`, and
+`security.credssp-delegated-account-sensitive-retirement`. Portable
+credential/policy cases are included in bounded ASan/UBSan without the
+MIT-krb5 LSan suppression; the origin case is in the native GSS selection.
+Hosted exact-SHA validation for this publication is pending. Positive
+Kerberos/PAM/NSS/logind/Microsoft-client acceptance and M2 remain
+**BLOCKED / NOT RUN**.
+
 ## R9 final CredSSP adversarial-parser hosted convergence (2026-10-16)
 
 **Validated shared integration SHA:** `bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`.  

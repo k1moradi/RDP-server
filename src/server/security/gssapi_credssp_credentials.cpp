@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gssapi_spnego_acceptor.h"
 
+#include <gssapi/gssapi.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 namespace rdp_server::server::security
 {
 namespace
 {
-
 [[nodiscard]] bool permittedCredentialMessage(
     const TsRequestResult &request) noexcept
 {
@@ -17,14 +19,11 @@ namespace
            request.value.encryptedAuthInfo.size() <=
                kMaximumDecryptedCredentialsBytes;
 }
-
-} // namespace
+}
 
 void GssapiSpnegoAcceptor::consumeAndDenyDelegatedCredentials(
     std::span<const std::uint8_t> protectedRequestDer) noexcept
 {
-    // Caller-provided DER is not necessarily TLS-derived. Never attempt
-    // GSS decryption or a credential-origin claim through this old API.
     (void)protectedRequestDer;
     reject();
 }
@@ -32,25 +31,33 @@ void GssapiSpnegoAcceptor::consumeAndDenyDelegatedCredentials(
 void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
     TsRequestFrameReader &reader) noexcept
 {
-    // The single TLS framing owner establishes transport provenance. The
-    // GSS owner must ALSO recheck its entire negotiated TLS certificate
-    // identity: a different reader could have been used for this frame.
     const SSL *sourceTls = reader.completedFrameServerTls();
+    std::string_view authenticatedPrincipal;
+    if (ownedCredSspConnection_ != nullptr &&
+        ownedCredSspReader_ == &reader &&
+        ownedCredSspWriter_ != nullptr &&
+        ownedCredSspBindingVerified_ &&
+        identityPolicy_ != nullptr &&
+        identityPolicyGeneration_ != 0)
+    {
+        authenticatedPrincipal =
+            verifiedPrincipalForOwnedConnection(*ownedCredSspConnection_);
+    }
+
     if (sourceTls == nullptr ||
         stage_ != SpnegoStage::ServerBindingPrepared ||
         context_ == GSS_C_NO_CONTEXT ||
         negotiatedServerTls_ != sourceTls ||
         (negotiatedVersion_ != 5 && negotiatedVersion_ != 6) ||
-        verifiedPrincipal().empty() ||
-        !matchesNegotiatedCertificate(sourceTls))
+        authenticatedPrincipal.empty() ||
+        !matchesNegotiatedCertificate(sourceTls) ||
+        identityPolicy_->generation() != identityPolicyGeneration_)
     {
         reader.close();
         reject();
         return;
     }
 
-    // Reject every field combination other than the one final encrypted
-    // authInfo. Never borrow caller-created DER or a detached GSS token.
     const auto parsed = parseCredSspTsRequest(reader.completeDer());
     if (!permittedCredentialMessage(parsed) ||
         parsed.value.version != negotiatedVersion_)
@@ -72,29 +79,28 @@ void GssapiSpnegoAcceptor::consumeFramedAndDenyDelegatedCredentials(
 
     if (plaintext.value != nullptr && plaintext.length != 0)
     {
-        // No plaintext view survives the GSS release. Even malformed or
-        // oversized messages are wiped without logging their content.
-        auto mutableBytes = std::span(
-            static_cast<std::uint8_t *>(plaintext.value),
-            plaintext.length);
+        auto bytes = std::span<std::uint8_t>(
+            static_cast<std::uint8_t *>(plaintext.value), plaintext.length);
+        SensitiveBytesGuard cleanse{bytes};
+        if (major == GSS_S_COMPLETE && confidential != 0 &&
+            bytes.size() <= kMaximumDecryptedCredentialsBytes)
         {
-            SensitiveBytesGuard cleanse{mutableBytes};
-            if (major == GSS_S_COMPLETE && confidential != 0 &&
-                mutableBytes.size() <= kMaximumDecryptedCredentialsBytes)
+            const auto account = inspectCredSspDelegatedAccount(bytes);
+            if (account)
             {
-                // Metadata-only parser. The result never contains domain,
-                // username, password or any borrowed secret bytes.
-                const auto inspected =
-                    inspectCredSspCredentials(mutableBytes);
-                (void)inspected;
+                const bool exactCandidate =
+                    identityPolicy_->matchPrincipalAccountCandidate(
+                        authenticatedPrincipal, account.accountName(),
+                        identityPolicyGeneration_) ==
+                    ConsolePolicyMatch::CandidateOnly;
+                // CandidateOnly is intentionally not persisted. A future PAM
+                // call must remain synchronous inside this plaintext lifetime.
+                (void)exactCandidate;
             }
         }
     }
-    (void)gss_release_buffer(&minor, &plaintext);
 
-    // There is no OS delegate or permission capability. Erase the one
-    // TLS-derived DER frame as well as all provider context before return;
-    // a caller cannot reuse these ciphertext bytes with a new transcript.
+    (void)gss_release_buffer(&minor, &plaintext);
     reader.close();
     reject();
 }

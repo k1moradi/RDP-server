@@ -1,3 +1,19 @@
+## R2 delegated-account credential tests (2026-10-16)
+
+Credential extraction tests must call the production canonical parser, not a
+parallel DER or UTF-16 implementation. Deterministic synthetic plaintext may
+prove bounded account conversion, domain denial and in-place retirement, but it
+is never GSS-authenticated provenance. Keep password bytes out of result objects
+and logs; use production `SensitiveBytesGuard` for provider-plaintext lifetime
+fixtures.
+
+The portable security sanitizer selection must enumerate delegated-account
+extraction, domain ambiguity, sensitive retirement and policy binding with
+registry preflight checks. Do not apply the MIT-krb5 LSan suppression to those
+tests. The Linux GSS selection separately exercises detached-origin denial and
+may retain the provider-scoped suppression. Neither selection may fabricate GSS
+completion, PAM authorization or a native admission lease.
+
 ## Deterministic adversarial parser corpora use independent bounded oracles
 
 For a production parser mutation corpus, fix a small canonical seed set and an

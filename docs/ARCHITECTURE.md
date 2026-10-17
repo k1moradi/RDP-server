@@ -1,3 +1,33 @@
+## R2 authenticated delegated-account binding boundary (2026-10-16)
+
+Final password credentials now cross four deliberately separate checks before a
+future PAM call can be considered. Canonical DER/UTF-16 parsing establishes only
+credential syntax. Only the original owner-driven R1 HYBRID/TLS plus
+GSS/CredSSP transcript may unwrap final `authInfo`. The decrypted username is
+converted without allocation or normalization to the restricted local-account
+grammar and matched exactly against service-owned `ConsoleIdentityPolicy` for
+the provider-derived Kerberos principal and captured policy generation. PAM
+remains a later independent password/account-status verifier; NSS/logind native
+admission and R3 licensing/Share activation remain later still.
+
+The current delegated-account format is intentionally narrow: `domainName`
+must be empty and `userName` must be 1..32 ASCII characters using the existing
+UNIX-account grammar (lowercase letter or underscore first; then lowercase
+letters, digits, underscore or hyphen), excluding `root`. Case is preserved,
+not folded. No realm stripping, `DOMAIN\\user` conversion, Unicode
+normalization, client-domain authority or environment account lookup occurs.
+
+`inspectCredSspDelegatedAccount()` reuses the same internal canonical parser
+as `inspectCredSspCredentials()`. It returns only a fixed-capacity account
+copy; domain/password spans remain private to the synchronous parser. In the
+genuine GSS path, complete provider plaintext remains under
+`SensitiveBytesGuard` through candidate matching and is cleansed before GSS
+buffer release. A mapping match is deliberately not stored and does not set
+`ownedCredSspCredentialAuthorizationComplete_`. The next audited R2 step must
+invoke the existing explicit-service PAM verifier synchronously inside this same
+provenance/secret lifetime, then define final private completion before native
+admission can run.
+
 ## R8 bounded multi-file X11 completed-set presentation (2026-10-16)
 
 The Linux descriptor sink remains one-file-at-a-time because

@@ -127,6 +127,20 @@ target_include_directories(rdp-server-protocol PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/rdp-server/server>")
 target_link_libraries(rdp-server-protocol PUBLIC
     OpenSSL::Crypto OpenSSL::SSL)
+
+# Portable, noninstalled R2 identity-policy component.
+add_library(rdp-server-console-identity-policy STATIC
+    src/server/security/console_identity_policy.cpp)
+target_compile_features(rdp-server-console-identity-policy PUBLIC cxx_std_23)
+target_include_directories(rdp-server-console-identity-policy PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/server>")
+if(MSVC)
+    target_compile_options(rdp-server-console-identity-policy PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-console-identity-policy PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
 # Native nonblocking TCP is a thin platform adapter. The portable RDP
 # connection owner and its protocol/authorization semantics stay shared.
 if(WIN32)
@@ -591,7 +605,6 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
         # Keep the generic injected-evidence bridge deny-only. Positive
         # admission below owns concrete native NSS/logind/watch provenance.
         src/server/security/gssapi_console_gate.cpp
-        src/server/security/console_identity_policy.cpp
         src/server/security/console_os_evidence.cpp
         src/server/security/linux_nss_console_evidence.cpp
         src/server/security/linux_logind_console_evidence.cpp
@@ -601,7 +614,9 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     target_include_directories(rdp-server-linux-gssapi PRIVATE
         "${RDP_SERVER_GSSAPI_INCLUDE_DIR}")
     target_link_libraries(rdp-server-linux-gssapi PUBLIC
-        rdp-server-protocol "${RDP_SERVER_GSSAPI_LIBRARY}")
+        rdp-server-protocol
+        rdp-server-console-identity-policy
+        "${RDP_SERVER_GSSAPI_LIBRARY}")
     if(TARGET PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
         target_link_libraries(rdp-server-linux-gssapi PRIVATE
             PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)

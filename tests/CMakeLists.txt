@@ -381,7 +381,8 @@ function(add_rdp_test source_file suite behavior)
         foreach(case_name IN ITEMS
                 segmented-data-single
                 segmented-data-multipart
-                segmented-data-denials-inplace)
+                segmented-data-denials-inplace
+                segmented-data-u32-boundary-denial)
             add_test(NAME "graphics.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("graphics.${case_name}" PROPERTIES

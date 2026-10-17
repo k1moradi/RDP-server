@@ -122,6 +122,38 @@ void denialsAndInPlaceMultipart()
         at += 5U + chunk; src += chunk;
     }
 }
+void u32BoundaryDenial()
+{
+    // UINT32_MAX is protocol-sized but needs 65,537 raw segments, which
+    // exceeds the u16 segmentCount field. On 32-bit size_t, the former
+    // add-before-divide ceil calculation wrapped and reported a tiny size.
+    constexpr std::size_t maximumProtocolPayload =
+        static_cast<std::size_t>(
+            std::numeric_limits<std::uint32_t>::max());
+    assert(gfxSegmentedDataBytes(maximumProtocolPayload) == 0U);
+
+    // Exactly 65,535 full raw segments are representable by segmentCount.
+    // Their outer envelope still exceeds size_t on 32-bit hosts, while it is
+    // representable on wider hosts. Neither path may wrap.
+    constexpr std::size_t maximumSegmentCount =
+        static_cast<std::size_t>(
+            std::numeric_limits<std::uint16_t>::max());
+    constexpr std::size_t maximumCountPayload =
+        kGfxRdp8MaximumRawSegmentBytes * maximumSegmentCount;
+    const std::size_t maximumCountBytes =
+        gfxSegmentedDataBytes(maximumCountPayload);
+    if constexpr (sizeof(std::size_t) > sizeof(std::uint32_t))
+    {
+        assert(maximumCountBytes ==
+               7U + maximumCountPayload +
+                   maximumSegmentCount * 5U);
+    }
+    else
+    {
+        assert(maximumCountBytes == 0U);
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -131,5 +163,6 @@ int main(int argc, char **argv)
     if (mode == "segmented-data-single") { single(); return 0; }
     if (mode == "segmented-data-multipart") { multipart(); return 0; }
     if (mode == "segmented-data-denials-inplace") { denialsAndInPlaceMultipart(); return 0; }
+    if (mode == "segmented-data-u32-boundary-denial") { u32BoundaryDenial(); return 0; }
     return 2;
 }

@@ -116,7 +116,7 @@ Dedicated cases are `graphics.x264-native-bgra-frame-ingress`,
 `graphics.x264-native-bgra-resize-recovery`, and
 `graphics.avc420-capture-generation-denials`. R9 must enumerate exactly
 **27** x264/BGRA cases and require all three names. Portable R4 wire/lifecycle
-remains **41** cases.
+contains **42** cases, including the segmented-data u32 boundary denial.
 
 ## R3 existing-CAL authority-request tests remain non-authorizing (2026-10-17)
 
@@ -3355,7 +3355,7 @@ display-change delivery remain owner-macOS acceptance, not hosted CTest.
 
 The shared Linux/Clang ASan+UBSan job must build and execute the complete
 portable R4 wire/lifecycle boundary independently from codec and capability
-groups. The bounded selection contains **41** production-backed CTests
+groups. The bounded selection contains **42** production-backed CTests
 from exactly these executables: `test_gfx_surface_lifecycle`,
 `test_gfx_frame_acknowledge`, `test_gfx_presentation_lifecycle`,
 `test_gfx_avc420_picture`, `test_gfx_segmented_data`, and
@@ -3364,8 +3364,9 @@ from exactly these executables: `test_gfx_surface_lifecycle`,
 The sanitizer selector must enumerate the central CTest registry before
 execution and assert one representative behavior from every family is present:
 zero-valued surface IDs, stale-generation ACK handling, terminal frame-delivery
-abort, zero-valued frame IDs, segmented-data denial/in-place safety, and
-segmented AVC420 delivery/ACK, exact unsent-frame cancellation and retained
+abort, zero-valued frame IDs, segmented-data denial/in-place safety plus the
+u32 envelope boundary, and segmented AVC420 delivery/ACK, exact unsent-frame
+cancellation and retained
 terminal abort for ambiguous/partial progress. Keep this group separate from
 the existing 4-case capability selector and 27-case x264/BGRA label so
 failures remain

@@ -31,8 +31,10 @@ void write32(std::span<std::byte> out, std::size_t at,
 }
 [[nodiscard]] std::size_t segmentCount(std::size_t bytes) noexcept
 {
-    return (bytes + kGfxRdp8MaximumRawSegmentBytes - 1U) /
-           kGfxRdp8MaximumRawSegmentBytes;
+    // Avoid add-before-divide ceil arithmetic: a protocol-sized payload may
+    // equal SIZE_MAX on supported 32-bit builds.
+    return bytes / kGfxRdp8MaximumRawSegmentBytes +
+           (bytes % kGfxRdp8MaximumRawSegmentBytes != 0U ? 1U : 0U);
 }
 [[nodiscard]] bool partiallyOverlaps(std::span<const std::byte> input,
                                      std::span<std::byte> output) noexcept
@@ -58,9 +60,13 @@ std::size_t gfxSegmentedDataBytes(std::size_t graphicsBytes) noexcept
     const std::size_t count = segmentCount(graphicsBytes);
     if (count > std::numeric_limits<std::uint16_t>::max())
         return 0;
-    if (count > (std::numeric_limits<std::size_t>::max() -
-                 kMultipartHeaderBytes - graphicsBytes) /
-                    kSegmentHeaderBytes)
+    constexpr std::size_t maximumSize =
+        std::numeric_limits<std::size_t>::max();
+    if (graphicsBytes > maximumSize - kMultipartHeaderBytes)
+        return 0;
+    const std::size_t remainingBytes =
+        maximumSize - kMultipartHeaderBytes - graphicsBytes;
+    if (count > remainingBytes / kSegmentHeaderBytes)
         return 0;
     return kMultipartHeaderBytes + graphicsBytes +
            count * kSegmentHeaderBytes;

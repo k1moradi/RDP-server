@@ -7438,16 +7438,16 @@ void testRdpClientCalProductExtensionDenials()
     assert(critical.facts.policyStatus ==
            RdpClientCalPolicyStatus::UnsupportedCriticalExtension);
 
-    LicensingCertificatePointer oldVersionLeaf{
-        X509_dup(fixture.leafCertificate.get()), X509_free};
-    assert(oldVersionLeaf);
-    assert(X509_set_version(oldVersionLeaf.get(), 1) == 1);
+    LicensingCertificatePointer oldVersionRoot{
+        X509_dup(fixture.rootCertificate.get()), X509_free};
+    assert(oldVersionRoot);
+    assert(X509_set_version(oldVersionRoot.get(), 1) == 1);
     assert(X509_sign(
-               oldVersionLeaf.get(), fixture.issuerKey.get(),
+               oldVersionRoot.get(), fixture.rootKey.get(),
                EVP_sha1()) > 0);
     const std::array<X509 *, 3> oldVersionCertificates{
-        oldVersionLeaf.get(),
-        fixture.rootCertificate.get(),
+        fixture.leafCertificate.get(),
+        oldVersionRoot.get(),
         fixture.issuerCertificate.get()};
     assert(inspectRdpClientCalCertificateChain(
                encodeClientCalFixture(oldVersionCertificates),

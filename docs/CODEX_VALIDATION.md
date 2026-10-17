@@ -1,3 +1,14 @@
+## R3 CAL X.509-version fixture isolation (2026-10-16; exact-SHA CI pending)
+
+Exact-SHA run 39005961866 passed five of the six dedicated CAL tests on the
+macOS OpenSSL 4 runner. The remaining product/extension test used a duplicated
+extension-bearing leaf forced to X.509 v2, which is provider-sensitive and did
+not reliably isolate the version gate. The corrected vector duplicates the
+extension-free self-signed root, sets that certificate to X.509 v2, re-signs
+it, and leaves the rest of the chain unchanged. Production code and acceptance
+policy are unchanged; the test still requires
+`UnsupportedCertificateVersion` exactly.
+
 ## R1 owned-TLS handshake readiness hardening (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared \`main\`:** \`32f46276add9b387e71962376da4329537eff2d8\`.

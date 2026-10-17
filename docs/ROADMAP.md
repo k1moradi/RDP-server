@@ -1,5 +1,120 @@
 ## R3 existing-client CAL certificate-chain trust boundary (2026-10-16; exact-SHA CI pending)
 
+## R10 service-owned licensing authority boundary (2026-10-17; hosted CI pending)
+
+**Reconciled shared-main parent:** `fa5653d10390c84ef6a5cfa52fe2ebcb576fea20`.
+
+R10's licensing-authority audit now distinguishes the standards-defined terminal
+server from the actual CAL issuer. Microsoft
+[MS-RDPELE 1.3.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpele/a229ac6a-0d37-448f-929f-8940f32254fd)
+defines app-server terminal-server licensing as a client↔terminal-server
+licensing exchange backed by a separate license server. The license server
+manages and issues terminal-server CALs and the terminal server uses RPC to
+request new CALs or upgrades; that terminal-server↔license-server exchange is
+explicitly outside MS-RDPELE. Personal-terminal-server behavior is therefore
+not an acceptable substitute for this project's app-server/authenticated
+desktop model.
+
+No authoritative, supportable Microsoft specification or platform API for a
+portable Linux/Windows/macOS implementation of the RD Session Host→RD
+Licensing Server CAL issuance/upgrade RPC contract has been established in the
+available project environment. A genuine positive production provider would
+also require an activated/registered RD Licensing server with applicable CAL
+packs plus supported authentication/authorization of this server as an issuer
+client. R10 therefore keeps production issuance **UNAVAILABLE** rather than
+inventing an issuer protocol, signature, clearing-house registration flow or
+CAL format.
+
+The new noninstalled
+`src/server/runtime/runtime_licensing_authority.{h,cpp}` owns the fail-closed
+service boundary. Production can explicitly configure the immutable R3
+product/company/product-id/scope policy as **NoVerifiedIssuer**, but no public
+API can attach a positive provider. The ordinary `rdp-server` entry point
+does not construct a provider, add configuration fields, bind a listener,
+publish an R2 lease or expose an R3 grant.
+
+An internal provider contract exists solely so the dedicated test executable
+can exercise the future lifetime rules. Verified-provider configuration is
+private and reachable only through a test friend. On that path R10:
+
+- authenticates a bounded provider identity/trust snapshot before becoming
+  ready;
+- derives a SHA-256 authority fingerprint from a domain-separated canonical
+  representation of provider identity, trust configuration, product version,
+  company name, product ID and scope, deliberately excluding the unrelated
+  terminal-server licensing RSA certificate;
+- creates a nonzero 64-bit authority generation from OpenSSL private CSPRNG
+  bytes rather than a small restart counter, and never increments it, so there
+  is no generation wrap path;
+- permits only one bounded outstanding request/result publication record;
+- copies a CAL immediately from provider-owned memory and enforces R3's
+  `kMaximumRdpServerLicenseGrantCalBytes` bound;
+- binds release to one exact 32-byte request/session correlation and retains a
+  digest of the released kind/CAL so a caller-fabricated grant with merely the
+  current generation/fingerprint is insufficient;
+- freshly re-verifies provider identity/trust before result release and before
+  each future publication authorization check;
+- requires explicit retirement after publication and makes revoke/destruction
+  cancel pending work, close the provider exactly once, clear retained result
+  eligibility and invalidate the generation/fingerprint.
+
+Six centrally registered behavior CTests cover the boundary:
+
+- `runtime.licensing-authority-unconfigured-denials`
+- `runtime.licensing-authority-issuer-policy-correlation`
+- `runtime.licensing-authority-generation-revocation`
+- `runtime.licensing-authority-result-bounds-and-cancellation`
+- `runtime.licensing-authority-sensitive-retirement`
+- `runtime.licensing-authority-no-startup-bypass`
+
+The last case executes the real non-listening `rdp-server` and delegates to
+the established process oracle for normal startup refusal, wrong arguments and
+every supported offline config/TLS/licensing/Linux-security preflight. The
+test-only positive provider is never linked into that executable. R9's
+sanitizer workflow selects these six cases with the separate flat prefix
+`^runtime\.licensing-authority-` to avoid extending the historically
+over-nested R1/R3 licensing expression.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/CTest is **NOT
+RUN** in this connector environment; no alternate checkout or build root was
+created. Exact-publication-SHA hosted Linux/GCC, macOS/AppleClang,
+Windows/MSVC, R9 ASan/UBSan, documentation, SDK/package and artifact evidence
+is **PENDING** and must not be claimed green until the workflow completes.
+Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 remain **NOT
+RUN**.
+
+**Next R10:** keep live issuance/publication blocked until a genuine,
+documented and supportable RD Licensing provider integration plus required
+issuer infrastructure exists. Once it does, the adapter must replace the
+test-only provider with real provider authentication/issuance while preserving
+the owner generation/fingerprint/request-correlation contract. Live delivery
+still additionally requires real positive R2 admission/reauthorization and the
+sole R3 grant write gate through R1. M1 remains open on owner-native evidence;
+M2 remains **BLOCKED / NOT ACCEPTED**.
+
+
+The owner's first macOS execution of the mandated one-line command at
+`bdcb68520c5339aa9866f2e7d5949cf6b5c9c056` is **CONFIGURE FAIL** before any
+compile or CTest. The shell successfully entered `~/rdp-server`, while CMake
+reported the same case-preserving checkout as
+`/Users/keivanmoradi/RDP-server`; the local-path guard compared those strings
+lexically and rejected the case-only alias.
+
+The correction keeps both policy fences: local work must still resolve from
+`~/rdp-server`, and the only build root is still `<checkout>/build`. Existing
+filesystem paths are now resolved before comparison, with case-insensitive
+spelling accepted on macOS/Windows only after the `~/rdp-server` candidate is
+known to exist. Windows/MSYS2 additionally translates the shell `HOME` through
+`cygpath -m` when available and also considers `USERPROFILE`; this avoids
+assuming that MSYS2 `~` and the Windows profile directory are identical.
+
+New CTest `project.local-checkout-path-comparison` locks exact,
+case-insensitive and strict-case comparison behavior without creating another
+build root. Hosted exact-SHA configure/build/full CTest and the owner's rerun of
+the unchanged command are **PENDING**. Do not claim owner macOS or Windows
+MSYS2 PASS until those reports arrive.
+
+
 **Reconciled parent:** `3069b2f1e07198d0e060c1619924f9654ffb8826`. This increment keeps
 `CLIENT_LICENSE_INFO` non-authorizing while adding independently testable CAL
 chain groundwork.

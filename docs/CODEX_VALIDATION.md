@@ -1,5 +1,104 @@
 ## R3 CAL OpenSSL 4 portability correction (2026-10-16; exact-SHA CI pending)
 
+## R10 licensing-authority boundary implementation (2026-10-17; hosted validation pending)
+
+Starting reconciled shared `main`: `fa5653d10390c84ef6a5cfa52fe2ebcb576fea20`.
+
+Protocol/provider audit result: **BLOCKED for genuine production issuance**.
+MS-RDPELE identifies a distinct license server as the CAL issuer and says the
+terminal server requests new/upgrade CALs from it over RPC, but the
+terminal-server↔license-server interaction is outside MS-RDPELE. No
+authoritative portable issuer RPC/API contract and no activated RD Licensing
+infrastructure/CAL pack/authentication environment are available to this
+agent. R10 therefore implements the fail-closed owner contract and does not
+fabricate a positive provider.
+
+Production changes are confined to the noninstalled runtime licensing target.
+`RuntimeLicensingAuthority` has explicit not-configured,
+no-verified-issuer, verified-ready, denied, result-available and revoked
+states. Public production configuration can establish only
+`NoVerifiedIssuer`. A positive provider can be attached only by
+`RuntimeLicensingAuthorityTestAccess` in the dedicated test translation unit;
+that test provider is not linked into `rdp-server`.
+
+Provider identity/trust and product/scope policy are cryptographically
+correlated with a canonical SHA-256 fingerprint. R10 generates the nonzero
+64-bit generation itself with `RAND_priv_bytes`, copies bounded provider CAL
+bytes, rejects empty/oversized/mismatched/late/duplicate results, freshly
+rechecks provider identity/trust before release/authorization, binds the
+result to one exact 32-byte request/session correlation, and requires explicit
+released-result retirement. Revocation/destruction cancels pending work,
+closes the provider once and destroys all current result eligibility. No
+positive R2/R3 or listener integration is added.
+
+Dedicated CTests are the five production-linked direct lifecycle cases plus
+`runtime.licensing-authority-no-startup-bypass`, which executes the real
+runtime process and reuses the existing exact CLI oracle. The R9 sanitizer job
+gets a separate flat authority-prefix selector and explicit registry greps;
+the already-large R1/R3 licensing regex is unchanged.
+
+Validation in this connector environment before publication:
+**NOT RUN** for canonical owner-local configure/build/full CTest because the
+required `~/rdp-server` checkout is unavailable and project policy forbids an
+alternate checkout/build root. Hosted exact-SHA Linux/GCC, macOS/AppleClang,
+Windows/MSVC, R9 ASan/UBSan, docs policy, installed SDK consumer,
+packaging/digests and artifacts are **PENDING**. Owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23 and macOS 27 remain **NOT RUN**. This section must be
+followed by exact-SHA hosted evidence rather than treating a pending workflow
+as PASS.
+
+
+**Reported failing SHA:** `bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`.
+
+Owner macOS evidence is an early **CONFIGURE FAIL / build NOT RUN / CTest NOT
+RUN**. The exact documented command successfully performed `cd ~/rdp-server`
+and fast-forwarded main, but CMake rejected the checkout because the filesystem
+reported its case-preserving spelling as
+`/Users/keivanmoradi/RDP-server`. The old guard normalized path syntax without
+resolving the existing filesystem object, so a valid case-insensitive alias was
+treated as a different checkout.
+
+The authored correction resolves both the actual source and each existing
+home-checkout candidate before comparison. macOS/Windows allow case-only
+spelling differences only after the candidate exists; Linux keeps strict case.
+For Windows/MSYS2, the shell `HOME` is retained as a candidate and translated
+through `cygpath -m` when available, with `USERPROFILE` as an additional
+native candidate. The existing `CMAKE_BINARY_DIR == <checkout>/build` fatal
+check is unchanged.
+
+CTest `project.local-checkout-path-comparison` verifies exact equality,
+case-insensitive case-only equality, strict-case rejection, and Windows-style
+drive/case comparison through the same helper used by configuration. No
+alternate build tree, live desktop, listener, credentials or RDP behavior is
+introduced. Hosted exact-SHA evidence and the owner's unchanged-command macOS
+rerun remain **PENDING**; Windows MSYS2 CLANG64/Clang 23 owner evidence also
+remains **NOT RUN**.
+
+
+**Reconciled parent:** `3069b2f1e07198d0e060c1619924f9654ffb8826`. **Implementation:** this publication.
+The change adds the bounded PKCS#7 CAL chain inspector, six dedicated
+production-linked CTests and a separate flat R9 sanitizer selector with
+fail-closed registry checks.
+
+Authoring checks establish that the CAL parser is separate from the existing
+server `X509_CERTIFICATE_CHAIN` parser, performs full canonical DER
+consumption, scopes all OpenSSL ownership with RAII, verifies RSA/SHA-1
+certificate signatures against an explicit synthetic test root, rejects peer
+roots without independent trust and rejects the server terminal certificate as
+a CAL anchor. The synthetic hierarchy proves verifier mechanics only; it is not
+Microsoft CAL legitimacy.
+
+The extension layer remains intentionally incomplete: the five documented OIDs
+are counted but their values are not interpreted. Product/version, CAL expiry,
+CAL HWID binding and renewal/classification are therefore not accepted. The
+lifecycle remains at `ClientLicenseInfoValidation`; no live licensing success
+packet, grant publication, Share activation or R2 admission path is introduced.
+
+Canonical owner-local `~/rdp-server/build/`, hosted Linux/macOS/Windows
+Debug/Release, the R9 ASan/UBSan CAL selector, installed SDK/package gates and
+exact-SHA Actions are **PENDING/NOT YET CLAIMED** for this publication.
+
+
 The first implementation workflow, Actions run 39005649027 at
 `c498ba29e376c5b2da4848b82699843487118e74`, reached macOS compilation and
 exposed two R3-owned OpenSSL 4 source-compatibility errors in

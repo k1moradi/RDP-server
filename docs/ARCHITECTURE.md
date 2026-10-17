@@ -1,5 +1,100 @@
 ## R3 existing-client CAL trust-inspection boundary (2026-10-16)
 
+## R10 licensing-authority ownership boundary (2026-10-17)
+
+The service now has a runtime-only authority owner separate from every existing
+credential and protocol owner:
+
+`RuntimeLicensingContext`
+: owns the terminal server's RDP licensing product identity and RSA
+key-exchange credential.
+
+`RuntimeServerTlsContext`
+: owns the ordinary TLS server identity.
+
+`RuntimeLicensingAuthority`
+: owns provider authenticity, immutable issuance-policy correlation, authority
+generation, request/result lifetime and revocation. It does **not** own R3
+packet cryptography or licensing state transitions.
+
+`RdpLicensingAuthorityGrant` / `RdpServerLicenseGrantWriteGate`
+: remain R3 correlation/delivery objects. A grant's generation/fingerprint is
+continuity evidence only and cannot prove that a CAL came from a genuine
+issuer.
+
+Microsoft
+[MS-RDPELE 1.3.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpele/a229ac6a-0d37-448f-929f-8940f32254fd)
+defines the app-server license server as the component that actually issues
+CALs. It also states that the terminal server uses RPC to obtain/upgrade CALs
+and that this interaction is outside the client-facing licensing extension.
+Accordingly R10 does not infer issuer trust from TLS, the terminal-server RDP
+licensing certificate/private key, an opaque CAL, a caller-provided
+fingerprint, or personal-terminal-server `STATUS_VALID_CLIENT` behavior.
+
+No genuine provider adapter is presently implemented. The public production
+configuration can represent only `NoVerifiedIssuer`, and `rdp-server`
+constructs no authority provider. The internal provider interface is
+noninstalled and has only a deterministic test implementation. This makes the
+current production path fail closed while still exercising the lifetime
+contract required by a future real adapter.
+
+For a verified provider, R10's immutable authority fingerprint is SHA-256 over
+a domain-separated, length-prefixed canonical sequence containing provider
+identity, provider trust configuration, product version, company name, product
+ID and scope. The terminal-server licensing certificate is intentionally not
+part of this issuer-policy fingerprint because it is a distinct R3 key-exchange
+identity. The authority generation is an independently generated nonzero
+64-bit CSPRNG value, not a caller value or restart counter. Both values are
+retired on revocation.
+
+One current result is owned by R10 from provider completion through
+publication retirement. Provider response storage never escapes: CAL bytes are
+copied immediately into the existing 14,799-byte R3 grant ceiling. Result
+release requires the exact service/session correlation and a fresh provider
+authentication check. After release R10 retains the exact correlation plus a
+digest of grant kind/CAL, so a grant fabricated with only the current
+generation/fingerprint cannot pass `authorizeReleasedGrant`. Future live
+composition must reauthorize that released grant before every R3 slice and
+completion receipt, then retire it after exact full delivery.
+
+This owner creates no listener, native session, R2 admission lease, R3
+licensing phase transition, Demand Active, Share activation, desktop capture
+or input capability. The eventual live path remains:
+
+**real RD Licensing provider → current R10 authority/result →
+fresh positive R2 session authorization → sole R3 grant write gate →
+sole R1 TLS/application writer**.
+
+
+Final password credentials now cross four deliberately separate checks before a
+future PAM call can be considered. Canonical DER/UTF-16 parsing establishes only
+credential syntax. Only the original owner-driven R1 HYBRID/TLS plus
+GSS/CredSSP transcript may unwrap final `authInfo`. The decrypted username is
+converted without allocation or normalization to the restricted local-account
+grammar and matched exactly against service-owned `ConsoleIdentityPolicy` for
+the provider-derived Kerberos principal and captured policy generation. PAM
+remains a later independent password/account-status verifier; NSS/logind native
+admission and R3 licensing/Share activation remain later still.
+
+The current delegated-account format is intentionally narrow: `domainName`
+must be empty and `userName` must be 1..32 ASCII characters using the existing
+UNIX-account grammar (lowercase letter or underscore first; then lowercase
+letters, digits, underscore or hyphen), excluding `root`. Case is preserved,
+not folded. No realm stripping, `DOMAIN\\user` conversion, Unicode
+normalization, client-domain authority or environment account lookup occurs.
+
+`inspectCredSspDelegatedAccount()` reuses the same internal canonical parser
+as `inspectCredSspCredentials()`. It returns only a fixed-capacity account
+copy; domain/password spans remain private to the synchronous parser. In the
+genuine GSS path, complete provider plaintext remains under
+`SensitiveBytesGuard` through candidate matching and is cleansed before GSS
+buffer release. A mapping match is deliberately not stored and does not set
+`ownedCredSspCredentialAuthorizationComplete_`. The next audited R2 step must
+invoke the existing explicit-service PAM verifier synchronously inside this same
+provenance/secret lifetime, then define final private completion before native
+admission can run.
+
+
 R3 treats the existing-client CAL as a distinct trust object from the terminal
 server's key-exchange certificate. `parseRdpClientLicenseInfo()` continues to
 borrow the complete packet's `LicenseInfo` span; the new CAL inspector consumes

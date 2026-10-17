@@ -692,6 +692,47 @@ foreach(runtime_licensing_cli_case IN ITEMS
         PROPERTIES LABELS "runtime;security;licensing;offline" TIMEOUT 60)
 endforeach()
 
+# R10 service-owned licensing-authority lifecycle. The production runtime
+# exposes no positive provider configuration; this executable owns the sole
+# deterministic positive provider fixture and is never installed or linked
+# into rdp-server.
+add_executable(test_runtime_licensing_authority
+    test_runtime_licensing_authority.cpp)
+target_link_libraries(test_runtime_licensing_authority PRIVATE
+    rdp-server-runtime-licensing)
+if(MSVC)
+    target_compile_options(test_runtime_licensing_authority PRIVATE
+        /W4 /UNDEBUG)
+else()
+    target_compile_options(test_runtime_licensing_authority PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(runtime_licensing_authority_case IN ITEMS
+        licensing-authority-unconfigured-denials
+        licensing-authority-issuer-policy-correlation
+        licensing-authority-generation-revocation
+        licensing-authority-result-bounds-and-cancellation
+        licensing-authority-sensitive-retirement)
+    add_test(NAME "runtime.${runtime_licensing_authority_case}"
+        COMMAND test_runtime_licensing_authority
+            "${runtime_licensing_authority_case}")
+    set_tests_properties(
+        "runtime.${runtime_licensing_authority_case}" PROPERTIES
+        LABELS "runtime;security;licensing;offline")
+endforeach()
+
+# Exercise the real process separately so the test-only provider cannot become
+# a startup path. This meta-case reuses the existing process checker for every
+# supported offline preflight plus normal/wrong-argument startup refusal.
+add_test(NAME runtime.licensing-authority-no-startup-bypass
+    COMMAND "${CMAKE_COMMAND}"
+        ${runtime_licensing_cli_arguments}
+        "-DRDP_RUNTIME_TEST_CASE=licensing-authority-no-startup-bypass"
+        "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-licensing-authority-startup-fixtures"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
+set_tests_properties(runtime.licensing-authority-no-startup-bypass PROPERTIES
+    LABELS "runtime;security;licensing;offline" TIMEOUT 60)
+
 # R6 fixture-only checks: do not enumerate a real desktop, capture pixels,
 # or inject input during an ordinary Windows CTest run.
 if(TARGET rdp-server-windows-desktop)

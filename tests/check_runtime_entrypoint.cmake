@@ -6,6 +6,60 @@ foreach(required_argument IN ITEMS RDP_RUNTIME_EXECUTABLE RDP_RUNTIME_VERSION RD
     endif()
 endforeach()
 
+# R10 licensing-authority startup isolation. Reuse the existing process
+# expectations rather than creating a second CLI oracle. The positive provider
+# fixture is not linked into rdp-server and no case below can configure one.
+if(RDP_RUNTIME_TEST_CASE STREQUAL
+   "licensing-authority-no-startup-bypass")
+    if(NOT DEFINED RDP_RUNTIME_FIXTURE_DIRECTORY OR
+       RDP_RUNTIME_FIXTURE_DIRECTORY STREQUAL "")
+        message(FATAL_ERROR "Missing RDP_RUNTIME_FIXTURE_DIRECTORY")
+    endif()
+    set(authority_startup_cases
+        rejects-unconfigured-startup
+        rejects-unrecognized-options
+        validates-configuration-syntax
+        validates-tls-files-private-regular
+        validates-tls-credentials-matching-pair
+        licensing-cli-valid-provisioning
+        licensing-cli-service-still-disabled)
+    if(DEFINED RDP_RUNTIME_LINUX_SECURITY_HELPER AND
+       NOT RDP_RUNTIME_LINUX_SECURITY_HELPER STREQUAL "")
+        list(APPEND authority_startup_cases
+            validates-linux-security-provisioning)
+    endif()
+
+    foreach(authority_startup_case IN LISTS authority_startup_cases)
+        set(authority_startup_arguments
+            "-DRDP_RUNTIME_EXECUTABLE=${RDP_RUNTIME_EXECUTABLE}"
+            "-DRDP_RUNTIME_VERSION=${RDP_RUNTIME_VERSION}"
+            "-DRDP_RUNTIME_TEST_CASE=${authority_startup_case}"
+            "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${RDP_RUNTIME_FIXTURE_DIRECTORY}/${authority_startup_case}")
+        if(DEFINED RDP_RUNTIME_LICENSING_HELPER AND
+           NOT RDP_RUNTIME_LICENSING_HELPER STREQUAL "")
+            list(APPEND authority_startup_arguments
+                "-DRDP_RUNTIME_LICENSING_HELPER=${RDP_RUNTIME_LICENSING_HELPER}")
+        endif()
+        if(DEFINED RDP_RUNTIME_LINUX_SECURITY_HELPER AND
+           NOT RDP_RUNTIME_LINUX_SECURITY_HELPER STREQUAL "")
+            list(APPEND authority_startup_arguments
+                "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=${RDP_RUNTIME_LINUX_SECURITY_HELPER}")
+        endif()
+        execute_process(
+            COMMAND "${CMAKE_COMMAND}"
+                ${authority_startup_arguments}
+                -P "${CMAKE_CURRENT_LIST_FILE}"
+            RESULT_VARIABLE authority_startup_result
+            OUTPUT_VARIABLE authority_startup_output
+            ERROR_VARIABLE authority_startup_error)
+        if(NOT authority_startup_result STREQUAL "0")
+            message(FATAL_ERROR
+                "Licensing-authority startup isolation case ${authority_startup_case} failed (${authority_startup_result})\n${authority_startup_output}${authority_startup_error}")
+        endif()
+    endforeach()
+    return()
+endif()
+
 # R10 administrator licensing provisioning uses the real process entry point,
 # the existing R3 RSA/X.509-chain fixture generator and production secure-file
 # loader. These cases return before the legacy process checker below.

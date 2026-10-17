@@ -347,6 +347,25 @@ jobs:
           grep -Fq 'security.console-policy-delegated-account-binding' <<< "$delegated_account_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$delegated_account_selection" --output-on-failure
+      - name: Run R10 licensing-authority CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          authority_selection='^runtime\.licensing-authority-'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$authority_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.licensing-authority-unconfigured-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-authority-issuer-policy-correlation' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-authority-generation-revocation' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-authority-result-bounds-and-cancellation' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-authority-sensitive-retirement' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-authority-no-startup-bypass' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$authority_selection" --output-on-failure
+
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

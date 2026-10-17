@@ -1,5 +1,25 @@
 ## R2 delegated-account credential tests (2026-10-16)
 
+## R10 licensing-authority sanitizer registry (2026-10-17)
+
+The service-owned licensing-authority boundary has one flat sanitizer
+selection, `^runtime\.licensing-authority-`, rather than another alternative
+inside the already-large cross-road R1/R3 licensing regular expression. The
+workflow must enumerate and grep all six centrally registered behavior names
+before execution: unavailable denials, issuer/policy correlation,
+generation/revocation, result bounds/cancellation, sensitive retirement and
+real-process startup isolation. A selector compile failure, missing name or
+zero-test run is a CI failure, not sanitizer evidence.
+
+The positive provider used by the first five cases is defined only in the test
+translation unit and reaches production lifetime logic through a private friend
+seam. It must never be linked into `rdp-server`, exposed as runtime
+configuration, or described as genuine CAL issuance. The startup-isolation
+case executes the real process and reuses the existing CLI oracle, proving
+that the test seam cannot bypass normal startup refusal or any supported
+offline preflight.
+
+
 Credential extraction tests must call the production canonical parser, not a
 parallel DER or UTF-16 implementation. Deterministic synthetic plaintext may
 prove bounded account conversion, domain denial and in-place retirement, but it

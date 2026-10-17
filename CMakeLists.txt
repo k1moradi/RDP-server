@@ -607,7 +607,8 @@ endif()
 # types perform the reviewed chain/key validation and cleanse private material.
 # This component is noninstalled and grants no R2 admission or licensing result.
 add_library(rdp-server-runtime-licensing STATIC
-    src/server/runtime/runtime_licensing_context.cpp)
+    src/server/runtime/runtime_licensing_context.cpp
+    src/server/runtime/runtime_licensing_authority.cpp)
 target_compile_features(rdp-server-runtime-licensing PUBLIC cxx_std_23)
 target_include_directories(rdp-server-runtime-licensing PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
@@ -850,6 +851,8 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "linux" EXCLUDE
     PATTERN "x11" EXCLUDE
     PATTERN "runtime_credential_file_internal.h" EXCLUDE
+    PATTERN "runtime_licensing_authority.h" EXCLUDE
+    PATTERN "runtime_licensing_authority_internal.h" EXCLUDE
     PATTERN "linux_pam_password_verifier.h" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake

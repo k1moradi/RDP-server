@@ -1,3 +1,40 @@
+## R10 existing-CAL authority exact-SHA hosted validation (2026-10-17)
+
+**Validated source SHA:** `dc81628a9b4431ef6ffd3e69a7156fd44f0b4d06`.  
+**Primary Actions:** `39022770856` — **SUCCESS**.  
+**Independent workflow structure:** `39022770907` — **SUCCESS**.
+
+The exact R10 source commit passes the complete hosted matrix: Linux/GCC 13.3.0
+**591/591 PASS Debug + Release**; macOS 26.6.2 / Xcode 26.6 / AppleClang
+21.0.0 **505/505 PASS Debug + Release**, with then-current R7 native focus
+**20/20 PASS** in both; Windows/MSVC 19.51.36260.0 **541/541 PASS Debug +
+Release** after **58/58** R6 native preflight in both; and hosted MSYS2
+CLANG64 Clang **23.1.3** **541/541 PASS Debug + Release**, after **58/58**
+R6 native, **3/3** private-DACL and **5/5** security preflights, plus
+**58/58** R6 ASan/UBSan lifetime coverage.
+
+The four new `runtime.licensing-existing-cal-` cases pass in every ordinary
+full hosted configuration and as exact **4/4 PASS** under Clang 18.1.3
+ASan/UBSan. R9's broader groups are green, including **74/74** clipboard,
+**41/41** portable R4, **24/24** x264/BGRA, **4/4** RDPGFX capability,
+**92/92** M2 licensing/security, **8/8** client-CAL, **6/6** pre-existing R10
+authority, **30/30** native GSSAPI, **3/3** PAM, **12/12** direct runtime
+security, **33/33** native X11, and both bounded fuzzers **1/1**. Linux, macOS
+and Windows installed-SDK consumers are **1/1 PASS**. Three exact-run package
+artifacts are present and unexpired; prerelease publication is correctly
+**SKIPPED**.
+
+This proves only the fail-closed authority contract. Production still has no
+verified CAL provider, positive existing-CAL decision, `STATUS_VALID_CLIENT`,
+licensed-session transition, Demand Active/Share activation or listener. R3
+descendant `c852d782eedab341371f193d3f20ae386ff7f5d2` adds a
+non-authorizing request snapshot and intentionally does not consume a positive
+R10 result.
+
+**M1 remains OPEN / NOT ACCEPTED** because the three mandatory owner-native
+same-SHA receipts are still absent with the required machine/toolchain and full
+CTest facts. Hosted success is not owner evidence.
+
 ## R5 P1 native Linux/X11 -> R4 framebuffer ownership boundary (2026-10-17; exact-SHA CI pending)
 
 **Authoring parent:** `f037d4b6445950767a126830e391057fcd3417ec`.

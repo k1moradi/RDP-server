@@ -1,3 +1,29 @@
+## R6 P1 shared-workflow structural blocker reconciliation (2026-10-17)
+
+**Blocked R6 correction:** `c6e650ba586e3ecc00306e6aacc38a99fa8aba60`.  
+**Main workflow:** Actions `39010587446` — **FAIL before jobs**.  
+**Structure guard:** Actions `39010588499` — **FAIL**.
+
+The new fail-closed structure guard correctly diagnosed an inherited shared-CI
+corruption before the corrected R6 Clang gate could run: `.github/workflows/ci.yml`
+contained three top-level `r7-macos-session-sanitizers` mappings and four
+copies each of `documentation-policy` and `publish-protocol-prerelease`.
+The same damaged tail also contained truncated fuzzer and R7 shell selectors.
+This corruption was introduced after the last runnable R6 workflow and is not
+a Clang 23, MinGW-w64 SDK or R6 production-source failure.
+
+To unblock the evidence matrix without weakening any selector, this correction
+reconstructs `ci.yml` from the last runnable R6 workflow
+`11e7286570cd4537a3e5fda405dbab24c9faf0da`, reapplies only the intended R9
+`ci-workflow-structure` prerequisite to each unique job, retains the corrected
+R6 compiler-identity assertion, and preserves exactly one copy of every
+platform/sanitizer/documentation/publication job. The standalone structure
+guard and its fixtures remain authoritative.
+
+No production source, CTest registration, COM ownership assertion, WTS
+semantics, SendInput behavior or authorization path changes here. R6 CLANG64
+Debug/Release focused/full execution remains pending the repaired workflow.
+
 ## R6 P1 CLANG64 compiler-cache assertion correction (2026-10-17)
 
 **First gate:** `11e7286570cd4537a3e5fda405dbab24c9faf0da`, Actions

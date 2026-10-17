@@ -1,3 +1,55 @@
+## M1 owner-platform acceptance matrix (P0 coordination, 2026-10-17)
+
+R10 has paused runtime/service feature expansion and opened the formal
+same-SHA M1 validation window. The **candidate is the commit containing this
+section**, but it becomes executable owner-test evidence only after the complete
+GitHub Actions workflow for that exact commit is SUCCESS. The coordinator final
+report supplies the literal candidate SHA and Actions URL; owner reports must
+repeat the same SHA from `git rev-parse HEAD`.
+
+The last fully completed green hosted baseline before this coordination
+publication is `6457f259840fbfe3998f50517593cfd9185e75fe`, Actions
+`39009925959` — **SUCCESS**. It confirms that R9 and the complete hosted
+pipeline were green before the M1 candidate publication, but it is not an owner
+machine result and must not be substituted for the candidate workflow.
+
+| Evidence row | Exact SHA | Environment/build | Tests / failures / skips | Status | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| Owner Linux/X11 | Candidate required | Native owner machine; Debug; canonical `~/rdp-server/build/` | Await owner full CTest summary | **NOT RUN** | Await owner transcript |
+| Owner Windows MSYS2 CLANG64 / Clang 23 | Candidate required | Native owner machine; Debug; canonical `~/rdp-server/build/` | Await owner full CTest summary | **NOT RUN** | Await owner transcript |
+| Owner macOS 27 | Candidate required | Native owner machine; Debug; canonical `~/rdp-server/build/` | Await owner full CTest summary | **NOT RUN** | Await owner transcript |
+| Hosted Linux/GCC | Containing candidate commit | Debug + Release | Candidate workflow required | **PENDING** | Candidate Actions run |
+| Hosted macOS/AppleClang | Containing candidate commit | Debug + Release | Candidate workflow required | **PENDING** | Candidate Actions run |
+| Hosted Windows/MSVC | Containing candidate commit | native preflight + Debug + Release | Candidate workflow required | **PENDING** | Candidate Actions run |
+| R9 Clang ASan/UBSan | Containing candidate commit | sanitizer/fuzzer selections | Candidate workflow required | **PENDING** | Candidate Actions run |
+| R7 macOS session sanitizer | Containing candidate commit | GCC ASan/UBSan side job | Candidate workflow required | **PENDING** | Candidate Actions run |
+| Documentation policy | Containing candidate commit | policy job | Candidate workflow required | **PENDING** | Candidate Actions run |
+| SDK consumer / package / digest | Containing candidate commit | all hosted platform jobs | Candidate workflow required | **PENDING** | Candidate Actions run |
+
+Owner evidence must capture the exact SHA, OS version, compiler version, build
+type, total tests, failures, skipped/not-run tests and complete
+`--output-on-failure` diagnostics. The required Debug command is the exact
+one in `docs/compile.md`:
+
+```sh
+cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure
+```
+
+After the pull, record `git rev-parse HEAD` and stop before configure if it is
+not the literal candidate SHA from the coordinator report. Do not delete
+`build/`, create another build root, enable the listener, or opt into live
+desktop/clipboard/credential/service tests for M1.
+
+Failure routing is fixed for this window: R1 = macOS native TCP/TLS, R5 =
+Linux/X11 native, R6 = Windows native, R7 = macOS capture/session. R10 owns
+matrix coordination and records the first failing boundary. Any repair creates
+a new candidate and invalidates same-SHA convergence from the previous one.
+
+**Acceptance decision:** **M1 OPEN / NOT ACCEPTED**. It can become PASS only
+when the complete candidate hosted workflow and all three owner-native Debug
+runs are PASS on the exact same SHA. Hosted Windows/MSVC is explicitly not
+owner Windows MSYS2 CLANG64/Clang 23 evidence.
+
 ## R3 CAL leaf-validity authoring receipt (2026-10-17; exact-SHA CI pending)
 
 **Starting shared `main`:** `2f4fd534bc070977582ed899c620cd79171edecf`.

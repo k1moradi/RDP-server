@@ -1,3 +1,104 @@
+## P0 M1 same-SHA owner-platform acceptance coordination (2026-10-17)
+
+**R10 role:** M1 validation coordinator. Production runtime/service expansion is
+paused until this baseline is either accepted or reduced to an exact
+owner-assigned failure list. The normal service listener remains disabled and
+all existing R2 admission, R3 licensing and live-publication gates remain
+unchanged.
+
+**Candidate rule:** the commit that contains this section is the next M1
+candidate **only after its own complete GitHub Actions workflow reports
+SUCCESS**, including R9. The coordinator's final report must publish that
+commit's literal SHA and Actions URL. The owner must run
+`git rev-parse HEAD` immediately after the required fast-forward pull and stop
+without configuring if it differs from that literal candidate SHA. A later
+`main` commit supersedes the candidate before owner execution; results from
+different SHAs cannot be combined into M1 acceptance.
+
+The last fully completed green hosted baseline before this coordination
+publication is `6457f259840fbfe3998f50517593cfd9185e75fe`, Actions
+`39009925959` — **SUCCESS**. Its documentation policy, Linux/GCC,
+macOS/AppleClang, Windows/MSVC, R7 sanitizer and R9 ASan/UBSan jobs all
+completed successfully. That baseline establishes a known-green starting
+point; it is **not** owner-native M1 evidence.
+
+### Canonical M1 evidence matrix
+
+| Gate | Required candidate evidence | Status at this coordination commit |
+| --- | --- | --- |
+| Owner Linux/X11 | Exact candidate SHA; OS/version; effective C++ compiler/version; Debug configure/build/full CTest from only `~/rdp-server/build/`; total, failed, skipped and failure log | **NOT RUN** |
+| Owner Windows MSYS2 CLANG64 / Clang 23 | Exact candidate SHA; Windows/MSYS2 version; `clang++ --version` proving Clang 23; Debug configure/build/full CTest from only `~/rdp-server/build/`; total, failed, skipped and failure log | **NOT RUN** |
+| Owner macOS 27 | Exact candidate SHA; `sw_vers`; effective AppleClang/version; Debug configure/build/full CTest from only `~/rdp-server/build/`; total, failed, skipped and failure log | **NOT RUN** |
+| Hosted Linux/GCC | Candidate workflow Debug + Release full CTest, SDK consumer, package/digest/artifact | **PENDING candidate workflow** |
+| Hosted macOS/AppleClang | Candidate workflow Debug + Release full CTest, SDK consumer, package/digest/artifact | **PENDING candidate workflow** |
+| Hosted Windows/MSVC | Candidate workflow native preflight plus Debug + Release full CTest, SDK consumer, package/digest/artifact | **PENDING candidate workflow** |
+| R9 Clang ASan/UBSan | Every configured fail-closed sanitizer/fuzzer group in the candidate workflow | **PENDING candidate workflow** |
+| R7 macOS session sanitizer | Candidate workflow dedicated R7 sanitizer job | **PENDING candidate workflow** |
+| Documentation policy | Candidate workflow documentation-policy job | **PENDING candidate workflow** |
+| Same-SHA convergence | All three owner-native reports must name the exact candidate SHA above; hosted evidence must be for that same SHA | **BLOCKED on owner runs** |
+
+The formal owner-native gate is the unchanged Debug command required by
+`AGENTS.md` and `docs/compile.md`; hosted Debug/Release does not replace it.
+A Release local dry run may be recorded additionally, but it cannot substitute
+for the required Debug full CTest.
+
+### Owner command and evidence contract
+
+Run this unchanged command in the platform's required shell/toolchain
+environment:
+
+```sh
+cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure
+```
+
+Immediately after the pull, before configure, also record:
+
+```sh
+git rev-parse HEAD
+cmake --version
+```
+
+Record the platform-native OS version and effective compiler version as well:
+Linux/X11 records `cat /etc/os-release` (or equivalent) and
+`c++ --version`; Windows MSYS2 CLANG64 records `uname -a` and
+`clang++ --version`; macOS records `sw_vers` and
+`clang++ --version`. Do not delete or replace `build/`; CMake's configure
+output must be checked to ensure the reused cache selected the intended
+compiler. Report the complete CTest summary, including total tests, failures,
+skips/not-run tests, and the `--output-on-failure` diagnostics for every
+failure. Do not enable opt-in live desktop, clipboard, credential, service or
+listener tests as part of M1.
+
+If an additional Release dry run is requested, reconfigure and reuse the same
+root exactly as documented:
+
+```sh
+cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build "$HOME/rdp-server/build" --config Release --parallel 2
+ctest --test-dir "$HOME/rdp-server/build" -C Release --output-on-failure
+cmake --install "$HOME/rdp-server/build" --config Release --prefix "$HOME/rdp-server/build/stage"
+cmake -S "$HOME/rdp-server/tests/consumer" -B "$HOME/rdp-server/build/consumer" -DCMAKE_PREFIX_PATH="$HOME/rdp-server/build/stage" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$HOME/rdp-server/build/consumer" --config Release --parallel 2
+ctest --test-dir "$HOME/rdp-server/build/consumer" -C Release --output-on-failure
+cmake --build "$HOME/rdp-server/build" --config Release --target package
+```
+
+### Failure ownership
+
+M1 failures are routed without ambiguity: **R1 owns macOS native TCP/TLS
+failures; R5 owns Linux/X11 native failures; R6 owns Windows native failures;
+R7 owns macOS capture/session failures.** R10 coordinates the matrix and keeps
+cross-road failures attached to the first failing boundary; it does not mask a
+failure by changing test selection. Every repair must land directly on
+`main`, pass its own hosted workflow, and produces a new M1 candidate; owner
+results from the superseded SHA are retained as historical evidence but cannot
+be mixed into acceptance.
+
+**M1 status:** **OPEN / NOT ACCEPTED** until all three mandatory owner-native
+rows and the complete hosted rows are PASS on one exact SHA. No evidence-format
+checker is added: the current matrix is deterministic without new production
+or test code, and fabricated validation output is prohibited.
+
 ## R3 deterministic CAL leaf-certificate validity boundary (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `2f4fd534bc070977582ed899c620cd79171edecf`.

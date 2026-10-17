@@ -9,7 +9,9 @@
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
+#include <openssl/objects.h>
 #include <openssl/pem.h>
+#include <openssl/pkcs7.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
@@ -714,6 +716,147 @@ using OwnedX509 = std::unique_ptr<X509, X509Closer>;
 using OwnedPkey = std::unique_ptr<EVP_PKEY, PkeyCloser>;
 using OwnedPkeyContext = std::unique_ptr<EVP_PKEY_CTX, PkeyContextCloser>;
 
+struct Pkcs7Closer
+{
+    void operator()(PKCS7 *container) const noexcept
+    {
+        PKCS7_free(container);
+    }
+};
+
+struct Asn1ObjectCloser
+{
+    void operator()(ASN1_OBJECT *object) const noexcept
+    {
+        ASN1_OBJECT_free(object);
+    }
+};
+
+using OwnedPkcs7 = std::unique_ptr<PKCS7, Pkcs7Closer>;
+using OwnedAsn1Object = std::unique_ptr<ASN1_OBJECT, Asn1ObjectCloser>;
+
+constexpr std::array<const char *, 5> kRdpCalLicensingExtensionOids{
+    "1.3.6.1.4.1.311.18.4",
+    "1.3.6.1.4.1.311.18.2",
+    "1.3.6.1.4.1.311.18.5",
+    "1.3.6.1.4.1.311.18.6",
+    "1.3.6.1.4.1.311.18.7"};
+
+[[nodiscard]] bool supportedCalSignatureAlgorithm(
+    X509 *certificate) noexcept
+{
+    const int signatureNid = X509_get_signature_nid(certificate);
+    // MS-RDPELE 2.2.2.9 names the OIW SHA1-with-RSA OID. OpenSSL-generated
+    // deterministic fixtures use the PKCS#1 alias for the same digest/key
+    // primitive; no SHA-2, RSA-PSS, EC or other signature algorithm is accepted.
+    return signatureNid == NID_sha1WithRSA ||
+           signatureNid == NID_sha1WithRSAEncryption;
+}
+
+[[nodiscard]] bool supportedCalPublicKey(X509 *certificate) noexcept
+{
+    OwnedPkey publicKey{X509_get_pubkey(certificate)};
+    return publicKey && EVP_PKEY_base_id(publicKey.get()) == EVP_PKEY_RSA;
+}
+
+[[nodiscard]] bool exactPkcs7Der(
+    PKCS7 *container, std::span<const std::uint8_t> original) noexcept
+{
+    const int encodedBytes = i2d_PKCS7(container, nullptr);
+    if (encodedBytes <= 0 ||
+        static_cast<std::size_t>(encodedBytes) != original.size())
+        return false;
+
+    std::array<std::uint8_t, kMaximumRdpClientCalBytes> canonical;
+    unsigned char *cursor = canonical.data();
+    if (i2d_PKCS7(container, &cursor) != encodedBytes ||
+        cursor != canonical.data() + encodedBytes)
+        return false;
+
+    return std::equal(
+        canonical.begin(),
+        canonical.begin() + static_cast<std::ptrdiff_t>(encodedBytes),
+        original.begin());
+}
+
+[[nodiscard]] bool exactX509Der(
+    X509 *certificate, std::span<const std::uint8_t> original) noexcept
+{
+    const int encodedBytes = i2d_X509(certificate, nullptr);
+    if (encodedBytes <= 0 ||
+        static_cast<std::size_t>(encodedBytes) != original.size())
+        return false;
+
+    std::array<std::uint8_t, kMaximumRdpClientCalCertificateBytes>
+        canonical;
+    unsigned char *cursor = canonical.data();
+    if (i2d_X509(certificate, &cursor) != encodedBytes ||
+        cursor != canonical.data() + encodedBytes)
+        return false;
+
+    return std::equal(
+        canonical.begin(),
+        canonical.begin() + static_cast<std::ptrdiff_t>(encodedBytes),
+        original.begin());
+}
+
+[[nodiscard]] bool extensionObjectMatches(
+    const ASN1_OBJECT *object, const char *oid) noexcept
+{
+    OwnedAsn1Object expected{OBJ_txt2obj(oid, 1)};
+    return expected && object != nullptr &&
+           OBJ_cmp(object, expected.get()) == 0;
+}
+
+[[nodiscard]] RdpClientCalPolicyStatus inspectCalPolicyStatus(
+    X509 *leaf) noexcept
+{
+    const int extensionCount = X509_get_ext_count(leaf);
+    for (int index = 0; index < extensionCount; ++index)
+    {
+        X509_EXTENSION *extension = X509_get_ext(leaf, index);
+        if (extension == nullptr)
+            return RdpClientCalPolicyStatus::UnsupportedCriticalExtension;
+        if (X509_EXTENSION_get_critical(extension) == 0)
+            continue;
+
+        const ASN1_OBJECT *object = X509_EXTENSION_get_object(extension);
+        if (object == nullptr || OBJ_obj2nid(object) != NID_undef)
+            continue;
+
+        bool licensingExtension = false;
+        for (const char *oid : kRdpCalLicensingExtensionOids)
+        {
+            licensingExtension =
+                licensingExtension || extensionObjectMatches(object, oid);
+        }
+        if (!licensingExtension)
+            return RdpClientCalPolicyStatus::UnsupportedCriticalExtension;
+    }
+
+    for (const char *oid : kRdpCalLicensingExtensionOids)
+    {
+        OwnedAsn1Object object{OBJ_txt2obj(oid, 1)};
+        if (!object)
+            return RdpClientCalPolicyStatus::MissingRequiredExtension;
+
+        int occurrenceCount = 0;
+        int position = -1;
+        while ((position =
+                    X509_get_ext_by_OBJ(leaf, object.get(), position)) >= 0)
+        {
+            ++occurrenceCount;
+            if (occurrenceCount > 1)
+                return RdpClientCalPolicyStatus::DuplicateRequiredExtension;
+        }
+        if (occurrenceCount == 0)
+            return RdpClientCalPolicyStatus::MissingRequiredExtension;
+    }
+
+    // Presence and cardinality are not product, expiry or HWID semantics.
+    return RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed;
+}
+
 int rejectPrivateKeyPassword(char *, int, int, void *) noexcept
 {
     return 0;
@@ -865,6 +1008,245 @@ struct X509ChainLeafResult
     return true;
 }
 } // namespace
+
+RdpClientCalChainInspectionResult inspectRdpClientCalCertificateChain(
+    std::span<const std::uint8_t> licenseInfo,
+    std::span<const std::uint8_t> trustedRootDer) noexcept
+{
+    RdpClientCalChainInspectionResult result{};
+    if (licenseInfo.empty())
+    {
+        result.error = RdpClientCalChainError::Empty;
+        return result;
+    }
+    if (licenseInfo.size() > kMaximumRdpClientCalBytes)
+    {
+        result.error = RdpClientCalChainError::Oversized;
+        return result;
+    }
+
+    const unsigned char *cursor = licenseInfo.data();
+    const unsigned char *const end = licenseInfo.data() + licenseInfo.size();
+    OwnedPkcs7 container{
+        d2i_PKCS7(nullptr, &cursor, static_cast<long>(licenseInfo.size()))};
+    if (!container || cursor != end ||
+        !exactPkcs7Der(container.get(), licenseInfo))
+    {
+        result.error = RdpClientCalChainError::MalformedContainer;
+        return result;
+    }
+
+    if (!PKCS7_type_is_signed(container.get()) ||
+        container->d.sign == nullptr ||
+        container->d.sign->version == nullptr ||
+        ASN1_INTEGER_get(container->d.sign->version) != 1L ||
+        container->d.sign->contents == nullptr ||
+        OBJ_obj2nid(container->d.sign->contents->type) != NID_pkcs7_data ||
+        (container->d.sign->contents->d.data != nullptr &&
+         container->d.sign->contents->d.data->length != 0) ||
+        sk_PKCS7_SIGNER_INFO_num(container->d.sign->signer_info) != 0 ||
+        sk_X509_ALGOR_num(container->d.sign->md_algs) != 0 ||
+        (container->d.sign->crl != nullptr &&
+         sk_X509_CRL_num(container->d.sign->crl) != 0) ||
+        container->d.sign->cert == nullptr)
+    {
+        result.error = RdpClientCalChainError::UnsupportedContainer;
+        return result;
+    }
+
+    const int certificateCountSigned =
+        sk_X509_num(container->d.sign->cert);
+    if (certificateCountSigned < 2 ||
+        certificateCountSigned >
+            static_cast<int>(kMaximumRdpClientCalCertificateCount))
+    {
+        result.error = RdpClientCalChainError::CertificateCountOutOfRange;
+        return result;
+    }
+    result.facts.certificateCount =
+        static_cast<std::size_t>(certificateCountSigned);
+
+    std::array<X509 *, kMaximumRdpClientCalCertificateCount> certificates{};
+    for (int index = 0; index < certificateCountSigned; ++index)
+    {
+        X509 *certificate =
+            sk_X509_value(container->d.sign->cert, index);
+        if (certificate == nullptr)
+        {
+            result.error = RdpClientCalChainError::MalformedContainer;
+            return result;
+        }
+
+        const int encodedBytes = i2d_X509(certificate, nullptr);
+        if (encodedBytes <= 0 ||
+            static_cast<std::size_t>(encodedBytes) >
+                kMaximumRdpClientCalCertificateBytes)
+        {
+            result.error = RdpClientCalChainError::OversizedCertificate;
+            return result;
+        }
+        if (X509_get_version(certificate) != 2)
+        {
+            result.error =
+                RdpClientCalChainError::UnsupportedCertificateVersion;
+            return result;
+        }
+        if (!supportedCalSignatureAlgorithm(certificate))
+        {
+            result.error =
+                RdpClientCalChainError::UnsupportedSignatureAlgorithm;
+            return result;
+        }
+        if (!supportedCalPublicKey(certificate))
+        {
+            result.error = RdpClientCalChainError::UnsupportedKeyType;
+            return result;
+        }
+
+        certificates[static_cast<std::size_t>(index)] = certificate;
+        for (int earlier = 0; earlier < index; ++earlier)
+        {
+            if (X509_cmp(
+                    certificate,
+                    certificates[static_cast<std::size_t>(earlier)]) == 0)
+            {
+                result.error =
+                    RdpClientCalChainError::DuplicateCertificate;
+                return result;
+            }
+        }
+    }
+
+    // PKCS#7 CertificateSet ordering is not authority. Reconstruct exactly one
+    // root-to-leaf path from issuer/subject names, then verify every signature.
+    // Multiple roots, sibling leaves or disconnected material are unsupported.
+    std::size_t rootIndex = kMaximumRdpClientCalCertificateCount;
+    std::size_t rootCount = 0U;
+    for (std::size_t index = 0U;
+         index < result.facts.certificateCount; ++index)
+    {
+        if (X509_NAME_cmp(
+                X509_get_subject_name(certificates[index]),
+                X509_get_issuer_name(certificates[index])) == 0)
+        {
+            rootIndex = index;
+            ++rootCount;
+        }
+    }
+    if (rootCount == 0U)
+    {
+        result.error = RdpClientCalChainError::MissingIssuer;
+        return result;
+    }
+    if (rootCount != 1U)
+    {
+        result.error = RdpClientCalChainError::AmbiguousChain;
+        return result;
+    }
+
+    std::array<bool, kMaximumRdpClientCalCertificateCount> used{};
+    X509 *issuer = certificates[rootIndex];
+    X509 *leaf = issuer;
+    used[rootIndex] = true;
+
+    OwnedPkey rootPublicKey{X509_get_pubkey(issuer)};
+    if (!rootPublicKey ||
+        X509_verify(issuer, rootPublicKey.get()) != 1)
+    {
+        result.error = RdpClientCalChainError::SignatureVerificationFailure;
+        return result;
+    }
+
+    for (std::size_t depth = 1U;
+         depth < result.facts.certificateCount; ++depth)
+    {
+        std::size_t childIndex = kMaximumRdpClientCalCertificateCount;
+        std::size_t childCount = 0U;
+        for (std::size_t index = 0U;
+             index < result.facts.certificateCount; ++index)
+        {
+            if (!used[index] &&
+                X509_NAME_cmp(
+                    X509_get_issuer_name(certificates[index]),
+                    X509_get_subject_name(issuer)) == 0)
+            {
+                childIndex = index;
+                ++childCount;
+            }
+        }
+        if (childCount == 0U)
+        {
+            result.error = RdpClientCalChainError::MissingIssuer;
+            return result;
+        }
+        if (childCount != 1U)
+        {
+            result.error = RdpClientCalChainError::AmbiguousChain;
+            return result;
+        }
+
+        OwnedPkey issuerPublicKey{X509_get_pubkey(issuer)};
+        if (!issuerPublicKey ||
+            X509_verify(
+                certificates[childIndex], issuerPublicKey.get()) != 1)
+        {
+            result.error =
+                RdpClientCalChainError::SignatureVerificationFailure;
+            return result;
+        }
+
+        used[childIndex] = true;
+        issuer = certificates[childIndex];
+        leaf = issuer;
+    }
+
+    if (std::any_of(
+            used.begin(),
+            used.begin() +
+                static_cast<std::ptrdiff_t>(result.facts.certificateCount),
+            [](bool value) { return !value; }))
+    {
+        result.error = RdpClientCalChainError::AmbiguousChain;
+        return result;
+    }
+    result.facts.signaturesVerified = true;
+
+    // A peer-supplied self-signed root is never sufficient authority. The
+    // explicit trust anchor is immutable for this synchronous call, parsed
+    // independently, and must byte-semantically identify the exact root.
+    if (trustedRootDer.empty())
+    {
+        result.error = RdpClientCalChainError::MissingTrustAnchor;
+        return result;
+    }
+    if (trustedRootDer.size() > kMaximumRdpClientCalCertificateBytes)
+    {
+        result.error = RdpClientCalChainError::MalformedTrustAnchor;
+        return result;
+    }
+
+    const unsigned char *trustedCursor = trustedRootDer.data();
+    const unsigned char *const trustedEnd =
+        trustedRootDer.data() + trustedRootDer.size();
+    OwnedX509 trustedRoot{d2i_X509(
+        nullptr, &trustedCursor, static_cast<long>(trustedRootDer.size()))};
+    if (!trustedRoot || trustedCursor != trustedEnd ||
+        !exactX509Der(trustedRoot.get(), trustedRootDer))
+    {
+        result.error = RdpClientCalChainError::MalformedTrustAnchor;
+        return result;
+    }
+    if (X509_cmp(certificates[rootIndex], trustedRoot.get()) != 0)
+    {
+        result.error = RdpClientCalChainError::UntrustedTrustAnchor;
+        return result;
+    }
+
+    result.facts.trustedIssuerMatched = true;
+    result.facts.policyStatus = inspectCalPolicyStatus(leaf);
+    result.error = RdpClientCalChainError::None;
+    return result;
+}
 
 void cleanseRdpLicensingKeyMaterial(
     RdpLicensingKeyMaterial &material) noexcept

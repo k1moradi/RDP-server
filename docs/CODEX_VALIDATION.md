@@ -1,3 +1,28 @@
+## R3 CAL chain verifier authoring receipt (2026-10-16; exact-SHA CI pending)
+
+**Reconciled parent:** `3069b2f1e07198d0e060c1619924f9654ffb8826`. **Implementation:** this publication.
+The change adds the bounded PKCS#7 CAL chain inspector, six dedicated
+production-linked CTests and a separate flat R9 sanitizer selector with
+fail-closed registry checks.
+
+Authoring checks establish that the CAL parser is separate from the existing
+server `X509_CERTIFICATE_CHAIN` parser, performs full canonical DER
+consumption, scopes all OpenSSL ownership with RAII, verifies RSA/SHA-1
+certificate signatures against an explicit synthetic test root, rejects peer
+roots without independent trust and rejects the server terminal certificate as
+a CAL anchor. The synthetic hierarchy proves verifier mechanics only; it is not
+Microsoft CAL legitimacy.
+
+The extension layer remains intentionally incomplete: the five documented OIDs
+are counted but their values are not interpreted. Product/version, CAL expiry,
+CAL HWID binding and renewal/classification are therefore not accepted. The
+lifecycle remains at `ClientLicenseInfoValidation`; no live licensing success
+packet, grant publication, Share activation or R2 admission path is introduced.
+
+Canonical owner-local `~/rdp-server/build/`, hosted Linux/macOS/Windows
+Debug/Release, the R9 ASan/UBSan CAL selector, installed SDK/package gates and
+exact-SHA Actions are **PENDING/NOT YET CLAIMED** for this publication.
+
 ## R9 delegated-account adversarial audit authoring (2026-10-16)
 
 R9 reviewed R2 commit `a4315bf38144ff390ae5ef12170d645c5458bb0b`

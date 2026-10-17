@@ -13,7 +13,9 @@
 
 #include <openssl/bio.h>
 #include <openssl/evp.h>
+#include <openssl/objects.h>
 #include <openssl/pem.h>
+#include <openssl/pkcs7.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
 #ifdef NDEBUG
@@ -4548,10 +4550,12 @@ makeClientNewLicenseRequestWithKeyExchange(
 [[nodiscard]] std::vector<std::uint8_t>
 makeClientLicenseInfoWithHardwareProof(
     std::span<const std::uint8_t> encryptedHardwareId,
-    std::span<const std::uint8_t> macData)
+    std::span<const std::uint8_t> macData,
+    std::span<const std::uint8_t> licenseInfo)
 {
     assert(encryptedHardwareId.size() == kRdpLicensingHardwareIdBytes);
     assert(macData.size() == kRdpLicensingMacBytes);
+    assert(!licenseInfo.empty() && licenseInfo.size() <= 65535U);
 
     std::vector<std::uint8_t> message{0x12, 0x03, 0x00, 0x00};
     appendLicensingLe32(message, 1U);
@@ -4560,11 +4564,22 @@ makeClientLicenseInfoWithHardwareProof(
         message.push_back(static_cast<std::uint8_t>(0xa0U + value));
 
     appendLicensingBlob(message, 0x0002U, {0x31, 0x32});
-    appendLicensingBlob(message, 0x0001U, {0x41, 0x42, 0x43});
+    appendLicensingBlob(message, 0x0001U, licenseInfo);
     appendLicensingBlob(message, 0x0001U, encryptedHardwareId);
     message.insert(message.end(), macData.begin(), macData.end());
     finishLicensingMessageSize(message);
     return message;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientLicenseInfoWithHardwareProof(
+    std::span<const std::uint8_t> encryptedHardwareId,
+    std::span<const std::uint8_t> macData)
+{
+    constexpr std::array<std::uint8_t, 3> placeholderLicenseInfo{
+        0x41, 0x42, 0x43};
+    return makeClientLicenseInfoWithHardwareProof(
+        encryptedHardwareId, macData, placeholderLicenseInfo);
 }
 
 [[nodiscard]] std::vector<std::uint8_t>
@@ -6732,13 +6747,22 @@ using LicensingPkeyContextPointer =
     std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
 using LicensingX509NamePointer =
     std::unique_ptr<X509_NAME, decltype(&X509_NAME_free)>;
+using LicensingPkcs7Pointer =
+    std::unique_ptr<PKCS7, decltype(&PKCS7_free)>;
+using LicensingAsn1ObjectPointer =
+    std::unique_ptr<ASN1_OBJECT, decltype(&ASN1_OBJECT_free)>;
+using LicensingAsn1OctetStringPointer =
+    std::unique_ptr<ASN1_OCTET_STRING, decltype(&ASN1_OCTET_STRING_free)>;
+using LicensingExtensionPointer =
+    std::unique_ptr<X509_EXTENSION, decltype(&X509_EXTENSION_free)>;
 
 [[nodiscard]] LicensingCertificatePointer makeLicensingFixtureCertificate(
     EVP_PKEY *subjectKey,
     const X509 *issuerCertificate,
     EVP_PKEY *issuerKey,
     long serial,
-    std::string_view commonName)
+    std::string_view commonName,
+    const EVP_MD *signatureDigest = EVP_sha256())
 {
     LicensingCertificatePointer certificate{X509_new(), X509_free};
     assert(certificate);
@@ -6766,7 +6790,8 @@ using LicensingX509NamePointer =
         : subject.get();
     assert(issuerName != nullptr);
     assert(X509_set_issuer_name(certificate.get(), issuerName) == 1);
-    assert(X509_sign(certificate.get(), issuerKey, EVP_sha256()) > 0);
+    assert(signatureDigest != nullptr);
+    assert(X509_sign(certificate.get(), issuerKey, signatureDigest) > 0);
     return certificate;
 }
 
@@ -6810,6 +6835,195 @@ void appendLicensingFixtureLe32(
     output.push_back(static_cast<std::uint8_t>(value >> 8U));
     output.push_back(static_cast<std::uint8_t>(value >> 16U));
     output.push_back(static_cast<std::uint8_t>(value >> 24U));
+}
+
+constexpr std::array<const char *, 5> kClientCalRequiredExtensionOids{
+    "1.3.6.1.4.1.311.18.4",
+    "1.3.6.1.4.1.311.18.2",
+    "1.3.6.1.4.1.311.18.5",
+    "1.3.6.1.4.1.311.18.6",
+    "1.3.6.1.4.1.311.18.7"};
+
+void addClientCalFixtureExtension(
+    X509 *certificate,
+    const char *oid,
+    std::span<const std::uint8_t> payload,
+    bool critical = false)
+{
+    assert(certificate != nullptr && oid != nullptr);
+    assert(payload.size() <=
+           static_cast<std::size_t>((std::numeric_limits<int>::max)()));
+
+    LicensingAsn1ObjectPointer object{OBJ_txt2obj(oid, 1), ASN1_OBJECT_free};
+    LicensingAsn1OctetStringPointer value{
+        ASN1_OCTET_STRING_new(), ASN1_OCTET_STRING_free};
+    assert(object && value);
+    assert(ASN1_OCTET_STRING_set(
+               value.get(), payload.data(),
+               static_cast<int>(payload.size())) == 1);
+
+    LicensingExtensionPointer extension{
+        X509_EXTENSION_create_by_OBJ(
+            nullptr, object.get(), critical ? 1 : 0, value.get()),
+        X509_EXTENSION_free};
+    assert(extension);
+    assert(X509_add_ext(certificate, extension.get(), -1) == 1);
+}
+
+void addRequiredClientCalFixtureExtensions(X509 *certificate)
+{
+    for (std::size_t index = 0U;
+         index < kClientCalRequiredExtensionOids.size(); ++index)
+    {
+        const std::array<std::uint8_t, 3> payload{
+            static_cast<std::uint8_t>(0x20U + index),
+            static_cast<std::uint8_t>(0x40U + index),
+            static_cast<std::uint8_t>(0x60U + index)};
+        addClientCalFixtureExtension(
+            certificate, kClientCalRequiredExtensionOids[index], payload);
+    }
+}
+
+[[nodiscard]] std::vector<std::uint8_t> encodeClientCalFixture(
+    std::span<X509 *const> certificates)
+{
+    LicensingPkcs7Pointer container{PKCS7_new(), PKCS7_free};
+    assert(container);
+    assert(PKCS7_set_type(container.get(), NID_pkcs7_signed) == 1);
+    assert(PKCS7_content_new(container.get(), NID_pkcs7_data) == 1);
+    for (X509 *certificate : certificates)
+    {
+        assert(certificate != nullptr);
+        assert(PKCS7_add_certificate(container.get(), certificate) == 1);
+    }
+
+    const int encodedBytes = i2d_PKCS7(container.get(), nullptr);
+    assert(encodedBytes > 0);
+    std::vector<std::uint8_t> encoded(
+        static_cast<std::size_t>(encodedBytes));
+    unsigned char *cursor = encoded.data();
+    assert(i2d_PKCS7(container.get(), &cursor) == encodedBytes);
+    assert(cursor == encoded.data() + encoded.size());
+    return encoded;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+encodeUnsupportedClientCalFixture()
+{
+    LicensingPkcs7Pointer container{PKCS7_new(), PKCS7_free};
+    assert(container);
+    assert(PKCS7_set_type(container.get(), NID_pkcs7_data) == 1);
+    constexpr std::array<unsigned char, 1> payload{0x01U};
+    assert(container->d.data != nullptr);
+    assert(ASN1_OCTET_STRING_set(
+               container->d.data, payload.data(),
+               static_cast<int>(payload.size())) == 1);
+
+    const int encodedBytes = i2d_PKCS7(container.get(), nullptr);
+    assert(encodedBytes > 0);
+    std::vector<std::uint8_t> encoded(
+        static_cast<std::size_t>(encodedBytes));
+    unsigned char *cursor = encoded.data();
+    assert(i2d_PKCS7(container.get(), &cursor) == encodedBytes);
+    assert(cursor == encoded.data() + encoded.size());
+    return encoded;
+}
+
+struct ClientCalFixture final
+{
+    LicensingKeyPointer rootKey{nullptr, EVP_PKEY_free};
+    LicensingKeyPointer issuerKey{nullptr, EVP_PKEY_free};
+    LicensingKeyPointer leafKey{nullptr, EVP_PKEY_free};
+    LicensingKeyPointer alternateRootKey{nullptr, EVP_PKEY_free};
+    LicensingCertificatePointer rootCertificate{nullptr, X509_free};
+    LicensingCertificatePointer issuerCertificate{nullptr, X509_free};
+    LicensingCertificatePointer leafCertificate{nullptr, X509_free};
+    LicensingCertificatePointer alternateRootCertificate{nullptr, X509_free};
+    std::vector<std::uint8_t> rootDer;
+    std::vector<std::uint8_t> alternateRootDer;
+    std::vector<std::uint8_t> cal;
+
+    explicit ClientCalFixture(bool addRequiredExtensions = true)
+    {
+        // Synthetic hierarchy only. It proves verifier mechanics against an
+        // explicit test anchor and is never a production CAL authority.
+        rootKey.reset(EVP_RSA_gen(2048));
+        issuerKey.reset(EVP_RSA_gen(2048));
+        leafKey.reset(EVP_RSA_gen(2048));
+        alternateRootKey.reset(EVP_RSA_gen(2048));
+        assert(rootKey && issuerKey && leafKey && alternateRootKey);
+
+        rootCertificate = makeLicensingFixtureCertificate(
+            rootKey.get(), nullptr, rootKey.get(), 101L,
+            "rdp-cal-test-root", EVP_sha1());
+        issuerCertificate = makeLicensingFixtureCertificate(
+            issuerKey.get(), rootCertificate.get(), rootKey.get(), 102L,
+            "rdp-cal-test-issuer", EVP_sha1());
+        leafCertificate = makeLicensingFixtureCertificate(
+            leafKey.get(), issuerCertificate.get(), issuerKey.get(), 103L,
+            "rdp-cal-test-leaf", EVP_sha1());
+        alternateRootCertificate = makeLicensingFixtureCertificate(
+            alternateRootKey.get(), nullptr, alternateRootKey.get(), 201L,
+            "rdp-cal-test-alternate-root", EVP_sha1());
+
+        if (addRequiredExtensions)
+        {
+            addRequiredClientCalFixtureExtensions(leafCertificate.get());
+            assert(X509_sign(
+                       leafCertificate.get(), issuerKey.get(),
+                       EVP_sha1()) > 0);
+        }
+
+        rootDer = licensingFixtureCertificateDer(rootCertificate.get());
+        alternateRootDer =
+            licensingFixtureCertificateDer(alternateRootCertificate.get());
+        rebuild();
+    }
+
+    void rebuild()
+    {
+        // CertificateSet is a DER SET; insertion order is intentionally not
+        // treated as issuer authority by production CAL inspection.
+        const std::array<X509 *, 3> certificates{
+            leafCertificate.get(),
+            rootCertificate.get(),
+            issuerCertificate.get()};
+        cal = encodeClientCalFixture(certificates);
+        assert(cal.size() <= kMaximumRdpClientCalBytes);
+    }
+};
+
+[[nodiscard]] std::vector<std::uint8_t> corruptClientCalLeafSignature(
+    const ClientCalFixture &fixture)
+{
+    auto corrupted = fixture.cal;
+    const auto leafDer =
+        licensingFixtureCertificateDer(fixture.leafCertificate.get());
+    const auto leafBegin = std::search(
+        corrupted.begin(), corrupted.end(), leafDer.begin(), leafDer.end());
+    assert(leafBegin != corrupted.end());
+
+    const ASN1_BIT_STRING *signature = nullptr;
+    const X509_ALGOR *algorithm = nullptr;
+    X509_get0_signature(
+        &signature, &algorithm, fixture.leafCertificate.get());
+    assert(signature != nullptr && algorithm != nullptr);
+    assert(signature->data != nullptr && signature->length > 0);
+
+    const std::span<const std::uint8_t> signatureBytes{
+        signature->data, static_cast<std::size_t>(signature->length)};
+    const auto signatureBegin = std::search(
+        leafDer.begin(), leafDer.end(),
+        signatureBytes.begin(), signatureBytes.end());
+    assert(signatureBegin != leafDer.end());
+
+    const std::size_t leafOffset = static_cast<std::size_t>(
+        leafBegin - corrupted.begin());
+    const std::size_t signatureOffset = static_cast<std::size_t>(
+        signatureBegin - leafDer.begin());
+    assert(leafOffset + signatureOffset < corrupted.size());
+    corrupted[leafOffset + signatureOffset] ^= 0x01U;
+    return corrupted;
 }
 
 struct LicensingCryptoFixture final
@@ -6915,6 +7129,513 @@ struct LicensingCryptoFixture final
             encryptedPreMasterSecret.begin());
     }
 };
+
+void testRdpClientCalChainStructure()
+{
+    ClientCalFixture fixture;
+    const auto accepted =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(accepted.error == RdpClientCalChainError::None);
+    assert(accepted.facts.certificateCount == 3U);
+    assert(accepted.facts.signaturesVerified);
+    assert(accepted.facts.trustedIssuerMatched);
+    assert(accepted.facts.policyStatus ==
+           RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
+
+    auto minimumLeaf = makeLicensingFixtureCertificate(
+        fixture.leafKey.get(), fixture.rootCertificate.get(),
+        fixture.rootKey.get(), 104L, "rdp-cal-minimum-leaf", EVP_sha1());
+    addRequiredClientCalFixtureExtensions(minimumLeaf.get());
+    assert(X509_sign(
+               minimumLeaf.get(), fixture.rootKey.get(), EVP_sha1()) > 0);
+    const std::array<X509 *, 2> minimumCertificates{
+        minimumLeaf.get(), fixture.rootCertificate.get()};
+    const auto minimumCal = encodeClientCalFixture(minimumCertificates);
+    const auto minimumAccepted =
+        inspectRdpClientCalCertificateChain(minimumCal, fixture.rootDer);
+    assert(minimumAccepted.error == RdpClientCalChainError::None);
+    assert(minimumAccepted.facts.certificateCount == 2U);
+
+    const std::array<X509 *, 1> oneCertificate{
+        fixture.rootCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(oneCertificate), fixture.rootDer).error ==
+           RdpClientCalChainError::CertificateCountOutOfRange);
+
+    auto truncated = fixture.cal;
+    truncated.pop_back();
+    assert(inspectRdpClientCalCertificateChain(
+               truncated, fixture.rootDer).error ==
+           RdpClientCalChainError::MalformedContainer);
+
+    LicensingCertificatePointer oversizedLeaf{
+        X509_dup(fixture.leafCertificate.get()), X509_free};
+    assert(oversizedLeaf);
+    const std::vector<std::uint8_t> largePayload(9000U, 0x5aU);
+    addClientCalFixtureExtension(
+        oversizedLeaf.get(), "1.3.6.1.4.1.55555.9", largePayload);
+    assert(X509_sign(
+               oversizedLeaf.get(), fixture.issuerKey.get(),
+               EVP_sha1()) > 0);
+    const std::array<X509 *, 3> oversizedCertificates{
+        oversizedLeaf.get(), fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    const auto oversizedCertificateCal =
+        encodeClientCalFixture(oversizedCertificates);
+    assert(oversizedCertificateCal.size() <= kMaximumRdpClientCalBytes);
+    assert(inspectRdpClientCalCertificateChain(
+               oversizedCertificateCal, fixture.rootDer).error ==
+           RdpClientCalChainError::OversizedCertificate);
+
+    std::vector<std::uint8_t> oversizedCal(
+        kMaximumRdpClientCalBytes + 1U, 0x30U);
+    assert(inspectRdpClientCalCertificateChain(
+               oversizedCal, fixture.rootDer).error ==
+           RdpClientCalChainError::Oversized);
+
+    const std::array<X509 *, 2> missingIssuerCertificates{
+        fixture.rootCertificate.get(), fixture.leafCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(missingIssuerCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::MissingIssuer);
+
+    auto trailing = fixture.cal;
+    trailing.push_back(0U);
+    assert(inspectRdpClientCalCertificateChain(
+               trailing, fixture.rootDer).error ==
+           RdpClientCalChainError::MalformedContainer);
+
+    const std::array<X509 *, 4> duplicateCertificates{
+        fixture.leafCertificate.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get(),
+        fixture.issuerCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(duplicateCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::DuplicateCertificate);
+
+    auto secondLeaf = makeLicensingFixtureCertificate(
+        fixture.leafKey.get(), fixture.issuerCertificate.get(),
+        fixture.issuerKey.get(), 105L, "rdp-cal-second-leaf", EVP_sha1());
+    addRequiredClientCalFixtureExtensions(secondLeaf.get());
+    assert(X509_sign(
+               secondLeaf.get(), fixture.issuerKey.get(),
+               EVP_sha1()) > 0);
+    const std::array<X509 *, 4> ambiguousCertificates{
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get(),
+        fixture.leafCertificate.get(),
+        secondLeaf.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(ambiguousCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::AmbiguousChain);
+
+    const auto leafDer =
+        licensingFixtureCertificateDer(fixture.leafCertificate.get());
+    auto badInnerLength = fixture.cal;
+    const auto leafBegin = std::search(
+        badInnerLength.begin(), badInnerLength.end(),
+        leafDer.begin(), leafDer.end());
+    assert(leafBegin != badInnerLength.end());
+    const std::size_t leafOffset = static_cast<std::size_t>(
+        leafBegin - badInnerLength.begin());
+    assert(leafDer.size() > 4U && leafDer[0] == 0x30U);
+    badInnerLength[leafOffset + 3U] ^= 0x01U;
+    assert(inspectRdpClientCalCertificateChain(
+               badInnerLength, fixture.rootDer).error ==
+           RdpClientCalChainError::MalformedContainer);
+
+    const auto unsupportedContainer = encodeUnsupportedClientCalFixture();
+    assert(inspectRdpClientCalCertificateChain(
+               unsupportedContainer, fixture.rootDer).error ==
+           RdpClientCalChainError::UnsupportedContainer);
+
+    LicensingCryptoFixture serverCertificateFixture;
+    assert(inspectRdpClientCalCertificateChain(
+               serverCertificateFixture.serverCertificate,
+               fixture.rootDer).error ==
+           RdpClientCalChainError::MalformedContainer);
+}
+
+void testRdpClientCalIssuerSignatureDenials()
+{
+    ClientCalFixture fixture;
+    const auto verified =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(verified.error == RdpClientCalChainError::None);
+    assert(verified.facts.signaturesVerified);
+    assert(verified.facts.trustedIssuerMatched);
+
+    assert(inspectRdpClientCalCertificateChain(
+               corruptClientCalLeafSignature(fixture),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::SignatureVerificationFailure);
+
+    LicensingCertificatePointer changedLeaf{
+        X509_dup(fixture.leafCertificate.get()), X509_free};
+    assert(changedLeaf);
+    assert(ASN1_INTEGER_set(
+               X509_get_serialNumber(changedLeaf.get()), 999L) == 1);
+    const std::array<X509 *, 3> changedCertificates{
+        changedLeaf.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(changedCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::SignatureVerificationFailure);
+
+    auto wrongIssuerLeaf = makeLicensingFixtureCertificate(
+        fixture.leafKey.get(), fixture.issuerCertificate.get(),
+        fixture.alternateRootKey.get(), 106L, "rdp-cal-wrong-key",
+        EVP_sha1());
+    addRequiredClientCalFixtureExtensions(wrongIssuerLeaf.get());
+    assert(X509_sign(
+               wrongIssuerLeaf.get(), fixture.alternateRootKey.get(),
+               EVP_sha1()) > 0);
+    const std::array<X509 *, 3> wrongIssuerCertificates{
+        wrongIssuerLeaf.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(wrongIssuerCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::SignatureVerificationFailure);
+
+    assert(inspectRdpClientCalCertificateChain(
+               fixture.cal, fixture.alternateRootDer).error ==
+           RdpClientCalChainError::UntrustedTrustAnchor);
+
+    const auto peerRootOnly =
+        inspectRdpClientCalCertificateChain(fixture.cal, {});
+    assert(peerRootOnly.error == RdpClientCalChainError::MissingTrustAnchor);
+    assert(peerRootOnly.facts.signaturesVerified);
+    assert(!peerRootOnly.facts.trustedIssuerMatched);
+
+    auto malformedAnchor = fixture.rootDer;
+    malformedAnchor.push_back(0U);
+    assert(inspectRdpClientCalCertificateChain(
+               fixture.cal, malformedAnchor).error ==
+           RdpClientCalChainError::MalformedTrustAnchor);
+
+    LicensingCryptoFixture serverCertificateFixture;
+    const auto terminalDer = licensingFixtureCertificateDer(
+        serverCertificateFixture.terminalCertificate.get());
+    assert(inspectRdpClientCalCertificateChain(
+               fixture.cal, terminalDer).error ==
+           RdpClientCalChainError::UntrustedTrustAnchor);
+
+    LicensingCertificatePointer sha256Leaf{
+        X509_dup(fixture.leafCertificate.get()), X509_free};
+    assert(sha256Leaf);
+    assert(X509_sign(
+               sha256Leaf.get(), fixture.issuerKey.get(),
+               EVP_sha256()) > 0);
+    const std::array<X509 *, 3> sha256Certificates{
+        sha256Leaf.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(sha256Certificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::UnsupportedSignatureAlgorithm);
+
+    LicensingKeyPointer ecKey{
+        EVP_EC_gen("prime256v1"), EVP_PKEY_free};
+    assert(ecKey);
+    auto ecLeaf = makeLicensingFixtureCertificate(
+        ecKey.get(), fixture.issuerCertificate.get(),
+        fixture.issuerKey.get(), 107L, "rdp-cal-ec-leaf", EVP_sha1());
+    addRequiredClientCalFixtureExtensions(ecLeaf.get());
+    assert(X509_sign(
+               ecLeaf.get(), fixture.issuerKey.get(), EVP_sha1()) > 0);
+    const std::array<X509 *, 3> ecCertificates{
+        ecLeaf.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(ecCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::UnsupportedKeyType);
+
+    const std::array<X509 *, 2> missingIssuerCertificates{
+        fixture.rootCertificate.get(), fixture.leafCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(missingIssuerCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::MissingIssuer);
+}
+
+void testRdpClientCalProductExtensionDenials()
+{
+    ClientCalFixture fixture;
+    const auto presentButUnparsed =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(presentButUnparsed.error == RdpClientCalChainError::None);
+    assert(presentButUnparsed.facts.policyStatus ==
+           RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
+
+    ClientCalFixture missingExtensions{false};
+    const auto missing = inspectRdpClientCalCertificateChain(
+        missingExtensions.cal, missingExtensions.rootDer);
+    assert(missing.error == RdpClientCalChainError::None);
+    assert(missing.facts.policyStatus ==
+           RdpClientCalPolicyStatus::MissingRequiredExtension);
+
+    LicensingCertificatePointer duplicateLeaf{
+        X509_dup(fixture.leafCertificate.get()), X509_free};
+    assert(duplicateLeaf);
+    constexpr std::array<std::uint8_t, 1> duplicatePayload{0x55U};
+    addClientCalFixtureExtension(
+        duplicateLeaf.get(), kClientCalRequiredExtensionOids[2],
+        duplicatePayload);
+    assert(X509_sign(
+               duplicateLeaf.get(), fixture.issuerKey.get(),
+               EVP_sha1()) > 0);
+    const std::array<X509 *, 3> duplicateCertificates{
+        duplicateLeaf.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    const auto duplicate = inspectRdpClientCalCertificateChain(
+        encodeClientCalFixture(duplicateCertificates), fixture.rootDer);
+    assert(duplicate.error == RdpClientCalChainError::None);
+    assert(duplicate.facts.policyStatus ==
+           RdpClientCalPolicyStatus::DuplicateRequiredExtension);
+
+    LicensingCertificatePointer criticalLeaf{
+        X509_dup(fixture.leafCertificate.get()), X509_free};
+    assert(criticalLeaf);
+    constexpr std::array<std::uint8_t, 2> criticalPayload{0xdeU, 0xadU};
+    addClientCalFixtureExtension(
+        criticalLeaf.get(), "1.3.6.1.4.1.55555.77",
+        criticalPayload, true);
+    assert(X509_sign(
+               criticalLeaf.get(), fixture.issuerKey.get(),
+               EVP_sha1()) > 0);
+    const std::array<X509 *, 3> criticalCertificates{
+        criticalLeaf.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    const auto critical = inspectRdpClientCalCertificateChain(
+        encodeClientCalFixture(criticalCertificates), fixture.rootDer);
+    assert(critical.error == RdpClientCalChainError::None);
+    assert(critical.facts.policyStatus ==
+           RdpClientCalPolicyStatus::UnsupportedCriticalExtension);
+
+    LicensingCertificatePointer oldVersionLeaf{
+        X509_dup(fixture.leafCertificate.get()), X509_free};
+    assert(oldVersionLeaf);
+    assert(X509_set_version(oldVersionLeaf.get(), 1) == 1);
+    assert(X509_sign(
+               oldVersionLeaf.get(), fixture.issuerKey.get(),
+               EVP_sha1()) > 0);
+    const std::array<X509 *, 3> oldVersionCertificates{
+        oldVersionLeaf.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+    assert(inspectRdpClientCalCertificateChain(
+               encodeClientCalFixture(oldVersionCertificates),
+               fixture.rootDer).error ==
+           RdpClientCalChainError::UnsupportedCertificateVersion);
+
+    // Arbitrary payloads under all five OIDs never become product/version
+    // authority. Their encodings are intentionally unparsed in this increment.
+    ClientCalFixture arbitraryPolicy{false};
+    for (std::size_t index = 0U;
+         index < kClientCalRequiredExtensionOids.size(); ++index)
+    {
+        const std::array<std::uint8_t, 4> arbitraryPayload{
+            0xffU, 0x00U,
+            static_cast<std::uint8_t>(index),
+            static_cast<std::uint8_t>(0xa0U + index)};
+        addClientCalFixtureExtension(
+            arbitraryPolicy.leafCertificate.get(),
+            kClientCalRequiredExtensionOids[index], arbitraryPayload);
+    }
+    assert(X509_sign(
+               arbitraryPolicy.leafCertificate.get(),
+               arbitraryPolicy.issuerKey.get(), EVP_sha1()) > 0);
+    arbitraryPolicy.rebuild();
+    const auto arbitrary = inspectRdpClientCalCertificateChain(
+        arbitraryPolicy.cal, arbitraryPolicy.rootDer);
+    assert(arbitrary.error == RdpClientCalChainError::None);
+    assert(arbitrary.facts.policyStatus ==
+           RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
+}
+
+void testRdpClientCalExpiryHwidDenials()
+{
+    ClientCalFixture fixture;
+    const auto chain =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(chain.error == RdpClientCalChainError::None);
+    assert(chain.facts.policyStatus ==
+           RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
+
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> cipher{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+    constexpr std::array<std::uint8_t, kRdpLicensingMacBytes> mac{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+
+    RdpLicensingKeyMaterial material{};
+    material.macSaltKey = key;
+    material.encryptionKey = key;
+    const auto message = makeClientLicenseInfoWithHardwareProof(
+        cipher, mac, fixture.cal);
+    const auto parsed = parseRdpClientLicenseInfo(message);
+    assert(parsed);
+    assert(parsed.value.licenseInfo.size() == fixture.cal.size());
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+
+    auto badMac = mac;
+    badMac[0] ^= 0x01U;
+    assert(!verifyRdpClientLicenseInfoHardwareId(
+        makeClientLicenseInfoWithHardwareProof(
+            cipher, badMac, fixture.cal),
+        material));
+
+    auto wrongKey = material;
+    wrongKey.encryptionKey[0] ^= 0x01U;
+    assert(!verifyRdpClientLicenseInfoHardwareId(message, wrongKey));
+    cleanseRdpLicensingKeyMaterial(wrongKey);
+
+    const auto noAnchor =
+        inspectRdpClientCalCertificateChain(fixture.cal, {});
+    assert(noAnchor.error == RdpClientCalChainError::MissingTrustAnchor);
+
+    // CAL expiry/renewal/classification and CAL-to-HWID binding are not
+    // guessed from X.509 notAfter or a valid protected-message HWID MAC.
+    assert(chain.facts.policyStatus ==
+           RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
+    cleanseRdpLicensingKeyMaterial(material);
+}
+
+void testRdpClientCalNoPrematureCompletion()
+{
+    ClientCalFixture fixture;
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> cipher{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+    constexpr std::array<std::uint8_t, kRdpLicensingMacBytes> mac{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+
+    RdpLicensingKeyMaterial material{};
+    material.macSaltKey = key;
+    material.encryptionKey = key;
+    const auto message = makeClientLicenseInfoWithHardwareProof(
+        cipher, mac, fixture.cal);
+
+    RdpLicensingLifecycle lifecycle;
+    assert(deliverServerLicenseRequest(lifecycle));
+    assert(lifecycle.onClientMessage(message) ==
+           RdpLicensingIntake::ClientLicenseInfoAccepted);
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::ClientLicenseInfoValidation);
+
+    const auto chain =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(chain.error == RdpClientCalChainError::None);
+    assert(chain.facts.signaturesVerified);
+    assert(chain.facts.trustedIssuerMatched);
+    assert(chain.facts.policyStatus ==
+           RdpClientCalPolicyStatus::RequiredExtensionsPresentButUnparsed);
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+
+    // Offline facts cannot mutate the live lifecycle or queue a license grant.
+    assert(lifecycle.phase() == RdpLicensingPhase::AwaitServerDecision);
+    assert(lifecycle.decisionBranch() ==
+           RdpLicensingDecisionBranch::ClientLicenseInfoValidation);
+    RdpServerLicenseGrantWriteGate grantWriter{lifecycle};
+    assert(!grantWriter.pendingWrite());
+
+    // A separate MCS owner still requires genuine R2 admission; no CAL result
+    // can fabricate an admission lease or begin Share activation.
+    McsSessionLifecycle session;
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(session.licensingPhase() == RdpLicensingPhase::NotStarted);
+
+    lifecycle.close();
+    lifecycle.close();
+    assert(lifecycle.phase() == RdpLicensingPhase::Closed);
+
+    RdpLicensingLifecycle fresh;
+    assert(fresh.phase() == RdpLicensingPhase::NotStarted);
+    assert(fresh.decisionBranch() == RdpLicensingDecisionBranch::None);
+    cleanseRdpLicensingKeyMaterial(material);
+}
+
+void testRdpClientCalTerminalRetirement()
+{
+    ClientCalFixture fixture;
+    const std::size_t mutationLimit =
+        fixture.cal.size() < 64U ? fixture.cal.size() : 64U;
+    for (std::size_t size = 0U; size < mutationLimit; ++size)
+    {
+        const auto malformed = inspectRdpClientCalCertificateChain(
+            std::span(fixture.cal).first(size), fixture.rootDer);
+        assert(malformed.error != RdpClientCalChainError::None);
+        assert(!malformed.facts.trustedIssuerMatched);
+    }
+
+    // A malformed provider parse leaves no retained X.509/candidate state.
+    const auto freshVerification =
+        inspectRdpClientCalCertificateChain(fixture.cal, fixture.rootDer);
+    assert(freshVerification.error == RdpClientCalChainError::None);
+    assert(freshVerification.facts.signaturesVerified);
+    assert(freshVerification.facts.trustedIssuerMatched);
+
+    constexpr std::array<std::uint8_t, kRdpLicensingKeyBytes> key{
+        0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
+    constexpr std::array<std::uint8_t, kRdpLicensingHardwareIdBytes> cipher{
+        0xe9,0x9d,0x42,0xfa,0x43,0xe7,0x1f,0xcb,0x0e,0xd2,
+        0x9d,0xcd,0x02,0xd0,0x24,0x40,0xc3,0x60,0x93,0x4c};
+    constexpr std::array<std::uint8_t, kRdpLicensingMacBytes> mac{
+        0x65,0xdd,0xb1,0x4d,0xda,0x05,0x0d,0x5d,
+        0x2c,0x53,0xbe,0xfe,0x9d,0x5c,0x3e,0x5d};
+
+    RdpLicensingKeyMaterial material{};
+    material.macSaltKey = key;
+    material.encryptionKey = key;
+    auto message = makeClientLicenseInfoWithHardwareProof(
+        cipher, mac, fixture.cal);
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+    const auto parsed = parseRdpClientLicenseInfo(message);
+    assert(parsed);
+    const std::size_t macOffset = static_cast<std::size_t>(
+        parsed.value.macData.data() - message.data());
+    message[macOffset] ^= 0x01U;
+    assert(!verifyRdpClientLicenseInfoHardwareId(message, material));
+    message[macOffset] ^= 0x01U;
+    assert(verifyRdpClientLicenseInfoHardwareId(message, material));
+
+    RdpLicensingLifecycle retired;
+    assert(deliverServerLicenseRequest(retired));
+    assert(retired.onClientMessage(message) ==
+           RdpLicensingIntake::ClientLicenseInfoAccepted);
+    retired.close();
+    retired.close();
+    assert(retired.phase() == RdpLicensingPhase::Closed);
+    assert(retired.onClientMessage(message) == RdpLicensingIntake::Closed);
+
+    RdpLicensingLifecycle replacement;
+    assert(replacement.phase() == RdpLicensingPhase::NotStarted);
+    assert(replacement.decisionBranch() == RdpLicensingDecisionBranch::None);
+    cleanseRdpLicensingKeyMaterial(material);
+}
 
 void writeRuntimeLicensingFixtureFile(
     const char *path, std::span<const std::uint8_t> bytes)
@@ -7689,7 +8410,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 115> kMcsTestCases{{
+constexpr std::array<McsTestCase, 121> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -7752,6 +8473,12 @@ constexpr std::array<McsTestCase, 115> kMcsTestCases{{
     {"licensing-client-license-info-hwid-proof", &testRdpClientLicenseInfoHardwareIdProof},
     {"licensing-client-license-info-hwid-denials", &testRdpClientLicenseInfoHardwareIdDenials},
     {"licensing-client-license-info-hwid-fresh-verification", &testRdpClientLicenseInfoHardwareIdFreshVerification},
+    {"licensing-client-cal-chain-structure", &testRdpClientCalChainStructure},
+    {"licensing-client-cal-issuer-signature-denials", &testRdpClientCalIssuerSignatureDenials},
+    {"licensing-client-cal-product-extension-denials", &testRdpClientCalProductExtensionDenials},
+    {"licensing-client-cal-expiry-hwid-denials", &testRdpClientCalExpiryHwidDenials},
+    {"licensing-client-cal-no-premature-completion", &testRdpClientCalNoPrematureCompletion},
+    {"licensing-client-cal-terminal-retirement", &testRdpClientCalTerminalRetirement},
     {"licensing-server-platform-challenge-wire", &testRdpServerPlatformChallengeWire},
     {"licensing-server-platform-challenge-write-receipts", &testRdpServerPlatformChallengeWriteReceipts},
     {"licensing-server-platform-challenge-write-denials", &testRdpServerPlatformChallengeWriteDenials},

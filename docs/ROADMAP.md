@@ -1,3 +1,52 @@
+## R3 existing-client CAL certificate-chain trust boundary (2026-10-16; exact-SHA CI pending)
+
+**Reconciled parent:** `3069b2f1e07198d0e060c1619924f9654ffb8826`. This increment keeps
+`CLIENT_LICENSE_INFO` non-authorizing while adding independently testable CAL
+chain groundwork.
+
+The protocol audit separates two encodings that must not be conflated.
+`CLIENT_LICENSE_INFO::LicenseInfo` is a `BB_DATA_BLOB` containing the opaque
+`pbLicenseInfo` CAL previously issued by a license server. The published
+MS-RDPELE example encodes that CAL as DER PKCS#7 `SignedData` carrying X.509
+certificates. This is distinct from the little-endian
+`X509_CERTIFICATE_CHAIN` framing used by the server's
+`SERVER_CERTIFICATE`.
+
+R3 now exposes synchronous `inspectRdpClientCalCertificateChain()` only. It
+accepts at most 16 KiB total, at most 16 certificates and at most 8 KiB per
+certificate; requires exact canonical DER consumption; supports the observed
+degenerate PKCS#7 SignedData/data form; requires one unambiguous X.509 v3
+root-to-leaf path; rejects duplicate/disconnected/ambiguous material; verifies
+the self-issued root and every child signature; restricts keys to RSA and
+signatures to SHA-1/RSA (the protocol OIW OID plus OpenSSL's PKCS#1 alias); and
+requires the embedded root to match a separately supplied exact DER trust
+anchor. No machine-global certificate store and no server TLS/licensing
+key-exchange certificate is an implicit CAL authority.
+
+The leaf is checked only for presence/cardinality of the five documented RDP
+licensing OIDs (`.18.4`, `.18.2`, `.18.5`, `.18.6`, `.18.7`) and
+unknown critical extensions. Their payload encodings remain deliberately
+unparsed. Product/version correlation, CAL expiry/renewal semantics, CAL HWID
+binding and permanent/temporary/upgrade classification therefore remain
+unsupported and fail closed. A valid protected-message HWID MAC and a
+cryptographically trusted synthetic chain are still insufficient to complete
+licensing.
+
+Dedicated production-linked CTests are:
+`transport.licensing-client-cal-chain-structure`,
+`transport.licensing-client-cal-issuer-signature-denials`,
+`transport.licensing-client-cal-product-extension-denials`,
+`transport.licensing-client-cal-expiry-hwid-denials`,
+`transport.licensing-client-cal-no-premature-completion`, and
+`transport.licensing-client-cal-terminal-retirement`. The existing R9
+sanitizer job selects this family with its own flat fail-closed prefix selector
+rather than extending the parenthesis-heavy cross-road regex.
+
+No `STATUS_VALID_CLIENT`, Upgrade License publication, Share activation,
+R2 lease construction or live grant bypass is added. Exact hosted
+Linux/macOS/Windows Debug/Release and ASan/UBSan evidence is pending this
+publication. M1 and M2 remain open.
+
 ## R9 delegated-account failure-output audit (2026-10-16; exact-SHA CI pending)
 
 R9 independently reviewed R2's newly landed delegated-account extraction

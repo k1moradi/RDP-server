@@ -111,6 +111,13 @@ struct RdpLicensingKeyMaterial;
 inline constexpr std::size_t kRdpLicensingHardwareIdBytes = 20U;
 inline constexpr std::size_t kRdpLicensingMacBytes = 16U;
 
+// Conservative R3-owned CAL inspection limits. CLIENT_LICENSE_INFO carries the
+// opaque pbLicenseInfo returned by a license server; no peer length is used as
+// an allocation size before this total bound is enforced.
+inline constexpr std::size_t kMaximumRdpClientCalBytes = 16U * 1024U;
+inline constexpr std::size_t kMaximumRdpClientCalCertificateBytes = 8U * 1024U;
+inline constexpr std::size_t kMaximumRdpClientCalCertificateCount = 16U;
+
 struct RdpClientLicenseInfoView
 {
     std::span<const std::uint8_t> licenseInfo{};
@@ -215,6 +222,62 @@ struct RdpClientLicenseInfoHardwareIdResult
 verifyRdpClientLicenseInfoHardwareId(
     std::span<const std::uint8_t> completeMessage,
     const RdpLicensingKeyMaterial &keyMaterial) noexcept;
+
+enum class RdpClientCalChainError : std::uint8_t
+{
+    None,
+    Empty,
+    Oversized,
+    MalformedContainer,
+    UnsupportedContainer,
+    CertificateCountOutOfRange,
+    OversizedCertificate,
+    DuplicateCertificate,
+    AmbiguousChain,
+    MissingIssuer,
+    UnsupportedCertificateVersion,
+    UnsupportedSignatureAlgorithm,
+    UnsupportedKeyType,
+    SignatureVerificationFailure,
+    MissingTrustAnchor,
+    MalformedTrustAnchor,
+    UntrustedTrustAnchor,
+};
+
+enum class RdpClientCalPolicyStatus : std::uint8_t
+{
+    NotEvaluated,
+    MissingRequiredExtension,
+    DuplicateRequiredExtension,
+    UnsupportedCriticalExtension,
+    RequiredExtensionsPresentButUnparsed,
+};
+
+struct RdpClientCalChainFacts
+{
+    std::size_t certificateCount{};
+    bool signaturesVerified{};
+    bool trustedIssuerMatched{};
+    RdpClientCalPolicyStatus policyStatus{
+        RdpClientCalPolicyStatus::NotEvaluated};
+};
+
+struct RdpClientCalChainInspectionResult
+{
+    RdpClientCalChainFacts facts{};
+    RdpClientCalChainError error{RdpClientCalChainError::MalformedContainer};
+};
+
+// Inspect one existing-client CAL candidate. The supported subset is canonical
+// DER PKCS#7 SignedData carrying one unambiguous X.509 v3 chain. The peer root
+// is never authority by itself: trustedRootDer must independently name the
+// exact embedded root. Success reports only chain/signature/trust facts. The
+// licensing extension payloads, product, expiry, HWID binding and CAL class are
+// deliberately not accepted yet, so this API cannot license a session.
+[[nodiscard]] RdpClientCalChainInspectionResult
+inspectRdpClientCalCertificateChain(
+    std::span<const std::uint8_t> licenseInfo,
+    std::span<const std::uint8_t> trustedRootDer) noexcept;
 
 struct RdpLicensingKeyMaterial
 {
@@ -512,7 +575,8 @@ inline constexpr std::size_t kMaximumRdpServerLicenseIdentityTextBytes = 512U;
 // 512-byte scope/company/product bounds and later licensing wrapper overhead,
 // this keeps a future encrypted grant below R1's 18 KiB application-write cap.
 // CAL bytes are opaque here and MUST come from a real licensing authority.
-inline constexpr std::size_t kMaximumRdpIssuedCalBytes = 16U * 1024U;
+inline constexpr std::size_t kMaximumRdpIssuedCalBytes =
+    kMaximumRdpClientCalBytes;
 inline constexpr std::size_t kRdpNewLicenseInfoFixedBytes = 20U;
 inline constexpr std::size_t kMaximumRdpNewLicenseInfoBytes =
     kRdpNewLicenseInfoFixedBytes +

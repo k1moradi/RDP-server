@@ -1,3 +1,36 @@
+## R3 existing-client CAL trust-inspection boundary (2026-10-16)
+
+R3 treats the existing-client CAL as a distinct trust object from the terminal
+server's key-exchange certificate. `parseRdpClientLicenseInfo()` continues to
+borrow the complete packet's `LicenseInfo` span; the new CAL inspector consumes
+that span synchronously and retains neither packet storage nor OpenSSL objects.
+
+The currently supported CAL envelope is the canonical DER PKCS#7 SignedData
+shape demonstrated by MS-RDPELE: version 1, empty digest/signature sets,
+`data` content with no payload, no CRLs, and a bounded certificate set. R3
+does not apply the server `X509_CERTIFICATE_CHAIN` little-endian count/length
+grammar to this field. CertificateSet order has no trust meaning; R3 derives
+one linear issuer/subject path and rejects duplicate roots, sibling leaves,
+missing issuers and disconnected material.
+
+Trust is explicit and synchronous. Every supported certificate is X.509 v3,
+RSA-keyed and SHA-1/RSA-signed; signatures are verified root through leaf.
+The peer's self-signed root never establishes authority. The caller must supply
+an independently provisioned DER root that exactly matches the embedded root.
+The helper never consults a machine certificate store and the server's TLS or
+licensing key-exchange certificate has no implicit issuer role. R10 still owns
+the future administrator provisioning contract for real CAL trust anchors.
+
+The five MS-RDPELE licensing extension OIDs are only classified for missing,
+duplicate or unsupported-critical cases. Their values are not decoded yet, so
+`RequiredExtensionsPresentButUnparsed` is explicitly an incomplete-policy
+state, not a valid CAL. Product/version, license expiry and renewal, CAL-to-HWID
+binding and permanent/temporary/upgrade classification remain future R3 work.
+Consequently the live `ClientLicenseInfoValidation` branch is unchanged:
+structural parse, HWID MAC success, signature verification and explicit
+synthetic-root trust cannot emit `STATUS_VALID_CLIENT`, publish an Upgrade
+License, reach Share activation or substitute for R2 admission.
+
 ## R2 authenticated delegated-account binding boundary (2026-10-16)
 
 Final password credentials now cross four deliberately separate checks before a

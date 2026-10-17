@@ -88,6 +88,12 @@ function(add_rdp_test source_file suite behavior)
                 licensing-client-license-info-hwid-proof
                 licensing-client-license-info-hwid-denials
                 licensing-client-license-info-hwid-fresh-verification
+                licensing-client-cal-chain-structure
+                licensing-client-cal-issuer-signature-denials
+                licensing-client-cal-product-extension-denials
+                licensing-client-cal-expiry-hwid-denials
+                licensing-client-cal-no-premature-completion
+                licensing-client-cal-terminal-retirement
                 licensing-server-platform-challenge-wire
                 licensing-server-platform-challenge-write-receipts
                 licensing-server-platform-challenge-write-denials

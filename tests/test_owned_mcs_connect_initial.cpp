@@ -92,9 +92,12 @@ public:
                 RdpServerLicenseRequestWriteOutcome::Delivered ||
             session.licensing_.onClientMessage(licenseMessage) !=
                 RdpLicensingIntake::ClientLicenseInfoAccepted ||
-            session.existingCalAuthorityRequest_.bindProductIdentity(identity) !=
+            RdpExistingClientCalAuthorityRequestTestAccess::
+                bindProductIdentity(
+                    session.existingCalAuthorityRequest_, identity) !=
                 RdpExistingClientCalAuthorityRequestError::None ||
-            session.existingCalAuthorityRequest_.complete(
+            RdpExistingClientCalAuthorityRequestTestAccess::complete(
+                session.existingCalAuthorityRequest_,
                 std::move(proof), cal, 1780315200LL,
                 admissionGeneration, sessionGeneration) !=
                 RdpExistingClientCalAuthorityRequestError::None)

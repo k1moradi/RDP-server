@@ -3367,3 +3367,16 @@ rebuilds `.github/workflows/ci.yml` from the reconciled parent
 selector/count additions: existing-CAL **6** and direct Linux runtime-security
 **15**. Production code and CTest bodies are unchanged. Canonical local build:
 **NOT RUN**; corrective exact-SHA hosted CI: **PENDING**.
+
+### R3 existing-CAL visitor fixture access recovery (2026-10-17)
+
+R10 corrective descendant `b18ca13303c025e315b33787edbe5cd842a7777c` passed both workflow-structure and
+documentation-policy gates, then Ubuntu and macOS Debug compilation failed in
+`tests/test_owned_mcs_connect_initial.cpp`: the new R3 visitor fixture's
+`McsSessionLifecycleTestAccess` called private
+`RdpExistingClientCalAuthorityRequest::bindProductIdentity()` and
+`complete()` directly. The translation unit already defines the intended
+friend `RdpExistingClientCalAuthorityRequestTestAccess`. This recovery changes
+only those two fixture calls to use that helper; production R3 visitor/request
+behavior and R10 composition are unchanged. Failed exact-SHA primary Actions:
+39040673613. Canonical owner build remains **NOT RUN**.

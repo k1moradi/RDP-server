@@ -1,3 +1,17 @@
+## R9 personal-mode sanitizer workflow authoring correction (2026-10-17)
+
+Initial CI-only publication `f301c398b75822dcfea0aff2926a5c8324c18b71`
+failed before scheduling jobs (primary Actions `39047065066`). The fault is
+R9 workflow text authoring: replacement-string `$'` expansion truncated both
+new shell regex assignments. No production source, CTest body, security
+assertion or registry changed; concurrent R4 roadmap clarification at
+`d2e679e9` is preserved.
+
+This corrective descendant restores only the intended six-case R3 personal
+selector and two-case R10 deployment-policy selector, preserving the sanitizer
+build target and structure sentinels. Exact corrective-SHA hosted CI is
+**PENDING**.
+
 ## R9 personal-mode sanitizer coverage repair (2026-10-17)
 
 **Green audit parent:** `67506c6e43ff0ed76b00e757ad07db8fab370727`.

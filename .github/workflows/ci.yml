@@ -738,7 +738,26 @@ jobs:
 
           # Personal-desktop protocol mechanics are security-sensitive but do
           # not create R2 admission. Keep all six current R3 cases explicit.
-          personal_mode_selection='^transport\.(licensing-personal-(no-cal-valid-client-completion|presented-cal-valid-client-completion|mode-and-malformed-denials|valid-client-duplicate-and-partial-revocation)|share-personal-(activation-ordering|activation-denials))
+          personal_mode_selection='^transport\.(licensing-personal-(no-cal-valid-client-completion|presented-cal-valid-client-completion|mode-and-malformed-denials|valid-client-duplicate-and-partial-revocation)|share-personal-(activation-ordering|activation-denials))$'
+          personal_mode_tests="$(ctest --test-dir build --build-config Debug -N -R "$personal_mode_selection")"
+          printf '%s\n' "$personal_mode_tests"
+          readonly personal_mode_expected_test_count=6
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$personal_mode_tests")"
+          if [[ "$selected_test_count" -ne "$personal_mode_expected_test_count" ]]; then
+            printf 'R9 R3 personal-mode registry mismatch: expected %s tests, found %s\n' \
+              "$personal_mode_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'transport.licensing-personal-no-cal-valid-client-completion' <<< "$personal_mode_tests"
+          grep -Fq 'transport.licensing-personal-presented-cal-valid-client-completion' <<< "$personal_mode_tests"
+          grep -Fq 'transport.licensing-personal-mode-and-malformed-denials' <<< "$personal_mode_tests"
+          grep -Fq 'transport.licensing-personal-valid-client-duplicate-and-partial-revocation' <<< "$personal_mode_tests"
+          grep -Fq 'transport.share-personal-activation-ordering' <<< "$personal_mode_tests"
+          grep -Fq 'transport.share-personal-activation-denials' <<< "$personal_mode_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$personal_mode_selection" --output-on-failure
+
+          # Keep the adversarial password-credential corpus in its own flat
           # selector. CMake's regex engine has a bounded parenthesis budget,
           # and extending the already-large cross-road expression caused
           # fail-closed selection with zero executed tests.
@@ -825,7 +844,22 @@ jobs:
 
           # R10 deployment policy is configuration-only and cannot mint R2/R3
           # authority. Still instrument both denial boundaries under ASan/UBSan.
-          deployment_policy_selection='^runtime\.personal-desktop-(policy-immutable-denials|loopback-listener-denials)
+          deployment_policy_selection='^runtime\.personal-desktop-(policy-immutable-denials|loopback-listener-denials)$'
+          deployment_policy_tests="$(ctest --test-dir build --build-config Debug -N -R "$deployment_policy_selection")"
+          printf '%s\n' "$deployment_policy_tests"
+          readonly deployment_policy_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$deployment_policy_tests")"
+          if [[ "$selected_test_count" -ne "$deployment_policy_expected_test_count" ]]; then
+            printf 'R9 R10 personal-policy registry mismatch: expected %s tests, found %s\n' \
+              "$deployment_policy_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'runtime.personal-desktop-policy-immutable-denials' <<< "$deployment_policy_tests"
+          grep -Fq 'runtime.personal-desktop-loopback-listener-denials' <<< "$deployment_policy_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$deployment_policy_selection" --output-on-failure
+
+      - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1

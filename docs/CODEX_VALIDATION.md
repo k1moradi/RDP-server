@@ -1,3 +1,37 @@
+## R2 policy-bound PersonalDesktop licensing broker seam (2026-10-17)
+
+**Reconciled shared-main parent:** `441ace318168c926871c7087918b0f9481d98544`.
+R10's first R1-owned PersonalDesktop Server License Request writer at
+`3f5c2434840181afc8d6cef2765098d7b609f946` correctly reauthorized the lease
+before its generic R2 broker borrow and again before committing accepted bytes,
+but those two generic broker methods did not independently bind the exact
+PersonalDesktop deployment-policy object. R9's `c72d9379` selector correction,
+R3's Graphics capability work through `4a508198`, and R4's later segmented-data
+bounds correction at this parent are reconciled and unchanged. The next R10
+client-licensing intake has not yet landed, so this increment adds only the
+narrow R2 seams that composition requires.
+
+R2 now exposes policy-bound broker methods for Server License Request
+prepare/receipt and client licensing intake. Each routes through the existing
+`authorizeR3PersonalDesktopTransition()`, which first checks exact policy object
+identity and then the established protected-transition gate: exact R1 HYBRID TLS
+owner, TLS-bound GSS principal, active lease/control/policy generation, fresh
+NSS/logind UID/session fingerprint and current admission/session generations.
+The landed R10 writer is switched to those two policy-bound methods. Existing
+Valid Client, Share and post-Share application wrappers were already policy-bound
+and are unchanged. No new authenticator, lease source, TLS writer or R3 positive
+transition was added.
+
+Dedicated CTest:
+`runtime.linux-connection-personal-desktop-policy-receipt-denials`. It checks
+that an equivalent but distinct PersonalDesktop policy object does not match the
+selected identity and that a late positive accepted-byte receipt with no lease
+closes R3/GSS and clears policy state. No positive lease is fabricated. The R9
+direct runtime-security sanitizer selector advances 19→20 and keeps the prior
+R10 license-writer sentinel. Canonical owner-local build and real positive host
+test are **NOT RUN** here; the latter requires explicit owner authorization.
+Publication-SHA hosted CI is **PENDING** at authoring.
+
 ## R9 exact-head runtime sanitizer selector correction (2026-10-17)
 
 **Failed baseline:** `3f5c2434840181afc8d6cef2765098d7b609f946`.

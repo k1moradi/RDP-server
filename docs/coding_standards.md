@@ -1,3 +1,22 @@
+## PersonalDesktop licensing transitions stay policy-bound inside R2 (2026-10-17)
+
+R10 retaining the exact service-lifetime PersonalDesktop policy pointer is not
+sufficient authorization by itself. R2 must recheck that same object identity
+inside the broker before every personal Server License Request slice, every
+accepted-byte receipt, every client licensing intake, Valid Client slice and
+receipt, every Share intake/slice/receipt and the post-Share application gate.
+Those checks are in addition to the existing protected-transition proof of the
+exact R1 TLS owner, TLS-bound GSS principal, live lease, PAM/NSS identity,
+logind session/watch and admission/session generations.
+
+A separately configured but value-equivalent RuntimeDeploymentPolicy is a
+replacement and must fail closed. Positive R1 plaintext progress is not durable
+R3 progress until the receipt crosses the same policy-bound R2 gate. Logout,
+logind change/provider failure, policy replacement, disconnect or generation
+replacement closes R3 before a late receipt can advance licensing or Share.
+Generic app-server licensing broker methods remain available only for their
+issuer-backed mode; R10 personal composition uses the policy-bound methods.
+
 ## Native input authority loss never synthesizes cleanup (R6/R7, 2026-10-17)
 
 Native lifetime freshness and upstream R2/R3 authority are separate facts.

@@ -1174,6 +1174,103 @@ bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopLicensingMode(
     return true;
 }
 
+std::optional<rdp_server::server::transport::RdpServerLicenseRequestWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopServerLicenseRequestWrite(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    const rdp_server::server::transport::RdpServerLicenseIdentity &identity,
+    const rdp_server::server::transport::RdpLicensingServiceCredential
+        &credential) noexcept
+{
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending = session.prepareServerLicenseRequestWrite(
+        *provenance, identity, credential);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3PersonalDesktopServerLicenseRequestWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome =
+        rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
+
+    if (lease == nullptr ||
+        !authorizeR3PersonalDesktopTransition(
+            *lease, acceptor, connection, session, deploymentPolicy))
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto outcome = session.completeServerLicenseRequestWrite(
+        *provenance, replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
+std::optional<rdp_server::server::transport::RdpLicensingIntake>
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClientLicensingMessage(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    const rdp_server::server::transport::RdpLicensingServiceCredential
+        &credential,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto accepted = session.acceptVerifiedR2ClientLicensingMessage(
+        *provenance, credential, completeTpkt);
+    if (!accepted)
+        revokeR3Session(acceptor, session);
+    return accepted;
+}
+
 std::optional<
     rdp_server::server::transport::RdpPersonalDesktopValidClientWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopValidClientWrite(

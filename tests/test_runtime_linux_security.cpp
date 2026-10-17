@@ -57,6 +57,30 @@ public:
 };
 } // namespace rdp_server::server::transport
 
+namespace rdp_server::server::security
+{
+// Test access binds only the non-authorizing PersonalDesktop policy identity.
+// It cannot create a lease, GSS principal, TLS owner or native-session proof.
+struct LinuxConsoleAdmissionBrokerTestAccess final
+{
+    static void bindPersonalDesktopPolicy(
+        LinuxConsoleAdmissionBroker &broker,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept
+    {
+        broker.personalDesktopPolicy_ = &deploymentPolicy;
+    }
+
+    [[nodiscard]] static bool personalDesktopPolicyMatches(
+        const LinuxConsoleAdmissionBroker &broker,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept
+    {
+        return broker.personalDesktopPolicyMatches(deploymentPolicy);
+    }
+};
+} // namespace rdp_server::server::security
+
 namespace
 {
 using rdp_server::server::runtime::LinuxCredSspStepStatus;
@@ -80,6 +104,7 @@ using rdp_server::server::security::CredSspServerReplyField;
 using rdp_server::server::security::GssapiSpnegoAcceptor;
 using rdp_server::server::security::encodeCredSspServerTsRequest;
 using rdp_server::server::security::LinuxConsoleAdmissionBroker;
+using rdp_server::server::security::LinuxConsoleAdmissionBrokerTestAccess;
 using rdp_server::server::security::LinuxConsoleAdmissionState;
 using rdp_server::server::security::SpnegoStage;
 using rdp_server::server::security::kConsoleClipboardPermission;
@@ -92,6 +117,7 @@ using rdp_server::server::transport::
     RdpPersonalDesktopValidClientWriteOutcome;
 using rdp_server::server::transport::RdpShareActivationClientIntake;
 using rdp_server::server::transport::RdpShareActivationWriteOutcome;
+using rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
 using rdp_server::server::transport::OwnedNativeTcpSocket;
 using rdp_server::server::transport::TcpAcceptOutcome;
 using rdp_server::server::transport::TcpConnectionIoInterest;
@@ -1547,6 +1573,67 @@ void testConnectionPersonalDesktopLicenseRequestR1WriteDenials(
     }
 }
 
+void testConnectionPersonalDesktopPolicyReceiptDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-policy-receipt.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy selectedPolicy;
+    RuntimeDeploymentPolicy replacementPolicy;
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(selectedPolicy.configurePersonalDesktop(false, 0U));
+    assert(replacementPolicy.configurePersonalDesktop(false, 0U));
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+
+    LinuxConsoleAdmissionBroker broker(*configuration.policy());
+    LinuxConsoleAdmissionBrokerTestAccess::bindPersonalDesktopPolicy(
+        broker, selectedPolicy);
+
+    // Policy equality is object identity, not equivalent configuration text.
+    // This fixture manipulates only the non-authorizing pointer bookkeeping;
+    // it never creates a positive R2 admission capability.
+    assert(LinuxConsoleAdmissionBrokerTestAccess::personalDesktopPolicyMatches(
+        broker, selectedPolicy));
+    assert(!LinuxConsoleAdmissionBrokerTestAccess::personalDesktopPolicyMatches(
+        broker, replacementPolicy));
+    assert(!LinuxConsoleAdmissionBrokerTestAccess::personalDesktopPolicyMatches(
+        broker, appServerPolicy));
+
+    GssapiSpnegoAcceptor acceptor;
+    assert(configuration.configureAcceptor(acceptor));
+
+    McsSessionLifecycle session;
+    McsSessionLifecycleTestAccess::stagePersonalDesktopSelection(
+        session, 47U, 83U);
+    assert(McsSessionLifecycleTestAccess::selectPersonalDesktop(session));
+    assert(session.phase() == McsSessionPhase::AwaitServerLicenseRequest);
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    rdp_server::server::transport::OwnedPreauthTcpConnection r1Connection{
+        std::move(accepted)};
+
+    // A transport may already have accepted plaintext before logout or
+    // disconnect. Without the live lease the R2 receipt boundary closes R3
+    // before the byte count can become durable licensing progress.
+    assert(broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+               nullptr, acceptor, r1Connection, session, selectedPolicy,
+               1U, 1U, 7U) ==
+           RdpServerLicenseRequestWriteOutcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(!LinuxConsoleAdmissionBrokerTestAccess::personalDesktopPolicyMatches(
+        broker, selectedPolicy));
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopR3AuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1894,6 +1981,12 @@ int main(int argumentCount, char **argumentValues)
     {
         testConnectionPersonalDesktopLicenseRequestR1WriteDenials(
             fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-desktop-policy-receipt-denials")
+    {
+        testConnectionPersonalDesktopPolicyReceiptDenials(fixtureDirectory);
         return 0;
     }
     if (testCase ==

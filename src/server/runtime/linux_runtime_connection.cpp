@@ -674,8 +674,10 @@ LinuxRuntimeConnection::advancePersonalDesktopServerLicenseRequestWrite(
         return {0U, Step::NeedWrite};
     }
 
-    const auto pending = broker_->authorizeR3ServerLicenseRequestWrite(
-        *lease_, acceptor_, connection_, session_, *identity, *credential);
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopServerLicenseRequestWrite(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *identity, *credential);
     if (!pending)
     {
         revoke();
@@ -693,10 +695,12 @@ LinuxRuntimeConnection::advancePersonalDesktopServerLicenseRequestWrite(
             revoke();
             return {0U, Step::Invalid};
         }
-        const auto outcome = broker_->completeR3ServerLicenseRequestWrite(
-            lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-            acceptor_, connection_, session_,
-            pending->replySequence, pending->writeSliceSequence, io.bytes);
+        const auto outcome =
+            broker_->completeR3PersonalDesktopServerLicenseRequestWrite(
+                lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+                acceptor_, connection_, session_, deploymentPolicy,
+                pending->replySequence, pending->writeSliceSequence,
+                io.bytes);
         if (outcome == Outcome::Pending)
             return {io.bytes, Step::Progress};
         if (outcome == Outcome::Delivered)

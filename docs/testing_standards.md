@@ -1,3 +1,38 @@
+## R2 PersonalDesktop policy/receipt boundary and owner-host positive procedure (2026-10-17)
+
+`runtime.linux-connection-personal-desktop-policy-receipt-denials` is a
+production-backed denial test. It proves the broker treats a separately
+configured but value-equivalent PersonalDesktop policy as replacement identity,
+and that a positive accepted-byte count presented after the lease is gone
+closes R3 instead of becoming licensing progress. Its test access stages only
+R3 protocol bookkeeping and the non-authorizing policy pointer; it never mints
+a lease, authenticates a user or supplies native-session evidence. Together
+with the existing personal Valid Client/Share partial-revocation tests, this is
+the ordinary-CI late-write fence. The direct Linux runtime sanitizer selection
+is 20 cases and must require this sentinel by name.
+
+The genuine Linux positive is **NOT RUN** unless the owner explicitly authorizes
+a real host and Microsoft-client session. On that host: use the restricted real
+TERMSRV service keytab; obtain genuine Kerberos/CredSSP final credentials only
+through protected client/provider input; configure the real approved PAM
+service; require the authenticated principal/account to resolve through NSS to
+the configured UID and to the physical local X11 `seat0` logind session. After
+R2 issues the lease, call `visitNativeDesktopSelection()` and construct the X11
+owner only from that borrowed admitted session/seat/display view. Do not use the
+configured display string as desktop authority.
+
+Drive PersonalDesktop selection, Server License Request, client licensing,
+Valid Client and Share only through R10/R2. Register the broker-owned logind
+fd/mask with its exact admission/session generations. For logout/replacement,
+remove the poller record first, call `unregisterNativeChange()`, then dispatch
+the readiness through `dispatchNativeChangeReady()`. Verify R3 is closed, the
+lease and application gate are dead, and any saved write receipt is rejected.
+Perform an actual fresh local login and a new Kerberos/CredSSP connection; the
+reconnect must receive a fresh aggregate/lease/native selection and may not
+reuse the old generations or X11 owner. Record exact client/host versions and
+all failures. Never place passwords in source, CMake cache, command-line
+arguments, environment variables or logs.
+
 ## R9 sanitizer selector grouping must match registered CTest names (2026-10-17)
 
 When an anchored sanitizer selector changes cardinality, require both the exact

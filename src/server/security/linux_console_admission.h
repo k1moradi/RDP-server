@@ -42,6 +42,7 @@ namespace rdp_server::server::security
 
 class LinuxConsoleAdmissionControl;
 class LinuxConsoleAdmissionBroker;
+struct LinuxConsoleAdmissionBrokerTestAccess;
 
 // Ephemeral R2-only view of the native desktop selected by genuine admission.
 // Construction is private and the view cannot be copied, moved or retained.
@@ -470,6 +471,53 @@ public:
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy) noexcept;
 
+    // PersonalDesktop licensing traffic must remain policy-bound inside R2,
+    // not merely at the R10 aggregate. Every outbound borrow, accepted-byte
+    // receipt and client licensing intake rechecks the exact policy object plus
+    // the current protected R1/R2/native-session transition before touching R3.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpServerLicenseRequestWriteView>
+    authorizeR3PersonalDesktopServerLicenseRequestWrite(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        const rdp_server::server::transport::RdpServerLicenseIdentity
+            &identity,
+        const rdp_server::server::transport::RdpLicensingServiceCredential
+            &credential) noexcept;
+
+    [[nodiscard]]
+    rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
+    completeR3PersonalDesktopServerLicenseRequestWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpLicensingIntake>
+    authorizeR3PersonalDesktopClientLicensingMessage(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        const rdp_server::server::transport::RdpLicensingServiceCredential
+            &credential,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Personal Valid Client publication is reachable only after the exact
     // immutable policy object above remains bound and R2 freshly reauthorizes
     // the current lease/R1/native-session lifetime. R1 remains the sole writer.
@@ -621,6 +669,8 @@ public:
     [[nodiscard]] int nativeChangeEvents() const noexcept;
 
 private:
+    friend struct LinuxConsoleAdmissionBrokerTestAccess;
+
     void revokeControl() noexcept;
     void clearRequest() noexcept;
     void deny(GssapiSpnegoAcceptor &acceptor) noexcept;

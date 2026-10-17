@@ -1,3 +1,52 @@
+## R9 final CredSSP adversarial-parser hosted convergence (2026-10-16)
+
+**Validated shared integration SHA:** `bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`.  
+**Actions:** `39004774467` — **SUCCESS**.
+
+The three new production-backed R9 CTests are centrally registered once and
+execute through the existing `test_owned_credssp_tsrequest` binary:
+
+- `security.credssp-password-credential-nested-der-mutations`
+- `security.credssp-password-credential-length-boundary-denials`
+- `security.credssp-password-credential-utf16-mutation-boundaries`
+
+Linux/GCC Debug and Release are **528/528 PASS** in each configuration.
+macOS/AppleClang Debug and Release run **447** tests each and both jobs pass.
+Windows/MSVC Debug and Release run **477** tests each and both jobs pass.
+Installed SDK consumer/package checks pass on all three hosted platforms.
+The R9 Clang ASan/UBSan job passes; its fail-closed registry preflight finds
+strict-fields plus all three new cases and the dedicated instrumented
+credential selection is **4/4 PASS** with leak detection enabled and no GSS
+leak suppression applied to parser tests.
+
+The bounded corpora remain test-only: a 59-byte canonical password seed with
+236 bytewise mutations plus 8 structured cases; a 40-vector DER/length corpus
+including 9 outer and 9 nested malformed encodings and the valid 8191-byte
+maximum; and a 96-vector UTF-16LE matrix with an independent test-only Unicode
+oracle. Repeated parsing is deterministic and input bytes remain unchanged.
+A structure-preserving payload mutation may still parse successfully only when
+the independent payload oracle accepts it.
+
+Historical failures remain part of the evidence trail. At
+`d82e9836b5457f43293ca46bc3c712c0565e1188`, workflow `39004093895`
+failed the R9 combined sanitizer selection before execution because CMake
+reported `Too many parentheses` and `Total Tests: 0`; R9 corrected that by
+keeping the existing cross-road selection intact and adding a flat dedicated
+credential selector. At `da9d3e21c4c684d553e20a4d2594f2911cdabe00`,
+workflow `39004533589` had the R9 sanitizer, Linux and macOS jobs green but
+failed Windows `Compile Debug` in the R1 readiness fixture because Win32's
+`min` macro expanded `std::min`; R1 corrected that in
+`cd3b5173149f4c93fad5c04afdab3bce3b901937`. The final convergence workflow
+is green and R9 was not implicated in that R1 compile failure.
+
+These tests establish bounded structural parsing and memory-safety evidence;
+they do **not** establish successful password verification or native admission.
+Existing GSS/native-admission denial tests remain the authentication boundary.
+Owner same-SHA Linux/X11, Windows MSYS2 CLANG64/Clang 23, macOS 27, genuine
+Kerberos/PAM/NSS/logind positive authorization, Microsoft-client end-to-end
+HYBRID admission and M1-M6 external acceptance remain **NOT RUN / BLOCKED** as
+applicable.
+
 ## R7 cursor GUI-session revocation exact-SHA validation (2026-10-16)
 
 **Implementation:** `1d4f154bd548b11dcf95ac671ecdd3e4d5a5d288`.  

@@ -1,3 +1,62 @@
+## R9 final CredSSP adversarial-parser exact-SHA receipt (2026-10-16)
+
+Validated shared integration SHA
+`bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`, Actions
+`39004774467`: **SUCCESS**.
+
+Hosted Linux/GCC executes **528/528 PASS** in Debug and Release; macOS/
+AppleClang executes **447** tests in each configuration with both jobs green;
+Windows/MSVC executes **477** tests in each configuration with both jobs green.
+All three installed SDK consumer/package checks pass. Documentation policy and
+R7 sanitizer also pass.
+
+The R9 Clang ASan/UBSan job is fully green. The shared R1/R3/licensing group
+retains its original strict-fields member, then a separate flat
+`^security\.credssp-password-credential-` selection performs `ctest -N`
+preflight and executes exactly the R2 strict-fields case plus R9's three new
+adversarial cases. Tests #247-#250 are **4/4 PASS** under ASan/UBSan and
+`detect_leaks=1`; parser tests do not inherit the MIT krb5 LSAN suppression.
+
+Corpus receipts:
+- nested DER: 59-byte canonical `credType=1` seed, 236 bytewise
+  complement/insertion/removal/truncation vectors, 8 structured
+  duplicate/missing/reordered/trailing/tag cases, deterministic repeat and
+  immutable-input checks;
+- DER lengths: 40 parsed vectors covering 0/1/2/3, 126/127/128/129,
+  254/255/256/257, 4094..4097, 9 malformed outer and 9 malformed nested
+  length encodings, valid maximum 8191 bytes, malformed exact-8192 and
+  over-limit 8193 bytes;
+- UTF-16LE: 96 vectors across domain/user/password and beginning/middle/end,
+  including valid BMP and surrogate pairs, high/low surrogate failures,
+  high-high/non-low/reversed pairs, byte/code-unit truncation, embedded NUL,
+  odd lengths and empty-field policy. Successful structure-preserving payload
+  mutations are checked by a small independent Unicode oracle rather than a
+  duplicate DER parser.
+
+No production parser defect was exposed and no R2/R3 admission capability was
+added. The result type still exports only credential kind/error and no
+credential view. Structural password parsing, public-key binding, credential
+classification, scalar session state, synthetic callbacks and licensing proof
+remain insufficient for native admission; existing
+`security.gssapi-credssp-authinfo-terminal-denials`,
+`security.gssapi-native-os-admission-capability-denials`, and
+`runtime.linux-connection-aggregate-premature-admission-denial` preserve that
+independent boundary.
+
+Failure attribution remains explicit:
+- `d82e9836...` / Actions `39004093895` / R9 sanitizer bounded
+  R1/R3/CredSSP/licensing step: **test-selection failure**, CMake regex
+  parenthesis limit, zero tests; R9-owned and corrected by the flat selector.
+- `da9d3e21...` / Actions `39004533589` / Windows `Compile Debug`:
+  **compile failure** in R1 `test_owned_preauth_session.cpp` from Win32
+  `min` macro expansion of `std::min`; not caused by R9, corrected by R1
+  in `cd3b5173...`.
+
+Canonical owner-local `~/rdp-server/build/`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, macOS 27, positive real Kerberos/PAM/NSS/logind admission and
+real Microsoft-client M2 acceptance remain **NOT RUN / BLOCKED**. Synthetic
+CTest success does not accept M1-M6.
+
 ## R7 cursor session-watch exact-SHA receipt (2026-10-16)
 
 **Implementation:** `1d4f154bd548b11dcf95ac671ecdd3e4d5a5d288` / Actions `39004615992`.  

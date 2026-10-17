@@ -213,9 +213,19 @@ jobs:
             --stage build/stage \
             --output "build/rdp-server-macos-protocol-test-${architecture}-${source_sha}.zip" \
             --source-sha "$source_sha" --version "0.1.0" --minimum-macos "13.0"
-          python3 -m unittest discover -s tests -p 'test_macos_test_bundle.py' --help >/dev/null
           ctest --test-dir build --build-config Release --timeout 20 \
-            -R '^macos\\.package-offline-integrity-and-idempotence
+            -R 'macos[.]package-offline-integrity-and-idempotence' --output-on-failure
+      - name: Upload macOS protocol TEST BUNDLE (no server)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-protocol-test-bundle
+          path: |
+            build/rdp-server-macos-protocol-test-*.zip
+            build/rdp-server-macos-protocol-test-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload verified protocol SDK package
         uses: actions/upload-artifact@v4
         with:
           name: protocol-package-${{ matrix.os }}

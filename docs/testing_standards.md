@@ -307,6 +307,15 @@ outcomes merely to remove scheduler timing. Sanitizer coverage should include
 the direct batch budget/handoff case because it exercises native descriptor
 ownership and callback transfer.
 
+The same rule applies one layer higher to listener polling. A zero-wait poll
+immediately after loopback `connect()` may legitimately return `NoEvent` on
+Darwin even though the peer becomes readable shortly afterward. A fixture that
+needs to consume that already-connected peer must boundedly repeat the
+production one-step poll from the external test caller, using at most
+`kMaximumTcpPollWait` per invocation and retrying only `NoEvent`. Keep a
+separate drained-listener assertion for the true idle `NoEvent` case; never
+turn `Expired`, `Failure` or a completed batch into a retry.
+
 ## R8 completed-file X11 handoff tests
 
 Ordinary X11 file-handoff CTests must remain desktop-independent: use the

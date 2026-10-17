@@ -1,3 +1,25 @@
+## macOS listener-poll fixture readiness correction (2026-10-16; owner re-test pending)
+
+The owner reports two remaining macOS full-CTest aborts after the direct native
+accept fixture correction:
+`transport.tcp-listener-poll-budget-handoff` and
+`transport.tcp-listener-poll-deadline-denials`.
+
+Source review found the same Darwin visibility assumption one layer higher:
+both tests required a newly connected loopback peer to be consumed by an
+immediate listener poll, including zero-wait probes. The production
+`pollNonblockingTcpAcceptBatch` contract explicitly permits `NoEvent` when
+that single bounded native wait sees no readiness; this is not a transport
+failure.
+
+The test-only correction adds one shared bounded caller helper that repeats the
+existing production poll only after `NoEvent`, with at most
+`kMaximumTcpPollWait` per call and a fixed 128-attempt ceiling. Any
+`Expired`, `Failure` or completed batch is returned unchanged to the
+behavior assertion. Production polling, accept ownership, deadlines and batch
+semantics are unchanged. Exact-publication-SHA hosted validation and the
+owner's unchanged-command macOS rerun are **PENDING**.
+
 ## R3 CAL signed-property exact-SHA CI blocker receipt (2026-10-17)
 
 **Implementation:** `4cbe0168f9f0996d44d3f589ec6cafb335d62844`.  

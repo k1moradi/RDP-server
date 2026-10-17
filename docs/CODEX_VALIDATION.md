@@ -1,3 +1,25 @@
+## macOS listener-poll readiness authoring (2026-10-16)
+
+Owner-local macOS evidence reports subprocess aborts only in
+`transport.tcp-listener-poll-budget-handoff` and
+`transport.tcp-listener-poll-deadline-denials` after the earlier direct-accept
+fixtures were corrected.
+
+The remaining fixtures still assumed that loopback `connect()` completion
+made the listener synchronously readable to the next zero/short-wait poll.
+Darwin may instead return `TcpListenerPollOutcome::NoEvent` before the queued
+peer becomes observable. The authored change is test-only: a shared helper
+reissues the existing one-step production poll from the external test caller,
+bounded to 128 attempts and `kMaximumTcpPollWait` each, retrying only
+`NoEvent`. It does not retry expiration, native failure or any completed batch,
+and does not alter the production listener, acceptor, callback ownership or RDP
+state.
+
+The explicit idle-listener `NoEvent` assertion remains in place after the
+pending peer has been consumed. Hosted exact-SHA Debug/Release evidence and
+owner macOS rerun are **PENDING**. No live listener service, credentials,
+desktop/session admission or R5 native X11 behavior is exercised.
+
 ## R4 zero-byte AVC420 cancellation authoring receipt (2026-10-16)
 
 **Starting reconciled shared `main`:** `17f0f11bb420ba6772fb0e6639e04bc73e745552`.  

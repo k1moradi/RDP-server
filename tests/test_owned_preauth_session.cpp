@@ -1657,6 +1657,29 @@ void nativeReadAll(TcpNonblockingIo &io, std::span<std::uint8_t> output)
     return {};
 }
 
+[[nodiscard]] TcpListenerPollResult waitForPolledLoopbackBatch(
+    std::uintptr_t listener, std::size_t budget,
+    TcpAcceptedSocketCallback callback, void *context,
+    std::chrono::steady_clock::time_point deadline)
+{
+    // A completed loopback connect does not guarantee that a zero-wait poll
+    // immediately observes listener readability on Darwin. Retry only the
+    // test caller's NoEvent result; production still performs one bounded
+    // native wait and one bounded accept batch per invocation.
+    for (int attempt = 0; attempt < 128; ++attempt)
+    {
+        auto ready = pollNonblockingTcpAcceptBatch(
+            listener, budget, callback, context, deadline,
+            kMaximumTcpPollWait);
+        if (ready.outcome != TcpListenerPollOutcome::NoEvent)
+            return ready;
+        assert(ready.batch.accepted == 0);
+    }
+
+    assert(false && "loopback listener never became readable");
+    return {};
+}
+
 void waitForNativeRequest(PreauthTcpAdapter &adapter)
 {
     // A connected NONBLOCKING peer may legitimately have no readable
@@ -5612,9 +5635,8 @@ void testNativeTcpListenerPollBudgetAndOwnerHandoff()
 
     const auto deadline = Clock::now() + std::chrono::seconds{10};
     const auto listener = static_cast<std::uintptr_t>(pair.listener.value);
-    const auto first = pollNonblockingTcpAcceptBatch(
-        listener, 1, callback, &state, deadline,
-        std::chrono::milliseconds{0});
+    const auto first = waitForPolledLoopbackBatch(
+        listener, 1, callback, &state, deadline);
     assert(first.outcome == Outcome::BatchCompleted);
     assert(first.batch.outcome == BatchOutcome::BudgetReached);
     assert(first.batch.accepted == 1 && state.received == 1);
@@ -5630,9 +5652,8 @@ void testNativeTcpListenerPollBudgetAndOwnerHandoff()
     // Windows and POSIX without depending on a backlog of two.
     LocalSocket secondClient{};
     connectAdditionalLoopbackClient(secondClient, pair.listener.value);
-    const auto second = pollNonblockingTcpAcceptBatch(
-        listener, 2, callback, &state, deadline,
-        kMaximumTcpPollWait);
+    const auto second = waitForPolledLoopbackBatch(
+        listener, 2, callback, &state, deadline);
     assert(second.outcome == Outcome::BatchCompleted);
     assert(second.batch.outcome == BatchOutcome::Drained);
     assert(second.batch.accepted == 1 && state.received == 2);
@@ -5696,9 +5717,8 @@ void testNativeTcpListenerPollDeadlineAndDenials()
     assert(state.called == 0);
     assert(pair.listener.value != kInvalidLocalSocket);
 
-    const auto once = pollNonblockingTcpAcceptBatch(
-        listener, kMaximumTcpAcceptBatch, stop, &state, future,
-        std::chrono::milliseconds{0});
+    const auto once = waitForPolledLoopbackBatch(
+        listener, kMaximumTcpAcceptBatch, stop, &state, future);
     assert(once.outcome == Outcome::BatchCompleted);
     assert(once.batch.outcome == BatchOutcome::CallbackStopped);
     assert(once.batch.accepted == 1 && state.called == 1);

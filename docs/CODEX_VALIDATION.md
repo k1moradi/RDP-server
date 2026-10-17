@@ -1,3 +1,95 @@
+## R1 P1 runtime TLS post-ACL exact-SHA validation (2026-10-17)
+
+**R10 Windows fixture correction chain:** \`e782cd642f574e7ef45792c8fe168dfad70c8d2a\`,
+\`75375ccfeb7523d58d40024f783ebfe84f4db50b\`,
+\`4a116fb2501b7cbd5c9314d37337508fd7ed3824\`.  
+**R1 readiness correction:** \`e0fc1b3b33a6e1e98a0bf2cb19e8ecd46949b39c\`.  
+**R1 Actions:** \`39014912488\` — **SUCCESS**.
+
+The original Windows failure at \`tests/check_runtime_tls_context.cmake:72\`
+was fixture preparation, not transport execution. After R10's shared helper
+removed inherited and explicit broad-principal allow ACEs and applied the
+current-owner grant, hosted MSYS2 CLANG64 proves fixture setup succeeds before
+the R1 transport cases run. On the corrected R1 SHA, the Windows fixture
+preflight is **3/3 PASS Debug + Release**:
+\`runtime.windows-private-fixture-dacl-creation\`,
+\`runtime.windows-private-fixture-broad-access-denials\`, and
+\`runtime.windows-private-fixture-owner-consistency\`.
+
+The two P1 target CTests remain generated exactly once from the existing
+\`runtime_transport_case\` list in \`tests/CMakeLists.txt\`:
+\`transport.tcp-owned-runtime-tls-handshake\` and
+\`transport.tcp-owned-runtime-tls-identity-continuity\`. They use the same
+R10 \`check_runtime_tls_context.cmake\` fixture writer and then execute
+\`test_owned_preauth_session\` against production \`RuntimeServerTlsContext\`
+and \`OwnedPreauthTcpConnection\`. The handshake test covers real loopback
+HYBRID/X.224 negotiation, an R10-created server SSL, exact selected certificate,
+bounded encrypted application I/O, peer endpoint continuity, clean TLS close,
+raw transport close and terminal cancellation. The identity-continuity test
+loads the R10 context, replaces both configured credential pathnames with
+invalid material, then proves the retained certificate remains the exact one
+presented through the same R1-owned TLS object; R3 remains blocked at
+\`AwaitVerifiedR2Admission\`.
+
+Before the R1 correction, hosted CLANG64 at R10 SHA \`4a116fb2...\`, Actions
+\`39012368322\`, already proved the ACL blocker was gone: Clang **23.1.3**,
+OpenSSL **3.6.5**, fixture preflight **3/3 PASS**, focused security preflight
+including \`transport.tcp-owned-runtime-tls-handshake\` **5/5 PASS**, and both
+runtime TLS targets PASS in Debug and Release full suites. That wider sweep
+exposed a separate R1 test-driver defect in
+\`transport.tcp-native-loopback-tls\`: its nonblocking handshake serialized
+waiting on one unfinished peer and could starve the other peer's current WANT
+direction.
+
+R1 correction \`e0fc1b3b...\` changes only the real-loopback test scheduler:
+both client and server WANT_READ/WANT_WRITE interests are observed with one
+bounded native \`select\`, and only ready endpoints advance one SSL step. It
+does not change production TCP/BIO/SSL code, TLS ownership, pinned certificate
+identity, the single connection reader/writer, terminal cancellation, or the
+18 KiB application-I/O ceiling.
+
+Exact corrected evidence:
+- **Hosted MSYS2 CLANG64:** Clang **23.1.3**, OpenSSL **3.6.5**; full CTest
+  **531/531 PASS Debug + 531/531 PASS Release**. The repaired
+  \`transport.tcp-native-loopback-tls\` passes as test #178. The P1 runtime TLS
+  handshake and identity-continuity tests pass as #382/#383 in both
+  configurations. Fixture preflight remains **3/3 PASS** in both.
+- **Windows/MSVC:** native focused preflight **55/55 PASS Debug + Release**;
+  full CTest **531/531 PASS Debug + 531/531 PASS Release**. The loopback and
+  both runtime TLS targets pass in both configurations.
+- **Linux/GCC:** **584/584 PASS Debug + 584/584 PASS Release**; loopback #178
+  and runtime TLS #389/#390 pass in both.
+- **macOS/AppleClang:** **495/495 PASS Debug + 495/495 PASS Release**;
+  loopback #178 and runtime TLS #327/#328 pass in both.
+- **R9 Clang ASan/UBSan:** bounded R1/R3 transport/security/licensing selection
+  **91/91 PASS**, explicitly running both runtime TLS targets as #389/#390.
+  The full hosted regression matrix also keeps the existing HYBRID,
+  application-I/O, licensing cancellation and terminal-readiness R1 cases.
+- Workflow structure, documentation policy, R7 sanitizer/native lifecycle,
+  installed SDK consumer/package gates and all configured hosted jobs PASS;
+  untagged prerelease publication is correctly **SKIPPED**.
+
+The owner's canonical persistent Windows MSYS2 CLANG64 command remains
+**NOT RUN in this connector environment**: this agent cannot execute commands
+inside the owner's \`~/rdp-server/build/\` checkout. The hosted CLANG64 result
+matches the required compiler family/version and proves the post-fixture
+transport path, but it is not relabeled as owner evidence. M1 therefore still
+requires the owner to run:
+
+\`\`\`sh
+cd ~/rdp-server
+git rev-parse HEAD
+ctest --test-dir build -C Debug \
+  -R '^transport\\.tcp-owned-runtime-tls-(handshake|identity-continuity)$' \
+  --output-on-failure -V
+\`\`\`
+
+**Next R1:** no production transport change is justified by P1. Preserve the
+current single TLS owner and wait for either owner-native same-SHA evidence or
+a later live R2/R3 boundary that demonstrates an actual bounded transport
+defect. Do not fabricate authentication, CAL authority or premature licensing
+publication.
+
 ## R4 segmented-frame retirement reuse exact hosted receipt (2026-10-17)
 
 **Implementation:** `9fe503cfe03722b1145d1fc9eaf4b28a417a1c9c`.  

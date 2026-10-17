@@ -7277,8 +7277,18 @@ void testRdpClientCalIssuerSignatureDenials()
     LicensingCertificatePointer changedLeaf{
         X509_dup(fixture.leafCertificate.get()), X509_free};
     assert(changedLeaf);
-    assert(ASN1_INTEGER_set(
-               X509_get_serialNumber(changedLeaf.get()), 999L) == 1);
+    LicensingX509NamePointer changedSubject{
+        X509_NAME_dup(X509_get_subject_name(changedLeaf.get())),
+        X509_NAME_free};
+    assert(changedSubject);
+    constexpr std::string_view changedSubjectMarker{"changed-after-sign"};
+    assert(X509_NAME_add_entry_by_txt(
+               changedSubject.get(), "OU", MBSTRING_ASC,
+               reinterpret_cast<const unsigned char *>(
+                   changedSubjectMarker.data()),
+               static_cast<int>(changedSubjectMarker.size()), -1, 0) == 1);
+    assert(X509_set_subject_name(
+               changedLeaf.get(), changedSubject.get()) == 1);
     const std::array<X509 *, 3> changedCertificates{
         changedLeaf.get(),
         fixture.rootCertificate.get(),

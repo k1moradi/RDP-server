@@ -1,3 +1,14 @@
+## R3 CAL signed-property fixture correction (2026-10-16; exact-SHA CI pending)
+
+The superseded implementation run 39005649027 compiled on Linux and executed
+all six CAL CTests. Five passed; the issuer-signature denial failed because the
+fixture changed the serial through the mutable pointer returned by
+`X509_get_serialNumber()`, which can leave OpenSSL's cached TBSCertificate
+encoding unchanged. The corrected test duplicates the signed leaf, changes its
+subject through `X509_set_subject_name()` without re-signing, and therefore
+changes the encoded TBSCertificate while preserving the issuer relationship.
+The production verifier and acceptance policy are unchanged.
+
 ## R3 CAL OpenSSL 4 portability correction (2026-10-16; exact-SHA CI pending)
 
 ## R10 licensing-authority boundary implementation (2026-10-17; hosted validation pending)

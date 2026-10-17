@@ -117,8 +117,8 @@ bool PreauthConnectionStream::completeCredSspAdmission(
 {
     const auto provenance = securityNegotiationProvenance(serverTls);
     if (stage() != PreauthStage::AwaitCredSsp || !provenance ||
-        provenance->selectedProtocol != kRdpProtocolHybrid ||
-        (provenance->requestedProtocols & kRdpProtocolHybrid) == 0)
+        provenance->serverSelectedProtocol != kRdpProtocolHybrid ||
+        (provenance->clientRequestedProtocols & kRdpProtocolHybrid) == 0)
     {
         close();
         return false;

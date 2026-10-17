@@ -1,3 +1,14 @@
+## R2 final credential/native admission compile correction (2026-10-17)
+
+Exact authoring SHA `524f8575be5892803c1ba73a4a9479e063730d29`
+failed hosted Linux Debug compilation before tests because the new private R1
+CredSSP-completion check referenced conceptual provenance names
+`selectedProtocol` / `requestedProtocols` rather than the existing
+`SecurityNegotiationProvenance` members `serverSelectedProtocol` /
+`clientRequestedProtocols`. This correction changes only those two member
+references. The required exact HYBRID selection/offer checks, private ownership
+chain, credential/PAM/native admission ordering and denial test are unchanged.
+
 ## R2 final credential/native admission join authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `a97933bf7a2b523dac641e97776e111d46a28be0`.

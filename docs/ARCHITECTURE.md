@@ -1,3 +1,24 @@
+## R6/R4 native capture-generation compatibility (2026-10-17)
+
+R4's optional `openBgraCapture()` ingress epoch is deliberately separate from
+R6's richer `WindowsCaptureGeneration { session, device }`. R6 never hashes,
+packs or truncates the native pair into R4's scalar. The future authorized
+composition owner must maintain a nonzero R4-local epoch and advance/rebind it
+whenever the R6 native identity is replaced, after every old framebuffer borrow
+and prepared R4 frame owner is retired.
+
+Inside `consumeR4Frame()`, that composition may call the real R4
+`prepareBgra()` synchronously while D3D11 remains mapped. Only an outer R6
+result of `consumed` leaves the prepared R4 owner eligible for a future R3
+submit. If the R6 post-consumer session/device check or topology fence closes
+the native cycle after R4 preparation, the prepared frame is stale; before any
+R3 write, the composition must invoke R4's existing exact unwritten
+cancellation. R6 does not reimplement R4 codec/reset/receipt state.
+
+This compatibility rule is lifetime/freshness only. An R4 ingress epoch, mapped
+R4 lifecycle, valid framebuffer or prepared segmented frame is never R2
+admission, R3 Share/DVC authority or permission to open a Windows desktop.
+
 ## R3 P0 existing-CAL snapshot -> R10 request contract
 
 The R3-to-R10 existing-CAL boundary starts with an R3 request snapshot, not an

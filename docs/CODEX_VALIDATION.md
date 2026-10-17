@@ -1,3 +1,43 @@
+## R6 P2 convergence with R4 capture-ingress epoch (2026-10-17; exact-SHA CI pending)
+
+**Validated R6 handoff/correction:** `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`,
+Actions `39022566764` — **SUCCESS**; structure `39022566877` —
+**SUCCESS**. At that SHA, hosted MSYS2 CLANG64 / Clang **23.1.3** executes
+R6 **58/58 Debug + 58/58 Release**, full **537/537 Debug + 537/537 Release**,
+and Windows ASan+UBSan **58/58**. Hosted Windows/MSVC executes R6 **58/58
+Debug + Release** and full **537/537 Debug + Release**. No R6 sanitizer or
+ordinary Windows failure remains.
+
+Concurrent R4 then added the intended optional
+`openBgraCapture(presentationGeneration, captureGeneration, ...)` contract.
+Its capture generation is an R4-local scalar freshness epoch and explicitly
+must not be treated as a lossy encoding of R6's native
+`{session, device}` pair.
+
+R6's production handoff therefore remains unchanged. The three existing
+`windows.capture-r4-*` tests are strengthened to cross the actual R4 producer
+ingress: real `prepareBgra()` runs synchronously while the synthetic D3D11
+mapping is alive. A successful outer R6 consume can leave the owned R4 frame
+eligible for later authorized delivery; because ordinary CTest has no R3
+sender, it retires that output through exact unwritten cancellation. If session
+generation or topology changes after R4 preparation, the outer R6 result is
+terminal and the test requires the prepared R4 owner to be canceled before any
+hypothetical submit. Same-geometry native device replacement suppresses the old
+callback and a fresh native owner is paired only with a separately advanced
+R4-local capture epoch.
+
+No production R2/R3/R10 composition is added. Test-local R4 lifecycle setup
+does not authorize a desktop or a network publication. Exact convergence-SHA
+MSVC/CLANG64/sanitizer evidence is **PENDING**.
+
+M4 remains **OPEN / NOT ACCEPTED**. R2/R10 must supply genuine Windows
+desktop/session authorization and serialized revocation. R3 must complete
+authenticated licensing/Share activation, joined DRDYNVC plus
+`Microsoft::Windows::RDS::Graphics` DVC creation, the one receipt-bound
+graphics sender, and generation-correlated input routing. Real DXGI capture,
+`SendInput`, resize/reconnect/session-switch behavior and Microsoft-client
+acceptance remain separately authorized live evidence.
+
 ## R5 framebuffer-ingress selector correction receipt (2026-10-17)
 
 Implementation `be81242f6fb5fa438376205650472356595f4aeb` reached Actions

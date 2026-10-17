@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "rdp/bgra_nv12_converter.h"
+#include "rdp/x264_avc420_segmented_frame_producer.h"
 #include "windows/windows_dxgi_capture_cycle.h"
 
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +18,48 @@ constexpr PixelSize kVisible{160, 90};
 constexpr PixelSize kCoded{160, 96};
 constexpr std::size_t kRowPitch =
     static_cast<std::size_t>(kVisible.widthPixels) * 4U + 32U;
+constexpr std::uint64_t kPresentationGeneration = 8101;
+constexpr std::uint64_t kCaptureEpoch = 9101;
+constexpr std::uint16_t kSurfaceId = 7;
+constexpr std::array<Rectangle, 1> kRegions{
+    Rectangle{0, 0, kVisible.widthPixels, kVisible.heightPixels}};
+constexpr std::array<GfxAvc420QuantQuality, 1> kQuality{{{23, 80}}};
+
+std::array<std::byte, 22> advertisement()
+{
+    return {std::byte{0x12}, {}, {}, {}, std::byte{22}, {}, {}, {},
+            std::byte{1}, {}, std::byte{5}, std::byte{1}, std::byte{8}, {},
+            std::byte{4}, {}, {}, {}, std::byte{0x10}, {}, {}, {}};
+}
+
+GfxPresentationReceipt emit(
+    GfxPresentationLifecycle &lifecycle,
+    std::uint64_t generation)
+{
+    std::array<std::byte, 24> bytes{};
+    GfxPresentationReceipt receipt{};
+    assert(lifecycle.prepareCommand(generation, bytes, receipt));
+    return receipt;
+}
+
+// Pure R4 state-machine setup for an offline compatibility test. This is not
+// R3 Share/DVC authorization and is never connected to a network writer.
+void mapSurface(
+    GfxPresentationLifecycle &lifecycle,
+    std::uint64_t generation,
+    PixelSize visible = kVisible)
+{
+    assert(lifecycle.open(generation));
+    assert(lifecycle.acceptCapabilities(generation, advertisement()));
+    auto receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.configureSurface(generation, kSurfaceId, visible));
+    receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    receipt = emit(lifecycle, generation);
+    assert(lifecycle.completeCommand(receipt, receipt.bytes));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+}
 
 WindowsDesktopLayout r4Layout() noexcept
 {
@@ -159,7 +202,12 @@ struct R4BgraSink final
     FakeR4NativeFrame *native{};
     FakeR4Generation *generation{};
     WindowsDxgiCaptureCycle *cycle{};
-    BgraNv12Converter converter{};
+    GfxPresentationLifecycle *lifecycle{};
+    X264Avc420SegmentedFrameProducer *producer{};
+    GfxAvc420SegmentedFrame *prepared{};
+    std::uint64_t presentationGeneration{kPresentationGeneration};
+    std::uint64_t captureEpoch{kCaptureEpoch};
+    std::uint32_t frameId{101};
     WindowsCaptureGeneration observed{};
     unsigned calls{};
     bool rotateSession{};
@@ -189,17 +237,17 @@ struct R4BgraSink final
                    static_cast<std::size_t>(kVisible.widthPixels) * 4U] ==
                std::byte{0xee});
 
-        // Exercise the actual R4 BGRA ingestion primitive while D3D11 remains
-        // mapped. BgraNv12Converter retains only its independent NV12 scratch.
-        const bool converted =
-            self.converter.convert(frame, kVisible, kCoded, 73);
-        assert(converted);
-        const auto picture = self.converter.picture();
-        assert((picture.codedGeometry == kCoded));
-        assert(picture.yStrideBytes == kCoded.widthPixels);
-        assert(picture.uvStrideBytes == kCoded.widthPixels);
-        assert(!picture.yPlane.empty() && !picture.uvPlane.empty());
-        assert(picture.pts == 73);
+        // The future composition owner maps the richer R6 {session,device}
+        // identity to this separately managed R4-local capture epoch. This
+        // fixture chooses an epoch only to exercise R4's production ingress
+        // state machine; it grants no R2/R3 authority.
+        const X264BgraFrameRequest request{
+            kSurfaceId, self.frameId, frame, 73,
+            kRegions, kQuality, self.captureEpoch};
+        assert(self.producer->prepareBgra(
+            *self.lifecycle, self.presentationGeneration,
+            request, *self.prepared));
+        assert(self.prepared->valid());
 
         if (self.rotateSession)
             ++self.generation->session;
@@ -219,17 +267,34 @@ struct R4BgraSink final
     }
 };
 
+void openR4(
+    GfxPresentationLifecycle &lifecycle,
+    X264Avc420SegmentedFrameProducer &producer,
+    std::uint64_t captureEpoch = kCaptureEpoch)
+{
+    mapSurface(lifecycle, kPresentationGeneration);
+    assert(producer.openBgraCapture(
+        kPresentationGeneration, captureEpoch, kCoded, kVisible));
+    assert(producer.captureGeneration() == captureEpoch);
+}
+
 } // namespace
 
 void windowsCaptureR4BgraLayoutContract()
 {
+    GfxPresentationLifecycle lifecycle;
+    X264Avc420SegmentedFrameProducer producer;
+    openR4(lifecycle, producer);
+
     FakeR4NativeFrame native{};
     FakeR4Generation generation{};
     WindowsDxgiCaptureCycle cycle(
         r4Layout(), native.frameCallbacks(), native.stagingCallbacks(),
         {}, generation.callbacks(), {101, 202});
     native.cycle = &cycle;
-    R4BgraSink sink{&native, &generation, &cycle};
+    GfxAvc420SegmentedFrame prepared;
+    R4BgraSink sink{
+        &native, &generation, &cycle, &lifecycle, &producer, &prepared};
 
     assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
     assert(cycle.consumeR4Frame(sink.callbacks()) ==
@@ -237,7 +302,13 @@ void windowsCaptureR4BgraLayoutContract()
     assert(sink.calls == 1U);
     assert((sink.observed == WindowsCaptureGeneration{101, 202}));
     assert(!cycle.closed());
+    assert(prepared.valid() && !prepared.wireBytes().empty());
     native.assertReleasedAfterConsumer();
+
+    // No R3 sender exists in this fixture. Retire the prepared owned frame
+    // through R4's exact zero-byte cancellation before reusing the producer.
+    assert(producer.cancelUnwrittenDelivery(lifecycle, prepared));
+    assert(!prepared.valid());
 
     // A fixture/legacy cycle with no generation may still support its older
     // synchronous consumer, but it cannot become an R4 publication source.
@@ -246,11 +317,15 @@ void windowsCaptureR4BgraLayoutContract()
         r4Layout(), unguardedNative.frameCallbacks(),
         unguardedNative.stagingCallbacks());
     unguardedNative.cycle = &unguarded;
-    R4BgraSink unguardedSink{&unguardedNative, &generation, &unguarded};
+    GfxAvc420SegmentedFrame denied;
+    R4BgraSink unguardedSink{
+        &unguardedNative, &generation, &unguarded,
+        &lifecycle, &producer, &denied};
     assert(unguarded.captureFrame(0) == WindowsCaptureCycleResult::mapped);
     assert(unguarded.consumeR4Frame(unguardedSink.callbacks()) ==
            WindowsCaptureConsumeResult::closed);
     assert(unguarded.closed() && unguardedSink.calls == 0U);
+    assert(!denied.valid());
     assert(unguardedNative.orderCount == 4U);
     assert(unguardedNative.order[0] == 'A' &&
            unguardedNative.order[1] == 'S' &&
@@ -260,13 +335,19 @@ void windowsCaptureR4BgraLayoutContract()
 
 void windowsCaptureR4FrameLifetimeRevocation()
 {
+    GfxPresentationLifecycle lifecycle;
+    X264Avc420SegmentedFrameProducer producer;
+    openR4(lifecycle, producer);
+
     FakeR4NativeFrame native{};
     FakeR4Generation generation{};
     WindowsDxgiCaptureCycle cycle(
         r4Layout(), native.frameCallbacks(), native.stagingCallbacks(),
         {}, generation.callbacks(), {101, 202});
     native.cycle = &cycle;
-    R4BgraSink sink{&native, &generation, &cycle};
+    GfxAvc420SegmentedFrame prepared;
+    R4BgraSink sink{
+        &native, &generation, &cycle, &lifecycle, &producer, &prepared};
     sink.rotateSession = true;
 
     assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::mapped);
@@ -275,16 +356,23 @@ void windowsCaptureR4FrameLifetimeRevocation()
     assert(result == WindowsCaptureConsumeResult::closed);
     assert(!publishable);
     assert(sink.calls == 1U && cycle.closed());
+    assert(prepared.valid());
     native.assertReleasedAfterConsumer();
 
-    // Conversion happened synchronously while the mapping was alive, but the
-    // post-consumer session check refused to report publication success.
-    assert(!sink.converter.picture().yPlane.empty());
+    // R4 preparation necessarily completed while the native mapping was
+    // valid, but the R6 post-consumer session check revoked the publication.
+    // Before any R3 submit, consume the exact unwritten R4 owner.
+    assert(producer.cancelUnwrittenDelivery(lifecycle, prepared));
+    assert(!prepared.valid());
     assert(cycle.captureFrame(0) == WindowsCaptureCycleResult::closed);
 }
 
 void windowsCaptureR4MonitorReplacementDenials()
 {
+    GfxPresentationLifecycle lifecycle;
+    X264Avc420SegmentedFrameProducer producer;
+    openR4(lifecycle, producer);
+
     // A fresh DXGI owner uses a different nonzero device epoch even if monitor
     // geometry happens to be identical. The old cycle must not invoke R4.
     FakeR4NativeFrame replacementNative{};
@@ -294,21 +382,53 @@ void windowsCaptureR4MonitorReplacementDenials()
         replacementNative.stagingCallbacks(), {},
         replacementGeneration.callbacks(), {101, 202});
     replacementNative.cycle = &replaced;
+    GfxAvc420SegmentedFrame stale;
     R4BgraSink replacementSink{
-        &replacementNative, &replacementGeneration, &replaced};
+        &replacementNative, &replacementGeneration, &replaced,
+        &lifecycle, &producer, &stale};
     assert(replaced.captureFrame(0) == WindowsCaptureCycleResult::mapped);
     ++replacementGeneration.device;
     assert(replaced.consumeR4Frame(replacementSink.callbacks()) ==
            WindowsCaptureConsumeResult::closed);
     assert(replacementSink.calls == 0U && replaced.closed());
+    assert(!stale.valid());
     assert(replacementNative.orderCount == 4U);
     assert(replacementNative.order[0] == 'A' &&
            replacementNative.order[1] == 'S' &&
            replacementNative.order[2] == 'U' &&
            replacementNative.order[3] == 'R');
 
+    // The composition owner—not R6—advances R4's scalar ingress epoch when
+    // the richer native capture identity is replaced. Rebind only after the
+    // old native cycle is terminal; this offline fixture grants no admission.
+    constexpr std::uint64_t replacementCaptureEpoch = kCaptureEpoch + 1U;
+    assert(producer.openBgraCapture(
+        kPresentationGeneration, replacementCaptureEpoch, kCoded, kVisible));
+
+    FakeR4NativeFrame freshNative{};
+    WindowsDxgiCaptureCycle fresh(
+        r4Layout(), freshNative.frameCallbacks(), freshNative.stagingCallbacks(),
+        {}, replacementGeneration.callbacks(), {101, 203});
+    freshNative.cycle = &fresh;
+    GfxAvc420SegmentedFrame freshPrepared;
+    R4BgraSink freshSink{
+        &freshNative, &replacementGeneration, &fresh,
+        &lifecycle, &producer, &freshPrepared};
+    freshSink.captureEpoch = replacementCaptureEpoch;
+    freshSink.frameId = 102;
+    assert(fresh.captureFrame(0) == WindowsCaptureCycleResult::mapped);
+    assert(fresh.consumeR4Frame(freshSink.callbacks()) ==
+           WindowsCaptureConsumeResult::consumed);
+    assert(freshPrepared.valid());
+    freshNative.assertReleasedAfterConsumer();
+    assert(producer.cancelUnwrittenDelivery(lifecycle, freshPrepared));
+
     // A resize observed during the synchronous R4 borrow is terminal for the
-    // old capture cycle and still releases map then DXGI lease after return.
+    // old capture cycle. Its already-prepared output is canceled before any
+    // hypothetical R3 submission and native map/frame retirement stays ordered.
+    GfxPresentationLifecycle resizeLifecycle;
+    X264Avc420SegmentedFrameProducer resizeProducer;
+    openR4(resizeLifecycle, resizeProducer, kCaptureEpoch + 2U);
     FakeR4NativeFrame resizedNative{};
     FakeR4Generation resizedGeneration{};
     WindowsDxgiCaptureCycle resized(
@@ -316,11 +436,19 @@ void windowsCaptureR4MonitorReplacementDenials()
         resizedNative.stagingCallbacks(), {},
         resizedGeneration.callbacks(), {101, 202});
     resizedNative.cycle = &resized;
-    R4BgraSink resizedSink{&resizedNative, &resizedGeneration, &resized};
+    GfxAvc420SegmentedFrame resizedPrepared;
+    R4BgraSink resizedSink{
+        &resizedNative, &resizedGeneration, &resized,
+        &resizeLifecycle, &resizeProducer, &resizedPrepared};
+    resizedSink.captureEpoch = kCaptureEpoch + 2U;
     resizedSink.resizeDuringConsume = true;
     assert(resized.captureFrame(0) == WindowsCaptureCycleResult::mapped);
     assert(resized.consumeR4Frame(resizedSink.callbacks()) ==
            WindowsCaptureConsumeResult::closed);
     assert(resizedSink.calls == 1U && resized.closed());
+    assert(resizedPrepared.valid());
     resizedNative.assertReleasedAfterConsumer();
+    assert(resizeProducer.cancelUnwrittenDelivery(
+        resizeLifecycle, resizedPrepared));
+    assert(!resizedPrepared.valid());
 }

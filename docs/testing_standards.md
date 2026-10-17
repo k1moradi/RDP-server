@@ -1,3 +1,27 @@
+## R6/R4 production-ingress convergence (2026-10-17)
+
+The three existing `windows.capture-r4-*` CTests now execute R4's production
+`X264Avc420SegmentedFrameProducer::openBgraCapture()/prepareBgra()` interface,
+not only its converter primitive. The R4 lifecycle is configured solely inside
+the offline test process to make codec/ownership state executable; it is not a
+production Share/DVC admission seam and must never be used to authorize live
+DXGI access.
+
+The layout case prepares real x264/RDPGFX owned output while the injected D3D11
+mapping is live, then observes R6 unmap -> DXGI release and retires the
+unsubmitted R4 output with exact unwritten cancellation. The session-revocation
+case changes the R6 session generation after synchronous R4 preparation,
+requires the outer R6 result to be terminal, and cancels the now-stale prepared
+R4 owner before any submit. The replacement case proves a same-geometry device
+epoch replacement suppresses the old callback, requires an independently
+advanced R4-local capture epoch for the fresh native owner, and exercises the
+same cancellation rule when a resize retires the native cycle from inside the
+callback.
+
+These tests do not invent R2 authorization, R3 licensing/Share activation,
+DRDYNVC/Graphics-DVC ownership, network receipts, WTS delivery or
+`SendInput`. The anchored R6 registry remains exactly **58** cases.
+
 ## R4 native BGRA ingress compatibility gate (2026-10-17)
 
 R4 keeps `FramebufferView` as the shared borrowed pixel representation.

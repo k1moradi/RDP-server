@@ -1,3 +1,22 @@
+## R2 Graphics DVC authority and late-receipt denial (2026-10-17)
+
+`runtime.linux-connection-personal-desktop-graphics-dvc-authority-denials`
+is the production-backed R2 denial for the new post-Share Graphics broker seam.
+The fixture stages only R3's `ShareActivated` phase/generation bookkeeping and
+binds the non-authorizing PersonalDesktop policy pointer. It creates neither a
+Graphics DVC allocation nor an R2 admission lease. A positive accepted-byte
+count submitted with no current lease must return `Rejected`, close R3, reject
+GSS, revoke the broker and clear policy identity before any R3 DVC receipt can
+run. This specifically models a late R1 write completion after logout,
+disconnect, monitor revocation or equivalent authority loss.
+
+The direct Linux runtime-security ASan/UBSan selection advances **21→22** and
+requires this case by exact name. Positive Graphics CREATE/CAPS mechanics remain
+in R3's separate six-case sanitizer gate; neither those tests nor this denial
+fixture substitutes for a genuine Kerberos/PAM/NSS/logind physical-session
+lease. Real Microsoft-client positive validation remains **NOT RUN** without
+explicit owner authorization.
+
 ## R10 client-licensing runtime intake stays denial-only without real admission (2026-10-17)
 
 The ordinary runtime CTest for PersonalDesktop client licensing exercises the

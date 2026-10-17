@@ -1,3 +1,22 @@
+## R2 post-Share Graphics DVC transitions are policy-bound (2026-10-17)
+
+R3 owns the Graphics DVC protocol lifecycle. R2 does not duplicate that state or
+create a second channel authority. Once R3 reaches `ShareActivated`, R10 may
+access the existing private Graphics begin, pending-write, write-receipt and
+client-TPKT transitions only through R2's PersonalDesktop broker wrappers.
+Each wrapper first rechecks the exact immutable deployment-policy object and the
+same protected transition used by licensing/Share: current R1 HYBRID TLS owner,
+TLS-bound GSS principal, active lease/control and identity-policy generation,
+fresh NSS/logind session evidence, and exact R3 admission/session generations.
+
+The accepted-byte receipt uses the nullable current lease because R1 plaintext
+may have progressed before logout, disconnect, policy replacement or native
+session revocation becomes visible. A missing/stale lease closes R3 and revokes
+GSS before the byte count can reach the Graphics DVC owner. Pending writes and
+client TPKTs must be reauthorized independently; a prior application-ready
+Boolean or DVC generation is freshness evidence only and cannot authorize a
+later operation.
+
 ## R10 post-admission TLS intake is exact-frame and authority-bound (2026-10-17)
 
 For a post-admission RDP packet consumed from the connection SSL owner, retain

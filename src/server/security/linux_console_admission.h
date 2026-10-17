@@ -604,6 +604,57 @@ public:
             &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Graphics DVC control remains owned by R3 after Share activation. R2
+    // freshly reauthorizes the exact PersonalDesktop policy, R1 TLS/GSS owner,
+    // lease/native session and generation pair before every begin, slice,
+    // accepted-byte receipt and client TPKT intake. These methods grant no
+    // graphics authority outside the single synchronous transition.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpGraphicsDvcWriteView>
+    authorizeR3PersonalDesktopGraphicsDynamicVirtualChannel(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpGraphicsDvcWriteView>
+    authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsDvcWriteOutcome
+    completeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsDvcClientIntake
+    authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Query immediately before post-Share application routing. A true result
     // is ephemeral: the next protected operation must reauthorize again.
     [[nodiscard]] bool authorizeR3PersonalDesktopApplicationTraffic(

@@ -1465,6 +1465,129 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivationPdu(
     return intake;
 }
 
+std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualChannel(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy) noexcept
+{
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending =
+        session.beginVerifiedR2GraphicsDynamicVirtualChannel(*provenance);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy) noexcept
+{
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return std::nullopt;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending =
+        session.pendingVerifiedR2GraphicsDynamicVirtualChannelWrite(
+            *provenance);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+rdp_server::server::transport::RdpGraphicsDvcWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using Outcome = rdp_server::server::transport::RdpGraphicsDvcWriteOutcome;
+
+    if (lease == nullptr ||
+        !authorizeR3PersonalDesktopTransition(
+            *lease, acceptor, connection, session, deploymentPolicy))
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+
+    const auto outcome =
+        session.completeVerifiedR2GraphicsDynamicVirtualChannelWrite(
+            *provenance, replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return outcome;
+}
+
+rdp_server::server::transport::RdpGraphicsDvcClientIntake
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using Intake = rdp_server::server::transport::RdpGraphicsDvcClientIntake;
+
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return Intake::Rejected;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Intake::Rejected;
+    }
+
+    const auto intake =
+        session.acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
+            *provenance, completeTpkt);
+    if (intake == Intake::Rejected || intake == Intake::Closed)
+        revokeR3Session(acceptor, session);
+    return intake;
+}
+
 bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopApplicationTraffic(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,

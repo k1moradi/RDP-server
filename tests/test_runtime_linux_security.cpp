@@ -49,6 +49,16 @@ public:
         session.phase_ = McsSessionPhase::AwaitServerLicenseRequest;
     }
 
+    static void stageShareActivated(
+        McsSessionLifecycle &session,
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept
+    {
+        session.admissionGeneration_ = admissionGeneration;
+        session.sessionGeneration_ = sessionGeneration;
+        session.phase_ = McsSessionPhase::ShareActivated;
+    }
+
     [[nodiscard]] static bool selectPersonalDesktop(
         McsSessionLifecycle &session) noexcept
     {
@@ -119,6 +129,7 @@ using rdp_server::server::transport::
     RdpPersonalDesktopValidClientWriteOutcome;
 using rdp_server::server::transport::RdpShareActivationClientIntake;
 using rdp_server::server::transport::RdpShareActivationWriteOutcome;
+using rdp_server::server::transport::RdpGraphicsDvcWriteOutcome;
 using rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome;
 using rdp_server::server::transport::OwnedNativeTcpSocket;
 using rdp_server::server::transport::TcpAcceptOutcome;
@@ -1723,6 +1734,53 @@ void testConnectionPersonalDesktopClientLicensingR1IntakeDenials(
     }
 }
 
+void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-graphics-dvc-authority.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+
+    LinuxConsoleAdmissionBroker broker(*configuration.policy());
+    LinuxConsoleAdmissionBrokerTestAccess::bindPersonalDesktopPolicy(
+        broker, personalPolicy);
+
+    GssapiSpnegoAcceptor acceptor;
+    assert(configuration.configureAcceptor(acceptor));
+
+    McsSessionLifecycle session;
+    McsSessionLifecycleTestAccess::stageShareActivated(
+        session, 91U, 123U);
+    assert(session.phase() == McsSessionPhase::ShareActivated);
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    rdp_server::server::transport::OwnedPreauthTcpConnection r1Connection{
+        std::move(accepted)};
+
+    // R1 may already have accepted a positive plaintext slice when logout,
+    // disconnect or policy/native authority loss becomes visible. A missing
+    // live lease must close R3 before that late receipt can advance the DVC.
+    // This fixture stages only R3 phase bookkeeping; it does not create a DVC
+    // allocation or fabricate an R2 admission capability.
+    assert(broker.completeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
+               nullptr, acceptor, r1Connection, session, personalPolicy,
+               1U, 1U, 13U) == RdpGraphicsDvcWriteOutcome::Rejected);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(!LinuxConsoleAdmissionBrokerTestAccess::personalDesktopPolicyMatches(
+        broker, personalPolicy));
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopR3AuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2082,6 +2140,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-client-licensing-r1-intake-denials")
     {
         testConnectionPersonalDesktopClientLicensingR1IntakeDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-desktop-graphics-dvc-authority-denials")
+    {
+        testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
             fixtureDirectory);
         return 0;
     }

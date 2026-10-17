@@ -1,3 +1,29 @@
+## R2 post-Share Graphics DVC broker seam (2026-10-17)
+
+**Reconciled shared-main parent:** `1af721cf5ece5204a1815e50b73d33ba373d91da`.
+R10 client licensing intake at `e486dca4` correctly consumes R2's policy-bound
+licensing seam. R3's Graphics CREATE/CAPS owner is now hosted-CI verified, so
+the previous roadmap blocker is resolved far enough for R2 to publish the
+missing authority boundary.
+
+R2 adds exactly four PersonalDesktop broker methods around R3's existing private
+Graphics lifecycle: begin, pending server write, accepted-byte completion and
+client TPKT intake. All use `authorizeR3PersonalDesktopTransition()` before
+obtaining the exact R1 security provenance; R2 then calls only R3's existing
+`begin/pending/complete/acceptVerifiedR2GraphicsDynamicVirtualChannel*`
+methods. No DVC parser, allocator, TLS writer, queue or second state machine is
+added. Rejected/closed R3 results are terminal through the existing ordered
+R3→R2/GSS teardown.
+
+Dedicated CTest:
+`runtime.linux-connection-personal-desktop-graphics-dvc-authority-denials`.
+It stages only post-Share R3 bookkeeping and proves a positive late write receipt
+with no live lease closes the session before DVC progress. No positive lease is
+fabricated. The direct Linux runtime-security sanitizer selector advances
+**21→22** and requires the new sentinel. Canonical owner-local and genuine host
+positive tests are **NOT RUN** here; exact publication-SHA hosted CI is pending
+at authoring.
+
 ## R10 bounded PersonalDesktop client licensing R1-owned intake (2026-10-17)
 
 **Reconciled shared-main parent:** `72fd9ebafa3f297802b327e72d65db814c1a6ead`.

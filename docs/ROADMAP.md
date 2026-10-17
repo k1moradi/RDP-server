@@ -1,3 +1,24 @@
+## R2 delegated-account binding hosted validation receipt (2026-10-16)
+
+Implementation SHA `a4315bf38144ff390ae5ef12170d645c5458bb0b`,
+Actions run `39005097892`: **SUCCESS**. Linux/GCC, macOS/AppleClang and
+Windows/MSVC each passed Debug and Release build/test, SDK downstream consumer,
+packaging and digest verification. Documentation policy passed.
+
+The R9 Clang ASan/UBSan job compiled the production-linked R2 targets and
+successfully executed both the portable delegated-account selector (including
+extraction, domain ambiguity, sensitive retirement and candidate policy binding)
+and the native GSS selector containing
+`security.gssapi-credssp-delegated-account-origin-denials`. The existing PAM
+denial-only sanitizer step also passed. This evidence does **not** convert PAM
+denial coverage into positive authentication authority.
+
+Canonical owner-local `~/rdp-server/build/`, opt-in positive Kerberos/PAM,
+NSS/logind foreground-owner admission and authenticated Microsoft-client
+acceptance remain **NOT RUN / BLOCKED**. The private final-credential latch
+remains false, no native admission lease is issued, and R3 remains unopened by
+this increment.
+
 ## Cross-platform owner-command checkout-path correction (2026-10-16; owner re-test pending)
 
 The owner's first macOS execution of the mandated one-line command at

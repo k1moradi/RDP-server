@@ -1,3 +1,29 @@
+## R2 delegated-account binding exact-SHA validation (2026-10-16)
+
+Validated implementation SHA
+`a4315bf38144ff390ae5ef12170d645c5458bb0b`, Actions
+`39005097892`: **SUCCESS**.
+
+Hosted Linux/GCC, macOS/AppleClang and Windows/MSVC each completed Debug and
+Release configure/build/CTest successfully, then passed installed-SDK downstream
+consumer verification, package creation and reproducible digest generation.
+Documentation policy passed.
+
+R9 Clang ASan/UBSan compiled the production-linked security targets. The new
+portable delegated-account selection passed its exact registry preflights and
+execution without the MIT-krb5 LSan suppression; the native R2/R3 GSS selection
+also passed with
+`security.gssapi-credssp-delegated-account-origin-denials` present. The
+separate existing `security.linux-pam-password-verifier-denials` sanitizer
+step passed as well.
+
+This validates syntax extraction, exact candidate policy mapping, original
+authenticated-origin denial fences and sensitive retirement. It does not prove
+positive PAM, NSS/logind native admission, final CredSSP completion, R3 Share
+activation or Microsoft-client acceptance. Owner-local
+`~/rdp-server/build/` and all opt-in positive-provider/owner-platform gates
+remain **NOT RUN / BLOCKED**.
+
 ## Cross-platform local checkout-path portability authoring (2026-10-16)
 
 **Reported failing SHA:** `bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`.

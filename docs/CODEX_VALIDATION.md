@@ -1,3 +1,83 @@
+## R1 hosted convergence after bounded handshake and native-accept hardening (2026-10-17)
+
+**Handshake implementation:** \`31abf200efa83bf4fc7badf3b35f30b8ff2db127\`.  
+**Cross-road matrix recovery:** \`04d4e7c559012fa4e3636ac7f778d32445d3bc4d\`,
+Actions \`39008344089\`.  
+**macOS accept-fixture hardening:** \`d8e731ca488f1f8d545348b19a97756be660db46\`,
+Actions \`39008487916\`.  
+**Workflow/CAL-selector validating descendant:** \`6c20df0d79ee20d8093e4be9e8abe0bcded4c070\`,
+Actions \`39008819773\`.
+
+R1's production transport remains unchanged across this chain. The common
+real-loopback TLS handshake fixture and HYBRID path use bounded monotonic
+readiness instead of scheduler sleep/yield, and the native accept regressions
+now wait only at the external test-fixture boundary for Darwin's accept-queue
+visibility. Production \`acceptNonblockingTcpConnection\`,
+\`acceptNonblockingTcpBatch\`, socket/BIO/SSL ownership and the 18 KiB
+application-I/O ceiling remain one-step and unchanged.
+
+The cross-road recovery at \`04d4e7c5...\` removed the GCC
+\`range-loop-construct\` blocker in the R10 authority test and explicitly built
+\`test_runtime_licensing_authority\` in R9. Linux/GCC then reached the R1
+suite directly: HYBRID NLA (#158), application I/O (#162), partial write
+(#163), R3 License Request slice (#165) and terminal readiness (#171) all
+passed. All six \`runtime.licensing-authority-*\` cases also executed and
+passed. The Linux job's only full-suite failure was the unrelated R3
+\`transport.licensing-client-cal-issuer-signature-denials\` case (#67).
+
+The exact macOS-accept publication \`d8e731ca...\` validates the five corrected
+native accept fixtures in every hosted ordinary configuration reached:
+
+- macOS/AppleClang: **475/475 PASS Debug** and **475/475 PASS Release**.
+  \`tcp-native-accept-ownership\` (#140), move replacement (#142), batch
+  budget/handoff (#144), batch stop/denials (#145), and listener role/mode
+  denials (#146) all pass in both configurations. The bounded handshake-backed
+  R1 cases #158/#163/#165/#171 also pass.
+- Windows/MSVC: native preflight **51/51 PASS Debug + Release** and full CTest
+  **505/505 PASS Debug + Release**. The same five native accept fixtures and
+  handshake-backed R1 cases pass in both configurations.
+- Linux/GCC executes **557** registered cases and the same five native accept
+  fixtures plus the handshake-backed R1 cases all pass. The suite is
+  **556/557** solely because R3 CAL issuer-signature denial #67 aborts.
+- R9's bounded R1/R3 selection is **91/91 PASS**, including native batch
+  accept #144 as item 62/91, HYBRID #158 as 64/91, partial write #163 as
+  68/91, License Request slice #165 as 70/91 and terminal readiness #171 as
+  76/91. The authority group is **6/6 PASS**.
+
+R1's CAL-selector correction \`035e2e8a...\` had no workflow run because its
+R9-fuzzer parent malformed the workflow YAML. R9 repaired that structure in
+\`6c20df0d...\` while preserving the corrected flat
+\`^transport\\.licensing-client-cal-\` selector. On Actions \`39008819773\`
+the selector now enumerates and executes all six CAL tests instead of
+reporting zero tests. Five pass under ASan/UBSan; the same R3
+issuer-signature-denials case aborts. The R1/R3 selection remains **91/91
+PASS**, the authority group remains **6/6 PASS**, and the new CredSSP fuzzer
+executes **1/1 PASS**. macOS remains **475/475 Debug + Release** and Windows
+remains **505/505 Debug + Release**.
+
+The later shared-main R8 native multi-file publication currently introduces an
+unrelated clipboard-link failure on macOS/R9; it does not change R1 transport
+source or invalidate the validated R1 descendant above. Project-wide CI should
+therefore remain reported red where those R3/R8 failures occur; this receipt
+claims only the directly executed R1 evidence.
+
+Canonical owner-local \`~/rdp-server/build/\`, owner Linux/X11, Windows MSYS2
+CLANG64/Clang 23, and owner macOS 27 remain **NOT RUN** in this connector
+environment. The owner's previously reported macOS accept failures did not
+include a trustworthy exact SHA, so hosted convergence does not substitute for
+that requested owner rerun.
+
+The new R10 \`RuntimeLicensingAuthority\` still exposes no supported production
+issuer; positive providers remain test-only. R2 still does not complete live
+PAM/native admission or mint fresh positive reauthorization. Therefore R1
+must not create a synthetic grant-through-TLS success path.
+
+**Next R1:** retain the dependency gate. Once R10 has a genuine supported CAL
+issuer and R2 exposes fresh positive authorization for every R3 grant slice and
+accepted-byte completion, verify final grant publication through the sole
+R1-owned TLS application writer. Otherwise wait for a concrete Share-activation
+boundary that demonstrates a bounded transport mismatch.
+
 ## R8 Windows render-helper compile repair (2026-10-17; exact-SHA CI pending)
 
 Actions `39008936302` for

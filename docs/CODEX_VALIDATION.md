@@ -1,3 +1,50 @@
+## R9 concurrent Graphics-DVC sanitizer inventory reconciliation (2026-10-17)
+
+**Reconciled shared-main parent:** `49dae580e61a87779b2d89427aa91ecee73523b1`.
+While R9's exact-head selector correction `c72d9379e6c120da175f1d37ca709de47fdd6929`
+was completing its hosted matrix, four descendant commits landed. Audit in order
+found two genuine inventory changes relevant to R9: R3 registered
+`transport.dvc-graphics-caps-selection` and
+`transport.dvc-graphics-caps-unsupported-denial`, and R2 later registered
+`runtime.linux-connection-personal-desktop-policy-receipt-denials`. R4 also
+registered `graphics.segmented-data-u32-boundary-denial` and already added it
+to the portable R4 sanitizer selector.
+
+The R2 descendant correctly advanced the direct runtime-security selector
+**19→20**, preserved
+`runtime.linux-connection-personal-license-request-r1-write-denials`, added
+the policy/late-receipt sentinel, and updated the structure validator. The R4
+descendant correctly advanced the portable R4 inventory **41→42** and requires
+its new segmented-data sentinel. R5 remains **38**, R6 **59**, R7's
+authority-loss input sanitizer selector remains **2**, R8 clipboard remains
+**81**, and R4 ClearCodec remains **4**.
+
+One concrete R9 omission remained: the isolated R3 Graphics-DVC sanitizer gate
+still selected only the original four CREATE/control cases, so both registered
+CAPS cases could regress without entering that failure-isolated ASan/UBSan
+selection. This correction expands only that selector to **6**, adds exact
+sentinels for both CAPS cases, and makes the structure validator require the
+six-case cardinality plus the grouped CAPS selector fragment. No production
+source or CTest registration changes.
+
+R9 correction `c72d9379e6c120da175f1d37ca709de47fdd6929` independently completed
+structure Actions `39053929108` **PASS** and primary Actions
+`39053929140` **PASS**: direct runtime security was **19/19 PASS** on that
+exact SHA, R3 Graphics DVC was then **4/4 PASS**, R4 ClearCodec **4/4 PASS**,
+R5 X11 **38/38 PASS**, R8 clipboard **81/81 PASS**, Ubuntu ordinary tests
+**639/639 Debug + 639/639 Release**, Windows ordinary tests **578/578 Debug +
+578/578 Release** with **59/59** R6 preflights, and macOS ordinary tests
+**541/541 Debug + 541/541 Release** with the **21-case** focused R7 selection.
+The dedicated CLANG64 lane and R7 sanitizer lanes also completed successfully.
+Those receipts are hosted CI evidence only, not owner-native M1 receipts.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** here. Exact
+publication-SHA hosted CI for this six-case selector correction is **PENDING**
+at authoring. M1 same-SHA owner receipts remain separate from the M2 live-client
+ledger. The next positive production boundary remains owner-authorized genuine
+R2 Linux Kerberos/PAM/NSS/logind physical-X11 admission before PersonalDesktop
+licensing/Share traffic.
+
 ## R2 policy-bound PersonalDesktop licensing broker seam (2026-10-17)
 
 **Reconciled shared-main parent:** `441ace318168c926871c7087918b0f9481d98544`.

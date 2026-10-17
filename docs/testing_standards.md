@@ -3527,11 +3527,19 @@ environment variables or logs. Ordinary CI must report this positive path
 
 ## R3 Graphics DVC control sanitizer gate (2026-10-17)
 
-The four production-backed `transport.dvc-graphics-*` behaviors are an exact
-ASan/UBSan registry gate: **4** tests, covering successful control mechanics,
-malformed/wrong-ID/duplicate CREATE response denials, generation/cancellation
-retirement and pre-Share denial. Offline CREATE success is protocol-mechanics
-evidence only. It must never be treated as R2 admission, Share authority,
+The production-backed `transport.dvc-graphics-*` CREATE/CAPS behaviors are an
+exact ASan/UBSan registry gate: **6** tests. The original four cover successful
+CREATE control mechanics, malformed/wrong-ID/duplicate CREATE response denials,
+generation/cancellation retirement and pre-Share denial. The two additional
+registrations,
+`transport.dvc-graphics-caps-selection` and
+`transport.dvc-graphics-caps-unsupported-denial`, must be selected by name and
+exercise the production CAPS_ADVERTISE/CAPS_CONFIRM path under sanitizers.
+Require the grouped selector fragment `caps-(selection|unsupported-denial)`
+in the workflow structure guard so a new registration cannot be present while
+silently omitted from the isolated sanitizer gate. Offline CREATE/CAPS success
+is protocol-mechanics evidence only. It must never be treated as R2 admission,
+Share authority,
 visible desktop authorization or a live Graphics endpoint; live use remains
 behind freshly reauthorized R2/R10 wrappers and the exact R1 owner.
 

@@ -1,3 +1,63 @@
+## R6 P1 Windows CLANG64/Clang 23 hosted lifetime evidence (2026-10-17)
+
+**Validated SHA:** `04a272c8b9b52f59a24401643a46d495978d1f95`.  
+**Primary workflow:** Actions `39010848190` — **SUCCESS**.  
+**Standalone structure guard:** Actions `39010848289` — **SUCCESS**.
+
+The hosted R6 Windows compiler-parity job completed the complete requested
+CLANG64 path on Windows Server 2025. The verified toolchain is Clang
+**23.1.3-1** targeting `x86_64-w64-windows-gnu`, MinGW-w64 headers and CRT
+**14.0.0.r426.g4564ee4b5-1**, libc++ **23.1.3-1**, CMake **4.4.4-3**,
+Ninja **1.13.2** and OpenSSL **3.6.5-1**. This CLANG64 build uses the
+MinGW-w64 Windows headers/import libraries rather than a Microsoft Windows SDK;
+there is therefore no Microsoft Windows SDK version to report for this job.
+
+Using the one checkout-local `build/` root, the focused R6 native selector
+`^windows\.(geometry|capture|cursor|input)-` is **55/55 PASS in Debug** and
+**55/55 PASS in Release**. The ordinary full Windows CLANG64 CTest is
+**520/520 PASS in Debug** and **520/520 PASS in Release**.
+
+The focused passes include all four whole-owner retirement cases:
+`windows.capture-session-change-duplication-owner-retirement`,
+`windows.capture-session-change-duplication-release-order`,
+`windows.capture-session-change-duplication-callback-retirement`, and
+`windows.capture-session-change-duplication-prior-revocation`. Their existing
+production-backed assertions retain exact-once child unmap/frame release,
+child-before-parent retirement, parent COM release ordering, callback-time
+logical revocation with safe-point physical teardown, terminal reopen denial,
+and held-input retirement with no post-revocation native send.
+
+No Clang 23 or MinGW-w64 source/SDK incompatibility remains in the exercised
+R6 Windows adapter. The only failures encountered while establishing this gate
+were CI-validation defects: a cache-type-specific compiler assertion, inherited
+duplicate/corrupted workflow mappings, PowerShell parsed as Bash, and a
+negative-fixture diagnostic mismatch. Those were corrected without changing R6
+production lifetime code or weakening its tests.
+
+This is **hosted compiler/SDK parity evidence, not owner-native M1 evidence**.
+The agent environment still has no canonical Windows owner checkout or MSYS2
+owner machine, so R10's required owner row—exact candidate SHA, native MSYS2
+CLANG64/Clang 23, canonical `~/rdp-server/build/`, and full Debug CTest—remains
+**NOT RUN / OPEN**. Because shared `main` advanced after `04a272c8...`,
+that SHA is not automatically the next owner candidate; R10 must name a current
+same-SHA candidate after its hosted workflow is green.
+
+For future authorized Windows composition, R10 must provide the sole
+serialized delivery of native session-change notifications to the existing R6
+owner and keep that owner alive through callback-safe-point teardown. WTS
+observation remains revocation-only and cannot grant admission; fresh desktop
+construction requires a non-forgeable R2 admission/reauthorization capability.
+
+R3 must provide the authenticated, bounded, already-decoded keyboard/pointer
+route only while the matching R2 lease and R6 session/device generation remain
+current, deliver events to the existing `WindowsInputController`, and retire
+that route before or with native session revocation. Protocol parsing or caller
+booleans must never synthesize Windows authorization.
+
+**M1 remains OPEN** pending R10's exact-same-SHA owner matrix convergence.
+**M4 remains OPEN / NOT ACCEPTED**: no real R2-admitted Windows user desktop or
+Microsoft-client graphics/input acceptance was exercised.
+
 ## R5 P1 native-X11 registry cardinality authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `03f7675cfedd2691ff2e446d8b960170bd7625a4`. Exact publication-SHA CI is

@@ -204,6 +204,7 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-security-negotiation-provenance
                 tcp-owned-hybrid-nla-negotiation
                 tcp-owned-hybrid-credssp-first-record
+                tcp-owned-buffered-tls-credssp-mcs-readiness
                 tcp-owned-hybrid-no-premature-mcs
                 tcp-owned-hybrid-provenance-revocation
                 tcp-owned-tls-application-io

@@ -937,6 +937,24 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::writeTlsApplicationData(
         result, bytes, TlsApplicationOperation::Write, source.size());
 }
 
+bool OwnedPreauthTcpConnection::tlsApplicationReadReady() const noexcept
+{
+    if (!establishedApplicationTls() ||
+        pendingApplicationOperation_ == TlsApplicationOperation::Write)
+        return false;
+
+    // A read that last returned WANT_WRITE must preserve that exact retry
+    // direction even if unrelated application plaintext is also buffered.
+    if (pendingApplicationOperation_ == TlsApplicationOperation::Read &&
+        pendingApplicationInterest_ != TcpConnectionIoInterest::Read)
+        return false;
+
+    // SSL_pending reports only already-decrypted application bytes. It does
+    // not read the BIO/socket, mutate caller buffers or manufacture protocol
+    // authority, so the sole SSL owner remains unchanged.
+    return SSL_pending(serverTls_.get()) > 0;
+}
+
 OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
     OwnedNativeTcpSocket acceptedSocket,
     SecurityNegotiationPolicy negotiationPolicy) noexcept

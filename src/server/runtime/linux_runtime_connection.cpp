@@ -132,7 +132,11 @@ LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
         return {0, 0, Step::Progress};
     }
 
-    if (required == Interest::Read && !readable)
+    const bool bufferedTlsApplicationRead =
+        required == Interest::Read &&
+        connection_.tlsApplicationReadReady();
+    if (required == Interest::Read && !readable &&
+        !bufferedTlsApplicationRead)
     {
         return {0, 0, Step::NeedRead};
     }

@@ -4960,12 +4960,51 @@ void testOwnedTlsApplicationCancellation()
         assert(owner.cancelIfExpired(deadline, deadline));
         assert(!owner.active());
         assert(owner.ioInterest() == Interest::Closed);
+        assert(!owner.tlsApplicationReadReady());
         assert(owner.readTlsApplicationData(buffer).outcome ==
                Outcome::TransportClosed);
         assert(owner.writeTlsApplicationData(buffer).outcome ==
                Outcome::TransportClosed);
         assert(owner.onSocketReady(true, true) == Interest::Closed);
         owner.cancel();
+        owner.cancel();
+    }
+
+    // Revoke with a bounded application-write suffix still owned by the
+    // existing CredSSP writer. R1 must retire SSL/BIO/socket state before
+    // any late writer or readiness callback can touch the old connection.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        assert(SSL_set_max_send_fragment(tls.server.get(), 1024) == 1);
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        std::vector<std::uint8_t> token(8192, 0x4a);
+        TsRequestTlsReplyWriter writer;
+        assert(writer.queueReply(
+            owner, 6, CredSspServerReplyField::NegoToken, token));
+        const auto firstWrite = writer.writeOneTlsStep(owner);
+        assert(firstWrite.status == TsRequestTlsWriteStatus::Progress);
+        assert(firstWrite.plaintextBytesWritten > 0);
+        assert(firstWrite.plaintextBytesWritten <= 1024U);
+        assert(writer.bytesRemaining() > 0);
+
+        owner.cancel();
+        assert(!owner.active());
+        assert(owner.ioInterest() == Interest::Closed);
+        assert(!owner.tlsApplicationReadReady());
+        assert(owner.onSocketReady(true, true) == Interest::Closed);
+
+        const auto lateWrite = writer.writeOneTlsStep(owner);
+        assert(lateWrite.status == TsRequestTlsWriteStatus::Closed);
+        assert(lateWrite.plaintextBytesWritten == 0);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
         owner.cancel();
     }
 
@@ -6409,6 +6448,103 @@ void testOwnedHybridCredSspFirstRecord()
     owner.cancel();
     assert(owner.stage() == PreauthStage::Closed);
     assert(!owner.securityNegotiationProvenance().has_value());
+}
+
+void testOwnedBufferedTlsCredSspThenMcsReadiness()
+{
+    using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    assert(SSL_set_max_proto_version(
+               tls.server.get(), TLS1_2_VERSION) == 1);
+    assert(SSL_set_max_proto_version(
+               tls.client.get(), TLS1_2_VERSION) == 1);
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, tlsAndHybridRequestWire(),
+        SecurityNegotiationPolicy::HybridNla);
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+
+    TsRequestFrameReader reader;
+    assert(reader.readOneTlsStep(owner).status ==
+           TsRequestTlsReadStatus::NeedRead);
+
+    const auto firstMcs = validMcsPacket();
+    std::vector<std::uint8_t> coalesced;
+    coalesced.reserve(kTestCredSspDer.size() + firstMcs.size());
+    coalesced.insert(
+        coalesced.end(), kTestCredSspDer.begin(), kTestCredSspDer.end());
+    coalesced.insert(coalesced.end(), firstMcs.begin(), firstMcs.end());
+
+    // One logical TLS application write contains the complete CredSSP DER
+    // followed by the first MCS TPKT. Retry the same buffer/length after a
+    // WANT result; do not split this test record in fixture code.
+    const auto writeDeadline = Clock::now() + std::chrono::seconds{5};
+    bool recordWritten = false;
+    for (int attempt = 0; attempt < 256 && !recordWritten; ++attempt)
+    {
+        std::size_t bytes = 0;
+        const int result = SSL_write_ex(
+            tls.client.get(), coalesced.data(), coalesced.size(), &bytes);
+        if (result == 1)
+        {
+            assert(bytes == coalesced.size());
+            recordWritten = true;
+            break;
+        }
+
+        assert(bytes == 0);
+        const int error = SSL_get_error(tls.client.get(), result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        assert(waitForLocalSocketReady(
+            pair.client.value,
+            error == SSL_ERROR_WANT_READ,
+            error == SSL_ERROR_WANT_WRITE,
+            writeDeadline));
+    }
+    assert(recordWritten);
+
+    assert(drainCredSspFromOwnedTls(
+               reader, owner, TsRequestTlsReadStatus::Complete) ==
+           kTestCredSspDer.size());
+    assert(reader.completeDer().size() == kTestCredSspDer.size());
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    assert(owner.ioInterest() == Interest::Read);
+
+    // The DER framer stopped at its exact boundary. OpenSSL has already
+    // decrypted the following MCS plaintext from the same TLS record, while
+    // the native socket itself has no new readability to report.
+    assert(owner.tlsApplicationReadReady());
+    const auto nativeOnly = owner.pollSocketOnce(
+        Clock::now() + std::chrono::seconds{1},
+        std::chrono::milliseconds{0});
+    assert(nativeOnly.outcome == PollOutcome::NoEvent);
+    assert(nativeOnly.nextInterest == Interest::Read);
+    assert(owner.tlsApplicationReadReady());
+
+    // Framing success is not admission. Leave the MCS suffix unread and
+    // prove teardown makes the buffered-read fact and late callbacks inert.
+    assert(reader.releaseFrame());
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    owner.cancel();
+    assert(!owner.active());
+    assert(!owner.tlsApplicationReadReady());
+    assert(owner.ioInterest() == Interest::Closed);
+    assert(owner.onSocketReady(true, true) == Interest::Closed);
+    assert(reader.readOneTlsStep(owner).status ==
+           TsRequestTlsReadStatus::Closed);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
 }
 
 void testOwnedHybridNoPrematureMcs()
@@ -10440,6 +10576,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-security-negotiation-provenance", &testOwnedSecurityNegotiationProvenance},
     {"tcp-owned-hybrid-nla-negotiation", &testOwnedHybridNlaNegotiation},
     {"tcp-owned-hybrid-credssp-first-record", &testOwnedHybridCredSspFirstRecord},
+    {"tcp-owned-buffered-tls-credssp-mcs-readiness",
+     &testOwnedBufferedTlsCredSspThenMcsReadiness},
     {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},
     {"tcp-owned-hybrid-provenance-revocation", &testOwnedHybridProvenanceRevocation},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},

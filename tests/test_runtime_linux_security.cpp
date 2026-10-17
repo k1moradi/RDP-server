@@ -920,9 +920,28 @@ void testConnectionPreAdmissionDispatch(
         6, CredSspServerReplyField::NegoToken, kRejectedInitialSpnego);
     assert(writeTlsClientAll(clientTls.get(), request));
 
-    std::size_t totalRead = 0;
+    // The first bounded CredSSP read asks only for the DER header. OpenSSL
+    // may decrypt the rest of that TLS record at the same time. The next
+    // serialized scheduler step must therefore progress from R1-owned
+    // buffered plaintext even with no fresh native readable callback.
+    step = connection.advancePreAdmission(true, false, tlsContext);
+    assert(step.status == Step::Progress);
+    assert(step.plaintextBytesRead > 0);
+    assert(step.plaintextBytesWritten == 0);
+    std::size_t totalRead = step.plaintextBytesRead;
     std::size_t totalWritten = 0;
-    bool providerFailureObserved = false;
+
+    const auto bufferedStep =
+        connection.advancePreAdmission(false, false, tlsContext);
+    assert(bufferedStep.plaintextBytesRead > 0);
+    assert(bufferedStep.plaintextBytesWritten == 0);
+    assert(bufferedStep.status == Step::Progress ||
+           bufferedStep.status == Step::NeedWrite ||
+           bufferedStep.status == Step::NeedRead);
+    totalRead += bufferedStep.plaintextBytesRead;
+
+    bool providerFailureObserved =
+        connection.gssStage() == SpnegoStage::Failed;
     bool wrongWriteDirectionObserved = false;
     bool terminal = false;
     for (std::size_t attempt = 0; attempt < 16384; ++attempt)

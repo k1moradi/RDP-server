@@ -466,8 +466,17 @@ private:
      [[nodiscard]] TlsApplicationIoResult writeTlsApplicationData(
          std::span<const std::uint8_t> source) noexcept;
 
+     // True only when the exact R1-owned SSL already has decrypted
+     // application plaintext that a bounded read can consume without waiting
+     // for new native socket readability. Pending write/WANT_WRITE identity
+     // is never converted into read readiness. This consumes nothing and
+     // grants no CredSSP/MCS/session authorization.
+     [[nodiscard]] bool tlsApplicationReadReady() const noexcept;
+
      // Derived from the existing preauth phase and SSL/app WANT state, not a
-     // second state machine. The caller polls for precisely this interest.
+     // second state machine. For Read, callers must also check
+     // tlsApplicationReadReady() before sleeping in a native poll: OpenSSL may
+     // already own plaintext even when the socket itself has no POLLIN.
      [[nodiscard]] TcpConnectionIoInterest ioInterest() const noexcept;
      // Process at most ONE bounded existing preauth/TLS/MCS callback.
      // Application mode reports matching readiness only; it cannot retry

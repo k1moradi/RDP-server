@@ -107,7 +107,9 @@ public:
 
     // One bounded pre-admission scheduler step derived from the existing R1
     // phase/interest plus R2 CredSSP writer readiness. Wrong-direction
-    // readiness returns the required direction with zero I/O. The method may
+    // readiness returns the required direction with zero I/O. For a read,
+    // R1-owned buffered TLS plaintext may permit one bounded application step
+    // even when the native socket reports no new readability. The method may
     // attach one fresh R10 server TLS object only after the X.224 reply is
     // completely delivered. It never invokes R1's legacy MCS reader: positive
     // MCS remains reachable only through R2 admission.

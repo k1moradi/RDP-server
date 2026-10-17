@@ -1,3 +1,49 @@
+## R1 buffered TLS CredSSP-to-MCS readiness authoring receipt (2026-10-17)
+
+**Starting reconciled shared `main`:** `ccfc9e3e22f0b0492dd5a015efc27bf1352f354d`. **Publication:** this
+atomic code/test/standards/roadmap commit; exact publication-SHA hosted results
+are **PENDING**.
+
+Source inspection found one scheduling defect at the existing R1/R10 boundary:
+after an R1-owned `SSL_read_ex` completes the exact CredSSP DER frame, OpenSSL
+can retain already-decrypted bytes from the same TLS record while the native
+socket has no new readability. `ioInterest()` still correctly says Read, but
+native POLLIN alone cannot prove whether another bounded application read can
+make progress.
+
+The narrow correction keeps the same SSL/BIO/socket owner and adds only
+`OwnedPreauthTcpConnection::tlsApplicationReadReady()`. It reports
+already-decrypted application bytes from the exact owned SSL, preserves pending
+write and read-WANT_WRITE direction, consumes nothing and grants no protocol
+authority. The serialized Linux runtime pre-admission scheduler may use that
+fact for one ordinary bounded CredSSP read when its native readable flag is
+false. R2 framing, authorization, SSL ownership and every application-I/O bound
+remain unchanged.
+
+Dedicated CTest `transport.tcp-owned-buffered-tls-credssp-mcs-readiness` reuses
+the existing native loopback TLS, CredSSP and checked-in MCS fixtures. One
+logical TLS application write contains the complete CredSSP DER followed by the
+first MCS TPKT. The production R1 reader stops at the DER boundary; the case
+requires buffered application readiness while a zero-time native poll reports
+`NoEvent`, then cancels without consuming MCS or invoking the private admission
+transition. Post-cancel buffered readiness, late socket readiness and reader
+replay must remain closed.
+
+The existing runtime `linux-connection-pre-admission-dispatch` case is extended
+to issue a scheduler step with `readable=false` after the first bounded CredSSP
+read and require further plaintext progress from the same TLS record. Existing
+`transport.tcp-owned-tls-application-cancellation` is strengthened for a
+WANT-read cancellation and an unresolved bounded CredSSP write suffix, including
+late callbacks after R1 teardown. Existing R3 write-replay cancellation coverage
+remains unchanged.
+
+Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** because this
+GitHub connector environment does not expose that required checkout/build root
+and project policy forbids creating an alternate persistent build root. Hosted
+exact-SHA CI is **PENDING**. The genuine authorized final-CredSSP plus first-MCS
+positive case is **BLOCKED** on real R2/R10 admission infrastructure; no
+synthetic lease or admission bypass was added.
+
 ## R8 authenticated-CLIPRDR retirement authoring receipt (2026-10-17)
 
 **Starting reconciled shared `main`:** `b737ff20aea60afa814ac70649709791d5f20a4c`. **Publication:** this

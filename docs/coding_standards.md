@@ -317,6 +317,14 @@ retries retain only operation identity and the same logical byte count inside
 R1; higher layers retain their own stable bytes and never hand R1 a stored
 caller span.
 
+Native socket readability is not sufficient once OpenSSL has consumed a TLS
+record. R1 alone may query its owned SSL for already-decrypted application
+bytes and expose only a non-authorizing readiness fact. A scheduler may
+perform one normal bounded application read without a new POLLIN only when
+that R1 fact is true. Never use buffered plaintext to change a pending write
+retry, bypass a WANT_WRITE direction, retain an SSL/BIO borrow, or advance
+MCS before genuine R2 admission.
+
 ## Runtime connection aggregate teardown
 
 When R10 composes a live connection from existing road owners, do not transfer

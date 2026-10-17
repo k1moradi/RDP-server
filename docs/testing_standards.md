@@ -1011,6 +1011,21 @@ an externally reachable listener. If a full-suite build is blocked by another
 road before these cases execute, record the R1 cases as **NOT RUN** rather
 than inferring either PASS or FAIL.
 
+## R1 buffered TLS application-read readiness (2026-10-17)
+
+A production-backed loopback regression for the CredSSP-to-MCS boundary must
+place one complete CredSSP DER frame and the following MCS TPKT in the same
+logical TLS application record. Consume only the CredSSP frame through the
+existing R1-owned `TsRequestFrameReader`, then require R1 to report buffered
+application-read progress while a zero-time native socket poll reports no new
+readability. Do not consume or authorize the MCS suffix in this test.
+
+Cancellation must clear the buffered-read fact before SSL/BIO/socket teardown
+becomes observable to late callbacks. Keep the existing pending-read and
+unresolved-write cancellation/replay coverage active. This fixture proves only
+transport scheduling and lifetime; a positive final-CredSSP-plus-MCS scenario
+remains blocked until a genuine R2 admission lease exists.
+
 ## R1 loopback TLS handshake readiness fixtures (2026-10-16)
 
 Real native-loopback TLS fixtures must not use scheduler sleep/yield loops to

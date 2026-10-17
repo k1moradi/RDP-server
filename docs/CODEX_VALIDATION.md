@@ -1,3 +1,25 @@
+## R3 unchanged-descendant validation follow-up (2026-10-17)
+
+At unchanged-R3 descendant
+`75375ccfeb7523d58d40024f783ebfe84f4db50b`, Actions
+`39012029960`, R3 remains **scoped PASS / Release gate BLOCKED by R1**.
+
+Linux/GCC, macOS/AppleClang/OpenSSL 4 and Windows/MSVC each execute all eight
+CAL registrations #67-#74 successfully in Debug, including
+`transport.licensing-client-cal-issuer-constraints`. R9 Clang ASan/UBSan
+enumerates exactly eight CAL tests and reports **8/8 PASS**; the broader
+bounded R1/R3 sanitizer selection reports **91/91 PASS**.
+
+All three ordinary Debug suites later fail the same independent R1
+`transport.tcp-native-loopback-tls` readiness assertion at
+`test_owned_preauth_session.cpp` around line 6028. Release compile/CTest is
+therefore skipped on all three ordinary jobs. No R3 source changed between
+`1332fd044773b9da53bff2d81403204ecd137484` and this descendant.
+
+Canonical local and real-client acceptance remain **NOT RUN**. Further R3 CAL
+semantics remain gated on a future unchanged-R3 descendant that reaches
+ordinary Release.
+
 ## R4 segmented-frame overwrite hardening authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `4a116fb2501b7cbd5c9314d37337508fd7ed3824`. Exact publication-SHA hosted

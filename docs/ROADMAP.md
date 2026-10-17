@@ -1,3 +1,45 @@
+## R3 unchanged-descendant Release gate remains blocked (2026-10-17)
+
+**Unchanged-R3 descendant:** `75375ccfeb7523d58d40024f783ebfe84f4db50b`.  
+**Actions:** `39012029960`.
+
+The R3 source remains unchanged from
+`1332fd044773b9da53bff2d81403204ecd137484`. This descendant repeats the
+issuer-constraint validation on a newer shared tree and confirms the same
+cross-road blocker rather than an R3 regression.
+
+All eight `transport.licensing-client-cal-*` cases pass in the ordinary
+Debug suites before the unrelated R1 failure, including
+`transport.licensing-client-cal-issuer-constraints`:
+
+- Linux/GCC: CAL #67-#74 **8/8 PASS** inside the 574-test Debug registry.
+- macOS/AppleClang/OpenSSL 4: CAL #67-#74 **8/8 PASS** inside the 490-test
+  Debug registry.
+- Windows/MSVC: CAL #67-#74 **8/8 PASS** inside the 526-test Debug registry.
+
+R9 Clang ASan/UBSan again fail-closed preflights exactly eight CAL cases and
+executes **8/8 PASS**. Its broader bounded R1/R3 selection is **91/91 PASS**.
+
+Each ordinary platform then fails at the independent R1
+`transport.tcp-native-loopback-tls` readiness wait before Release:
+Linux and macOS abort after the five-second local-socket readiness deadline;
+Windows reaches the same assertion and CTest's 60-second timeout. Therefore
+ordinary Release CTest remains **NOT RUN** for this unchanged R3 source.
+
+No R3 production code, test, selector or licensing policy is changed by this
+receipt. Per the prior roadmap gate, additional CAL semantics remain frozen
+until an unchanged-R3 descendant reaches ordinary Release after the R1
+loopback-TLS recovery.
+
+Canonical owner-local `~/rdp-server/build/` and genuine Microsoft-client
+licensing acceptance remain **NOT RUN**.
+
+**Next R3 gate:** after R1 repairs `transport.tcp-native-loopback-tls`, use
+the first unchanged-R3 descendant that completes Linux/GCC,
+macOS/AppleClang and Windows/MSVC Debug + Release. Only then resume another
+standards-defined CAL/X.509 prerequisite; do not infer proprietary licensing
+extension payload layouts or enable `STATUS_VALID_CLIENT`/Share.
+
 ## R4 P2 segmented-frame overwrite hardening (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `4a116fb2501b7cbd5c9314d37337508fd7ed3824`.

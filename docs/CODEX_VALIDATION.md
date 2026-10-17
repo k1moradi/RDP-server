@@ -1,3 +1,89 @@
+## R6 P2 DXGI-to-R4 native ownership exact-SHA validation (2026-10-17)
+
+**Production handoff:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.  
+**R6 registry/preflight correction:** `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`,
+Actions `39022566764` — **SUCCESS**, standalone structure
+`39022566877` — **SUCCESS**.  
+**R4-ingress convergence tests:** `66cf279bef50ce330da86419c1d61fa8ea3690f7`,
+Actions `39023429218`; standalone structure `39023429308` —
+**SUCCESS**.
+
+The final Windows-facing contract is validated on the convergence SHA with the
+three dedicated production-backed cases:
+`windows.capture-r4-bgra-layout-contract`,
+`windows.capture-r4-frame-lifetime-revocation`, and
+`windows.capture-r4-monitor-replacement-denials`.
+
+Hosted Windows/MSVC executes the complete R6 selector **58/58 PASS in Debug**
+and **58/58 PASS in Release**; full Windows CTest is **548/548 PASS in Debug**
+and **548/548 PASS in Release**. The installed downstream consumer and Windows
+package/digest stages also pass.
+
+Hosted MSYS2 CLANG64 verifies Clang **23.1.3-1** targeting
+`x86_64-w64-windows-gnu`, MinGW-w64 headers/CRT
+**14.0.0.r426.g4564ee4b5-1**, libc++ **23.1.3-1**, CMake **4.4.4-3**,
+Ninja **1.13.2** and OpenSSL **3.6.5-1**. Its complete R6 selector is
+**58/58 PASS in Debug** and **58/58 PASS in Release**; full CTest is
+**548/548 PASS in Debug** and **548/548 PASS in Release**. Same-root Windows
+Clang ASan+UBSan recompiles the production desktop adapter and executes the
+R6 selector **58/58 PASS** with no sanitizer diagnostic.
+
+The validated ownership boundary is:
+
+- `WindowsDxgiCaptureCycle::consumeR4Frame()` lends the currently mapped
+  `FramebufferView` together with the exact pinned native
+  `WindowsCaptureGeneration {session, device}`. A legacy/unpinned cycle
+  fails closed rather than becoming an R4 source.
+- The callback is synchronous. Tests execute R4's real
+  `X264Avc420SegmentedFrameProducer::openBgraCapture()/prepareBgra()` while
+  D3D11 staging is still mapped, including padded BGRA scanlines and exact
+  visible/coded bounds.
+- R4's scalar `captureGeneration` is a separately managed R4-local ingress
+  epoch; it is never a hash/truncation/encoding of the richer R6 native pair.
+  The future composition owner advances it whenever native capture identity is
+  replaced.
+- The existing R6 pre/post callback native-generation checks remain
+  authoritative. Only an outer `consumed` result can leave a prepared R4
+  owner eligible for later R3 submission. If session/device generation or
+  topology changes after synchronous R4 preparation, the outer call is
+  terminal and the already prepared but unwritten R4 owner is retired through
+  R4's exact unwritten-cancellation path before any hypothetical submit.
+- Native retirement remains staging unmap before DXGI `ReleaseFrame`.
+  Whole-owner tests continue to prove child retirement before parent COM
+  teardown and exact-once duplication/output/context/device/adapter/factory
+  release. The R4 handoff owns no COM reference.
+- Same-geometry monitor/output replacement is fenced by R6's fresh device
+  epoch; resize/topology change closes the old cycle. Existing coordinated
+  WTS/session tests continue to prove stale capture suppression and held
+  key/button retirement with no post-revocation `SendInput`.
+
+The primary `66cf279...` workflow is overall **FAIL** only because the
+independent R9 Linux sanitizer compile step hit the R5/X11
+`src/x11/x11_desktop_resources.cpp:260`
+`-Wtautological-constant-out-of-range-compare` warning-as-error before any R9
+sanitizer selection ran. That is not an R6/R4 Windows source, lifetime or
+sanitizer failure. R5 subsequently published a portability correction on
+shared `main`; its descendant validation is tracked by R5 and is not claimed
+here.
+
+No live Windows desktop was opened, no WTS notification was registered and no
+host `SendInput` was executed by these CTests. Test-local R4 lifecycle setup
+is not Share/DVC authority and cannot synthesize R2/R3 admission.
+
+**M4 remains OPEN / NOT ACCEPTED.** The remaining production prerequisites are
+external to this R6 lifetime seam: R2/R10 must supply a genuine Windows
+interactive-desktop admission capability plus the sole serialized native
+session-change revocation path and owner lifetime through the R6 safe point.
+R3 must supply finalized authenticated/licensed Share authority, the joined
+`drdynvc` role, successful `Microsoft::Windows::RDS::Graphics` DVC
+creation/capability negotiation, one cumulative accepted-byte receipt-bound
+graphics sender, and a bounded authenticated keyboard/pointer route correlated
+with the same admission/native generation. Only after those exist may an
+explicitly authorized owner test exercise real DXGI capture -> R4 -> R3,
+controlled `SendInput`, resize/output replacement, disconnect/reconnect with a
+fresh owner, session-switch revocation and Microsoft-client visible graphics
+and input.
+
 ## R5 X11/R4 capture-epoch convergence authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `17e2e3d624a73cb1fce5bbef65da4243bebf7ac8`. Exact publication-SHA CI is

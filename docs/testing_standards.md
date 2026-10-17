@@ -1,3 +1,31 @@
+## Deterministic adversarial parser corpora use independent bounded oracles
+
+For a production parser mutation corpus, fix a small canonical seed set and an
+explicit iteration ceiling. Reparse identical bytes to prove deterministic
+classification, compare the caller-owned input before and after parsing, and
+keep failure diagnostics free of credentials or mutated secret buffers.
+
+Do not assert that every changed byte must be rejected. A mutation inside a
+payload can produce a different structurally valid value. When production
+parsing succeeds, validate only the independent properties needed by the
+fixture: for example, prove the mutation stayed inside a known unchanged-length
+payload and check that payload with a compact Unicode/property oracle. Do not
+copy the production DER/parser state machine into the test, because matching
+bugs in two parsers are not independent evidence.
+
+Keep malformed structure evidence explicit as well as generative: cover nested
+tag/length boundaries, canonical encoding transitions, nonminimal and
+truncated length forms, unavailable declared lengths, parent/child
+disagreement, duplicate/missing/reordered fields, and total-size boundaries.
+Hostile declared lengths must not drive large allocations in the fixture.
+
+Sanitizer CI must enumerate behavior-named registrations with a fail-closed
+`ctest -N` check before execution. If a shared CTest regular expression grows
+past the implementation's regex complexity/parenthesis limit, preserve the
+existing cross-road selection and move the new bounded family to a small flat
+selector rather than weakening coverage or treating zero selected tests as a
+pass.
+
 ## Multi-file clipboard handoff tests prove atomic completed-set visibility
 
 For a multi-file native handoff, materialize at least two files through the

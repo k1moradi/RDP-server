@@ -1,3 +1,14 @@
+## R9 reusable adversarial-corpus testing standard (2026-10-16)
+
+The independent-oracle method used by the final CredSSP credential audit is now
+recorded in `docs/testing_standards.md`: fixed deterministic seeds and
+iteration ceilings, immutable-input/repeatability checks, structure-preserving
+mutation handling, a compact property oracle rather than a duplicate parser,
+explicit malformed nested length vectors, secret-free failures, and fail-closed
+sanitizer registry selection. The CI regex-limit lesson is also documented:
+split new bounded families into a flat selector instead of weakening an
+existing cross-road expression or accepting a zero-test invocation.
+
 ## R1 terminal-readiness Win32 macro correction (2026-10-16; exact-SHA CI pending)
 
 **Implementation:** \`9b8f6092e4a0265688ec3bbf51b10cd34db8746e\`.  

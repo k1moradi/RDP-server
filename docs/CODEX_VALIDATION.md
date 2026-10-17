@@ -1,3 +1,17 @@
+## R8 hierarchy test assert-macro correction receipt (2026-10-17)
+
+**Failed correction:** `836c2e7d8d3f61cb2e243423d93debb482b4874d`.  
+**Actions:** `39024546431`; macOS protocol job `117372859151` — **FAIL
+during test compilation**.
+
+The preceding production narrowing defect is corrected: the shared
+`remote_transfer.cpp` compiled. The next failure was test-only: Apple's
+function-like `assert` macro treated commas in three braced
+`std::u16string_view{pointer, size}` expressions as macro separators. The
+correction adds the extra parentheses already used by existing tests. Production
+wire parsing, hierarchy provenance and native authority are unchanged. Exact
+correction-SHA CI is **PENDING**.
+
 ## R8 hierarchy-provenance compile correction receipt (2026-10-17)
 
 **Failed implementation:** `ee565adcca058e16355d13bae4de84a46312da76`.  

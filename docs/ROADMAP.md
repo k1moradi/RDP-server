@@ -1,3 +1,14 @@
+## R8 hierarchy-provenance assert-macro portability correction (2026-10-17; exact-SHA CI pending)
+
+Correction `836c2e7d8d3f61cb2e243423d93debb482b4874d`, Actions
+`39024546431`, compiled the hierarchy production source on macOS after the
+typed-depth fix, then failed while compiling the new hierarchy test. Apple's
+`assert` macro parsed the comma in three braced
+`std::u16string_view{pointer, size}` initializers as an extra macro argument.
+The test now follows the repository's existing double-parenthesized assertion
+idiom. No production source or hierarchy behavior changes in this correction.
+Exact correction-SHA hosted evidence is **PENDING**.
+
 ## R8 hierarchy-provenance AppleClang narrowing correction (2026-10-17; exact-SHA CI pending)
 
 Implementation `ee565adcca058e16355d13bae4de84a46312da76`, Actions

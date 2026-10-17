@@ -2104,12 +2104,12 @@ void testFileHierarchyRelativeTreeProvenance()
 
     const auto remoteLeaf = source.remoteFile(0U);
     const auto remoteNested = source.remoteFile(2U);
-    assert(remoteLeaf &&
-           std::u16string_view{remoteLeaf->name.data(), remoteLeaf->name.size()} ==
-               u"leaf.bin");
-    assert(remoteNested &&
-           std::u16string_view{remoteNested->name.data(), remoteNested->name.size()} ==
-               u"nested");
+    assert((remoteLeaf &&
+            std::u16string_view{remoteLeaf->name.data(), remoteLeaf->name.size()} ==
+                u"leaf.bin"));
+    assert((remoteNested &&
+            std::u16string_view{remoteNested->name.data(), remoteNested->name.size()} ==
+                u"nested"));
 
     const std::array<Plan::Selection, 4> selections{{
         {0U, 0x2001U, std::nullopt},
@@ -2348,9 +2348,9 @@ void testFileHierarchyNoPathAuthority()
            RemoteTransfer::RemoteHierarchyStatus::VerifiedRelativePaths);
 
     const auto child = source.remoteFile(1U);
-    assert(child &&
-           std::u16string_view{child->name.data(), child->name.size()} ==
-               u"child.bin");
+    assert((child &&
+            std::u16string_view{child->name.data(), child->name.size()} ==
+                u"child.bin"));
 
     const std::array<Plan::Selection, 2> selections{{
         {0U, 0x2301U, std::nullopt},

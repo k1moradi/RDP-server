@@ -166,6 +166,10 @@ function(add_rdp_test source_file suite behavior)
                 share-server-finalization-encode-rejections
                 share-personal-activation-ordering
                 share-personal-activation-denials
+                dvc-graphics-create-success
+                dvc-graphics-create-response-denials
+                dvc-graphics-generation-cancellation
+                dvc-graphics-pre-share-denial
                 share-active-exchange-correlation
                 share-active-exchange-denials
                 share-finalization-exchange-correlation

@@ -125,6 +125,17 @@ public:
     {
         session.acceptedInitialLicensingIntake_.reset();
     }
+
+    // Denial-only fixture access. It never stages admission or Share state;
+    // it merely proves that the live private Graphics DVC path cannot start
+    // from an unauthenticated/default session.
+    [[nodiscard]] static bool beginGraphicsDvcWithoutAdmission(
+        McsSessionLifecycle &session) noexcept
+    {
+        const SecurityNegotiationProvenance provenance{};
+        return session.beginVerifiedR2GraphicsDynamicVirtualChannel(
+            provenance).has_value();
+    }
 };
 } // namespace rdp_server::server::transport
 
@@ -3744,6 +3755,352 @@ void testPersonalDesktopShareActivationDenials()
                RdpShareActivationWriteOutcome::Rejected);
         assert(share.phase() == RdpShareActivationPhase::Failed);
     }
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientDynamicVirtualChannelTpkt(
+    std::uint32_t clientUserId,
+    std::uint16_t staticChannelId,
+    std::span<const std::uint8_t> dvcPdu,
+    std::uint32_t channelFlags = 0x00000003U)
+{
+    assert(!dvcPdu.empty() && dvcPdu.size() < 128U);
+    std::vector<std::uint8_t> staticPdu(8U + dvcPdu.size());
+    const auto writeLe32 = [&staticPdu](
+        std::size_t offset, std::uint32_t value)
+    {
+        staticPdu[offset] = static_cast<std::uint8_t>(value);
+        staticPdu[offset + 1U] =
+            static_cast<std::uint8_t>(value >> 8U);
+        staticPdu[offset + 2U] =
+            static_cast<std::uint8_t>(value >> 16U);
+        staticPdu[offset + 3U] =
+            static_cast<std::uint8_t>(value >> 24U);
+    };
+    writeLe32(0U, static_cast<std::uint32_t>(dvcPdu.size()));
+    writeLe32(4U, channelFlags);
+    std::copy(dvcPdu.begin(), dvcPdu.end(), staticPdu.begin() + 8U);
+    return makeClientShareTpkt(
+        clientUserId, staticChannelId, staticPdu);
+}
+
+[[nodiscard]] std::span<const std::uint8_t>
+serverDynamicVirtualChannelControl(
+    const RdpGraphicsDvcWriteView &write)
+{
+    // All control PDUs in this lifecycle fit the short PER determinant.
+    assert(write && write.bytes.size() >= 23U);
+    assert(write.bytes[0] == 0x03U);
+    assert(write.bytes[4] == 0x02U);
+    assert(write.bytes[5] == 0xf0U);
+    assert(write.bytes[6] == 0x80U);
+    assert(write.bytes[7] == 0x68U);
+    assert(write.bytes[13] == write.bytes.size() - 14U);
+
+    const auto staticPdu = write.bytes.subspan(14U);
+    assert(staticPdu.size() >= 9U);
+    const auto readLe32 = [](std::span<const std::uint8_t> bytes,
+                             std::size_t offset)
+    {
+        return static_cast<std::uint32_t>(bytes[offset]) |
+               (static_cast<std::uint32_t>(bytes[offset + 1U]) << 8U) |
+               (static_cast<std::uint32_t>(bytes[offset + 2U]) << 16U) |
+               (static_cast<std::uint32_t>(bytes[offset + 3U]) << 24U);
+    };
+    assert(readLe32(staticPdu, 0U) == staticPdu.size() - 8U);
+    assert(readLe32(staticPdu, 4U) == 0x00000003U);
+    return staticPdu.subspan(8U);
+}
+
+void testGraphicsDynamicVirtualChannelCreateSuccess()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+
+    RdpDynamicVirtualChannelAllocator allocator;
+    const auto first = allocator.allocate();
+    const auto second = allocator.allocate();
+    assert(first && second);
+    assert(first->channelId == 1U && first->generation == 1U);
+    assert(second->channelId == 2U && second->generation == 2U);
+    assert(first->channelId != second->channelId);
+    assert(first->generation != second->generation);
+
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    assert(dvc.begin(clientUserId, drdynvcChannelId, *first));
+    auto write = dvc.pendingServerWrite();
+    assert(write);
+    assert(write.kind ==
+           RdpGraphicsDvcWriteKind::CapabilitiesRequest);
+    assert(write.dynamicChannelId == first->channelId);
+    assert(write.channelGeneration == first->generation);
+    assert(write.bytes[10] ==
+           static_cast<std::uint8_t>(drdynvcChannelId >> 8U));
+    assert(write.bytes[11] ==
+           static_cast<std::uint8_t>(drdynvcChannelId));
+    constexpr std::array<std::uint8_t, 4> capsRequest{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    const auto capsWire = serverDynamicVirtualChannelControl(write);
+    assert(std::equal(
+        capsWire.begin(), capsWire.end(), capsRequest.begin(),
+        capsRequest.end()));
+
+    // R1-style accepted-byte progress is cumulative at this owner: a
+    // positive short write rotates only the slice receipt and retains bytes.
+    constexpr std::size_t firstAcceptedBytes = 5U;
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               firstAcceptedBytes) ==
+           RdpGraphicsDvcWriteOutcome::Pending);
+    const auto remainingCaps = dvc.pendingServerWrite();
+    assert(remainingCaps);
+    assert(remainingCaps.replySequence == write.replySequence);
+    assert(remainingCaps.writeSliceSequence !=
+           write.writeSliceSequence);
+    assert(remainingCaps.bytes.size() ==
+           write.bytes.size() - firstAcceptedBytes);
+    assert(dvc.onServerBytesWritten(
+               remainingCaps.channelGeneration,
+               remainingCaps.replySequence,
+               remainingCaps.writeSliceSequence,
+               remainingCaps.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.phase() ==
+           RdpGraphicsDvcPhase::AwaitCapabilitiesResponse);
+
+    // A modern client can report its highest supported level (v3) even
+    // though this server advertises only v1. The common negotiated level
+    // remains v1.
+    constexpr std::array<std::uint8_t, 4> capsResponse{
+        0x50U, 0x00U, 0x03U, 0x00U};
+    assert(dvc.onClientTpkt(
+               first->generation,
+               makeClientDynamicVirtualChannelTpkt(
+                   clientUserId, drdynvcChannelId, capsResponse)) ==
+           RdpGraphicsDvcClientIntake::CapabilitiesAccepted);
+    assert(dvc.negotiatedVersion() == 1U);
+
+    write = dvc.pendingServerWrite();
+    assert(write);
+    assert(write.kind == RdpGraphicsDvcWriteKind::CreateRequest);
+    const auto create = serverDynamicVirtualChannelControl(write);
+    assert(create.size() ==
+           2U + kRdpGraphicsDynamicVirtualChannelName.size() + 1U);
+    assert(create[0] == 0x10U);
+    assert(create[1] == first->channelId);
+    assert(std::equal(
+        kRdpGraphicsDynamicVirtualChannelName.begin(),
+        kRdpGraphicsDynamicVirtualChannelName.end(),
+        create.begin() + 2U));
+    assert(create.back() == 0U);
+
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::AwaitCreateResponse);
+
+    constexpr std::array<std::uint8_t, 6> createResponse{
+        0x10U, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U};
+    assert(dvc.onClientTpkt(
+               first->generation,
+               makeClientDynamicVirtualChannelTpkt(
+                   clientUserId, drdynvcChannelId,
+                   createResponse)) ==
+           RdpGraphicsDvcClientIntake::CreateAccepted);
+    assert(dvc.created());
+    assert(dvc.dynamicChannelId() == first->channelId);
+    assert(!dvc.pendingServerWrite());
+}
+
+void testGraphicsDynamicVirtualChannelResponseDenials()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+    constexpr std::array<std::uint8_t, 4> capsResponse{
+        0x50U, 0x00U, 0x01U, 0x00U};
+
+    const auto stageAwaitCreateResponse =
+        [&](RdpGraphicsDynamicVirtualChannelLifecycle &dvc,
+            RdpDynamicVirtualChannelAllocation allocation)
+    {
+        assert(dvc.begin(clientUserId, drdynvcChannelId, allocation));
+        auto write = dvc.pendingServerWrite();
+        assert(dvc.onServerBytesWritten(
+                   write.channelGeneration,
+                   write.replySequence,
+                   write.writeSliceSequence,
+                   write.bytes.size()) ==
+               RdpGraphicsDvcWriteOutcome::Delivered);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId,
+                       capsResponse)) ==
+               RdpGraphicsDvcClientIntake::CapabilitiesAccepted);
+        write = dvc.pendingServerWrite();
+        assert(write.kind == RdpGraphicsDvcWriteKind::CreateRequest);
+        assert(dvc.onServerBytesWritten(
+                   write.channelGeneration,
+                   write.replySequence,
+                   write.writeSliceSequence,
+                   write.bytes.size()) ==
+               RdpGraphicsDvcWriteOutcome::Delivered);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::AwaitCreateResponse);
+    };
+
+    // Zero and out-of-range capability versions are malformed. A client
+    // version 2 or 3 is legal and negotiates down to this server's v1.
+    {
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        const RdpDynamicVirtualChannelAllocation allocation{1U, 1U};
+        assert(dvc.begin(clientUserId, drdynvcChannelId, allocation));
+        const auto write = dvc.pendingServerWrite();
+        assert(dvc.onServerBytesWritten(
+                   write.channelGeneration, write.replySequence,
+                   write.writeSliceSequence, write.bytes.size()) ==
+               RdpGraphicsDvcWriteOutcome::Delivered);
+        constexpr std::array<std::uint8_t, 4> invalidVersion{
+            0x50U, 0x00U, 0x04U, 0x00U};
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId,
+                       invalidVersion)) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    }
+
+    // A negative HRESULT is a correlated remote refusal, not success.
+    {
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        const RdpDynamicVirtualChannelAllocation allocation{7U, 9U};
+        stageAwaitCreateResponse(dvc, allocation);
+        constexpr std::array<std::uint8_t, 6> rejected{
+            0x10U, 0x07U, 0x05U, 0x40U, 0x00U, 0x80U};
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId,
+                       rejected)) ==
+               RdpGraphicsDvcClientIntake::CreateRejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+        assert(!dvc.created());
+    }
+
+    // Wrong ChannelId cannot acknowledge this CREATE.
+    {
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        const RdpDynamicVirtualChannelAllocation allocation{7U, 10U};
+        stageAwaitCreateResponse(dvc, allocation);
+        constexpr std::array<std::uint8_t, 6> wrongChannel{
+            0x10U, 0x08U, 0x00U, 0x00U, 0x00U, 0x00U};
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId,
+                       wrongChannel)) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    }
+
+    // A successful response is single-consumption. Replaying it retires the
+    // protocol owner instead of creating a second endpoint.
+    {
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        const RdpDynamicVirtualChannelAllocation allocation{7U, 11U};
+        stageAwaitCreateResponse(dvc, allocation);
+        constexpr std::array<std::uint8_t, 6> accepted{
+            0x10U, 0x07U, 0x00U, 0x00U, 0x00U, 0x00U};
+        const auto packet = makeClientDynamicVirtualChannelTpkt(
+            clientUserId, drdynvcChannelId, accepted);
+        assert(dvc.onClientTpkt(allocation.generation, packet) ==
+               RdpGraphicsDvcClientIntake::CreateAccepted);
+        assert(dvc.created());
+        assert(dvc.onClientTpkt(allocation.generation, packet) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    }
+}
+
+void testGraphicsDynamicVirtualChannelGenerationCancellation()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+
+    RdpDynamicVirtualChannelAllocator allocator;
+    const auto first = allocator.allocate();
+    const auto second = allocator.allocate();
+    const auto third = allocator.allocate();
+    assert(first && second && third);
+
+    {
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        assert(dvc.begin(clientUserId, drdynvcChannelId, *first));
+        const auto write = dvc.pendingServerWrite();
+        assert(dvc.onServerBytesWritten(
+                   second->generation,
+                   write.replySequence,
+                   write.writeSliceSequence,
+                   write.bytes.size()) ==
+               RdpGraphicsDvcWriteOutcome::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    }
+
+    {
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        assert(dvc.begin(clientUserId, drdynvcChannelId, *second));
+        const auto firstWrite = dvc.pendingServerWrite();
+        assert(dvc.onServerBytesWritten(
+                   second->generation,
+                   firstWrite.replySequence,
+                   firstWrite.writeSliceSequence, 7U) ==
+               RdpGraphicsDvcWriteOutcome::Pending);
+        const auto remainder = dvc.pendingServerWrite();
+        assert(remainder &&
+               remainder.writeSliceSequence !=
+                   firstWrite.writeSliceSequence);
+        dvc.close();
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+        assert(!dvc.pendingServerWrite());
+        assert(dvc.onServerBytesWritten(
+                   second->generation,
+                   remainder.replySequence,
+                   remainder.writeSliceSequence,
+                   remainder.bytes.size()) ==
+               RdpGraphicsDvcWriteOutcome::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+    }
+
+    {
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        assert(dvc.begin(clientUserId, drdynvcChannelId, *third));
+        dvc.revokeUnlessChannelGenerationMatches(second->generation);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+        constexpr std::array<std::uint8_t, 4> capsResponse{
+            0x50U, 0x00U, 0x01U, 0x00U};
+        assert(dvc.onClientTpkt(
+                   third->generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId,
+                       capsResponse)) ==
+               RdpGraphicsDvcClientIntake::Closed);
+    }
+
+    allocator.close();
+    assert(!allocator.allocate());
+}
+
+void testGraphicsDynamicVirtualChannelPreShareDenial()
+{
+    McsSessionLifecycle session;
+    assert(!McsSessionLifecycleTestAccess::
+               beginGraphicsDvcWithoutAdmission(session));
+    assert(session.phase() == McsSessionPhase::Closed);
 }
 
 void testMcsSessionJoinConfirmReceipts()
@@ -9628,7 +9985,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 134> kMcsTestCases{{
+constexpr std::array<McsTestCase, 138> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -9759,6 +10116,10 @@ constexpr std::array<McsTestCase, 134> kMcsTestCases{{
     {"share-server-finalization-encode-rejections", &testRdpServerFinalizationEncodeRejections},
     {"share-personal-activation-ordering", &testPersonalDesktopShareActivationOrdering},
     {"share-personal-activation-denials", &testPersonalDesktopShareActivationDenials},
+    {"dvc-graphics-create-success", &testGraphicsDynamicVirtualChannelCreateSuccess},
+    {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
+    {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
+    {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},
     {"share-active-exchange-correlation", &testRdpActiveExchangeCorrelation},
     {"share-active-exchange-denials", &testRdpActiveExchangeDenials},
     {"share-finalization-exchange-correlation", &testRdpFinalizationExchangeCorrelation},

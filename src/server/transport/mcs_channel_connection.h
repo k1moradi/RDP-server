@@ -828,6 +828,175 @@ private:
     bool clientFontListSeen_{};
 };
 
+// One allocation domain for all dynamic virtual channels on this static
+// drdynvc connection. Allocation is protocol identity/freshness only and
+// never admission. IDs/generations are monotonic and never reused by this
+// owner, which lets future R8 DVCs share the same R3 allocation source.
+struct RdpDynamicVirtualChannelAllocation
+{
+    std::uint32_t channelId{};
+    std::uint64_t generation{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return channelId != 0U && generation != 0U;
+    }
+};
+
+class RdpDynamicVirtualChannelAllocator final
+{
+public:
+    [[nodiscard]] std::optional<RdpDynamicVirtualChannelAllocation>
+    allocate() noexcept;
+    void close() noexcept
+    {
+        nextChannelId_ = 0U;
+        nextGeneration_ = 0U;
+        closed_ = true;
+    }
+
+private:
+    std::uint32_t nextChannelId_{1U};
+    std::uint64_t nextGeneration_{1U};
+    bool closed_{};
+};
+
+inline constexpr std::string_view kRdpGraphicsDynamicVirtualChannelName =
+    "Microsoft::Windows::RDS::Graphics";
+inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelControlPacketBytes =
+    96U;
+
+enum class RdpGraphicsDvcPhase : std::uint8_t
+{
+    NotStarted,
+    CapabilitiesRequestPending,
+    AwaitCapabilitiesResponse,
+    CreateRequestPending,
+    AwaitCreateResponse,
+    Created,
+    Failed,
+    Closed,
+};
+
+enum class RdpGraphicsDvcWriteKind : std::uint8_t
+{
+    None,
+    CapabilitiesRequest,
+    CreateRequest,
+};
+
+struct RdpGraphicsDvcWriteView
+{
+    std::span<const std::uint8_t> bytes{};
+    RdpGraphicsDvcWriteKind kind{RdpGraphicsDvcWriteKind::None};
+    std::uint64_t channelGeneration{};
+    std::uint32_t dynamicChannelId{};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return !bytes.empty() &&
+               kind != RdpGraphicsDvcWriteKind::None &&
+               channelGeneration != 0U && dynamicChannelId != 0U &&
+               replySequence != 0U && writeSliceSequence != 0U;
+    }
+};
+
+enum class RdpGraphicsDvcWriteOutcome : std::uint8_t
+{
+    Pending,
+    Delivered,
+    Rejected,
+};
+
+enum class RdpGraphicsDvcClientIntake : std::uint8_t
+{
+    CapabilitiesAccepted,
+    CreateAccepted,
+    CreateRejected,
+    Rejected,
+    Closed,
+};
+
+// Allocation-free MS-RDPEDYC v1 server-manager lifecycle for exactly the
+// RDPGFX listener. This class proves protocol mechanics only: a joined
+// drdynvc static channel, a successful CREATE response, or matching
+// generations do not authenticate a connection or authorize graphics.
+// The live McsSessionLifecycle invokes it only through its private post-Share
+// R2 boundary.
+class RdpGraphicsDynamicVirtualChannelLifecycle final
+{
+public:
+    RdpGraphicsDynamicVirtualChannelLifecycle() noexcept = default;
+    RdpGraphicsDynamicVirtualChannelLifecycle(
+        const RdpGraphicsDynamicVirtualChannelLifecycle &) = delete;
+    RdpGraphicsDynamicVirtualChannelLifecycle &operator=(
+        const RdpGraphicsDynamicVirtualChannelLifecycle &) = delete;
+
+    [[nodiscard]] bool begin(
+        std::uint32_t clientUserId,
+        std::uint16_t staticChannelId,
+        RdpDynamicVirtualChannelAllocation allocation) noexcept;
+    [[nodiscard]] RdpGraphicsDvcWriteView pendingServerWrite() const noexcept;
+    [[nodiscard]] RdpGraphicsDvcWriteOutcome onServerBytesWritten(
+        std::uint64_t channelGeneration,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] RdpGraphicsDvcClientIntake onClientTpkt(
+        std::uint64_t channelGeneration,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    void revokeUnlessChannelGenerationMatches(
+        std::uint64_t channelGeneration) noexcept;
+    void close() noexcept;
+
+    [[nodiscard]] RdpGraphicsDvcPhase phase() const noexcept
+    {
+        return phase_;
+    }
+    [[nodiscard]] bool created() const noexcept
+    {
+        return phase_ == RdpGraphicsDvcPhase::Created;
+    }
+    [[nodiscard]] std::uint32_t dynamicChannelId() const noexcept
+    {
+        return allocation_.channelId;
+    }
+    [[nodiscard]] std::uint64_t channelGeneration() const noexcept
+    {
+        return allocation_.generation;
+    }
+    [[nodiscard]] std::uint16_t negotiatedVersion() const noexcept
+    {
+        return negotiatedVersion_;
+    }
+
+private:
+    [[nodiscard]] bool queueCapabilitiesRequest() noexcept;
+    [[nodiscard]] bool queueCreateRequest() noexcept;
+    [[nodiscard]] bool queueControlPdu(
+        RdpGraphicsDvcWriteKind kind,
+        std::span<const std::uint8_t> dvcPdu) noexcept;
+    [[nodiscard]] bool advanceReplySequence() noexcept;
+    [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
+    void fail() noexcept;
+
+    std::array<std::uint8_t,
+               kMaximumRdpDynamicVirtualChannelControlPacketBytes>
+        pending_{};
+    std::size_t pendingLength_{};
+    std::size_t bytesWritten_{};
+    std::uint32_t clientUserId_{};
+    std::uint16_t staticChannelId_{};
+    RdpDynamicVirtualChannelAllocation allocation_{};
+    std::uint64_t replySequence_{};
+    std::uint64_t writeSliceSequence_{};
+    std::uint16_t negotiatedVersion_{};
+    RdpGraphicsDvcPhase phase_{RdpGraphicsDvcPhase::NotStarted};
+    RdpGraphicsDvcWriteKind pendingKind_{RdpGraphicsDvcWriteKind::None};
+};
+
 enum class McsSessionPhase : std::uint8_t
 {
     AwaitVerifiedR2Admission,
@@ -982,6 +1151,8 @@ public:
         serverPlatformChallengeWrite_.close();
         personalDesktopValidClientWrite_.close();
         shareActivation_.close();
+        graphicsDynamicVirtualChannel_.close();
+        dynamicVirtualChannels_.close();
         licensingCredentialFingerprint_.fill(0U);
         licensingCredentialBound_ = false;
         cleanseRdpLicensingKeyMaterial(licensingKeyMaterial_);
@@ -1176,12 +1347,32 @@ private:
         const SecurityNegotiationProvenance &provenance) const noexcept;
 
     // The negotiated drdynvc static channel becomes routable only after the
-    // same post-Share gate. This does not create a Dynamic Virtual Channel;
-    // it only returns the already joined DRDYNVC MCS channel for the future
-    // CREATE/Graphics state machine.
+    // same post-Share gate. This alone still does not create a DVC.
     [[nodiscard]] std::optional<std::uint16_t>
     resolveVerifiedR2ActivatedDynamicVirtualChannel(
         const SecurityNegotiationProvenance &provenance) noexcept;
+
+    // Private live path: start v1 DRDYNVC capabilities negotiation, then
+    // create exactly Microsoft::Windows::RDS::Graphics. R2 must freshly
+    // reauthorize the same lease/R1 owner before every call and accepted-byte
+    // receipt. Offline protocol tests call the lower lifecycle directly and
+    // therefore never mint production admission.
+    [[nodiscard]] std::optional<RdpGraphicsDvcWriteView>
+    beginVerifiedR2GraphicsDynamicVirtualChannel(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] std::optional<RdpGraphicsDvcWriteView>
+    pendingVerifiedR2GraphicsDynamicVirtualChannelWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] RdpGraphicsDvcWriteOutcome
+    completeVerifiedR2GraphicsDynamicVirtualChannelWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] RdpGraphicsDvcClientIntake
+    acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
 
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
@@ -1198,6 +1389,9 @@ private:
     RdpPersonalDesktopValidClientWriteGate
         personalDesktopValidClientWrite_{licensing_};
     RdpShareActivationLifecycle shareActivation_{};
+    RdpDynamicVirtualChannelAllocator dynamicVirtualChannels_{};
+    RdpGraphicsDynamicVirtualChannelLifecycle
+        graphicsDynamicVirtualChannel_{};
     std::array<std::uint8_t, 32> licensingCredentialFingerprint_{};
     bool licensingCredentialBound_{};
     RdpLicensingKeyMaterial licensingKeyMaterial_{};

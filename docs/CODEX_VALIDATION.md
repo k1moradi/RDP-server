@@ -3853,3 +3853,22 @@ without creating a positive R2 lease. Canonical local
 resolve github.com for a checkout; no alternate build root was created.
 Owner-authorized real Kerberos/PAM/NSS/logind/X11 `seat0` positive personal
 mode remains **NOT RUN**. Exact-SHA hosted Actions: **PENDING** at publication.
+
+
+## R3 DRDYNVC Graphics CREATE authoring receipt (2026-10-17)
+
+**Reconciled shared-main parent at authoring:** `6ebe2fd8d860126093ed394f37445899b4825aeb`. **Publication:** this atomic R3 code/test/roadmap increment; exact publication-SHA hosted CI is **PENDING**.
+
+The new R3 protocol owner starts only after the existing private `ShareActivated`/R2 provenance gate resolves a joined `drdynvc` static channel. It advertises MS-RDPEDYC version 1, accepts valid client capability responses reporting version 1, 2 or 3 and negotiates down to the common v1 feature set, allocates one monotonic nonzero Dynamic Channel ID plus a separate monotonic channel generation, then sends CREATE for the exact null-terminated ANSI listener name `Microsoft::Windows::RDS::Graphics`. The correlated client CREATE response must use the same ChannelId and an exact signed 32-bit creation status: nonnegative establishes the DVC; negative is a remote rejection. Wrong MCS/static channel, malformed static-VC framing, invalid capability version, wrong command/ChannelId, duplicate response, stale generation and late receipt after cancellation cannot create or revive the channel.
+
+Control writes use the existing R3 MCS Send Data Indication serializer and one complete uncompressed static-VC chunk. Reply and write-slice receipts are monotonic: zero accepted plaintext is retryable, positive short acceptance advances only the retained slice, and full acceptance is required before the corresponding client response becomes legal. A shared per-session DVC allocator prevents ChannelId reuse and is protocol identity/freshness only; it does not create R2 authority. The successful offline lifecycle is deliberately directly testable without a production admission lease; the only session-level fixture added is denial-only and proves pre-Share/default state cannot start Graphics DVC negotiation.
+
+Dedicated central CTests registered on the existing `test_owned_mcs_connect_initial` executable:
+- `transport.dvc-graphics-create-success`
+- `transport.dvc-graphics-create-response-denials`
+- `transport.dvc-graphics-generation-cancellation`
+- `transport.dvc-graphics-pre-share-denial`
+
+Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** here because the execution container has no materialized canonical checkout and direct GitHub checkout access is unavailable; no alternate persistent build root was created.
+
+**Next gate:** wire the private live path through R10/R2's genuine fresh admission/R1-owner reauthorization. Then R3 must consume the existing R4 8.1 AVC420 capability helper and implement RDPGFX CAPS plus DVC/static-VC/MCS fragmentation with the roadmap's exact R4-payload-to-R1-accepted-outer-byte accounting. This increment does **not** claim live Microsoft-client graphics, RDPGFX capability completion, frame publication or decoded-input routing.

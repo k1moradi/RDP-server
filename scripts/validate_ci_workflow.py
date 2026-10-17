@@ -265,6 +265,7 @@ REQUIRED_TOKENS = (
     "pam_expected_test_count=3",
     "runtime.linux-connection-native-monitor-borrow-denials",
     "runtime.linux-connection-native-monitor-registration-denials",
+    "native-(monitor-(borrow|registration)|desktop-selection)-denials",
     "runtime.linux-connection-native-desktop-selection-denials",
     "runtime.linux-connection-existing-cal-unadmitted-denial",
     "runtime_security_expected_test_count=16",

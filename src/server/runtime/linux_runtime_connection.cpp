@@ -909,6 +909,112 @@ LinuxRuntimeConnection::advancePersonalDesktopClientLicensingIntake(
     return {0U, Step::Invalid};
 }
 
+LinuxPersonalDesktopValidClientWriteStepResult
+LinuxRuntimeConnection::advancePersonalDesktopValidClientWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    bool readable, bool writable) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Outcome = rdp_server::server::transport::
+        RdpPersonalDesktopValidClientWriteOutcome;
+    using Step = LinuxPersonalDesktopValidClientWriteStepStatus;
+
+    if (!ready())
+        return {0U, Step::Closed};
+
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !broker_ || !lease_ || lease_->isRevoked())
+    {
+        personalValidClientTlsWritePending_ = false;
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    if (personalValidClientTlsWritePending_)
+    {
+        const Interest required = connection_.ioInterest();
+        if (required == Interest::Read && !readable)
+            return {0U, Step::NeedRead};
+        if (required == Interest::Write && !writable)
+            return {0U, Step::NeedWrite};
+        if (required != Interest::Read && required != Interest::Write)
+        {
+            personalValidClientTlsWritePending_ = false;
+            revoke();
+            return {0U, Step::Invalid};
+        }
+    }
+    else if (!writable)
+    {
+        return {0U, Step::NeedWrite};
+    }
+
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopValidClientWrite(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+    if (!pending)
+    {
+        personalValidClientTlsWritePending_ = false;
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    const auto io = connection_.writeTlsApplicationData(pending->bytes);
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        personalValidClientTlsWritePending_ = false;
+        if (io.bytes == 0U || io.bytes > pending->bytes.size())
+        {
+            revoke();
+            return {0U, Step::Invalid};
+        }
+
+        const auto outcome =
+            broker_->completeR3PersonalDesktopValidClientWrite(
+                lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+                acceptor_, connection_, session_, deploymentPolicy,
+                pending->replySequence, pending->writeSliceSequence,
+                io.bytes);
+        if (outcome == Outcome::Pending)
+            return {io.bytes, Step::Progress};
+        if (outcome == Outcome::Delivered)
+            return {io.bytes, Step::Delivered};
+
+        revoke();
+        return {io.bytes, Step::AdmissionDenied};
+    }
+    case IoOutcome::NeedRead:
+        personalValidClientTlsWritePending_ = true;
+        return {0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        personalValidClientTlsWritePending_ = true;
+        return {0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        personalValidClientTlsWritePending_ = false;
+        revoke();
+        return {0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        personalValidClientTlsWritePending_ = false;
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    personalValidClientTlsWritePending_ = false;
+    revoke();
+    return {0U, Step::Invalid};
+}
+
 std::optional<
     rdp_server::server::transport::RdpPersonalDesktopValidClientWriteView>
 LinuxRuntimeConnection::authorizePersonalDesktopValidClientWrite(
@@ -1331,6 +1437,7 @@ void LinuxRuntimeConnection::revoke() noexcept
     // owner disappears. The complete span is never retained across R2/R3 use.
     mcsConnectInitialFrameReader_.close();
     personalClientLicensingFrameReader_.close();
+    personalValidClientTlsWritePending_ = false;
     personalDesktopPolicy_ = nullptr;
     personalLicenseRequestTlsWritePending_ = false;
 

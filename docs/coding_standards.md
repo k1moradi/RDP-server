@@ -1,3 +1,20 @@
+## R10 outbound TLS writers never accept caller progress (2026-10-17)
+
+For a serialized post-admission outbound protocol record, R10 may accept only
+event-loop readiness plus immutable policy/configuration inputs. Borrow the
+current wire slice through the freshly reauthorized R2 wrapper, submit that exact
+span to the sole R1 `writeTlsApplicationData()` owner, and commit only R1's
+returned positive plaintext accepted-byte count through the R2 receipt wrapper.
+Never expose a runtime scheduler API that accepts a caller-provided completion
+count.
+
+A TLS WANT_READ/WANT_WRITE result retains only retry-direction state, not a
+second copy of the packet or its offset. On retry, reauthorize and reborrow the
+R3-owned current slice. A short positive write is durable only after R2 accepts
+the exact receipt; zero/oversized progress, stale slices, policy/lease
+replacement, R2 rejection or transport uncertainty are terminal. This keeps R3
+as the sole protocol writer-state owner and R1 as the sole TLS progress owner.
+
 ## R2 post-Share Graphics DVC transitions are policy-bound (2026-10-17)
 
 R3 owns the Graphics DVC protocol lifecycle. R2 does not duplicate that state or

@@ -163,6 +163,24 @@ struct LinuxPersonalDesktopClientLicensingStepResult
         LinuxPersonalDesktopClientLicensingStepStatus::Closed};
 };
 
+enum class LinuxPersonalDesktopValidClientWriteStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Delivered,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPersonalDesktopValidClientWriteStepResult
+{
+    std::size_t plaintextBytesWritten{};
+    LinuxPersonalDesktopValidClientWriteStepStatus status{
+        LinuxPersonalDesktopValidClientWriteStepStatus::Closed};
+};
+
 // Exact identity for one borrowed R2 logind watcher registration. R10 never
 // duplicates or closes descriptor; R2 admission/session generations prevent
 // stale reconnect reuse even if the kernel later reuses the fd number.
@@ -293,6 +311,15 @@ public:
     advancePersonalDesktopClientLicensingIntake(
         const RuntimeDeploymentPolicy &deploymentPolicy,
         const RuntimeLicensingContext &licensingContext,
+        bool readable, bool writable) noexcept;
+
+    // Publish STATUS_VALID_CLIENT only through the original R1 SSL owner.
+    // R2 reauthorizes before every borrowed R3 slice and again before the
+    // exact accepted plaintext-byte receipt is committed. The caller supplies
+    // readiness only; it cannot supply or manufacture a completion count.
+    [[nodiscard]] LinuxPersonalDesktopValidClientWriteStepResult
+    advancePersonalDesktopValidClientWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
         bool readable, bool writable) noexcept;
 
     [[nodiscard]] std::optional<
@@ -439,6 +466,7 @@ private:
     LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
     const RuntimeDeploymentPolicy *personalDesktopPolicy_{};
     bool personalLicenseRequestTlsWritePending_{};
+    bool personalValidClientTlsWritePending_{};
     std::optional<RuntimeExistingCalValidationBinding>
         existingCalValidation_{};
     std::optional<LinuxRuntimeNativeChangeRegistration>

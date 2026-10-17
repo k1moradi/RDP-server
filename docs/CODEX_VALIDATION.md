@@ -1,3 +1,54 @@
+## R10 STATUS_VALID_CLIENT R1-owned writer composition (2026-10-17)
+
+**Reconciled shared-main parent:** `361ea05e65200bf7768376c588a878f1f20f1bb2`.
+That parent also lands R2's post-Share Graphics DVC broker wrappers, resolving
+the prior Graphics authority-API blocker independently of this licensing
+increment. The preceding R10 client-licensing intake remains
+`e486dca4b6b43bdacaccdafc98153a4977e910eb`.
+
+This increment adds the serialized aggregate writer for R3's existing
+`STATUS_VALID_CLIENT / ST_NO_TRANSITION` packet. R10 accepts only scheduler
+readiness. Before every write attempt it requires the exact selected
+service-lifetime PersonalDesktop policy and current R2 lease, then borrows the
+current R3 slice through
+`authorizeR3PersonalDesktopValidClientWrite()`. The borrowed span is submitted
+only through R1 `writeTlsApplicationData()`. R1's returned positive plaintext
+accepted-byte count is the only completion count and is immediately committed
+through `completeR3PersonalDesktopValidClientWrite()`, which reauthorizes the
+same policy/lease/TLS provenance before R3 changes durable writer state.
+
+WANT_READ/WANT_WRITE retains only a connection-local retry-direction latch and
+reauthorizes the slice on every retry. Short positive writes advance only the
+R3-owned suffix; zero or oversized R1 progress is invalid. Transport/TLS
+failure, policy replacement, missing/revoked admission, stale slice/receipt or
+R2/R3 rejection is terminal. No caller-supplied accepted-byte API participates
+in this scheduler path and no second Valid Client packet/offset owner is added.
+
+Dedicated production-backed CTest:
+`runtime.linux-connection-personal-valid-client-r1-write-denials`.
+It proves an accepted socket plus product configuration cannot reach this writer
+without genuine R2 admission, wrong product mode is terminal, and replay after
+aggregate revocation remains closed. It does not fabricate a lease. Existing
+R3 production tests continue to cover exact Valid Client wire bytes, zero-count
+retry, partial-slice generation changes and partial/revocation stale-receipt
+denials. The direct Linux runtime-security sanitizer selector advances
+**22→23** and requires this exact sentinel alongside R2's Graphics DVC denial.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** in this connector
+environment; no alternate persistent build root is created. Exact publication
+SHA hosted CI is recorded after publication. No listener, genuine credentials,
+native desktop or Microsoft client is activated.
+
+**Next R10:** Share activation is not API-blocked: R2 already exposes
+policy-bound begin/pending-write/write-receipt/client-TPKT operations backed by
+R3's Demand Active, Confirm Active, Synchronize/Control and Font lifecycle. The
+next increment must compose those reads/writes through R1 with bounded TPKT
+framing and receipt-bound transitions. After Share, R2's new Graphics DVC
+authority wrappers are also available. The remaining Graphics protocol
+dependency is R3's DATA_FIRST/DATA publication and immutable R4-payload mapping.
+Positive live evidence still requires an owner-authorized genuine Linux
+Kerberos/PAM/NSS/logind physical-X11 lease.
+
 ## R2 post-Share Graphics DVC broker seam (2026-10-17)
 
 **Reconciled shared-main parent:** `1af721cf5ece5204a1815e50b73d33ba373d91da`.

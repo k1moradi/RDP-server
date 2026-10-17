@@ -100,6 +100,8 @@ using rdp_server::server::runtime::
     LinuxPersonalDesktopLicenseWriteStepStatus;
 using rdp_server::server::runtime::
     LinuxPersonalDesktopClientLicensingStepStatus;
+using rdp_server::server::runtime::
+    LinuxPersonalDesktopValidClientWriteStepStatus;
 using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameReader;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
@@ -1734,6 +1736,64 @@ void testConnectionPersonalDesktopClientLicensingR1IntakeDenials(
     }
 }
 
+void testConnectionPersonalDesktopValidClientR1WriteDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPersonalDesktopValidClientWriteStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-valid-client-r1-write.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+
+    // STATUS_VALID_CLIENT cannot reach R1 before genuine R2 admission and the
+    // preceding receipt-bound licensing intake. Replay remains terminal.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+
+        const auto denied =
+            connection.advancePersonalDesktopValidClientWrite(
+                personalPolicy, false, true);
+        assert(denied.status == Step::AdmissionDenied);
+        assert(denied.plaintextBytesWritten == 0U);
+        assert(!connection.ready());
+
+        const auto replay =
+            connection.advancePersonalDesktopValidClientWrite(
+                personalPolicy, true, true);
+        assert(replay.status == Step::Closed);
+        assert(replay.plaintextBytesWritten == 0U);
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // The issuer-backed mode cannot enter the personal Valid Client writer.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+
+        const auto denied =
+            connection.advancePersonalDesktopValidClientWrite(
+                appServerPolicy, true, true);
+        assert(denied.status == Step::AdmissionDenied);
+        assert(denied.plaintextBytesWritten == 0U);
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2147,6 +2207,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-desktop-graphics-dvc-authority-denials")
     {
         testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-valid-client-r1-write-denials")
+    {
+        testConnectionPersonalDesktopValidClientR1WriteDenials(
             fixtureDirectory);
         return 0;
     }

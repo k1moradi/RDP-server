@@ -2456,13 +2456,30 @@ borrowed span; rotate a receipt only after positive accepted bytes. Use the
 real loopback TLS owner and keep all retries explicit in the test fixture.
 
 
+## R4 zero-byte graphics cancellation regression rule (2026-10-16)
+
+A production cancellation test may exercise the R4 state transition only; it
+must not claim that an offline counter or caller Boolean proves transport
+progress. The success path must use the exact pending delivery receipt,
+preserve mapped generation/surface and prior ACK/client-observation state,
+invalidate the owned segmented publication, and prove the next real x264
+picture is IDR followed by ordinary P-frame continuity after delivery.
+Exercise both direct NV12 and synchronous BGRA conversion.
+
+Keep positive or uncertain transport progress on the terminal abort path and
+test that a late cancellation cannot revive that generation. Rejected
+wrong/stale/duplicate cancellation must leave lifecycle, publication bytes and
+healthy codec reference continuity unchanged. Sanitizer registry preflight
+must explicitly name the new portable cancellation cases and both x264
+recovery cases.
+
 ## R4 x264/BGRA sanitizer selection (2026-10-16)
 
 The one Linux/Clang sanitizer job must compile both existing R4 graphics test
 executables, `test_x264_avc420_encoder` and
 `test_x264_avc420_segmented_frame_producer`, then run the complete
 `x264` CTest label as its own failure-isolated group. The label currently
-contains 20 production-backed cases covering the pinned x264 encoder,
+contains 22 production-backed cases covering the pinned x264 encoder,
 NV12 validation/reference continuity, BGRA-to-NV12 conversion, segmented
 RDP8 publication, ACK/backpressure, zero-valued wire identifiers and fixed-CFR
 PTS behavior.
@@ -2550,7 +2567,7 @@ display-change delivery remain owner-macOS acceptance, not hosted CTest.
 
 The shared Linux/Clang ASan+UBSan job must build and execute the complete
 portable R4 wire/lifecycle boundary independently from codec and capability
-groups. The bounded selection contains **33** existing production-backed CTests
+groups. The bounded selection contains **39** production-backed CTests
 from exactly these executables: `test_gfx_surface_lifecycle`,
 `test_gfx_frame_acknowledge`, `test_gfx_presentation_lifecycle`,
 `test_gfx_avc420_picture`, `test_gfx_segmented_data`, and
@@ -2560,8 +2577,10 @@ The sanitizer selector must enumerate the central CTest registry before
 execution and assert one representative behavior from every family is present:
 zero-valued surface IDs, stale-generation ACK handling, terminal frame-delivery
 abort, zero-valued frame IDs, segmented-data denial/in-place safety, and
-segmented AVC420 delivery/ACK. Keep this group separate from the existing
-4-case capability selector and 20-case x264/BGRA label so failures remain
+segmented AVC420 delivery/ACK, exact unsent-frame cancellation and retained
+terminal abort for ambiguous/partial progress. Keep this group separate from
+the existing 4-case capability selector and 22-case x264/BGRA label so
+failures remain
 attributable and one R4 group cannot hide later road evidence. No native X11,
 Windows or macOS graphics test belongs in this portable selection.
 

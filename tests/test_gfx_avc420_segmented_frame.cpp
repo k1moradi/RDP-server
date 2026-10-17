@@ -2,12 +2,14 @@
 #include "rdp/gfx_avc420_segmented_frame.h"
 #include "rdp/gfx_segmented_data.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace rdp_server::rdp;
@@ -183,6 +185,108 @@ void deliveryAcknowledgement()
         lifecycle, frame, frame.wireBytes().size()));
 }
 
+
+void unsentCancellation()
+{
+    constexpr std::uint64_t generation = 3006;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation);
+
+    GfxAvc420SegmentedFrame delivered;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, generation, picture(70U), delivered));
+    assert(completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, delivered, delivered.wireBytes().size()));
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    GfxAvc420SegmentedFrame pending;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, generation, picture(0U), pending));
+    assert(pending.valid());
+    assert(pending.wireBytes()[0] == std::byte{0xE0});
+    assert(pending.wireBytes()[1] == std::byte{0x04});
+    const std::size_t canceledWireBytes = pending.wireBytes().size();
+
+    GfxAvc420SegmentedFrame moved = std::move(pending);
+    assert(!pending.valid());
+    assert(moved.valid());
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        lifecycle, moved));
+    assert(!moved.valid());
+    assert(moved.wireBytes().empty());
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(lifecycle.surfaceId() == 7U);
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.canReserveFrame(generation, 0U));
+
+    assert(!completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, moved, canceledWireBytes));
+    assert(!abortGfxAvc420SegmentedFrameDelivery(lifecycle, moved));
+    assert(!cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        lifecycle, moved));
+
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(0U), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    // Reusing the same numeric frame ID creates a fresh reservation. The old
+    // invalidated object cannot abort that unrelated reservation.
+    GfxAvc420SegmentedFrame replacement;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, generation, picture(0U), replacement));
+    assert(replacement.valid());
+    assert(!abortGfxAvc420SegmentedFrameDelivery(lifecycle, moved));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, replacement, replacement.wireBytes().size()));
+    assert(lifecycle.outstandingFrames() == 2U);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(70U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(0U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
+
+    // A frame from another generation cannot cancel either lifecycle's
+    // current reservation, and rejection leaves both publication objects
+    // byte-for-byte unchanged.
+    GfxPresentationLifecycle leftLifecycle;
+    GfxPresentationLifecycle rightLifecycle;
+    mapSurface(leftLifecycle, 3007);
+    mapSurface(rightLifecycle, 3008);
+    GfxAvc420SegmentedFrame leftFrame;
+    GfxAvc420SegmentedFrame rightFrame;
+    assert(prepareGfxAvc420SegmentedFrame(
+        leftLifecycle, 3007, picture(80U), leftFrame));
+    assert(prepareGfxAvc420SegmentedFrame(
+        rightLifecycle, 3008, picture(81U), rightFrame));
+    const std::vector<std::byte> leftBytes(
+        leftFrame.wireBytes().begin(), leftFrame.wireBytes().end());
+    const std::vector<std::byte> rightBytes(
+        rightFrame.wireBytes().begin(), rightFrame.wireBytes().end());
+
+    assert(!cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        leftLifecycle, rightFrame));
+    assert(rightFrame.valid());
+    assert(std::equal(
+        rightFrame.wireBytes().begin(), rightFrame.wireBytes().end(),
+        rightBytes.begin(), rightBytes.end()));
+    assert(!cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        rightLifecycle, leftFrame));
+    assert(leftFrame.valid());
+    assert(std::equal(
+        leftFrame.wireBytes().begin(), leftFrame.wireBytes().end(),
+        leftBytes.begin(), leftBytes.end()));
+
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        leftLifecycle, leftFrame));
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        rightLifecycle, rightFrame));
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -208,6 +312,11 @@ int main(int argc, char **argv)
     if (behavior == "avc420-segmented-frame-delivery-ack")
     {
         deliveryAcknowledgement();
+        return 0;
+    }
+    if (behavior == "avc420-segmented-frame-unsent-cancellation")
+    {
+        unsentCancellation();
         return 0;
     }
     return 2;

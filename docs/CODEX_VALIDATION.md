@@ -1,3 +1,34 @@
+## R4 zero-byte AVC420 cancellation authoring receipt (2026-10-16)
+
+**Starting reconciled shared `main`:** `17f0f11bb420ba6772fb0e6639e04bc73e745552`.  
+**Implementation SHA:** pending publication.  
+**Exact-SHA Actions:** pending.
+
+The new R4 path cancels only the exact pending unwritten frame receipt,
+invalidates the move-only segmented publication and rebuilds the existing x264
+reference history so the next accepted picture must be IDR. It preserves the
+mapped generation/surface plus earlier ACK and client-observation state.
+Positive or uncertain transport progress remains terminal abort. R4 cannot
+independently prove transport progress; the zero-byte condition and retirement
+of all `wireBytes()` borrows are external R3 preconditions.
+
+Dedicated centrally registered cases are
+`graphics.frame-delivery-unsent-cancellation`,
+`graphics.avc420-segmented-frame-unsent-cancellation`,
+`graphics.x264-segmented-unsent-cancel-idr`,
+`graphics.x264-bgra-unsent-cancel-idr`, and
+`graphics.frame-delivery-partial-send-remains-terminal`. The shared R9
+workflow fail-closed preflights the three portable cases and both x264-labelled
+recovery cases.
+
+Canonical local configure/build/CTest is **NOT RUN** because this connector
+environment cannot synchronize the mandated `~/rdp-server` checkout and
+policy forbids a second persistent checkout/build root. Exact-SHA hosted
+Linux/GCC, macOS/AppleClang, Windows/MSVC Debug/Release, ASan/UBSan,
+documentation-policy, installed-SDK and package results are **PENDING**. No
+authenticated Graphics DVC, accepted-byte R3 evidence, native desktop or
+Microsoft-client visible frame is claimed.
+
 ## R3 CAL exact-SHA CI blocker receipt (2026-10-17)
 
 Implementation `4cbe0168f9f0996d44d3f589ec6cafb335d62844`, Actions

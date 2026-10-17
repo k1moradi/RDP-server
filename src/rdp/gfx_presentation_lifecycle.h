@@ -117,6 +117,12 @@ public:
     [[nodiscard]] bool prepareAvc420Picture(
         std::uint64_t generation, const GfxAvc420Picture &picture,
         std::span<std::byte> output, GfxFrameDeliveryReceipt &receipt) noexcept;
+    // Withdraw exactly the pending frame without changing the mapped
+    // presentation. R3 may call this only after conclusively proving that
+    // cumulative accepted wire bytes are zero and all outbound borrows are
+    // retired. R4 does not independently prove transport progress.
+    [[nodiscard]] bool cancelUnwrittenFrameDelivery(
+        const GfxFrameDeliveryReceipt &receipt) noexcept;
     // R3 MUST call only after the whole matching frame has been sent.
     [[nodiscard]] bool completeFrameDelivery(
         const GfxFrameDeliveryReceipt &receipt,

@@ -8,6 +8,29 @@
 namespace rdp_server::rdp
 {
 
+GfxAvc420SegmentedFrame::GfxAvc420SegmentedFrame(
+    GfxAvc420SegmentedFrame && other) noexcept
+    : wireBytes_(std::move(other.wireBytes_)),
+      receipt_(other.receipt_),
+      graphicsBytes_(other.graphicsBytes_)
+{
+    other.invalidate();
+}
+
+GfxAvc420SegmentedFrame &
+GfxAvc420SegmentedFrame::operator=(
+    GfxAvc420SegmentedFrame && other) noexcept
+{
+    if (this != &other)
+    {
+        wireBytes_ = std::move(other.wireBytes_);
+        receipt_ = other.receipt_;
+        graphicsBytes_ = other.graphicsBytes_;
+        other.invalidate();
+    }
+    return *this;
+}
+
 bool prepareGfxAvc420SegmentedFrame(
     GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
     const GfxAvc420Picture &picture,
@@ -55,6 +78,19 @@ bool prepareGfxAvc420SegmentedFrame(
     {
         return false;
     }
+}
+
+bool cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+    GfxPresentationLifecycle &lifecycle,
+    GfxAvc420SegmentedFrame &frame) noexcept
+{
+    if (!frame.valid() || frame.receipt_.bytes != frame.graphicsBytes_)
+        return false;
+    if (!lifecycle.cancelUnwrittenFrameDelivery(frame.receipt_))
+        return false;
+
+    frame.invalidate();
+    return true;
 }
 
 bool completeGfxAvc420SegmentedFrameDelivery(

@@ -326,7 +326,8 @@ function(add_rdp_test source_file suite behavior)
                 avc420-segmented-frame-single
                 avc420-segmented-frame-multipart
                 avc420-segmented-frame-denials-reconnect
-                avc420-segmented-frame-delivery-ack)
+                avc420-segmented-frame-delivery-ack
+                avc420-segmented-frame-unsent-cancellation)
             add_test(NAME "graphics.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("graphics.${case_name}" PROPERTIES
@@ -366,6 +367,8 @@ function(add_rdp_test source_file suite behavior)
                 frame-ack-decode-progress-observation
                 frame-delivery-receipt-ordering
                 frame-delivery-abort-revocation
+                frame-delivery-unsent-cancellation
+                frame-delivery-partial-send-remains-terminal
                 avc420-mapped-frame-wire
                 avc420-mapped-frame-denials
                 avc420-mapped-frame-reconnect
@@ -1939,6 +1942,7 @@ foreach(case_name IN ITEMS
         x264-segmented-malformed-nv12-reference-continuity
         x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset
+        x264-segmented-unsent-cancel-idr
         x264-segmented-zero-frame-id-delivery
         x264-segmented-zero-surface-id-delivery
         x264-segmented-cfr-pts-reference-continuity
@@ -1947,7 +1951,8 @@ foreach(case_name IN ITEMS
         bgra-nv12-invalid-frame-denials
         bgra-nv12-reset-scratch-reuse
         x264-bgra-segmented-production-chain
-        x264-bgra-backpressure-reference-denials)
+        x264-bgra-backpressure-reference-denials
+        x264-bgra-unsent-cancel-idr)
     add_test(NAME "graphics.${case_name}"
         COMMAND test_x264_avc420_segmented_frame_producer "${case_name}")
     set_tests_properties("graphics.${case_name}" PROPERTIES

@@ -24,9 +24,9 @@ public:
 
     GfxAvc420SegmentedFrame(const GfxAvc420SegmentedFrame &) = delete;
     GfxAvc420SegmentedFrame &operator=(const GfxAvc420SegmentedFrame &) = delete;
-    GfxAvc420SegmentedFrame(GfxAvc420SegmentedFrame &&) noexcept = default;
+    GfxAvc420SegmentedFrame(GfxAvc420SegmentedFrame && other) noexcept;
     GfxAvc420SegmentedFrame &
-    operator=(GfxAvc420SegmentedFrame &&) noexcept = default;
+    operator=(GfxAvc420SegmentedFrame && other) noexcept;
 
     [[nodiscard]] std::span<const std::byte> wireBytes() const noexcept
     {
@@ -50,11 +50,23 @@ private:
     friend bool prepareGfxAvc420SegmentedFrame(
         GfxPresentationLifecycle &, std::uint64_t,
         const GfxAvc420Picture &, GfxAvc420SegmentedFrame &) noexcept;
+    friend bool cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        GfxPresentationLifecycle &, GfxAvc420SegmentedFrame &) noexcept;
     friend bool completeGfxAvc420SegmentedFrameDelivery(
         GfxPresentationLifecycle &, const GfxAvc420SegmentedFrame &,
         std::size_t) noexcept;
     friend bool abortGfxAvc420SegmentedFrameDelivery(
         GfxPresentationLifecycle &, const GfxAvc420SegmentedFrame &) noexcept;
+
+    void invalidate() noexcept
+    {
+        // Release the owned payload so a canceled or moved-from object cannot
+        // expose stale bytes if the object is later reused.
+        std::vector<std::byte> empty;
+        wireBytes_.swap(empty);
+        receipt_ = {};
+        graphicsBytes_ = 0;
+    }
 
     std::vector<std::byte> wireBytes_{};
     GfxFrameDeliveryReceipt receipt_{};
@@ -69,6 +81,14 @@ private:
     GfxPresentationLifecycle &lifecycle, std::uint64_t generation,
     const GfxAvc420Picture &picture,
     GfxAvc420SegmentedFrame &output) noexcept;
+
+// R3 may call this only after conclusively proving that no byte from this
+// frame has been accepted and after retiring every borrow of wireBytes().
+// R4 validates the exact pending receipt but cannot prove transport progress.
+// On success the frame is invalidated and cannot later complete or abort.
+[[nodiscard]] bool cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+    GfxPresentationLifecycle &lifecycle,
+    GfxAvc420SegmentedFrame &frame) noexcept;
 
 // R3 calls this only after the entire wireBytes() span has been delivered on
 // its independently authorized Graphics DVC. The outer segmented byte count

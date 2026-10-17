@@ -239,6 +239,22 @@ bool GfxPresentationLifecycle::prepareAvc420Picture(
     return beginFrameDelivery(generation, picture.frameId, written, receipt);
 }
 
+bool GfxPresentationLifecycle::cancelUnwrittenFrameDelivery(
+    const GfxFrameDeliveryReceipt &receipt) noexcept
+{
+    if (!active(receipt.generation) ||
+        stage_ != GfxPresentationStage::Mapped ||
+        pendingFrame_.serial == 0 || receipt != pendingFrame_)
+    {
+        return false;
+    }
+
+    // Only the exact unsent reservation is retired. Earlier ACK-tracked
+    // frames, client observations, mapped surface and generation survive.
+    pendingFrame_ = {};
+    return true;
+}
+
 bool GfxPresentationLifecycle::completeFrameDelivery(
     const GfxFrameDeliveryReceipt &receipt,
     std::size_t deliveredBytes) noexcept

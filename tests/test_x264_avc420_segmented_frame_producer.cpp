@@ -760,6 +760,143 @@ void malformedNv12PreflightPreservesReferences()
 }
 
 
+
+void x264SegmentedUnsentCancelIdr()
+{
+    constexpr std::uint64_t generation = 6701;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+
+    const auto firstPixels = makeFrame(kCoded, 5);
+    const auto canceledPixels = makeFrame(kCoded, 17);
+    const auto recoveryPixels = makeFrame(kCoded, 29);
+    const auto continuationPixels = makeFrame(kCoded, 41);
+
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepare(
+        lifecycle, generation, request(110U, firstPixels, 7), first));
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    GfxAvc420SegmentedFrame canceled;
+    assert(producer.prepare(
+        lifecycle, generation, request(111U, canceledPixels, -4), canceled));
+    assert(hasNalType(canceled.wireBytes(), 1));
+    assert(!hasNalType(canceled.wireBytes(), 5));
+    assert(producer.cancelUnwrittenDelivery(lifecycle, canceled));
+    assert(!canceled.valid());
+    assert(producer.valid());
+    assert(producer.generation() == generation);
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.canReserveFrame(generation, 111U));
+
+    // The canceled frame is not in the ACK window and cannot retire frame A.
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(111U), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(110U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    GfxAvc420SegmentedFrame recovery;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(112U, recoveryPixels,
+                std::numeric_limits<std::int64_t>::min()),
+        recovery));
+    assert(hasNalType(recovery.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, recovery, recovery.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(112U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    // Duplicate/stale cancellation is rejected without resetting the healthy
+    // post-recovery reference chain. The completed recovery object remains
+    // structurally valid but no longer owns the pending lifecycle receipt.
+    assert(!producer.cancelUnwrittenDelivery(lifecycle, canceled));
+    assert(!producer.cancelUnwrittenDelivery(lifecycle, recovery));
+    GfxAvc420SegmentedFrame continuation;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(113U, continuationPixels,
+                std::numeric_limits<std::int64_t>::max()),
+        continuation));
+    assert(hasNalType(continuation.wireBytes(), 1));
+    assert(!hasNalType(continuation.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, continuation, continuation.wireBytes().size()));
+}
+
+void x264BgraUnsentCancelIdr()
+{
+    constexpr std::uint64_t generation = 6702;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+
+    // Padded stride exercises the native-framebuffer conversion boundary.
+    auto pixels = makeBgraFrame(kVisible, 13);
+    pixels.solid(80, 110, 140, 0);
+
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepareBgra(
+        lifecycle, generation, bgraRequest(120U, pixels, 9), first));
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(120U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    pixels.solid(90, 120, 150, 255);
+    GfxAvc420SegmentedFrame canceled;
+    assert(producer.prepareBgra(
+        lifecycle, generation, bgraRequest(121U, pixels, -11), canceled));
+    assert(hasNalType(canceled.wireBytes(), 1));
+    assert(!hasNalType(canceled.wireBytes(), 5));
+    assert(producer.cancelUnwrittenDelivery(lifecycle, canceled));
+    assert(!canceled.valid());
+    assert(producer.valid());
+    assert(producer.generation() == generation);
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+
+    pixels.solid(100, 130, 160, 64);
+    GfxAvc420SegmentedFrame recovery;
+    assert(producer.prepareBgra(
+        lifecycle, generation,
+        bgraRequest(122U, pixels,
+                    std::numeric_limits<std::int64_t>::min()),
+        recovery));
+    assert(hasNalType(recovery.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, recovery, recovery.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(122U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    pixels.solid(110, 140, 170, 192);
+    GfxAvc420SegmentedFrame continuation;
+    assert(producer.prepareBgra(
+        lifecycle, generation,
+        bgraRequest(123U, pixels,
+                    std::numeric_limits<std::int64_t>::max()),
+        continuation));
+    assert(hasNalType(continuation.wireBytes(), 1));
+    assert(!hasNalType(continuation.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, continuation, continuation.wireBytes().size()));
+}
+
 void zeroFrameIdDelivery()
 {
     constexpr std::uint64_t generation = 6501;
@@ -971,6 +1108,16 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-abort-generation-reset")
     {
         abortAndGenerationReset();
+        return 0;
+    }
+    if (behavior == "x264-segmented-unsent-cancel-idr")
+    {
+        x264SegmentedUnsentCancelIdr();
+        return 0;
+    }
+    if (behavior == "x264-bgra-unsent-cancel-idr")
+    {
+        x264BgraUnsentCancelIdr();
         return 0;
     }
     if (behavior == "x264-segmented-zero-frame-id-delivery")

@@ -86,6 +86,15 @@ public:
         const X264BgraFrameRequest &request,
         GfxAvc420SegmentedFrame &output) noexcept;
 
+    // Cancel a prepared frame only after R3 has conclusively established
+    // zero cumulative accepted bytes and retired all wireBytes() borrows.
+    // Exact lifecycle cancellation invalidates frame first; then x264 is
+    // rebuilt so the next accepted frame is an independent IDR. A rebuild
+    // failure revokes the presentation and leaves this producer unusable.
+    [[nodiscard]] bool cancelUnwrittenDelivery(
+        GfxPresentationLifecycle &lifecycle,
+        GfxAvc420SegmentedFrame &frame) noexcept;
+
     // R3 calls this only after the full owned outer wire span was delivered.
     [[nodiscard]] bool completeDelivery(
         GfxPresentationLifecycle &lifecycle,

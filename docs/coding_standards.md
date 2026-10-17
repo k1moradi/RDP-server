@@ -270,9 +270,20 @@ the corresponding frame cannot be transactionally reserved for publication,
 discard/reinitialize codec reference history so the next accepted frame is an
 independent refresh/IDR. Never continue a P-frame chain through an unsent or
 ambiguously delivered reference. A terminal/partial transport abort likewise
-invalidates codec history for that presentation generation. Keep this logic
-inside the one graphics owner/subordinate codec boundary, not in a second
-scheduler or transport queue.
+invalidates codec history for that presentation generation.
+
+A conclusively zero-byte withdrawal is a narrower transition than abort. Only
+the exact pending delivery receipt may be canceled, and only after the
+transport owner has independently proved cumulative accepted bytes are zero
+and retired every borrow of the owned publication bytes. Successful
+cancellation must invalidate that publication object and rebuild codec
+reference history before another encode; if rebuild fails, revoke the
+presentation rather than expose a mapped lifecycle through an unusable codec.
+Do not accept a caller Boolean as transport proof, and do not apply this path
+to positive or uncertain progress.
+
+Keep this logic inside the one graphics owner/subordinate codec boundary, not
+in a second scheduler or transport queue.
 
 ## Linux provider credential-file continuity
 

@@ -370,6 +370,149 @@ void frameAbort()
     assert(result == GfxFrameAckWindowResult::Acknowledged);
 }
 
+
+void frameUnsentCancellation()
+{
+    constexpr std::uint64_t generation = 903;
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, generation);
+
+    GfxFrameDeliveryReceipt deliveredFrame{};
+    assert(lifecycle.beginFrameDelivery(
+        generation, 41U, 128U, deliveredFrame));
+    assert(lifecycle.completeFrameDelivery(deliveredFrame, 128U));
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    // Establish generation-scoped client observations before cancellation.
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(999U, 4096U, 17U), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 4096U);
+    assert(lifecycle.clientTotalFramesDecodedAvailable());
+    assert(lifecycle.clientTotalFramesDecoded() == 17U);
+
+    GfxFrameDeliveryReceipt canceledFrame{};
+    assert(lifecycle.beginFrameDelivery(
+        generation, 0U, 129U, canceledFrame));
+    assert(!lifecycle.canSubmitFrame(generation));
+
+    const auto assertPreservedState = [&]
+    {
+        assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+        assert(lifecycle.surfaceId() == 7U);
+        assert(lifecycle.outstandingFrames() == 1U);
+        assert(lifecycle.clientQueueDepthAvailable());
+        assert(lifecycle.clientQueueDepthBytes() == 4096U);
+        assert(lifecycle.clientTotalFramesDecodedAvailable());
+        assert(lifecycle.clientTotalFramesDecoded() == 17U);
+    };
+    assertPreservedState();
+
+    auto forged = canceledFrame;
+    ++forged.serial;
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(forged));
+    assertPreservedState();
+    forged = canceledFrame;
+    ++forged.frameId;
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(forged));
+    assertPreservedState();
+    forged = canceledFrame;
+    ++forged.bytes;
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(forged));
+    assertPreservedState();
+    forged = canceledFrame;
+    --forged.generation;
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(forged));
+    assertPreservedState();
+
+    // A completed receipt is not the current pending reservation.
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(deliveredFrame));
+    assertPreservedState();
+
+    assert(lifecycle.cancelUnwrittenFrameDelivery(canceledFrame));
+    assertPreservedState();
+    assert(lifecycle.canReserveFrame(generation, 0U));
+
+    // Cancellation is one-shot and old callbacks cannot publish or revoke.
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(canceledFrame));
+    assert(!lifecycle.completeFrameDelivery(
+        canceledFrame, canceledFrame.bytes));
+    assert(!lifecycle.abortFrameDelivery(canceledFrame));
+    assertPreservedState();
+
+    // A client ACK for the canceled numeric ID must not retire frame 41.
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(0U, 4096U, 17U), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(41U, 4096U, 17U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
+
+    GfxFrameDeliveryReceipt completedFrame{};
+    assert(lifecycle.beginFrameDelivery(
+        generation, 42U, 130U, completedFrame));
+    assert(lifecycle.completeFrameDelivery(completedFrame, 130U));
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(completedFrame));
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(42U, 1024U, 18U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    // No pending reservation and disconnect both reject cancellation.
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(canceledFrame));
+    lifecycle.disconnect();
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(canceledFrame));
+
+    mapped(lifecycle, generation + 1U);
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(canceledFrame));
+    GfxFrameDeliveryReceipt freshZero{};
+    assert(lifecycle.beginFrameDelivery(
+        generation + 1U, 0U, 131U, freshZero));
+    assert(freshZero.serial > canceledFrame.serial);
+    assert(lifecycle.completeFrameDelivery(freshZero, 131U));
+    assert(lifecycle.onFrameAcknowledge(
+        generation + 1U, ack(0U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+}
+
+void framePartialSendRemainsTerminal()
+{
+    constexpr std::uint64_t generation = 904;
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, generation);
+
+    GfxFrameDeliveryReceipt frame{};
+    assert(lifecycle.beginFrameDelivery(
+        generation, 77U, 256U, frame));
+
+    // R4's completion API accepts only the exact full byte count. Actual
+    // positive or uncertain transport progress is established by R1/R3 and
+    // must select terminal abort rather than the unsent-cancel operation.
+    assert(!lifecycle.completeFrameDelivery(frame, 1U));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(!lifecycle.canSubmitFrame(generation));
+
+    assert(lifecycle.abortFrameDelivery(frame));
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(frame));
+    assert(!lifecycle.completeFrameDelivery(frame, frame.bytes));
+    assert(!lifecycle.abortFrameDelivery(frame));
+    assert(!lifecycle.canSubmitFrame(generation));
+    assert(!lifecycle.open(generation));
+
+    mapped(lifecycle, generation + 1U);
+    GfxFrameDeliveryReceipt fresh{};
+    assert(lifecycle.beginFrameDelivery(
+        generation + 1U, 78U, 256U, fresh));
+    assert(fresh.serial > frame.serial);
+    assert(!lifecycle.cancelUnwrittenFrameDelivery(frame));
+    assert(lifecycle.completeFrameDelivery(fresh, fresh.bytes));
+}
+
 void mappedPictureWire()
 {
     GfxPresentationLifecycle lifecycle;
@@ -528,6 +671,8 @@ int main(int argc, char **argv)
     if (mode == "frame-ack-decode-progress-observation") { decodeProgressObservation(); return 0; }
     if (mode == "frame-delivery-receipt-ordering") { frameReceipts(); return 0; }
     if (mode == "frame-delivery-abort-revocation") { frameAbort(); return 0; }
+    if (mode == "frame-delivery-unsent-cancellation") { frameUnsentCancellation(); return 0; }
+    if (mode == "frame-delivery-partial-send-remains-terminal") { framePartialSendRemainsTerminal(); return 0; }
     if (mode == "avc420-mapped-frame-wire") { mappedPictureWire(); return 0; }
     if (mode == "avc420-mapped-frame-denials") { mappedPictureDenials(); return 0; }
     if (mode == "avc420-mapped-frame-reconnect") { mappedPictureReconnect(); return 0; }

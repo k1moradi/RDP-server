@@ -1284,6 +1284,38 @@ or terminal send failure delegates to the existing lifecycle abort, revoking
 the generation. Neither the object nor its helpers can open a DVC, authorize
 capture, advance authentication or bypass R2/R3.
 
+### R4 zero-byte AVC420 cancellation and x264 reference recovery (2026-10-16)
+
+A prepared segmented AVC420 frame now has one additional **offline** terminal
+choice before transport accepts any byte.
+`GfxPresentationLifecycle::cancelUnwrittenFrameDelivery()` accepts only the
+exact current generation/serial/frame-ID/byte-count receipt while the surface
+is mapped. On success it clears only that pending reservation: the generation,
+surface, earlier ACK-pending frames, ACK suspension state, queue-depth
+observation and decoded-frame observation remain owned and unchanged.
+
+`cancelUnwrittenGfxAvc420SegmentedFrameDelivery()` composes that exact
+transition with the move-only publication object. R3 must first retire every
+borrow of `wireBytes()` and independently prove cumulative accepted bytes are
+zero. R4 has no TLS/DVC progress oracle and does not accept a Boolean as proof.
+Only after lifecycle cancellation succeeds are the owned wire bytes and receipt
+invalidated. Move construction/assignment also explicitly invalidates the
+source object, so stale/moved-from completion or abort cannot affect a later
+reservation. Rejected stale/wrong cancellation leaves the object unchanged.
+
+`X264Avc420SegmentedFrameProducer::cancelUnwrittenDelivery()` then rebuilds
+the existing x264 encoder at the same generation and geometry. The next
+accepted picture is therefore a fresh IDR and later delivered pictures resume
+normal P-frame continuity. Rebuild failure resets the producer and disconnects
+the lifecycle because a released reservation must not leave a mapped
+presentation apparently usable through broken codec state. Positive or
+uncertain accepted-byte progress never uses this path: the existing terminal
+abort still revokes the graphics generation.
+
+This remains an R4 contract for a future genuinely admitted R3 graphics DVC.
+It does not authenticate a peer, inspect SSL/BIO internals, create a writer,
+or authorize desktop publication.
+
 ### R10 Linux runtime security provisioning ownership (2026-10-16)
 
 `LinuxRuntimeSecurityConfiguration` is a service-lifetime R10 owner, not a

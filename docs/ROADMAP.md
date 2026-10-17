@@ -2168,3 +2168,52 @@ cadence policy without measured/client evidence. Canonical owner-local
 macOS 27, authenticated R3 Graphics DVC/full-send, native capture performance
 and Microsoft-client visible graphics remain **NOT RUN/BLOCKED**. Gate B and
 M3/M4/M5 remain **OPEN**.
+
+
+## R4 safe zero-byte AVC420 frame cancellation (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `17f0f11bb420ba6772fb0e6639e04bc73e745552`.
+
+R4 now distinguishes an exact, conclusively unwritten prepared frame from a
+partially or ambiguously submitted frame. The sole
+`GfxPresentationLifecycle` can cancel only its exact pending
+generation/serial/frame-ID/byte-count receipt while mapped, clearing that
+reservation without changing the active graphics generation, mapped surface,
+earlier ACK-pending frame IDs, ACK suspension state, queue-depth observation or
+decoded-frame observation. R4 deliberately has no caller Boolean or SSL/DVC
+inspection that could pretend to prove transport progress: a future authorized
+R3 sender must first establish cumulative accepted bytes are zero and retire
+every borrow of the frame bytes.
+
+The move-only `GfxAvc420SegmentedFrame` cancellation boundary invalidates and
+releases its owned segmented payload only after exact lifecycle cancellation
+succeeds, and move operations explicitly invalidate the source object.
+`X264Avc420SegmentedFrameProducer::cancelUnwrittenDelivery()` then rebuilds
+the existing x264 encoder so the next accepted NV12/BGRA picture begins a new
+IDR sequence. A stale, wrong or duplicate cancellation does not reset a
+healthy encoder. If post-cancellation encoder rebuild fails, the producer
+becomes unusable and the lifecycle disconnects. Any positive or uncertain
+transport progress remains on the pre-existing terminal abort path.
+
+Five dedicated production-backed CTests are centrally registered:
+`graphics.frame-delivery-unsent-cancellation`,
+`graphics.avc420-segmented-frame-unsent-cancellation`,
+`graphics.x264-segmented-unsent-cancel-idr`,
+`graphics.x264-bgra-unsent-cancel-idr`, and
+`graphics.frame-delivery-partial-send-remains-terminal`. The portable R4
+ASan/UBSan selector now fail-closed preflights all three portable cancellation
+cases, and the x264-labelled selector preflights both real-codec recovery
+cases before running the complete label.
+
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest is
+**NOT RUN** in this connector environment because the synchronized checkout is
+unavailable; no alternate checkout, branch or persistent build root was
+created. Exact publication-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC
+Debug/Release, portable R4 sanitizer, x264/BGRA sanitizer, capability
+sanitizer, documentation-policy and SDK/package evidence are **PENDING**.
+
+**Next R4:** wire this contract only behind genuine R2/R3 admission and an
+authenticated R3 Graphics DVC writer that owns cumulative accepted-byte
+evidence. Do not enable graphics publication from this offline lifecycle.
+Measured native capture/decode performance and Microsoft-client visible
+desktop acceptance remain open; M2-M5 are not accepted by these tests.

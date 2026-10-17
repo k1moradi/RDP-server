@@ -173,6 +173,28 @@ bool X264Avc420SegmentedFrameProducer::prepareBgra(
     return prepare(lifecycle, generation, converted, output);
 }
 
+bool X264Avc420SegmentedFrameProducer::cancelUnwrittenDelivery(
+    GfxPresentationLifecycle &lifecycle,
+    GfxAvc420SegmentedFrame &frame) noexcept
+{
+    if (!valid() || !frame.valid() || frame.generation() != generation_)
+        return false;
+
+    // Do not rebuild before exact cancellation succeeds: stale/duplicate
+    // requests must leave a healthy reference chain untouched.
+    if (!cancelUnwrittenGfxAvc420SegmentedFrameDelivery(lifecycle, frame))
+        return false;
+
+    if (rebuildEncoder())
+        return true;
+
+    // The reservation is already released and the publication object is
+    // invalid. If codec recovery fails, fail closed rather than leaving the
+    // mapped presentation apparently usable through a broken producer.
+    lifecycle.disconnect();
+    return false;
+}
+
 bool X264Avc420SegmentedFrameProducer::completeDelivery(
     GfxPresentationLifecycle &lifecycle,
     const GfxAvc420SegmentedFrame &frame,

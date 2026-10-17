@@ -3812,6 +3812,275 @@ serverDynamicVirtualChannelControl(
     return staticPdu.subspan(8U);
 }
 
+
+void completeGraphicsDynamicVirtualChannelCreate(
+    RdpGraphicsDynamicVirtualChannelLifecycle &dvc,
+    RdpDynamicVirtualChannelAllocation allocation,
+    std::uint32_t clientUserId,
+    std::uint16_t drdynvcChannelId)
+{
+    assert(allocation && allocation.channelId <= 0xffU);
+    assert(dvc.begin(clientUserId, drdynvcChannelId, allocation));
+
+    auto write = dvc.pendingServerWrite();
+    assert(write &&
+           write.kind ==
+               RdpGraphicsDvcWriteKind::CapabilitiesRequest);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+
+    constexpr std::array<std::uint8_t, 4> capsResponse{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeClientDynamicVirtualChannelTpkt(
+                   clientUserId, drdynvcChannelId,
+                   capsResponse)) ==
+           RdpGraphicsDvcClientIntake::CapabilitiesAccepted);
+
+    write = dvc.pendingServerWrite();
+    assert(write &&
+           write.kind == RdpGraphicsDvcWriteKind::CreateRequest);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+
+    const std::array<std::uint8_t, 6> createResponse{
+        0x10U,
+        static_cast<std::uint8_t>(allocation.channelId),
+        0x00U, 0x00U, 0x00U, 0x00U};
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeClientDynamicVirtualChannelTpkt(
+                   clientUserId, drdynvcChannelId,
+                   createResponse)) ==
+           RdpGraphicsDvcClientIntake::CreateAccepted);
+    assert(dvc.created());
+}
+
+void testGraphicsDynamicVirtualChannelCapabilitiesSelection()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+    constexpr std::uint32_t version81 = 0x00080105U;
+
+    {
+        // Offer VERSION8 and VERSION81 without AVC420. R4 must pick the
+        // highest supported profile while preserving ClearCodec fallback.
+        constexpr RdpDynamicVirtualChannelAllocation allocation{1U, 31U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelCreate(
+            dvc, allocation, clientUserId, drdynvcChannelId);
+
+        constexpr std::array<std::uint8_t, 34> advertise{
+            0x12U, 0x00U, 0x00U, 0x00U, 0x22U, 0x00U, 0x00U, 0x00U,
+            0x02U, 0x00U,
+            0x04U, 0x00U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+            0x03U, 0x00U, 0x00U, 0x00U,
+            0x05U, 0x01U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+            0x02U, 0x00U, 0x00U, 0x00U};
+        std::vector<std::uint8_t> data{
+            0x30U, static_cast<std::uint8_t>(allocation.channelId)};
+        data.insert(data.end(), advertise.begin(), advertise.end());
+
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId, data)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsCapabilitiesAccepted);
+        assert(dvc.created());
+        assert(!dvc.graphicsCapabilitiesConfirmed());
+        assert(!dvc.graphicsClearCodecEnabled());
+        assert(!dvc.graphicsAvc420Enabled());
+        assert(dvc.confirmedGraphicsCapabilityVersion() == 0U);
+        assert(dvc.confirmedGraphicsCapabilityFlags() == 0U);
+
+        auto write = dvc.pendingServerWrite();
+        assert(write &&
+               write.kind ==
+                   RdpGraphicsDvcWriteKind::
+                       GraphicsCapabilitiesConfirm);
+        const auto confirmation =
+            serverDynamicVirtualChannelControl(write);
+        constexpr std::array<std::uint8_t, 22> expected{
+            0x30U, 0x01U,
+            0x13U, 0x00U, 0x00U, 0x00U, 0x14U, 0x00U, 0x00U, 0x00U,
+            0x05U, 0x01U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+            0x02U, 0x00U, 0x00U, 0x00U};
+        assert(confirmation.size() == expected.size());
+        assert(std::equal(
+            confirmation.begin(), confirmation.end(),
+            expected.begin(), expected.end()));
+
+        // Zero publication cannot activate a codec. Positive short progress
+        // rotates only the exact write-slice receipt.
+        assert(dvc.onServerBytesWritten(
+                   write.channelGeneration,
+                   write.replySequence,
+                   write.writeSliceSequence, 0U) ==
+               RdpGraphicsDvcWriteOutcome::Pending);
+        assert(dvc.pendingServerWrite().writeSliceSequence ==
+               write.writeSliceSequence);
+        assert(!dvc.graphicsClearCodecEnabled());
+
+        constexpr std::size_t firstAcceptedBytes = 7U;
+        assert(dvc.onServerBytesWritten(
+                   write.channelGeneration,
+                   write.replySequence,
+                   write.writeSliceSequence,
+                   firstAcceptedBytes) ==
+               RdpGraphicsDvcWriteOutcome::Pending);
+        const auto remainder = dvc.pendingServerWrite();
+        assert(remainder &&
+               remainder.replySequence == write.replySequence &&
+               remainder.writeSliceSequence !=
+                   write.writeSliceSequence);
+        assert(!dvc.graphicsClearCodecEnabled());
+        assert(dvc.onServerBytesWritten(
+                   remainder.channelGeneration,
+                   remainder.replySequence,
+                   remainder.writeSliceSequence,
+                   remainder.bytes.size()) ==
+               RdpGraphicsDvcWriteOutcome::Delivered);
+
+        assert(dvc.graphicsCapabilitiesConfirmed());
+        assert(dvc.graphicsClearCodecEnabled());
+        assert(!dvc.graphicsAvc420Enabled());
+        assert(dvc.confirmedGraphicsCapabilityVersion() == version81);
+        assert(dvc.confirmedGraphicsCapabilityFlags() == 0x00000002U);
+    }
+
+    {
+        // AVC420 becomes consumable only after the VERSION81 confirmation
+        // that explicitly carries AVC420_ENABLED is fully delivered.
+        constexpr RdpDynamicVirtualChannelAllocation allocation{2U, 32U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelCreate(
+            dvc, allocation, clientUserId, drdynvcChannelId);
+
+        constexpr std::array<std::uint8_t, 22> advertise{
+            0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
+            0x01U, 0x00U,
+            0x05U, 0x01U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+            0x10U, 0x00U, 0x00U, 0x00U};
+        std::vector<std::uint8_t> data{
+            0x30U, static_cast<std::uint8_t>(allocation.channelId)};
+        data.insert(data.end(), advertise.begin(), advertise.end());
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId, data)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsCapabilitiesAccepted);
+        assert(!dvc.graphicsAvc420Enabled());
+
+        const auto write = dvc.pendingServerWrite();
+        assert(write);
+        assert(dvc.onServerBytesWritten(
+                   write.channelGeneration,
+                   write.replySequence,
+                   write.writeSliceSequence,
+                   write.bytes.size()) ==
+               RdpGraphicsDvcWriteOutcome::Delivered);
+        assert(dvc.graphicsCapabilitiesConfirmed());
+        assert(dvc.graphicsClearCodecEnabled());
+        assert(dvc.graphicsAvc420Enabled());
+        assert(dvc.confirmedGraphicsCapabilityVersion() == version81);
+        assert(dvc.confirmedGraphicsCapabilityFlags() == 0x00000010U);
+    }
+}
+
+void testGraphicsDynamicVirtualChannelCapabilitiesUnsupportedDenial()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+
+    {
+        // VERSION81 with an unknown flag is not a profile R4 implements.
+        // There is no lower supported offer, so no CAPS_CONFIRM is queued.
+        constexpr RdpDynamicVirtualChannelAllocation allocation{3U, 41U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelCreate(
+            dvc, allocation, clientUserId, drdynvcChannelId);
+
+        constexpr std::array<std::uint8_t, 22> unsupported{
+            0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
+            0x01U, 0x00U,
+            0x05U, 0x01U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+            0x20U, 0x00U, 0x00U, 0x00U};
+        std::vector<std::uint8_t> data{
+            0x30U, static_cast<std::uint8_t>(allocation.channelId)};
+        data.insert(data.end(), unsupported.begin(), unsupported.end());
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId, data)) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+        assert(!dvc.created());
+        assert(!dvc.pendingServerWrite());
+        assert(!dvc.graphicsClearCodecEnabled());
+        assert(!dvc.graphicsAvc420Enabled());
+    }
+
+    {
+        // Fragmented Graphics DATA is not silently treated as a complete
+        // CAPS_ADVERTISE before DATA_FIRST/DATA reassembly exists.
+        constexpr RdpDynamicVirtualChannelAllocation allocation{4U, 42U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelCreate(
+            dvc, allocation, clientUserId, drdynvcChannelId);
+
+        constexpr std::array<std::uint8_t, 22> advertise{
+            0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
+            0x01U, 0x00U,
+            0x04U, 0x00U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+            0x00U, 0x00U, 0x00U, 0x00U};
+        std::vector<std::uint8_t> dataFirst{
+            0x20U, static_cast<std::uint8_t>(allocation.channelId)};
+        dataFirst.insert(
+            dataFirst.end(), advertise.begin(), advertise.end());
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId, dataFirst)) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    }
+
+    {
+        // A stale channel generation cannot deliver a valid advertisement.
+        constexpr RdpDynamicVirtualChannelAllocation allocation{5U, 43U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelCreate(
+            dvc, allocation, clientUserId, drdynvcChannelId);
+
+        constexpr std::array<std::uint8_t, 22> advertise{
+            0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
+            0x01U, 0x00U,
+            0x04U, 0x00U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+            0x00U, 0x00U, 0x00U, 0x00U};
+        std::vector<std::uint8_t> data{
+            0x30U, static_cast<std::uint8_t>(allocation.channelId)};
+        data.insert(data.end(), advertise.begin(), advertise.end());
+        assert(dvc.onClientTpkt(
+                   allocation.generation + 1U,
+                   makeClientDynamicVirtualChannelTpkt(
+                       clientUserId, drdynvcChannelId, data)) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+        assert(!dvc.pendingServerWrite());
+    }
+}
+
 void testGraphicsDynamicVirtualChannelCreateSuccess()
 {
     constexpr std::uint32_t clientUserId = 1007U;
@@ -10117,6 +10386,8 @@ constexpr std::array<McsTestCase, 138> kMcsTestCases{{
     {"share-personal-activation-ordering", &testPersonalDesktopShareActivationOrdering},
     {"share-personal-activation-denials", &testPersonalDesktopShareActivationDenials},
     {"dvc-graphics-create-success", &testGraphicsDynamicVirtualChannelCreateSuccess},
+    {"dvc-graphics-caps-selection", &testGraphicsDynamicVirtualChannelCapabilitiesSelection},
+    {"dvc-graphics-caps-unsupported-denial", &testGraphicsDynamicVirtualChannelCapabilitiesUnsupportedDenial},
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},

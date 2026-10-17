@@ -2,6 +2,7 @@
 #include "mcs_channel_connection.h"
 #include "mcs_connect_initial.h"
 #include "gcc_conference_create.h"
+#include "rdp/gfx_avc420_capabilities.h"
 
 #include <algorithm>
 #include <array>
@@ -2087,6 +2088,9 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::fail() noexcept
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
     negotiatedVersion_ = 0U;
+    selectedGraphicsCapabilityVersion_ = 0U;
+    selectedGraphicsCapabilityFlags_ = 0U;
+    selectedGraphicsAvc420Enabled_ = false;
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
     phase_ = RdpGraphicsDvcPhase::Failed;
 }
@@ -2102,6 +2106,9 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::close() noexcept
     replySequence_ = 0U;
     writeSliceSequence_ = 0U;
     negotiatedVersion_ = 0U;
+    selectedGraphicsCapabilityVersion_ = 0U;
+    selectedGraphicsCapabilityFlags_ = 0U;
+    selectedGraphicsAvc420Enabled_ = false;
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
     phase_ = RdpGraphicsDvcPhase::Closed;
 }
@@ -2214,6 +2221,51 @@ bool RdpGraphicsDynamicVirtualChannelLifecycle::queueCreateRequest() noexcept
     return true;
 }
 
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+queueGraphicsCapabilitiesConfirm(
+    std::span<const std::byte> confirmation) noexcept
+{
+    constexpr std::size_t kMaximumChannelIdBytes = 4U;
+    constexpr std::size_t kMaximumConfirmationBytes = 20U;
+    if (phase_ != RdpGraphicsDvcPhase::Created ||
+        confirmation.empty() ||
+        confirmation.size() > kMaximumConfirmationBytes)
+        return false;
+
+    std::array<std::uint8_t,
+               1U + kMaximumChannelIdBytes + kMaximumConfirmationBytes>
+        data{};
+    const std::uint32_t channelId = allocation_.channelId;
+    std::size_t channelIdBytes = 1U;
+    std::uint8_t cbId = 0U;
+    if (channelId > 0xffffU)
+    {
+        channelIdBytes = 4U;
+        cbId = 2U;
+    }
+    else if (channelId > 0xffU)
+    {
+        channelIdBytes = 2U;
+        cbId = 1U;
+    }
+
+    data[0] = static_cast<std::uint8_t>(0x30U | cbId);
+    for (std::size_t index = 0U; index < channelIdBytes; ++index)
+        data[1U + index] = static_cast<std::uint8_t>(
+            channelId >> (index * 8U));
+
+    std::size_t offset = 1U + channelIdBytes;
+    for (const std::byte value : confirmation)
+        data[offset++] = std::to_integer<std::uint8_t>(value);
+
+    if (!queueControlPdu(
+            RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm,
+            std::span<const std::uint8_t>{data}.first(offset)))
+        return false;
+    phase_ = RdpGraphicsDvcPhase::GraphicsCapabilitiesConfirmPending;
+    return true;
+}
+
 bool RdpGraphicsDynamicVirtualChannelLifecycle::begin(
     std::uint32_t clientUserId,
     std::uint16_t staticChannelId,
@@ -2308,6 +2360,9 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
     case RdpGraphicsDvcWriteKind::CreateRequest:
         phase_ = RdpGraphicsDvcPhase::AwaitCreateResponse;
         break;
+    case RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm:
+        phase_ = RdpGraphicsDvcPhase::Ready;
+        break;
     case RdpGraphicsDvcWriteKind::None:
         fail();
         return RdpGraphicsDvcWriteOutcome::Rejected;
@@ -2326,7 +2381,8 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onClientTpkt(
         channelGeneration == 0U ||
         channelGeneration != allocation_.generation ||
         (phase_ != RdpGraphicsDvcPhase::AwaitCapabilitiesResponse &&
-         phase_ != RdpGraphicsDvcPhase::AwaitCreateResponse))
+         phase_ != RdpGraphicsDvcPhase::AwaitCreateResponse &&
+         phase_ != RdpGraphicsDvcPhase::Created))
     {
         fail();
         return RdpGraphicsDvcClientIntake::Rejected;
@@ -2389,8 +2445,58 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onClientTpkt(
         return RdpGraphicsDvcClientIntake::CapabilitiesAccepted;
     }
 
+    if (phase_ == RdpGraphicsDvcPhase::AwaitCreateResponse)
+    {
+        if (dvcPdu.empty() ||
+            (dvcPdu[0] & 0xf0U) != 0x10U ||
+            (dvcPdu[0] & 0x0cU) != 0U)
+        {
+            fail();
+            return RdpGraphicsDvcClientIntake::Rejected;
+        }
+
+        const std::uint8_t cbId =
+            static_cast<std::uint8_t>(dvcPdu[0] & 0x03U);
+        if (cbId == 3U)
+        {
+            fail();
+            return RdpGraphicsDvcClientIntake::Rejected;
+        }
+        const std::size_t channelIdBytes =
+            cbId == 0U ? 1U : (cbId == 1U ? 2U : 4U);
+        if (dvcPdu.size() != 1U + channelIdBytes + 4U)
+        {
+            fail();
+            return RdpGraphicsDvcClientIntake::Rejected;
+        }
+
+        std::uint32_t channelId = 0U;
+        for (std::size_t index = 0U; index < channelIdBytes; ++index)
+            channelId |= static_cast<std::uint32_t>(
+                dvcPdu[1U + index]) << (index * 8U);
+        if (channelId != allocation_.channelId)
+        {
+            fail();
+            return RdpGraphicsDvcClientIntake::Rejected;
+        }
+
+        const std::uint32_t creationStatus =
+            readLe32At(dvcPdu, 1U + channelIdBytes);
+        if ((creationStatus & 0x80000000U) != 0U)
+        {
+            fail();
+            return RdpGraphicsDvcClientIntake::CreateRejected;
+        }
+
+        phase_ = RdpGraphicsDvcPhase::Created;
+        return RdpGraphicsDvcClientIntake::CreateAccepted;
+    }
+
+    // Capability negotiation is deliberately the first application payload
+    // after CREATE. This increment accepts exactly one complete DYNVC_DATA;
+    // DATA_FIRST/DATA reassembly belongs to the next R3 increment.
     if (dvcPdu.empty() ||
-        (dvcPdu[0] & 0xf0U) != 0x10U ||
+        (dvcPdu[0] & 0xf0U) != 0x30U ||
         (dvcPdu[0] & 0x0cU) != 0U)
     {
         fail();
@@ -2406,7 +2512,7 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onClientTpkt(
     }
     const std::size_t channelIdBytes =
         cbId == 0U ? 1U : (cbId == 1U ? 2U : 4U);
-    if (dvcPdu.size() != 1U + channelIdBytes + 4U)
+    if (dvcPdu.size() <= 1U + channelIdBytes)
     {
         fail();
         return RdpGraphicsDvcClientIntake::Rejected;
@@ -2422,16 +2528,42 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onClientTpkt(
         return RdpGraphicsDvcClientIntake::Rejected;
     }
 
-    const std::uint32_t creationStatus =
-        readLe32At(dvcPdu, 1U + channelIdBytes);
-    if ((creationStatus & 0x80000000U) != 0U)
+    const auto graphicsPdu =
+        dvcPdu.subspan(1U + channelIdBytes);
+    if (graphicsPdu.size() >
+        kMaximumRdpDynamicVirtualChannelDataPayloadBytes)
     {
         fail();
-        return RdpGraphicsDvcClientIntake::CreateRejected;
+        return RdpGraphicsDvcClientIntake::Rejected;
     }
 
-    phase_ = RdpGraphicsDvcPhase::Created;
-    return RdpGraphicsDvcClientIntake::CreateAccepted;
+    const auto negotiation =
+        rdp_server::rdp::negotiateGfxCapabilities(
+            std::as_bytes(graphicsPdu));
+    if (!negotiation.accepted() ||
+        negotiation.confirmationBytes == 0U ||
+        negotiation.confirmationBytes >
+            negotiation.confirmation.size())
+    {
+        fail();
+        return RdpGraphicsDvcClientIntake::Rejected;
+    }
+
+    selectedGraphicsCapabilityVersion_ =
+        negotiation.selectedVersion;
+    selectedGraphicsCapabilityFlags_ =
+        negotiation.selectedFlags;
+    selectedGraphicsAvc420Enabled_ =
+        negotiation.avc420Enabled;
+    if (!queueGraphicsCapabilitiesConfirm(
+            std::span<const std::byte>{negotiation.confirmation}
+                .first(negotiation.confirmationBytes)))
+    {
+        fail();
+        return RdpGraphicsDvcClientIntake::Rejected;
+    }
+    return RdpGraphicsDvcClientIntake::
+        GraphicsCapabilitiesAccepted;
 }
 
 std::optional<std::array<std::uint8_t, 9>>

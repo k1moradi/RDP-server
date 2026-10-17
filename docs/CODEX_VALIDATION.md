@@ -4090,3 +4090,18 @@ Dedicated central CTests registered on the existing `test_owned_mcs_connect_init
 Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** here because the execution container has no materialized canonical checkout and direct GitHub checkout access is unavailable; no alternate persistent build root was created.
 
 **Next gate:** wire the private live path through R10/R2's genuine fresh admission/R1-owner reauthorization. Then R3 must consume the existing R4 8.1 AVC420 capability helper and implement RDPGFX CAPS plus DVC/static-VC/MCS fragmentation with the roadmap's exact R4-payload-to-R1-accepted-outer-byte accounting. This increment does **not** claim live Microsoft-client graphics, RDPGFX capability completion, frame publication or decoded-input routing.
+
+
+## R3 RDPGFX CAPS authoring receipt (2026-10-17)
+
+**Reconciled shared-main parent at authoring:** `c72d9379e6c120da175f1d37ca709de47fdd6929`. **Publication:** this atomic R3 source/CTest/roadmap increment; exact publication-SHA hosted CI is **PENDING**.
+
+After the existing correlated `Microsoft::Windows::RDS::Graphics` CREATE succeeds, R3 now accepts only one bounded unfragmented DRDYNVC DATA message for MS-RDPEGFX `CAPS_ADVERTISE`. It delegates the complete Graphics command to R4's production `negotiateGfxCapabilities()`, queues R4's exact `CAPS_CONFIRM` on the same Dynamic Channel ID, and reuses the existing R3 static-VC/MCS/TPKT serializer plus reply/write-slice receipts. Confirmed codec state is deliberately hidden until the complete outer confirmation is accepted: ClearCodec is then available for every R4-accepted VERSION8/VERSION81 profile, while AVC420 becomes true only for an explicitly confirmed VERSION81 `AVC420_ENABLED` offer. Unsupported capability sets, malformed/wrong-channel/stale-generation input and `DYNVC_DATA_FIRST` before reassembly support fail closed.
+
+Dedicated central CTests added to the existing production-backed `test_owned_mcs_connect_initial` executable:
+- `transport.dvc-graphics-caps-selection`
+- `transport.dvc-graphics-caps-unsupported-denial`
+
+Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** in this connector environment because no owner checkout is available and direct GitHub checkout access is unavailable; no alternate persistent build root was created.
+
+**Next gate:** implement R3 DATA_FIRST/DATA fragmentation and negotiated static-VC/MCS/TPKT publication with exact R4-payload mapping. Live Microsoft-client graphics remains blocked until R10/R2 freshly reauthorize the post-Share Graphics-DVC intake/write/receipt calls around the genuine R2 lease and submit each resulting plaintext slice only through R1's sole TLS application-write boundary.

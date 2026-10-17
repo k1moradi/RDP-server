@@ -167,6 +167,8 @@ function(add_rdp_test source_file suite behavior)
                 share-personal-activation-ordering
                 share-personal-activation-denials
                 dvc-graphics-create-success
+                dvc-graphics-caps-selection
+                dvc-graphics-caps-unsupported-denial
                 dvc-graphics-create-response-denials
                 dvc-graphics-generation-cancellation
                 dvc-graphics-pre-share-denial

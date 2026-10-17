@@ -865,6 +865,11 @@ inline constexpr std::string_view kRdpGraphicsDynamicVirtualChannelName =
     "Microsoft::Windows::RDS::Graphics";
 inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelControlPacketBytes =
     96U;
+// MS-RDPEDYC DATA carries at most one unfragmented 1,590-byte application
+// message. Larger Graphics messages require DATA_FIRST/DATA and are not
+// accepted by the capability-only increment below.
+inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelDataPayloadBytes =
+    1590U;
 
 enum class RdpGraphicsDvcPhase : std::uint8_t
 {
@@ -874,6 +879,8 @@ enum class RdpGraphicsDvcPhase : std::uint8_t
     CreateRequestPending,
     AwaitCreateResponse,
     Created,
+    GraphicsCapabilitiesConfirmPending,
+    Ready,
     Failed,
     Closed,
 };
@@ -883,6 +890,7 @@ enum class RdpGraphicsDvcWriteKind : std::uint8_t
     None,
     CapabilitiesRequest,
     CreateRequest,
+    GraphicsCapabilitiesConfirm,
 };
 
 struct RdpGraphicsDvcWriteView
@@ -915,6 +923,7 @@ enum class RdpGraphicsDvcClientIntake : std::uint8_t
     CapabilitiesAccepted,
     CreateAccepted,
     CreateRejected,
+    GraphicsCapabilitiesAccepted,
     Rejected,
     Closed,
 };
@@ -957,7 +966,10 @@ public:
     }
     [[nodiscard]] bool created() const noexcept
     {
-        return phase_ == RdpGraphicsDvcPhase::Created;
+        return phase_ == RdpGraphicsDvcPhase::Created ||
+               phase_ ==
+                   RdpGraphicsDvcPhase::GraphicsCapabilitiesConfirmPending ||
+               phase_ == RdpGraphicsDvcPhase::Ready;
     }
     [[nodiscard]] std::uint32_t dynamicChannelId() const noexcept
     {
@@ -971,10 +983,43 @@ public:
     {
         return negotiatedVersion_;
     }
+    // Codec capability values become consumable only after CAPS_CONFIRM has
+    // been completely accepted by the existing writer. This prevents x264
+    // activation from racing a short or canceled confirmation write.
+    [[nodiscard]] bool graphicsCapabilitiesConfirmed() const noexcept
+    {
+        return phase_ == RdpGraphicsDvcPhase::Ready;
+    }
+    [[nodiscard]] std::uint32_t
+    confirmedGraphicsCapabilityVersion() const noexcept
+    {
+        return graphicsCapabilitiesConfirmed()
+                   ? selectedGraphicsCapabilityVersion_
+                   : 0U;
+    }
+    [[nodiscard]] std::uint32_t
+    confirmedGraphicsCapabilityFlags() const noexcept
+    {
+        return graphicsCapabilitiesConfirmed()
+                   ? selectedGraphicsCapabilityFlags_
+                   : 0U;
+    }
+    [[nodiscard]] bool graphicsClearCodecEnabled() const noexcept
+    {
+        // R4 accepts only profiles for which mandatory ClearCodec exists.
+        return graphicsCapabilitiesConfirmed();
+    }
+    [[nodiscard]] bool graphicsAvc420Enabled() const noexcept
+    {
+        return graphicsCapabilitiesConfirmed() &&
+               selectedGraphicsAvc420Enabled_;
+    }
 
 private:
     [[nodiscard]] bool queueCapabilitiesRequest() noexcept;
     [[nodiscard]] bool queueCreateRequest() noexcept;
+    [[nodiscard]] bool queueGraphicsCapabilitiesConfirm(
+        std::span<const std::byte> confirmation) noexcept;
     [[nodiscard]] bool queueControlPdu(
         RdpGraphicsDvcWriteKind kind,
         std::span<const std::uint8_t> dvcPdu) noexcept;
@@ -993,6 +1038,9 @@ private:
     std::uint64_t replySequence_{};
     std::uint64_t writeSliceSequence_{};
     std::uint16_t negotiatedVersion_{};
+    std::uint32_t selectedGraphicsCapabilityVersion_{};
+    std::uint32_t selectedGraphicsCapabilityFlags_{};
+    bool selectedGraphicsAvc420Enabled_{};
     RdpGraphicsDvcPhase phase_{RdpGraphicsDvcPhase::NotStarted};
     RdpGraphicsDvcWriteKind pendingKind_{RdpGraphicsDvcWriteKind::None};
 };

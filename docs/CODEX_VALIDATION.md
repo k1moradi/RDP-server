@@ -1,3 +1,35 @@
+## R7 P1 isolated Apple lifecycle validation receipt (2026-10-17)
+
+**SHA:** `583b04b860ce38dda6b3b90001d7f92a3146d3f6`.  
+**Actions:** `39012096608` — overall **FAIL outside R7**.  
+**Structure run:** `39012096590` — **SUCCESS**.
+
+R7-specific evidence on the exact SHA is green:
+
+- `r7-macos-native-lifecycle`: **SUCCESS**; **17/17 Debug** and
+  **17/17 Release** after fail-closed registry preflight.
+- `r7-macos-session-sanitizers`: **SUCCESS**.
+- `r9-security-protocol-sanitizers`: **SUCCESS**.
+- `documentation-policy` and both workflow-structure validations:
+  **SUCCESS**.
+- Hosted Apple: macOS **26.6.2 (25G83)**, Xcode **26.6 (17F113)**,
+  `/Applications/Xcode_26.6.app/Contents/Developer`, Apple clang
+  **21.0.0 (clang-2100.1.1.101)**, CMake AppleClang
+  **21.0.0.21000101**, SDK **26.5**.
+
+The primary macOS job independently passes the 17-case R7 Debug gate and then
+fails only full-suite R1 `transport.tcp-native-loopback-tls` (#178) at the
+bounded readiness assertion in `test_owned_preauth_session.cpp:6028`.
+Ubuntu and Windows CLANG64 fail the same R1 boundary; Windows/MSVC has that R1
+failure plus then-current R10 private-DACL fixture denials. The isolated R7 job
+does not use `continue-on-error` and does not convert those failures into an
+M1 pass.
+
+Owner macOS 27/TCC/native-session-switch evidence is **NOT RUN**. No permission
+request or live desktop access occurred. Genuine R2/R3 positive macOS desktop
+admission is still unavailable; the ScreenCaptureKit factory remains
+quarantined. **M1 OPEN / NOT ACCEPTED. M5 OPEN / NOT ACCEPTED.**
+
 ## R8 native directory-capability factory exact-SHA validation receipt (2026-10-17)
 
 **Implementation:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.  

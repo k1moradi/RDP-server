@@ -1,3 +1,48 @@
+## R7 P1 isolated Apple lifecycle exact-SHA validation (2026-10-17)
+
+**Implementation/CI SHA:** `583b04b860ce38dda6b3b90001d7f92a3146d3f6`.  
+**Primary Actions:** `39012096608` — **overall FAIL outside R7**.  
+**Standalone workflow-structure Actions:** `39012096590` — **SUCCESS**.
+
+The new failure-isolated `r7-macos-native-lifecycle` job is **SUCCESS** on
+the exact implementation SHA. Hosted Apple metadata is macOS **26.6.2
+(25G83)**, **Xcode 26.6 (17F113)**, developer directory
+`/Applications/Xcode_26.6.app/Contents/Developer`, **Apple clang 21.0.0
+(clang-2100.1.1.101)**, CMake **AppleClang 21.0.0.21000101** for the native
+languages, and macOS SDK **26.5**.
+
+The isolated job configures one build root, builds only the four
+production-backed R7 macOS test targets, fail-closed enumerates every required
+name, and passes **17/17 Debug** and **17/17 Release**. The selection includes
+the same-dimensions geometry-generation fence, capture generation/callback/
+consumer/native-stop/backend-reentry/late-start retirement, both capture
+session-watch races, cursor topology/generation/session publication freshness,
+input session-watch revocation, and GUI-session switch/mid-operation/
+callback-race/destructor retirement. In particular,
+`macos.desktop-geometry-epoch-generation-fence-revocation`,
+`macos.capture-stream-geometry-generation-retirement`, and
+`macos.capture-stream-session-watch-consumer-race` execute in both
+configurations.
+
+The exact SHA also passes the CI workflow structure gate, documentation policy,
+the dedicated R7 GCC ASan/UBSan session-watch job, and the complete R9
+Clang ASan/UBSan job. The ordinary macOS protocol job passes the same focused
+R7 Debug gate before the full suite, then the full Debug suite fails only
+cross-road R1 `transport.tcp-native-loopback-tls` (#178) at
+`test_owned_preauth_session.cpp:6028`; Release is therefore correctly skipped
+in that authoritative full job. Ubuntu fails the same R1 test. Windows and
+Windows CLANG64 also fail the same R1 readiness boundary; Windows/MSVC
+additionally reports the then-current R10 private-fixture DACL denials. Those
+failures remain visible and are not suppressed by the independent R7 job.
+
+This validates hosted Apple R7 lifetime behavior in both Debug and Release, but
+does **not** satisfy M1: the full same-SHA matrix is red and no owner macOS 27
+canonical run exists. It also does not satisfy M5: no live ScreenCaptureKit
+capture, TCC grant/request, native fast-user-switch observation, native
+cursor/input publication, clipboard interop or Microsoft-client desktop
+session was performed. R2/R3 still provides no genuine positive macOS desktop
+admission capability. **M1 and M5 remain OPEN / NOT ACCEPTED.**
+
 ## R8 native directory-capability factory validation and hierarchy-provenance gate (2026-10-17)
 
 **Native factory implementation:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.  

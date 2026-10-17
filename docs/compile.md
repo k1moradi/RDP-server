@@ -284,6 +284,19 @@ authorized_uid=1001
 authorized_permissions=7
 ```
 
+When the Linux PAM gate is also enabled, the group has one additional required
+administrator-owned field:
+
+```text
+pam_service=rdp-server
+```
+
+The PAM service name is configuration only: 1..64 ASCII characters, beginning
+with an alphanumeric character and containing only alphanumerics, underscore,
+hyphen or dot. No password, authentication result or authorization Boolean is
+accepted from the configuration file. Without the PAM build gate,
+`pam_service` is not part of the supported grammar.
+
 The command also validates the configured TLS server context and confirms that
 the explicit GSS acceptor credential can be acquired. It does not need a
 client ticket or KDC for that acquisition and it does not start a listener,

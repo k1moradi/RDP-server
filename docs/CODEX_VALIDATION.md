@@ -1184,6 +1184,37 @@ verbatim from the last structure-guarded parent and reapplies only the R2
 runtime selector addition plus its exact registry preflight using literal-safe
 editing. Positive PAM/native authority remains **NOT RUN**.
 
+## R2 administrator PAM-service provisioning authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `313140fdd5d803e6b0ae934b0d02f859d7548328`.
+
+The real non-listening runtime checker now accepts `pam_service` only when the
+Linux PAM target is present and only as part of the existing complete Linux
+security provisioning group. `--check-linux-security` forwards it to
+`LinuxRuntimeSecurityConfiguration`; no second verifier owner is introduced.
+
+New process CTests are
+`runtime.rejects-linux-security-missing-pam-service`,
+`runtime.rejects-linux-security-invalid-pam-service`,
+`runtime.rejects-linux-security-password-config`, and
+`runtime.rejects-linux-security-authorization-result-config`. The existing
+`runtime.validates-linux-security-provisioning` becomes the positive
+configuration-only case in PAM builds. Fixtures use only the existing synthetic
+TLS/keytab material; they never authenticate a user or install/modify a PAM
+service.
+
+The preceding final-credential/native-admission join is denial/lifetime
+validated on descendant `e656f805f119cb35c65231279742a7d1088b7df4`:
+Ubuntu ran its dedicated final-credential admission denial successfully and
+R9 Clang ASan/UBSan passed the direct runtime-security set **12/12**. The full
+Ubuntu suite remained red only at the independent R1 native-loopback TLS case.
+
+Canonical local `~/rdp-server/build/` execution is **NOT RUN** because that
+checkout is not mounted in this connector environment. Exact hosted evidence
+for this administrator-provisioning publication is **PENDING**. Genuine
+positive Kerberos/PAM/NSS/logind admission and Microsoft-client acceptance
+remain **NOT RUN / BLOCKED**.
+
 ## R2 authenticated PAM invocation hosted validation (2026-10-17)
 
 Exact code SHA `92ddb689b0ca3200b2ef420f818c04cd630da147` completed GitHub Actions

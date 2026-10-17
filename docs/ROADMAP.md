@@ -101,7 +101,7 @@ still incomplete and the full hosted matrix is red at R1.
 desktop, R10 serialized native session-change delivery, R3 authenticated input
 routing and Microsoft-client graphics/input acceptance.
 
-## R2 final credential/native admission join (2026-10-17; exact-SHA CI pending)
+## R2 final credential/native admission join (2026-10-17; hosted denial/lifetime validated)
 
 **Starting reconciled shared `main`:** `a97933bf7a2b523dac641e97776e111d46a28be0`.
 
@@ -145,11 +145,45 @@ Genuine positive Kerberos + PAM + NSS/logind/logind-watch execution and
 Microsoft-client acceptance are **NOT RUN / BLOCKED** pending a controlled
 owner environment.
 
-**Next R2 gate:** validate the denial/lifetime implementation on hosted
-Linux/GCC plus R9 ASan/UBSan. Then provision the explicit PAM service through
-the administrator-owned runtime configuration without accepting passwords or
-authorization booleans from CLI input, and run genuine positive owner/provider
-acceptance before M2 can close.
+The corrected descendant `e656f805f119cb35c65231279742a7d1088b7df4`
+provides the required denial/lifetime evidence. Ubuntu/GCC executed
+`runtime.linux-connection-final-credential-native-admission-denials` PASS
+before the full suite stopped only at the independent R1
+`transport.tcp-native-loopback-tls` readiness failure. R9 Clang ASan/UBSan
+completed the bounded direct runtime-security selection **12/12 PASS**,
+including the final-credential/native-admission denial. Structure,
+documentation-policy and the R7 sanitizer/lifecycle jobs also passed. This is
+not positive authentication or native-owner acceptance.
+
+### R2 administrator PAM-service provisioning (2026-10-17; authoring)
+
+**Starting reconciled shared `main`:** `313140fdd5d803e6b0ae934b0d02f859d7548328`.
+
+PAM-enabled Linux runtime configuration now requires one additional
+administrator-owned `pam_service` field inside the existing all-or-none Linux
+security group. The offline `--check-linux-security` path passes that bounded
+service name into the service-owned `LinuxRuntimeSecurityConfiguration`;
+the existing verifier grammar (1..64 ASCII alphanumeric first, then
+alphanumeric/`_`/`-`/`.`) remains the sole validator. Builds without the
+PAM target retain the previous eight-field Linux configuration and reject
+`pam_service` as unknown.
+
+No password, PAM result or authorization Boolean is representable. Dedicated
+process denials reject a missing service, a path-shaped invalid service,
+`pam_password`, and `pam_authorized`; the generic failure output never
+echoes those values. The positive existing Linux provisioning test now proves
+that the explicit service can be configured while the command remains offline
+and non-authorizing.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment. Hosted exact-publication evidence is **PENDING** for the
+commit containing this section.
+
+**Next R2 gate:** run the new administrator-provisioning cases on hosted
+Linux/GCC and preserve the R9 native R2/runtime sanitizer evidence. Then genuine
+positive Kerberos + PAM + NSS/logind owner/watch acceptance must be performed
+in a controlled owner environment before M2 can close; ordinary CI must not
+manufacture that authority.
 
 ## R6 P2 Windows sanitizer continuation-fence correction (2026-10-17)
 

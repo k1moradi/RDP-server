@@ -556,6 +556,9 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^(validates|rejects)-(configuration|tls-fi
             "authorized_display=:0\n"
             "authorized_uid=1001\n"
             "authorized_permissions=7\n")
+        if(RDP_RUNTIME_HAVE_LINUX_PAM)
+            string(APPEND config_text "pam_service=rdp-server-r2-ci\n")
+        endif()
     endif()
     if(check_tls_credentials)
         set(valid_certificate [=[-----BEGIN CERTIFICATE-----
@@ -662,7 +665,18 @@ E0U+IoGqDg==
         endif()
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-linux-security-provisioning")
         # Positive Linux provisioning composes the existing TLS fixture with
-        # a generated explicit service keytab and one native identity rule.
+        # a generated explicit service keytab, optional explicit PAM service
+        # and one native identity rule.
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-linux-security-missing-pam-service")
+        string(REPLACE "pam_service=rdp-server-r2-ci\n" "" config_text
+            "${config_text}")
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-linux-security-invalid-pam-service")
+        string(REPLACE "pam_service=rdp-server-r2-ci"
+            "pam_service=../login" config_text "${config_text}")
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-linux-security-password-config")
+        string(APPEND config_text "pam_password=R2_PASSWORD_MUST_NOT_BE_CONFIGURED\n")
+    elseif(RDP_RUNTIME_TEST_CASE STREQUAL "rejects-linux-security-authorization-result-config")
+        string(APPEND config_text "pam_authorized=true\n")
     elseif(check_tls_metadata)
         # TLS-file cases modify only synthetic fixture paths or permissions.
     elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-configuration-windows-private-dacl")
@@ -966,8 +980,15 @@ elseif(RDP_RUNTIME_TEST_CASE MATCHES "^validates-tls-credentials-")
         message(FATAL_ERROR "Offline TLS credential success must not imply trusted service")
     endif()
 elseif(RDP_RUNTIME_TEST_CASE STREQUAL "validates-linux-security-provisioning")
-    if(NOT runtime_stderr STREQUAL "" OR NOT runtime_stdout STREQUAL
-        "rdp-server: TLS identity, explicit Linux GSS acceptor credential and native identity policy accepted; no user authenticated or session authorized; service remains disabled.\n")
+    if(RDP_RUNTIME_HAVE_LINUX_PAM)
+        set(expected_linux_security_output
+            "rdp-server: TLS identity, explicit Linux GSS acceptor credential, PAM service configuration and native identity policy accepted; no user authenticated or session authorized; service remains disabled.\n")
+    else()
+        set(expected_linux_security_output
+            "rdp-server: TLS identity, explicit Linux GSS acceptor credential and native identity policy accepted; no user authenticated or session authorized; service remains disabled.\n")
+    endif()
+    if(NOT runtime_stderr STREQUAL "" OR
+       NOT runtime_stdout STREQUAL expected_linux_security_output)
         message(FATAL_ERROR
             "Linux security preflight must not imply authenticated service")
     endif()

@@ -108,6 +108,14 @@ for no longer than the runtime-security owner lifetime; they do not own,
 replace or reconfigure it. The existing non-PAM configuration path remains
 unchanged and no default PAM service exists.
 
+Administrator provisioning is deliberately outside peer credential input.
+When the PAM-enabled Linux runtime target is built, the existing all-or-none
+Linux security configuration group includes one explicit `pam_service` name.
+Only the service-owned runtime configuration consumes it, using the verifier's
+bounded service-name grammar. The configuration grammar has no password field
+and no caller-provided PAM/authorization result; unknown fields remain
+fail-closed. Builds without the PAM target do not recognize `pam_service`.
+
 In PAM-enabled Linux builds, the genuine final-authInfo path
 invokes PAM only after the provider-derived Kerberos principal exactly matches
 the delegated account at the captured policy generation. PAM executes while

@@ -52,6 +52,18 @@ constexpr std::size_t kLicensingScopeField = kLicensingFieldStart + 5U;
 constexpr std::size_t kAfterLicensingField =
     kLicensingFieldStart + kLicensingConfigurationFieldCount;
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+constexpr std::array<std::string_view, 22> kConfigurationFields{
+    "listen_address", "listen_port", "tls_certificate", "tls_private_key",
+    "authentication", "os_authorization", "max_connections",
+    "licensing_certificate", "licensing_private_key",
+    "licensing_product_version", "licensing_company_name",
+    "licensing_product_id", "licensing_scope",
+    "gss_service_principal", "gss_keytab",
+    "authorized_kerberos_principal", "authorized_unix_account",
+    "authorized_seat", "authorized_display", "authorized_uid",
+    "authorized_permissions", "pam_service"};
+#else
 constexpr std::array<std::string_view, 21> kConfigurationFields{
     "listen_address", "listen_port", "tls_certificate", "tls_private_key",
     "authentication", "os_authorization", "max_connections",
@@ -62,6 +74,7 @@ constexpr std::array<std::string_view, 21> kConfigurationFields{
     "authorized_kerberos_principal", "authorized_unix_account",
     "authorized_seat", "authorized_display", "authorized_uid",
     "authorized_permissions"};
+#endif
 constexpr std::size_t kLinuxSecurityFieldStart = kAfterLicensingField;
 constexpr std::size_t kGssServicePrincipalField = kLinuxSecurityFieldStart;
 constexpr std::size_t kGssKeytabField = kLinuxSecurityFieldStart + 1U;
@@ -74,6 +87,9 @@ constexpr std::size_t kAuthorizedDisplayField = kLinuxSecurityFieldStart + 5U;
 constexpr std::size_t kAuthorizedUidField = kLinuxSecurityFieldStart + 6U;
 constexpr std::size_t kAuthorizedPermissionsField =
     kLinuxSecurityFieldStart + 7U;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+constexpr std::size_t kPamServiceField = kLinuxSecurityFieldStart + 8U;
+#endif
 #else
 constexpr std::array<std::string_view, 13> kConfigurationFields{
     "listen_address", "listen_port", "tls_certificate", "tls_private_key",
@@ -560,11 +576,20 @@ struct FileCloser {
 
     rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration
         linuxSecurity;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (!linuxSecurity.configure(
+            validatedFields[kGssServicePrincipalField],
+            validatedFields[kGssKeytabField], rule,
+            validatedFields[kPamServiceField])) {
+        return false;
+    }
+#else
     if (!linuxSecurity.configure(
             validatedFields[kGssServicePrincipalField],
             validatedFields[kGssKeytabField], rule)) {
         return false;
     }
+#endif
 
     const auto tlsContext =
         rdp_server::server::runtime::RuntimeServerTlsContext::
@@ -723,7 +748,11 @@ void printUsage() noexcept {
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"
                "--check-tls-credentials verifies certificate validity, server purpose and private-key match.\n"
                "--check-licensing-credentials validates explicit RDP licensing identity plus its matching RSA private key.\n"
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+               "--check-linux-security additionally acquires the explicit Linux GSS acceptor credential, provisions the configured PAM service and validates one native identity-policy rule.\n"
+#else
                "--check-linux-security additionally acquires the explicit Linux GSS acceptor credential and validates one native identity-policy rule.\n"
+#endif
                "No command starts a listener or authorizes an RDP session.\n", stdout);
 #else
     std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-licensing-credentials FILE]\n"
@@ -774,8 +803,13 @@ int main(int argumentCount, char* argumentValues[]) noexcept {
                         stdout);
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
                 } else if (mode == ConfigurationCheckMode::LinuxSecurity) {
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+                    std::fputs("rdp-server: TLS identity, explicit Linux GSS acceptor credential, PAM service configuration and native identity policy accepted; no user authenticated or session authorized; service remains disabled.\n",
+                               stdout);
+#else
                     std::fputs("rdp-server: TLS identity, explicit Linux GSS acceptor credential and native identity policy accepted; no user authenticated or session authorized; service remains disabled.\n",
                                stdout);
+#endif
 #endif
                 } else if (mode == ConfigurationCheckMode::TlsCredentials) {
                     std::fputs("rdp-server: TLS certificate is currently valid and matches the private key; "

@@ -716,9 +716,20 @@ if(TARGET rdp-server-linux-runtime-security)
             LABELS "runtime;security;linux-provider;pam;offline")
     endif()
 
-    foreach(runtime_linux_process_case IN ITEMS
-            validates-linux-security-provisioning
-            rejects-linux-security-missing-provisioning)
+    set(runtime_linux_process_cases
+        validates-linux-security-provisioning
+        rejects-linux-security-missing-provisioning)
+    set(runtime_linux_pam_process_argument)
+    if(TARGET rdp-server-linux-pam-password-verifier)
+        list(APPEND runtime_linux_process_cases
+            rejects-linux-security-missing-pam-service
+            rejects-linux-security-invalid-pam-service
+            rejects-linux-security-password-config
+            rejects-linux-security-authorization-result-config)
+        set(runtime_linux_pam_process_argument
+            "-DRDP_RUNTIME_HAVE_LINUX_PAM=ON")
+    endif()
+    foreach(runtime_linux_process_case IN LISTS runtime_linux_process_cases)
         add_test(NAME "runtime.${runtime_linux_process_case}"
             COMMAND "${CMAKE_COMMAND}"
                 "-DRDP_RUNTIME_EXECUTABLE=$<TARGET_FILE:rdp-server>"
@@ -726,6 +737,7 @@ if(TARGET rdp-server-linux-runtime-security)
                 "-DRDP_RUNTIME_TEST_CASE=${runtime_linux_process_case}"
                 "-DRDP_RUNTIME_FIXTURE_DIRECTORY=${PROJECT_BINARY_DIR}/runtime-fixtures"
                 "-DRDP_RUNTIME_LINUX_SECURITY_HELPER=$<TARGET_FILE:test_runtime_linux_security>"
+                ${runtime_linux_pam_process_argument}
                 -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_entrypoint.cmake")
         set_tests_properties(
             "runtime.${runtime_linux_process_case}"

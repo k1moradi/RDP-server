@@ -1,3 +1,63 @@
+## R8 Windows/macOS planned completed-set hosted validation (2026-10-17)
+
+**Implementation:** `2e0f2814b8943fa8a83fccd97b7294a43f873b9f`.  
+**Render-helper correction / validated R8 source SHA:** `583b59272cb51f95c967e3f0af9d13553e581e3a`.  
+**First Actions:** `39008936302` — **FAIL**, R8-owned Windows adapter link regression found.  
+**Correction Actions:** `39009046269` — **overall FAIL from unrelated R3 CAL test; R8 evidence PASS**.
+
+The first hosted build correctly exposed that the completed-set refactor had
+accidentally removed the pre-existing
+`WindowsClipboardAdapter::renderFormatInternal` definition while retaining its
+declaration and callers. Linux/GCC, macOS/AppleClang, Windows/MSVC and the
+sanitizer target all reached the same undefined-symbol link failure. Correction
+`583b59272cb51f95c967e3f0af9d13553e581e3a` restores that implementation
+verbatim; delayed-render behavior and the new multi-file contract are otherwise
+unchanged.
+
+On the correction SHA, macOS/AppleClang compiled the real AppKit multi-NSURL
+bridge and passed **477/477 Debug** and **477/477 Release**. Both
+`clipboard.macos-completed-multi-file-url-handoff` and the portable Windows
+`clipboard.windows-completed-multi-file-hdrop-handoff` passed in each
+configuration. The downstream installed-SDK consumer, package, digest and
+artifact upload all passed.
+
+Windows/MSVC passed **507/507 Debug** and **507/507 Release**; both new R8
+completed-set cases passed in each configuration. The installed-SDK consumer,
+package, digest and artifact upload also passed.
+
+Ubuntu/GCC compiled the complete Debug tree and ran **559** tests. Both new R8
+cases passed:
+`clipboard.macos-completed-multi-file-url-handoff` was 511/559 and
+`clipboard.windows-completed-multi-file-hdrop-handoff` was 522/559. The
+single failing test was the unrelated R3
+`transport.licensing-client-cal-issuer-signature-denials` (67/559), so the
+workflow stopped before Linux Release, SDK consumer and package stages. No R8
+failure occurred in that job.
+
+The exact-SHA R9 Clang ASan/UBSan job compiled its production-linked targets,
+its fail-closed clipboard registry preflight found both new registrations, and
+the complete clipboard-labelled selection passed **68/68**. The macOS
+multi-file case was 41/68 and the Windows multi-file case was 52/68. The job's
+only failed step occurred later in the bounded R1/R3 selection, where the same
+unrelated R3 CAL issuer-signature test failed; the remaining sanitizer families
+continued.
+
+Documentation policy and the independent R7 sanitizer job passed. The overall
+Actions run is therefore intentionally recorded as **FAILURE**, not a green
+matrix, while R8's hosted Debug/Release and sanitizer evidence is positive
+except for the Linux Release path blocked by R3.
+
+Canonical owner-local `~/rdp-server/build/` execution remains **NOT RUN** in
+this connector environment; no alternate checkout or build root was created.
+Live Explorer/Finder/Nautilus acceptance, authenticated Microsoft-client file
+copy, native directory creation and symlink-policy acceptance remain
+**NOT RUN / OPEN**. No M1-M6 milestone is accepted by this increment.
+
+**Next R8:** define and review the race-safe native directory capability and
+relative-creation/symlink policy before enabling any directory materialization;
+after that, advance real-client completed-set acceptance without deriving local
+paths from remote FILEDESCRIPTORW names.
+
 ## R9 CredSSP fuzzer preflight workflow repair (2026-10-16; exact-SHA CI pending)
 
 Superseded hardening publication `7751e079a56e15034845ab61e4ad5e527204efc6`,

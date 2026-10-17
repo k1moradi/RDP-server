@@ -1,3 +1,47 @@
+## R8 planned completed-set exact-SHA validation (2026-10-17)
+
+**Implementation:** `2e0f2814b8943fa8a83fccd97b7294a43f873b9f`.  
+**Validated source:** `583b59272cb51f95c967e3f0af9d13553e581e3a`.  
+**Actions:** `39009046269`.
+
+The validated R8 source adds bounded plan-backed Windows CF_HDROP and macOS
+multi-NSURL publication. Every publication borrows only independently completed
+destination objects, requires exact current `RemoteFileDestinationPlan`
+membership, normalizes caller order to remote descriptor index order, rejects
+duplicate local metadata and directory associations, and revalidates a copied
+canonical set after the native callback. Reentrant plan cancellation therefore
+rolls back the native set rather than allowing borrowed-view aliasing to mask a
+same-generation mutation.
+
+Hosted evidence on the correction SHA:
+- macOS/AppleClang: **477/477 Debug**, **477/477 Release**; both new R8 tests
+  pass in both configurations; real AppKit multi-NSURL code compiles/links;
+  installed-SDK consumer, package, digest and upload pass.
+- Windows/MSVC: **507/507 Debug**, **507/507 Release**; both new R8 tests pass
+  in both configurations; installed-SDK consumer, package, digest and upload
+  pass.
+- Ubuntu/GCC: full Debug compile succeeds; both new R8 tests pass inside the
+  559-test suite. The suite stops at **558/559** because unrelated R3
+  `transport.licensing-client-cal-issuer-signature-denials` aborts, so Linux
+  Release/SDK/package are **NOT RUN**.
+- Clang ASan/UBSan: production-linked targets compile; registry preflight finds
+  both new names; clipboard selection is **68/68 PASS**, including
+  `clipboard.macos-completed-multi-file-url-handoff` (41/68) and
+  `clipboard.windows-completed-multi-file-hdrop-handoff` (52/68). The job
+  later fails only in the same R3 CAL test inside the R1/R3 selection.
+- Documentation policy passes.
+
+The earlier implementation run `39008936302` is retained as negative
+regression evidence: it found a missing pre-existing
+`WindowsClipboardAdapter::renderFormatInternal` definition introduced by the
+source-range replacement. Correction `583b59272cb51f95c967e3f0af9d13553e581e3a`
+restores that helper verbatim.
+
+Canonical local testing is **NOT RUN** because this environment does not provide
+the synchronized canonical checkout and project policy forbids a second
+persistent checkout/build root. Live file-manager/client acceptance and all
+directory materialization remain outside this increment.
+
 ## R9 CredSSP fuzzer preflight workflow repair receipt (2026-10-16)
 
 `7751e079a56e15034845ab61e4ad5e527204efc6` / Actions

@@ -1,3 +1,38 @@
+## R10 licensing provisioning preflight hosted receipt (2026-10-16)
+
+R10 implementation `35cfda594f45c15e14966579f05cadb4bc5db8f1` plus the
+Windows macro-safety correction
+`4ec2b8c5ece830e28427c8501b98ff943465372b` is hosted-validated by unchanged
+descendant `a9a656e9c5dc93b8316a6ae1298d658ff4ffcba6`, Actions
+`38978665476` (**SUCCESS**). The compare range does not modify
+`src/server/runtime/main.cpp`, `runtime_licensing_context.*`,
+`tests/check_runtime_entrypoint.cmake` or
+`tests/check_runtime_licensing_context.cmake`.
+
+All six production-process R10 licensing CLI CTests pass in hosted Debug and
+Release on Linux/GCC (**521/521** each), macOS/AppleClang (**442/442** each)
+and Windows/MSVC (**472/472** each; focused native preflight **51/51** each).
+The cases are valid provisioning, incomplete configuration, invalid product
+identity, credential-file denials, existing-check compatibility and
+service-still-disabled. The bounded Clang ASan/UBSan licensing/security gate is
+**90/90 PASS** and actually executes five of those process cases
+(valid/incomplete/identity/file-denial/startup-disabled); compatibility is not
+claimed as sanitizer-executed. Documentation policy, R7 sanitizer,
+installed-SDK consumers and package/digest/artifact gates also pass.
+
+The result means only that the explicit licensing identity and matching RSA
+private key can be provisioned through the secure R10 snapshot path and checked
+offline while startup remains disabled. No listener, R2 admission, CAL
+issuance, R3 live grant publication, Share activation or Microsoft-client
+acceptance is implied. Owner-local `~/rdp-server/build/` and the three
+required owner-machine platform runs remain **NOT RUN**.
+
+The next R10 implementation must be a real service-owned licensing-authority
+boundary, not a renamed opaque CAL/configuration blob. Its issuance result must
+bind a nonzero generation and fixed fingerprint that can be freshly correlated
+with R3's existing `RdpLicensingAuthorityGrant`; until such an authority
+exists, R2/R3 live New License publication remains blocked.
+
 ## R9 test source include correction (2026-10-16)
 
 Follow-up to the three-case corpus publication: `tests/test_owned_credssp_tsrequest.cpp` now includes `<string>` explicitly for the `std::u16string` mutation matrix rather than relying on a transitive header. The immediately preceding include-only implementation commit did not include the required same-commit Markdown co-change, so its documentation-policy job correctly failed; this entry preserves that failure and explains the correction. The exact-SHA sanitizer/platform build remains pending separate verification.

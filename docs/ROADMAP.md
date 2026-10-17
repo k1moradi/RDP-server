@@ -1,3 +1,55 @@
+## R10 licensing provisioning hosted validation (2026-10-16)
+
+**Implementation:** `35cfda594f45c15e14966579f05cadb4bc5db8f1`.  
+**Windows portability correction:** `4ec2b8c5ece830e28427c8501b98ff943465372b`.  
+**Validated unchanged descendant:** `a9a656e9c5dc93b8316a6ae1298d658ff4ffcba6`.  
+**Actions:** `38978665476` — **SUCCESS**.
+
+The administrator-facing R10 licensing preflight is now hosted-validated on
+the corrected source. Comparison from the Windows correction through the
+validated descendant shows no change to `src/server/runtime/main.cpp`,
+`runtime_licensing_context.*`, `tests/check_runtime_entrypoint.cmake` or
+`tests/check_runtime_licensing_context.cmake`. The six centrally registered
+process CTests execute the production `rdp-server` binary and all pass:
+
+- `runtime.licensing-cli-valid-provisioning`
+- `runtime.licensing-cli-incomplete-configuration`
+- `runtime.licensing-cli-invalid-product-identity`
+- `runtime.licensing-cli-credential-file-denials`
+- `runtime.licensing-cli-existing-check-compatibility`
+- `runtime.licensing-cli-service-still-disabled`
+
+Linux/GCC is **521/521 PASS Debug + 521/521 PASS Release**; the six R10 CLI
+cases are tests **332-337**. macOS/AppleClang is **442/442 PASS Debug +
+442/442 PASS Release**; the six cases are tests **280-285**. Windows/MSVC
+focused native preflight is **51/51 PASS Debug + 51/51 PASS Release** and full
+CTest is **472/472 PASS Debug + 472/472 PASS Release**; the six cases are again
+tests **280-285**, proving the `std::numeric_limits<uint32_t>::max` Win32-macro
+correction.
+
+The Clang ASan/UBSan bounded licensing/security selection is **90/90 PASS**.
+It actually runs five R10 process cases instrumented:
+valid provisioning, incomplete configuration, invalid product identity,
+credential-file denials and service-still-disabled. The legacy-check
+compatibility case remains covered by all six ordinary hosted Debug/Release
+suites and is not claimed as sanitizer-executed. Documentation policy, the
+independent R7 sanitizer, downstream installed-SDK consumers and package
+artifact gates pass on the validated descendant.
+
+This validates only explicit bounded provisioning and non-listening startup
+preflight. It does not create a CAL, licensing authority, R2 lease, listener,
+authenticated user, live R3 grant publication, Share activation or
+Microsoft-client acceptance. Canonical owner-local `~/rdp-server/build/` and
+owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 remain
+**NOT RUN**, so M1 remains open.
+
+**Next R10:** do not treat an administrator-provided opaque CAL or the existing
+`RdpLicensingAuthorityGrant` snapshot as authority. The next functional
+boundary is a concrete service-owned CAL-issuing authority whose nonzero
+generation/fingerprint are freshly revalidated with each issuance result; only
+then can R2/R3 consider live receipt-bound New License publication. M2 remains
+**BLOCKED / NOT ACCEPTED**.
+
 ## R9 final CredSSP structural-corpus validation (2026-10-16)
 
 Three new behavior-named tests use `test_owned_credssp_tsrequest` and real R2 `inspectCredSspCredentials`: `security.credssp-password-credential-nested-der-mutations`, `security.credssp-password-credential-length-boundary-denials`, and `security.credssp-password-credential-utf16-mutation-boundaries`. The bounded deterministic corpus covers every one-byte complement, insertion, removal and truncation of a domain/user/password seed; duplicate/missing/reordered nested context fields; malformed length headers and 0x81/0x82 boundaries; field sizes through 4096; near-total-8192 rejection; and BMP, surrogate, NUL, odd-length and empty-field cases at multiple code-unit positions. Structural success is not R2 authentication, PAM success or native lease issuance. The R9 CI selection includes all three tests and fail-closed registry checks; actual instrumented results must be confirmed from the exact publication workflow. Owner Linux/X11, Windows CLANG64, macOS 27 and real-client acceptance remain NOT RUN here.

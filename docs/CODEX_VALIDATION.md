@@ -1,6 +1,9 @@
-## R8 bounded destination-plan authoring validation (2026-10-16; exact-SHA CI pending)
+## R8 bounded destination-plan exact-SHA validation (2026-10-16)
 
-**Starting reconciled shared `main`:** `541a9460a19f7cfca1c5c73fdb74cc1630e21772`.
+**Starting reconciled shared `main`:** `541a9460a19f7cfca1c5c73fdb74cc1630e21772`.  
+**Implementation:** `0d6621beac09ea35e7065f6119731242cae56d24`.  
+**Validated lifecycle-hardening SHA:** `ecee09dd7bc5eb07293cae7101d354c72908795b`.  
+**Actions run:** `39006670277`.
 
 Source/protocol review confirms the retained R8 FileGroupDescriptorW list is an
 ordered set of at most 64 safe leaf descriptors, not a verified directory tree.
@@ -11,13 +14,13 @@ UTF-16 and nonzero data after the terminating NUL. With negotiated
 parent. The implementation therefore adds only explicit caller placement
 metadata and reports remote hierarchy/directory materialization unsupported.
 
-The production `RemoteFileDestinationPlan` uses only fixed-capacity state:
+The production `RemoteFileDestinationPlan` uses fixed-capacity state:
 64 associations, maximum placement depth 16, exact descriptor indices, unique
 nonzero selection identities and transactional all-member validation. It is
 bound to the exact `RemoteTransfer` object, public generation and a private
 monotonic offer epoch that survives disconnect to prevent generation-number
-ABA. It has no path strings, native handles, FileContents coordinator,
-background work or native clipboard writer.
+ABA. It is non-copyable/non-movable and has no path strings, native handles,
+FileContents coordinator, background work or native clipboard writer.
 
 Five behavior CTests are centrally registered:
 `clipboard.file-destination-plan-index-generation`,
@@ -27,16 +30,32 @@ Five behavior CTests are centrally registered:
 `clipboard.file-destination-plan-native-capability-integration`. The first
 four reuse `test_owned_remote_transfer`; the fifth composes the existing
 production Windows materializer/adapter using deterministic injected native
-operations. The R9 clipboard sanitizer preflight requires every name and then
-runs the full clipboard label.
+operations.
+
+Exact-SHA hosted evidence on `ecee09dd7bc5eb07293cae7101d354c72908795b`:
+macOS/AppleClang passed **475/475** in both Debug and Release and all five R8
+cases ran in each configuration. Windows/MSVC passed **505/505** in both Debug
+and Release and all five R8 cases ran in each configuration. Both jobs passed
+the installed-SDK consumer plus package/digest verification. Documentation
+policy passed.
+
+The exact-SHA R9 Clang ASan/UBSan clipboard step compiled its production-linked
+targets, verified every new R8 registry name, and passed **66/66** clipboard
+tests; all five destination-plan tests passed under ASan/UBSan. The sanitizer
+job's overall conclusion is **FAILURE** only because later non-R8 steps failed:
+a bounded R1/R3 selection hit a separate zero-test registry preflight, and the
+R10 licensing-authority selection reported five Not Run cases because
+`test_runtime_licensing_authority` was absent. The Ubuntu/GCC matrix also
+failed in R10 before CTest at
+`tests/test_runtime_licensing_authority.cpp:658` with
+`-Werror=range-loop-construct`; therefore no R8 CTest ran in that Ubuntu job.
+The overall Actions run is consequently **FAILURE**, not a fully green matrix.
 
 Canonical local configure/build/CTest is **NOT RUN**: this execution environment
 cannot synchronize `~/rdp-server` from GitHub, and project policy forbids a
-second persistent checkout/build root. Hosted Debug/Release, exact clipboard
-ASan/UBSan, documentation policy, installed-SDK consumer and package/digest
-evidence are **PENDING** for the publication SHA. No live desktop clipboard,
-native file manager, authenticated Microsoft client, directory creation or
-M1-M6 acceptance is claimed.
+second persistent checkout/build root. No live desktop clipboard, native file
+manager, authenticated Microsoft client, directory creation or M1-M6 acceptance
+is claimed.
 
 ## R1 owned-TLS handshake readiness hosted validation (2026-10-17)
 

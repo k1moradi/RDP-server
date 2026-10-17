@@ -1,6 +1,9 @@
-## R8 bounded file-destination planning contract (2026-10-16; exact-SHA CI pending)
+## R8 bounded file-destination planning contract (2026-10-16; hosted evidence recorded)
 
-**Starting reconciled shared `main`:** `541a9460a19f7cfca1c5c73fdb74cc1630e21772`.
+**Starting reconciled shared `main`:** `541a9460a19f7cfca1c5c73fdb74cc1630e21772`.  
+**Implementation:** `0d6621beac09ea35e7065f6119731242cae56d24`.  
+**Lifecycle hardening / exact validation SHA:** `ecee09dd7bc5eb07293cae7101d354c72908795b`.  
+**Actions:** `39006670277` — **overall FAILURE from cross-road gates; R8 evidence PASS**.
 
 R8 now has a fixed-capacity, non-authorizing
 `RemoteFileDestinationPlan` between retained FileGroupDescriptorW metadata
@@ -11,7 +14,9 @@ file/directory role, and commits atomically only after the full manifest is
 valid. The representation is bounded to the existing 64 remote descriptors,
 one active mapping per index, unique local selection identities and placement
 depth 16. It owns no path, descriptor, HANDLE, file bytes, request scheduler or
-clipboard publication state.
+clipboard publication state. The plan is explicitly non-copyable and
+non-movable so a committed one-shot lifecycle cannot be duplicated before
+retirement.
 
 The hierarchy audit is deliberately fail-closed. MS-RDPECLIP
 FileGroupDescriptorW can identify directories through `FD_ATTRIBUTES` plus
@@ -41,26 +46,34 @@ Dedicated production-backed CTests are
 `clipboard.file-destination-plan-directory-traversal-denials`,
 `clipboard.file-destination-plan-transactional-commit`,
 `clipboard.file-destination-plan-cancel-replay`, and
-`clipboard.file-destination-plan-native-capability-integration`. The last
-case composes the production Windows destination with injected native
-operations and proves that using the plan identity as a handle fails, while an
-independently supplied caller handle is duplicated and remains the actual
-writable capability. R9's clipboard ASan/UBSan registry preflight enumerates
-all five names before executing the complete clipboard-labelled selection.
+`clipboard.file-destination-plan-native-capability-integration`. Exact-SHA
+macOS/AppleClang passed all five in **475/475 Debug** and **475/475 Release**.
+Windows/MSVC passed all five in **505/505 Debug** and **505/505 Release**.
+Both platform jobs also passed the installed-SDK consumer, package and digest
+steps.
+
+R9's exact-SHA Clang ASan/UBSan job compiled the production-linked clipboard
+targets, enumerated all five names in registry preflight and passed the complete
+clipboard-labelled selection **66/66**, including all five new R8 cases. That
+job failed only afterward: the bounded R1/R3 step encountered a separate
+zero-test preflight, and the R10 licensing-authority selection could not find
+its test executable. Ubuntu/GCC likewise failed before CTest in the unrelated
+R10 source `tests/test_runtime_licensing_authority.cpp:658` because
+`-Werror=range-loop-construct` rejects a by-value structured binding. Thus
+the hosted workflow is not reported as green, and R8's new tests did **NOT RUN**
+in the Ubuntu full-matrix job. Documentation policy passed.
 
 Canonical owner-local `~/rdp-server/build/` Debug/Release execution is
 **NOT RUN** in this connector environment because the canonical checkout could
 not be synchronized and project policy forbids an alternate persistent checkout
-or build root. Exact-publication-SHA hosted Linux/GCC, macOS/AppleClang,
-Windows/MSVC, R9 ASan/UBSan, documentation, SDK consumer and package evidence
-is **PENDING**. Live Finder/Explorer/Nautilus interoperability, authenticated
+or build root. Live Finder/Explorer/Nautilus interoperability, authenticated
 Microsoft-client file copy, owner-native M1 platforms and directory-tree
 materialization remain **NOT RUN / OPEN**. This increment does not accept M1-M6.
 
-**Next R8 after validation:** consume completed planned sets in bounded Windows
-multi-file `CF_HDROP` and macOS multi-NSURL publication, then design a
-separately reviewed race-safe native directory capability/symlink policy before
-any directory creation.
+**Next R8:** consume completed planned sets in bounded Windows multi-file
+`CF_HDROP` and macOS multi-NSURL publication, then design a separately
+reviewed race-safe native directory capability/symlink policy before any
+directory creation.
 
 ## R1 owned-TLS handshake readiness hosted validation (2026-10-17)
 

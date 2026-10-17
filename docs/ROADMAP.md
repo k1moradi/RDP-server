@@ -1,3 +1,22 @@
+## R9 CredSSP sanitizer selector split (2026-10-16; exact-SHA CI pending)
+
+The first adversarial credential-corpus sanitizer publication exposed a CI
+selection limit rather than a parser defect: the pre-existing combined
+R1/R3/licensing CTest regular expression exceeded CMake's regex parenthesis
+budget after R9 added three nested alternatives. The job failed closed with
+`RegularExpression::compile(): Too many parentheses` and `Total Tests: 0`.
+Ordinary hosted Linux/macOS builds for the corrected test source were green,
+so this incident is test-registration/execution infrastructure, owned by R9.
+
+The existing cross-road selector is restored to its prior R2 strict-fields
+shape. The same ASan/UBSan step now uses a second flat
+`^security\.credssp-password-credential-` selector, performs an explicit
+`ctest -N` registry preflight for strict-fields plus all three new R9 cases,
+and executes that bounded group with leak detection enabled and no GSS leak
+suppression. No R1/R3/R4/R5/R8/R10 selection is removed. Exact correction-SHA
+hosted validation is **PENDING**; owner-local and real-provider/client gates
+remain **NOT RUN**.
+
 ## R8 bounded multi-file X11 handoff (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared main:** `2cdb16e42e1b642fcfb02c0a34f581b53e202598`. The existing R8 Linux

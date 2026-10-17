@@ -246,7 +246,7 @@ jobs:
         run: |
           set -euo pipefail
           # Verify the actual central CTest registry before instrumented execution.
-          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-license-request-cancel-replay|r3-platform-challenge-slice|r3-platform-challenge-cancel-replay|r3-platform-challenge-response-read|r3-client-license-read|tls-application-partial-write|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output|write-receipts|write-denials)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|runtime\.licensing-cli-(valid-provisioning|incomplete-configuration|invalid-product-identity|credential-file-denials|service-still-disabled)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-(strict-fields|nested-der-mutations|length-boundary-denials|utf16-mutation-boundaries))|credssp-binding))$'
+          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-license-request-cancel-replay|r3-platform-challenge-slice|r3-platform-challenge-cancel-replay|r3-platform-challenge-response-read|r3-client-license-read|tls-application-partial-write|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output|write-receipts|write-denials)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|runtime\.licensing-cli-(valid-provisioning|incomplete-configuration|invalid-product-identity|credential-file-denials|service-still-disabled)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-strict-fields)|credssp-binding))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
           printf '%s\n' "$selected_tests"
@@ -303,11 +303,22 @@ jobs:
           grep -Fq 'transport.licensing-generated-request-cancellation-replay' <<< "$selected_tests"
           grep -Fq 'transport.licensing-client-response-single-consumption' <<< "$selected_tests"
           grep -Fq 'security.credssp-password-credential-strict-fields' <<< "$selected_tests"
-          grep -Fq 'security.credssp-password-credential-nested-der-mutations' <<< "$selected_tests"
-          grep -Fq 'security.credssp-password-credential-length-boundary-denials' <<< "$selected_tests"
-          grep -Fq 'security.credssp-password-credential-utf16-mutation-boundaries' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$licensing_selection" --output-on-failure
+
+          # Keep the adversarial password-credential corpus in its own flat
+          # selector. CMake's regex engine has a bounded parenthesis budget,
+          # and extending the already-large cross-road expression caused
+          # fail-closed selection with zero executed tests.
+          credential_selection='^security\.credssp-password-credential-'
+          credential_tests="$(ctest --test-dir build --build-config Debug -N -R "$credential_selection")"
+          printf '%s\n' "$credential_tests"
+          grep -Fq 'security.credssp-password-credential-strict-fields' <<< "$credential_tests"
+          grep -Fq 'security.credssp-password-credential-nested-der-mutations' <<< "$credential_tests"
+          grep -Fq 'security.credssp-password-credential-length-boundary-denials' <<< "$credential_tests"
+          grep -Fq 'security.credssp-password-credential-utf16-mutation-boundaries' <<< "$credential_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$credential_selection" --output-on-failure
       - name: Run bounded native R2/R3 GSSAPI CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

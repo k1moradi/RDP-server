@@ -1,3 +1,23 @@
+## R9 CredSSP sanitizer regex-limit correction (2026-10-16)
+
+R9 exact-SHA workflow `39004093895` at
+`d82e9836b5457f43293ca46bc3c712c0565e1188` compiled the corrected
+credential tests successfully and completed Ubuntu and macOS protocol jobs
+green, but `r9-security-protocol-sanitizers` failed in the combined
+R1/R3/CredSSP/licensing step before any selected test executed. CTest reported
+`RegularExpression::compile(): Too many parentheses` followed by
+`Total Tests: 0`. The later native GSS, PAM, direct Linux runtime, X11 and
+bounded fuzzer sanitizer groups all passed, so this is specifically a CTest
+selection failure and not evidence of an ASan/UBSan parser failure.
+
+The correction keeps the prior combined selector unchanged except for restoring
+its original `security.credssp-password-credential-strict-fields` member.
+A second flat password-credential selector performs a fail-closed registry
+check for the strict-fields case and the three new adversarial cases, then runs
+that exact prefix under the same ASan/UBSan and leak-detection environment.
+This avoids CMake's parenthesis ceiling without weakening any concurrent road
+selection. Exact correction-SHA CI is pending.
+
 ## R8 multi-file X11 handoff authoring validation (2026-10-16)
 
 **Base:** `2cdb16e42e1b642fcfb02c0a34f581b53e202598`. Source changes are limited to the existing X11 clipboard

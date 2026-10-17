@@ -1,3 +1,28 @@
+## Windows DXGI -> R4 synchronous BGRA borrow boundary (R6 P2, 2026-10-17)
+
+`WindowsDxgiCaptureCycle::consumeR4Frame()` is the native Windows
+capture-to-graphics compatibility seam. It adds no R4 scheduler, frame ID,
+surface, transport or authorization owner. The callback receives the existing
+portable `FramebufferView` plus the cycle's pinned
+`WindowsCaptureGeneration { session, device }`. That capture generation is
+revocation provenance only; it is not the R4 presentation generation and cannot
+authorize a desktop or graphics channel.
+
+The R4 handoff is unavailable on legacy/fixture cycles without a complete
+nonzero generation reader/pin. The callback borrows the mapped D3D11 bytes only
+for its synchronous call. Production `consumeFrame()` performs the same
+pre-consumer and post-consumer generation checks, then clears/unmaps staging
+before DXGI `ReleaseFrame`. A callback may synchronously copy or convert the
+frame (including R4 BGRA->NV12 ingestion), but a non-`consumed` outer result
+must never be published for that native generation.
+
+A resized topology revokes the old cycle. A replacement DXGI owner necessarily
+has a fresh device epoch, so even identical monitor bounds cannot make an old
+mapped frame eligible for the replacement owner. Whole-owner COM retirement
+and session-change teardown ordering remain owned by
+`WindowsDxgiDuplicationOwner` and the existing session guard; this seam
+creates no COM reference and retains none.
+
 ## M2 licensing-to-Share authorization provenance
 
 The M2 critical path has four distinct authorities and they must never be

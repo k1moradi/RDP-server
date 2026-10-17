@@ -26,6 +26,9 @@ void windowsCaptureCycleSynchronousConsumeDenials();
 void windowsCaptureCycleInvalidConsumerReleaseRevocation();
 void windowsCapturePackedCopyLifetime();
 void windowsCapturePackedCopyDenials();
+void windowsCaptureR4BgraLayoutContract();
+void windowsCaptureR4FrameLifetimeRevocation();
+void windowsCaptureR4MonitorReplacementDenials();
 void windowsCaptureNativeDamageReadLifetime();
 void windowsCaptureNativeDamageReadDenials();
 void windowsCaptureGenerationPinnedLifetime();
@@ -865,6 +868,18 @@ int main(int argc, char **argv)
     else if (behavior == "capture-packed-copy-denials")
     {
         windowsCapturePackedCopyDenials();
+    }
+    else if (behavior == "r4-bgra-layout-contract")
+    {
+        windowsCaptureR4BgraLayoutContract();
+    }
+    else if (behavior == "r4-frame-lifetime-revocation")
+    {
+        windowsCaptureR4FrameLifetimeRevocation();
+    }
+    else if (behavior == "r4-monitor-replacement-denials")
+    {
+        windowsCaptureR4MonitorReplacementDenials();
     }
     else if (behavior == "dxgi-native-damage-map-lifetime")
     {

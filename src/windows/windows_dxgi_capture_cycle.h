@@ -82,6 +82,18 @@ struct WindowsCaptureGenerationReader
     bool (*read)(void *context, WindowsCaptureGeneration &current) noexcept{};
 };
 
+// Windows R6 -> R4 borrow-only frame boundary. The generation is the pinned
+// native capture/session identity, not an R4 presentation authorization token.
+// R2/R3 must independently prove admission and map this capture generation to
+// their current presentation generation. The framebuffer is valid only for
+// consume(); callers needing asynchronous work must copy/convert before return.
+struct WindowsR4BgraFrameConsumer
+{
+    void *context{};
+    bool (*consume)(void *context, const FramebufferView &frame,
+                    WindowsCaptureGeneration generation) noexcept{};
+};
+
 // Independently owned pointer update for the currently acquired DXGI frame.
 // nativeTopLeft is the top-left of the DXGI shape in Win32 virtual-screen
 // coordinates and is meaningful only when positionChanged && visible.
@@ -136,6 +148,13 @@ public:
     // capture APIs on another thread. This does not authorize a session.
     [[nodiscard]] WindowsCaptureConsumeResult consumeFrame(
         WindowsCaptureFrameConsumer consumer) noexcept;
+    // Generation-carrying synchronous handoff for the future R4 composition.
+    // This is available only on a guarded nonzero session/device generation.
+    // The same pre/post generation checks and unmap-before-ReleaseFrame order
+    // as consumeFrame() apply. A closed result means the consumer's work must
+    // not be published for this native generation.
+    [[nodiscard]] WindowsCaptureConsumeResult consumeR4Frame(
+        WindowsR4BgraFrameConsumer consumer) noexcept;
     // Produce a tightly packed BGRA8 snapshot into caller-owned storage.
     // Does not allocate, retain pixels, or schedule an R4 frame. The mapped
     // staging texture is unmapped and the DXGI lease released on every path.

@@ -230,6 +230,19 @@ WindowsCaptureCycleResult WindowsDxgiCaptureCycle::captureFrame(
 namespace
 {
 
+struct WindowsR4BgraConsumerAdapter
+{
+    WindowsR4BgraFrameConsumer consumer{};
+    WindowsCaptureGeneration generation{};
+
+    static bool consume(void *raw, const FramebufferView &frame) noexcept
+    {
+        auto &adapter = *static_cast<WindowsR4BgraConsumerAdapter *>(raw);
+        return adapter.consumer.consume(
+            adapter.consumer.context, frame, adapter.generation);
+    }
+};
+
 struct WindowsPackedBgraCopy
 {
     std::span<std::byte> destination{};
@@ -282,6 +295,28 @@ struct WindowsPackedBgraCopy
 };
 
 } // namespace
+
+WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::consumeR4Frame(
+    WindowsR4BgraFrameConsumer consumer) noexcept
+{
+    // R4-facing native pixels must always carry an explicit nonzero
+    // revocation generation. Legacy fixture-only cycles without a generation
+    // source cannot be upgraded into a graphics-publication authority.
+    if (generationReader_.context == nullptr ||
+        generationReader_.read == nullptr ||
+        pinnedGeneration_.session == 0 || pinnedGeneration_.device == 0)
+    {
+        cancel();
+        return WindowsCaptureConsumeResult::closed;
+    }
+
+    if (consumer.context == nullptr || consumer.consume == nullptr)
+        return consumeFrame({});
+
+    WindowsR4BgraConsumerAdapter adapter{consumer, pinnedGeneration_};
+    return consumeFrame(
+        {&adapter, &WindowsR4BgraConsumerAdapter::consume});
+}
 
 WindowsCaptureConsumeResult WindowsDxgiCaptureCycle::copyFrameTo(
     std::span<std::byte> destination, FramebufferView &ownedOutput) noexcept

@@ -1,3 +1,45 @@
+## R6 P2 DXGI-to-R4 native frame ownership boundary (2026-10-17; exact-SHA CI pending)
+
+**Authoring parent:** `2fa14da2fcfe2a78fe849c69f0051e796f4a8321`.
+
+Audit showed the existing Windows capture path already validates BGRA pitch and
+extent, pins session/device generation, defers callback-time teardown, unmaps
+staging before DXGI frame release, retires parent COM references in order and
+denies input after session revocation. The missing cross-road compatibility was
+that the synchronous pixel callback exposed only `FramebufferView`; the
+future R4 composition could therefore pair those borrowed pixels with a
+separately sampled generation.
+
+R6 now adds `WindowsDxgiCaptureCycle::consumeR4Frame()`. It exposes the same
+borrowed framebuffer together with the exact pinned
+`WindowsCaptureGeneration`, requires a complete nonzero generation source,
+and delegates lifetime/revalidation/release to the existing
+`consumeFrame()` path. It adds no R4 publication authority and no R2/R3
+admission. A callback may synchronously convert/copy pixels, but only an outer
+`consumed` result is eligible for later publication.
+
+Dedicated CTests are
+`windows.capture-r4-bgra-layout-contract`,
+`windows.capture-r4-frame-lifetime-revocation`, and
+`windows.capture-r4-monitor-replacement-denials`. The first executes the real
+R4 BGRA->NV12 converter on a padded synthetic D3D11 mapping before unmap. The
+second rotates session generation during that callback and requires terminal
+denial plus staging-unmap-before-DXGI-release. The third proves a fresh device
+epoch denies an old same-geometry frame and a resize observed during the
+callback retires the old cycle. Existing whole-owner COM-order and
+session/Input revocation tests remain the authority for exact parent cleanup
+and no post-revocation `SendInput`.
+
+The hosted R6 Windows selector expands **55 -> 58** and its CLANG64
+ASan/UBSan cardinality/sentinels are updated. Exact-SHA MSVC, CLANG64 and
+sanitizer execution is **PENDING**.
+
+M4 remains **OPEN / NOT ACCEPTED**. R2/R10 must provide genuine native Windows
+desktop admission plus serialized session-change revocation; R3 must provide
+the authenticated/licensed/Share-activated Graphics DVC sender and bounded
+input route. No synthetic admission fixture can enable live DXGI or
+`SendInput`.
+
 ## R9 M1 assurance and M2 sanitizer gate (2026-10-17)
 
 **M1 candidate:** `e2c1e51d22c2c33cd0de1ca40fc2bf7f45d3c5ae`. Hosted

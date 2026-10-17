@@ -1,3 +1,17 @@
+## R6 DXGI-to-R4 compatibility build note (2026-10-17)
+
+The production `rdp-server-windows-desktop` target remains independent of
+R4/x264: the new generation-carrying callback uses only existing portable
+`FramebufferView` and Windows capture-generation types. The existing
+`test_windows_desktop_geometry` executable additionally links the noninstalled
+`rdp-server-graphics` target so its dedicated compatibility case can execute
+the real R4 BGRA-to-NV12 ingestion primitive against a synthetic native mapping.
+
+No new package, Windows SDK/import library, build option or build root is
+introduced. Hosted Windows/MSVC and MSYS2 CLANG64/Clang 23 must compile the
+expanded fixture. The R6 CLANG64 ASan/UBSan selector expands from 55 to
+**58** cases.
+
 ## R6 hosted Windows sanitizer build contract (2026-10-17)
 
 After the ordinary hosted MSYS2 CLANG64 Debug and Release gates, CI may

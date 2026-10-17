@@ -1,3 +1,31 @@
+## R6 DXGI-to-R4 native framebuffer compatibility tests (2026-10-17)
+
+The Windows R6 selector includes three production-backed cross-road cases:
+`windows.capture-r4-bgra-layout-contract`,
+`windows.capture-r4-frame-lifetime-revocation`, and
+`windows.capture-r4-monitor-replacement-denials`. They use injected
+DXGI/D3D11 callbacks only and must never enumerate/capture a live desktop or
+invoke host input.
+
+The layout case feeds a padded native BGRA mapping through
+`consumeR4Frame()` into the real R4 `BgraNv12Converter` while the mapping is
+still alive, checks the pinned session/device generation, and requires
+unmap-before-`ReleaseFrame`. It also proves a cycle without explicit
+generation provenance cannot use the R4 seam.
+
+The lifetime case changes the session generation during the synchronous R4
+conversion. The consumer may have observed/copied bytes, but the outer call
+must return terminal `closed`, retire staging then the DXGI lease, and never
+report a publishable frame. The monitor/resize case separately changes the
+device epoch with unchanged geometry and mutates topology during a callback;
+both retire the old cycle without stale publication.
+
+The anchored Windows selector is now **58** cases. Hosted CLANG64 sanitizer
+preflight must require all three new sentinel names and exact 58-case
+cardinality before ASan/UBSan execution. Existing whole-owner COM-order,
+WTS/session revocation and held-input/no-post-revocation-`SendInput` tests
+remain unchanged and mandatory.
+
 ## R4 segmented-frame retirement reuse is symmetric (2026-10-17)
 
 For a non-overwriteable `GfxAvc420SegmentedFrame`, test every successful

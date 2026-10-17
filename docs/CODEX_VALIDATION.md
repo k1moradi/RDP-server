@@ -1,3 +1,26 @@
+## R6 P2 DXGI-to-R4 handoff authoring receipt (2026-10-17)
+
+**Authoring parent:** `2fa14da2fcfe2a78fe849c69f0051e796f4a8321`.  
+**Publication:** this direct-to-main implementation; exact-SHA Actions pending.
+
+The production change is one additive R6 capture method:
+`consumeR4Frame(WindowsR4BgraFrameConsumer)`. It is a generation-carrying,
+synchronous borrow only. Legacy cycles without an explicit nonzero
+session/device generation fail closed. The method reuses
+`consumeFrame()` for pre/post generation observation, callback reentry
+denials and staging-unmap-before-`ReleaseFrame` teardown, so it neither
+duplicates native capture nor creates/retains COM references.
+
+Three new CTests execute the production seam with injected DXGI/D3D11
+callbacks. The layout case also calls the real R4 `BgraNv12Converter`;
+session change, same-geometry device replacement and resize cases all deny
+publication and preserve native release order. No test accesses a live
+desktop, registers WTS, or calls `SendInput`.
+
+Hosted Windows/MSVC, MSYS2 CLANG64/Clang 23 and the 58-case R6
+ASan/UBSan selector are required before this increment is marked validated.
+M4 is not claimed.
+
 ## R9 M1 assurance and M2 sanitizer gate (2026-10-17)
 
 **M1 candidate:** `e2c1e51d22c2c33cd0de1ca40fc2bf7f45d3c5ae`. Hosted

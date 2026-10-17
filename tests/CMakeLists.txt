@@ -828,12 +828,14 @@ if(TARGET rdp-server-windows-desktop)
         windows_capture_cycle_cases.cpp
         windows_capture_damage_cases.cpp
         windows_capture_session_guard_cases.cpp
+        windows_r4_handoff_cases.cpp
         windows_dxgi_duplication_owner_cases.cpp
         windows_dxgi_pointer_shape_cases.cpp
         windows_input_controller_cases.cpp
         windows_cursor_snapshot_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
-        rdp-server-windows-desktop)
+        rdp-server-windows-desktop
+        rdp-server-graphics)
     if(MSVC)
         target_compile_options(test_windows_desktop_geometry PRIVATE /UNDEBUG)
     else()
@@ -927,6 +929,17 @@ if(TARGET rdp-server-windows-desktop)
             COMMAND test_windows_desktop_geometry "${case_name}")
         set_tests_properties("windows.${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;offline")
+    endforeach()
+    # R6 -> R4 native BGRA borrow contract. The real R4 converter is linked
+    # only into this existing fixture; production R6 retains no R4 dependency.
+    foreach(case_name IN ITEMS
+            r4-bgra-layout-contract
+            r4-frame-lifetime-revocation
+            r4-monitor-replacement-denials)
+        add_test(NAME "windows.capture-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.capture-${case_name}" PROPERTIES
+            LABELS "windows;desktop-capture;graphics;security;offline")
     endforeach()
     # One bounded native frame metadata reader; synthetic tests never access DXGI.
     foreach(case_name IN ITEMS

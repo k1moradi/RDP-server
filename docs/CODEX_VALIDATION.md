@@ -1,3 +1,29 @@
+## R4 segmented-frame retirement reuse authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `f7f8f83c968332cf2b3d86d999cfe2142bec1045`. Exact publication-SHA hosted
+validation is **PENDING**.
+
+Successful full delivery and successful terminal abort now invalidate
+`GfxAvc420SegmentedFrame` exactly like successful conclusively unwritten
+cancellation; failed retirement attempts preserve the owner and wire bytes.
+Producer completion preserves x264 reference continuity, while terminal abort
+still resets the encoder generation.
+
+New ordinary production-backed tests are
+`graphics.avc420-segmented-frame-retirement-reuse` and
+`graphics.x264-segmented-retirement-reuse`. R9 registry preflights select
+**41** portable R4 cases and **24** x264/BGRA cases after this change.
+
+Pre-change SHA `1c91b828a18e94e286863197b20d72a7440ae3bf`, Actions
+`39013412507`, executes the preceding R4 owner-overwrite tests successfully
+and passes R9 **40/40** portable graphics plus **23/23** x264/BGRA. That
+workflow is overall **FAILURE** only because
+`transport.tcp-native-loopback-tls` fails outside R4; it is baseline evidence,
+not validation of this new retirement behavior.
+
+Canonical local testing is **NOT RUN** here. No live Graphics DVC, native
+desktop, benchmark or Microsoft-client acceptance is claimed.
+
 ## R9 P1 Windows CLANG64 security-fixture validation receipt (2026-10-17)
 
 Exact hosted SHA `1c91b828a18e94e286863197b20d72a7440ae3bf`:

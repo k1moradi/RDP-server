@@ -1,3 +1,43 @@
+## R4 P2 segmented-frame retirement reuse (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `d9c0747fdd64a325d532252f876e8e7645123dcb`.
+
+The preceding single-assignment hardening correctly prevents overwriting a live
+`GfxAvc420SegmentedFrame`, but review exposed an incomplete retirement
+contract: successful completion and terminal abort left the frame structurally
+valid even though the private lifecycle receipt was already retired. Because
+prepare rejects any valid output, only cancellation made a caller-owned slot
+reusable.
+
+R4 now makes all three successful retirement paths consume the segmented-frame
+owner. Exact complete, exact abort and exact unwritten cancellation invalidate
+the private receipt and release owned wire bytes; failed short/stale/wrong
+completion or abort leaves the object unchanged. The x264 producer mirrors the
+same mutable-owner contract. Successful completion does **not** reset codec
+history, so the next publication remains a P picture; terminal abort still
+resets the producer, and the first publication of a fresh generation is IDR.
+
+New production-backed ordinary CTests are
+`graphics.avc420-segmented-frame-retirement-reuse` and
+`graphics.x264-segmented-retirement-reuse`. They cover short-completion
+preservation, exact completion reuse, terminal-abort reuse after a fresh
+generation, payload release, P-frame continuity after complete, and fresh IDR
+after abort. R9 portable graphics expands to **41** cases and x264/BGRA to
+**24**, with both new names required by registry preflight and workflow
+structure validation.
+
+Canonical owner-local `~/rdp-server/build/` is **NOT RUN** in this connector
+environment. Exact publication-SHA hosted Linux/GCC, macOS/AppleClang,
+Windows/MSVC, Windows CLANG64 and R9 ASan/UBSan evidence is **PENDING**.
+Current shared-main hosted failures before this change are outside R4 in
+`transport.tcp-native-loopback-tls`; the new R4 owner-reuse behavior must still
+execute successfully in ordinary CTest and the sanitizer groups before this
+increment is considered validated.
+
+No R3/DVC sender, scheduler, authorization or publication path is added. The
+next cross-road gate remains the one authorized R3 Graphics DVC sender with
+cumulative accepted-byte receipts; M3/M4/M5 remain **OPEN / NOT ACCEPTED**.
+
 ## R9 P1 Windows CLANG64 security-fixture hosted validation (2026-10-17)
 
 **Validated SHA:** `1c91b828a18e94e286863197b20d72a7440ae3bf`.  

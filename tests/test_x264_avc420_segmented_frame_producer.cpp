@@ -294,6 +294,59 @@ void ownedOutputReusePreflightPreservesReferences()
         foreignLifecycle, occupiedOutput));
 }
 
+void retirementReusePreservesReferenceContinuity()
+{
+    constexpr std::uint64_t firstGeneration = 6104;
+    constexpr std::uint64_t secondGeneration = 6105;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, firstGeneration, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(firstGeneration, kCoded, kVisible));
+
+    const auto firstPixels = makeFrame(kCoded, 31);
+    const auto secondPixels = makeFrame(kCoded, 47);
+    const auto thirdPixels = makeFrame(kCoded, 63);
+
+    GfxAvc420SegmentedFrame output;
+    assert(producer.prepare(
+        lifecycle, firstGeneration, request(42U, firstPixels, 0), output));
+    assert(hasNalType(output.wireBytes(), 5));
+    const std::size_t firstWireBytes = output.wireBytes().size();
+    assert(!producer.completeDelivery(
+        lifecycle, output, firstWireBytes - 1U));
+    assert(output.valid());
+    assert(producer.completeDelivery(
+        lifecycle, output, firstWireBytes));
+    assert(!output.valid());
+    assert(output.wireBytes().empty());
+    assert(producer.valid());
+
+    assert(producer.prepare(
+        lifecycle, firstGeneration, request(43U, secondPixels, 1), output));
+    assert(hasNalType(output.wireBytes(), 1));
+    assert(!hasNalType(output.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, output, output.wireBytes().size()));
+    assert(!output.valid());
+
+    assert(producer.prepare(
+        lifecycle, firstGeneration, request(44U, thirdPixels, 2), output));
+    assert(output.valid());
+    assert(producer.abortDelivery(lifecycle, output));
+    assert(!output.valid());
+    assert(output.wireBytes().empty());
+    assert(!producer.valid());
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+
+    mapSurface(lifecycle, secondGeneration, kVisible);
+    assert(producer.open(secondGeneration, kCoded, kVisible));
+    assert(producer.prepare(
+        lifecycle, secondGeneration, request(45U, firstPixels, 0), output));
+    assert(hasNalType(output.wireBytes(), 5));
+    assert(producer.cancelUnwrittenDelivery(lifecycle, output));
+    assert(!output.valid());
+}
+
 void metadataPreflightPreservesReferences()
 {
     GfxPresentationLifecycle lifecycle;
@@ -1182,6 +1235,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-owned-output-reuse-preflight")
     {
         ownedOutputReusePreflightPreservesReferences();
+        return 0;
+    }
+    if (behavior == "x264-segmented-retirement-reuse")
+    {
+        retirementReusePreservesReferenceContinuity();
         return 0;
     }
     if (behavior == "x264-segmented-malformed-nv12-reference-continuity")

@@ -197,7 +197,7 @@ bool X264Avc420SegmentedFrameProducer::cancelUnwrittenDelivery(
 
 bool X264Avc420SegmentedFrameProducer::completeDelivery(
     GfxPresentationLifecycle &lifecycle,
-    const GfxAvc420SegmentedFrame &frame,
+    GfxAvc420SegmentedFrame &frame,
     std::size_t deliveredWireBytes) noexcept
 {
     if (!valid() || frame.generation() != generation_)
@@ -208,7 +208,7 @@ bool X264Avc420SegmentedFrameProducer::completeDelivery(
 
 bool X264Avc420SegmentedFrameProducer::abortDelivery(
     GfxPresentationLifecycle &lifecycle,
-    const GfxAvc420SegmentedFrame &frame) noexcept
+    GfxAvc420SegmentedFrame &frame) noexcept
 {
     if (!valid() || frame.generation() != generation_)
         return false;

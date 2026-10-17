@@ -98,16 +98,18 @@ public:
         GfxAvc420SegmentedFrame &frame) noexcept;
 
     // R3 calls this only after the full owned outer wire span was delivered.
+    // Success retires and invalidates frame; rejection leaves it unchanged.
     [[nodiscard]] bool completeDelivery(
         GfxPresentationLifecycle &lifecycle,
-        const GfxAvc420SegmentedFrame &frame,
+        GfxAvc420SegmentedFrame &frame,
         std::size_t deliveredWireBytes) noexcept;
 
     // Terminal/partial transport failure revokes the presentation through the
-    // existing lifecycle and drops x264 reference history for this generation.
+    // existing lifecycle, retires frame and drops x264 reference history for
+    // this generation. Rejected stale/wrong aborts leave frame unchanged.
     [[nodiscard]] bool abortDelivery(
         GfxPresentationLifecycle &lifecycle,
-        const GfxAvc420SegmentedFrame &frame) noexcept;
+        GfxAvc420SegmentedFrame &frame) noexcept;
 
 private:
     [[nodiscard]] bool rebuildEncoder() noexcept;

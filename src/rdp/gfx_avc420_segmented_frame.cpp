@@ -85,7 +85,7 @@ bool cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
 
 bool completeGfxAvc420SegmentedFrameDelivery(
     GfxPresentationLifecycle &lifecycle,
-    const GfxAvc420SegmentedFrame &frame,
+    GfxAvc420SegmentedFrame &frame,
     std::size_t deliveredWireBytes) noexcept
 {
     if (!frame.valid() || deliveredWireBytes != frame.wireBytes_.size() ||
@@ -93,17 +93,27 @@ bool completeGfxAvc420SegmentedFrameDelivery(
     {
         return false;
     }
-    return lifecycle.completeFrameDelivery(frame.receipt_,
-                                            frame.graphicsBytes_);
+    if (!lifecycle.completeFrameDelivery(frame.receipt_,
+                                         frame.graphicsBytes_))
+    {
+        return false;
+    }
+
+    frame.invalidate();
+    return true;
 }
 
 bool abortGfxAvc420SegmentedFrameDelivery(
     GfxPresentationLifecycle &lifecycle,
-    const GfxAvc420SegmentedFrame &frame) noexcept
+    GfxAvc420SegmentedFrame &frame) noexcept
 {
     if (!frame.valid() || frame.receipt_.bytes != frame.graphicsBytes_)
         return false;
-    return lifecycle.abortFrameDelivery(frame.receipt_);
+    if (!lifecycle.abortFrameDelivery(frame.receipt_))
+        return false;
+
+    frame.invalidate();
+    return true;
 }
 
 } // namespace rdp_server::rdp

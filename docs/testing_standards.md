@@ -1,3 +1,18 @@
+## R4 segmented-frame retirement reuse is symmetric (2026-10-17)
+
+For a non-overwriteable `GfxAvc420SegmentedFrame`, test every successful
+receipt-retirement path as an owner-consumption boundary. Exact completion,
+terminal abort and exact unwritten cancellation must invalidate the object and
+release its wire span; short/stale/wrong retirement must preserve it. Reuse the
+same output slot after completion and after a fresh generation following abort.
+For the x264 producer, additionally prove successful completion preserves
+reference continuity (next frame remains P) while terminal abort resets the
+encoder (fresh generation begins IDR).
+
+These behaviors run in ordinary CTest and the R9 sanitizer preflights. The
+portable R4 selector contains **41** cases and the x264/BGRA label **24** after
+this increment.
+
 ## R4 owned segmented outputs cannot be silently replaced (2026-10-17)
 
 A valid `GfxAvc420SegmentedFrame` output is an occupied receipt owner.
@@ -2831,7 +2846,7 @@ The one Linux/Clang sanitizer job must compile both existing R4 graphics test
 executables, `test_x264_avc420_encoder` and
 `test_x264_avc420_segmented_frame_producer`, then run the complete
 `x264` CTest label as its own failure-isolated group. The label currently
-contains 23 production-backed cases covering the pinned x264 encoder,
+contains 24 production-backed cases covering the pinned x264 encoder,
 NV12 validation/reference continuity, BGRA-to-NV12 conversion, segmented
 RDP8 publication, ACK/backpressure, zero-valued wire identifiers and fixed-CFR
 PTS behavior.
@@ -2919,7 +2934,7 @@ display-change delivery remain owner-macOS acceptance, not hosted CTest.
 
 The shared Linux/Clang ASan+UBSan job must build and execute the complete
 portable R4 wire/lifecycle boundary independently from codec and capability
-groups. The bounded selection contains **40** production-backed CTests
+groups. The bounded selection contains **41** production-backed CTests
 from exactly these executables: `test_gfx_surface_lifecycle`,
 `test_gfx_frame_acknowledge`, `test_gfx_presentation_lifecycle`,
 `test_gfx_avc420_picture`, `test_gfx_segmented_data`, and
@@ -2931,7 +2946,7 @@ zero-valued surface IDs, stale-generation ACK handling, terminal frame-delivery
 abort, zero-valued frame IDs, segmented-data denial/in-place safety, and
 segmented AVC420 delivery/ACK, exact unsent-frame cancellation and retained
 terminal abort for ambiguous/partial progress. Keep this group separate from
-the existing 4-case capability selector and 23-case x264/BGRA label so
+the existing 4-case capability selector and 24-case x264/BGRA label so
 failures remain
 attributable and one R4 group cannot hide later road evidence. No native X11,
 Windows or macOS graphics test belongs in this portable selection.

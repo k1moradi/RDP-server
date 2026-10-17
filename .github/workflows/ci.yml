@@ -505,7 +505,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          portable_graphics_selection='^graphics\.(surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation|unsent-cancellation|partial-send-remains-terminal)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack|unsent-cancellation|owned-output-reuse-denials)))$'
+          portable_graphics_selection='^graphics\.(surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation|unsent-cancellation|partial-send-remains-terminal)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack|unsent-cancellation|owned-output-reuse-denials|retirement-reuse)))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$portable_graphics_selection")"
           printf '%s\n' "$selected_tests"
           grep -Fq 'graphics.surface-zero-id-wire' <<< "$selected_tests"
@@ -521,6 +521,7 @@ jobs:
           grep -Fq 'graphics.avc420-segmented-frame-delivery-ack' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-segmented-frame-unsent-cancellation' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-segmented-frame-owned-output-reuse-denials' <<< "$selected_tests"
+          grep -Fq 'graphics.avc420-segmented-frame-retirement-reuse' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$portable_graphics_selection" --output-on-failure
 
@@ -536,6 +537,7 @@ jobs:
           grep -Fq 'graphics.x264-segmented-unsent-cancel-idr' <<< "$selected_tests"
           grep -Fq 'graphics.x264-bgra-unsent-cancel-idr' <<< "$selected_tests"
           grep -Fq 'graphics.x264-segmented-owned-output-reuse-preflight' <<< "$selected_tests"
+          grep -Fq 'graphics.x264-segmented-retirement-reuse' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -L x264 --output-on-failure
 

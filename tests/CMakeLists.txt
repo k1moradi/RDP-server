@@ -341,7 +341,8 @@ function(add_rdp_test source_file suite behavior)
                 avc420-segmented-frame-denials-reconnect
                 avc420-segmented-frame-delivery-ack
                 avc420-segmented-frame-unsent-cancellation
-                avc420-segmented-frame-owned-output-reuse-denials)
+                avc420-segmented-frame-owned-output-reuse-denials
+                avc420-segmented-frame-retirement-reuse)
             add_test(NAME "graphics.${case_name}"
                 COMMAND "${test_target}" "${case_name}")
             set_tests_properties("graphics.${case_name}" PROPERTIES
@@ -2044,6 +2045,7 @@ foreach(case_name IN ITEMS
         x264-segmented-backpressure-preflight
         x264-segmented-metadata-preflight
         x264-segmented-owned-output-reuse-preflight
+        x264-segmented-retirement-reuse
         x264-segmented-malformed-nv12-reference-continuity
         x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset

@@ -56,10 +56,10 @@ private:
     friend bool cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
         GfxPresentationLifecycle &, GfxAvc420SegmentedFrame &) noexcept;
     friend bool completeGfxAvc420SegmentedFrameDelivery(
-        GfxPresentationLifecycle &, const GfxAvc420SegmentedFrame &,
+        GfxPresentationLifecycle &, GfxAvc420SegmentedFrame &,
         std::size_t) noexcept;
     friend bool abortGfxAvc420SegmentedFrameDelivery(
-        GfxPresentationLifecycle &, const GfxAvc420SegmentedFrame &) noexcept;
+        GfxPresentationLifecycle &, GfxAvc420SegmentedFrame &) noexcept;
 
     void invalidate() noexcept
     {
@@ -97,15 +97,18 @@ private:
 // R3 calls this only after the entire wireBytes() span has been delivered on
 // its independently authorized Graphics DVC. The outer segmented byte count
 // is checked here before publishing the existing inner frame receipt/ACK.
+// Exact successful completion consumes the publication owner; failed or short
+// completion leaves it intact for the caller's still-pending transport state.
 [[nodiscard]] bool completeGfxAvc420SegmentedFrameDelivery(
     GfxPresentationLifecycle &lifecycle,
-    const GfxAvc420SegmentedFrame &frame,
+    GfxAvc420SegmentedFrame &frame,
     std::size_t deliveredWireBytes) noexcept;
 
 // R3 calls this after terminal/partial transport failure. The existing
-// presentation lifecycle revokes the active generation.
+// presentation lifecycle revokes the active generation. Successful abort also
+// consumes the publication owner; a rejected stale/wrong abort leaves it intact.
 [[nodiscard]] bool abortGfxAvc420SegmentedFrameDelivery(
     GfxPresentationLifecycle &lifecycle,
-    const GfxAvc420SegmentedFrame &frame) noexcept;
+    GfxAvc420SegmentedFrame &frame) noexcept;
 
 } // namespace rdp_server::rdp

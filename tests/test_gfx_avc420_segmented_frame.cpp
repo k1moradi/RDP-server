@@ -326,6 +326,50 @@ void ownedOutputReuseDenials()
         secondLifecycle, output));
 }
 
+void retirementReuse()
+{
+    constexpr std::uint64_t firstGeneration = 3011;
+    constexpr std::uint64_t secondGeneration = 3012;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, firstGeneration);
+
+    GfxAvc420SegmentedFrame output;
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, firstGeneration, picture(92U), output));
+    const std::size_t firstWireBytes = output.wireBytes().size();
+
+    assert(!completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, output, firstWireBytes - 1U));
+    assert(output.valid());
+    assert(output.generation() == firstGeneration);
+    assert(output.frameId() == 92U);
+    assert(output.wireBytes().size() == firstWireBytes);
+
+    assert(completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, output, firstWireBytes));
+    assert(!output.valid());
+    assert(output.wireBytes().empty());
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, firstGeneration, picture(93U), output));
+    assert(output.valid());
+    assert(output.frameId() == 93U);
+    assert(abortGfxAvc420SegmentedFrameDelivery(lifecycle, output));
+    assert(!output.valid());
+    assert(output.wireBytes().empty());
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+
+    mapSurface(lifecycle, secondGeneration);
+    assert(prepareGfxAvc420SegmentedFrame(
+        lifecycle, secondGeneration, picture(94U), output));
+    assert(output.valid());
+    assert(output.generation() == secondGeneration);
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        lifecycle, output));
+    assert(!output.valid());
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -361,6 +405,11 @@ int main(int argc, char **argv)
     if (behavior == "avc420-segmented-frame-owned-output-reuse-denials")
     {
         ownedOutputReuseDenials();
+        return 0;
+    }
+    if (behavior == "avc420-segmented-frame-retirement-reuse")
+    {
+        retirementReuse();
         return 0;
     }
     return 2;

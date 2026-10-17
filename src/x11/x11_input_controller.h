@@ -28,9 +28,13 @@ public:
     // not make or cache an authorization decision of its own.
     [[nodiscard]] bool handle(const X11InputEvent &event) noexcept;
 
-    // Release held native state while the borrowed XCB owner is still alive,
-    // then invalidate the pointer. Idempotent and required before XCB teardown.
+    // Graceful retirement while input authority is still current: release held
+    // native state before invalidating the borrowed XCB owner.
     void disconnect() noexcept;
+
+    // Terminal authority-loss retirement. Discard held state without emitting
+    // any XTEST request after R2/R3 permission has been revoked.
+    void retireWithoutNativeInput() noexcept;
 
 private:
     struct KeyMapping
@@ -41,6 +45,7 @@ private:
 
     void fail(const char *reason) noexcept;
     void releaseAll() noexcept;
+    void retireState(const char *reason) noexcept;
     [[nodiscard]] xcb_keycode_t keycodeFor(xcb_keysym_t keysym) const noexcept;
     [[nodiscard]] bool handleKey(const X11KeyInput &input) noexcept;
     [[nodiscard]] bool synchronizeLocks(const X11LockStateInput &input) noexcept;

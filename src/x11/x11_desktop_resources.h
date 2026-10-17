@@ -142,23 +142,37 @@ public:
         bool socketReadable = false,
         X11EventSink *additionalEventSink = nullptr) noexcept;
 
-    // Idempotent ordered cancellation. Child resources are disconnected and
-    // destroyed before the sole XCB connection owner is disconnected.
+    // Idempotent graceful cancellation while native input authority remains
+    // current. Child resources retire before the sole XCB connection owner.
     void disconnect() noexcept;
+
+    // Terminal authorization-loss cancellation. Held input state is discarded
+    // before every other X11 child, with no cleanup XTEST request.
+    void retireAfterAuthorizationLoss() noexcept;
 
 private:
     friend class X11AuthorizedInputRoute;
+
+    enum class InputRetirementMode : std::uint8_t
+    {
+        ReleaseHeldState,
+        SuppressNativeInput,
+    };
 
     [[nodiscard]] bool handleAuthorizedInput(
         std::uint64_t expectedGeneration,
         const X11InputEvent &event) noexcept;
     void fail(const char *reason) noexcept;
-    void cancelGeometryBoundResources() noexcept;
+    void cancelGeometryBoundResources(
+        InputRetirementMode inputRetirementMode =
+            InputRetirementMode::ReleaseHeldState) noexcept;
     [[nodiscard]] bool rebuildGeometryBoundResources(
         PixelSize geometry) noexcept;
     [[nodiscard]] bool initializePointerPositionTracker(
         xcb_connection_t &connection, PixelSize geometry) noexcept;
-    void cancelNativeResources() noexcept;
+    void cancelNativeResources(
+        InputRetirementMode inputRetirementMode =
+            InputRetirementMode::ReleaseHeldState) noexcept;
     [[nodiscard]] bool childrenValid() const noexcept;
 
     // Declaration order keeps the XCB connection alive until after child

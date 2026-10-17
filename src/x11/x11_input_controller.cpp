@@ -282,9 +282,22 @@ void
 X11InputController::disconnect() noexcept
 {
     releaseAll();
-    const char *reason = failureReason_ == nullptr
-                             ? "XTEST input controller is disconnected"
-                             : failureReason_;
+    retireState(failureReason_ == nullptr
+                    ? "XTEST input controller is disconnected"
+                    : failureReason_);
+}
+
+void
+X11InputController::retireWithoutNativeInput() noexcept
+{
+    retireState(failureReason_ == nullptr
+                    ? "XTEST input controller retired after authorization loss"
+                    : failureReason_);
+}
+
+void
+X11InputController::retireState(const char *reason) noexcept
+{
     connection_ = nullptr;
     rootWindow_ = XCB_WINDOW_NONE;
     bounds_ = {};

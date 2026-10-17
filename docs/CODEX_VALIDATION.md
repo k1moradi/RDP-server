@@ -1,3 +1,40 @@
+## R5 X11 authority-loss no-post retirement authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `5f0c16833ff9192d18729211f66d719d95946eec`. The latest fully completed hosted
+baseline before this R5 edit is `d93f1a0e8b31a43401e3b0cfae5bd439caae7664`:
+primary Actions `39047429733` and structure Actions `39047429642` are
+**SUCCESS**; R9 sanitizer job `117438899867` reports the pre-change R5
+selection **37/37 PASS**, including
+`x11.input-native-generation-mismatch-denial`. R2 `483be256` adds protected
+PersonalDesktop licensing/Share/application-ready wrappers and R10 `5f0c1683`
+adds first admitted MCS framing through the sole R1 TLS owner. Neither creates
+an R10 X11 owner or an R3 Graphics/input dispatcher.
+
+The teardown audit found a concrete R5 authorization-lifetime bug:
+`X11AuthorizedInputRoute` could receive a failed protected transition after
+R2/R3 authority was already terminal, then call
+`X11DesktopResources::disconnect()`. Graceful disconnect invokes
+`X11InputController::releaseAll()`, which emits XTEST key/button releases for
+held state. Those cleanup events could therefore occur after input permission
+was gone.
+
+This increment adds `X11InputController::retireWithoutNativeInput()` and
+`X11DesktopResources::retireAfterAuthorizationLoss()`. Freshness,
+missing-lease and permission denial paths now discard held state and retire
+input before XI2/Damage/XShm/cursor/XCB without any cleanup XTEST. Graceful
+disconnect and RandR replacement retain their existing held-state release
+semantics while authority is current. Dedicated offline
+`x11.input-native-authority-retirement-no-native-post` runs under ephemeral
+Xvfb, establishes controlled held key/button state, retires the production
+controller, and requires the X server state to remain unchanged; repeated
+retirement/disconnect remains no-post. The R5 sanitizer registry is updated
+**37→38** with this sentinel.
+
+Canonical owner-local `~/rdp-server/build/`: **NOT RUN** in this connector
+environment; no alternate build root was created. Exact publication-SHA hosted
+primary/structure/R5 sanitizer CI: **PENDING**. No live desktop was enumerated,
+captured or recorded, and no input was sent to a logged-in display.
+
 ## R10 post-admission R1-owned MCS TPKT composition authoring receipt (2026-10-17)
 
 **Reconciled starting main:** `483be256489aebc6006fc8977bacf4445d4cd9c5`

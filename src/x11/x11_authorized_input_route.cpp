@@ -23,16 +23,17 @@ X11AuthorizedInputRoute::dispatch(
     if (!desktop.valid() || expectedNativeGeneration == 0 ||
         desktop.captureGeneration() != expectedNativeGeneration)
     {
-        desktop.disconnect();
+        desktop.retireAfterAuthorizationLoss();
         broker.revokeR3Session(acceptor, session);
         return false;
     }
 
     // Missing concrete admission is terminal even when native freshness
-    // matches. Close R3 before R2/GSS and revoke native input state.
+    // matches. Retire native input without any cleanup XTEST request, then
+    // close R3/R2/GSS.
     if (lease == nullptr)
     {
-        desktop.disconnect();
+        desktop.retireAfterAuthorizationLoss();
         broker.revokeR3Session(acceptor, session);
         return false;
     }
@@ -44,7 +45,7 @@ X11AuthorizedInputRoute::dispatch(
     if (!broker.authorizeR3ProtectedTransition(
             *lease, acceptor, connection, session, kConsoleInputPermission))
     {
-        desktop.disconnect();
+        desktop.retireAfterAuthorizationLoss();
         return false;
     }
 

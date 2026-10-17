@@ -566,19 +566,40 @@ X11DesktopResources::disconnect() noexcept
 }
 
 void
+X11DesktopResources::retireAfterAuthorizationLoss() noexcept
+{
+    const bool wasHealthy = failureReason_ == nullptr;
+    cancelNativeResources(InputRetirementMode::SuppressNativeInput);
+    if (wasHealthy)
+    {
+        failureReason_ =
+            "X11 desktop resources retired after authorization loss";
+    }
+}
+
+void
 X11DesktopResources::fail(const char *reason) noexcept
 {
     failureReason_ = reason != nullptr ? reason : "X11 desktop resource failure";
 }
 
 void
-X11DesktopResources::cancelGeometryBoundResources() noexcept
+X11DesktopResources::cancelGeometryBoundResources(
+    InputRetirementMode inputRetirementMode) noexcept
 {
-    // Input can retain pressed native state and must release it before any
-    // other geometry-bound resource is replaced or the connection is closed.
+    // Input always retires first. Graceful/RandR retirement may release held
+    // state while authority is current; authorization loss must never emit a
+    // cleanup XTEST request.
     if (input_)
     {
-        input_->disconnect();
+        if (inputRetirementMode == InputRetirementMode::SuppressNativeInput)
+        {
+            input_->retireWithoutNativeInput();
+        }
+        else
+        {
+            input_->disconnect();
+        }
         input_.reset();
     }
 #if defined(RDP_SERVER_X11_XINPUT_POINTER)
@@ -702,9 +723,10 @@ X11DesktopResources::initializePointerPositionTracker(
 }
 
 void
-X11DesktopResources::cancelNativeResources() noexcept
+X11DesktopResources::cancelNativeResources(
+    InputRetirementMode inputRetirementMode) noexcept
 {
-    cancelGeometryBoundResources();
+    cancelGeometryBoundResources(inputRetirementMode);
 
     // Cursor is not geometry-bound, but it still borrows the same connection.
     if (cursor_)

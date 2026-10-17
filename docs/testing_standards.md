@@ -725,6 +725,18 @@ Do not retain a framebuffer span across either retirement boundary, inspect a
 logged-in display, or infer R4/RDP delivery from this native lifetime proof.
 
 
+Authority-loss retirement is distinct from graceful disconnect. A graceful
+shutdown or RandR replacement may best-effort release held keys/buttons while
+the same input authority is still current. Once R2/R3 input authority has
+failed, R5 must discard its held-state bookkeeping and invalidate the borrowed
+XCB endpoint without issuing any XTEST request. The dedicated
+`x11.input-native-authority-retirement-no-native-post` fixture uses only a
+fresh Xvfb server: establish controlled held key/button state, snapshot it,
+invoke the production no-post retirement, and require the X server state to
+remain unchanged across repeated retirement/disconnect. The ephemeral X server
+is destroyed with the fixture; never run this proof against a logged-in display.
+
+
 ## R5 owner-authorized Linux/X11 M3 acceptance
 
 Live M3 is an explicit opt-in and is never part of ordinary CTest. Run it only

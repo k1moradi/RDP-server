@@ -189,6 +189,60 @@ destructorHeldInputRelease()
     assert(xcb_connection_has_error(connection.get()) == 0);
 }
 
+void
+authorityRetirementNoNativePost()
+{
+    const char *display = std::getenv("DISPLAY");
+    assert(display != nullptr && display[0] != '\0');
+
+    int screenNumber = -1;
+    XcbConnection connection = connectDisplay(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*connection, screenNumber);
+
+    const std::array<std::uint8_t, 32> baselineKeys =
+        keymapSnapshot(*connection);
+    const std::uint16_t baselinePointerMask =
+        pointerMask(*connection, screen->root);
+
+    X11InputController input(
+        *connection, screen->root,
+        {screen->width_in_pixels, screen->height_in_pixels});
+    assert(input.valid());
+    assert(input.handle(X11KeyInput{
+        /*keySymbol=*/0x61U,
+        /*scanCode=*/0x1eU,
+        /*extended=*/false,
+        /*pressed=*/true}));
+    assert(input.handle(X11PointerButtonInput{
+        /*x=*/140,
+        /*y=*/140,
+        /*button=*/1,
+        /*pressed=*/true}));
+
+    const std::array<std::uint8_t, 32> heldKeys =
+        keymapSnapshot(*connection);
+    const std::uint16_t heldPointerMask =
+        pointerMask(*connection, screen->root);
+    assert(heldKeys != baselineKeys);
+    assert((heldPointerMask & XCB_BUTTON_MASK_1) != 0);
+    assert((baselinePointerMask & XCB_BUTTON_MASK_1) == 0);
+
+    // Once R2/R3 authority is gone, retirement may clear only local tracking.
+    // Remaining held Xvfb state proves no cleanup XTEST release was posted.
+    input.retireWithoutNativeInput();
+    assert(!input.valid());
+    assert(keymapSnapshot(*connection) == heldKeys);
+    assert(pointerMask(*connection, screen->root) == heldPointerMask);
+
+    // Repeated retirement and later generic disconnect stay no-post because the
+    // native endpoint and held-state bookkeeping are already retired.
+    input.retireWithoutNativeInput();
+    input.disconnect();
+    assert(keymapSnapshot(*connection) == heldKeys);
+    assert(pointerMask(*connection, screen->root) == heldPointerMask);
+    assert(xcb_connection_has_error(connection.get()) == 0);
+}
+
 } // namespace
 
 int
@@ -205,6 +259,11 @@ main(int argc, char **argv)
     if (behavior == "destructor-held-input-release")
     {
         destructorHeldInputRelease();
+        return 0;
+    }
+    if (behavior == "authority-retirement-no-native-post")
+    {
+        authorityRetirementNoNativePost();
         return 0;
     }
 

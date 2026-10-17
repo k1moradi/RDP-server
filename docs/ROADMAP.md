@@ -340,9 +340,12 @@ Exact publication-SHA hosted Apple Debug/Release, full CTest, R7/R9 sanitizer
 and workflow evidence are **PENDING**. Owner macOS 27 and live M5 remain
 **NOT RUN / BLOCKED** under the existing authorization prerequisites.
 
-## R4 P1 native BGRA-to-AVC420 compatibility gate (2026-10-17; exact-SHA CI pending)
+## R4 P1 native BGRA-to-AVC420 compatibility gate (2026-10-17; exact-SHA CI PASS)
 
-**Starting reconciled shared `main`:** `c852d782eedab341371f193d3f20ae386ff7f5d2`.
+**Starting reconciled shared `main`:** `c852d782eedab341371f193d3f20ae386ff7f5d2`.  
+**Implementation:** `162093d3f50f0c9793b1eafc2cba637c98473559`.  
+**Actions:** `39023110195` — **SUCCESS**.  
+**Structure guard:** `39023110193` — **SUCCESS**.
 
 R4 owns only the common producer-side ingress contract. R5 X11 production
 capture is unchanged, and the concurrently landed R6/R7 native generation and
@@ -377,10 +380,22 @@ synchronous R4 preparation, the owned frame is not publishable. Before any R3
 submit, use the existing exact unwritten cancellation, then bind the replacement
 capture epoch. No cancellation/abort/ACK behavior is reimplemented.
 
+Exact implementation-SHA hosted validation is green. Linux/GCC is **598/598
+PASS Debug + 598/598 PASS Release**. macOS/AppleClang is **512/512 PASS Debug
++ 512/512 PASS Release**. Windows/MSVC is **548/548 PASS Debug + 548/548 PASS
+Release**; hosted MSYS2 CLANG64/Clang 23 is also **548/548 PASS Debug +
+548/548 PASS Release**. The three dedicated ingress cases execute in every
+full configuration. R9 Clang ASan/UBSan enumerates exactly **27** x264/BGRA
+cases and passes **27/27**, including the three new ingress cases; the separate
+portable R4 selection remains **41/41 PASS** and the capability group **4/4
+PASS**. Documentation policy, SDK/package stages and the complete workflow
+succeed.
+
 Canonical owner-local `~/rdp-server/build/` is **NOT RUN** here because the
 sole checkout is unavailable and no alternate persistent root is permitted.
-Publication-SHA hosted Debug/Release, R9 ASan/UBSan and full CI are **PENDING**.
-No benchmark threshold is introduced.
+These hosted test timings are correctness/regression evidence only: no native
+capture-to-client benchmark, Microsoft-client visible-frame timing or arbitrary
+frame-rate threshold is inferred.
 
 No R3 DRDYNVC/Graphics sender, network writer, scheduler or authorization is
 added. A segmented R4 frame is not permission to publish. M3 remains blocked on

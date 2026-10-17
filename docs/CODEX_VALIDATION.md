@@ -1,3 +1,54 @@
+## R4 P1 native BGRA-to-AVC420 compatibility exact-SHA receipt (2026-10-17)
+
+**Implementation:** `162093d3f50f0c9793b1eafc2cba637c98473559`.  
+**Actions:** `39023110195` — **SUCCESS**.  
+**Structure guard:** `39023110193` — **SUCCESS**.
+
+The production contract is the existing shared `FramebufferView` plus
+`X264Avc420SegmentedFrameProducer::openBgraCapture()` /
+`prepareBgra()`. A capture-bound producer stores one nonzero R4-local capture
+epoch, requires `codedGeometry == gfxAvc420CodedGeometry(visibleGeometry)`,
+and rejects stale/zero/future capture epochs before dereferencing borrowed
+pixels. The accepted framebuffer is top-left row-major B,G,R,ignored-alpha,
+four bytes per visible pixel, exact visible width/height, stride at least
+`width*4`, and a span covering every pitched row with checked arithmetic.
+Conversion copies synchronously into bounded R4-owned NV12 scratch; real x264
+encoding and segmented-frame ownership complete before return, so platform
+capture memory may be unmapped or replaced immediately afterward.
+
+Three dedicated production-linked real-x264 CTests execute the contract:
+`graphics.x264-native-bgra-frame-ingress`,
+`graphics.x264-native-bgra-resize-recovery`, and
+`graphics.avc420-capture-generation-denials`. They cover padded scanlines,
+2x2 visible geometry, source-memory retirement, truncated/overflow/mismatched
+layout denial, stale generation denial before pixel access, resize/rebind IDR,
+normal post-delivery P-frame continuity, exact unwritten cancellation followed
+by IDR recovery, terminal abort, reconnect and stale prior-generation receipt
+denial. No cancellation, abort, ACK or segmented-owner behavior is reimplemented.
+
+Hosted ordinary CTest on the implementation SHA is Linux/GCC **598/598 PASS
+Debug + Release**, macOS/AppleClang **512/512 PASS Debug + Release**,
+Windows/MSVC **548/548 PASS Debug + Release**, and hosted MSYS2 CLANG64/Clang
+23 **548/548 PASS Debug + Release**. The three ingress cases pass in every
+configuration. R9 Clang ASan/UBSan fail-closed enumerates **27** x264/BGRA
+cases and passes **27/27**; all three ingress cases are items 25-27. The
+separate portable R4 selector is **41/41 PASS** and RDPGFX capabilities are
+**4/4 PASS**. Documentation policy, SDK consumer/package stages and the whole
+workflow pass; untagged prerelease publication is skipped as intended.
+
+Later shared-main changes through `6ad716f6a40d2b1fcbbd476c82ad11b7abb17308`
+do not modify the R4 producer source or its dedicated test translation unit.
+R5/R6/R7 integrations consume this same contract with their own richer native
+generation owners; those native generations remain capture freshness, not R3
+publication authority.
+
+Canonical owner-local `~/rdp-server/build/`, native capture-to-client
+performance and Microsoft-client visible graphics are **NOT RUN** here. M1 and
+M3 remain **OPEN / NOT ACCEPTED**. R3 still owns the future authenticated Share,
+joined `drdynvc`, `Microsoft::Windows::RDS::Graphics` lifecycle, DVC/MCS
+fragmentation and cumulative accepted-byte receipts. No graphics channel,
+network writer, scheduler or frame-rate throttle is introduced by this gate.
+
 ## R7 P2 ScreenCaptureKit/CoreVideo -> R4 exact-SHA receipt (2026-10-17)
 
 **Implementation:** `f037d4b6445950767a126830e391057fcd3417ec`.  

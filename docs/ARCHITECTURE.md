@@ -294,6 +294,38 @@ cannot produce a native clipboard offer. Windows/macOS completed-set
 presentation consumes this metadata in a separate adapter boundary below;
 directory-relative native creation remains a later contract.
 
+## R8 caller-authorized directory capability binding (2026-10-17)
+
+`RemoteDirectoryCapabilityBinding` is a noninstalled, event-loop-confined
+ownership boundary between one current planned directory association and one
+caller-supplied native directory capability. The generic
+`RemoteDirectoryNativeOperations` seam has only duplicate and close
+operations. The duplicate callback must validate the native object itself and
+return an independently owned capability; it must not reopen a pathname.
+
+The binding is deliberately incapable of materialization. It exposes no native
+token, path, child name, mkdir/openat/CreateFile primitive or clipboard
+publication operation. It stores only the exact generation, descriptor index
+and planned local selection identity after successful duplication. The numeric
+selection identity is never interpreted as a native capability.
+
+Currentness is conjunctive: the original `RemoteTransfer` must still be
+synchronized at the bound generation, the exact
+`RemoteFileDestinationPlan` must remain current, and the exact association
+must still be a directory with the same local selection identity. Any failure
+releases the duplicate and moves to a terminal retired state. Cancellation and
+close are idempotent; the binding is non-copyable/non-movable so native
+ownership cannot be duplicated accidentally through C++ object copying.
+
+This contract intentionally leaves
+`RemoteFileDestinationPlan::AssociationStatus::UnsupportedDirectoryMaterialization`
+unchanged. The parser still retains only safe remote leaf metadata and cannot
+prove remote parent/child hierarchy. Future creation must therefore combine a
+separately verified hierarchy source with caller-selected local placement and
+the held native directory capability. POSIX creation must remain descriptor
+relative and no-follow; Windows must use a reviewed handle-relative mechanism
+or pre-authorized child handles rather than reconstructing/reopening paths.
+
 ## R8 planned Windows/macOS completed-set presentation (2026-10-17)
 
 The Windows and macOS adapters now consume a committed

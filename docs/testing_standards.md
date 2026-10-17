@@ -207,6 +207,29 @@ state while `RemoteTransfer` drains any exact in-flight receipt, and a late
 success must not make the plan or destination publishable. Sanitizer CI must
 enumerate every dedicated plan CTest before the full clipboard-labelled run.
 
+## Directory-capability tests separate native authority from hierarchy
+
+A directory-role `RemoteFileDestinationPlan` association remains metadata
+only until an independently supplied native directory capability is duplicated.
+Test the capability lifetime boundary with the real descriptor manifest and a
+native-operation seam: reject a file-role association before any duplicate,
+deliberately pass `localSelectionIdentity` as the native token and require
+rejection, then succeed only with a distinct caller-authorized token.
+
+Once bound, cover plan cancellation, source generation replacement and explicit
+local cancellation. Each terminal path must close the owned duplicate exactly
+once and must not resurrect after repeated currentness checks, cancel or close.
+The binding itself must expose no path or child-creation operation.
+
+Do not describe a successful directory-capability bind as directory
+materialization or hierarchy support. Until verified parent/child provenance is
+available, `UnsupportedDirectoryMaterialization` remains the transfer result.
+A later relative-creation test must prove component-level traversal/symlink or
+reparse denials against the actual native implementation; pathname-based reopen
+is not an acceptable substitute for a held directory capability. R9 sanitizer
+CI must enumerate every directory-capability CTest before the complete
+clipboard-labelled run.
+
 ## Multi-file clipboard handoff tests prove atomic completed-set visibility
 
 For a multi-file native handoff, materialize at least two files through the

@@ -1,3 +1,35 @@
+## R8 directory-capability binding authoring receipt (2026-10-17)
+
+**Implementation:** `446f13677d57d2ef3bead65bb65dcc460e1fde3a`.  
+**Actions:** `39011707625` — execution pending at authoring.
+
+The new noninstalled `rdp-server-clipboard-directory-capability` target owns
+only a portable lifetime binding around an injected native duplicate/close
+seam. A successful bind requires the exact current
+`RemoteFileDestinationPlan` association to have role `Directory`; a
+file-role association is terminally rejected before the native callback. The
+binding records the exact generation/index/local-selection identity only after
+the caller capability has been independently duplicated.
+
+`clipboard.directory-capability-binding-authority` proves that the plan's
+numeric `localSelectionIdentity` does not become native authority: the fake
+native owner rejects that value, while a separate caller token succeeds.
+`clipboard.directory-capability-binding-retirement` proves plan cancellation,
+generation replacement and local cancellation close the owned duplicate once
+without resurrection. Both registrations are required by R9's fail-closed
+clipboard registry before the full sanitizer label executes.
+
+No local path, remote leaf name or child component enters the new API. It
+cannot create a directory, open a child, follow a symlink/reparse point, publish
+a clipboard object or schedule FileContents. Directory transfer/publication
+remains explicitly unsupported; this is only the prerequisite capability
+lifetime boundary.
+
+The implementation SHA's documentation-policy job fails only because this
+documentation co-change was not present in that code commit. Do not treat that
+expected policy failure as executable R8 evidence, and do not call the
+implementation green until the platform compile/CTest/sanitizer jobs complete.
+
 ## R3 CAL issuer-constraints exact-SHA validation receipt (2026-10-17)
 
 `1332fd044773b9da53bff2d81403204ecd137484`, Actions

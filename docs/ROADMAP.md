@@ -1,3 +1,57 @@
+## R8 directory-capability binding before hierarchy materialization (2026-10-17; exact-SHA CI pending)
+
+**Reconciled parent:** `e782cd642f574e7ef45792c8fe168dfad70c8d2a`.  
+**Implementation:** `446f13677d57d2ef3bead65bb65dcc460e1fde3a`.  
+**Implementation Actions:** `39011707625` — execution pending at this receipt.
+
+R8 now adds the deliberately narrower ownership primitive required before any
+directory creation can be reviewed:
+`RemoteDirectoryCapabilityBinding`. It binds one exact current
+`RemoteFileDestinationPlan` directory association to a separately supplied
+opaque native directory token. The token is accepted only through caller
+provided native operations that duplicate the already-authorized directory
+capability; the binding never treats `localSelectionIdentity` as authority,
+never opens/reopens a path, and never sees a remote filename.
+
+The binding is one-shot, non-copyable and non-movable. It pins the
+`RemoteTransfer` generation, remote descriptor index and planned local
+selection identity. Plan cancellation, source replacement or association
+retirement releases the duplicate exactly once. Cancellation/close are terminal
+and idempotent. No child-name API, mkdir/openat/CreateFile call, symlink/reparse
+traversal, clipboard publication or file-byte transfer is added.
+
+Two dedicated production-backed CTests are
+`clipboard.directory-capability-binding-authority` and
+`clipboard.directory-capability-binding-retirement`. The authority case uses
+a real directory-role descriptor plus a file-role sibling, proves file
+associations are rejected before native duplication, deliberately supplies the
+plan's numeric selection identity as the native token and requires native
+rejection, then binds the independently supplied caller token. The retirement
+case proves plan cancellation, generation replacement and explicit cancellation
+release the duplicate exactly once. R9's complete clipboard sanitizer preflight
+requires both exact registrations.
+
+This does **not** change
+`RemoteFileDestinationPlan::hierarchyStatus()`:
+`UnsupportedWithRetainedMetadata` remains authoritative, and directory
+associations still report `UnsupportedDirectoryMaterialization` for transfer
+or publication. Caller parent relations remain local placement metadata only,
+not evidence of remote tree fidelity.
+
+The implementation commit's documentation-policy job is expected to fail
+because the source/test increment was intentionally published before this
+co-change receipt; compiler/CTest/sanitizer results from that run must be
+inspected independently and the documentation receipt must get its own policy
+result before this increment is called fully green.
+
+**Next R8:** once the portable binding is executable-green, add platform-native
+duplicate/close factories that inspect already-open directory objects without
+path reopen. Then separately review handle-relative child creation: POSIX must
+stay beneath the held directory descriptor with no-follow semantics, while
+Windows must not fall back to constructing/reopening an absolute pathname.
+Remote directory materialization remains disabled until that creation contract
+and verified hierarchy source both exist.
+
 ## R3 CAL issuer-constraints scoped hosted validation (2026-10-17)
 
 **Implementation:** `586101c7e50326f583ab0479bbfb6785353807b7`.  

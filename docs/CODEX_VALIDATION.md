@@ -552,9 +552,16 @@ result, Kerberos authentication, NSS/logind ownership, completion latch, lease
 or R3 authority is created.
 
 Canonical local `~/rdp-server/build/` execution is **NOT RUN** because that
-mandated checkout is not mounted in this connector environment. Exact-SHA
-hosted Actions for the source commit are **PENDING** at authoring time; report
-their actual result separately rather than inferring it from registration.
+mandated checkout is not mounted in this connector environment. The source
+commit's hosted Ubuntu Debug suite registered and passed
+`runtime.linux-security-pam-verifier-provisioning`; that workflow remained
+overall failed because the concurrent R1
+`transport.tcp-native-loopback-tls` case timed out on both Linux and macOS,
+and because the implementation commit lacked a same-commit Markdown co-change.
+The follow-up R2 correction adds the new runtime case to the R9 bounded
+ASan/UBSan direct-runtime selector with an exact registry preflight and carries
+this documentation in the same commit. Positive PAM/native authority remains
+**NOT RUN**.
 
 ## R2 authenticated PAM invocation hosted validation (2026-10-17)
 

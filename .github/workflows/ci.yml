@@ -360,6 +360,7 @@ jobs:
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
       - name: Reconfigure same root for R6 Windows sanitizers
+        id: r6_windows_sanitizer_configure
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: |
@@ -373,12 +374,15 @@ jobs:
             "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
       - name: Build R6 Windows native sanitizer fixture
+        id: r6_windows_sanitizer_build
+        if: ${{ always() && steps.r6_windows_sanitizer_configure.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
           cmake --build build --config Debug \
             --target test_windows_desktop_geometry --parallel 2
       - name: Run R6 Windows native lifetime CTests with sanitizers
+        if: ${{ always() && steps.r6_windows_sanitizer_build.outcome == 'success' }}
         shell: msys2 {0}
         env:
           ASAN_OPTIONS: halt_on_error=1

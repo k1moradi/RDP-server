@@ -1,3 +1,35 @@
+## R6 P2 Windows sanitizer continuation-fence correction (2026-10-17)
+
+**Initial P2 publication:** `bcf8736ce12b061ba62538f2404669b8b4fa1157`,
+Actions `39012212923`. Its R6 CLANG64 Debug native preflight was **55/55
+PASS** and the R10 focused Windows security preflights passed. The ordinary
+full Debug suite then finished **526/527 PASS**, failing only the independent
+R1 `transport.tcp-native-loopback-tls` readiness assertion. Because the
+initial P2 sanitizer steps followed that full-suite failure with default
+GitHub Actions `success()` semantics, Release and sanitizer execution were
+skipped; this is negative CI-gate evidence, not sanitizer or R6 source evidence.
+
+On unchanged R6 production code, descendant
+`4a116fb2501b7cbd5c9314d37337508fd7ed3824` / Actions
+`39012368322` proves the R9 failure-isolation mechanism: R6 Debug and Release
+native preflights both pass, both complete CLANG64 build graphs succeed, and
+the sanitizer reconfiguration itself succeeds even though the unrelated R1
+full Debug/Release tests remain red. That run exposed the final R6-owned gate
+defect: the sanitizer build and execution steps lacked their own explicit
+`always()` dependency fences and were therefore skipped after the earlier
+full-suite failure.
+
+This correction gives sanitizer configure/build explicit step IDs and allows
+each dependent sanitizer stage to run only when its immediate sanitizer
+predecessor succeeded, regardless of unrelated earlier test failures. The
+workflow-structure validator requires both dependency expressions so the
+failure-isolation contract cannot silently regress. No production source,
+CTest behavior, COM ownership assertion, WTS behavior or SendInput path
+changes.
+
+Exact correction-SHA ASan/UBSan execution is **PENDING**. M1 remains tied to
+R10's owner-native same-SHA matrix, and M4 remains **OPEN / NOT ACCEPTED**.
+
 ## R7 P1 isolated Apple lifecycle validation receipt (2026-10-17)
 
 **SHA:** `583b04b860ce38dda6b3b90001d7f92a3146d3f6`.  

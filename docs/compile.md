@@ -8,8 +8,10 @@ flags. It then builds only the existing production-linked
 `test_windows_desktop_geometry` target and executes the R6 native selector.
 
 The sanitizer pass adds no owner-local build root and is not part of the
-owner's mandatory M1 command. It relies on the CLANG64 compiler-rt shipped with
-the verified Clang package; a missing/incompatible runtime must fail visibly
+owner's mandatory M1 command. Hosted CI must give sanitizer configure/build/run
+their own dependency fence so an unrelated failed full CTest does not skip the
+instrumented R6 target. It relies on the CLANG64 compiler-rt shipped with the
+verified Clang package; a missing/incompatible runtime must fail visibly
 instead of silently dropping instrumentation. No live Windows desktop or input
 permission is required.
 

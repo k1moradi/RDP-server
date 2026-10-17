@@ -53,10 +53,13 @@ callbacks only: no live desktop capture, WTS notification registration,
 `SendInput`, credentials or interactive user-session access.
 
 A sanitizer-runtime or compiler-rt/linker failure is toolchain evidence and
-must be reported separately from a production lifetime assertion failure. A
-green run is memory/UB evidence for the exercised synthetic Windows ownership
-paths only; it is not owner-machine M1 evidence and cannot count as M4
-desktop/client acceptance.
+must be reported separately from a production lifetime assertion failure. The
+configure, build and execution stages carry explicit fail-closed step IDs and
+`always()` fences: an unrelated earlier full-suite failure may not suppress
+R6 sanitizer evidence, while a failed sanitizer configure/build must prevent
+the dependent stage from running. A green run is memory/UB evidence for the
+exercised synthetic Windows ownership paths only; it is not owner-machine M1
+evidence and cannot count as M4 desktop/client acceptance.
 
 ## R7 hosted Apple lifecycle evidence is failure-isolated, not failure-masking
 

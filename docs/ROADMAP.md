@@ -1,3 +1,59 @@
+## R4 P2 post-structure-recovery hosted validation (2026-10-17)
+
+**Validated unchanged-R4 SHA:** `04a272c8b9b52f59a24401643a46d495978d1f95`.  
+**Actions:** `39010848190` — **SUCCESS**.  
+**Documentation publication parent:** `09184dc4c5fffe99e411af78b5b6b3ed4a822b3e`.
+
+The first gate after the R4 P2 handoff audit is now closed. R9's workflow
+structure guard is schedulable and the complete hosted workflow executes
+rather than skipping the protocol matrix. No R4 production source, dedicated
+R4 test translation unit, R4 central CTest registration or R9 R4 selector
+changed from the validated SHA through this documentation parent.
+
+Ordinary full CTest at the validated SHA passes:
+
+- Linux/GCC: **570/570 Debug + 570/570 Release**.
+- macOS/AppleClang: **487/487 Debug + 487/487 Release**.
+- Windows/MSVC: native preflight **55/55 Debug + 55/55 Release** and full
+  **520/520 Debug + 520/520 Release**.
+
+All five retained zero-byte/terminal recovery cases execute in every ordinary
+full suite: `graphics.frame-delivery-unsent-cancellation`,
+`graphics.frame-delivery-partial-send-remains-terminal`,
+`graphics.avc420-segmented-frame-unsent-cancellation`,
+`graphics.x264-segmented-unsent-cancel-idr`, and
+`graphics.x264-bgra-unsent-cancel-idr`.
+
+R9 Clang ASan/UBSan independently registry-preflights and passes the complete
+portable R4 RDPGFX group **39/39** and x264/BGRA group **22/22**. The three
+portable cancellation/terminal cases pass as items **19/39**, **20/39** and
+**39/39**; direct-NV12 and BGRA x264 recovery pass as **12/22** and **22/22**.
+Documentation policy, R7 sanitizers and the Windows CLANG64/Clang 23 parity
+job also complete successfully; ordinary prerelease publication is correctly
+skipped.
+
+This is validation only. No new R4 production behavior or CTest is added
+because the next code-bearing production boundary remains R3-owned: protected
+joined-DRDYNVC authority, `Microsoft::Windows::RDS::Graphics` DVC creation/
+fragmentation, and one receipt-bound cumulative accepted-byte sender. Adding a
+second R4 transport adapter, native graphics queue or test-only authority would
+violate the existing ownership contract.
+
+The proposed Linux/X11 -> R4 ingress also needs no additional production shim.
+R5 already returns the supported 32-bit little-endian BGRX
+`FramebufferView`; R4 already covers padded stride, synchronous borrowed
+lifetime, full-surface BGRA -> NV12 conversion and genuine x264 segmented
+publication. An extra Xvfb-to-x264 convergence case would repeat those
+road-local contracts without proving the missing R3 authorization boundary, so
+P2 does not add one solely to increase test count.
+
+Canonical owner-local `~/rdp-server/build/`, native capture performance and
+Microsoft-client visible graphics remain **NOT RUN** here. The next R4
+code-bearing step is therefore **BLOCKED ON R3**. Once R3 supplies the
+authorized Graphics DVC sender, R4 owns the dedicated production-backed
+cross-component byte/receipt compatibility test and then measured native
+capture/decode acceptance work. M3/M4/M5 remain **OPEN / NOT ACCEPTED**.
+
 ## R6 P1 Windows CLANG64/Clang 23 hosted lifetime evidence (2026-10-17)
 
 **Validated SHA:** `04a272c8b9b52f59a24401643a46d495978d1f95`.  

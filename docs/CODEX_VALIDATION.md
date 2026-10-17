@@ -1,3 +1,37 @@
+## R4 post-structure-recovery exact hosted validation (2026-10-17)
+
+**Validated SHA:** `04a272c8b9b52f59a24401643a46d495978d1f95`.  
+**Actions:** `39010848190` — **SUCCESS**.  
+**Documentation publication parent:** `09184dc4c5fffe99e411af78b5b6b3ed4a822b3e`.
+
+R4 regression coverage is green on the first fully schedulable shared workflow
+after the P2 handoff audit. Linux/GCC passes **570/570** in Debug and Release;
+macOS/AppleClang passes **487/487** in Debug and Release; Windows/MSVC passes
+**520/520** in Debug and Release after **55/55** native preflight in each
+configuration.
+
+The retained R4 recovery cases all execute in all six ordinary configurations:
+`graphics.frame-delivery-unsent-cancellation`,
+`graphics.frame-delivery-partial-send-remains-terminal`,
+`graphics.avc420-segmented-frame-unsent-cancellation`,
+`graphics.x264-segmented-unsent-cancel-idr`, and
+`graphics.x264-bgra-unsent-cancel-idr`.
+
+R9's instrumented R4 groups are independently green: portable RDPGFX
+**39/39** and x264/BGRA **22/22**. Exact cancellation/terminal cases are
+**19/39**, **20/39** and **39/39**; real x264 IDR recovery is **12/22** for
+direct NV12 and **22/22** for BGRA. This revalidates the landed semantics:
+exact unwritten cancellation preserves mapped/ACK/client-observation state and
+forces the next real x264 picture to IDR, while partial or uncertain progress
+remains terminal.
+
+No production source or test registration changes in this validation receipt.
+The R4 frame owner and BGRA/x264 path already match the planned single R3 sender
+boundary. Additional R4 publication code remains intentionally absent until R3
+supplies genuine joined DRDYNVC/Graphics-DVC authority and cumulative
+accepted-byte receipts. Canonical owner-local testing, native capture
+performance and Microsoft-client visible graphics remain **NOT RUN**.
+
 ## R6 P1 Windows CLANG64/Clang 23 hosted lifetime evidence (2026-10-17)
 
 **Validated SHA:** `04a272c8b9b52f59a24401643a46d495978d1f95`.  

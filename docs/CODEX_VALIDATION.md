@@ -1,3 +1,25 @@
+## R6 P1 Windows CLANG64/Clang 23 authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `a503fb558cee88cea2d03f97929136caec77171b`.  
+**Publication SHA:** pending this direct-to-main commit.
+
+The R6 P1 validation increment adds a dedicated hosted Windows MSYS2 CLANG64
+compiler gate without changing production R6 lifetime code. The job verifies
+that `clang++` is Clang 23.x and records the installed MinGW-w64 Windows
+headers/CRT, libc++, CMake and OpenSSL packages before configuration.
+
+Using the one checkout-local `build/` root, it configures Debug with
+CLANG64, builds `test_windows_desktop_geometry`, enumerates the focused R6
+selector and requires all four whole-owner retirement registrations, executes
+that selector, executes full Debug CTest, reconfigures the same root to Release,
+reruns the R6 selector and executes full Release CTest. No live desktop,
+`SendInput`, WTS notification registration or credentials are used.
+
+This hosted gate is compiler/SDK parity evidence, not the owner's required
+persistent `~/rdp-server/build/` receipt. Owner Windows CLANG64/Clang 23
+remains **NOT RUN / PENDING** until a same-SHA owner report is received. No M4
+claim is made.
+
 ## M1 owner-platform acceptance matrix (P0 coordination, 2026-10-17)
 
 R10 has paused runtime/service feature expansion and opened the formal

@@ -1,3 +1,48 @@
+## R6 P1 Windows CLANG64/Clang 23 evidence gate (2026-10-17; publication validation pending)
+
+**Starting reconciled shared `main`:** `a503fb558cee88cea2d03f97929136caec77171b`.
+
+R6 P1 aligns its Windows owner evidence with R10's M1 matrix: one owner
+checkout at `~/rdp-server`, one persistent `build/`, MSYS2 **CLANG64**,
+Clang **23.x**, and the ordinary full CTest command. The evidence receipt must
+record the exact Git SHA plus Clang, CMake, MinGW-w64 headers/CRT and OpenSSL
+package versions. MSVC remains useful hosted coverage but is not a substitute
+for this gate.
+
+A new hosted CLANG64 parity job provisions the current CLANG64 repository,
+verifies Clang 23 before configuration, and uses the existing single build root
+for Debug and Release. It fail-closes on registration drift for the four
+whole-owner retirement cases, runs the complete existing R6 native selector in
+both configurations, then runs full CTest in both. It uses deterministic
+synthetic callbacks only; no desktop capture, WTS registration or SendInput is
+authorized.
+
+The parity job is intentionally **not owner-machine evidence**. It is a
+compiler/MinGW SDK discriminator: if it fails, R6 owns source/test repairs for
+R6 failures; if it passes while the owner command fails at the same SHA, the
+remaining failure is owner environment/cache/toolchain specific until proven
+otherwise. Owner CLANG64 evidence is therefore still **PENDING** at this
+publication.
+
+For future authorized Windows composition, R10 must supply the sole serialized
+delivery of `WM_WTSSESSION_CHANGE` or `SERVICE_CONTROL_SESSIONCHANGE` to the
+R6 owner plus the service/session lifetime that keeps the owner alive through
+callback-safe-point teardown. That delivery is revocation only: R10 must not
+turn WTS observations into authentication. Positive desktop construction still
+requires a fresh non-forgeable R2 admission/reauthorization capability.
+
+R3 must supply the authenticated, already-decoded bounded input route after the
+R2 lease is current: keyboard/pointer events must be correlated with the same
+session/generation and delivered only to the existing R6
+`WindowsInputController`. R3 must retire that route before or with session
+revocation and must never let protocol parsing or a caller Boolean synthesize
+Windows authorization.
+
+M1 remains **OPEN** until the owner Windows CLANG64 receipt covers the agreed
+M1 SHA (or a concrete R6-owned failure is recorded and fixed). M4 remains
+**OPEN / NOT ACCEPTED** without a real R2-admitted Windows user desktop and
+Microsoft-client graphics/input acceptance.
+
 ## P0 M1 same-SHA owner-platform acceptance coordination (2026-10-17)
 
 **R10 role:** M1 validation coordinator. Production runtime/service expansion is

@@ -117,6 +117,78 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # R6/R10 M1 compiler parity: exercise the ordinary Windows-native adapter
+  # graph with the owner's required MSYS2 CLANG64 family. This is hosted
+  # compiler/SDK evidence only; it does not replace the owner's persistent
+  # ~/rdp-server/build receipt or authorize a live Windows desktop.
+  r6-windows-clang23:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Provision MSYS2 CLANG64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-lld
+            mingw-w64-clang-x86_64-libc++
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-openssl
+      - name: Verify Clang 23 and MinGW-w64 Windows API packages
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          test "$MSYSTEM" = "CLANG64"
+          clang++ --version
+          clang++ --version | head -n 1 | grep -Eq 'clang version 23\.'
+          cmake --version
+          ninja --version
+          pacman -Q             mingw-w64-clang-x86_64-clang             mingw-w64-clang-x86_64-headers             mingw-w64-clang-x86_64-crt             mingw-w64-clang-x86_64-libc++             mingw-w64-clang-x86_64-cmake             mingw-w64-clang-x86_64-openssl
+      - name: Configure Debug with CLANG64
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Debug             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+          grep -E '^CMAKE_(C|CXX)_COMPILER:FILEPATH=.*/clang(\+\+)?(\.exe)?$'             build/CMakeCache.txt
+      - name: Run Debug R6 native preflight
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake --build build --config Debug             --target test_windows_desktop_geometry --parallel 2
+          selected_tests="$(ctest --test-dir build --build-config Debug -N             -R '^windows\.(geometry|capture|cursor|input)-')"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'windows.capture-session-change-duplication-owner-retirement'             <<< "$selected_tests"
+          grep -Fq 'windows.capture-session-change-duplication-release-order'             <<< "$selected_tests"
+          grep -Fq 'windows.capture-session-change-duplication-callback-retirement'             <<< "$selected_tests"
+          grep -Fq 'windows.capture-session-change-duplication-prior-revocation'             <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 20             -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
+      - name: Run full Debug CTest under CLANG64
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake --build build --config Debug --parallel 2
+          ctest --test-dir build --build-config Debug --timeout 60             --output-on-failure
+      - name: Reconfigure same root for Release
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Release             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+      - name: Run Release R6 native preflight
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release             --target test_windows_desktop_geometry --parallel 2
+          ctest --test-dir build --build-config Release --timeout 20             -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
+      - name: Run full Release CTest under CLANG64
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release --parallel 2
+          ctest --test-dir build --build-config Release --timeout 60             --output-on-failure
+
   # R9: one bounded sanitizer job across existing first-party CLIPRDR/X11,
   # MCS/CredSSP, native R2->R3 admission/revocation and R3 licensing contracts.
   r9-security-protocol-sanitizers:

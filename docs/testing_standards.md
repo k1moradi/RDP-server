@@ -1,3 +1,25 @@
+## R6 Windows CLANG64 lifetime/compiler gate (2026-10-17)
+
+The Windows Clang 23 gate must build the production
+`rdp-server-windows-desktop` graph and the existing
+`test_windows_desktop_geometry` fixture under MSYS2 CLANG64 with
+`-Wall -Wextra -Wpedantic -Werror`. Before executing the selector, enumerate
+it with `ctest -N` and fail if any whole-owner session-change registration is
+missing. Execute `^windows\.(geometry|capture|cursor|input)-` in both Debug
+and Release, then execute the ordinary full CTest in both configurations.
+
+The focused gate must retain the existing ownership assertions: staging unmap
+before frame release, frame/cycle retirement before parent COM release,
+duplication/output/context/device/output/adapter/factory exact-once ordering,
+terminal session-generation revocation, callback-time deferred teardown, and
+held input cancellation with no post-revocation native send. Do not replace
+these with compile-only probes or weaken them for a compiler.
+
+Ordinary CLANG64 CTests remain synthetic and must not register for live WTS
+notifications, call host `SendInput`, open an authorized desktop or capture
+real screen content. A Clang/MinGW header or import-library incompatibility must
+be identified separately from a production lifetime failure.
+
 ## R2 delegated-account credential tests (2026-10-16)
 
 ## R10 licensing-authority sanitizer registry (2026-10-17)

@@ -1,3 +1,46 @@
+## R6/R10 Windows CLANG64 owner-evidence contract (2026-10-17)
+
+R6 and R10 use the same M1 owner-machine contract for Windows compiler
+evidence. The owner's required shell is **MSYS2 CLANG64**, not MINGW64,
+UCRT64, PowerShell/MSVC or a Linux cross compiler. Before counting a result,
+record the exact `git rev-parse HEAD`, `clang++ --version`, `cmake --version`
+and these installed packages:
+
+```sh
+pacman -Q \
+  mingw-w64-clang-x86_64-clang \
+  mingw-w64-clang-x86_64-headers \
+  mingw-w64-clang-x86_64-crt \
+  mingw-w64-clang-x86_64-libc++ \
+  mingw-w64-clang-x86_64-cmake \
+  mingw-w64-clang-x86_64-openssl
+```
+
+The compiler must be Clang 23.x. For the October 2026 evidence window the
+CLANG64 repository publishes Clang 23.1.3 with MinGW-w64 Windows headers/CRT
+14.0.0.r426.g4564ee4b5 and OpenSSL 3.6.5. These MinGW-w64 headers/import
+libraries are the Windows API SDK for this toolchain; do not report a
+Microsoft Windows SDK version for a CLANG64 build that does not use it.
+
+The owner's ordinary command remains unchanged and must reuse only
+`~/rdp-server/build/`:
+
+```sh
+cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure
+```
+
+For R6 P1, additionally reconfigure that **same** root to Release and rerun the
+focused Windows-native selector plus full CTest. A reused cache is acceptable
+only when `CMAKE_CXX_COMPILER` still resolves to the CLANG64 `clang++.exe`;
+otherwise the result is not Clang 23 evidence. No second build root is allowed.
+
+Hosted CI contains a CLANG64 parity job using the same source graph, single
+`build/` root, warnings, R6 selector and Debug/Release configurations. It
+pins Ninja only to make the ephemeral generator deterministic and verifies the
+actual compiler/package versions before configuration. Hosted parity separates
+Clang/MinGW SDK source defects from owner-host configuration defects, but it
+does **not** replace the owner's persistent-checkout M1 receipt.
+
 ## R2 Linux PAM verifier build boundary (2026-10-16)
 
 The new verifier remains outside the portable SDK and default build graph.

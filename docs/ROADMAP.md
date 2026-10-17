@@ -1,3 +1,21 @@
+## R5 P1 X11/R4 ingress Clang overflow-check correction (2026-10-17; exact-SHA CI pending)
+
+**Validated implementation descendant:** `90b8463bfd07f632272a38c52682d808c33c9e53`.  
+**Actions:** `39023360920`.
+
+Ubuntu/GCC Debug compiled the new X11 generation/borrow seam and completed its
+full Debug CTest successfully. R9 Clang 18.1.3 failed earlier, during
+`test_x11_desktop_resources` build, before any R5 CTest: the new stride
+overflow guard compared `uint32_t widthPixels` directly with 64-bit
+`size_t::max()/4`, which Clang diagnosed under `-Werror` as a tautological
+out-of-range comparison.
+
+The correction widens the native width to `size_t` before the checked
+multiply and uses that value to form `expectedStride`. No capture-generation
+rule, XShm lifetime, R4 callback contract, CTest body/name or authorization
+behavior changes. Exact correction-SHA R9 36-case sanitizer evidence is
+**PENDING**.
+
 ## R3 P0 existing-client CAL request exact-SHA validation receipt (2026-10-17)
 
 **Implementation SHA:** `c852d782eedab341371f193d3f20ae386ff7f5d2`.  

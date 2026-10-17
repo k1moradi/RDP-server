@@ -1,3 +1,12 @@
+## R5 X11/R4 ingress Clang overflow-check correction receipt (2026-10-17)
+
+Actions `39023360920` proved the corrected selector/structure gate and ordinary
+Ubuntu/GCC Debug build/full CTest, but R9 Clang 18.1.3 stopped before CTest with
+`-Wtautological-constant-out-of-range-compare` on the new stride overflow
+check. The correction only widens `geometry.widthPixels` to `size_t` before
+the checked multiply. Production semantics and all three X11->R4 CTests are
+unchanged. Exact correction-SHA validation is **PENDING**.
+
 ## R3 P0 existing-client CAL request exact-SHA validation receipt (2026-10-17)
 
 **Implementation SHA:** `c852d782eedab341371f193d3f20ae386ff7f5d2`.  

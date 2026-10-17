@@ -257,13 +257,12 @@ X11DesktopResources::consumeR4Frame(
     }
 
     const PixelSize geometry = resourceGeometry_;
-    if (geometry.widthPixels >
-        std::numeric_limits<std::size_t>::max() / 4U)
+    const std::size_t widthPixels = geometry.widthPixels;
+    if (widthPixels > std::numeric_limits<std::size_t>::max() / 4U)
     {
         return false;
     }
-    const std::size_t expectedStride =
-        static_cast<std::size_t>(geometry.widthPixels) * 4U;
+    const std::size_t expectedStride = widthPixels * 4U;
     if (expectedStride == 0 ||
         geometry.heightPixels >
             std::numeric_limits<std::size_t>::max() / expectedStride)

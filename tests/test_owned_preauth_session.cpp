@@ -1538,7 +1538,8 @@ private:
             std::chrono::duration_cast<Microseconds>(deadline - now);
         const auto maximumWait =
             std::chrono::duration_cast<Microseconds>(kMaximumTcpPollWait);
-        const auto boundedWait = std::min(remaining, maximumWait);
+        const auto boundedWait =
+            remaining < maximumWait ? remaining : maximumWait;
 
         timeval timeout{};
         timeout.tv_sec = static_cast<long>(

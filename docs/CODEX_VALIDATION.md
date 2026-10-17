@@ -1,3 +1,30 @@
+## R1 terminal-readiness Win32 macro correction (2026-10-16; exact-SHA CI pending)
+
+**Implementation:** \`9b8f6092e4a0265688ec3bbf51b10cd34db8746e\`.  
+**Implementation Actions:** \`39004463035\`.  
+**Correction base:** \`1d4f154bd548b11dcf95ac671ecdd3e4d5a5d288\`.
+
+The new \`transport.tcp-owned-tls-terminal-readiness\` behavior compiled and
+passed on macOS/AppleClang as test #164 in both Debug and Release
+(**446/446 PASS** each). The implementation-SHA Linux and R9 jobs stopped
+before R1 execution on the inherited R8 X11 clipboard compile error
+(\`fileUri_\` / \`fileUriLength_\` after the multi-file member replacement);
+R8 corrected that independently in \`7318bb23fbcde4f9051f08eec06ff8c6b9a218ba\`.
+
+Windows/MSVC exposed an R1 test-only portability bug: the new bounded
+client-readiness helper used \`std::min(remaining, maximumWait)\`, but a Win32
+\`min\` macro had already been introduced before this translation unit's later
+\`NOMINMAX\` guard, producing C2589 at the helper call. The correction replaces
+that expression with an explicit duration comparison/ternary. It changes no
+deadline, readiness direction, socket behavior, production source or R1
+ownership contract.
+
+The corrected descendant must pass the new CTest on Linux/GCC,
+macOS/AppleClang and Windows/MSVC Debug/Release and under the bounded R9
+R1/R3 sanitizer selection before this increment is accepted. Canonical
+owner-local \`~/rdp-server/build/\` and owner-platform evidence remain
+**NOT RUN**.
+
 ## R7 cursor session-watch fence authoring receipt (2026-10-16)
 
 **Parent:** `00b0aa8a3c58fd6866a3574f85e7d85c74ad9cd5`. Exact publication-SHA hosted validation: **PENDING**.

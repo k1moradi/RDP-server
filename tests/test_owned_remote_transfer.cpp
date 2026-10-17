@@ -1965,8 +1965,11 @@ void testFileDestinationPlanDirectoryTraversalDenials()
     Plan plan;
     assert(plan.prepare(source, source.generation(), valid) ==
            PrepareStatus::Prepared);
+    // These three wire descriptors are independent roots. Caller-selected
+    // local placement below is deliberately different and does not rewrite
+    // verified remote hierarchy provenance.
     assert(plan.hierarchyStatus() ==
-           Plan::RemoteHierarchyStatus::UnsupportedWithRetainedMetadata);
+           Plan::RemoteHierarchyStatus::VerifiedRelativePaths);
     assert(plan.associationStatus(source, 0U) ==
            AssociationStatus::UnsupportedDirectoryMaterialization);
     assert(plan.associationStatus(source, 1U) ==
@@ -1974,14 +1977,16 @@ void testFileDestinationPlanDirectoryTraversalDenials()
     assert(plan.associationStatus(source, 2U) ==
            AssociationStatus::CurrentFile);
 
-    // Path-bearing wire names are denied by RemoteTransfer before planning.
+    // Unsafe path syntax is denied before planning. A safe relative
+    // "folder\\file.txt" is now valid protocol structure and is covered by
+    // the dedicated hierarchy tests; it is not a local path.
     expectRemoteDescriptorNameRejected(source, u"../escape.txt");
     expectRemoteDescriptorNameRejected(source, u"..\\escape.txt");
     expectRemoteDescriptorNameRejected(source, u"/absolute.txt");
     expectRemoteDescriptorNameRejected(source, u"C:drive.txt");
     expectRemoteDescriptorNameRejected(source, u"\\\\server\\share.txt");
     expectRemoteDescriptorNameRejected(source, u"folder/file.txt");
-    expectRemoteDescriptorNameRejected(source, u"folder\\file.txt");
+    expectRemoteDescriptorNameRejected(source, u"folder\\..\\file.txt");
     const std::array<char16_t, 3> embeddedNul{
         u'a', u'\0', u'b'};
     expectRemoteDescriptorNameRejected(

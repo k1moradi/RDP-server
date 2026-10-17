@@ -1,3 +1,25 @@
+## R8 destination-plan stale-expectation correction receipt (2026-10-17)
+
+**Validated behavior before correction:** implementation/test SHA
+`46c6e7877e1d35e72f5f87e4bc681315bd9878ea`, Actions `39024657295`,
+macOS protocol job `117373175181`.
+
+The production source and new hierarchy tests compile. The five hierarchy
+registrations
+`file-hierarchy-relative-tree-provenance`,
+`file-hierarchy-provenance-unsupported-denials`,
+`file-hierarchy-parent-cycle-and-depth-denials`,
+`file-hierarchy-generation-replacement`, and
+`file-hierarchy-no-path-authority` all **PASS**. The sole full-suite failure
+is the older destination-plan traversal test at its obsolete hierarchy-status
+assertion; its later safe-relative-name denial is obsolete for the same reason.
+
+The correction changes test expectations only: pathless unique descriptors are
+verified independent roots, caller local nesting does not alter them, and safe
+relative backslash names are not rejected as paths. Unsafe absolute,
+slash/traversal and malformed names remain denied. Exact correction-SHA full
+CI is **PENDING**.
+
 ## R5 X11/R4 capture-epoch exact-SHA receipt (2026-10-17)
 
 `1b7ecaec4811e4d937a34ce6d03fbabfb7cb2e5c`, Actions

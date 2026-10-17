@@ -1,3 +1,21 @@
+## R8 destination-plan hierarchy expectation correction (2026-10-17; exact-SHA CI pending)
+
+At `46c6e7877e1d35e72f5f87e4bc681315bd9878ea`, Actions
+`39024657295`, all five dedicated hierarchy cases pass on macOS, including
+the new positive relative-tree case and all denial/replacement/no-path cases.
+The full macOS suite reports **513/514 PASS** because the older
+`clipboard.file-destination-plan-directory-traversal-denials` still expected
+three independent pathless wire descriptors to report unsupported hierarchy and
+still rejected safe relative `folder\\file.txt`.
+
+Those expectations predate this P2 contract. Three unique pathless descriptors
+are a verified three-root remote hierarchy; the test's caller-selected local
+parent chain is deliberately separate metadata. Safe relative backslash
+components are valid wire structure but never local path authority. This
+correction updates only those stale test expectations. Production hierarchy and
+native filesystem behavior are unchanged. Exact correction-SHA CI is
+**PENDING**.
+
 ## R5 P1 X11/R4 capture-epoch exact-SHA validation (2026-10-17)
 
 **Validated implementation:** `1b7ecaec4811e4d937a34ce6d03fbabfb7cb2e5c`.  

@@ -1511,6 +1511,70 @@ private:
     }
 };
 
+[[nodiscard]] bool waitForLocalSocketReady(
+    LocalSocketId socket,
+    bool wantRead,
+    bool wantWrite,
+    std::chrono::steady_clock::time_point deadline) noexcept
+{
+    using Clock = std::chrono::steady_clock;
+    using Microseconds = std::chrono::microseconds;
+
+    assert(socket != kInvalidLocalSocket);
+    assert(wantRead || wantWrite);
+
+    while (Clock::now() < deadline)
+    {
+        fd_set readSet;
+        fd_set writeSet;
+        FD_ZERO(&readSet);
+        FD_ZERO(&writeSet);
+        if (wantRead) FD_SET(socket, &readSet);
+        if (wantWrite) FD_SET(socket, &writeSet);
+
+        const auto now = Clock::now();
+        if (now >= deadline) return false;
+        const auto remaining =
+            std::chrono::duration_cast<Microseconds>(deadline - now);
+        const auto maximumWait =
+            std::chrono::duration_cast<Microseconds>(kMaximumTcpPollWait);
+        const auto boundedWait = std::min(remaining, maximumWait);
+
+        timeval timeout{};
+        timeout.tv_sec = static_cast<long>(
+            boundedWait.count() / 1'000'000);
+        timeout.tv_usec = static_cast<long>(
+            boundedWait.count() % 1'000'000);
+
+#ifdef _WIN32
+        const int selected = ::select(
+            0,
+            wantRead ? &readSet : nullptr,
+            wantWrite ? &writeSet : nullptr,
+            nullptr,
+            &timeout);
+        if (selected == SOCKET_ERROR) return false;
+#else
+        const int selected = ::select(
+            socket + 1,
+            wantRead ? &readSet : nullptr,
+            wantWrite ? &writeSet : nullptr,
+            nullptr,
+            &timeout);
+        if (selected < 0)
+        {
+            if (errno == EINTR) continue;
+            return false;
+        }
+#endif
+        if (selected == 0) continue;
+        return (wantRead && FD_ISSET(socket, &readSet) != 0) ||
+               (wantWrite && FD_ISSET(socket, &writeSet) != 0);
+    }
+    return false;
+}
+
+
 void nativeSendAll(TcpNonblockingIo &io,
                    std::span<const std::uint8_t> payload)
 {
@@ -4623,6 +4687,131 @@ void testR3ClientPlatformChallengeResponseReadThroughOwnedTls()
 }
 
 
+
+void testOwnedTlsApplicationTerminalReadiness()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    // A clean TLS close_notify must become terminal only after the real
+    // nonblocking socket is ready. No scheduler yield or fabricated readiness.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+
+        const auto deadline = Clock::now() + std::chrono::seconds{5};
+        bool closeNotifySent = false;
+        while (Clock::now() < deadline)
+        {
+            const int shutdownResult = SSL_shutdown(tls.client.get());
+            if (shutdownResult >= 0 ||
+                (SSL_get_shutdown(tls.client.get()) & SSL_SENT_SHUTDOWN) != 0)
+            {
+                closeNotifySent = true;
+                break;
+            }
+
+            const int error =
+                SSL_get_error(tls.client.get(), shutdownResult);
+            assert(error == SSL_ERROR_WANT_READ ||
+                   error == SSL_ERROR_WANT_WRITE);
+            assert(waitForLocalSocketReady(
+                pair.client.value,
+                error == SSL_ERROR_WANT_READ,
+                error == SSL_ERROR_WANT_WRITE,
+                deadline));
+        }
+        assert(closeNotifySent);
+
+        std::array<std::uint8_t, 16> buffer{};
+        TlsApplicationIoResult result{};
+        while (Clock::now() < deadline)
+        {
+            result = owner.readTlsApplicationData(buffer);
+            if (result.outcome != Outcome::NeedRead &&
+                result.outcome != Outcome::NeedWrite)
+            {
+                break;
+            }
+
+            assert(result.bytes == 0);
+            const auto expected =
+                result.outcome == Outcome::NeedRead
+                    ? Interest::Read
+                    : Interest::Write;
+            assert(owner.ioInterest() == expected);
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome == PollOutcome::Dispatched ||
+                   polled.outcome == PollOutcome::NoEvent);
+            assert(polled.nextInterest == expected);
+        }
+
+        assert(result.outcome == Outcome::TlsClosed);
+        assert(result.bytes == 0);
+        assert(!owner.active());
+        assert(owner.ioInterest() == Interest::Closed);
+        owner.cancel();
+    }
+
+    // Raw peer EOF follows the same bounded readiness path and cannot be
+    // revived by resubmitting the caller-owned read span afterward.
+    {
+        LoopbackSocketPair pair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(pair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+        TlsHandshakeFixture tls{false, false};
+        establishOwnedApplicationTls(owner, clientIo, tls);
+        pair.client.close();
+
+        const auto deadline = Clock::now() + std::chrono::seconds{5};
+        std::array<std::uint8_t, 16> buffer{};
+        TlsApplicationIoResult result{};
+        while (Clock::now() < deadline)
+        {
+            result = owner.readTlsApplicationData(buffer);
+            if (result.outcome != Outcome::NeedRead &&
+                result.outcome != Outcome::NeedWrite)
+            {
+                break;
+            }
+
+            assert(result.bytes == 0);
+            const auto expected =
+                result.outcome == Outcome::NeedRead
+                    ? Interest::Read
+                    : Interest::Write;
+            assert(owner.ioInterest() == expected);
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome == PollOutcome::Dispatched ||
+                   polled.outcome == PollOutcome::NoEvent);
+            assert(polled.nextInterest == expected);
+        }
+
+        assert(result.outcome == Outcome::TransportClosed);
+        assert(result.bytes == 0);
+        assert(!owner.active());
+        assert(owner.ioInterest() == Interest::Closed);
+        assert(owner.readTlsApplicationData(buffer).outcome ==
+               Outcome::TransportClosed);
+        owner.cancel();
+    }
+}
+
 void testOwnedTlsApplicationCancellation()
 {
     using Outcome = TlsApplicationIoOutcome;
@@ -4653,77 +4842,6 @@ void testOwnedTlsApplicationCancellation()
         assert(owner.onSocketReady(true, true) == Interest::Closed);
         owner.cancel();
         owner.cancel();
-    }
-
-    {
-        LoopbackSocketPair pair{false};
-        auto accepted = waitForAcceptedLoopbackConnection(
-            static_cast<std::uintptr_t>(pair.listener.value));
-        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
-        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
-        NativeTcpIo clientIo{
-            static_cast<std::uintptr_t>(pair.client.value)};
-        TlsHandshakeFixture tls{false, false};
-        establishOwnedApplicationTls(owner, clientIo, tls);
-
-        bool closeNotifySent = false;
-        for (int attempt = 0; attempt < 128; ++attempt)
-        {
-            const int result = SSL_shutdown(tls.client.get());
-            if (result >= 0)
-            {
-                closeNotifySent = true;
-                break;
-            }
-            const int error = SSL_get_error(tls.client.get(), result);
-            assert(error == SSL_ERROR_WANT_READ ||
-                   error == SSL_ERROR_WANT_WRITE);
-            std::this_thread::yield();
-        }
-        assert(closeNotifySent);
-
-        std::array<std::uint8_t, 16> buffer{};
-        TlsApplicationIoResult result{};
-        for (int attempt = 0; attempt < 128; ++attempt)
-        {
-            result = owner.readTlsApplicationData(buffer);
-            if (result.outcome != Outcome::NeedRead &&
-                result.outcome != Outcome::NeedWrite)
-                break;
-            assert(result.bytes == 0);
-            std::this_thread::yield();
-        }
-        assert(result.outcome == Outcome::TlsClosed);
-        assert(result.bytes == 0);
-        assert(!owner.active());
-    }
-
-    {
-        LoopbackSocketPair pair{false};
-        auto accepted = waitForAcceptedLoopbackConnection(
-            static_cast<std::uintptr_t>(pair.listener.value));
-        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
-        OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
-        NativeTcpIo clientIo{
-            static_cast<std::uintptr_t>(pair.client.value)};
-        TlsHandshakeFixture tls{false, false};
-        establishOwnedApplicationTls(owner, clientIo, tls);
-        pair.client.close();
-
-        std::array<std::uint8_t, 16> buffer{};
-        TlsApplicationIoResult result{};
-        for (int attempt = 0; attempt < 128; ++attempt)
-        {
-            result = owner.readTlsApplicationData(buffer);
-            if (result.outcome != Outcome::NeedRead &&
-                result.outcome != Outcome::NeedWrite)
-                break;
-            assert(result.bytes == 0);
-            std::this_thread::yield();
-        }
-        assert(result.outcome == Outcome::TransportClosed);
-        assert(result.bytes == 0);
-        assert(!owner.active());
     }
 
     {
@@ -10188,6 +10306,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-r3-platform-challenge-cancel-replay", &testR3ServerPlatformChallengeCancelReplayThroughOwnedTls},
     {"tcp-owned-r3-client-license-read", &testR3ClientLicensingReadThroughOwnedTls},
     {"tcp-owned-r3-platform-challenge-response-read", &testR3ClientPlatformChallengeResponseReadThroughOwnedTls},
+    {"tcp-owned-tls-terminal-readiness", &testOwnedTlsApplicationTerminalReadiness},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},

@@ -331,6 +331,17 @@ an externally reachable listener. If a full-suite build is blocked by another
 road before these cases execute, record the R1 cases as **NOT RUN** rather
 than inferring either PASS or FAIL.
 
+## R1 terminal TLS/EOF readiness fixtures (2026-10-16)
+
+After application TLS is established, tests for peer \`close_notify\`, raw TCP
+EOF and other terminal reads must not use scheduler sleeps/yields as a readiness
+oracle. Drive client-side OpenSSL WANT_READ/WANT_WRITE only from bounded native
+socket readiness with a monotonic deadline. Drive the R1-owned server side only
+through \`OwnedPreauthTcpConnection::pollSocketOnce\`, then explicitly resubmit
+the same caller-owned span because production does not retain application
+buffers or hide an SSL retry. Assert the exact terminal distinction
+(\`TlsClosed\` versus \`TransportClosed\`) and that later replay remains closed.
+
 ## Runtime aggregate tests before listener activation
 
 Before a production listener exists, exercise a future connection aggregate

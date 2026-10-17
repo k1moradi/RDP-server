@@ -1,3 +1,44 @@
+## R1 owned-TLS terminal close readiness hardening (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared \`main\`:** \`c1112051ed5a81db34bdfc4cf8193e9bc114cdb5\`.
+
+R1's real loopback application-I/O cancellation coverage still had two
+scheduler-\`yield()\` retry loops after TLS establishment: one while producing
+a client \`close_notify\`, and one while waiting for the server to observe
+clean TLS closure/raw TCP EOF. That timing pattern is unnecessary now that R1
+has the bounded one-step socket poller used by the rest of the owned-TLS
+readiness fixtures.
+
+New dedicated CTest
+\`transport.tcp-owned-tls-terminal-readiness\` stays in the existing
+\`test_owned_preauth_session\` executable. It uses a short-lived ephemeral
+loopback TCP connection and real OpenSSL TLS. The client side waits only for
+the exact WANT_READ/WANT_WRITE direction through a bounded native \`select\`
+fixture with a five-second monotonic deadline. The server side advances only
+through \`OwnedPreauthTcpConnection::pollSocketOnce\` and explicitly resubmits
+the same caller-owned read span. Clean \`close_notify\` must produce
+\`TlsClosed\`; raw peer close must produce \`TransportClosed\`; both must leave
+R1 inactive with \`Closed\` I/O interest, and raw EOF replay remains terminal.
+
+The existing \`transport.tcp-owned-tls-application-cancellation\` behavior now
+retains the independent deadline-cancellation and malformed-record
+\`FatalTlsFailure\` cases. No production socket/BIO/SSL code, application-I/O
+bound, retry policy, authorization state, licensing lifecycle or listener
+surface changes. The bounded R9 R1/R3 sanitizer selector explicitly requires
+the new test.
+
+Canonical owner-local \`~/rdp-server/build/\` configure/build/full CTest is
+**NOT RUN** in this connector environment; no alternate persistent build root
+or branch is created. Exact publication-SHA Linux/GCC, macOS/AppleClang,
+Windows/MSVC Debug/Release, R9 sanitizer, documentation-policy and SDK/package
+evidence are **PENDING**. Owner Linux/X11, Windows MSYS2 CLANG64/Clang 23,
+macOS 27 and real-client acceptance remain **NOT RUN**.
+
+**Next R1:** this closes test-harness nondeterminism only. Do not add another
+transport/publication surface until R10 supplies a real CAL-issuing authority
+and R2 exposes fresh live grant authorization, or a later Share-activation
+boundary demonstrates a concrete bounded R1 transport mismatch.
+
 ## R9 CredSSP sanitizer selector split (2026-10-16; exact-SHA CI pending)
 
 The first adversarial credential-corpus sanitizer publication exposed a CI

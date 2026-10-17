@@ -315,6 +315,54 @@ void macosClipboardGenerationOwnerLoss()
     assert(!native.hasText);
 }
 
+void macosClipboardR3RetirementSourceEpochFence()
+{
+    RemoteTransfer owner;
+    const std::array<std::uint32_t, 1> formats{
+        rdp_server::clipboard::kFormatUnicodeText};
+    assert(owner.receiveFormatList(formats));
+    const std::array<std::uint8_t, 8> firstWire{
+        'o', 0, 'l', 0, 'd', 0, 0, 0};
+    storeText(owner, firstWire);
+
+    FakeNative native;
+    MacClipboardAdapter adapter(owner, native.operations());
+    native.adapter = &adapter;
+    assert(adapter.publishReadyRemoteGeneration());
+    const std::uint64_t retiredGeneration = owner.generation();
+    const std::uint64_t retiredSourceEpoch = owner.sourceEpoch();
+    const unsigned clearsBeforeRetirement = native.clearCalls;
+
+    owner.retireR3ChannelState();
+    assert(owner.receiveFormatList(formats));
+    assert(owner.generation() == retiredGeneration);
+    assert(owner.sourceEpoch() > retiredSourceEpoch);
+
+    // Same-number replacement is still a distinct source. The native owner
+    // callback must clear the retired immediate pasteboard publication.
+    adapter.onRemoteGenerationChanged();
+    assert(!adapter.ownsPasteboard());
+    assert(native.clearCalls == clearsBeforeRetirement + 1U);
+    assert(!native.hasText);
+
+    const std::array<std::uint8_t, 8> replacementWire{
+        'n', 0, 'e', 0, 'w', 0, 0, 0};
+    storeText(owner, replacementWire);
+    assert(adapter.publishReadyRemoteGeneration());
+    assert(native.text == "new");
+
+    // Yielding the replacement must not suppress a later source that reuses
+    // the same clipboard generation again.
+    native.localTakeover();
+    assert(!adapter.observePasteboardChange());
+    owner.retireR3ChannelState();
+    assert(owner.receiveFormatList(formats));
+    storeText(owner, firstWire);
+    assert(owner.generation() == retiredGeneration);
+    assert(adapter.publishReadyRemoteGeneration());
+    assert(native.text == "old");
+}
+
 void macosClipboardPngRouting()
 {
     RemoteTransfer owner;
@@ -438,6 +486,11 @@ int main(int argc, char **argv)
     if (behavior == "macos-clipboard-generation-owner-loss")
     {
         macosClipboardGenerationOwnerLoss();
+        return 0;
+    }
+    if (behavior == "macos-clipboard-r3-retirement-source-epoch")
+    {
+        macosClipboardR3RetirementSourceEpochFence();
         return 0;
     }
     if (behavior == "macos-clipboard-png-routing")

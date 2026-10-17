@@ -527,6 +527,11 @@ public:
     [[nodiscard]] bool hasOutstandingRequest() const noexcept;
     [[nodiscard]] bool waitingForObsoleteResponse() const noexcept;
     [[nodiscard]] std::uint64_t generation() const noexcept;
+    // Monotonic accepted-offer identity. Unlike generation(), this never
+    // resets on disconnect/channel retirement and therefore cannot ABA when a
+    // replacement offer reuses the same numeric clipboard generation.
+    // Freshness/correlation only; never R2/R3 authorization.
+    [[nodiscard]] std::uint64_t sourceEpoch() const noexcept;
     [[nodiscard]] bool advertises(std::uint32_t formatId) const noexcept;
 
 private:

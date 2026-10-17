@@ -459,7 +459,9 @@ X11ClipboardAdapter::fileHandoffAvailable() const noexcept
     return fileUriListLength_ != 0U &&
            fileHandoffFileCount_ != 0U &&
            fileHandoffGeneration_ != 0U &&
-           fileHandoffGeneration_ == remoteTransfer_.generation();
+           fileHandoffSourceEpoch_ != 0U &&
+           fileHandoffGeneration_ == remoteTransfer_.generation() &&
+           fileHandoffSourceEpoch_ == remoteTransfer_.sourceEpoch();
 }
 
 bool
@@ -482,7 +484,9 @@ X11ClipboardAdapter::currentPublicationValid() const noexcept
     return valid() && ownsClipboard_ &&
            contentSource_ == Source::RemoteRdp &&
            remoteTransfer_.synchronized() && publicationGeneration_ != 0 &&
-           publicationGeneration_ == remoteTransfer_.generation();
+           publicationSourceEpoch_ != 0 &&
+           publicationGeneration_ == remoteTransfer_.generation() &&
+           publicationSourceEpoch_ == remoteTransfer_.sourceEpoch();
 }
 
 bool
@@ -515,8 +519,10 @@ X11ClipboardAdapter::publishCompletedFiles(
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
-    if (generation == 0U ||
-        (yieldedGeneration_ == generation && !ownsClipboard_))
+    const std::uint64_t sourceEpoch = remoteTransfer_.sourceEpoch();
+    if (generation == 0U || sourceEpoch == 0U ||
+        (yieldedGeneration_ == generation &&
+         yieldedSourceEpoch_ == sourceEpoch && !ownsClipboard_))
     {
         return false;
     }
@@ -572,6 +578,7 @@ X11ClipboardAdapter::publishCompletedFiles(
     }
 
     if (fileHandoffGeneration_ == generation &&
+        fileHandoffSourceEpoch_ == sourceEpoch &&
         fileUriListLength_ != 0U)
     {
         if (fileHandoffFileCount_ != destinations.size() ||
@@ -595,6 +602,7 @@ X11ClipboardAdapter::publishCompletedFiles(
     fileUriListLength_ = candidateBytes;
     fileHandoffFileCount_ = destinations.size();
     fileHandoffGeneration_ = generation;
+    fileHandoffSourceEpoch_ = sourceEpoch;
 
     if (!publishCurrentRemoteOffer(now))
     {
@@ -618,26 +626,30 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
     {
         (void)servicePendingPaste(now);
         if (pending_.active &&
-            pending_.publicationGeneration != remoteTransfer_.generation())
+            (pending_.publicationGeneration != remoteTransfer_.generation() ||
+             pending_.publicationSourceEpoch != remoteTransfer_.sourceEpoch()))
         {
             failPendingSelection();
         }
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
-    if (!remoteTransfer_.synchronized() || generation == 0)
+    const std::uint64_t sourceEpoch = remoteTransfer_.sourceEpoch();
+    if (!remoteTransfer_.synchronized() || generation == 0 || sourceEpoch == 0)
     {
         releaseNativeOwnership();
         return false;
     }
-    if (yieldedGeneration_ == generation && !ownsClipboard_)
+    if (yieldedGeneration_ == generation &&
+        yieldedSourceEpoch_ == sourceEpoch && !ownsClipboard_)
     {
         // No timer or same-generation retry may fight a local desktop owner.
         return false;
     }
 
     if (fileHandoffGeneration_ != 0U &&
-        fileHandoffGeneration_ != generation)
+        (fileHandoffGeneration_ != generation ||
+         fileHandoffSourceEpoch_ != sourceEpoch))
     {
         clearFileHandoff();
     }
@@ -651,6 +663,7 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
         return false;
     }
     if (ownsClipboard_ && publicationGeneration_ == generation &&
+        publicationSourceEpoch_ == sourceEpoch &&
         textOffered_ == textOffered && pngOffered_ == pngOffered &&
         fileOffered_ == fileOffered)
     {
@@ -676,11 +689,13 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
 
     ++ownershipEpoch_;
     publicationGeneration_ = generation;
+    publicationSourceEpoch_ = sourceEpoch;
     textOffered_ = textOffered;
     pngOffered_ = pngOffered;
     fileOffered_ = fileOffered;
     ownsClipboard_ = true;
     yieldedGeneration_ = 0;
+    yieldedSourceEpoch_ = 0;
     contentSource_ = Source::RemoteRdp;
     return true;
 }
@@ -827,6 +842,7 @@ X11ClipboardAdapter::beginDelayedRequest(
     pending_.request = request;
     pending_.property = property;
     pending_.publicationGeneration = publicationGeneration_;
+    pending_.publicationSourceEpoch = publicationSourceEpoch_;
     pending_.ownershipEpoch = ownershipEpoch_;
     pending_.pasteSequence = receipt->sequence;
     pending_.remoteFormatId = remoteFormatId;
@@ -841,6 +857,7 @@ X11ClipboardAdapter::pendingRemoteFetch() const noexcept
     if (!pending_.active || pending_.remoteFetchStarted ||
         !currentPublicationValid() ||
         pending_.publicationGeneration != publicationGeneration_ ||
+        pending_.publicationSourceEpoch != publicationSourceEpoch_ ||
         pending_.ownershipEpoch != ownershipEpoch_)
     {
         return std::nullopt;
@@ -848,6 +865,7 @@ X11ClipboardAdapter::pendingRemoteFetch() const noexcept
     return RemoteFetchRequest{
         pending_.pasteSequence,
         pending_.publicationGeneration,
+        pending_.publicationSourceEpoch,
         pending_.remoteFormatId,
         pending_.kind,
     };
@@ -1055,6 +1073,7 @@ X11ClipboardAdapter::beginIncrTransfer(
     incr_.previousEventMask = previousEventMask;
     incr_.deadline = now + kIncrTimeout;
     incr_.publicationGeneration = publicationGeneration_;
+    incr_.publicationSourceEpoch = publicationSourceEpoch_;
     incr_.ownershipEpoch = ownershipEpoch_;
     incr_.active = true;
     return true;
@@ -1070,6 +1089,7 @@ X11ClipboardAdapter::serviceIncrTransfer(
     }
     if (now >= incr_.deadline || !currentPublicationValid() ||
         incr_.publicationGeneration != publicationGeneration_ ||
+        incr_.publicationSourceEpoch != publicationSourceEpoch_ ||
         incr_.ownershipEpoch != ownershipEpoch_)
     {
         cancelIncrTransfer(false);
@@ -1212,6 +1232,7 @@ X11ClipboardAdapter::servicePendingPaste(
     if (result.sequence != completed.pasteSequence ||
         result.generation != completed.publicationGeneration ||
         completed.publicationGeneration != publicationGeneration_ ||
+        completed.publicationSourceEpoch != publicationSourceEpoch_ ||
         completed.ownershipEpoch != ownershipEpoch_ ||
         !currentPublicationValid())
     {
@@ -1299,8 +1320,10 @@ X11ClipboardAdapter::yieldToLocalOwner() noexcept
     cancelPendingForOwnerLoss();
     cancelIncrTransfer(false);
     yieldedGeneration_ = publicationGeneration_;
+    yieldedSourceEpoch_ = publicationSourceEpoch_;
     ownsClipboard_ = false;
     publicationGeneration_ = 0;
+    publicationSourceEpoch_ = 0;
     textOffered_ = false;
     pngOffered_ = false;
     fileOffered_ = false;
@@ -1316,6 +1339,7 @@ X11ClipboardAdapter::clearFileHandoff() noexcept
     fileUriListLength_ = 0;
     fileHandoffFileCount_ = 0;
     fileHandoffGeneration_ = 0;
+    fileHandoffSourceEpoch_ = 0;
     fileOffered_ = false;
 }
 
@@ -1323,6 +1347,7 @@ void
 X11ClipboardAdapter::clearPublicationState() noexcept
 {
     publicationGeneration_ = 0;
+    publicationSourceEpoch_ = 0;
     textOffered_ = false;
     pngOffered_ = false;
     clearFileHandoff();
@@ -1384,7 +1409,9 @@ X11ClipboardAdapter::disconnect() noexcept
     rootWindow_ = XCB_WINDOW_NONE;
     atoms_ = {};
     publicationGeneration_ = 0;
+    publicationSourceEpoch_ = 0;
     yieldedGeneration_ = 0;
+    yieldedSourceEpoch_ = 0;
     clearFileHandoff();
     textOffered_ = false;
     pngOffered_ = false;

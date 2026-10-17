@@ -355,6 +355,50 @@ void windowsClipboardGenerationOwnerLoss()
     assert(native.writes.size() == writesBeforeStaleRender);
 }
 
+void windowsClipboardR3RetirementSourceEpochFence()
+{
+    RemoteTransfer owner;
+    const std::array<std::uint32_t, 1> formats{
+        rdp_server::clipboard::kFormatUnicodeText};
+    assert(owner.receiveFormatList(formats));
+    const std::array<std::uint8_t, 8> firstWire{
+        'o', 0, 'l', 0, 'd', 0, 0, 0};
+    storeText(owner, firstWire);
+
+    FakeNative native;
+    WindowsClipboardAdapter adapter(
+        owner, native.operations(), FakeNative::kOwnerWindow);
+    native.adapter = &adapter;
+    assert(adapter.publishReadyRemoteGeneration());
+    const std::uint64_t retiredGeneration = owner.generation();
+    const std::uint64_t retiredSourceEpoch = owner.sourceEpoch();
+
+    owner.retireR3ChannelState();
+    assert(owner.receiveFormatList(formats));
+    assert(owner.generation() == retiredGeneration);
+    assert(owner.sourceEpoch() > retiredSourceEpoch);
+    const std::array<std::uint8_t, 8> replacementWire{
+        'n', 0, 'e', 0, 'w', 0, 0, 0};
+    storeText(owner, replacementWire);
+
+    // An old WM_RENDERFORMAT belongs to the retired source even though the
+    // replacement reused its numeric clipboard generation.
+    const std::size_t writesBeforeStaleRender = native.writes.size();
+    assert(!adapter.renderFormat(
+        WindowsClipboardAdapter::kUnicodeTextFormat));
+    assert(native.writes.size() == writesBeforeStaleRender);
+
+    // Republish establishes a fresh native source identity; only then may the
+    // replacement payload render through the existing Win32 owner.
+    assert(adapter.publishReadyRemoteGeneration());
+    assert(adapter.renderFormat(
+        WindowsClipboardAdapter::kUnicodeTextFormat));
+    assert(native.writes.size() == writesBeforeStaleRender + 1U);
+    assert(native.writes.back().bytes.size() == replacementWire.size());
+    assert(std::memcmp(native.writes.back().bytes.data(),
+                       replacementWire.data(), replacementWire.size()) == 0);
+}
+
 void windowsClipboardPngDibRouting()
 {
     constexpr std::array<std::uint8_t, 70> kValidPng{
@@ -485,6 +529,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-clipboard-generation-owner-loss")
     {
         windowsClipboardGenerationOwnerLoss();
+        return 0;
+    }
+    if (behavior == "windows-clipboard-r3-retirement-source-epoch")
+    {
+        windowsClipboardR3RetirementSourceEpochFence();
         return 0;
     }
     if (behavior == "windows-clipboard-png-dib-routing")

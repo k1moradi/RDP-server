@@ -244,7 +244,8 @@ bool LinuxClipboardFileDestination::ensureSourceCurrent() noexcept
         discardPartial(Status::ProtocolError);
         return false;
     }
-    if (remoteTransfer_.generation() != sourceGeneration_)
+    if (remoteTransfer_.generation() != sourceGeneration_ ||
+        remoteTransfer_.sourceEpoch() != sourceEpoch_)
     {
         discardPartial(Status::SourceReplaced);
         return false;
@@ -295,7 +296,10 @@ bool LinuxClipboardFileDestination::begin(
 std::optional<std::string_view>
 LinuxClipboardFileDestination::completedFileUri() const noexcept
 {
-    if (status_ != Status::Complete || localFileUriLength_ == 0)
+    if (status_ != Status::Complete || localFileUriLength_ == 0 ||
+        !remoteTransfer_.synchronized() ||
+        remoteTransfer_.generation() != sourceGeneration_ ||
+        remoteTransfer_.sourceEpoch() != sourceEpoch_)
     {
         return std::nullopt;
     }
@@ -354,6 +358,7 @@ bool LinuxClipboardFileDestination::beginInternal(
         localFileUri.begin(), localFileUri.end(),
         localFileUri_.begin());
     sourceGeneration_ = remoteTransfer_.generation();
+    sourceEpoch_ = remoteTransfer_.sourceEpoch();
     fileIndex_ = fileIndex;
     expectedSizeKnown_ = file->sizeKnown;
     expectedSize_ = file->sizeKnown ? file->size : 0U;

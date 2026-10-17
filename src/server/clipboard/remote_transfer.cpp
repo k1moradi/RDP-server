@@ -2461,6 +2461,11 @@ std::uint64_t RemoteTransfer::generation() const noexcept
     return generation_;
 }
 
+std::uint64_t RemoteTransfer::sourceEpoch() const noexcept
+{
+    return sourceEpoch_;
+}
+
 bool RemoteTransfer::advertises(std::uint32_t formatId) const noexcept
 {
     return !poisoned_ && formatId != 0 &&

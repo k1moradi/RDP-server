@@ -1004,6 +1004,42 @@ void windowsCompletedFileHdropHandoff()
     assert(!adapter.publishCompletedFileDestination(destination));
 }
 
+void windowsFileDestinationSourceEpochRevocation()
+{
+    constexpr std::u16string_view kLocalPath{
+        u"C:\\Temp\\rdp-server-source-epoch.bin"};
+
+    RemoteTransfer owner;
+    installSingleFileOffer(owner, u"first.bin", true, 4U);
+    const std::uint64_t retiredGeneration = owner.generation();
+    const std::uint64_t retiredSourceEpoch = owner.sourceEpoch();
+
+    FakeNative fileNative;
+    WindowsClipboardFileDestination destination{
+        owner, fileNative.operations()};
+    assert(destination.begin(0, fileNative.sourceToken, kLocalPath));
+    const auto intent = destination.nextRequestIntent();
+    assert(intent && intent->requestedBytes == 4U);
+    const auto bytes = makeChunk(0U, 4U);
+    receiveRange(owner, destination, *intent, bytes);
+    assert(destination.status() ==
+           WindowsClipboardFileDestination::Status::Complete);
+    assert(destination.completedFilePath());
+
+    owner.retireR3ChannelState();
+    installSingleFileOffer(owner, u"replacement.bin", true, 4U);
+    assert(owner.generation() == retiredGeneration);
+    assert(owner.sourceEpoch() > retiredSourceEpoch);
+    assert(!destination.completedFilePath());
+
+    FakeClipboard clipboard;
+    WindowsClipboardAdapter adapter{
+        owner, clipboard.operations(), FakeClipboard::kOwnerWindow};
+    clipboard.adapter = &adapter;
+    assert(!adapter.publishCompletedFileDestination(destination));
+    assert(clipboard.writes.empty());
+}
+
 #ifdef _WIN32
 class ScopedWin32File final
 {
@@ -1120,6 +1156,11 @@ int main(int argc, char **argv)
     if (behavior == "file-destination-plan-native-capability-integration")
     {
         fileDestinationPlanNativeCapabilityIntegration();
+        return 0;
+    }
+    if (behavior == "windows-file-destination-source-epoch-revocation")
+    {
+        windowsFileDestinationSourceEpochRevocation();
         return 0;
     }
 #ifdef _WIN32

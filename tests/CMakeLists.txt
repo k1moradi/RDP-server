@@ -1921,6 +1921,7 @@ endif()
 foreach(case_name IN ITEMS
         macos-clipboard-remote-ready-publication
         macos-clipboard-generation-owner-loss
+        macos-clipboard-r3-retirement-source-epoch
         macos-clipboard-png-routing
         macos-clipboard-disconnect-owner-fence
         macos-clipboard-failure-reentry-denials)
@@ -1953,7 +1954,8 @@ foreach(case_name IN ITEMS
         windows-file-destination-denials
         windows-completed-file-hdrop-handoff
         windows-completed-multi-file-hdrop-handoff
-        file-destination-plan-native-capability-integration)
+        file-destination-plan-native-capability-integration
+        windows-file-destination-source-epoch-revocation)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_windows_clipboard_file_destination "${case_name}")
     set_tests_properties("clipboard.${case_name}" PROPERTIES
@@ -1985,6 +1987,7 @@ endif()
 foreach(case_name IN ITEMS
         windows-clipboard-remote-ready-publication
         windows-clipboard-generation-owner-loss
+        windows-clipboard-r3-retirement-source-epoch
         windows-clipboard-png-dib-routing
         windows-clipboard-render-all-disconnect
         windows-clipboard-failure-reentry-denials)
@@ -2015,7 +2018,8 @@ if(TARGET rdp-server-linux-x11-clipboard)
             x11-disconnect-late-paste-fence
             x11-incr-large-text-progression
             x11-incr-png-progression
-            x11-incr-cancellation)
+            x11-incr-cancellation
+            x11-r3-retirement-stale-incr-fence)
         add_test(NAME "clipboard.${case_name}"
             COMMAND $<TARGET_FILE:test_x11_clipboard_adapter> "${case_name}")
         set_tests_properties("clipboard.${case_name}" PROPERTIES

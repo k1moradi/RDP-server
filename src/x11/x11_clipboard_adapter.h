@@ -88,6 +88,7 @@ public:
     {
         std::uint64_t pasteSequence{};
         std::uint64_t generation{};
+        std::uint64_t sourceEpoch{};
         std::uint32_t formatId{};
         RemoteTransfer::PasteKind kind{RemoteTransfer::PasteKind::UnicodeText};
     };
@@ -194,6 +195,7 @@ private:
         xcb_selection_request_event_t request{};
         xcb_atom_t property{XCB_ATOM_NONE};
         std::uint64_t publicationGeneration{};
+        std::uint64_t publicationSourceEpoch{};
         std::uint64_t ownershipEpoch{};
         std::uint64_t pasteSequence{};
         std::uint32_t remoteFormatId{};
@@ -212,6 +214,7 @@ private:
         std::uint32_t previousEventMask{};
         PasteClock::time_point deadline{};
         std::uint64_t publicationGeneration{};
+        std::uint64_t publicationSourceEpoch{};
         std::uint64_t ownershipEpoch{};
         bool active{};
     };
@@ -290,9 +293,12 @@ private:
     PendingSelectionRequest pending_{};
     IncrTransfer incr_{};
     std::uint64_t publicationGeneration_{};
+    std::uint64_t publicationSourceEpoch_{};
     std::uint64_t ownershipEpoch_{};
     std::uint64_t yieldedGeneration_{};
+    std::uint64_t yieldedSourceEpoch_{};
     std::uint64_t fileHandoffGeneration_{};
+    std::uint64_t fileHandoffSourceEpoch_{};
     // Canonical local URI metadata: one URI per line, LF separators, no
     // trailing newline. This is local presentation state, never file content.
     std::array<char, kMaximumFileHandoffBytes> fileUriList_{};

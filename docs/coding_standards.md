@@ -16,8 +16,11 @@ replacement, disconnect, or either R3 generation changing, stop routing first
 and call `RemoteTransfer::retireR3ChannelState()` before any replacement can
 use R8 state. That revocation-only hook grants no authority; it reuses the
 disconnect cleanup while monotonic receipt, stream and source identities prevent
-ABA. The owning native adapter must retire its publication/handoff state in the
-same serialized lifecycle before a replacement can publish.
+ABA. Any native publication, delayed callback or completed destination that can
+survive that call must bind `RemoteTransfer::sourceEpoch()` in addition to the
+resettable clipboard generation; generation equality alone is not replacement
+provenance. The owning native adapter must retire its publication/handoff state
+in the same serialized lifecycle before a replacement can publish.
 
 Caller-authorized native destinations remain independent capabilities. Verified
 relative File List hierarchy is structural metadata only and never participates

@@ -1026,6 +1026,49 @@ void incrCancellation()
     assert(native.restoreEventMaskCalls == restoresBeforeDestroy);
 }
 
+void r3RetirementStaleIncrFence()
+{
+    RemoteTransfer transfer;
+    const std::array<std::uint32_t, 1> formats{
+        rdp_server::clipboard::kFormatUnicodeText};
+    assert(transfer.receiveFormatList(formats));
+    FakeNative native;
+    X11ClipboardAdapter adapter(transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{9}};
+    assert(adapter.publishCurrentRemoteOffer(start));
+
+    const std::uint64_t retiredGeneration = transfer.generation();
+    const std::uint64_t retiredSourceEpoch = transfer.sourceEpoch();
+    const std::uint64_t retiredOwnershipEpoch = adapter.ownershipEpoch();
+    const std::string largeText(
+        X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'r');
+    storeText(transfer, largeText);
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 847, 47), start);
+    assert(adapter.incrTransferActive());
+    const std::size_t writesBeforeRetirement = native.propertyWrites.size();
+    const std::size_t restoresBeforeRetirement = native.restoreEventMaskCalls;
+
+    transfer.retireR3ChannelState();
+    assert(transfer.generation() == 0U);
+    assert(transfer.receiveFormatList(formats));
+    assert(transfer.generation() == retiredGeneration);
+    assert(transfer.sourceEpoch() > retiredSourceEpoch);
+
+    // Same numeric clipboard generation must not revive the old borrowed INCR
+    // span. The first stale native callback cancels before reading it.
+    dispatchPropertyDelete(
+        adapter, 847, start + std::chrono::milliseconds{1});
+    assert(!adapter.incrTransferActive());
+    assert(native.propertyWrites.size() == writesBeforeRetirement);
+    assert(native.restoreEventMaskCalls == restoresBeforeRetirement + 1U);
+
+    // The replacement source is a new native ownership transition despite
+    // reusing the same clipboard generation number.
+    assert(adapter.publishCurrentRemoteOffer(
+        start + std::chrono::milliseconds{2}));
+    assert(adapter.ownershipEpoch() == retiredOwnershipEpoch + 1U);
+}
+
 void selectionRequestNonblocking()
 {
     RemoteTransfer transfer;
@@ -1042,6 +1085,7 @@ void selectionRequestNonblocking()
     const auto textFetch = adapter.pendingRemoteFetch();
     assert(textFetch);
     assert(textFetch->generation == transfer.generation());
+    assert(textFetch->sourceEpoch == transfer.sourceEpoch());
     assert(textFetch->formatId == rdp_server::clipboard::kFormatUnicodeText);
     assert(textFetch->kind == RemoteTransfer::PasteKind::UnicodeText);
 
@@ -1140,6 +1184,7 @@ void disconnectLatePasteFence()
     const auto fetch = adapter.pendingRemoteFetch();
     assert(fetch);
     assert(fetch->generation == transfer.generation());
+    assert(fetch->sourceEpoch == transfer.sourceEpoch());
 
     std::vector<std::uint8_t> request;
     assert(transfer.beginRequest(fetch->formatId, request));
@@ -1311,6 +1356,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-incr-cancellation")
     {
         incrCancellation();
+        return 0;
+    }
+    if (behavior == "x11-r3-retirement-stale-incr-fence")
+    {
+        r3RetirementStaleIncrFence();
         return 0;
     }
     if (behavior == "x11-disconnect-late-paste-fence")

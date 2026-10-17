@@ -151,7 +151,8 @@ bool WindowsClipboardFileDestination::ensureSourceCurrent() noexcept
         discardPartial(Status::ProtocolError);
         return false;
     }
-    if (remoteTransfer_.generation() != sourceGeneration_)
+    if (remoteTransfer_.generation() != sourceGeneration_ ||
+        remoteTransfer_.sourceEpoch() != sourceEpoch_)
     {
         discardPartial(Status::SourceReplaced);
         return false;
@@ -206,7 +207,10 @@ bool WindowsClipboardFileDestination::begin(
 std::optional<std::u16string_view>
 WindowsClipboardFileDestination::completedFilePath() const noexcept
 {
-    if (status_ != Status::Complete || localAbsolutePath_.empty())
+    if (status_ != Status::Complete || localAbsolutePath_.empty() ||
+        !remoteTransfer_.synchronized() ||
+        remoteTransfer_.generation() != sourceGeneration_ ||
+        remoteTransfer_.sourceEpoch() != sourceEpoch_)
     {
         return std::nullopt;
     }
@@ -269,6 +273,7 @@ bool WindowsClipboardFileDestination::beginInternal(
     sourceNameLength_ = file->name.size();
     localAbsolutePath_ = std::move(pathCopy);
     sourceGeneration_ = remoteTransfer_.generation();
+    sourceEpoch_ = remoteTransfer_.sourceEpoch();
     fileIndex_ = fileIndex;
     expectedSizeKnown_ = file->sizeKnown;
     expectedSize_ = file->sizeKnown ? file->size : 0U;

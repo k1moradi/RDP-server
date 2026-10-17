@@ -109,6 +109,7 @@ std::uint64_t MacClipboardAdapter::publicationChangeCount() const noexcept
 void MacClipboardAdapter::clearPublicationState() noexcept
 {
     publicationGeneration_ = 0;
+    publicationSourceEpoch_ = 0;
     publicationChangeCount_ = 0;
     textPublished_ = false;
     pngPublished_ = false;
@@ -137,6 +138,7 @@ bool MacClipboardAdapter::refreshNativeOwnership() noexcept
     if (currentChangeCount != publicationChangeCount_)
     {
         yieldedGeneration_ = publicationGeneration_;
+        yieldedSourceEpoch_ = publicationSourceEpoch_;
         clearPublicationState();
         return false;
     }
@@ -181,13 +183,15 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
             success = false;
         }
         else if (stillOwner &&
-                 publicationGeneration_ != remoteTransfer_.generation())
+                 (publicationGeneration_ != remoteTransfer_.generation() ||
+                  publicationSourceEpoch_ != remoteTransfer_.sourceEpoch()))
         {
             success = clearOwnedPublication();
         }
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
+    const std::uint64_t sourceEpoch = remoteTransfer_.sourceEpoch();
     const auto text = success ? remoteTransfer_.verifiedUnicodeText()
                               : std::nullopt;
     const auto image = success ? remoteTransfer_.verifiedImage()
@@ -199,7 +203,9 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
         image->format == RemoteTransfer::VerifiedImageFormat::Png;
 
     if (success &&
-        (generation == 0 || generation == yieldedGeneration_ ||
+        (generation == 0 || sourceEpoch == 0 ||
+         (generation == yieldedGeneration_ &&
+          sourceEpoch == yieldedSourceEpoch_) ||
          (!textReady && !pngReady)))
     {
         success = false;
@@ -207,7 +213,7 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
 
     if (success && ownsPasteboard_ &&
         publicationGeneration_ == generation &&
-        !fileUrlPublished_ &&
+        publicationSourceEpoch_ == sourceEpoch && !fileUrlPublished_ &&
         textPublished_ == textReady && pngPublished_ == pngReady)
     {
         operationInProgress_ = false;
@@ -252,6 +258,7 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
                 const bool sourceStillCurrent =
                     remoteTransfer_.synchronized() &&
                     remoteTransfer_.generation() == generation &&
+                    remoteTransfer_.sourceEpoch() == sourceEpoch &&
                     currentText.has_value() == textReady &&
                     currentImage.has_value() == image.has_value() &&
                     (!pngReady ||
@@ -274,6 +281,7 @@ bool MacClipboardAdapter::publishReadyRemoteGeneration() noexcept
                 else
                 {
                     publicationGeneration_ = generation;
+                    publicationSourceEpoch_ = sourceEpoch;
                     publicationChangeCount_ = changeCount;
                     textPublished_ = textReady;
                     pngPublished_ = pngReady;
@@ -398,7 +406,10 @@ bool MacClipboardAdapter::publishCompletedFileDestinationsInternal(
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
-    if (generation == 0U || generation == yieldedGeneration_)
+    const std::uint64_t sourceEpoch = remoteTransfer_.sourceEpoch();
+    if (generation == 0U || sourceEpoch == 0U ||
+        (generation == yieldedGeneration_ &&
+         sourceEpoch == yieldedSourceEpoch_))
     {
         return false;
     }
@@ -434,7 +445,8 @@ bool MacClipboardAdapter::publishCompletedFileDestinationsInternal(
             // a local takeover; never immediately steal the pasteboard back.
             success = false;
         }
-        else if (publicationGeneration_ != generation)
+        else if (publicationGeneration_ != generation ||
+                 publicationSourceEpoch_ != sourceEpoch)
         {
             success = clearOwnedPublication();
         }
@@ -468,6 +480,7 @@ bool MacClipboardAdapter::publishCompletedFileDestinationsInternal(
                 const bool sourceStillCurrent =
                     remoteTransfer_.synchronized() &&
                     remoteTransfer_.generation() == generation &&
+                    remoteTransfer_.sourceEpoch() == sourceEpoch &&
                     collectCompletedFileUrls(
                         plan, destinations, generation,
                         currentFileUrls) &&
@@ -488,6 +501,7 @@ bool MacClipboardAdapter::publishCompletedFileDestinationsInternal(
                 else
                 {
                     publicationGeneration_ = generation;
+                    publicationSourceEpoch_ = sourceEpoch;
                     publicationChangeCount_ = changeCount;
                     textPublished_ = false;
                     pngPublished_ = false;
@@ -532,7 +546,8 @@ void MacClipboardAdapter::onRemoteGenerationChanged() noexcept
     generationChangeRequested_ = false;
     if (ownsPasteboard_ &&
         (!remoteTransfer_.synchronized() ||
-         publicationGeneration_ != remoteTransfer_.generation()))
+         publicationGeneration_ != remoteTransfer_.generation() ||
+         publicationSourceEpoch_ != remoteTransfer_.sourceEpoch()))
     {
         (void)clearOwnedPublication();
     }

@@ -1,3 +1,29 @@
+## R8 source-epoch native revocation authoring receipt (2026-10-17)
+
+**Starting reconciled shared `main`:** `2d295603f73fba313dad468d4f7dbb0d733bf87b`. **Publication:** this
+atomic code/test/roadmap commit; exact publication-SHA hosted results are
+**PENDING**.
+
+Audit found one concrete ABA class not covered by the earlier R3 retirement
+test: `RemoteTransfer::generation()` intentionally returns to zero on
+retirement, so the first replacement offer can reuse the prior numeric
+generation while native state still survives. The existing monotonic
+`sourceEpoch_` already prevented destination-plan aliasing but was private.
+
+This correction exposes that epoch as non-authorizing freshness identity,
+binds Linux/macOS/Windows native file destinations to it, and binds Windows,
+macOS and X11 native publication state to the same epoch. The new dedicated
+regressions prove that a retired completed file cannot become publishable on
+generation reuse, an old Windows delayed-render callback cannot render through
+a replacement source, macOS clears a retired immediate publication even when
+the numeric generation repeats, and a queued X11 PropertyNotify cancels before
+reading/sending an old borrowed INCR span. No R8 authentication token, channel
+owner, transport writer, directory capability or remote-path materialization
+was added.
+
+Canonical owner-local `~/rdp-server/build/` verification is **NOT RUN** in
+this connector environment. Hosted exact-SHA CI is **PENDING** at publication.
+
 ## R1 buffered TLS CredSSP-to-MCS readiness authoring receipt (2026-10-17)
 
 **Starting reconciled shared `main`:** `ccfc9e3e22f0b0492dd5a015efc27bf1352f354d`. **Publication:** this

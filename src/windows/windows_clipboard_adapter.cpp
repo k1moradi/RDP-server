@@ -97,13 +97,15 @@ WindowsClipboardAdapter::publishedImageNativeFormat() const noexcept
 bool WindowsClipboardAdapter::currentPublicationValid() const noexcept
 {
     return !closed_ && ownsClipboard_ && publicationGeneration_ != 0 &&
-           remoteTransfer_.synchronized() &&
-           remoteTransfer_.generation() == publicationGeneration_;
+           publicationSourceEpoch_ != 0 && remoteTransfer_.synchronized() &&
+           remoteTransfer_.generation() == publicationGeneration_ &&
+           remoteTransfer_.sourceEpoch() == publicationSourceEpoch_;
 }
 
 void WindowsClipboardAdapter::clearPublicationState() noexcept
 {
     publicationGeneration_ = 0;
+    publicationSourceEpoch_ = 0;
     textPublished_ = false;
     imagePublished_ = false;
     textRendered_ = false;
@@ -120,7 +122,10 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
-    if (generation == 0 || generation == yieldedGeneration_)
+    const std::uint64_t sourceEpoch = remoteTransfer_.sourceEpoch();
+    if (generation == 0 || sourceEpoch == 0 ||
+        (generation == yieldedGeneration_ &&
+         sourceEpoch == yieldedSourceEpoch_))
     {
         return false;
     }
@@ -150,7 +155,7 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
     }
 
     if (ownsClipboard_ && publicationGeneration_ == generation &&
-        !fileDropPublished_ &&
+        publicationSourceEpoch_ == sourceEpoch && !fileDropPublished_ &&
         textPublished_ == textReady && imagePublished_ == imageReady &&
         (!imageReady || publishedImageFormat_ == image->format))
     {
@@ -196,6 +201,7 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
     if (success && closedClipboard && !closed_)
     {
         publicationGeneration_ = generation;
+        publicationSourceEpoch_ = sourceEpoch;
         textPublished_ = textReady;
         imagePublished_ = imageReady;
         if (imageReady)
@@ -462,7 +468,10 @@ bool WindowsClipboardAdapter::publishCompletedFileDestinationsInternal(
     }
 
     const std::uint64_t generation = remoteTransfer_.generation();
-    if (generation == 0U || generation == yieldedGeneration_)
+    const std::uint64_t sourceEpoch = remoteTransfer_.sourceEpoch();
+    if (generation == 0U || sourceEpoch == 0U ||
+        (generation == yieldedGeneration_ &&
+         sourceEpoch == yieldedSourceEpoch_))
     {
         return false;
     }
@@ -489,6 +498,7 @@ bool WindowsClipboardAdapter::publishCompletedFileDestinationsInternal(
             ownerWindow_)
     {
         yieldedGeneration_ = publicationGeneration_;
+        yieldedSourceEpoch_ = publicationSourceEpoch_;
         clearPublicationState();
         success = false;
     }
@@ -522,6 +532,7 @@ bool WindowsClipboardAdapter::publishCompletedFileDestinationsInternal(
         const bool sourceStillCurrent =
             remoteTransfer_.synchronized() &&
             remoteTransfer_.generation() == generation &&
+            remoteTransfer_.sourceEpoch() == sourceEpoch &&
             collectCompletedFilePaths(
                 plan, destinations, generation, currentPaths) &&
             encodeFileDrop(
@@ -553,6 +564,7 @@ bool WindowsClipboardAdapter::publishCompletedFileDestinationsInternal(
     if (success && closedClipboard && !closed_)
     {
         publicationGeneration_ = generation;
+        publicationSourceEpoch_ = sourceEpoch;
         textPublished_ = false;
         imagePublished_ = false;
         textRendered_ = false;
@@ -657,6 +669,7 @@ bool WindowsClipboardAdapter::renderAllBeforeOwnerDestroy() noexcept
             ownerWindow_)
     {
         yieldedGeneration_ = publicationGeneration_;
+        yieldedSourceEpoch_ = publicationSourceEpoch_;
         clearPublicationState();
         success = false;
     }
@@ -694,6 +707,7 @@ void WindowsClipboardAdapter::onDestroyClipboard() noexcept
     if (ownsClipboard_ && publicationGeneration_ != 0)
     {
         yieldedGeneration_ = publicationGeneration_;
+        yieldedSourceEpoch_ = publicationSourceEpoch_;
     }
     clearPublicationState();
 }

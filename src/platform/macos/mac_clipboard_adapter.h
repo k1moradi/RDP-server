@@ -120,7 +120,9 @@ private:
     RemoteTransfer &remoteTransfer_;
     MacClipboardNativeOperations nativeOperations_{};
     std::uint64_t publicationGeneration_{};
+    std::uint64_t publicationSourceEpoch_{};
     std::uint64_t yieldedGeneration_{};
+    std::uint64_t yieldedSourceEpoch_{};
     std::uint64_t publicationChangeCount_{};
     bool textPublished_{};
     bool pngPublished_{};

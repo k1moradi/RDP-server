@@ -181,6 +181,7 @@ private:
     std::size_t localFileUrlLength_{};
     RemoteTransfer::FileContentsRequestReceipt activeRequest_{};
     std::uint64_t sourceGeneration_{};
+    std::uint64_t sourceEpoch_{};
     std::uint64_t expectedSize_{};
     std::uint64_t bytesWritten_{};
     std::size_t fileIndex_{};

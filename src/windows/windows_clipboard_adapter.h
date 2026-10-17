@@ -140,7 +140,9 @@ private:
     WindowsClipboardWindowToken ownerWindow_{};
     WindowsClipboardFormat pngFormat_{};
     std::uint64_t publicationGeneration_{};
+    std::uint64_t publicationSourceEpoch_{};
     std::uint64_t yieldedGeneration_{};
+    std::uint64_t yieldedSourceEpoch_{};
     RemoteTransfer::VerifiedImageFormat publishedImageFormat_{
         RemoteTransfer::VerifiedImageFormat::Png};
     bool textPublished_{};

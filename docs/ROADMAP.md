@@ -1,3 +1,29 @@
+## R6 P1 CLANG64 compiler-cache assertion correction (2026-10-17)
+
+**First gate:** `11e7286570cd4537a3e5fda405dbab24c9faf0da`, Actions
+`39010380922`, R6 job `117331486750`.
+
+The first hosted CLANG64 gate successfully provisioned and verified the intended
+Windows toolchain: Clang **23.1.3-1** targeting
+`x86_64-w64-windows-gnu`, MinGW-w64 headers and CRT
+**14.0.0.r426.g4564ee4b5-1**, libc++ **23.1.3-1**, CMake **4.4.4-3**,
+Ninja **1.13.2** and OpenSSL **3.6.5-1**. CMake itself configured and
+generated the Debug build successfully and found the CLANG64 OpenSSL import
+library.
+
+The job then failed before compilation because the gate's post-config assertion
+assumed CMake stored `CMAKE_C_COMPILER` and `CMAKE_CXX_COMPILER` with the
+cache type `FILEPATH`. That type assumption is not part of CMake's compiler
+identity contract. This is an R6 CI validation defect, not a Clang 23,
+MinGW-w64 SDK or production-source failure.
+
+The correction keeps the assertion fail-closed but accepts any CMake cache type
+while still requiring the resolved values to end in `clang[.exe]` and
+`clang++[.exe]` separately. No production source, COM ownership assertion,
+CTest registration, WTS behavior, SendInput path or authorization boundary is
+changed. Debug/Release focused and full CLANG64 execution remains pending the
+corrected workflow.
+
 ## R8 P2 native multi-file verification and real-client acceptance gate (2026-10-17)
 
 **Audited shared-main SHA:** `24a57c8e5b2805bb326b461e896b9068ec95ab38`.  

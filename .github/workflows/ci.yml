@@ -166,7 +166,8 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Debug             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
-          grep -E '^CMAKE_(C|CXX)_COMPILER:FILEPATH=.*/clang(\+\+)?(\.exe)?$'             build/CMakeCache.txt
+          grep -E '^CMAKE_C_COMPILER:[^=]+=.*clang(\.exe)?$' build/CMakeCache.txt
+          grep -E '^CMAKE_CXX_COMPILER:[^=]+=.*clang\+\+(\.exe)?$' build/CMakeCache.txt
       - name: Run Debug R6 native preflight
         shell: msys2 {0}
         run: |

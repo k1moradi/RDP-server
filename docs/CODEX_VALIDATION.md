@@ -1,3 +1,66 @@
+## R9 M1 assurance and M2 sanitizer gate (2026-10-17)
+
+**M1 candidate:** `e2c1e51d22c2c33cd0de1ca40fc2bf7f45d3c5ae`. Hosted
+Actions `39018706447` is **SUCCESS** and the independent structure guard
+`39018706418` is **SUCCESS**. Exact hosted ordinary CTest is Linux/GCC
+**584/584 Debug + 584/584 Release**, macOS/AppleClang **495/495 + 495/495**,
+Windows/MSVC **531/531 + 531/531**, and hosted MSYS2 CLANG64 / Clang 23.1.3
+**531/531 + 531/531**. Windows native R6 preflight is **55/55** in Debug and
+Release on MSVC and CLANG64; the CLANG64 private-fixture gate is **3/3** and
+focused TLS/licensing/configuration security gate **5/5** in both
+configurations. Documentation policy, both workflow-structure gates, R7 native
+lifecycle/sanitizer jobs, downstream installed-SDK consumers, ZIP packaging,
+SHA-256 generation and all three package uploads pass. Untagged prerelease
+publication is correctly skipped.
+
+R9 independently searched the repository validation ledger and issue/comment
+coordination for same-SHA owner receipts. The owner reports local success, but
+no machine transcript for `e2c1e51d...` is recorded here with exact SHA,
+toolchain, full Debug CTest execution, failure/skip count and terminal result
+for **all three** required owner machines (Linux/X11, Windows MSYS2 CLANG64 /
+Clang 23, macOS 27). Hosted machines are not relabeled as owner evidence.
+Therefore R9's independent M1 recommendation remains **OPEN**, with the only
+M1 evidence blocker being the three receipted same-SHA owner runs.
+
+**M2 assurance gate:** review of the current fail-closed R2/R3/R10 boundary
+finds no production path that can turn an R3 licensing snapshot, protected
+HWID bytes, peer-selected CAL root, authority generation/fingerprint or
+synthetic provider into R2 desktop authority. The current R10 positive
+licensing provider exists only in the noninstalled test executable; production
+remains `configureUnavailable()`. R3 has no authenticated post-`Licensed`
+Share state yet, so Share/DVC/input/clipboard publication cannot be positively
+authorized by the licensing work in this baseline.
+
+The Clang ASan/UBSan gate is strengthened before code-bearing M2 work:
+`runtime.licensing-cli-existing-check-compatibility` is added to the existing
+production-backed R1/R3/licensing selection, raising that selector from
+**91 to 92** tests. Existing flat selectors are now exact-count fail-closed at
+CAL **8**, adversarial credential **4**, delegated-account **6**, R10 authority
+**6**, native R2/R3 GSSAPI **30**, PAM **3**, and direct R10 Linux runtime
+security **12**. Every count is derived from a preceding `ctest -N`; a
+missing or unexpectedly added registration fails before execution. The
+existing `project.ci-workflow-structure-denials` validator is extended to
+require the compatibility case and these exact-count gates; no second workflow
+validator or sanitizer job is created.
+
+The nine M2 invariants remain acceptance requirements. In particular, future
+existing-CAL validation must bind genuine provider trust, exact
+product/version/scope, provider policy generation, verification time and the
+CAL's hardware identity to the exact MAC-verified HWID and session/request
+correlation. Provider replacement must cancel pending work, stale results must
+not cross sessions, and no licensing result may grant R2 or downstream
+Share/DVC/input/clipboard authority. New production-backed R2/R3/R10 cases must
+be added to these existing sanitizer selectors with their expected counts in
+the same commit. Existing bounded CredSSP and MCS/CLIPRDR fuzzers may receive
+denial seeds only when they enter the same production parsers.
+
+**Validation of this R9 CI-only increment:** production C++ behavior is
+unchanged. The exact descendant workflow is **NOT RUN at authoring time**;
+GitHub Actions and the ordinary `project.ci-workflow-structure-denials`
+CTest are the next gate. M2 remains **OPEN / NOT ACCEPTED** until
+non-forgeable provider-backed CAL authorization and receipt-bound R2/R3
+composition exist and pass the complete matrix.
+
 ## R3 M2 licensing-to-Share planning audit (2026-10-17)
 
 This is a documentation-only architecture/roadmap audit. Production code,

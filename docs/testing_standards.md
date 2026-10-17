@@ -1,3 +1,13 @@
+## R6 CLANG64 native-preflight registry correction (2026-10-17)
+
+The ordinary CLANG64 Debug and Release R6 preflights must independently
+enumerate `^windows\.(geometry|capture|cursor|input)-`, require exactly
+**58** registrations, require the four whole-owner retirement sentinels plus
+the three DXGI-to-R4 handoff sentinels, and only then execute the selection.
+Do not concatenate sentinel names into one literal search and do not rely on
+the sanitizer-only cardinality check to prove ordinary configuration
+registration.
+
 ## R6 DXGI-to-R4 native framebuffer compatibility tests (2026-10-17)
 
 The Windows R6 selector includes three production-backed cross-road cases:

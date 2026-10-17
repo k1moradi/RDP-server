@@ -1,3 +1,31 @@
+## R6 P2 DXGI-to-R4 CLANG64 preflight correction (2026-10-17)
+
+**Initial implementation:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.  
+**Initial Actions:** `39022323343`.
+
+The implementation-SHA workflow structure guard passed. Windows/MSVC configured,
+the expanded R6 native preflight passed and the complete Debug graph compiled.
+MSYS2 CLANG64 verified Clang 23, configured successfully, and the complete
+Debug graph also compiled successfully. The CLANG64 R6 preflight itself
+reported failure before executing its CTest selection because the workflow
+authoring change accidentally placed
+`windows.capture-session-change-duplication-prior-revocation` and the three
+new R4 sentinels inside one quoted `grep -F` pattern. That impossible
+multiline literal is a CI validation defect, not a production compile, Clang
+23/SDK, DXGI lifetime or R4-conversion failure.
+
+This correction changes no production source and no CTest behavior. Debug and
+Release now each enumerate the anchored R6 selector, independently require all
+seven lifetime/handoff sentinel names, enforce exact **58**-case cardinality,
+and then execute the selection. The workflow-structure validator also requires
+the ordinary 58-case cardinality token so this registration check cannot
+silently disappear.
+
+Exact correction-SHA MSVC, CLANG64 Debug/Release and Windows CLANG64
+ASan/UBSan evidence is **PENDING**. M4 remains **OPEN / NOT ACCEPTED** and no
+live desktop, WTS registration, native input injection or synthetic admission
+is enabled.
+
 ## R8 P2 hierarchy provenance protocol-limit receipt (2026-10-17; exact-SHA CI pending)
 
 **Starting shared `main`:** `c73ff9c004c453fe30a0341ac11387115cbd32ab`.

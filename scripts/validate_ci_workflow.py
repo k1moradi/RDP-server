@@ -199,6 +199,7 @@ REQUIRED_TOKENS = (
     "windows.capture-r4-bgra-layout-contract",
     "windows.capture-r4-frame-lifetime-revocation",
     "windows.capture-r4-monitor-replacement-denials",
+    '<<< "$selected_tests")" -eq 58',
     "Run R6 Windows native lifetime CTests with sanitizers",
     "r6_sanitizer_selection='^windows\\.(geometry|capture|cursor|input)-'",
     "steps.r6_windows_sanitizer_configure.outcome == 'success'",

@@ -570,6 +570,8 @@ if(TARGET rdp-server-linux-gssapi)
     endforeach()
 endif()
 add_rdp_test(test_owned_remote_transfer.cpp clipboard remote-transfer)
+target_link_libraries(test_owned_remote_transfer PRIVATE
+    rdp-server-clipboard-directory-capability)
 # R9 bounded mutational wire negative corpus, reusing the production test.
 add_test(NAME clipboard.mcs-cliprdr-length-mutation-denials
     COMMAND test_owned_remote_transfer mcs-cliprdr-length-mutation-denials)
@@ -591,7 +593,9 @@ foreach(case_name IN ITEMS
         file-destination-plan-index-generation
         file-destination-plan-directory-traversal-denials
         file-destination-plan-transactional-commit
-        file-destination-plan-cancel-replay)
+        file-destination-plan-cancel-replay
+        directory-capability-binding-authority
+        directory-capability-binding-retirement)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_owned_remote_transfer "${case_name}")
     set_tests_properties("clipboard.${case_name}" PROPERTIES

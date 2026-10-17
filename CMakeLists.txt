@@ -188,6 +188,29 @@ target_include_directories(rdp-server-protocol PUBLIC
 target_link_libraries(rdp-server-protocol PUBLIC
     OpenSSL::Crypto OpenSSL::SSL)
 
+# R8 noninstalled native-directory capability lifetime binding. This owns only
+# a duplicate supplied through an injected native seam; it opens no path and
+# performs no child creation.
+add_library(rdp-server-clipboard-directory-capability STATIC
+    src/server/clipboard/remote_directory_capability.cpp)
+target_compile_features(
+    rdp-server-clipboard-directory-capability PUBLIC cxx_std_23)
+target_include_directories(
+    rdp-server-clipboard-directory-capability PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/server>")
+target_link_libraries(
+    rdp-server-clipboard-directory-capability PUBLIC
+    rdp-server-protocol)
+if(MSVC)
+    target_compile_options(
+        rdp-server-clipboard-directory-capability PRIVATE /W4)
+else()
+    target_compile_options(
+        rdp-server-clipboard-directory-capability PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # Portable, noninstalled R2 identity-policy component.
 add_library(rdp-server-console-identity-policy STATIC
     src/server/security/console_identity_policy.cpp)

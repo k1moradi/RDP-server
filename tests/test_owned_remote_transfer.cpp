@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "clipboard/clipboard_protocol.h"
 #include "transport/mcs_channel_connection.h"
+#include "clipboard/remote_directory_capability.h"
 #include "clipboard/remote_transfer.h"
 
 #include <algorithm>
@@ -19,6 +20,9 @@
 #include <type_traits>
 #include <vector>
 
+using rdp_server::server::clipboard::RemoteDirectoryCapabilityBinding;
+using rdp_server::server::clipboard::RemoteDirectoryNativeOperations;
+using rdp_server::server::clipboard::RemoteDirectoryNativeToken;
 using rdp_server::server::clipboard::RemoteFileDestinationPlan;
 using rdp_server::server::clipboard::RemoteTransfer;
 using rdp_server::clipboard::PduView;
@@ -468,6 +472,54 @@ void installRemoteFileOffer(
     assert(owner.storeFileGroupDescriptors(response));
     assert(owner.remoteFileCount() == descriptors.size());
 }
+
+
+struct FakeDirectoryCapabilityNative final
+{
+    static constexpr RemoteDirectoryNativeToken kSourceCapability = 0xa001U;
+    static constexpr RemoteDirectoryNativeToken kDuplicateCapability = 0xa101U;
+
+    std::size_t duplicateCalls{};
+    std::size_t closeCalls{};
+    RemoteDirectoryNativeToken lastSource{};
+    RemoteDirectoryNativeToken lastClosed{};
+    bool rejectDuplicate{};
+
+    static bool duplicate(
+        void *context, const RemoteDirectoryNativeToken source,
+        RemoteDirectoryNativeToken &duplicate) noexcept
+    {
+        auto &self =
+            *static_cast<FakeDirectoryCapabilityNative *>(context);
+        ++self.duplicateCalls;
+        self.lastSource = source;
+        if (self.rejectDuplicate || source != kSourceCapability)
+        {
+            return false;
+        }
+        duplicate = kDuplicateCapability;
+        return true;
+    }
+
+    static void close(
+        void *context,
+        const RemoteDirectoryNativeToken capability) noexcept
+    {
+        auto &self =
+            *static_cast<FakeDirectoryCapabilityNative *>(context);
+        ++self.closeCalls;
+        self.lastClosed = capability;
+    }
+
+    [[nodiscard]] RemoteDirectoryNativeOperations operations() noexcept
+    {
+        return {
+            this,
+            &FakeDirectoryCapabilityNative::duplicate,
+            &FakeDirectoryCapabilityNative::close,
+        };
+    }
+};
 
 void expectRemoteDescriptorNameRejected(
     RemoteTransfer &owner, const std::u16string_view name)
@@ -2150,6 +2202,185 @@ void testFileDestinationPlanCancelReplay()
            AssociationStatus::Cancelled);
 }
 
+
+void testDirectoryCapabilityBindingAuthority()
+{
+    using Plan = RemoteFileDestinationPlan;
+    using Binding = RemoteDirectoryCapabilityBinding;
+
+    static_assert(!std::is_copy_constructible_v<Binding>);
+    static_assert(!std::is_copy_assignable_v<Binding>);
+    static_assert(!std::is_move_constructible_v<Binding>);
+    static_assert(!std::is_move_assignable_v<Binding>);
+
+    constexpr std::uint32_t kFileListFormatId = 0xc750U;
+    RemoteTransfer source;
+    initializeFileStreamSession(source);
+    const std::array<TestRemoteFileDescriptor, 2> descriptors{{
+        {u"folder", 0U, false, true},
+        {u"payload.bin", 4U, true, false},
+    }};
+    installRemoteFileOffer(source, kFileListFormatId, descriptors);
+
+    const std::array<Plan::Selection, 2> selections{{
+        {0U, 0x6101U, std::nullopt},
+        {1U, 0x6102U, 0U},
+    }};
+    Plan plan;
+    assert(plan.prepare(
+               source, source.generation(), selections) ==
+           Plan::PrepareStatus::Prepared);
+    assert(plan.associationStatus(source, 0U) ==
+           Plan::AssociationStatus::UnsupportedDirectoryMaterialization);
+
+    {
+        Binding invalid{
+            source, plan, RemoteDirectoryNativeOperations{}};
+        assert(!invalid.valid());
+        assert(invalid.status() == Binding::Status::Closed);
+        assert(!invalid.bind(
+            0U,
+            FakeDirectoryCapabilityNative::kSourceCapability));
+    }
+
+    {
+        FakeDirectoryCapabilityNative native;
+        Binding fileRejected{source, plan, native.operations()};
+        assert(!fileRejected.bind(
+            1U,
+            FakeDirectoryCapabilityNative::kSourceCapability));
+        assert(fileRejected.status() ==
+               Binding::Status::AssociationRejected);
+        assert(native.duplicateCalls == 0U);
+        assert(native.closeCalls == 0U);
+    }
+
+    {
+        FakeDirectoryCapabilityNative native;
+        Binding metadataIsNotAuthority{
+            source, plan, native.operations()};
+        const auto directory = plan.association(source, 0U);
+        assert(directory);
+        assert(!metadataIsNotAuthority.bind(
+            0U,
+            static_cast<RemoteDirectoryNativeToken>(
+                directory->localSelectionIdentity)));
+        assert(metadataIsNotAuthority.status() ==
+               Binding::Status::NativeRejected);
+        assert(native.duplicateCalls == 1U);
+        assert(native.lastSource ==
+               directory->localSelectionIdentity);
+        assert(native.closeCalls == 0U);
+    }
+
+    FakeDirectoryCapabilityNative native;
+    Binding binding{source, plan, native.operations()};
+    assert(binding.valid());
+    assert(binding.bind(
+        0U, FakeDirectoryCapabilityNative::kSourceCapability));
+    assert(binding.bound());
+    assert(binding.current());
+    assert(binding.status() == Binding::Status::Bound);
+    assert(binding.generation() == source.generation());
+    assert(binding.remoteFileIndex() == 0U);
+    assert(binding.localSelectionIdentity() == 0x6101U);
+    assert(native.duplicateCalls == 1U);
+    assert(native.lastSource ==
+           FakeDirectoryCapabilityNative::kSourceCapability);
+    assert(native.closeCalls == 0U);
+
+    assert(!binding.bind(
+        0U, FakeDirectoryCapabilityNative::kSourceCapability));
+    binding.close();
+    binding.close();
+    assert(!binding.bound());
+    assert(binding.status() == Binding::Status::Closed);
+    assert(native.closeCalls == 1U);
+    assert(native.lastClosed ==
+           FakeDirectoryCapabilityNative::kDuplicateCapability);
+}
+
+void testDirectoryCapabilityBindingRetirement()
+{
+    using Plan = RemoteFileDestinationPlan;
+    using Binding = RemoteDirectoryCapabilityBinding;
+
+    constexpr std::uint32_t kFileListFormatId = 0xc760U;
+    const std::array<TestRemoteFileDescriptor, 1> descriptors{{
+        {u"folder", 0U, false, true},
+    }};
+    const std::array<Plan::Selection, 1> selections{{
+        {0U, 0x6201U, std::nullopt},
+    }};
+
+    {
+        RemoteTransfer source;
+        initializeFileStreamSession(source);
+        installRemoteFileOffer(source, kFileListFormatId, descriptors);
+        Plan plan;
+        assert(plan.prepare(
+                   source, source.generation(), selections) ==
+               Plan::PrepareStatus::Prepared);
+
+        FakeDirectoryCapabilityNative native;
+        Binding binding{source, plan, native.operations()};
+        assert(binding.bind(
+            0U, FakeDirectoryCapabilityNative::kSourceCapability));
+
+        plan.cancel();
+        assert(!binding.current());
+        assert(binding.status() == Binding::Status::SourceRetired);
+        assert(native.closeCalls == 1U);
+        assert(!binding.current());
+        assert(native.closeCalls == 1U);
+    }
+
+    {
+        RemoteTransfer source;
+        initializeFileStreamSession(source);
+        installRemoteFileOffer(source, kFileListFormatId, descriptors);
+        Plan plan;
+        assert(plan.prepare(
+                   source, source.generation(), selections) ==
+               Plan::PrepareStatus::Prepared);
+
+        FakeDirectoryCapabilityNative native;
+        Binding binding{source, plan, native.operations()};
+        assert(binding.bind(
+            0U, FakeDirectoryCapabilityNative::kSourceCapability));
+
+        assert(source.receiveFormatList(
+            std::array<std::uint32_t, 1>{
+                rdp_server::clipboard::kFormatUnicodeText}));
+        binding.onRemoteGenerationChanged();
+        assert(binding.status() == Binding::Status::SourceRetired);
+        assert(native.closeCalls == 1U);
+    }
+
+    {
+        RemoteTransfer source;
+        initializeFileStreamSession(source);
+        installRemoteFileOffer(source, kFileListFormatId, descriptors);
+        Plan plan;
+        assert(plan.prepare(
+                   source, source.generation(), selections) ==
+               Plan::PrepareStatus::Prepared);
+
+        FakeDirectoryCapabilityNative native;
+        Binding binding{source, plan, native.operations()};
+        assert(binding.bind(
+            0U, FakeDirectoryCapabilityNative::kSourceCapability));
+
+        binding.cancel();
+        binding.cancel();
+        assert(binding.status() == Binding::Status::Cancelled);
+        assert(native.closeCalls == 1U);
+        binding.close();
+        assert(binding.status() == Binding::Status::Cancelled);
+        assert(native.closeCalls == 1U);
+    }
+}
+
 // R8 file-list metadata stays bounded and generation scoped. The wire
 // FILEDESCRIPTORW names are accepted only as safe leaf names; no whole file
 // body is copied into this owner.
@@ -3392,6 +3623,16 @@ int main(int argumentCount, char **arguments)
         if (caseName == "file-destination-plan-cancel-replay")
         {
             testFileDestinationPlanCancelReplay();
+            return 0;
+        }
+        if (caseName == "directory-capability-binding-authority")
+        {
+            testDirectoryCapabilityBindingAuthority();
+            return 0;
+        }
+        if (caseName == "directory-capability-binding-retirement")
+        {
+            testDirectoryCapabilityBindingRetirement();
             return 0;
         }
         if (caseName == "file-descriptor-metadata-validation")

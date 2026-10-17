@@ -1,3 +1,61 @@
+## R6 P2 Windows CLANG64 ASan/UBSan exact-SHA validation (2026-10-17)
+
+**Validated R6 source/gate SHA:** `a97933bf7a2b523dac641e97776e111d46a28be0`.  
+**Primary Actions:** `39012969426` — overall **FAIL** at the independent R1
+native-loopback TLS boundary.  
+**Standalone workflow-structure Actions:** `39012969408` — **SUCCESS**.  
+**R6 CLANG64 job:** `117339230169`.
+
+MSYS2 CLANG64 provisioned Clang **23.1.3-1** targeting
+`x86_64-w64-windows-gnu`, MinGW-w64 headers/CRT
+**14.0.0.r426.g4564ee4b5-1**, libc++ **23.1.3-1**, CMake **4.4.4-3**,
+Ninja **1.13.2** and OpenSSL **3.6.5-1**. The Windows API surface for this
+toolchain remains the MinGW-w64 headers/import libraries rather than a
+Microsoft Windows SDK.
+
+The existing production-linked R6 selector
+`^windows\.(geometry|capture|cursor|input)-` passes **55/55 in ordinary
+Debug** and **55/55 in ordinary Release**. Both complete CLANG64 build graphs
+also succeed. The full Debug and Release CTest invocations each finish
+**528/529 PASS**, with the sole failure
+`transport.tcp-native-loopback-tls` (exit `0xc0000409`) at R1's
+`waitForLocalSocketReady(...)` readiness assertion. R6 does not alter or
+mask that cross-road failure.
+
+After those ordinary gates, the same `build/` root reconfigures to Debug with
+Clang AddressSanitizer + UndefinedBehaviorSanitizer
+(`-fsanitize=address,undefined -fno-omit-frame-pointer
+-fno-sanitize-recover=all`). The sanitizer build recompiles the complete
+production `rdp-server-windows-desktop` object set plus the existing
+`test_windows_desktop_geometry` fixture and links successfully. The
+fail-closed preflight enumerates exactly **55** R6 behaviors, including all
+four whole-owner session-retirement sentinels, and the instrumented execution
+is **55/55 PASS** with `ASAN_OPTIONS=halt_on_error=1` and
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`. No ASan or UBSan
+diagnostic is emitted.
+
+This closes the previously open **hosted Windows memory/UB instrumentation
+gap** for R6's deterministic synthetic DXGI/D3D11/session/input ownership
+paths. It preserves the established lifetime contract: staging unmap before
+DXGI frame release; child/capture retirement before parent COM release;
+duplication -> output1 -> D3D11 context -> device -> output -> adapter ->
+factory exact-once teardown; callback-time logical revocation with serialized
+safe-point physical teardown; and held-input retirement without post-revocation
+native input.
+
+The sanitizer result does **not** prove a live D3D11/DXGI desktop, real WTS
+notification delivery or actual `SendInput`; those native calls remain
+deliberately absent from ordinary tests. It also does not replace R10's
+owner-native Windows MSYS2 CLANG64/Clang 23 M1 row.
+
+**R6 hosted status:** no known R6-owned Clang 23, COM lifetime, ASan or UBSan
+failure remains in the exercised production-backed Windows path.  
+**M1:** **OPEN / NOT ACCEPTED** because the same-SHA owner-native matrix is
+still incomplete and the full hosted matrix is red at R1.  
+**M4:** **OPEN / NOT ACCEPTED** pending a real R2-admitted Windows user
+desktop, R10 serialized native session-change delivery, R3 authenticated input
+routing and Microsoft-client graphics/input acceptance.
+
 ## R2 final credential/native admission join (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `a97933bf7a2b523dac641e97776e111d46a28be0`.

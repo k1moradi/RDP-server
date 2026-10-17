@@ -1,3 +1,25 @@
+## Windows CLANG64 private-fixture security preflight
+
+The hosted MSYS2 CLANG64 parity job must make the Windows synthetic-DACL
+boundary independently observable before counting the full suite. After the
+complete Debug and Release test graph is built, enumerate
+`^runtime\.windows-private-fixture-` with `ctest -N`, require exactly three
+registrations and all dedicated R10 fixture names, then execute that exact
+selection.
+
+In the same preflight, require and execute representative production-backed
+cases for licensing secure-file snapshots, licensing CLI provisioning, the
+private Windows configuration DACL, private TLS-file metadata and the owned
+runtime TLS handshake. This focused gate supplements rather than replaces the
+ordinary full CTest run. A missing registration, failed private ACL setup,
+unexpected broad ACE result, or reduced selection is failure; never skip,
+exclude or relabel it to preserve a green M1 matrix.
+
+Negative broad-access cases remain valid only when the shared fixture helper
+first verifies a private baseline and the production runtime subsequently
+returns the documented configuration-security denial. Hosted CLANG64 evidence
+does not substitute for the owner's same-SHA MSYS2 CLANG64 / Clang 23 run.
+
 ## Windows synthetic private-file fixtures use SID-native ACL setup (2026-10-17)
 
 Windows CTest fixtures that must satisfy production credential-file DACL checks

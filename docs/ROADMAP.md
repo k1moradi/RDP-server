@@ -1,3 +1,41 @@
+## R9 P1 Windows CLANG64 security-fixture regression gate (2026-10-17; exact-SHA CI pending)
+
+**Authoring parent:** `611e3279d7bffc3678bcd8ec899210e14a446cd8`.
+
+The owner-native transcript is complete for the 507-test invocation: **454 PASS
+/ 53 FAIL**. It does not contain `git rev-parse HEAD`, `clang++ --version`
+or native `icacls` stdout/stderr, so the owner run cannot be promoted into an
+exact-SHA/compiler M1 receipt and the exact ACL failure mechanism remains
+**undemonstrated**. R10 owns the repair and has centralized SID-native fixture
+setup at `e782cd642f574e7ef45792c8fe168dfad70c8d2a`; R9 does not rewrite that
+helper.
+
+The hosted MSYS2 CLANG64 parity job previously exercised the affected runtime
+TLS, licensing and configuration tests only through the full CTest suite. P1
+adds a focused fail-closed gate in **both Debug and Release** after the complete
+test graph is built. It first enumerates exactly three dedicated R10 fixture
+tests and requires all names before executing them:
+`runtime.windows-private-fixture-dacl-creation`,
+`runtime.windows-private-fixture-broad-access-denials`, and
+`runtime.windows-private-fixture-owner-consistency`. It then enumerates and
+executes five representative production-backed cases spanning the original
+failure families: licensing secure-file snapshot, licensing CLI provisioning,
+Windows private config DACL, private TLS-file metadata and the owned runtime TLS
+handshake. Exact cardinality is required for both selections.
+
+The broad-access fixture starts only from R10's verified private ACL baseline,
+then adds the intended Everyone / Authenticated Users / Built-in Users or
+public-read ACE and calls the existing runtime checker. The preflight therefore
+cannot count a negative security test as valid if private ACL creation failed,
+and it does not bypass or weaken production `hasRestrictedCredentialDacl()`
+policy. The ordinary full CLANG64 suite still runs afterward; no regex reduces
+the test count or converts failures to skips.
+
+The independent workflow-structure guard remains separate from this fixture
+gate. Current parent structure validation is green; exact publication-SHA
+structure, Windows/MSVC, Linux, macOS, R7/R9 sanitizer, SDK/package and CLANG64
+Debug/Release results are **PENDING**. Owner-native rerun remains required.
+
 ## R8 directory-capability binding before hierarchy materialization (2026-10-17; exact-SHA CI pending)
 
 **Reconciled parent:** `e782cd642f574e7ef45792c8fe168dfad70c8d2a`.  

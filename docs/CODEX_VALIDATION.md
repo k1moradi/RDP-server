@@ -1,3 +1,22 @@
+## R9 P1 Windows CLANG64 fixture-gate authoring receipt (2026-10-17)
+
+**Authoring parent:** `611e3279d7bffc3678bcd8ec899210e14a446cd8`. Exact publication-SHA Actions: **PENDING**.
+
+Source evidence retained without inference: the owner full CTest output ends
+**90% tests passed, 53 failed out of 507** and lists all 53 failures, dominated
+by generic pre-R10 fixture errors such as `Cannot set private synthetic fixture
+DACL`, `Cannot set private synthetic config DACL` and
+`Cannot set synthetic TLS fixture DACL`. The supplied transcript contains no
+Git SHA, compiler version or captured `icacls` diagnostic. R10's
+`e782cd642f574e7ef45792c8fe168dfad70c8d2a` repair must therefore be rerun by
+the owner before Windows M1 evidence can close.
+
+R9 adds no production code and no alternative ACL implementation. Hosted
+CLANG64 now preflights and executes the three R10 fixture CTests plus five
+representative affected production-backed security cases in Debug and Release,
+with exact registry counts 3 and 5. The structure validator requires all eight
+sentinel names to remain present in the shared CI workflow.
+
 ## R8 directory-capability binding authoring receipt (2026-10-17)
 
 **Implementation:** `446f13677d57d2ef3bead65bb65dcc460e1fde3a`.  

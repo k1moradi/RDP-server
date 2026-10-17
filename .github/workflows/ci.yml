@@ -250,12 +250,49 @@ jobs:
           grep -Fq 'windows.capture-session-change-duplication-callback-retirement'             <<< "$selected_tests"
           grep -Fq 'windows.capture-session-change-duplication-prior-revocation'             <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 20             -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
-      - name: Run full Debug CTest under CLANG64
+      - name: Build Debug CLANG64 test graph
         shell: msys2 {0}
         run: |
           set -euo pipefail
           cmake --build build --config Debug --parallel 2
-          ctest --test-dir build --build-config Debug --timeout 60             --output-on-failure
+      - name: Run Debug R10 private-fixture security preflight
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          windows_fixture_selection='^runtime\.windows-private-fixture-'
+          windows_fixture_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$windows_fixture_selection")"
+          printf '%s\n' "$windows_fixture_tests"
+          for required_test in \
+            runtime.windows-private-fixture-dacl-creation \
+            runtime.windows-private-fixture-broad-access-denials \
+            runtime.windows-private-fixture-owner-consistency; do
+            grep -Fq "$required_test" <<< "$windows_fixture_tests"
+          done
+          test "$(awk '/Test #[0-9]+: runtime[.]windows-private-fixture-/ { ++count } END { print count + 0 }' \
+            <<< "$windows_fixture_tests")" -eq 3
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$windows_fixture_selection" --output-on-failure
+
+          windows_security_regression='^(runtime\.licensing-context-secure-file-snapshots|runtime\.licensing-cli-valid-provisioning|runtime\.validates-configuration-windows-private-dacl|runtime\.validates-tls-files-private-regular|transport\.tcp-owned-runtime-tls-handshake)$'
+          windows_security_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$windows_security_regression")"
+          printf '%s\n' "$windows_security_tests"
+          for required_test in \
+            runtime.licensing-context-secure-file-snapshots \
+            runtime.licensing-cli-valid-provisioning \
+            runtime.validates-configuration-windows-private-dacl \
+            runtime.validates-tls-files-private-regular \
+            transport.tcp-owned-runtime-tls-handshake; do
+            grep -Fq "$required_test" <<< "$windows_security_tests"
+          done
+          test "$(awk '/Test #[0-9]+: (runtime[.]licensing-context-secure-file-snapshots|runtime[.]licensing-cli-valid-provisioning|runtime[.]validates-configuration-windows-private-dacl|runtime[.]validates-tls-files-private-regular|transport[.]tcp-owned-runtime-tls-handshake)/ { ++count } END { print count + 0 }' \
+            <<< "$windows_security_tests")" -eq 5
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$windows_security_regression" --output-on-failure
+      - name: Run full Debug CTest under CLANG64
+        shell: msys2 {0}
+        run: ctest --test-dir build --build-config Debug --timeout 60 --output-on-failure
       - name: Reconfigure same root for Release
         shell: msys2 {0}
         run: |
@@ -267,12 +304,49 @@ jobs:
           set -euo pipefail
           cmake --build build --config Release             --target test_windows_desktop_geometry --parallel 2
           ctest --test-dir build --build-config Release --timeout 20             -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
-      - name: Run full Release CTest under CLANG64
+      - name: Build Release CLANG64 test graph
         shell: msys2 {0}
         run: |
           set -euo pipefail
           cmake --build build --config Release --parallel 2
-          ctest --test-dir build --build-config Release --timeout 60             --output-on-failure
+      - name: Run Release R10 private-fixture security preflight
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          windows_fixture_selection='^runtime\.windows-private-fixture-'
+          windows_fixture_tests="$(ctest --test-dir build --build-config Release -N \
+            -R "$windows_fixture_selection")"
+          printf '%s\n' "$windows_fixture_tests"
+          for required_test in \
+            runtime.windows-private-fixture-dacl-creation \
+            runtime.windows-private-fixture-broad-access-denials \
+            runtime.windows-private-fixture-owner-consistency; do
+            grep -Fq "$required_test" <<< "$windows_fixture_tests"
+          done
+          test "$(awk '/Test #[0-9]+: runtime[.]windows-private-fixture-/ { ++count } END { print count + 0 }' \
+            <<< "$windows_fixture_tests")" -eq 3
+          ctest --test-dir build --build-config Release --timeout 60 \
+            -R "$windows_fixture_selection" --output-on-failure
+
+          windows_security_regression='^(runtime\.licensing-context-secure-file-snapshots|runtime\.licensing-cli-valid-provisioning|runtime\.validates-configuration-windows-private-dacl|runtime\.validates-tls-files-private-regular|transport\.tcp-owned-runtime-tls-handshake)$'
+          windows_security_tests="$(ctest --test-dir build --build-config Release -N \
+            -R "$windows_security_regression")"
+          printf '%s\n' "$windows_security_tests"
+          for required_test in \
+            runtime.licensing-context-secure-file-snapshots \
+            runtime.licensing-cli-valid-provisioning \
+            runtime.validates-configuration-windows-private-dacl \
+            runtime.validates-tls-files-private-regular \
+            transport.tcp-owned-runtime-tls-handshake; do
+            grep -Fq "$required_test" <<< "$windows_security_tests"
+          done
+          test "$(awk '/Test #[0-9]+: (runtime[.]licensing-context-secure-file-snapshots|runtime[.]licensing-cli-valid-provisioning|runtime[.]validates-configuration-windows-private-dacl|runtime[.]validates-tls-files-private-regular|transport[.]tcp-owned-runtime-tls-handshake)/ { ++count } END { print count + 0 }' \
+            <<< "$windows_security_tests")" -eq 5
+          ctest --test-dir build --build-config Release --timeout 60 \
+            -R "$windows_security_regression" --output-on-failure
+      - name: Run full Release CTest under CLANG64
+        shell: msys2 {0}
+        run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
 
   # R9: one bounded sanitizer job across existing first-party CLIPRDR/X11,
   # MCS/CredSSP, native R2->R3 admission/revocation and R3 licensing contracts.

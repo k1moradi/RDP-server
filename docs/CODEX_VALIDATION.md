@@ -4265,3 +4265,23 @@ Canonical `~/rdp-server/build/` configure/build/CTest is **NOT RUN** in this con
 ## R3 RDPGFX CAPS compile correction (2026-10-17)
 
 Exact source SHA `2569226efa03f4aeafbf8e55fe0148d3b14ecc4f` reached Actions run `39054215660`; Ubuntu job `117458783817` failed during Debug compilation because the existing fixed `kMcsTestCases` registry bound remained 138 after two new registered Graphics CAPS cases were added. The production R3 implementation compiled before the test target reached this declaration; no protocol behavior failure was reported. This corrective commit changes only that fixed test registry bound to 140 and records the failed receipt. The two dedicated CAPS CTests remain the production-backed acceptance cases from the preceding atomic increment.
+
+
+## R3 RDPGFX CAPS exact CI receipt (2026-10-17)
+
+Production source increment: `2569226efa03f4aeafbf8e55fe0148d3b14ecc4f` (`feat(r3): confirm RDPGFX capabilities`). Its first primary Actions run `39054215660` correctly failed Ubuntu Debug compilation in job `117458783817` because the pre-existing fixed `kMcsTestCases` array bound was still 138 after two new registered cases were appended. No protocol assertion failed. Corrective descendant `4a508198738945a4486e1cf68b3265a531342211` changes that registry bound to 140 and is the exact source-verification SHA.
+
+Exact hosted receipts for `4a508198738945a4486e1cf68b3265a531342211`:
+- primary `C++23 protocol CI and prerelease delivery` run `39054341167`: **SUCCESS**;
+- separate `CI workflow structure guard` run `39054341190`: **SUCCESS**;
+- Ubuntu protocol job `117459143677`: **641/641 Debug PASS** and **641/641 Release PASS**; Graphics CAPS tests #136/#137 pass in both;
+- macOS protocol job `117459143624`: **543/543 Debug PASS** and **543/543 Release PASS**; Graphics CAPS tests #136/#137 pass in both;
+- Windows protocol job `117459143780`: **580/580 Debug PASS** and **580/580 Release PASS**; Graphics CAPS tests #136/#137 pass in both;
+- R6 Windows Clang23 job `117459143611`: full **580/580 Debug PASS**, **580/580 Release PASS**, plus the platform's **59/59** sanitizer selection;
+- documentation-policy, CI-structure, R7 lifecycle and the original R9 sanitizer job all pass.
+
+The original R9 sanitizer selector at the source-verification SHA still named only the four pre-CAPS Graphics DVC tests, so that aggregate result is not misrepresented as CAPS sanitizer coverage. R9 subsequently added the two CAPS tests and repaired its workflow at exact SHA `72fd9ebafa3f297802b327e72d65db814c1a6ead`. In primary run `39054976153`, sanitizer job `117461012308` is **SUCCESS** and executes the explicit six-test selector: CREATE success, CAPS selection, CAPS unsupported denial, CREATE response denials, generation cancellation and pre-Share denial. Result: **6/6 PASS under ASan/UBSan**, with the two CAPS cases as tests #136 and #137.
+
+Canonical `~/rdp-server/build/` remains **NOT RUN** in this connector environment; no alternate persistent build root was created.
+
+Current live blocker after R10's later `e486dca4b6b43bdacaccdafc98153a4977e910eb` client-licensing composition: the Linux R2 broker/runtime surface still has only `authorizeR3PersonalDesktopApplicationTraffic()` / `authorizePersonalDesktopApplicationTraffic()` after Share activation and no Graphics/DVC-specific broker methods. R3 already owns private post-Share `beginVerifiedR2GraphicsDynamicVirtualChannel()`, pending-write, accepted-byte completion and client-TPKT intake methods. R2/R10 must wrap those four operations with fresh genuine-lease, exact policy-identity and R1 TLS-owner/provenance reauthorization, and R10 must drive every resulting plaintext write/read through R1's sole TLS application-I/O boundary. A real owner-authorized Kerberos/PAM/NSS/logind/X11 `seat0` positive lease remains required; offline protocol success does not create R2 admission.

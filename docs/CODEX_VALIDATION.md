@@ -1,3 +1,58 @@
+## R8 native directory-capability factory exact-SHA validation receipt (2026-10-17)
+
+**Implementation:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.  
+**Actions:** `39012180330` — overall **FAIL** from cross-road failures; R8
+factory/binding evidence **PASS**.
+
+Observed exact-SHA R8 results:
+
+- Linux/GCC Debug registry: binding authority **PASS**, binding retirement
+  **PASS**, Linux native directory capability **PASS**.
+- macOS/AppleClang Debug registry: binding authority **PASS**, binding
+  retirement **PASS**, macOS native directory capability **PASS**.
+- Windows/MSVC Debug registry: binding authority **PASS**, binding retirement
+  **PASS**, Windows native directory capability **PASS**.
+- Hosted MSYS2 CLANG64/Clang 23 Debug registry: binding authority **PASS**,
+  binding retirement **PASS**, Windows native directory capability **PASS**.
+- R9 Clang ASan/UBSan complete clipboard selection: **71/71 PASS**, including
+  both binding cases and `clipboard.linux-directory-capability-native`.
+- CI workflow structure and documentation policy: **PASS**.
+
+The exact run's non-R8 failures are retained rather than hidden. Linux, macOS
+and CLANG64 full Debug suites later fail the independent R1 native-loopback TLS
+readiness assertion. Windows/MSVC later fails R10's synthetic private-DACL
+fixture setup. Those failures suppress some Release/package stages, so this
+receipt does not claim a complete green repository matrix.
+
+Source review matches the executed tests. POSIX accepts only an already-open
+directory descriptor and uses object inspection plus `F_DUPFD_CLOEXEC`.
+Windows accepts only an already-open disk-directory HANDLE, rejects a final
+reparse point and duplicates it with `DuplicateHandle`. The binding pins the
+exact current source generation, planned remote directory index and local
+selection identity, while the native token comes only from the separately
+supplied caller capability. Cancellation, source retirement and close release
+the duplicate exactly once.
+
+No child object is created by this implementation. The current remote
+FILEDESCRIPTORW parser still rejects slash/backslash/colon path syntax and
+stores only leaf metadata; the destination plan still reports
+`UnsupportedWithRetainedMetadata` for hierarchy and
+`UnsupportedDirectoryMaterialization` for directory associations. A
+caller-selected plan parent is local placement metadata, not proof of the
+remote tree.
+
+**Security/roadmap decision:** component-relative creation remains **BLOCKED on
+verified hierarchy provenance**. R8 must not add POSIX `openat`/`mkdirat`,
+Windows pathname reopen, or any directory materialization merely because a
+native parent directory capability is now held. A future creation contract must
+first define where authenticated/verified parent-child relationships come from
+and then add dedicated traversal, symlink/reparse, collision, cancellation and
+generation-replacement CTests against the actual native implementation.
+
+Canonical owner-local `~/rdp-server/build/` execution and live filesystem /
+Explorer / Finder / Nautilus directory-tree acceptance are **NOT RUN** in this
+agent environment. No M1-M6 acceptance claim is made.
+
 ## R5 deterministic native-X11 event-readiness exact-SHA receipt (2026-10-17)
 
 `c94c001f7e876df3f353948609a326f78481c1f3`, Actions

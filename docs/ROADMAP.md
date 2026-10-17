@@ -1,3 +1,59 @@
+## R8 native directory-capability factory validation and hierarchy-provenance gate (2026-10-17)
+
+**Native factory implementation:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.  
+**Actions:** `39012180330` — overall **FAIL** from unrelated R1/R10 failures; R8 native-factory evidence **PASS**.
+
+The native duplicate/close boundary is executable-green for R8 on every
+supported hosted platform. Linux/GCC passes
+`clipboard.directory-capability-binding-authority`,
+`clipboard.directory-capability-binding-retirement`, and
+`clipboard.linux-directory-capability-native`. macOS/AppleClang passes the
+same two binding cases plus
+`clipboard.macos-directory-capability-native`. Windows/MSVC and the hosted
+MSYS2 CLANG64/Clang 23 job both pass the two binding cases plus
+`clipboard.windows-directory-capability-native`.
+
+R9's complete Clang ASan/UBSan clipboard selection expands to **71/71 PASS**.
+Its fail-closed registry preflight explicitly requires the two binding cases and
+`clipboard.linux-directory-capability-native`; all three execute successfully
+under sanitizers. Workflow structure and documentation-policy jobs also pass on
+the exact implementation SHA.
+
+The surrounding workflow is not called green. Linux/GCC and
+macOS/AppleClang full Debug CTest each stop at the unrelated R1
+`transport.tcp-native-loopback-tls` readiness assertion after the R8 cases
+have passed. The hosted CLANG64 full Debug suite reproduces the same R1
+readiness failure after the R8 native Windows case passes. Windows/MSVC reaches
+and passes all R8 directory-capability cases but later fails concurrent R10
+private-fixture ACL setup. Release/package evidence is therefore not claimed
+for this exact SHA.
+
+Static review confirms the factory contract remains narrow. POSIX validates an
+already-open descriptor with `fstat`, requires a directory object, duplicates
+with `F_DUPFD_CLOEXEC`, and never reopens a pathname. Windows validates the
+already-open HANDLE as a disk directory, rejects a final reparse-point object,
+duplicates with `DuplicateHandle`, and never constructs or opens a pathname.
+The binding still treats `localSelectionIdentity` as metadata only and owns
+only the independently duplicated native capability.
+
+The next filesystem-writing increment is intentionally **BLOCKED**, not merely
+pending implementation. `RemoteTransfer` still accepts only validated leaf
+names and rejects path separators, while
+`RemoteFileDestinationPlan::hierarchyStatus()` remains
+`UnsupportedWithRetainedMetadata`. Caller-selected parent placement metadata
+therefore cannot be promoted into verified remote hierarchy provenance.
+Creating children with `openat`/`mkdirat`, a Windows native relative-open
+primitive, or any absolute-path fallback would cross the authority boundary
+before the project has a trustworthy remote parent/child source.
+
+**Next R8:** define the verified hierarchy-provenance contract first. Only
+after that contract has production input and denial coverage may a separate
+component-relative creation API be reviewed. POSIX must remain descriptor
+relative with no-follow/exclusive semantics; Windows must remain handle
+relative or consume separately pre-authorized child handles. Until then
+`UnsupportedDirectoryMaterialization` remains authoritative and real
+directory-tree acceptance remains **NOT RUN / OPEN**.
+
 ## R5 P1 deterministic native-X11 event-readiness exact-SHA validation (2026-10-17)
 
 **Implementation:** `c94c001f7e876df3f353948609a326f78481c1f3`.  

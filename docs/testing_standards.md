@@ -209,21 +209,24 @@ coverage, not a claim that Nautilus/Dolphin or Wayland portals were exercised.
 
 ## R7 macOS session-watch sanitizer coverage is host-desktop free
 
-The R7 desktop-session/watch and input-controller executables are deterministic
-on non-Apple hosts: they compile the production C++ geometry, session revision,
-guard and input lifetime state directly and inject synthetic
-session/permission/registration/native-command callbacks. Sanitizer CI uses a
-dedicated Ubuntu/GCC ASan+UBSan job that explicitly builds
-`test_macos_desktop_session_guard` and `test_macos_input_controller`, then
-runs the anchored `^macos\.desktop-session-` family plus
-`macos.input-controller-session-watch-revocation`. Keep this road-local
+The R7 desktop-session/watch, input-controller and portable cursor-snapshot
+executables are deterministic on non-Apple hosts: they compile the production
+C++ geometry/session revision and consumer lifetime state directly and inject
+synthetic session/permission/registration/native-command/cursor observations.
+Sanitizer CI uses a dedicated Ubuntu/GCC ASan+UBSan job that explicitly builds
+`test_macos_desktop_session_guard`, `test_macos_input_controller` and
+`test_macos_capture_pixel_buffer`, then runs the anchored
+`^macos\.desktop-session-` family plus the exact
+`macos.input-controller-session-watch-revocation` and
+`macos.cursor-session-watch-revocation` cases. Keep this road-local
 rather than retuning the shared R9 Clang toolchain: hosted Clang 18 with
 libstdc++ does not expose the C++23 `std::expected` used by the R7 headers.
 
 The dedicated job covers registration, retirement, delayed-callback,
 partial-install, destructor, reentry, guard revocation, stale held-input
-suppression and input-callback races without AppKit, TCC, a live desktop or
-native input posting. The Apple-only
+suppression, input-callback races and stale owned-cursor suppression without
+AppKit, TCC, a live desktop, native cursor sampling or native input posting.
+The Apple-only
 `macos.capture-stream-session-watch-frame-retirement` and
 `macos.capture-stream-session-watch-consumer-race` cases use synthetic
 CoreVideo buffers and injected backends, so do not claim them as Linux

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "platform/macos/native_display_refresh.h"
+#include "platform/macos/native_session_change_watch.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +21,7 @@ enum class MacCursorSnapshotError : std::uint8_t {
     InvalidGeneration,
     StaleGeometryGeneration,
     StaleTopology,
+    StaleSession,
     PositionOutsideDesktop,
     InvalidObservation,
     NativeCursorUnavailable,
@@ -57,6 +59,7 @@ struct MacCursorSnapshot final {
     std::size_t byteCount{};
     std::uint64_t geometryGeneration{};
     std::uint64_t topologyRevision{};
+    std::uint64_t sessionWatchRevision{};
 
     MacCursorSnapshot() noexcept = default;
     MacCursorSnapshot(const MacCursorSnapshot&) = delete;
@@ -65,19 +68,25 @@ struct MacCursorSnapshot final {
     MacCursorSnapshot& operator=(MacCursorSnapshot&&) noexcept = default;
 
     [[nodiscard]] std::span<const std::byte> pixels() const noexcept {
-        if (storage == nullptr) return {};
+        if (storage == nullptr ||
+            !NativeSessionChangeWatch::current(sessionWatchRevision)) {
+            return {};
+        }
         return {storage.get(), byteCount};
     }
 
     [[nodiscard]] bool valid() const noexcept;
 };
 
-// Validates one synthetic/native observation against the current display epoch
-// and transactionally adopts the caller-owned pixel storage. No native handle,
+// Validates one synthetic/native observation against a caller-pinned display
+// and GUI-session epoch, then transactionally adopts the caller-owned pixel
+// storage. The session revision must be captured before native observation
+// begins so a switch cannot relabel stale cursor state. No native handle,
 // borrowed span or authorization capability survives this call.
 [[nodiscard]] std::expected<MacCursorSnapshot, MacCursorSnapshotError>
 makeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
                       std::uint64_t geometryGeneration,
+                      std::uint64_t sessionWatchRevision,
                       MacNativeCursorObservation observation,
                       std::unique_ptr<std::byte[]> storage,
                       std::size_t byteCount) noexcept;

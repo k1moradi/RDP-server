@@ -41,7 +41,9 @@ namespace {
 } // namespace
 
 bool MacCursorSnapshot::valid() const noexcept {
-    if (geometryGeneration == 0 || topologyRevision == 0) {
+    if (geometryGeneration == 0 || topologyRevision == 0 ||
+        sessionWatchRevision == 0 ||
+        !NativeSessionChangeWatch::current(sessionWatchRevision)) {
         return false;
     }
     if (!visible) {
@@ -65,6 +67,7 @@ bool MacCursorSnapshot::valid() const noexcept {
 std::expected<MacCursorSnapshot, MacCursorSnapshotError>
 makeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
                       const std::uint64_t geometryGeneration,
+                      const std::uint64_t sessionWatchRevision,
                       const MacNativeCursorObservation observation,
                       std::unique_ptr<std::byte[]> storage,
                       const std::size_t byteCount) noexcept {
@@ -79,6 +82,10 @@ makeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
     if (!topologyRevision || *topologyRevision == 0) {
         return std::unexpected(MacCursorSnapshotError::StaleTopology);
     }
+    if (sessionWatchRevision == 0 ||
+        !NativeSessionChangeWatch::current(sessionWatchRevision)) {
+        return std::unexpected(MacCursorSnapshotError::StaleSession);
+    }
 
     if (!observation.visible) {
         if (!validHiddenObservation(observation, storage, byteCount)) {
@@ -88,9 +95,13 @@ makeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
         if (!finalRevision || *finalRevision != *topologyRevision) {
             return std::unexpected(MacCursorSnapshotError::StaleTopology);
         }
+        if (!NativeSessionChangeWatch::current(sessionWatchRevision)) {
+            return std::unexpected(MacCursorSnapshotError::StaleSession);
+        }
         MacCursorSnapshot snapshot;
         snapshot.geometryGeneration = geometryGeneration;
         snapshot.topologyRevision = *topologyRevision;
+        snapshot.sessionWatchRevision = sessionWatchRevision;
         return snapshot;
     }
 
@@ -101,13 +112,20 @@ makeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
         observation.position, geometryGeneration);
     if (!position) {
         const auto finalRevision = geometry.topologyRevision(geometryGeneration);
-        return std::unexpected(finalRevision && *finalRevision == *topologyRevision
-                                   ? MacCursorSnapshotError::PositionOutsideDesktop
-                                   : MacCursorSnapshotError::StaleTopology);
+        if (!finalRevision || *finalRevision != *topologyRevision) {
+            return std::unexpected(MacCursorSnapshotError::StaleTopology);
+        }
+        if (!NativeSessionChangeWatch::current(sessionWatchRevision)) {
+            return std::unexpected(MacCursorSnapshotError::StaleSession);
+        }
+        return std::unexpected(MacCursorSnapshotError::PositionOutsideDesktop);
     }
     const auto finalRevision = geometry.topologyRevision(geometryGeneration);
     if (!finalRevision || *finalRevision != *topologyRevision) {
         return std::unexpected(MacCursorSnapshotError::StaleTopology);
+    }
+    if (!NativeSessionChangeWatch::current(sessionWatchRevision)) {
+        return std::unexpected(MacCursorSnapshotError::StaleSession);
     }
 
     MacCursorSnapshot snapshot;
@@ -122,6 +140,7 @@ makeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
     snapshot.byteCount = byteCount;
     snapshot.geometryGeneration = geometryGeneration;
     snapshot.topologyRevision = *topologyRevision;
+    snapshot.sessionWatchRevision = sessionWatchRevision;
     return snapshot;
 }
 

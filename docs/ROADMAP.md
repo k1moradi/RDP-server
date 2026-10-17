@@ -1,3 +1,38 @@
+## R7 cursor GUI-session revocation fence (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared main:** `00b0aa8a3c58fd6866a3574f85e7d85c74ad9cd5`.
+
+R7's capture and input consumers already pin the process-scoped
+`NativeSessionChangeWatch` revision, but the quarantined cursor snapshot
+boundary still used only display generation/topology. A fast-user switch can
+leave display geometry unchanged, so an old owned cursor shape could otherwise
+remain structurally valid across GUI-session replacement.
+
+This increment makes the watch revision part of `MacCursorSnapshot` identity.
+The native private sampler pins active coverage before its first cursor read;
+`makeMacCursorSnapshot` requires that caller-pinned revision and revalidates it
+before publication. Existing snapshots fail `valid()` and expose an empty
+`pixels()` span after a later session event. A revision is revocation state
+only: the AppKit sampler stays translation-unit-private and no R2/R3 admission,
+R4 scheduler/protocol publication, TCC prompt, event tap or input capability is
+created.
+
+Dedicated portable CTest `macos.cursor-session-watch-revocation` keeps geometry
+and topology unchanged, constructs an owned shape, injects a switch-away/back,
+proves the old shape becomes unreadable and rejects reconstruction with the old
+revision. The road-local GCC ASan/UBSan job now builds the existing cursor test
+executable and selects this exact case in addition to guard/input coverage.
+Ordinary tests install only synthetic callbacks and never read AppKit cursor
+state.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment; no alternate persistent build root is created.
+Exact-publication-SHA hosted Debug/Release, R7 sanitizer, documentation-policy
+and SDK/package evidence are **PENDING**. The next authority-bearing R7 gate is
+unchanged and remains **BLOCKED** on genuine non-forgeable R2/R3 macOS desktop
+admission, followed by owner macOS 27 fast-user-switch/TCC/native testing and
+Microsoft-client M5 acceptance. **M5 remains OPEN / NOT ACCEPTED.**
+
 ## R5 XI2 stale-motion generation fence exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `366303f35156cdd00c125dfa976d72bc23016bb3`.  

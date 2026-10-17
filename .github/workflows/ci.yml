@@ -429,7 +429,8 @@ jobs:
       - name: Compile R7 session-watch test targets
         run: |
           cmake --build build --config Debug --parallel 2 --target \
-            test_macos_desktop_session_guard test_macos_input_controller
+            test_macos_desktop_session_guard test_macos_input_controller \
+            test_macos_capture_pixel_buffer
       - name: Run R7 macOS session-watch CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -439,6 +440,9 @@ jobs:
             -R '^macos\.desktop-session-' --output-on-failure
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R '^macos\.input-controller-session-watch-revocation$' \
+            --output-on-failure
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^macos\.cursor-session-watch-revocation$' \
             --output-on-failure
 
   documentation-policy:

@@ -1,3 +1,17 @@
+## R7 cursor session-watch fence authoring receipt (2026-10-16)
+
+**Parent:** `00b0aa8a3c58fd6866a3574f85e7d85c74ad9cd5`. Exact publication-SHA hosted validation: **PENDING**.
+
+The existing move-only cursor snapshot now carries the caller-pinned
+`NativeSessionChangeWatch` revision in addition to geometry/topology. The
+private AppKit sampler captures that revision before observing live cursor
+state; portable construction revalidates it after observation, and stale owned
+snapshots no longer return cursor bytes through `pixels()`. The dedicated
+`macos.cursor-session-watch-revocation` CTest uses only synthetic geometry,
+owned BGRA storage and an injected session-watch recorder. It is added to the
+existing road-local GCC ASan/UBSan selection; no live AppKit/TCC/native desktop
+operation is claimed.
+
 ## R5 XI2 stale-motion generation fence exact-SHA hosted validation (2026-10-16)
 
 **Implementation:** `366303f35156cdd00c125dfa976d72bc23016bb3`.  

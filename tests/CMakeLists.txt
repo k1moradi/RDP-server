@@ -1097,6 +1097,7 @@ else()
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_geometry.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_refresh.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/native_display_reconfiguration.cpp"
+        "${PROJECT_SOURCE_DIR}/src/platform/macos/native_session_change_watch.cpp"
         "${PROJECT_SOURCE_DIR}/src/platform/macos/mac_cursor_snapshot.cpp")
 endif()
 if(MSVC)
@@ -1163,7 +1164,7 @@ endforeach()
 # is compile/link checked but ordinary CTest cannot invoke live AppKit state.
 foreach(case_name IN ITEMS
         native-sampler-quarantine owned-shape validation-denials
-        topology-revocation)
+        topology-revocation session-watch-revocation)
     add_test(NAME "macos.cursor-${case_name}"
         COMMAND test_macos_capture_pixel_buffer "cursor-${case_name}")
     set_tests_properties("macos.cursor-${case_name}" PROPERTIES

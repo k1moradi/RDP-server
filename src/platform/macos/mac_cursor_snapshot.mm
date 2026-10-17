@@ -87,6 +87,10 @@ queryNativeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
     if (!geometry.topologyRevision(geometryGeneration)) {
         return std::unexpected(MacCursorSnapshotError::StaleTopology);
     }
+    const auto sessionWatchRevision = NativeSessionChangeWatch::coveredRevision();
+    if (!sessionWatchRevision || *sessionWatchRevision == 0) {
+        return std::unexpected(MacCursorSnapshotError::StaleSession);
+    }
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -94,7 +98,8 @@ queryNativeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
 #pragma clang diagnostic pop
     if (!visible) {
         return makeMacCursorSnapshot(
-            geometry, geometryGeneration, MacNativeCursorObservation{}, {}, 0);
+            geometry, geometryGeneration, *sessionWatchRevision,
+            MacNativeCursorObservation{}, {}, 0);
     }
 
     EventOwner event(CGEventCreate(nullptr));
@@ -213,7 +218,8 @@ queryNativeMacCursorSnapshot(const NativeDisplayGeometryRefresh& geometry,
         *hotspotY,
         bytesPerRow};
     return makeMacCursorSnapshot(
-        geometry, geometryGeneration, observation, std::move(pixels), byteCount);
+        geometry, geometryGeneration, *sessionWatchRevision, observation,
+        std::move(pixels), byteCount);
 }
 
 } // namespace

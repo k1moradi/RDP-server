@@ -5,6 +5,7 @@
 #include "platform/macos/native_display_snapshot.h"
 #include "platform/macos/native_display_refresh.h"
 #include "platform/macos/native_display_reconfiguration.h"
+#include "platform/macos/native_session_change_watch.h"
 #include "platform/macos/native_display_geometry.h"
 #include "platform/macos/mac_cursor_snapshot.h"
 #include "platform/macos/screen_capture_preflight.h"
@@ -36,6 +37,51 @@ concept ExposesNativeCursorSampler =
 static_assert(
     !ExposesNativeCursorSampler<rdp::macos::NativeDisplayGeometryRefresh>,
     "native AppKit cursor sampler must remain authorization-quarantined");
+
+
+struct CursorSessionWatchFixture final {
+    rdp::macos::NativeSessionChangeRecorder recorder{};
+    std::uint64_t registrationEpoch{};
+    std::size_t installCalls{};
+    std::size_t removeCalls{};
+
+    static bool install(
+        void* const context, const std::uint64_t registrationEpoch,
+        const rdp::macos::NativeSessionChangeRecorder recorder) noexcept {
+        auto& fixture = *static_cast<CursorSessionWatchFixture*>(context);
+        ++fixture.installCalls;
+        fixture.registrationEpoch = registrationEpoch;
+        fixture.recorder = recorder;
+        return recorder != nullptr && registrationEpoch != 0;
+    }
+
+    static bool remove(void* const context) noexcept {
+        auto& fixture = *static_cast<CursorSessionWatchFixture*>(context);
+        ++fixture.removeCalls;
+        fixture.registrationEpoch = 0;
+        fixture.recorder = nullptr;
+        return true;
+    }
+
+    [[nodiscard]] rdp::macos::NativeSessionChangeWatchCallbacks
+    callbacks() noexcept {
+        return {this, &install, &remove};
+    }
+
+    void recordChange() const noexcept {
+        assert(recorder != nullptr && registrationEpoch != 0);
+        recorder(registrationEpoch);
+    }
+};
+
+CursorSessionWatchFixture* gCursorSessionWatchFixture{};
+
+[[nodiscard]] std::uint64_t currentCursorSessionRevision() noexcept {
+    const auto revision =
+        rdp::macos::NativeSessionChangeWatch::coveredRevision();
+    assert(revision && *revision != 0);
+    return *revision;
+}
 
 // A geometry epoch is singular within its native caller context.
 static_assert(!std::is_copy_constructible_v<rdp::macos::NativeDisplayGeometryRefresh>);
@@ -1050,7 +1096,8 @@ void testMacCursorOwnedShape() {
     MacNativeCursorObservation observation{
         true, {0.5, 0.5}, 2, 2, 1, 1, 8};
     auto snapshot = makeMacCursorSnapshot(
-        geometry, *generation, observation, std::move(storage), 16);
+        geometry, *generation, currentCursorSessionRevision(), observation,
+        std::move(storage), 16);
     assert(snapshot && snapshot->valid());
     assert(storage == nullptr);
     assert(snapshot->visible);
@@ -1065,6 +1112,7 @@ void testMacCursorOwnedShape() {
     assert(snapshot->pixels().data() == ownedAddress);
     assert(snapshot->geometryGeneration == *generation);
     assert(snapshot->topologyRevision != 0);
+    assert(snapshot->sessionWatchRevision == currentCursorSessionRevision());
 
     auto moved = std::move(*snapshot);
     assert(moved.valid() && moved.pixels().data() == ownedAddress);
@@ -1079,28 +1127,36 @@ void testMacCursorValidationDenials() {
     assert(generation);
 
     auto hidden = makeMacCursorSnapshot(
-        geometry, *generation, MacNativeCursorObservation{}, {}, 0);
+        geometry, *generation, currentCursorSessionRevision(),
+        MacNativeCursorObservation{}, {}, 0);
     assert(hidden && hidden->valid() && !hidden->visible);
     assert(hidden->pixels().empty());
+
+    const auto missingSession = makeMacCursorSnapshot(
+        geometry, *generation, 0, MacNativeCursorObservation{}, {}, 0);
+    assert(!missingSession &&
+           missingSession.error() == MacCursorSnapshotError::StaleSession);
 
     MacNativeCursorObservation hiddenWithShape{};
     hiddenWithShape.widthPixels = 1;
     const auto invalidHidden = makeMacCursorSnapshot(
-        geometry, *generation, hiddenWithShape, {}, 0);
+        geometry, *generation, currentCursorSessionRevision(),
+        hiddenWithShape, {}, 0);
     assert(!invalidHidden &&
            invalidHidden.error() == MacCursorSnapshotError::InvalidObservation);
 
     const MacNativeCursorObservation visible{
         true, {1.0, 1.0}, 2, 2, 1, 1, 8};
     const auto missingStorage = makeMacCursorSnapshot(
-        geometry, *generation, visible, {}, 16);
+        geometry, *generation, currentCursorSessionRevision(), visible, {},
+        16);
     assert(!missingStorage &&
            missingStorage.error() == MacCursorSnapshotError::InvalidObservation);
 
     auto oversized = visible;
     oversized.widthPixels = kMaximumMacCursorDimension + 1;
     const auto oversizedResult = makeMacCursorSnapshot(
-        geometry, *generation, oversized,
+        geometry, *generation, currentCursorSessionRevision(), oversized,
         std::make_unique_for_overwrite<std::byte[]>(16), 16);
     assert(!oversizedResult &&
            oversizedResult.error() == MacCursorSnapshotError::InvalidObservation);
@@ -1108,7 +1164,8 @@ void testMacCursorValidationDenials() {
     auto invalidHotspot = visible;
     invalidHotspot.hotspotX = invalidHotspot.widthPixels;
     const auto hotspotResult = makeMacCursorSnapshot(
-        geometry, *generation, invalidHotspot,
+        geometry, *generation, currentCursorSessionRevision(),
+        invalidHotspot,
         std::make_unique_for_overwrite<std::byte[]>(16), 16);
     assert(!hotspotResult &&
            hotspotResult.error() == MacCursorSnapshotError::InvalidObservation);
@@ -1116,13 +1173,13 @@ void testMacCursorValidationDenials() {
     auto invalidStride = visible;
     invalidStride.bytesPerRow = 9;
     const auto strideResult = makeMacCursorSnapshot(
-        geometry, *generation, invalidStride,
+        geometry, *generation, currentCursorSessionRevision(), invalidStride,
         std::make_unique_for_overwrite<std::byte[]>(16), 16);
     assert(!strideResult &&
            strideResult.error() == MacCursorSnapshotError::InvalidObservation);
 
     const auto shortBuffer = makeMacCursorSnapshot(
-        geometry, *generation, visible,
+        geometry, *generation, currentCursorSessionRevision(), visible,
         std::make_unique_for_overwrite<std::byte[]>(15), 15);
     assert(!shortBuffer &&
            shortBuffer.error() == MacCursorSnapshotError::InvalidObservation);
@@ -1130,17 +1187,19 @@ void testMacCursorValidationDenials() {
     auto outside = visible;
     outside.position = {1512.0, 0.0};
     const auto outsideResult = makeMacCursorSnapshot(
-        geometry, *generation, outside,
+        geometry, *generation, currentCursorSessionRevision(), outside,
         std::make_unique_for_overwrite<std::byte[]>(16), 16);
     assert(!outsideResult &&
            outsideResult.error() == MacCursorSnapshotError::PositionOutsideDesktop);
 
     const auto zeroGeneration = makeMacCursorSnapshot(
-        geometry, 0, MacNativeCursorObservation{}, {}, 0);
+        geometry, 0, currentCursorSessionRevision(),
+        MacNativeCursorObservation{}, {}, 0);
     assert(!zeroGeneration &&
            zeroGeneration.error() == MacCursorSnapshotError::InvalidGeneration);
     const auto staleGeneration = makeMacCursorSnapshot(
-        geometry, *generation + 1, MacNativeCursorObservation{}, {}, 0);
+        geometry, *generation + 1, currentCursorSessionRevision(),
+        MacNativeCursorObservation{}, {}, 0);
     assert(!staleGeneration &&
            staleGeneration.error() ==
                MacCursorSnapshotError::StaleGeometryGeneration);
@@ -1158,7 +1217,8 @@ void testMacCursorTopologyRevocation() {
 
     NativeDisplayReconfigurationWatch::recordTopologyChange();
     const auto staleTopology = makeMacCursorSnapshot(
-        geometry, *oldGeneration, MacNativeCursorObservation{}, {}, 0);
+        geometry, *oldGeneration, currentCursorSessionRevision(),
+        MacNativeCursorObservation{}, {}, 0);
     assert(!staleTopology &&
            staleTopology.error() == MacCursorSnapshotError::StaleTopology);
 
@@ -1167,14 +1227,65 @@ void testMacCursorTopologyRevocation() {
         geometry.refresh(&readSyntheticNativeDisplays, &fixture);
     assert(newGeneration && *newGeneration > *oldGeneration);
     const auto staleGeneration = makeMacCursorSnapshot(
-        geometry, *oldGeneration, MacNativeCursorObservation{}, {}, 0);
+        geometry, *oldGeneration, currentCursorSessionRevision(),
+        MacNativeCursorObservation{}, {}, 0);
     assert(!staleGeneration &&
            staleGeneration.error() ==
                MacCursorSnapshotError::StaleGeometryGeneration);
     const auto freshHidden = makeMacCursorSnapshot(
-        geometry, *newGeneration, MacNativeCursorObservation{}, {}, 0);
+        geometry, *newGeneration, currentCursorSessionRevision(),
+        MacNativeCursorObservation{}, {}, 0);
     assert(freshHidden && freshHidden->valid() && !freshHidden->visible);
     assert(freshHidden->topologyRevision != *oldRevision);
+}
+
+
+void testMacCursorSessionWatchRevocation() {
+    using namespace rdp::macos;
+    assert(gCursorSessionWatchFixture != nullptr);
+
+    NativeDisplayGeometryRefresh geometry;
+    auto fixture = nativeDisplayFixture();
+    const auto generation =
+        geometry.refresh(&readSyntheticNativeDisplays, &fixture);
+    assert(generation && geometry.usable(*generation));
+    const auto topologyRevision = geometry.topologyRevision(*generation);
+    assert(topologyRevision && *topologyRevision != 0);
+
+    const auto pinnedSessionRevision = currentCursorSessionRevision();
+    auto storage = std::make_unique_for_overwrite<std::byte[]>(16);
+    MacNativeCursorObservation observation{
+        true, {0.5, 0.5}, 2, 2, 1, 1, 8};
+    auto snapshot = makeMacCursorSnapshot(
+        geometry, *generation, pinnedSessionRevision, observation,
+        std::move(storage), 16);
+    assert(snapshot && snapshot->valid());
+    assert(snapshot->pixels().size() == 16);
+
+    // A switch-away/back may leave display geometry and topology identical.
+    // The old cursor lifetime must still become terminal and unreadable.
+    gCursorSessionWatchFixture->recordChange();
+    gCursorSessionWatchFixture->recordChange();
+    assert(geometry.generation() == *generation);
+    assert(geometry.topologyRevision(*generation) == topologyRevision);
+    assert(!snapshot->valid());
+    assert(snapshot->pixels().empty());
+
+    const auto stale = makeMacCursorSnapshot(
+        geometry, *generation, pinnedSessionRevision,
+        MacNativeCursorObservation{}, {}, 0);
+    assert(!stale && stale.error() == MacCursorSnapshotError::StaleSession);
+
+    // A fresh revision is only a revocation fact, not authorization. Synthetic
+    // construction may use it after the test has explicitly supplied new
+    // observation data; runtime sampling remains private and R2/R3-gated.
+    const auto replacementSessionRevision = currentCursorSessionRevision();
+    assert(replacementSessionRevision != pinnedSessionRevision);
+    auto replacement = makeMacCursorSnapshot(
+        geometry, *generation, replacementSessionRevision,
+        MacNativeCursorObservation{}, {}, 0);
+    assert(replacement && replacement->valid() && !replacement->visible);
+    assert(replacement->sessionWatchRevision == replacementSessionRevision);
 }
 
 } // namespace
@@ -1184,6 +1295,15 @@ int main(const int argument_count, const char* const arguments[]) {
         return 2;
     }
     const std::string_view test_case = arguments[1];
+    const bool cursorSessionCase = test_case.starts_with("cursor-");
+    CursorSessionWatchFixture cursorSessionWatchFixture;
+    rdp::macos::NativeSessionChangeWatch cursorSessionWatch;
+    if (cursorSessionCase) {
+        gCursorSessionWatchFixture = &cursorSessionWatchFixture;
+        assert(cursorSessionWatch.startWithCallbacks(
+            cursorSessionWatchFixture.callbacks()));
+    }
+
     if (test_case == "layout") {
         testLayoutBounds();
     } else if (test_case == "framebuffer-view-contract") {
@@ -1224,6 +1344,8 @@ int main(const int argument_count, const char* const arguments[]) {
         testMacCursorValidationDenials();
     } else if (test_case == "cursor-topology-revocation") {
         testMacCursorTopologyRevocation();
+    } else if (test_case == "cursor-session-watch-revocation") {
+        testMacCursorSessionWatchRevocation();
     } else if (test_case == "geometry-native-single-retina") {
         testNativeGeometrySingleRetina();
     } else if (test_case == "geometry-native-uniform-multi-display") {
@@ -1246,6 +1368,12 @@ int main(const int argument_count, const char* const arguments[]) {
 #endif
     } else {
         return 2;
+    }
+    if (cursorSessionCase) {
+        assert(cursorSessionWatch.stop());
+        assert(cursorSessionWatchFixture.installCalls == 1);
+        assert(cursorSessionWatchFixture.removeCalls == 1);
+        gCursorSessionWatchFixture = nullptr;
     }
     return 0;
 }

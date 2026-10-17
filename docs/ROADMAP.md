@@ -1,3 +1,21 @@
+## R5 XI2 optional-build guard correction (2026-10-16; exact-SHA CI pending)
+
+**Correction parent:** `366303f35156cdd00c125dfa976d72bc23016bb3`.
+
+Immediate diff review found the new aggregate stale-motion function was placed
+just after the existing `RDP_TEST_XINPUT_POINTER` block even though its
+dispatcher and CTest registration were correctly conditional on the optional
+XInput2 target. Hosted Linux installs XInput2 and would not expose that omission,
+but a supported Linux build with the desktop aggregate and no `xcb-xinput`
+development package could compile the test executable without
+`RDP_TEST_XINPUT_POINTER` and still see pointer-only helper references.
+
+The correction only wraps
+`syntheticXvfbPointerRandrStaleMotionIsolation()` in the same compile-time
+feature guard as the existing pointer event/RandR behaviors. Production XI2
+generation-fence semantics, CTest registration, sanitizer selection and test
+assertions are unchanged. Exact correction-SHA hosted validation is **PENDING**.
+
 ## R5 XI2 stale-motion generation isolation (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `deabb822e2f795a2b2cde37979246beb7e876334`.

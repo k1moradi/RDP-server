@@ -1118,6 +1118,7 @@ syntheticXvfbPointerRandrRebuild()
 }
 #endif
 
+#if defined(RDP_TEST_XINPUT_POINTER)
 void
 syntheticXvfbPointerRandrStaleMotionIsolation()
 {
@@ -1230,6 +1231,7 @@ syntheticXvfbPointerRandrStaleMotionIsolation()
     assert(resources.valid());
     resources.disconnect();
 }
+#endif
 
 void
 syntheticXvfbRandrRebuild()

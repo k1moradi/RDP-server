@@ -1,3 +1,40 @@
+## R7 cursor GUI-session revocation exact-SHA validation (2026-10-16)
+
+**Implementation:** `1d4f154bd548b11dcf95ac671ecdd3e4d5a5d288`.  
+**Implementation Actions:** `39004615992`.  
+**Validated clean descendant:** `cd3b5173149f4c93fad5c04afdab3bce3b901937`.  
+**Validation Actions:** `39004697959` — **SUCCESS**.
+
+The implementation SHA's dedicated R7 GCC ASan/UBSan job passed all 10
+`macos.desktop-session-*` cases, the exact input session-watch case **1/1**,
+and the new `macos.cursor-session-watch-revocation` case **1/1**. Its
+macOS Debug run also passed all five cursor cases, including the new case, but
+the overall implementation workflow was not accepted because an immediately
+preceding R1 test failed `transport.tcp-native-accept-batch-budget-handoff` on
+macOS and hit a Win32 `min` macro compile error on Windows. Those failures were
+outside R7; R1 corrected the test-only portability issue in the next descendant.
+
+At clean descendant `cd3b5173...`, whose only intervening change is R1 test
+code/docs, the unchanged R7 implementation passes the complete hosted matrix:
+macOS/AppleClang **447/447 Debug** and **447/447 Release**; Linux/GCC
+**528/528 Debug** and **528/528 Release**; Windows/MSVC native preflight
+**51/51 Debug + Release** and full **477/477 Debug + Release**. The cursor
+session-watch case passes in every applicable full suite (#375 macOS, #432
+Linux, #421 Windows). The dedicated R7 GCC ASan/UBSan job again passes
+**10/10 + 1/1 input + 1/1 cursor**. The broader R9 Clang ASan/UBSan job,
+documentation policy, installed SDK consumer, package, digest and artifact
+stages all pass. Untagged prerelease publication is skipped as intended.
+
+This validates only synthetic production-backed revocation semantics and Apple
+compile/link of the quarantined native sampler. Canonical owner-local
+`~/rdp-server/build/`, owner Linux/X11, Windows MSYS2 CLANG64/Clang 23 and
+macOS 27 remain **NOT RUN** here. Genuine macOS 27 fast-user-switch delivery,
+TCC/native cursor/capture/input and Microsoft-client M5 remain **NOT RUN**.
+The next authority-bearing R7 gate remains **BLOCKED** on a genuine
+non-forgeable R2/R3 macOS desktop admission capability; no watch revision,
+geometry fact or synthetic test callback is admission. **M5 remains OPEN / NOT
+ACCEPTED.**
+
 ## R8 bounded multi-file X11 handoff exact-SHA validation (2026-10-16)
 
 **Implementation/fix:** `013b834eaab7b863d1257d8e4730677260746581` +

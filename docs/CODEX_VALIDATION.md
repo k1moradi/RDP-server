@@ -1,3 +1,23 @@
+## R7 cursor session-watch exact-SHA receipt (2026-10-16)
+
+**Implementation:** `1d4f154bd548b11dcf95ac671ecdd3e4d5a5d288` / Actions `39004615992`.  
+**Clean descendant:** `cd3b5173149f4c93fad5c04afdab3bce3b901937` / Actions `39004697959` — **SUCCESS**.
+
+R7 cursor session fencing is hosted-validated. The implementation's dedicated
+GCC ASan/UBSan job passes the new cursor revocation case **1/1** alongside the
+existing desktop-session **10/10** and input-session **1/1** selections. The
+implementation workflow's non-R7 macOS R1 assertion and Windows R1 test compile
+error are not counted as R7 success; the next R1-only correction descendant is
+the acceptance evidence. There, unchanged R7 code passes macOS **447/447**
+Debug + Release, Linux **528/528** Debug + Release, Windows **477/477** Debug +
+Release with **51/51** native preflight in both configurations, the full R9
+Clang sanitizer job, documentation policy and all SDK/package/digest stages.
+
+The AppKit sampler remains translation-unit-private and was not invoked by
+ordinary CTest. Owner macOS 27 native notification delivery/TCC/cursor sampling
+and Microsoft-client M5 are **NOT RUN**; positive desktop authority remains an
+R2/R3 prerequisite.
+
 ## R8 bounded multi-file X11 handoff exact-SHA validation (2026-10-16)
 
 **Implementation/fix:** `013b834eaab7b863d1257d8e4730677260746581` +

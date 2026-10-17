@@ -94,13 +94,25 @@ public:
     {
         return clientQueueDepthBytes_;
     }
+    // Raw latest FRAME_ACKNOWLEDGE.totalFramesDecoded. Zero is a valid
+    // observation, so availability is independent from the value.
+    [[nodiscard]] bool clientTotalFramesDecodedAvailable() const noexcept
+    {
+        return clientTotalFramesDecodedAvailable_;
+    }
+    [[nodiscard]] std::uint32_t clientTotalFramesDecoded() const noexcept
+    {
+        return clientTotalFramesDecoded_;
+    }
 
 private:
     std::array<std::uint32_t, kMaximumPendingFrames> pendingFrames_{};
     std::uint64_t channelGeneration_{};
     std::size_t pendingCount_{};
     std::uint32_t clientQueueDepthBytes_{};
+    std::uint32_t clientTotalFramesDecoded_{};
     bool expectingAcknowledgements_{};
+    bool clientTotalFramesDecodedAvailable_{};
 };
 
 } // namespace rdp_server::rdp

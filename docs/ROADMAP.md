@@ -975,3 +975,38 @@ parallel, implement CLIENT_LICENSE_INFO CAL trust/signature,
 product/version/expiration and HWID validation before any
 STATUS_VALID_CLIENT path. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R4 client decoded-frame observation (2026-10-16; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`.
+
+MS-RDPEGFX FRAME_ACKNOWLEDGE carries both the already-retained client
+`queueDepth` and `totalFramesDecoded`, a uint32 count of frames decoded
+since connection initiation. R4 previously parsed the latter and discarded it.
+The existing generation-bound `GfxFrameAckWindow` now retains the **raw latest
+valid** decoded-frame count and exposes it through the sole
+`GfxPresentationLifecycle`. A separate availability bit distinguishes a
+legitimate reported zero from "no valid ACK observed yet".
+
+Malformed and stale-generation PDUs cannot mutate the observation.
+Valid unmatched ACKs do update it because they remain valid client telemetry.
+ACK suspension preserves the count reported in the suspension PDU while ACK
+expectation becomes false; channel reset/disconnect clears value and
+availability. No monotonicity rule, wrap arithmetic, decoded-rate calculation,
+timer, throttle threshold, queue, second scheduler or DVC authority is added.
+
+New production-backed CTests are
+`graphics.frame-ack-decode-progress` and
+`graphics.frame-ack-decode-progress-observation`. The portable R4
+Clang ASan/UBSan selector is extended with fail-closed registry preflight for
+both cases.
+
+Canonical owner-local `~/rdp-server/build` execution is **NOT RUN** in this
+connector environment. Exact-SHA Linux/GCC, macOS/AppleClang and Windows/MSVC
+Debug/Release, portable R4 sanitizer, documentation policy and SDK/package
+evidence are required after publication. Genuine authenticated R3
+`Microsoft::Windows::RDS::Graphics` DVC admission/full-send, measured
+decode-lag throttle calibration, native capture performance and
+Microsoft-client visible graphics remain **BLOCKED/NOT RUN**. Gate B and
+M3/M4/M5 remain **OPEN**.

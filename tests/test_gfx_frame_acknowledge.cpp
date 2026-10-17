@@ -200,6 +200,48 @@ void testAckBoundedBackpressure()
     assert(window.outstandingFrames() == 0U);
 }
 
+void testAckDecodeProgress()
+{
+    using Result = GfxFrameAckWindowResult;
+    GfxFrameAckWindow window;
+    window.reset(300U);
+    assert(!window.clientTotalFramesDecodedAvailable());
+    assert(window.clientTotalFramesDecoded() == 0U);
+
+    assert(window.noteFrameSent(300U, 1U));
+    const auto malformed = makeAck(8U, 1U, 7U);
+    assert(window.onFrameAcknowledge(
+               300U, std::span<const std::byte>(malformed).first(19U)) ==
+           Result::InvalidPdu);
+    assert(!window.clientTotalFramesDecodedAvailable());
+    assert(window.onFrameAcknowledge(299U, makeAck(8U, 1U, 9U)) ==
+           Result::StaleGeneration);
+    assert(!window.clientTotalFramesDecodedAvailable());
+
+    // Unmatched ACKs are still valid client telemetry. Zero is a real count.
+    assert(window.onFrameAcknowledge(300U, makeAck(8U, 99U, 0U)) ==
+           Result::Unmatched);
+    assert(window.clientTotalFramesDecodedAvailable());
+    assert(window.clientTotalFramesDecoded() == 0U);
+
+    assert(window.onFrameAcknowledge(
+               300U, makeAck(4U, 1U, 0xFFFFFFFFU)) ==
+           Result::Acknowledged);
+    assert(window.clientTotalFramesDecoded() == 0xFFFFFFFFU);
+
+    // Keep the raw uint32 value; do not create wrap/ordering semantics.
+    assert(window.onFrameAcknowledge(
+               300U, makeAck(kGfxSuspendFrameAcknowledgement, 1U, 17U)) ==
+           Result::Suspended);
+    assert(window.clientTotalFramesDecodedAvailable());
+    assert(window.clientTotalFramesDecoded() == 17U);
+    assert(!window.expectingAcknowledgements());
+
+    window.reset(301U);
+    assert(!window.clientTotalFramesDecodedAvailable());
+    assert(window.clientTotalFramesDecoded() == 0U);
+}
+
 void testAckGenerationAndMalformed()
 {
     using Result = GfxFrameAckWindowResult;
@@ -266,6 +308,10 @@ int main(int argc, char **argv)
     else if (behavior == "frame-ack-bounded-backpressure")
     {
         testAckBoundedBackpressure();
+    }
+    else if (behavior == "frame-ack-decode-progress")
+    {
+        testAckDecodeProgress();
     }
     else if (behavior == "frame-ack-stale-generation")
     {

@@ -150,6 +150,16 @@ public:
     {
         return acknowledgements_.clientQueueDepthBytes();
     }
+    // Raw latest client decode counter from FRAME_ACKNOWLEDGE. This is
+    // generation-scoped telemetry, not a second frame counter or scheduler.
+    [[nodiscard]] bool clientTotalFramesDecodedAvailable() const noexcept
+    {
+        return acknowledgements_.clientTotalFramesDecodedAvailable();
+    }
+    [[nodiscard]] std::uint32_t clientTotalFramesDecoded() const noexcept
+    {
+        return acknowledgements_.clientTotalFramesDecoded();
+    }
     [[nodiscard]] std::uint16_t surfaceId() const noexcept { return surfaceId_; }
 
 private:

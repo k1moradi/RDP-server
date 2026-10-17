@@ -18228,3 +18228,23 @@ parallel, implement CLIENT_LICENSE_INFO CAL trust/signature,
 product/version/expiration and HWID validation before any
 STATUS_VALID_CLIENT path. **M2/M3 remain OPEN / NOT ACCEPTED.**
 
+
+
+## R4 decoded-frame ACK observation authoring receipt (2026-10-16; CI pending)
+
+**Authoring base:** `bdcb68520c5339aa9866f2e7d5949cf6b5c9c056`.
+
+The existing FRAME_ACKNOWLEDGE parser already decoded
+`totalFramesDecoded`, but R4 discarded that normative client progress field.
+The single generation-bound ACK owner now retains the raw latest valid value
+plus explicit availability, and the existing presentation owner exposes both.
+No monotonic/wrap interpretation, rate calculation or throttling policy is
+introduced.
+
+New central CTests `graphics.frame-ack-decode-progress` and
+`graphics.frame-ack-decode-progress-observation` cover zero,
+`UINT32_MAX`, unmatched, suspension, malformed/stale generation and reset
+semantics. Both are included in the portable R4 ASan/UBSan selector.
+Canonical owner-local execution is **NOT RUN** because this environment does
+not expose `~/rdp-server`; exact publication-SHA hosted CI is the first
+executable gate.

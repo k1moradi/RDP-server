@@ -52,7 +52,9 @@ void GfxFrameAckWindow::reset(std::uint64_t channelGeneration) noexcept
     channelGeneration_ = channelGeneration;
     pendingCount_ = 0;
     clientQueueDepthBytes_ = 0;
+    clientTotalFramesDecoded_ = 0;
     expectingAcknowledgements_ = channelGeneration != 0;
+    clientTotalFramesDecodedAvailable_ = false;
 }
 
 bool GfxFrameAckWindow::canRecordFrame(
@@ -93,6 +95,10 @@ GfxFrameAckWindowResult GfxFrameAckWindow::onFrameAcknowledge(
     {
         return GfxFrameAckWindowResult::InvalidPdu;
     }
+    // Retain the protocol's raw uint32 decode-progress observation. Do not
+    // invent monotonicity or wrap semantics; generation reset owns lifetime.
+    clientTotalFramesDecoded_ = ack.totalFramesDecoded;
+    clientTotalFramesDecodedAvailable_ = true;
     if (ack.acknowledgementsSuspended())
     {
         pendingCount_ = 0;

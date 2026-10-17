@@ -343,6 +343,7 @@ function(add_rdp_test source_file suite behavior)
                 surface-resize-revocation
                 frame-publication-backpressure
                 frame-ack-backpressure-observation
+                frame-ack-decode-progress-observation
                 frame-delivery-receipt-ordering
                 frame-delivery-abort-revocation
                 avc420-mapped-frame-wire
@@ -355,13 +356,14 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;graphics")
         endforeach()
     elseif(test_target STREQUAL "test_gfx_frame_acknowledge")
-        # One production-backed graphics executable, six behavior CTests.
+        # One production-backed graphics executable, seven behavior CTests.
         foreach(case_name IN ITEMS
                 frame-ack-wire
                 frame-ack-suspension
                 frame-ack-rejections
                 frame-ack-correlation
                 frame-ack-bounded-backpressure
+                frame-ack-decode-progress
                 frame-ack-stale-generation)
             add_test(NAME "graphics.${case_name}"
                 COMMAND "${test_target}" "${case_name}")

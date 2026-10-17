@@ -1,3 +1,22 @@
+## R5 deterministic native-X11 event-readiness authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `bcf8736ce12b061ba62538f2404669b8b4fa1157`. Exact publication-SHA CI is
+**PENDING**.
+
+Seven Xvfb/native fixture sleeps were removed from the R5 desktop/display test
+paths. Checked helper requests are now followed by a production-connection XCB
+round trip and queued-only event draining, matching the existing R5 testing
+standard. Existing behavior registrations remain unchanged, including
+`x11.display-event-failure-defers-owner-teardown`,
+`x11.desktop-resource-event-routing`,
+`x11.desktop-resource-r4-read-boundary`,
+`x11.desktop-resource-randr-rebuild`,
+`x11.desktop-resource-pointer-event-routing` and
+`x11.desktop-resource-pointer-randr-rebuild`.
+
+No production X11 or authority behavior changes. Owner Linux/X11 and genuine
+Microsoft-client M3 acceptance remain **NOT RUN**.
+
 ## R6 P2 Windows CLANG64 sanitizer authoring receipt (2026-10-17)
 
 **Authoring parent:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.  

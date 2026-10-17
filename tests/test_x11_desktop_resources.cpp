@@ -3,7 +3,6 @@
 #include "x11/x11_desktop_resources.h"
 
 #include <cassert>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -11,7 +10,6 @@
 #include <memory>
 #include <span>
 #include <string_view>
-#include <thread>
 #include <vector>
 
 #include <xcb/randr.h>
@@ -493,11 +491,15 @@ waitForPointerPosition(X11DesktopResources &resources,
                        X11PointerPosition expected,
                        X11EventSink *additionalEventSink = nullptr) noexcept
 {
-    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
+
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
     {
         bool workMayRemain = false;
         assert(resources.processEvents(
-                   16, &workMayRemain, true, additionalEventSink) ==
+                   16, &workMayRemain, false, additionalEventSink) ==
                ConnectionStatus::Ok);
         X11PointerPosition observed{};
         if (resources.pendingPointerPosition(observed) &&
@@ -505,7 +507,10 @@ waitForPointerPosition(X11DesktopResources &resources,
         {
             return true;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!workMayRemain)
+        {
+            break;
+        }
     }
     return false;
 }
@@ -596,19 +601,25 @@ syntheticXvfbEventRouting()
         resources.damageNotificationCount();
 
     clearSyntheticRoot(*helper, helperScreen->root);
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
 
     bool routedDamage = false;
-    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
     {
         bool workMayRemain = false;
-        assert(resources.processEvents(8, &workMayRemain, true) ==
+        assert(resources.processEvents(8, &workMayRemain, false) ==
                ConnectionStatus::Ok);
         if (resources.damageNotificationCount() > notificationCountBefore)
         {
             routedDamage = true;
             break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!workMayRemain)
+        {
+            break;
+        }
     }
 
     assert(routedDamage);
@@ -638,19 +649,25 @@ syntheticXvfbR4ReadBoundary()
     XcbConnection helper = connectHelper(display, helperScreenNumber);
     xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
     clearSyntheticRoot(*helper, helperScreen->root);
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
 
     bool routedDamage = false;
-    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
     {
         bool workMayRemain = false;
-        assert(resources.processEvents(8, &workMayRemain, true) ==
+        assert(resources.processEvents(8, &workMayRemain, false) ==
                ConnectionStatus::Ok);
         if (resources.damagePending())
         {
             routedDamage = true;
             break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!workMayRemain)
+        {
+            break;
+        }
     }
     assert(routedDamage);
 
@@ -1080,12 +1097,15 @@ syntheticXvfbPointerRandrRebuild()
     constexpr PixelSize resizedGeometry{1024, 600};
     disableRandrCrtcsAndResize(
         *helper, helperScreen->root, resizedGeometry);
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
 
     bool rebuilt = false;
-    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
     {
         bool workMayRemain = false;
-        assert(resources.processEvents(16, &workMayRemain, true) ==
+        assert(resources.processEvents(16, &workMayRemain, false) ==
                ConnectionStatus::Ok);
         if (resources.sourceGeometry() == resizedGeometry)
         {
@@ -1093,7 +1113,10 @@ syntheticXvfbPointerRandrRebuild()
             assert(workMayRemain);
             break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!workMayRemain)
+        {
+            break;
+        }
     }
 
     assert(rebuilt);
@@ -1250,12 +1273,15 @@ syntheticXvfbRandrRebuild()
     constexpr PixelSize resizedGeometry{1024, 600};
     disableRandrCrtcsAndResize(
         *helper, helperScreen->root, resizedGeometry);
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
 
     bool rebuilt = false;
-    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
     {
         bool workMayRemain = false;
-        assert(resources.processEvents(8, &workMayRemain, true) ==
+        assert(resources.processEvents(8, &workMayRemain, false) ==
                ConnectionStatus::Ok);
         if (resources.sourceGeometry() == resizedGeometry)
         {
@@ -1263,7 +1289,10 @@ syntheticXvfbRandrRebuild()
             assert(workMayRemain);
             break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!workMayRemain)
+        {
+            break;
+        }
     }
 
     assert(rebuilt);
@@ -1273,19 +1302,23 @@ syntheticXvfbRandrRebuild()
     const std::uint64_t notificationsAfterResize =
         resources.damageNotificationCount();
     clearSyntheticRoot(*helper, helperScreen->root);
+    synchronizeXcbConnection(*connection);
 
     bool routedPostResizeDamage = false;
-    for (std::size_t attempt = 0; attempt < 250; ++attempt)
+    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
     {
         bool workMayRemain = false;
-        assert(resources.processEvents(8, &workMayRemain, true) ==
+        assert(resources.processEvents(8, &workMayRemain, false) ==
                ConnectionStatus::Ok);
         if (resources.damageNotificationCount() > notificationsAfterResize)
         {
             routedPostResizeDamage = true;
             break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!workMayRemain)
+        {
+            break;
+        }
     }
 
     assert(routedPostResizeDamage);

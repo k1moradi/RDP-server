@@ -7,12 +7,10 @@
 
 #include <array>
 #include <cassert>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <string_view>
-#include <thread>
 
 namespace
 {
@@ -69,6 +67,20 @@ void observe(const xcb_generic_event_t &event, void *context) noexcept
 
 #if defined(RDP_TEST_NATIVE_X11_CONNECTION)
 void
+synchronizeXcbConnection(xcb_connection_t &connection) noexcept
+{
+    xcb_generic_error_t *error = nullptr;
+    const auto cookie = xcb_get_input_focus(&connection);
+    xcb_get_input_focus_reply_t *reply =
+        xcb_get_input_focus_reply(&connection, cookie, &error);
+    assert(error == nullptr);
+    std::free(error);
+    assert(reply != nullptr);
+    std::free(reply);
+    assert(xcb_connection_has_error(&connection) == 0);
+}
+
+void
 failureDefersOwnerTeardown()
 {
     const char *displayName = std::getenv("DISPLAY");
@@ -84,21 +96,11 @@ failureDefersOwnerTeardown()
     // to fail without a live desktop mutation or connection transport fault.
     xcb_destroy_window(borrowedConnection, XCB_WINDOW_NONE);
     assert(xcb_flush(borrowedConnection) > 0);
+    synchronizeXcbConnection(*borrowedConnection);
 
     Sink sink;
-    bool failed = false;
-    for (std::size_t attempt = 0; attempt < 250; ++attempt)
-    {
-        if (display.processEvents(sink, 8, nullptr, true) ==
-            ConnectionStatus::Failed)
-        {
-            failed = true;
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    assert(failed);
+    assert(display.processEvents(sink, 8, nullptr, false) ==
+           ConnectionStatus::Failed);
     assert(!display.valid());
     assert(display.nativeConnection() == nullptr);
     assert(display.fileDescriptor() == -1);

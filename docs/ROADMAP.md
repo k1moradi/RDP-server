@@ -1,3 +1,31 @@
+## R5 P1 deterministic native-X11 event-readiness fixtures (2026-10-17; exact-SHA CI pending)
+
+**Starting reconciled shared `main`:** `bcf8736ce12b061ba62538f2404669b8b4fa1157`.
+
+The current R5 testing standard requires checked XCB ordering and forbids using
+arbitrary sleeps as the oracle for native Damage, RandR and XI2 readiness. An
+audit found six 1 ms retry sleeps in
+`test_x11_desktop_resources.cpp` and one in the native display-error fixture.
+All helper mutations were already checked XCB requests, so scheduler delay was
+unnecessary and could make loaded-host evidence timing-dependent.
+
+The fixtures now complete the helper request, perform a bounded synchronous
+round trip on the production XCB connection to move already-generated events
+into XCB's local queue, then drain only that queued work with
+`socketReadable=false`. Event/Damage, R4 read-boundary, XI2 pointer motion,
+RandR rebuild and post-rebuild Damage retain their existing production-backed
+assertions. The display-error teardown fixture uses the same ordering before
+requiring the queued protocol error to fail closed. Retry loops are reduced to
+the bounded queued-event budget and terminate when no work remains.
+
+This is test-harness portability hardening only. No X11 production source,
+event-loop semantics, capture/input ownership, authorization, CTest name or
+R9 selector changes. Canonical owner-local `~/rdp-server/build/` is **NOT
+RUN** in this connector environment. Exact publication-SHA Linux/GCC and R9
+native-X11 execution are **PENDING**. Owner Linux/X11 M1 and Microsoft-client
+M3 remain **NOT RUN / OPEN**; functional input remains blocked on R3's
+authenticated decoded event handoff.
+
 ## R6 P2 Windows CLANG64 native lifetime sanitizer gate (2026-10-17; exact-SHA CI pending)
 
 **Authoring parent:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.

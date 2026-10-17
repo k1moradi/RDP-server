@@ -1,3 +1,20 @@
+## R9 CredSSP fuzzer preflight workflow repair receipt (2026-10-16)
+
+`7751e079a56e15034845ab61e4ad5e527204efc6` / Actions
+`39009145045` failed at workflow parsing with zero jobs. Inspection of the
+committed YAML showed the selector truncated after
+`fuzz_selection='^fuzz\.credssp-bounded` and a duplicated workflow suffix,
+so no result from that SHA is accepted.
+
+The correction rebuilds the workflow from
+`2ad37e35e9c1109e2e5509a19025a6a7551030f2` and uses index slicing rather
+than replacement-string substitution for the new shell block. Before
+publication it validates one occurrence each of the R9 sanitizer job, R7
+sanitizer job, documentation-policy job, prerelease job, both fuzzer steps and
+the exact CredSSP registration grep. The R9 fuzzer source hardening from the
+superseded commit remains present on the current tree. Exact-SHA execution is
+required before this correction is called green.
+
 ## R6 whole-owner Windows session revocation (2026-10-17; hosted validation pending)
 
 **Authoring base:** `339f760d3c718eaf7a4192cbf17347f70552deec`.

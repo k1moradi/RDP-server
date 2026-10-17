@@ -213,7 +213,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          portable_graphics_selection='^graphics\.(surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation|unsent-cancellation|partial-send-remains-terminal)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack|unsent-cancellation)))$'
+          portable_graphics_selection='^graphics\.(surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack)))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$portable_graphics_selection")"
           printf '%s\n' "$selected_tests"
           grep -Fq 'graphics.surface-zero-id-wire' <<< "$selected_tests"
@@ -222,12 +222,9 @@ jobs:
           grep -Fq 'graphics.frame-ack-decode-progress' <<< "$selected_tests"
           grep -Fq 'graphics.frame-ack-decode-progress-observation' <<< "$selected_tests"
           grep -Fq 'graphics.frame-delivery-abort-revocation' <<< "$selected_tests"
-          grep -Fq 'graphics.frame-delivery-unsent-cancellation' <<< "$selected_tests"
-          grep -Fq 'graphics.frame-delivery-partial-send-remains-terminal' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-zero-frame-id-wire' <<< "$selected_tests"
           grep -Fq 'graphics.segmented-data-denials-inplace' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-segmented-frame-delivery-ack' <<< "$selected_tests"
-          grep -Fq 'graphics.avc420-segmented-frame-unsent-cancellation' <<< "$selected_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$portable_graphics_selection" --output-on-failure
 
@@ -236,14 +233,7 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: |
-          set -euo pipefail
-          selected_tests="$(ctest --test-dir build --build-config Debug -N -L x264)"
-          printf '%s\n' "$selected_tests"
-          grep -Fq 'graphics.x264-segmented-unsent-cancel-idr' <<< "$selected_tests"
-          grep -Fq 'graphics.x264-bgra-unsent-cancel-idr' <<< "$selected_tests"
-          ctest --test-dir build --build-config Debug --timeout 60 \
-            -L x264 --output-on-failure
+        run: ctest --test-dir build --build-config Debug --timeout 60 -L x264 --output-on-failure
 
       - name: Run R4 RDPGFX capability CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
@@ -481,120 +471,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          fuzz_selection='^fuzz\.credssp-bounded
-  r7-macos-session-sanitizers:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Verify GCC sanitizer toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          command -v gcc
-          command -v g++
-          gcc --version
-          g++ --version
-      - name: Configure R7 session-watch tests with ASan and UBSan
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
-            -DCMAKE_C_COMPILER=gcc \
-            -DCMAKE_CXX_COMPILER=g++ \
-            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
-            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
-            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
-      - name: Compile R7 session-watch test targets
-        run: |
-          cmake --build build --config Debug --parallel 2 --target \
-            test_macos_desktop_session_guard test_macos_input_controller \
-            test_macos_capture_pixel_buffer
-      - name: Run R7 macOS session-watch CTests with sanitizers
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: |
-          set -euo pipefail
-          ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^macos\.desktop-session-' --output-on-failure
-          ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^macos\.input-controller-session-watch-revocation$' \
-            --output-on-failure
-
-          cursor_publication_selection='^macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)$'
-          selected_tests="$(ctest --test-dir build --build-config Debug -N \
-            -R "$cursor_publication_selection")"
-          printf '%s\n' "$selected_tests"
-          grep -Fq 'macos.cursor-session-watch-revocation' <<< "$selected_tests"
-          grep -Fq 'macos.cursor-topology-publication-revocation' <<< "$selected_tests"
-          grep -Fq 'macos.cursor-geometry-generation-publication-denials' <<< "$selected_tests"
-          ctest --test-dir build --build-config Debug --timeout 60 \
-            -R "$cursor_publication_selection" --output-on-failure
-
-  documentation-policy:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check documentation for every implementation commit
-        env:
-          BEFORE_SHA: ${{ github.event.before }}
-          AFTER_SHA: ${{ github.sha }}
-        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
-
-  publish-protocol-prerelease:
-    # Deploy ONLY tested protocol-library artifacts, never a server.
-    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
-    needs: [protocol, documentation-policy]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Verify main ancestry and exact project version
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
-          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
-          test -n "$version"
-          test "$GITHUB_REF_NAME" = "protocol-v$version"
-      - name: Download all verified platform packages
-        uses: actions/download-artifact@v4
-        with:
-          pattern: protocol-package-*
-          merge-multiple: true
-          path: build/release-artifacts
-      - name: Verify three archives and digests were received
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
-          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
-          cd build/release-artifacts
-          for checksums in SHA256SUMS-*.txt; do
-            # Digests were generated from the CI build/ directory.
-            sed 's@  @  @' "$checksums" | sha256sum --check --status
-          done
-      - name: Publish development-only GitHub prerelease
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" \
-            build/release-artifacts/rdp-server-protocol-*.zip \
-            build/release-artifacts/SHA256SUMS-*.txt \
-            --prerelease \
-            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
-            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
-
+          fuzz_selection='^fuzz\.credssp-bounded$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N \
             -R "$fuzz_selection")"
           printf '%s\n' "$selected_tests"

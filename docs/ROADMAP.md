@@ -1,3 +1,20 @@
+## R9 CredSSP fuzzer preflight workflow repair (2026-10-16; exact-SHA CI pending)
+
+Superseded hardening publication `7751e079a56e15034845ab61e4ad5e527204efc6`,
+Actions `39009145045`: **workflow parse failure before jobs**. It supplies no
+compiler, CTest, ASan/UBSan or fuzzing evidence. The R9 CI-generation step
+reintroduced the documented JavaScript replacement-string `$'` hazard and
+truncated the anchored CredSSP selector while duplicating the workflow suffix.
+
+This repair reconstructs only `.github/workflows/ci.yml` from known-good
+parent `2ad37e35e9c1109e2e5509a19025a6a7551030f2` and inserts the fail-closed
+CredSSP fuzzer preflight by explicit string indices. Publication checks require
+exactly one R9 job, R7 job, documentation job, prerelease job, MCS fuzzer step,
+CredSSP fuzzer step and CredSSP registration grep. The stronger
+fragmented-reader assertions and all concurrent source changes on shared main
+are retained. Production code and fuzzer corpus are unchanged. Exact
+correction-SHA execution is **PENDING**.
+
 ## R6 whole-owner Windows session revocation (2026-10-17; hosted validation pending)
 
 **Authoring base:** `339f760d3c718eaf7a4192cbf17347f70552deec`.

@@ -1,3 +1,53 @@
+## R3 P0 existing-client CAL request exact-SHA validation receipt (2026-10-17)
+
+**Implementation SHA:** `c852d782eedab341371f193d3f20ae386ff7f5d2`.  
+**Reconciled parent:** `dc81628a9b4431ef6ffd3e69a7156fd44f0b4d06`.  
+**Primary Actions:** `39022887451` — **SUCCESS**.  
+**Independent workflow structure:** `39022887460` — **SUCCESS**.
+
+The exact implementation SHA passes the complete hosted matrix. Linux/GCC is
+**595/595 PASS Debug + 595/595 PASS Release** and its installed consumer is
+**1/1 PASS**. macOS/AppleClang is **509/509 PASS Debug + 509/509 PASS
+Release** with its focused native lifecycle selections green and installed
+consumer **1/1 PASS**. Windows/MSVC is **545/545 PASS Debug + 545/545 PASS
+Release**, with the current R6 native preflight **58/58 PASS** in both
+configurations and installed consumer **1/1 PASS**. Hosted MSYS2 CLANG64 /
+Clang 23 is **545/545 PASS Debug + 545/545 PASS Release**, with **58/58**
+R6 preflight, **3/3** private-fixture and **5/5** focused security preflights
+in both configurations; the final CLANG64 Windows ASan/UBSan native selection
+is **58/58 PASS**.
+
+R9 Clang ASan/UBSan is **SUCCESS**. Its existing cross-road licensing selector
+passes **92/92**, existing CAL chain/policy selector **8/8**, and the new R3
+snapshot selector fail-closed enumerates exactly four registrations and passes
+**4/4** under sanitizers:
+
+- `transport.licensing-existing-cal-authority-request-ownership`
+- `transport.licensing-existing-cal-authority-request-hwid-proof-gate`
+- `transport.licensing-existing-cal-authority-request-product-and-correlation-denials`
+- `transport.licensing-existing-cal-authority-request-revocation-replay`
+
+The concurrent R10 existing-CAL authority selector also remains green **4/4**.
+Documentation policy, both workflow-structure checks, R7 sanitizer/lifecycle
+jobs, package generation and artifact uploads pass. Untagged prerelease
+publication is correctly skipped.
+
+This evidence proves the bounded R3 request snapshot and its proof/correlation
+lifetime behavior; it does **not** prove a CAL valid, create issuer trust or
+exercise a genuine RD Licensing provider. The production R10 provider remains
+unavailable. No `STATUS_VALID_CLIENT`, Licensed transition, Demand Active,
+graphics, clipboard or input authorization is enabled by this increment.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment; the hosted exact-SHA matrix is not relabeled as owner
+evidence. M1 owner-native evidence remains a separate requirement.
+
+**R3 P0 status: IMPLEMENTED / HOSTED-VALIDATED.**  
+**M2 status: OPEN / NOT ACCEPTED.** The next boundary is exact R3 snapshot ->
+R10 request composition with product-policy equality, live R2 generation
+continuity and a genuine authenticated provider result before any receipt-bound
+licensing completion.
+
 ## R6 P2 convergence with R4 capture-ingress epoch (2026-10-17; exact-SHA CI pending)
 
 **Validated R6 handoff/correction:** `8dc9ead1ef0825739a2aa09864c21816ba78dd5a`,

@@ -1,3 +1,26 @@
+## R7 P2 R4 capture-epoch reconciliation (2026-10-17; exact-SHA CI pending)
+
+**Starting shared `main`:** `162093d3f50f0c9793b1eafc2cba637c98473559`.
+
+R4 has now landed the shared optional `openBgraCapture()` freshness epoch.
+R7 does not need a new production API: its existing synchronous consumer
+already carries the validated display-geometry generation and its own
+post-consumer geometry/session retirement fences. The R7 compatibility fixture
+now binds that geometry generation as R4's `captureGeneration` while using a
+separate fixed offline presentation generation for the synthetic
+`GfxPresentationLifecycle`.
+
+This distinction is intentional. A macOS geometry generation is native capture
+freshness, not R2 admission, R3 session authority or a Graphics DVC
+presentation generation. The three existing R7 P2 CTests and the 20-case hosted
+Apple selector are unchanged; only their cross-road fixture now exercises the
+new R4 epoch check before framebuffer dereference. Production macOS capture,
+ScreenCaptureKit ownership, TCC behavior and R4 source are unchanged.
+
+Exact publication-SHA hosted Apple Debug/Release, full CTest, R7/R9 sanitizer
+and workflow evidence are **PENDING**. Owner macOS 27 and live M5 remain
+**NOT RUN / BLOCKED** under the existing authorization prerequisites.
+
 ## R4 P1 native BGRA-to-AVC420 compatibility gate (2026-10-17; exact-SHA CI pending)
 
 **Starting reconciled shared `main`:** `c852d782eedab341371f193d3f20ae386ff7f5d2`.

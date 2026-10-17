@@ -203,23 +203,30 @@ void mapR4Surface(GfxPresentationLifecycle& lifecycle,
 // compatibility before a future authenticated Graphics DVC handoff exists.
 class R4IngressConsumer final : public MacCaptureFrameConsumer {
 public:
-    R4IngressConsumer(const std::uint64_t generation,
+    R4IngressConsumer(const std::uint64_t captureGeneration,
                       const PixelSize visibleGeometry)
-        : generation_(generation),
+        : captureGeneration_(captureGeneration),
           visibleGeometry_(visibleGeometry),
           codedGeometry_(gfxAvc420CodedGeometry(visibleGeometry)) {
-        assert(generation_ != 0);
+        assert(captureGeneration_ != 0);
         assert(codedGeometry_.widthPixels != 0 &&
                codedGeometry_.heightPixels != 0);
-        mapR4Surface(lifecycle_, generation_, visibleGeometry_);
-        assert(producer_.open(generation_, codedGeometry_, visibleGeometry_));
+
+        // Keep native capture freshness distinct from R3/R4 presentation
+        // authority even in this offline fixture. R4's capture epoch is only
+        // correlation with the already-validated R7 geometry generation.
+        mapR4Surface(
+            lifecycle_, kSyntheticPresentationGeneration, visibleGeometry_);
+        assert(producer_.openBgraCapture(
+            kSyntheticPresentationGeneration, captureGeneration_,
+            codedGeometry_, visibleGeometry_));
     }
 
     void consume(const FramebufferView& frame,
                  const std::uint64_t generation) noexcept override {
         ++calls;
         assert(frame.valid());
-        assert(generation == generation_);
+        assert(generation == captureGeneration_);
         assert(frame.widthPixels == visibleGeometry_.widthPixels);
         assert(frame.heightPixels == visibleGeometry_.heightPixels);
         if (expectedStride != 0) {
@@ -251,12 +258,16 @@ public:
             pts_,
             regions,
             quantQualities,
+            captureGeneration_,
         };
         assert(!preparedFrame_.valid());
         assert(producer_.prepareBgra(
-            lifecycle_, generation_, request, preparedFrame_));
+            lifecycle_, kSyntheticPresentationGeneration,
+            request, preparedFrame_));
         assert(preparedFrame_.valid());
-        assert(preparedFrame_.generation() == generation_);
+        assert(preparedFrame_.generation() ==
+               kSyntheticPresentationGeneration);
+        assert(producer_.captureGeneration() == captureGeneration_);
         assert(preparedFrame_.frameId() == nextFrameId_);
         ++nextFrameId_;
         ++pts_;
@@ -313,10 +324,13 @@ public:
     bool revokeSessionAfterPrepare{};
 
 private:
+    static constexpr std::uint64_t kSyntheticPresentationGeneration =
+        70'001;
+
     GfxPresentationLifecycle lifecycle_{};
     X264Avc420SegmentedFrameProducer producer_{};
     GfxAvc420SegmentedFrame preparedFrame_{};
-    std::uint64_t generation_{};
+    std::uint64_t captureGeneration_{};
     PixelSize visibleGeometry_{};
     PixelSize codedGeometry_{};
     std::uint32_t nextFrameId_{1};

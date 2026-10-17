@@ -67,6 +67,9 @@ unwritten and must be canceled through the existing R4 cancellation contract
 before any R3 handoff. Only `Published` is eligible for later transport.
 Synthetic TCC denial/native-failure callbacks prove fail-closed state only;
 they are neither R2 admission nor evidence of an actual permission revocation.
+When R4's optional capture epoch is exercised, bind the current R7 geometry
+generation as capture freshness but keep the synthetic/real R4 presentation
+generation distinct. Neither scalar is native authentication or R3 authority.
 
 ## R6 CLANG64 native-preflight registry correction (2026-10-17)
 

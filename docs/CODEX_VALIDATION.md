@@ -1,3 +1,19 @@
+## R7 P2 R4 capture-epoch reconciliation authoring receipt (2026-10-17)
+
+**Starting shared `main`:** `162093d3f50f0c9793b1eafc2cba637c98473559`. Exact publication-SHA CI is
+**PENDING**.
+
+The R7 P2 test composition now consumes R4's landed
+`openBgraCapture()` contract without changing R4 or macOS production source.
+The real R7 geometry generation is supplied as the R4-local capture freshness
+epoch, while an unrelated fixed synthetic presentation generation drives the
+offline R4 lifecycle. Each `X264BgraFrameRequest` carries the capture epoch and
+the test asserts the producer retained it. This removes any accidental
+suggestion that native capture freshness is R3/presentation authorization.
+
+Dedicated CTest names and the 20-case R7 Apple selector remain unchanged.
+Owner macOS 27, TCC/live desktop and M5 remain **NOT RUN / BLOCKED**.
+
 ## R4 P1 native BGRA ingress authoring receipt (2026-10-17)
 
 **Starting shared `main`:** `c852d782eedab341371f193d3f20ae386ff7f5d2`. Exact publication-SHA hosted

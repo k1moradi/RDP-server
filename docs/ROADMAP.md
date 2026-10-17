@@ -1,3 +1,27 @@
+## R3 CAL issuer-constraints OpenSSL 4 constness correction (2026-10-17; exact-SHA CI pending)
+
+**Implementation:** `586101c7e50326f583ab0479bbfb6785353807b7`.  
+**First Actions:** `39011330461` — macOS/OpenSSL 4 Debug compile **FAIL** before
+R3 CTest execution.
+
+The hosted AppleClang/OpenSSL 4 build exposed one source-portability defect in
+the new issuer-constraint helper. OpenSSL 4 returns
+`const X509_EXTENSION *` from `X509_get_ext()`; the implementation stored
+that borrowed extension in `X509_EXTENSION *const`. The compiler correctly
+rejected the discarded const qualifier before any CA-policy behavior executed.
+
+This correction changes only that borrowed pointer to
+`const X509_EXTENSION *const`. `X509_EXTENSION_get_critical()` is
+read-only, so no cast or mutable access is needed. The standards-defined
+`basicConstraints CA:TRUE` / optional-`keyUsage` `keyCertSign` policy,
+the dedicated `transport.licensing-client-cal-issuer-constraints` CTest,
+existing cryptographic signature verification, exact trust-anchor matching and
+the R9 eight-case CAL selector are unchanged.
+
+Canonical owner-local `~/rdp-server/build/` remains **NOT RUN**. Exact
+correction-SHA Linux/GCC, macOS/AppleClang, Windows/MSVC and R9 ASan/UBSan
+evidence is **PENDING**.
+
 ## R5 P1 registry-cardinality parser correction (2026-10-17; exact-SHA CI pending)
 
 **First publication:** `910cdad63b2b0cb384bf85d63731482c42e340cd`.  

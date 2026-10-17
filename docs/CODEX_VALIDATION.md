@@ -1,3 +1,16 @@
+## R3 CAL issuer-constraints OpenSSL 4 compile correction receipt (2026-10-17)
+
+`586101c7e50326f583ab0479bbfb6785353807b7`, Actions
+`39011330461`: structure guard **PASS**; macOS Debug compilation stops in
+`rdp_licensing.cpp` before CTest because OpenSSL 4 exposes the borrowed
+`X509_EXTENSION` as const. The exact diagnostic is a mutable-pointer
+initialization from `const X509_EXTENSION *`.
+
+The correction preserves all issuer-authorization behavior and changes only
+the local borrowed pointer to const. No assertion, trust rule, CAL policy
+decision or test registration is weakened. Hosted correction-SHA execution is
+**PENDING**; canonical local testing remains **NOT RUN**.
+
 ## R5 P1 registry-cardinality parser correction receipt (2026-10-17)
 
 At `910cdad63b2b0cb384bf85d63731482c42e340cd`, Actions

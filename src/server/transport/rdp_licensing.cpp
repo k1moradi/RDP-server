@@ -827,7 +827,7 @@ constexpr std::array<const char *, 5> kRdpCalLicensingExtensionOids{
         return false;
     }
 
-    X509_EXTENSION *const basicConstraints =
+    const X509_EXTENSION *const basicConstraints =
         X509_get_ext(certificate, basicConstraintsIndex);
     if (basicConstraints == nullptr ||
         X509_EXTENSION_get_critical(basicConstraints) != 1 ||

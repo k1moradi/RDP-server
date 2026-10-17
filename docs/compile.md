@@ -1,3 +1,13 @@
+## CI workflow policy-test dependency
+
+Ordinary `BUILD_TESTING=ON` configuration requires a Python 3 interpreter for
+the repository-local CI workflow structural CTest. No third-party Python package
+is required: the validator has deterministic built-in structural checks and
+uses PyYAML additionally when it is already installed. Bash, when available, is
+used only for `bash -n` syntax validation of workflow block scalars. This adds
+no production, SDK or packaged runtime dependency and creates no additional
+build root.
+
 ## R6/R10 Windows CLANG64 owner-evidence contract (2026-10-17)
 
 R6 and R10 use the same M1 owner-machine contract for Windows compiler

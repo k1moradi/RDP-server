@@ -1,3 +1,25 @@
+## R9 P0 CI workflow structural gate authoring receipt (2026-10-17)
+
+**Authoring parent:** `ca56ededf527a46bcf535a5c3396d3b9e4d69db4`. **Publication:** this commit; exact-SHA
+hosted results are **PENDING**.
+
+The pre-publication audit retained R2's `dcac5920949d697d517ba08b9c0ab5d0f33438a1`
+repair rather than duplicating it, found zero duplicate primary job IDs, and
+preserved the concurrently added R3 CAL certificate-validity selector and R6
+Windows Clang 23 gate. Release main-ancestry, version, three-digest/archive and
+prerelease publication checks remain required.
+
+The validator has one positive fixture plus three negative fixtures: duplicate
+job IDs, the recent unterminated single-quoted sanitizer selector class, and an
+unterminated GitHub expression. Shell block scalars are checked with `bash -n`
+when Bash exists. The full check also requires current cross-road selector
+sentinels, sanitizer build targets, both fuzz registrations and at least ten
+`ctest -N` preflight sites. No production RDP/security behavior changes.
+
+Local CMake/CTest is **NOT RUN** because this environment does not expose the
+canonical `~/rdp-server/` checkout and policy forbids a second persistent
+build root.
+
 ## R3 CAL leaf-validity compile correction receipt (2026-10-17)
 
 Actions `39010291382` for implementation

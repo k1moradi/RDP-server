@@ -9,6 +9,16 @@ add_test(NAME project.local-checkout-path-comparison
 set_tests_properties(project.local-checkout-path-comparison PROPERTIES
     LABELS "policy;build")
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME project.ci-workflow-structure-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/scripts/validate_ci_workflow.py"
+        --workflow "${PROJECT_SOURCE_DIR}/.github/workflows/ci.yml"
+        --fixture-root "${PROJECT_SOURCE_DIR}/tests/fixtures/ci_workflow_structure"
+        --self-test)
+set_tests_properties(project.ci-workflow-structure-denials PROPERTIES
+    LABELS "policy;ci")
+
 function(add_rdp_test source_file suite behavior)
     get_filename_component(test_target "${source_file}" NAME_WE)
     add_executable("${test_target}" "${source_file}")

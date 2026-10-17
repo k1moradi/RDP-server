@@ -1,3 +1,37 @@
+## R9 P0 trustworthy main-branch CI gate (2026-10-17; exact-SHA CI pending)
+
+**Authoring parent:** `ca56ededf527a46bcf535a5c3396d3b9e4d69db4`. **Implementation:** this publication.
+
+The zero-job Actions failure at `680d15e563f5fd4a8a2d70b481821f3ae960828f`
+(run `39009664731`) came from a malformed single-quoted R2 sanitizer selector
+plus a duplicated workflow suffix. R2 correction
+`dcac5920949d697d517ba08b9c0ab5d0f33438a1` removed the duplicate suffix and
+repaired the selector; R9 did not reconstruct or replace that correction.
+Unchanged descendant `92ddb689b0ca3200b2ef420f818c04cd630da147`
+then completed Actions `39009841176` successfully across Linux, macOS,
+Windows, R7 and R9, proving the repaired pre-P0 workflow itself was executable.
+
+This P0 adds a deterministic repository-local workflow validator and dedicated
+CTest `project.ci-workflow-structure-denials`. It rejects duplicate
+top-level/job mappings, malformed GitHub expression delimiters and Bash syntax
+errors, including the exact unterminated-selector failure class. It requires
+the current R1/R2/R3/R4/R5/R6/R7/R8/R10 sentinel selectors, both bounded
+fuzzers, sanitizer build targets and the prerelease main-ancestry/version/
+digest/publication protections. PyYAML is used with duplicate-key rejection
+when available; deterministic lexical checks remain mandatory without it.
+
+A lightweight independent `.github/workflows/ci-structure.yml` checks
+`ci.yml` on every main push even if the primary workflow is too malformed to
+create jobs. The primary workflow also gates the hosted protocol matrix,
+Windows Clang 23 gate, R7/R9 sanitizers and documentation policy behind the
+same structure check. The MCS/CLIPRDR fuzzer and R7 desktop/input selections
+now perform explicit `ctest -N` registry preflight before execution.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** here.
+Exact publication-SHA hosted matrix, sanitizer, SDK/package and independent
+structure-guard evidence is **PENDING**. M1 remains **OPEN / NOT ACCEPTED**;
+hosted CI alone cannot accept it.
+
 ## R3 CAL leaf-validity fixture/registry correction (2026-10-17; exact-SHA CI pending)
 
 **Implementation being corrected:** `3822ca6d230336f8db2e20d1c4ae6153e22b92a3`.  

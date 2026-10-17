@@ -1,3 +1,28 @@
+## CI workflow structure tests fail closed before heavyweight validation
+
+The primary GitHub Actions workflow is executable project policy, not disposable
+YAML. Keep one repository-local structural validator under `scripts/` and one
+behavior-named CTest, `project.ci-workflow-structure-denials`. Its positive
+fixture must parse; negative fixtures must cover duplicate job mappings,
+unterminated shell selectors and malformed GitHub expression delimiters.
+
+The validator must also require sentinel registrations/build targets from every
+road sharing the sanitizer workflow, both bounded fuzzers, and prerelease
+ancestry/version/digest/publication gates. Never repair a corrupted region by
+restoring an older whole-workflow snapshot: reconcile from current `main` so
+concurrent selectors cannot disappear. Critical sanitizer/fuzzer selections
+must enumerate the central CTest registry with `ctest -N` and require named
+tests before instrumented execution; zero selected or `Not Run` is failure,
+not coverage.
+
+Use a real YAML parser with duplicate-key rejection when one is already
+available. The dependency-free lexical/job checks remain authoritative so the
+policy test does not silently disappear on hosts without an extra Python
+package. Validate Bash block scalars with the shell parser where Bash exists.
+An independent minimal structure-guard workflow should validate the primary
+workflow on main pushes so a future syntax error in the large workflow still
+produces an observable CI failure.
+
 ## R6 Windows CLANG64 lifetime/compiler gate (2026-10-17)
 
 The Windows Clang 23 gate must build the production

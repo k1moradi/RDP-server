@@ -11,7 +11,20 @@ permissions:
   contents: read
 
 jobs:
+  ci-workflow-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate CI workflow structure and denial fixtures
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_ci_workflow.py \
+            --workflow .github/workflows/ci.yml \
+            --fixture-root tests/fixtures/ci_workflow_structure \
+            --self-test
+
   protocol:
+    needs: ci-workflow-structure
     strategy:
       fail-fast: false
       matrix:
@@ -122,6 +135,7 @@ jobs:
   # compiler/SDK evidence only; it does not replace the owner's persistent
   # ~/rdp-server/build receipt or authorize a live Windows desktop.
   r6-windows-clang23:
+    needs: ci-workflow-structure
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -192,6 +206,7 @@ jobs:
   # R9: one bounded sanitizer job across existing first-party CLIPRDR/X11,
   # MCS/CredSSP, native R2->R3 admission/revocation and R3 licensing contracts.
   r9-security-protocol-sanitizers:
+    needs: ci-workflow-structure
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -548,7 +563,9 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: ctest --test-dir build --build-config Debug --timeout 60 -R '^fuzz\.mcs-cliprdr-bounded$' --output-on-failure
+        run: |
+          set -euo pipefail
+          fuzz_selection='^fuzz\.mcs-cliprdr-bounded
 
       - name: Run bounded coverage-guided CredSSP fuzzer
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
@@ -566,6 +583,158 @@ jobs:
             -R "$fuzz_selection" --output-on-failure
 
   r7-macos-session-sanitizers:
+    needs: ci-workflow-structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GCC sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gcc
+          command -v g++
+          gcc --version
+          g++ --version
+      - name: Configure R7 session-watch tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile R7 session-watch test targets
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_macos_desktop_session_guard test_macos_input_controller \
+            test_macos_capture_pixel_buffer
+      - name: Run R7 macOS session-watch CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          desktop_session_selection='^macos\.desktop-session-'
+          desktop_session_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$desktop_session_selection")"
+          printf '%s\n' "$desktop_session_tests"
+          for required_test in \
+            macos.desktop-session-lifecycle \
+            macos.desktop-session-validation-denials \
+            macos.desktop-session-revocation-reentry \
+            macos.desktop-session-switch-away-back-revocation \
+            macos.desktop-session-mid-operation-epoch-change \
+            macos.desktop-session-watch-registration-retirement \
+            macos.desktop-session-watch-retirement-callback-race \
+            macos.desktop-session-watch-partial-install-retirement \
+            macos.desktop-session-watch-destructor-retirement \
+            macos.desktop-session-watch-unavailable-denial; do
+            grep -Fq "$required_test" <<< "$desktop_session_tests"
+          done
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$desktop_session_selection" --output-on-failure
+
+          input_session_selection='^macos\.input-controller-session-watch-revocation'^macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$cursor_publication_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'macos.cursor-session-watch-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-topology-publication-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-geometry-generation-publication-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$cursor_publication_selection" --output-on-failure
+
+  documentation-policy:
+    needs: ci-workflow-structure
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [ci-workflow-structure, protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$fuzz_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'fuzz.mcs-cliprdr-bounded' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$fuzz_selection" --output-on-failure
+
+      - name: Run bounded coverage-guided CredSSP fuzzer
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          fuzz_selection='^fuzz\.credssp-bounded$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$fuzz_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'fuzz.credssp-bounded' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$fuzz_selection" --output-on-failure
+
+  r7-macos-session-sanitizers:
+    needs: ci-workflow-structure
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -615,6 +784,7 @@ jobs:
             -R "$cursor_publication_selection" --output-on-failure
 
   documentation-policy:
+    needs: ci-workflow-structure
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -631,7 +801,226 @@ jobs:
     # Deploy ONLY tested protocol-library artifacts, never a server.
     # An authorized protocol-vX.Y.Z tag triggers publication automatically.
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
-    needs: [protocol, documentation-policy]
+    needs: [ci-workflow-structure, protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
+
+          input_session_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$input_session_selection")"
+          printf '%s\n' "$input_session_tests"
+          grep -Fq 'macos.input-controller-session-watch-revocation' <<< "$input_session_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$input_session_selection" --output-on-failure
+
+          cursor_publication_selection='^macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$cursor_publication_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'macos.cursor-session-watch-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-topology-publication-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-geometry-generation-publication-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$cursor_publication_selection" --output-on-failure
+
+  documentation-policy:
+    needs: ci-workflow-structure
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [ci-workflow-structure, protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$fuzz_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'fuzz.mcs-cliprdr-bounded' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$fuzz_selection" --output-on-failure
+
+      - name: Run bounded coverage-guided CredSSP fuzzer
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          fuzz_selection='^fuzz\.credssp-bounded$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$fuzz_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'fuzz.credssp-bounded' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$fuzz_selection" --output-on-failure
+
+  r7-macos-session-sanitizers:
+    needs: ci-workflow-structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GCC sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gcc
+          command -v g++
+          gcc --version
+          g++ --version
+      - name: Configure R7 session-watch tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile R7 session-watch test targets
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_macos_desktop_session_guard test_macos_input_controller \
+            test_macos_capture_pixel_buffer
+      - name: Run R7 macOS session-watch CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^macos\.desktop-session-' --output-on-failure
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^macos\.input-controller-session-watch-revocation$' \
+            --output-on-failure
+
+          cursor_publication_selection='^macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$cursor_publication_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'macos.cursor-session-watch-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-topology-publication-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-geometry-generation-publication-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$cursor_publication_selection" --output-on-failure
+
+  documentation-policy:
+    needs: ci-workflow-structure
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [ci-workflow-structure, protocol, documentation-policy]
     runs-on: ubuntu-latest
     permissions:
       contents: write

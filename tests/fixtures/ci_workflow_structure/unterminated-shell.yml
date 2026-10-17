@@ -1,0 +1,11 @@
+name: unterminated selector denial fixture
+on: push
+jobs:
+  broken:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          set -euo pipefail
+          selection='^security\.credssp-
+          printf '%s\n' "$selection"

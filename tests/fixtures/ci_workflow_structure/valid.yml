@@ -1,0 +1,16 @@
+name: workflow structure positive fixture
+on: push
+jobs:
+  alpha:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parseable shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          value='ok'
+          printf '%s\n' "$value"
+  beta:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

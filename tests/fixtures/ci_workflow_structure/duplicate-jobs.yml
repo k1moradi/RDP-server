@@ -1,0 +1,7 @@
+name: duplicate job denial fixture
+on: push
+jobs:
+  repeated:
+    runs-on: ubuntu-latest
+  repeated:
+    runs-on: ubuntu-latest

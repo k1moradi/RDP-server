@@ -1,3 +1,17 @@
+## R8 hierarchy-provenance compile correction receipt (2026-10-17)
+
+**Failed implementation:** `ee565adcca058e16355d13bae4de84a46312da76`.  
+**Actions:** `39024449450`; isolated macOS native-lifecycle job
+`117372584707` — **FAIL during compile**.
+
+AppleClang 21 rejected one aggregate initializer in
+`src/server/clipboard/remote_transfer.cpp`: the conditional expression
+combining `uint16_t depth` with literal `0U` had type `unsigned int` and
+would narrow into the `uint16_t` association field. The correction changes
+only the false branch to `std::uint16_t{0}`. No hierarchy test ran in that
+failed job and no production hierarchy semantics changed. Exact correction-SHA
+CI is **PENDING**.
+
 ## R8 relative hierarchy-provenance authoring receipt (2026-10-17)
 
 **Authoring parent:** `71f85638aa8b9fbafef03197cab878b19935795e`. **Publication:** this commit; exact-SHA hosted

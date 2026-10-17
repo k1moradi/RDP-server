@@ -1,3 +1,18 @@
+## R8 hierarchy-provenance AppleClang narrowing correction (2026-10-17; exact-SHA CI pending)
+
+Implementation `ee565adcca058e16355d13bae4de84a46312da76`, Actions
+`39024449450`, reached the isolated macOS native-lifecycle build and failed
+while compiling the shared production `remote_transfer.cpp`. AppleClang
+correctly diagnosed the conditional expression
+`hierarchyNode ? hierarchyNode->depth : 0U` as `unsigned int`, which cannot
+list-initialize the `uint16_t` verified-depth association member under
+`-Werror`. No hierarchy CTest executed in that failed job.
+
+This correction uses an explicitly typed `std::uint16_t{0}` false branch.
+Wire parsing, hierarchy validation, parent/index semantics, filesystem
+authority and native behavior are unchanged. Exact correction-SHA hosted
+platform/sanitizer evidence is **PENDING**.
+
 ## R8 P2 relative File List hierarchy provenance (2026-10-17; exact-SHA CI pending)
 
 **Starting shared main:** `71f85638aa8b9fbafef03197cab878b19935795e`.

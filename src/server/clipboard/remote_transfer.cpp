@@ -2561,7 +2561,7 @@ RemoteFileDestinationPlan::prepare(
             selection.parentRemoteFileIndex,
             hierarchyNode ? hierarchyNode->parentRemoteFileIndex :
                             std::nullopt,
-            hierarchyNode ? hierarchyNode->depth : 0U,
+            hierarchyNode ? hierarchyNode->depth : std::uint16_t{0},
             file->directory ? RemoteEntryRole::Directory :
                               RemoteEntryRole::File,
         };

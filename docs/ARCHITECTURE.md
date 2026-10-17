@@ -6689,3 +6689,56 @@ section supplies the required policy receipt for the corrected-source
 descendant. Platform, sanitizer and full CTest results for the corrected source
 remain pending and must be recorded only after their exact workflow completes.
 
+
+
+## R4/R3 authorized Graphics DVC handoff contract (P2, 2026-10-17)
+
+`GfxAvc420SegmentedFrame` is the complete R4 logical publication unit: one
+move-only owner retains one `RDP_SEGMENTED_DATA` byte sequence and the private
+`GfxFrameDeliveryReceipt`. R3 may borrow `wireBytes()` only while retaining
+that owner. It must not duplicate the whole frame into another graphics queue
+or synthesize another R4 receipt.
+
+The server-side transport layering that is still missing is:
+
+1. freshly R2-reauthorized resolution of the fully joined static `drdynvc`
+   channel in the one `McsSessionLifecycle`;
+2. MS-RDPEDYC dynamic-channel CREATE/response state for the exact
+   `Microsoft::Windows::RDS::Graphics` name;
+3. bounded DVC DATA fragmentation over static virtual-channel/MCS framing;
+4. one R3-owned active graphics publication record with cumulative accepted
+   outer bytes and nonzero publication/write-slice receipts;
+5. translation of that record's terminal result into the existing R4
+   `completeDelivery`, `cancelUnwrittenDelivery`, or `abortDelivery`.
+
+A whole R4 frame cannot be sent directly through the existing MCS serializer:
+one MCS Send Data Indication carries at most 16,383 bytes of user data, while
+R4 permits much larger segmented AVC420 frames. R3 therefore fragments the
+DVC stream while keeping the single R4 frame as stable backing storage and
+retaining only the bounded current outer fragment.
+
+R1 already limits one application write to 18 KiB and reports exact positive
+plaintext progress. R3 counts **all** accepted outer bytes for this frame,
+including framing headers. Any positive outer progress makes the preserving
+R4 cancel path ineligible. A zero-byte WANT also cannot be treated as a
+cancellation opportunity: R1 records a pending logical write whose next retry
+must have identical byte count/content. With today's APIs, preserving cancel
+therefore happens before the first frame-related R1 write submission and after
+all borrows are retired. Otherwise terminal failure selects R4 abort.
+
+After every outer fragment is completely accepted, R3 calls R4 completion
+with the logical `wireBytes().size()`; R4 never sees or counts outer MCS/DVC
+headers. This keeps one R3 channel/transport writer and one R4 graphics/x264
+owner.
+
+For the first Linux/X11 source, R5's borrowed XShm `FramebufferView` is
+consumed synchronously by R4 `prepareBgra()` before the next native capture,
+RandR rebuild or disconnect. Start with a full mapped visible-surface capture
+on damage because the current converter requires source dimensions to match
+the visible R4 geometry. Do not infer a partial-frame compositor from damage
+rectangles. R6 `WindowsDxgiCaptureCycle` and R7 CoreVideo expose the same
+borrow-only framebuffer boundary for later native integrations.
+
+None of these interfaces grants publication authority. Graphics stays off
+until R2/R3 establish the authenticated/licensed/activated session, joined
+DRDYNVC and successfully created Graphics DVC.

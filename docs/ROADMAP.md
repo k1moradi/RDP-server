@@ -3074,3 +3074,96 @@ authenticated R3 Graphics DVC writer that owns cumulative accepted-byte
 evidence. Do not enable graphics publication from this offline lifecycle.
 Measured native capture/decode performance and Microsoft-client visible
 desktop acceptance remain open; M2-M5 are not accepted by these tests.
+
+
+## R4 P2 graphics recovery validation and authorized R3 handoff audit (2026-10-17)
+
+**Authoring parent:** `9cfeabe694e89c3fc89c714fb4e461236c6e61c9`.
+**Landed cancellation implementation:** `17261a9d880698b4c979f349cf49e24640a94aca`.
+**Last fully green unchanged-R4 validation point:** `2f4fd534bc070977582ed899c620cd79171edecf`.
+**Validated Actions:** `39010087859` — **SUCCESS**.
+**Authoring-parent CI:** Actions `39010778228` (CI workflow structure guard): **FAILURE**. Actions `39010778231` (C++23 protocol CI and prerelease delivery): **FAILURE**.
+
+P2 does not reimplement zero-byte cancellation. Comparison from the landed
+implementation to `2f4fd534...` changes no R4 graphics source or dedicated
+R4 test translation unit. On that validated descendant, ordinary full CTest
+passes Linux/GCC **568/568 Debug + 568/568 Release**, Windows/MSVC
+**518/518 Debug + 518/518 Release** after **55/55** native preflight in
+each configuration, and macOS/AppleClang **485/485 Debug + 485/485 Release**.
+The retained production-backed cases are `graphics.frame-delivery-unsent-cancellation`, `graphics.avc420-segmented-frame-unsent-cancellation`, `graphics.x264-segmented-unsent-cancel-idr`, `graphics.x264-bgra-unsent-cancel-idr`, `graphics.frame-delivery-partial-send-remains-terminal`. All five execute and
+pass in every ordinary hosted full suite.
+
+R9 on the same SHA registry-preflights and passes portable R4 RDPGFX
+**39/39**, x264/BGRA **22/22**, and RDPGFX capabilities **4/4**. The
+portable group includes exact unsent cancellation, segmented-frame
+invalidation and partial-send-terminal behavior. The x264 group includes both
+NV12 and BGRA recovery cases.
+
+The verified state contract is unchanged: conclusively unwritten cancellation
+keeps the presentation mapped, preserves the surface and prior ACK/client
+queue-depth/totalFramesDecoded observations, invalidates the canceled owned
+frame, rebuilds x264, and makes the next accepted picture an IDR. A later
+delivered picture resumes normal P-frame continuity. Wrong, stale or duplicate
+cancellation cannot reset a healthy reference chain. Any positive or uncertain
+wire progress remains terminal through `abortDelivery()` and revokes that
+graphics generation.
+
+The R4 owned-wire API is already suitable for one future authorized sender:
+one move-only `GfxAvc420SegmentedFrame`, one stable `wireBytes()` backing span
+and one private R4 delivery receipt. The exact missing production layer is R3.
+R3 can currently identify the static `drdynvc` role syntactically and can
+encode bounded MCS Send Data Indications, but it has no protected
+R2-reauthorized joined-DRDYNVC role, no MS-RDPEDYC CREATE/response lifecycle
+for `Microsoft::Windows::RDS::Graphics`, no DVC DATA fragmentation, and no
+single active graphics-send record that correlates cumulative outer-byte
+acceptance to R4 complete/cancel/abort. A complete R4 frame can exceed the
+16,383-byte MCS user-data ceiling, so direct whole-frame MCS emission is not
+a valid handoff.
+
+The future R3 owner must retain exactly one R4 frame, build only a bounded
+current DRDYNVC/static-channel/MCS fragment, and track independent nonzero R3
+publication/slice receipts while feeding the sole R1 application writer.
+R1 already reports exact positive plaintext progress and zero-byte WANT with
+an 18 KiB per-call ceiling. Importantly, a zero-byte WANT is **not** a safe
+frame-drop point: R1 retains a pending logical write and requires retry with
+identical length/content. Therefore preserving R4 cancellation is valid before
+the first frame-related R1 write is submitted (with all borrows retired), not
+after a WANT unless R1 later gains an explicit nonterminal operation-retirement
+contract. Any positive outer header/payload progress or uncertain progress
+selects terminal abort. Only full acceptance of every outer fragment maps back
+to R4 completion using the logical `frame.wireBytes().size()`.
+
+No production behavior is added in P2, so no new CTest is registered. When R3
+implements the authorized Graphics DVC sender, it must add one dedicated
+production-backed cross-component receipt test covering pre-submit cancel,
+zero-byte WANT with stable slice identity, positive partial progress, exact
+full completion and terminal failure after progress.
+
+Linux/X11 is the first native-source integration: after genuine R2/R3
+authorization, R5 snapshots damage and captures a **full mapped visible
+surface** through `X11DesktopResources::capture()`, then R4 synchronously
+consumes that borrowed `FramebufferView` in `prepareBgra()` before any next
+capture, RandR rebuild or disconnect. The initial path fails closed on odd or
+unsupported geometry rather than silently cropping or inventing a partial
+framebuffer compositor. R6 DXGI and R7 CoreVideo subsequently feed the same
+borrow-only framebuffer contract while retaining native generation/revocation
+ownership.
+
+`docs/benchmark.md` now records repeatable Release/CTest recovery commands
+under the canonical `~/rdp-server/build/` as diagnostics only and defines the
+future Damage -> capture -> conversion/x264 -> R3/R1 wire -> ACK/visibility
+measurement boundary. No fps/decode threshold is inferred from hosted CTest
+timing, `queueDepth`, or `totalFramesDecoded`.
+
+Canonical owner-local `~/rdp-server/build/` execution is **NOT RUN** in this
+connector environment; no alternate checkout or build root was created.
+Graphics publication remains disabled until genuine R2/R3 session authority,
+licensing/share activation, joined DRDYNVC authorization and Graphics DVC
+creation exist. Native capture performance, real client decode-lag calibration
+and Microsoft-client visible graphics remain **NOT RUN / OPEN**. M3/M4/M5 are
+not accepted by this audit.
+
+**Next R4/R3 gate:** first restore/confirm a fully schedulable current-main CI
+if the authoring-parent workflow is not green, then rerun the full matrix and
+R9 selectors. R3—not R4—then owns the protected DRDYNVC/Graphics DVC
+lifecycle and the one receipt-bound sender.

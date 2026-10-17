@@ -1274,3 +1274,49 @@ registry-preflights and runs all three cursor cases. Synthetic BGRA/geometry
 evidence is only a lifetime/freshness regression gate, not macOS 27 native
 desktop or Microsoft-client acceptance.
 
+
+
+## R4 P2 graphics recovery and R3 handoff validation receipt (2026-10-17)
+
+**Authoring parent:** `9cfeabe694e89c3fc89c714fb4e461236c6e61c9`.  
+**Landed implementation:** `17261a9d880698b4c979f349cf49e24640a94aca`.  
+**Validated unchanged-R4 SHA:** `2f4fd534bc070977582ed899c620cd79171edecf`.  
+**Actions:** `39010087859` — **SUCCESS**.  
+**Authoring-parent CI:** Actions `39010778228` (CI workflow structure guard): **FAILURE**. Actions `39010778231` (C++23 protocol CI and prerelease delivery): **FAILURE**.
+
+Ordinary hosted CTest on `2f4fd534...` is Linux/GCC **568/568** in Debug
+and Release, Windows/MSVC **518/518** in Debug and Release after **55/55**
+native preflight in both, and macOS/AppleClang **485/485** in Debug and
+Release. The five retained R4 cases are:
+
+- `graphics.frame-delivery-unsent-cancellation`, `graphics.avc420-segmented-frame-unsent-cancellation`, `graphics.x264-segmented-unsent-cancel-idr`, `graphics.x264-bgra-unsent-cancel-idr`, `graphics.frame-delivery-partial-send-remains-terminal`.
+
+R9 independently passes portable graphics **39/39**, x264/BGRA **22/22**
+and RDPGFX capabilities **4/4**. The lifecycle test proves mapped surface,
+prior outstanding ACKs, queue-depth observation and decoded-frame observation
+survive exact cancellation. The x264 NV12/BGRA tests prove the canceled P
+picture is followed by a fresh IDR, then ordinary P-frame continuity after
+successful delivery. The partial-send test proves nonzero/uncertain delivery
+cannot use the preserving cancel operation and remains terminal.
+
+P2 adds no production code or CTest. The R4 frame/receipt API is already the
+correct single logical publication boundary. The production gap is R3's
+missing authorized DRDYNVC/Graphics DVC lifecycle and cumulative outer-byte
+writer. Existing MCS user data is capped at 16,383 bytes; large R4 frames
+therefore require real DVC/static-channel fragmentation. R1's bounded TLS
+writer already supplies exact progress, but a zero-byte WANT retains a pending
+logical write and cannot be abandoned nonterminally. Safe unsent cancellation
+is consequently a **pre-first-R1-submit** decision unless a future explicit
+R1 retirement API is designed.
+
+The next cross-component implementation must keep one active R4 frame, one
+bounded outer fragment and R3-owned publication/slice receipts; call R4
+completion only after every outer fragment is accepted, cancel only before
+first submit, and abort on positive/uncertain progress. That implementation
+requires a dedicated production-backed compatibility CTest.
+
+Canonical local testing is **NOT RUN** because the synchronized
+`~/rdp-server/` checkout is unavailable here and policy forbids a second
+persistent checkout/build root. Real authenticated Graphics DVC admission,
+native capture-to-wire timing and Microsoft-client visible frames remain
+**NOT RUN**.

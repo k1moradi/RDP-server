@@ -83,3 +83,44 @@ not an accepted real desktop server. Historical patched-xrdp numbers
 are not native RDP-server results. Record first native measurements
 only after end-to-end functionality; do not invent a throughput baseline.
 Update this file and existing TODO in the same implementation commit.
+
+
+## R4 graphics recovery repeatability and future end-to-end benchmark gate
+
+Before an authorized R3 Graphics DVC sender exists, x264/BGRA CTest timings
+are regression-repeatability diagnostics only. Reuse the canonical checkout
+and build root:
+
+```bash
+cd ~/rdp-server
+git switch main
+git pull --ff-only origin main
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build --config Release --parallel 2 --target \
+  test_gfx_presentation_lifecycle test_gfx_avc420_segmented_frame \
+  test_x264_avc420_encoder test_x264_avc420_segmented_frame_producer
+ctest --test-dir build -C Release -N -L x264
+ctest --test-dir build -C Release -L x264 --repeat until-fail:30 \
+  --output-on-failure
+ctest --test-dir build -C Release \
+  -R '^graphics\.(frame-delivery-unsent-cancellation|frame-delivery-partial-send-remains-terminal|avc420-segmented-frame-unsent-cancellation|x264-segmented-unsent-cancel-idr|x264-bgra-unsent-cancel-idr|frame-ack-decode-progress(-observation)?)$' \
+  --repeat until-fail:30 --output-on-failure
+```
+
+Record exact commit/compiler/CPU and per-run test timing only for gross
+regression detection. Do not derive fps, queue thresholds, p95/p99 desktop
+latency, bandwidth or client decode performance from these offline runs.
+
+After genuine R2/R3 authorization, DRDYNVC, the Graphics DVC sender and one
+native source are integrated, add an opt-in measurement driver under this
+same `build/` root. Correlate monotonic timestamps for: native damage/event ->
+capture ready -> BGRA/NV12 conversion -> x264 encode -> R4 segmented frame
+ready -> first R3 outer-byte submit -> final R1 accepted byte ->
+FRAME_ACKNOWLEDGE -> client-visible presentation when a client exposes that
+signal. Record encoded bytes/frame, conversion/x264 CPU, allocations/RSS,
+raw client queueDepth bytes and raw totalFramesDecoded.
+
+Use fixed warmup/workload/network conditions and sufficient samples before
+reporting p50/p95/p99. Preserve queueDepth zero/unavailable/suspended and the
+raw uint32 decoded counter. Neither observation defines a frame-rate policy;
+calibrate any throttle only from measured real-client data.

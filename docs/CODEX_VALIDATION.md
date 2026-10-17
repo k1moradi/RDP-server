@@ -1,3 +1,17 @@
+## R7 packaging CI structure correction (2026-10-17)
+
+Initial packaging insertion `90fe8a45` left invalid primary CI YAML;
+`231635a6` repaired the local job but retained an accidentally duplicated
+workflow tail; `395af251` removed that tail and its independent CI
+structure guard `39064691693` is **PASS**. The first full corrected
+workflow `39064691700` reported documentation-policy **FAIL** because the
+workflow-only correction lacked a same-commit Markdown change. This
+follow-up records that failure and conservatively sets the bundle minimum
+macOS field to the actual hosted `sw_vers -productVersion` floor rather
+than asserting unsupported deployment compatibility. Full tests, native
+macOS 27 and actual bundle download checks are **NOT RUN / pending new
+exact-head CI**, so no bundle release acceptance is claimed.
+
 ## R5 offline Linux user test bundle (2026-10-17)
 
 Atomic source increment: fixed-member ZIP of actual existing Linux server

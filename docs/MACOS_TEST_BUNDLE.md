@@ -13,7 +13,7 @@ and installs to `build/stage`. Only its actual static archive slice is accepted:
 `lipo -archs` must return **one** of `arm64` or `x86_64`; a
 multi-slice, mixed or unknown archive fails packaging. The output name includes
 the detected architecture, source SHA and project version. Inspect
-`manifest.json` for exact commit SHA, version, arch, minimum macOS target,
+`manifest.json` for exact commit SHA, version, arch, minimum macOS CI host floor (conservative, not a verified deployment target),
 runtime declaration, per-file SHA-256 and license declaration. The adjacent
 `.sha256` records the outer ZIP checksum. CI must not claim macOS 27
 owner-native validation from its hosted macOS image.

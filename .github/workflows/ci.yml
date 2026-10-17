@@ -212,7 +212,7 @@ jobs:
           python3 scripts/macos_test_bundle.py package \
             --stage build/stage \
             --output "build/rdp-server-macos-protocol-test-${architecture}-${source_sha}.zip" \
-            --source-sha "$source_sha" --version "0.1.0" --minimum-macos "13.0"
+            --source-sha "$source_sha" --version "0.1.0" --minimum-macos "$(sw_vers -productVersion)"
           ctest --test-dir build --build-config Release --timeout 20 \
             -R 'macos[.]package-offline-integrity-and-idempotence' --output-on-failure
       - name: Upload macOS protocol TEST BUNDLE (no server)

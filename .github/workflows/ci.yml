@@ -347,6 +347,46 @@ jobs:
       - name: Run full Release CTest under CLANG64
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
+      - name: Reconfigure same root for R6 Windows sanitizers
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Build R6 Windows native sanitizer fixture
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake --build build --config Debug \
+            --target test_windows_desktop_geometry --parallel 2
+      - name: Run R6 Windows native lifetime CTests with sanitizers
+        shell: msys2 {0}
+        env:
+          ASAN_OPTIONS: halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          r6_sanitizer_selection='^windows\.(geometry|capture|cursor|input)-'
+          r6_sanitizer_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$r6_sanitizer_selection")"
+          printf '%s\n' "$r6_sanitizer_tests"
+          for required_test in \
+            windows.capture-session-change-duplication-owner-retirement \
+            windows.capture-session-change-duplication-release-order \
+            windows.capture-session-change-duplication-callback-retirement \
+            windows.capture-session-change-duplication-prior-revocation; do
+            grep -Fq "$required_test" <<< "$r6_sanitizer_tests"
+          done
+          test "$(awk '/Test #[0-9]+: windows[.](geometry|capture|cursor|input)-/ { ++count } END { print count + 0 }' \
+            <<< "$r6_sanitizer_tests")" -eq 55
+          ctest --test-dir build --build-config Debug --timeout 20 \
+            -R "$r6_sanitizer_selection" --output-on-failure
 
   # R9: one bounded sanitizer job across existing first-party CLIPRDR/X11,
   # MCS/CredSSP, native R2->R3 admission/revocation and R3 licensing contracts.

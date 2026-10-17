@@ -1,3 +1,31 @@
+## R6 P2 Windows CLANG64 native lifetime sanitizer gate (2026-10-17; exact-SHA CI pending)
+
+**Authoring parent:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.
+
+R6's remaining hosted lifetime gap is Windows-specific instrumentation. The
+existing Linux R9 sanitizer job cannot instrument `_WIN32` DXGI/D3D11/WTS/
+SendInput translation units, while ordinary Windows/MSVC and CLANG64 runs prove
+compile/behavior but not AddressSanitizer/UndefinedBehaviorSanitizer execution.
+
+The existing `r6-windows-clang23` job now reuses its one `build/` root
+after ordinary Debug and Release complete, reconfigures Debug with Clang
+ASan+UBSan, rebuilds the production-linked
+`test_windows_desktop_geometry` fixture and executes the complete anchored R6
+selector. The preflight requires exactly **55** registrations plus all four
+whole-owner retirement sentinels before execution, so a lost non-sentinel
+lifetime case cannot silently produce a smaller green sanitizer run.
+
+This changes no R6 production source, COM ownership rule, WTS semantics,
+input authorization or CTest behavior. All sanitizer cases continue to use
+deterministic synthetic callbacks and never capture a live desktop, register
+native WTS notifications or invoke host `SendInput`.
+
+Exact-SHA hosted execution is **PENDING**. A Clang/MinGW compiler-rt problem
+must be distinguished from a source/lifetime assertion failure. Owner Windows
+MSYS2 CLANG64 evidence remains R10's separate same-SHA M1 gate. M4 remains
+**OPEN / NOT ACCEPTED** without real R2 admission, R3 routing, an admitted
+desktop and Microsoft-client acceptance.
+
 ## R8 native directory-capability duplication boundary (2026-10-17; exact-SHA CI pending)
 
 **Portable binding:** `446f13677d57d2ef3bead65bb65dcc460e1fde3a`, Actions `39011707625`.  

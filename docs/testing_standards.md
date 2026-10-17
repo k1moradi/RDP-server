@@ -1,3 +1,27 @@
+## R6 Windows CLANG64 native lifetime sanitizers (2026-10-17)
+
+The hosted Windows CLANG64 gate must instrument the production
+`rdp-server-windows-desktop` graph and `test_windows_desktop_geometry`
+with Clang AddressSanitizer and UndefinedBehaviorSanitizer after the ordinary
+Debug/Release compiler gates complete. Reconfigure the same checkout-local
+`build/` root to Debug with `-fsanitize=address,undefined`,
+`-fno-omit-frame-pointer` and fail-on-first-error recovery disabled; do not
+create a parallel sanitizer build directory.
+
+The sanitizer execution is deliberately limited to the existing deterministic
+R6 selector `^windows\.(geometry|capture|cursor|input)-`. Enumerate that
+selector before execution, require exactly **55** registered behaviors and the
+four whole-owner session-retirement sentinels, then run all selected tests.
+This gate must exercise production Windows adapter code with synthetic native
+callbacks only: no live desktop capture, WTS notification registration,
+`SendInput`, credentials or interactive user-session access.
+
+A sanitizer-runtime or compiler-rt/linker failure is toolchain evidence and
+must be reported separately from a production lifetime assertion failure. A
+green run is memory/UB evidence for the exercised synthetic Windows ownership
+paths only; it is not owner-machine M1 evidence and cannot count as M4
+desktop/client acceptance.
+
 ## R7 hosted Apple lifecycle evidence is failure-isolated, not failure-masking
 
 The primary macOS protocol job remains the authoritative full Debug/Release

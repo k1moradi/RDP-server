@@ -1,3 +1,18 @@
+## R6 hosted Windows sanitizer build contract (2026-10-17)
+
+After the ordinary hosted MSYS2 CLANG64 Debug and Release gates, CI may
+reconfigure the **same** `build/` root back to Debug with Clang 23
+`-fsanitize=address,undefined`, `-fno-omit-frame-pointer` and
+`-fno-sanitize-recover=all`, plus the matching executable linker sanitizer
+flags. It then builds only the existing production-linked
+`test_windows_desktop_geometry` target and executes the R6 native selector.
+
+The sanitizer pass adds no owner-local build root and is not part of the
+owner's mandatory M1 command. It relies on the CLANG64 compiler-rt shipped with
+the verified Clang package; a missing/incompatible runtime must fail visibly
+instead of silently dropping instrumentation. No live Windows desktop or input
+permission is required.
+
 ## R8 native directory-capability build boundary (2026-10-17)
 
 The noninstalled `rdp-server-clipboard-directory-capability` target remains

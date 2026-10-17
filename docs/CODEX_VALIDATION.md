@@ -1,3 +1,23 @@
+## R6 P2 Windows CLANG64 sanitizer authoring receipt (2026-10-17)
+
+**Authoring parent:** `0eb444bfab7ae0ce23dde22ba8c5e45c19212c4e`.  
+**Publication:** this direct-to-main commit; exact-SHA Actions pending.
+
+The Windows CLANG64 parity job now adds one same-root Debug sanitizer
+configuration after its ordinary Debug/Release validation. It applies Clang
+ASan+UBSan to the production Windows desktop adapter and the existing
+`test_windows_desktop_geometry` fixture, fail-closes on the exact 55-case
+R6 selector cardinality and the four whole-owner retirement registrations, and
+runs the selected synthetic native lifetime suite with halt-on-error runtime
+settings.
+
+No production source or behavior was changed and no new CTest was invented:
+the purpose is to instrument the already dedicated production-backed R6
+lifetime tests rather than duplicate them. Live desktop capture, WTS
+registration, `SendInput`, credentials and user-session mutation remain
+absent. Owner-native M1 and real-client M4 evidence remain separate and are
+not claimed by this hosted sanitizer gate.
+
 ## R8 native directory-capability duplication authoring receipt (2026-10-17)
 
 The preceding portable binding at

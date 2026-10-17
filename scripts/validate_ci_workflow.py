@@ -196,6 +196,8 @@ REQUIRED_TOKENS = (
     "transport.licensing-client-cal-chain-structure",
     "transport.licensing-client-cal-certificate-validity",
     "windows.capture-session-change-duplication-owner-retirement",
+    "Run R6 Windows native lifetime CTests with sanitizers",
+    "r6_sanitizer_selection='^windows\\.(geometry|capture|cursor|input)-'",
     "graphics.frame-delivery-unsent-cancellation",
     "graphics.avc420-segmented-frame-unsent-cancellation",
     "graphics.x264-segmented-unsent-cancel-idr",

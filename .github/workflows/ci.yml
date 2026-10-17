@@ -495,6 +495,7 @@ jobs:
             test_owned_credssp_binding test_console_identity_policy \
             test_linux_gssapi_spnego test_linux_pam_password_verifier \
             test_runtime_linux_security test_runtime_licensing_authority \
+            test_runtime_licensing_authority_public_header \
             rdp-server \
             test_x11_clipboard_adapter test_x11_capture_layout \
             test_x11_cursor_reply test_x11_native_capture \
@@ -532,6 +533,17 @@ jobs:
           grep -Fq 'clipboard.directory-capability-binding-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.linux-directory-capability-native' <<< "$selected_tests"
           grep -Fq 'clipboard.file-destination-plan-native-capability-integration' <<< "$selected_tests"
+          grep -Fq 'clipboard.macos-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
+          grep -Fq 'clipboard.windows-file-destination-source-epoch-revocation' <<< "$selected_tests"
+          grep -Fq 'clipboard.windows-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
+          grep -Fq 'clipboard.x11-r3-retirement-stale-incr-fence' <<< "$selected_tests"
+          readonly clipboard_expected_test_count=81
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$clipboard_expected_test_count" ]]; then
+            printf 'R8 clipboard registry mismatch: expected %s tests, found %s\n' \
+              "$clipboard_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
           ctest --test-dir build --build-config Debug --timeout 60 \
             -L clipboard --output-on-failure
       - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers
@@ -609,11 +621,11 @@ jobs:
         run: |
           set -euo pipefail
           # Verify the actual central CTest registry before instrumented execution.
-          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-license-request-cancel-replay|r3-platform-challenge-slice|r3-platform-challenge-cancel-replay|r3-platform-challenge-response-read|r3-client-license-read|tls-application-partial-write|tls-terminal-readiness|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output|write-receipts|write-denials)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|runtime\.licensing-cli-(valid-provisioning|incomplete-configuration|invalid-product-identity|credential-file-denials|existing-check-compatibility|service-still-disabled)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-strict-fields)|credssp-binding))$'
+          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|buffered-tls-credssp-mcs-readiness|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-license-request-slice|r3-license-request-cancel-replay|r3-platform-challenge-slice|r3-platform-challenge-cancel-replay|r3-platform-challenge-response-read|r3-client-license-read|tls-application-partial-write|tls-terminal-readiness|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output|write-receipts|write-denials)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|runtime\.licensing-cli-(valid-provisioning|incomplete-configuration|invalid-product-identity|credential-file-denials|existing-check-compatibility|service-still-disabled)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-strict-fields)|credssp-binding))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
           printf '%s\n' "$selected_tests"
-          readonly licensing_expected_test_count=92
+          readonly licensing_expected_test_count=93
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$licensing_expected_test_count" ]]; then
             printf 'R9 M2 licensing registry mismatch: expected %s tests, found %s\n' \
@@ -663,6 +675,7 @@ jobs:
           grep -Fq 'transport.licensing-key-material-terminal-replay' <<< "$selected_tests"
           grep -Fq 'transport.tcp-native-accept-orderly-eof' <<< "$selected_tests"
           grep -Fq 'transport.tcp-native-accept-batch-budget-handoff' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-buffered-tls-credssp-mcs-readiness' <<< "$selected_tests"
           grep -Fq 'transport.tcp-owned-r3-license-request-cancel-replay' <<< "$selected_tests"
           grep -Fq 'transport.tcp-owned-r3-platform-challenge-slice' <<< "$selected_tests"
           grep -Fq 'transport.tcp-owned-r3-platform-challenge-cancel-replay' <<< "$selected_tests"
@@ -704,10 +717,10 @@ jobs:
           # R3 P0 existing-CAL request snapshots are non-authorizing but carry
           # sensitive proof/correlation lifetime state. Keep their sanitizer
           # registry explicit and fail closed on any missing behavior.
-          existing_cal_request_selection='^transport\.licensing-existing-cal-authority-request-'
+          existing_cal_request_selection='^transport\.licensing-existing-cal-(authority-request-.*|live-visit-lifetime)$'
           existing_cal_request_tests="$(ctest --test-dir build --build-config Debug -N -R "$existing_cal_request_selection")"
           printf '%s\n' "$existing_cal_request_tests"
-          readonly existing_cal_request_expected_test_count=4
+          readonly existing_cal_request_expected_test_count=5
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$existing_cal_request_tests")"
           if [[ "$selected_test_count" -ne "$existing_cal_request_expected_test_count" ]]; then
             printf 'R9 R3 existing-CAL request registry mismatch: expected %s tests, found %s\n' \
@@ -715,6 +728,7 @@ jobs:
             exit 1
           fi
           grep -Fq 'transport.licensing-existing-cal-authority-request-ownership' <<< "$existing_cal_request_tests"
+          grep -Fq 'transport.licensing-existing-cal-live-visit-lifetime' <<< "$existing_cal_request_tests"
           grep -Fq 'transport.licensing-existing-cal-authority-request-hwid-proof-gate' <<< "$existing_cal_request_tests"
           grep -Fq 'transport.licensing-existing-cal-authority-request-product-and-correlation-denials' <<< "$existing_cal_request_tests"
           grep -Fq 'transport.licensing-existing-cal-authority-request-revocation-replay' <<< "$existing_cal_request_tests"
@@ -770,7 +784,7 @@ jobs:
           authority_selection='^runtime\.licensing-authority-'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$authority_selection")"
           printf '%s\n' "$selected_tests"
-          readonly authority_expected_test_count=6
+          readonly authority_expected_test_count=7
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$authority_expected_test_count" ]]; then
             printf 'R9 M2 authority registry mismatch: expected %s tests, found %s\n' \
@@ -778,6 +792,7 @@ jobs:
             exit 1
           fi
           grep -Fq 'runtime.licensing-authority-unconfigured-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.licensing-authority-public-header-consumer-lifetime' <<< "$selected_tests"
           grep -Fq 'runtime.licensing-authority-issuer-policy-correlation' <<< "$selected_tests"
           grep -Fq 'runtime.licensing-authority-generation-revocation' <<< "$selected_tests"
           grep -Fq 'runtime.licensing-authority-result-bounds-and-cancellation' <<< "$selected_tests"

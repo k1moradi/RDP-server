@@ -1,3 +1,52 @@
+## R7 cursor publication exact-SHA validation receipt (2026-10-16)
+
+**Implementation:** `32f46276add9b387e71962376da4329537eff2d8`  
+**Exact-SHA workflow:** https://github.com/k1moradi/RDP-server/actions/runs/39006013275  
+**Clean unchanged-R7 descendant:** `a7d724e3988e88f8bb3440b19f76e760b3870cf7`  
+**Descendant workflow:** https://github.com/k1moradi/RDP-server/actions/runs/39006137656
+
+Production behavior: `MacCursorSnapshot::validFor(geometry)` /
+`pixelsFor(geometry)` synchronously require the snapshot's structural and
+GUI-session validity, exact saved geometry generation to remain usable, the
+current topology revision to exist and equal the saved revision, and a visible
+snapshot's display ID to remain present in that generation. The caller owns
+the geometry; no pointer is retained, no old snapshot is relabeled, and the
+native AppKit sampler remains private.
+
+R7 sanitizer evidence at the implementation SHA: desktop-session **10/10**,
+input session-watch **1/1**, cursor publication/session selection **3/3**,
+with fail-closed `ctest -N` registration checks before cursor execution.
+Documentation policy: **PASS**. On the implementation-SHA macOS Debug suite,
+all seven cursor cases passed; on the Windows Debug suite, all seven cursor
+cases passed.
+
+Cross-road exact failures at `32f46276add9b387e71962376da4329537eff2d8`:
+- `protocol (ubuntu-latest)` / `Compile Debug`: R10
+  `tests/test_runtime_licensing_authority.cpp:658`,
+  `-Werror=range-loop-construct`.
+- `protocol (macos-latest)` / `Run Debug protocol and project-policy tests`:
+  R3 `transport.licensing-client-cal-product-extension-denials`, assertion at
+  `tests/test_owned_mcs_connect_initial.cpp:7455`; 469/470 overall, with
+  R7 cursor **7/7 PASS**.
+- `protocol (windows-latest)` / `Run Debug protocol and project-policy tests`:
+  the same R3 CAL assertion timed out; 499/500 overall, with R7 cursor
+  **7/7 PASS**.
+- `r9-security-protocol-sanitizers`: the bounded R1/R3 step's CAL selector
+  selected zero tests, and the R10 licensing-authority step lacked the built
+  `test_runtime_licensing_authority` executable, leaving five cases Not Run.
+  These are not R7 code paths.
+
+Unchanged-R7 descendant `a7d724e3988e88f8bb3440b19f76e760b3870cf7` proves the R3 failure was independent:
+macOS **470/470 Debug + 470/470 Release**, Windows **500/500 Debug +
+500/500 Release**, downstream installed consumer **PASS** on both, package
+digest **PASS** on both, R7 sanitizer **PASS**, documentation policy **PASS**.
+Linux still stops at the unrelated R10 line-658 warning and R9 retains the
+independent selector/build-target failures.
+
+Owner macOS 27/TCC/native-session-switch tests: **NOT RUN**. R2/R3 genuine
+desktop admission and R4 client cursor publication remain external
+dependencies. M1 and M5 remain **OPEN / NOT ACCEPTED**.
+
 ## R3 CAL X.509-version fixture isolation (2026-10-16; exact-SHA CI pending)
 
 Exact-SHA run 39005961866 passed five of the six dedicated CAL tests on the

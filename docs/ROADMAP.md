@@ -1,3 +1,45 @@
+## R7 current-display cursor publication validation (2026-10-16)
+
+R7 implementation SHA `32f46276add9b387e71962376da4329537eff2d8` is published on shared `main`.
+Exact-SHA Actions: https://github.com/k1moradi/RDP-server/actions/runs/39006013275. The dedicated
+`r7-macos-session-sanitizers` job passed: ten desktop-session cases, the
+input session-watch revocation case, and the fail-closed registry-preflighted
+three-case cursor selection all passed under GCC ASan/UBSan. The cursor
+selection was exactly
+`macos.cursor-topology-publication-revocation`,
+`macos.cursor-geometry-generation-publication-denials`, and
+`macos.cursor-session-watch-revocation`. Documentation policy also passed.
+
+The implementation-SHA full matrix exposed only concurrent cross-road
+failures. Linux/GCC stopped in Debug compile at
+`tests/test_runtime_licensing_authority.cpp:658` because
+`-Werror=range-loop-construct` rejected an R10 copied structured binding.
+macOS/AppleClang compiled Debug and ran 470 tests; all seven R7 cursor cases
+passed, while the concurrent R3
+`transport.licensing-client-cal-product-extension-denials` case asserted at
+`tests/test_owned_mcs_connect_initial.cpp:7455`, so Release was skipped.
+Windows/MSVC compiled Debug and ran 500 tests; all seven R7 cursor cases
+passed, while that same R3 CAL case timed out after the same assertion, so
+Release was skipped. The R9 sanitizer job separately failed a concurrent
+R1/R3 CAL registry selector that selected zero tests and an R10
+licensing-authority selection whose executable had not been built; its other
+instrumented selections continued independently. These failures are not in
+the R7 cursor code path.
+
+Clean unchanged-R7 descendant `a7d724e3988e88f8bb3440b19f76e760b3870cf7` was then validated by
+https://github.com/k1moradi/RDP-server/actions/runs/39006137656. Its R3 repair restored macOS to **470/470 Debug and
+470/470 Release** and Windows to **500/500 Debug and 500/500 Release**; both
+platforms also passed the installed downstream CMake consumer and package
+digest path. The descendant R7 GCC ASan/UBSan job and documentation policy
+passed again. Linux remained blocked before CTest by the same R10 line-658
+warning, and R9 retained its independent registry/build-target failures.
+
+This evidence is synthetic/offline cursor lifetime evidence. Owner macOS 27,
+real TCC approval, native AppKit cursor sampling, real GUI-session switching,
+R2/R3 authorized desktop admission, R4 pointer publication, and Microsoft
+client interoperability are **NOT RUN / NOT ESTABLISHED** here. M1 and M5
+therefore remain **OPEN / NOT ACCEPTED**.
+
 ## R1 owned-TLS handshake readiness hardening (2026-10-16; exact-SHA CI pending)
 
 **Starting reconciled shared \`main\`:** \`32f46276add9b387e71962376da4329537eff2d8\`.

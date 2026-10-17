@@ -380,7 +380,8 @@ CredSspPasswordFieldVisitStatus visitCredSspPasswordCredential(
         return CredSspPasswordFieldVisitStatus::InvalidUnixAccount;
     }
 
-    visitor(account.accountName(), fields.password, context);
+    visitor(std::string_view(account.account.data(), account.accountLength),
+            fields.password, context);
     OPENSSL_cleanse(account.account.data(), account.account.size());
     account.accountLength = 0;
     return CredSspPasswordFieldVisitStatus::Visited;

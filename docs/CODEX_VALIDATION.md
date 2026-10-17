@@ -1,3 +1,19 @@
+## R2 synchronous visitor validity correction (2026-10-17)
+
+The first hosted execution of the new portable visitor at
+`dcac5920949d697d517ba08b9c0ab5d0f33438a1`, Actions
+`39009725570`, compiled successfully on macOS but failed
+`security.credssp-password-field-synchronous-visitor`: the callback observed
+an empty account. The internal visitor had correctly filled the fixed account
+buffer but then called the public metadata result's `accountName()`, whose
+public validity flag is intentionally not set by the internal path.
+
+This correction passes a bounded `std::string_view` over the already validated
+fixed account buffer directly to the synchronous callback, before that buffer is
+cleansed. It does not weaken the account grammar, domain rule, GSS provenance,
+policy-generation check, password lifetime, PAM service configuration, private
+completion latch or native-admission boundary.
+
 ## R2 PAM sanitizer selector repair receipt (2026-10-17)
 
 Commit `dcac5920949d697d517ba08b9c0ab5d0f33438a1` repairs only the R2 exact-name sanitizer selectors after the

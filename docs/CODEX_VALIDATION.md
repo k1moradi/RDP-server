@@ -6788,3 +6788,10 @@ frame-count instead of its removed independent presentation owner.
 Local configure/build/CTest/sanitizers: NOT RUN in this GitHub connector.
 Hosted exact-head CI and frame completion/cancellation: PENDING.
 R10 integration and first physical seat0/client evidence: BLOCKED.
+
+## R3 classifier CI test registry correction (2026-10-18)
+
+Exact-head Linux/macOS protocol CI for e7c6a13 failed at compile because
+three new behavior-named cases were added to a fixed 155-element test array
+without raising its extent. Updated to 158; test execution on this correction
+remains PENDING, prior commit's CTests NOT RUN.

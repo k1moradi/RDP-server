@@ -444,3 +444,7 @@ after two independent native admission checks. It does not invoke any
 R5/R8 listener, advance the Share, create a channel, or read TLS bytes.
 The external R10 single-reader integration and genuine X11 host remain
 BLOCKED. New exact-SHA hosted CTests/sanitizers: PENDING.
+
+**R3 classifier CI follow-up (2026-10-18):** R3's test registry static extent
+was updated 155 → 158 after Linux/macOS compilation detected three added
+cases. Exact-head route/graphics/sanitizer tests remain PENDING.

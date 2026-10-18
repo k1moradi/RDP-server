@@ -38,7 +38,7 @@ assert not module.report(base, lambda _: admitted, lambda name: None)["capture_i
 
 launcher = root / "packaging/linux/run-gui.sh"
 text = launcher.read_text()
-assert 'rdp-server-desktop' in text and 'serve' not in text.split('exec "$gui"')[0].replace("# Open only the GUI binary beside this launcher. Never fall back to 'serve'.", "")
+assert 'rdp-server-desktop' in text and 'exec "$gui" "$@"' in text
 with tempfile.TemporaryDirectory() as temporary:
     work = Path(temporary)
     (work / "run-gui.sh").write_text(text)

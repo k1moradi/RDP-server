@@ -1344,6 +1344,27 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$post_share_selection" --output-on-failure
 
+      # R10's persistent live application/native scheduler source contract
+      # is not an ASan-instrumented executable. Keep it separate from the
+      # exact-two post-Share runtime denials and the legacy 40-case selection.
+      - name: Run R10 persistent post-Share owner source guard
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          persistent_owner_selection='^runtime[.]linux-serve-persistent-post-share-single-owner$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$persistent_owner_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-serve-persistent-post-share-single-owner' <<< "$selected_tests"
+          readonly persistent_owner_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$persistent_owner_expected_test_count" ]]; then
+            printf 'R9 R10 persistent-owner registry mismatch: expected %s test, found %s\n' \
+              "$persistent_owner_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$persistent_owner_selection" --output-on-failure
+
       # R2's post-admission read-generation regression is a source-level CMake
       # contract rather than a sanitizer-instrumented executable. Keep it out
       # of the fixed 40-case executable-backed selector, but require it in the

@@ -1,3 +1,34 @@
+## R9 focused persistent post-Share R10 owner assurance (2026-10-18)
+
+R10 `2a3f06b039c9b583ba3826d2c0e62bec7827524f` composes a
+persistent R1/R2/R3/R5-owned poll loop, serialized post-Share input and
+Graphics ACK routing, and first native R4/XShm frame publication, with
+native/logind registration retirement before callbacks. This supersedes
+the previous one-poll/forced-revoke design at the implementation boundary.
+The new production source-level CTest
+`runtime.linux-serve-persistent-post-share-single-owner` protects
+the sole R1 TLS reader, exactly owned X11/logind polling, borrowed
+frames and revocation. R9 now executes this **one** source/build graph
+guard in a dedicated focused assurance step and pins the step/test/count
+in the independently run workflow structure validator. It is **not**
+an ASan-instrumented runtime test, so the existing **2** post-Share
+runtime executable denials, **40** R2 executable sanitizer cases, **87**
+R8 clipboard component cases and **2** dormant-native-linkage guards
+remain distinct and unchanged.
+
+Current hosted macOS PORTABLE-GUI job at `3b899d59` failed extracted
+`codesign --verify --deep --strict` with invalid framework
+`Info.plist`/signature after Python ZIP packaging of staged Qt
+frameworks; the archive hash and generic PORTABLE-GUI structure check
+both passed. This is real R7/R9 macOS packaging/signature-topology
+work, **not** permission to skip codesign, claim Aqua launch or publish
+a release. Owner-native macOS 27 and LAN Microsoft-client evidence are
+**NOT RUN**, and R8 native clipboard publication is still uncomposed.
+
+Exact publication-SHA primary and independent structure CI: **PENDING**.
+No live host-control Start/Stop, certified ZIP or successful Microsoft
+client is claimed.
+
 ## R2 bounded Linux NLA attempt-abuse gate (2026-10-18)
 
 Authored `security/authentication_attempt_limiter.h` as a single-owner,

@@ -1,3 +1,15 @@
+## R9 persistent post-Share ownership focused source guard (2026-10-18)
+
+When R10 lands a new source-level production scheduler CTest, enroll it
+in a **separate exact-one** CTest selection in the R9 focused assurance
+job. Require its name and count in `scripts/validate_ci_workflow.py`.
+This does not execute a sanitized live authenticated session and must
+not change the R2 legacy 40-case executable sanitizer count, the R10
+two-case production-backed post-Share denials, R8 87-case component
+inventory or separate dormant bridge linkage guards. Keep macOS
+extracted `codesign --verify --deep --strict` mandatory after ZIP
+extraction; valid hashes alone are insufficient signing evidence.
+
 ## R2 fixed-memory authentication-attempt budget (2026-10-18)
 
 The serialized Linux listener owns one service-lifetime

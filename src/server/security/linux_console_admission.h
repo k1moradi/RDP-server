@@ -681,6 +681,57 @@ public:
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy) noexcept;
 
+    // R3 CLIPRDR post-Share gateway; only this concrete R2 broker can
+    // enter the private R3 channel resolver and framing lifecycle.
+    // Every call revalidates the exact R1 TLS/GSS provenance, current native
+    // R2 lease, PersonalDesktop mode and clipboard permission. Callbacks are
+    // synchronous; do not retain the borrowed PDU/route or reenter the owner.
+    [[nodiscard]] bool visitR3PersonalDesktopClipboardChannel(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
+        rdp_server::server::transport::RdpClipboardChannelVisitor visitor) noexcept;
+
+    [[nodiscard]] bool dispatchR3PersonalDesktopClipboardTpkt(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt,
+        rdp_server::server::transport::RdpClipboardCompletePduSink sink) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+    queueR3PersonalDesktopClipboardPdu(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completePdu) noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+    pendingR3PersonalDesktopClipboardWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
+    [[nodiscard]] rdp_server::server::transport::RdpClipboardWriteOutcome
+    completeR3PersonalDesktopClipboardWrite(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint64_t generation, std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept;
+
     // Consume one slow-path Input Event PDU only through the current
     // PersonalDesktop Share. Ingress requires fresh view+input authority, and
     // R2 repeats input authorization plus the R3 Share/provenance check

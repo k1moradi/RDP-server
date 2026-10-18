@@ -1,3 +1,7 @@
+## R3 CLIPRDR broker declaration CI correction (2026-10-18)
+
+The first R3 post-Share CLIPRDR publication `cd5dc6f3` failed its Linux R2 production target during compile: `linux_console_admission.cpp` defined five new public clipboard broker gateways that were accidentally omitted from the compiled `linux_console_admission.h`. This descendant restores the exact five declarations with unchanged production implementation and CTest coverage. The original check `r2-linux-production-runtime-security (complete)` is **FAIL** for that source SHA, not a passing integration receipt. The correction's hosted full CTest/sanitizer and cross-platform results are **NOT RUN / pending** until GitHub reports them. Owner-local and positive physical-seat0 Kerberos/PAM/NSS/logind/Microsoft-client tests remain **NOT RUN / BLOCKED**. CLIPRDR/FileContents runtime advertisement remains disabled.
+
 ## R10 real ChannelJoin/Confirm serialized composition (2026-10-18)
 
 **Parent `cd5dc6f3c08b16c59029b71c07e7e17fd1421a09`; exact publication-SHA hosted build/CTest

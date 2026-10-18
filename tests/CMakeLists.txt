@@ -272,6 +272,7 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-tls-application-io
                 tcp-owned-tls-application-partial-write
                 tcp-owned-r3-connect-response-slice
+                tcp-owned-r3-graphics-frame-slice
                 tcp-owned-r3-license-request-slice
                 tcp-owned-r3-license-request-cancel-replay
                 tcp-owned-r3-platform-challenge-slice

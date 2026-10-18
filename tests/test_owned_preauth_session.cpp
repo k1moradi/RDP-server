@@ -3,6 +3,7 @@
 #include "transport/preauth_session.h"
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/mcs_connect_response.h"
+#include "transport/mcs_channel_connection.h"
 #include "transport/tpkt_x224.h"
 #include "security/credssp_tsrequest.h"
 #include "security/credssp_tls_certificate.h"
@@ -3267,6 +3268,339 @@ void readNativeTlsClientAll(
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     assert(total == output.size());
+}
+
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeR1GraphicsClientDynamicVirtualChannelTpkt(
+    std::uint32_t clientUserId,
+    std::uint16_t staticChannelId,
+    std::span<const std::uint8_t> dvcPdu)
+{
+    assert(clientUserId >= 1001U && clientUserId <= 65536U);
+    assert(staticChannelId != 0U);
+    assert(!dvcPdu.empty() &&
+           dvcPdu.size() <= kRdpStaticVirtualChannelDefaultChunkBytes);
+
+    std::vector<std::uint8_t> staticChannelPdu(8U + dvcPdu.size());
+    const auto writeLe32 = [&staticChannelPdu](
+        std::size_t offset, std::uint32_t value)
+    {
+        staticChannelPdu[offset] = static_cast<std::uint8_t>(value);
+        staticChannelPdu[offset + 1U] =
+            static_cast<std::uint8_t>(value >> 8U);
+        staticChannelPdu[offset + 2U] =
+            static_cast<std::uint8_t>(value >> 16U);
+        staticChannelPdu[offset + 3U] =
+            static_cast<std::uint8_t>(value >> 24U);
+    };
+    writeLe32(0U, static_cast<std::uint32_t>(dvcPdu.size()));
+    writeLe32(4U, 0x00000003U);
+    std::copy(
+        dvcPdu.begin(), dvcPdu.end(),
+        staticChannelPdu.begin() + 8U);
+
+    const bool longLength = staticChannelPdu.size() >= 128U;
+    const std::size_t mcsHeaderBytes = longLength ? 15U : 14U;
+    const std::size_t totalBytes =
+        mcsHeaderBytes + staticChannelPdu.size();
+    assert(totalBytes <=
+           (std::numeric_limits<std::uint16_t>::max)());
+
+    std::vector<std::uint8_t> packet(totalBytes);
+    packet[0] = 0x03U;
+    packet[1] = 0x00U;
+    packet[2] = static_cast<std::uint8_t>(totalBytes >> 8U);
+    packet[3] = static_cast<std::uint8_t>(totalBytes);
+    packet[4] = 0x02U;
+    packet[5] = 0xf0U;
+    packet[6] = 0x80U;
+    packet[7] = 0x64U;
+    const std::uint32_t userOffset = clientUserId - 1001U;
+    packet[8] = static_cast<std::uint8_t>(userOffset >> 8U);
+    packet[9] = static_cast<std::uint8_t>(userOffset);
+    packet[10] = static_cast<std::uint8_t>(staticChannelId >> 8U);
+    packet[11] = static_cast<std::uint8_t>(staticChannelId);
+    packet[12] = 0x70U;
+    if (longLength)
+    {
+        packet[13] = static_cast<std::uint8_t>(
+            0x80U | (staticChannelPdu.size() >> 8U));
+        packet[14] =
+            static_cast<std::uint8_t>(staticChannelPdu.size());
+    }
+    else
+    {
+        packet[13] =
+            static_cast<std::uint8_t>(staticChannelPdu.size());
+    }
+    std::copy(
+        staticChannelPdu.begin(), staticChannelPdu.end(),
+        packet.begin() +
+            static_cast<std::ptrdiff_t>(mcsHeaderBytes));
+    return packet;
+}
+
+void completeR1GraphicsDynamicVirtualChannelReady(
+    RdpGraphicsDynamicVirtualChannelLifecycle &dvc,
+    RdpDynamicVirtualChannelAllocation allocation,
+    std::uint32_t clientUserId,
+    std::uint16_t staticChannelId)
+{
+    assert(allocation && allocation.channelId <= 0xffU);
+    assert(dvc.begin(clientUserId, staticChannelId, allocation));
+
+    auto write = dvc.pendingServerWrite();
+    assert(write &&
+           write.kind ==
+               RdpGraphicsDvcWriteKind::CapabilitiesRequest);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+
+    constexpr std::array<std::uint8_t, 4> capabilitiesResponse{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeR1GraphicsClientDynamicVirtualChannelTpkt(
+                   clientUserId, staticChannelId,
+                   capabilitiesResponse)) ==
+           RdpGraphicsDvcClientIntake::CapabilitiesAccepted);
+
+    write = dvc.pendingServerWrite();
+    assert(write &&
+           write.kind == RdpGraphicsDvcWriteKind::CreateRequest);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+
+    const std::array<std::uint8_t, 6> createResponse{
+        0x10U,
+        static_cast<std::uint8_t>(allocation.channelId),
+        0x00U, 0x00U, 0x00U, 0x00U};
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeR1GraphicsClientDynamicVirtualChannelTpkt(
+                   clientUserId, staticChannelId,
+                   createResponse)) ==
+           RdpGraphicsDvcClientIntake::CreateAccepted);
+
+    constexpr std::array<std::uint8_t, 22> clearCodecAdvertisement{
+        0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
+        0x01U, 0x00U,
+        0x04U, 0x00U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+        0x00U, 0x00U, 0x00U, 0x00U};
+    std::vector<std::uint8_t> graphicsCapabilities{
+        0x30U, static_cast<std::uint8_t>(allocation.channelId)};
+    graphicsCapabilities.insert(
+        graphicsCapabilities.end(),
+        clearCodecAdvertisement.begin(),
+        clearCodecAdvertisement.end());
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeR1GraphicsClientDynamicVirtualChannelTpkt(
+                   clientUserId, staticChannelId,
+                   graphicsCapabilities)) ==
+           RdpGraphicsDvcClientIntake::GraphicsCapabilitiesAccepted);
+
+    write = dvc.pendingServerWrite();
+    assert(write &&
+           write.kind ==
+               RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(dvc.graphicsClearCodecEnabled());
+    assert(!dvc.graphicsAvc420Enabled());
+}
+
+void completeR1GraphicsPresentationCommand(
+    rdp_server::rdp::GfxPresentationLifecycle &lifecycle,
+    std::uint64_t generation)
+{
+    std::array<std::byte, 64> bytes{};
+    rdp_server::rdp::GfxPresentationReceipt receipt{};
+    assert(lifecycle.prepareCommand(
+        generation, bytes, receipt));
+    assert(receipt.bytes != 0U);
+    assert(lifecycle.completeCommand(
+        receipt, receipt.bytes));
+}
+
+void prepareR1ClearCodecFrame(
+    rdp_server::rdp::GfxPresentationLifecycle &lifecycle,
+    std::uint64_t generation,
+    rdp_server::rdp::GfxAvc420SegmentedFrame &frame)
+{
+    constexpr PixelSize geometry{64U, 64U};
+    assert(lifecycle.open(generation));
+    constexpr std::array<std::byte, 22> advertisement{
+        std::byte{0x12}, {}, {}, {},
+        std::byte{0x16}, {}, {}, {},
+        std::byte{0x01}, {},
+        std::byte{0x04}, {}, std::byte{0x08}, {},
+        std::byte{0x04}, {}, {}, {},
+        {}, {}, {}, {}};
+    assert(lifecycle.acceptCapabilities(
+        generation, advertisement));
+    completeR1GraphicsPresentationCommand(lifecycle, generation);
+    assert(lifecycle.configureSurface(
+        generation, 7U, geometry));
+    completeR1GraphicsPresentationCommand(lifecycle, generation);
+    completeR1GraphicsPresentationCommand(lifecycle, generation);
+    assert(lifecycle.stage() ==
+           rdp_server::rdp::GfxPresentationStage::Mapped);
+
+    std::vector<std::byte> pixels(
+        static_cast<std::size_t>(geometry.widthPixels) *
+        geometry.heightPixels * 4U);
+    for (std::size_t index = 0U; index < pixels.size(); ++index)
+    {
+        pixels[index] = static_cast<std::byte>(
+            (index * 17U + 3U) & 0xffU);
+    }
+
+    const FramebufferView framebuffer{
+        std::span<const std::byte>{pixels},
+        geometry.widthPixels,
+        geometry.heightPixels,
+        static_cast<std::size_t>(geometry.widthPixels) * 4U};
+    const rdp_server::rdp::GfxClearCodecFrameRequest request{
+        7U, 301U, framebuffer};
+    assert(rdp_server::rdp::prepareGfxClearCodecSegmentedFrame(
+        lifecycle, generation, request, frame));
+    assert(frame.wireBytes().size() >
+           kMaximumRdpDynamicVirtualChannelDataPayloadBytes);
+}
+
+void testR3GraphicsFrameSliceThroughOwnedTls()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+    using WriteOutcome = RdpGraphicsDvcWriteOutcome;
+    using Clock = std::chrono::steady_clock;
+
+    static_assert(kMaximumRdpDynamicVirtualChannelPacketBytes <=
+                  kMaximumTlsApplicationIoBytes);
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+
+    TlsHandshakeFixture tls{false, false};
+    assert(SSL_set_max_send_fragment(tls.server.get(), 1024) == 1);
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t staticChannelId = 1005U;
+    constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 91U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeR1GraphicsDynamicVirtualChannelReady(
+        dvc, allocation, clientUserId, staticChannelId);
+
+    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareR1ClearCodecFrame(presentation, 9301U, frame);
+    const std::size_t frameWireBytes = frame.wireBytes().size();
+
+    assert(dvc.beginFramePublication(
+        presentation, std::move(frame),
+        RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(!frame.valid());
+    assert(dvc.frameRecordMap().size() > 1U);
+    assert(dvc.frameRecordMap().front().dataFirst);
+
+    // This is deliberately an R1/R3 byte-and-receipt integration proof, not
+    // a fabricated R2 admission. R3 control setup above is synthetic; only
+    // Graphics DATA records below traverse the real R1 TLS plaintext owner.
+    std::size_t acceptedOuterPlaintextBytes = 0U;
+    bool observedShortProgress = false;
+    WriteOutcome completion = WriteOutcome::Pending;
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    for (int attempt = 0;
+         attempt < 8192 && completion != WriteOutcome::Delivered;
+         ++attempt)
+    {
+        const auto write = dvc.pendingServerWrite();
+        assert(write &&
+               write.kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+        const auto offered = write.bytes;
+        const std::vector<std::uint8_t> expectedPeerBytes(
+            offered.begin(), offered.end());
+
+        const auto io = owner.writeTlsApplicationData(offered);
+        if (io.outcome == Outcome::Progress)
+        {
+            assert(io.bytes > 0U && io.bytes <= offered.size());
+            if (io.bytes < offered.size())
+                observedShortProgress = true;
+
+            std::vector<std::uint8_t> peerBytes(io.bytes);
+            readNativeTlsClientAll(tls.client.get(), peerBytes);
+            assert(std::equal(
+                peerBytes.begin(), peerBytes.end(),
+                expectedPeerBytes.begin()));
+
+            acceptedOuterPlaintextBytes += io.bytes;
+            completion = dvc.onServerBytesWritten(
+                write.channelGeneration,
+                write.replySequence,
+                write.writeSliceSequence,
+                io.bytes);
+            assert(completion == WriteOutcome::Pending ||
+                   completion == WriteOutcome::Delivered);
+            continue;
+        }
+
+        assert(io.bytes == 0U);
+        assert(io.outcome == Outcome::NeedRead ||
+               io.outcome == Outcome::NeedWrite);
+        const auto expectedInterest =
+            io.outcome == Outcome::NeedRead
+                ? Interest::Read : Interest::Write;
+        assert(owner.ioInterest() == expectedInterest);
+        const auto retry = dvc.pendingServerWrite();
+        assert(retry);
+        assert(retry.replySequence == write.replySequence);
+        assert(retry.writeSliceSequence == write.writeSliceSequence);
+        assert(retry.bytes.data() == offered.data());
+        assert(retry.bytes.size() == offered.size());
+
+        const auto polled =
+            owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(polled.nextInterest == expectedInterest);
+        assert(Clock::now() < deadline);
+    }
+
+    assert(observedShortProgress);
+    assert(completion == WriteOutcome::Delivered);
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(acceptedOuterPlaintextBytes > frameWireBytes);
+
+    // Delivery proves complete R1 plaintext acceptance only. The presentation
+    // remains outstanding until a separate client FRAME_ACKNOWLEDGE proves
+    // client-side decode/presentation progress.
+    assert(presentation.outstandingFrames() == 1U);
+    owner.cancel();
 }
 
 void testOwnedTlsApplicationIo()
@@ -10800,6 +11134,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
     {"tcp-owned-r3-connect-response-slice", &testR3ConnectResponseSliceThroughOwnedTls},
+    {"tcp-owned-r3-graphics-frame-slice", &testR3GraphicsFrameSliceThroughOwnedTls},
     {"tcp-owned-r3-license-request-slice", &testR3ServerLicenseRequestSliceThroughOwnedTls},
     {"tcp-owned-r3-license-request-cancel-replay", &testR3ServerLicenseRequestCancelReplayThroughOwnedTls},
     {"tcp-owned-r3-platform-challenge-slice", &testR3ServerPlatformChallengeSliceThroughOwnedTls},

@@ -1,3 +1,31 @@
+## R4 Graphics frame through R1 plaintext integration (2026-10-17)
+
+R3's DATA sender is no longer an R4 blocker. Exact SHA
+`a948ddd32d8f774db975408468764e8cf3cf4381` completed the primary
+three-platform protocol workflow successfully, including Windows CLANG64, and
+its ASan/UBSan job passed all **15/15** `transport.dvc-graphics-*` cases.
+No R3/R4 production source changed between that green SHA and this increment.
+
+The remaining offline proof gap was narrower: the R3 multifragment test prepares
+a real ClearCodec segmented frame but feeds accepted byte counts directly into
+R3. New CTest `transport.tcp-owned-r3-graphics-frame-slice` reuses the
+existing loopback TLS/R1 owner, prepares one production ClearCodec frame, starts
+the production R3 DATA_FIRST/DATA publisher, sends every resulting outer record
+through `OwnedPreauthTcpConnection::writeTlsApplicationData()`, verifies the
+peer receives exactly each accepted plaintext slice, and returns those exact
+accepted byte counts to R3 until complete delivery. A 1 KiB TLS fragment bound
+forces positive short-write receipt handling. The bounded R1/R3 sanitizer
+selector advances **93 -> 94** and names this integration case explicitly.
+
+The test intentionally does not mint an R2 lease: DVC control readiness is
+fixture-only setup. Therefore it proves codec preparation -> R3 fragmented DATA
+-> real R1 plaintext acceptance and R4 delivery completion, but **not** R2/R10
+production authorization, native-generation freshness, client decoding or
+visible pixels. `GfxPresentationLifecycle::outstandingFrames() == 1` at the
+end is intentional: client FRAME_ACKNOWLEDGE remains separate decoding evidence.
+Owner-authorized Linux seat0/Kerberos/PAM plus R10's admitted X11 composition
+remain the live Microsoft-client gate.
+
 ## R2 production runtime-security no-tests boundary (2026-10-17)
 
 **Reviewed parent:** `0cb84e2ce91d5da4251c37c454674f8c1a138c08`. Current production CMake already promotes

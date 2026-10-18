@@ -423,3 +423,9 @@ permission, R5 will bind synchronous XShm->R4 borrowing, RandR/native
 generation fences, fresh R2/R3 XTEST authorization, zero-write cancellation,
 partial-write terminal abort and `retireWithoutNativeInput()` on revocation.
 No pre-login-screen access or live-client success is claimed.
+
+**R3 exact-head compile blocker (2026-10-18):** the prior Graphics presentation
+commit fails hosted compilation on Linux/macOS/Windows because `PixelSize` and
+`FramebufferView` are global types, not `rdp_server::rdp` names. A narrow R3
+qualification correction is published for hosted revalidation. Graphics and
+frame/sanitizer CTests remain NOT RUN until CI executes the corrected head.

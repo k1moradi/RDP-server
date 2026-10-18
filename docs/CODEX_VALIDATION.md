@@ -6746,3 +6746,14 @@ desktop, XTEST event or Microsoft client was created. Exact publication-SHA
 hosted CI is **PENDING**; live first-frame evidence remains blocked on R10's
 persistent post-Share R1 router/owner loop plus explicit owner authorization
 for the physical X11 seat.
+
+## R3 exact-head cross-platform compile correction (2026-10-18)
+
+The `27aaaca137ffeaeb8e1b96d1089586dc10f13da3` hosted protocol CI
+failed before Graphics CTests on Linux/macOS/Windows because R3 referred to
+global `PixelSize` and `FramebufferView` as `rdp_server::rdp` types.
+Correct the qualifications in the R3 MCS header and implementation only.
+Local configure/build/CTest: NOT RUN (GitHub connector environment).
+New exact-head hosted CTests, frame cancellation and sanitizers: PENDING.
+This correction does not alter R4 frame/ACK ownership, authenticate a
+Share, or supply the R10 post-Share classifier.

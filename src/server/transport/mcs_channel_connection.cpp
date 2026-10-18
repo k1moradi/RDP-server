@@ -2337,7 +2337,7 @@ McsSessionLifecycle::beginVerifiedR2GraphicsDynamicVirtualChannel(
         return std::nullopt;
 
     const auto allocation = dynamicVirtualChannels_.allocate();
-    const rdp_server::rdp::PixelSize desktopGeometry{
+    const ::PixelSize desktopGeometry{
         connectResponseClientSettings_.requestedWidth,
         connectResponseClientSettings_.requestedHeight};
     if (!allocation ||
@@ -2418,7 +2418,7 @@ std::optional<RdpGraphicsDvcWriteView>
 McsSessionLifecycle::beginVerifiedR2GraphicsClearCodecFramePublication(
     const SecurityNegotiationProvenance &provenance,
     std::uint32_t frameId,
-    rdp_server::rdp::FramebufferView framebuffer) noexcept
+    ::FramebufferView framebuffer) noexcept
 {
     if (!verifiedR2ApplicationTrafficReady(provenance) ||
         !graphicsDynamicVirtualChannel_.presentationMapped())
@@ -3002,7 +3002,7 @@ queueFrameRecord() noexcept
 bool RdpGraphicsDynamicVirtualChannelLifecycle::
 prepareClearCodecFrame(
     std::uint32_t frameId,
-    rdp_server::rdp::FramebufferView framebuffer,
+    ::FramebufferView framebuffer,
     rdp_server::rdp::GfxAvc420SegmentedFrame &output) noexcept
 {
     if (!presentationMapped() || output.valid())
@@ -3282,7 +3282,7 @@ bool RdpGraphicsDynamicVirtualChannelLifecycle::begin(
     std::uint32_t clientUserId,
     std::uint16_t staticChannelId,
     RdpDynamicVirtualChannelAllocation allocation,
-    rdp_server::rdp::PixelSize desktopGeometry) noexcept
+    ::PixelSize desktopGeometry) noexcept
 {
     if (phase_ != RdpGraphicsDvcPhase::NotStarted ||
         clientUserId < 1001U || clientUserId > 65536U ||

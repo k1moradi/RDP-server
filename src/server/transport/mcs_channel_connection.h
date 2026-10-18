@@ -1045,7 +1045,7 @@ public:
         std::uint32_t clientUserId,
         std::uint16_t staticChannelId,
         RdpDynamicVirtualChannelAllocation allocation,
-        rdp_server::rdp::PixelSize desktopGeometry) noexcept;
+        ::PixelSize desktopGeometry) noexcept;
     [[nodiscard]] RdpGraphicsDvcWriteView pendingServerWrite() const noexcept;
     [[nodiscard]] RdpGraphicsDvcWriteOutcome onServerBytesWritten(
         std::uint64_t channelGeneration,
@@ -1061,7 +1061,7 @@ public:
     // graphics generation or surface ID.
     [[nodiscard]] bool prepareClearCodecFrame(
         std::uint32_t frameId,
-        rdp_server::rdp::FramebufferView framebuffer,
+        ::FramebufferView framebuffer,
         rdp_server::rdp::GfxAvc420SegmentedFrame &output) noexcept;
     [[nodiscard]] bool beginFramePublication(
         rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
@@ -1200,7 +1200,7 @@ private:
     std::uint32_t selectedGraphicsCapabilityFlags_{};
     bool selectedGraphicsAvc420Enabled_{};
     bool graphicsCapabilitiesConfirmed_{};
-    rdp_server::rdp::PixelSize presentationGeometry_{};
+    ::PixelSize presentationGeometry_{};
     rdp_server::rdp::GfxPresentationLifecycle presentationLifecycle_{};
     rdp_server::rdp::GfxPresentationReceipt presentationReceipt_{};
     std::optional<rdp_server::rdp::GfxAvc420SegmentedFrame> frame_{};
@@ -1752,7 +1752,7 @@ private:
     beginVerifiedR2GraphicsClearCodecFramePublication(
         const SecurityNegotiationProvenance &provenance,
         std::uint32_t frameId,
-        rdp_server::rdp::FramebufferView framebuffer) noexcept;
+        ::FramebufferView framebuffer) noexcept;
     [[nodiscard]] bool cancelVerifiedR2UnwrittenGraphicsFrame(
         const SecurityNegotiationProvenance &provenance) noexcept;
     [[nodiscard]] bool abortVerifiedR2GraphicsFrame(

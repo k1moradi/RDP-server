@@ -1,3 +1,31 @@
+## R10 fail-closed Linux loopback serve startup (2026-10-17)
+
+**Authored on current `main`; hosted CI pending.** This increment adds the
+explicit Linux-runtime-security-only `rdp-server serve --config FILE` startup
+path without fabricating a positive R2 admission. Before opening a socket it
+requires the existing secure configuration snapshot, TLS credentials,
+GSS/PAM/native identity policy, R2 PersonalDesktop preflight and a bounded
+file-descriptor budget. It accepts only serialized `max_connections=1`.
+
+The listener is created as nonblocking/CLOEXEC TCP on exact `127.0.0.1` or
+`::1`, forces IPv6-only for `::1`, and verifies `SO_TYPE`,
+`SO_ACCEPTCONN` plus the effective family/address/nonzero configured port
+through `getsockname()` before ownership transfers. R1's existing bounded
+listener poll accepts at most one candidate per <=25 ms dispatch. The callback
+rechecks the peer with `RuntimeDeploymentPolicy::permitsLoopbackTransportCandidate`
+and then lets the move-only accepted socket close; TCP accept therefore remains
+strictly pre-authentication and cannot grant R2/R3/native authority.
+
+Ordinary process CTests
+`runtime.rejects-linux-serve-missing-security`,
+`runtime.rejects-linux-serve-nonserialized-budget` and
+`runtime.rejects-linux-serve-wildcard-address` exercise production startup
+denials without a live seat, ticket, PAM authentication, listener or fabricated
+production-positive admission. Existing R1 native listener/accept tests continue
+to own the safely isolated positive socket mechanics. The next R10 increment is
+serialized `LinuxRuntimeConnection` readiness/TLS/CredSSP composition; R3's
+decoded input route remains a later XTEST gate, not a listener blocker.
+
 ## R4 Graphics frame through R1 plaintext integration (2026-10-17)
 
 R3's DATA sender is no longer an R4 blocker. Exact SHA

@@ -850,7 +850,10 @@ if(TARGET rdp-server-linux-runtime-security)
 
     set(runtime_linux_process_cases
         validates-linux-security-provisioning
-        rejects-linux-security-missing-provisioning)
+        rejects-linux-security-missing-provisioning
+        rejects-linux-serve-missing-security
+        rejects-linux-serve-nonserialized-budget
+        rejects-linux-serve-wildcard-address)
     set(runtime_linux_pam_process_argument)
     if(TARGET rdp-server-linux-pam-password-verifier)
         list(APPEND runtime_linux_process_cases

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// R10 process entry point. No listener, session controller or OS adapter is
-// constructed until R2 admission and R3 authoritative live sessions exist.
-// An explicit offline configuration check does not authenticate or start a user.
+// R10 process entry point. Listener startup is explicit, loopback-only and
+// gated by the non-authorizing R2 preflight. A TCP accept is never admission.
+// Offline configuration checks still do not authenticate or start a user.
 #include "runtime_tls_context.h"
 #include "runtime_licensing_context.h"
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
 #include "linux_runtime_security.h"
+#include "runtime_deployment_policy.h"
+#include "server/transport/nonblocking_tcp_adapter.h"
 #endif
 
 #include <algorithm>
@@ -16,6 +18,10 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+#include <chrono>
+#include <cstring>
+#endif
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -29,6 +35,13 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
+
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
 #endif
 
 #ifndef RDP_SERVER_VERSION
@@ -544,9 +557,11 @@ struct FileCloser {
 };
 
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
-[[nodiscard]] bool checkLinuxSecurityConfiguration(
+[[nodiscard]] bool configureLinuxRuntimeSecurity(
     const std::array<std::string_view, kConfigurationFields.size()>&
-        validatedFields) noexcept {
+        validatedFields,
+    rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration&
+        linuxSecurity) noexcept {
     for (std::size_t index = kLinuxSecurityFieldStart;
          index < validatedFields.size(); ++index) {
         if (validatedFields[index].empty()) {
@@ -574,27 +589,306 @@ struct FileCloser {
         static_cast<std::uint32_t>(localUid),
         static_cast<std::uint32_t>(permissions)};
 
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    return linuxSecurity.configure(
+        validatedFields[kGssServicePrincipalField],
+        validatedFields[kGssKeytabField], rule,
+        validatedFields[kPamServiceField]);
+#else
+    return linuxSecurity.configure(
+        validatedFields[kGssServicePrincipalField],
+        validatedFields[kGssKeytabField], rule);
+#endif
+}
+
+[[nodiscard]] bool checkLinuxSecurityConfiguration(
+    const std::array<std::string_view, kConfigurationFields.size()>&
+        validatedFields) noexcept {
     rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration
         linuxSecurity;
-#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
-    if (!linuxSecurity.configure(
-            validatedFields[kGssServicePrincipalField],
-            validatedFields[kGssKeytabField], rule,
-            validatedFields[kPamServiceField])) {
+    if (!configureLinuxRuntimeSecurity(validatedFields, linuxSecurity)) {
         return false;
     }
-#else
-    if (!linuxSecurity.configure(
-            validatedFields[kGssServicePrincipalField],
-            validatedFields[kGssKeytabField], rule)) {
-        return false;
-    }
-#endif
 
     const auto tlsContext =
         rdp_server::server::runtime::RuntimeServerTlsContext::
             fromCredentialFiles(validatedFields[2], validatedFields[3]);
     return tlsContext && linuxSecurity.policy() != nullptr;
+}
+
+class LinuxListenerOwner final {
+public:
+    explicit LinuxListenerOwner(int descriptor) noexcept
+        : descriptor_(descriptor) {}
+    LinuxListenerOwner(const LinuxListenerOwner&) = delete;
+    LinuxListenerOwner& operator=(const LinuxListenerOwner&) = delete;
+    ~LinuxListenerOwner() {
+        if (descriptor_ >= 0) {
+            (void)::close(descriptor_);
+        }
+    }
+
+    [[nodiscard]] int descriptor() const noexcept { return descriptor_; }
+    [[nodiscard]] int release() noexcept {
+        const int released = descriptor_;
+        descriptor_ = -1;
+        return released;
+    }
+
+private:
+    int descriptor_{-1};
+};
+
+[[nodiscard]] bool hasLinuxServeDescriptorBudget(
+    unsigned acceptBudget) noexcept {
+    struct rlimit descriptorLimit {};
+    if (::getrlimit(RLIMIT_NOFILE, &descriptorLimit) != 0) {
+        return false;
+    }
+
+    // Keep fixed headroom for stdio, the retained R2 keytab snapshot,
+    // listener, accepted connection, logind watcher and TLS/runtime handles.
+    constexpr rlim_t kDescriptorReserve = 8U;
+    const rlim_t required =
+        kDescriptorReserve + static_cast<rlim_t>(acceptBudget);
+    return descriptorLimit.rlim_cur == RLIM_INFINITY ||
+           descriptorLimit.rlim_cur >= required;
+}
+
+[[nodiscard]] int openVerifiedLinuxLoopbackListener(
+    std::string_view listenAddress, std::uint16_t listenPort) noexcept {
+    const bool ipv4 = listenAddress == "127.0.0.1";
+    const bool ipv6 = listenAddress == "::1";
+    if ((!ipv4 && !ipv6) || listenPort == 0U) {
+        return -1;
+    }
+
+    const int addressFamily = ipv4 ? AF_INET : AF_INET6;
+    const int descriptor = ::socket(
+        addressFamily, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
+    if (descriptor < 0) {
+        return -1;
+    }
+
+    LinuxListenerOwner failureOwner{descriptor};
+    if (ipv6) {
+        const int enabled = 1;
+        if (::setsockopt(
+                descriptor, IPPROTO_IPV6, IPV6_V6ONLY, &enabled,
+                sizeof(enabled)) != 0) {
+            return -1;
+        }
+    }
+
+    if (ipv4) {
+        struct sockaddr_in requested {};
+        requested.sin_family = AF_INET;
+        requested.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        requested.sin_port = htons(listenPort);
+        if (::bind(
+                descriptor, reinterpret_cast<const sockaddr*>(&requested),
+                sizeof(requested)) != 0) {
+            return -1;
+        }
+    } else {
+        struct sockaddr_in6 requested {};
+        requested.sin6_family = AF_INET6;
+        requested.sin6_addr = in6addr_loopback;
+        requested.sin6_port = htons(listenPort);
+        if (::bind(
+                descriptor, reinterpret_cast<const sockaddr*>(&requested),
+                sizeof(requested)) != 0) {
+            return -1;
+        }
+    }
+
+    if (::listen(descriptor, 1) != 0) {
+        return -1;
+    }
+
+    int socketType = 0;
+    int accepting = 0;
+    socklen_t optionLength = sizeof(socketType);
+    if (::getsockopt(
+            descriptor, SOL_SOCKET, SO_TYPE, &socketType, &optionLength) != 0 ||
+        optionLength != sizeof(socketType) || socketType != SOCK_STREAM) {
+        return -1;
+    }
+    optionLength = sizeof(accepting);
+    if (::getsockopt(
+            descriptor, SOL_SOCKET, SO_ACCEPTCONN, &accepting,
+            &optionLength) != 0 ||
+        optionLength != sizeof(accepting) || accepting != 1) {
+        return -1;
+    }
+
+    struct sockaddr_storage actual {};
+    socklen_t actualLength = sizeof(actual);
+    if (::getsockname(
+            descriptor, reinterpret_cast<sockaddr*>(&actual),
+            &actualLength) != 0) {
+        return -1;
+    }
+
+    bool endpointMatches = false;
+    if (ipv4 && actual.ss_family == AF_INET &&
+        actualLength >= sizeof(sockaddr_in)) {
+        const auto* bound =
+            reinterpret_cast<const sockaddr_in*>(&actual);
+        endpointMatches =
+            bound->sin_addr.s_addr == htonl(INADDR_LOOPBACK) &&
+            ntohs(bound->sin_port) == listenPort;
+    } else if (ipv6 && actual.ss_family == AF_INET6 &&
+               actualLength >= sizeof(sockaddr_in6)) {
+        const auto* bound =
+            reinterpret_cast<const sockaddr_in6*>(&actual);
+        endpointMatches =
+            std::memcmp(
+                &bound->sin6_addr, &in6addr_loopback,
+                sizeof(in6addr_loopback)) == 0 &&
+            bound->sin6_scope_id == 0U &&
+            ntohs(bound->sin6_port) == listenPort;
+    }
+    if (!endpointMatches) {
+        return -1;
+    }
+
+    // Transfer ownership to the caller only after every socket property and
+    // effective bound endpoint has been verified.
+    return failureOwner.release();
+}
+
+struct LinuxServeAcceptContext final {
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy* policy{};
+    bool endpointViolation{};
+};
+
+[[nodiscard]] bool closeUnadmittedLinuxCandidate(
+    rdp_server::server::transport::OwnedNativeTcpSocket accepted,
+    void* rawContext) noexcept {
+    auto* context = static_cast<LinuxServeAcceptContext*>(rawContext);
+    if (context == nullptr || context->policy == nullptr || !accepted.valid()) {
+        return false;
+    }
+
+    const auto peer = accepted.peerEndpoint();
+    std::span<const std::uint8_t> peerAddress;
+    if (peer.family ==
+        rdp_server::server::transport::TcpPeerAddressFamily::Ipv4) {
+        peerAddress = std::span<const std::uint8_t>{peer.address}.first(4U);
+    } else if (
+        peer.family ==
+        rdp_server::server::transport::TcpPeerAddressFamily::Ipv6) {
+        peerAddress = std::span<const std::uint8_t>{peer.address};
+    } else {
+        context->endpointViolation = true;
+        return false;
+    }
+
+    if (!context->policy->permitsLoopbackTransportCandidate(peerAddress)) {
+        context->endpointViolation = true;
+        return false;
+    }
+
+    // TCP accept is intentionally pre-authentication. This first startup
+    // increment does not run CredSSP or mint an R2 lease; RAII closes the
+    // candidate before any privileged/native operation can occur.
+    return true;
+}
+
+[[nodiscard]] bool runLinuxPersonalDesktopServe(
+    const std::array<std::string_view, kConfigurationFields.size()>&
+        validatedFields) noexcept {
+    unsigned parsedPort = 0U;
+    unsigned maxConnections = 0U;
+    unsigned permissions = 0U;
+    if (!parseDecimalWithin(
+            validatedFields[1], 1U, 65535U, parsedPort) ||
+        !parseDecimalWithin(
+            validatedFields[6], 1U, 64U, maxConnections) ||
+        maxConnections != 1U ||
+        !parseDecimalWithin(
+            validatedFields[kAuthorizedPermissionsField], 1U,
+            rdp_server::server::security::kConsoleAllowedPermissions,
+            permissions)) {
+        return false;
+    }
+
+    rdp_server::server::runtime::RuntimeDeploymentPolicy deploymentPolicy;
+    if (!deploymentPolicy.configurePersonalDesktop(
+            true, static_cast<std::uint16_t>(parsedPort))) {
+        return false;
+    }
+
+    rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration
+        linuxSecurity;
+    if (!configureLinuxRuntimeSecurity(validatedFields, linuxSecurity)) {
+        return false;
+    }
+
+    const auto tlsContext =
+        rdp_server::server::runtime::RuntimeServerTlsContext::
+            fromCredentialFiles(validatedFields[2], validatedFields[3]);
+    if (!tlsContext) {
+        return false;
+    }
+
+    const rdp_server::server::security::ConsoleEvidenceRequest request{
+        validatedFields[kAuthorizedKerberosPrincipalField],
+        validatedFields[kAuthorizedUnixAccountField],
+        validatedFields[kAuthorizedSeatField],
+        validatedFields[kAuthorizedDisplayField],
+        static_cast<std::uint32_t>(permissions)};
+    const auto preflight =
+        linuxSecurity.preflightPersonalDesktopAdmission(
+            deploymentPolicy, request);
+    if (!preflight.readyForAuthenticatedAdmissionAttempt() ||
+        preflight.authenticatedAdmission ||
+        !hasLinuxServeDescriptorBudget(maxConnections)) {
+        return false;
+    }
+
+    const int listenerDescriptor = openVerifiedLinuxLoopbackListener(
+        validatedFields[0], static_cast<std::uint16_t>(parsedPort));
+    if (listenerDescriptor < 0) {
+        return false;
+    }
+    LinuxListenerOwner listener{listenerDescriptor};
+
+    LinuxServeAcceptContext acceptContext{&deploymentPolicy, false};
+    using Clock = std::chrono::steady_clock;
+    using namespace std::chrono_literals;
+    for (;;) {
+        const auto result =
+            rdp_server::server::transport::pollNonblockingTcpAcceptBatch(
+                static_cast<std::uintptr_t>(listener.descriptor()), 1U,
+                closeUnadmittedLinuxCandidate, &acceptContext,
+                Clock::now() + 25ms, 25ms);
+        if (acceptContext.endpointViolation) {
+            return false;
+        }
+
+        using Outcome =
+            rdp_server::server::transport::TcpListenerPollOutcome;
+        switch (result.outcome) {
+        case Outcome::NoEvent:
+        case Outcome::Expired:
+            break;
+        case Outcome::BatchCompleted: {
+            using Batch =
+                rdp_server::server::transport::TcpAcceptBatchOutcome;
+            if (result.batch.outcome == Batch::Drained ||
+                result.batch.outcome == Batch::BudgetReached ||
+                result.batch.outcome == Batch::WouldBlock) {
+                break;
+            }
+            return false;
+        }
+        case Outcome::InvalidInput:
+        case Outcome::Failure:
+            return false;
+        }
+    }
 }
 #endif
 
@@ -631,8 +925,9 @@ struct FileCloser {
            credential->matches(*configuredIdentity);
 }
 
-// Offline checks do not establish certificate trust, hostname, revocation,
-// R2 admission, an R3 session decision or permission to listen.
+// Configuration checks do not establish certificate trust, hostname,
+// revocation, R2 admission or an R3 session decision. LinuxServe is the sole
+// mode below allowed to bind/listen, and only after the genuine R2 preflight.
 enum class ConfigurationCheckMode {
     Syntax,
     TlsMetadata,
@@ -640,6 +935,7 @@ enum class ConfigurationCheckMode {
     LicensingCredentials,
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
     LinuxSecurity,
+    LinuxServe,
 #endif
 };
 
@@ -650,7 +946,7 @@ enum class ConfigurationCheckMode {
     }
     // On POSIX, open the *actual* file without following its final symlink.
     // Nonblocking open makes FIFOs/devices fail safely rather than hanging
-    // the offline checker. The FILE stream exclusively owns this descriptor
+    // the configuration reader. The FILE stream exclusively owns this descriptor
     // after fdopen succeeds; otherwise close it on the failure path.
 #if !defined(_WIN32)
     const int configurationDescriptor =
@@ -737,6 +1033,8 @@ enum class ConfigurationCheckMode {
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
     case ConfigurationCheckMode::LinuxSecurity:
         return checkLinuxSecurityConfiguration(validatedFields);
+    case ConfigurationCheckMode::LinuxServe:
+        return runLinuxPersonalDesktopServe(validatedFields);
 #endif
     }
     return false;
@@ -744,7 +1042,7 @@ enum class ConfigurationCheckMode {
 
 void printUsage() noexcept {
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
-    std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-licensing-credentials FILE | --check-linux-security FILE]\n"
+    std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-licensing-credentials FILE | --check-linux-security FILE | serve --config FILE]\n"
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"
                "--check-tls-credentials verifies certificate validity, server purpose and private-key match.\n"
                "--check-licensing-credentials validates explicit RDP licensing identity plus its matching RSA private key.\n"
@@ -753,7 +1051,7 @@ void printUsage() noexcept {
 #else
                "--check-linux-security additionally acquires the explicit Linux GSS acceptor credential and validates one native identity-policy rule.\n"
 #endif
-               "No command starts a listener or authorizes an RDP session.\n", stdout);
+               "serve opens only a verified loopback stream listener after genuine Linux R2 preflight; TCP accept remains unauthenticated and grants no RDP/native authority.\n", stdout);
 #else
     std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-licensing-credentials FILE]\n"
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"
@@ -775,6 +1073,24 @@ int main(int argumentCount, char* argumentValues[]) noexcept {
             std::printf("rdp-server %s\n", RDP_SERVER_VERSION);
             return 0;
         }
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+        if (argumentCount == 4 && option == "serve" &&
+            argumentValues[2] != nullptr &&
+            std::string_view{argumentValues[2]} == "--config" &&
+            argumentValues[3] != nullptr) {
+            if (checkConfigurationFile(
+                    argumentValues[3], ConfigurationCheckMode::LinuxServe)) {
+                return 0;
+            }
+            // Never reveal configuration contents, credential paths or
+            // native-session details on secure-startup denial.
+            std::fputs(
+                "rdp-server: refusing to start: authenticated OS authorization "
+                "and authoritative live RDP sessions are unavailable.\n",
+                stderr);
+            return kSecureStartupUnavailableExitCode;
+        }
+#endif
         bool configurationCheckOption =
             option == "--check-config" || option == "--check-tls-files" ||
             option == "--check-tls-credentials" ||

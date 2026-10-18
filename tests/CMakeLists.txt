@@ -603,7 +603,7 @@ foreach(case_name IN ITEMS
     add_test(NAME "transport.cliprdr-${case_name}"
         COMMAND test_r3_clipboard_static_channel "${case_name}")
     set_tests_properties("transport.cliprdr-${case_name}" PROPERTIES
-        LABELS "protocol;transport;clipboard;security;offline")
+        LABELS "protocol;transport;r3-clipboard;security;offline")
 endforeach()
 # R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
 # fixture to validate the noninstalled service-lifetime runtime owner.

@@ -1,3 +1,31 @@
+## R4 post-Share first-frame dependency reconciliation (2026-10-18)
+
+On exact source `549a12c0a364`, R10's previously absent persistent
+Linux post-Share single-R1-reader, R2-selected X11/logind desktop owner,
+R3 Graphics DATA/FRAME_ACK route and synchronous first ClearCodec
+frame publication **ARE IMPLEMENTED**; R1 `e267f42d` also permits the
+outbound write during idle TLS-read WANT. The old R4 ROADMAP gate
+"R10 must finish the post-Share router/X11 owner" is superseded.
+
+Hosted R9 ASan/UBSan at `549a12c0` **PASS**: portable R4 graphics
+42/42, x264/BGRA 28/28, ClearCodec 4/4, R3 Graphics DVC and FRAME_ACK
+19/19 and bounded R1/R3 transport 94/94. Ubuntu ordinary CTest at that
+exact SHA **FAIL** 1/764 on the separate R2 PAM attempt-fence source
+CTest (not R4); R2 `79efe8f2` fixes its CMake guard, subsequent exact-head
+CI **PENDING** when this documentation was authored. R4 owner-local Linux,
+Windows and macOS Debug full CTest **NOT RUN**; no authenticated physical
+X11 seat0 or Microsoft-client frame/ACK observation exists.
+
+R4's existing 64-frame ACK window correctly refuses exhaustion, but R10
+currently attempts each timed frame and retires on an unsuccessful start;
+R10/R3 must compose a permission-fenced defer signal rather than weaken
+R4 credit semantics. R3's Client Core-mapped surface versus R5's X11
+root geometry/RandR generation also needs a native-resize plan, and R10's
+pending-write poll must remain bounded after the next capture deadline.
+These are integration gates, not independently confirmed R4 codec defects.
+The concrete R10 GUI LAN Start/Stop backend and explicit real-seat0 owner
+approval remain mandatory. See GitHub R4 handoff issue #21.
+
 ## R3 authenticated post-Share Graphics DVC identity classifier (2026-10-18)
 
 Base `440b4e46c81b2e0341ca107dc7be51e2c0897ca5`.

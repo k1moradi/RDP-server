@@ -338,6 +338,17 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
+        # Linux SO_LINGER abortive close exercises the native R1 SSL/BIO
+        # connection owner. Do not impose RST delivery semantics on Darwin
+        # or Winsock, and do not launch an external listener/service.
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            add_test(NAME "transport.tcp-owned-tls-application-tcp-rst-terminal"
+                COMMAND "${test_target}" "tcp-owned-tls-application-tcp-rst-terminal")
+            set_tests_properties(
+                transport.tcp-owned-tls-application-tcp-rst-terminal
+                PROPERTIES LABELS "protocol;transport;native;security"
+                           TIMEOUT 20)
+        endif()
     elseif(test_target STREQUAL "test_linux_gssapi_spnego")
         foreach(case_name IN ITEMS
                 gssapi-configuration-rejections

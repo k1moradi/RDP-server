@@ -911,7 +911,9 @@ LinuxRuntimeConnection::advancePostAdmissionMcsErectDomain(
 
     // Every native admission and TLS/R1 assertion is fresh immediately
     // before the one bounded read, not inferred from TCP readiness alone.
-    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    if (!broker_->authorizeR3ProtectedTransition(
+            *lease_, acceptor_, connection_, session_,
+            rdp_server::server::security::kConsoleViewPermission))
     {
         mcsErectDomainFrameReader_.close();
         revoke();
@@ -1883,7 +1885,9 @@ LinuxRuntimeConnection::advancePersonalDesktopClientLicensingIntake(
         return {0U, Step::Invalid};
     }
 
-    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    if (!broker_->authorizeR3ProtectedTransition(
+            *lease_, acceptor_, connection_, session_,
+            rdp_server::server::security::kConsoleViewPermission))
     {
         personalClientLicensingFrameReader_.close();
         revoke();
@@ -2361,7 +2365,9 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
         return {0U, 0U, Step::Invalid};
     }
 
-    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    if (!broker_->authorizeR3ProtectedTransition(
+            *lease_, acceptor_, connection_, session_,
+            rdp_server::server::security::kConsoleViewPermission))
     {
         personalShareActivationFrameReader_.close();
         revoke();
@@ -2845,7 +2851,9 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
         return {0U, 0U, Step::Invalid};
     }
 
-    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    if (!broker_->authorizeR3ProtectedTransition(
+            *lease_, acceptor_, connection_, session_,
+            rdp_server::server::security::kConsoleViewPermission))
     {
         personalGraphicsDvcFrameReader_.close();
         revoke();

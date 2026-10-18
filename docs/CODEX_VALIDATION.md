@@ -1,3 +1,26 @@
+## R2 post-admission read generation fence (2026-10-18)
+
+**Reviewed green parent:** `da43a967e2d547bb73e2b51b8d61211219136842`;
+rebased over R9 documentation parent `e897141d7e1e2f3bfaee0b6efebc26a769327c99`. The newly composed
+PersonalDesktop licensing path exposed a concrete R2 reauthorization gap:
+Erect, client licensing, Share and Graphics-DVC partial TLS read loops called
+the lease/native `revalidate()` helper, which does not compare the R3 owner's
+stored admission and native-session generations. The correction leaves Connect
+Initial on lease-only revalidation because R3 has not bound generations yet,
+and changes all four post-admission reads to
+`authorizeR3ProtectedTransition()` with `kConsoleViewPermission` before R1
+can consume another plaintext slice. Existing packet-completion broker calls
+still reauthorize again before R3 state moves.
+
+Dedicated offline CTest
+`runtime.linux-connection-protected-read-generation-denials` checks that
+Connect Initial is the sole remaining bare revalidation read and that the four
+post-admission readers use the protected generation fence. It relies on the
+existing generation-fence behavior coverage and deliberately does not
+fabricate a positive Kerberos/PAM/logind lease. Local owner configure/build/
+CTest and real physical-X11 admission were **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI is **PENDING**.
+
 ## R9 exact-head full-green and SERVER-TEST verification at da43a967 (2026-10-18)
 
 Exact shared `main` SHA `da43a967e2d547bb73e2b51b8d61211219136842`

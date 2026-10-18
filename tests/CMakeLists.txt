@@ -913,6 +913,18 @@ if(TARGET rdp-server-linux-runtime-security)
             LABELS "runtime;security;linux-provider;offline")
     endforeach()
 
+    # R2 post-admission TLS reads must fence the current R3 admission/session
+    # generations as well as the live lease/native evidence. This source-level
+    # guard is intentionally offline because ordinary CI must not fabricate a
+    # positive Kerberos/PAM/logind admission lease.
+    add_test(NAME runtime.linux-connection-protected-read-generation-denials
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_protected_read_generation.cmake")
+    set_tests_properties(
+        runtime.linux-connection-protected-read-generation-denials PROPERTIES
+        LABELS "runtime;security;linux-provider;offline")
+
     if(TARGET rdp-server-linux-pam-password-verifier)
         add_test(NAME runtime.linux-security-pam-verifier-provisioning
             COMMAND test_runtime_linux_security

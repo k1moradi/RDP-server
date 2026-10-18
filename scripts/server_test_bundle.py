@@ -21,6 +21,25 @@ import zipfile
 
 ARTIFACT_FAMILY = "SERVER-TEST"
 SCHEMA_VERSION = 1
+# Every platform must prove the same startup-disabled safety contract.
+# R6 Windows additionally proves its bundled runtime DLLs and user lifecycle.
+REQUIRED_COMMON_SMOKE_CHECKS = frozenset({
+    "archive_integrity",
+    "executable_abi",
+    "version",
+    "help",
+    "config_validation",
+    "unconfigured_serve_refusal",
+    "packaged_sample_serve_refusal",
+    "install_no_listener",
+    "idempotent_install_uninstall",
+    "autostart_absent",
+    "secret_scan",
+})
+REQUIRED_WINDOWS_SMOKE_CHECKS = frozenset({
+    "windows_runtime_dlls_bundled",
+    "windows_user_lifecycle",
+})
 MACOS_LAUNCH_AGENT_LABEL = "org.rdpserver.server-test"
 MACOS_LAUNCH_AGENT_HELPER = "tools/macos_test_launch_agent.py"
 MAX_MEMBER_BYTES = 256 * 1024 * 1024
@@ -1102,6 +1121,16 @@ def verify_status_directory(directory: Path, expected_sha: str) -> None:
             or status.get("deployment_status") != "NOT VERIFIED; NOT CLAIMED"
         ):
             raise BundleError("SERVER-TEST status acceptance mismatch")
+        checks = status.get("checks")
+        required_checks = REQUIRED_COMMON_SMOKE_CHECKS
+        if status.get("platform") == "windows":
+            required_checks = required_checks | REQUIRED_WINDOWS_SMOKE_CHECKS
+        # The aggregate must not trust the producer's top-level PASS alone.
+        # Missing, unexpected, or failed smoke evidence is a release-control failure.
+        if not isinstance(checks, dict) or checks.keys() != required_checks:
+            raise BundleError("SERVER-TEST smoke inventory mismatch")
+        if any(checks[check] != "PASS" for check in required_checks):
+            raise BundleError("SERVER-TEST smoke acceptance failed")
         artifact_name = status.get("artifact_name")
         if not isinstance(artifact_name, str):
             raise BundleError("SERVER-TEST artifact name missing from status")

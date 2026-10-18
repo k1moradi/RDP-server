@@ -173,6 +173,17 @@ class ServerTestBundleTests(unittest.TestCase):
                 "status": "PASS",
                 "startup_status": "DISABLED",
                 "deployment_status": "NOT VERIFIED; NOT CLAIMED",
+                "checks": {
+                    check: "PASS"
+                    for check in (
+                        bundle.REQUIRED_COMMON_SMOKE_CHECKS
+                        | (
+                            bundle.REQUIRED_WINDOWS_SMOKE_CHECKS
+                            if platform_name == "windows"
+                            else frozenset()
+                        )
+                    )
+                },
             }
             (status_directory / f"{artifact_name}-STATUS.json").write_text(
                 json.dumps(status), encoding="utf-8"
@@ -183,6 +194,23 @@ class ServerTestBundleTests(unittest.TestCase):
         changed["exact_git_sha"] = "c" * 40
         first_status.write_text(json.dumps(changed), encoding="utf-8")
         with self.assertRaises(bundle.BundleError):
+            bundle.verify_status_directory(status_directory, sha)
+
+        changed["exact_git_sha"] = sha
+        changed["checks"].pop("packaged_sample_serve_refusal")
+        first_status.write_text(json.dumps(changed), encoding="utf-8")
+        with self.assertRaisesRegex(bundle.BundleError, "smoke inventory mismatch"):
+            bundle.verify_status_directory(status_directory, sha)
+
+        changed["checks"]["packaged_sample_serve_refusal"] = "FAIL"
+        first_status.write_text(json.dumps(changed), encoding="utf-8")
+        with self.assertRaisesRegex(bundle.BundleError, "smoke acceptance failed"):
+            bundle.verify_status_directory(status_directory, sha)
+
+        changed["checks"]["packaged_sample_serve_refusal"] = "PASS"
+        changed["checks"]["unreviewed_test"] = "PASS"
+        first_status.write_text(json.dumps(changed), encoding="utf-8")
+        with self.assertRaisesRegex(bundle.BundleError, "smoke inventory mismatch"):
             bundle.verify_status_directory(status_directory, sha)
 
 

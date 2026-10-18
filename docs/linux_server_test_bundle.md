@@ -1,10 +1,12 @@
 # Linux user-mode server test bundle (R5 → R9)
 
 **Status: STARTUP-DISABLED PREVIEW / NO LIVE DESKTOP AUTHORITY.** Linux now
-has an explicit `serve --config FILE` path, but it is loopback-only and stops
-at pre-authentication: accepted sockets are closed before TLS/CredSSP/R2
-admission or native desktop ownership. The bundle installs no enabled service
-or autostart and cannot offer a real RDP desktop. It remains independent of
+has an explicit `serve --config FILE` path, but it is loopback-only. R10 now
+passes accepted sockets to the serialized R1 TLS/CredSSP/R2 admission path;
+without genuine R2 authority it fails closed, and even an admitted connection
+is retired after first MCS Connect Initial pending the production MCS response,
+AttachUser and ChannelJoin writers. The bundle installs no enabled service or
+autostart and cannot offer a real RDP desktop. It remains independent of
 the protocol SDK, whose CMake install/CPack exports are unchanged.
 
 ## R9 common SERVER-TEST relationship
@@ -17,8 +19,10 @@ same actual built `rdp-server`, includes this disabled R5 user-service template,
 and records the dependency closure actually resolved on the hosted build plus
 internal/outer SHA-256. R9's extracted-binary smoke verifies offline CLI/config
 behavior, bare-startup refusal, and that the packaged syntax-only sample also
-fails closed under `serve --config`. The R5 installer remains the
-Linux-native install manifest; neither path enables systemd or claims live M3.
+fails closed under `serve --config`. The three-platform R9 aggregate now
+requires every expected smoke-check field to be present and exactly PASS;
+missing/failed/unreviewed checks cannot hide behind a top-level PASS. The R5
+installer remains the Linux-native install manifest; neither path enables systemd or claims live M3.
 
 
 ## R9 package and integrity
@@ -65,10 +69,10 @@ Modified files prevent removal to avoid destroying user edits. No
 
 ## Future explicitly authorized service lifecycle (NOT YET ALLOWED)
 
-Only after R10 composes accepted sockets into the serialized
-`LinuxRuntimeConnection` TLS/CredSSP path, R1/R2 review that composition, R3
-supplies the fresh-authority decoded input route, and the owner approves the
-exact real seat0 host: copy the example to a separate
+Only after R10 composes the remaining production MCS Connect Response,
+AttachUser and ChannelJoin writes, R1/R2 review the completed connection,
+R3 supplies the fresh-authority decoded input route, and the owner approves
+the exact real seat0 host: copy the example to a separate
 `~/.config/rdp-server-test/server.conf` owned by the desktop account,
 mode 0600. Provision genuine TLS certificate/private key and GSS
 service identity/keytab separately in restricted private paths, plus
@@ -106,10 +110,10 @@ Never treat successful offline preflight as authorization to listen.
 
 ## M3 — BLOCKED
 
-R10 must first hand accepted sockets into the serialized
-`LinuxRuntimeConnection` TLS/CredSSP path, then create exactly one
-`X11DesktopResources` via R2's synchronous admitted-display visitor and own
-the serialized logind/event loop; no second X11 runtime owner or
+R10 has connected the accepted socket to serialized `LinuxRuntimeConnection`
+TLS/CredSSP and first admitted MCS Connect Initial; it must complete the
+production MCS writers, then create exactly one `X11DesktopResources` via
+R2's synchronous admitted-display visitor and own the serialized logind/event loop; no second X11 runtime owner or
 configuration/`DISPLAY` fallback. R3 DATA_FIRST/DATA publication and immutable
 frame-to-outer-write receipt mapping are now present; the remaining R3 live
 gate is fresh-authority decoded input. R5 retains synchronous

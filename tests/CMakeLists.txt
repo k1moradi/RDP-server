@@ -9,6 +9,16 @@ add_test(NAME project.local-checkout-path-comparison
 set_tests_properties(project.local-checkout-path-comparison PROPERTIES
     LABELS "policy;build")
 
+# R2 production credential-choice boundary: no secrets, network, OS login or
+# synthetic lease; unsupported GUI passwords cannot enable Share.
+add_executable(test_standalone_credential_policy
+    test_standalone_credential_policy.cpp)
+target_link_libraries(test_standalone_credential_policy PRIVATE rdp-server-protocol)
+add_test(NAME security.lan-credential-mode-denials
+    COMMAND test_standalone_credential_policy lan-credential-mode-denials)
+set_tests_properties(security.lan-credential-mode-denials PROPERTIES
+    LABELS "security;credentials;offline")
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test

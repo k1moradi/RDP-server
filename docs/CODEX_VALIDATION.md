@@ -1,3 +1,13 @@
+## R2 standalone credential-choice denial boundary (2026-10-18)
+
+Added a pure production C++23 GUI-choice policy (deny-only) with ordinary offline
+`security.lan-credential-mode-denials` CTest. This is **not** a CredSSP
+mechanism implementation or positive native authorization. Local compile and
+CTest: **NOT RUN** (approved `~/rdp-server` checkout unavailable).
+Hosted exact-commit build/CTest: **PENDING**. Native Microsoft-client
+Kerberos/NTLM compatibility and host-owner seat0 acceptance: **NOT RUN**.
+Independent GUI password: **BLOCKED**, never start Share.
+
 ## R9 literal workflow reconstruction after replacement-token corruption (2026-10-18)
 
 Compare against known-good `9902199f4f09a1e8bceb9de71025414c52f10e2d`

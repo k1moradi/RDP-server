@@ -1,3 +1,25 @@
+## R8 production-links the dormant Linux clipboard bridge (2026-10-18)
+
+Reconciled on parent `9d48ca00a42f0fefa6a6a82ffa8b78a5ffed680b`. R10's protected-input linkage establishes
+the correct fail-closed build-graph pattern, so R8 now conditionally links the
+already-tested `rdp-server-r8-r3-clipboard` and
+`rdp-server-linux-x11-clipboard` targets into the production `rdp-server`
+binary only when Linux runtime security, the sole X11 desktop aggregate and the
+native clipboard target all exist. The compile definition
+`RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD` records build availability only; it is
+not R2 admission, R3 route authority, a GUI preference, or permission to
+publish native clipboard state.
+
+Dedicated offline CTest
+`runtime.linux-x11-clipboard-production-linkage` checks that production
+linkage while explicitly forbidding `main.cpp` from constructing
+`X11ClipboardAdapter`/`R3ClipboardTransferBridge` or calling the five
+protected clipboard gateways before R10 supplies the single persistent
+post-Share R1/TLS router and X11/logind lifetime. No listener, positive R2
+lease, CLIPRDR advertisement, native selection publication or second scheduler
+is introduced. Local owner build/full CTest: **NOT RUN** in this connector
+environment; exact publication-SHA hosted CI: **PENDING**.
+
 ## R5 negotiated MouseX side-button native input mapping (2026-10-18)
 
 Reconciled on `a2b363600c1f6f3952dbb5f7207f13e80aef8a6d`. R10 has linked the existing R2-gated R5 X11

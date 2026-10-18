@@ -1,3 +1,16 @@
+## R8 production linkage without clipboard authority (2026-10-18)
+
+The production Linux server may link the existing R8 R3 bridge and X11
+clipboard adapter once the complete R2 runtime-security/X11 dependency graph is
+available, but linkage must remain descriptive build readiness only. Until R10
+owns one persistent post-Share R1 complete-TPKT/TLS router plus the same live
+X11/logind owner, `main.cpp` must not construct either R8 owner, dispatch
+CLIPRDR, queue clipboard writes, commit clipboard receipts or publish an X11
+selection. Keep
+`runtime.linux-x11-clipboard-production-linkage` as the offline source/build
+guard for that boundary. Positive clipboard behavior still requires genuine R2
+admission and exact R3 route authorization; ordinary CI must not fabricate it.
+
 ## R5 MouseX native decoding under R2 input authority (2026-10-18)
 
 Only the existing R2/R3 per-event authorized callback may reach the R5

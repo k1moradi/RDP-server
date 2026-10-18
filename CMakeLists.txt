@@ -880,6 +880,21 @@ if(TARGET rdp-server AND TARGET rdp-server-linux-x11-authorized-input)
         RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT=1)
 endif()
 
+// R8 production dependency readiness only. The bridge and native adapter stay
+// dormant until R10 owns the single persistent post-Share R1/TLS router and
+// X11/logind lifetime; build availability is not clipboard authorization.
+if(TARGET rdp-server AND
+   TARGET rdp-server-linux-runtime-security AND
+   TARGET rdp-server-linux-x11-desktop AND
+   TARGET rdp-server-linux-x11-clipboard AND
+   TARGET rdp-server-r8-r3-clipboard)
+    target_link_libraries(rdp-server PRIVATE
+        rdp-server-r8-r3-clipboard
+        rdp-server-linux-x11-clipboard)
+    target_compile_definitions(rdp-server PRIVATE
+        RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD=1)
+endif()
+
 # R7 native macOS capture remains isolated from the portable protocol target.
 # Objective-C++ is enabled only on Apple for the ScreenCaptureKit bridge; the
 # owner is not wired into runtime startup before independent R2/R3 admission.

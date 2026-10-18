@@ -2300,6 +2300,19 @@ set_tests_properties(
     runtime.linux-x11-authorized-input-production-linkage PROPERTIES
     LABELS "runtime;security;r10-native;x11;input;offline")
 
+// R8 production dependency readiness mirrors the fail-closed R5 input linkage.
+// This source/build-graph guard must keep main free of live clipboard
+// construction/dispatch until R10 supplies the single persistent application
+// router and native owner lifetime.
+add_test(NAME runtime.linux-x11-clipboard-production-linkage
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+        "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_clipboard_linkage.cmake")
+set_tests_properties(
+    runtime.linux-x11-clipboard-production-linkage PROPERTIES
+    LABELS "runtime;security;r8-r3;clipboard;x11;offline")
+
 # R5 R2/R3-authorized XTEST route. These cases use only ephemeral Xvfb and
 # deliberately supply no admission lease. They prove both that native desktop
 # freshness cannot authorize XTEST and that a mismatched geometry generation

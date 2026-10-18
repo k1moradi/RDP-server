@@ -348,7 +348,7 @@ def sample_config(os_name: str) -> str:
         private_key = "/replace/rdp-server-test/server.key"
     return (
         "# Safe syntax-only SERVER-TEST example. No credentials are embedded.\n"
-        "# The preview cannot serve; replace paths only for offline credential checks.\n"
+        "# This bundled example cannot authorize serve; replace paths only for offline credential checks.\n"
         "listen_address=127.0.0.1\n"
         "listen_port=33989\n"
         f"tls_certificate={certificate}\n"
@@ -875,6 +875,18 @@ def smoke_archive(archive_path: Path, output_directory: Path) -> dict[str, str]:
     )
     if b"refusing to start" not in serve_result.stderr:
         raise BundleError("unconfigured serve did not fail closed")
+
+    # R10 now has an explicit Linux serve --config path. The packaged
+    # syntax-only sample must remain non-authorizing and must never become a
+    # listener-capable configuration merely because the runtime gains startup.
+    sample_serve_result = run_process(
+        [str(executable), "serve", "--config", str(config_path)],
+        expected_codes={2},
+        environment=environment,
+        timeout=5,
+    )
+    if b"refusing to start" not in sample_serve_result.stderr:
+        raise BundleError("packaged sample serve did not fail closed")
     assert_bindable_loopback_port(probe_port)
 
     for output in (
@@ -886,6 +898,8 @@ def smoke_archive(archive_path: Path, output_directory: Path) -> dict[str, str]:
         config_result.stderr,
         serve_result.stdout,
         serve_result.stderr,
+        sample_serve_result.stdout,
+        sample_serve_result.stderr,
     ):
         scan_for_secrets("captured-smoke-log", output)
 
@@ -904,6 +918,7 @@ def smoke_archive(archive_path: Path, output_directory: Path) -> dict[str, str]:
         "help": "PASS",
         "config_validation": "PASS",
         "unconfigured_serve_refusal": "PASS",
+        "packaged_sample_serve_refusal": "PASS",
         "install_no_listener": "PASS",
         "idempotent_install_uninstall": "PASS",
         "autostart_absent": "PASS",

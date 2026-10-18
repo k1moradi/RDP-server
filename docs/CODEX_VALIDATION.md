@@ -1,3 +1,22 @@
+## R9 Attach User / Confirm sanitizer registry reconciliation (2026-10-18)
+
+At R10 source `af0cee994736bd016689b34f2cdc98ce1b49ebe3`, the newly registered
+`runtime.linux-connection-post-admission-attach-user-denials` and
+`runtime.linux-connection-post-admission-attach-confirm-write-denials`
+were missing from the 32-case direct Linux ASan/UBSan selector, despite
+ordinary CTest registration. The preceding Erect-inclusive 32/32
+sanitizer job `117623763464` **PASS** on `8d9dd947e678f9c649fcde301e41c7c3c1098fce`
+([Actions 39109957377](https://github.com/k1moradi/RDP-server/actions/runs/39109957377));
+independent structure [39109957315](https://github.com/k1moradi/RDP-server/actions/runs/39109957315)
+also **PASS**. This correction requires **34** exact production-backed
+runtime-security sanitizer cases and aligns the structure guard. Concurrent
+R8 clipboard selector growth to **82** (old 81 retained) is preserved,
+as are all R3/R4/R5/R6/R7 inventories and SDK/disabled-preview separation.
+No native lease, production runtime, service policy or credential changed.
+Current correction's exact publication-SHA full hosted acceptance:
+**NOT RUN / pending** at authorship. Owner-native M1 Debug and M2
+three Microsoft-client receipts: **NOT VERIFIED**.
+
 ## R6 native negative evidence and Windows lifecycle reparse proof (2026-10-18)
 
 Reviewed last full-green exact SHA `9f2ef97f64488c105076b7a6741848fcc75a95c1`:

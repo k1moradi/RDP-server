@@ -154,6 +154,25 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
         return false;
     }
 
+    // Native calls may synchronously retire the R3 source while preparing
+    // delayed formats; freshness must be checked after those callbacks.
+    const auto sourceStillCurrent = [this, generation, sourceEpoch]() noexcept
+    {
+        return !disconnectRequested_ && remoteTransfer_.synchronized() &&
+               remoteTransfer_.generation() == generation &&
+               remoteTransfer_.sourceEpoch() == sourceEpoch;
+    };
+
+    if (ownsClipboard_ &&
+        nativeOperations_.clipboardOwner(nativeOperations_.context) !=
+            ownerWindow_)
+    {
+        yieldedGeneration_ = publicationGeneration_;
+        yieldedSourceEpoch_ = publicationSourceEpoch_;
+        clearPublicationState();
+        return false;
+    }
+
     if (ownsClipboard_ && publicationGeneration_ == generation &&
         publicationSourceEpoch_ == sourceEpoch && !fileDropPublished_ &&
         textPublished_ == textReady && imagePublished_ == imageReady &&
@@ -167,10 +186,13 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
     selfReplacingPublication_ = wasOwner;
     const bool opened = nativeOperations_.openClipboard(
         nativeOperations_.context, ownerWindow_);
-    bool success = opened;
+    bool success = opened && sourceStillCurrent();
+    bool emptiedClipboard = false;
     if (success)
     {
-        success = nativeOperations_.emptyClipboard(nativeOperations_.context);
+        emptiedClipboard =
+            nativeOperations_.emptyClipboard(nativeOperations_.context);
+        success = emptiedClipboard && sourceStillCurrent();
     }
     if (success && imageReady)
     {
@@ -182,21 +204,69 @@ bool WindowsClipboardAdapter::publishReadyRemoteGeneration() noexcept
         success = nativeOperations_.setDelayedFormat(
             nativeOperations_.context, kUnicodeTextFormat);
     }
-    if (!success && opened)
+    if (success)
     {
-        // If publication failed after EmptyClipboard, remove any partial
-        // delayed-format set before releasing the clipboard.
-        (void)nativeOperations_.emptyClipboard(nativeOperations_.context);
+        success = sourceStillCurrent() &&
+                  nativeOperations_.clipboardOwner(
+                      nativeOperations_.context) == ownerWindow_;
+    }
+    if (!success && opened && emptiedClipboard &&
+        nativeOperations_.clipboardOwner(nativeOperations_.context) ==
+            ownerWindow_)
+    {
+        // Roll back only our own formats, never a local clipboard takeover.
+        if (!nativeOperations_.emptyClipboard(nativeOperations_.context))
+            closed_ = true;
     }
     const bool closedClipboard =
         !opened || nativeOperations_.closeClipboard(nativeOperations_.context);
-    selfReplacingPublication_ = false;
 
     if (opened && !closedClipboard)
     {
         // A failed CloseClipboard leaves native ownership uncertain.
         closed_ = true;
     }
+
+    if (success && closedClipboard && !closed_)
+    {
+        const bool stillNativeOwner =
+            nativeOperations_.clipboardOwner(nativeOperations_.context) ==
+            ownerWindow_;
+        if (!sourceStillCurrent() || !stillNativeOwner)
+        {
+            success = false;
+            if (!stillNativeOwner)
+            {
+                yieldedGeneration_ = generation;
+                yieldedSourceEpoch_ = sourceEpoch;
+            }
+            else
+            {
+                // CloseClipboard may also trigger retirement. Withdraw only
+                // the stale delayed formats belonging to our window.
+                const bool reopened = nativeOperations_.openClipboard(
+                    nativeOperations_.context, ownerWindow_);
+                if (!reopened)
+                    closed_ = true;
+                else
+                {
+                    if (nativeOperations_.clipboardOwner(
+                            nativeOperations_.context) == ownerWindow_ &&
+                        !nativeOperations_.emptyClipboard(
+                            nativeOperations_.context))
+                    {
+                        closed_ = true;
+                    }
+                    if (!nativeOperations_.closeClipboard(
+                            nativeOperations_.context))
+                    {
+                        closed_ = true;
+                    }
+                }
+            }
+        }
+    }
+    selfReplacingPublication_ = false;
 
     if (success && closedClipboard && !closed_)
     {

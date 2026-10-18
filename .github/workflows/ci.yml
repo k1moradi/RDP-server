@@ -737,8 +737,9 @@ jobs:
           grep -Fq 'clipboard.macos-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-file-destination-source-epoch-revocation' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
+          grep -Fq 'clipboard.windows-clipboard-publication-midcallback-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-r3-retirement-stale-incr-fence' <<< "$selected_tests"
-          readonly clipboard_expected_test_count=81
+          readonly clipboard_expected_test_count=82
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$clipboard_expected_test_count" ]]; then
             printf 'R8 clipboard registry mismatch: expected %s tests, found %s\n' \

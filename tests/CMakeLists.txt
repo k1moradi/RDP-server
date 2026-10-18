@@ -2208,6 +2208,7 @@ foreach(case_name IN ITEMS
         windows-clipboard-r3-retirement-source-epoch
         windows-clipboard-png-dib-routing
         windows-clipboard-render-all-disconnect
+        windows-clipboard-publication-midcallback-retirement
         windows-clipboard-failure-reentry-denials)
     add_test(NAME "clipboard.${case_name}"
         COMMAND test_windows_clipboard_adapter "${case_name}")

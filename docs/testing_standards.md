@@ -210,7 +210,7 @@ embedded exact SHA. These are **disabled preview** receipts only.
 Sanitizer/test-registry inventories stay unchanged and failure-closed:
 R10 runtime-security **28**, R3 Graphics DVC **15**, R4 portable **42**,
 ClearCodec **4**, R5 **38**, R6 **59**, R7 authority-loss input **2**, and R8
-clipboard **81**. M1 owner-native same-SHA receipts and the M2 three-client
+clipboard **82**. M1 owner-native same-SHA receipts and the M2 three-client
 human matrix remain separate from hosted artifact CI.
 
 ## R10 Graphics DVC control aggregate stays denial-only without genuine Share authority (2026-10-17)

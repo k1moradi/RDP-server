@@ -1,3 +1,22 @@
+## R8 Win32 native delayed clipboard publication callback retirement (2026-10-18)
+
+**Source parent:** `af0cee994736bd016689b34f2cdc98ce1b49ebe3`. Win32 previously accepted a verified
+`RemoteTransfer` source, then could advertise stale delayed formats if native
+SetClipboardData/CloseClipboard callbacks retired its `sourceEpoch`. The
+adapter now rechecks current source and epoch across both native callbacks;
+it rolls back only its own stale delayed formats and declines to overwrite
+a local clipboard takeover. Dedicated offline
+`clipboard.windows-clipboard-publication-midcallback-retirement` injects
+retirement at either callback and covers same-number generation reuse.
+
+**Validation:** source review and CTest registration only. Owner-platform
+C++23 builds/full CTest **NOT RUN**; publication-SHA hosted Actions and
+ASan/UBSan **NOT RUN / pending**. **Live clipboard remains BLOCKED** until
+R3 provides the private R2-revalidated post-`ShareActivated` exact joined
+`cliprdr` role, nonzero R3-owned static-channel generation, bounded
+static-VC reassembly and R1/R2 receipt-bound send/receive. No real desktop,
+clipboard access, capability advertisement or protocol integration enabled.
+
 ## R10 R2-admitted MCS Attach User and Confirm (2026-10-18)
 
 **Inspected parent `8d9dd947e678f9c649fcde301e41c7c3c1098fce`; publication-SHA hosted CI PENDING and owner

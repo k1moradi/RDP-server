@@ -144,6 +144,9 @@ struct FakeNative final
     bool failClose{};
     bool reenterPublish{};
     bool disconnectDuringWrite{};
+    bool retireDuringDelayedPublication{};
+    bool retireDuringClose{};
+    RemoteTransfer *remoteTransfer{};
     WindowsClipboardAdapter *adapter{};
     bool reentrantResult{true};
 
@@ -199,6 +202,12 @@ struct FakeNative final
             return false;
         }
         self.delayedFormats.push_back(format);
+        if (self.retireDuringDelayedPublication &&
+            self.remoteTransfer != nullptr)
+        {
+            self.retireDuringDelayedPublication = false;
+            self.remoteTransfer->retireR3ChannelState();
+        }
         if (self.reenterPublish && self.adapter != nullptr)
         {
             self.reentrantResult =
@@ -235,6 +244,11 @@ struct FakeNative final
             return false;
         }
         self.opened = false;
+        if (self.retireDuringClose && self.remoteTransfer != nullptr)
+        {
+            self.retireDuringClose = false;
+            self.remoteTransfer->retireR3ChannelState();
+        }
         return !self.failClose;
     }
 
@@ -480,6 +494,54 @@ void windowsClipboardRenderAllAndDisconnect()
     assert(native.openCalls == opensAfterDisconnect);
 }
 
+void windowsClipboardPublicationMidcallbackRetirement()
+{
+    const std::array<std::uint32_t, 1> formats{
+        rdp_server::clipboard::kFormatUnicodeText};
+    const std::array<std::uint8_t, 8> textWire{
+        'o', 0, 'l', 0, 'd', 0, 0, 0};
+    const std::array<std::uint8_t, 8> replacementWire{
+        'n', 0, 'e', 0, 'w', 0, 0, 0};
+
+    // Neither delayed SetClipboardData nor CloseClipboard may commit formats
+    // belonging to a source retired synchronously by its native callback.
+    for (const bool retireDuringClose : std::array{false, true})
+    {
+        RemoteTransfer owner;
+        assert(owner.receiveFormatList(formats));
+        storeText(owner, textWire);
+        const std::uint64_t originalGeneration = owner.generation();
+        const std::uint64_t originalSourceEpoch = owner.sourceEpoch();
+
+        FakeNative native;
+        native.remoteTransfer = &owner;
+        native.retireDuringDelayedPublication = !retireDuringClose;
+        native.retireDuringClose = retireDuringClose;
+        WindowsClipboardAdapter adapter(
+            owner, native.operations(), FakeNative::kOwnerWindow);
+        native.adapter = &adapter;
+
+        assert(!adapter.publishReadyRemoteGeneration());
+        assert(owner.sourceEpoch() > originalSourceEpoch);
+        assert(!adapter.ownsClipboard());
+        assert(adapter.publicationGeneration() == 0U);
+        assert(native.delayedFormats.empty());
+        assert(native.writes.empty());
+        assert(!adapter.renderFormat(
+            WindowsClipboardAdapter::kUnicodeTextFormat));
+
+        // Reused numeric generation is not authority for the retired epoch.
+        assert(owner.receiveFormatList(formats));
+        assert(owner.generation() == originalGeneration);
+        storeText(owner, replacementWire);
+        assert(adapter.publishReadyRemoteGeneration());
+        assert(adapter.ownsClipboard());
+        assert(native.delayedFormats.size() == 1U);
+        assert(adapter.renderFormat(
+            WindowsClipboardAdapter::kUnicodeTextFormat));
+    }
+}
+
 void windowsClipboardFailureAndReentryDenials()
 {
     RemoteTransfer owner;
@@ -544,6 +606,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-clipboard-render-all-disconnect")
     {
         windowsClipboardRenderAllAndDisconnect();
+        return 0;
+    }
+    if (behavior == "windows-clipboard-publication-midcallback-retirement")
+    {
+        windowsClipboardPublicationMidcallbackRetirement();
         return 0;
     }
     if (behavior == "windows-clipboard-failure-reentry-denials")

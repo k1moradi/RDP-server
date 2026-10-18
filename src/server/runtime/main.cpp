@@ -392,6 +392,36 @@ struct ParsedLicensingIdentity final {
                fields[kLicensingPrivateKeyField];
 }
 
+[[nodiscard]] bool configureRuntimeLicensingContext(
+    const std::array<std::string_view, kConfigurationFields.size()>& fields,
+    rdp_server::server::runtime::RuntimeLicensingContext& licensingContext)
+    noexcept {
+    if (fields[kLicensingCertificateField].empty()) {
+        return false;
+    }
+
+    ParsedLicensingIdentity identity{};
+    if (!parseLicensingIdentity(fields, identity) ||
+        !licensingContext.configureFromCredentialFiles(
+            identity.productVersion,
+            std::span{identity.companyNameUtf16}.first(
+                identity.companyNameUtf16Bytes),
+            std::span{identity.productIdUtf16}.first(
+                identity.productIdUtf16Bytes),
+            fields[kLicensingCertificateField],
+            std::span{identity.scopeAnsi}.first(identity.scopeAnsiBytes),
+            fields[kLicensingPrivateKeyField])) {
+        return false;
+    }
+
+    const auto* configuredIdentity = licensingContext.identity();
+    const auto* credential = licensingContext.credential();
+    return licensingContext.configured() &&
+           configuredIdentity != nullptr && credential != nullptr &&
+           configuredIdentity->productVersion() == identity.productVersion &&
+           credential->matches(*configuredIdentity);
+}
+
 [[nodiscard]] bool isValidConfiguration(
     std::string_view text,
     std::array<std::string_view, kConfigurationFields.size()>* validatedFields = nullptr) noexcept {
@@ -768,6 +798,8 @@ struct LinuxServeAcceptContext final {
     rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration*
         securityConfiguration{};
     const rdp_server::server::runtime::RuntimeServerTlsContext* tlsContext{};
+    const rdp_server::server::runtime::RuntimeLicensingContext*
+        licensingContext{};
     const rdp_server::server::security::ConsoleEvidenceRequest*
         admissionRequest{};
     bool endpointViolation{};
@@ -786,12 +818,20 @@ struct LinuxServeAcceptContext final {
         rdp_server::server::runtime::LinuxPostAdmissionMcsResponseStepStatus;
     using ErectStep =
         rdp_server::server::runtime::LinuxPostAdmissionMcsErectStepStatus;
+    using LicenseWriteStep =
+        rdp_server::server::runtime::LinuxPersonalDesktopLicenseWriteStepStatus;
+    using ClientLicenseStep =
+        rdp_server::server::runtime::
+            LinuxPersonalDesktopClientLicensingStepStatus;
+    using ValidClientStep =
+        rdp_server::server::runtime::
+            LinuxPersonalDesktopValidClientWriteStepStatus;
 
     auto* context = static_cast<LinuxServeAcceptContext*>(rawContext);
     if (context == nullptr || context->policy == nullptr ||
         context->securityConfiguration == nullptr ||
-        context->tlsContext == nullptr || context->admissionRequest == nullptr ||
-        !accepted.valid()) {
+        context->tlsContext == nullptr || context->licensingContext == nullptr ||
+        context->admissionRequest == nullptr || !accepted.valid()) {
         return false;
     }
 
@@ -1149,7 +1189,8 @@ struct LinuxServeAcceptContext final {
         rdp_server::server::runtime::LinuxPostAdmissionMcsClientInfoStepStatus;
     readable = false;
     writable = false;
-    while (connection.ready()) {
+    bool clientInfoAccepted = false;
+    while (connection.ready() && !clientInfoAccepted) {
         const auto step = connection.advancePostAdmissionMcsClientInfo(
             *context->policy, readable, writable);
         readable = false;
@@ -1175,13 +1216,145 @@ struct LinuxServeAcceptContext final {
             return true;
         }
         case InfoStep::ClientInfoAccepted:
-            // Do not claim licensing or Share before the separate existing
-            // PersonalDesktop license writer has been genuinely composed.
-            connection.revoke();
-            return true;
+            clientInfoAccepted = true;
+            break;
         case InfoStep::AdmissionDenied:
         case InfoStep::Invalid:
         case InfoStep::Closed:
+            return true;
+        }
+    }
+    if (!clientInfoAccepted || !connection.hasAdmissionLease() ||
+        !connection.selectPersonalDesktopLicensingMode(*context->policy)) {
+        return true;
+    }
+
+    // PersonalDesktop licensing is one existing R3 state machine: send the
+    // real Server License Request through R1, consume one actual client
+    // licensing packet through R2/R3, then publish STATUS_VALID_CLIENT.
+    readable = false;
+    writable = false;
+    bool serverLicenseDelivered = false;
+    while (connection.ready() && !serverLicenseDelivered) {
+        const auto step =
+            connection.advancePersonalDesktopServerLicenseRequestWrite(
+                *context->policy, *context->licensingContext,
+                readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case LicenseWriteStep::Progress:
+            continue;
+        case LicenseWriteStep::NeedRead:
+        case LicenseWriteStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case LicenseWriteStep::Delivered:
+            serverLicenseDelivered = true;
+            break;
+        case LicenseWriteStep::AdmissionDenied:
+        case LicenseWriteStep::Invalid:
+        case LicenseWriteStep::Closed:
+            return true;
+        }
+    }
+    if (!serverLicenseDelivered || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    readable = false;
+    writable = false;
+    bool clientLicensingAccepted = false;
+    while (connection.ready() && !clientLicensingAccepted) {
+        const auto step =
+            connection.advancePersonalDesktopClientLicensingIntake(
+                *context->policy, *context->licensingContext,
+                readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case ClientLicenseStep::Progress:
+            continue;
+        case ClientLicenseStep::NeedRead:
+        case ClientLicenseStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case ClientLicenseStep::ClientLicenseInfoAccepted:
+        case ClientLicenseStep::ClientNewLicenseRequestAccepted:
+            clientLicensingAccepted = true;
+            break;
+        case ClientLicenseStep::AdmissionDenied:
+        case ClientLicenseStep::Invalid:
+        case ClientLicenseStep::Closed:
+            return true;
+        }
+    }
+    if (!clientLicensingAccepted || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    readable = false;
+    writable = false;
+    while (connection.ready()) {
+        const auto step =
+            connection.advancePersonalDesktopValidClientWrite(
+                *context->policy, readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case ValidClientStep::Progress:
+            continue;
+        case ValidClientStep::NeedRead:
+        case ValidClientStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case ValidClientStep::Delivered:
+            // Share activation remains the next separately audited runtime
+            // increment. Licensing completion alone grants no desktop access.
+            connection.revoke();
+            return true;
+        case ValidClientStep::AdmissionDenied:
+        case ValidClientStep::Invalid:
+        case ValidClientStep::Closed:
             return true;
         }
     }
@@ -1225,6 +1398,12 @@ struct LinuxServeAcceptContext final {
         return false;
     }
 
+    rdp_server::server::runtime::RuntimeLicensingContext licensingContext;
+    if (!configureRuntimeLicensingContext(
+            validatedFields, licensingContext)) {
+        return false;
+    }
+
     const rdp_server::server::security::ConsoleEvidenceRequest request{
         validatedFields[kAuthorizedKerberosPrincipalField],
         validatedFields[kAuthorizedUnixAccountField],
@@ -1248,7 +1427,8 @@ struct LinuxServeAcceptContext final {
     LinuxListenerOwner listener{listenerDescriptor};
 
     LinuxServeAcceptContext acceptContext{
-        &deploymentPolicy, &linuxSecurity, &tlsContext, &request, false};
+        &deploymentPolicy, &linuxSecurity, &tlsContext, &licensingContext,
+        &request, false};
     using Clock = std::chrono::steady_clock;
     using namespace std::chrono_literals;
     for (;;) {
@@ -1288,34 +1468,9 @@ struct LinuxServeAcceptContext final {
 [[nodiscard]] bool checkLicensingConfiguration(
     const std::array<std::string_view, kConfigurationFields.size()>&
         validatedFields) noexcept {
-    if (validatedFields[kLicensingCertificateField].empty()) {
-        return false;
-    }
-
-    ParsedLicensingIdentity identity{};
-    if (!parseLicensingIdentity(validatedFields, identity)) {
-        return false;
-    }
-
     rdp_server::server::runtime::RuntimeLicensingContext licensingContext;
-    if (!licensingContext.configureFromCredentialFiles(
-            identity.productVersion,
-            std::span{identity.companyNameUtf16}.first(
-                identity.companyNameUtf16Bytes),
-            std::span{identity.productIdUtf16}.first(
-                identity.productIdUtf16Bytes),
-            validatedFields[kLicensingCertificateField],
-            std::span{identity.scopeAnsi}.first(identity.scopeAnsiBytes),
-            validatedFields[kLicensingPrivateKeyField])) {
-        return false;
-    }
-
-    const auto* configuredIdentity = licensingContext.identity();
-    const auto* credential = licensingContext.credential();
-    return licensingContext.configured() &&
-           configuredIdentity != nullptr && credential != nullptr &&
-           configuredIdentity->productVersion() == identity.productVersion &&
-           credential->matches(*configuredIdentity);
+    return configureRuntimeLicensingContext(
+        validatedFields, licensingContext);
 }
 
 // Configuration checks do not establish certificate trust, hostname,

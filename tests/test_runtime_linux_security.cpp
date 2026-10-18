@@ -2165,6 +2165,58 @@ void testConnectionNativeDesktopSelectionDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPersonalDesktopLicensingSequenceDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-licensing-sequence.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(true, 3389U));
+    RuntimeLicensingContext licensingContext;
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    // Product mode, a real accepted R1 socket and later licensing APIs cannot
+    // replace the exact live R2 admission needed to select the R3 flow.
+    assert(!connection.selectPersonalDesktopLicensingMode(personalPolicy));
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+
+    const auto request =
+        connection.advancePersonalDesktopServerLicenseRequestWrite(
+            personalPolicy, licensingContext, true, true);
+    assert(request.status == LinuxPersonalDesktopLicenseWriteStepStatus::Closed);
+    assert(request.plaintextBytesWritten == 0U);
+
+    const auto intake =
+        connection.advancePersonalDesktopClientLicensingIntake(
+            personalPolicy, licensingContext, true, true);
+    assert(intake.status ==
+           LinuxPersonalDesktopClientLicensingStepStatus::Closed);
+    assert(intake.plaintextBytesRead == 0U);
+
+    const auto valid =
+        connection.advancePersonalDesktopValidClientWrite(
+            personalPolicy, true, true);
+    assert(valid.status ==
+           LinuxPersonalDesktopValidClientWriteStepStatus::Closed);
+    assert(valid.plaintextBytesWritten == 0U);
+
+    connection.revoke();
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopLicenseRequestR1WriteDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2992,6 +3044,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-native-desktop-selection-denials")
     {
         testConnectionNativeDesktopSelectionDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-licensing-sequence-denials")
+    {
+        testConnectionPersonalDesktopLicensingSequenceDenials(
+            fixtureDirectory);
         return 0;
     }
     if (testCase ==

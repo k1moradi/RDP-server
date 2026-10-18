@@ -870,6 +870,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-native-monitor-borrow-denials
             linux-connection-native-monitor-registration-denials
             linux-connection-native-desktop-selection-denials
+            linux-connection-personal-licensing-sequence-denials
             linux-connection-personal-desktop-r3-authority-denials
             linux-connection-personal-desktop-policy-receipt-denials
             linux-connection-personal-desktop-graphics-dvc-authority-denials

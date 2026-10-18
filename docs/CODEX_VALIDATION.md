@@ -1,3 +1,28 @@
+## R10 serialized PersonalDesktop licensing composition (2026-10-18)
+
+**Parent `0a160795d828c373b897543784e8d17581987213`; publication-SHA hosted CI pending; owner-local and
+owner-authorized positive Linux seat0 tests NOT RUN.** After actual R2/R3
+Client Info acceptance, the Linux `serve` path now selects R3's existing
+PersonalDesktop licensing mode, drives the Server License Request through
+the sole R1 TLS writer, consumes exactly one client licensing TPKT through
+the existing R2-protected R3 intake, and publishes STATUS_VALID_CLIENT
+through R1 with an exact accepted-byte receipt reauthorized by R2. Both
+Client License Info and New License Request take the existing personal
+completion branch; no CAL validation provider or second licensing state
+machine is introduced. The service-lifetime RuntimeLicensingContext is
+configured once before listener activation using the same credential
+snapshot helper as the explicit licensing configuration check.
+
+New ordinary production CTest
+`runtime.linux-connection-personal-licensing-sequence-denials` uses an
+actual accepted loopback R1 socket but no positive R2 lease; policy
+selection is terminal and later Server License Request/client intake/Valid
+Client APIs remain closed with zero plaintext progress. Existing more
+specific licensing read/write/receipt denials remain unchanged. The
+service deliberately revokes after delivered Valid Client; Share is the
+next separate runtime increment. R8 clipboard CI failures do not grant or
+block R10 protocol authority.
+
 ## R3 CLIPRDR test ownership label correction (2026-10-18)
 
 Exact-head `d85f4030` compiled and all nine R3 CLIPRDR behavior tests passed in the Ubuntu full CTest run. The same run failed later on R8's independently introduced `clipboard.windows-clipboard-publication-midcallback-retirement` assertion. R9's sanitizer job also stopped before its R8 clipboard execution because the eight new R3 `transport.cliprdr-*` cases carried the generic `clipboard` label, inflating the R8-only inventory sentinel from 82 to 90. This correction keeps the R3 cases in ordinary full CTest and relabels them `r3-clipboard`; it does not change protocol code, production routing, or R8 tests. Exact-head CI for this label-only correction is PENDING. Runtime clipboard/FileContents remains disabled pending R10 Share composition and genuine R2 admission.

@@ -54,10 +54,12 @@ class WindowsGuiBundleTests(unittest.TestCase):
         plugin.mkdir(parents=True)
         (plugin / "qwindows.dll").write_bytes(b"MZ Qt platform")
 
-    def build(self, deployer=None):
+    def build(self, deployer=None, runtime_resolver=None):
+        resolver = runtime_resolver or (lambda _staging, _tool: ())
         return bundle.bundle(
             self.output, self.gui, self.root / "windeployqt.exe",
-            self.sha, self.version, deployer=deployer or self.deploy)
+            self.sha, self.version, deployer=deployer or self.deploy,
+            runtime_resolver=resolver)
 
     def test_unicode_space_path_integrity_extract_and_remove(self):
         digest = self.build()
@@ -145,6 +147,38 @@ class WindowsGuiBundleTests(unittest.TestCase):
             bundle.bundle(
                 wrong, self.gui, self.root / "tool.exe",
                 self.sha, self.version, deployer=self.deploy)
+
+    def test_resolved_non_system_runtime_dlls_are_staged(self):
+        external = self.root / "toolchain runtime"
+        external.mkdir()
+        runtime_names = ("libc++.dll", "libicuuc78.dll", "zlib1.dll")
+        dependencies = []
+        for name in runtime_names:
+            path = external / name
+            path.write_bytes(b"MZ runtime " + name.encode("ascii"))
+            dependencies.append(path)
+
+        def resolver(staging: Path, _tool: Path):
+            self.assertTrue((staging / "Qt6Core.dll").is_file())
+            return tuple(dependencies)
+
+        digest = self.build(runtime_resolver=resolver)
+        manifest = portable.verify_archive(
+            self.output, self.sha, digest)
+        with zipfile.ZipFile(self.output) as archive:
+            names = set(archive.namelist())
+            report = archive.read(
+                "metadata/DEPENDENCIES.txt").decode("utf-8")
+        for name in runtime_names:
+            self.assertIn(name, names)
+            self.assertIn(name, manifest["files"])
+            self.assertIn(name, report)
+
+        source = (ROOT / "packaging/windows/gui_bundle.py").read_text(
+            encoding="utf-8")
+        self.assertIn("file(GET_RUNTIME_DEPENDENCIES", source)
+        self.assertIn('PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-"', source)
+        self.assertIn("POST_EXCLUDE_REGEXES", source)
 
     def test_packager_contains_no_network_or_privilege_mutator(self):
         sources = (

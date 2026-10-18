@@ -1,3 +1,18 @@
+## R6 Windows PORTABLE-GUI recursive runtime closure (2026-10-18)
+
+The native R9 Windows run exposed that MSYS2/CLANG64 `windeployqt` deploys
+Qt modules/plugins but not every non-Qt DLL imported by that Qt build. The R6
+builder therefore follows `windeployqt` with CMake
+`file(GET_RUNTIME_DEPENDENCIES)`, using the staged GUI plus all staged DLLs
+as roots. Search order begins with the staged directory and the selected
+`windeployqt` directory, then the configured OpenSSL bin directory when
+present and existing PATH entries. API-set forwarders are pre-excluded and
+resolved Windows system paths are post-excluded exactly as in the proven
+SERVER-TEST dependency resolver. Any unresolved non-system dependency fails
+packaging; resolved missing regular PE DLLs are copied app-local before the
+manifest is generated. This adds no download, package install, second build
+root, network access or runtime activation.
+
 ## R6 Windows PORTABLE-GUI builder boundary (2026-10-18)
 
 packaging/windows/gui_bundle.py packages only the already-built RDP-server-GUI.exe plus files staged by a local windeployqt. It does not download dependencies, invoke an installer, mutate PATH, create a service, touch the firewall or start the GUI. It rejects additional EXE/BAT/CMD/PowerShell/MSI helpers, reparse/symlink content, unsafe or case-colliding names, and missing Qt Core/Gui/Widgets or plugins/platforms/qwindows.dll.

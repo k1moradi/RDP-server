@@ -2685,6 +2685,15 @@ add_test(NAME windows.gui-portable-canonical-runtime-name-denials
 set_tests_properties(windows.gui-portable-canonical-runtime-name-denials
     PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 15)
 
+# R6 stages the recursive non-system DLL closure after windeployqt. The
+# synthetic resolver proves package inclusion without executing host PE tools.
+add_test(NAME windows.gui-portable-runtime-dependency-staging
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_windows_gui_bundle.py"
+        WindowsGuiBundleTests.test_resolved_non_system_runtime_dlls_are_staged)
+set_tests_properties(windows.gui-portable-runtime-dependency-staging
+    PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 15)
+
 # R9 portable recursive PE-import closure is pure Python on every host; native
 # llvm-objdump execution is performed by the Windows CLANG64 CI lane.
 add_test(NAME windows.gui-native-pe-closure-contract

@@ -1,3 +1,16 @@
+## R6 Windows GUI recursive dependency staging regression (2026-10-18)
+
+A successful `windeployqt` invocation is not sufficient evidence that a
+portable Windows Qt package is dependency-complete. R6 must resolve the
+recursive non-system PE closure independently after deployment and stage every
+missing regular DLL before hashing. The portable
+`windows.gui-portable-runtime-dependency-staging` CTest injects representative
+toolchain DLLs and proves they enter the R9-verified archive without invoking
+CMake, a Windows executable, the network, firewall or service APIs. Native R9
+CI remains authoritative for real `llvm-objdump` import closure. Windows
+system DLLs must be classified as OS-supplied by that verifier, not copied from
+System32 into the portable ZIP.
+
 ## R5 R2-fenced native XCB event-service handoff (2026-10-18)
 
 The first bounded native event drain must use only R10's one R2-selected

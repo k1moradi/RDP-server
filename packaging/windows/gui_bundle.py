@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -90,6 +91,114 @@ def deploy_with_windeployqt(gui: Path, staging: Path,
         check=True, timeout=180, cwd=staging, stdin=subprocess.DEVNULL)
 
 
+def cmake_runtime_dependencies(staging: Path,
+                               windeployqt: Path) -> tuple[Path, ...]:
+    """Resolve the recursive non-system PE closure from the staged Qt tree."""
+    cmake = shutil.which("cmake")
+    require(cmake is not None,
+            "cmake runtime dependency resolver is unavailable")
+    records = collect_staged_files(staging)
+    libraries = [
+        path for name, path in records.items()
+        if name.casefold().endswith(".dll")
+    ]
+    require(libraries, "windeployqt produced no runtime DLLs")
+
+    work = staging.parent
+    report = work / "resolved-runtime-dependencies.txt"
+    helper = work / "collect-runtime-dependencies.cmake"
+    search_directories: list[Path] = [staging, windeployqt.parent]
+    openssl_root = os.environ.get("OPENSSL_ROOT_DIR", "")
+    if openssl_root:
+        search_directories.append(Path(openssl_root) / "bin")
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if entry:
+            search_directories.append(Path(entry))
+
+    def append_lines(variable: str, values: list[Path]) -> str:
+        return "\n".join(
+            f"list(APPEND {variable} [==[{value}]==])"
+            for value in dict.fromkeys(values))
+
+    helper.write_text(
+        """cmake_minimum_required(VERSION 3.22)
+if(POLICY CMP0207)
+  cmake_policy(SET CMP0207 NEW)
+endif()
+set(executables)
+""" + append_lines("executables", [staging / GUI_NAME]) + """
+set(libraries)
+""" + append_lines("libraries", libraries) + """
+set(search_directories)
+""" + append_lines("search_directories", search_directories) + f"""
+file(GET_RUNTIME_DEPENDENCIES
+  EXECUTABLES ${{executables}}
+  LIBRARIES ${{libraries}}
+  DIRECTORIES ${{search_directories}}
+  PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-"
+  POST_EXCLUDE_REGEXES "^[A-Za-z]:/[Ww][Ii][Nn][Dd][Oo][Ww][Ss]/"
+  RESOLVED_DEPENDENCIES_VAR resolved_dependencies
+  UNRESOLVED_DEPENDENCIES_VAR unresolved_dependencies)
+if(unresolved_dependencies)
+  list(JOIN unresolved_dependencies ", " unresolved_text)
+  message(FATAL_ERROR
+    "unresolved Windows GUI runtime dependencies: ${{unresolved_text}}")
+endif()
+list(REMOVE_DUPLICATES resolved_dependencies)
+list(SORT resolved_dependencies)
+file(WRITE [==[{report}]==] "")
+foreach(dependency IN LISTS resolved_dependencies)
+  file(APPEND [==[{report}]==] "${{dependency}}\\n")
+endforeach()
+""",
+        encoding="utf-8",
+        newline="\n")
+    result = subprocess.run(
+        [cmake, "-P", str(helper)],
+        capture_output=True, text=True, check=False, timeout=90,
+        cwd=work, stdin=subprocess.DEVNULL)
+    require(
+        result.returncode == 0,
+        "runtime dependency resolution failed" +
+        (f": {result.stderr.strip()}" if result.stderr.strip() else ""))
+    dependencies = tuple(
+        Path(line) for line in report.read_text(
+            encoding="utf-8").splitlines() if line.strip())
+    require(dependencies,
+            "runtime dependency resolver returned no dependencies")
+    return dependencies
+
+
+def stage_runtime_dependencies(
+        staging: Path, windeployqt: Path,
+        resolver=cmake_runtime_dependencies) -> None:
+    """Copy resolved non-system DLLs missing from windeployqt staging."""
+    staging_resolved = staging.resolve()
+    for dependency in resolver(staging, windeployqt):
+        regular_pe(dependency)
+        require(
+            re.fullmatch(r"[A-Za-z0-9_.+\-]+\.dll",
+                         dependency.name, flags=re.IGNORECASE) is not None,
+            f"unsupported runtime dependency name: {dependency.name}")
+        try:
+            dependency.resolve().relative_to(staging_resolved)
+            continue
+        except ValueError:
+            pass
+
+        target = staging / dependency.name
+        if target.exists() or target.is_symlink():
+            require(
+                target.is_file() and not is_reparse_or_link(target),
+                "runtime dependency collides with unsafe staged entry")
+            require(
+                sha256_file(target) == sha256_file(dependency),
+                f"conflicting runtime dependency basename: {dependency.name}")
+            continue
+        shutil.copyfile(dependency, target)
+        regular_pe(target)
+
+
 def collect_staged_files(staging: Path) -> dict[str, Path]:
     records: dict[str, Path] = {}
     folded: set[str] = set()
@@ -121,7 +230,8 @@ def collect_staged_files(staging: Path) -> dict[str, Path]:
 
 def bundle(output: Path, gui: Path, windeployqt: Path, source_sha: str,
            version: str, architecture: str = "x86_64",
-           deployer=deploy_with_windeployqt) -> str:
+           deployer=deploy_with_windeployqt,
+           runtime_resolver=cmake_runtime_dependencies) -> str:
     require(re.fullmatch(r"[0-9a-f]{40}", source_sha) is not None,
             "invalid source SHA")
     require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is not None,
@@ -148,6 +258,8 @@ def bundle(output: Path, gui: Path, windeployqt: Path, source_sha: str,
 
         regular_pe(staging / GUI_NAME)
         regular_pe(staging / QT_PLATFORM)
+        stage_runtime_dependencies(
+            staging, windeployqt, resolver=runtime_resolver)
         (staging / "qt.conf").write_bytes(QT_CONF)
         records = collect_staged_files(staging)
 
@@ -174,8 +286,9 @@ def bundle(output: Path, gui: Path, windeployqt: Path, source_sha: str,
         dependency_names = sorted(
             name for name in records if name.lower().endswith(".dll"))
         sources["metadata/DEPENDENCIES.txt"] = (
-            "windeployqt staged local runtime closure; "
-            "R9 PE import scan is the native closure authority.\n" +
+            "windeployqt plus CMake GET_RUNTIME_DEPENDENCIES staged the "
+            "local non-system runtime closure; R9 PE import scan is the "
+            "native closure authority.\n" +
             "\n".join(dependency_names) + "\n").encode("utf-8")
 
         payload: dict[str, bytes] = dict(sources)

@@ -1,3 +1,30 @@
+## R6 Windows PORTABLE-GUI non-Qt runtime closure correction (2026-10-18)
+
+R9's completed native Windows jobs make the first package failure concrete.
+Runs `39127180212`, `39127462665` and `39128074398` each pass the R6
+CLANG64 Debug/Release build, native 59-case preflight, ordinary full CTest and
+sanitizer fixture before failing
+`R9 package native Windows GUI and verify PE closure`. The latest observed
+closure rejection reports that windeployqt staged Qt modules/plugins but left
+non-system imports unresolved, including `libc++.dll`, `libb2-1.dll`,
+ICU, PCRE2, zlib/zstd, freetype, harfbuzz, PNG/JPEG, Brotli and GLib
+dependencies. The same report also names Windows OS components
+`AUTHZ.dll`, `d3d9.dll` and `ncrypt.dll`; those are an R9 system-DLL
+classification concern and must not be bundled from System32.
+
+This R6 correction, authored on parent `1b32443a3759a1b220acce559addf9e516e981d1`, reuses the repository's
+proven CMake `file(GET_RUNTIME_DEPENDENCIES)` approach after windeployqt,
+roots resolution at the GUI plus every staged DLL, pre-excludes API-set
+forwarders, post-excludes resolved Windows system paths, and copies each
+resolved missing regular DLL app-local before manifest/checksum generation.
+The dedicated
+`windows.gui-portable-runtime-dependency-staging` CTest uses an injected
+offline resolver and representative `libc++.dll`/ICU/zlib fixtures to prove
+archive inclusion. Connector-local CMake/native Windows execution:
+**NOT RUN**; exact publication-SHA hosted CI: **PENDING**. Positive Windows
+hosting remains separately **BLOCKED** on R2 SSPI/CredSSP SID/WTS admission
+and R10's Windows interactive-session owner.
+
 ## Shared runtime clipboard optional-guard compile correction (2026-10-18)
 
 Exact-head hosted Linux production/runtime-security builds after the R8 runtime

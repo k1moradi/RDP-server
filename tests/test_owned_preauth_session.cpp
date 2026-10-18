@@ -3348,7 +3348,7 @@ void completeR1GraphicsDynamicVirtualChannelReady(
     std::uint16_t staticChannelId)
 {
     assert(allocation && allocation.channelId <= 0xffU);
-    assert(dvc.begin(clientUserId, staticChannelId, allocation));
+    assert(dvc.begin(clientUserId, staticChannelId, allocation, {64U, 64U}));
 
     auto write = dvc.pendingServerWrite();
     assert(write &&
@@ -3418,8 +3418,21 @@ void completeR1GraphicsDynamicVirtualChannelReady(
                write.replySequence,
                write.writeSliceSequence,
                write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Pending);
+    write = dvc.pendingServerWrite();
+    assert(write && write.kind == RdpGraphicsDvcWriteKind::GraphicsCreateSurface);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration, write.replySequence,
+               write.writeSliceSequence, write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Pending);
+    write = dvc.pendingServerWrite();
+    assert(write && write.kind == RdpGraphicsDvcWriteKind::GraphicsMapSurfaceToOutput);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration, write.replySequence,
+               write.writeSliceSequence, write.bytes.size()) ==
            RdpGraphicsDvcWriteOutcome::Delivered);
     assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(dvc.presentationMapped());
     assert(dvc.graphicsClearCodecEnabled());
     assert(!dvc.graphicsAvc420Enabled());
 }
@@ -3513,14 +3526,19 @@ void testR3GraphicsFrameSliceThroughOwnedTls()
     completeR1GraphicsDynamicVirtualChannelReady(
         dvc, allocation, clientUserId, staticChannelId);
 
-    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    // The R3-owned mapped presentation is the sole graphics authority.
+    // Borrowed pixels remain alive until the synchronous prepare returns.
+    constexpr std::size_t strideBytes = 64U * 4U;
+    std::vector<std::byte> pixels(strideBytes * 64U);
+    for (std::size_t index = 0U; index < pixels.size(); ++index)
+        pixels[index] = static_cast<std::byte>((index * 17U + 3U) & 0xffU);
+    const ::FramebufferView framebuffer{pixels, 64U, 64U, strideBytes};
     rdp_server::rdp::GfxAvc420SegmentedFrame frame;
-    prepareR1ClearCodecFrame(presentation, 9301U, frame);
+    assert(dvc.prepareClearCodecFrame(301U, framebuffer, frame));
     const std::size_t frameWireBytes = frame.wireBytes().size();
 
     assert(dvc.beginFramePublication(
-        presentation, std::move(frame),
-        RdpGraphicsFrameCodec::ClearCodec,
+        std::move(frame), RdpGraphicsFrameCodec::ClearCodec,
         kRdpStaticVirtualChannelDefaultChunkBytes));
     assert(!frame.valid());
     assert(dvc.frameRecordMap().size() > 1U);

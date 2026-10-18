@@ -429,3 +429,8 @@ commit fails hosted compilation on Linux/macOS/Windows because `PixelSize` and
 `FramebufferView` are global types, not `rdp_server::rdp` names. A narrow R3
 qualification correction is published for hosted revalidation. Graphics and
 frame/sanitizer CTests remain NOT RUN until CI executes the corrected head.
+
+**R3 hosted-compile follow-up (2026-10-18):** Subsequent CI exposed
+remaining global `FramebufferView` references at R2/R10 handoffs and a stale
+R1 Graphics TLS fixture calling the old DVC presentation API. Corrected
+those exact incompatibilities; full CI and affected CTests still PENDING.

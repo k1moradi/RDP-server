@@ -683,7 +683,7 @@ public:
     [[nodiscard]] bool startPersonalDesktopClearCodecFramePublication(
         const RuntimeDeploymentPolicy &deploymentPolicy,
         std::uint32_t frameId,
-        rdp_server::rdp::FramebufferView framebuffer) noexcept;
+        ::FramebufferView framebuffer) noexcept;
 
     // Legal only while R3 proves that R1 accepted zero outer plaintext bytes.
     // Positive or uncertain progress is never translated into cancellation.

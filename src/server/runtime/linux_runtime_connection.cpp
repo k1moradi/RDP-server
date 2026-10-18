@@ -2632,7 +2632,7 @@ bool LinuxRuntimeConnection::
 startPersonalDesktopClearCodecFramePublication(
     const RuntimeDeploymentPolicy &deploymentPolicy,
     std::uint32_t frameId,
-    rdp_server::rdp::FramebufferView framebuffer) noexcept
+    ::FramebufferView framebuffer) noexcept
 {
     using Action = PersonalDesktopGraphicsDvcIoAction;
     using Kind =

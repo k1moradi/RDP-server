@@ -681,7 +681,7 @@ public:
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy,
         std::uint32_t frameId,
-        rdp_server::rdp::FramebufferView framebuffer) noexcept;
+        ::FramebufferView framebuffer) noexcept;
 
     [[nodiscard]] bool
     cancelR3PersonalDesktopUnwrittenGraphicsFrame(

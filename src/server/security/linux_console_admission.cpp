@@ -1644,7 +1644,7 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClearCodecFramePublicatio
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy,
     std::uint32_t frameId,
-    rdp_server::rdp::FramebufferView framebuffer) noexcept
+    ::FramebufferView framebuffer) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
             lease, acceptor, connection, session, deploymentPolicy))

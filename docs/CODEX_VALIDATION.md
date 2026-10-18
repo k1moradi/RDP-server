@@ -6757,3 +6757,14 @@ Local configure/build/CTest: NOT RUN (GitHub connector environment).
 New exact-head hosted CTests, frame cancellation and sanitizers: PENDING.
 This correction does not alter R4 frame/ACK ownership, authenticate a
 Share, or supply the R10 post-Share classifier.
+
+## R3 descendant build follow-up (2026-10-18)
+
+The first correction exposed additional global `FramebufferView` references
+in the R2 and R10 declaration/definition handoffs, plus an R1/R3 TLS test
+fixture still calling the pre-presentation DVC begin/frame API and expecting
+Ready immediately after CAPS_CONFIRM. Updated the four type qualifications
+and adjusted the real TLS fixture to complete CAPS_CONFIRM, CREATE_SURFACE,
+MAP_SURFACE_TO_OUTPUT before preparing its ClearCodec frame against R3's
+actual mapped presentation. New hosted CI and sanitizer outcomes: PENDING.
+Local compile/CTest: NOT RUN in connector environment.

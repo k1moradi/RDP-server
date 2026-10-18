@@ -1,3 +1,29 @@
+## R5 persistent X11 handoff source-contract correction (2026-10-18)
+
+Base: `877d8435270f`. R10 `4795c6d` and `2a3f06b`
+now own a persistent post-Share session that borrows exactly one R5 XCB
+owner, consumes R3-classified input via R5's R2-authorized slow-path
+sink and publishes a synchronous XShm BGRA first frame through
+ClearCodec/R3, with R1 remaining the only TLS reader. On hosted Ubuntu
+Debug job `117710510793`, 751/754 tests passed; R5's legacy
+`runtime.linux-r5-x11-authorized-event-service-denials` source scanner
+fails because it expects the removed one-shot `nativeDispatch` and
+graceful `disconnect()` shape. R10's two legacy source scanners
+also fail on the persistent code and remain R10-owned.
+
+Replaced only R5's stale scanner with a loop-scoped, stricter
+watch-unregistration / authorization-before-and-after-XCB / R1 sole-reader /
+synchronous borrow ordering guard. Registered the additional
+`runtime.linux-r5-persistent-x11-input-frame-borrow-order` CTest to pin
+typed R3 input classification→R2-protected R5 sink and native frame callback.
+No R10 scheduler, XTEST, admission, GUI listener or external service changed.
+Owner-local full Debug CTest: **NOT RUN** (approved source/toolchain checkout
+unavailable). New publication-SHA GitHub CI: **PENDING**. These static tests
+do not prove positive PAM/logind/Kerberos seat0 acceptance, runtime
+screen capture or Microsoft-client visible video/FRAME_ACK. Next: R10 repairs
+its two remaining source scanner assumptions; R10/R2 implement live
+Start/Stop, and the owner authorizes a physical X11 end-to-end run.
+
 ## R3 post-Share dependency reconciliation against live persistent R10 (2026-10-18)
 
 Inspected main `9f758c9395c988233602536e0fdd21924f707f07`, canonical R3/R10 interfaces and `src/server/runtime/main.cpp`.

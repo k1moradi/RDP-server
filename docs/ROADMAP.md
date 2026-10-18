@@ -1,3 +1,30 @@
+## R5 live post-Share X11 handoff and CI repair (2026-10-18)
+
+R10 `4795c6ddb55f` landed the persistent R1 single-reader / R2-selected
+X11/logind / R3-classified input scheduler and synchronous R5 XShm→R4→R3
+first-frame borrow. R10 `2a3f06b039c9` corrected native poll retirement
+and frame-borrow lifetime. This **resolves the R5/R10 production composition
+dependency**, not the owner-approved real OS admission or Microsoft-client
+acceptance gate. R5's earlier
+`runtime.linux-r5-x11-authorized-event-service-denials` source CTest
+continued to require a one-shot `nativeDispatch` local and a graceful
+`disconnect()` before revocation; on `2a3f06b` Ubuntu Debug full CTest
+it fails, even though the new loop correctly uses terminal no-XTEST input
+retirement. R5 now scopes its guard to the persistent loop, requires R2
+borrowed-watch unregister before bounded XCB drain, fresh R2 checks on
+both sides, serialized R1 application intake, and synchronous R5 capture
+borrow. New CTest
+`runtime.linux-r5-persistent-x11-input-frame-borrow-order` additionally
+pins R3-classified slow-path input through R5's R2 sink and current
+ClearCodec frame callback. Both are *source contracts*, not synthetic
+positive R2 admission. Owner checkout/full CTest: **NOT RUN** in this
+connector runtime. Publication-SHA hosted CI: **PENDING**; latest
+pre-correction full Ubuntu run `39139376815` fails three stale native
+source-guard tests (one R5, two R10). R10 owns its two separate guards.
+The remaining true blockers are live `RuntimeHostControl` Start/Stop,
+approved X11 seat0/Kerberos/PAM/logind and physical Microsoft-client
+video/input/ACK; R8 clipboard publication stays disabled separately.
+
 ## R7 CI workflow repair (2026-10-18)
 
 The R7 GUI/status commit `6a94a5d2010f46e84c0358a3723bd2bca7d92a78`

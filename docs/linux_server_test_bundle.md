@@ -168,8 +168,11 @@ logout or policy replacement, unregister watchers first, invoke
 and finally R1; never post cleanup key releases after that point. Graceful
 disconnect may release held keys *only while authority remains current*.
 
-These APIs are available as a borrow contract, not a replacement for R10's
-missing persistent post-Share packet router or its GUI host-control backend.
+R10's persistent post-Share packet router now consumes this native borrow
+contract, including the single TLS reader, protected input and first-frame
+publication. Its GUI Start/Stop host-control backend is still deny-only;
+no positive R2 OS admission, live Linux seat0 or Microsoft-client video/input
+acceptance follows from an offline source-contract or Xvfb test.
 Xvfb CTests prove only synthetic X11 semantics, never positive physical
 Linux seat0 PAM/logind/Kerberos admission. Real Microsoft-client LAN
 capture/input acceptance remains **BLOCKED/NOT RUN** without owner consent.

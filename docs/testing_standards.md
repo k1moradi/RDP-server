@@ -1,3 +1,21 @@
+## R5 persistent post-Share native source contracts (2026-10-18)
+
+After R10 replaced one bounded native poll with the authorized persistent
+post-Share scheduler, R5's guard must not require the obsolete
+`nativeDispatch` temporary, graceful X11 disconnect or absence of frame
+capture. Guard the *current* production owner loop instead: unregister the
+borrowed R2 logind watch before callbacks, check R2 authorization on both
+sides of the bounded XCB drain, prohibit bypassing R1 TLS or R2 protected
+input, require synchronous XShm/R4 full-frame borrow only after the
+authorized native event service, and retire XTEST without cleanup posts
+on expiry. Two ordinary offline CTests,
+`runtime.linux-r5-x11-authorized-event-service-denials` and
+`runtime.linux-r5-persistent-x11-input-frame-borrow-order`, pin separate
+event handoff and authenticated input/borrow boundaries. Source inspection
+tests are not native Xvfb or real admission evidence; keep the existing
+positive synthetic Xvfb framebuffer and denied unauthenticated XTEST
+fixtures separately.
+
 ## R9 persistent post-Share ownership focused source guard (2026-10-18)
 
 When R10 lands a new source-level production scheduler CTest, enroll it

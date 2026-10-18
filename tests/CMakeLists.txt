@@ -1098,15 +1098,22 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-serve-r2-selected-x11-owner-composition PROPERTIES
         LABELS "runtime;security;r10-native;x11;offline")
 
-    # R5 follows the one R10 selected XCB owner, immediately after R2's
-    # borrowed logind poll record is unregistered; the native event drain
-    # performs no frame publication or synthetic R2 admission.
+    # R5 follows the single R10 R2-selected XCB owner. The production
+    # post-Share scheduler must retire its borrowed logind watch before
+    # native drain, refresh R2 authority and borrow the first XShm frame
+    # synchronously while R1 owns all TLS application reads.
     add_test(NAME runtime.linux-r5-x11-authorized-event-service-denials
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_event_service.cmake")
+    add_test(NAME runtime.linux-r5-persistent-x11-input-frame-borrow-order
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            "-DRDP_R5_PERSISTENT_FRAME_GATE=ON"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_event_service.cmake")
     set_tests_properties(
-        runtime.linux-r5-x11-authorized-event-service-denials PROPERTIES
+        runtime.linux-r5-x11-authorized-event-service-denials
+        runtime.linux-r5-persistent-x11-input-frame-borrow-order PROPERTIES
         LABELS "runtime;security;r5-native;x11;offline")
 
     # R2 post-admission TLS reads must fence the current R3 admission/session

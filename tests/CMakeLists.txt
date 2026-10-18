@@ -427,6 +427,13 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("transport.${case_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
+        # Dedicated real TLS reader→writer interleaving regression; keep
+        # outside R9's fixed-count generic transport sanitizer inventory.
+        add_test(NAME transport.tcp-owned-tls-read-want-interleaved-frame-write
+            COMMAND "${test_target}" "tcp-owned-tls-read-want-interleaved-frame-write")
+        set_tests_properties(
+            transport.tcp-owned-tls-read-want-interleaved-frame-write
+            PROPERTIES LABELS "r1-tls-interleave;security;offline" TIMEOUT 20)
         # Fail fast with a NAMED CTest TIMEOUT instead of tying up a
         # Windows worker forever if native connect/backlog handling stalls.
         # Keep both original production assertions intact.

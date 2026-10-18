@@ -1,3 +1,14 @@
+## R1 persistent read-WANT/interleaved outbound frame regression (2026-10-18)
+
+The ordinary full CTest `transport.tcp-owned-tls-read-want-interleaved-frame-write`
+performs a real completed TLS handshake on a nonblocking loopback pair,
+then forces idle application read WANT_READ, publishes a server-side frame
+without client input, receives it at the TLS peer, resumes a client
+TPKT read, and confirms cancellation blocks late I/O. Keep it outside
+fixed-count sanitizer selections. Existing wrong-size read retry and
+pending SSL-write positive partial receipt tests remain mandatory. This
+test does not grant R2 admission or claim Microsoft-client visibility.
+
 ## R7 macOS signed framework aliases in PORTABLE-GUI ZIP (2026-10-18)
 
 Qt `macdeployqt` frameworks require their versioned symlink topology to

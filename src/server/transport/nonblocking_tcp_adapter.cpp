@@ -923,10 +923,15 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::writeTlsApplicationData(
     if (source.empty() || source.size() > kMaximumTlsApplicationIoBytes ||
         !establishedApplicationTls())
         return {Outcome::Invalid, 0};
-    if (pendingApplicationOperation_ != TlsApplicationOperation::None &&
-        (pendingApplicationOperation_ != TlsApplicationOperation::Write ||
-         pendingApplicationBytes_ != source.size()))
+    // A blocked read has delivered no plaintext. OpenSSL permits a server
+    // write after SSL_read_ex returns WANT_READ or WANT_WRITE, so a quiet
+    // RDP client must not prevent outbound Graphics publication. A pending
+    // SSL_write_ex, however, still requires the exact same retry length.
+    if (pendingApplicationOperation_ == TlsApplicationOperation::Write &&
+        pendingApplicationBytes_ != source.size())
         return {Outcome::Invalid, 0};
+    if (pendingApplicationOperation_ == TlsApplicationOperation::Read)
+        clearPendingTlsApplicationIo();
 
     applicationIoActive_ = true;
     std::size_t bytes = 0;

@@ -1,3 +1,13 @@
+## R1 nonblocking TLS read-WANT to write interleaving (2026-10-18)
+
+OpenSSL permits SSL_write_ex after an incomplete SSL_read_ex (WANT_READ or
+WANT_WRITE). Because the blocked read accepted zero application bytes,
+the single R1 SSL owner may drop the pending read retry when submitting an
+outbound Graphics or Share record; it must not invent a second reader or
+reassemble a second packet. Conversely, an SSL_write_ex returning WANT_READ
+or WANT_WRITE must retain its exact write length until that write completes.
+Never advance R3 receipts from attempted rather than accepted plaintext.
+
 ## Windows SDK ordinary-name collisions require explicit portable type disambiguation (2026-10-17)
 
 WinGDI declares a global `Rectangle(...)` function, while the portable core

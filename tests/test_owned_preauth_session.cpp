@@ -3718,6 +3718,69 @@ void testOwnedTlsApplicationIo()
     assert(owner.establishedTls() == nullptr);
 }
 
+void testOwnedTlsReadWantInterleavedFrameWrite()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    // Between input packets a live RDP peer may leave R1 in read WANT_READ.
+    std::array<std::uint8_t, 7U> incoming{};
+    const auto blocked = owner.readTlsApplicationData(incoming);
+    assert(blocked.outcome == Outcome::NeedRead && blocked.bytes == 0U);
+    assert(owner.ioInterest() == Interest::Read);
+
+    // Publish using the SAME SSL/BIO owner, without waiting for another
+    // client application packet and without modifying the inbound frame.
+    constexpr std::array<std::uint8_t, 9U> frame{
+        0x03U, 0x00U, 0x00U, 0x09U, 0x02U, 0xf0U, 0x80U, 0x64U, 0x42U};
+    const auto frameWrite = owner.writeTlsApplicationData(frame);
+    assert(frameWrite.outcome == Outcome::Progress);
+    assert(frameWrite.bytes == frame.size());
+    assert(owner.ioInterest() == Interest::Read);
+    std::array<std::uint8_t, frame.size()> delivered{};
+    readNativeTlsClientAll(tls.client.get(), delivered);
+    assert(delivered == frame);
+
+    // Complete the prior read's logical TPKT through the same socket.
+    constexpr std::array<std::uint8_t, 7U> clientPayload{
+        0x03U, 0x00U, 0x00U, 0x07U, 0x02U, 0xf0U, 0x80U};
+    writeNativeTlsClientAll(tls.client.get(), clientPayload);
+    bool received = false;
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    for (std::size_t attempt = 0; attempt < 256U &&
+                                   Clock::now() < deadline; ++attempt)
+    {
+        const auto read = owner.readTlsApplicationData(incoming);
+        if (read.outcome == Outcome::Progress)
+        {
+            assert(read.bytes == clientPayload.size());
+            received = true;
+            break;
+        }
+        assert(read.outcome == Outcome::NeedRead ||
+               read.outcome == Outcome::NeedWrite);
+        const auto poll = owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(poll.outcome == TcpConnectionPollOutcome::Dispatched ||
+               poll.outcome == TcpConnectionPollOutcome::NoEvent);
+    }
+    assert(received && incoming == clientPayload);
+    assert(owner.active());
+    owner.cancel();
+    assert(!owner.active());
+    assert(owner.writeTlsApplicationData(frame).outcome ==
+           Outcome::TransportClosed);
+}
+
 void testOwnedTlsApplicationPartialWrite()
 {
     using Outcome = TlsApplicationIoOutcome;
@@ -3789,9 +3852,6 @@ void testOwnedTlsApplicationPartialWrite()
     std::array<std::uint8_t, 7> pendingRead{};
     const auto blocked = owner.readTlsApplicationData(pendingRead);
     assert(blocked.outcome == Outcome::NeedRead && blocked.bytes == 0);
-    std::array<std::uint8_t, 7> wrongDirection{};
-    assert(owner.writeTlsApplicationData(wrongDirection).outcome ==
-           Outcome::Invalid);
     assert(owner.readTlsApplicationData(
                std::span(pendingRead).first(6)).outcome ==
            Outcome::Invalid);
@@ -11161,6 +11221,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},
     {"tcp-owned-hybrid-provenance-revocation", &testOwnedHybridProvenanceRevocation},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},
+    {"tcp-owned-tls-read-want-interleaved-frame-write",
+     &testOwnedTlsReadWantInterleavedFrameWrite},
     {"tcp-owned-tls-application-partial-write", &testOwnedTlsApplicationPartialWrite},
     {"tcp-owned-r3-connect-response-slice", &testR3ConnectResponseSliceThroughOwnedTls},
     {"tcp-owned-r3-graphics-frame-slice", &testR3GraphicsFrameSliceThroughOwnedTls},

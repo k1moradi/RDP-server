@@ -1,3 +1,24 @@
+## R1 post-Share TLS read WANT and outbound Graphics publication (2026-10-18)
+
+Source parent `57103ca14b941a6e7fb5a2c2ebb353d8a3d3c994`. R10's persistent Graphics loop needs R1 to
+write server frames while the client sends no new plaintext. The previous
+single-operation adapter would reject SSL_write_ex when an earlier
+SSL_read_ex was waiting in WANT_READ or WANT_WRITE, so a quiet client could
+prevent frame publication or cause terminal revocation. OpenSSL permits
+the read-WANT to write transition; R1 now drops only the zero-plaintext
+pending read state on a valid outbound call. A pending write retains its
+exact retry length, and the same SSL/BIO/socket and R3 receipt owner remain.
+
+Dedicated native nonblocking loopback CTest:
+`transport.tcp-owned-tls-read-want-interleaved-frame-write` — read WANT_READ,
+full outbound TPKT through the same TLS, resumed inbound complete TPKT,
+terminal cancellation/late I/O rejection. Prior partial-write tests retain
+wrong-size pending-read denials and exact pending-write retry coverage.
+Local approved checkout/configure/build/full CTest: **NOT RUN**.
+Exact publication-SHA hosted CI: **PENDING**. No R2 lease, real desktop
+or Microsoft-client traffic is synthesized. Next: R10 persistent-loop
+native validation plus the concrete GUI LAN host-control Start/Stop backend.
+
 ## R7 macOS signed framework ZIP-alias correction (2026-10-18)
 
 **Observed real blocker:** on corrective R7 SHA

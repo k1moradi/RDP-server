@@ -120,6 +120,10 @@ check false negatives; exact-head **primary full CI PENDING**, and
 three-platform same-SHA owner-local / Microsoft clients **NOT RUN**.
 No PORTABLE-GUI or SERVER-TEST promotion from this evidence.
 
+## R2 Ubuntu full-CTest source-guard parse repair (2026-10-18)
+
+GitHub Actions [`39142229897`](https://github.com/k1moradi/RDP-server/actions/runs/39142229897) on exact SHA `549a12c0` built Linux and ran 764 ordinary Debug tests; 763 passed and the sole failure was `security.linux-verified-account-pam-attempt-fence-source`: `check_runtime_verified_account_attempt_fence.cmake:65 (if): Flow control statements are not properly nested.` The bounded source guard accidentally omitted `endif()` after the final-credential bound-budget check. The correction only closes the block; the guard still requires R2 principal/account match, then the verified GSS-principal reservation, then PAM. The complete/missing-systemd R2 runtime CI lanes and R9 sanitizer lane succeeded on this source ancestor. Local approved checkout/full CTest **NOT RUN**; correction-SHA GitHub CI **PENDING**. No real Kerberos client, PAM positive or native desktop admission is claimed.
+
 ## R2 provider-verified principal/PAM boundary source regression (2026-10-18)
 
 Registered independent Linux-only offline CTest

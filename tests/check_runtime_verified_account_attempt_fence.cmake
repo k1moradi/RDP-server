@@ -64,6 +64,7 @@ string(FIND "${credential_source}"
     "verification.attemptLimiter = verifiedAccountAttemptLimiter_" bound_budget)
 if(bound_budget EQUAL -1)
     message(FATAL_ERROR "Final authInfo visitor lost GSS acceptor budget")
+endif()
 
 # Exact one-shot R2 binding and terminal pointer retirement.
 foreach(text_needed IN ITEMS

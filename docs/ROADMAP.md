@@ -76,6 +76,8 @@ source-guard failures from wrapped native `::poll`/watcher calls.
 Exact publication-SHA primary+structure workflows **PENDING**;
 real Microsoft-client and native credential acceptance **NOT RUN**.
 
+**R2 hosted CTest parser recovery (2026-10-18):** Exact SHA `549a12c0` GitHub Actions `39142229897` ran the Ubuntu full Debug CTest: 763/764 PASS, with only `security.linux-verified-account-pam-attempt-fence-source` failing at CMake line 65 because the newly authored source guard lacked `endif()` after checking the bound account-budget pointer. All dedicated R2 complete/missing-systemd production-security jobs PASS; no auth implementation failure was reported. The corrected source guard closes that single block without relaxing the verified-principal-before-PAM assertions; no runtime code changes, no positive provider or lease. Owner-local Debug/full CTest **NOT RUN**; exact correction SHA CI **PENDING**.
+
 ## R2 GSS-to-PAM account budget regression coverage (2026-10-18)
 
 The earlier R2 `1aa476e5` wired real service-owned per-account

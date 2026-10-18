@@ -1,3 +1,16 @@
+## R9 repair of R1 TCP-reset sanitizer workflow (2026-10-17)
+
+`44fff0de53e780abc05b8ec0e7f2cea830b9dea7` correctly identified the
+Linux-only R1 TCP-reset terminal case as a useful dedicated sanitizer gate,
+but its workflow insertion was malformed and both GitHub workflow parsing and
+the structure guard failed. This correction rebuilds the CI file from the
+fully green `4c47b268d01377fda039a51cfc0f03172f30eeb1` workflow and adds
+only the exact-one-test `transport.tcp-owned-tls-application-tcp-rst-terminal`
+ASan/UBSan step. The 30-case runtime-security selector, existing R5/R6/R7/R8
+gates, SERVER-TEST producer/aggregate, and protocol prerelease separation are
+preserved. The failed `44fff0de` runs are invalid evidence; this corrective
+SHA requires fresh hosted structure and primary CI.
+
 ## R1 dedicated native TCP-reset sanitizer gate (2026-10-17)
 
 **Reviewed current dependency head before authoring:** `4c47b268d01377fda039a51cfc0f03172f30eeb1`.

@@ -5,6 +5,7 @@
 #include <array>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <utility>
 
 #if defined(_WIN32)
@@ -218,7 +219,9 @@ LanListenerResult openLanListener(LanListenerRequest request) noexcept {
         auto &address = reinterpret_cast<sockaddr_in6 &>(selection.address);
         address.sin6_port = htons(request.port);
         // Link-local requires interface scope. ULA must not inherit a stale scope.
-        address.sin6_scope_id = selection.interfaceIndex;
+        address.sin6_scope_id = (address.sin6_addr.s6_addr[0] == 0xfeU &&
+            (address.sin6_addr.s6_addr[1] & 0xc0U) == 0x80U) ?
+            selection.interfaceIndex : 0;
     }
     const NativeSocket socket = ::socket(wanted.ss_family, SOCK_STREAM, IPPROTO_TCP);
     if (socket == invalidSocket) {

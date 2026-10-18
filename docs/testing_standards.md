@@ -1,3 +1,11 @@
+## R10 serialized loopback Stop CTest boundary (2026-10-18)
+
+`runtime.linux-serve-cooperative-signal-stop-order` is a production-source
+ordinary offline test, not synthetic authenticated OS admission. It must
+require 13 handshake Stop fences, the real native loop Stop fence, POSIX
+SIGINT/SIGTERM handler restoration and native no-XTEST retirement before
+R3/R1 revoke; it must not send signals, listen or touch a desktop.
+
 ## R7 Qt runtime status inert text CTest (2026-10-18)
 
 Run `gui.offscreen-runtime-peer-and-endpoint-plain-text` with ordinary

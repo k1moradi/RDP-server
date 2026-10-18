@@ -1098,6 +1098,15 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-connection-personal-clipboard-tls-write-denials
         PROPERTIES LABELS "runtime;security;r8-r3;offline")
 
+    # A Linux signal only requests Stop; R1/R2/R3/R5 teardown is serialized.
+    # This inspects production code offline without signals or live admission.
+    add_test(NAME runtime.linux-serve-cooperative-signal-stop-order
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_cooperative_stop.cmake")
+    set_tests_properties(runtime.linux-serve-cooperative-signal-stop-order
+        PROPERTIES LABELS "runtime;security;r10-stop;offline")
+
     # Real production runtime owner contract, with no synthetic positive R2
     # admission, physical X11 host or auto-start. Source guards complement
     # the executable-backed missing-lease and R1 I/O tests above.

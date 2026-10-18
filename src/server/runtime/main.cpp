@@ -31,8 +31,10 @@
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
 #include <cerrno>
 #include <chrono>
+#include <csignal>
 #include <cstring>
 #include <poll.h>
+#include <signal.h>
 #endif
 
 #if defined(_WIN32)
@@ -70,6 +72,48 @@ constexpr std::chrono::seconds kLinuxSerializedConnectionDeadline{30};
 // fabricated. R2 native-session revocation and R1 EOF remain authoritative.
 constexpr std::chrono::milliseconds kLinuxPostSharePollQuantum{25};
 constexpr std::chrono::milliseconds kLinuxPostShareCaptureInterval{100};
+
+// The signal handler is scalar-only: no R1 TLS, R2 lease, R3 Share, R5 X11
+// or allocation operation is permitted except on the serialized owner.
+volatile std::sig_atomic_t gLinuxServeStopSignal = 0;
+void recordLinuxServeTerminationSignal(int) noexcept {
+    gLinuxServeStopSignal = 1;
+}
+[[nodiscard]] bool linuxServeStopRequested() noexcept {
+    return gLinuxServeStopSignal != 0;
+}
+class ScopedLinuxServeTerminationHandlers final {
+public:
+    ScopedLinuxServeTerminationHandlers() noexcept {
+        gLinuxServeStopSignal = 0;
+        struct sigaction replacement {};
+        replacement.sa_handler = &recordLinuxServeTerminationSignal;
+        if (::sigemptyset(&replacement.sa_mask) != 0 ||
+            ::sigaction(SIGINT, &replacement, &oldInterrupt_) != 0) {
+            return;
+        }
+        if (::sigaction(SIGTERM, &replacement, &oldTerminate_) != 0) {
+            (void)::sigaction(SIGINT, &oldInterrupt_, nullptr);
+            return;
+        }
+        installed_ = true;
+    }
+    ScopedLinuxServeTerminationHandlers(
+        const ScopedLinuxServeTerminationHandlers&) = delete;
+    ScopedLinuxServeTerminationHandlers& operator=(
+        const ScopedLinuxServeTerminationHandlers&) = delete;
+    ~ScopedLinuxServeTerminationHandlers() noexcept {
+        if (installed_) {
+            (void)::sigaction(SIGTERM, &oldTerminate_, nullptr);
+            (void)::sigaction(SIGINT, &oldInterrupt_, nullptr);
+        }
+    }
+    [[nodiscard]] bool installed() const noexcept { return installed_; }
+private:
+    struct sigaction oldInterrupt_ {};
+    struct sigaction oldTerminate_ {};
+    bool installed_{};
+};
 #endif
 
 constexpr std::size_t kBaseConfigurationFieldCount = 7;
@@ -958,7 +1002,8 @@ struct LinuxFramePublicationContext final {
     if (context == nullptr || context->policy == nullptr ||
         context->securityConfiguration == nullptr ||
         context->tlsContext == nullptr || context->licensingContext == nullptr ||
-        context->admissionRequest == nullptr || !accepted.valid()) {
+        context->admissionRequest == nullptr || !accepted.valid() ||
+        linuxServeStopRequested()) {
         return false;
     }
 
@@ -1003,7 +1048,8 @@ struct LinuxFramePublicationContext final {
     bool writable = false;
     bool admitted = false;
 
-    while (connection.ready() && !admitted) {
+    while (connection.ready() && !admitted &&
+           !linuxServeStopRequested()) {
         const auto step = connection.advancePreAdmission(
             readable, writable, *context->tlsContext);
         readable = false;
@@ -1052,7 +1098,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool acceptedConnectInitial = false;
-    while (connection.ready() && !acceptedConnectInitial) {
+    while (connection.ready() && !acceptedConnectInitial &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePostAdmissionMcsConnectInitial(
                 readable, writable);
@@ -1099,7 +1146,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool deliveredResponse = false;
-    while (connection.ready() && !deliveredResponse) {
+    while (connection.ready() && !deliveredResponse &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePostAdmissionMcsConnectResponseWrite(
                 readable, writable);
@@ -1145,7 +1193,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool acceptedErectDomain = false;
-    while (connection.ready() && !acceptedErectDomain) {
+    while (connection.ready() && !acceptedErectDomain &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePostAdmissionMcsErectDomain(
                 readable, writable);
@@ -1192,7 +1241,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool stageAccepted = false;
-    while (connection.ready() && !stageAccepted) {
+    while (connection.ready() && !stageAccepted &&
+           !linuxServeStopRequested()) {
         const auto step = connection.advancePostAdmissionMcsAttachUser(
             *context->policy, readable, writable);
         readable = false;
@@ -1236,7 +1286,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool deliveredAttachConfirm = false;
-    while (connection.ready() && !deliveredAttachConfirm) {
+    while (connection.ready() && !deliveredAttachConfirm &&
+           !linuxServeStopRequested()) {
         const auto step = connection.advancePostAdmissionMcsAttachConfirmWrite(
             *context->policy, readable, writable);
         readable = false;
@@ -1281,7 +1332,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool allChannelsJoined = false;
-    while (connection.ready() && !allChannelsJoined) {
+    while (connection.ready() && !allChannelsJoined &&
+           !linuxServeStopRequested()) {
         const auto step = connection.advancePostAdmissionMcsChannelJoins(
             *context->policy, readable, writable);
         readable = false;
@@ -1326,7 +1378,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool clientInfoAccepted = false;
-    while (connection.ready() && !clientInfoAccepted) {
+    while (connection.ready() && !clientInfoAccepted &&
+           !linuxServeStopRequested()) {
         const auto step = connection.advancePostAdmissionMcsClientInfo(
             *context->policy, readable, writable);
         readable = false;
@@ -1371,7 +1424,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool serverLicenseDelivered = false;
-    while (connection.ready() && !serverLicenseDelivered) {
+    while (connection.ready() && !serverLicenseDelivered &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePersonalDesktopServerLicenseRequestWrite(
                 *context->policy, *context->licensingContext,
@@ -1414,7 +1468,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool clientLicensingAccepted = false;
-    while (connection.ready() && !clientLicensingAccepted) {
+    while (connection.ready() && !clientLicensingAccepted &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePersonalDesktopClientLicensingIntake(
                 *context->policy, *context->licensingContext,
@@ -1458,7 +1513,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool validClientDelivered = false;
-    while (connection.ready() && !validClientDelivered) {
+    while (connection.ready() && !validClientDelivered &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePersonalDesktopValidClientWrite(
                 *context->policy, readable, writable);
@@ -1523,7 +1579,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool shareActivated = false;
-    while (connection.ready() && !shareActivated) {
+    while (connection.ready() && !shareActivated &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePersonalDesktopShareActivation(
                 *context->policy, readable, writable);
@@ -1573,7 +1630,8 @@ struct LinuxFramePublicationContext final {
     readable = false;
     writable = false;
     bool graphicsControlReady = false;
-    while (connection.ready() && !graphicsControlReady) {
+    while (connection.ready() && !graphicsControlReady &&
+           !linuxServeStopRequested()) {
         const auto step =
             connection.advancePersonalDesktopGraphicsDynamicVirtualChannel(
                 *context->policy, readable, writable);
@@ -1645,6 +1703,10 @@ struct LinuxFramePublicationContext final {
     bool nativeWorkMayRemain = true;
     auto nextCapture = Clock::now();
     while (connection.ready() && nativeOwner.desktop->valid()) {
+        // Stop before another native operation; terminal cleanup never posts XTEST.
+        if (linuxServeStopRequested()) {
+            break;
+        }
         if (!connection.authorizePersonalDesktopApplicationTraffic(
                 *context->policy)) {
             break;
@@ -1725,7 +1787,7 @@ struct LinuxFramePublicationContext final {
         if (polled < 0) {
             continue; // EINTR; no I/O or callbacks from stale poll results.
         }
-        if (!connection.ready() ||
+        if (linuxServeStopRequested() || !connection.ready() ||
             !connection.authorizePersonalDesktopApplicationTraffic(
                 *context->policy)) {
             break;
@@ -1785,7 +1847,7 @@ struct LinuxFramePublicationContext final {
                 return true;
             }
         }
-        if (!connection.ready() ||
+        if (linuxServeStopRequested() || !connection.ready() ||
             !connection.authorizePersonalDesktopApplicationTraffic(
                 *context->policy)) {
             break;
@@ -1889,13 +1951,19 @@ struct LinuxFramePublicationContext final {
         return false;
     }
     LinuxListenerOwner listener{listenerDescriptor};
+    // Only request Stop here; the one serialized connection/native owner
+    // handles retirement after its next bounded readiness step.
+    ScopedLinuxServeTerminationHandlers terminationHandlers;
+    if (!terminationHandlers.installed()) {
+        return false;
+    }
 
     LinuxServeAcceptContext acceptContext{
         &deploymentPolicy, &linuxSecurity, &tlsContext, &licensingContext,
         &request, false};
     using Clock = std::chrono::steady_clock;
     using namespace std::chrono_literals;
-    for (;;) {
+    while (!linuxServeStopRequested()) {
         const auto result =
             rdp_server::server::transport::pollNonblockingTcpAcceptBatch(
                 static_cast<std::uintptr_t>(listener.descriptor()), 1U,
@@ -1926,6 +1994,8 @@ struct LinuxFramePublicationContext final {
             return false;
         }
     }
+    // The validated listener closes by RAII on controlled Stop.
+    return true;
 }
 #endif
 
@@ -2063,7 +2133,7 @@ void printUsage() noexcept {
 #else
                "--check-linux-security additionally acquires the explicit Linux GSS acceptor credential and validates one native identity-policy rule.\n"
 #endif
-               "serve opens only a verified loopback listener, serializes X.224/TLS/CredSSP through the sole R1 owner, and requires genuine R2 native admission before MCS Connect Initial/Response; desktop/input publication is not yet enabled.\n", stdout);
+               "serve opens only a verified loopback listener, requires genuine R2 native admission and R3 Share/Graphics activation, then conditionally publishes protected X11 frames/input. SIGINT/SIGTERM request serialized native/RDP/TLS teardown. GUI LAN Start/Stop is not yet implemented.\n", stdout);
 #else
     std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-licensing-credentials FILE]\n"
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"

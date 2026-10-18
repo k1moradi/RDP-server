@@ -1,3 +1,14 @@
+## R10 scoped Linux CLI SIGINT/SIGTERM stop (2026-10-18)
+
+Signal handlers are installed and restored within verified loopback serve.
+Only `sig_atomic_t` is set asynchronously. Existing R10 serialized
+handshake and persistent R5 native/R3 Graphics phases check Stop; the
+native terminal path suppresses XTEST release, revokes R3/R2, and lets
+R1-owned TLS/socket/listener close by RAII. Ordinary production-source
+CTest `runtime.linux-serve-cooperative-signal-stop-order` is added.
+Source parent `6648ea720cd57d3fcf9461cae127ff6b96b7e8cd`; local owner CTest **NOT RUN**, exact-SHA hosted
+CI **PENDING**, live signal or GUI LAN acceptance **NOT RUN**.
+
 ## R7 exact-head extracted macOS launch acceptance and Qt plain-text status (2026-10-18)
 
 Native macOS 26 arm64 `r7-macos-portable-gui` **PASS** at exact

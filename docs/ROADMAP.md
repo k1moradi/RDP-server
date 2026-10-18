@@ -1,3 +1,17 @@
+## R10 Linux loopback CLI cooperative Stop (2026-10-18)
+
+R10 installs scoped SIGINT/SIGTERM handlers only after opening its verified
+loopback listener. The handler writes a `sig_atomic_t` scalar only. Thirteen
+serialized handshake-stage loops and the persistent X11/logind/SSL poll
+observe the request on their existing owner thread, retire native input
+without XTEST cleanup, revoke the session and close the R1 socket/listener
+through existing RAII. New ordinary offline production-source CTest
+`runtime.linux-serve-cooperative-signal-stop-order` checks the stop fences
+and teardown ordering without sending signals or inventing an R2 lease.
+Parent `6648ea720cd57d3fcf9461cae127ff6b96b7e8cd`. Local owner full CTest **NOT RUN**, hosted publication
+CI **PENDING**, live seat0/real-client Stop **NOT RUN**. The GUI LAN
+`RuntimeHostControl` backend remains R10-owned and **NOT IMPLEMENTED**.
+
 ## R7 exact-head extracted macOS launch acceptance and Qt plain-text status (2026-10-18)
 
 Native macOS 26 arm64 `r7-macos-portable-gui` **PASS** at exact

@@ -184,6 +184,11 @@ public:
         return acknowledgements_.clientTotalFramesDecoded();
     }
     [[nodiscard]] std::uint16_t surfaceId() const noexcept { return surfaceId_; }
+    // R4 encoder freshness: serial of the last zero-publication AVC420
+    // cancellation, including one made by R3 after moving the frame.
+    // Neither transport authority nor client ACK evidence.
+    [[nodiscard]] std::uint64_t lastUnwrittenAvc420CancellationSerial()
+        const noexcept { return lastUnwrittenAvc420CancellationSerial_; }
 
 private:
     enum class PendingFrameCodec : std::uint8_t
@@ -201,6 +206,7 @@ private:
     std::uint64_t generation_{};
     std::uint64_t latestGeneration_{};
     std::uint64_t lastSerial_{};
+    std::uint64_t lastUnwrittenAvc420CancellationSerial_{};
     GfxPresentationReceipt pending_{};
     GfxFrameDeliveryReceipt pendingFrame_{};
     PendingFrameCodec pendingFrameCodec_{PendingFrameCodec::None};

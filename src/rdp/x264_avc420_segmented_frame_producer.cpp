@@ -44,6 +44,8 @@ void X264Avc420SegmentedFrameProducer::reset() noexcept
     captureGeneration_ = 0;
     codedGeometry_ = {};
     visibleGeometry_ = {};
+    observedAvc420CancellationSerial_ = 0;
+    hasPreparedFrame_ = false;
 }
 
 bool X264Avc420SegmentedFrameProducer::valid() const noexcept
@@ -84,7 +86,10 @@ bool X264Avc420SegmentedFrameProducer::rebuildEncoder() noexcept
     }
 
     if (encoder_.open(codedGeometry_, visibleGeometry_))
+    {
+        hasPreparedFrame_ = false;
         return true;
+    }
 
     reset();
     return false;
@@ -124,6 +129,19 @@ bool X264Avc420SegmentedFrameProducer::prepare(
     if (!encoder_.canEncodePicture(request.picture))
         return false;
 
+    // R3 can retire an unwritten move-only frame without calling this
+    // producer. Never encode a P-picture against that untransmitted frame.
+    const auto canceledSerial =
+        lifecycle.lastUnwrittenAvc420CancellationSerial();
+    if (hasPreparedFrame_ &&
+        canceledSerial != observedAvc420CancellationSerial_ &&
+        !rebuildEncoder())
+    {
+        lifecycle.disconnect();
+        return false;
+    }
+    observedAvc420CancellationSerial_ = canceledSerial;
+
     X264EncodedPicture encoded;
     if (!encoder_.encode(request.picture, encoded))
     {
@@ -154,6 +172,7 @@ bool X264Avc420SegmentedFrameProducer::prepare(
         return false;
     }
 
+    hasPreparedFrame_ = true;
     return true;
 }
 

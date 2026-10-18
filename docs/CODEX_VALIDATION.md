@@ -1,3 +1,29 @@
+## R4 external AVC420 zero-publication IDR recovery (2026-10-17)
+
+R3's production Graphics DATA owner can conclusively cancel a move-only
+`GfxAvc420SegmentedFrame` after zero accepted *outer* plaintext through
+`cancelUnwrittenGfxAvc420SegmentedFrameDelivery()`. The existing x264
+producer recovered codec references only on its own
+`cancelUnwrittenDelivery()`. Thus a subsequent x264 P-picture could have
+referenced an untransmitted frame even though the R4 receipt was correctly
+retired.
+
+`GfxPresentationLifecycle` now retains the exact serial of the latest
+zero-publication **AVC420** cancellation (not ClearCodec and never a
+positive/uncertain partial send). The producer observes this R4-local serial
+before its next x264 encode, resets codec history, and forces independent IDR.
+Existing direct producer cancellation still resets references itself; codec
+reopen failure revokes presentation. No R3 DVC/transport type, new scheduling
+owner, invented authorization or client-frame-ACK semantics were added.
+
+A new focused `graphics.x264-segmented-external-cancel-idr` CTest uses the
+same shared cancellation function called by R3, confirms the next frame is
+IDR, and confirms the following delivered frame returns to P-picture
+continuity. ASan/UBSan x264 inventory and workflow guards advance **27 to 28**.
+Exact-commit hosted results remain to be verified. R2 real-host seat0
+Kerberos/PAM admission, R10 native composition, and Microsoft-client
+decoding/presentation ACK remain separate gates.
+
 ## R9 repair of malformed native-poll workflow (2026-10-17)
 
 Workflow SHA `3354c05f` failed structure validation because an authoring

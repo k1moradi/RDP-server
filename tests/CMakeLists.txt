@@ -2355,6 +2355,7 @@ foreach(case_name IN ITEMS
         x264-segmented-duplicate-id-reference-continuity
         x264-segmented-abort-generation-reset
         x264-segmented-unsent-cancel-idr
+        x264-segmented-external-cancel-idr
         x264-segmented-zero-frame-id-delivery
         x264-segmented-zero-surface-id-delivery
         x264-segmented-cfr-pts-reference-continuity

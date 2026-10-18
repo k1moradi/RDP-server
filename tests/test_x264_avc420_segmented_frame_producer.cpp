@@ -918,6 +918,59 @@ void malformedNv12PreflightPreservesReferences()
 
 
 
+void x264ExternallyCanceledUnwrittenFrameRecoversIdr()
+{
+    // R3's real zero-publication path cannot call the R4 x264 producer:
+    // it owns the moved segmented frame and uses this shared cancel API.
+    constexpr std::uint64_t generation = 6801;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+
+    const auto firstPixels = makeFrame(kCoded, 3);
+    const auto canceledPixels = makeFrame(kCoded, 15);
+    const auto recoveryPixels = makeFrame(kCoded, 27);
+    const auto continuationPixels = makeFrame(kCoded, 39);
+
+    GfxAvc420SegmentedFrame first;
+    assert(producer.prepare(
+        lifecycle, generation, request(210U, firstPixels, 0), first));
+    assert(hasNalType(first.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, first, first.wireBytes().size()));
+
+    GfxAvc420SegmentedFrame canceled;
+    assert(producer.prepare(
+        lifecycle, generation, request(211U, canceledPixels, 1), canceled));
+    assert(hasNalType(canceled.wireBytes(), 1));
+    assert(!hasNalType(canceled.wireBytes(), 5));
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        lifecycle, canceled));
+    assert(!canceled.valid());
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.canReserveFrame(generation, 211U));
+
+    GfxAvc420SegmentedFrame recovered;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(212U, recoveryPixels, 2), recovered));
+    assert(hasNalType(recovered.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, recovered, recovered.wireBytes().size()));
+
+    // Recovery must happen once, not force perpetual IDR frames.
+    GfxAvc420SegmentedFrame continuation;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(213U, continuationPixels, 3), continuation));
+    assert(hasNalType(continuation.wireBytes(), 1));
+    assert(!hasNalType(continuation.wireBytes(), 5));
+    assert(producer.completeDelivery(
+        lifecycle, continuation, continuation.wireBytes().size()));
+}
+
 void x264SegmentedUnsentCancelIdr()
 {
     constexpr std::uint64_t generation = 6701;
@@ -1598,6 +1651,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-unsent-cancel-idr")
     {
         x264SegmentedUnsentCancelIdr();
+        return 0;
+    }
+    if (behavior == "x264-segmented-external-cancel-idr")
+    {
+        x264ExternallyCanceledUnwrittenFrameRecoversIdr();
         return 0;
     }
     if (behavior == "x264-bgra-unsent-cancel-idr")

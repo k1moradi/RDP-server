@@ -37,6 +37,7 @@ void GfxPresentationLifecycle::disconnect() noexcept
     pendingFrameCodec_ = PendingFrameCodec::None;
     surfaceId_ = 0;
     clearCodecSequence_ = 0;
+    lastUnwrittenAvc420CancellationSerial_ = 0;
     avc420Enabled_ = false;
     geometry_ = {};
     originX_ = 0;
@@ -290,6 +291,10 @@ bool GfxPresentationLifecycle::cancelUnwrittenFrameDelivery(
     // Only the exact unsent reservation is retired. Earlier ACK-tracked
     // frames, client observations, mapped surface and generation survive.
     // ClearCodec sequence is deliberately not consumed by zero publication.
+    // R3 can cancel the moved AVC420 frame without access to x264. Retain
+    // its exact canceled serial so the producer can force a recovery IDR.
+    if (pendingFrameCodec_ == PendingFrameCodec::Avc420)
+        lastUnwrittenAvc420CancellationSerial_ = pendingFrame_.serial;
     pendingFrame_ = {};
     pendingFrameCodec_ = PendingFrameCodec::None;
     return true;

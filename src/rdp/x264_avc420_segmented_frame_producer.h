@@ -147,6 +147,8 @@ private:
     std::uint64_t captureGeneration_{};
     PixelSize codedGeometry_{};
     PixelSize visibleGeometry_{};
+    std::uint64_t observedAvc420CancellationSerial_{};
+    bool hasPreparedFrame_{};
 };
 
 } // namespace rdp_server::rdp

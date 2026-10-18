@@ -4058,3 +4058,20 @@ R2 admission, LAN listening or Microsoft-client interoperability.
 ## CI structure tracks focused security inventory and native package lanes atomically (2026-10-18)
 
 When a new executable-backed protected runtime gateway joins the R9 sanitizer selector, the selector regex, exact count, explicit name sentinel and structure-validator token must change together. Native GUI package jobs that become release prerequisites must also be named in `REQUIRED_JOBS` with a distinctive deployment-tool token, so a syntactically valid workflow cannot silently omit Windows/macOS closure coverage.
+
+
+## R3 Confirm Active capability-store and early-input coverage (2026-10-18)
+
+Portable Share tests must prove that accepted Confirm Active capability bytes
+outlive the caller's mutable TPKT buffer, capability count remains exact, and
+the negotiated Input flags are the server/client intersection. A malformed
+CAPSTYPE_INPUT or one missing mandatory SCANCODES must fail closed without a
+partially published client-capability store.
+
+Because input may arrive after Confirm Active while connection finalization is
+still in progress, exercise a correctly routed negotiated slow-path packet
+between Confirm Active and Synchronize. Acceptance at this boundary means
+validated-and-discarded only: the pending server Synchronize receipt identity
+and client finalization stage must remain unchanged, and no native callback or
+synthetic admission may be created. Keep the production R10 Share scheduler
+guarded so this intake continues reading rather than triggering a write.

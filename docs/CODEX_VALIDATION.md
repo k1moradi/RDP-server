@@ -6304,3 +6304,36 @@ spliced the following job into the shell command. No macOS packaging code ran.
 This corrective commit rebuilds the workflow from parent `880011cf0aac` and
 uses a function-based insertion so the literal anchored regex is preserved.
 Primary workflow validation is PENDING on the corrective publication SHA.
+
+
+## R3 Confirm Active capability ownership and early-input finalization (2026-10-18)
+
+**Authoring parent:** `a5a0ac840cf3bfe61517eaf8a24a4304c55b595f`.
+
+MS-RDPBCGR 3.3.5.3.13.2 requires the server to process and store the
+capabilities received in Confirm Active and use them to determine the RDP
+subset accepted for that connection. R3 now copies the exact validated client
+capability sequence into the existing Share lifecycle before R10 resets its
+bounded TPKT reader. CAPSTYPE_INPUT is accepted only at the normative 88-byte
+size with mandatory INPUT_FLAG_SCANCODES; R3 retains the client flags and their
+intersection with the server Input flags. Post-Share slow-path input is rejected
+when its event format was not negotiated.
+
+MS-RDPBCGR 1.3.1.1 also permits the client to start sending mouse/keyboard
+input once Confirm Active has been sent, before connection finalization is
+complete. The Share owner now consumes such correctly routed, negotiated input
+without changing finalization state and without invoking any native input sink.
+R10 treats that intake as another read and therefore neither grants authority
+nor turns early input into a server-write transition.
+
+Dedicated portable CTests:
+`transport.share-confirm-active-client-capability-store` and
+`transport.share-finalization-early-input-ignore`. The existing
+`runtime.linux-serve-share-activation-composition` source guard additionally
+requires R10 to recognize the early-input intake.
+
+The repository-mandated local `~/rdp-server/build` configure/build/full CTest
+is **NOT RUN** in this connector environment. No alternate persistent build
+root, synthetic R2 lease, desktop, listener, or native input was created.
+Exact publication-SHA hosted CI is **PENDING** at authoring; owner-native and
+Microsoft-client live evidence remain **NOT RUN**.

@@ -2,7 +2,8 @@
 foreach(required_argument IN ITEMS
         RDP_RUNTIME_ENTRYPOINT_SOURCE
         RDP_MCS_SESSION_SOURCE
-        RDP_RUNTIME_CONNECTION_HEADER)
+        RDP_RUNTIME_CONNECTION_HEADER
+        RDP_RUNTIME_CONNECTION_SOURCE)
     if(NOT DEFINED ${required_argument} OR "${${required_argument}}" STREQUAL "")
         message(FATAL_ERROR "Missing ${required_argument}")
     endif()
@@ -11,6 +12,7 @@ endforeach()
 file(READ "${RDP_RUNTIME_ENTRYPOINT_SOURCE}" runtime_source)
 file(READ "${RDP_MCS_SESSION_SOURCE}" mcs_source)
 file(READ "${RDP_RUNTIME_CONNECTION_HEADER}" connection_header)
+file(READ "${RDP_RUNTIME_CONNECTION_SOURCE}" connection_source)
 
 foreach(required_runtime_text IN ITEMS
         "preparePersonalDesktopDemandActiveProfile"
@@ -64,3 +66,14 @@ foreach(forbidden_text IN ITEMS
             "R10 Share start surface regressed to caller-supplied wire identity: ${forbidden_text}")
     endif()
 endforeach()
+
+
+# MS-RDPBCGR permits input immediately after Confirm Active. During connection
+# finalization R3 consumes only already-negotiated input and R10 must keep
+# reading; it must not dispatch input or mistake it for a server-write trigger.
+string(FIND "${connection_source}"
+    "case Intake::InputIgnoredUntilActivated:" early_input_case)
+if(early_input_case EQUAL -1)
+    message(FATAL_ERROR
+        "R10 Share scheduler no longer consumes R3 early-input intake")
+endif()

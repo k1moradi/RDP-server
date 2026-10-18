@@ -745,12 +745,20 @@ enum class RdpShareActivationClientIntake : std::uint8_t
     CooperateAccepted,
     RequestControlAccepted,
     FontListAccepted,
+    // MS-RDPBCGR permits input after Confirm Active. R3 validates these
+    // packets against negotiated Input capability state but intentionally
+    // discards them until Share/native activation is complete.
+    InputIgnoredUntilActivated,
     Rejected,
     Closed,
 };
 
 inline constexpr std::size_t kRdpStaticVirtualChannelDefaultChunkBytes = 1600U;
 inline constexpr std::size_t kRdpStaticVirtualChannelMaximumChunkBytes = 16256U;
+// One unfragmented MCS SendData payload is bounded to 16383 bytes. Keep the
+// Confirm Active capability store contiguous and owned by R3 so R10 may
+// immediately recycle its TPKT framing buffer after synchronous intake.
+inline constexpr std::size_t kMaximumRdpClientCapabilityBytes = 16383U;
 
 // Serialized, allocation-free Share activation transcript owner. It owns no
 // R2 authority; the live R3 session invokes it only after licensing completes.
@@ -783,6 +791,28 @@ public:
     {
         return activated()
                    ? negotiatedVirtualChannelChunkBytes_
+                   : 0U;
+    }
+    // Immutable observations of the exact capability bytes accepted from the
+    // client's Confirm Active PDU. They are protocol state, not authorization.
+    [[nodiscard]] std::span<const std::uint8_t>
+    confirmedClientCapabilitySets() const noexcept
+    {
+        return clientCapabilitiesConfirmed_
+                   ? std::span<const std::uint8_t>{clientCapabilitySets_}.first(
+                         clientCapabilityBytes_)
+                   : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] std::uint16_t
+    confirmedClientCapabilityCount() const noexcept
+    {
+        return clientCapabilitiesConfirmed_ ? clientCapabilityCount_ : 0U;
+    }
+    [[nodiscard]] std::uint16_t
+    negotiatedSlowPathInputFlags() const noexcept
+    {
+        return clientCapabilitiesConfirmed_
+                   ? negotiatedSlowPathInputFlags_
                    : 0U;
     }
     [[nodiscard]] bool begin(
@@ -829,14 +859,21 @@ private:
         demandSharePdu_{};
     std::array<std::uint8_t, kMaximumRdpShareActivationPacketBytes>
         pending_{};
+    std::array<std::uint8_t, kMaximumRdpClientCapabilityBytes>
+        clientCapabilitySets_{};
     std::size_t demandShareLength_{};
     std::size_t pendingLength_{};
     std::size_t bytesWritten_{};
+    std::size_t clientCapabilityBytes_{};
     std::uint32_t clientUserId_{};
     std::uint16_t ioChannelId_{};
     std::uint32_t shareId_{};
     std::uint64_t replySequence_{};
     std::uint64_t writeSliceSequence_{};
+    std::uint16_t clientCapabilityCount_{};
+    std::uint16_t serverSlowPathInputFlags_{};
+    std::uint16_t clientSlowPathInputFlags_{};
+    std::uint16_t negotiatedSlowPathInputFlags_{};
     RdpShareActivationPhase phase_{RdpShareActivationPhase::NotStarted};
     RdpShareServerWriteKind pendingKind_{RdpShareServerWriteKind::None};
     ClientStage clientStage_{ClientStage::ConfirmActive};
@@ -851,6 +888,7 @@ private:
     std::size_t negotiatedVirtualChannelChunkBytes_{
         kRdpStaticVirtualChannelDefaultChunkBytes};
     bool serverVirtualChannelChunkFieldPresent_{};
+    bool clientCapabilitiesConfirmed_{};
 };
 
 // One allocation domain for all dynamic virtual channels on this static

@@ -2020,3 +2020,21 @@ completion paths so late callbacks can be rejected without inventing a
 replacement capability. Any wrong policy, duplicate selection, stale
 generation, missing TLS provenance, native-session failure, R3 rejection or
 late receipt closes R3 before revoking R2/GSS.
+
+
+## Confirm Active capabilities are R3-owned protocol state (2026-10-18)
+
+Confirm Active is not only envelope syntax. Before a runtime framing buffer can
+be recycled, the sole R3 Share owner must copy the exact validated capability
+sequence into connection-owned bounded storage and derive only the feature
+intersection that R3 actually consumes. Caller/GUI buffers, booleans and a
+previous server advertisement are never substitutes for the client's
+capability state.
+
+Input that arrives after Confirm Active but before Share finalization is legal
+RDP traffic. Validate its exact MCS/share identity and negotiated input format,
+then discard it while no native owner is dispatchable. Do not advance the
+Synchronize/Control/Font state machine, create a second queue, or treat the
+discard as input authorization. After Share activation, each decoded event
+still needs both negotiated protocol support and the existing fresh R2 native
+authorization immediately before dispatch.

@@ -169,6 +169,97 @@ struct VirtualChannelCapabilityInfo
     return result;
 }
 
+inline constexpr std::uint16_t kRdpInputFlagScancodes = 0x0001U;
+inline constexpr std::uint16_t kRdpInputFlagMouseX = 0x0004U;
+inline constexpr std::uint16_t kRdpInputFlagUnicode = 0x0010U;
+inline constexpr std::uint16_t kRdpInputFlagMouseRelative = 0x0080U;
+inline constexpr std::uint16_t kRdpInputFlagMouseHorizontalWheel = 0x0100U;
+inline constexpr std::uint16_t kRdpPointerFlagHorizontalWheel = 0x0400U;
+
+struct InputCapabilityInfo
+{
+    bool valid{true};
+    bool present{};
+    std::uint16_t flags{};
+};
+
+[[nodiscard]] InputCapabilityInfo inputCapabilityInfo(
+    std::span<const std::uint8_t> capabilities,
+    std::uint16_t count) noexcept
+{
+    constexpr std::uint16_t kInputCapabilityType = 0x000dU;
+    InputCapabilityInfo result{};
+    std::size_t position = 0U;
+    for (std::size_t index = 0U; index < count; ++index)
+    {
+        if (position > capabilities.size() ||
+            capabilities.size() - position < 4U)
+            return {false, false, 0U};
+        const std::size_t length =
+            readLe16At(capabilities, position + 2U);
+        if (length < 4U || length > capabilities.size() - position)
+            return {false, false, 0U};
+
+        if (readLe16At(capabilities, position) == kInputCapabilityType)
+        {
+            if (result.present || length != 88U)
+                return {false, false, 0U};
+            result.present = true;
+            result.flags = readLe16At(capabilities, position + 4U);
+            // MS-RDPBCGR 2.2.7.1.6 requires SCANCODES at minimum.
+            if ((result.flags & kRdpInputFlagScancodes) == 0U)
+                return {false, false, 0U};
+        }
+        position += length;
+    }
+    if (position != capabilities.size())
+        return {false, false, 0U};
+    return result;
+}
+
+[[nodiscard]] bool slowPathInputAllowed(
+    const RdpSlowPathInputPdu &input,
+    std::uint16_t negotiatedFlags) noexcept
+{
+    if ((negotiatedFlags & kRdpInputFlagScancodes) == 0U)
+        return false;
+
+    RdpSlowPathInputEvent event{};
+    for (std::size_t index = 0U; index < input.eventCount; ++index)
+    {
+        if (!input.eventAt(index, event))
+            return false;
+        switch (event.kind)
+        {
+        case RdpSlowPathInputEventKind::Synchronize:
+        case RdpSlowPathInputEventKind::Unused:
+            break;
+        case RdpSlowPathInputEventKind::ScancodeKeyboard:
+            if ((negotiatedFlags & kRdpInputFlagScancodes) == 0U)
+                return false;
+            break;
+        case RdpSlowPathInputEventKind::UnicodeKeyboard:
+            if ((negotiatedFlags & kRdpInputFlagUnicode) == 0U)
+                return false;
+            break;
+        case RdpSlowPathInputEventKind::Mouse:
+            if ((event.pointerFlags & kRdpPointerFlagHorizontalWheel) != 0U &&
+                (negotiatedFlags & kRdpInputFlagMouseHorizontalWheel) == 0U)
+                return false;
+            break;
+        case RdpSlowPathInputEventKind::ExtendedMouse:
+            if ((negotiatedFlags & kRdpInputFlagMouseX) == 0U)
+                return false;
+            break;
+        case RdpSlowPathInputEventKind::RelativeMouse:
+            if ((negotiatedFlags & kRdpInputFlagMouseRelative) == 0U)
+                return false;
+            break;
+        }
+    }
+    return true;
+}
+
 [[nodiscard]] std::size_t dynamicChannelIdBytes(
     std::uint32_t channelId) noexcept
 {
@@ -2203,7 +2294,9 @@ McsSessionLifecycle::routeVerifiedR2SlowPathInputPdu(
         input.value.pduSource !=
             static_cast<std::uint16_t>(allocatedUserId_) ||
         !shareActivation_.matchesActivatedClientShare(
-            input.value.shareId, input.value.pduSource))
+            input.value.shareId, input.value.pduSource) ||
+        !slowPathInputAllowed(
+            input.value, shareActivation_.negotiatedSlowPathInputFlags()))
     {
         close();
         return std::nullopt;
@@ -4528,9 +4621,16 @@ void RdpShareActivationLifecycle::fail() noexcept
 {
     pending_.fill(0U);
     demandSharePdu_.fill(0U);
+    clientCapabilitySets_.fill(0U);
     demandShareLength_ = 0U;
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
+    clientCapabilityBytes_ = 0U;
+    clientCapabilityCount_ = 0U;
+    serverSlowPathInputFlags_ = 0U;
+    clientSlowPathInputFlags_ = 0U;
+    negotiatedSlowPathInputFlags_ = 0U;
+    clientCapabilitiesConfirmed_ = false;
     pendingKind_ = RdpShareServerWriteKind::None;
     serverVirtualChannelChunkBytes_ =
         kRdpStaticVirtualChannelDefaultChunkBytes;
@@ -4544,9 +4644,16 @@ void RdpShareActivationLifecycle::close() noexcept
 {
     pending_.fill(0U);
     demandSharePdu_.fill(0U);
+    clientCapabilitySets_.fill(0U);
     demandShareLength_ = 0U;
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
+    clientCapabilityBytes_ = 0U;
+    clientCapabilityCount_ = 0U;
+    serverSlowPathInputFlags_ = 0U;
+    clientSlowPathInputFlags_ = 0U;
+    negotiatedSlowPathInputFlags_ = 0U;
+    clientCapabilitiesConfirmed_ = false;
     clientUserId_ = 0U;
     ioChannelId_ = 0U;
     shareId_ = 0U;
@@ -4642,7 +4749,9 @@ bool RdpShareActivationLifecycle::begin(
     const auto virtualChannel =
         virtualChannelCapabilityInfo(
             capabilitySets, capabilityCount);
-    if (!virtualChannel.valid)
+    const auto inputCapability =
+        inputCapabilityInfo(capabilitySets, capabilityCount);
+    if (!virtualChannel.valid || !inputCapability.valid)
     {
         fail();
         return false;
@@ -4666,6 +4775,8 @@ bool RdpShareActivationLifecycle::begin(
         virtualChannel.chunkFieldPresent;
     negotiatedVirtualChannelChunkBytes_ =
         kRdpStaticVirtualChannelDefaultChunkBytes;
+    serverSlowPathInputFlags_ =
+        inputCapability.present ? inputCapability.flags : 0U;
     clientStage_ = ClientStage::ConfirmActive;
     if (!queueSharePdu(
             RdpShareServerWriteKind::DemandActive,
@@ -4803,6 +4914,26 @@ RdpShareActivationLifecycle::onClientTpkt(
     }
 
     const auto sharePdu = parsed.request.userData;
+    if (clientStage_ != ClientStage::ConfirmActive)
+    {
+        const auto input = parseRdpSlowPathInputPdu(sharePdu);
+        if (input)
+        {
+            if (input.value.pduSource != clientUserId_ ||
+                input.value.shareId != shareId_ ||
+                !slowPathInputAllowed(
+                    input.value, negotiatedSlowPathInputFlags_))
+            {
+                fail();
+                return RdpShareActivationClientIntake::Rejected;
+            }
+            // Protocol-valid early input is consumed but never dispatched
+            // until Share activation and the native authorization path exist.
+            return RdpShareActivationClientIntake::
+                InputIgnoredUntilActivated;
+        }
+    }
+
     switch (clientStage_)
     {
     case ClientStage::ConfirmActive:
@@ -4826,7 +4957,13 @@ RdpShareActivationLifecycle::onClientTpkt(
             virtualChannelCapabilityInfo(
                 clientActive.value.capabilitySets,
                 clientActive.value.capabilityCount);
-        if (!clientVirtualChannel.valid)
+        const auto clientInputCapability =
+            inputCapabilityInfo(
+                clientActive.value.capabilitySets,
+                clientActive.value.capabilityCount);
+        if (!clientVirtualChannel.valid || !clientInputCapability.valid ||
+            clientActive.value.capabilitySets.size() >
+                clientCapabilitySets_.size())
         {
             fail();
             return RdpShareActivationClientIntake::Rejected;
@@ -4836,6 +4973,21 @@ RdpShareActivationLifecycle::onClientTpkt(
                     clientVirtualChannel.chunkFieldPresent
                 ? serverVirtualChannelChunkBytes_
                 : kRdpStaticVirtualChannelDefaultChunkBytes;
+
+        clientCapabilitySets_.fill(0U);
+        std::copy(
+            clientActive.value.capabilitySets.begin(),
+            clientActive.value.capabilitySets.end(),
+            clientCapabilitySets_.begin());
+        clientCapabilityBytes_ =
+            clientActive.value.capabilitySets.size();
+        clientCapabilityCount_ = clientActive.value.capabilityCount;
+        clientSlowPathInputFlags_ =
+            clientInputCapability.present ? clientInputCapability.flags : 0U;
+        negotiatedSlowPathInputFlags_ =
+            static_cast<std::uint16_t>(
+                serverSlowPathInputFlags_ & clientSlowPathInputFlags_);
+        clientCapabilitiesConfirmed_ = true;
 
         clientStage_ = ClientStage::Synchronize;
         phase_ = RdpShareActivationPhase::Finalizing;

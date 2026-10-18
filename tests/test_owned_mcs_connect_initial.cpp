@@ -3498,6 +3498,79 @@ void testRdpServerFinalizationEncodeRejections()
     return packet;
 }
 
+[[nodiscard]] std::array<std::uint8_t, 96>
+makeShareAndInputCapabilities(std::uint16_t inputFlags)
+{
+    std::array<std::uint8_t, 96> capabilities{};
+    capabilities[0U] = 0x09U;
+    capabilities[2U] = 0x08U;
+    capabilities[4U] = 0xeaU;
+    capabilities[5U] = 0x03U;
+    capabilities[8U] = 0x0dU;
+    capabilities[10U] = 0x58U;
+    capabilities[12U] = static_cast<std::uint8_t>(inputFlags);
+    capabilities[13U] = static_cast<std::uint8_t>(inputFlags >> 8U);
+    return capabilities;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeClientConfirmActiveSharePdu(
+    std::span<const std::uint8_t> capabilitySets,
+    std::uint16_t capabilityCount)
+{
+    assert(capabilitySets.size() <= UINT16_MAX - 4U);
+    const std::size_t totalBytes = 24U + capabilitySets.size();
+    assert(totalBytes <= UINT16_MAX);
+    std::vector<std::uint8_t> pdu(totalBytes, 0U);
+    const auto write16 = [&pdu](std::size_t offset, std::uint16_t value)
+    {
+        pdu[offset] = static_cast<std::uint8_t>(value);
+        pdu[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    };
+    const auto write32 = [&write16](std::size_t offset, std::uint32_t value)
+    {
+        write16(offset, static_cast<std::uint16_t>(value));
+        write16(offset + 2U, static_cast<std::uint16_t>(value >> 16U));
+    };
+
+    write16(0U, static_cast<std::uint16_t>(totalBytes));
+    write16(2U, 0x0013U);
+    write16(4U, 1007U);
+    write32(6U, 0x000103eaU);
+    write16(10U, 1002U);
+    write16(12U, 4U);
+    write16(14U, static_cast<std::uint16_t>(capabilitySets.size() + 4U));
+    pdu[16U] = 'R';
+    pdu[17U] = 'D';
+    pdu[18U] = 'P';
+    write16(20U, capabilityCount);
+    std::copy(
+        capabilitySets.begin(), capabilitySets.end(),
+        pdu.begin() + 24);
+    return pdu;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeActivationScancodeInputSharePdu()
+{
+    auto pdu = makeSlowPathInputSharePdu();
+    pdu.resize(22U + kRdpSlowPathInputEventBytes);
+    const auto size = static_cast<std::uint16_t>(pdu.size());
+    pdu[0U] = static_cast<std::uint8_t>(size);
+    pdu[1U] = static_cast<std::uint8_t>(size >> 8U);
+    pdu[4U] = 0xefU;
+    pdu[5U] = 0x03U;
+    pdu[6U] = 0xeaU;
+    pdu[7U] = 0x03U;
+    pdu[8U] = 0x01U;
+    pdu[9U] = 0x00U;
+    pdu[12U] = static_cast<std::uint8_t>(size);
+    pdu[13U] = static_cast<std::uint8_t>(size >> 8U);
+    pdu[18U] = 1U;
+    pdu[19U] = 0U;
+    return pdu;
+}
+
 void testRdpActiveExchangeCorrelation()
 {
     // Both fixtures already independently pass the strict T.128
@@ -3876,6 +3949,119 @@ void testPersonalDesktopShareActivationOrdering()
            RdpShareActivationWriteOutcome::Activated);
     assert(share.activated());
     assert(!share.pendingServerWrite());
+}
+
+void testPersonalDesktopConfirmActiveCapabilityStore()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t ioChannelId = 1003U;
+    constexpr std::uint32_t shareId = 0x000103eaU;
+    constexpr std::array<std::uint8_t, 4> source{{'R', 'D', 'P', 0U}};
+    const auto serverCapabilities = makeShareAndInputCapabilities(0x0015U);
+    const auto clientCapabilities = makeShareAndInputCapabilities(0x0011U);
+
+    RdpShareActivationLifecycle share;
+    assert(share.begin(
+        clientUserId, ioChannelId, shareId, 0U,
+        source, 2U, serverCapabilities));
+    auto pending = share.pendingServerWrite();
+    assert(pending && pending.kind == RdpShareServerWriteKind::DemandActive);
+    assert(share.onServerBytesWritten(
+               pending.replySequence, pending.writeSliceSequence,
+               pending.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Delivered);
+
+    const auto confirmPdu =
+        makeClientConfirmActiveSharePdu(clientCapabilities, 2U);
+    auto confirmTpkt =
+        makeClientShareTpkt(clientUserId, ioChannelId, confirmPdu);
+    assert(share.onClientTpkt(confirmTpkt) ==
+           RdpShareActivationClientIntake::ConfirmActiveAccepted);
+    assert(share.confirmedClientCapabilityCount() == 2U);
+    assert(share.negotiatedSlowPathInputFlags() == 0x0011U);
+    const auto owned = share.confirmedClientCapabilitySets();
+    assert(owned.size() == clientCapabilities.size());
+    assert(std::equal(
+        owned.begin(), owned.end(), clientCapabilities.begin()));
+
+    std::fill(confirmTpkt.begin(), confirmTpkt.end(), 0xa5U);
+    assert(std::equal(
+        owned.begin(), owned.end(), clientCapabilities.begin()));
+
+    const auto invalidClientCapabilities =
+        makeShareAndInputCapabilities(0x0010U);
+    RdpShareActivationLifecycle invalid;
+    assert(invalid.begin(
+        clientUserId, ioChannelId, shareId + 1U, 0U,
+        source, 2U, serverCapabilities));
+    pending = invalid.pendingServerWrite();
+    assert(pending);
+    assert(invalid.onServerBytesWritten(
+               pending.replySequence, pending.writeSliceSequence,
+               pending.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Delivered);
+    auto invalidConfirm =
+        makeClientConfirmActiveSharePdu(invalidClientCapabilities, 2U);
+    invalidConfirm[6U] = 0xebU;
+    assert(invalid.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, invalidConfirm)) ==
+           RdpShareActivationClientIntake::Rejected);
+    assert(invalid.phase() == RdpShareActivationPhase::Failed);
+}
+
+void testPersonalDesktopShareEarlyInputIgnored()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t ioChannelId = 1003U;
+    constexpr std::uint32_t shareId = 0x000103eaU;
+    constexpr std::array<std::uint8_t, 4> source{{'R', 'D', 'P', 0U}};
+    const auto capabilities = makeShareAndInputCapabilities(0x0015U);
+
+    RdpShareActivationLifecycle share;
+    assert(share.begin(
+        clientUserId, ioChannelId, shareId, 0U,
+        source, 2U, capabilities));
+    auto write = share.pendingServerWrite();
+    assert(write);
+    assert(share.onServerBytesWritten(
+               write.replySequence, write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpShareActivationWriteOutcome::Delivered);
+
+    const auto confirmPdu =
+        makeClientConfirmActiveSharePdu(capabilities, 2U);
+    assert(share.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, confirmPdu)) ==
+           RdpShareActivationClientIntake::ConfirmActiveAccepted);
+    const auto serverSynchronize = share.pendingServerWrite();
+    assert(serverSynchronize &&
+           serverSynchronize.kind == RdpShareServerWriteKind::Synchronize);
+
+    const auto earlyInput = makeActivationScancodeInputSharePdu();
+    assert(share.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, earlyInput)) ==
+           RdpShareActivationClientIntake::InputIgnoredUntilActivated);
+    const auto unchangedSynchronize = share.pendingServerWrite();
+    assert(unchangedSynchronize.replySequence ==
+           serverSynchronize.replySequence);
+    assert(unchangedSynchronize.writeSliceSequence ==
+           serverSynchronize.writeSliceSequence);
+    assert(unchangedSynchronize.bytes.size() ==
+           serverSynchronize.bytes.size());
+    assert(std::equal(
+        unchangedSynchronize.bytes.begin(), unchangedSynchronize.bytes.end(),
+        serverSynchronize.bytes.begin()));
+
+    constexpr std::array<std::uint8_t, 22> clientSync{{
+        0x16,0x00,0x17,0x00,0xef,0x03,
+        0xea,0x03,0x01,0x00,0x00,0x01,
+        0x08,0x00,0x1f,0x00,0x00,0x00,
+        0x01,0x00,0xea,0x03
+    }};
+    assert(share.onClientTpkt(makeClientShareTpkt(
+               clientUserId, ioChannelId, clientSync)) ==
+           RdpShareActivationClientIntake::SynchronizeAccepted);
+    assert(share.phase() == RdpShareActivationPhase::Finalizing);
 }
 
 void testPersonalDesktopShareActivationDenials()
@@ -11089,6 +11275,8 @@ constexpr std::array<McsTestCase, 152> kMcsTestCases{{
     {"share-server-finalization-encode-wire", &testRdpServerFinalizationEncodeWire},
     {"share-server-finalization-encode-rejections", &testRdpServerFinalizationEncodeRejections},
     {"share-personal-activation-ordering", &testPersonalDesktopShareActivationOrdering},
+    {"share-confirm-active-client-capability-store", &testPersonalDesktopConfirmActiveCapabilityStore},
+    {"share-finalization-early-input-ignore", &testPersonalDesktopShareEarlyInputIgnored},
     {"share-personal-activation-denials", &testPersonalDesktopShareActivationDenials},
     {"dvc-graphics-create-success", &testGraphicsDynamicVirtualChannelCreateSuccess},
     {"dvc-graphics-caps-selection", &testGraphicsDynamicVirtualChannelCapabilitiesSelection},

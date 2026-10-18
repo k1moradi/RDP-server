@@ -2469,6 +2469,7 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
         case Intake::FontListAccepted:
             personalShareIoAction_ = Action::Write;
             break;
+        case Intake::InputIgnoredUntilActivated:
         case Intake::SynchronizeAccepted:
         case Intake::CooperateAccepted:
             personalShareIoAction_ = Action::Read;

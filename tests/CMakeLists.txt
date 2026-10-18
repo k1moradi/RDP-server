@@ -257,6 +257,8 @@ function(add_rdp_test source_file suite behavior)
                 share-server-finalization-encode-wire
                 share-server-finalization-encode-rejections
                 share-personal-activation-ordering
+                share-confirm-active-client-capability-store
+                share-finalization-early-input-ignore
                 share-personal-activation-denials
                 dvc-graphics-create-success
                 dvc-graphics-caps-selection
@@ -991,6 +993,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             "-DRDP_MCS_SESSION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/transport/mcs_channel_connection.cpp"
             "-DRDP_RUNTIME_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
+            "-DRDP_RUNTIME_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_share_activation.cmake")
     set_tests_properties(
         runtime.linux-serve-share-activation-composition PROPERTIES

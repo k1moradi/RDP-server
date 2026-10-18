@@ -1720,6 +1720,72 @@ syntheticXvfbRandrRebuild()
     resources.disconnect();
 }
 
+void
+syntheticXvfbKeyboardLayoutChangeRevokesOwner()
+{
+    // This changes only the private Xvfb server's existing mapping to the
+    // SAME symbols: no real desktop, login session or positive R2 lease.
+    X11DesktopResources desktop(syntheticDisplay(), kCaptureArenaPixels);
+    requireValidResources(desktop, "keyboard-layout-change");
+    const std::uint64_t previousGeneration = desktop.captureGeneration();
+    assert(previousGeneration != 0U);
+    const int originalDescriptor = desktop.fileDescriptor();
+    assert(originalDescriptor >= 0);
+
+    int screenNumber = -1;
+    XcbConnection helper = connectHelper(syntheticDisplay(), screenNumber);
+    const xcb_setup_t *setup = xcb_get_setup(helper.get());
+    assert(setup != nullptr && setup->min_keycode <= setup->max_keycode);
+
+    xcb_generic_error_t *mappingError = nullptr;
+    const auto readCookie = xcb_get_keyboard_mapping(
+        helper.get(), setup->min_keycode, 1U);
+    xcb_get_keyboard_mapping_reply_t *mapping =
+        xcb_get_keyboard_mapping_reply(helper.get(), readCookie, &mappingError);
+    assert(mappingError == nullptr && mapping != nullptr);
+    const int symbolCount = xcb_get_keyboard_mapping_keysyms_length(mapping);
+    assert(symbolCount > 0 && mapping->keysyms_per_keycode > 0);
+    const xcb_keysym_t *symbols = xcb_get_keyboard_mapping_keysyms(mapping);
+    assert(symbols != nullptr);
+    const std::vector<xcb_keysym_t> copiedSymbols(
+        symbols, symbols + symbolCount);
+    const std::uint8_t symbolsPerKeycode = mapping->keysyms_per_keycode;
+    std::free(mapping);
+    std::free(mappingError);
+
+    const auto updateCookie = xcb_change_keyboard_mapping_checked(
+        helper.get(), 1U, setup->min_keycode, symbolsPerKeycode,
+        copiedSymbols.data());
+    xcb_generic_error_t *updateError =
+        xcb_request_check(helper.get(), updateCookie);
+    assert(updateError == nullptr);
+    std::free(updateError);
+
+    bool terminal = false;
+    for (std::size_t iteration = 0; iteration < 32U; ++iteration)
+    {
+        bool workMayRemain = false;
+        if (desktop.processEvents(128U, &workMayRemain,
+                                  /*socketReadable=*/true) ==
+            ConnectionStatus::Failed)
+        {
+            terminal = true;
+            break;
+        }
+    }
+    assert(terminal);
+    assert(!desktop.valid());
+    assert(desktop.captureGeneration() == 0U);
+    assert(desktop.fileDescriptor() == -1);
+    assert(desktop.failureReason() != nullptr);
+    // No stale original generation can be borrowed or reused.
+    assert(!desktop.consumeR4Frame(previousGeneration, {}));
+    desktop.retireAfterAuthorizationLoss();
+    desktop.disconnect();
+    assert(desktop.fileDescriptor() == -1);
+    (void)originalDescriptor;
+}
+
 } // namespace
 
 int
@@ -1807,6 +1873,11 @@ main(int argc, char **argv)
     if (behavior == "capture-terminal-denial")
     {
         syntheticXvfbCaptureTerminalDenial();
+        return 0;
+    }
+    if (behavior == "keyboard-layout-change-revokes-owner")
+    {
+        syntheticXvfbKeyboardLayoutChangeRevokesOwner();
         return 0;
     }
 

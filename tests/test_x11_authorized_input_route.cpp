@@ -153,6 +153,50 @@ mismatchedNativeGenerationRevokesInputPath()
     assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
 }
 
+void
+policyReplacementDeniesStaleKeyboard()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001, kConsoleViewPermission |
+                                 kConsoleInputPermission}) ==
+           ConsoleRuleError::None);
+    const std::uint64_t originalPolicyGeneration = policy.generation();
+    assert(originalPolicyGeneration != 0);
+
+    LinuxConsoleAdmissionBroker broker(policy);
+    GssapiSpnegoAcceptor acceptor;
+    McsSessionLifecycle session;
+    OwnedPreauthTcpConnection connection{OwnedNativeTcpSocket{}};
+    X11DesktopResources desktop(syntheticDisplay(), 256U * 1024U);
+    assert(desktop.valid());
+
+    const std::uint64_t nativeGeneration = desktop.captureGeneration();
+    assert(nativeGeneration != 0);
+    // Replacing the service policy removes input permission and advances R2.
+    // This is NOT a fabricated lease or positive native OS admission.
+    assert(policy.replaceSingle({"alice@EXAMPLE.TEST", "alice",
+                                 "seat0", ":0", 1001,
+                                 kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    assert(policy.generation() != originalPolicyGeneration);
+
+    const X11InputEvent press = X11KeyInput{
+        0xffe3U, 0x1dU, false, true};
+    assert(!X11AuthorizedInputRoute::dispatch(
+        broker, nullptr, acceptor, connection, session, desktop,
+        nativeGeneration, press));
+    assert(!desktop.valid());
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    // Replayed key-up after policy replacement also has no native sink.
+    const X11InputEvent release = X11KeyInput{
+        0xffe3U, 0x1dU, false, false, true};
+    assert(!X11AuthorizedInputRoute::dispatch(
+        broker, nullptr, acceptor, connection, session, desktop,
+        nativeGeneration, release));
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -160,6 +204,12 @@ int main(int argc, char **argv)
     if (argc == 1)
     {
         missingAdmissionRevokesInputPath();
+        return 0;
+    }
+    if (argc == 2 && std::string_view{argv[1]} ==
+                            "policy-replacement-keyboard")
+    {
+        policyReplacementDeniesStaleKeyboard();
         return 0;
     }
     if (argc == 2 && std::string_view{argv[1]} == "generation-mismatch")

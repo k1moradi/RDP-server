@@ -2141,6 +2141,16 @@ if(TARGET rdp-server-linux-xtest-input)
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_native_input>
                 destructor-held-input-release)
+        add_test(NAME x11.input-native-keyboard-sequence-and-reconnect
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_native_input>
+                keyboard-sequence-and-reconnect)
+        add_test(NAME x11.input-native-keyboard-logout-no-native-post
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_native_input>
+                keyboard-logout-no-native-post)
         add_test(NAME x11.input-native-authority-retirement-no-native-post
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"
@@ -2149,6 +2159,8 @@ if(TARGET rdp-server-linux-xtest-input)
         set_tests_properties(
             x11.input-native-destructor-held-input-release
             x11.input-native-authority-retirement-no-native-post
+            x11.input-native-keyboard-sequence-and-reconnect
+            x11.input-native-keyboard-logout-no-native-post
             PROPERTIES LABELS "x11;linux-adapter;native;security;synthetic-display"
                        TIMEOUT 20)
     endif()
@@ -2189,6 +2201,15 @@ if(TARGET rdp-server-linux-x11-desktop)
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources> randr-rebuild)
+        add_test(NAME x11.input-native-keyboard-layout-change-revokes-owner
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                keyboard-layout-change-revokes-owner)
+        set_tests_properties(
+            x11.input-native-keyboard-layout-change-revokes-owner PROPERTIES
+            LABELS "x11;linux-adapter;native;security;synthetic-display"
+            TIMEOUT 20)
         add_test(NAME x11.desktop-resource-r4-read-boundary
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
@@ -2285,7 +2306,7 @@ endif()
 
 # R5 production R2-gated decoded slow-path native event mapping, fully
 # offline. Only deterministic X11 pointer buttons/motion and lock-sync map;
-# unknown, keyboard, wheel and unsupported negotiated variants deny natively.
+# unknown, Unicode, relative and unsupported negotiated variants deny natively.
 if(TARGET rdp-server-linux-x11-authorized-input)
     add_executable(test_x11_rdp_slow_path_input
         test_x11_rdp_slow_path_input.cpp)
@@ -2297,6 +2318,19 @@ if(TARGET rdp-server-linux-x11-authorized-input)
         COMMAND test_x11_rdp_slow_path_input)
     set_tests_properties(
         x11.input-r2-authorized-slow-path-native-mapping-denials PROPERTIES
+        LABELS "x11;linux-adapter;security;input;offline"
+        TIMEOUT 20)
+    # Offline scancode/extended-key coverage through R3's decoded event
+    # type; each positive native post still requires a real R2 lease.
+    add_executable(test_x11_rdp_scancode test_x11_rdp_scancode.cpp)
+    target_link_libraries(test_x11_rdp_scancode PRIVATE
+        rdp-server-linux-x11-authorized-input)
+    target_compile_options(test_x11_rdp_scancode PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME x11.input-scancode-make-release-modifier-extended-denials
+        COMMAND test_x11_rdp_scancode)
+    set_tests_properties(
+        x11.input-scancode-make-release-modifier-extended-denials PROPERTIES
         LABELS "x11;linux-adapter;security;input;offline"
         TIMEOUT 20)
     add_executable(test_x11_rdp_extended_mouse
@@ -2373,9 +2407,15 @@ if(TARGET rdp-server-linux-x11-authorized-input AND
             "-screen 0 1280x720x24 -nolisten tcp"
             $<TARGET_FILE:test_x11_authorized_input_route>
             generation-mismatch)
+    add_test(NAME x11.input-r2-policy-replacement-keyboard-denial
+        COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+            "-screen 0 1280x720x24 -nolisten tcp"
+            $<TARGET_FILE:test_x11_authorized_input_route>
+            policy-replacement-keyboard)
     set_tests_properties(
         x11.input-r3-admission-route-denials-and-revocation
         x11.input-native-generation-mismatch-denial
+        x11.input-r2-policy-replacement-keyboard-denial
         PROPERTIES LABELS "x11;linux-adapter;native;security;synthetic-display"
                    TIMEOUT 20)
 endif()

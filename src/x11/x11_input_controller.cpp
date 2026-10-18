@@ -405,7 +405,20 @@ X11InputController::handleKey(const X11KeyInput &input) noexcept
         {
             return true;
         }
+        // A repeat claiming previous held state after a generation reset
+        // cannot recreate a key from the retired client session.
+        if (input.previouslyDown)
+        {
+            return false;
+        }
         keycode = keycodeFor(static_cast<xcb_keysym_t>(input.keySymbol));
+        // Colliding X11 mapping slots must not release each other's keys.
+        if (keycode != XCB_NO_SYMBOL &&
+            std::find(activeKeycodes_.begin(), activeKeycodes_.end(),
+                      keycode) != activeKeycodes_.end())
+        {
+            return false;
+        }
     }
     else if (keycode == XCB_NO_SYMBOL)
     {

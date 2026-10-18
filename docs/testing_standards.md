@@ -1,3 +1,26 @@
+## R5 bounded Set-1 scancode, held-key retirement and one-owner CTests (2026-10-18)
+
+Use the existing R3-decoded `ScancodeKeyboard` and R2's synchronous
+per-event protected callback; never synthesize an admitted lease in a
+keyboard fixture. `x11.input-scancode-make-release-modifier-extended-denials`
+checks press, duplicate held-key make, independent KBDFLAGS_DOWN and RELEASE,
+left/right modifiers, E0 navigation, E1/Pause refusal, undefined/OEM
+scancodes, reserved flags, invalid geometry and separate Unicode/relative
+denial. No independent Unicode or relative-pointer native feature is enabled.
+
+Optional Xvfb fixtures `x11.input-native-keyboard-sequence-and-reconnect`
+and `x11.input-native-keyboard-logout-no-native-post` inspect the existing
+XTEST controller's held-key mapping, break, repeat, fresh owner construction
+and **zero cleanup XTEST after terminal retirement**. The optional
+`x11.input-r2-policy-replacement-keyboard-denial` exercises R2 policy
+generation change before an unauthenticated input request; it proves refusal,
+not positive authorization. Add `x11.input-native-keyboard-layout-change-revokes-owner` for XCB
+MappingNotify-driven retirement of the keyboard mapping, without a cleanup
+XTEST post. Preserve existing native generation/RandR and absent-lease cases. Register all as behavior-named CTests in the shared
+registry; ordinary full CTest must run every applicable case, including
+offline cases when Xvfb is unavailable. No synthetic Xvfb event, keymap
+snapshot or scripted policy replacement proves genuine OS admission.
+
 ## R5 signed wheel and native XTEST scroll contract (2026-10-18)
 
 For RDP MS-RDPBCGR TS_POINTER_EVENT, wheelFlags (0x0200/0x0400)

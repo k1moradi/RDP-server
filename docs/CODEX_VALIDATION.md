@@ -1,3 +1,44 @@
+## R5 bounded scancode/XTEST integration readiness (2026-10-18)
+
+**Authoring baseline:** `27aaaca137ffeaeb8e1b96d1089586dc10f13da3`;
+the final atomic publication commit has its own actual SHA and hosted
+workflow evidence must be checked separately. R5's existing
+`X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt` stays behind
+R2's fresh per-event Linux native/TLS/GSS/R3/input authorization. This
+increment adds PC Set-1 keysyms (ordinary keys, modifiers and E0 extended
+keys), MS-RDPBCGR KBDFLAGS_DOWN/RELEASE interpretation and native
+duplicate-make/unmatched-break retirement without creating any separate
+XCB, TLS or input authority. E1/Pause, unknown OEM, Unicode and relative
+input remain deliberately unsupported. Terminal `retireWithoutNativeInput`
+still has zero further XTEST posting.
+
+**New behavior CTests:** always-offline
+`x11.input-scancode-make-release-modifier-extended-denials`, conditional
+Xvfb `x11.input-native-keyboard-sequence-and-reconnect`,
+`x11.input-native-keyboard-logout-no-native-post`, and
+`x11.input-r2-policy-replacement-keyboard-denial`, plus
+`x11.input-native-keyboard-layout-change-revokes-owner`. Existing R2 policy
+replacement, X11 RandR/layout, absent lease and terminal no-post tests
+remain and are not replaced. Packaging review confirms the
+existing `packaging/linux/gui_bundle.py` metadata/mode/Qt6 dependency
+allowlist and `run-gui.sh` `umask 077` / bundle-relative plugin launcher;
+`tests/test_linux_gui_bundle.py` already checks synthetic extracted ZIP,
+launcher mode/execution, inherited private-file mode 0600/directory 0700, closure denial, integrity/tamper and no systemd.
+This **source review is not a successful real Qt6 ELF closure or listener
+smoke execution** and is not a positive R2 host receipt.
+
+**Commands/status:** canonical Linux configure/build/full CTest **NOT RUN**
+(no owner's `~/rdp-server` checkout and no XCB/XTEST build dependencies in
+this GitHub connector execution environment); Linux native Qt6/ELF closure,
+extracted GUI no-listener runtime, real desktop/client test **NOT RUN**.
+Exact published-SHA hosted CI **PENDING**. No physical seat0, Kerberos/PAM,
+service or listener was activated. **Next gate:** verify hosted Linux
+CTest/GUI ZIP job against the published commit; owner runs the canonical
+Linux Debug build/full CTest and authorizes a real physical X11 seat0
+only after R10's sole persistent post-Share application router and GUI
+Start/Stop backend land. The synchronous native R4 borrow/XCB event
+contract is in `docs/linux_server_test_bundle.md`.
+
 ## R1 Linux buffered TLS application-read poll readiness (2026-10-18)
 
 Source parent `197d5715ef32b9598b6cc259956a762a23b88159`. The single R1 SSL/BIO/socket owner

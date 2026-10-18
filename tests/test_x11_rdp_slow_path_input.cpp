@@ -82,7 +82,6 @@ int main()
     assert(!translateRdpSlowPathX11Input(event, desktop));
 
     for (const auto unsupported : {
-        RdpSlowPathInputEventKind::ScancodeKeyboard,
         RdpSlowPathInputEventKind::UnicodeKeyboard,
         RdpSlowPathInputEventKind::RelativeMouse,
         RdpSlowPathInputEventKind::Unused})

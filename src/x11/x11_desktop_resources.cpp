@@ -28,6 +28,18 @@ public:
 
     void handle(const xcb_generic_event_t &event) noexcept override
     {
+        // Core MappingNotify invalidates cached keysym->keycode mappings and
+        // modifier/side-button interpretations. Do not rebind held keys
+        // inside an admitted session or deliver later native events.
+        if ((event.response_type & 0x7fU) == XCB_MAPPING_NOTIFY)
+        {
+            mappingChanged_ = true;
+            return;
+        }
+        if (mappingChanged_)
+        {
+            return;
+        }
         cursor_.handle(event);
         damage_.handle(event);
 #if defined(RDP_SERVER_X11_XINPUT_POINTER)
@@ -42,7 +54,13 @@ public:
         }
     }
 
+    [[nodiscard]] bool mappingChanged() const noexcept
+    {
+        return mappingChanged_;
+    }
+
 private:
+    bool mappingChanged_{false};
     X11CursorTracker &cursor_;
     X11DamageTracker &damage_;
 #if defined(RDP_SERVER_X11_XINPUT_POINTER)
@@ -509,6 +527,19 @@ X11DesktopResources::processEvents(std::size_t eventBudget,
         additionalEventSink);
     const ConnectionStatus status = display_.processEvents(
         eventSink, eventBudget, workMayRemain, socketReadable);
+    if (eventSink.mappingChanged())
+    {
+        if (workMayRemain != nullptr)
+        {
+            *workMayRemain = false;
+        }
+        // MappingNotify is not a display authorization. All existing held
+        // XTEST keys are retired without a compensating native release:
+        // their old physical keycodes may refer to different keys now.
+        fail("X11 input mapping changed during the admitted session");
+        cancelNativeResources(InputRetirementMode::SuppressNativeInput);
+        return ConnectionStatus::Failed;
+    }
     if (status == ConnectionStatus::Failed)
     {
         if (workMayRemain != nullptr)

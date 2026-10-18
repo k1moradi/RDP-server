@@ -109,6 +109,71 @@ Before uninstall stop and disable; manually remove the separately created
 `server.conf` and authorization marker, then invoke `uninstall`.
 Never treat successful offline preflight as authorization to listen.
 
+## R5 → R10 synchronous post-Share X11 contract (2026-10-18)
+
+**Sole owner and lifetime:** R10 constructs one `X11DesktopResources` using
+the display name returned by the R2 admitted-session visitor, on its single
+serialized native/TLS application thread. Never resolve `DISPLAY` as a
+fallback and never create a second XCB capture/input owner. The R2-selected
+desktop stays alive until authorized GUI Stop, logout, R1 disconnect or an
+authorization/geometry terminal condition. A `fileDescriptor()` result is
+borrowed: use it as readiness input in R10's existing poll set; do not dup,
+close or retain it after the X11 aggregate disconnects. Unregister the
+borrowed R2 logind/native-change watch from polling **before** revocation.
+
+**Event consumption:** After each native watch/R2 freshness check, call
+`processEvents(128, &workMayRemain, socketReadable, optionalX11EventSink)`
+on the same owner thread. The optional sink receives only borrowed
+`xcb_generic_event_t` references during that call; Damage, RandR, cursor
+and pointer observer events must be serviced through this one route, not by
+another XCB consumer. Repeat bounded calls while `workMayRemain` but
+interleave R1 TLS reads, R3 Graphics/receipt progression and cancellations
+to avoid starvation. RandR rebuild changes `captureGeneration()`; discard
+old damage rectangles, cached geometry, held-key interpretation and prepared
+unpublished frames. XCB MappingNotify is terminal for a cached keyboard or
+modifier mapping: retire the complete native owner with **no XTEST cleanup**;
+obtain fresh R2/R3 authority before a replacement keyboard. XCB failure or
+rebuild failure also retires the entire owner.
+
+**Synchronous R4 borrow:** After a fresh R2 *View* authorization and
+current R3 Share/mapped-Graphics check, snapshot native damage and its
+nonzero `captureGeneration()` (or capture the whole initial frame) and
+call `consumeR4Frame(expectedGeneration, {context, consume})`. This
+synchronously captures the full current `{0,0,widthPixels,heightPixels}`
+rectangle using the existing XShm owner. The callback's borrowed
+`FramebufferView` has packed BGRA pixels, `strideBytes == widthPixels*4`,
+`pixels.size() == strideBytes*heightPixels`; validate both products and
+geometry, with no retained reference after callback return. The callback
+must synchronously consume or convert pixels without reentering the X11
+owner. No borrowed span may cross a refresh, RandR rebuild, disconnect,
+thread handoff or network write. R4's **owned** encoded frame then moves to
+R3's one Graphics DATA/receipt lifecycle. R10/R3 must cancel frames with
+zero accepted TLS bytes and abort partial/uncertain positive delivery with
+the existing terminal receipt semantics. Never infer FRAME_ACK from an R1
+TLS write receipt.
+
+**Input and revocation:** After R10's **one** R1 TLS reader has assembled and
+R3 classified a complete TPKT as negotiated slow-path input, call
+`X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt(connection,
+policy, desktop, capturedGeneration, completeTpkt)`. Never trial-dispatch
+Graphics/clipboard packets as input; R2 checks exact lease, native session,
+TLS/GSS, current R3 Share, capability and Input permission **per decoded
+event**. R5 repeats the native generation check beside XTEST. Current
+scancode translation recognizes a bounded PC Set-1 101-key baseline
+including distinct E0 modifiers/navigation, press/release and duplicate-make
+suppression. E1/Pause, unknown OEM, Unicode and relative pointer remain
+unsupported and fail closed. On authority loss, Stop-after-revocation,
+logout or policy replacement, unregister watchers first, invoke
+`retireAfterAuthorizationLoss()` for **zero further XTEST**, retire R3/R2
+and finally R1; never post cleanup key releases after that point. Graceful
+disconnect may release held keys *only while authority remains current*.
+
+These APIs are available as a borrow contract, not a replacement for R10's
+missing persistent post-Share packet router or its GUI host-control backend.
+Xvfb CTests prove only synthetic X11 semantics, never positive physical
+Linux seat0 PAM/logind/Kerberos admission. Real Microsoft-client LAN
+capture/input acceptance remains **BLOCKED/NOT RUN** without owner consent.
+
 ## M3 — BLOCKED
 
 R10 has connected the accepted socket to serialized `LinuxRuntimeConnection`

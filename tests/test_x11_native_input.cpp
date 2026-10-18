@@ -190,6 +190,84 @@ destructorHeldInputRelease()
 }
 
 void
+keyboardSequenceAndReconnect()
+{
+    const char *display = std::getenv("DISPLAY");
+    assert(display != nullptr && display[0] != '\0');
+    int screenNumber = -1;
+    XcbConnection connection = connectDisplay(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*connection, screenNumber);
+    const PixelSize bounds{screen->width_in_pixels, screen->height_in_pixels};
+    const auto initialKeys = keymapSnapshot(*connection);
+
+    X11InputController input(*connection, screen->root, bounds);
+    assert(input.valid());
+    const X11KeyInput leftControl{0xffe3U, 0x1dU, false, true};
+    const X11KeyInput aKey{0x61U, 0x1eU, false, true};
+    assert(input.handle(leftControl));
+    assert(input.handle(aKey));
+    const auto pressedKeys = keymapSnapshot(*connection);
+    assert(pressedKeys != initialKeys);
+
+    // Repeated make is a no-op; it must not produce a second logical held
+    // slot. A repeat after loss of its prior key state fails closed.
+    assert(input.handle(X11KeyInput{0x61U, 0x1eU, false, true, true}));
+    assert(keymapSnapshot(*connection) == pressedKeys);
+    assert(!input.handle(X11KeyInput{0xffe4U, 0x1dU, true, true, true}));
+    assert(keymapSnapshot(*connection) == pressedKeys);
+    assert(!input.handle(X11KeyInput{0U, 0x7fU, false, true}));
+    assert(keymapSnapshot(*connection) == pressedKeys);
+
+    assert(input.handle(X11KeyInput{0x61U, 0x1eU, false, false, true}));
+    assert(input.handle(X11KeyInput{0xffe3U, 0x1dU, false, false, true}));
+    assert(keymapSnapshot(*connection) == initialKeys);
+
+    // Fresh owner construction resolves the current XCB keymap. No held
+    // scancode slot survives the controller generation or disconnect.
+    input.disconnect();
+    X11InputController replacement(*connection, screen->root, bounds);
+    assert(replacement.valid());
+    assert(replacement.handle(X11KeyInput{0xffe4U, 0x1dU, true, true}));
+    assert(keymapSnapshot(*connection) != initialKeys);
+    replacement.disconnect();
+    assert(keymapSnapshot(*connection) == initialKeys);
+}
+
+void
+keyboardLogoutNoNativePost()
+{
+    const char *display = std::getenv("DISPLAY");
+    assert(display != nullptr && display[0] != '\0');
+    int screenNumber = -1;
+    XcbConnection connection = connectDisplay(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*connection, screenNumber);
+    const PixelSize bounds{screen->width_in_pixels, screen->height_in_pixels};
+    const auto initialKeys = keymapSnapshot(*connection);
+    X11InputController input(*connection, screen->root, bounds);
+    assert(input.valid());
+    assert(input.handle(X11KeyInput{0xffe3U, 0x1dU, false, true}));
+    assert(input.handle(X11KeyInput{0x61U, 0x1eU, false, true}));
+
+    const auto keysBeforeRevocation = keymapSnapshot(*connection);
+    assert(keysBeforeRevocation != initialKeys);
+    // Simulated logout: no cleanup XTEST may leave the retired controller.
+    // Persistent keymap state in this isolated Xvfb fixture is intentional.
+    input.retireWithoutNativeInput();
+    assert(!input.valid());
+    assert(!input.handle(X11KeyInput{0x61U, 0x1eU, false, false, true}));
+    input.disconnect();
+    assert(keymapSnapshot(*connection) == keysBeforeRevocation);
+
+    // A new controller does not adopt held state from the retired one.
+    X11InputController replacement(*connection, screen->root, bounds);
+    assert(replacement.valid());
+    assert(!replacement.handle(X11KeyInput{0x61U, 0x1eU, false, true, true}));
+    assert(keymapSnapshot(*connection) == keysBeforeRevocation);
+    replacement.retireWithoutNativeInput();
+    assert(keymapSnapshot(*connection) == keysBeforeRevocation);
+}
+
+void
 authorityRetirementNoNativePost()
 {
     const char *display = std::getenv("DISPLAY");
@@ -259,6 +337,16 @@ main(int argc, char **argv)
     if (behavior == "destructor-held-input-release")
     {
         destructorHeldInputRelease();
+        return 0;
+    }
+    if (behavior == "keyboard-sequence-and-reconnect")
+    {
+        keyboardSequenceAndReconnect();
+        return 0;
+    }
+    if (behavior == "keyboard-logout-no-native-post")
+    {
+        keyboardLogoutNoNativePost();
         return 0;
     }
     if (behavior == "authority-retirement-no-native-post")

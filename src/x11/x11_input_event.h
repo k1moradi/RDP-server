@@ -19,6 +19,8 @@ struct X11KeyInput final
     std::uint8_t scanCode{};
     bool extended{};
     bool pressed{};
+    // KBDFLAGS_DOWN reports prior held state, independent of RELEASE.
+    bool previouslyDown{};
 };
 
 struct X11LockStateInput final

@@ -84,13 +84,27 @@ with tempfile.TemporaryDirectory() as directory:
     # Replace the inert synthetic ELF with a harmless GUI-exec marker.
     # This tests launcher resolution, never the real GUI or R2 admission.
     executable = extracted / "bin/rdp-server-desktop"
-    executable.write_text("#!/bin/sh\nprintf 'GUI_LAUNCH_OK:%s\\n' \"$LD_LIBRARY_PATH\"\n")
+    private_home = root / "private-home"
+    private_home.mkdir(mode=0o700)
+    executable.write_text(
+        "#!/bin/sh\n"
+        "mkdir -p \"$HOME/.config/rdp-server-desktop\"\n"
+        ": > \"$HOME/.config/rdp-server-desktop/settings.json\"\n"
+        "printf 'GUI_LAUNCH_OK:%s\\n' \"$LD_LIBRARY_PATH\"\n")
     executable.chmod(0o755)
     launch = subprocess.run(
         [str(extracted / "run-gui.sh")], capture_output=True,
-        text=True, timeout=5, env={**os.environ, "QT_QPA_PLATFORM": "xcb"})
+        text=True, timeout=5,
+        env={**os.environ, "QT_QPA_PLATFORM": "xcb",
+             "HOME": str(private_home)})
     assert launch.returncode == 0, launch.stderr
     assert "GUI_LAUNCH_OK:" + str(extracted / "lib") in launch.stdout
+    # run-gui.sh must propagate umask 077 into the GUI process, so a
+    # newly created config file and its parent cannot be world-readable.
+    private_config = private_home / ".config/rdp-server-desktop/settings.json"
+    assert private_config.is_file() and not private_config.is_symlink()
+    assert stat.S_IMODE(private_config.stat().st_mode) == 0o600
+    assert stat.S_IMODE(private_config.parent.stat().st_mode) == 0o700
 
     # Broken archive, metadata or runtime closure never passes verify.
     with zipfile.ZipFile(target) as source:

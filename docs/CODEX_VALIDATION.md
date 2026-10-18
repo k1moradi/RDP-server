@@ -1,5 +1,12 @@
 ## R8 production-links the dormant Linux clipboard bridge (2026-10-18)
 
+Authoring correction: publication `225e3a7e13b726ac237444bfaf24eb9f1c2d8cd8`
+used C++-style `//` comments in the two CMake files. This follow-up changes
+only those comments to CMake `#` syntax before hosted configure evidence is
+claimed; linkage, authority, test behavior and the live R10 blocker are
+unchanged.
+
+
 Reconciled on parent `9d48ca00a42f0fefa6a6a82ffa8b78a5ffed680b`. R10's protected-input linkage establishes
 the correct fail-closed build-graph pattern, so R8 now conditionally links the
 already-tested `rdp-server-r8-r3-clipboard` and

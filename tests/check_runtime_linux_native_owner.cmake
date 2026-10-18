@@ -15,7 +15,8 @@ foreach(required_runtime_text IN ITEMS
         "selection.display()"
         "visitNativeDesktopSelection"
         "registerNativeChange"
-        "::poll(nativePoll.data()"
+        "::poll("
+        "nativePoll.data(), static_cast<nfds_t>(nativePoll.size())"
         "unregisterNativeChange"
         "dispatchNativeChangeReady"
         "retireAfterAuthorizationLoss"
@@ -38,6 +39,17 @@ foreach(required_build_text IN ITEMS
             "Production runtime is not conditionally linked to R5: ${required_build_text}")
     endif()
 endforeach()
+
+# The native poll may be wrapped across lines; both the syscall and its
+# exact existing pollfd array are mandatory (no second hidden poll owner).
+string(FIND "${runtime_source}" "::poll(" system_poll)
+string(FIND "${runtime_source}"
+    "nativePoll.data(), static_cast<nfds_t>(nativePoll.size())" native_poll_array)
+if(system_poll EQUAL -1 OR native_poll_array EQUAL -1 OR
+   system_poll GREATER native_poll_array)
+    message(FATAL_ERROR
+        "R10 must use the real borrowed native pollfd array")
+endif()
 
 string(FIND "${runtime_source}"
     "startPersonalDesktopGraphicsFramePublication" frame_publication)

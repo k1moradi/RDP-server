@@ -1,3 +1,16 @@
+## R10 persistent-loop test-registry recovery (2026-10-18)
+
+The first post-Share native-owner hosted Linux run compiled the production
+`rdp-server` and passed the executable-backed protected single-reader and
+classifier tests but failed two R10 source guards because the real multi-line
+`::poll(nativePoll.data())` and logind retirement call were incorrectly
+matched as single-line text. The correction requires the syscall plus its
+exact pollfd array and checks watcher retirement after unregistration;
+R5's stronger independent callback-order guard remains unchanged. R10
+updates the existing two CTests, not the production runtime. Parent
+`7c22b9a2f44ae346380ee556a1092e344f2f22ef`; local checkout build/full CTest **NOT RUN**, exact publication
+CI **PENDING**. No seat0 admission or LAN GUI Start is inferred.
+
 ## R8 protected clipboard R1 write handoff (2026-10-18)
 
 R10's persistent post-Share Linux scheduler at `4795c6dd` and its

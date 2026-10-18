@@ -15,9 +15,10 @@ foreach(needed IN ITEMS
         "while (connection.ready() && nativeOwner.desktop->valid())"
         "registerNativeChange()"
         "unregisterNativeChange(*nativeChange)"
-        "releaseNativeChangeWithoutDispatch(*nativeChange)"
+        "releaseNativeChangeWithoutDispatch("
         "dispatchNativeChangeReady(*nativeChange)"
-        "::poll(nativePoll.data()"
+        "::poll("
+        "nativePoll.data(), static_cast<nfds_t>(nativePoll.size())"
         "nativeSocketPollDescriptor()"
         "bufferedTlsApplicationReadReady()"
         "advancePersonalDesktopPostShareApplicationRead("
@@ -52,6 +53,17 @@ foreach(needed IN ITEMS
         message(FATAL_ERROR "Missing existing R1/R2/R3 backing: ${needed}")
     endif()
 endforeach()
+# Guard both halves of the native watcher call: the real R10 scheduler
+# wraps arguments across lines, while the R5 pre-dispatch guard independently
+# checks unregistration and retirement before X11/TLS callbacks.
+string(FIND "${runtime_source}" "releaseNativeChangeWithoutDispatch(" release_call)
+string(FIND "${runtime_source}" "connection.unregisterNativeChange(*nativeChange)" unregister_call)
+if(release_call EQUAL -1 OR unregister_call EQUAL -1 OR
+   release_call LESS unregister_call)
+    message(FATAL_ERROR
+        "R10 post-Share native borrow is not retired after unregistration")
+endif()
+
 # The publication borrow context must remain stack-owned without casting
 # away constness to satisfy a callback ABI.
 string(FIND "${runtime_source}" "const_cast<LinuxFramePublicationContext" bad_borrow)

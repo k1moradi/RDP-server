@@ -412,6 +412,18 @@ Linux/X11, Windows CLANG64/Clang 23 and macOS 27 local Debug CTest:
 **NOT RUN**. No Start/Stop, authenticated persistent post-Share desktop,
 native release acceptance or human Microsoft-client success is claimed.
 
+## R10 persistent-loop source-guard formatting recovery (2026-10-18)
+
+Existing dedicated production source CTests `runtime.linux-serve-persistent-post-share-single-owner`
+and `runtime.linux-serve-r2-selected-x11-owner-composition` no longer
+assume one-line spellings of `::poll(` and
+`releaseNativeChangeWithoutDispatch(` calls. Verify the real pollfd-array
+reference separately and watcher release after unregistration; R5 maintains
+independent exact live-owner event and lifetime ordering. Prior Ubuntu
+Debug `39139376815` compiled but these source guards reported
+false-negative tests. Parent `7c22b9a2f44ae346380ee556a1092e344f2f22ef`; local checkout **NOT RUN**,
+corrective exact-HEAD CI **PENDING**; physical Microsoft client **NOT RUN**.
+
 ## R10 persistent poll and borrowed-frame guard correction (2026-10-18)
 
 Follow-up on `1cebf88942edd7f9e0294a40eba4eff10a574114`: native poll's runtime-selected POSIX event mask

@@ -89,6 +89,29 @@ class MacosTestLaunchAgentTests(unittest.TestCase):
         ):
             launch_agent.render_plist(fake_home, registration_path)
 
+        # Alternate names and nested review paths are still registration
+        # destinations, and a symlinked parent cannot disguise that location.
+        launch_agents.mkdir(parents=True)
+        for output in (
+            launch_agents / "alternate.plist",
+            launch_agents / "nested" / launch_agent.LAUNCH_AGENT_FILENAME,
+        ):
+            with self.subTest(output=output):
+                with self.assertRaisesRegex(
+                    launch_agent.LaunchAgentError, "refusing to install directly"
+                ):
+                    launch_agent.render_plist(fake_home, output)
+                self.assertFalse(output.exists())
+
+        review_alias = self.root / "review-alias"
+        review_alias.symlink_to(launch_agents, target_is_directory=True)
+        alias_output = review_alias / launch_agent.LAUNCH_AGENT_FILENAME
+        with self.assertRaisesRegex(
+            launch_agent.LaunchAgentError, "refusing to install directly"
+        ):
+            launch_agent.render_plist(fake_home, alias_output)
+        self.assertFalse(registration_path.exists())
+
         with self.assertRaisesRegex(
             launch_agent.LaunchAgentError, "non-root absolute"
         ):

@@ -1,3 +1,15 @@
+## R5 Linux GUI-only ZIP builder and test (2026-10-18)
+
+Authoring base `269a873953a9fc61df0449633b35b98b6f8ff50d`. Added relocatable actual-Qt-ELF ZIP assembly
+and Qt/XCB linked closure, secure launcher, executable ZIP metadata,
+SHA-256 manifest, dedicated offline CTest and isolated Linux hosted
+build/extract/Xvfb smoke. Canonical owner Linux build/full CTest: NOT RUN.
+Hosted exact-publication-SHA CI: PENDING. Native GUI and real Microsoft
+RDP client receipt: NOT RUN. R2 authenticated Share and X11 owner: BLOCKED.
+No test mints R2 admission. R9 cross-platform PORTABLE-GUI verifier
+requires R10 live host-control integration that does not yet exist;
+this GUI-only preview does not claim that status.
+
 ## R9 distinct PORTABLE-GUI ZIP integrity gate (2026-10-18)
 
 Authored against main parent 6230aaab4144c9bbc1526d1243d2d5a137453f13. Added `scripts/verify_portable_gui.py` with an externally pinned SHA-256/exact-Git-SHA ZIP contract and `packaging.portable-gui-archive-integrity-denials` CTest. The gate checks name/version/platform/ABI family, true shared-Qt GUI platform entrypoint (R6 Windows RDP-server-GUI.exe, R7 macOS bundle, R5 Linux launcher), Qt plugin, no implicit startup, complete payload hash and SHA256SUMS inventory, bounded zip paths/size, licenses, disabled sample config and private mutable-state declaration, Linux minimums and macOS signing/trust disclosure. It cannot convert the unavailable R10 HostControl shell into operational remote-control evidence. Synthetic three-platform structure fixtures and SHA/tamper/unsafe-path/startup/plugin denial: 5/5 PASS locally in Python with space-containing scratch directory, no host code executed. Exact new-SHA GitHub Actions, native Qt extraction/window/network closure, M1 owner receipts and live LAN clients: NOT RUN. No portable ZIP or release published. Next gate is native platform closure/first-run proof followed by real R2/R10 host control.

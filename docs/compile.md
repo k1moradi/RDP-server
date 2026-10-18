@@ -1025,3 +1025,40 @@ cache is introduced.
 ## R7 Qt desktop GUI shell (2026-10-18)
 
 Build optionally with `-DRDP_SERVER_BUILD_DESKTOP_GUI=ON` and Qt 6.4+ Widgets; run `ctest --test-dir build -R '^gui[.]offscreen-' --output-on-failure`. The default headless build remains Qt-free. Shipping `rdp-server-desktop` has a deny-only R10 adapter: opening the window creates no listener, capture or TCC request. R9 still must package redistributable Qt libraries/plugins and a macOS double-clickable `.app` in ZIP, verify LGPL/GPL compliance and measure archive size. R10 must provide the real typed admitted host-control API before Start can function; fake UI tests are not host acceptance.
+
+## R5 extracted Linux GUI ZIP (2026-10-18)
+
+The R7 Qt Widgets desktop target is explicitly opt-in. On a Linux builder with
+Qt6 development packages and the `qt6-qpa-plugins` XCB platform plugin:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+  -DRDP_SERVER_BUILD_TESTING=OFF -DRDP_SERVER_BUILD_DESKTOP_GUI=ON
+cmake --build build --config Release --target rdp-server-desktop --parallel 2
+python3 packaging/linux/gui_bundle.py bundle \
+  --gui build/rdp-server-desktop \
+  --xcb-plugin /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms/libqxcb.so \
+  --source-sha "$(git rev-parse HEAD)" --version 0.1.0 \
+  --output build/rdp-server-gui-linux.zip
+python3 packaging/linux/gui_bundle.py verify \
+  --bundle build/rdp-server-gui-linux.zip
+```
+
+Adjust the XCB plugin path for the builder architecture; the CI job locates
+it using the package inventory. The builder uses `ldd` only on trusted local
+build/Qt inputs and copies non-glibc dependency closure and the platform
+plugin into the archive. Extract with a ZIP tool preserving Unix modes,
+then double-click `RDP Server.desktop` (a file manager may separately ask to
+trust an extracted desktop launcher), or run `run-gui.sh` via the file
+manager. Both invoke only the Qt GUI, using relative library/plugin paths.
+The archive does not contain `rdp-server serve` and does not use FUSE.
+glibc/loader and native X server/device drivers remain host requirements;
+do not claim compatibility on a distribution until the extracted ELF ABI,
+`ldd`, Qt XCB plugin and GUI are tested there. Review Qt LGPL/GPL and bundled
+library notices before distributing beyond development preview.
+
+The GUI is deny-only until R2/R10 host control and native authority exist.
+Launch does not bind a listener, request system privileges, capture pixels,
+start input injection, install/enable systemd or create credentials. Newly
+created user files obey umask 0077; no config is written by the launcher.
+Live access requires the current owner to log into a physical X11 seat0.

@@ -2512,6 +2512,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# R5 offline real-Qt packaging contracts tested using synthetic ELF fixtures.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND Python3_Interpreter_FOUND)
+    add_test(NAME packaging.linux-gui-zip-offline-closure-and-modes
+        COMMAND "${Python3_EXECUTABLE}"
+            "${PROJECT_SOURCE_DIR}/tests/test_linux_gui_bundle.py")
+    set_tests_properties(packaging.linux-gui-zip-offline-closure-and-modes
+        PROPERTIES LABELS "packaging;linux;gui;offline;security" TIMEOUT 30)
+endif()
+
 # R1 opt-in LAN listener: production socket/interface validation without
 # creating a daemon, a second acceptor, SSL owner, or an OS admission lease.
 add_executable(test_lan_listener test_lan_listener.cpp)

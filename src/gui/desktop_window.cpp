@@ -17,6 +17,8 @@
 #include <QStackedWidget>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QVariant>
+#include <algorithm>
 namespace rdp::gui {
 namespace {
 QLabel* label(const QString& message) {
@@ -45,15 +47,19 @@ QString clipboardStatusText(
 DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     : QWidget(parent), host_(host), pages_(new QStackedWidget(this)),
       desktops_(new QComboBox(this)), interfaces_(new QComboBox(this)),
+      clientSelection_(new QComboBox(this)),
       port_(new QSpinBox(this)), password_(new QLineEdit(this)),
       confirmation_(new QLineEdit(this)),
       configureOsAccount_(new QPushButton("Use Existing OS Account", this)),
       requestHostPermission_(new QPushButton("Request Host Permission", this)),
       start_(new QPushButton("Start Sharing", this)),
       stop_(new QPushButton("Stop Sharing / Revoke", this)),
+      disconnect_(new QPushButton("Disconnect Selected Client", this)),
       copy_(new QPushButton("Copy LAN Address", this)),
       desktopStatus_(label({})), credentialStatus_(label({})),
       permissionStatus_(label({})), clipboardStatus_(label({})),
+      selectedInterfaceStatus_(label({})), endpointStatus_(label({})),
+      errorStatus_(label({})), tlsIdentityStatus_(label({})),
       status_(label({})), activity_(label({})) {
     setWindowTitle("RDP-server - LAN desktop sharing");
     setMinimumSize(600, 440);
@@ -105,12 +111,16 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     form->addRow("Interface", interfaces_);
     form->addRow("Port", port_);
     network->addLayout(form);
+    selectedInterfaceStatus_->setObjectName("selectedLanInterfaceStatus");
+    network->addWidget(selectedInterfaceStatus_);
     network->addWidget(label("R10 must validate and bind the selected private LAN interface. "
         "No wildcard/public listener is selected by the GUI."));
     network->addStretch();
     auto* permissions = page("Platform security prerequisites");
     permissions->addWidget(label("Firewall: authorize inbound RDP on the trusted LAN interface only. "
         "TLS: clients must verify the host identity/fingerprint; a certificate is not automatically trusted."));
+    tlsIdentityStatus_->setObjectName("tlsIdentityStatus");
+    permissions->addWidget(tlsIdentityStatus_);
     permissions->addWidget(label("Linux X11 logged-in seat, Windows interactive desktop, and macOS Screen "
         "Recording/Accessibility/Input Monitoring are platform-dependent. macOS TCC consent is requested "
         "later by the real native owner, never as authentication."));
@@ -147,8 +157,19 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     clipboardStatus_->setObjectName("clipboardStatus");
     sharing->addWidget(clipboardStatus_);
     sharing->addWidget(status_);
+    endpointStatus_->setObjectName("boundLanEndpoint");
+    sharing->addWidget(endpointStatus_);
+    errorStatus_->setObjectName("hostErrorExplanation");
+    sharing->addWidget(errorStatus_);
     copy_->setObjectName("copyLanAddress");
     sharing->addWidget(copy_);
+    clientSelection_->setObjectName("activeClientSelection");
+    clientSelection_->addItem("Select an active client", QVariant());
+    disconnect_->setObjectName("disconnectClient");
+    auto* clientActions = new QHBoxLayout();
+    clientActions->addWidget(clientSelection_);
+    clientActions->addWidget(disconnect_);
+    sharing->addLayout(clientActions);
     activity_->setObjectName("clientStatus");
     sharing->addWidget(activity_);
     sharing->addStretch();
@@ -173,7 +194,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     connect(start_, &QPushButton::clicked, this, [this] {
         const auto snapshot = host_.status();
         if (snapshot.sharing || snapshot.startPending || !blockedReason(snapshot).isEmpty()) return;
-        const HostRequest request{interfaces_->currentData().toString(),
+        const HostRequest request{interfaces_->currentData(Qt::UserRole + 1).toString(),
+            interfaces_->currentData().toString(),
             static_cast<std::uint16_t>(port_->value())};
         (void)host_.start(request); // Never use return value as active-sharing proof.
         refresh();
@@ -184,12 +206,31 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         host_.stopAndRevoke();
         refresh();
     });
+    connect(disconnect_, &QPushButton::clicked, this, [this] {
+        const auto snapshot = host_.status();
+        const QVariant selectedClient = clientSelection_->currentData();
+        if (!snapshot.controlAvailable ||
+            (!snapshot.sharing && !snapshot.startPending) ||
+            !selectedClient.isValid())
+            return;
+        bool validId = false;
+        const auto selectedId = selectedClient.toULongLong(&validId);
+        if (!validId || selectedId == 0 ||
+            !std::ranges::any_of(snapshot.activeClients,
+                [selectedId](const ActiveClientChoice& client) {
+                    return client.opaqueId == selectedId;
+                }))
+            return;
+        (void)host_.disconnectClient(static_cast<std::uint64_t>(selectedId));
+        refresh(); // R10 status, not the click, confirms disconnect.
+    });
     connect(copy_, &QPushButton::clicked, this, [this] {
         const auto state = host_.status();
         if (state.sharing && !state.lanAddress.isEmpty())
             QApplication::clipboard()->setText(state.lanAddress);
     });
     connect(interfaces_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
+    connect(clientSelection_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
     connect(password_, &QLineEdit::textChanged, this, [this] { refresh(); });
     connect(confirmation_, &QLineEdit::textChanged, this, [this] { refresh(); });
     refresh();
@@ -209,7 +250,14 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const {
     if (!state.tlsReady) return "TLS identity unavailable";
     if (!state.captureInputReady) return "Screen/input permissions unavailable";
     const QString selectedInterface = interfaces_->currentData().toString();
-    if (selectedInterface.isEmpty() || !state.approvedLanInterfaces.contains(selectedInterface))
+    const QString selectedInterfaceId =
+        interfaces_->currentData(Qt::UserRole + 1).toString();
+    if (selectedInterface.isEmpty() || selectedInterfaceId.isEmpty() ||
+        !std::ranges::any_of(state.approvedLanInterfaces,
+            [&](const LanInterfaceChoice& candidate) {
+                return candidate.stableId == selectedInterfaceId &&
+                       candidate.address == selectedInterface;
+            }))
         return "R10-approved LAN interface not selected";
     if (password_->isEnabled() &&
         (password_->text().isEmpty() || password_->text() != confirmation_->text()))
@@ -223,6 +271,9 @@ bool DesktopWindow::canStart() const {
 void DesktopWindow::refresh() {
     const auto snapshot = host_.status();
     const QString previousInterface = interfaces_->currentData().toString();
+    const QString previousInterfaceId =
+        interfaces_->currentData(Qt::UserRole + 1).toString();
+    const QVariant previousClientId = clientSelection_->currentData();
     // A refreshed R10/R2 snapshot invalidates removed interface/session choices.
     {
         const QSignalBlocker blocked(desktops_);
@@ -237,13 +288,51 @@ void DesktopWindow::refresh() {
         const QSignalBlocker blocked(interfaces_);
         interfaces_->clear();
         interfaces_->addItem("Select R10-approved LAN interface", QString());
-        for (const auto& address : snapshot.approvedLanInterfaces) {
-            if (!address.isEmpty() && interfaces_->findData(address) == -1)
-                interfaces_->addItem(address, address);
+        for (const LanInterfaceChoice& choice : snapshot.approvedLanInterfaces) {
+            if (choice.address.isEmpty() || choice.stableId.isEmpty())
+                continue;
+            const QString name = choice.displayName.isEmpty()
+                ? choice.address : choice.displayName + " (" + choice.address + ")";
+            interfaces_->addItem(name, choice.address);
+            interfaces_->setItemData(interfaces_->count() - 1,
+                                     choice.stableId, Qt::UserRole + 1);
         }
-        const int index = interfaces_->findData(previousInterface);
-        if (index > 0) interfaces_->setCurrentIndex(index);
+        for (int index = 1; index < interfaces_->count(); ++index) {
+            if (interfaces_->itemData(index).toString() == previousInterface &&
+                interfaces_->itemData(index, Qt::UserRole + 1).toString() ==
+                    previousInterfaceId) {
+                interfaces_->setCurrentIndex(index);
+                break;
+            }
+        }
     }
+    {
+        const QSignalBlocker blocked(clientSelection_);
+        clientSelection_->clear();
+        clientSelection_->addItem("Select an active client", QVariant());
+        for (const ActiveClientChoice& client : snapshot.activeClients) {
+            if (client.opaqueId == 0)
+                continue;
+            const QVariant opaqueId = QVariant::fromValue<qulonglong>(client.opaqueId);
+            if (clientSelection_->findData(opaqueId) < 0)
+                clientSelection_->addItem(client.displayName, opaqueId);
+        }
+        const int index = clientSelection_->findData(previousClientId);
+        if (index > 0)
+            clientSelection_->setCurrentIndex(index);
+    }
+    selectedInterfaceStatus_->setText(interfaces_->currentIndex() > 0
+        ? "Selected R10 LAN interface: " + interfaces_->currentText()
+        : "No R10-approved LAN interface selected.");
+    endpointStatus_->setText(snapshot.lanAddress.isEmpty()
+        ? "Bound LAN endpoint: not reported by R10; no listener is implied."
+        : "R10-reported bound LAN endpoint: " + snapshot.lanAddress);
+    errorStatus_->setText(snapshot.failure.isEmpty()
+        ? "R10 host error: none reported."
+        : "R10 host error: " + snapshot.failure);
+    tlsIdentityStatus_->setText(snapshot.tlsReady
+        ? "TLS identity readiness reported by R10. SHA-256 fingerprint and client trust status are not supplied; no client trust is inferred."
+        : "TLS identity unavailable. SHA-256 fingerprint and client trust status are not supplied by R10/R1.");
     desktopStatus_->setText(snapshot.desktopAuthorized && !snapshot.desktop.isEmpty()
         ? "R2-authorized desktop reported: " + snapshot.desktop
         : "Authorization unavailable: " + (snapshot.failure.isEmpty()
@@ -263,6 +352,11 @@ void DesktopWindow::refresh() {
     clipboardStatus_->setText(clipboardStatusText(snapshot.clipboardState));
     start_->setEnabled(!snapshot.sharing && !snapshot.startPending && denial.isEmpty());
     stop_->setEnabled(snapshot.sharing || snapshot.startPending);
+    clientSelection_->setEnabled(snapshot.controlAvailable &&
+        (snapshot.sharing || snapshot.startPending) &&
+        !snapshot.activeClients.isEmpty());
+    disconnect_->setEnabled(clientSelection_->isEnabled() &&
+        clientSelection_->currentIndex() > 0);
     copy_->setEnabled(snapshot.sharing && !snapshot.lanAddress.isEmpty());
     status_->setText(snapshot.sharing
         ? (snapshot.lanAddress.isEmpty() ? "R10 reports sharing; LAN address unavailable."

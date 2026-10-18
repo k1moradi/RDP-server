@@ -1,3 +1,45 @@
+## R7 macOS packaging convergence and Qt interface/client UI (2026-10-18)
+
+On exact descendant `495a3371aea5e780e00c2ac6303d3a2264b8a857`,
+the hosted macOS 26 arm64 `r7-macos-portable-gui` job
+`117703809743` in [Actions 39137118802](https://github.com/k1moradi/RDP-server/actions/runs/39137118802)
+**PASSed**: real AppleClang 21/Qt 6.11.2 .app build, corrected
+R9 synthetic install-ID CTest, `macdeployqt` Cocoa/framework deployment,
+extracted Mach-O `otool -L` rejection of build-host absolute dependencies,
+and final ad-hoc development signing. This closes the R7/R9 fixture and
+staged install-ID packaging blocker. **Normal Finder/Aqua double-click,
+Gatekeeper trust on a quarantined download, Developer ID signing and Apple
+notarization remain NOT RUN/NOT COMPLETE**. Hosted macOS 26 arm64 is not
+owner-native macOS 27 acceptance.
+
+R7's shared Qt GUI now displays R10's actual stable interface ID/name and
+address choices and R10's actual reported bound endpoint, never an
+illustrative address or a claimed listener from the configured port. A
+selected active R10 client can be submitted for disconnect by its opaque
+current handle; neither the click nor a successful command result is
+rendered as disconnection proof. The adapter fails Start before reaching
+R10 when the credential, authorized desktop, TLS/native readiness or
+exact stable-ID/address tuple is absent, and rejects stale/zero disconnect
+handles. These are early view-layer denials; only future concrete R10
+ownership and fresh R2/R1/R3/native checks can grant access. No second
+state machine, socket reader/listener, clipboard owner, TCC request,
+ScreenCaptureKit/Quartz factory or GUI password-NLA provider is added.
+
+R10's current `RuntimeHostStatus` does **not** expose a verifiable TLS
+SHA-256 fingerprint or a real client-trust state. The GUI accordingly
+marks those details **not supplied** rather than deriving trust from
+`tlsIdentityReady`. Independent app-password NLA remains unsupported.
+Dedicated offscreen CTest
+`gui.offscreen-r10-interface-endpoint-client-disconnect-denials`
+checks duplicate-address stable IDs, fail-closed Start, real endpoint
+projection, opaque client disconnect/stale denial and fixed redacted
+error presentation. Authored on parent `d268d27058c027f6fe95a9318dd409a70f51df56`; this connector
+environment has no mounted `~/rdp-server` checkout or Qt headers:
+local C++ build/full CTest **NOT RUN**; new publication-SHA hosted CI
+**PENDING**. R10 persistent session, live HostControl Start/Stop and
+R2 credential-bound macOS UID + serialized AppKit/session ownership
+remain **BLOCKED** before real macOS hosting or Microsoft-client tests.
+
 # RDP-server roadmap — authoritative live status
 
 **Reconciled:** 2026-10-17 · **Shared branch:** `main` · **Milestones accepted:** 0/6  

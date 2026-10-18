@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <algorithm>
 
 #include <cassert>
 #include <cstdint>
@@ -30,6 +31,9 @@ public:
     int startCalls{};
     int stopCalls{};
     int revokeCalls{};
+    int disconnectCalls{};
+    std::uint64_t lastDisconnectedId{};
+    bool disconnectSucceeds{};
     bool configureSucceeds{true};
     bool credentialSetupSucceeds{};
     bool permissionSetupSucceeds{};
@@ -85,8 +89,20 @@ public:
         return {RuntimeHostError::None, false};
     }
 
-    [[nodiscard]] RuntimeHostResult disconnectClient(std::uint64_t) override
-    { return {RuntimeHostError::ClientNotFound, false}; }
+    [[nodiscard]] RuntimeHostResult disconnectClient(
+        const std::uint64_t opaqueClientId) override
+    {
+        ++disconnectCalls;
+        lastDisconnectedId = opaqueClientId;
+        if (!disconnectSucceeds)
+            return {RuntimeHostError::ClientNotFound, false};
+        auto& activeClients = snapshot.activeClients;
+        activeClients.erase(std::remove_if(activeClients.begin(), activeClients.end(),
+            [opaqueClientId](const RuntimeHostClient& client) {
+                return client.opaqueId == opaqueClientId;
+            }), activeClients.end());
+        return {RuntimeHostError::None, false};
+    }
 
     [[nodiscard]] RuntimeHostResult revokeSharing() override
     {
@@ -120,6 +136,74 @@ int main(int argc, char** argv)
 
     FakeRuntimeHost runtime;
     HostControl host(runtime);
+
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "lan-client")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.nativeDesktopReady = true;
+        // Same IP on two native interfaces requires the exact R10 stable ID.
+        runtime.interfaces = {
+            {"ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true},
+            {"wifi-2", "Private Wi-Fi", {"192.168.0.10"}, false, true},
+            {"loopback", "Loopback", {"127.0.0.1"}, true, false}};
+        DesktopWindow window(host);
+        auto* lan = window.findChild<QComboBox*>("lanInterface");
+        auto* selected = window.findChild<QLabel*>("selectedLanInterfaceStatus");
+        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
+        auto* trust = window.findChild<QLabel*>("tlsIdentityStatus");
+        auto* error = window.findChild<QLabel*>("hostErrorExplanation");
+        auto* start = window.findChild<QPushButton*>("startSharing");
+        auto* clients = window.findChild<QComboBox*>("activeClientSelection");
+        auto* disconnect = window.findChild<QPushButton*>("disconnectClient");
+        assert(lan && selected && endpoint && trust && error && start &&
+               clients && disconnect);
+        assert(lan->count() == 3); // Placeholder and two eligible interfaces.
+        assert(lan->itemText(2).contains("Private Wi-Fi"));
+        assert(endpoint->text().contains("not reported"));
+        assert(trust->text().contains("no client trust is inferred"));
+        assert(!disconnect->isEnabled());
+        assert(!host.disconnectClient(7U));
+        assert(runtime.disconnectCalls == 0);
+
+        lan->setCurrentIndex(2);
+        assert(selected->text().contains("Private Wi-Fi"));
+        runtime.snapshot.credentialsConfigured = false;
+        window.refresh();
+        assert(!host.start({"wifi-2", "192.168.0.10", 3389U}));
+        assert(!start->isEnabled() && runtime.configureCalls == 0);
+        runtime.snapshot.credentialsConfigured = true;
+        window.refresh();
+        assert(window.canStart());
+        runtime.startSucceeds = true;
+        start->click();
+        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
+        assert(runtime.lastOptions.interfaceId == "wifi-2");
+        assert(runtime.lastOptions.localAddress == "192.168.0.10");
+        assert(!host.status().sharing); // A successful command is not Share.
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{7U, "192.168.0.44", false, true, true}};
+        window.refresh();
+        assert(endpoint->text().contains("192.168.0.10:3389"));
+        assert(clients->count() == 2 && !disconnect->isEnabled());
+        clients->setCurrentIndex(1);
+        assert(disconnect->isEnabled());
+        assert(!host.disconnectClient(8U));
+        assert(runtime.disconnectCalls == 0);
+        runtime.disconnectSucceeds = true;
+        disconnect->click();
+        assert(runtime.disconnectCalls == 1 && runtime.lastDisconnectedId == 7U);
+        assert(!disconnect->isEnabled() && clients->count() == 1);
+        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
+        window.refresh();
+        assert(error->text().contains("Sharing access revoked"));
+        return 0;
+    }
 
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "access")
     {

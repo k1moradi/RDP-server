@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "host_control.h"
 
+#include <algorithm>
+
 #include <string>
 #include <string_view>
 #include <utility>
@@ -68,23 +70,27 @@ HostStatus HostControl::status() const
 
     for (const RuntimeHostInterface& interface : runtime_.enumerateLocalInterfaces())
     {
-        if (!interface.lanEligible || interface.loopback)
+        if (!interface.lanEligible || interface.loopback ||
+            interface.stableId.empty())
             continue;
         for (const std::string& address : interface.localAddresses)
         {
             if (!address.empty())
-                view.approvedLanInterfaces.push_back(toQString(address));
+                view.approvedLanInterfaces.push_back({
+                    toQString(interface.stableId), toQString(interface.displayName),
+                    toQString(address)});
         }
     }
 
     view.lanAddress = toQString(runtimeStatus.boundEndpoint);
     for (const RuntimeHostClient& client : runtimeStatus.activeClients)
     {
-        if (!client.peerAddress.empty())
-            view.clients.push_back(toQString(client.peerAddress));
-        else
-            view.clients.push_back(
-                QStringLiteral("Connected client %1").arg(client.opaqueId));
+        const QString displayName = client.peerAddress.empty()
+            ? QStringLiteral("Connected client %1").arg(client.opaqueId)
+            : toQString(client.peerAddress);
+        view.clients.push_back(displayName);
+        if (client.opaqueId != 0)
+            view.activeClients.push_back({client.opaqueId, displayName});
     }
 
     if (runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected)
@@ -114,43 +120,57 @@ bool HostControl::start(const HostRequest& request)
 {
     using namespace rdp_server::server::runtime;
 
-    if (request.interfaceAddress.isEmpty())
+    // A GUI snapshot is an early denial gate, never R2/R1 authorization.
+    // The concrete R10 owner must still reauthorize every native operation.
+    const RuntimeHostStatus snapshot = runtime_.status();
+    if (snapshot.lastError == RuntimeHostError::ControlUnavailable ||
+        !snapshot.credentialsConfigured || !snapshot.hostOwnerAuthorized ||
+        !snapshot.tlsIdentityReady || !snapshot.nativeDesktopReady ||
+        isSharingStage(snapshot.stage) || isPendingStage(snapshot.stage) ||
+        request.interfaceId.isEmpty() || request.interfaceAddress.isEmpty())
         return false;
 
+    const std::string selectedInterfaceId = request.interfaceId.toStdString();
     const std::string selectedAddress = request.interfaceAddress.toStdString();
-    std::string selectedInterfaceId;
+    bool foundExactInterface = false;
     for (const RuntimeHostInterface& candidate : runtime_.enumerateLocalInterfaces())
     {
-        if (!candidate.lanEligible || candidate.loopback)
+        if (!candidate.lanEligible || candidate.loopback ||
+            candidate.stableId != selectedInterfaceId ||
+            std::ranges::find(candidate.localAddresses, selectedAddress) ==
+                candidate.localAddresses.end())
             continue;
-
-        bool containsAddress = false;
-        for (const std::string& address : candidate.localAddresses)
-        {
-            if (address == selectedAddress)
-            {
-                containsAddress = true;
-                break;
-            }
-        }
-        if (!containsAddress)
-            continue;
-        if (!selectedInterfaceId.empty())
-            return false; // R10 must disambiguate duplicate-address interfaces.
-        selectedInterfaceId = candidate.stableId;
+        if (foundExactInterface)
+            return false; // Duplicate stable identities must fail closed.
+        foundExactInterface = true;
     }
-    if (selectedInterfaceId.empty())
+    if (!foundExactInterface)
         return false;
 
     const RuntimeHostOptions options{
-        std::move(selectedInterfaceId),
-        selectedAddress,
-        request.port,
-        true,
-        false};
+        selectedInterfaceId, selectedAddress, request.port, true, false};
     if (!runtime_.configure(options).succeeded())
         return false;
     return runtime_.startSharing().succeeded();
+}
+
+bool HostControl::disconnectClient(const std::uint64_t opaqueClientId)
+{
+    using namespace rdp_server::server::runtime;
+    if (opaqueClientId == 0)
+        return false;
+
+    const RuntimeHostStatus snapshot = runtime_.status();
+    if (snapshot.lastError == RuntimeHostError::ControlUnavailable ||
+        (!isSharingStage(snapshot.stage) && !isPendingStage(snapshot.stage)) ||
+        !std::ranges::any_of(snapshot.activeClients,
+            [opaqueClientId](const RuntimeHostClient& client) {
+                return client.opaqueId == opaqueClientId;
+            }))
+        return false;
+
+    // R10 alone owns actual disconnect/revocation; this result is not proof.
+    return runtime_.disconnectClient(opaqueClientId).succeeded();
 }
 
 void HostControl::stopAndRevoke()

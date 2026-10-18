@@ -23,6 +23,7 @@ private:
     QStackedWidget* pages_;
     QComboBox* desktops_;
     QComboBox* interfaces_;
+    QComboBox* clientSelection_;
     QSpinBox* port_;
     QLineEdit* password_;
     QLineEdit* confirmation_;
@@ -30,11 +31,16 @@ private:
     QPushButton* requestHostPermission_;
     QPushButton* start_;
     QPushButton* stop_;
+    QPushButton* disconnect_;
     QPushButton* copy_;
     QLabel* desktopStatus_;
     QLabel* credentialStatus_;
     QLabel* permissionStatus_;
     QLabel* clipboardStatus_;
+    QLabel* selectedInterfaceStatus_;
+    QLabel* endpointStatus_;
+    QLabel* errorStatus_;
+    QLabel* tlsIdentityStatus_;
     QLabel* status_;
     QLabel* activity_;
     [[nodiscard]] QString blockedReason(const HostStatus& snapshot) const;

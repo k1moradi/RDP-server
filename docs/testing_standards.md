@@ -1,3 +1,22 @@
+## R7 real R10 interface/endpoint and active-client UI gate (2026-10-18)
+
+An R7 Qt GUI may show only a LAN interface identity/address actually
+enumerated by R10 and only the currently R10-reported bound endpoint.
+Never invent a numeric IP, listener state or TLS trust from a selected
+port or identity-readiness boolean. Distinguish a stable native interface
+ID from its numeric address: two eligible interfaces may enumerate the
+same address and must remain distinct. The GUI adapter rechecks that
+exact pair and current credential/desktop/TLS/native state as early
+fail-closed gates; concrete R10 remains authoritative.
+
+A disconnect button must use an opaque ID from the latest R10 active
+client list, deny zero/removed clients, request R10 disconnection only
+during active/pending sharing and reread status after the call. A click
+or command return is not a disconnect receipt. Offscreen
+`gui.offscreen-r10-interface-endpoint-client-disconnect-denials` runs on
+any Qt-enabled CTest host with an injected fake; no network/native OS,
+TCC, input or capture operation is permitted in the fixture.
+
 ## R5 bounded Set-1 scancode, held-key retirement and one-owner CTests (2026-10-18)
 
 Use the existing R3-decoded `ScancodeKeyboard` and R2's synchronous

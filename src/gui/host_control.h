@@ -5,10 +5,26 @@
 
 #include <QString>
 #include <QStringList>
+#include <QVector>
 #include <cstdint>
 
 namespace rdp::gui
 {
+
+// Exactly one R10 interface identity/address pair. Display text grants no bind.
+struct LanInterfaceChoice
+{
+    QString stableId;
+    QString displayName;
+    QString address;
+};
+
+// Opaque R10 client identity is usable only while the current snapshot agrees.
+struct ActiveClientChoice
+{
+    std::uint64_t opaqueId{};
+    QString displayName;
+};
 
 // Qt-facing projection only. R10 remains the sole command/status authority;
 // these fields never mint an R2 lease, native permission or listener.
@@ -24,7 +40,8 @@ struct HostStatus
     rdp_server::server::runtime::RuntimeClipboardState clipboardState{
         rdp_server::server::runtime::RuntimeClipboardState::Unavailable};
     QString desktop;
-    QStringList approvedLanInterfaces;
+    QVector<LanInterfaceChoice> approvedLanInterfaces;
+    QVector<ActiveClientChoice> activeClients;
     QString lanAddress;
     QString failure;
     QStringList clients;
@@ -35,6 +52,7 @@ struct HostStatus
 
 struct HostRequest
 {
+    QString interfaceId;
     QString interfaceAddress;
     std::uint16_t port{3389U};
 };
@@ -51,6 +69,7 @@ public:
     [[nodiscard]] bool requestExistingOsAccount();
     [[nodiscard]] bool requestHostPermission();
     [[nodiscard]] bool start(const HostRequest& request);
+    [[nodiscard]] bool disconnectClient(std::uint64_t opaqueClientId);
     void stopAndRevoke();
 
 private:

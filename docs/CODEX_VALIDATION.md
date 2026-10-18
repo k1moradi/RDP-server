@@ -185,8 +185,10 @@ Independent GUI password remains unsupported.
 Authored `security/authentication_attempt_limiter.h` as a single-owner,
 zero-allocation service-lifetime policy and wired the verified Linux serve
 peer/global gate ahead of R1 TLS and CredSSP creation. A separate
-provider-verified account budget is present but **NOT YET CALLED**
-by the final PAM path; it cannot be fed a claimed GUI username.
+provider-verified account budget was **NOT YET CALLED** by PAM at the
+initial `1cebf889` publication; the later `1aa476e5` integration
+now charges only the proven GSS principal before PAM, never a claimed
+GUI username.
 No mechanism, credentials, admission lease, listener, host consent,
 frame, input or clipboard path is promoted by the policy.
 

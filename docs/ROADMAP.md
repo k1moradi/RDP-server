@@ -186,8 +186,9 @@ unexpired table and regressing clock fail closed; no network/OS/token
 side effects or identity-bearing diagnostics. Separately, the same
 policy offers an eight-attempt, 64-account gate that MUST receive only a
 provider-verified GSS principal, never untrusted client account text.
-**That account gate is NOT YET WIRED** to the final PAM verification and
-must not be claimed as enforcement; R2 owns this remaining integration.
+The account gate was initially an unwired API at `1cebf889`;
+`1aa476e5` now binds and charges the GSS-verified principal immediately
+before PAM. Positive owner/client verification remains **NOT RUN**.
 Dedicated cross-platform offline CTest
 `security.bounded-peer-global-and-account-attempts` covers per-peer,
 global, account, expiry, table exhaustion, invalid input and backward

@@ -93,6 +93,12 @@ add_test(NAME packaging.macos-portable-gui-macdeployqt-symlink-resolution
         MacGuiBundleTests.test_macdeployqt_symlink_resolution_requires_executable_target)
 set_tests_properties(packaging.macos-portable-gui-macdeployqt-symlink-resolution
     PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
+add_test(NAME packaging.macos-portable-gui-minimal-cocoa-deployment
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_gui_bundle.py"
+        MacGuiBundleTests.test_macdeployqt_minimal_cocoa_deployment_command)
+set_tests_properties(packaging.macos-portable-gui-minimal-cocoa-deployment
+    PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
 
 # R7 optional per-user LaunchAgent contract. Rendering is offline and refuses
 # implicit registration; tests never invoke a service manager or native APIs.

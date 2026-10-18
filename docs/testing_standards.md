@@ -4141,3 +4141,20 @@ When R5 adds a production-backed decoded RDP input translation or R2-protected n
 ## Workflow authoring must treat literal shell `$'` as data (2026-10-18)
 
 When generating or patching workflow text programmatically, do not use JavaScript replacement-string semantics for replacement content containing shell dollar constructs. In particular, a literal regex ending in `$'` can be interpreted as JavaScript's suffix-substitution token and corrupt the remainder of the YAML. Use function-based replacement or an equivalent literal-safe operation, then validate the complete reconstructed workflow before publication.
+
+## macOS Qt GUI packaging deploys only the required Cocoa platform plugin (R7, 2026-10-18)
+
+The R7 Widgets GUI is not a QML application. Native PORTABLE-GUI packaging
+therefore runs `macdeployqt` with `-no-plugins` and `-no-codesign`,
+stages exactly Qt's required `platforms/libqcocoa.dylib`, and passes that
+staged Mach-O through `-executable=` so the deployment tool patches and
+deploys the app/plugin runtime dependencies together. The Qt plugin root is
+queried through the sibling `qmake -query QT_INSTALL_PLUGINS`; both tools
+and the plugin path are resolved strictly. Do not relax the extracted
+`otool -L` ban on Homebrew/runner paths to accommodate unused QML,
+VirtualKeyboard, PDF or SVG plugin closures.
+
+`packaging.macos-portable-gui-minimal-cocoa-deployment` injects the process
+runner and proves the production command contains `-no-plugins`,
+`-no-codesign` and the exact staged Cocoa plugin, without invoking Qt,
+AppKit, codesign, TCC or networking.

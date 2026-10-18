@@ -112,25 +112,59 @@ def validate_source_app(app: Path) -> None:
         require(inside(path, app), "input app escapes its root")
 
 
-def resolve_macdeployqt(macdeployqt: Path) -> Path:
+def resolve_regular_executable(path: Path, label: str) -> Path:
     try:
-        resolved = macdeployqt.resolve(strict=True)
+        resolved = path.resolve(strict=True)
     except (OSError, RuntimeError) as error:
-        raise MacGuiBundleError("macdeployqt path is unavailable") from error
+        raise MacGuiBundleError(f"{label} path is unavailable") from error
     require(resolved.is_file() and not resolved.is_symlink(),
-            "macdeployqt must resolve to a regular file")
+            f"{label} must resolve to a regular file")
     require(os.access(resolved, os.X_OK),
-            "macdeployqt target must be executable")
+            f"{label} target must be executable")
     return resolved
 
 
+def resolve_macdeployqt(macdeployqt: Path) -> Path:
+    return resolve_regular_executable(macdeployqt, "macdeployqt")
+
+
+def query_qt_plugin_root(macdeployqt: Path, runner=subprocess.run) -> Path:
+    qmake = resolve_regular_executable(macdeployqt.parent / "qmake", "qmake")
+    result = runner(
+        [str(qmake), "-query", "QT_INSTALL_PLUGINS"],
+        capture_output=True, text=True, timeout=30, check=True,
+        stdin=subprocess.DEVNULL)
+    lines = [line.strip() for line in result.stdout.splitlines()
+             if line.strip()]
+    require(len(lines) == 1 and "\x00" not in lines[0],
+            "qmake returned an invalid Qt plugin root")
+    try:
+        plugin_root = Path(lines[0]).resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise MacGuiBundleError("Qt plugin root is unavailable") from error
+    require(plugin_root.is_dir() and not plugin_root.is_symlink(),
+            "Qt plugin root must resolve to a directory")
+    return plugin_root
+
+
 def deploy_with_macdeployqt(app: Path, staging: Path,
-                            macdeployqt: Path) -> None:
+                            macdeployqt: Path, runner=subprocess.run) -> None:
     deployment_tool = resolve_macdeployqt(macdeployqt)
+    plugin_root = query_qt_plugin_root(macdeployqt, runner)
+    source_plugin = (
+        plugin_root / "platforms/libqcocoa.dylib").resolve(strict=True)
+    regular_macho(source_plugin)
+
     staged_app = staging / APP_NAME
     shutil.copytree(app, staged_app, symlinks=False)
-    subprocess.run(
-        [str(deployment_tool), str(staged_app), "-always-overwrite"],
+    staged_plugin = staged_app / "Contents/PlugIns/platforms/libqcocoa.dylib"
+    staged_plugin.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_plugin, staged_plugin, follow_symlinks=True)
+    regular_macho(staged_plugin)
+
+    runner(
+        [str(deployment_tool), str(staged_app), "-always-overwrite",
+         "-no-plugins", "-no-codesign", f"-executable={staged_plugin}"],
         check=True, timeout=240, cwd=staging, stdin=subprocess.DEVNULL)
 
 

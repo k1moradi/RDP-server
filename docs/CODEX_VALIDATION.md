@@ -6528,3 +6528,29 @@ Source-app/archive symlink policy is unchanged. Added dedicated
 macOS execution in this connector environment is NOT RUN; publication-SHA
 macdeployqt, R9 archive verification and Mach-O closure are PENDING. Live GUI
 Start remains BLOCKED on R10's absent concrete `RuntimeHostControl` backend.
+
+### R7 macOS PORTABLE-GUI minimal Cocoa deployment correction (2026-10-18)
+
+Hosted `42e14927a2bd` advances the native package lane through arm64 Qt
+provisioning, real `rdp-server-desktop.app` build and the synthetic archive
+contract. The Homebrew `macdeployqt` symlink resolution succeeds. The next
+first failure is broad default plugin deployment: `macdeployqt` reports
+unresolved QtPdf/QtSvg/QtVirtualKeyboard dependencies and codesign errors, and
+the extracted Mach-O audit correctly finds `/opt/homebrew` QtQml/QtDBus/
+QtWidgets references. The closure check is not weakened.
+
+Qt's macOS deployment contract permits `-no-plugins`; the Cocoa QPA plugin is
+the required platform plugin for a macOS GUI. This correction stages only that
+plugin, asks the same deployment tool to process it via `-executable=`,
+and uses `-no-codesign` to match the archive's explicit unsigned-preview
+metadata. Added
+`packaging.macos-portable-gui-minimal-cocoa-deployment`. Local/native
+execution is NOT RUN in this connector environment. Publication-SHA real
+macdeployqt, R9 archive verifier and Mach-O closure are PENDING.
+
+Dependency recheck also found R5 `746bf766` now owns fail-closed native
+mapping behind R2's slow-path input gateway and R10 `fb027572` links that
+bridge into the production executable. R10 intentionally does not invoke it
+yet: production still performs one zero-timeout native poll/event drain and
+then disconnects/revokes, pending a single R1 complete-TPKT post-Share router.
+No concrete `RuntimeHostControl` exists, so live Qt Start remains BLOCKED.

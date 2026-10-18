@@ -179,6 +179,55 @@ class MacGuiBundleTests(unittest.TestCase):
                 bundle.MacGuiBundleError, "path is unavailable"):
             bundle.resolve_macdeployqt(broken)
 
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "macOS deployment-tool execution is not meaningful on Windows")
+    def test_macdeployqt_minimal_cocoa_deployment_command(self):
+        prefix = self.root / "Homebrew opt qt"
+        binary_dir = prefix / "bin"
+        plugin_dir = prefix / "plugins/platforms"
+        binary_dir.mkdir(parents=True)
+        plugin_dir.mkdir(parents=True)
+
+        qmake = binary_dir / "qmake"
+        qmake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        qmake.chmod(0o755)
+        tool = binary_dir / "macdeployqt"
+        tool.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        tool.chmod(0o755)
+        cocoa = plugin_dir / "libqcocoa.dylib"
+        cocoa.write_bytes(b"\xcf\xfa\xed\xfeQt Cocoa source")
+
+        calls = []
+        class Result:
+            stdout = ""
+
+        def runner(command, **kwargs):
+            calls.append((command, kwargs))
+            result = Result()
+            if command[0] == str(qmake.resolve(strict=True)):
+                result.stdout = str((prefix / "plugins").resolve(strict=True)) + "\n"
+            return result
+
+        staging = self.root / "staging"
+        staging.mkdir()
+        bundle.deploy_with_macdeployqt(
+            self.app, staging, tool, runner=runner)
+
+        staged_plugin = staging / bundle.QT_PLATFORM
+        self.assertTrue(staged_plugin.is_file())
+        self.assertEqual(staged_plugin.read_bytes(), cocoa.read_bytes())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(
+            calls[0][0],
+            [str(qmake.resolve(strict=True)), "-query", "QT_INSTALL_PLUGINS"])
+        deployment = calls[1][0]
+        self.assertEqual(deployment[0], str(tool.resolve(strict=True)))
+        self.assertIn("-no-plugins", deployment)
+        self.assertIn("-no-codesign", deployment)
+        self.assertIn(f"-executable={staged_plugin}", deployment)
+        self.assertNotIn("-qmldir", " ".join(deployment))
+
     def test_packager_has_no_host_activation_or_permission_mutator(self):
         source = (
             ROOT / "packaging/macos/gui_bundle.py"

@@ -1154,3 +1154,15 @@ symlink. It resolves that path strictly and executes only the resulting
 regular executable target. Broken links, directories and non-executable
 targets fail closed. This does not permit symlink members in the source app or
 portable archive.
+
+## macOS minimal Qt plugin deployment (2026-10-18)
+
+The desktop GUI links Qt Widgets and requires Cocoa QPA, not QML. The packager
+queries the Qt plugin root using the `qmake` sibling of the supplied
+`macdeployqt`, copies only `platforms/libqcocoa.dylib`, then invokes
+`macdeployqt` with `-no-plugins -no-codesign` and
+`-executable=<staged libqcocoa.dylib>`. This keeps the development-preview
+archive unsigned as declared in its metadata and avoids dragging unrelated
+Homebrew Qt QML/VirtualKeyboard/PDF plugin trees into the package. Native CI
+still rejects any extracted Mach-O dependency that resolves to Homebrew or a
+runner-home path.

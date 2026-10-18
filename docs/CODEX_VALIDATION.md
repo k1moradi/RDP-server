@@ -1,3 +1,27 @@
+## R7 macOS packaging blocker resolved; optional LaunchAgent increment (2026-10-17)
+
+Exact shared head `9a2d09968e741d13bc1c5e76753ecaf1be7557ef` resolves the
+earlier R7 packaging failures. Structure run `39066363884` and primary run
+`39066363832` are **PASS**. Hosted macOS completed **546/546 Debug + 546/546
+Release**; the dedicated R7 lifecycle selector completed **21/21 Debug + 21/21
+Release**; the R7 sanitizer job retained the **2/2** authority-loss input
+selection. `macos.package-offline-integrity-and-idempotence` passed and CI
+published both artifact ID `12113655981` (protocol test bundle) and the
+startup-disabled arm64 SERVER-TEST artifact ID `12112948247`,
+`rdp-server-test-0.1.0-macos-arm64-9a2d09968e74`. The three-platform
+SERVER-TEST status job also passed.
+
+That verified executable preview removes the packaging-only reason to defer an
+optional user lifecycle configuration, but it does **not** remove native
+serving gates. This increment therefore adds only a plist renderer/validator
+and packages it with the macOS SERVER-TEST artifact. Local synthetic command:
+`python3 tests/test_macos_test_launch_agent.py --script scripts/macos_test_launch_agent.py`
+is **PASS (5/5)** in the connector execution environment. Canonical owner
+`~/rdp-server/build` CTest, publication-SHA hosted CI, macOS 27 and live
+native serving are **NOT RUN / PENDING or BLOCKED** as applicable. Next gate:
+hosted publication-SHA CTest/package smoke; live serving still requires genuine
+R2 macOS lease + R10 AppKit owner + R3 Graphics DATA/input composition.
+
 ## R9 Windows SERVER-TEST first package failure (2026-10-17)
 
 Corrective SHA `ef0feac1ad6dc15273d695d7fedf4b8a14e72714` repaired the R7

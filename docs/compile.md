@@ -1,3 +1,18 @@
+## R7 macOS optional LaunchAgent packaging boundary (2026-10-17)
+
+The macOS SERVER-TEST artifact now carries
+`tools/macos_test_launch_agent.py`, copied from first-party source after the
+ordinary Release CTest. It uses only Python standard-library `plistlib` and
+path handling; no new compiler, framework, package, entitlement, signing
+identity or service-manager dependency is added. The dedicated offline CTest is
+`packaging.macos-user-launch-agent-offline-contract`.
+
+The helper renders only to an explicit review path and refuses direct output to
+the user's `~/Library/LaunchAgents/org.rdpserver.server-test.plist`. CI never
+calls `launchctl`, TCC, ScreenCaptureKit or Quartz input. Packaging remains
+single-architecture according to the actually built Mach-O; no universal
+binary is inferred or synthesized.
+
 ## R9 Windows SERVER-TEST dependency-resolution boundary (2026-10-17)
 
 Exact-head run `39065727144` at `ef0feac1` passed Linux/macOS SERVER-TEST

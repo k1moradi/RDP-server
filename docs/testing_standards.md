@@ -1,3 +1,23 @@
+## R7 optional macOS LaunchAgent remains inert until explicit owner action (2026-10-17)
+
+`packaging.macos-user-launch-agent-offline-contract` executes only the
+first-party Python renderer/validator with temporary files. It requires the
+fixed per-user SERVER-TEST executable path, Aqua session type,
+`RunAtLoad=false`, `KeepAlive=false`, exact label and an exact key set.
+Alternate executables, root homes, socket/MachService/environment triggers,
+unknown keys, malformed plists and direct writes into
+`~/Library/LaunchAgents` fail closed. The helper imports no subprocess/socket
+activation primitive and contains no TCC, ScreenCaptureKit or Quartz-input
+operation. This CTest is portable/offline and must not register or start a job.
+
+The macOS SERVER-TEST archive may carry the helper because R9 now packages the
+actual startup-disabled `rdp-server` executable. Carrying the helper is not
+runtime admission: manual `bootstrap` has no start trigger, and a manual
+`kickstart` must still encounter the current fail-closed `serve` command
+until R2/R10/R3 secure startup is implemented. Keep the existing focused R7
+**21-case** native selection and **2-case** authority-loss input sanitizer
+selection unchanged.
+
 ## R9 cross-platform SERVER-TEST preview assurance (2026-10-17)
 
 `packaging.server-test-cross-platform-offline-contract` is the portable,

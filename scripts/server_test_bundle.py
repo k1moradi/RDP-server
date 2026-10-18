@@ -21,6 +21,8 @@ import zipfile
 
 ARTIFACT_FAMILY = "SERVER-TEST"
 SCHEMA_VERSION = 1
+MACOS_LAUNCH_AGENT_LABEL = "org.rdpserver.server-test"
+MACOS_LAUNCH_AGENT_HELPER = "tools/macos_test_launch_agent.py"
 MAX_MEMBER_BYTES = 256 * 1024 * 1024
 FORBIDDEN_PAYLOAD_SUFFIXES = {
     ".ccache", ".keytab", ".kirbi", ".p12", ".pfx", ".pem.key", ".private",
@@ -361,6 +363,11 @@ def install_contract(os_name: str) -> dict[str, object]:
         "service_template": None,
         "service_registration": False,
         "autostart": False,
+        "launch_agent_label": MACOS_LAUNCH_AGENT_LABEL,
+        "launch_agent_helper": MACOS_LAUNCH_AGENT_HELPER,
+        "launch_agent_registration": False,
+        "launch_agent_run_at_load": False,
+        "launch_agent_keep_alive": False,
     }
 
 
@@ -372,13 +379,51 @@ def bundle_readme(
     compiler: dict[str, str],
 ) -> str:
     contract = install_contract(os_name)
-    native_note = (
-        "Linux additionally carries R5's disabled user-service template, but extraction does not "
-        "install, enable, or start it."
-        if os_name == "linux"
-        else f"{contract['owner']} has not authorized a native serving service in this preview; "
-        "the install contract remains extraction-only."
-    )
+    if os_name == "linux":
+        native_note = (
+            "Linux additionally carries R5's disabled user-service template, but extraction does not "
+            "install, enable, or start it."
+        )
+    elif os_name == "macos":
+        native_note = (
+            "macOS additionally carries R7's LaunchAgent renderer/validator. It writes only an "
+            "explicit output file, refuses the user's Library/LaunchAgents registration path, "
+            "and never registers or starts a job. The rendered job is Aqua-only with "
+            "RunAtLoad=false and KeepAlive=false."
+        )
+    else:
+        native_note = (
+            f"{contract['owner']} has not authorized a native serving service in this preview; "
+            "the install contract remains extraction-only."
+        )
+
+    macos_launch_agent = ""
+    if os_name == "macos":
+        macos_launch_agent = f"""
+## Optional macOS GUI-user LaunchAgent
+
+Place the verified artifact contents at
+`~/Library/Application Support/RDP-server/server-test/`. Render the plist to
+a review location first:
+
+```sh
+python3 tools/macos_test_launch_agent.py render --home "$HOME" \\
+  --output ./org.rdpserver.server-test.plist
+python3 tools/macos_test_launch_agent.py validate --home "$HOME" \\
+  --plist ./org.rdpserver.server-test.plist
+```
+
+The helper refuses to write directly to `~/Library/LaunchAgents`; it never
+calls a service manager. After inspection, manual registration may copy the
+plist there and use `launchctl bootstrap gui/$(id -u) ...`. Registration does
+not start the job because `RunAtLoad=false`, `KeepAlive=false`, and there
+are no socket/MachService triggers. Manual `kickstart` is the only intended
+start action. At this preview revision the `serve` command still fails closed
+with exit 2; do not treat registration as native-server readiness. Stop with
+`launchctl kill SIGTERM gui/$(id -u)/{MACOS_LAUNCH_AGENT_LABEL}`; uninstall
+with `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/{MACOS_LAUNCH_AGENT_LABEL}.plist`
+and then remove that plist. Never use a LaunchDaemon or `sudo`.
+"""
     return f"""# SERVER-TEST startup-disabled preview
 
 **Artifact:** `{artifact_name}`
@@ -422,7 +467,7 @@ manifest/checksums. The CI smoke performs identical install twice and uninstall
 twice to prove the extraction-only lifecycle is idempotent. No system service,
 LaunchAgent/LaunchDaemon, Windows service, scheduled task, or login item is
 created by this artifact.
-
+{macos_launch_agent}
 ## Configuration and dependencies
 
 `config/rdp-server.conf.example` is a loopback-only syntax sample containing
@@ -833,6 +878,12 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path, Path]:
         if not source_path.is_file():
             raise BundleError(f"required license material missing: {source_name}")
         add(bundle_name, source_path.read_bytes())
+
+    if os_name == "macos":
+        launch_agent_helper = source_root / "scripts/macos_test_launch_agent.py"
+        if not launch_agent_helper.is_file():
+            raise BundleError("R7 macOS LaunchAgent helper missing")
+        add(MACOS_LAUNCH_AGENT_HELPER, launch_agent_helper.read_bytes())
 
     if os_name == "linux":
         r5_service = source_root / "packaging/linux/rdp-server-test.service"

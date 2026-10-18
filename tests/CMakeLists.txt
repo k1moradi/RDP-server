@@ -27,6 +27,15 @@ add_test(NAME macos.package-offline-integrity-and-idempotence
         --script "${PROJECT_SOURCE_DIR}/scripts/macos_test_bundle.py")
 set_tests_properties(macos.package-offline-integrity-and-idempotence PROPERTIES
     LABELS "macos;packaging;security;offline")
+
+# R7 optional per-user LaunchAgent contract. Rendering is offline and refuses
+# implicit registration; tests never invoke a service manager or native APIs.
+add_test(NAME packaging.macos-user-launch-agent-offline-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_test_launch_agent.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_test_launch_agent.py")
+set_tests_properties(packaging.macos-user-launch-agent-offline-contract PROPERTIES
+    LABELS "macos;packaging;security;offline" TIMEOUT 20)
 add_test(NAME project.ci-workflow-structure-denials
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/scripts/validate_ci_workflow.py"

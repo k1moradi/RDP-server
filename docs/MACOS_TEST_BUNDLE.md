@@ -13,9 +13,14 @@ family. R9 separately builds
 `rdp-server-test-<version>-macos-<architecture>-<short-sha>.zip` from the
 actual current `rdp-server` executable. That executable preview is also
 startup-disabled and uses an extraction-only manifest under a distinct
-`server-test` location; it does not install a LaunchAgent, ScreenCaptureKit
-owner, Quartz injector or authenticated R2 lease. Hosted SERVER-TEST smoke is
-therefore package/CLI evidence only and is not owner-native macOS acceptance.
+`server-test` location. Exact head `9a2d09968e741d13bc1c5e76753ecaf1be7557ef`
+has green primary Actions `39066363832` and structure Actions `39066363884`:
+hosted macOS passes **546/546 Debug + 546/546 Release**, the dedicated R7
+lifecycle job passes **21/21 Debug + 21/21 Release**, the authority-loss input
+sanitizer selector passes **2/2**, and R9 produced the actual single-slice
+`rdp-server-test-0.1.0-macos-arm64-9a2d09968e74` startup-disabled preview.
+Artifact presence remains package/CLI evidence only, not owner macOS 27 or
+native admission acceptance.
 
 
 ## Hosted release inputs and verification
@@ -62,14 +67,47 @@ template for future admitted runtime: `mode = "PersonalDesktop"`,
 `native_input_enabled = false`. It is documentation, not a recognized runtime
 configuration schema.
 
-Optional future GUI-user lifecycle is **disabled / not installed**. Do not
-load a LaunchAgent until R10 supplies an authenticated per-user foreground
-executable and lifecycle handshake. At that point an opt-in user LaunchAgent
-must have `RunAtLoad=false`, `KeepAlive=false`, a fixed absolute program
-path and a validated per-user label, with explicit owner `bootstrap`,
-`bootout`, status and uninstall operations. Reject extra keys and external
-program paths; never use a LaunchDaemon, implicit installer bootstrap or
-automatically open Screen Recording/Accessibility prompts.
+The R9 macOS SERVER-TEST preview now carries
+`tools/macos_test_launch_agent.py` as an **optional disabled-by-default**
+GUI-user configuration helper. It renders label
+`org.rdpserver.server-test` only for the fixed absolute executable path
+`~/Library/Application Support/RDP-server/server-test/bin/rdp-server`.
+The plist is Aqua-only with `RunAtLoad=false` and `KeepAlive=false`; unknown
+keys, alternate executable paths, socket/MachService triggers, root homes and
+direct rendering into `~/Library/LaunchAgents` are denied. The helper does
+not execute `launchctl`, open sockets, request TCC, capture pixels or inject
+input.
+
+Render and validate to a review location, then install/register it only by
+explicit owner action:
+
+```sh
+server_root="$HOME/Library/Application Support/RDP-server/server-test"
+cd "$server_root"
+python3 tools/macos_test_launch_agent.py render --home "$HOME" \
+  --output ./org.rdpserver.server-test.plist
+python3 tools/macos_test_launch_agent.py validate --home "$HOME" \
+  --plist ./org.rdpserver.server-test.plist
+
+mkdir -p "$HOME/Library/LaunchAgents"
+install -m 600 ./org.rdpserver.server-test.plist \
+  "$HOME/Library/LaunchAgents/org.rdpserver.server-test.plist"
+launchctl bootstrap "gui/$(id -u)" \
+  "$HOME/Library/LaunchAgents/org.rdpserver.server-test.plist"
+launchctl print "gui/$(id -u)/org.rdpserver.server-test"
+```
+
+`bootstrap` only registers this no-trigger job. **Manual start remains
+non-serving today**: `launchctl kickstart -k
+"gui/$(id -u)/org.rdpserver.server-test"` reaches the current
+`rdp-server serve` refusal and exits without a listener. Once R2/R10/R3
+secure startup exists, the same explicit kickstart is the intended foreground
+GUI-user activation point. Stop with `launchctl kill SIGTERM
+"gui/$(id -u)/org.rdpserver.server-test"`; uninstall with `launchctl bootout
+"gui/$(id -u)" "$HOME/Library/LaunchAgents/org.rdpserver.server-test.plist"`,
+remove that plist, then remove only the verified SERVER-TEST directory.
+Never use a LaunchDaemon, `sudo`, implicit installer bootstrap or automatic
+Screen Recording/Accessibility prompts.
 
 Screen Recording and Accessibility are separate **operation-specific**
 prerequisite observations, neither authentication nor R2 admission. Only R2 may

@@ -284,11 +284,24 @@ jobs:
   # R9 cross-platform acceptance for disabled previews only. This job does not
   # publish a release and does not substitute for M1 owner-native or M2 clients.
   server-test-preview-status:
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.server_test_preview && github.ref == 'refs/heads/main') }}
+    # Always evaluate producer results on SERVER-TEST preview events. Without
+    # always(), a failed dependency silently skips this release-control job.
+    if: ${{ always() && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.server_test_preview && github.ref == 'refs/heads/main')) }}
     needs: [ci-workflow-structure, protocol]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Require SERVER-TEST preview producer success
+        env:
+          SERVER_TEST_STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
+          SERVER_TEST_PROTOCOL_RESULT: ${{ needs.protocol.result }}
+        run: |
+          set -euo pipefail
+          if [[ "$SERVER_TEST_STRUCTURE_RESULT" != "success" || "$SERVER_TEST_PROTOCOL_RESULT" != "success" ]]; then
+            printf 'SERVER-TEST preview prerequisites failed: structure=%s protocol=%s\n' \
+              "$SERVER_TEST_STRUCTURE_RESULT" "$SERVER_TEST_PROTOCOL_RESULT" >&2
+            exit 1
+          fi
       - name: Download three SERVER-TEST preview artifacts
         uses: actions/download-artifact@v4
         with:

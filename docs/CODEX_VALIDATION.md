@@ -1,3 +1,9 @@
+## R9 stale Graphics-DVC source guard repair after R10 native-owner handoff (2026-10-18)
+
+Exact `bdefd837eb8acd3cb7e83e8380befab4742e3a11` hosted Ubuntu full CTest reaches 723 cases and fails only `runtime.linux-serve-graphics-dvc-composition`. The source guard still required the serve loop to revoke immediately after Graphics control readiness. R10 `e6fa65c475b9d322984e34bd6b4cd5ec90cd1126` intentionally inserted the genuine R2-selected X11 owner/native-watch stage there; the adjacent dedicated `runtime.linux-serve-r2-selected-x11-owner-composition` test passes on the same SHA.
+
+This repair does not relax frame safety. The Graphics-DVC guard now requires the production native-owner handoff markers (`LinuxAuthorizedX11DesktopOwner` and `visitNativeDesktopSelection`) and retains the explicit rejection of any `startPersonalDesktopGraphicsFramePublication` call. The separate native-owner CTest continues to own poll/unregister/revocation ordering. Production runtime code is unchanged. The native Windows PORTABLE-GUI packaging step on the same SHA has also failed, but its job is still executing and GitHub has not exposed a completed log; that failure is deliberately not guessed at here. Exact correction-SHA hosted CI: **PENDING**.
+
 ## R9 native Windows PORTABLE-GUI closure and offline first-screen gate (2026-10-18)
 
 Dependency review on parent `4aef1a74c052516aac7e5dc484757b7ee4898744` found all three packaging producers present: R5 Linux is hosted-green, R6 has the corrected Windows windeployqt ZIP builder, and R7 has an arm64 macOS .app ZIP builder. R10 has also reached genuine Share activation, Graphics DVC control and one R2-selected X11 owner/native watch. R10 still stops before first R4/R3 frame publication and the concrete GUI host backend remains unavailable, so this increment is packaging assurance only.

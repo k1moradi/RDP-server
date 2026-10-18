@@ -11,7 +11,9 @@ foreach(required_text IN ITEMS
         "advancePersonalDesktopGraphicsDynamicVirtualChannel"
         "GraphicsStep::Ready"
         "authorizePersonalDesktopApplicationTraffic"
-        "DRDYNVC capabilities, Graphics CREATE and RDPGFX CAPS are now composed")
+        "DRDYNVC capabilities, Graphics CREATE and RDPGFX CAPS are now composed"
+        "LinuxAuthorizedX11DesktopOwner"
+        "visitNativeDesktopSelection")
     string(FIND "${runtime_source}" "${required_text}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR
@@ -26,10 +28,6 @@ if(NOT frame_publication EQUAL -1)
         "R10 serve loop must not publish a synthetic frame before the R2-selected R5/R4 owner exists")
 endif()
 
-string(FIND "${runtime_source}"
-    "connection.revoke();\n    return true;\n}\n\n[[nodiscard]] bool runLinuxPersonalDesktopServe"
-    terminal_revoke)
-if(terminal_revoke EQUAL -1)
-    message(FATAL_ERROR
-        "R10 must still retire the connection after Graphics control readiness until native frame composition lands")
-endif()
+# R10 may now hand off to the genuine R2-selected native owner before
+# retirement. This guard still forbids frame publication; the dedicated
+# native-owner composition CTest owns the later poll/revocation details.

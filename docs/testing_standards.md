@@ -3995,3 +3995,7 @@ otool/codesign checks and an extracted offline launch smoke.
 ## R9 native Windows portable-GUI closure and first-screen smoke (2026-10-18)
 
 Windows portable assurance must run on the actual Qt GUI built by a native Windows toolchain, not only synthetic PE fixtures. After local windeployqt staging, independently recompute the outer ZIP digest, run the common PORTABLE-GUI archive verifier, extract under a space-containing path and recursively inspect every .exe/.dll import. Only documented Windows/API-set DLLs may be absent from the archive; Qt, compiler and other third-party runtimes must be app-local. The extracted deny-only GUI must pass its offline self-test/start-denial modes and normal first-screen launch without owning TCP/UDP sockets or changing firewall profile state, then close and rerun. Hosted-admin execution is not an unprivileged owner-native receipt. Do not upload the ZIP from a job that can complete before the whole exact-SHA matrix is green.
+
+## Source guards advance with intentionally inserted production stages (2026-10-18)
+
+A source-level composition guard must assert the current authority boundary, not a historical exact tail sequence. When a new authorized production stage is inserted between guarded stages, update the earlier guard to require the new handoff and preserve its real safety invariant. Graphics control still must not publish a frame, but immediate revocation is no longer correct once the genuine R2-selected native-owner stage exists; poll/revocation details remain owned by the dedicated native-owner guard.

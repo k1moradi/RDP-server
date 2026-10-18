@@ -23,9 +23,13 @@ endforeach()
 
 string(FIND "${runtime_source}"
     "startPersonalDesktopClearCodecFramePublication" frame_publication)
-if(NOT frame_publication EQUAL -1)
+string(FIND "${runtime_source}"
+    "visitNativeDesktopSelection" native_selection)
+if(frame_publication EQUAL -1 OR
+   native_selection EQUAL -1 OR
+   frame_publication LESS native_selection)
     message(FATAL_ERROR
-        "R10 serve loop must not publish a frame before the persistent R2-selected R5/R4 owner exists")
+        "R10 must publish only after R2-selected X11 owner composition")
 endif()
 
 # R10 may now hand off to the genuine R2-selected native owner before

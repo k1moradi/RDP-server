@@ -250,6 +250,24 @@ LinuxRuntimeConnection::ioInterest() const noexcept
     });
 }
 
+int LinuxRuntimeConnection::nativeSocketPollDescriptor() const noexcept
+{
+    if (!ready())
+        return -1;
+    const auto socket = connection_.nativeSocket();
+    if (socket >
+        static_cast<std::uintptr_t>((std::numeric_limits<int>::max)()))
+        return -1;
+    return static_cast<int>(socket);
+}
+
+bool LinuxRuntimeConnection::bufferedTlsApplicationReadReady() const noexcept
+{
+    using Interest = rdp_server::server::transport::TcpConnectionIoInterest;
+    return ready() && ioInterest() == Interest::Read &&
+           connection_.tlsApplicationReadReady();
+}
+
 LinuxRuntimeSocketPollResult
 LinuxRuntimeConnection::pollSocketReadinessOnce(
     std::chrono::steady_clock::time_point deadline,
@@ -3423,6 +3441,20 @@ bool LinuxRuntimeConnection::unregisterNativeChange(
 
     // Caller has already removed this exact borrowed fd/generation record.
     nativeChangeRegistrationUnregistered_ = true;
+    return true;
+}
+
+bool LinuxRuntimeConnection::releaseNativeChangeWithoutDispatch(
+    const LinuxRuntimeNativeChangeRegistration &registration) noexcept
+{
+    if (!nativeChangeRegistrationUnregistered_ ||
+        !nativeChangeRegistrationMatches(registration))
+        return false;
+
+    // The poll call is over and its stack descriptor set is gone. No native
+    // event was delivered, so do not invoke R2's logind callback needlessly.
+    nativeChangeRegistration_.reset();
+    nativeChangeRegistrationUnregistered_ = false;
     return true;
 }
 

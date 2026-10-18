@@ -19,7 +19,8 @@ foreach(required_runtime_text IN ITEMS
         "unregisterNativeChange"
         "dispatchNativeChangeReady"
         "retireAfterAuthorizationLoss"
-        "nativeOwner.desktop->disconnect()")
+        "releaseNativeChangeWithoutDispatch"
+        "nativeOwner.desktop->retireAfterAuthorizationLoss()")
     string(FIND "${runtime_source}" "${required_runtime_text}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR

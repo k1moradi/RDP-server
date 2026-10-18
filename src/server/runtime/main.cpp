@@ -12,6 +12,9 @@
 #include "server/transport/nonblocking_tcp_adapter.h"
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 #include "x11/x11_desktop_resources.h"
+#if defined(RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT)
+#include "x11/x11_authorized_input_route.h"
+#endif
 #endif
 #endif
 
@@ -62,6 +65,10 @@ constexpr int kInvalidConfigurationExitCode = 3;
 constexpr std::size_t kMaximumConfigurationBytes = 4096;
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
 constexpr std::chrono::seconds kLinuxSerializedConnectionDeadline{30};
+// Bounded scheduler deadlines; no post-Share connection-idle timeout is
+// fabricated. R2 native-session revocation and R1 EOF remain authoritative.
+constexpr std::chrono::milliseconds kLinuxPostSharePollQuantum{25};
+constexpr std::chrono::milliseconds kLinuxPostShareCaptureInterval{100};
 #endif
 
 constexpr std::size_t kBaseConfigurationFieldCount = 7;
@@ -853,6 +860,69 @@ struct LinuxAuthorizedX11DesktopOwner final {
 }
 #endif
 
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+// Borrowed R10 stack-only callbacks. The R2 lease, R3 route and R5 capture
+// generation are rechecked synchronously; no callback survives this call.
+struct LinuxPostShareDispatchContext final {
+    rdp_server::server::runtime::LinuxRuntimeConnection* connection{};
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy* policy{};
+    X11DesktopResources* desktop{};
+};
+
+[[nodiscard]] bool dispatchLinuxPostShareRoute(
+    void* rawContext,
+    rdp_server::server::transport::RdpPostShareTpktRouteKind kind,
+    std::span<const std::uint8_t> completeTpkt) noexcept {
+    using Kind =
+        rdp_server::server::transport::RdpPostShareTpktRouteKind;
+    auto* context = static_cast<LinuxPostShareDispatchContext*>(rawContext);
+    if (context == nullptr || context->connection == nullptr ||
+        context->policy == nullptr || context->desktop == nullptr ||
+        !context->desktop->valid() ||
+        context->desktop->captureGeneration() == 0U) {
+        return false;
+    }
+    switch (kind) {
+    case Kind::GraphicsDynamicVirtualChannel:
+        return context->connection->dispatchPersonalDesktopPostShareGraphicsTpkt(
+            *context->policy, completeTpkt);
+    case Kind::SlowPathInput:
+#if defined(RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT)
+        return X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt(
+            *context->connection, *context->policy, *context->desktop,
+            context->desktop->captureGeneration(), completeTpkt);
+#else
+        return false;
+#endif
+    case Kind::ClipboardStaticChannel:
+        // R8 native source and outbound receipt owner are not yet composed.
+        // No trial parsing, fabricated clipboard permission or silent ignore.
+        return false;
+    case Kind::UnsupportedOrMalformed:
+        return false;
+    }
+    return false;
+}
+
+struct LinuxFramePublicationContext final {
+    rdp_server::server::runtime::LinuxRuntimeConnection* connection{};
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy* policy{};
+    std::uint32_t frameId{};
+    std::uint64_t expectedGeneration{};
+};
+
+[[nodiscard]] bool publishLinuxCapturedFrame(
+    void* rawContext, const FramebufferView& framebuffer,
+    std::uint64_t captureGeneration) noexcept {
+    auto* context = static_cast<LinuxFramePublicationContext*>(rawContext);
+    return context != nullptr && context->connection != nullptr &&
+           context->policy != nullptr && context->frameId != 0U &&
+           captureGeneration == context->expectedGeneration &&
+           context->connection->startPersonalDesktopClearCodecFramePublication(
+               *context->policy, context->frameId, framebuffer);
+}
+#endif
+
 [[nodiscard]] bool runSerializedLinuxCandidate(
     rdp_server::server::transport::OwnedNativeTcpSocket accepted,
     void* rawContext) noexcept {
@@ -1543,96 +1613,186 @@ struct LinuxAuthorizedX11DesktopOwner final {
         return true;
     }
 
-    const auto nativeChange = connection.registerNativeChange();
-    if (!nativeChange ||
-        nativeChange->admissionGeneration != nativeOwner.admissionGeneration ||
-        nativeChange->sessionGeneration != nativeOwner.sessionGeneration ||
-        nativeChange->events >
-            static_cast<int>((std::numeric_limits<short>::max)())) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        connection.revoke();
-        return true;
-    }
+    // One persistent serialized owner for the admitted R1 TLS connection,
+    // R2 lease/logind monitor, R3 Graphics presentation and R5 XCB desktop.
+    // Native poll records borrow descriptors for exactly one bounded call;
+    // none may outlive R2 or R5 or remain registered during callbacks.
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using ReadStep =
+        rdp_server::server::runtime::LinuxPostShareApplicationReadStatus;
+    using FrameStep =
+        rdp_server::server::runtime::LinuxPersonalDesktopGraphicsDvcStepStatus;
+    using Clock = std::chrono::steady_clock;
+    LinuxPostShareDispatchContext dispatchContext{
+        &connection, context->policy, &*nativeOwner.desktop};
+    const rdp_server::server::runtime::LinuxPostShareTpktSink sink{
+        &dispatchContext, &dispatchLinuxPostShareRoute};
+    std::uint32_t nextFrameId = 1U;
+    bool frameWritePending = false;
+    bool nativeWorkMayRemain = true;
+    auto nextCapture = Clock::now();
+    while (connection.ready() && nativeOwner.desktop->valid()) {
+        if (!connection.authorizePersonalDesktopApplicationTraffic(
+                *context->policy)) {
+            break;
+        }
+        const int socketDescriptor = connection.nativeSocketPollDescriptor();
+        const auto socketInterest = connection.ioInterest();
+        const auto nativeChange = connection.registerNativeChange();
+        if (socketDescriptor < 0 || !nativeChange ||
+            nativeChange->admissionGeneration != nativeOwner.admissionGeneration ||
+            nativeChange->sessionGeneration != nativeOwner.sessionGeneration ||
+            nativeChange->events >
+                static_cast<int>((std::numeric_limits<short>::max)()) ||
+            (socketInterest != Interest::Read &&
+             socketInterest != Interest::Write)) {
+            break;
+        }
 
-    // First real R10 native-poller registration. Keep this bounded to one poll
-    // cycle until frame/input composition lands. The stack poll set owns no
-    // descriptor: R2 owns logind and R5 owns the sole XCB descriptor.
-    std::array<pollfd, 2U> nativePoll{{
-        {nativeChange->descriptor,
-         static_cast<short>(nativeChange->events), 0},
-        {nativeOwner.desktop->fileDescriptor(), POLLIN, 0},
-    }};
-    errno = 0;
-    const int nativePollCount =
-        ::poll(nativePoll.data(), static_cast<nfds_t>(nativePoll.size()), 0);
-    const int nativePollError = errno;
+        std::array<pollfd, 3U> nativePoll{{
+            {nativeChange->descriptor,
+             static_cast<short>(nativeChange->events), 0},
+            {nativeOwner.desktop->fileDescriptor(), POLLIN, 0},
+            {socketDescriptor,
+             socketInterest == Interest::Read ? POLLIN : POLLOUT, 0},
+        }};
+        const auto now = Clock::now();
+        const bool bufferedApplicationData = !frameWritePending &&
+            connection.bufferedTlsApplicationReadReady();
+        const auto untilCapture = nextCapture > now
+            ? std::chrono::duration_cast<std::chrono::milliseconds>(
+                  nextCapture - now)
+            : std::chrono::milliseconds{0};
+        const auto wait = (std::min)(
+            kLinuxPostSharePollQuantum, untilCapture);
+        const int timeoutMilliseconds =
+            bufferedApplicationData || nativeWorkMayRemain ? 0
+            : static_cast<int>(wait.count());
+        errno = 0;
+        const int polled = ::poll(
+            nativePoll.data(), static_cast<nfds_t>(nativePoll.size()),
+            timeoutMilliseconds);
+        const int pollError = errno;
 
-    // poll() has returned, so this stack poll set no longer registers either
-    // descriptor. Acknowledge removal before any callback that can revoke R2.
-    if (!connection.unregisterNativeChange(*nativeChange)) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        connection.revoke();
-        return true;
-    }
+        // The stack poll set is no longer live. Retire its exact borrowed
+        // logind registration before R2, R3, X11 or TLS callbacks can revoke.
+        const bool watcherReady = polled > 0 &&
+            nativePoll[0].revents != 0;
+        const short x11Events = nativePoll[1].revents;
+        const short socketEvents = nativePoll[2].revents;
+        if (!connection.unregisterNativeChange(*nativeChange)) {
+            break;
+        }
+        if (watcherReady) {
+            if ((nativePoll[0].revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 ||
+                !connection.dispatchNativeChangeReady(*nativeChange)) {
+                break;
+            }
+        } else if (!connection.releaseNativeChangeWithoutDispatch(
+                       *nativeChange)) {
+            break;
+        }
+        if ((polled < 0 && pollError != EINTR) ||
+            (x11Events & (POLLERR | POLLHUP | POLLNVAL)) != 0 ||
+            (socketEvents & (POLLERR | POLLNVAL)) != 0) {
+            break;
+        }
+        if (polled < 0) {
+            continue; // EINTR; no I/O or callbacks from stale poll results.
+        }
+        if (!connection.ready() ||
+            !connection.authorizePersonalDesktopApplicationTraffic(
+                *context->policy)) {
+            break;
+        }
 
-    const short nativeChangeEvents = nativePoll[0].revents;
-    const short x11Events = nativePoll[1].revents;
-    if (nativePollCount < 0 && nativePollError != EINTR) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        connection.revoke();
-        return true;
-    }
-    if (nativeChangeEvents != 0) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        (void)connection.dispatchNativeChangeReady(*nativeChange);
-        return true;
-    }
-    if ((x11Events & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        connection.revoke();
-        return true;
-    }
+        bool moreX11Events = false;
+        if (nativeOwner.desktop->processEvents(
+                128U, &moreX11Events, (x11Events & POLLIN) != 0) !=
+                ConnectionStatus::Ok ||
+            !nativeOwner.desktop->valid() ||
+            nativeOwner.desktop->captureGeneration() == 0U) {
+            break;
+        }
+        nativeWorkMayRemain = moreX11Events;
 
-    // R5 first native event-service handoff: after unregistering R2's
-    // borrowed logind descriptor, drain only the existing sole XCB owner.
-    // R2 must still authorize the real Share session before event dispatch
-    // and again before allowing a graceful teardown. Never infer authority
-    // from poll(), X11 geometry, process environment or capture generation.
-    if (!connection.authorizePersonalDesktopApplicationTraffic(
-            *context->policy)) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        connection.revoke();
-        return true;
-    }
+        // A pending R3/R1 Graphics write owns WANT_READ/WANT_WRITE until
+        // its exact accepted-byte receipt finishes; never reinterpret its
+        // WANT_READ as an application TPKT read.
+        const bool socketReadable =
+            (socketEvents & (POLLIN | POLLHUP)) != 0;
+        const bool socketWritable =
+            (socketEvents & (POLLOUT | POLLHUP)) != 0;
+        if (frameWritePending) {
+            const auto written =
+                connection.advancePersonalDesktopGraphicsDynamicVirtualChannel(
+                    *context->policy, socketReadable, socketWritable);
+            switch (written.status) {
+            case FrameStep::Ready:
+                frameWritePending = false;
+                break;
+            case FrameStep::Progress:
+            case FrameStep::NeedRead:
+            case FrameStep::NeedWrite:
+                break;
+            case FrameStep::AdmissionDenied:
+            case FrameStep::Invalid:
+            case FrameStep::Closed:
+                nativeOwner.desktop->retireAfterAuthorizationLoss();
+                connection.revoke();
+                return true;
+            }
+        } else {
+            const auto read =
+                connection.advancePersonalDesktopPostShareApplicationRead(
+                    *context->policy, socketReadable, socketWritable, sink);
+            switch (read.status) {
+            case ReadStep::Progress:
+            case ReadStep::Routed:
+            case ReadStep::NeedRead:
+            case ReadStep::NeedWrite:
+                break;
+            case ReadStep::AdmissionDenied:
+            case ReadStep::Invalid:
+            case ReadStep::Closed:
+                nativeOwner.desktop->retireAfterAuthorizationLoss();
+                connection.revoke();
+                return true;
+            }
+        }
+        if (!connection.ready() ||
+            !connection.authorizePersonalDesktopApplicationTraffic(
+                *context->policy)) {
+            break;
+        }
 
-    bool nativeWorkMayRemain = false;
-    const ConnectionStatus nativeDispatch =
-        nativeOwner.desktop->processEvents(
-            128U, &nativeWorkMayRemain, (x11Events & POLLIN) != 0);
-    if (nativeDispatch != ConnectionStatus::Ok ||
-        !nativeOwner.desktop->valid() ||
-        nativeOwner.desktop->captureGeneration() == 0U) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        connection.revoke();
-        return true;
+        // Publish a borrowed, current R5 XShm surface directly through the
+        // R3-owned ClearCodec presentation. R10 supplies no DVC/surface ID.
+        // The existing R1 writer handles exact positive partial receipts;
+        // uncertain completion tears down rather than cancelling publication.
+        if (!frameWritePending && Clock::now() >= nextCapture) {
+            if (nextFrameId == 0U) {
+                break; // Never wrap a live Graphics frame ID.
+            }
+            const LinuxFramePublicationContext frameContext{
+                &connection, context->policy, nextFrameId,
+                nativeOwner.desktop->captureGeneration()};
+            if (!nativeOwner.desktop->consumeR4Frame(
+                    frameContext.expectedGeneration,
+                    X11R4BgraFrameConsumer{
+                        const_cast<LinuxFramePublicationContext*>(&frameContext),
+                        &publishLinuxCapturedFrame})) {
+                break;
+            }
+            ++nextFrameId;
+            frameWritePending = true;
+            nextCapture = Clock::now() + kLinuxPostShareCaptureInterval;
+        }
     }
-    // A RandR rebuild can advance the R5 capture generation; no consumer
-    // may cache the pre-dispatch generation. Native queued-work state stays
-    // local because production does not yet run a continued frame loop.
-    (void)nativeWorkMayRemain;
-
-    if (!connection.authorizePersonalDesktopApplicationTraffic(
-            *context->policy)) {
-        nativeOwner.desktop->retireAfterAuthorizationLoss();
-        connection.revoke();
-        return true;
-    }
-
-    // No R4 frame is prepared, borrowed or published in this bounded handoff.
-    // Once native authority has been freshly revalidated, graceful teardown
-    // is permitted. Future frame/input composition must preserve the same
-    // owner and non-post retirement on any loss of authorization.
-    nativeOwner.desktop->disconnect();
+    // Authorization may have expired inside a callback. Do not send cleanup
+    // input events after closure, even if the old X11 connection is alive.
+    nativeOwner.desktop->retireAfterAuthorizationLoss();
     connection.revoke();
 #else
     // Without the complete R5 X11 aggregate this build cannot publish a Linux

@@ -503,6 +503,27 @@ R5/R8 listener, advance the Share, create a channel, or read TLS bytes.
 The external R10 single-reader integration and genuine X11 host remain
 BLOCKED. New exact-SHA hosted CTests/sanitizers: PENDING.
 
+**R10 persistent Linux post-Share runtime (2026-10-18):** R10 now composes the
+R1 socket, R2 borrowed logind registration, one R5 XCB desktop and the R3
+Share/Graphics lifetime in one bounded three-fd poll loop. The exact borrowed
+logind registration is unregistered and then dispatched or discarded before
+any callback that may revoke. It preserves the R1 WANT direction, services
+one classified R1 TPKT step or pending R3 Graphics write per iteration,
+uses R5's existing authenticated slow-path input bridge, and synchronously
+publishes timed XShm full-frame borrows via the R3-owned ClearCodec surface.
+Graphics DATA and client FRAME_ACK continue on the same R1 reader and R3/R4
+ACK window. Clipboard remains deny-only pending R8 native source/receipt
+composition, and this explicit loopback-only CLI is **not** a GUI LAN Start.
+New source-backed CTest `runtime.linux-serve-persistent-post-share-single-owner`
+checks the production loop and existing reader ownership alongside earlier
+executable-backed no-lease denials. Base `3b899d59bb60122b4234cb75ba3a0cc867dc5505`; local
+build/full CTest **NOT RUN** (GitHub DNS prevents checked-out build), hosted
+publication-SHA CI **PENDING**, physical X11 Microsoft-client **NOT RUN**.
+Remaining R10 P0: real GUI Start/Stop/LAN controller, durable Stop during WANT,
+clipboard source/receipts and owner-authorized live acceptance; R2 OS-backed
+CredSSP/consent remains the real admission prerequisite. Never represent
+synthetic green CI as authenticated desktop acceptance.
+
 **R10 serialized post-Share reader increment (2026-10-18):** On
 `a80a3bc7858a934eda43e3997ce463dc8907bce7`, the runtime now reuses `personalGraphicsDvcFrameReader_`
 after R3 Graphics MAP_SURFACE_TO_OUTPUT completion instead of permanently

@@ -20,15 +20,19 @@ foreach(required IN ITEMS
     endif()
 endforeach()
 
-# Linkage is not dispatch authority. Until R10 owns the single post-Share R1
-# complete-TPKT router, calling the native bridge from main would misroute
-# Graphics/clipboard traffic or create a second reader.
-string(FIND "${runtime_source}"
-    "dispatchAuthenticatedSlowPathTpkt" dispatch_position)
-if(NOT dispatch_position EQUAL -1)
-    message(FATAL_ERROR
-        "R10 must not dispatch native input before post-Share TPKT routing exists")
-endif()
+# The live R10 dispatch is guarded by the R2/R3 single-TPKT classifier,
+# explicit route-kind switch and R5's protected event-by-event gateway.
+foreach(required IN ITEMS
+        "advancePersonalDesktopPostShareApplicationRead"
+        "RdpPostShareTpktRouteKind"
+        "Kind::SlowPathInput"
+        "dispatchAuthenticatedSlowPathTpkt")
+    string(FIND "${runtime_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR
+            "R10 lacks authenticated classified input dispatch: ${required}")
+    endif()
+endforeach()
 
 message(STATUS
-    "R10 production server links the protected R5 input bridge; dispatch remains fail-closed")
+    "R10 routes authenticated slow-path input through the sole R1 reader/R5 bridge")

@@ -177,6 +177,21 @@ Linux/X11, Windows CLANG64/Clang 23 and macOS 27 local Debug CTest:
 **NOT RUN**. No Start/Stop, authenticated persistent post-Share desktop,
 native release acceptance or human Microsoft-client success is claimed.
 
+## R10 persistent post-Share Linux scheduler (2026-10-18)
+
+New production server main loop retains R2-selected X11 resources and native
+logind watch across bounded 3-fd poll iterations. R10 registers/retires the
+borrowed watcher for each poll before invoking any callback; the sole TLS
+reader and TPKT frame storage are reused for classified Graphics/input,
+while R3 owns Graphics DATA receipts and R4 ACK. R5 XShm pixels are borrowed
+synchronously by the existing R3 ClearCodec start. No extra queue, second
+reader, output surface allocation, native positive admission or GUI LAN
+listener was created. New production-source CTest
+`runtime.linux-serve-persistent-post-share-single-owner` complements
+prior executable-backed missing-admission tests. Base `3b899d59bb60122b4234cb75ba3a0cc867dc5505`.
+Local Debug/full CTest **NOT RUN** (GitHub DNS blocks local checkout);
+hosted exact-SHA CI **PENDING**, owner physical seat0 **NOT RUN**.
+
 ## R10 single-reader post-Share application route (2026-10-18)
 
 Added one post-Share R1 TLS read transition using the already-existing

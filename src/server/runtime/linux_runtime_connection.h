@@ -499,6 +499,12 @@ public:
         std::chrono::milliseconds maxWait =
             rdp_server::server::transport::kMaximumTcpPollWait) noexcept;
 
+    // Borrow R1's exact native socket descriptor for a combined poll with
+    // R2 logind and the single X11 connection. Never read, write or close it;
+    // only R1 TLS application methods may consume socket readiness.
+    [[nodiscard]] int nativeSocketPollDescriptor() const noexcept;
+    [[nodiscard]] bool bufferedTlsApplicationReadReady() const noexcept;
+
     // One bounded pre-admission scheduler step derived from the existing R1
     // phase/interest plus R2 CredSSP writer readiness. Wrong-direction
     // readiness returns the required direction with zero I/O. For a read,
@@ -829,6 +835,11 @@ public:
     [[nodiscard]] std::optional<LinuxRuntimeNativeChangeRegistration>
     registerNativeChange() noexcept;
     [[nodiscard]] bool unregisterNativeChange(
+        const LinuxRuntimeNativeChangeRegistration &registration) noexcept;
+    // Drop a polled, already-unregistered logind borrow when it did not signal
+    // readiness. No R2 callback, descriptor close, or lease mutation occurs.
+    // Allows another bounded poll registration without duplicating a watcher.
+    [[nodiscard]] bool releaseNativeChangeWithoutDispatch(
         const LinuxRuntimeNativeChangeRegistration &registration) noexcept;
     // Dispatch is valid only after the exact record has been unregistered.
     // The aggregate drops registration identity before calling R2 because the

@@ -1031,6 +1031,18 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-connection-personal-post-share-single-reader-denials
         PROPERTIES LABELS "runtime;security;r10-post-share;offline")
 
+    # Real production runtime owner contract, with no synthetic positive R2
+    # admission, physical X11 host or auto-start. Source guards complement
+    # the executable-backed missing-lease and R1 I/O tests above.
+    add_test(NAME runtime.linux-serve-persistent-post-share-single-owner
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            "-DRDP_RUNTIME_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
+            "-DRDP_RUNTIME_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_post_share_persistent.cmake")
+    set_tests_properties(runtime.linux-serve-persistent-post-share-single-owner
+        PROPERTIES LABELS "runtime;security;r10-post-share;offline")
+
     # R10 must compose the real post-STATUS_VALID_CLIENT Share owner without
     # fabricating a positive OS lease in ordinary CI. The production R3 profile
     # must derive admitted Client Core geometry and R10 may supply only feature

@@ -1,3 +1,26 @@
+## R3 authenticated post-Share Graphics DVC identity classifier (2026-10-18)
+
+Base `440b4e46c81b2e0341ca107dc7be51e2c0897ca5`.
+R10's persistent single R1 post-Share reader and R8's authorized
+outbound clipboard TLS write step are already landed. The R3 read-only
+classifier previously identified a joined DRDYNVC *static* channel
+without checking whether the embedded DVC command/ID belonged to the
+current Graphics lifecycle. The mutating consumer rejected unrelated
+dynamic IDs, but R10's route misidentified them as Graphics.
+
+The R3 classifier now checks phase-specific CAPS, CREATE and
+DATA_FIRST/DATA envelopes with the exact R3-allocated Graphics
+dynamic channel ID, without changing admission, reassembly or R4 ACK
+ownership. A dedicated ordinary CTest,
+`transport.post-share-classifier-graphics-dynamic-id-phase`,
+checks valid CAPS/CREATE/DATA/DATA_FIRST, wrong DVC IDs,
+wrong phase/command, reserved bits, nonmutation and borrowed bytes.
+Local owner Debug/full CTest **NOT RUN** (approved checkout unavailable);
+exact publication-SHA hosted CTest/sanitizers **PENDING**.
+R10/R9 source-guard failures are independent. Real authenticated
+Linux X11 seat0, GUI LAN hosting, Microsoft-client proof remain
+**BLOCKED / NOT RUN** pending native provider and owner authorization.
+
 ## R7 macOS extracted Cocoa normal-launch gate (2026-10-18)
 
 R7's signed-framework ZIP-alias correction `57103ca` is hosted-green on

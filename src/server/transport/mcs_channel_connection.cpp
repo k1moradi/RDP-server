@@ -2205,8 +2205,63 @@ RdpPostShareTpktRoute McsSessionLifecycle::classifyVerifiedR2PostShareTpkt(
             userData.size() - 8U >
                 kRdpStaticVirtualChannelDefaultChunkBytes)
             return {};
-        // The existing Graphics consumer validates CAPS/CREATE/DATA and
-        // reassembly under fresh R2 authorization; inspection does not.
+        // DRDYNVC is shared by multiple dynamic channels. A joined static
+        // channel alone cannot identify Graphics; only the current R3
+        // Graphics phase and allocated DVC ID may select this route.
+        const auto dvc = userData.subspan(8U);
+        if (phase == Phase::AwaitCapabilitiesResponse)
+        {
+            if (dvc.size() != 4U || dvc[0] != 0x50U ||
+                dvc[1] != 0U || readLe16At(dvc, 2U) == 0U ||
+                readLe16At(dvc, 2U) > 3U)
+                return {};
+        }
+        else
+        {
+            const std::uint8_t command =
+                static_cast<std::uint8_t>(dvc[0] & 0xf0U);
+            const std::uint8_t idCode =
+                static_cast<std::uint8_t>(dvc[0] & 0x03U);
+            if (idCode == 3U)
+                return {};
+            const std::size_t idBytes =
+                idCode == 0U ? 1U : (idCode == 1U ? 2U : 4U);
+            if (phase == Phase::AwaitCreateResponse)
+            {
+                if (command != 0x10U || (dvc[0] & 0x0cU) != 0U ||
+                    dvc.size() != 1U + idBytes + 4U)
+                    return {};
+            }
+            else
+            {
+                if ((command != 0x20U && command != 0x30U) ||
+                    dvc.size() <= 1U + idBytes)
+                    return {};
+                if (command == 0x30U && (dvc[0] & 0x0cU) != 0U)
+                    return {};
+                if (command == 0x20U)
+                {
+                    const auto lengthCode =
+                        static_cast<std::uint8_t>((dvc[0] >> 2U) & 3U);
+                    if (lengthCode == 3U)
+                        return {};
+                    const std::size_t lengthBytes =
+                        lengthCode == 0U ? 1U :
+                        (lengthCode == 1U ? 2U : 4U);
+                    if (dvc.size() <= 1U + idBytes + lengthBytes)
+                        return {};
+                }
+            }
+            std::uint32_t channelId = 0U;
+            for (std::size_t index = 0U; index < idBytes; ++index)
+                channelId |= static_cast<std::uint32_t>(
+                    dvc[1U + index]) << (8U * index);
+            if (channelId !=
+                graphicsDynamicVirtualChannel_.dynamicChannelId())
+                return {};
+        }
+        // The mutating consumer still owns full message validation,
+        // reassembly, CAPS/CREATE state and FRAME_ACK.
         return {RdpPostShareTpktRouteKind::GraphicsDynamicVirtualChannel,
                 completeTpkt};
     }

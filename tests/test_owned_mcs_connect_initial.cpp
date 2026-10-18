@@ -218,6 +218,11 @@ public:
         return session.classifyVerifiedR2PostShareTpkt(
             {kRdpProtocolHybrid, kRdpProtocolHybrid}, packet);
     }
+    [[nodiscard]] static RdpGraphicsDynamicVirtualChannelLifecycle &
+    graphicsForClassifierTest(McsSessionLifecycle &session) noexcept
+    {
+        return session.graphicsDynamicVirtualChannel_;
+    }
     static void wrongDynamicRole(McsSessionLifecycle &session) noexcept
     {
         session.connectResponseClientSettings_.channels[1].name =
@@ -5542,6 +5547,78 @@ void testPostShareClassifierMalformedAndWrongJoinedRole()
         session, graphics).kind ==
         RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
     assert(session.phase() == McsSessionPhase::ShareActivated);
+}
+
+void testPostShareClassifierGraphicsDynamicIdAndPhase()
+{
+    McsSessionLifecycle session;
+    assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(session));
+    auto &dvc = McsSessionLifecycleTestAccess::
+        graphicsForClassifierTest(session);
+    constexpr auto denied =
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed;
+    constexpr auto graphics =
+        RdpPostShareTpktRouteKind::GraphicsDynamicVirtualChannel;
+    const auto classify = [&](std::span<const std::uint8_t> payload)
+    {
+        const auto packet = makeClientDynamicVirtualChannelTpkt(
+            1007U, 1005U, payload);
+        return McsSessionLifecycleTestAccess::classifyPostShare(
+            session, packet).kind;
+    };
+
+    constexpr std::array<std::uint8_t, 4> caps{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    constexpr std::array<std::uint8_t, 4> unsupportedCaps{
+        0x50U, 0x00U, 0x00U, 0x00U};
+    constexpr std::array<std::uint8_t, 6> create{
+        0x10U, 0x09U, 0U, 0U, 0U, 0U};
+    constexpr std::array<std::uint8_t, 6> wrongCreate{
+        0x10U, 0x08U, 0U, 0U, 0U, 0U};
+    constexpr std::array<std::uint8_t, 3> data{
+        0x30U, 0x09U, 0x01U};
+    constexpr std::array<std::uint8_t, 3> otherChannel{
+        0x30U, 0x08U, 0x01U};
+    constexpr std::array<std::uint8_t, 4> dataFirst{
+        0x20U, 0x09U, 0x04U, 0x01U};
+    constexpr std::array<std::uint8_t, 3> unsupportedCommand{
+        0x40U, 0x09U, 0x01U};
+    constexpr std::array<std::uint8_t, 3> reserved{
+        0x3cU, 0x09U, 0x01U};
+
+    assert(classify(unsupportedCaps) == denied);
+    assert(classify(data) == denied);
+    assert(classify(create) == denied);
+    assert(classify(caps) == graphics);
+    assert(dvc.onClientTpkt(91U, makeClientDynamicVirtualChannelTpkt(
+        1007U, 1005U, caps)) ==
+        RdpGraphicsDvcClientIntake::CapabilitiesAccepted);
+    const auto write = dvc.pendingServerWrite();
+    assert(write && dvc.onServerBytesWritten(
+        write.channelGeneration, write.replySequence,
+        write.writeSliceSequence, write.bytes.size()) ==
+        RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(classify(wrongCreate) == denied);
+    assert(classify(data) == denied);
+    assert(classify(create) == graphics);
+    assert(dvc.onClientTpkt(91U, makeClientDynamicVirtualChannelTpkt(
+        1007U, 1005U, create)) ==
+        RdpGraphicsDvcClientIntake::CreateAccepted);
+    assert(classify(otherChannel) == denied);
+    assert(classify(create) == denied);
+    assert(classify(unsupportedCommand) == denied);
+    assert(classify(reserved) == denied);
+    assert(classify(data) == graphics);
+    assert(classify(dataFirst) == graphics);
+    assert(classify(data) == graphics);
+    assert(session.phase() == McsSessionPhase::ShareActivated);
+    const auto packet = makeClientDynamicVirtualChannelTpkt(
+        1007U, 1005U, data);
+    const auto route = McsSessionLifecycleTestAccess::classifyPostShare(
+        session, packet);
+    assert(route.kind == graphics &&
+           route.completeTpkt.data() == packet.data() &&
+           route.completeTpkt.size() == packet.size());
 }
 
 void testPostShareClassifierGenerationShareAndDisconnect()
@@ -11475,7 +11552,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 161> kMcsTestCases{{
+constexpr std::array<McsTestCase, 162> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -11622,6 +11699,7 @@ constexpr std::array<McsTestCase, 161> kMcsTestCases{{
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},
     {"post-share-classifier-joined-routes", &testPostShareClassifierJoinedRoutes},
     {"post-share-classifier-malformed-and-wrong-role", &testPostShareClassifierMalformedAndWrongJoinedRole},
+    {"post-share-classifier-graphics-dynamic-id-phase", &testPostShareClassifierGraphicsDynamicIdAndPhase},
     {"post-share-classifier-generations-share-disconnect", &testPostShareClassifierGenerationShareAndDisconnect},
     {"cliprdr-pre-share-denial", &testClipboardPreShareDenial},
     {"dvc-graphics-frame-zero-publication", &testGraphicsFrameZeroPublication},

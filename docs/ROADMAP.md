@@ -72,7 +72,27 @@ authoritative TLS certificate SHA-256 fingerprint or client trust
 field. Native macOS hosting and positive client acceptance remain
 **BLOCKED** on those owners, not on package ZIP closure.
 
-docs/ROADMAP.md## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
+## R2 canonical peer quota across dual-stack address encodings (2026-10-18)
+
+R2's serialized NLA attempt limiter now treats native IPv4 and exact
+`::ffff:a.b.c.d` IPv4-mapped IPv6 as the **same** fixed-table peer.
+Before this correction, the two address-family encodings could occupy
+distinct active slots and increase the attempts allowed per peer on a
+future authorized dual-stack LAN listener. Only the RFC 4291
+ten-zero/two-0xff prefix canonicalizes; native and near-mapped IPv6
+remain distinct. The update is zero allocation and changes neither
+global nor per-GSS-principal budgets or the current deny-only LAN
+host-control admission.
+
+Dedicated ordinary production-header CTest
+`security.ipv4-mapped-ipv6-peer-quota-identity` tests both directions,
+shared cap, unmapped IPv6 isolation, expiry and monotonic-clock
+regression. Local owner Debug/full CTest **NOT RUN** (no approved
+checkout); publication-SHA hosted CI **PENDING**. Real seat0
+Kerberos/PAM/logind consent, Microsoft-client traffic and independent
+GUI-password interoperability remain **BLOCKED / NOT RUN**.
+
+## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
 
 The earlier R10 `abe17d32310cace7b611652e4085476bbc5ca8aa`
 landed the pure authoritative `assessRuntimeSelectedLanEndpoint`

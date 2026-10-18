@@ -1,3 +1,17 @@
+## R2 access-policy lifecycle test namespace correction (2026-10-18)
+
+Descendant hosted runs after `7044183db5a12d637bbb432d035a582224d12792`
+compiled the production R2 Linux runtime-security target successfully, but the
+sanitizer/Ubuntu test graph failed in
+`tests/test_runtime_linux_security.cpp` because the lifecycle fixture used
+`ConsolePolicyMatch` without importing its
+`rdp_server::server::security` namespace. This correction adds only the
+missing type import; production authorization, credential storage, policy
+generation and revocation behavior are unchanged. Exact correction-SHA hosted
+CI is **PENDING**. Live positive seat0/Microsoft-client validation remains
+**BLOCKED / NOT RUN** on R10 native X11 owner composition and explicit owner
+authorization.
+
 ## R5 read-only Linux Qt/X11 GUI prerequisite integration (2026-10-18)
 
 Read current `main` R3 canonical Demand Active, R10 serialized Share/Graphics

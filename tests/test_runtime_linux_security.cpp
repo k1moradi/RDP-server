@@ -118,6 +118,7 @@ using rdp_server::server::runtime::RuntimeLicensingContext;
 using rdp_server::server::runtime::RuntimeLicensingExistingCalOperation;
 using rdp_server::server::runtime::RuntimeDeploymentPolicy;
 using rdp_server::server::runtime::RuntimeServerTlsContext;
+using rdp_server::server::security::ConsolePolicyMatch;
 using rdp_server::server::security::ConsoleEvidenceRequest;
 using rdp_server::server::security::ConsoleIdentityRuleInput;
 using rdp_server::server::security::CredSspServerReplyField;

@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--script", type=Path, required=True)
@@ -30,6 +31,9 @@ class WindowsServerBundleTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.lifecycle_script = arguments.lifecycle_script.resolve()
+
+    def installed_root(self) -> Path:
+        return self.root / 'localappdata' / 'RDP-server' / 'server-test'
 
     def make_archive(self, source_sha: str = "6" * 40) -> Path:
         artifact_name = (
@@ -110,6 +114,7 @@ class WindowsServerBundleTests(unittest.TestCase):
         *,
         archive: Path | None = None,
         expect: int = 0,
+        install_root: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         shell = self.powershell()
         if shell is None:
@@ -128,6 +133,8 @@ class WindowsServerBundleTests(unittest.TestCase):
         ]
         if archive is not None:
             command.extend(["-ArchivePath", str(archive)])
+        if install_root is not None:
+            command.extend(["-InstallRoot", str(install_root)])
         result = subprocess.run(
             command,
             text=True,
@@ -237,6 +244,86 @@ class WindowsServerBundleTests(unittest.TestCase):
         self.assertNotIn("PRIVATE KEY", combined)
         self.assertNotIn("tls_private_key", combined)
 
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell lifecycle test")
+    def test_native_powershell_rejects_inner_payload_tamper_with_valid_outer_digest(self) -> None:
+        archive = self.make_archive()
+        with zipfile.ZipFile(archive, "r") as source:
+            entries = [(entry, source.read(entry)) for entry in source.infolist()]
+        dll_suffix = "/bin/libcrypto-3-x64.dll"
+        self.assertEqual(sum(info.filename.endswith(dll_suffix) for info, _ in entries), 1)
+        with zipfile.ZipFile(archive, "w") as changed:
+            for info, data in entries:
+                if info.filename.endswith(dll_suffix):
+                    data += b"-tampered-after-manifest"
+                changed.writestr(info, data)
+        archive.with_suffix(".zip.sha256").write_text(
+            f"{bundle.sha256_file(archive)}  {archive.name}\n", encoding="utf-8"
+        )
+        result = self.run_lifecycle("Install", archive=archive, expect=1)
+        self.assertIn("failed closed", result.stderr)
+        self.assertFalse(self.installed_root().exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell lifecycle test")
+    def test_native_powershell_rejects_modified_installed_dll_before_any_action(self) -> None:
+        archive = self.make_archive()
+        self.run_lifecycle("Install", archive=archive)
+        dll = self.installed_root() / "bin" / "libcrypto-3-x64.dll"
+        original = dll.read_bytes()
+        dll.write_bytes(original + b"-untrusted-modification")
+        for action in ("Verify", "Status", "Start", "Stop", "Uninstall"):
+            with self.subTest(action=action):
+                result = self.run_lifecycle(action, expect=1)
+                self.assertIn("failed closed", result.stderr)
+                self.assertNotIn("untrusted-modification", result.stderr)
+                self.assertTrue(dll.exists())
+        dll.write_bytes(original)
+        self.run_lifecycle("Verify")
+        self.run_lifecycle("Uninstall")
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell lifecycle test")
+    def test_native_powershell_rejects_unmanifested_installed_file(self) -> None:
+        archive = self.make_archive()
+        self.run_lifecycle("Install", archive=archive)
+        extra_file = self.installed_root() / "metadata" / "unexpected.txt"
+        extra_file.write_text("not manifested\n", encoding="utf-8")
+        for action in ("Verify", "Start", "Uninstall"):
+            with self.subTest(action=action):
+                result = self.run_lifecycle(action, expect=1)
+                self.assertIn("failed closed", result.stderr)
+                self.assertTrue(extra_file.exists())
+        extra_file.unlink()
+        self.run_lifecycle("Verify")
+        self.run_lifecycle("Uninstall")
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell lifecycle test")
+    def test_native_powershell_rejects_install_root_outside_localappdata(self) -> None:
+        archive = self.make_archive()
+        outside = self.root / "outside-localappdata"
+        for action in ("Install", "Verify", "Start", "Uninstall"):
+            with self.subTest(action=action):
+                result = self.run_lifecycle(
+                    action, archive=archive if action == "Install" else None,
+                    install_root=outside, expect=1,
+                )
+                self.assertIn("failed closed", result.stderr)
+                self.assertFalse(outside.exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell lifecycle test")
+    def test_native_powershell_rejects_parent_directory_reparse_point(self) -> None:
+        archive = self.make_archive()
+        appdata = self.root / "localappdata"
+        appdata.mkdir()
+        outside = self.root / "reparse-target"
+        outside.mkdir()
+        link = appdata / "RDP-server"
+        try:
+            os.symlink(outside, link, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Windows symlink creation unavailable")
+        result = self.run_lifecycle("Install", archive=archive, expect=1)
+        self.assertIn("failed closed", result.stderr)
+        self.assertFalse((outside / "server-test").exists())
 
 if __name__ == "__main__":
     unittest.main(argv=["windows-server-bundle-tests", *remaining])

@@ -1,3 +1,9 @@
+## R6 PowerShell offline negative-path cases (2026-10-18)
+
+Extend the single existing windows.package-user-lifecycle-offline-contract to reject an internally tampered DLL despite a correctly re-signed outer archive checksum, a modified installed DLL, an unmanifested installed file, an install root outside LOCALAPPDATA, and a reparse-point directory parent. Verify/Status/Start/Stop/Uninstall refuse a modified installed tree, and valid restored contents permit Verify/Uninstall again. The native reparse test may skip only if symlink creation is not permitted by the OS user. These native tests do not authenticate, capture or start a server.
+
+The expanded single Python/PowerShell CTest has a 90-second upper bound; portable checks remain on every host. Hosted publication-SHA evidence is NOT RUN / pending.
+
 ## CI CTest regex sentinels must be structurally exact (2026-10-17)
 
 Dedicated hosted CTest gates must be guarded by the full anchored selector

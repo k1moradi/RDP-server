@@ -1,3 +1,9 @@
+## R6 installed-tree and inner-archive denial regressions (2026-10-18)
+
+Authored on parent 399e39cf04e1cffe55c70754e0cc2faa24a42212; exact publication-SHA hosted checks NOT RUN / pending at authoring time. The existing Windows package CTest now tests corrupted internal DLL data with a correct outer archive digest, modified installed DLL denial for Verify/Status/Start/Stop/Uninstall, unexpected installed-tree content, path escape outside LOCALAPPDATA, and reparse-point parent denial. Successful recovery requires restoring the original manifested contents. The same offline test now has 90-second upper bound.
+
+No production or packaging implementation was changed. Native PowerShell cases remain Windows-only and do not grant R2 admission or activate R10 Windows native serving. R6's original packaging correction a948ddd3 already passed hosted CI; the new checks need exact-head Windows results. Windows SSPI/CredSSP SID-bound WTS lease and serialized Windows interactive-session owner remain blocked.
+
 ## R1 Connect Response transport audit (2026-10-17)
 
 **R10 source reviewed:** `b7f0ab66b91628ef4eb448021d102834097cd9fb`.

@@ -30,7 +30,7 @@ add_test(NAME windows.package-user-lifecycle-offline-contract
         --script "${PROJECT_SOURCE_DIR}/scripts/server_test_bundle.py"
         --lifecycle-script "${PROJECT_SOURCE_DIR}/packaging/windows/rdp-server-test.ps1")
 set_tests_properties(windows.package-user-lifecycle-offline-contract PROPERTIES
-    LABELS "windows;packaging;security;server-test;offline" TIMEOUT 45)
+    LABELS "windows;packaging;security;server-test;offline" TIMEOUT 90)
 
 # R7 offline test-bundle policy: no desktop, TCC, network or process activation.
 add_test(NAME macos.package-offline-integrity-and-idempotence

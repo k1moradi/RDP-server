@@ -101,6 +101,26 @@ preflight and authenticated admission remain owner-authorized external tests.
 Existing policy-replacement, native-session-change and late-receipt tests remain
 the reauthorization evidence; do not duplicate their private positive seams.
 
+## R2 production no-tests configuration/link boundary (2026-10-17)
+
+The production Linux security selector must also be exercised independently of
+CTest and every developer-only Linux security switch. A nested configure CTest
+is intentionally not used: the root project rejects any binary directory other
+than the checkout-local `build/`, while reconfiguring that active build from a
+running CTest would mutate shared test state. The dedicated
+`r2-linux-production-runtime-security` hosted matrix therefore starts from a
+fresh checkout and uses its one permitted `build/` root.
+
+The complete-dependency leg configures `BUILD_TESTING=OFF`,
+`RDP_SERVER_BUILD_TESTING=OFF`, both Linux `TEST_*` selectors off and
+`RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON`, then builds the actual
+`rdp-server` executable. It must expose the production
+`--check-linux-security` command, carry direct ELF `DT_NEEDED` entries for
+GSSAPI/Kerberos, PAM and libsystemd, and have no unresolved `ldd` dependency.
+The missing-systemd leg hides pkg-config metadata and requires configuration to
+fail with a libsystemd diagnostic. Neither leg loads a keytab, calls PAM,
+queries a desktop, opens a listener or authenticates a user.
+
 ## R7 optional macOS LaunchAgent remains inert until explicit owner action (2026-10-17)
 
 `packaging.macos-user-launch-agent-offline-contract` executes only the

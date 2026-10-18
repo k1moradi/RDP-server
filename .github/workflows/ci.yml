@@ -29,6 +29,85 @@ jobs:
             --fixture-root tests/fixtures/ci_workflow_structure \
             --self-test
 
+  r2-linux-production-runtime-security:
+    needs: ci-workflow-structure
+    strategy:
+      fail-fast: false
+      matrix:
+        dependency_mode: [complete, missing-systemd]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install common production Linux admission dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            binutils libkrb5-dev libpam0g-dev pkg-config
+      - name: Install production logind dependency
+        if: matrix.dependency_mode == 'complete'
+        run: sudo apt-get install -y --no-install-recommends libsystemd-dev
+      - name: Require libsystemd when production runtime security is selected
+        if: matrix.dependency_mode == 'missing-systemd'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/empty-pkgconfig
+          set +e
+          configure_output="$(
+            PKG_CONFIG_LIBDIR="$PWD/build/empty-pkgconfig" PKG_CONFIG_PATH= \
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+              -DBUILD_TESTING=OFF \
+              -DRDP_SERVER_BUILD_TESTING=OFF \
+              -DRDP_SERVER_TEST_LINUX_GSSAPI=OFF \
+              -DRDP_SERVER_TEST_LINUX_PAM=OFF \
+              -DRDP_SERVER_TEST_REAL_KERBEROS=OFF \
+              -DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON 2>&1
+          )"
+          configure_status=$?
+          set -e
+          printf '%s\n' "$configure_output"
+          if [[ "$configure_status" -eq 0 ]]; then
+            echo "production Linux security unexpectedly configured without libsystemd metadata" >&2
+            exit 1
+          fi
+          grep -F "libsystemd" <<< "$configure_output"
+      - name: Build production Linux security with tests disabled
+        if: matrix.dependency_mode == 'complete'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTING=OFF \
+            -DRDP_SERVER_BUILD_TESTING=OFF \
+            -DRDP_SERVER_TEST_LINUX_GSSAPI=OFF \
+            -DRDP_SERVER_TEST_LINUX_PAM=OFF \
+            -DRDP_SERVER_TEST_REAL_KERBEROS=OFF \
+            -DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON
+          grep -Fx 'BUILD_TESTING:BOOL=OFF' build/CMakeCache.txt
+          grep -Fx 'RDP_SERVER_BUILD_TESTING:BOOL=OFF' build/CMakeCache.txt
+          grep -Fx 'RDP_SERVER_TEST_LINUX_GSSAPI:BOOL=OFF' build/CMakeCache.txt
+          grep -Fx 'RDP_SERVER_TEST_LINUX_PAM:BOOL=OFF' build/CMakeCache.txt
+          grep -Fx 'RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY:BOOL=ON' build/CMakeCache.txt
+          cmake --build build --config Debug --target rdp-server --parallel 2
+
+          help_output="$(./build/rdp-server --help)"
+          grep -F -- '--check-linux-security' <<< "$help_output"
+
+          readelf -d build/rdp-server | tee build/r2-rdp-server-dynamic.txt
+          grep -E 'Shared library: \[libgssapi_krb5\.so' build/r2-rdp-server-dynamic.txt
+          grep -E 'Shared library: \[libpam\.so' build/r2-rdp-server-dynamic.txt
+          grep -E 'Shared library: \[libsystemd\.so' build/r2-rdp-server-dynamic.txt
+
+          ldd build/rdp-server | tee build/r2-rdp-server-ldd.txt
+          if grep -Fq 'not found' build/r2-rdp-server-ldd.txt; then
+            echo "production rdp-server has an unresolved runtime dependency" >&2
+            exit 1
+          fi
+          grep -E 'libgssapi_krb5\.so' build/r2-rdp-server-ldd.txt
+          grep -E 'libpam\.so' build/r2-rdp-server-ldd.txt
+          grep -E 'libsystemd\.so' build/r2-rdp-server-ldd.txt
+
   protocol:
     needs: ci-workflow-structure
     strategy:

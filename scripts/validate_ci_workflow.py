@@ -179,6 +179,7 @@ def yaml_backend(text: str) -> str:
 
 REQUIRED_JOBS = {
     "ci-workflow-structure",
+    "r2-linux-production-runtime-security",
     "protocol",
     "server-test-preview-status",
     "r6-windows-clang23",
@@ -190,6 +191,11 @@ REQUIRED_JOBS = {
 }
 
 REQUIRED_TOKENS = (
+    "r2-linux-production-runtime-security",
+    "-DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON",
+    "-DBUILD_TESTING=OFF",
+    "-DRDP_SERVER_BUILD_TESTING=OFF",
+    "readelf -d build/rdp-server",
     "transport.tcp-owned-tls-terminal-readiness",
     "transport.tcp-owned-buffered-tls-credssp-mcs-readiness",
     "security.credssp-password-field-synchronous-visitor",

@@ -1,3 +1,34 @@
+## R2 production runtime-security no-tests boundary (2026-10-17)
+
+**Reviewed parent:** `0cb84e2ce91d5da4251c37c454674f8c1a138c08`. Current production CMake already promotes
+`RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON` independently of
+`BUILD_TESTING` and the Linux `TEST_*` switches, requires GSSAPI/Kerberos,
+PAM and libsystemd, and links `rdp-server-linux-runtime-security` into the
+actual `rdp-server` executable. The missing evidence was an exact hosted build
+of that production selection with every test switch disabled.
+
+This increment adds the credential-free
+`r2-linux-production-runtime-security` Actions matrix. Its complete leg runs:
+
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=OFF -DRDP_SERVER_BUILD_TESTING=OFF -DRDP_SERVER_TEST_LINUX_GSSAPI=OFF -DRDP_SERVER_TEST_LINUX_PAM=OFF -DRDP_SERVER_TEST_REAL_KERBEROS=OFF -DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON`
+
+then builds target `rdp-server`, checks `--check-linux-security`, requires
+direct ELF dependencies on `libgssapi_krb5`, `libpam` and `libsystemd`,
+and rejects any unresolved `ldd` entry. The second leg hides libsystemd
+pkg-config metadata and requires CMake configuration to fail mentioning
+`libsystemd`. A nested CTest is intentionally not used because this project
+hard-requires exactly `<checkout>/build`; reconfiguring that live build from a
+CTest would violate the single-root/state-isolation contract. No keytab, PAM
+authentication, NSS/logind desktop query, listener or client connection runs.
+
+Publication-SHA Actions: **PENDING / NOT RUN** at authoring. Current executable
+startup is still fail-closed: `src/server/runtime/main.cpp` states that no
+listener is constructed and ends by refusing service startup. Therefore the R2
+review of R10's real accept→authenticate→authorize service lifecycle remains
+**BLOCKED on missing R10 `serve` composition**, while genuine positive
+Kerberos/PAM/NSS/logind X11 `seat0` acceptance separately remains
+**BLOCKED / NOT RUN** pending explicit owner authorization.
+
 ## R6/R7 exact hosted recovery after package self-scan and CLANG64 fix (2026-10-17)
 
 Implementation SHA `a948ddd32d8f774db975408468764e8cf3cf4381` is fully accepted by

@@ -1,3 +1,21 @@
+## R1 TCP reset assurance — 2026-10-17
+
+**Committed to shared main:** Linux-only native behavior CTest
+`transport.tcp-owned-tls-application-tcp-rst-terminal` (`db3da707`,
+`4f971f15`, `cb5b7c7f`). Exercises real nonblocking TLS application
+read pending across an abortive TCP reset, terminal no-replay and denied
+late SSL/BIO/socket callbacks, plus cancellation of already-decrypted buffered
+plaintext. R1's established clean close_notify/EOF coverage remains intact.
+The R10 scheduler `76813ac4` and three runtime CTests are landed; do not
+reopen the old ioInterest issue. New test exact-head build/CTest and CI:
+**NOT VERIFIED**, not PASS; authoritative hosted proof still required.
+R10 secure listener review remains pending published code. For that review,
+reuse one-shot native accept/batch (1–16), <=25 ms listener polling,
+move-only accepted sockets, and exact getsockname loopback verification;
+TCP accept never grants R2 admission. The genuine positive
+CredSSP→MCS Microsoft-client test still requires authorized physical
+Linux X11 seat0/Kerberos/PAM evidence.
+
 # RDP-server roadmap — authoritative live status
 
 **Reconciled:** 2026-10-17 · **Shared branch:** `main` · **Milestones accepted:** 0/6  

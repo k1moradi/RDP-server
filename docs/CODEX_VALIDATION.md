@@ -1,3 +1,50 @@
+## R9 exact-head full-green and SERVER-TEST verification at da43a967 (2026-10-18)
+
+Exact shared `main` SHA `da43a967e2d547bb73e2b51b8d61211219136842`
+is the latest independently checked full-green hosted source: primary Actions
+`39112263911` and structure Actions `39112263835` both **PASS**. The
+R9 sanitizer job `117630742394` passed R8 clipboard **87/87**, the separate
+R3 CLIPRDR route **9/9**, direct R10 runtime security **38/38**, R4 portable
+**42/42**, x264/BGRA **28/28**, R3 Graphics DVC **15/15**, R5 X11 **38/38**
+and the two R3 slow-path input cases; ClearCodec retains its exact four-case
+sentinel. R6 CLANG64 job `117630742381` passed **59/59** native cases, and
+R7 sanitizer job `117630742353` passed the exact two authority-loss/session
+input cases. Ordinary Linux, Windows/MSVC and macOS jobs, production Linux
+security, R7 lifecycle and aggregate SERVER-TEST status also passed. The SDK
+prerelease publisher remained separate and was skipped on this ordinary main
+push.
+
+SERVER-TEST artifacts from primary run `39112263911` were downloaded and
+checked independently. Linux artifact `12130544849` contains inner archive
+SHA-256 `8b66539b2d21475a8cac41c2d494b4568e8f121a05fba14432d856f2de1d8d60`,
+ELF64/glibc 2.39, GNU 13.3.0 and 17 recorded runtime dependencies. Windows
+artifact `12130664940` contains inner archive SHA-256
+`79c48107a25f0617153332a7044d198ec0a745c4687a114923bbbd0a11f6d714`,
+PE32+ MSVC 19.51.36260.0 and one non-system dependency,
+`libcrypto-3-x64.dll`, which is bundled. macOS artifact `12130961407`
+contains inner archive SHA-256
+`f07703250d718ae6a0bd9db091eefcb17cf3d8a54ed577cdafdbb4ae7f9f60f5`,
+arm64 Mach-O, AppleClang 21.0.0.21000101 and `libcrypto.4.dylib` /
+`libssl.4.dylib`. All three inner `SHA256SUMS.txt` inventories matched
+every manifest-listed payload, all manifests name the exact `da43a967...`
+SHA, and aggregate status artifact `12131740019` reports PASS for all three.
+
+The bundled sample configuration remains loopback-only
+(`127.0.0.1:33989`), authentication and OS authorization are required, TLS
+paths are explicit replacement placeholders, `startup_enabled=false` and
+`production_ready=false`. Linux service registration is absent at packaging
+time, Windows service/firewall/autostart registration is false, and macOS
+LaunchAgent registration / RunAtLoad / KeepAlive are false. CI secret scans,
+unconfigured serve refusal, packaged-sample serve refusal, install-no-listener
+and lifecycle checks all report PASS. This is executable/package integrity
+evidence only; deployment status remains **NOT VERIFIED; NOT CLAIMED** and it
+does not supply M1 owner-native or M2 live-client acceptance.
+
+The earlier R8 mid-callback assertion blocker is therefore resolved on this
+descendant. The next cross-road dependency is R10's genuine R2-authorized
+Demand Active / `ShareActivated` composition; no new R9 CI defect is currently
+demonstrated.
+
 ## R8 R3-authenticated clipboard transfer bridge (2026-10-18)
 
 **Source parent:** `eba62f48584da008595844fe5d6fbcd8b7f83c89`. R3's post-Share CLIPRDR dependency is now

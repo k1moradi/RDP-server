@@ -845,6 +845,138 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite(
     return {0U, Step::Invalid};
 }
 
+LinuxPostAdmissionMcsErectStepResult
+LinuxRuntimeConnection::advancePostAdmissionMcsErectDomain(
+    bool readable, bool writable) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Phase = rdp_server::server::transport::McsSessionPhase;
+    using Step = LinuxPostAdmissionMcsErectStepStatus;
+    using Intake = rdp_server::server::transport::McsSessionIntake;
+
+    if (!provisioned_ || !connection_.active())
+        return {0U, Step::Closed};
+    if (!broker_ || !lease_ || lease_->isRevoked() ||
+        credSspReplyPending() ||
+        session_.phase() != Phase::AwaitErectDomain ||
+        mcsConnectResponseTlsWritePending_)
+    {
+        mcsErectDomainFrameReader_.close();
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    const Interest required = connection_.ioInterest();
+    if (required == Interest::Closed)
+    {
+        mcsErectDomainFrameReader_.close();
+        revoke();
+        return {0U, Step::Closed};
+    }
+
+    const bool bufferedRead =
+        required == Interest::Read &&
+        connection_.tlsApplicationReadReady();
+    if (required == Interest::Read && !readable && !bufferedRead)
+        return {0U, Step::NeedRead};
+    if (required == Interest::Write && !writable)
+        return {0U, Step::NeedWrite};
+    if (required != Interest::Read && required != Interest::Write)
+    {
+        mcsErectDomainFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    // Every native admission and TLS/R1 assertion is fresh immediately
+    // before the one bounded read, not inferred from TCP readiness alone.
+    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    {
+        mcsErectDomainFrameReader_.close();
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    constexpr std::size_t kReadChunkBytes = 512U;
+    std::array<std::uint8_t, kReadChunkBytes> plaintext{};
+    const std::size_t needed = mcsErectDomainFrameReader_.bytesNeeded();
+    if (needed == 0U ||
+        needed >
+            rdp_server::server::transport::kMaximumInitialMcsTpktBytes)
+    {
+        mcsErectDomainFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    const std::size_t requested = (std::min)(plaintext.size(), needed);
+    const auto io = connection_.readTlsApplicationData(
+        std::span<std::uint8_t>{plaintext}.first(requested));
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        if (io.bytes == 0U || io.bytes > requested)
+        {
+            mcsErectDomainFrameReader_.close();
+            revoke();
+            return {0U, Step::Invalid};
+        }
+
+        const auto framed = mcsErectDomainFrameReader_.consume(
+            std::span<const std::uint8_t>{plaintext}.first(io.bytes));
+        std::fill(plaintext.begin(), plaintext.begin() + io.bytes, 0U);
+        if (framed.bytesConsumed != io.bytes ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+            framed.status == LinuxRuntimeMcsTpktFrameStatus::Closed)
+        {
+            mcsErectDomainFrameReader_.close();
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+        if (framed.status == LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+            return {io.bytes, Step::Progress};
+
+        const auto completeTpkt = mcsErectDomainFrameReader_.completeTpkt();
+        if (completeTpkt.empty())
+        {
+            mcsErectDomainFrameReader_.close();
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+
+        const Intake intake = broker_->authorizeR3ErectDomain(
+            *lease_, acceptor_, connection_, session_, completeTpkt);
+        mcsErectDomainFrameReader_.close();
+        if (intake == Intake::ErectDomainAccepted)
+            return {io.bytes, Step::ErectDomainAccepted};
+        revoke();
+        return {io.bytes,
+                intake == Intake::AdmissionDenied
+                    ? Step::AdmissionDenied : Step::Invalid};
+    }
+    case IoOutcome::NeedRead:
+        return {0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        return {0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        mcsErectDomainFrameReader_.close();
+        revoke();
+        return {0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        mcsErectDomainFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    mcsErectDomainFrameReader_.close();
+    revoke();
+    return {0U, Step::Invalid};
+}
+
 bool LinuxRuntimeConnection::selectPersonalDesktopLicensingMode(
     const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
 {
@@ -2412,6 +2544,7 @@ void LinuxRuntimeConnection::revoke() noexcept
     // owner disappears. The complete span is never retained across R2/R3 use.
     mcsConnectInitialFrameReader_.close();
     mcsConnectResponseTlsWritePending_ = false;
+    mcsErectDomainFrameReader_.close();
     personalClientLicensingFrameReader_.close();
     personalShareActivationFrameReader_.close();
     personalGraphicsDvcFrameReader_.close();

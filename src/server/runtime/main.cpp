@@ -784,6 +784,8 @@ struct LinuxServeAcceptContext final {
         rdp_server::server::runtime::LinuxPostAdmissionMcsStepStatus;
     using ResponseStep =
         rdp_server::server::runtime::LinuxPostAdmissionMcsResponseStepStatus;
+    using ErectStep =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsErectStepStatus;
 
     auto* context = static_cast<LinuxServeAcceptContext*>(rawContext);
     if (context == nullptr || context->policy == nullptr ||
@@ -920,7 +922,8 @@ struct LinuxServeAcceptContext final {
     // receipt before R3 commits progress.
     readable = false;
     writable = false;
-    while (connection.ready()) {
+    bool deliveredResponse = false;
+    while (connection.ready() && !deliveredResponse) {
         const auto step =
             connection.advancePostAdmissionMcsConnectResponseWrite(
                 readable, writable);
@@ -949,13 +952,58 @@ struct LinuxServeAcceptContext final {
             return true;
         }
         case ResponseStep::Delivered:
-            // Erect Domain/AttachUser/ChannelJoin remain the next R10 gate.
-            // Retire the genuine lease without opening a desktop.
-            connection.revoke();
-            return true;
+            deliveredResponse = true;
+            break;
         case ResponseStep::AdmissionDenied:
         case ResponseStep::Invalid:
         case ResponseStep::Closed:
+            return true;
+        }
+    }
+    if (!deliveredResponse || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    // The next exact TLS TPKT is Erect Domain. No buffering of the following
+    // Attach/User PDU is allowed, and only R2 can advance R3's phase.
+    readable = false;
+    writable = false;
+    while (connection.ready()) {
+        const auto step =
+            connection.advancePostAdmissionMcsErectDomain(
+                readable, writable);
+        readable = false;
+        writable = false;
+
+        switch (step.status) {
+        case ErectStep::Progress:
+            continue;
+        case ErectStep::NeedRead:
+        case ErectStep::NeedWrite: {
+            const auto ready =
+                connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case ErectStep::ErectDomainAccepted:
+            // Erect carries no channel privilege. Attach User and channel
+            // joins remain separate fresh-authority service increments.
+            connection.revoke();
+            return true;
+        case ErectStep::AdmissionDenied:
+        case ErectStep::Invalid:
+        case ErectStep::Closed:
             return true;
         }
     }

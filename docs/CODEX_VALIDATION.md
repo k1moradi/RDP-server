@@ -1,3 +1,29 @@
+## R10 R2-authorized post-response Erect Domain composition (2026-10-18)
+
+**Source parent `e0598ef5`; hosted publication-SHA build/CTest pending.**
+The R3-corrected descendant `52a1312` passed its full C++23 CI;
+R2 later confirmed the Connect Response R1/TLS exact-byte receipt path
+at `46405df8` and added its denial case to the 31-test direct runtime
+sanitizer selector. This R10 increment consumes a single post-response
+Erect Domain TPKT only after genuine R3 `Delivered` progress. A bounded
+read through R1's sole TLS owner preserves cached SSL plaintext and
+WANT_READ/WANT_WRITE; the native R2 broker revalidates the exact lease,
+GSS/TLS identity and logind evidence before every read and performs the
+sole protected `authorizeR3ErectDomain` phase transition on a complete
+TPKT. The next AttachUser PDU is never consumed early. The service
+deliberately revokes immediately after an actual accepted Erect until
+Attach/Join and native watcher lifecycle are separately composed.
+
+New behavior-named CTest
+`runtime.linux-connection-post-admission-erect-domain-denials` uses the
+real accepted R1 socket and an intentionally non-authorizing synthetic
+GSS/keytab configuration to test pre-admission Erect refusal, no plaintext
+read, no lease, terminal teardown and late-event replay rejection. No
+synthetic positive R2 admission is created. Positive seat0 Kerberos/PAM/
+NSS/logind and Microsoft-client Erect acceptance are **NOT RUN**.
+R3's authenticated slow-path keyboard/pointer parser is now authored;
+R10 still must connect it to the genuinely admitted R5 X11 owner.
+
 ## R6 installed-tree and inner-archive denial regressions (2026-10-18)
 
 Authored on parent 399e39cf04e1cffe55c70754e0cc2faa24a42212; exact publication-SHA hosted checks NOT RUN / pending at authoring time. The existing Windows package CTest now tests corrupted internal DLL data with a correct outer archive digest, modified installed DLL denial for Verify/Status/Start/Stop/Uninstall, unexpected installed-tree content, path escape outside LOCALAPPDATA, and reparse-point parent denial. Successful recovery requires restoring the original manifested contents. The same offline test now has 90-second upper bound.

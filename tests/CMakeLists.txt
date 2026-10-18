@@ -818,6 +818,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-native-poll-expiry-revocation
             linux-connection-post-admission-mcs-framing-denials
             linux-connection-post-admission-mcs-response-denials
+            linux-connection-post-admission-erect-domain-denials
             linux-connection-credssp-revocation-order
             linux-connection-credssp-authorization-denials
             linux-connection-final-credential-native-admission-denials

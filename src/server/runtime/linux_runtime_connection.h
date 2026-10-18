@@ -151,6 +151,26 @@ struct LinuxPostAdmissionMcsResponseStepResult
         LinuxPostAdmissionMcsResponseStepStatus::Closed};
 };
 
+// A single post-response TPKT may advance R3 only through fresh R2
+// authorization of the real Erect Domain intake. This grants no channel.
+enum class LinuxPostAdmissionMcsErectStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    ErectDomainAccepted,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPostAdmissionMcsErectStepResult
+{
+    std::size_t plaintextBytesRead{};
+    LinuxPostAdmissionMcsErectStepStatus status{
+        LinuxPostAdmissionMcsErectStepStatus::Closed};
+};
+
 enum class LinuxPersonalDesktopLicenseWriteStepStatus : std::uint8_t
 {
     Progress,
@@ -446,6 +466,13 @@ public:
     advancePostAdmissionMcsConnectResponseWrite(
         bool readable, bool writable) noexcept;
 
+    // Consume only one exact TPKT following the completely delivered MCS
+    // Connect Response. R1 owns TLS and plaintext progress, R2 freshly
+    // reauthorizes each read and the final R3 Erect Domain transition.
+    [[nodiscard]] LinuxPostAdmissionMcsErectStepResult
+    advancePostAdmissionMcsErectDomain(
+        bool readable, bool writable) noexcept;
+
     // R10-facing personal-desktop security boundary. The immutable policy is
     // the only product-mode input; R2 keeps the lease and generation pair
     // private and freshly reauthorizes every operation below. R1 remains the
@@ -685,6 +712,7 @@ private:
     rdp_server::server::transport::McsSessionLifecycle session_{};
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
     bool mcsConnectResponseTlsWritePending_{};
+    LinuxRuntimeMcsTpktFrameReader mcsErectDomainFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalShareActivationFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalGraphicsDvcFrameReader_{};

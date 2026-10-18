@@ -949,6 +949,47 @@ void testConnectionCredSspProgressAccounting(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPostAdmissionErectDomainDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsErectStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-erect-domain-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // A connected, ready socket is not permission to parse even a single
+    // Erect byte. The production path requires prior admitted response
+    // delivery and a genuinely current R2 lease.
+    const auto denied =
+        connection.advancePostAdmissionMcsErectDomain(true, true);
+    assert(denied.status == Step::AdmissionDenied);
+    assert(denied.plaintextBytesRead == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    const auto stale =
+        connection.advancePostAdmissionMcsErectDomain(true, true);
+    assert(stale.status == Step::Closed);
+    assert(stale.plaintextBytesRead == 0U);
+    connection.revoke();
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPostAdmissionMcsResponseDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2671,6 +2712,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-post-admission-mcs-response-denials")
     {
         testConnectionPostAdmissionMcsResponseDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-post-admission-erect-domain-denials")
+    {
+        testConnectionPostAdmissionErectDomainDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

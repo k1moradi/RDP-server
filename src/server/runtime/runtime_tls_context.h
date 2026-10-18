@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string_view>
@@ -9,6 +10,17 @@
 
 namespace rdp_server::server::runtime
 {
+
+using RuntimeTlsCertificateFingerprint = std::array<std::uint8_t, 32>;
+
+enum class RuntimeTlsEndpointIdentityStatus : std::uint8_t
+{
+    Match,
+    Mismatch,
+    InvalidEndpoint,
+    CertificateUnavailable,
+};
+
 
 // Runtime-only TLS server identity owner. A valid instance owns exactly one
 // configured SSL_CTX. The runtime must keep this owner alive while connection
@@ -38,6 +50,18 @@ public:
     [[nodiscard]] int minimumProtocolVersion() const noexcept;
     [[nodiscard]] std::uint64_t options() const noexcept;
     [[nodiscard]] const X509 *certificate() const noexcept;
+
+    // Identity coverage only; this does NOT establish certificate-chain trust,
+    // install a CA, suppress client warnings, or authorize an RDP session.
+    // Numeric IP literals require an iPAddress SAN. Hostnames require a DNS
+    // SAN; legacy Common Name fallback is deliberately disabled.
+    [[nodiscard]] RuntimeTlsEndpointIdentityStatus validateEndpointIdentity(
+        std::string_view endpoint) const noexcept;
+
+    // SHA-256 of the exact configured leaf certificate for R10/R7 display.
+    // A fingerprint is descriptive/pinning metadata, never R2 admission.
+    [[nodiscard]] bool certificateSha256Fingerprint(
+        RuntimeTlsCertificateFingerprint &output) const noexcept;
 
 private:
     using OwnedContext = std::unique_ptr<SSL_CTX, decltype(&::SSL_CTX_free)>;

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <new>
 #include <string_view>
@@ -257,6 +258,67 @@ std::uint64_t RuntimeServerTlsContext::options() const noexcept
 const X509 *RuntimeServerTlsContext::certificate() const noexcept
 {
     return context_ ? ::SSL_CTX_get0_certificate(context_.get()) : nullptr;
+}
+
+RuntimeTlsEndpointIdentityStatus
+RuntimeServerTlsContext::validateEndpointIdentity(
+    std::string_view endpoint) const noexcept
+{
+    const X509 *const selectedCertificate = certificate();
+    if (selectedCertificate == nullptr)
+        return RuntimeTlsEndpointIdentityStatus::CertificateUnavailable;
+
+    // RFC DNS names are bounded to 253 visible octets. This also leaves room
+    // for every textual IPv6 literal and one terminating NUL on the stack.
+    if (endpoint.empty() || endpoint.size() > 253U ||
+        endpoint.find('\0') != std::string_view::npos)
+        return RuntimeTlsEndpointIdentityStatus::InvalidEndpoint;
+
+    std::array<char, 254> endpointText{};
+    std::memcpy(endpointText.data(), endpoint.data(), endpoint.size());
+
+    // OpenSSL returns -2 when the text is not a syntactically valid IP
+    // literal. A syntactically valid IP MUST match an iPAddress SAN and must
+    // never fall back to DNS/CN matching.
+    const int ipMatch =
+        ::X509_check_ip_asc(selectedCertificate, endpointText.data(), 0U);
+    if (ipMatch == 1)
+        return RuntimeTlsEndpointIdentityStatus::Match;
+    if (ipMatch == 0)
+        return RuntimeTlsEndpointIdentityStatus::Mismatch;
+    if (ipMatch != -2)
+        return RuntimeTlsEndpointIdentityStatus::InvalidEndpoint;
+
+    constexpr unsigned int hostFlags =
+        X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS |
+        X509_CHECK_FLAG_NEVER_CHECK_SUBJECT;
+    const int hostMatch = ::X509_check_host(
+        selectedCertificate, endpoint.data(), endpoint.size(),
+        hostFlags, nullptr);
+    if (hostMatch == 1)
+        return RuntimeTlsEndpointIdentityStatus::Match;
+    if (hostMatch == 0)
+        return RuntimeTlsEndpointIdentityStatus::Mismatch;
+    return RuntimeTlsEndpointIdentityStatus::InvalidEndpoint;
+}
+
+bool RuntimeServerTlsContext::certificateSha256Fingerprint(
+    RuntimeTlsCertificateFingerprint &output) const noexcept
+{
+    output.fill(0U);
+    const X509 *const selectedCertificate = certificate();
+    if (selectedCertificate == nullptr)
+        return false;
+
+    unsigned int actualBytes = 0U;
+    if (::X509_digest(selectedCertificate, ::EVP_sha256(), output.data(),
+                      &actualBytes) != 1 ||
+        actualBytes != output.size())
+    {
+        OPENSSL_cleanse(output.data(), output.size());
+        return false;
+    }
+    return true;
 }
 
 } // namespace rdp_server::server::runtime

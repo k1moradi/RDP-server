@@ -2,6 +2,7 @@
 #include "server/runtime/runtime_tls_context.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
+#include <array>
 #include <concepts>
 #include <cstdio>
 #include <cstdint>
@@ -10,6 +11,7 @@
 #include <string_view>
 
 #include <openssl/bio.h>
+#include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 
@@ -166,6 +168,60 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     }
     return true;
 }
+[[nodiscard]] bool validateLanEndpointIdentity(
+    const char *certificatePath, const char *privateKeyPath) noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsCertificateFingerprint;
+    using rdp_server::server::runtime::RuntimeTlsEndpointIdentityStatus;
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            certificatePath, privateKeyPath);
+    if (!context)
+        return fail("LAN identity context construction failed");
+
+    constexpr auto match = RuntimeTlsEndpointIdentityStatus::Match;
+    constexpr auto mismatch = RuntimeTlsEndpointIdentityStatus::Mismatch;
+    constexpr auto invalid = RuntimeTlsEndpointIdentityStatus::InvalidEndpoint;
+    if (context.validateEndpointIdentity("rdp-lan.test") != match ||
+        context.validateEndpointIdentity("RDP-LAN.TEST") != match ||
+        context.validateEndpointIdentity("host.local") != match ||
+        context.validateEndpointIdentity("192.168.50.10") != match ||
+        context.validateEndpointIdentity("fd00::1234") != match)
+        return fail("expected SAN identity did not match");
+
+    if (context.validateEndpointIdentity("wrong.local") != mismatch ||
+        context.validateEndpointIdentity("192.168.50.11") != mismatch ||
+        context.validateEndpointIdentity("fd00::1235") != mismatch ||
+        context.validateEndpointIdentity("") != invalid)
+        return fail("mismatched/invalid endpoint was accepted");
+
+    const std::array<char, 15> embeddedNul{
+        'h','o','s','t','.','l','o','c','a','l','\0','e','v','i','l'};
+    if (context.validateEndpointIdentity(
+            std::string_view{embeddedNul.data(), embeddedNul.size()}) != invalid)
+        return fail("embedded-NUL endpoint was accepted");
+
+    RuntimeTlsCertificateFingerprint fingerprint{};
+    if (!context.certificateSha256Fingerprint(fingerprint))
+        return fail("certificate fingerprint unavailable");
+
+    RuntimeTlsCertificateFingerprint expected{};
+    unsigned int expectedBytes = 0U;
+    if (::X509_digest(context.certificate(), ::EVP_sha256(), expected.data(),
+                      &expectedBytes) != 1 ||
+        expectedBytes != expected.size() ||
+        fingerprint != expected)
+        return fail("certificate fingerprint mismatch");
+
+    bool allZero = true;
+    for (std::uint8_t byte : fingerprint)
+        allZero = allZero && byte == 0U;
+    if (allZero)
+        return fail("certificate fingerprint unexpectedly zero");
+    return true;
+}
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
@@ -178,6 +234,10 @@ int main(int argumentCount, char **argumentValues)
     const std::string_view testCase{argumentValues[1]};
     if (testCase == "validates-live-tls-context-construction") {
         return validateContext(argumentValues[2], argumentValues[3]) ? 0 : 1;
+    }
+    if (testCase == "validates-lan-endpoint-certificate-identity") {
+        return validateLanEndpointIdentity(
+            argumentValues[2], argumentValues[3]) ? 0 : 1;
     }
     if (testCase == "tls-context-survives-credential-path-replacement") {
         if (argumentCount != 6 || argumentValues[4] == nullptr ||

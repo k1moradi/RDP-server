@@ -41,10 +41,35 @@ TxKltblZKm/HdcMGdh1pG47kX2rmEIDpgw==
 -----END EC PRIVATE KEY-----
 ]=])
 
+set(lan_identity_certificate [=[-----BEGIN CERTIFICATE-----
+MIIB5zCCAYygAwIBAgIUesvmwZAYylztVqBPXx0anL7khdMwCgYIKoZIzj0EAwIw
+FzEVMBMGA1UEAwwMcmRwLWxhbi50ZXN0MCAXDTI2MTAxODExNDIxOVoYDzIxMjYw
+OTI0MTE0MjE5WjAXMRUwEwYDVQQDDAxyZHAtbGFuLnRlc3QwWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAQ3AW8NssRUGc3bplrrJgiHMiwwg0TUmJGDuDLUFKYTflKr
+tAWQOY0DceGRrOrRwiT9K3+PSIi4gaIeksNJNxyzo4GzMIGwMB0GA1UdDgQWBBRj
+oDJEcE14v5B7/EVOBIFk0kJGaTAfBgNVHSMEGDAWgBRjoDJEcE14v5B7/EVOBIFk
+0kJGaTAMBgNVHRMBAf8EAjAAMA4GA1UdDwEB/wQEAwIFoDATBgNVHSUEDDAKBggr
+BgEFBQcDATA7BgNVHREENDAyggxyZHAtbGFuLnRlc3SCCmhvc3QubG9jYWyHBMCo
+MgqHEP0AAAAAAAAAAAAAAAAAEjQwCgYIKoZIzj0EAwIDSQAwRgIhAJKp7fv0GmM7
+6Dk8EX/+Si6cSsT8PHyCiaxT71Rvtwn9AiEA9MTnWZyqyt2USQmbN2EQGSCIyzwf
+9wN++rZFba2xYng=
+-----END CERTIFICATE-----
+]=])
+set(lan_identity_private_key [=[-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKj5sRVe9Ye0g9rUh
+KxdHRFKL5KTfsQDfOKNz1njQ+nWhRANCAAQ3AW8NssRUGc3bplrrJgiHMiwwg0TU
+mJGDuDLUFKYTflKrtAWQOY0DceGRrOrRwiT9K3+PSIi4gaIeksNJNxyz
+-----END PRIVATE KEY-----
+]=])
+
 file(REMOVE
     "${certificate_file}" "${private_key_file}"
     "${replacement_certificate_file}" "${replacement_private_key_file}")
 if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+   "validates-lan-endpoint-certificate-identity")
+    file(WRITE "${certificate_file}" "${lan_identity_certificate}")
+    file(WRITE "${private_key_file}" "${lan_identity_private_key}")
+elseif(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
    "rejects-live-tls-context-invalid-material")
     file(WRITE "${certificate_file}" "NOT_A_PEM_CERTIFICATE\n")
 elseif(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
@@ -54,7 +79,10 @@ elseif(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
 else()
     file(WRITE "${certificate_file}" "${valid_certificate}")
 endif()
-file(WRITE "${private_key_file}" "${valid_private_key}")
+if(NOT RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+   "validates-lan-endpoint-certificate-identity")
+    file(WRITE "${private_key_file}" "${valid_private_key}")
+endif()
 
 if(UNIX)
     file(CHMOD "${certificate_file}" PERMISSIONS

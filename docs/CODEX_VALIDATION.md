@@ -1,3 +1,48 @@
+## R6 Windows per-user SERVER-TEST packaging (2026-10-17)
+
+**Reconciled shared-main parent:** `27f68c322fc13c7712c0393f7ca479ee4599a0c7`.
+R9's prior packaging blocker is resolved: exact SHA
+`9a2d09968e741d13bc1c5e76753ecaf1be7557ef` has structure Actions
+`39066363884` **PASS** and primary Actions `39066363832` **PASS**. Its
+Windows SERVER-TEST artifact contains the actual x86_64 PE32+ Release
+`rdp-server.exe`, records MSVC 19.51.36260.0, and reports
+`libcrypto-3-x64.dll` as the non-system runtime dependency.
+
+The dependency graph also advanced while this increment was prepared: parent
+`27f68c32` implements R3 fragmented Graphics DATA publication and a public R10
+prepared-frame composition surface, with hosted validation pending. That
+removes the former R3 DATA API blocker for future integration. This R6 package
+increment preserves those changes and does not alter their ownership.
+
+This increment closes the remaining R6 installability gap without inventing
+admission: every resolved non-system Windows DLL is bundled app-local, and the
+R6 PowerShell lifecycle verifies outer/internal checksums and manifest contents
+before a staged per-user install. Install/Verify/Status/Stop/Uninstall are
+idempotent where applicable; unsafe paths, reparse points, missing DLLs,
+modified installs and credential-like payloads fail closed. Start validates the
+installed tree, reports the missing genuine Windows R2 SSPI/CredSSP SID-bound
+lease and serialized R10 interactive-session owner, returns exit 3, and never
+launches `rdp-server.exe`. No service, firewall, scheduled task, autostart or
+network operation is added.
+
+Dedicated CTest: `windows.package-user-lifecycle-offline-contract`. The common
+SERVER-TEST synthetic fixture is also updated so stricter Windows archive
+validation requires the bundled runtime DLL and lifecycle script.
+
+**Validation before publication in this connector environment:** the authored
+Python R6 test source passes `python3 -m py_compile`; the PowerShell source
+passes the static denylist audit and its intended local bytes match Git blob
+`134656d6459c619bc052d75aac2f545eae391613`. Native PowerShell execution,
+canonical `~/rdp-server/build` CTest and hosted publication-SHA CI are
+**NOT RUN / PENDING** until the atomic main publication. No native desktop,
+credential, listener, service or input operation was used.
+
+**Remaining live blocker:** Windows serving is still **BLOCKED** on genuine
+Windows R2 SSPI/CredSSP SID-bound admission plus R10 serialized ownership of
+the approved interactive Windows session. R3 DATA publication now exists in
+source but is not authorization and must be consumed only behind those gates.
+Packaging success is not evidence for live Windows acceptance.
+
 ## R3 Graphics DATA publication candidate (2026-10-17)
 
 **Reconciled shared-main parent:** `27b5a1cea443e8ef107e4501b73a6a4395853932`.

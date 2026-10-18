@@ -21,6 +21,17 @@ add_test(NAME packaging.server-test-cross-platform-offline-contract
 set_tests_properties(packaging.server-test-cross-platform-offline-contract PROPERTIES
     LABELS "packaging;release;server-test;offline" TIMEOUT 30)
 
+# R6 Windows SERVER-TEST packaging/lifecycle contract. Portable checks run on
+# every host; native PowerShell install/verify/start/status/stop/uninstall
+# assertions execute only on Windows and never invoke the server executable.
+add_test(NAME windows.package-user-lifecycle-offline-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_windows_server_bundle.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/server_test_bundle.py"
+        --lifecycle-script "${PROJECT_SOURCE_DIR}/packaging/windows/rdp-server-test.ps1")
+set_tests_properties(windows.package-user-lifecycle-offline-contract PROPERTIES
+    LABELS "windows;packaging;security;server-test;offline" TIMEOUT 45)
+
 # R7 offline test-bundle policy: no desktop, TCC, network or process activation.
 add_test(NAME macos.package-offline-integrity-and-idempotence
     COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/test_macos_test_bundle.py"

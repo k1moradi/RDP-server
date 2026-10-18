@@ -183,9 +183,14 @@ three platform previews and re-verifies their exact-SHA statuses and outer
 digests.
 
 Linux additionally carries R5's disabled user-service template without
-installing or enabling it. Windows (R6) and macOS (R7) remain extraction-only
-preview manifests until their native serving contracts exist. R7's separate
-macOS **protocol-only** test bundle remains exactly that and is not a server.
+installing or enabling it. Windows (R6) carries a per-user PowerShell
+install/verify/start/status/stop/uninstall lifecycle plus the resolved
+non-system runtime DLL closure beside `rdp-server.exe`; its Start action is
+still fail-closed and never launches the server. macOS (R7) retains its
+startup-disabled per-user LaunchAgent review contract. See
+[Windows SERVER-TEST bundle](docs/WINDOWS_TEST_BUNDLE.md) for the R6 package
+boundary. R7's separate macOS **protocol-only** test bundle remains exactly
+that and is not a server.
 
 A manual dispatch may opt in with `server_test_preview=true`; ordinary
 main pushes build the same disabled previews for assurance. There is **no

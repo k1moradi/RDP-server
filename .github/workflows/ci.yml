@@ -267,6 +267,8 @@ jobs:
             build/server-test/rdp-server-test-*.zip
             build/server-test/rdp-server-test-*.zip.sha256
             build/server-test/rdp-server-test-*-STATUS.json
+            build/server-test/rdp-server-test-*-windows-*-lifecycle.ps1
+            build/server-test/rdp-server-test-*-windows-*-lifecycle.ps1.sha256
           if-no-files-found: error
           retention-days: 30
 

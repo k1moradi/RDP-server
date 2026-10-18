@@ -35,13 +35,26 @@ class ServerTestBundleTests(unittest.TestCase):
         )
         stage = self.root / "stage" / artifact_name
         stage.mkdir(parents=True)
+        executable_relative = (
+            "bin/rdp-server.exe" if platform_name == "windows" else "bin/rdp-server"
+        )
+        runtime_dependencies = (
+            ["libcrypto-3-x64.dll"]
+            if platform_name == "windows"
+            else ["libc.so.6"]
+        )
         payload = {
-            "bin/rdp-server": b"offline-synthetic-server-test-payload",
+            executable_relative: b"offline-synthetic-server-test-payload",
             "config/rdp-server.conf.example": b"listen_address=127.0.0.1\n",
-            "metadata/DEPENDENCIES.txt": b"libc.so.6\n",
+            "metadata/DEPENDENCIES.txt": b"synthetic runtime dependency\n",
             "docs/INSTALL-START-STOP-UNINSTALL.md": b"startup disabled\n",
             "licenses/LICENSE": b"GPL-3.0-or-later\n",
         }
+        if platform_name == "windows":
+            payload["bin/libcrypto-3-x64.dll"] = b"offline-synthetic-runtime"
+            payload["platform/windows/rdp-server-test.ps1"] = (
+                b"# offline synthetic lifecycle fixture\n"
+            )
         for relative, data in payload.items():
             bundle.write_payload_file(
                 stage, relative, data, bundle.mode_for_relative(relative)
@@ -57,7 +70,11 @@ class ServerTestBundleTests(unittest.TestCase):
             "version": "0.1.0",
             "platform": platform_name,
             "architecture": "x86_64",
-            "abi": "ELF64; synthetic",
+            "abi": (
+                "PE32+ Windows ABI"
+                if platform_name == "windows"
+                else "ELF64; synthetic"
+            ),
             "compiler": {
                 "id": "Test",
                 "version": "1",
@@ -66,8 +83,8 @@ class ServerTestBundleTests(unittest.TestCase):
                 "build_configuration": "Release",
             },
             "build_configuration": "Release",
-            "executable": "bin/rdp-server",
-            "runtime_dependencies": ["libc.so.6"],
+            "executable": executable_relative,
+            "runtime_dependencies": runtime_dependencies,
             "install": bundle.install_contract(platform_name),
             "files": bundle.payload_metadata(stage, list(payload)),
         }

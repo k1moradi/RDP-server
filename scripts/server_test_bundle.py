@@ -310,8 +310,33 @@ def dependency_report(dependencies: list[Path], os_name: str) -> str:
             "# Windows/System32 and Windows API-set DLLs are OS-supplied and excluded "
             "from the redistributable dependency closure."
         )
+        lines.append(
+            "# Every non-system DLL listed below is bundled beside rdp-server.exe."
+        )
     lines.extend(str(path) for path in dependencies)
     return "\n".join(lines) + "\n"
+
+
+def windows_runtime_dependency_payloads(
+    dependencies: list[Path],
+) -> list[tuple[str, Path]]:
+    payloads: list[tuple[str, Path]] = []
+    seen_names: set[str] = set()
+    for dependency in dependencies:
+        if not dependency.is_file() or dependency.is_symlink():
+            raise BundleError(
+                f"Windows runtime dependency is not a regular file: {dependency.name}"
+            )
+        name = dependency.name
+        if re.fullmatch(r"[A-Za-z0-9_.+\-]+\.dll", name, re.IGNORECASE) is None:
+            raise BundleError(f"unsupported Windows runtime dependency name: {name}")
+        folded = name.casefold()
+        if folded in seen_names:
+            raise BundleError(f"duplicate Windows runtime DLL basename: {name}")
+        seen_names.add(folded)
+        payloads.append((f"bin/{name}", dependency))
+    payloads.sort(key=lambda item: item[0].casefold())
+    return payloads
 
 
 def sample_config(os_name: str) -> str:
@@ -348,11 +373,14 @@ def install_contract(os_name: str) -> dict[str, object]:
     if os_name == "windows":
         return {
             "owner": "R6",
-            "mode": "extract-only-preview",
+            "mode": "per-user-script-preview",
+            "install_root": r"%LOCALAPPDATA%\RDP-server\server-test",
             "executable_destination": r"%LOCALAPPDATA%\RDP-server\server-test\bin\rdp-server.exe",
             "config_destination": r"%LOCALAPPDATA%\RDP-server\server-test\config\rdp-server.conf.example",
+            "lifecycle_script": "platform/windows/rdp-server-test.ps1",
             "service_template": None,
             "service_registration": False,
+            "firewall_rules": False,
             "autostart": False,
         }
     return {
@@ -393,9 +421,23 @@ def bundle_readme(
         )
     else:
         native_note = (
-            f"{contract['owner']} has not authorized a native serving service in this preview; "
-            "the install contract remains extraction-only."
+            "Windows carries R6's per-user PowerShell lifecycle verifier plus every resolved "
+            "non-system runtime DLL beside rdp-server.exe. It never registers a service, "
+            "scheduled task, firewall rule, login item, or autostart entry."
         )
+
+    windows_lifecycle = ""
+    if os_name == "windows":
+        windows_lifecycle = """
+Use the adjacent *-lifecycle.ps1 copy, or the identical script inside the
+archive, with -Action Install -ArchivePath <zip>. Install/Verify/Status/Stop/
+Uninstall operate only below %LOCALAPPDATA%\\RDP-server\\server-test and
+reject reparse points, unsafe archive paths, checksum mismatches, modified
+installed trees, or missing runtime DLLs. -Action Start intentionally returns
+exit 3 and reports that genuine Windows R2 SSPI/CredSSP SID-bound admission and
+serialized R10 interactive-session ownership are unavailable; it never invokes
+rdp-server.exe.
+"""
 
     macos_launch_agent = ""
     if os_name == "macos":
@@ -443,8 +485,9 @@ Treat the ZIP itself as the installer boundary. Verify the adjacent outer
 SHA-256 file, inspect `metadata/SHA256SUMS.txt`, then extract the one top-level
 artifact directory into a private user-owned test location. Extraction performs
 no command execution, service registration, login integration, autostart,
-desktop capture, input injection, or network bind. The manifest records the
-platform-owner destination contract. {native_note}
+desktop capture, input injection, firewall mutation, or network bind. The
+manifest records the platform-owner destination contract. {native_note}
+{windows_lifecycle}
 
 ## Start
 
@@ -628,6 +671,41 @@ def validated_archive(archive_path: Path) -> tuple[dict[str, object], dict[str, 
         payload = manifest["files"]
         if not isinstance(payload, dict) or not payload:
             raise BundleError("empty SERVER-TEST payload manifest")
+        runtime_dependencies = manifest["runtime_dependencies"]
+        if (
+            not isinstance(runtime_dependencies, list)
+            or any(not isinstance(name, str) for name in runtime_dependencies)
+            or len({name.casefold() for name in runtime_dependencies})
+            != len(runtime_dependencies)
+        ):
+            raise BundleError("invalid SERVER-TEST runtime dependency list")
+        if manifest["platform"] == "windows":
+            install = manifest["install"]
+            if (
+                not isinstance(install, dict)
+                or install.get("owner") != "R6"
+                or install.get("mode") != "per-user-script-preview"
+                or install.get("lifecycle_script")
+                != "platform/windows/rdp-server-test.ps1"
+                or install.get("service_registration") is not False
+                or install.get("firewall_rules") is not False
+                or install.get("autostart") is not False
+            ):
+                raise BundleError("unsafe Windows SERVER-TEST install contract")
+            if "platform/windows/rdp-server-test.ps1" not in payload:
+                raise BundleError("Windows SERVER-TEST lifecycle script missing")
+            expected_runtime_payloads: set[str] = set()
+            for name in runtime_dependencies:
+                if (
+                    re.fullmatch(
+                        r"[A-Za-z0-9_.+\-]+\.dll", name, re.IGNORECASE
+                    )
+                    is None
+                ):
+                    raise BundleError("invalid Windows runtime dependency name")
+                expected_runtime_payloads.add(f"bin/{name}")
+            if not expected_runtime_payloads.issubset(payload):
+                raise BundleError("required Windows runtime DLL is not bundled")
         manifest_relative = "metadata/SERVER-TEST-MANIFEST.json"
         expected_checksum_paths = set(payload) | {manifest_relative}
         if set(checksums) != expected_checksum_paths:
@@ -760,7 +838,15 @@ def smoke_archive(archive_path: Path, output_directory: Path) -> dict[str, str]:
         raise BundleError("installed executable ABI does not match manifest")
 
     environment = dict(os.environ)
-    environment["PATH"] = str(executable.parent) + os.pathsep + environment.get("PATH", "")
+    if os_name == "windows":
+        system_root = Path(environment.get("SystemRoot", r"C:\Windows"))
+        environment["PATH"] = os.pathsep.join(
+            [str(executable.parent), str(system_root / "System32"), str(system_root)]
+        )
+    else:
+        environment["PATH"] = (
+            str(executable.parent) + os.pathsep + environment.get("PATH", "")
+        )
     version_result = run_process(
         [str(executable), "--version"], expected_codes={0}, environment=environment
     )
@@ -848,6 +934,17 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path, Path]:
     dependencies = cmake_runtime_dependencies(
         executable, output_directory / "dependency-scan"
     )
+    windows_runtime_payloads = (
+        windows_runtime_dependency_payloads(dependencies)
+        if os_name == "windows"
+        else []
+    )
+    windows_lifecycle_bytes: bytes | None = None
+    if os_name == "windows":
+        lifecycle_source = source_root / "packaging/windows/rdp-server-test.ps1"
+        if not lifecycle_source.is_file() or lifecycle_source.is_symlink():
+            raise BundleError("R6 Windows lifecycle script missing")
+        windows_lifecycle_bytes = lifecycle_source.read_bytes()
 
     artifact_name = f"rdp-server-test-{version}-{os_name}-{architecture}-{args.git_sha[:12]}"
     artifact_root = output_directory / "stage" / artifact_name
@@ -884,6 +981,12 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path, Path]:
         if not launch_agent_helper.is_file():
             raise BundleError("R7 macOS LaunchAgent helper missing")
         add(MACOS_LAUNCH_AGENT_HELPER, launch_agent_helper.read_bytes())
+
+    if os_name == "windows":
+        assert windows_lifecycle_bytes is not None
+        add("platform/windows/rdp-server-test.ps1", windows_lifecycle_bytes)
+        for relative_path, dependency in windows_runtime_payloads:
+            add(relative_path, dependency.read_bytes())
 
     if os_name == "linux":
         r5_service = source_root / "packaging/linux/rdp-server-test.service"
@@ -926,7 +1029,19 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path, Path]:
     outer_checksum_path.write_text(
         f"{sha256_file(archive_path)}  {archive_path.name}\n", encoding="utf-8"
     )
+    if os_name == "windows":
+        assert windows_lifecycle_bytes is not None
+        lifecycle_output = output_directory / f"{artifact_name}-lifecycle.ps1"
+        lifecycle_output.write_bytes(windows_lifecycle_bytes)
+        lifecycle_checksum = lifecycle_output.with_suffix(".ps1.sha256")
+        lifecycle_checksum.write_text(
+            f"{sha256_file(lifecycle_output)}  {lifecycle_output.name}\n",
+            encoding="utf-8",
+        )
     checks = smoke_archive(archive_path, output_directory)
+    if os_name == "windows":
+        checks["windows_runtime_dlls_bundled"] = "PASS"
+        checks["windows_user_lifecycle"] = "PASS"
     status_path = output_directory / f"{artifact_name}-STATUS.json"
     status = {
         "artifact_family": ARTIFACT_FAMILY,

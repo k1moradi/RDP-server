@@ -1,3 +1,31 @@
+## R6 Windows SERVER-TEST per-user bundle build boundary (2026-10-17)
+
+R9's packaging prerequisite is resolved at exact SHA
+`9a2d09968e741d13bc1c5e76753ecaf1be7557ef`: structure run
+`39066363884` and primary run `39066363832` passed, including the aggregate
+three-platform SERVER-TEST status. The hosted Windows preview recorded Release
+MSVC **19.51.36260.0**, **x86_64**, **PE32+ Windows ABI** and exactly one
+non-system runtime dependency, `libcrypto-3-x64.dll`. Windows/System32 and
+API-set DLLs remain OS-supplied and are not copied as redistributables.
+
+R6 now treats CMake's resolved non-system dependency list as the package
+closure: every listed DLL must be a regular non-symlink `*.dll` with a unique
+case-insensitive basename and is copied beside `rdp-server.exe`. Validation
+fails if a listed DLL is absent from the archive. The Windows smoke launches
+only with the bundle `bin` directory plus `SystemRoot`/System32 on PATH, so
+an undeclared hosted-tool DLL cannot accidentally satisfy the test. Future
+compiler/runtime changes are therefore manifest-driven rather than hard-coded
+to the current OpenSSL name.
+
+The source lifecycle is `packaging/windows/rdp-server-test.ps1`. Packaging
+copies it into `platform/windows/` and emits an adjacent lifecycle script plus
+SHA-256 for tester convenience. It installs only below
+`%LOCALAPPDATA%\RDP-server\server-test`, requires no elevation, creates no
+Windows service, firewall rule, scheduled task or autostart entry, and its
+Start action never invokes the executable while R2/R10 Windows authority is
+unavailable. The canonical local build-root command is unchanged; connector
+authoring does not create another project build root.
+
 ## R2 production Linux runtime-security build (2026-10-17)
 
 For an explicitly production-capable Linux runtime build, configure with

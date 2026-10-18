@@ -1,3 +1,25 @@
+## R6 Windows SERVER-TEST lifecycle offline acceptance (2026-10-17)
+
+`windows.package-user-lifecycle-offline-contract` is the dedicated R6 package
+CTest. On every host it checks the Windows manifest contract, app-local runtime
+DLL requirement, duplicate-DLL alias denial and a static denylist proving the
+PowerShell lifecycle contains no web download, firewall, service, scheduled
+task, autostart or process-launch primitive. It also requires explicit
+R2-SSPI/CredSSP and R10 interactive-session blocker text.
+
+On Windows, the same CTest executes PowerShell against a synthetic verified
+archive: Install twice, Verify, Status, Start (expected exit **3** with no
+listener launch), Stop, Uninstall twice. It also verifies adjacent/internal
+SHA-256 enforcement, per-user path confinement, reparse/path traversal denial,
+modified-tree refusal and generic fail-only logging without credential-bearing
+values. The common `packaging.server-test-cross-platform-offline-contract`
+continues to cover exact-SHA three-platform status acceptance.
+
+This is packaging evidence only. It neither changes nor replaces the existing
+**59-case** R6 native DXGI/cursor/input selector, and it cannot mint Windows R2
+admission or authorize SendInput/capture. R3 DATA publication may be present
+and still does not grant native desktop authority.
+
 ## R3 Graphics DATA publication and receipt mapping gate (2026-10-17)
 
 The production-backed `transport.dvc-graphics-*` sanitizer inventory is

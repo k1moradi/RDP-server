@@ -1066,3 +1066,12 @@ set(CPACK_PACKAGE_FILE_NAME
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
 include(CPack)
 # A server executable will only be shipped after real-client acceptance.
+
+# R5: GUI prerequisite inspection is offline, read-only, and non-authorizing.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME linux.gui-preflight-native-seat-and-launch-denials
+            COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/test_linux_gui_preflight.py")
+    endif()
+endif()

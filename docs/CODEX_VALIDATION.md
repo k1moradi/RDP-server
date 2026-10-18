@@ -5926,3 +5926,10 @@ Current live blocker after R10's later `e486dca4b6b43bdacaccdafc98153a4977e910eb
 ## R7 initial Qt desktop GUI (2026-10-18)
 
 Optional GUI shell and `gui.offscreen-first-run-authorization-revocation` CTest added. This GitHub connector session cannot compile/build the owner's native checkout; GUI compile, CTest, CI and packaging **NOT RUN**. The in-memory fake is restricted to GUI tests. Production control is deny-only. R10 control/admission, R9 Qt ZIP closure and Mac `.app` distribution **BLOCKED**.
+
+## R5 GUI prerequisite / no-listener launcher (2026-10-18)
+
+Dedicated offline CTest `linux.gui-preflight-native-seat-and-launch-denials`
+registered. Canonical owner Debug build/full CTest: NOT RUN in GitHub connector
+environment. Real ZIP extraction/Qt closure/seat0 admission and R10 live X11
+input/frame acceptance: NOT RUN / BLOCKED. No R2 credentials were minted.

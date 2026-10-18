@@ -288,3 +288,18 @@ CAL-authority work. Existing licensing code remains isolated for modes that
 need it; it is not an authentication substitute. R2 authenticated identity +
 native OS admission remains mandatory before any R3 Share, graphics, input or
 clipboard authority.
+
+## R5 portable Linux GUI launch and native prerequisite inspection (2026-10-18)
+
+Added a read-only physical logind X11 seat0, DISPLAY, session and X11 library
+reporter. It cannot select/authenticate a desktop through R2, mint a generation,
+or enable R10 Share. A no-terminal desktop launcher runs only R7's separately
+built `rdp-server-desktop`, never `rdp-server serve`. The offline dedicated
+CTest covers Xvfb/DISPLAY mismatch, alternate seat, remote, inactive, Wayland,
+missing libraries and absent GUI executable. **PARTIAL:** a verified ZIP with
+Qt runtime closure, FUSE-free extraction, executable permissions and private
+configuration is NOT YET delivered; R7/R9 must compose and test the actual
+Qt GUI payload. No systemd unit is installed or enabled, and GUI launch cannot
+bind a listener or capture a frame. R10 must first supply genuine ShareActivated
+plus its sole R2 native selection/logind owner before an X11 resource handoff.
+Owner full CTest and live Microsoft-client acceptance: NOT RUN.

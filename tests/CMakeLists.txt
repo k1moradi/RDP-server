@@ -2640,6 +2640,15 @@ add_test(NAME windows.gui-portable-zip-integrity-path-uninstall-denials
 set_tests_properties(windows.gui-portable-zip-integrity-path-uninstall-denials
     PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 30)
 
+# Canonical runtime spellings must fail closed independently of host
+# filesystem case semantics.
+add_test(NAME windows.gui-portable-canonical-runtime-name-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_windows_gui_bundle.py"
+        WindowsGuiBundleTests.test_case_alias_and_wrong_output_name_are_rejected)
+set_tests_properties(windows.gui-portable-canonical-runtime-name-denials
+    PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 15)
+
 # R5 read-only Linux GUI preflight has no R2 lease/selection or X11 owner.
 # The production parser is linked to the optional Qt desktop shell.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND RDP_SERVER_BUILD_DESKTOP_GUI)

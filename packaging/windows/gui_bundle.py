@@ -151,10 +151,11 @@ def bundle(output: Path, gui: Path, windeployqt: Path, source_sha: str,
         (staging / "qt.conf").write_bytes(QT_CONF)
         records = collect_staged_files(staging)
 
-        lower_names = {name.casefold() for name in records}
+        # Keep package spelling deterministic across case-sensitive and
+        # case-insensitive staging filesystems.
         for required in (GUI_NAME, QT_PLATFORM, "Qt6Core.dll",
                          "Qt6Gui.dll", "Qt6Widgets.dll"):
-            require(required.casefold() in lower_names,
+            require(required in records,
                     f"missing deployed runtime: {required}")
 
         sources = {

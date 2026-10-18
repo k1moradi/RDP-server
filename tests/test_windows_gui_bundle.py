@@ -128,11 +128,14 @@ class WindowsGuiBundleTests(unittest.TestCase):
     def test_case_alias_and_wrong_output_name_are_rejected(self):
         def alias(gui: Path, staging: Path, tool: Path):
             self.deploy(gui, staging, tool)
+            # Recreate after unlinking so NTFS/APFS case-insensitive staging
+            # exposes the wrong canonical spelling instead of overwriting it.
+            (staging / "Qt6Core.dll").unlink()
             (staging / "qt6core.DLL").write_bytes(b"MZ alias")
 
         with self.assertRaisesRegex(
                 bundle.WindowsGuiBundleError,
-                "case-colliding"):
+                "missing deployed runtime"):
             self.build(alias)
 
         wrong = self.root / "portable.zip"
@@ -149,7 +152,7 @@ class WindowsGuiBundleTests(unittest.TestCase):
                 encoding="utf-8")
             + (ROOT / "src/windows/windows_gui_main.cpp").read_text(
                 encoding="utf-8")
-            + (ROOT / "src/windows/windows_runtime_host_control_adapter.cpp")
+            + (ROOT / "src/gui/host_control.cpp")
               .read_text(encoding="utf-8")
         ).casefold()
         for forbidden in (

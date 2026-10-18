@@ -1,3 +1,16 @@
+## R6 portable Windows canonical-runtime-name regression (2026-10-18)
+
+Portable GUI tests must not depend on the host filesystem being case-sensitive.
+The Windows package contract requires canonical `Qt6Core.dll`,
+`Qt6Gui.dll`, `Qt6Widgets.dll` and
+`plugins/platforms/qwindows.dll` spellings after staging, in addition to
+casefold collision rejection. A wrong-case fixture deletes the canonical entry
+before recreating it so NTFS/APFS case-insensitive hosts exercise the same
+denial. Source-policy scans follow the live shared R7
+`src/gui/host_control.cpp` adapter. The dedicated
+`windows.gui-portable-canonical-runtime-name-denials` CTest keeps this
+boundary visible in ordinary full CTest.
+
 ## R5 Qt-native Linux seat0 GUI preflight test boundary (2026-10-18)
 
 Opt-in Linux Qt builds compile the GUI's real read-only prerequisite parser,

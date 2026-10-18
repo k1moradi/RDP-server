@@ -1,3 +1,22 @@
+## R6 Windows portable GUI hosted-test correction (2026-10-18)
+
+Exact publication `31118f88977011c13e40893383f61abcfc29d88a` structure run
+`39122421348` **PASS**; primary run `39122421466` **FAIL**. Hosted
+Windows/macOS ordinary full CTest reached
+`windows.gui-portable-zip-integrity-path-uninstall-denials` and exposed two
+R6 test defects: the static no-privilege/network scan referenced removed
+`src/windows/windows_runtime_host_control_adapter.cpp` after R7 centralized
+the adapter in `src/gui/host_control.cpp`, and the wrong-case Qt DLL fixture
+overwrote the existing entry on case-insensitive filesystems instead of
+creating a deterministic bad spelling. This correction, authored on parent
+`5ada6530c14b01ccdb3088711360b1eb856e8581`, scans the live shared adapter, requires exact canonical Qt runtime
+names after staging, recreates the wrong-case fixture after unlinking the
+canonical entry, and registers
+`windows.gui-portable-canonical-runtime-name-denials`. Corrective hosted CI
+and owner-native validation: **NOT RUN / PENDING**. Native Windows package
+closure still belongs to R9; positive Windows hosting remains blocked on R2
+SSPI/CredSSP SID/WTS admission and the R10 interactive-session owner.
+
 ## R2 access-policy lifecycle test namespace correction (2026-10-18)
 
 Descendant hosted runs after `7044183db5a12d637bbb432d035a582224d12792`

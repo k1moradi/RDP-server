@@ -458,3 +458,9 @@ frame IDs, queue depth and ACK suspension. R10 must call this immediately
 after `GraphicsDataAccepted`, before reading another DATA packet. This is a
 separate bounded production commit from the non-mutating classifier; neither
 changes R10's TLS reader or native admission. Exact CI PENDING.
+
+**R3/R9 Graphics sanitizer selection (2026-10-18):** The real sanitizer
+run detected an obsolete 15-test Graphics DVC registry count, already 16
+after R3 presentation and 19 after the separate FRAME_ACK handoff tests.
+The workflow's exact count and required test names are updated to 19.
+Next hosted CI/sanitizer pass remains PENDING.

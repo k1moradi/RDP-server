@@ -6810,3 +6810,13 @@ graphics writer, TLS loop, or R10 generation argument. Unsupported/stale
 messages fail closed. Added behavior CTests for matching ACK, malformed
 ACK and stale generation. Exact-SHA CI/sanitizer outcomes: PENDING;
 local CTests NOT RUN in connector.
+
+## R3 Graphics sanitizer CI registry correction (2026-10-18)
+
+Hosted SHA `495a3371aea5e780e00c2ac6303d3a2264b8a857` passed Linux and
+macOS protocol CTests, but the sanitizer job failed because R9's Graphics
+DVC registry asserted exactly 15 tests while 16 were registered after the
+R3 presentation test. The separate authenticated R3 FRAME_ACK handoff adds
+three new production CTests, making 19. Update the R9 selection count to 19
+and require all four presentation/handoff names. No tests skipped; exact-head
+hosted CI and sanitizer results for correction SHA: PENDING.

@@ -1260,11 +1260,11 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           set -euo pipefail
-          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-(dispatch|native-poll)|native-poll-expiry-revocation|post-admission-(mcs-(framing-denials|response-denials)|erect-domain-denials|attach-(user|confirm-write)-denials|channel-join-denials|client-info-denials)|client-info-bounded-tpkt-framing|personal-(desktop-(r3-authority|clipboard-gateway|policy-receipt|graphics-dvc-authority)|licensing-sequence|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io|graphics-dvc-r1-io)-denials|outbound-(write-readiness|tls-want-precedence|cancellation-revocation)|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))$'
+          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-(dispatch|native-poll)|native-poll-expiry-revocation|post-admission-(mcs-(framing-denials|response-denials)|erect-domain-denials|attach-(user|confirm-write)-denials|channel-join-denials|client-info-denials)|client-info-bounded-tpkt-framing|personal-(desktop-(r3-authority|slow-path-input-gateway|clipboard-gateway|policy-receipt|graphics-dvc-authority)|licensing-sequence|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io|graphics-dvc-r1-io)-denials|outbound-(write-readiness|tls-want-precedence|cancellation-revocation)|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$runtime_security_selection")"
           printf '%s\n' "$selected_tests"
-          readonly runtime_security_expected_test_count=39
+          readonly runtime_security_expected_test_count=40
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$runtime_security_expected_test_count" ]]; then
             printf 'R9 M2 runtime-security registry mismatch: expected %s tests, found %s\n' \
@@ -1290,6 +1290,7 @@ jobs:
           grep -Fq 'runtime.linux-connection-client-info-bounded-tpkt-framing' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-licensing-sequence-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-r3-authority-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-desktop-slow-path-input-gateway-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-clipboard-gateway-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-policy-receipt-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-graphics-dvc-authority-denials' <<< "$selected_tests"
@@ -1316,7 +1317,7 @@ jobs:
 
       # R2's post-admission read-generation regression is a source-level CMake
       # contract rather than a sanitizer-instrumented executable. Keep it out
-      # of the fixed 38-case executable-backed selector, but require it in the
+      # of the fixed 40-case executable-backed selector, but require it in the
       # same focused assurance job so ordinary green CTest cannot hide omission.
       - name: Run R2 protected-read generation fence in focused assurance
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

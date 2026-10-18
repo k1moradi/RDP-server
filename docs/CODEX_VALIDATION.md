@@ -1,3 +1,9 @@
+## R9 current-head runtime-security and macOS-job structure reconciliation (2026-10-18)
+
+R7 corrective `a949b51b4aaf2cba92a4f942f0ebeff226055478` restores valid YAML after the earlier macOS-job insertion corruption. Its structure run `39127393244` then fails for one R9-owned reason: `scripts/validate_ci_workflow.py` still requires the pre-R8 runtime-security selector literal and `runtime_security_expected_test_count=38`. R8 has since enrolled `runtime.linux-connection-personal-desktop-clipboard-gateway-denials`, and R2 `880011cf0aacab058035c55302113d5172aa5e6f` added `runtime.linux-connection-personal-desktop-slow-path-input-gateway-denials`.
+
+R9 reconciles the focused executable-backed selector to **40** tests, requires both names explicitly, and updates the structure validator to demand the same combined selector/count. The validator also now requires the native `r7-macos-portable-gui` job and `macdeployqt` token so that future workflow reconstructions cannot silently drop the newly landed macOS package lane. The separate protected-read source-level guard remains outside the executable count. No production behavior changes. Exact correction-SHA structure/full CI: **PENDING**. Native Windows package failure diagnosis remains next after structure is restored.
+
 ## R2 protected post-Share slow-path input gateway (2026-10-18)
 
 Dependency review found R10's genuine Share/Graphics control and R2-selected

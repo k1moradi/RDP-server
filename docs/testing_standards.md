@@ -4038,3 +4038,7 @@ dependency record. Any absolute Homebrew or runner-home dependency path is a
 failure. This proves hosted arm64 bundle shape and relocatable Qt linkage only;
 it does not prove first-screen Aqua launch, signing/notarization trust, TCC,
 R2 admission, LAN listening or Microsoft-client interoperability.
+
+## CI structure tracks focused security inventory and native package lanes atomically (2026-10-18)
+
+When a new executable-backed protected runtime gateway joins the R9 sanitizer selector, the selector regex, exact count, explicit name sentinel and structure-validator token must change together. Native GUI package jobs that become release prerequisites must also be named in `REQUIRED_JOBS` with a distinctive deployment-tool token, so a syntactically valid workflow cannot silently omit Windows/macOS closure coverage.

@@ -1,3 +1,20 @@
+## R9 Erect Domain sanitizer registry correction (2026-10-18)
+
+Audited latest full-green hosted source `9f2ef97f64488c105076b7a6741848fcc75a95c1`: primary
+[39106560615](https://github.com/k1moradi/RDP-server/actions/runs/39106560615)
+and structure [39106560683](https://github.com/k1moradi/RDP-server/actions/runs/39106560683)
+**PASS**, including ordinary Linux, Windows/MSVC, Windows CLANG64, macOS,
+R9/R7 sanitizers and three-platform startup-disabled SERVER-TEST status.
+The ordinary Linux full CTest registered and passed R10's
+`runtime.linux-connection-post-admission-erect-domain-denials`, but R9's
+direct runtime-security ASan/UBSan selection included only the prior 31.
+This correction adds the anchored Erect alternative, exact-name preflight
+and **32-test** cardinality to CI and its workflow structure guard.
+No production service, owner-native credential, desktop or client evidence
+is asserted. Correction publication-SHA hosted CI: **NOT RUN / pending**.
+Next R9 gate: 32/32 direct sanitizer and full exact-head primary/structure
+PASS; M1 still awaits R10's short freeze and same-SHA owner-native receipts.
+
 ## R10 R2-authorized post-response Erect Domain composition (2026-10-18)
 
 **Source parent `e0598ef5`; hosted publication-SHA build/CTest pending.**

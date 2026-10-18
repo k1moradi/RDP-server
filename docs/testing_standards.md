@@ -1,3 +1,19 @@
+## R8 authenticated R3 clipboard bridge coverage (2026-10-18)
+
+The R8 application bridge must be tested below R10 without fabricating a live
+R2 lease. Tests may drive R3's production static-channel route mechanics
+offline, but R8 receives only an R3-owned nonzero route view and complete
+CLIPRDR PDUs; it must not invoke the legacy joined-channel intake Boolean or
+construct another static-VC reassembler. Each outbound application request is
+bound to R3's route/reply identity, positive partial accepted bytes remain
+pending, and only `Delivered` permits a matching response. Retirement clears
+source/request/FileContents readiness before reconnect; the replacement route
+must have a newer R3 generation while `RemoteTransfer::sourceEpoch()` advances
+only when a replacement clipboard offer is accepted. The five
+`clipboard.r3-bridge-*` cases extend the R8 sanitizer inventory from **82 to
+87**. R3's nine `transport.cliprdr-*` cases use the separate `r3-cliprdr`
+label and must not be counted by `ctest -L clipboard`.
+
 ## R3 CLIPRDR whole-PDU/receipt gate (2026-10-18)
 
 MS-RDPBCGR 2.2.6.1.1 and 3.1.5.2 require the eight-byte static-VC header and the exact negotiated channel-data bound (1600 unless both optional VCChunkSize fields apply; maximum 16256). Channel data must preserve FIRST/LAST ordering; SHOW_PROTOCOL is optional header-visibility metadata and must not be required for reassembly. Incoming SUSPEND/RESUME and SHADOW_PERSISTENT control bits are ignored as required; unsupported compression, unknown flags, and interleaved, overflowing or underlength fragments must terminate the owner rather than offer partial clipboard data. Only R3 decodes complete MCS SendDataRequests and emits complete MCS SendDataIndication TPKTs; R8 must not add a framing owner. Every positive SSL_write_ex application-plaintext accepted-byte receipt must be bound to the current R3 route/reply/slice and reauthorized by R2; zero/would-block is not progress. A partial accepted packet needs only its suffix resent, and retirement discards it. Test source/parser/receipt mechanics offline without inventing R2 OS admission. The eight route behavior-named `transport.cliprdr-*` CTests plus `transport.cliprdr-pre-share-denial` form a nine-case R3 inventory. Hosted sanitizer CI must build `test_r3_clipboard_static_channel` explicitly and select all nine exact names separately from R8's clipboard inventory. Genuine physical seat0 proof remains a separate live gate.
@@ -234,7 +250,7 @@ embedded exact SHA. These are **disabled preview** receipts only.
 Sanitizer/test-registry inventories stay unchanged and failure-closed:
 R10 runtime-security **28**, R3 Graphics DVC **15**, R4 portable **42**,
 ClearCodec **4**, R5 **38**, R6 **59**, R7 authority-loss input **2**, and R8
-clipboard **82**. M1 owner-native same-SHA receipts and the M2 three-client
+clipboard **87**. M1 owner-native same-SHA receipts and the M2 three-client
 human matrix remain separate from hosted artifact CI.
 
 ## R10 Graphics DVC control aggregate stays denial-only without genuine Share authority (2026-10-17)

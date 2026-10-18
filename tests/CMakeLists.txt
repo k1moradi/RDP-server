@@ -603,8 +603,33 @@ foreach(case_name IN ITEMS
     add_test(NAME "transport.cliprdr-${case_name}"
         COMMAND test_r3_clipboard_static_channel "${case_name}")
     set_tests_properties("transport.cliprdr-${case_name}" PROPERTIES
-        LABELS "protocol;transport;r3-clipboard;security;offline")
+        LABELS "protocol;transport;r3-cliprdr;security;offline")
 endforeach()
+
+# R8 consumes only R3's authenticated route view, complete-PDU sink and
+# receipt view. These cases are fully offline and mint no R2 admission.
+add_executable(test_r8_r3_clipboard_bridge
+    test_r8_r3_clipboard_bridge.cpp)
+target_link_libraries(test_r8_r3_clipboard_bridge PRIVATE
+    rdp-server-r8-r3-clipboard)
+if(MSVC)
+    target_compile_options(test_r8_r3_clipboard_bridge PRIVATE /UNDEBUG)
+else()
+    target_compile_options(test_r8_r3_clipboard_bridge PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        source-request-receipt
+        missing-activated-route-denial
+        old-route-generation-retirement
+        partial-positive-receipt-retirement
+        filecontents-request-receipt)
+    add_test(NAME "clipboard.r3-bridge-${case_name}"
+        COMMAND test_r8_r3_clipboard_bridge "${case_name}")
+    set_tests_properties("clipboard.r3-bridge-${case_name}" PROPERTIES
+        LABELS "protocol;clipboard;r8-r3;security;offline")
+endforeach()
+
 # R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
 # fixture to validate the noninstalled service-lifetime runtime owner.
 target_link_libraries(test_owned_mcs_connect_initial PRIVATE

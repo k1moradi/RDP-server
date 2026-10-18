@@ -1,3 +1,35 @@
+## R8 R3-authenticated clipboard transfer bridge (2026-10-18)
+
+**Source parent:** `eba62f48584da008595844fe5d6fbcd8b7f83c89`. R3's post-Share CLIPRDR dependency is now
+present: `LinuxConsoleAdmissionBroker` freshly protects the exact
+`McsSessionLifecycle` route visit, complete-PDU dispatch, outbound queue/pending
+borrow and accepted-byte completion; R3 owns exact joined `cliprdr` role,
+bounded static-VC reassembly and its nonzero process-wide route generation.
+R8 therefore adds noninstalled `R3ClipboardTransferBridge`, which receives no
+MCS chunks and no caller admission Boolean. It retires `RemoteTransfer` on
+route mismatch/replacement, stages only complete CLIPRDR application PDUs for
+R3, and marks format/FileContents requests response-eligible only after the
+matching R3 write reaches `Delivered`.
+
+Five offline production-backed R8 CTests cover source/request/receipt success,
+missing activated route, old route generation retirement/reconnect,
+positive-partial accepted-byte retirement, and FileContents request/receipt.
+The R3 tests are relabeled `r3-cliprdr` so R8's `clipboard` sanitizer census
+is independent and becomes **87**. The previously red Win32 callback-retirement
+test is corrected to match the source-epoch contract: R3 retirement resets the
+current clipboard generation but does **not** mint a source epoch; the next
+accepted offer advances the monotonic epoch before same-number generation
+publication can resume.
+
+**Validation:** implementation/CTest/CI wiring authored; local owner build/full
+CTest **NOT RUN** in this environment and exact publication-SHA hosted CI is
+pending. No live clipboard or native publication was enabled. The remaining
+live blocker is R10: its serialized service currently stops after PersonalDesktop
+licensing and must still reach genuine R2-authorized Demand Active/
+`ShareActivated` before it may compose the existing R2 clipboard gateways with
+this bridge and a native owner. Clipboard remains independent of first video/input
+client testing.
+
 ## R9 R10 Join/Info/licensing and R3 CLIPRDR sanitizer reconciliation (2026-10-18)
 
 Latest completed full-green hosted source before the current red descendants is

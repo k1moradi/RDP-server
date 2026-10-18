@@ -1,3 +1,14 @@
+## R8 post-Share CLIPRDR bridge build boundary (2026-10-18)
+
+`rdp-server-r8-r3-clipboard` is a noninstalled C++23 static target containing
+only the R8 application-state bridge. It links the existing portable protocol
+target and therefore reuses R3's sole static-VC/MCS framing owner; it adds no
+native clipboard, GSS/PAM, socket or OS dependency. The bridge header is
+excluded from the installed SDK. `test_r8_r3_clipboard_bridge` is built by
+the existing sanitizer job and its five behavior CTests run under the ordinary
+clipboard label. No live desktop, clipboard, credentials or service activation
+is required.
+
 ## CLANG64 WinGDI Rectangle collision and R6 package self-scan (2026-10-17)
 
 MSYS2 CLANG64 parses `wingdi.h` before shared graphics through the Windows

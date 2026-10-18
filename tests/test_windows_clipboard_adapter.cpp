@@ -522,7 +522,8 @@ void windowsClipboardPublicationMidcallbackRetirement()
         native.adapter = &adapter;
 
         assert(!adapter.publishReadyRemoteGeneration());
-        assert(owner.sourceEpoch() > originalSourceEpoch);
+        assert(owner.generation() == 0U);
+        assert(owner.sourceEpoch() == originalSourceEpoch);
         assert(!adapter.ownsClipboard());
         assert(adapter.publicationGeneration() == 0U);
         assert(native.delayedFormats.empty());
@@ -533,6 +534,7 @@ void windowsClipboardPublicationMidcallbackRetirement()
         // Reused numeric generation is not authority for the retired epoch.
         assert(owner.receiveFormatList(formats));
         assert(owner.generation() == originalGeneration);
+        assert(owner.sourceEpoch() > originalSourceEpoch);
         storeText(owner, replacementWire);
         assert(adapter.publishReadyRemoteGeneration());
         assert(adapter.ownsClipboard());

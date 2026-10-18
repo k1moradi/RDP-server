@@ -229,6 +229,23 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R8 application-state bridge for R3's authenticated post-Share CLIPRDR route.
+# It owns no R2 authority, MCS/static-VC reassembly, channel generation or TLS
+# writer and is intentionally not part of the installed protocol SDK.
+add_library(rdp-server-r8-r3-clipboard STATIC
+    src/server/clipboard/r3_clipboard_transfer_bridge.cpp)
+target_compile_features(rdp-server-r8-r3-clipboard PUBLIC cxx_std_23)
+target_include_directories(rdp-server-r8-r3-clipboard PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-r8-r3-clipboard PUBLIC
+    rdp-server-protocol)
+if(MSVC)
+    target_compile_options(rdp-server-r8-r3-clipboard PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-r8-r3-clipboard PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # Portable, noninstalled R2 identity-policy component.
 add_library(rdp-server-console-identity-policy STATIC
     src/server/security/console_identity_policy.cpp)
@@ -964,6 +981,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "credssp_credentials_internal.h" EXCLUDE
     PATTERN "runtime_licensing_authority.h" EXCLUDE
     PATTERN "runtime_licensing_authority_internal.h" EXCLUDE
+    PATTERN "r3_clipboard_transfer_bridge.h" EXCLUDE
     PATTERN "linux_pam_password_verifier.h" EXCLUDE
     PATTERN "windows_native_session_evidence.h" EXCLUDE
     PATTERN "macos_native_session_evidence.h" EXCLUDE)

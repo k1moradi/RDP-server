@@ -678,7 +678,7 @@ jobs:
         run: |
           cmake --build build --config Debug --parallel 2 --target \
             test_owned_remote_transfer test_clipboard_protocol \
-            test_r3_clipboard_static_channel \
+            test_r3_clipboard_static_channel test_r8_r3_clipboard_bridge \
             test_windows_clipboard_adapter test_macos_clipboard_adapter \
             test_windows_clipboard_file_destination \
             test_macos_clipboard_file_destination \
@@ -740,7 +740,12 @@ jobs:
           grep -Fq 'clipboard.windows-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-clipboard-publication-midcallback-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-r3-retirement-stale-incr-fence' <<< "$selected_tests"
-          readonly clipboard_expected_test_count=82
+          grep -Fq 'clipboard.r3-bridge-source-request-receipt' <<< "$selected_tests"
+          grep -Fq 'clipboard.r3-bridge-missing-activated-route-denial' <<< "$selected_tests"
+          grep -Fq 'clipboard.r3-bridge-old-route-generation-retirement' <<< "$selected_tests"
+          grep -Fq 'clipboard.r3-bridge-partial-positive-receipt-retirement' <<< "$selected_tests"
+          grep -Fq 'clipboard.r3-bridge-filecontents-request-receipt' <<< "$selected_tests"
+          readonly clipboard_expected_test_count=87
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$clipboard_expected_test_count" ]]; then
             printf 'R8 clipboard registry mismatch: expected %s tests, found %s\n' \

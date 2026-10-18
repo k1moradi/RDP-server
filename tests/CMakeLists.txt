@@ -30,12 +30,16 @@ set_tests_properties(macos.package-offline-integrity-and-idempotence PROPERTIES
 
 # R7 optional per-user LaunchAgent contract. Rendering is offline and refuses
 # implicit registration; tests never invoke a service manager or native APIs.
-add_test(NAME packaging.macos-user-launch-agent-offline-contract
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROJECT_SOURCE_DIR}/tests/test_macos_test_launch_agent.py"
-        --script "${PROJECT_SOURCE_DIR}/scripts/macos_test_launch_agent.py")
-set_tests_properties(packaging.macos-user-launch-agent-offline-contract PROPERTIES
-    LABELS "macos;packaging;security;offline" TIMEOUT 20)
+# Register only on Apple because the contract deliberately validates POSIX
+# macOS home paths and file modes.
+if(APPLE)
+    add_test(NAME packaging.macos-user-launch-agent-offline-contract
+        COMMAND "${Python3_EXECUTABLE}"
+            "${PROJECT_SOURCE_DIR}/tests/test_macos_test_launch_agent.py"
+            --script "${PROJECT_SOURCE_DIR}/scripts/macos_test_launch_agent.py")
+    set_tests_properties(packaging.macos-user-launch-agent-offline-contract PROPERTIES
+        LABELS "macos;packaging;security;offline" TIMEOUT 20)
+endif()
 add_test(NAME project.ci-workflow-structure-denials
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/scripts/validate_ci_workflow.py"

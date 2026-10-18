@@ -8,7 +8,7 @@ Alternate executables, root homes, socket/MachService/environment triggers,
 unknown keys, malformed plists and direct writes into
 `~/Library/LaunchAgents` fail closed. The helper imports no subprocess/socket
 activation primitive and contains no TCC, ScreenCaptureKit or Quartz-input
-operation. This CTest is portable/offline and must not register or start a job.
+operation. This CTest is Apple-hosted/offline and must not register or start a job; Linux/Windows retain the existing cross-platform SERVER-TEST archive test.
 
 The macOS SERVER-TEST archive may carry the helper because R9 now packages the
 actual startup-disabled `rdp-server` executable. Carrying the helper is not

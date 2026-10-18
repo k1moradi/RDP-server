@@ -1,3 +1,11 @@
+## R7 LaunchAgent CTest platform registration correction (2026-10-17)
+
+The LaunchAgent renderer is intentionally a macOS POSIX-path/mode contract.
+Its dedicated CTest is therefore registered only under `APPLE`; Linux and
+Windows continue to exercise the unchanged cross-platform SERVER-TEST archive
+contract. This avoids treating Windows path/chmod behavior as macOS LaunchAgent
+evidence. Publication-SHA hosted verification remains **PENDING**.
+
 ## R7 macOS packaging blocker resolved; optional LaunchAgent increment (2026-10-17)
 
 Exact shared head `9a2d09968e741d13bc1c5e76753ecaf1be7557ef` resolves the

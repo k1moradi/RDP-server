@@ -1,3 +1,26 @@
+## R6 extracted Windows GUI command-mode QPA correction (2026-10-18)
+
+R6 recursive staging plus R9 system-DLL classification clears the previous
+native package boundary. On exact R9 SHA
+`f8e4d056f89626f38fc611168e9ad063c4fcdf16`, Windows job
+`117681999726` in run `39129608406` reports
+`PORTABLE-GUI archive structure PASS` followed by
+`Windows PE closure PASS: 41 images, 571 imports inspected`. The next R9
+extracted smoke fails at the first deny-only mode after 15 seconds:
+`Offline GUI mode timed out: --offline-self-test`.
+
+The production launcher forced `QT_QPA_PLATFORM=offscreen` for those hidden
+modes, while the artifact contract guarantees `qwindows.dll`, not
+`qoffscreen.dll`. This R6 correction, authored on parent `746bf766f68f38cd8d71fb67b24b6d7e604044c5`, selects
+the packaged `windows` platform for both hidden modes, still never shows the
+window or enters the event loop, and adds
+`windows.gui-offline-packaged-qwindows-selection` with an intentionally
+invalid inherited QPA value. Connector-local Windows execution:
+**NOT RUN**; exact publication-SHA hosted CI: **PENDING**. The normal
+first-screen/no-socket/firewall smoke remains R9-owned. Positive Windows
+hosting remains separately **BLOCKED** on R2 SSPI/CredSSP SID/WTS admission
+and R10's Windows interactive-session owner.
+
 ## R5 consumes R2's per-event slow-path input gateway (2026-10-18)
 
 R2's post-Share `LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu`

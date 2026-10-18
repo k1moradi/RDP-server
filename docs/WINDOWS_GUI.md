@@ -58,3 +58,18 @@ Linux-host server separately from this Windows-host milestone.
 R7 now supplies the shared Qt adapter to R10's typed RuntimeHostControl, and the Windows launcher instantiates that production contract through the deny-only runtime facade. R6 therefore does not add a second control owner. The remaining positive Start path still depends on a concrete R10 Windows backend and genuine R2 Windows admission.
 
 R6 now provides packaging/windows/gui_bundle.py. It first runs local windeployqt, then uses CMake file(GET_RUNTIME_DEPENDENCIES) over the staged GUI and plugin DLLs to resolve the recursive non-system PE closure from the staged tree, Qt/toolchain directories and PATH. Windows API-set names are pre-excluded and resolved Windows system paths are post-excluded; missing non-system dependencies fail closed. Resolved regular DLLs that windeployqt omitted are copied into the GUI root before hashing. The builder requires Qt6Core/Gui/Widgets and plugins/platforms/qwindows.dll, rejects reparse links, unsafe or case-colliding paths, installer/script helpers and unexpected extra executables, and emits R9's exact PORTABLE-GUI manifest/checksum contract plus an adjacent outer SHA-256 receipt. The portable CTests use Unicode and space-containing paths, validate the archive with R9's production verifier, prove injected toolchain DLL staging, and exercise extraction/removal without executing or installing anything. R9 remains the independent native PE-import authority and must classify genuine Windows system DLLs rather than require their redistribution; extracted-GUI offline launch and firewall-state evidence remain native CI responsibilities.
+
+## Packaged command-mode Qt platform contract
+
+The Windows portable ZIP guarantees the native Qt `qwindows` platform
+plugin. The hidden `--offline-self-test` and
+`--offline-start-denial-test` command modes therefore force
+`QT_QPA_PLATFORM=windows` and return before `QApplication::exec()`; they
+construct the production shared window but never call `show()`. They must
+not depend on Qt's optional `qoffscreen` developer/test plugin. The ordinary
+double-click path remains unchanged and still shows the real top-level window.
+The dedicated
+`windows.gui-offline-packaged-qwindows-selection` CTest starts with an
+intentionally invalid inherited QPA selection and requires the launcher to
+override it. This changes no listener, credential, firewall, service,
+capture/input or R2/R10 authority behavior.

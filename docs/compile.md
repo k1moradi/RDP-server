@@ -1,3 +1,12 @@
+## R6 packaged Windows GUI QPA boundary (2026-10-18)
+
+The Windows GUI package requires the native `qwindows.dll` Qt platform
+plugin; it does not package `qoffscreen.dll`. The two hidden offline command
+modes explicitly select `QT_QPA_PLATFORM=windows`, construct the production
+shared window without showing it, and return before entering Qt's event loop.
+This keeps native package smoke aligned with the actual double-click runtime
+closure and adds no Qt module or deployment dependency.
+
 ## R6 Windows PORTABLE-GUI recursive runtime closure (2026-10-18)
 
 The native R9 Windows run exposed that MSYS2/CLANG64 `windeployqt` deploys

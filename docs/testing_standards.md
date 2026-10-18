@@ -1,3 +1,14 @@
+## R6 packaged Windows GUI command-mode platform regression (2026-10-18)
+
+Portable command-mode smoke must use only Qt plugins guaranteed by the
+artifact contract. Windows guarantees `plugins/platforms/qwindows.dll`;
+therefore hidden deny-only self-tests may not rely on `qoffscreen.dll`.
+`windows.gui-offline-packaged-qwindows-selection` deliberately inherits an
+invalid `QT_QPA_PLATFORM` value and requires the production launcher to
+select `windows`, construct the shared GUI without showing it, and exit
+normally. R9 separately owns the extracted normal first-screen, no-socket and
+firewall-state smoke.
+
 ## R5 decoded RDP slow-path input to native X11, per-event (2026-10-18)
 
 R2 `dispatchPersonalDesktopSlowPathInputPdu` is the only gateway permitted

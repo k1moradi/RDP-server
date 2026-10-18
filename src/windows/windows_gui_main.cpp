@@ -50,7 +50,11 @@ int main(int argc, char *argv[])
     const bool offlineStartDenialTest =
         argc == 2 && std::string_view{argv[1]} == "--offline-start-denial-test";
     if (offlineSelfTest || offlineStartDenialTest)
-        qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+        // The portable Windows contract guarantees qwindows.dll, not Qt's
+        // developer-only offscreen platform plugin. Keep command-mode
+        // verification hidden by never showing the window, but initialize
+        // through the same packaged platform plugin as normal launch.
+        qputenv("QT_QPA_PLATFORM", QByteArray("windows"));
 
     QApplication application(argc, argv);
     rdp_server::server::runtime::UnavailableRuntimeHostControl runtime;

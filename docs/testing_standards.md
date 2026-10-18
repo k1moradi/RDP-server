@@ -1,3 +1,23 @@
+## R6 hosted reparse proof and reused WTS-number denial (2026-10-18)
+
+A successful aggregate Windows packaging CTest alone does not prove its reparse
+negative executed: symlink creation could skip on a restricted account. The
+existing Python native lifecycle case first tries a directory symlink, then a
+Windows directory junction (both reparse points), and fails the hosted GitHub
+Actions run rather than silently skipping if neither is available. The dedicated
+`windows.package-reparse-parent-denial` CTest makes this specific denial visible
+in the normal Windows full Debug/Release registry; no production packaging code
+or installer privilege is changed.
+
+`security.windows-native-session-reused-id-luid-logon-denials` exercises the
+production `WindowsNativeSessionEvidence::sameNativeSession()` comparator
+against synthetic *candidate identity facts*, never synthetic admission:
+unchanged numeric WTS session and SID with changed low/high LSA LUID or logon
+time must compare unequal. The ordinary native provider denial test remains
+separate. Neither test starts a server, captures a desktop, injects input, or
+grants R2/R10 Windows authority. Source parent is `aea0201eed22b90bd6d4bd6ac6d4a0895752c00e`; new commit hosted
+CI and owner-native Debug acceptance are NOT RUN / pending.
+
 ## R6 PowerShell offline negative-path cases (2026-10-18)
 
 Extend the single existing windows.package-user-lifecycle-offline-contract to reject an internally tampered DLL despite a correctly re-signed outer archive checksum, a modified installed DLL, an unmanifested installed file, an install root outside LOCALAPPDATA, and a reparse-point directory parent. Verify/Status/Start/Stop/Uninstall refuse a modified installed tree, and valid restored contents permit Verify/Uninstall again. The native reparse test may skip only if symlink creation is not permitted by the OS user. These native tests do not authenticate, capture or start a server.

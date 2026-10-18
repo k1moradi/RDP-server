@@ -320,7 +320,25 @@ class WindowsServerBundleTests(unittest.TestCase):
         try:
             os.symlink(outside, link, target_is_directory=True)
         except (OSError, NotImplementedError):
-            self.skipTest("Windows symlink creation unavailable")
+            # Directory junctions also set ReparsePoint, and unlike symlinks
+            # they normally work without developer mode or elevation.
+            try:
+                junction = subprocess.run(
+                    ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(outside)],
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                    timeout=10,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                junction = None
+            if junction is None or junction.returncode != 0 or not link.is_dir():
+                # Hosted Windows CI must not silently report this security
+                # denial covered when no reparse point was actually tested.
+                if os.environ.get("GITHUB_ACTIONS") == "true":
+                    self.fail("Windows CI could not create a reparse-point parent")
+                self.skipTest("Windows reparse-point creation unavailable")
         result = self.run_lifecycle("Install", archive=archive, expect=1)
         self.assertIn("failed closed", result.stderr)
         self.assertFalse((outside / "server-test").exists())

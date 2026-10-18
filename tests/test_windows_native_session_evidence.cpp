@@ -6,11 +6,43 @@
 #include <cstdint>
 #include <limits>
 #include <span>
+#include <string_view>
 
-int main()
+int main(int argumentCount, char **arguments)
 {
     using namespace rdp_server::server::security;
 
+    if (argumentCount == 2)
+    {
+        // Exercise the production identity comparator deterministically,
+        // even when hosted WTS/LSA cannot observe an interactive desktop.
+        // These are candidate evidence values, NEVER an admission lease.
+        assert(std::string_view{arguments[1]} == "reused-session-id-denials");
+        WindowsNativeSessionEvidence pinned{};
+        pinned.userSid[0] = std::byte{0x01};
+        pinned.userSidBytes = 1;
+        pinned.sessionId = 42;
+        pinned.authenticationIdLow = 101;
+        pinned.authenticationIdHigh = 202;
+        pinned.logonTime100Nanoseconds = 303;
+        pinned.logonType = 2;
+        assert(pinned.sameNativeSession(pinned));
+
+        auto reusedNumber = pinned;
+        reusedNumber.authenticationIdLow ^= 1U;
+        assert(!pinned.sameNativeSession(reusedNumber));
+
+        reusedNumber = pinned;
+        reusedNumber.authenticationIdHigh ^= 1;
+        assert(!pinned.sameNativeSession(reusedNumber));
+
+        reusedNumber = pinned;
+        ++reusedNumber.logonTime100Nanoseconds;
+        assert(!pinned.sameNativeSession(reusedNumber));
+        return 0;
+    }
+
+    assert(argumentCount == 1);
     WindowsNativeSessionEvidence evidence{};
     WindowsNativeSessionEvidenceReader reader;
     const auto status = reader.readCurrent(evidence);

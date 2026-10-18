@@ -32,6 +32,19 @@ add_test(NAME windows.package-user-lifecycle-offline-contract
 set_tests_properties(windows.package-user-lifecycle-offline-contract PROPERTIES
     LABELS "windows;packaging;security;server-test;offline" TIMEOUT 90)
 
+# Independent Windows evidence: the hosted runner must actually exercise a
+# reparse-point parent, not silently skip inside the aggregate unittest.
+if(WIN32)
+    add_test(NAME windows.package-reparse-parent-denial
+        COMMAND "${Python3_EXECUTABLE}"
+            "${PROJECT_SOURCE_DIR}/tests/test_windows_server_bundle.py"
+            --script "${PROJECT_SOURCE_DIR}/scripts/server_test_bundle.py"
+            --lifecycle-script "${PROJECT_SOURCE_DIR}/packaging/windows/rdp-server-test.ps1"
+            WindowsServerBundleTests.test_native_powershell_rejects_parent_directory_reparse_point)
+    set_tests_properties(windows.package-reparse-parent-denial PROPERTIES
+        LABELS "windows;packaging;security;server-test;offline" TIMEOUT 30)
+endif()
+
 # R7 offline test-bundle policy: no desktop, TCC, network or process activation.
 add_test(NAME macos.package-offline-integrity-and-idempotence
     COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/test_macos_test_bundle.py"
@@ -1044,6 +1057,14 @@ if(TARGET rdp-server-windows-native-session-evidence)
         COMMAND test_windows_native_session_evidence)
     set_tests_properties(
         security.windows-native-session-evidence-provider-denials PROPERTIES
+        LABELS "security;native-admission;windows;offline")
+
+    # R6/R2 negative-only candidate identity: a reused numeric WTS ID cannot
+    # conceal a different LSA authentication LUID or logon time.
+    add_test(NAME security.windows-native-session-reused-id-luid-logon-denials
+        COMMAND test_windows_native_session_evidence reused-session-id-denials)
+    set_tests_properties(
+        security.windows-native-session-reused-id-luid-logon-denials PROPERTIES
         LABELS "security;native-admission;windows;offline")
 endif()
 

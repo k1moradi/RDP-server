@@ -1,3 +1,27 @@
+## R6 native negative evidence and Windows lifecycle reparse proof (2026-10-18)
+
+Reviewed last full-green exact SHA `9f2ef97f64488c105076b7a6741848fcc75a95c1`:
+primary [39106560615](https://github.com/k1moradi/RDP-server/actions/runs/39106560615)
+and structure [39106560683](https://github.com/k1moradi/RDP-server/actions/runs/39106560683)
+PASS. Windows MSVC and MSYS2 CLANG64 passed 597/597 ordinary CTests
+in each Debug/Release run, including the expanded 5-negative-case
+`windows.package-user-lifecycle-offline-contract`; R6 59/59 capture/input
+preflight passed in both configurations on both toolchains. However CTest
+default nonverbose output gives **no independent proof** that the parent
+reparse test's permission-dependent symlink creation did not skip.
+
+Test-only change on parent `aea0201eed22b90bd6d4bd6ac6d4a0895752c00e`: try privilege-free directory junction
+on symlink failure and fail GitHub-hosted execution if both are unavailable;
+register a separate ordinary Windows reparse-parent denial CTest. Add a
+separate production-linked native evidence comparator CTest showing that
+reused numeric WTS ID plus unchanged candidate SID never survives changed
+LSA LUID (either half) or logon time. No synthetic authenticated lease,
+R2/R10 production authorization, Windows native serving, PowerShell verifier
+or packaging changed. New commit full Debug/Release CTest, sanitizer, hosted
+CI and owner-native receipts: **NOT RUN / pending**. Current R6 blocker is
+genuine R2 SSPI/CredSSP SID/LUID/logon-bound admission and R10 serialized
+interactive WTS owner; no Windows Start or live desktop test authorized.
+
 ## R8 Win32 native delayed clipboard publication callback retirement (2026-10-18)
 
 **Source parent:** `af0cee994736bd016689b34f2cdc98ce1b49ebe3`. Win32 previously accepted a verified

@@ -22,7 +22,9 @@ def sha256(data):
 
 def payload_from_bundle(bundle):
     with zipfile.ZipFile(bundle) as archive:
-        if set(archive.namelist()) != set(PATHS) | {"manifest.json"}:
+        members = archive.namelist()
+        expected_members = set(PATHS) | {"manifest.json"}
+        if len(members) != len(expected_members) or set(members) != expected_members:
             raise ValueError("invalid bundle members")
         if any(member.file_size > 64 * 1024 * 1024 for member in archive.infolist()):
             raise ValueError("oversized bundle")

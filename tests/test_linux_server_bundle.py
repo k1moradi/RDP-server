@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import warnings
 import zipfile
 
 def main():
@@ -27,6 +28,16 @@ def main():
         with zipfile.ZipFile(bundle) as archive:
             assert "bin/rdp-server" in archive.namelist()
             assert '"source_sha": "' + "a"*40 + '"' in archive.read("manifest.json").decode()
+
+        duplicate_bundle = root / "duplicate-member.zip"
+        duplicate_bundle.write_bytes(bundle.read_bytes())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            with zipfile.ZipFile(duplicate_bundle, "a") as archive:
+                archive.writestr("manifest.json", archive.read("manifest.json"))
+        invoke("install", "--bundle", duplicate_bundle, success=False)
+        assert not marker.exists()
+
         invoke("install", "--bundle", bundle)
         invoke("verify", "--bundle", bundle)
         invoke("install", "--bundle", bundle, success=False)

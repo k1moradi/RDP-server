@@ -968,7 +968,8 @@ struct LinuxServeAcceptContext final {
     // Attach/User PDU is allowed, and only R2 can advance R3's phase.
     readable = false;
     writable = false;
-    while (connection.ready()) {
+    bool acceptedErectDomain = false;
+    while (connection.ready() && !acceptedErectDomain) {
         const auto step =
             connection.advancePostAdmissionMcsErectDomain(
                 readable, writable);
@@ -997,17 +998,103 @@ struct LinuxServeAcceptContext final {
             return true;
         }
         case ErectStep::ErectDomainAccepted:
-            // Erect carries no channel privilege. Attach User and channel
-            // joins remain separate fresh-authority service increments.
-            connection.revoke();
-            return true;
+            acceptedErectDomain = true;
+            break;
         case ErectStep::AdmissionDenied:
         case ErectStep::Invalid:
         case ErectStep::Closed:
             return true;
         }
     }
+    if (!acceptedErectDomain || !connection.hasAdmissionLease()) {
+        return true;
+    }    using AttachStep =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsAttachStepStatus;
+    {
+    // Attach User: only current R2/R3 authority may advance this stage.
+    readable = false;
+    writable = false;
+    bool stageAccepted = false;
+    while (connection.ready() && !stageAccepted) {
+        const auto step = connection.advancePostAdmissionMcsAttachUser(
+            *context->policy, readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case AttachStep::Progress:
+            continue;
+        case AttachStep::NeedRead:
+        case AttachStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case AttachStep::AttachUserAccepted:
+            stageAccepted = true;
+            break;
+        case AttachStep::AdmissionDenied:
+        case AttachStep::Invalid:
+        case AttachStep::Closed:
+            return true;
+        }
+    }
+    if (!stageAccepted || !connection.hasAdmissionLease()) {
+        return true;
+    }
+    }
+    using ConfirmStep =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsAttachConfirmStepStatus;
+    // Attach User Confirm: only current R2/R3 authority may advance this stage.
+    readable = false;
+    writable = false;
+    while (connection.ready()) {
+        const auto step = connection.advancePostAdmissionMcsAttachConfirmWrite(
+            *context->policy, readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case ConfirmStep::Progress:
+            continue;
+        case ConfirmStep::NeedRead:
+        case ConfirmStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case ConfirmStep::Delivered:
+            // No joins are invented. The next increment begins here.
+            connection.revoke();
+            return true;
+        case ConfirmStep::AdmissionDenied:
+        case ConfirmStep::Invalid:
+        case ConfirmStep::Closed:
+            return true;
+        }
+    }
     return true;
+
 }
 
 [[nodiscard]] bool runLinuxPersonalDesktopServe(

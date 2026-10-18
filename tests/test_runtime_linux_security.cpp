@@ -990,6 +990,93 @@ void testConnectionPostAdmissionErectDomainDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPostAdmissionAttachUserDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsAttachStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-attach-user-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy deploymentPolicy;
+    assert(deploymentPolicy.configurePersonalDesktop(true, 3389U));
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // A connected, ready socket and PersonalDesktop are insufficient to
+    // read any Attach User byte. The production path requires prior admitted Erect/response
+    // delivery and a genuinely current R2 lease.
+    const auto denied =
+        connection.advancePostAdmissionMcsAttachUser(deploymentPolicy, true, true);
+    assert(denied.status == Step::AdmissionDenied);
+    assert(denied.plaintextBytesRead == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    const auto stale =
+        connection.advancePostAdmissionMcsAttachUser(deploymentPolicy, true, true);
+    assert(stale.status == Step::Closed);
+    assert(stale.plaintextBytesRead == 0U);
+    connection.revoke();
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
+void testConnectionPostAdmissionAttachConfirmWriteDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsAttachConfirmStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-attach-confirm-write-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy deploymentPolicy;
+    assert(deploymentPolicy.configurePersonalDesktop(true, 3389U));
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // A real accepted socket plus configured GSS cannot mint a R3 Attach confirm.
+    // Only a genuine R2 lease and completed Attach request can do so.
+    const auto denied =
+        connection.advancePostAdmissionMcsAttachConfirmWrite(deploymentPolicy, true, true);
+    assert(denied.status == Step::AdmissionDenied);
+    assert(denied.plaintextBytesWritten == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    // Stale readable/writable events cannot restart the TLS writer.
+    const auto stale =
+        connection.advancePostAdmissionMcsAttachConfirmWrite(deploymentPolicy, true, true);
+    assert(stale.status == Step::Closed);
+    assert(stale.plaintextBytesWritten == 0U);
+    connection.revoke();
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPostAdmissionMcsResponseDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2717,6 +2804,16 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-post-admission-erect-domain-denials")
     {
         testConnectionPostAdmissionErectDomainDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-post-admission-attach-user-denials")
+    {
+        testConnectionPostAdmissionAttachUserDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-post-admission-attach-confirm-write-denials")
+    {
+        testConnectionPostAdmissionAttachConfirmWriteDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

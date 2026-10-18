@@ -171,6 +171,35 @@ struct LinuxPostAdmissionMcsErectStepResult
         LinuxPostAdmissionMcsErectStepStatus::Closed};
 };
 
+// One bounded R1 TLS read followed by the existing private R2/R3 Attach
+// transition. No user/channel authority is exposed to the scheduler.
+enum class LinuxPostAdmissionMcsAttachStepStatus : std::uint8_t
+{
+    Progress, NeedRead, NeedWrite, AttachUserAccepted,
+    AdmissionDenied, Invalid, Closed,
+};
+
+struct LinuxPostAdmissionMcsAttachStepResult
+{
+    std::size_t plaintextBytesRead{};
+    LinuxPostAdmissionMcsAttachStepStatus status{
+        LinuxPostAdmissionMcsAttachStepStatus::Closed};
+};
+
+// One R3-owned Attach User Confirm suffix and exact R1 accepted-byte receipt.
+enum class LinuxPostAdmissionMcsAttachConfirmStepStatus : std::uint8_t
+{
+    Progress, NeedRead, NeedWrite, Delivered,
+    AdmissionDenied, Invalid, Closed,
+};
+
+struct LinuxPostAdmissionMcsAttachConfirmStepResult
+{
+    std::size_t plaintextBytesWritten{};
+    LinuxPostAdmissionMcsAttachConfirmStepStatus status{
+        LinuxPostAdmissionMcsAttachConfirmStepStatus::Closed};
+};
+
 enum class LinuxPersonalDesktopLicenseWriteStepStatus : std::uint8_t
 {
     Progress,
@@ -473,6 +502,21 @@ public:
     advancePostAdmissionMcsErectDomain(
         bool readable, bool writable) noexcept;
 
+    // Reuse the R2-consumed Erect frame buffer for exactly one following
+    // Attach User request. Reauthorize PersonalDesktop policy and exact R2/R3
+    // authority before every R1-owned TLS read.
+    [[nodiscard]] LinuxPostAdmissionMcsAttachStepResult
+    advancePostAdmissionMcsAttachUser(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable) noexcept;
+
+    // Borrow the R3-owned confirm suffix after fresh R2 authorization; only
+    // an exact R1 plaintext receipt may advance it through R2 a second time.
+    [[nodiscard]] LinuxPostAdmissionMcsAttachConfirmStepResult
+    advancePostAdmissionMcsAttachConfirmWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable) noexcept;
+
     // R10-facing personal-desktop security boundary. The immutable policy is
     // the only product-mode input; R2 keeps the lease and generation pair
     // private and freshly reauthorizes every operation below. R1 remains the
@@ -692,6 +736,8 @@ private:
 
 private:
     [[nodiscard]] bool credSspReplyPending() const noexcept;
+    [[nodiscard]] bool postAdmissionMcsPolicyMatches(
+        const RuntimeDeploymentPolicy &deploymentPolicy) const noexcept;
     [[nodiscard]] bool reauthorizeExistingCalValidation() noexcept;
     [[nodiscard]] bool nativeChangeRegistrationMatches(
         const LinuxRuntimeNativeChangeRegistration &registration) const
@@ -712,7 +758,10 @@ private:
     rdp_server::server::transport::McsSessionLifecycle session_{};
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
     bool mcsConnectResponseTlsWritePending_{};
+    // One frame owner is reused sequentially; no second large buffer.
     LinuxRuntimeMcsTpktFrameReader mcsErectDomainFrameReader_{};
+    const RuntimeDeploymentPolicy *postAdmissionMcsPolicy_{};
+    bool mcsAttachConfirmTlsWritePending_{};
     LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalShareActivationFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalGraphicsDvcFrameReader_{};

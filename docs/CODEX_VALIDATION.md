@@ -1,3 +1,22 @@
+## R10 R2-admitted MCS Attach User and Confirm (2026-10-18)
+
+**Inspected parent `8d9dd947e678f9c649fcde301e41c7c3c1098fce`; publication-SHA hosted CI PENDING and owner
+local Debug build/CTest NOT RUN at authoring.** Runtime reuses the Erect
+TPKT reader only after R2/R3 consumes the complete previous PDU. The
+unchanged PersonalDesktop loopback policy and exact R2/R3 authority are
+revalidated before every bounded R1 TLS read of Attach User. The complete
+TPKT is passed to the existing R2 private Attach transition. R3 alone
+supplies Attach User Confirm bytes; R1 TLS owns accepted plaintext and SSL
+WANT direction; R2 reauthorizes the exact R1 receipt before R3 advances.
+The service stops after real Confirm delivery, not synthetic joins.
+Dedicated ordinary production CTests
+`runtime.linux-connection-post-admission-attach-user-denials` and
+`runtime.linux-connection-post-admission-attach-confirm-write-denials`
+cover missing lease, zero I/O, terminal teardown and stale events on
+actual accepted loopback sockets without minting R2 authority. Genuine
+positive Attach/short-write, ChannelJoin and Microsoft client validation
+remain **NOT RUN / owner authorization required**.
+
 ## R9 Erect Domain sanitizer registry correction (2026-10-18)
 
 Audited latest full-green hosted source `9f2ef97f64488c105076b7a6741848fcc75a95c1`: primary

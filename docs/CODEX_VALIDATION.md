@@ -1,3 +1,19 @@
+## R9/R7 macOS negative-test diagnostic stability (2026-10-17)
+
+Concurrent R7 hardening refined the invalid-architecture diagnostic from the
+generic `unsupported bundle identity` to `unsupported bundle architecture`.
+The fixture's security contract is that a universal/unsupported architecture is
+rejected with `ValueError`; it must not depend on which safe diagnostic suffix
+R7 uses. The regression therefore now requires the stable
+`unsupported bundle` prefix. Production archive validation is unchanged.
+
+The earlier exact-green R9 SERVER-TEST receipt at
+`9a2d09968e741d13bc1c5e76753ecaf1be7557ef` remains valid: structure
+`39066363884` and primary `39066363832` passed, including Linux, Windows
+and macOS actual-executable preview smoke plus the aggregate exact-SHA status
+job. This correction is for later shared-main full CTest continuity and does
+not retroactively alter that receipt or claim live deployment.
+
 ## R6 Windows per-user SERVER-TEST packaging (2026-10-17)
 
 **Reconciled shared-main parent:** `27f68c322fc13c7712c0393f7ca479ee4599a0c7`.

@@ -138,7 +138,7 @@ first video/input Microsoft-client test.
 documentation, R9 sanitizer and R7 focused gates, and the new portable
 SERVER-TEST contract CTest. All three ordinary Debug full CTests plus R6
 CLANG64 stopped on R7's message-only negative assertion
-(`architecture` vs production `unsupported bundle identity`) before
+(diagnostic wording drift within the same fail-closed `unsupported bundle` rejection) before
 SERVER-TEST Release packaging. The assertion is corrected without changing R7
 production behavior. Thus that SHA has **no server bundle acceptance receipt**;
 next exact-head hosted CI must produce the three disabled previews and aggregate

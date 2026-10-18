@@ -76,7 +76,10 @@ public:
     {
         ++revokeCalls;
         if (!refuseRetirement)
+        {
             snapshot.stage = RuntimeHostStage::Revoked;
+            snapshot.clipboardState = RuntimeClipboardState::Retired;
+        }
         return {RuntimeHostError::None, false};
     }
 };
@@ -130,10 +133,19 @@ int main(int argc, char** argv)
         auto* confirm = window.findChild<QLineEdit*>("confirmation");
         auto* interfaceSelection = window.findChild<QComboBox*>("lanInterface");
         auto* clients = window.findChild<QLabel*>("clientStatus");
+        auto* clipboard = window.findChild<QLabel*>("clipboardStatus");
         auto* copy = window.findChild<QPushButton*>("copyLanAddress");
         assert(next && back && start && stop && secret && confirm &&
-               interfaceSelection && clients && copy);
+               interfaceSelection && clients && clipboard && copy);
+        assert(clipboard->text().contains("unavailable"));
         assert(!copy->isEnabled());
+
+        runtime.snapshot.clipboardState = RuntimeClipboardState::Denied;
+        window.refresh();
+        assert(clipboard->text().contains("denied"));
+        runtime.snapshot.clipboardState = RuntimeClipboardState::Unavailable;
+        window.refresh();
+        assert(clipboard->text().contains("unavailable"));
 
         for (int page = 0; page < 5; ++page)
             next->click();
@@ -178,12 +190,15 @@ int main(int argc, char** argv)
         assert(!copy->isEnabled());
 
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        // Rendering-only fixture: this does not mint an R2 lease or R3 route.
+        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
         runtime.snapshot.activeClients = {
             RuntimeHostClient{7U, "192.168.0.44", false, true, true}};
         window.refresh();
         assert(stop->isEnabled() && copy->isEnabled() &&
                clients->text().contains("192.168.0.44"));
+        assert(clipboard->text().contains("enabled"));
         copy->click();
         assert(application.clipboard()->text() == "192.168.0.10:3389");
 
@@ -193,6 +208,7 @@ int main(int argc, char** argv)
         stop->click();
         assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
         assert(!host.status().sharing && !copy->isEnabled());
+        assert(clipboard->text().contains("retired"));
 
         for (int page = 0; page < 5; ++page)
             back->click();

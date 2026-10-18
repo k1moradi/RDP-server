@@ -62,6 +62,7 @@ HostStatus HostControl::status() const
     view.captureInputReady = runtimeStatus.nativeDesktopReady;
     view.sharing = isSharingStage(runtimeStatus.stage);
     view.startPending = isPendingStage(runtimeStatus.stage);
+    view.clipboardState = runtimeStatus.clipboardState;
     if (runtimeStatus.hostOwnerAuthorized)
         view.desktop = QStringLiteral("Authorized logged-in desktop");
 

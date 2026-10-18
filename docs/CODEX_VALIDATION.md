@@ -1,3 +1,20 @@
+## R8 fail-closed clipboard GUI status projection (2026-10-18)
+
+Authored from main parent `7044183db5a12d637bbb432d035a582224d12792`. R10's typed host status now owns
+one descriptive four-state clipboard field and R7's thin adapter projects it
+without adding authority. The GUI renders unavailable, enabled for the current
+authenticated session, retired and denied with fixed redacted text and exposes
+no clipboard enable/authority control. The dedicated
+`runtime.host-control-clipboard-state-denials` CTest keeps the production
+deny-only facade unavailable across rejected lifecycle calls; the existing Qt
+offscreen fixture renders all four states without creating an R2 lease or
+touching native clipboard APIs. Local configure/build/CTest: **NOT RUN**
+because this connector environment has no approved `~/rdp-server` checkout.
+Exact publication-SHA hosted CI: **PENDING**. Live clipboard remains
+**BLOCKED**: current production `main.cpp` still revokes after delivered
+`STATUS_VALID_CLIENT` and does not call the existing genuine Share activation
+driver.
+
 ## R2 OS-account access-policy replacement/revocation (2026-10-18)
 
 Parent `ee7ed0936598f2044ba5c4f61eb9964c90942131`. R10's typed host-control contract resolved the missing

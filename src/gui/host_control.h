@@ -21,6 +21,8 @@ struct HostStatus
     bool captureInputReady{};
     bool sharing{};
     bool startPending{};
+    rdp_server::server::runtime::RuntimeClipboardState clipboardState{
+        rdp_server::server::runtime::RuntimeClipboardState::Unavailable};
     QString desktop;
     QStringList approvedLanInterfaces;
     QString lanAddress;

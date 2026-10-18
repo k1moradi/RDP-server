@@ -1,3 +1,14 @@
+## R8 clipboard GUI state is descriptive, never authority (2026-10-18)
+
+Clipboard UI tests may render the four shared R10 status states
+`Unavailable`, `Enabled`, `Retired` and `Denied`, but a rendering
+fixture must not mint an R2 lease, R3 route generation or native clipboard
+owner. The production deny-only host control remains `Unavailable` across
+rejected start/stop/revoke. A rendered `Enabled` value is status-only test
+data; live code may report it only after fresh R2 authorization, genuine
+`ShareActivated`, the exact joined `cliprdr` route and current native
+clipboard owner. No GUI preference or checkbox is an authorization input.
+
 ## R8 authenticated R3 clipboard bridge coverage (2026-10-18)
 
 The R8 application bridge must be tested below R10 without fabricating a live

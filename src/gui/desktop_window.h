@@ -30,6 +30,7 @@ private:
     QPushButton* stop_;
     QPushButton* copy_;
     QLabel* desktopStatus_;
+    QLabel* clipboardStatus_;
     QLabel* status_;
     QLabel* activity_;
     [[nodiscard]] QString blockedReason(const HostStatus& snapshot) const;

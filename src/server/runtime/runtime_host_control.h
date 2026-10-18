@@ -21,6 +21,19 @@ enum class RuntimeHostStage : std::uint8_t
     Revoked
 };
 
+// Descriptive GUI/status state only. This enum never authorizes CLIPRDR
+// traffic or native publication. Enabled may be reported only by the live R10
+// owner after fresh R2 authorization, genuine ShareActivated, the exact joined
+// cliprdr route and its current native clipboard owner. Route/source retirement
+// changes the state before replacement; a GUI preference can never set it.
+enum class RuntimeClipboardState : std::uint8_t
+{
+    Unavailable,
+    Enabled,
+    Retired,
+    Denied,
+};
+
 enum class RuntimeHostError : std::uint8_t
 {
     None, ControlUnavailable, InvalidConfiguration, CredentialNotConfigured,
@@ -109,6 +122,7 @@ struct RuntimeHostStatus
     bool hostOwnerAuthorized{};
     bool listenerAvailable{};
     bool nativeDesktopReady{};
+    RuntimeClipboardState clipboardState{RuntimeClipboardState::Unavailable};
     std::string boundEndpoint;
     std::vector<RuntimeHostClient> activeClients;
     RuntimeHostError lastError{RuntimeHostError::ControlUnavailable};

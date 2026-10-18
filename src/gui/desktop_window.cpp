@@ -20,6 +20,23 @@ QLabel* label(const QString& message) {
     result->setWordWrap(true);
     return result;
 }
+
+QString clipboardStatusText(
+    const rdp_server::server::runtime::RuntimeClipboardState state)
+{
+    using rdp_server::server::runtime::RuntimeClipboardState;
+    switch (state) {
+    case RuntimeClipboardState::Unavailable:
+        return "Clipboard unavailable: no current authenticated CLIPRDR session.";
+    case RuntimeClipboardState::Enabled:
+        return "Clipboard enabled for the current authenticated session.";
+    case RuntimeClipboardState::Retired:
+        return "Clipboard retired: reconnect and reauthorization are required.";
+    case RuntimeClipboardState::Denied:
+        return "Clipboard denied by current session policy.";
+    }
+    return "Clipboard unavailable: invalid session state.";
+}
 }
 DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     : QWidget(parent), host_(host), pages_(new QStackedWidget(this)),
@@ -28,7 +45,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       confirmation_(new QLineEdit(this)), start_(new QPushButton("Start Sharing", this)),
       stop_(new QPushButton("Stop Sharing / Revoke", this)),
       copy_(new QPushButton("Copy LAN Address", this)),
-      desktopStatus_(label({})), status_(label({})), activity_(label({})) {
+      desktopStatus_(label({})), clipboardStatus_(label({})),
+      status_(label({})), activity_(label({})) {
     setWindowTitle("RDP-server - LAN desktop sharing");
     setMinimumSize(600, 440);
     auto* root = new QVBoxLayout(this);
@@ -93,6 +111,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     actions->addWidget(start_);
     actions->addWidget(stop_);
     sharing->addLayout(actions);
+    clipboardStatus_->setObjectName("clipboardStatus");
+    sharing->addWidget(clipboardStatus_);
     sharing->addWidget(status_);
     copy_->setObjectName("copyLanAddress");
     sharing->addWidget(copy_);
@@ -188,6 +208,7 @@ void DesktopWindow::refresh() {
         : "Authorization unavailable: " + (snapshot.failure.isEmpty()
             ? "No authenticated host-owner admission" : snapshot.failure));
     const QString denial = blockedReason(snapshot);
+    clipboardStatus_->setText(clipboardStatusText(snapshot.clipboardState));
     start_->setEnabled(!snapshot.sharing && !snapshot.startPending && denial.isEmpty());
     stop_->setEnabled(snapshot.sharing || snapshot.startPending);
     copy_->setEnabled(snapshot.sharing && !snapshot.lanAddress.isEmpty());

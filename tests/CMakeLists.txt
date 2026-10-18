@@ -30,6 +30,7 @@ else()
 endif()
 foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
+        host-control-clipboard-state-denials
         host-control-credential-setup-denials)
     add_test(NAME "runtime.${host_control_case}"
         COMMAND test_runtime_host_control "${host_control_case}")

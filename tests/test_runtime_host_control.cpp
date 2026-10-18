@@ -23,6 +23,7 @@ int main(int argumentCount, char** argumentValues)
         assert(!state.packageInstalled && !state.credentialsConfigured);
         assert(!state.tlsIdentityReady && !state.hostOwnerAuthorized);
         assert(!state.listenerAvailable && !state.nativeDesktopReady);
+        assert(state.clipboardState == RuntimeClipboardState::Unavailable);
         assert(state.boundEndpoint.empty() && state.activeClients.empty());
         assert(state.lastError == RuntimeHostError::ControlUnavailable);
         assert(host.enumerateLocalInterfaces().empty());
@@ -40,6 +41,15 @@ int main(int argumentCount, char** argumentValues)
                "Listener denied by network policy");
         assert(runtimeHostErrorMessage(
                static_cast<RuntimeHostError>(255U)) == "Host operation failed");
+        return 0;
+    }
+    if (testCase == "host-control-clipboard-state-denials")
+    {
+        assert(host.status().clipboardState == RuntimeClipboardState::Unavailable);
+        assert(!host.startSharing().succeeded());
+        assert(!host.stopSharing().succeeded());
+        assert(!host.revokeSharing().succeeded());
+        assert(host.status().clipboardState == RuntimeClipboardState::Unavailable);
         return 0;
     }
     if (testCase == "host-control-credential-setup-denials")

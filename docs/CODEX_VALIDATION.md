@@ -1,3 +1,31 @@
+## R6 Windows portable-GUI hosted-green evidence (2026-10-18)
+
+The package and extracted-runtime blocker is resolved. Exact descendant
+`aaff05a91d4b903dbf7d7469247d6ad9225a76b4`, primary run
+`39131193194`, Windows CLANG64 job `117686690036`, reports:
+
+- Debug full CTest **641/641 PASS** and R6 native preflight **59/59 PASS**;
+- Release full CTest **641/641 PASS** and R6 native preflight **59/59 PASS**;
+- `PORTABLE-GUI archive structure PASS`;
+- `Windows PE closure PASS: 41 images, 571 imports inspected`;
+- `Windows extracted GUI offline first-screen/no-socket/rerun smoke: PASS`;
+- sanitizer R6 native selector **59/59 PASS**.
+
+This validates the R6 recursive-runtime staging, R9 system-DLL classification,
+and R6 packaged-`qwindows` command-mode correction together. It does **not**
+claim owner-native unprivileged evidence, release approval, live desktop
+capture/input, or a Microsoft-client session.
+
+Current source review still finds no Windows SSPI/CredSSP admission provider
+(`AcquireCredentialsHandle` / `AcceptSecurityContext` / authenticated token-SID
+binding) and no concrete Windows R10 `RuntimeHostControl` / interactive-session
+owner. Only `windows_native_session_evidence.*` exists, and it explicitly
+provides read-only candidate evidence rather than authentication/admission.
+Therefore positive Windows hosting remains **BLOCKED** on the R2 authenticated
+SID + exact WTS/LUID/logon-time revocable lease, followed by the R10 serialized
+WTS/native owner that reauthorizes every R6 DXGI borrow and SendInput.
+Connector-local owner build/live validation: **NOT RUN**.
+
 ## R5 authenticated RDP signed-wheel native mapping (2026-10-18)
 
 Authoring parent `c910823971dd71719ed2f48fdf96283355bdee94`. R3 already checks negotiated

@@ -73,3 +73,26 @@ The dedicated
 intentionally invalid inherited QPA selection and requires the launcher to
 override it. This changes no listener, credential, firewall, service,
 capture/input or R2/R10 authority behavior.
+
+
+## Hosted Windows portable-package evidence
+
+The packaging path is now proven on hosted MSYS2 CLANG64. Exact descendant
+`aaff05a91d4b903dbf7d7469247d6ad9225a76b4`, primary run
+`39131193194`, Windows job `117686690036`, records Debug and Release full
+CTest **641/641**, the R6 native selector **59/59** in each configuration,
+`PORTABLE-GUI archive structure PASS`, recursive PE closure over **41 PE
+images / 571 imports**, extracted deny-only modes, two ordinary first-screen
+launches, no process-owned TCP/UDP sockets, ordinary close/rerun, unchanged
+Windows firewall profile state, and the sanitizer R6 native selector **59/59**.
+This is package/runtime assurance only; it does not grant Start authority or
+prove a real Windows RDP host session.
+
+The remaining Windows host gate is outside R6 packaging. R2 must provide a
+genuine SSPI/CredSSP-authenticated SID and bind it privately to the exact active
+physical-console WTS identity including full LUID and logon time with revocable
+generations. R10 must then own WTS registration/events, native-session lifetime,
+Start/Stop status and revocation, and must reauthorize immediately before each
+DXGI borrow and SendInput call. The existing
+`windows_native_session_evidence.*` reader is observational only and cannot
+mint that authority.

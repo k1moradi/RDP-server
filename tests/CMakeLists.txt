@@ -987,6 +987,17 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-serve-share-activation-composition PROPERTIES
         LABELS "runtime;security;r10-share;offline")
 
+    # R10 post-Share Graphics control composition is source-guarded offline:
+    # ordinary CI must not fabricate a positive R2 lease, native desktop or
+    # R4 frame merely to prove DRDYNVC CREATE/CAPS scheduling.
+    add_test(NAME runtime.linux-serve-graphics-dvc-composition
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_graphics_dvc.cmake")
+    set_tests_properties(
+        runtime.linux-serve-graphics-dvc-composition PROPERTIES
+        LABELS "runtime;security;r10-graphics;offline")
+
     # R2 post-admission TLS reads must fence the current R3 admission/session
     # generations as well as the live lease/native evidence. This source-level
     # guard is intentionally offline because ordinary CI must not fabricate a

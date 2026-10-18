@@ -829,6 +829,9 @@ struct LinuxServeAcceptContext final {
     using ShareStep =
         rdp_server::server::runtime::
             LinuxPersonalDesktopShareActivationStepStatus;
+    using GraphicsStep =
+        rdp_server::server::runtime::
+            LinuxPersonalDesktopGraphicsDvcStepStatus;
 
     auto* context = static_cast<LinuxServeAcceptContext*>(rawContext);
     if (context == nullptr || context->policy == nullptr ||
@@ -1429,9 +1432,61 @@ struct LinuxServeAcceptContext final {
         return true;
     }
 
-    // Genuine Share activation is now composed through the canonical R3
-    // profile. Graphics/native publication is the next separately audited
-    // runtime increment, so this build still tears down before desktop access.
+    // Share is now genuinely active. Continue on the same serialized owner
+    // through the existing R3 DRDYNVC / Microsoft::Windows::RDS::Graphics
+    // control transcript. This still publishes no desktop frame.
+    if (!connection.startPersonalDesktopGraphicsDynamicVirtualChannel(
+            *context->policy)) {
+        return true;
+    }
+
+    readable = false;
+    writable = false;
+    bool graphicsControlReady = false;
+    while (connection.ready() && !graphicsControlReady) {
+        const auto step =
+            connection.advancePersonalDesktopGraphicsDynamicVirtualChannel(
+                *context->policy, readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case GraphicsStep::Progress:
+            continue;
+        case GraphicsStep::NeedRead:
+        case GraphicsStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case GraphicsStep::Ready:
+            graphicsControlReady = true;
+            break;
+        case GraphicsStep::AdmissionDenied:
+        case GraphicsStep::Invalid:
+        case GraphicsStep::Closed:
+            return true;
+        }
+    }
+    if (!graphicsControlReady || !connection.hasAdmissionLease() ||
+        !connection.authorizePersonalDesktopApplicationTraffic(
+            *context->policy)) {
+        return true;
+    }
+
+    // DRDYNVC capabilities, Graphics CREATE and RDPGFX CAPS are now composed.
+    // R3 DATA requires a genuine R2-selected native desktop and R4 frame; that
+    // is the next separately audited increment, so retire before publication.
     connection.revoke();
     return true;
 }

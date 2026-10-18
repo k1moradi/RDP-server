@@ -1,3 +1,40 @@
+## R3 post-Share dependency reconciliation against live persistent R10 (2026-10-18)
+
+Inspected main `9f758c9395c988233602536e0fdd21924f707f07`, canonical R3/R10 interfaces and `src/server/runtime/main.cpp`.
+The earlier R3 dependency on a persistent single-reader post-Share dispatcher is
+**RESOLVED IN PRODUCTION SOURCE**: R10's serialized loop now calls
+`advancePersonalDesktopPostShareApplicationRead` with R3/R2 classification,
+dispatches R3 Graphics DATA and R4 FRAME_ACK through the existing broker,
+uses R2-authorized R5 slow-path input and publishes borrowed X11 ClearCodec
+frames using R3's mapped surface and existing accepted-byte write receipts.
+CLIPRDR is intentionally deny-only at R10's native bridge; R10 HostControl
+GUI/LAN Start/Stop is not a functioning native service. No new R3 packet
+parser, second TLS reader or ACK/window owner was added.
+
+**Exact-SHA hosted evidence:** primary Actions run 39139376815 at
+`9f758c9395c988233602536e0fdd21924f707f07`: macOS protocol **PASS 610/610**, with
+`transport.post-share-classifier-joined-routes`, malformed/wrong-role,
+generations/Share/disconnect, `transport.dvc-graphics-presentation-wire`,
+three `transport.dvc-graphics-frame-ack-handoff-*` and existing frame
+receipt/zero-publication/cancellation CTests individually PASS. The R9
+security-protocol sanitizer job also **PASS** at this SHA. Ubuntu protocol
+**FAIL 3/754** only on source-backed runtime composition guards:
+`runtime.linux-serve-persistent-post-share-single-owner`,
+`runtime.linux-serve-r2-selected-x11-owner-composition`, and
+`runtime.linux-r5-x11-authorized-event-service-denials`; the diagnostics
+flag legacy exact source-shape expectations around watcher retirement and
+`::poll(nativePoll.data()`. This is R10/R5 source-test integration, not
+an R3 CTest failure. Windows/overall Actions result and owner-local exact-SHA
+full Debug CTest are **NOT VERIFIED**. No live physical Linux X11 owner,
+Kerberos/PAM/logind positive lease, LAN GUI Start/Stop or Microsoft-client
+session was run; these acceptance gates remain **BLOCKED / NOT RUN**.
+
+**R3 next gate:** review the corrected full hosted CI and, when the owner
+explicitly authorizes genuine Linux admission, correlate the first Microsoft
+client's RDPGFX CAPS, mapped surface, frame DATA and FRAME_ACK against R3's
+existing single authority. Correct only observed R3 wire failures. This is a
+documentation-only reconciliation: no production or CTest source changes.
+
 ## R9 focused persistent post-Share R10 owner assurance (2026-10-18)
 
 R10 `2a3f06b039c9b583ba3826d2c0e62bec7827524f` composes a

@@ -1,3 +1,29 @@
+## R9 Graphics DVC structure-registry synchronization (2026-10-18)
+
+R3 production-backed CTest registration at `bde4fae547514a7725d6488cb6fa819d8422b88c`
+adds `transport.dvc-graphics-frame-ack-handoff-wire`,
+`transport.dvc-graphics-frame-ack-handoff-malformed`, and
+`transport.dvc-graphics-frame-ack-handoff-stale` to the prior 16-case
+Graphics DVC selection (including the presentation-wire regression).
+On `495a3371`, R9's ASan/UBSan job `117703809730` counted 16
+Graphics cases while expecting 15; all 87 R8 clipboard component CTests
+passed separately and the two native-linkage source guards also passed.
+R3 `7b330d9` reconciled the primary sanitizer inventory to **19**
+and included explicit presentation and FRAME_ACK sentinels, but its
+independent structure workflow run `39137594458` failed before tests
+at the stale R9 `graphics_dvc_expected_test_count=15` requirement.
+
+This R9 correction changes only `scripts/validate_ci_workflow.py`:
+require the **19**-case Graphics count and all four new Graphics
+sentinels. The primary CTest selector, actual test logic, R2
+production-security/native gates, R8 87-case component inventory and
+distinct R5/R8 native-linkage assurance are unchanged. A structural
+guard PASS is not the same as executed Graphics ASan/UBSan PASS; both
+workflows must finish at the **exact correction SHA**. Owner's canonical
+Linux/X11, Windows CLANG64/Clang 23 and macOS 27 local Debug CTest:
+**NOT RUN**. No Start/Stop, authenticated persistent post-Share desktop,
+native release acceptance or human Microsoft-client success is claimed.
+
 ## R8 clipboard linkage assurance-label correction (2026-10-18)
 
 The production-linkage source guard is intentionally not part of the fixed

@@ -290,6 +290,14 @@ LinuxRuntimeConnection::pollSocketReadinessOnce(
         return {false, false, Status::Failure};
     }
 
+    // Drain R1-owned decrypted plaintext before sleeping for a new POLLIN.
+    // ioInterest() preserves a pending SSL WANT direction; R1's readiness
+    // predicate declines pending writes and read-side WANT_WRITE. This is
+    // readiness only: no TLS bytes, socket operation or R2 lease is created.
+    if (detail::shouldDispatchBufferedTlsApplicationRead(
+            requested, connection_.tlsApplicationReadReady()))
+        return {true, false, Status::Ready};
+
     const auto boundedMaximum =
         (std::max)(maxWait, std::chrono::milliseconds{0});
     const auto remaining =

@@ -1,3 +1,25 @@
+## R1 Linux buffered TLS application-read poll readiness (2026-10-18)
+
+Source parent `197d5715ef32b9598b6cc259956a762a23b88159`. The single R1 SSL/BIO/socket owner
+already exposes `tlsApplicationReadReady()`, but R10's bounded Linux native
+poll always slept on POLLIN before dispatch. The production poll now returns
+immediate synthetic readability only when effective interest is Read and
+R1 confirms decrypted bytes in its own SSL object. Deadline, terminal,
+ConfigureTls, a pending write/SSL WANT direction and descriptor checks run
+before this bypass. No second reader, framer, writer or SSL ownership is added.
+
+Dedicated offline CTest:
+`runtime.linux-connection-buffered-tls-read-dispatch` (R1 buffered read,
+missing bytes, WANT_WRITE/outbound pending, ConfigureTls, Closed and revoked
+scheduler). R1's existing production TLS/loopback cases separately cover
+OpenSSL `SSL_pending`, application reads, partial writes and terminal RST;
+this selector is an offline scheduler-decision regression, not live TLS
+integration. Local configure/build/full CTest: **NOT RUN** (GitHub DNS
+unavailable to the container, no approved checkout). Exact commit-SHA hosted
+CI: **PENDING**. Live post-Share dispatch and GUI LAN Start/Stop: **BLOCKED**
+on R10's persistent session loop / concrete host-control backend. No owner-
+native seat0 or real Microsoft-client validation was performed.
+
 ## R9 Graphics DVC structure-registry synchronization (2026-10-18)
 
 R3 production-backed CTest registration at `bde4fae547514a7725d6488cb6fa819d8422b88c`

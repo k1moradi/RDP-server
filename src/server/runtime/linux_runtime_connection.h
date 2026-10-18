@@ -415,6 +415,18 @@ selectLinuxRuntimeConnectionIoInterest(
 
     return snapshot.r1Interest;
 }
+// The R1 SSL owner may already hold decrypted application data when its
+// native socket is not readable. Only effective Read interest may dispatch it;
+// an outstanding WANT_WRITE, outbound writer or terminal interest wins.
+[[nodiscard]] constexpr bool shouldDispatchBufferedTlsApplicationRead(
+    rdp_server::server::transport::TcpConnectionIoInterest required,
+    bool bufferedApplicationReadReady) noexcept
+{
+    return required ==
+               rdp_server::server::transport::TcpConnectionIoInterest::Read &&
+           bufferedApplicationReadReady;
+}
+
 } // namespace detail
 
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.

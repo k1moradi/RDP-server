@@ -90,6 +90,47 @@ void testCancellationAndRevocation() noexcept
            TcpConnectionIoInterest::Closed);
 }
 
+void testBufferedTlsReadDispatch() noexcept
+{
+    using Interest = TcpConnectionIoInterest;
+    using rdp_server::server::runtime::detail::
+        shouldDispatchBufferedTlsApplicationRead;
+
+    // A complete packet can remain decrypted inside the sole R1 SSL owner
+    // after an earlier bounded read; native POLLIN is not needed to advance.
+    assert(shouldDispatchBufferedTlsApplicationRead(Interest::Read, true));
+    assert(!shouldDispatchBufferedTlsApplicationRead(Interest::Read, false));
+
+    // Outbound slices and SSL WANT_WRITE must never be converted into a
+    // read callback, even when OpenSSL has unrelated buffered plaintext.
+    assert(!shouldDispatchBufferedTlsApplicationRead(Interest::Write, true));
+    assert(!shouldDispatchBufferedTlsApplicationRead(
+        Interest::ConfigureTls, true));
+    assert(!shouldDispatchBufferedTlsApplicationRead(Interest::Closed, true));
+
+    LinuxRuntimeIoInterestSnapshot snapshot{};
+    snapshot.runtimeReady = true;
+    snapshot.personalDesktopSelected = true;
+    snapshot.r1Interest = Interest::Read;
+    snapshot.sessionPhase = McsSessionPhase::ShareActivated;
+    assert(shouldDispatchBufferedTlsApplicationRead(
+        selectLinuxRuntimeConnectionIoInterest(snapshot), true));
+
+    snapshot.graphicsWritePending = true;
+    assert(!shouldDispatchBufferedTlsApplicationRead(
+        selectLinuxRuntimeConnectionIoInterest(snapshot), true));
+
+    snapshot.graphicsWritePending = false;
+    snapshot.tlsApplicationWriteOutstanding = true;
+    snapshot.r1Interest = Interest::Write;
+    assert(!shouldDispatchBufferedTlsApplicationRead(
+        selectLinuxRuntimeConnectionIoInterest(snapshot), true));
+
+    snapshot.runtimeReady = false;
+    assert(!shouldDispatchBufferedTlsApplicationRead(
+        selectLinuxRuntimeConnectionIoInterest(snapshot), true));
+}
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
@@ -98,6 +139,11 @@ int main(int argumentCount, char **argumentValues)
         return 2;
 
     const std::string_view testCase{argumentValues[1]};
+    if (testCase == "buffered-tls-read-dispatch")
+    {
+        testBufferedTlsReadDispatch();
+        return 0;
+    }
     if (testCase == "outbound-write-readiness")
     {
         testOutboundWriteReadiness();

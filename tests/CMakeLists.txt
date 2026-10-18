@@ -940,7 +940,8 @@ if(TARGET rdp-server-linux-runtime-security)
     foreach(runtime_io_interest_case IN ITEMS
             outbound-write-readiness
             outbound-tls-want-precedence
-            outbound-cancellation-revocation)
+            outbound-cancellation-revocation
+            buffered-tls-read-dispatch)
         add_test(NAME "runtime.linux-connection-${runtime_io_interest_case}"
             COMMAND test_runtime_io_interest "${runtime_io_interest_case}")
         set_tests_properties(

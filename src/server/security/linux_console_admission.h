@@ -681,6 +681,22 @@ public:
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy) noexcept;
 
+    // Consume one slow-path Input Event PDU only through the current
+    // PersonalDesktop Share. Ingress requires fresh view+input authority, and
+    // R2 repeats input authorization plus the R3 Share/provenance check
+    // immediately before EACH callback. A callback/event/scalar grants no
+    // authority and failure retires the whole R3/R2 session.
+    [[nodiscard]] bool dispatchR3PersonalDesktopSlowPathInputPdu(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt,
+        rdp_server::server::transport::RdpSlowPathInputEventSink sink) noexcept;
+
     // Query immediately before post-Share application routing. A true result
     // is ephemeral: the next protected operation must reauthorize again.
     [[nodiscard]] bool authorizeR3PersonalDesktopApplicationTraffic(

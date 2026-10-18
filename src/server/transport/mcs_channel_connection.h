@@ -770,6 +770,12 @@ public:
     {
         return phase_ == RdpShareActivationPhase::Activated;
     }
+    [[nodiscard]] bool matchesActivatedClientShare(
+        std::uint32_t shareId, std::uint16_t pduSource) const noexcept
+    {
+        return activated() && shareId_ != 0U && clientUserId_ != 0U &&
+               shareId == shareId_ && pduSource == clientUserId_;
+    }
     [[nodiscard]] std::size_t
     serverToClientVirtualChannelChunkBytes() const noexcept
     {
@@ -1487,6 +1493,15 @@ private:
     [[nodiscard]] bool verifiedR2ApplicationTrafficReady(
         const SecurityNegotiationProvenance &provenance) const noexcept;
 
+    // Route exactly one already decrypted slow-path Input Event PDU through
+    // the joined global-I/O channel and current activated Share. The returned
+    // view borrows completeTpkt and is usable only synchronously by the R2
+    // broker, which reauthorizes input permission before each event callback.
+    [[nodiscard]] std::optional<RdpSlowPathInputPdu>
+    routeVerifiedR2SlowPathInputPdu(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // The negotiated drdynvc static channel becomes routable only after the
     // same post-Share gate. This alone still does not create a DVC.
     [[nodiscard]] std::optional<std::uint16_t>
@@ -1710,6 +1725,94 @@ struct RdpShareDataParseResult
 // No decompression, nested message dispatch, or heap allocation.
 [[nodiscard]] RdpShareDataParseResult parseRdpShareDataHeader(
     std::span<const std::uint8_t> completeSharePdu) noexcept;
+
+// MS-RDPBCGR 2.2.8.1.1.3.1 slow-path TS_INPUT_PDU_DATA. Every
+// TS_INPUT_EVENT occupies exactly 12 bytes (eventTime, messageType and
+// six event-specific bytes). The outer MCS PER payload is at most 16383
+// bytes, so a count-derived exact-length check bounds iteration without
+// allocation. These values are decoded protocol data only: no event, flag,
+// coordinate, count, generation or callback grants native input authority.
+inline constexpr std::size_t kRdpSlowPathInputEventBytes = 12U;
+inline constexpr std::size_t kMaximumRdpSlowPathInputPduBytes = 16383U;
+inline constexpr std::size_t kMaximumRdpSlowPathInputEvents =
+    (kMaximumRdpSlowPathInputPduBytes - 22U) /
+    kRdpSlowPathInputEventBytes;
+
+enum class RdpSlowPathInputEventKind : std::uint8_t
+{
+    Synchronize,
+    Unused,
+    ScancodeKeyboard,
+    UnicodeKeyboard,
+    Mouse,
+    ExtendedMouse,
+    RelativeMouse,
+};
+
+struct RdpSlowPathInputEvent
+{
+    RdpSlowPathInputEventKind kind{RdpSlowPathInputEventKind::Unused};
+    std::uint32_t eventTime{};
+    std::uint16_t keyboardFlags{};
+    std::uint16_t keyCode{};
+    std::uint16_t unicodeCode{};
+    std::uint16_t pointerFlags{};
+    std::uint16_t xPos{};
+    std::uint16_t yPos{};
+    std::int32_t xDelta{};
+    std::int32_t yDelta{};
+    std::uint32_t toggleFlags{};
+};
+
+struct RdpSlowPathInputPdu
+{
+    std::uint16_t pduSource{};
+    std::uint32_t shareId{};
+    std::uint16_t eventCount{};
+    // Borrowed exact event bytes after numEvents/pad2Octets.
+    std::span<const std::uint8_t> eventBytes{};
+
+    [[nodiscard]] bool eventAt(
+        std::size_t index, RdpSlowPathInputEvent &event) const noexcept;
+};
+
+enum class RdpSlowPathInputError : std::uint8_t
+{
+    None,
+    InvalidShareData,
+    WrongDataPduType,
+    InvalidBodyLength,
+    TooManyEvents,
+    UnknownEventType,
+};
+
+struct RdpSlowPathInputParseResult
+{
+    RdpSlowPathInputPdu value{};
+    RdpSlowPathInputError error{RdpSlowPathInputError::InvalidShareData};
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return error == RdpSlowPathInputError::None;
+    }
+};
+
+[[nodiscard]] RdpSlowPathInputParseResult parseRdpSlowPathInputPdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept;
+
+// Synchronous destination supplied by the sole runtime owner. R2 invokes it
+// only after fresh concrete input authorization immediately before EACH
+// event. The callback is deliberately not an authorization token.
+struct RdpSlowPathInputEventSink
+{
+    void *context{};
+    bool (*dispatch)(
+        void *, const RdpSlowPathInputEvent &) noexcept{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return context != nullptr && dispatch != nullptr;
+    }
+};
 
 // MS-RDPBCGR 2.2.1.14.1/2.2.1.15.1 connection finalization.
 // Only pure OFFLINE syntax: caller has already isolated one entire,

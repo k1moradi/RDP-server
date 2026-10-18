@@ -1987,6 +1987,42 @@ bool McsSessionLifecycle::verifiedR2ApplicationTrafficReady(
            joins_.allConfiguredChannelsJoined();
 }
 
+std::optional<RdpSlowPathInputPdu>
+McsSessionLifecycle::routeVerifiedR2SlowPathInputPdu(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed ||
+        parsed.request.kind != McsChannelRequestKind::SendDataRequest ||
+        parsed.request.initiator != allocatedUserId_ ||
+        parsed.request.channelId != connectResponseAllocation_.ioChannelId ||
+        parsed.request.segmentation != 3U)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto input = parseRdpSlowPathInputPdu(parsed.request.userData);
+    if (!input ||
+        input.value.pduSource !=
+            static_cast<std::uint16_t>(allocatedUserId_) ||
+        !shareActivation_.matchesActivatedClientShare(
+            input.value.shareId, input.value.pduSource))
+    {
+        close();
+        return std::nullopt;
+    }
+    return input.value;
+}
+
 std::optional<std::uint16_t>
 McsSessionLifecycle::resolveVerifiedR2ActivatedDynamicVirtualChannel(
     const SecurityNegotiationProvenance &provenance) noexcept
@@ -3632,6 +3668,115 @@ RdpShareDataParseResult parseRdpShareDataHeader(
     // totalLength is the validated boundary.
     header.body = bytes.subspan(headerBytes);
     return {header, RdpShareDataError::None};
+}
+
+bool RdpSlowPathInputPdu::eventAt(
+    std::size_t index, RdpSlowPathInputEvent &event) const noexcept
+{
+    if (index >= eventCount ||
+        eventBytes.size() !=
+            static_cast<std::size_t>(eventCount) *
+                kRdpSlowPathInputEventBytes)
+        return false;
+
+    const auto bytes = eventBytes.subspan(
+        index * kRdpSlowPathInputEventBytes,
+        kRdpSlowPathInputEventBytes);
+    const std::uint16_t messageType = readLe16At(bytes, 4U);
+    event = {};
+    event.eventTime = readLe32At(bytes, 0U);
+
+    switch (messageType)
+    {
+    case 0x0000U: // INPUT_EVENT_SYNC
+        event.kind = RdpSlowPathInputEventKind::Synchronize;
+        event.toggleFlags = readLe32At(bytes, 8U);
+        return true;
+    case 0x0002U: // INPUT_EVENT_UNUSED
+        event.kind = RdpSlowPathInputEventKind::Unused;
+        return true;
+    case 0x0004U: // INPUT_EVENT_SCANCODE
+        event.kind = RdpSlowPathInputEventKind::ScancodeKeyboard;
+        event.keyboardFlags = readLe16At(bytes, 6U);
+        event.keyCode = readLe16At(bytes, 8U);
+        // The wire field is 16 bits, but RDP scancodes are 8-bit values.
+        return event.keyCode <= 0xffU;
+    case 0x0005U: // INPUT_EVENT_UNICODE
+        event.kind = RdpSlowPathInputEventKind::UnicodeKeyboard;
+        event.keyboardFlags = readLe16At(bytes, 6U);
+        event.unicodeCode = readLe16At(bytes, 8U);
+        return true;
+    case 0x8001U: // INPUT_EVENT_MOUSE
+        event.kind = RdpSlowPathInputEventKind::Mouse;
+        event.pointerFlags = readLe16At(bytes, 6U);
+        event.xPos = readLe16At(bytes, 8U);
+        event.yPos = readLe16At(bytes, 10U);
+        return true;
+    case 0x8002U: // INPUT_EVENT_MOUSEX
+        event.kind = RdpSlowPathInputEventKind::ExtendedMouse;
+        event.pointerFlags = readLe16At(bytes, 6U);
+        event.xPos = readLe16At(bytes, 8U);
+        event.yPos = readLe16At(bytes, 10U);
+        return true;
+    case 0x8004U: // INPUT_EVENT_MOUSEREL
+    {
+        event.kind = RdpSlowPathInputEventKind::RelativeMouse;
+        event.pointerFlags = readLe16At(bytes, 6U);
+        const auto x = readLe16At(bytes, 8U);
+        const auto y = readLe16At(bytes, 10U);
+        event.xDelta = (x & 0x8000U) != 0U
+                           ? static_cast<std::int32_t>(x) - 0x10000
+                           : static_cast<std::int32_t>(x);
+        event.yDelta = (y & 0x8000U) != 0U
+                           ? static_cast<std::int32_t>(y) - 0x10000
+                           : static_cast<std::int32_t>(y);
+        return true;
+    }
+    default:
+        return false;
+    }
+}
+
+RdpSlowPathInputParseResult parseRdpSlowPathInputPdu(
+    std::span<const std::uint8_t> completeSharePdu) noexcept
+{
+    if (completeSharePdu.size() > kMaximumRdpSlowPathInputPduBytes)
+        return {{}, RdpSlowPathInputError::TooManyEvents};
+
+    const auto data = parseRdpShareDataHeader(completeSharePdu);
+    if (!data)
+        return {{}, RdpSlowPathInputError::InvalidShareData};
+    if (data.value.pduType2 != 0x1cU)
+        return {{}, RdpSlowPathInputError::WrongDataPduType};
+
+    constexpr std::size_t prefixBytes = 4U;
+    const auto body = data.value.body;
+    if (body.size() < prefixBytes)
+        return {{}, RdpSlowPathInputError::InvalidBodyLength};
+
+    const std::uint16_t count = readLe16At(body, 0U);
+    if (count > kMaximumRdpSlowPathInputEvents)
+        return {{}, RdpSlowPathInputError::TooManyEvents};
+
+    const std::size_t expectedBytes =
+        prefixBytes +
+        static_cast<std::size_t>(count) * kRdpSlowPathInputEventBytes;
+    if (body.size() != expectedBytes)
+        return {{}, RdpSlowPathInputError::InvalidBodyLength};
+
+    RdpSlowPathInputPdu value{};
+    value.pduSource = data.value.pduSource;
+    value.shareId = data.value.shareId;
+    value.eventCount = count;
+    value.eventBytes = body.subspan(prefixBytes);
+
+    RdpSlowPathInputEvent event{};
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        if (!value.eventAt(index, event))
+            return {{}, RdpSlowPathInputError::UnknownEventType};
+    }
+    return {value, RdpSlowPathInputError::None};
 }
 
 RdpSynchronizeParseResult parseRdpSynchronizePdu(

@@ -1,3 +1,28 @@
+## R3 authenticated slow-path input boundary (2026-10-17)
+
+**Authored on exact main b28da7b2c6e0be9d5b50949dbb868b9cdf369ded; hosted CI pending.** R3 now decodes the
+complete slow-path `TS_INPUT_PDU_DATA` family allocation-free from the
+already validated Share Data envelope: exact `numEvents * 12` sizing,
+MCS-PER-sized event-count bound, ordered scancode/Unicode/sync/absolute,
+extended and relative mouse decoding, and terminal rejection of unknown
+event types. Decoded values remain protocol data only and grant no input
+authority.
+
+The private R3 live route additionally requires the current post-license
+`ShareActivated` owner, exact joined global-I/O MCS SendDataRequest,
+client UserId/pduSource and activated shareId correlation. R2 exposes one
+synchronous dispatch seam for R10: ingress requires fresh view+input
+permission, and before **every** event callback R2 repeats native/GSS/TLS
+input authorization and R3 Share/provenance validation. A callback, event,
+coordinate, generation or flag is never authority; any failure revokes the
+R3/R2 session. Ordinary protocol tests cover ordered decoding, all supported
+slow-path event forms, exact-length/count/unknown-event/scancode bounds and
+pre-Share denial without minting a positive R2 lease.
+
+R10 still owns the remaining native composition: construct the admitted
+desktop owner and bind this callback to the existing R5/R6/R7 native input
+route. No XTEST/SendInput/Quartz call is enabled by this R3 increment.
+
 ## R1 review of repaired TCP-reset sanitizer registration (2026-10-17)
 
 **Reviewed repair:** `4655f062e3fec2a4272cb08d0a87c0f6555a4105`.

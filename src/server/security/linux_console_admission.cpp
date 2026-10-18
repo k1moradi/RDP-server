@@ -1647,6 +1647,72 @@ cancelR3PersonalDesktopUnwrittenGraphicsFrame(
     return true;
 }
 
+bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt,
+    rdp_server::server::transport::RdpSlowPathInputEventSink sink) noexcept
+{
+    using rdp_server::server::transport::RdpSlowPathInputEvent;
+    constexpr std::uint32_t requiredIngressPermissions =
+        kConsoleViewPermission | kConsoleInputPermission;
+
+    if (lease == nullptr || !sink ||
+        !personalDesktopPolicyMatches(deploymentPolicy) ||
+        !authorizeR3ProtectedTransition(
+            *lease, acceptor, connection, session,
+            requiredIngressPermissions))
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+
+    const auto input =
+        session.routeVerifiedR2SlowPathInputPdu(*provenance, completeTpkt);
+    if (!input)
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+
+    for (std::size_t index = 0; index < input->eventCount; ++index)
+    {
+        RdpSlowPathInputEvent event{};
+        if (!input->eventAt(index, event) ||
+            !personalDesktopPolicyMatches(deploymentPolicy) ||
+            !authorizeR3ProtectedTransition(
+                *lease, acceptor, connection, session,
+                kConsoleInputPermission))
+        {
+            revokeR3Session(acceptor, session);
+            return false;
+        }
+
+        const auto currentProvenance =
+            connection.securityNegotiationProvenance();
+        if (!currentProvenance || *currentProvenance != *provenance ||
+            !session.verifiedR2ApplicationTrafficReady(
+                *currentProvenance) ||
+            !sink.dispatch(sink.context, event))
+        {
+            revokeR3Session(acceptor, session);
+            return false;
+        }
+    }
+    return true;
+}
+
 bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopApplicationTraffic(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,

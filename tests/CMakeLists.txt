@@ -191,6 +191,8 @@ function(add_rdp_test source_file suite behavior)
                 share-control-header-rejections
                 share-data-header-wire
                 share-data-header-rejections
+                share-input-slow-path-wire
+                share-input-slow-path-rejections
                 share-sync-finalization-wire
                 share-sync-finalization-rejections
                 share-control-finalization-wire

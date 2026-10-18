@@ -136,6 +136,15 @@ public:
         return session.beginVerifiedR2GraphicsDynamicVirtualChannel(
             provenance).has_value();
     }
+
+    [[nodiscard]] static bool routeSlowPathInputWithoutAdmission(
+        McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept
+    {
+        const SecurityNegotiationProvenance provenance{};
+        return session.routeVerifiedR2SlowPathInputPdu(
+            provenance, completeTpkt).has_value();
+    }
 };
 } // namespace rdp_server::server::transport
 
@@ -2187,6 +2196,175 @@ void testRdpShareDataHeaderRejections()
         frame[15] = compressed;
         denied(frame, RdpShareDataError::UnsupportedCompression);
     }
+}
+
+std::vector<std::uint8_t> makeSlowPathInputSharePdu()
+{
+    std::vector<std::uint8_t> pdu(22U, 0U);
+    const auto write16 = [&pdu](std::size_t offset, std::uint16_t value)
+    {
+        pdu[offset] = static_cast<std::uint8_t>(value);
+        pdu[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    };
+    const auto write32 = [&write16](std::size_t offset, std::uint32_t value)
+    {
+        write16(offset, static_cast<std::uint16_t>(value));
+        write16(offset + 2U, static_cast<std::uint16_t>(value >> 16U));
+    };
+    const auto appendEvent =
+        [&pdu](std::uint32_t time, std::uint16_t type,
+               std::uint16_t a, std::uint16_t b, std::uint16_t c)
+    {
+        const std::size_t offset = pdu.size();
+        pdu.resize(offset + kRdpSlowPathInputEventBytes, 0U);
+        pdu[offset] = static_cast<std::uint8_t>(time);
+        pdu[offset + 1U] = static_cast<std::uint8_t>(time >> 8U);
+        pdu[offset + 2U] = static_cast<std::uint8_t>(time >> 16U);
+        pdu[offset + 3U] = static_cast<std::uint8_t>(time >> 24U);
+        pdu[offset + 4U] = static_cast<std::uint8_t>(type);
+        pdu[offset + 5U] = static_cast<std::uint8_t>(type >> 8U);
+        pdu[offset + 6U] = static_cast<std::uint8_t>(a);
+        pdu[offset + 7U] = static_cast<std::uint8_t>(a >> 8U);
+        pdu[offset + 8U] = static_cast<std::uint8_t>(b);
+        pdu[offset + 9U] = static_cast<std::uint8_t>(b >> 8U);
+        pdu[offset + 10U] = static_cast<std::uint8_t>(c);
+        pdu[offset + 11U] = static_cast<std::uint8_t>(c >> 8U);
+    };
+
+    appendEvent(11U, 0x0004U, 0x0100U, 0x001dU, 0U);
+    appendEvent(12U, 0x8001U, 0x0800U, 640U, 480U);
+    appendEvent(13U, 0x0000U, 0xa5a5U, 0x0006U, 0U);
+    appendEvent(14U, 0x8002U, 0x8001U, 641U, 481U);
+    appendEvent(15U, 0x8004U, 0x0800U, 0xfffeU, 3U);
+    appendEvent(16U, 0x0005U, 0x8000U, 0x20acU, 0U);
+    appendEvent(17U, 0x0002U, 0x1111U, 0x2222U, 0x3333U);
+
+    write16(0U, static_cast<std::uint16_t>(pdu.size()));
+    write16(2U, 0x0017U);
+    write16(4U, 1002U);
+    write32(6U, 0x11223344U);
+    pdu[11U] = 2U;
+    write16(12U, static_cast<std::uint16_t>(pdu.size()));
+    pdu[14U] = 0x1cU;
+    write16(18U, 7U);
+    write16(20U, 0xbeefU);
+    return pdu;
+}
+
+void testRdpSlowPathInputWire()
+{
+    const auto pdu = makeSlowPathInputSharePdu();
+    const auto parsed = parseRdpSlowPathInputPdu(pdu);
+    assert(parsed);
+    assert(parsed.value.pduSource == 1002U);
+    assert(parsed.value.shareId == 0x11223344U);
+    assert(parsed.value.eventCount == 7U);
+    assert(parsed.value.eventBytes.size() ==
+           7U * kRdpSlowPathInputEventBytes);
+
+    RdpSlowPathInputEvent event{};
+    assert(parsed.value.eventAt(0U, event));
+    assert(event.kind == RdpSlowPathInputEventKind::ScancodeKeyboard);
+    assert(event.eventTime == 11U);
+    assert(event.keyboardFlags == 0x0100U);
+    assert(event.keyCode == 0x1dU);
+
+    assert(parsed.value.eventAt(1U, event));
+    assert(event.kind == RdpSlowPathInputEventKind::Mouse);
+    assert(event.pointerFlags == 0x0800U);
+    assert(event.xPos == 640U && event.yPos == 480U);
+
+    assert(parsed.value.eventAt(2U, event));
+    assert(event.kind == RdpSlowPathInputEventKind::Synchronize);
+    assert(event.toggleFlags == 0x00000006U);
+
+    assert(parsed.value.eventAt(3U, event));
+    assert(event.kind == RdpSlowPathInputEventKind::ExtendedMouse);
+    assert(event.pointerFlags == 0x8001U);
+    assert(event.xPos == 641U && event.yPos == 481U);
+
+    assert(parsed.value.eventAt(4U, event));
+    assert(event.kind == RdpSlowPathInputEventKind::RelativeMouse);
+    assert(event.xDelta == -2);
+    assert(event.yDelta == 3);
+
+    assert(parsed.value.eventAt(5U, event));
+    assert(event.kind == RdpSlowPathInputEventKind::UnicodeKeyboard);
+    assert(event.keyboardFlags == 0x8000U);
+    assert(event.unicodeCode == 0x20acU);
+
+    assert(parsed.value.eventAt(6U, event));
+    assert(event.kind == RdpSlowPathInputEventKind::Unused);
+    assert(!parsed.value.eventAt(7U, event));
+}
+
+void testRdpSlowPathInputRejections()
+{
+    const auto valid = makeSlowPathInputSharePdu();
+
+    auto wrongType = valid;
+    wrongType[14U] = 0x14U;
+    const auto typeDenied = parseRdpSlowPathInputPdu(wrongType);
+    assert(!typeDenied);
+    assert(typeDenied.error == RdpSlowPathInputError::WrongDataPduType);
+
+    auto countMismatch = valid;
+    countMismatch[18U] = 8U;
+    const auto countDenied = parseRdpSlowPathInputPdu(countMismatch);
+    assert(!countDenied);
+    assert(countDenied.error == RdpSlowPathInputError::InvalidBodyLength);
+
+    auto unknown = valid;
+    unknown[26U] = 0x99U;
+    unknown[27U] = 0x99U;
+    const auto unknownDenied = parseRdpSlowPathInputPdu(unknown);
+    assert(!unknownDenied);
+    assert(unknownDenied.error == RdpSlowPathInputError::UnknownEventType);
+
+    auto wideScancode = valid;
+    wideScancode[30U] = 0x34U;
+    wideScancode[31U] = 0x12U;
+    const auto scanDenied = parseRdpSlowPathInputPdu(wideScancode);
+    assert(!scanDenied);
+    assert(scanDenied.error == RdpSlowPathInputError::UnknownEventType);
+
+    auto shortBody = valid;
+    shortBody.pop_back();
+    const std::uint16_t shortSize =
+        static_cast<std::uint16_t>(shortBody.size());
+    shortBody[0U] = static_cast<std::uint8_t>(shortSize);
+    shortBody[1U] = static_cast<std::uint8_t>(shortSize >> 8U);
+    const auto shortDenied = parseRdpSlowPathInputPdu(shortBody);
+    assert(!shortDenied);
+    assert(shortDenied.error == RdpSlowPathInputError::InvalidBodyLength);
+
+    std::vector<std::uint8_t> oversized(
+        22U + (kMaximumRdpSlowPathInputEvents + 1U) *
+                  kRdpSlowPathInputEventBytes,
+        0U);
+    const std::uint16_t oversizedSize =
+        static_cast<std::uint16_t>(oversized.size());
+    oversized[0U] = static_cast<std::uint8_t>(oversizedSize);
+    oversized[1U] = static_cast<std::uint8_t>(oversizedSize >> 8U);
+    oversized[2U] = 0x17U;
+    oversized[4U] = 0xeaU;
+    oversized[5U] = 0x03U;
+    oversized[11U] = 2U;
+    oversized[14U] = 0x1cU;
+    const std::uint16_t oversizedCount =
+        static_cast<std::uint16_t>(kMaximumRdpSlowPathInputEvents + 1U);
+    oversized[18U] = static_cast<std::uint8_t>(oversizedCount);
+    oversized[19U] = static_cast<std::uint8_t>(oversizedCount >> 8U);
+    const auto oversizedDenied = parseRdpSlowPathInputPdu(oversized);
+    assert(!oversizedDenied);
+    assert(oversizedDenied.error == RdpSlowPathInputError::TooManyEvents);
+
+    // Pure syntax success cannot cross the private post-Share route from a
+    // default/unadmitted R3 owner.
+    McsSessionLifecycle session;
+    assert(!McsSessionLifecycleTestAccess::
+        routeSlowPathInputWithoutAdmission(session, valid));
+    assert(session.phase() == McsSessionPhase::Closed);
 }
 
 void testRdpSynchronizeFinalizationWire()
@@ -10878,6 +11056,8 @@ constexpr std::array<McsTestCase, 149> kMcsTestCases{{
     {"share-control-header-rejections", &testRdpShareControlHeaderRejections},
     {"share-data-header-wire", &testRdpShareDataHeaderWire},
     {"share-data-header-rejections", &testRdpShareDataHeaderRejections},
+    {"share-input-slow-path-wire", &testRdpSlowPathInputWire},
+    {"share-input-slow-path-rejections", &testRdpSlowPathInputRejections},
     {"share-sync-finalization-wire", &testRdpSynchronizeFinalizationWire},
     {"share-sync-finalization-rejections", &testRdpSynchronizeFinalizationRejections},
     {"share-control-finalization-wire", &testRdpControlFinalizationWire},

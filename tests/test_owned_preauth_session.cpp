@@ -5006,6 +5006,53 @@ void testOwnedTlsApplicationTcpResetTerminal()
            TcpConnectionPollOutcome::Closed);
     owner.cancel();
     owner.cancel();
+
+    // Independently force decrypted plaintext into OpenSSL's buffer, then
+    // revoke its sole owner before a second read can consume stale bytes.
+    // This tests real TLS buffering, rather than an invented mock callback.
+    LoopbackSocketPair bufferedPair{false};
+    auto bufferedAccepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(bufferedPair.listener.value));
+    assert(bufferedAccepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection bufferedOwner{
+        std::move(bufferedAccepted.connection)};
+    NativeTcpIo bufferedClientIo{
+        static_cast<std::uintptr_t>(bufferedPair.client.value)};
+    TlsHandshakeFixture bufferedTls{false, false};
+    establishOwnedApplicationTls(bufferedOwner, bufferedClientIo, bufferedTls);
+    const std::array<std::uint8_t, 64> applicationRecord = [] {
+        std::array<std::uint8_t, 64> bytes{};
+        bytes.fill(0x5a);
+        return bytes;
+    }();
+    std::size_t sentBytes = 0;
+    assert(SSL_write_ex(bufferedTls.client.get(), applicationRecord.data(),
+                        applicationRecord.size(), &sentBytes) == 1);
+    assert(sentBytes == applicationRecord.size());
+
+    std::array<std::uint8_t, 1> firstByte{};
+    TlsApplicationIoResult firstRead{};
+    const auto bufferedDeadline = Clock::now() + std::chrono::seconds{5};
+    while (Clock::now() < bufferedDeadline)
+    {
+        firstRead = bufferedOwner.readTlsApplicationData(firstByte);
+        if (firstRead.outcome == Outcome::Progress) break;
+        assert(firstRead.outcome == Outcome::NeedRead ||
+               firstRead.outcome == Outcome::NeedWrite);
+        const auto poll = bufferedOwner.pollSocketOnce(bufferedDeadline);
+        assert(poll.outcome == TcpConnectionPollOutcome::Dispatched ||
+               poll.outcome == TcpConnectionPollOutcome::NoEvent);
+    }
+    assert(firstRead.outcome == Outcome::Progress);
+    assert(firstRead.bytes == 1 && firstByte[0] == 0x5a);
+    assert(bufferedOwner.tlsApplicationReadReady());
+    bufferedOwner.cancel();
+    assert(!bufferedOwner.tlsApplicationReadReady());
+    assert(bufferedOwner.readTlsApplicationData(firstByte).outcome ==
+           Outcome::TransportClosed);
+    assert(bufferedOwner.writeTlsApplicationData(applicationRecord).outcome ==
+           Outcome::TransportClosed);
+    assert(bufferedOwner.onSocketReady(true, true) == Interest::Closed);
 }
 #endif
 

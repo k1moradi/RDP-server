@@ -1,3 +1,41 @@
+## R9 R2 protected-read focused-gate reconciliation (2026-10-18)
+
+Exact source `9902199f4f09a1e8bceb9de71025414c52f10e2d` is hosted-green:
+primary Actions `39114811432` and structure Actions `39114811442` **PASS**.
+Ubuntu ordinary full CTest ran
+`runtime.linux-connection-protected-read-generation-denials` as test
+455/699 in both Debug and Release and it passed. The R9 focused sanitizer job
+`117638350100` did not mention that test at all; its existing direct runtime
+selector remained **38/38** and passed. Because the new R2 check is a
+source-level CMake contract rather than a sanitizer-instrumented executable,
+this correction deliberately leaves the 38 executable-backed cases unchanged
+and adds a separate exact-one focused gate plus structure sentinels. No R2/R10
+production behavior changes in this R9 commit.
+
+The same exact-head primary run produced startup-disabled SERVER-TEST artifacts
+Linux `12132072515`, Windows `12131758039`, macOS `12132042571` and
+aggregate status `12131219542`. Independent archive inspection verified
+adjacent inner ZIP SHA-256 values
+`008d0c01ea50b62e87bc594d0a9bed3cce65b315d976a24e65b0f2668640adbe`
+(Linux),
+`c898c7af0d13fde61d641dd8db0b0d76e3ade54b0ae790fb4b3bd959423c3dfe`
+(Windows), and
+`b9e7f95d3626c745ec3d8c642ea1fa55b0917d2b0d98a7a98c0d1f624fe26769`
+(macOS). Internal `SHA256SUMS.txt` covers and matches all 9 Linux, 10 Windows
+and 9 macOS payload files. Manifests bind exactly to `9902199f...`, report
+ELF64/glibc 2.39 with 17 Linux dependencies, PE32+ with bundled
+`libcrypto-3-x64.dll`, and arm64 Mach-O with `libcrypto.4.dylib` /
+`libssl.4.dylib`. Sample configs remain `127.0.0.1:33989`, require
+authentication plus OS authorization and contain only replacement TLS paths.
+All three report `startup_status=DISABLED`, `production_ready=false` and
+deployment `NOT VERIFIED; NOT CLAIMED`; aggregate status is PASS. The SDK
+publisher remains separate and skipped on this ordinary main push.
+
+R10 still has not published genuine Demand Active / `ShareActivated`
+composition, so that remains the cross-road architectural blocker for live
+graphics/input/clipboard and M2. Exact publication-SHA CI for this R9
+coverage correction is **NOT RUN / pending** at authorship.
+
 ## R2 post-admission read generation fence (2026-10-18)
 
 **Reviewed green parent:** `da43a967e2d547bb73e2b51b8d61211219136842`;

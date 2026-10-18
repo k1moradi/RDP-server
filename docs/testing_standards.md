@@ -4088,3 +4088,7 @@ validated-and-discarded only: the pending server Synchronize receipt identity
 and client finalization stage must remain unchanged, and no native callback or
 synthetic admission may be created. Keep the production R10 Share scheduler
 guarded so this intake continues reading rather than triggering a write.
+
+## Windows PE closure distinguishes OS DLLs from redistributable runtime (2026-10-18)
+
+The extracted portable-GUI PE verifier may exempt only documented Windows OS/API-set imports. Observed imports AUTHZ.dll, d3d9.dll and ncrypt.dll are system-provided and must not be copied from System32 into the archive. Toolchain, Qt, ICU, compression, font/image and GLib DLLs remain application closure and must be bundled; never broaden the system allowlist to hide a missing redistributable dependency.

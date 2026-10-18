@@ -1,3 +1,7 @@
+## R9 Windows system-DLL classification after recursive R6 staging (2026-10-18)
+
+R6 `ab63d1bbeb41e19dc447dfde4cb7c1e0260da3b1` resolves the demonstrated windeployqt omission by staging the recursive non-system Windows runtime closure before hashing. The preceding native R9 verifier log also reports three imports that are Windows-provided rather than redistributable application runtime: `AUTHZ.dll`, `d3d9.dll` and `ncrypt.dll`. R9 adds only those names to the existing system-DLL allowlist and extends the portable verifier unit case accordingly. Compiler, Qt, ICU, compression, font/image and GLib dependencies remain non-system and must still be present app-local after extraction. Exact correction-SHA CI: **PENDING**.
+
 ## R6 Windows PORTABLE-GUI non-Qt runtime closure correction (2026-10-18)
 
 R9's completed native Windows jobs make the first package failure concrete.

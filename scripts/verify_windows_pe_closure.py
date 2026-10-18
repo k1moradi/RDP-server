@@ -9,13 +9,13 @@ import re
 import subprocess
 
 SYSTEM_DLLS = frozenset({
-    "advapi32.dll", "bcrypt.dll", "bcryptprimitives.dll", "cabinet.dll",
+    "advapi32.dll", "authz.dll", "bcrypt.dll", "bcryptprimitives.dll", "cabinet.dll",
     "cfgmgr32.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll",
     "cryptbase.dll", "d3d11.dll", "d3d12.dll", "dbghelp.dll", "dnsapi.dll",
-    "dwmapi.dll", "dwrite.dll", "dxgi.dll", "dxva2.dll", "gdi32.dll",
+    "d3d9.dll", "dwmapi.dll", "dwrite.dll", "dxgi.dll", "dxva2.dll", "gdi32.dll",
     "hid.dll", "imm32.dll", "iphlpapi.dll", "kernel32.dll", "mf.dll",
     "mfcore.dll", "mfplat.dll", "mfreadwrite.dll", "mpr.dll", "msvcrt.dll",
-    "netapi32.dll", "normaliz.dll", "ntdll.dll", "ole32.dll", "oleaut32.dll",
+    "ncrypt.dll", "netapi32.dll", "normaliz.dll", "ntdll.dll", "ole32.dll", "oleaut32.dll",
     "powrprof.dll", "propsys.dll", "psapi.dll", "rpcrt4.dll", "secur32.dll",
     "setupapi.dll", "shell32.dll", "shlwapi.dll", "shcore.dll", "ucrtbase.dll",
     "user32.dll", "userenv.dll", "usp10.dll", "uxtheme.dll", "version.dll",

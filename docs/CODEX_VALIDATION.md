@@ -1,3 +1,30 @@
+## R1 dedicated native TCP-reset sanitizer gate (2026-10-17)
+
+**Reviewed current dependency head before authoring:** `4c47b268d01377fda039a51cfc0f03172f30eeb1`.
+R10's post-Connect-Initial MCS Response / AttachUser / ChannelJoin service
+writers are still absent, so that code-review edge remains blocked. R2's new
+deadline/replay guard does not change R1 ownership; it expands the direct
+runtime-security sanitizer selector to 30 cases and includes R1's real
+pre-admission native-poll TLS/CredSSP case.
+
+R1 can still advance assurance independently. The hosted Linux sanitizer job
+now selects exactly one
+`transport.tcp-owned-tls-application-tcp-rst-terminal` CTest, with an exact
+registry sentinel, alongside the existing native-poll coverage. This exercises
+the production OpenSSL/BIO/native-socket owner under the Linux abortive-close
+semantics used by the RST regression. It does not widen platform RST
+assumptions to Darwin or Winsock and does not start a service or mint admission.
+
+Validation at authoring: local build/CTest **NOT RUN** in this connector
+environment; hosted execution of this descendant is **PENDING / NOT VERIFIED**.
+Do not infer PASS from workflow registration. Existing R1 behavior commits are
+`2599158096586365035bc1b29793622f4b17115c` (native poll through TLS/CredSSP)
+and `4704121ed83d753cc0b75c2793d4210e56bb6d9c` (RST POLLERR terminal path).
+The next code dependency remains R10's protected post-Connect-Initial MCS
+writers; genuine positive Microsoft-client CredSSP→MCS remains separately
+blocked on an explicitly authorized physical Linux X11 `seat0` with
+Kerberos/PAM/NSS/logind.
+
 ## R2 accepted Linux connection deadline security review (2026-10-17)
 
 **Reviewed upstream:** `10baf2c10d1b2335d8bfbed194e2f01f902d38af`

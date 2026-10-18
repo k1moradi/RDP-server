@@ -329,6 +329,8 @@ REQUIRED_TOKENS = (
     "runtime_security_expected_test_count=30",
     "Run R10 production native poll with sanitizers",
     "runtime.linux-connection-pre-admission-native-poll",
+    "Run R1 native TCP reset with sanitizers",
+    "transport.tcp-owned-tls-application-tcp-rst-terminal",
     "runtime.validates-configuration-windows-private-dacl",
     "runtime.validates-tls-files-private-regular",
     "transport.tcp-owned-runtime-tls-handshake",

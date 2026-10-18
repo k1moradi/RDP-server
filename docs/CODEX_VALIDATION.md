@@ -1,3 +1,28 @@
+## R6 cross-platform package self-scan and CLANG64 Rectangle failures (2026-10-17)
+
+Exact head `0b260b39ce0831fecf511b44c35bce08f5853ec0`, primary Actions
+`39099057372`, reproduced both reported failures. The Windows lifecycle CTest
+failed on Ubuntu job `117591402920`, macOS job `117591402931`, and Windows
+job `117591402896` because generic `scan_for_secrets()` rejected
+`platform/windows/rdp-server-test.ps1`: the verifier embedded literal
+`-----BEGIN PRIVATE KEY-----`-family and `github_pat_` sentinels in the code
+that detects them. This is a packaging self-scan defect, not secret material in
+the artifact. The correction composes those sentinel strings at PowerShell
+runtime and adds an explicit portable regression that the script bytes contain
+none of the generic forbidden markers before scanning them.
+
+The same exact head's CLANG64 job `117591402913` failed while parsing
+`src/rdp/gfx_avc420_picture.h`: WinGDI's global `Rectangle()` function hid
+the portable global `struct Rectangle`. The correction uses the elaborated
+type spelling in `GfxAvc420Picture::regions` and extends the existing
+`windows.geometry-gdi-rectangle-name-resolution` probe to include the AVC420
+header after `<windows.h>`.
+
+No R2/R3/R4/R6 authority, wire format, lifecycle activation, firewall/service
+state or native desktop behavior changes. Corrective publication-SHA CI,
+owner CLANG64 rebuild, and owner macOS full CTest are **PENDING / NOT RUN** at
+authoring time.
+
 ## R7 macOS bundle diagnostic failure was cross-platform, not macOS-only (2026-10-17)
 
 At SHA `27b5a1cea443e8ef107e4501b73a6a4395853932`, primary Actions

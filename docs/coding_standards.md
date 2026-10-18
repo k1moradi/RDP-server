@@ -1,3 +1,14 @@
+## Windows SDK ordinary-name collisions require explicit portable type disambiguation (2026-10-17)
+
+WinGDI declares a global `Rectangle(...)` function, while the portable core
+also exposes a global `struct Rectangle`. A header that can be parsed after
+`<windows.h>` must not rely on the bare ordinary name when the SDK function can
+hide the class name. Use an elaborated type specifier at that boundary (for
+example `struct Rectangle`) or a project-owned alias; do not suppress GDI or
+reorder includes to hide the collision. Keep the Windows compile probe including
+the affected public/shared header after `<windows.h>` so MSVC and CLANG64 both
+exercise the real include order.
+
 ## R10 outbound event interest follows protocol slices, except during R1 WANT (2026-10-17)
 
 A complete R3-owned outbound slice must make the runtime poller request

@@ -1,3 +1,20 @@
+## R6 package verifier must not contain the secret sentinels it rejects (2026-10-17)
+
+The Windows per-user lifecycle verifier is shipped inside SERVER-TEST and is
+therefore scanned by the same generic payload-secret gate as every other bundle
+member. Secret-marker detection code must compose marker strings at runtime
+rather than embed the complete forbidden byte sequence in the script itself.
+`windows.package-user-lifecycle-offline-contract` must assert that every
+`FORBIDDEN_BYTE_MARKERS` value is absent from the lifecycle script bytes and
+then pass those bytes through `scan_for_secrets()`. This portable portion runs
+on Linux, macOS and Windows; Windows additionally executes the native PowerShell
+lifecycle cases.
+
+The existing `windows.geometry-gdi-rectangle-name-resolution` compile/runtime
+probe must include `rdp/gfx_avc420_picture.h` after `<windows.h>`. This makes
+the shared AVC420 header's Rectangle lookup part of the R6 portability sentinel
+instead of testing only R6-local geometry aliases.
+
 ## R7 macOS protocol-bundle denial test runs before the C++ build (2026-10-17)
 
 The protocol matrix must execute `tests/test_macos_test_bundle.py` directly on

@@ -31,7 +31,10 @@ struct GfxAvc420Picture final
     // Coded picture size, multiple of 16 in each dimension. Regions are
     // actual visible rectangles cropped from that coded picture.
     PixelSize codedGeometry{};
-    std::span<const Rectangle> regions{};
+    // WinGDI declares a Rectangle() function in the global ordinary-name
+    // namespace. The elaborated type specifier keeps the portable struct
+    // unambiguous when this header is included after <windows.h>.
+    std::span<const struct Rectangle> regions{};
     std::span<const GfxAvc420QuantQuality> quantQualities{};
     // Borrowed x264 H.264 Annex-B picture; not encoded by this helper.
     std::span<const std::byte> annexBPicture{};

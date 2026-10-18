@@ -176,6 +176,13 @@ class WindowsServerBundleTests(unittest.TestCase):
         self.assertIn("bin/libcrypto-3-x64.dll", manifest["files"])
         self.assertIn("platform/windows/rdp-server-test.ps1", manifest["files"])
 
+    def test_lifecycle_script_does_not_self_trigger_bundle_secret_scan(self) -> None:
+        data = self.lifecycle_script.read_bytes()
+        for marker in bundle.FORBIDDEN_BYTE_MARKERS:
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, data)
+        bundle.scan_for_secrets("platform/windows/rdp-server-test.ps1", data)
+
     def test_lifecycle_script_has_no_network_autostart_service_or_firewall_actions(self) -> None:
         text = self.lifecycle_script.read_text(encoding="utf-8")
         for required in (

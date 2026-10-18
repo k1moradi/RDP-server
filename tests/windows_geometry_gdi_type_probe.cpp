@@ -13,6 +13,7 @@
 extern "C" int Rectangle(void *, int, int, int, int);
 #endif
 
+#include "rdp/gfx_avc420_picture.h"
 #include "windows/windows_desktop_geometry.h"
 #include "windows/windows_dxgi_damage.h"
 
@@ -23,6 +24,12 @@ namespace rdp_server::windows
 
 bool windowsGdiRectangleTypeProbe() noexcept
 {
+    const rdp_server::rdp::GfxAvc420Picture gfxPicture{};
+    if (!gfxPicture.regions.empty())
+    {
+        return false;
+    }
+
     const std::array<PortableRectangle, 2> native{
         PortableRectangle{-800, 0, 800, 600},
         PortableRectangle{0, 0, 1280, 720},

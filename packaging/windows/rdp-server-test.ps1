@@ -125,11 +125,14 @@ function Assert-NoSensitiveMarkers {
     param([Parameter(Mandatory = $true)][byte[]]$Bytes)
 
     $text = [System.Text.Encoding]::UTF8.GetString($Bytes)
+    # Compose sentinels at runtime so this verifier can itself be packaged
+    # without containing the forbidden credential markers it rejects.
+    $privateKeyPrefix = '-----BEGIN '
     foreach ($marker in @(
-        '-----BEGIN PRIVATE KEY-----',
-        '-----BEGIN ENCRYPTED PRIVATE KEY-----',
-        '-----BEGIN RSA PRIVATE KEY-----',
-        'github_pat_')) {
+        ($privateKeyPrefix + 'PRIVATE KEY-----'),
+        ($privateKeyPrefix + 'ENCRYPTED PRIVATE KEY-----'),
+        ($privateKeyPrefix + 'RSA PRIVATE KEY-----'),
+        ('github_' + 'pat_'))) {
         if ($text.Contains($marker)) {
             throw 'credential-bearing payload rejected'
         }

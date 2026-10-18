@@ -12,7 +12,7 @@ GUI/LAN Start/Stop is not a functioning native service. No new R3 packet
 parser, second TLS reader or ACK/window owner was added.
 
 **Exact-SHA hosted evidence:** primary Actions run 39139376815 at
-`9f758c9395c988233602536e0fdd21924f707f07`: macOS protocol **PASS 610/610**, with
+`2a3f06b039c9b583ba3826d2c0e62bec7827524f`: macOS protocol **PASS 610/610**, with
 `transport.post-share-classifier-joined-routes`, malformed/wrong-role,
 generations/Share/disconnect, `transport.dvc-graphics-presentation-wire`,
 three `transport.dvc-graphics-frame-ack-handoff-*` and existing frame

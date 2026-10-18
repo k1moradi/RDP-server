@@ -1,3 +1,22 @@
+## R1 review of repaired TCP-reset sanitizer registration (2026-10-17)
+
+**Reviewed repair:** `4655f062e3fec2a4272cb08d0a87c0f6555a4105`.
+R9 correctly reconstructed the malformed R1 sanitizer insertion from the clean
+`4c47b268d01377fda039a51cfc0f03172f30eeb1` workflow. The resulting step
+selects exactly `transport.tcp-owned-tls-application-tcp-rst-terminal` and
+preserves the surrounding runtime-security, R5/R6/R7/R8 and packaging jobs.
+R1 additionally requires the workflow structure guard to match the full
+anchored selector text, not only the step/test names. The runtime-security
+selector is 30 cases after R2 `4c47b268`; the nearby 28-case comment was stale
+documentation only and is corrected with this assurance update.
+
+Hosted status for the repaired workflow remains **PENDING / NOT VERIFIED**
+through the available connector status interfaces. No transport/runtime source
+changed here. The next code dependency remains R10's R2-authorized MCS Connect
+Response / AttachUser / ChannelJoin service writers after admitted Connect
+Initial; genuine Microsoft-client positive admission remains separately blocked
+on an explicitly authorized physical Linux X11 `seat0` Kerberos/PAM/NSS/logind
+environment.
 ## R9 repair of R1 TCP-reset sanitizer workflow (2026-10-17)
 
 `44fff0de53e780abc05b8ec0e7f2cea830b9dea7` correctly identified the

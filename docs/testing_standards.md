@@ -1,3 +1,12 @@
+## CI CTest regex sentinels must be structurally exact (2026-10-17)
+
+Dedicated hosted CTest gates must be guarded by the full anchored selector
+string, not only the step name and test-name substring. This is especially
+important for shell regexes ending in `$'`: programmatic replacement APIs may
+interpret that sequence as replacement syntax and silently splice unrelated
+workflow text. A structure check must therefore require the exact literal
+selector and parsed workflow shape before the job is treated as runnable
+evidence. A malformed authoring commit is never a PASS.
 ## R6 package verifier must not contain the secret sentinels it rejects (2026-10-17)
 
 The Windows per-user lifecycle verifier is shipped inside SERVER-TEST and is

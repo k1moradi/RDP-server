@@ -67,7 +67,7 @@ def inside(path: Path, root: Path) -> bool:
     try:
         path.resolve(strict=True).relative_to(root.resolve(strict=True))
         return True
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError):
         return False
 
 
@@ -238,6 +238,32 @@ def deploy_with_macdeployqt(app: Path, staging: Path,
     adhoc_sign_app(staged_app, runner)
 
 
+def valid_framework_symlink(path: Path, staged_app: Path) -> bool:
+    """Allow only resolved in-bundle Qt framework aliases or local dylib aliases."""
+    if not path.is_symlink():
+        return False
+    relative = path.relative_to(staged_app)
+    parts = relative.parts
+    if len(parts) < 3 or parts[:2] != ("Contents", "Frameworks"):
+        return False
+    try:
+        target = os.readlink(path)
+        target_path = PurePosixPath(target)
+        if (not target or target_path.is_absolute() or "\\" in target or
+                ":" in target or "\x00" in target or
+                any(part in (".", "..") for part in target.split("/"))):
+            return False
+        resolved = path.resolve(strict=True)
+        framework_root = staged_app / "Contents/Frameworks" / parts[2]
+        if parts[2].endswith(".framework") and len(parts) >= 4:
+            return resolved.is_relative_to(framework_root.resolve(strict=True))
+        if len(parts) == 3 and parts[2].endswith(".dylib"):
+            return resolved.is_relative_to((staged_app / "Contents/Frameworks").resolve(strict=True))
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return False
+
+
 def collect_files(staged_app: Path) -> dict[str, Path]:
     records: dict[str, Path] = {}
     folded: set[str] = set()
@@ -246,9 +272,13 @@ def collect_files(staged_app: Path) -> dict[str, Path]:
     for path in sorted(staged_app.rglob("*")):
         require(inside(path, staged_app),
                 "deployed app contains an escaping link")
-        if path.is_dir():
+        if path.is_symlink():
+            require(valid_framework_symlink(path, staged_app),
+                    "deployed app contains an unsafe framework link")
+        elif path.is_dir():
             continue
-        require(path.is_file(), "deployed app contains a non-file entry")
+        else:
+            require(path.is_file(), "deployed app contains a non-file entry")
         name = path.relative_to(root).as_posix()
         require(safe_name(name), f"unsafe staged path: {name!r}")
         require(name.casefold() not in folded,
@@ -256,7 +286,8 @@ def collect_files(staged_app: Path) -> dict[str, Path]:
         folded.add(name.casefold())
         if name.startswith(f"{APP_NAME}/Contents/MacOS/") and name != EXECUTABLE:
             raise MacGuiBundleError("unexpected executable helper in app bundle")
-        size = path.stat().st_size
+        size = (len(os.readlink(path).encode("utf-8"))
+                if path.is_symlink() else path.stat().st_size)
         total += size
         require(size <= MAX_FILE and total <= MAX_TOTAL,
                 "deployed app exceeds size bounds")
@@ -336,10 +367,17 @@ def bundle(output: Path, app: Path, macdeployqt: Path, source_sha: str,
             + "\n".join(dependencies) + "\n").encode()
 
         modes = {name: 0o644 for name in payload}
+        framework_links: set[str] = set()
         for name, path in records.items():
             require(name not in payload, "staged file collides with metadata")
-            payload[name] = path.read_bytes()
-            modes[name] = 0o755 if path.stat().st_mode & stat.S_IXUSR else 0o644
+            if path.is_symlink():
+                # ZIP stores link target bytes, not dereferenced framework data.
+                payload[name] = os.readlink(path).encode("utf-8")
+                modes[name] = 0o777
+                framework_links.add(name)
+            else:
+                payload[name] = path.read_bytes()
+                modes[name] = 0o755 if path.stat().st_mode & stat.S_IXUSR else 0o644
         modes[EXECUTABLE] = 0o755
 
         hashes = {name: sha256_bytes(data) for name, data in payload.items()}
@@ -383,7 +421,9 @@ def bundle(output: Path, app: Path, macdeployqt: Path, source_sha: str,
                             "portable GUI payload exceeds size bounds")
                     info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
                     info.create_system = 3
-                    info.external_attr = ((stat.S_IFREG | modes[name]) << 16)
+                    entry_type = (stat.S_IFLNK if name in framework_links
+                                  else stat.S_IFREG)
+                    info.external_attr = ((entry_type | modes[name]) << 16)
                     info.compress_type = zipfile.ZIP_DEFLATED
                     archive.writestr(info, data)
         except Exception:

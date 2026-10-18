@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import plistlib
+import stat
 import shutil
 import tempfile
 import unittest
@@ -112,6 +113,60 @@ class MacGuiBundleTests(unittest.TestCase):
         shutil.rmtree(extracted)
         self.assertFalse(extracted.exists())
         self.assertTrue(self.app.is_dir())
+
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "macOS framework symlink creation is unavailable on Windows")
+    def test_signed_framework_version_aliases_survive_extraction(self):
+        def deployed_framework_links(app: Path, staging: Path, tool: Path):
+            self.deploy(app, staging, tool)
+            framework = (staging / bundle.APP_NAME /
+                         "Contents/Frameworks/QtCore.framework")
+            (framework / "Versions/A/Resources").mkdir(parents=True)
+            (framework / "Versions/A/Resources/Info.plist").write_bytes(
+                plistlib.dumps({"CFBundleExecutable": "QtCore"}))
+            (framework / "Versions/Current").symlink_to(
+                "A", target_is_directory=True)
+            (framework / "QtCore").symlink_to("Versions/Current/QtCore")
+            (framework / "Resources").symlink_to(
+                "Versions/Current/Resources", target_is_directory=True)
+
+        digest = self.build(deployed_framework_links)
+        portable.verify_archive(self.output, self.sha, digest)
+        extracted = self.root / "Extracted signed macOS framework"
+        links: list[tuple[Path, str]] = []
+        with zipfile.ZipFile(self.output) as archive:
+            for member in archive.infolist():
+                destination = extracted / member.filename
+                if stat.S_ISLNK(member.external_attr >> 16):
+                    links.append((destination, archive.read(member).decode("utf-8")))
+                    continue
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(archive.read(member))
+        self.assertEqual(len(links), 3)
+        for destination, target in links:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.symlink_to(target)
+        framework = extracted / bundle.APP_NAME / "Contents/Frameworks/QtCore.framework"
+        self.assertEqual((framework / "Versions/Current").readlink().as_posix(), "A")
+        self.assertEqual((framework / "QtCore").read_bytes(),
+                         (framework / "Versions/A/QtCore").read_bytes())
+        self.assertTrue((framework / "Resources/Info.plist").is_file())
+
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "macOS framework symlink creation is unavailable on Windows")
+    def test_escaping_framework_alias_is_rejected(self):
+        def escaping(app: Path, staging: Path, tool: Path):
+            self.deploy(app, staging, tool)
+            framework = (staging / bundle.APP_NAME /
+                         "Contents/Frameworks/QtCore.framework")
+            (framework / "Escape").symlink_to(
+                "../QtGui.framework/Versions/A/QtGui")
+
+        with self.assertRaisesRegex(bundle.MacGuiBundleError,
+                                    "unsafe framework link"):
+            self.build(escaping)
 
     def test_missing_cocoa_plugin_is_rejected(self):
         def missing(app: Path, staging: Path, tool: Path):

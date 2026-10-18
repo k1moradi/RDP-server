@@ -1,3 +1,18 @@
+## R7 extracted macOS framework identity and signing gate (2026-10-18)
+
+The macOS arm64 PORTABLE-GUI packager runs `macdeployqt` with Cocoa
+plugin closure, normalizes staged Mach-O install IDs to `@rpath`,
+preserves verified relative symlinks in `Contents/Frameworks`, and
+ad-hoc signs the finished .app **before** ZIP creation. The archive
+manifest and hashes bind every symlink's target bytes, and the common
+verifier accepts only bounded internal framework aliases on macOS.
+The native CI extracts with `ditto -x -k`, rejects build-host absolute
+Mach-O dependencies using `otool -L`, and requires
+`codesign --verify --deep --strict` of the extracted application.
+Never fix a failed extracted signature by skipping verification or
+re-signing the extracted app. Developer ID signing/notarization and
+user-controlled Aqua/normal Finder launch remain distinct owner gates.
+
 ## R6 packaged Windows GUI QPA boundary (2026-10-18)
 
 The Windows GUI package requires the native `qwindows.dll` Qt platform

@@ -50,6 +50,56 @@ def safe_name(name: str) -> bool:
             and str(path) == name)
 
 
+def validate_macos_framework_links(
+        links: dict[str, str], names: set[str]) -> None:
+    """Allow only self-contained Qt framework aliases, never arbitrary ZIP links."""
+    root = "rdp-server-desktop.app/Contents/Frameworks/"
+    # No archive file may be written *through* a link during extraction.
+    # Qt's directory symlink aliases are entries, never duplicate subtrees.
+    for name in names:
+        parents = name.split("/")
+        for component_count in range(1, len(parents)):
+            require("/".join(parents[:component_count]) not in links,
+                    f"entry under framework link: {name!r}")
+    for name, target in links.items():
+        relative = name.removeprefix(root)
+        parts = relative.split("/")
+        require(name.startswith(root) and (
+            (len(parts) >= 2 and parts[0].endswith(".framework")) or
+            (len(parts) == 1 and parts[0].endswith(".dylib"))),
+            f"directory or link entry: {name!r}")
+        require(len(target.encode("utf-8")) <= 256 and safe_name(target),
+                f"unsafe framework link target: {name!r}")
+        # Keep framework aliases inside their own .framework; dylib aliases
+        # may resolve only under the app's dedicated Frameworks directory.
+        allowed = (root + parts[0] + "/") if len(parts) > 1 else root
+
+        pending = name.split("/")
+        resolved: list[str] = []
+        visited: set[str] = set()
+        while pending:
+            component = pending.pop(0)
+            resolved.append(component)
+            path = "/".join(resolved)
+            if path not in links:
+                continue
+            require(path not in visited, f"cyclic framework link: {name!r}")
+            visited.add(path)
+            replacement = links[path]
+            require(safe_name(replacement),
+                    f"unsafe framework link target: {path!r}")
+            resolved.pop()
+            pending = replacement.split("/") + pending
+            require(len(visited) <= len(links),
+                    f"cyclic framework link: {name!r}")
+
+        destination = "/".join(resolved)
+        require(destination.startswith(allowed) and (
+            destination in names and destination not in links or
+            any(other.startswith(destination + "/") for other in names)),
+            f"unresolved or escaping framework link: {name!r}")
+
+
 def digest_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -76,6 +126,7 @@ def verify_archive(path: Path, expected_git_sha: str,
             folded: set[str] = set()
             total = 0
             hashes: dict[str, str] = {}
+            framework_links: dict[str, str] = {}
             for record in records:
                 name = record.filename
                 require(safe_name(name), f"unsafe archive path: {name!r}")
@@ -84,8 +135,12 @@ def verify_archive(path: Path, expected_git_sha: str,
                 names.add(name)
                 folded.add(name.casefold())
                 mode = record.external_attr >> 16
-                require(not record.is_dir() and not stat.S_ISLNK(mode),
+                require(not record.is_dir(),
                         f"directory or link entry: {name!r}")
+                if stat.S_ISLNK(mode):
+                    require(record.file_size <= 256,
+                            f"oversized framework link: {name!r}")
+                    framework_links[name] = archive.read(record).decode("utf-8")
                 require(not (record.flag_bits & 1), "encrypted ZIP entry")
                 require(record.file_size <= MAX_FILE, f"oversized file: {name}")
                 total += record.file_size
@@ -107,6 +162,10 @@ def verify_archive(path: Path, expected_git_sha: str,
             required = PLATFORM_FILES.get((platform, architecture))
             require(required is not None, "unsupported platform/architecture")
             require(required <= names, "missing genuine GUI entrypoint or Qt platform plugin")
+            if platform == "macos":
+                validate_macos_framework_links(framework_links, names)
+            else:
+                require(not framework_links, "directory or link entry outside macOS")
             require(manifest.get("artifact_family") == "PORTABLE-GUI"
                     and manifest.get("classification") == "portable-gui-host",
                     "not a PORTABLE-GUI host artifact")

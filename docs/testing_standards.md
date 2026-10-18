@@ -1,3 +1,25 @@
+## R7 macOS signed framework aliases in PORTABLE-GUI ZIP (2026-10-18)
+
+Qt `macdeployqt` frameworks require their versioned symlink topology to
+remain stable across ZIP extraction for `codesign --verify --deep --strict`.
+For a macOS-only PORTABLE-GUI archive, regular staged framework aliases
+may be encoded as POSIX ZIP symlink entries containing the original bounded
+relative targets, but **only** below `rdp-server-desktop.app/Contents/Frameworks/`.
+The builder must validate every target resolves inside its own framework
+(or the local Frameworks directory for dylib aliases), never the OS or
+build host. The shared verifier must reject absolute paths, `..`, missing
+destinations, cycles, write-under-symlink entries, and symlinks outside
+macOS framework closure or in any Windows/Linux bundle. Manifest hashes,
+per-file checksums and external archive SHA include symlink target bytes.
+Only a native extracted-app strict signature check proves restoration.
+
+The registered `packaging.macos-portable-gui-framework-alias-integrity-denials`
+and `packaging.portable-gui-macos-framework-link-verifier-denials` CTests
+run with synthetic fixtures on every OS and do not launch Qt, access
+ScreenCaptureKit/TCC, start a listener, or authorize a desktop. Ad-hoc
+signing remains a development integrity mechanism, not Developer ID
+trust, Gatekeeper assessment, or notarization.
+
 ## R5 persistent post-Share native source contracts (2026-10-18)
 
 After R10 replaced one bounded native poll with the authorized persistent

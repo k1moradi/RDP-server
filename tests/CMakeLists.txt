@@ -123,6 +123,22 @@ add_test(NAME packaging.macos-portable-gui-install-id-normalization
 set_tests_properties(packaging.macos-portable-gui-install-id-normalization
     PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
 
+# Preserve only bounded in-framework version aliases through ZIP extraction,
+# retaining the real signed Qt subcomponent Info.plist lookup paths.
+add_test(NAME packaging.macos-portable-gui-framework-alias-integrity-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_gui_bundle.py"
+        MacGuiBundleTests.test_signed_framework_version_aliases_survive_extraction
+        MacGuiBundleTests.test_escaping_framework_alias_is_rejected)
+set_tests_properties(packaging.macos-portable-gui-framework-alias-integrity-denials
+    PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
+add_test(NAME packaging.portable-gui-macos-framework-link-verifier-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_portable_gui_archive.py"
+        PortableGuiArchiveTests.test_macos_framework_links_are_bounded_and_resolved)
+set_tests_properties(packaging.portable-gui-macos-framework-link-verifier-denials
+    PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
+
 # R7 optional per-user LaunchAgent contract. Rendering is offline and refuses
 # implicit registration; tests never invoke a service manager or native APIs.
 # Register only on Apple because the contract deliberately validates POSIX

@@ -1,3 +1,53 @@
+## R7 macOS signed framework ZIP-alias correction (2026-10-18)
+
+**Observed real blocker:** on corrective R7 SHA
+`48126b53ab3179b3362977be4e10703c2562f3bb`, native
+macOS 26 arm64 job `117709147567` of
+[Actions 39138933501](https://github.com/k1moradi/RDP-server/actions/runs/39138933501)
+built the Qt app, passed package fixture and **all five R7 Qt offscreen
+CTests (5/5 PASS)**, and passed the ZIP manifest plus extracted Mach-O
+absolute-dependency audit. The new strict extracted-app
+`codesign --verify --deep --strict` then **FAILED**:
+`invalid Info.plist (plist or signature have been modified)` in
+`Contents/Frameworks/QtDBus.framework`. This is a packaging integrity
+failure, **not** R2/R10 admission and not a reason to weaken signing.
+
+**Cause and correction:** the portable ZIP writer had been flattening
+Qt framework symlink file aliases and silently dropping directory aliases
+(`Versions/Current`, `Resources`). Even when the staged .app had been
+ad-hoc signed, extraction no longer reproduced the signed framework layout.
+R7 now preserves only in-bundle `Contents/Frameworks` version/dylib
+symlinks, with resolved-regular-target and nonescaping validations;
+the shared R9 PORTABLE-GUI verifier accepts those links **only for macOS**,
+requires relative bounded targets, validates fully expanded destinations,
+rejects cycles and files beneath symlink aliases, and keeps all other
+archive symlinks forbidden. Extraction with `ditto -x -k` must restore
+the same framework layout before the existing strict native signature
+test. This makes no change to GUI authority, Startup, R2 admission,
+R10 ownership, listener, TCC, ScreenCaptureKit or Quartz.
+
+New ordinary dedicated CTests:
+`packaging.macos-portable-gui-framework-alias-integrity-denials` and
+`packaging.portable-gui-macos-framework-link-verifier-denials`.
+Synthetic fixtures include valid `Versions/Current` and framework
+binary/resources aliases, escape rejection, unresolved/cyclic aliases,
+non-Mac symlink denial and aliased-entry write denial. Targeted local
+Python/CMake/Qt execution **NOT RUN** (approved local checkout/macOS
+toolchain unavailable in this connector environment). Exact new-head
+hosted CI and extracted strict ad-hoc signature result **PENDING**;
+normal Finder/Aqua double-click, quarantined Gatekeeper approval,
+Developer ID signing, notarization and owner macOS 27 run **NOT RUN**.
+Ad-hoc signing remains development-only.
+
+**Dependency graph update:** R3 authenticated classifier is landed;
+R10 `4795c6dd` and `2a3f06b0` now persist a single R1 TLS/R2 logind/
+R5 XCB + R3/R4 first-frame/input scheduler **for Linux loopback CLI**,
+not GUI Start/Stop. R10's concrete GUI LAN HostControl backend and
+serialized macOS AppKit/session owner are absent; R2's credential-bound
+revocable macOS UID lease is absent. Native macOS capture/input hosting
+and positive Microsoft-client access remain **BLOCKED**, independent of
+the now-addressed archive bug.
+
 ## R5 persistent X11 handoff source-contract correction (2026-10-18)
 
 Base: `877d8435270f`. R10 `4795c6d` and `2a3f06b`

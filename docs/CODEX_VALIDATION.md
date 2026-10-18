@@ -1,3 +1,43 @@
+## R2 review of R10 admitted MCS response and sanitizer coverage (2026-10-17)
+
+**Reviewed R10 source SHA:** `b7f0ab66b91628ef4eb448021d102834097cd9fb`.
+`serve` now advances genuinely admitted MCS Connect Initial through
+`LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite()`.
+R10 never passes a configured identity or preflight verdict as admission.
+The broker protects every new R3 reply slice with its current
+`authorizeR3ProtectedTransitionForEstablishedTls()` (R1 HYBRID/SSL
+provenance, exact active R2 lease/policy, fresh NSS/logind fingerprint,
+logind change watch and permission). It separately repeats the protected
+check **after** R1 accepts plaintext before R3 consumes the immutable
+reply/write-slice sequence. The runtime handles R1 pending WANT direction,
+bounds each accepted plaintext slice, and retires the lease after delivery
+until the later MCS stages have been composed. No new R2 authority bypass
+was found in this response path.
+
+**Missing assurance closed:** reuse the existing production-backed
+`runtime.linux-connection-post-admission-mcs-response-denials` CTest in
+R9's direct Linux runtime-security ASan/UBSan selection; update its
+cardinality and structure sentinels **30→31**, preserving the earlier
+native-poll/expiry coverage and the separate R1 reset test. No second
+denial-only fixture or invented positive R2 lease is added.
+
+Validation command in the one canonical checkout `build/` root:
+`python3 scripts/validate_ci_workflow.py --workflow .github/workflows/ci.yml`
+and `ctest --test-dir build -C Debug --output-on-failure
+-R '^runtime\\.linux-connection-(post-admission-mcs-response-denials|pre-admission-native-poll|native-poll-expiry-revocation)$'`.
+Local owner execution **NOT RUN** in this GitHub-connector environment;
+publication-SHA structure, hosted sanitizer/full CI **PENDING / NOT RUN**.
+At reviewed head `52a1312c`, structure Actions `39105599230`
+**PASS**; primary Actions `39105599348` was **IN PROGRESS**.
+This does not establish new-commit PASS. No real keytab, password, live
+service, desktop or client was used.
+
+**Next gate:** R10 must compose genuine R2-authorized Erect Domain,
+Attach User/Confirm and Channel Join/Confirm with a serialized R1 writer,
+native watch lifecycle, and later Client Info before a live session can
+reach licensing/Share. The separate owner-authorized physical X11
+`seat0` Kerberos/PAM/NSS/logind positive test remains **BLOCKED / NOT RUN**.
+
 ## R3 slow-path input registry correction (2026-10-17)
 
 The two new canonical slow-path input cases increase the existing

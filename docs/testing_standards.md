@@ -96,7 +96,31 @@ cover initial licensing, positive short-write suffix continuation, Valid Client,
 Share and Graphics writes, R1 WANT_READ/WANT_WRITE precedence, invalid retry
 direction, cancellation and terminal revocation without creating an admission
 lease or starting a listener. The R9 direct runtime-security sanitizer inventory
-is **30** cases after including the two native-poll guards.
+is **31** cases after including the two native-poll guards and the R10
+Connect Response admission-denial check.
+
+## R2 admitted MCS Connect Response security boundary (2026-10-17)
+
+R10's new `LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite()`
+requires the exact R2 private lease and the current R3
+`AwaitConnectResponse` owner after an admitted Connect Initial. The
+server obtains each bounded R3-owned reply suffix only through the R2
+broker's protected transition and sends it with the sole R1 TLS writer.
+After positive accepted plaintext bytes, the R2 broker revalidates GSS/TLS
+principal, immutable policy, logind monitor and exact native generation
+before allowing R3's reply/slice sequence to advance. R1 WANT direction
+takes precedence during an unfinished TLS write. Revocation retires R3
+first and cancels R1 last.
+
+The existing centrally registered production CTest
+`runtime.linux-connection-post-admission-mcs-response-denials` is sufficient
+for the offline missing-lease and terminal replay fence; do not duplicate
+it with a test-only positive admission. Include it in R9's direct Linux
+runtime-security sanitizer selector (30→31) with an exact registry
+sentinel. Positive response delivery requires an owner-authorized
+CredSSP/PAM/NSS/logind physical X11 session and is NOT RUN. R10 still
+needs Erect Domain, Attach User/Confirm, Channel Join/Confirm, Client Info
+and its logind watch polling before claiming a complete service lifecycle.
 
 ## R2 serialized-connection poll expiry assurance (2026-10-17)
 

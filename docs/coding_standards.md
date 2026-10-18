@@ -1,3 +1,14 @@
+## R1/R8 clipboard outbound TLS interest projection (2026-10-18)
+
+Once the R2/R3-authorized CLIPRDR writer has begun, the existing Linux
+runtime readiness selector projects the current R8 writer-in-progress
+into Write interest, including after positive partial plaintext acceptance.
+When SSL_write_ex returns WANT_READ/WANT_WRITE, R1's pending-write retry
+direction overrides that outbound preference. Do not poll Read for
+buffered unrelated plaintext during a CLIPRDR write, and let terminal
+revocation always win. Project readiness only: never duplicate R3
+static-VC bytes, route IDs, write offsets, accepted-byte receipts or SSL.
+
 ## R1 nonblocking TLS read-WANT to write interleaving (2026-10-18)
 
 OpenSSL permits SSL_write_ex after an incomplete SSL_read_ex (WANT_READ or

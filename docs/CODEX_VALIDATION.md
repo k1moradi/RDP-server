@@ -1,3 +1,22 @@
+## R1/R8 clipboard outbound TLS polling interest (2026-10-18)
+
+Source parent `f7226e60c1b1c55b3a485c27c8018b6b2bacdc8a`. A newly landed R8 R2/R3-authorized
+CLIPRDR TLS writer already owns its exact suffix, accepted-byte receipts
+and pending WANT. R1's Linux `ioInterest()` omitted the R8 write-active
+and WANT facts, making a future serialized R10 CLIPRDR transfer poll for
+new plaintext instead of POLLOUT or lose SSL_write_ex WANT_READ. The
+existing one-owner selector now projects those facts without duplicating
+bytes/offsets/SSL ownership. Active writes select Write, pending SSL
+WANT requests Read/Write as owned by R1, terminal state always Closed.
+
+New offline CTest:
+`runtime.linux-connection-clipboard-outbound-want-precedence` covers
+the current writer, positive partial, WANT_READ/WANT_WRITE, unexpected R1
+interest, unrelated buffered TLS plaintext and terminal cancellation.
+Owner-local full build/CTest **NOT RUN**; publication-SHA hosted CI
+**PENDING**. R10 still owes live R8 clipboard dispatch and concrete
+GUI LAN Start/Stop; physical seat0/Microsoft-client **NOT RUN**.
+
 ## R5 fatal X11 resource-error no-input cleanup (2026-10-18)
 
 Parent `788f580665f5ba2b7837f706f3f063a3f5525b7e`. After R10's serialized first-frame/XCB owner landed,

@@ -379,6 +379,7 @@ struct LinuxRuntimeIoInterestSnapshot final
     bool tlsApplicationWriteOutstanding{};
     bool shareWritePending{};
     bool graphicsWritePending{};
+    bool clipboardWritePending{};
 };
 
 [[nodiscard]] constexpr
@@ -409,7 +410,7 @@ selectLinuxRuntimeConnectionIoInterest(
          snapshot.sessionPhase ==
              Phase::AwaitPersonalDesktopValidClientWrite);
     if (licensingWritePending || snapshot.shareWritePending ||
-        snapshot.graphicsWritePending)
+        snapshot.graphicsWritePending || snapshot.clipboardWritePending)
     {
         return Interest::Write;
     }

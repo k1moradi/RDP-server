@@ -246,7 +246,8 @@ LinuxRuntimeConnection::ioInterest() const noexcept
         personalLicenseRequestTlsWritePending_ ||
         personalValidClientTlsWritePending_ ||
         personalShareTlsWritePending_ ||
-        personalGraphicsDvcTlsWritePending_;
+        personalGraphicsDvcTlsWritePending_ ||
+        personalClipboardTlsRetryPending_;
 
     return detail::selectLinuxRuntimeConnectionIoInterest({
         .r1Interest = connection_.ioInterest(),
@@ -260,6 +261,7 @@ LinuxRuntimeConnection::ioInterest() const noexcept
         .graphicsWritePending =
             personalGraphicsDvcIoAction_ ==
             PersonalDesktopGraphicsDvcIoAction::Write,
+        .clipboardWritePending = personalClipboardWriteInProgress_,
     });
 }
 

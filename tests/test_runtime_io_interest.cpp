@@ -90,6 +90,51 @@ void testCancellationAndRevocation() noexcept
            TcpConnectionIoInterest::Closed);
 }
 
+void testClipboardOutboundWantPrecedence() noexcept
+{
+    using Interest = TcpConnectionIoInterest;
+    using rdp_server::server::runtime::detail::
+        shouldDispatchBufferedTlsApplicationRead;
+
+    LinuxRuntimeIoInterestSnapshot snapshot{};
+    snapshot.runtimeReady = true;
+    snapshot.personalDesktopSelected = true;
+    snapshot.sessionPhase = McsSessionPhase::ShareActivated;
+    snapshot.r1Interest = Interest::Read;
+
+    // R3 owns the pending CLIPRDR suffix; an idle inbound SSL owner must
+    // not prevent its next outbound plaintext slice.
+    snapshot.clipboardWritePending = true;
+    assert(selectLinuxRuntimeConnectionIoInterest(snapshot) ==
+           Interest::Write);
+    assert(!shouldDispatchBufferedTlsApplicationRead(
+        selectLinuxRuntimeConnectionIoInterest(snapshot), true));
+
+    // R1 owns the retry direction after SSL_write_ex WANT_READ/WANT_WRITE.
+    snapshot.tlsApplicationWriteOutstanding = true;
+    assert(selectLinuxRuntimeConnectionIoInterest(snapshot) ==
+           Interest::Read);
+    snapshot.r1Interest = Interest::Write;
+    assert(selectLinuxRuntimeConnectionIoInterest(snapshot) ==
+           Interest::Write);
+    snapshot.r1Interest = Interest::Closed;
+    assert(selectLinuxRuntimeConnectionIoInterest(snapshot) ==
+           Interest::Closed);
+
+    // A positive-short receipt leaves an R3 suffix to write next.
+    snapshot.tlsApplicationWriteOutstanding = false;
+    snapshot.r1Interest = Interest::Read;
+    assert(selectLinuxRuntimeConnectionIoInterest(snapshot) ==
+           Interest::Write);
+    snapshot.clipboardWritePending = false;
+    assert(selectLinuxRuntimeConnectionIoInterest(snapshot) ==
+           Interest::Read);
+    snapshot.clipboardWritePending = true;
+    snapshot.runtimeReady = false;
+    assert(selectLinuxRuntimeConnectionIoInterest(snapshot) ==
+           Interest::Closed);
+}
+
 void testBufferedTlsReadDispatch() noexcept
 {
     using Interest = TcpConnectionIoInterest;
@@ -139,6 +184,11 @@ int main(int argumentCount, char **argumentValues)
         return 2;
 
     const std::string_view testCase{argumentValues[1]};
+    if (testCase == "clipboard-outbound-want-precedence")
+    {
+        testClipboardOutboundWantPrecedence();
+        return 0;
+    }
     if (testCase == "buffered-tls-read-dispatch")
     {
         testBufferedTlsReadDispatch();

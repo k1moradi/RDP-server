@@ -1,3 +1,12 @@
+## R1/R8 clipboard output interest regression (2026-10-18)
+
+Register `runtime.linux-connection-clipboard-outbound-want-precedence`
+as ordinary offline CTest. Check that R8 writer-in-progress demands
+Write over idle SSL Read, that R1 SSL_write_ex WANT_READ/WANT_WRITE
+and terminal state override output preference, and buffered unrelated
+plaintext cannot interrupt a queued CLIPRDR suffix. No synthetic R2
+lease or native clipboard fixture.
+
 ## R5 native aggregate terminal failure input safety (2026-10-18)
 
 Full X11 desktop `cancelNativeResources()` is used by failures

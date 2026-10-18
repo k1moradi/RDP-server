@@ -2,6 +2,7 @@
 #include "server/transport/lan_listener.h"
 
 #include <cassert>
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -12,6 +13,7 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -104,7 +106,23 @@ int main() {
             assert(client >= 0);
             assert(::connect(client, reinterpret_cast<const sockaddr *>(&endpoint),
                              sizeof(endpoint)) == 0);
-            auto accepted = acceptNonblockingTcpConnection(listener.listener.nativeSocket());
+
+            // connect() completion does not guarantee that a nonblocking
+            // listener is already readable on every kernel/scheduler. Wait
+            // for the real descriptor rather than weakening production
+            // nonblocking accept semantics.
+            pollfd ready{};
+            ready.fd = static_cast<int>(listener.listener.nativeSocket());
+            ready.events = POLLIN;
+            int pollResult = -1;
+            do {
+                pollResult = ::poll(&ready, 1, 1000);
+            } while (pollResult < 0 && errno == EINTR);
+            assert(pollResult == 1);
+            assert((ready.revents & POLLIN) != 0);
+
+            auto accepted = acceptNonblockingTcpConnection(
+                listener.listener.nativeSocket());
             assert(accepted.outcome == TcpAcceptOutcome::Accepted);
             assert(accepted.connection.valid());
             assert(accepted.connection.peerEndpoint().valid());

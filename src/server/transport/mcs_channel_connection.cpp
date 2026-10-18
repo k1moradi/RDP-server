@@ -4473,6 +4473,7 @@ RdpShareActivationLifecycle::onClientTpkt(
     switch (clientStage_)
     {
     case ClientStage::ConfirmActive:
+    {
         if (correlateRdpActiveExchange(
                 std::span<const std::uint8_t>{demandSharePdu_}.first(
                     demandShareLength_),
@@ -4511,6 +4512,7 @@ RdpShareActivationLifecycle::onClientTpkt(
             return RdpShareActivationClientIntake::Rejected;
         }
         return RdpShareActivationClientIntake::ConfirmActiveAccepted;
+    }
 
     case ClientStage::Synchronize:
     {

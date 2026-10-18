@@ -747,6 +747,9 @@ enum class RdpShareActivationClientIntake : std::uint8_t
     Closed,
 };
 
+inline constexpr std::size_t kRdpStaticVirtualChannelDefaultChunkBytes = 1600U;
+inline constexpr std::size_t kRdpStaticVirtualChannelMaximumChunkBytes = 16256U;
+
 // Serialized, allocation-free Share activation transcript owner. It owns no
 // R2 authority; the live R3 session invokes it only after licensing completes.
 // Client ingress is exact MCS I/O-channel SendDataRequest framing. Server
@@ -886,8 +889,6 @@ inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelControlPacketBytes 
 // MS-RDPEDYC further bounds each uncompressed DVC DATA/DATA_FIRST block to
 // 1,600 bytes including its DVC header, so a 1,590-byte application slice
 // always fits the default static-channel chunk.
-inline constexpr std::size_t kRdpStaticVirtualChannelDefaultChunkBytes = 1600U;
-inline constexpr std::size_t kRdpStaticVirtualChannelMaximumChunkBytes = 16256U;
 inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelDataPayloadBytes =
     1590U;
 inline constexpr std::size_t kMaximumRdpGraphicsDvcClientMessageBytes =

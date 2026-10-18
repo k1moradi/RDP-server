@@ -1,3 +1,22 @@
+## R3 Graphics DATA first hosted compile correction (2026-10-17)
+
+Source SHA `27f68c322fc13c7712c0393f7ca479ee4599a0c7` published the
+R3 DATA sender/mapping increment. Structure run `39098661533` and the primary
+run's structure/documentation jobs are **PASS**. Primary run `39098661534`
+first failed at the common production compile boundary before any new R3 CTest
+executed: the static-VC chunk constants were declared after the Share lifecycle
+fields that use them, and the new Confirm Active capability locals needed an
+explicit case scope. Ubuntu protocol job `117590250214`, macOS protocol job
+`117590250114`, and sanitizer job `117590250144` all expose the same source
+errors; this is not an R1/R2/R4/R10 dependency failure.
+
+The narrow correction moves the two constants ahead of the Share lifecycle and
+braces only the `ClientStage::ConfirmActive` switch body. Wire bytes, receipt
+mapping, ownership, codec gates and the 15 registered Graphics behaviors are
+unchanged. Canonical owner-local `~/rdp-server/build` remains **NOT RUN** in
+this connector environment. Corrective publication-SHA hosted CI is the next
+gate; no live credentials, listener, desktop or native input are exercised.
+
 ## R9/R7 macOS negative-test diagnostic stability (2026-10-17)
 
 Concurrent R7 hardening refined the invalid-architecture diagnostic from the

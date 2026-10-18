@@ -2584,7 +2584,8 @@ void testConnectionPersonalDesktopShareR1IoDenials(
         LinuxRuntimeConnection connection{
             configuration, std::move(accepted)};
 
-        assert(!connection.startPersonalDesktopShareActivation(\n            personalPolicy, {}));
+        assert(!connection.startPersonalDesktopShareActivation(
+            personalPolicy, {}));
         assert(!connection.ready());
 
         const auto replay =
@@ -2603,7 +2604,8 @@ void testConnectionPersonalDesktopShareR1IoDenials(
         LinuxRuntimeConnection connection{
             configuration, std::move(accepted)};
 
-        assert(!connection.startPersonalDesktopShareActivation(\n            appServerPolicy, {}));
+        assert(!connection.startPersonalDesktopShareActivation(
+            appServerPolicy, {}));
         assert(!connection.ready());
         assert(::close(clientDescriptor) == 0);
     }
@@ -2760,7 +2762,8 @@ void testConnectionPersonalDesktopR3AuthorityDenials(
                    personalPolicy, 1U, 1U, 1U) ==
                RdpPersonalDesktopValidClientWriteOutcome::Rejected);
 
-                assert(!connection.beginPersonalDesktopShareActivation(\n            personalPolicy, {}));
+        assert(!connection.beginPersonalDesktopShareActivation(
+            personalPolicy, {}));
         assert(!connection.authorizePersonalDesktopShareActivationWrite(
             personalPolicy));
         assert(connection.completePersonalDesktopShareActivationWrite(

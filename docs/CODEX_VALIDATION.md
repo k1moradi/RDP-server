@@ -6080,3 +6080,15 @@ listener, Share/native owner and Microsoft-client acceptance remain BLOCKED
 on concrete R10/R2 composition. Authoring base: `8dbe069fae18`.
 Connector-only environment: local Qt configure/build/CTest NOT RUN;
 publication-SHA hosted CI PENDING.
+
+
+### R3 Demand Active publication compile correction (2026-10-18)
+
+Hosted Ubuntu Debug compilation of `7908c02faa08fcf867927a024d87481698985e2d`
+rejected three denial-only runtime test call sites because the publication
+script wrote a literal `\\n` token instead of a source newline. This
+correction changes only those three call-site spellings; production Demand
+Active profile code and protocol assertions are unchanged. The same hosted job
+also reported independent `ConsolePolicyMatch` errors from the existing R2
+policy-replacement test path, which this R3 correction deliberately does not
+modify. Exact-head hosted verification remains pending.

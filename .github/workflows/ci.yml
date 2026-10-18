@@ -1275,20 +1275,7 @@ jobs:
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         run: |
           set -euo pipefail
-          protected_read_selection='^runtime[.]linux-connection-protected-read-generation-denials$'
-          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$protected_read_selection")"
-          printf '%s\n' "$selected_tests"
-          grep -Fq 'runtime.linux-connection-protected-read-generation-denials' <<< "$selected_tests"
-          readonly protected_read_expected_test_count=1
-          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
-          if [[ "$selected_test_count" -ne "$protected_read_expected_test_count" ]]; then
-            printf 'R9 R2 protected-read registry mismatch: expected %s test, found %s\n' "$protected_read_expected_test_count" "$selected_test_count" >&2
-            exit 1
-          fi
-          ctest --test-dir build --build-config Debug --timeout 60 -R "$protected_read_selection" --output-on-failure
-
-      # R10's real R1 descriptor-poll boundary is additive. Keep the fixed
-      # 30-case R10/R2 security selector intact; this one test has its own sentinel.
+          protected_read_selection='^runtime[.]linux-connection-protected-read-generation-denials
       - name: Run R10 production native poll with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
@@ -1677,12 +1664,10 @@ jobs:
           readonly protected_read_expected_test_count=1
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$protected_read_expected_test_count" ]]; then
-            printf 'R9 R2 protected-read registry mismatch: expected %s test, found %s\n' \
-              "$protected_read_expected_test_count" "$selected_test_count" >&2
+            printf 'R9 R2 protected-read registry mismatch: expected %s test, found %s\n' "$protected_read_expected_test_count" "$selected_test_count" >&2
             exit 1
           fi
-          ctest --test-dir build --build-config Debug --timeout 60 \
-            -R "$protected_read_selection" --output-on-failure
+          ctest --test-dir build --build-config Debug --timeout 60 -R "$protected_read_selection" --output-on-failure
 
       # R10's real R1 descriptor-poll boundary is additive. Keep the fixed
       # 30-case R10/R2 security selector intact; this one test has its own sentinel.

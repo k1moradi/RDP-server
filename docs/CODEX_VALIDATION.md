@@ -1,3 +1,23 @@
+## R9 duplicate-workflow-tail correction (2026-10-18)
+
+R9 repair `5c49aef3168ed3aa6408aa16afba46bd9ec709b5` still failed before
+primary jobs were created: run `39116619704` **FAIL / zero jobs**. The
+standalone structure run `39116620495` then supplied the actionable
+diagnostic: `CI workflow validation FAIL: duplicate YAML mapping key
+'r7-macos-native-lifecycle'`. A compare against known-good
+`9902199f4f09a1e8bceb9de71025414c52f10e2d` showed the prior malformed
+publication had appended a large duplicate tail of `ci.yml`; the local
+step repair had not removed that unintended duplicate.
+
+This correction reconstructs `.github/workflows/ci.yml` from the exact
+known-good `9902199f` workflow and inserts only the intended R2
+`runtime.linux-connection-protected-read-generation-denials` exact-one
+focused gate before the existing native-poll step. The validator keeps the
+three new sentinels, production code is unchanged, and the established
+38-case executable-backed runtime-security selector is unchanged.
+Exact publication-SHA primary/structure CI is **NOT RUN / pending** at
+authorship.
+
 ## R9 workflow-parse correction for protected-read focused gate (2026-10-18)
 
 R9 publication `8484d88ebadd3a5b8ff2d8f9be95471b5b28625b` attempted to add

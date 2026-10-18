@@ -1,3 +1,30 @@
+## R7 runtime-label PlainText ordering correction (2026-10-18)
+
+The R7 `6648ea720cd57d3fcf9461cae127ff6b96b7e8cd` GUI commit
+made projected R10 peer, interface, endpoint and error labels plain text
+and registered `gui.offscreen-runtime-peer-and-endpoint-plain-text`.
+Review found a **transient AutoText parsing window**: constructing a
+`QLabel(message)` can interpret HTML-looking runtime text before a
+later `setTextFormat(Qt::PlainText)` call. R7 now constructs an empty
+`QLabel`, sets `Qt::PlainText` **first**, and only then assigns the
+status text. A dedicated source-backed ordinary CTest,
+`gui.runtime-label-plain-before-text-assignment`, guards the strict
+order; the existing behavior-backed offscreen CTest checks literal
+endpoint/client/interface rendering. No networking, R2 credentials or
+OS capture is introduced.
+
+Exact-parent `d9b835bca42354da1d3b1de9c3848984b6ae9947`;
+local Qt/ordinary full CTest **NOT RUN** (no local owner checkout);
+new publication-SHA hosted CI **PENDING**.
+The extracted macOS 26 arm64 LaunchServices/no-TCP-listener and
+strict ad-hoc-signature package jobs already **PASS** at
+`c1ed4f1` and descendant `549a12c0`, but human Finder double-click,
+quarantined Gatekeeper trust, Developer ID notarization, macOS 27 owner
+testing and positive Microsoft-client LAN hosting remain **NOT RUN**.
+R10 has added serialized Linux loopback CLI Stop handling, not concrete
+GUI LAN HostControl or AppKit ownership; R2 macOS UID lease is still
+missing. Native ScreenCaptureKit/Quartz serving remains blocked.
+
 ## R10 Linux loopback CLI cooperative Stop (2026-10-18)
 
 R10 installs scoped SIGINT/SIGTERM handlers only after opening its verified

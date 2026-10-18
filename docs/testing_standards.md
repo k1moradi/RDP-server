@@ -1,3 +1,14 @@
+## R7 avoid transient Qt AutoText status parsing (2026-10-18)
+
+The status-label constructor must create a blank QLabel, set
+`Qt::PlainText`, and only then set its runtime message. An end-state
+`textFormat()` test misses transient HTML/resource parsing in
+`QLabel(message)`. `gui.runtime-label-plain-before-text-assignment`
+guards that source-level ordering; the existing
+`gui.offscreen-runtime-peer-and-endpoint-plain-text` checks actual
+offscreen status labels with HTML-looking R10 metadata. Neither
+fixture requests R2 admission, native permission or TCP sockets.
+
 ## R10 serialized loopback Stop CTest boundary (2026-10-18)
 
 `runtime.linux-serve-cooperative-signal-stop-order` is a production-source

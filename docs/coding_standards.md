@@ -1,3 +1,12 @@
+## Qt status QLabel creation order (R7, 2026-10-18)
+
+Never supply R10-projected peer/interface/endpoint text to the
+`QLabel` constructor before disabling AutoText. Construct an empty
+QLabel, set `Qt::PlainText`, then call `setText`; setting PlainText
+after construction is insufficient because Qt may already have parsed
+a rich-text resource. Keep these values inert, including malformed
+or untrusted peer text.
+
 ## R7 Qt runtime-status rendering (2026-10-18)
 
 Qt Widgets `QLabel::AutoText` may interpret HTML-looking text.

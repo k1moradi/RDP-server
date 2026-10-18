@@ -2953,6 +2953,14 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-runtime-peer-and-endpoint-plain-text
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime" TIMEOUT 30)
+    # The runtime-label fixture also needs to prohibit transient rich-text
+    # parsing before QLabel receives its explicit PlainText mode.
+    add_test(NAME gui.runtime-label-plain-before-text-assignment
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_GUI_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_gui_plain_text_factory.cmake")
+    set_tests_properties(gui.runtime-label-plain-before-text-assignment
+        PROPERTIES LABELS "gui;offline;security;runtime" TIMEOUT 30)
 endif()
 
 # R9 separate PORTABLE-GUI archive integrity contract; no listener, auth,

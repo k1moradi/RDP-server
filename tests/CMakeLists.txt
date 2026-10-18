@@ -2968,6 +2968,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-runtime-peer-and-endpoint-plain-text
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime" TIMEOUT 30)
+    # R10's unique stable-ID/real-address policy also gates GUI choices.
+    add_test(NAME gui.offscreen-r10-selected-lan-endpoint-preflight-denials
+        COMMAND test_desktop_gui_offline r10-lan-selector)
+    set_tests_properties(gui.offscreen-r10-selected-lan-endpoint-preflight-denials
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;lan" TIMEOUT 30)
     # The runtime-label fixture also needs to prohibit transient rich-text
     # parsing before QLabel receives its explicit PlainText mode.
     add_test(NAME gui.runtime-label-plain-before-text-assignment

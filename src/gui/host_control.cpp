@@ -68,17 +68,23 @@ HostStatus HostControl::status() const
     if (runtimeStatus.hostOwnerAuthorized)
         view.desktop = QStringLiteral("Authorized logged-in desktop");
 
-    for (const RuntimeHostInterface& interface : runtime_.enumerateLocalInterfaces())
+    // R10 owns the exact native interface/endpoint selection policy.
+    // Project only eligible choices; a GUI label or wildcard is not bind
+    // authority. The selected user port is revalidated by R10 on Start.
+    const std::vector<RuntimeHostInterface> interfaces =
+        runtime_.enumerateLocalInterfaces();
+    for (const RuntimeHostInterface& interface : interfaces)
     {
-        if (!interface.lanEligible || interface.loopback ||
-            interface.stableId.empty())
-            continue;
         for (const std::string& address : interface.localAddresses)
         {
-            if (!address.empty())
-                view.approvedLanInterfaces.push_back({
-                    toQString(interface.stableId), toQString(interface.displayName),
-                    toQString(address)});
+            const RuntimeHostOptions candidate{
+                interface.stableId, address, 3389U, true, false};
+            if (!assessRuntimeSelectedLanEndpoint(candidate, interfaces).succeeded())
+                continue;
+
+            view.approvedLanInterfaces.push_back({
+                toQString(interface.stableId), toQString(interface.displayName),
+                toQString(address)});
         }
     }
 

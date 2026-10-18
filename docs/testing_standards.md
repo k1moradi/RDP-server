@@ -1,3 +1,19 @@
+## R7 shared R10 LAN selection projection (2026-10-18)
+
+The R7 GUI must enumerate native interface choices once per status
+projection, then use R10's existing pure
+`assessRuntimeSelectedLanEndpoint` on each stable-ID/address pair
+before showing it. Reject duplicated stable IDs, loopback, ineligible
+and wildcard entries instead of allowing the UI to advertise a
+selection Start will deny. Do not discard a second legitimate address
+on a single eligible interface. The UI uses a nonzero validation port
+only to assess bind eligibility; R10 rechecks the actual user-selected
+port on Start. The real R10 owner must still re-enumerate and
+authorize any socket bind; no projected value is a credential lease.
+`gui.offscreen-r10-selected-lan-endpoint-preflight-denials` is
+registered in ordinary Qt-enabled CTest and exercises an injected fake
+without listener/native-session side effects.
+
 ## R5 native pointer buttons are owner-held transitions (2026-10-18)
 
 Only a successful owner-issued XTEST ButtonPress creates a held-button

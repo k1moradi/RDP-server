@@ -1,3 +1,50 @@
+## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
+
+The earlier R10 `abe17d32310cace7b611652e4085476bbc5ca8aa`
+landed the pure authoritative `assessRuntimeSelectedLanEndpoint`
+preflight for an exact, eligible, nonloopback native stable interface ID,
+its actual numeric address, nonwildcard binding and nonzero port.
+R7 now uses this same existing R10 policy when building the Qt LAN
+choices rather than displaying entries that R10 will reject on Start.
+One enumerated interface may safely expose multiple eligible IPv4/IPv6
+addresses, but duplicate stable interface IDs, ineligible interfaces,
+loopback and wildcard address candidates cannot become selectable.
+R10's existing Start preflight still revalidates the specific selected
+port and interface, and the future concrete controller must revalidate
+native binding and R2 consent independently.
+
+New ordinary offscreen behavior CTest:
+`gui.offscreen-r10-selected-lan-endpoint-preflight-denials`.
+It uses the existing injected fake to test two addresses on one stable
+ID, duplicate identities, wildcard, loopback, ineligible, zero-port,
+selection removal and positive-only UI projection without interpreting
+a click as sharing. No native capture, socket, TCC operation or real R2
+credential authority is introduced. First authored against parent
+`640bd7df42bd3913495afb337ee0910a57f717e9`. Local Qt/full CTest: **NOT RUN**; publication-SHA
+CI: **PENDING**.
+
+Prior R7 code SHA `c3a0b14e8c86df08ed7427a8651a4cad396f8236`
+already **PASSed** on hosted macOS 26 arm64
+[CI 39146582230](https://github.com/k1moradi/RDP-server/actions/runs/39146582230):
+3/3 macOS framework/archive package CTests, 6/6 Qt offscreen CTests,
+strict extracted `codesign --verify --deep --strict` with
+`Signature=adhoc`, `TeamIdentifier=not set`, and the normal
+LaunchServices `open -n -a` extracted Cocoa/no-TCP-listener smoke.
+The macOS ordinary protocol Debug/Release CTest passed **615/615**
+each, including the R7 PlainText construction guard.
+The whole workflow's Windows jobs were still in progress at evidence
+collection; do not claim overall PASS.
+
+R2 has no demonstrated credential-bound revocable macOS UID lease and
+R10 still has no concrete GUI LAN Start/Stop HostControl or serialized
+AppKit/session owner. The GUI must continue to instantiate
+`UnavailableRuntimeHostControl` and refuse serving. R10 does not yet
+supply trusted TLS leaf SHA-256 fingerprint/client-trust status to GUI.
+Owner native macOS 27 normal Finder double-click, quarantine/Gatekeeper
+assessment, Developer ID signing/notarization and authorized
+Microsoft-client desktop are **NOT RUN / NOT COMPLETE**. An ad-hoc
+signature never asserts production trust.
+
 ## R5 XTEST pointer-button owner-held transition safety (2026-10-18)
 
 R10's persistent post-Share XCB/TLS input and synchronous R4 frame

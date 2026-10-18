@@ -137,6 +137,58 @@ int main(int argc, char** argv)
     FakeRuntimeHost runtime;
     HostControl host(runtime);
 
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "r10-lan-selector")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.interfaces = {
+            {"ethernet-1", "Trusted Ethernet",
+             {"192.168.2.21", "fe80::1234"}, false, true},
+            {"duplicate-id", "First duplicated ID",
+             {"192.168.2.22"}, false, true},
+            {"duplicate-id", "Second duplicated ID",
+             {"192.168.2.23"}, false, true},
+            {"wildcards", "Unbindable",
+             {"0.0.0.0", "::", "[::]"}, false, true},
+            {"loopback", "Localhost", {"127.0.0.1"}, true, true},
+            {"disabled", "Unapproved", {"192.168.2.24"}, false, false}};
+        DesktopWindow window(host);
+        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+        auto* start = window.findChild<QPushButton*>("startSharing");
+        assert(interfaces && start);
+        const auto eligible = host.status().approvedLanInterfaces;
+        assert(eligible.size() == 2);
+        assert(interfaces->count() == 3); // Placeholder + valid IPv4/IPv6.
+        assert(interfaces->itemText(1).contains("192.168.2.21"));
+        assert(interfaces->itemText(2).contains("fe80::1234"));
+        assert(!window.canStart() && !start->isEnabled());
+
+        // The same R10 selector used on Start must reject an invalid
+        // native identity, a wildcard endpoint and a zero listening port.
+        assert(!host.start({"duplicate-id", "192.168.2.22", 3389U}));
+        assert(!host.start({"wildcards", "0.0.0.0", 3389U}));
+        assert(!host.start({"ethernet-1", "192.168.2.21", 0U}));
+        assert(runtime.configureCalls == 0 && runtime.startCalls == 0);
+
+        interfaces->setCurrentIndex(2);
+        assert(window.canStart() && start->isEnabled());
+        start->click();
+        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
+        assert(runtime.lastOptions.interfaceId == "ethernet-1");
+        assert(runtime.lastOptions.localAddress == "fe80::1234");
+        assert(!host.status().sharing); // A clicked Start grants no Share.
+
+        runtime.interfaces.clear(); // Revoke even the displayed selection.
+        window.refresh();
+        assert(interfaces->count() == 1);
+        assert(!window.canStart() && !start->isEnabled());
+        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "plain-runtime-text")
     {
         // R10's runtime-facing labels must never interpret a peer or endpoint

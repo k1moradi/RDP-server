@@ -81,6 +81,13 @@ add_test(NAME macos.package-offline-integrity-and-idempotence
 set_tests_properties(macos.package-offline-integrity-and-idempotence PROPERTIES
     LABELS "macos;packaging;security;offline")
 
+# R7/R9 .app archive contract; fixtures never invoke AppKit, TCC, or networking.
+add_test(NAME packaging.macos-portable-gui-app-integrity-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_gui_bundle.py")
+set_tests_properties(packaging.macos-portable-gui-app-integrity-denials
+    PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
+
 # R7 optional per-user LaunchAgent contract. Rendering is offline and refuses
 # implicit registration; tests never invoke a service manager or native APIs.
 # Register only on Apple because the contract deliberately validates POSIX

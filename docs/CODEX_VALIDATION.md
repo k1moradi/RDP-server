@@ -6169,3 +6169,20 @@ Active profile code and protocol assertions are unchanged. The same hosted job
 also reported independent `ConsolePolicyMatch` errors from the existing R2
 policy-replacement test path, which this R3 correction deliberately does not
 modify. Exact-head hosted verification remains pending.
+
+## R7 macOS real-.app PORTABLE-GUI builder (2026-10-18)
+
+Dependency review at authoring base `e6fa65c475b9` found R2's fixture
+namespace correction landed, R10 Share/Graphics/X11-owner composition landed,
+and R1 TLS endpoint fingerprint verification landed. R10 still exposes no TLS
+fingerprint through `RuntimeHostStatus` and its only concrete host control is
+`UnavailableRuntimeHostControl`, so R7 does not bypass R10 and live Start
+remains BLOCKED. Independent packaging can proceed: this increment adds
+`packaging/macos/gui_bundle.py` and
+`packaging.macos-portable-gui-app-integrity-denials`. The builder requires
+the CMake-produced arm64 .app, uses caller-supplied local macdeployqt, requires
+Cocoa plus QtCore/QtGui/QtWidgets closure, emits the R9 PORTABLE-GUI
+manifest/checksum shape and records native_host_ready=false, no R2 macOS
+admission, and unverified signing/notarization. Native macOS Qt packaging,
+otool/codesign, extracted double-click smoke, owner macOS 27 and live client
+acceptance are NOT RUN in this connector environment.

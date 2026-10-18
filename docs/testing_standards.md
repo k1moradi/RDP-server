@@ -3978,3 +3978,16 @@ remains blocked until a later authoritative snapshot changes. Production
 ## Discover Qt deployment roots through Qt metadata, not distro package ownership (2026-10-18)
 
 Native GUI packaging CI must resolve Qt plugin locations from the selected Qt installation (for example `qmake6 -query QT_INSTALL_PLUGINS`) and then require the specific platform plugin file. Do not infer plugin ownership from a Debian/RPM package name: distributions can move `libqxcb.so` or equivalent platform plugins between runtime packages without changing the Qt install layout. This affects discovery only; dependency closure, hashes and extracted launch remain mandatory.
+
+## R7/R9 macOS PORTABLE-GUI .app archive contract (2026-10-18)
+
+`packaging.macos-portable-gui-app-integrity-denials` is a stdlib-only,
+cross-host synthetic test of the macOS packager. It requires the real app
+shape, matching `Info.plist` executable identity, Qt Cocoa plugin and
+QtCore/QtGui/QtWidgets framework entries. ZIP members are regular files with
+source-SHA binding, checksums, disabled listen/autostart config and explicit
+unverified signing/notarization status. The packager rejects extra
+`Contents/MacOS` helpers, wrong app identity, missing Cocoa plugin and wrong
+archive naming. Synthetic Mach-O bytes do not prove macOS launch, signing,
+notarization, TCC or hosting; native CI must separately run macdeployqt,
+otool/codesign checks and an extracted offline launch smoke.

@@ -1078,3 +1078,28 @@ R10's deny-only `UnavailableRuntimeHostControl`; extraction or double-click
 therefore still cannot start networking. Windows R6's shared launcher uses
 the same adapter. A future live backend may replace the unavailable R10
 object without changing the UI authority boundary.
+
+## R7 macOS PORTABLE-GUI .app ZIP (2026-10-18)
+
+On an arm64 macOS builder with Qt 6.4+ installed locally:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+  -DRDP_SERVER_BUILD_TESTING=OFF -DRDP_SERVER_BUILD_DESKTOP_GUI=ON
+cmake --build build --config Release --target rdp-server-desktop --parallel 2
+sha="$(git rev-parse HEAD)"
+short_sha="$(printf '%s' "$sha" | cut -c1-12)"
+qt_bins="$(qmake6 -query QT_INSTALL_BINS)"
+python3 packaging/macos/gui_bundle.py \
+  --app build/rdp-server-desktop.app \
+  --macdeployqt "$qt_bins/macdeployqt" \
+  --source-sha "$sha" --version 0.1.0 --minimum-macos 13.0 \
+  --output "build/rdp-server-portable-gui-0.1.0-macos-arm64-$short_sha.zip"
+```
+
+The ZIP root contains the actual `rdp-server-desktop.app`, its executable,
+Info.plist, Qt frameworks and Cocoa platform plugin. The packager runs only
+the caller-supplied local macdeployqt; it never launches the GUI, requests
+TCC, installs a LaunchAgent, changes firewall/network state, downloads
+dependencies or enables serving. Signing/notarization are recorded as
+unverified development-preview state until R9/native release checks run.

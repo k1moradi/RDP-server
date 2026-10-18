@@ -12,6 +12,7 @@
 #include "server/transport/nonblocking_tcp_adapter.h"
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -240,6 +241,23 @@ struct LinuxRuntimeNativeChangeRegistration
     }
 };
 
+
+enum class LinuxRuntimeSocketPollStatus : std::uint8_t
+{
+    Ready,
+    NoEvent,
+    Expired,
+    Closed,
+    Failure,
+};
+
+struct LinuxRuntimeSocketPollResult
+{
+    bool readable{};
+    bool writable{};
+    LinuxRuntimeSocketPollStatus status{LinuxRuntimeSocketPollStatus::Closed};
+};
+
 namespace detail
 {
 // Derived scheduler snapshot only: this owns no protocol bytes, offsets,
@@ -329,6 +347,18 @@ public:
 
     [[nodiscard]] rdp_server::server::transport::TcpConnectionIoInterest
     ioInterest() const noexcept;
+
+    // Wait for at most one native readiness event on R1's exact owned socket.
+    // This method never reads, writes, accepts, duplicates or closes the
+    // descriptor directly. R1/R2/R3 state advances only when the caller
+    // subsequently invokes the corresponding bounded advance... method.
+    // ConfigureTls is surfaced as Ready with no socket flags so the caller can
+    // perform the explicit ownership transfer without polling. Expiry and
+    // native poll failures are terminal and use the aggregate revoke order.
+    [[nodiscard]] LinuxRuntimeSocketPollResult pollSocketReadinessOnce(
+        std::chrono::steady_clock::time_point deadline,
+        std::chrono::milliseconds maxWait =
+            rdp_server::server::transport::kMaximumTcpPollWait) noexcept;
 
     // One bounded pre-admission scheduler step derived from the existing R1
     // phase/interest plus R2 CredSSP writer readiness. Wrong-direction

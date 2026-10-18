@@ -3,7 +3,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
+#include <chrono>
+#include <limits>
 #include <utility>
+
+#include <poll.h>
 
 namespace rdp_server::server::runtime
 {
@@ -213,6 +218,99 @@ LinuxRuntimeConnection::ioInterest() const noexcept
             personalGraphicsDvcIoAction_ ==
             PersonalDesktopGraphicsDvcIoAction::Write,
     });
+}
+
+LinuxRuntimeSocketPollResult
+LinuxRuntimeConnection::pollSocketReadinessOnce(
+    std::chrono::steady_clock::time_point deadline,
+    std::chrono::milliseconds maxWait) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using Status = LinuxRuntimeSocketPollStatus;
+    using Clock = std::chrono::steady_clock;
+
+    if (!ready())
+        return {false, false, Status::Closed};
+
+    const auto now = Clock::now();
+    if (now >= deadline)
+    {
+        revoke();
+        return {false, false, Status::Expired};
+    }
+
+    const Interest requested = ioInterest();
+    if (requested == Interest::Closed)
+    {
+        revoke();
+        return {false, false, Status::Closed};
+    }
+    if (requested == Interest::ConfigureTls)
+    {
+        // TLS configuration is an explicit owner transition, not socket I/O.
+        return {false, false, Status::Ready};
+    }
+
+    const auto nativeSocket = connection_.nativeSocket();
+    if (nativeSocket >
+        static_cast<std::uintptr_t>((std::numeric_limits<int>::max)()))
+    {
+        revoke();
+        return {false, false, Status::Failure};
+    }
+
+    const auto boundedMaximum =
+        (std::max)(maxWait, std::chrono::milliseconds{0});
+    const auto remaining =
+        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+    const auto wait =
+        (std::min)(
+            (std::min)(
+                boundedMaximum,
+                rdp_server::server::transport::kMaximumTcpPollWait),
+            remaining);
+
+    pollfd ready{};
+    ready.fd = static_cast<int>(nativeSocket);
+    ready.events = requested == Interest::Read ? POLLIN : POLLOUT;
+    const int count =
+        ::poll(&ready, static_cast<nfds_t>(1), static_cast<int>(wait.count()));
+    if (count < 0)
+    {
+        if (errno == EINTR)
+            return {false, false, Status::NoEvent};
+        revoke();
+        return {false, false, Status::Failure};
+    }
+    if (count == 0)
+    {
+        if (Clock::now() >= deadline)
+        {
+            revoke();
+            return {false, false, Status::Expired};
+        }
+        return {false, false, Status::NoEvent};
+    }
+
+    if ((ready.revents & (POLLERR | POLLNVAL)) != 0)
+    {
+        revoke();
+        return {false, false, Status::Failure};
+    }
+
+    // HUP is dispatched once in the currently requested direction so R1 sees
+    // the real EOF/send failure through its existing recv/send/TLS owner.
+    const bool hungUp = (ready.revents & POLLHUP) != 0;
+    const bool readable = (ready.revents & POLLIN) != 0 || hungUp;
+    const bool writable = (ready.revents & POLLOUT) != 0 || hungUp;
+    if ((requested == Interest::Read && !readable) ||
+        (requested == Interest::Write && !writable))
+    {
+        return {false, false, Status::NoEvent};
+    }
+
+    return {readable, writable, Status::Ready};
 }
 
 LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(

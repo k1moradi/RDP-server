@@ -1,3 +1,31 @@
+## R10 serialized Linux accepted-connection scheduler (2026-10-17)
+
+**Authored on current `main`; hosted CI pending.** R1's review of the
+loopback listener at `4132fa7e` cleared the listener-layer dependency. This
+increment moves each accepted loopback socket into one nonmoving
+`LinuxRuntimeConnection` and adds a production readiness-only poll boundary.
+The poll borrows R1's exact descriptor, performs no read/write/dup/close,
+clamps one wait to `kMaximumTcpPollWait`, preserves current read/write WANT
+direction, treats ConfigureTls as an explicit no-poll owner transition, and
+uses aggregate revocation for expiry or native poll failure.
+
+The service now serializes X.224, TLS and CredSSP through the existing
+`advancePreAdmission()` owner. Only `CredentialsVerified` may call the real
+`issueAdmission()`; no Boolean, UID, configured display or test fixture can
+mint a lease. If genuine R2 admission succeeds, the same connection then drives
+one exact first MCS TPKT through
+`advancePostAdmissionMcsConnectInitial()`. The connection is deliberately
+revoked after `AdmittedConnectInitial` because R10 does not yet expose the
+R2-authorized MCS Connect Response / AttachUser / ChannelJoin writers in the
+production service loop.
+
+New centrally registered CTest
+`runtime.linux-connection-pre-admission-native-poll` uses the production
+poller on a real loopback accepted socket to prove no-event behavior, read
+dispatch, write-direction transition, X.224 HYBRID confirmation, TLS-owner
+transition and stale-post-revoke closure without creating a positive R2 lease.
+Canonical hosted build/CTest is **NOT RUN / pending** at authoring.
+
 ## R1 review of R10 Linux loopback listener (2026-10-17)
 
 **Reviewed R10 commit:** `4132fa7ee4e92892a7365e4edb884be76e195403`.

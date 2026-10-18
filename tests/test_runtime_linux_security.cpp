@@ -9,6 +9,7 @@
 #include <cassert>
 #include <array>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
@@ -110,6 +111,7 @@ using rdp_server::server::runtime::LinuxRuntimeConnection;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameReader;
 using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
 using rdp_server::server::runtime::LinuxRuntimeNativeChangeRegistration;
+using rdp_server::server::runtime::LinuxRuntimeSocketPollStatus;
 using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
 using rdp_server::server::runtime::RuntimeLicensingAuthority;
 using rdp_server::server::runtime::RuntimeLicensingContext;
@@ -1253,6 +1255,76 @@ void testConnectionPreAdmissionDispatch(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPreAdmissionNativePoll(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPreAdmissionStepStatus;
+    using Poll = LinuxRuntimeSocketPollStatus;
+    using namespace std::chrono_literals;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-pre-admission-native-poll.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "pre-admission-native-poll");
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Read);
+
+    const auto deadline = std::chrono::steady_clock::now() + 2s;
+    const auto idle =
+        connection.pollSocketReadinessOnce(deadline, 0ms);
+    assert(idle.status == Poll::NoEvent);
+    assert(!idle.readable);
+    assert(!idle.writable);
+
+    assert(sendSocketAll(clientDescriptor, kHybridNlaRequest));
+    auto ready = connection.pollSocketReadinessOnce(deadline, 1s);
+    assert(ready.status == Poll::Ready);
+    assert(ready.readable);
+    assert(!ready.writable);
+
+    auto step = connection.advancePreAdmission(
+        ready.readable, ready.writable, tlsContext);
+    assert(step.status == Step::NeedWrite);
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Write);
+
+    ready = connection.pollSocketReadinessOnce(deadline, 1s);
+    assert(ready.status == Poll::Ready);
+    assert(!ready.readable);
+    assert(ready.writable);
+
+    step = connection.advancePreAdmission(
+        ready.readable, ready.writable, tlsContext);
+    assert(step.status == Step::Progress);
+
+    std::array<std::uint8_t, 19> confirm{};
+    assert(receiveSocketAll(clientDescriptor, confirm));
+    assert(confirm[11] == 0x02);
+    assert(confirm[15] == kRdpProtocolHybrid);
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Read);
+
+    const auto tlsIdle =
+        connection.pollSocketReadinessOnce(deadline, 0ms);
+    assert(tlsIdle.status == Poll::NoEvent);
+    assert(!tlsIdle.readable);
+    assert(!tlsIdle.writable);
+
+    connection.revoke();
+    const auto stale =
+        connection.pollSocketReadinessOnce(deadline, 0ms);
+    assert(stale.status == Poll::Closed);
+    assert(!stale.readable);
+    assert(!stale.writable);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionCredSspRevocationOrder(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2338,6 +2410,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-pre-admission-dispatch")
     {
         testConnectionPreAdmissionDispatch(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-pre-admission-native-poll")
+    {
+        testConnectionPreAdmissionNativePoll(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-post-admission-mcs-framing-denials")

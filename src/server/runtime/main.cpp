@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// R10 process entry point. Listener startup is explicit, loopback-only and
-// gated by the non-authorizing R2 preflight. A TCP accept is never admission.
+// R10 process entry point. Listener startup is explicit and loopback-only.
+// TCP accept alone is never admission: only the serialized R1 TLS/CredSSP
+// owner plus genuine R2 native authorization can cross that boundary.
 // Offline configuration checks still do not authenticate or start a user.
 #include "runtime_tls_context.h"
 #include "runtime_licensing_context.h"
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
 #include "linux_runtime_security.h"
+#include "linux_runtime_connection.h"
 #include "runtime_deployment_policy.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 #endif
@@ -52,6 +54,9 @@ namespace {
 constexpr int kSecureStartupUnavailableExitCode = 2;
 constexpr int kInvalidConfigurationExitCode = 3;
 constexpr std::size_t kMaximumConfigurationBytes = 4096;
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+constexpr std::chrono::seconds kLinuxSerializedConnectionDeadline{30};
+#endif
 
 constexpr std::size_t kBaseConfigurationFieldCount = 7;
 constexpr std::size_t kLicensingConfigurationFieldCount = 6;
@@ -760,14 +765,29 @@ private:
 
 struct LinuxServeAcceptContext final {
     const rdp_server::server::runtime::RuntimeDeploymentPolicy* policy{};
+    rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration*
+        securityConfiguration{};
+    const rdp_server::server::runtime::RuntimeServerTlsContext* tlsContext{};
+    const rdp_server::server::security::ConsoleEvidenceRequest*
+        admissionRequest{};
     bool endpointViolation{};
 };
 
-[[nodiscard]] bool closeUnadmittedLinuxCandidate(
+[[nodiscard]] bool runSerializedLinuxCandidate(
     rdp_server::server::transport::OwnedNativeTcpSocket accepted,
     void* rawContext) noexcept {
+    using PollStatus =
+        rdp_server::server::runtime::LinuxRuntimeSocketPollStatus;
+    using PreStep =
+        rdp_server::server::runtime::LinuxPreAdmissionStepStatus;
+    using McsStep =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsStepStatus;
+
     auto* context = static_cast<LinuxServeAcceptContext*>(rawContext);
-    if (context == nullptr || context->policy == nullptr || !accepted.valid()) {
+    if (context == nullptr || context->policy == nullptr ||
+        context->securityConfiguration == nullptr ||
+        context->tlsContext == nullptr || context->admissionRequest == nullptr ||
+        !accepted.valid()) {
         return false;
     }
 
@@ -790,9 +810,107 @@ struct LinuxServeAcceptContext final {
         return false;
     }
 
-    // TCP accept is intentionally pre-authentication. This first startup
-    // increment does not run CredSSP or mint an R2 lease; RAII closes the
-    // candidate before any privileged/native operation can occur.
+    rdp_server::server::runtime::LinuxRuntimeConnection connection{
+        *context->securityConfiguration, std::move(accepted)};
+    if (!connection.ready()) {
+        return true;
+    }
+
+    const auto deadline =
+        std::chrono::steady_clock::now() +
+        kLinuxSerializedConnectionDeadline;
+    bool readable = false;
+    bool writable = false;
+    bool admitted = false;
+
+    while (connection.ready() && !admitted) {
+        const auto step = connection.advancePreAdmission(
+            readable, writable, *context->tlsContext);
+        readable = false;
+        writable = false;
+
+        switch (step.status) {
+        case PreStep::Progress:
+        case PreStep::TlsEstablished:
+        case PreStep::BindingVerified:
+            continue;
+        case PreStep::CredentialsVerified:
+            admitted = connection.issueAdmission(*context->admissionRequest);
+            if (!admitted) {
+                return true;
+            }
+            continue;
+        case PreStep::NeedRead:
+        case PreStep::NeedWrite: {
+            const auto ready =
+                connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case PreStep::UnsupportedFinalCredentials:
+        case PreStep::Invalid:
+        case PreStep::Closed:
+            return true;
+        }
+    }
+
+    if (!admitted || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    readable = false;
+    writable = false;
+    while (connection.ready()) {
+        const auto step =
+            connection.advancePostAdmissionMcsConnectInitial(
+                readable, writable);
+        readable = false;
+        writable = false;
+
+        switch (step.status) {
+        case McsStep::Progress:
+            continue;
+        case McsStep::NeedRead:
+        case McsStep::NeedWrite: {
+            const auto ready =
+                connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case McsStep::AdmittedConnectInitial:
+            // The next production increment owns MCS Connect Response,
+            // AttachUser and ChannelJoin serialization. Until then, retire
+            // this genuine lease before returning to the listener.
+            connection.revoke();
+            return true;
+        case McsStep::AdmissionDenied:
+        case McsStep::Invalid:
+        case McsStep::Closed:
+            return true;
+        }
+    }
     return true;
 }
 
@@ -855,14 +973,15 @@ struct LinuxServeAcceptContext final {
     }
     LinuxListenerOwner listener{listenerDescriptor};
 
-    LinuxServeAcceptContext acceptContext{&deploymentPolicy, false};
+    LinuxServeAcceptContext acceptContext{
+        &deploymentPolicy, &linuxSecurity, &tlsContext, &request, false};
     using Clock = std::chrono::steady_clock;
     using namespace std::chrono_literals;
     for (;;) {
         const auto result =
             rdp_server::server::transport::pollNonblockingTcpAcceptBatch(
                 static_cast<std::uintptr_t>(listener.descriptor()), 1U,
-                closeUnadmittedLinuxCandidate, &acceptContext,
+                runSerializedLinuxCandidate, &acceptContext,
                 Clock::now() + 25ms, 25ms);
         if (acceptContext.endpointViolation) {
             return false;
@@ -1051,7 +1170,7 @@ void printUsage() noexcept {
 #else
                "--check-linux-security additionally acquires the explicit Linux GSS acceptor credential and validates one native identity-policy rule.\n"
 #endif
-               "serve opens only a verified loopback stream listener after genuine Linux R2 preflight; TCP accept remains unauthenticated and grants no RDP/native authority.\n", stdout);
+               "serve opens only a verified loopback listener, serializes X.224/TLS/CredSSP through the sole R1 owner, and requires genuine R2 native admission before first MCS intake; desktop/input publication is not yet enabled.\n", stdout);
 #else
     std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-licensing-credentials FILE]\n"
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"

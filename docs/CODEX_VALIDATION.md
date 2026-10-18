@@ -1,3 +1,23 @@
+## R9 literal workflow reconstruction after replacement-token corruption (2026-10-18)
+
+Compare against known-good `9902199f4f09a1e8bceb9de71025414c52f10e2d`
+showed that R9 attempts `8484d88e`, `5c49aef3` and `03860c2c` duplicated a
+large suffix of `.github/workflows/ci.yml`. The inserted anchored regex ended
+with the JavaScript replacement-string token `$'`; using `String.replace()`
+therefore expanded the unmatched suffix instead of treating the gate text
+literally. This is an R9 commit-construction defect, not a product/runtime
+failure.
+
+This correction starts from the exact known-good `9902199f` workflow bytes
+and inserts only the R2 protected-read exact-one gate using index/slice
+concatenation. Pre-publication structural counts in the constructed text
+verify one `r7-macos-native-lifecycle` job, one
+`r7-macos-session-sanitizers` job, one `publish-protocol-prerelease` job,
+one existing native-poll step and one new focused step. The validator's three
+new sentinels remain present exactly once. Production code and the 38-case
+executable-backed runtime-security selector remain unchanged. Exact
+publication-SHA hosted CI is **NOT RUN / pending** at authorship.
+
 ## R9 duplicate-workflow-tail correction (2026-10-18)
 
 R9 repair `5c49aef3168ed3aa6408aa16afba46bd9ec709b5` still failed before

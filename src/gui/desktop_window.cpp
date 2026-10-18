@@ -23,6 +23,9 @@ namespace rdp::gui {
 namespace {
 QLabel* label(const QString& message) {
     auto* result = new QLabel(message);
+    // Runtime peer, interface, endpoint and failure text are data, not Qt
+    // rich-text markup. AutoText would interpret HTML-looking peer names.
+    result->setTextFormat(Qt::PlainText);
     result->setWordWrap(true);
     return result;
 }

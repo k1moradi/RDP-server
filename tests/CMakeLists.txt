@@ -2938,6 +2938,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r10-interface-endpoint-client-disconnect-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime" TIMEOUT 30)
+    # R10 peer, endpoint and interface data must remain literal Qt text.
+    add_test(NAME gui.offscreen-runtime-peer-and-endpoint-plain-text
+        COMMAND test_desktop_gui_offline plain-runtime-text)
+    set_tests_properties(gui.offscreen-runtime-peer-and-endpoint-plain-text
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime" TIMEOUT 30)
 endif()
 
 # R9 separate PORTABLE-GUI archive integrity contract; no listener, auth,

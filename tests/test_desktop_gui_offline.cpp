@@ -137,6 +137,40 @@ int main(int argc, char** argv)
     FakeRuntimeHost runtime;
     HostControl host(runtime);
 
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "plain-runtime-text")
+    {
+        // R10's runtime-facing labels must never interpret a peer or endpoint
+        // as a Qt rich-text link/image, even if the peer reports markup.
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.boundEndpoint = "<a href='https://invalid.example/'>host</a>";
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{
+                17U, "<img src='file:///tmp/untrusted.svg'>", false, true, true}};
+        runtime.interfaces = {
+            {"ethernet-1", "<a href='https://invalid.example/'>Ethernet</a>",
+             {"192.168.0.10"}, false, true}};
+        DesktopWindow window(host);
+        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
+        auto* activity = window.findChild<QLabel*>("clientStatus");
+        auto* selected = window.findChild<QLabel*>("selectedLanInterfaceStatus");
+        auto* error = window.findChild<QLabel*>("hostErrorExplanation");
+        auto* selection = window.findChild<QComboBox*>("lanInterface");
+        assert(endpoint && activity && selected && error && selection);
+        selection->setCurrentIndex(1);
+        window.refresh();
+        assert(endpoint->textFormat() == Qt::PlainText);
+        assert(activity->textFormat() == Qt::PlainText);
+        assert(selected->textFormat() == Qt::PlainText);
+        assert(error->textFormat() == Qt::PlainText);
+        assert(endpoint->text().contains("<a href="));
+        assert(activity->text().contains("<img src="));
+        assert(selected->text().contains("<a href="));
+        assert(!window.canStart());
+        assert(runtime.configureCalls == 0 && runtime.startCalls == 0);
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "lan-client")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

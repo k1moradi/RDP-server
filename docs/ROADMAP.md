@@ -1,3 +1,43 @@
+## R7 exact-head extracted macOS launch acceptance and Qt plain-text status (2026-10-18)
+
+Native macOS 26 arm64 `r7-macos-portable-gui` **PASS** at exact
+R7 SHA `c1ed4f125d2c927ba8771637126836306357216b` in
+[Actions 39142104657](https://github.com/k1moradi/RDP-server/actions/runs/39142104657),
+job `117719372153`, and again at descendant
+`549a12c0a3647708a48e51d1bb1a298745edc6e2` in
+[Actions 39142229897](https://github.com/k1moradi/RDP-server/actions/runs/39142229897),
+job `117719394320`: **3/3** macOS framework/archive CTests and
+**5/5** R7 offscreen GUI CTests PASS; real Qt .app, macdeployqt
+plugin/framework closure, verified ZIP, extracted Mach-O audit,
+`codesign --verify --deep --strict` and `Signature=adhoc` PASS.
+`open -n -a` kept the extracted Cocoa GUI alive with no TCP LISTEN
+socket. This is **hosted automated LaunchServices**, not a human Finder
+double-click or owner macOS 27 acceptance. Developer ID signing,
+quarantined Gatekeeper trust and notarization remain **NOT COMPLETE**.
+
+R7 now additionally forces `Qt::PlainText` on its shared `QLabel`
+factory. R10-owned endpoint, interface names, client peer metadata and
+redacted error strings must remain inert literal text even if they
+contain HTML-looking markup; Qt's `AutoText` could interpret remote
+peer data as rich text. A new dedicated ordinary offscreen CTest
+`gui.offscreen-runtime-peer-and-endpoint-plain-text` supplies malicious
+peer/endpoint/interface markup through the existing injected R10 fake
+and requires plain-text labels, no synthetic R2 authority, no Start
+command and no network/native side effects. Initial authoring parent
+`70d3df77517d336966b39b105d829fd4ee482d1a`; local Qt compile/full CTest **NOT RUN** (no owner
+checkout); publication-SHA CI **PENDING**.
+
+**Dependency state:** R3 classifier and R10 persistent Linux loopback
+CLI R1 single-reader/X11 frame/input scheduler have landed, but
+`src/gui/main.cpp` still uses deny-only
+`UnavailableRuntimeHostControl`. R2 has no verified macOS
+credential-bound revocable UID lease and R10 has no serialized AppKit
+session owner or concrete GUI LAN Start/Stop backend. The GUI neither
+mints R2 access nor acts as a packet scheduler. Native macOS
+ScreenCaptureKit/Quartz factories, authenticated Microsoft-client
+desktop, and TLS fingerprint/trust display remain blocked until their
+respective R2/R10/R1 data and owner-native prerequisites exist.
+
 ## R5 terminal protected-input route parity (2026-10-18)
 
 The production R10 post-Share scheduler `4795c6dd` and corrected X11

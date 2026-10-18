@@ -1,3 +1,13 @@
+## R7 Qt runtime-status rendering (2026-10-18)
+
+Qt Widgets `QLabel::AutoText` may interpret HTML-looking text.
+Labels showing R10-projected client peer strings, LAN interface names,
+bound endpoint and status/error detail must set `Qt::PlainText`
+explicitly. Preserve supplied text as inert information; do not turn
+network/credential state into links, rich text, permissions, TLS
+identity or R2 admission. Keep the shared existing Qt shell and
+fail-closed runtime adapter; no second GUI owner.
+
 ## R1/R8 clipboard outbound TLS interest projection (2026-10-18)
 
 Once the R2/R3-authorized CLIPRDR writer has begun, the existing Linux

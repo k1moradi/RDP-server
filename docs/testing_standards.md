@@ -1,3 +1,15 @@
+## R7 Qt runtime status inert text CTest (2026-10-18)
+
+Run `gui.offscreen-runtime-peer-and-endpoint-plain-text` with ordinary
+offscreen GUI CTests. Inject R10 snapshot peer/interface/endpoint text
+containing HTML link/image markup and assert the real QLabels use
+`Qt::PlainText`, retain literal values and cannot dispatch Start from
+unverified host credentials. No listening, native capture or real
+R2 credentials are exercised. Hosted native macOS 26 arm64 R7 GUI
+`5/5` and package `3/3` CTests passed at SHA `549a12c0`
+([run 39142229897](https://github.com/k1moradi/RDP-server/actions/runs/39142229897));
+new plain-text CTest exact-publication evidence is **PENDING**.
+
 ## R5 protected-input terminal failure semantics (2026-10-18)
 
 The two entry points into R5 native input share one terminal rule:

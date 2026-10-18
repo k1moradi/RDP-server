@@ -13,6 +13,7 @@
 #include <string_view>
 
 #include <openssl/bio.h>
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
 #include <openssl/pem.h>
@@ -281,7 +282,7 @@ RuntimeServerTlsContext::validateEndpointIdentity(
     // literal. A syntactically valid IP MUST match an iPAddress SAN and must
     // never fall back to DNS/CN matching.
     const int ipMatch =
-        ::X509_check_ip_asc(selectedCertificate, endpointText.data(), 0U);
+        ::X509_check_ip_asc(const_cast<X509 *>(selectedCertificate), endpointText.data(), 0U);
     if (ipMatch == 1)
         return RuntimeTlsEndpointIdentityStatus::Match;
     if (ipMatch == 0)
@@ -293,7 +294,7 @@ RuntimeServerTlsContext::validateEndpointIdentity(
         X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS |
         X509_CHECK_FLAG_NEVER_CHECK_SUBJECT;
     const int hostMatch = ::X509_check_host(
-        selectedCertificate, endpoint.data(), endpoint.size(),
+        const_cast<X509 *>(selectedCertificate), endpoint.data(), endpoint.size(),
         hostFlags, nullptr);
     if (hostMatch == 1)
         return RuntimeTlsEndpointIdentityStatus::Match;

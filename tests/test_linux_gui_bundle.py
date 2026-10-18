@@ -63,9 +63,13 @@ with tempfile.TemporaryDirectory() as directory:
             assert info.create_system == 3
             assert (info.external_attr >> 16) & 0o777 == 0o755
         assert "Prefix=.." in source.read("bin/qt.conf").decode()
-        assert b"systemctl" not in source.read("run-gui.sh")
-        assert b"AppImage" not in source.read("run-gui.sh")
-        assert b"fuse" not in source.read("run-gui.sh").lower()
+        launcher_lines = source.read("run-gui.sh").splitlines()
+        launcher_code = b"\n".join(
+            line for line in launcher_lines
+            if not line.lstrip().startswith(b"#"))
+        assert b"systemctl" not in launcher_code
+        assert b"AppImage" not in launcher_code
+        assert b"fuse" not in launcher_code.lower()
 
     # The user can extract to any folder, without a service or installer.
     extracted = root / "extracted"

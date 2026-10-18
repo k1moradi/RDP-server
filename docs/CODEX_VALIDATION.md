@@ -1,3 +1,9 @@
+## R9 repair of R5 Linux GUI launcher policy scan (2026-10-18)
+
+R5 publication `9883b01e595f37c714b3692bc18c667cd79b8d72` and descendant `c9362721849cde847ed0842bd3f34b9217dc8a00` both reach the new Linux GUI packaging gate and fail before GUI compilation at `packaging.linux-gui-zip-offline-closure-and-modes`. Hosted job `117659179155` reports the exact first failure: `assert b"fuse" not in source.read("run-gui.sh").lower()`; the launcher contains only a safety comment saying ordinary ZIP extraction uses “no FUSE”, while its executable shell lines contain no FUSE/AppImage/systemd command. The ordinary Ubuntu suite independently fails the same one test as #704/706; R9's `packaging.portable-gui-archive-integrity-denials` passes as #706/706.
+
+This correction does not weaken the launcher policy: the test strips comment-only lines and retains the same case-insensitive FUSE prohibition plus AppImage and systemctl prohibitions over executable shell content. Archive closure, modes, no-server payload, tamper, invalid SHA, missing dependency and non-executable denials are unchanged. The malformed/truncated R9 roadmap row is also reconstructed as one current-status row; historical detail remains in this validation ledger and Git. Canonical owner build/CTest is **NOT RUN** in this connector environment. Exact publication-SHA hosted Linux GUI build/extract/Xvfb smoke and full primary CI: **PENDING**. No operational PORTABLE-GUI ZIP or release is claimed.
+
 ## R5 Linux GUI-only ZIP builder and test (2026-10-18)
 
 Authoring base `269a873953a9fc61df0449633b35b98b6f8ff50d`. Added relocatable actual-Qt-ELF ZIP assembly

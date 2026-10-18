@@ -1,3 +1,26 @@
+## R7 macOS bundle diagnostic failure was cross-platform, not macOS-only (2026-10-17)
+
+At SHA `27b5a1cea443e8ef107e4501b73a6a4395853932`, primary Actions
+`39098588630` reached full Debug CTest on all three protocol hosts. The same
+`macos.package-offline-integrity-and-idempotence` case failed on Ubuntu job
+`117590040711`, Windows job `117590040708` and macOS job
+`117590040738`: production correctly raised
+`ValueError: unsupported bundle architecture`, while the test still required
+the obsolete exact text `unsupported bundle identity`. SHA
+`016633192d1ccb973f9c43820ab44944c19d64a3` corrected only that assertion to
+the stable `unsupported bundle` prefix.
+
+Standalone execution of the current test/source pair in this Linux connector
+environment is **PASS 4/4**:
+`python3 tests/test_macos_test_bundle.py --script scripts/macos_test_bundle.py`
+(equivalent source/test content reconstructed from current main). Current shared
+main later encountered unrelated R3 portability compile failures before full
+CTest; R9 has authored those corrections at `1e842529`. To prevent future C++
+failures from hiding R7 package coverage, the protocol matrix now runs the same
+pure-Python package test immediately after checkout on Linux, macOS and Windows,
+while retaining the ordinary CTest. Publication-SHA hosted preflight evidence is
+**PENDING**; no native serving or TCC claim follows from this test.
+
 ## R9 exact-head portability failures after R3 compile correction (2026-10-17)
 
 Corrective R3 head `f170af936c4cb35a7a94076a5e3dee2f3f4e048a` moved past the original declaration-order

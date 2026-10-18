@@ -1,3 +1,21 @@
+## R7 macOS protocol-bundle denial test runs before the C++ build (2026-10-17)
+
+The protocol matrix must execute `tests/test_macos_test_bundle.py` directly on
+Linux, macOS and Windows immediately after checkout, before dependency setup or
+any C++ compile. The test uses only Python's standard library and mocks the
+Darwin host/architecture where installation semantics require it. This early
+preflight is the same offline integrity/idempotence contract registered later as
+`macos.package-offline-integrity-and-idempotence`; it does not package a real
+binary, start a process, touch TCC, bind a socket, capture a desktop or inject
+input.
+
+Keep the ordinary CTest registration as well. The direct preflight exists so an
+unrelated compile failure cannot erase R7 package evidence and so Linux coverage
+is explicit rather than inferred from macOS/Windows results. Unsupported or
+universal architectures must be rejected; tests should assert the stable
+`unsupported bundle` diagnostic prefix rather than an implementation-specific
+suffix.
+
 ## R6 Windows SERVER-TEST lifecycle offline acceptance (2026-10-17)
 
 `windows.package-user-lifecycle-offline-contract` is the dedicated R6 package

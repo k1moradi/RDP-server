@@ -38,6 +38,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # R7 packaging assurance is pure Python/std-lib and must remain visible
+      # even when an unrelated C++ target prevents the later full CTest.
+      - name: Preflight R7 macOS bundle offline contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_macos_test_bundle.py \
+            --script scripts/macos_test_bundle.py
       - name: Install OpenSSL (macOS)
         if: runner.os == 'macOS'
         run: brew install openssl@3

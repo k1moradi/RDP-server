@@ -2331,7 +2331,7 @@ add_test(NAME runtime.linux-x11-clipboard-production-linkage
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_clipboard_linkage.cmake")
 set_tests_properties(
     runtime.linux-x11-clipboard-production-linkage PROPERTIES
-    LABELS "runtime;security;r8-r3;clipboard;x11;offline")
+    LABELS "runtime;security;r8-r3;x11;offline;native-linkage")
 
 # R5 R2/R3-authorized XTEST route. These cases use only ephemeral Xvfb and
 # deliberately supply no admission lease. They prove both that native desktop

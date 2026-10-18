@@ -1,3 +1,17 @@
+## R8 clipboard linkage assurance-label correction (2026-10-18)
+
+The production-linkage source guard is intentionally not part of the fixed
+executable/component clipboard sanitizer inventory. Hosted run
+`39133011770` showed the new
+`runtime.linux-x11-clipboard-production-linkage` CTest was labeled
+`clipboard`, making `ctest -L clipboard` select 88 tests while the reviewed
+R8 component inventory remains 87. R9 `83e20355` separately pins the input
+and clipboard source/build linkage guards as an exact-two focused assurance
+selection, so this correction removes only the generic `clipboard` label and
+uses `native-linkage` instead. Production linkage, authority semantics and
+the persistent R10 router blocker are unchanged. Local owner build/full CTest:
+**NOT RUN**; exact publication-SHA hosted CI: **PENDING**.
+
 ## R6 Windows portable-GUI hosted-green evidence (2026-10-18)
 
 The package and extracted-runtime blocker is resolved. Exact descendant

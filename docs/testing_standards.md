@@ -21,6 +21,13 @@ sanitizer counts.
 
 ## R8 production linkage without clipboard authority (2026-10-18)
 
+The source/build linkage guard is not a component sanitizer case and must not
+carry the generic `clipboard` label. R9 owns its separate exact-two dormant
+native-bridge selection together with the authorized-input linkage guard; keep
+the fixed R8 `clipboard` label inventory at 87 unless a new executable
+clipboard behavior test is intentionally added.
+
+
 The production Linux server may link the existing R8 R3 bridge and X11
 clipboard adapter once the complete R2 runtime-security/X11 dependency graph is
 available, but linkage must remain descriptive build readiness only. Until R10

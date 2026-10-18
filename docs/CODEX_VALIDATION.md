@@ -1,3 +1,28 @@
+## R5 bounded X11 pointer-button ownership (2026-10-18)
+
+Authoring base `33b6ae76b792df1101f0aa21f252638317ebde06`. Corrected the sole native R5
+`X11InputController::handlePointerButton`: before each XTEST
+ButtonPress/ButtonRelease, compare the desired button state with the
+existing `pressedButtons_` slot. Duplicate remote press and unmatched
+remote break are no-post success; state changes only after a successful
+native event. This aligns mouse input ownership with the earlier held
+scancode tracking, avoids a remote break releasing a foreign/local
+button, and leaves MouseX/scroll, R2/R3 permission and R10 scheduler
+unchanged.
+
+Added `x11.input-native-pointer-button-owner-held-break-denials`
+to the existing Xvfb `test_x11_native_input` target. The synthetic
+foreign held state is created by a separate XCB XTEST fixture
+connection to that ephemeral Xvfb server only. It is *not* another
+production X11 owner or a fabricated authorized OS seat; it checks
+unmatched foreign-held release refusal and fresh-owner behavior.
+Source/test review **PASS**. Owner-local full build/CTest **NOT RUN**
+(no checked-out owner repo and missing native XCB headers).
+Publication-SHA hosted CI **PENDING**. Prior R5 `d299caf41146`
+Ubuntu/macOS, Linux GUI ZIP, R2 security and R9 sanitizer jobs
+**PASS**, while its overall cross-platform workflow was still
+running at review. No real Microsoft client/seat0 result.
+
 ## R4 mapped ClearCodec ACK-capacity refusal/retry CTest (2026-10-18)
 
 R10's persistent post-Share X11/Graphics publication and R3's

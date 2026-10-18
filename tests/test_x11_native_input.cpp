@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include <xcb/xcb.h>
+#include <xcb/xtest.h>
 
 namespace
 {
@@ -268,6 +269,73 @@ keyboardLogoutNoNativePost()
 }
 
 void
+pointerButtonOwnerHeldTransitions()
+{
+    // Only an ephemeral Xvfb instance. No real mouse, seat, R2 lease or
+    // authenticated connection is involved in this synthetic test.
+    const char *display = std::getenv("DISPLAY");
+    assert(display != nullptr && display[0] != '\0');
+    int screenNumber = -1;
+    XcbConnection connection = connectDisplay(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*connection, screenNumber);
+    const PixelSize bounds{screen->width_in_pixels, screen->height_in_pixels};
+    const std::uint16_t baseline = pointerMask(*connection, screen->root);
+    assert((baseline & XCB_BUTTON_MASK_1) == 0U);
+
+    X11InputController owner(*connection, screen->root, bounds);
+    assert(owner.valid());
+    const X11PointerButtonInput press{140, 140, 1, true};
+    const X11PointerButtonInput release{140, 140, 1, false};
+
+    // Remote break without an owner-held press is inert.
+    assert(owner.handle(release));
+    assert(pointerMask(*connection, screen->root) == baseline);
+
+    assert(owner.handle(press));
+    assert((pointerMask(*connection, screen->root) & XCB_BUTTON_MASK_1) != 0U);
+    assert(owner.handle(press)); // duplicate make has no new held slot
+    assert((pointerMask(*connection, screen->root) & XCB_BUTTON_MASK_1) != 0U);
+    assert(owner.handle(release));
+    assert(pointerMask(*connection, screen->root) == baseline);
+    assert(owner.handle(release)); // duplicate break is also inert
+    assert(pointerMask(*connection, screen->root) == baseline);
+
+    // A separate helper posts the simulated foreign-held button directly to
+    // Xvfb. The R5 controller did not post that press and cannot release it.
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectDisplay(display, helperScreenNumber);
+    assert(helperScreenNumber == screenNumber);
+    const auto foreignPress = xcb_test_fake_input_checked(
+        helper.get(), XCB_BUTTON_PRESS, 1U, XCB_CURRENT_TIME,
+        screen->root, 140, 140, 0U);
+    xcb_generic_error_t *error =
+        xcb_request_check(helper.get(), foreignPress);
+    assert(error == nullptr);
+    std::free(error);
+    assert((pointerMask(*connection, screen->root) & XCB_BUTTON_MASK_1) != 0U);
+    assert(owner.handle(release));
+    assert((pointerMask(*connection, screen->root) & XCB_BUTTON_MASK_1) != 0U);
+    owner.disconnect();
+    assert((pointerMask(*connection, screen->root) & XCB_BUTTON_MASK_1) != 0U);
+
+    const auto foreignRelease = xcb_test_fake_input_checked(
+        helper.get(), XCB_BUTTON_RELEASE, 1U, XCB_CURRENT_TIME,
+        screen->root, 140, 140, 0U);
+    error = xcb_request_check(helper.get(), foreignRelease);
+    assert(error == nullptr);
+    std::free(error);
+    assert(pointerMask(*connection, screen->root) == baseline);
+
+    // No held-state ownership is inherited by the next controller.
+    X11InputController replacement(*connection, screen->root, bounds);
+    assert(replacement.valid());
+    assert(replacement.handle(release));
+    replacement.disconnect();
+    assert(pointerMask(*connection, screen->root) == baseline);
+    assert(xcb_connection_has_error(connection.get()) == 0);
+}
+
+void
 authorityRetirementNoNativePost()
 {
     const char *display = std::getenv("DISPLAY");
@@ -352,6 +420,11 @@ main(int argc, char **argv)
     if (behavior == "authority-retirement-no-native-post")
     {
         authorityRetirementNoNativePost();
+        return 0;
+    }
+    if (behavior == "pointer-button-owner-held-transitions")
+    {
+        pointerButtonOwnerHeldTransitions();
         return 0;
     }
 

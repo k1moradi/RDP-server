@@ -152,6 +152,13 @@ zero accepted TLS bytes and abort partial/uncertain positive delivery with
 the existing terminal receipt semantics. Never infer FRAME_ACK from an R1
 TLS write receipt.
 
+**Pointer-button ownership:** R5 records successful XTEST
+button presses in the existing fixed owner-held array. Duplicate
+RDP makes or unpaired releases post no native event, protecting
+local/foreign-held buttons from an unmatched remote break. A dedicated
+ephemeral-Xvfb regression checks the behavior; R2 per-event input
+permission, MouseX negotiation and wheel pulses are unchanged.
+
 **Native failure parity:** Both R5 input gateways, including the older
 direct `X11AuthorizedInputRoute::dispatch` and R10's authenticated
 slow-path callback, use terminal no-XTEST retirement if native

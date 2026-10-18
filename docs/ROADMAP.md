@@ -1,3 +1,30 @@
+## R5 XTEST pointer-button owner-held transition safety (2026-10-18)
+
+R10's persistent post-Share XCB/TLS input and synchronous R4 frame
+borrow are in production, and R10 `d9b835bca423` added cooperative
+SIGINT/SIGTERM Stop in its existing owner thread. Native inspection
+found that R5 `X11InputController::handlePointerButton` forwarded
+unmatched remote releases and repeated presses to XTEST even where the
+one R5 controller held no corresponding button state. This could
+release an X11 button held by another input source. R5 now ignores
+duplicate native makes and unmatched breaks using the **existing**
+fixed held-button array. Only a successful owner-held native
+ButtonPress can be followed by an XTEST ButtonRelease; no second
+authority owner is introduced. Signed wheel pulses and MouseX 8/9
+remain unchanged and continue through R2's per-event authorization.
+
+The new behavior-named Xvfb test
+`x11.input-native-pointer-button-owner-held-break-denials`
+checks duplicate make/break, isolation of an independently simulated
+foreign-held Xvfb button, graceful cleanup not releasing that button,
+and fresh-owner no-adoption. It uses only isolated Xvfb; no live R2
+lease, physical seat or client is fabricated. Local approved
+`~/rdp-server/build` Debug/full CTest: **NOT RUN** (checkout and
+XCB/XTEST development dependencies unavailable here); exact new
+publication-SHA hosted CI: **PENDING**. R10 Qt LAN Start/Stop remains
+deny-only, and real Kerberos/PAM/logind seat0 Microsoft Windows App
+input/frame ACK remains **BLOCKED / NOT RUN** on host consent.
+
 ## R10 authoritative GUI LAN selection preflight (2026-10-18)
 
 The R10 runtime contract now owns `assessRuntimeSelectedLanEndpoint`,

@@ -2290,11 +2290,17 @@ if(TARGET rdp-server-linux-xtest-input)
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_native_input>
                 authority-retirement-no-native-post)
+        add_test(NAME x11.input-native-pointer-button-owner-held-break-denials
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_native_input>
+                pointer-button-owner-held-transitions)
         set_tests_properties(
             x11.input-native-destructor-held-input-release
             x11.input-native-authority-retirement-no-native-post
             x11.input-native-keyboard-sequence-and-reconnect
             x11.input-native-keyboard-logout-no-native-post
+            x11.input-native-pointer-button-owner-held-break-denials
             PROPERTIES LABELS "x11;linux-adapter;native;security;synthetic-display"
                        TIMEOUT 20)
     endif()

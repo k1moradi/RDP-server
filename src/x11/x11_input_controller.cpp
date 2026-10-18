@@ -492,13 +492,21 @@ X11InputController::handlePointerButton(
     {
         return false;
     }
+    const std::size_t buttonSlot = static_cast<std::size_t>(input.button);
+    // An unmatched RDP break cannot release a local/foreign-held button.
+    // Repeated makes also cannot synthesize extra XTEST ButtonPress events.
+    // Only this owner's successful native press creates a releasable slot.
+    if (pressedButtons_[buttonSlot] == input.pressed)
+    {
+        return true;
+    }
     const std::uint8_t type = input.pressed ? XCB_BUTTON_PRESS
                                             : XCB_BUTTON_RELEASE;
     if (!fakeButton(type, input.button, input.x, input.y))
     {
         return false;
     }
-    pressedButtons_[static_cast<std::size_t>(input.button)] = input.pressed;
+    pressedButtons_[buttonSlot] = input.pressed;
     return true;
 }
 

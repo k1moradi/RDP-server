@@ -1,3 +1,25 @@
+## R5 native pointer buttons are owner-held transitions (2026-10-18)
+
+Only a successful owner-issued XTEST ButtonPress creates a held-button
+slot that permits an XTEST ButtonRelease on the same sole native
+controller. Ignore both duplicate makes and unmatched breaks after
+the already-applied R2 per-event authorization. An untracked remote
+break must never release a button currently held by a local or
+replacement X11 input source. Use the existing fixed
+`pressedButtons_` array; do not introduce a second device-state
+owner or copy R2 authority into the native adapter. MouseX side
+buttons use the same 8/9 tracking; signed wheel 4–7 click pulses
+are transient and separate. Graceful shutdown may release only
+owner-held input while the R2 lease remains live; terminal expiry
+sends zero native input.
+
+Add the dedicated Xvfb behavior CTest
+`x11.input-native-pointer-button-owner-held-break-denials` to check
+unmatched break, duplicate transitions, synthetic foreign-held
+button preservation and fresh-owner isolation. Ordinary test
+fixtures may use isolated Xvfb only and cannot prove actual OS
+login or client-facing input acceptance.
+
 ## R4 mapped ClearCodec ACK-capacity nonmutation (2026-10-18)
 
 Keep the existing `graphics.frame-publication-backpressure` CTest

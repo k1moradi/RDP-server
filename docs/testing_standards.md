@@ -1,3 +1,23 @@
+## R2 fixed-memory authentication-attempt budget (2026-10-18)
+
+The serialized Linux listener owns one service-lifetime
+`AuthenticationAttemptLimiter`. Validate actual peer-family address
+and selected local-interface policy first; reserve peer/global attempts
+before allocating TLS/GSS. One 60-second steady-clock window allows at
+most eight attempts per peer, 128 globally and 64 distinct in-window
+peer addresses; full slots and time regression reject without logging.
+Provider-verified account reservations share the same allocation-free
+fixed-table design (64 principals, eight attempts each); only the exact
+GSS-authenticated principal may be passed there, **not** a guessed
+or delegated username, and the final PAM invocation is not yet wired.
+No denial may reveal whether an account exists, no successful
+reservation is a user/session authorization, and the limiter remains
+confined to the one listener thread. Test
+`security.bounded-peer-global-and-account-attempts` runs on every
+platform without external services and verifies boundedness, expiry,
+invalid input, capacity and failure-only decisions. Do not claim the
+per-account limit is live until the provider-path integration lands.
+
 ## Cross-host macOS GUI install-ID fixture path matching (2026-10-18)
 
 A synthetic macOS `otool -D` fixture must recognize a target by the host

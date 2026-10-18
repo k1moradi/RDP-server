@@ -1,3 +1,25 @@
+## R2 bounded Linux NLA attempt-abuse gate (2026-10-18)
+
+Authored `security/authentication_attempt_limiter.h` as a single-owner,
+zero-allocation service-lifetime policy and wired the verified Linux serve
+peer/global gate ahead of R1 TLS and CredSSP creation. A separate
+provider-verified account budget is present but **NOT YET CALLED**
+by the final PAM path; it cannot be fed a claimed GUI username.
+No mechanism, credentials, admission lease, listener, host consent,
+frame, input or clipboard path is promoted by the policy.
+
+Registered the cross-platform production-backed CTest
+`security.bounded-peer-global-and-account-attempts` for positive bounded
+reservations and negative peer/global/account saturation, fixed-table
+exhaustion, expiration, malformed identities and time regression.
+No real OS credentials, socket, synthetic OS lease or live desktop.
+Local Debug build/full CTest: **NOT RUN** (approved checkout absent;
+tool-container git cannot resolve github.com). Hosted publication-SHA
+CI: **PENDING**. Next R2 gate: bind only GSS provider-derived identity
+to the account reservation immediately before final PAM verification,
+with a separate Linux production-backed CTest; then capture real
+Microsoft client mechanisms on owner-authorized physical X11.
+
 ## R9 Windows/macOS offline GUI fixture and post-Share sanitizer gate (2026-10-18)
 
 Hosted Windows MSVC Debug CTest on descendant `d268d270` failed

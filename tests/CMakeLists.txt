@@ -19,6 +19,23 @@ add_test(NAME security.lan-credential-mode-denials
 set_tests_properties(security.lan-credential-mode-denials PROPERTIES
     LABELS "security;credentials;offline")
 
+# Fixed-capacity R2 authentication-abuse policy: real listener peer/global
+# guard plus a separate future provider-verified principal gate. Pure/offline.
+add_executable(test_authentication_attempt_limiter
+    test_authentication_attempt_limiter.cpp)
+target_link_libraries(test_authentication_attempt_limiter PRIVATE rdp-server-protocol)
+if(MSVC)
+    target_compile_options(test_authentication_attempt_limiter PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_authentication_attempt_limiter PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+add_test(NAME security.bounded-peer-global-and-account-attempts
+    COMMAND test_authentication_attempt_limiter
+        bounded-peer-global-and-account-attempts)
+set_tests_properties(security.bounded-peer-global-and-account-attempts
+    PROPERTIES LABELS "security;credentials;offline")
+
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
 add_executable(test_runtime_host_control test_runtime_host_control.cpp)
 target_link_libraries(test_runtime_host_control PRIVATE rdp-server-protocol)

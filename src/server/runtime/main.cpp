@@ -10,6 +10,7 @@
 #include "linux_runtime_connection.h"
 #include "runtime_deployment_policy.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
+#include "server/security/authentication_attempt_limiter.h"
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 #include "x11/x11_desktop_resources.h"
 #if defined(RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT)
@@ -816,6 +817,8 @@ struct LinuxServeAcceptContext final {
     const rdp_server::server::security::ConsoleEvidenceRequest*
         admissionRequest{};
     bool endpointViolation{};
+    // One serialized, allocation-free service-lifetime R2 admission budget.
+    rdp_server::server::security::AuthenticationAttemptLimiter authAttempts{};
 };
 
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
@@ -976,6 +979,14 @@ struct LinuxFramePublicationContext final {
     if (!context->policy->permitsLoopbackTransportCandidate(peerAddress)) {
         context->endpointViolation = true;
         return false;
+    }
+
+    // Reserve a service-wide peer/global NLA attempt BEFORE creating TLS/GSS.
+    // The rejected socket is closed by its RAII owner without an identifying
+    // diagnostic or an R2 admission lease. This does not prove credentials.
+    if (!context->authAttempts.reservePeerAuthenticationAttempt(
+            peerAddress, std::chrono::steady_clock::now())) {
+        return true;
     }
 
     rdp_server::server::runtime::LinuxRuntimeConnection connection{

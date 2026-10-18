@@ -81,6 +81,26 @@ This file is the **only active roadmap and cross-agent communication board**. It
 
 **Current evidence:** source/CTest authored; local Debug build/CTest **NOT RUN** (no approved local checkout); exact publication-SHA hosted CI **PENDING**, live Windows/macOS clients **NOT RUN**. **Next gate:** R2/R10 integrate a truly authenticated OS provider and host-owner consent into start/stop + R3, then record three independent client results. Keep independent GUI password mode Start Sharing **BLOCKED** until fully reviewed interoperable verification and genuine OS authorization are demonstrated.
 
+**R2 NLA attempt-abuse boundary (2026-10-18):** R2's fixed-capacity
+`AuthenticationAttemptLimiter` now reserves a peer/global budget before
+the serialized Linux serve callback constructs R1 TLS or GSS. Only exact
+validated 4-byte IPv4 or 16-byte IPv6 addresses are accepted; the one
+service-lifetime table has 64 peer slots, 8 attempts per peer and 128
+successful reservations globally per 60-second monotonic window. A full
+unexpired table and regressing clock fail closed; no network/OS/token
+side effects or identity-bearing diagnostics. Separately, the same
+policy offers an eight-attempt, 64-account gate that MUST receive only a
+provider-verified GSS principal, never untrusted client account text.
+**That account gate is NOT YET WIRED** to the final PAM verification and
+must not be claimed as enforcement; R2 owns this remaining integration.
+Dedicated cross-platform offline CTest
+`security.bounded-peer-global-and-account-attempts` covers per-peer,
+global, account, expiry, table exhaustion, invalid input and backward
+time without creating a lease. Local full configure/CTest **NOT RUN**
+(no approved checkout and GitHub DNS blocked in the tool container);
+hosted exact-publication-SHA CI **PENDING**. This does not enable
+independent GUI passwords, native admission, or real Microsoft clients.
+
 **R2 access-policy lifecycle follow-up (2026-10-18):** R10's typed host-control request seam is now present, so the OS-backed first-release path can safely support GUI-driven **set/change/revoke of the authorized identity mapping** without introducing a password store. R2 replacement/revocation changes only the service-owned identity policy generation; it neither modifies the user's OS password nor grants host consent. Existing per-connection acceptors/leases become stale through their captured generation, and revocation prevents configuring a new acceptor until a valid mapping is installed again. Live Start remains blocked on R10's concrete backend, authenticated Share/native-owner composition and owner-authorized client testing.
 
 **R6 Windows GUI (2026-10-18):** Windows portable packaging is now **HOSTED-GREEN**. R6 `ab63d1bbeb41e19dc447dfde4cb7c1e0260da3b1` added recursive non-system DLL staging after `windeployqt`; R9 `f8e4d056f89626f38fc611168e9ad063c4fcdf16` corrected Windows system-DLL classification; R6 `199887cdd79a0a5e5386f2f178647146ae584396` aligned hidden offline modes with the packaged `qwindows` platform. Exact descendant `aaff05a91d4b903dbf7d7469247d6ad9225a76b4`, primary run `39131193194`, Windows job `117686690036`: Debug **641/641**, Release **641/641**, R6 native preflight **59/59** in both configurations, `PORTABLE-GUI archive structure PASS`, `Windows PE closure PASS: 41 images, 571 imports inspected`, extracted deny-only + normal first-screen/no-socket/rerun/firewall smoke **PASS**, and sanitizer R6 native selector **59/59**. Current-head exact CI may still be pending because later commits are unrelated Linux/macOS/docs work; do not infer a current-head aggregate PASS from this descendant evidence. **Native hosting remains BLOCKED:** current `main` still has only observational `windows_native_session_evidence.*`; no Windows SSPI/CredSSP authenticated-SID admission provider and no concrete R10 Windows interactive-session/`RuntimeHostControl` owner exist. Start remains fail-closed until R2 issues a revocable SID + exact physical-console WTS/LUID/logon-time lease and R10 serializes WTS lifetime/revocation with fresh authorization before every R6 DXGI borrow and SendInput.

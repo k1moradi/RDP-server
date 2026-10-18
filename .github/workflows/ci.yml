@@ -1319,6 +1319,31 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 --verbose \
             -R "$runtime_security_selection" --output-on-failure
 
+      # The post-Share R2/R3 classifier and the single R1 TLS reader are
+      # separate production-backed runtime denials. Retain the existing
+      # fixed 40-case R2 selection and all native-only gates unchanged.
+      - name: Run R10 post-Share reader and classifier denials with sanitizers
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          post_share_selection='^runtime\.linux-connection-personal-post-share-(classifier-authority|single-reader)-denials$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$post_share_selection")"
+          printf '%s\n' "$selected_tests"
+          readonly post_share_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$post_share_expected_test_count" ]]; then
+            printf 'R9 post-Share registry mismatch: expected %s tests, found %s\n' \
+              "$post_share_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'runtime.linux-connection-personal-post-share-classifier-authority-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-post-share-single-reader-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$post_share_selection" --output-on-failure
+
       # R2's post-admission read-generation regression is a source-level CMake
       # contract rather than a sanitizer-instrumented executable. Keep it out
       # of the fixed 40-case executable-backed selector, but require it in the

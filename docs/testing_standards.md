@@ -1,3 +1,14 @@
+## Cross-host macOS GUI install-ID fixture path matching (2026-10-18)
+
+A synthetic macOS `otool -D` fixture must recognize a target by the host
+`Path(...).name` instead of POSIX-only `/QtGui` string suffix: ordinary
+Windows CTest also executes the stdlib-only macOS packaging regression.
+Keep the same `install_name_tool -id @rpath/...` and final ad-hoc
+`codesign` assertions rather than skipping the regression on Windows.
+R10 post-Share runtime classifier and single-reader negative tests use their
+own exact-two R9 sanitizer selection until the persistent live scheduler
+is composed; the existing 40-case R2 runtime-security selection remains fixed.
+
 ## R7 real R10 interface/endpoint and active-client UI gate (2026-10-18)
 
 An R7 Qt GUI may show only a LAN interface identity/address actually

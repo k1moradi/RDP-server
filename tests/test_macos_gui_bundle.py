@@ -270,7 +270,8 @@ class MacGuiBundleTests(unittest.TestCase):
             result = Result()
             if command[:2] == ["otool", "-D"]:
                 result.stdout = f"{command[2]}:\n"
-                if command[2].endswith("/QtGui"):
+                # Native path separators vary on hosted Windows and macOS.
+                if Path(command[2]).name == "QtGui":
                     result.stdout += (
                         "/opt/homebrew/opt/qtbase/lib/"
                         "QtGui.framework/Versions/A/QtGui\n")

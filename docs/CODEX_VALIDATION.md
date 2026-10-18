@@ -1,3 +1,35 @@
+## R9 Windows/macOS offline GUI fixture and post-Share sanitizer gate (2026-10-18)
+
+Hosted Windows MSVC Debug CTest on descendant `d268d270` failed
+**2/647** tests: `packaging.macos-portable-gui-app-integrity-denials`
+and `packaging.macos-portable-gui-install-id-normalization`. Both ran the
+same stdlib-only mocked `otool -D` fixture on Windows. Its mock searched
+for a literal POSIX `/QtGui` suffix, so Windows native `\\QtGui` returned
+only an image filename and skipped the required framework install-ID rewrite;
+the Cocoa plugin rewrite and ad-hoc sign were still recorded. The test
+fixture now checks `Path(command[2]).name == "QtGui"`, preserving the
+exact `@rpath/QtGui.framework/Versions/A/QtGui` assertion and the
+plugin/signing assertions on all hosts. No production packager change,
+skip, allowlist, or weakened assertion.
+
+R10 `a80a3bc7` and `d268d270` register the production-linked
+`runtime.linux-connection-personal-post-share-classifier-authority-denials`
+and `runtime.linux-connection-personal-post-share-single-reader-denials`.
+R9 enrolls these as an exact-two separate Linux Clang ASan/UBSan CTest
+preflight with explicit name sentinels and an independent structure-validator
+contract, keeping the existing R2 executable runtime-security **40-case**
+selection and its native GSS/PAM/dependency modes unchanged. These tests are
+negative no-lease/invalid-route cases, not proof of a real persistent
+authenticated runtime. R10 still needs the concrete serialized native/socket
+scheduler, R5 input and R8 clipboard sinks, R4 first-frame lifecycle, live
+GUI Start/Stop, and owner-authorized physical X11/Microsoft-client receipts.
+
+Owner-local Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 Debug
+configure/build/full CTest: **NOT RUN** from this connector environment.
+The exact publication-SHA primary and independent workflow results are
+**PENDING** until completed. No PORTABLE-GUI/SERVER-TEST release promotion
+or Start/Stop service claim.
+
 ## R7 CI workflow repair (2026-10-18)
 
 The R7 GUI/status commit `6a94a5d2010f46e84c0358a3723bd2bca7d92a78`

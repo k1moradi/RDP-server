@@ -1,3 +1,19 @@
+## R9 exact-count source tests in native-facing CI (2026-10-18)
+
+When an upstream R10/R5/R7 change adds a source-only CMake guard to
+ordinary CTest for a release-critical authority, Stop, input retirement,
+or untrusted GUI status construction boundary, R9 may also select that
+same test in the relevant focused native CI job. Pin exact names and
+count with a single bounded CTest selection, and require those tokens
+in the independently executing CI workflow validator. Do not describe
+`cmake -P` source tests as ASan-instrumented runtime tests simply
+because they run in a Clang sanitizer-equipped job. On hosted macOS,
+run Qt PlainText constructor ordering on the real Qt Release build
+before package signature and LaunchServices checks: an offscreen QLabel
+end-state test alone can miss transient AutoText parsing. Owner Mac 27
+Finder/Gatekeeper and live LAN authorization are separate and cannot
+be simulated or marked PASS by CI.
+
 ## R2 fixed-slot verified-principal saturation and expiry (2026-10-18)
 
 A service-wide account-attempt policy must not evict an unexpired

@@ -1,3 +1,28 @@
+## R9 exact-head Stop/native-input and Qt status source assurance (2026-10-18)
+
+Upstream agents added the R10 cooperative serialized Stop source CTest
+`runtime.linux-serve-cooperative-signal-stop-order`, R5 terminal
+no-XTEST input-failure CTest
+`x11.input-direct-route-native-failure-no-xtest`, and R7 GUI
+`gui.runtime-label-plain-before-text-assignment` source guard.
+R9 now pins the **two** Linux security source tests to an exact-two
+focused CTest selection in the Clang ASan/UBSan **job** (the tests
+themselves run `cmake -P`, not under sanitizers); on native hosted
+macOS Qt Release the R7 source-level test has its own exact-one CTest
+step before real app bundling, signature verification and normal
+LaunchServices opening. `scripts/validate_ci_workflow.py` requires
+both step names, selected CTest names and cardinalities. No security
+assertion is relaxed and no second testing registry was introduced.
+
+Last completely verified new CI pair at `79efe8f21d7028190a678d0f584535f2ef67922b`:
+[primary 39145740980](https://github.com/k1moradi/RDP-server/actions/runs/39145740980)
+and [structure 39145740927](https://github.com/k1moradi/RDP-server/actions/runs/39145740927)
+**PASS**. Exact new publication SHA primary and structure
+**PENDING**; owner-native Linux, Windows, macOS 27 and actual
+Microsoft-client/client GUI acceptance **NOT RUN**. Source guards
+provide only offline safety regression detection, not native session
+performance, credential admission, physical GUI, or R8 clipboard proof.
+
 ## R2 verified-principal slot-capacity exhaustion coverage (2026-10-18)
 
 With R2 GSS-to-PAM account limiting already in the serialized Linux

@@ -1365,6 +1365,30 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$persistent_owner_selection" --output-on-failure
 
+      # R10's cooperative Stop and R5's native input failure are distinct
+      # source-level CMake guards: neither attempts a live R2 admission,
+      # sends SIGTERM, or posts cleanup XTEST events. Do not count either
+      # as an executable ASan/UBSan or native X11 runtime test.
+      - name: Run R10 Stop and R5 terminal-input source fences
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          native_terminal_source_selection='^(runtime[.]linux-serve-cooperative-signal-stop-order|x11[.]input-direct-route-native-failure-no-xtest)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$native_terminal_source_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-serve-cooperative-signal-stop-order' <<< "$selected_tests"
+          grep -Fq 'x11.input-direct-route-native-failure-no-xtest' <<< "$selected_tests"
+          readonly native_terminal_source_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$native_terminal_source_expected_test_count" ]]; then
+            printf 'R9 R10/R5 source registry mismatch: expected %s tests, found %s\n' \
+              "$native_terminal_source_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$native_terminal_source_selection" --output-on-failure
+
       # R8's new outbound CLIPRDR R1 TLS writer is production-backed
       # but deliberately denies unleased native clipboard publication.
       # This is not part of the fixed 87-case clipboard component inventory.
@@ -1752,6 +1776,28 @@ jobs:
           ctest --test-dir build -C Release -N -R '^gui[.]offscreen-'
           ctest --test-dir build -C Release --timeout 30 \
             -R '^gui[.]offscreen-' --output-on-failure
+      # Run the production GUI constructor-order security guard on the
+      # same hosted AppleClang/Qt build that packages and opens the actual
+      # extracted .app. Offscreen widget end-state checks cannot expose
+      # transient QLabel AutoText parsing during construction.
+      - name: Run R7 runtime PlainText constructor-order source guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          gui_plain_text_source_selection='^gui[.]runtime-label-plain-before-text-assignment$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$gui_plain_text_source_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'gui.runtime-label-plain-before-text-assignment' <<< "$selected_tests"
+          readonly gui_plain_text_source_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$gui_plain_text_source_expected_test_count" ]]; then
+            printf 'R9 R7 Qt PlainText source registry mismatch: expected %s test, found %s\n' \
+              "$gui_plain_text_source_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$gui_plain_text_source_selection" --output-on-failure
+
       - name: Package and verify real macOS Qt app closure
         shell: bash
         run: |

@@ -1,3 +1,18 @@
+## R1 dependency reconciliation — 2026-10-17
+
+R3's DATA publication edge from the original dependency graph is resolved on
+main (`27f68c32`, compile correction `f170af93`). R1's native TCP reset
+assurance now covers a real pending read, a real pending write, stale decrypted
+plaintext cancellation and terminal late-callback denial in the single
+Linux-only behavior CTest; latest R1 code commit is `024b879a`.
+R10's secure `serve` listener has **not** landed: current runtime `main.cpp`
+still declares that it constructs no listener/session controller. Therefore
+R1 cannot yet review listener bind/getsockname proof or end-to-end inbound
+X.224→TLS→CredSSP scheduling. That blocker is code-publication-specific, not
+R3 DATA. Exact-head CI for the new R1 test remains unverified. The only genuine
+positive client blocker remains the authorized R2 physical Linux X11 seat0
+with Kerberos/PAM admission; no native lease or client version is claimed.
+
 ## R1 TCP reset assurance — 2026-10-17
 
 **Committed to shared main:** Linux-only native behavior CTest

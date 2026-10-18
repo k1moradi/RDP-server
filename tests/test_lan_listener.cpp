@@ -13,6 +13,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #endif
 
 using namespace rdp_server::server::transport;

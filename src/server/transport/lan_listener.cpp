@@ -16,6 +16,7 @@
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #else
+#include <arpa/inet.h>
 #include <cerrno>
 #include <fcntl.h>
 #include <ifaddrs.h>
@@ -69,7 +70,7 @@ bool findInterfaceAddress(std::string_view name,
 #if defined(_WIN32)
     // AdapterName is the stable adapter identifier; friendly display names
     // must be resolved by R10 before this call.
-    std::array<unsigned char, 16384> buffer{};
+    alignas(IP_ADAPTER_ADDRESSES) std::array<unsigned char, 16384> buffer{};
     ULONG bytes = static_cast<ULONG>(buffer.size());
     if (::GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_SKIP_ANYCAST |
             GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
@@ -105,7 +106,14 @@ bool findInterfaceAddress(std::string_view name,
 #else
     ifaddrs *addresses = nullptr;
     if (::getifaddrs(&addresses) != 0) return false;
-    const unsigned int index = ::if_nametoindex(std::string(name).c_str());
+    // The public API bounds the name; avoid allocation in a noexcept path.
+    if (name.empty() || name.size() >= 128U) {
+        ::freeifaddrs(addresses);
+        return false;
+    }
+    std::array<char, 128> nativeName{};
+    std::memcpy(nativeName.data(), name.data(), name.size());
+    const unsigned int index = ::if_nametoindex(nativeName.data());
     for (auto *entry = addresses; entry; entry = entry->ifa_next) {
         if (!entry->ifa_addr || name != entry->ifa_name ||
             (entry->ifa_flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING) ||
@@ -193,12 +201,16 @@ LanListenerResult openLanListener(LanListenerRequest request) noexcept {
         result.error = LanListenerError::InvalidSelection;
         return result;
     }
+    // A bounded, NUL-terminated numeric literal; no DNS or heap allocation.
+    std::array<char, 65> numericAddress{};
+    std::memcpy(numericAddress.data(), request.numericAddress.data(),
+                request.numericAddress.size());
     sockaddr_storage wanted{};
     auto &v4 = reinterpret_cast<sockaddr_in &>(wanted);
     auto &v6 = reinterpret_cast<sockaddr_in6 &>(wanted);
-    if (::inet_pton(AF_INET, std::string(request.numericAddress).c_str(), &v4.sin_addr) == 1)
+    if (::inet_pton(AF_INET, numericAddress.data(), &v4.sin_addr) == 1)
         wanted.ss_family = AF_INET;
-    else if (::inet_pton(AF_INET6, std::string(request.numericAddress).c_str(), &v6.sin6_addr) == 1)
+    else if (::inet_pton(AF_INET6, numericAddress.data(), &v6.sin6_addr) == 1)
         wanted.ss_family = AF_INET6;
     else {
         result.error = LanListenerError::InvalidSelection;

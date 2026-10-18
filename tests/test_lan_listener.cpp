@@ -82,6 +82,19 @@ int main() {
             // there are no queued connections.
             auto empty = acceptNonblockingTcpConnection(listener.listener.nativeSocket());
             assert(empty.outcome == TcpAcceptOutcome::WouldBlock);
+            // Native positive path: the SAME listening socket is borrowed by
+            // R1's existing acceptor; TCP peer metadata is never OS admission.
+            const int client = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            assert(client >= 0);
+            assert(::connect(client, reinterpret_cast<const sockaddr *>(&endpoint),
+                             sizeof(endpoint)) == 0);
+            auto accepted = acceptNonblockingTcpConnection(listener.listener.nativeSocket());
+            assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+            assert(accepted.connection.valid());
+            assert(accepted.connection.peerEndpoint().valid());
+            assert(accepted.connection.peerEndpoint().family == TcpPeerAddressFamily::Ipv4);
+            accepted.connection.close();
+            ::close(client);
             listener.listener.close();
             assert(!listener.listener.interfaceStillMatches());
         } else {

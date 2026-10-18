@@ -1,3 +1,9 @@
+## R3 static CLIPRDR Microsoft channel-flags and reconnect generation correction (2026-10-18)
+
+Normative MS-RDPBCGR sections 2.2.6.1.1 and 3.1.5.2.2 require ignoring incoming SUSPEND/RESUME and SHADOW_PERSISTENT flags, and support FIRST/LAST reassembly independently of the optional SHOW_PROTOCOL header-visibility bit. The R3 first increment unnecessarily rejected those harmless client flags. This follow-up keeps compression and unknown-bit denial, adds an explicit offline `transport.cliprdr-ignored-client-flags` CTest, and ensures genuinely broker-created clipboard route generations use a single overflow-safe process-wide atomic R3 allocator instead of restarting at 1 for each connection. This prevents same-channel/generation ABA across connection replacements. Full production tests for these source changes remain **NOT RUN / pending on publication**.
+
+The preceding header-corrected source `d81bcff7` passed its Linux production R2 build and all eight new R3 CLIPRDR CTests in Ubuntu (8/8). Its ordinary Ubuntu and hosted macOS full CTests **FAILED** solely on the separately introduced R8 `clipboard.windows-clipboard-publication-midcallback-retirement` assertion at test_windows_clipboard_adapter.cpp:525; R8 owns that failure, not R3 and not an authenticated Microsoft-client session. No live clipboard/FileContents activation or deployment is permitted without real R2/R10 admission.
+
 ## R10 protected genuine Client Info intake after joined MCS (2026-10-18)
 
 **Source parent `d81bcff7bdb7910f59a7b0ed290667dd6411910c`; publication-SHA CI PENDING, owner-local

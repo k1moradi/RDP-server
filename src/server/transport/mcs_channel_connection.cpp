@@ -5,6 +5,7 @@
 #include "rdp/gfx_avc420_capabilities.h"
 
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -20,6 +21,27 @@ namespace rdp_server::server::transport
 {
 namespace
 {
+// The sole R3 process-wide clipboard route-generation allocator. Native
+// session replacements must never reuse an old static channel tuple, even
+// if its MCS channel ID is assigned again by a later connection.
+std::atomic<std::uint64_t> nextClipboardRouteGeneration{1U};
+
+[[nodiscard]] std::optional<std::uint64_t>
+allocateClipboardRouteGeneration() noexcept
+{
+    auto generation =
+        nextClipboardRouteGeneration.load(std::memory_order_relaxed);
+    while (generation != 0U &&
+           generation != std::numeric_limits<std::uint64_t>::max())
+    {
+        if (nextClipboardRouteGeneration.compare_exchange_weak(
+                generation, generation + 1U,
+                std::memory_order_relaxed, std::memory_order_relaxed))
+            return generation;
+    }
+    return std::nullopt;
+}
+
 // T.125 aligned BASIC-PER nonnegative unconstrained INTEGER for
 // ErectDomainRequest subHeight/subInterval. One short length octet
 // followed by exactly 1..4 significant bytes. No fragmented PER
@@ -2022,10 +2044,9 @@ McsSessionLifecycle::resolveVerifiedR2ActivatedClipboardChannel(
         return current;
     }
 
-    const auto previousGeneration = clipboardStaticChannel_.lastGeneration();
-    if (previousGeneration == std::numeric_limits<std::uint64_t>::max() ||
-        !clipboardStaticChannel_.start(
-            allocatedUserId_, *channel, previousGeneration + 1U,
+    const auto newGeneration = allocateClipboardRouteGeneration();
+    if (!newGeneration || !clipboardStaticChannel_.start(
+            allocatedUserId_, *channel, *newGeneration,
             shareActivation_.serverToClientVirtualChannelChunkBytes()))
     {
         close();

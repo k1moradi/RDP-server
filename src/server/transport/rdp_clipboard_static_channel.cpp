@@ -13,6 +13,9 @@ namespace
 constexpr std::uint32_t kChannelFirst = 0x00000001U;
 constexpr std::uint32_t kChannelLast = 0x00000002U;
 constexpr std::uint32_t kChannelShowProtocol = 0x00000010U;
+constexpr std::uint32_t kChannelSuspend = 0x00000020U;
+constexpr std::uint32_t kChannelResume = 0x00000040U;
+constexpr std::uint32_t kChannelShadowPersistent = 0x00000080U;
 constexpr std::size_t kChannelHeaderBytes = 8U;
 
 [[nodiscard]] std::uint32_t readLe32(
@@ -69,8 +72,12 @@ RdpClipboardChunkIntake RdpClipboardStaticChannelRoute::receive(
 
     const std::uint32_t totalLength = readLe32(virtualChannelData, 0U);
     const std::uint32_t flags = readLe32(virtualChannelData, 4U);
-    // Reject compression, unknown control flags and suspend/resume.
-    if ((flags & ~(kChannelFirst | kChannelLast | kChannelShowProtocol)) != 0U ||
+    // Client-to-server SUSPEND/RESUME and SHADOW_PERSISTENT are ignored
+    // by definition. Unsupported compression and unknown bits are terminal.
+    constexpr std::uint32_t permittedFlags =
+        kChannelFirst | kChannelLast | kChannelShowProtocol |
+        kChannelSuspend | kChannelResume | kChannelShadowPersistent;
+    if ((flags & ~permittedFlags) != 0U ||
         totalLength < 8U || totalLength > clipboard::kMaximumPduBytes)
     {
         close();
@@ -82,9 +89,7 @@ RdpClipboardChunkIntake RdpClipboardStaticChannelRoute::receive(
     const auto fragment = virtualChannelData.subspan(kChannelHeaderBytes);
     if ((assembling_ && first) || (!assembling_ && !first) ||
         (first && fragment.size() > totalLength) ||
-        (!first && expectedInboundBytes_ != totalLength) ||
-        (first && !last && (flags & kChannelShowProtocol) == 0U) ||
-        (!first && (flags & kChannelShowProtocol) == 0U))
+        (!first && expectedInboundBytes_ != totalLength))
     {
         close();
         return RdpClipboardChunkIntake::Rejected;

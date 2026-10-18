@@ -596,6 +596,7 @@ foreach(case_name IN ITEMS
         generation-replacement
         wrong-role-compression
         fragment-abort-conditions
+        ignored-client-flags
         outbound-write-receipts
         stale-receipt-abort
         terminal-partial-abort)

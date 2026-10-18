@@ -153,6 +153,33 @@ void fragmentAbortConditions()
            RdpClipboardChunkIntake::Rejected);
 }
 
+void ignoredClientFlags()
+{
+    const auto message = pdu(1900U);
+    std::span<const std::uint8_t> decoded;
+    RdpClipboardStaticChannelRoute route;
+    assert(route.start(1005U, 1008U, 1U, 1600U));
+    // MS-RDPBCGR SUSPEND/RESUME are ignored in client-to-server traffic;
+    // SHADOW_PERSISTENT is ignored by both peers. SHOW_PROTOCOL does not
+    // turn the transport header into a CLIPRDR application PDU.
+    const auto firstChunk = chunk(message, 0U, 1500U, 0x000000e1U);
+    const auto lastChunk = chunk(
+        message, 1500U, message.size() - 1500U, 0x00000082U);
+    assert(route.receive(1008U, 1U, firstChunk, decoded) ==
+           RdpClipboardChunkIntake::NeedMore);
+    assert(route.receive(1008U, 1U, lastChunk, decoded) ==
+           RdpClipboardChunkIntake::Complete);
+    assert(std::ranges::equal(decoded, message));
+
+    RdpClipboardStaticChannelRoute single;
+    assert(single.start(1005U, 1008U, 2U, 1600U));
+    const auto small = pdu(30U);
+    const auto singleChunk = chunk(small, 0U, small.size(), 0x03U);
+    assert(single.receive(1008U, 2U, singleChunk, decoded) ==
+           RdpClipboardChunkIntake::Complete);
+    assert(std::ranges::equal(decoded, small));
+}
+
 void outboundReceipts()
 {
     RdpClipboardStaticChannelRoute route;
@@ -256,6 +283,8 @@ int main(int argc, char **argv)
         fragmentAbortConditions();
     else if (testName == "outbound-write-receipts")
         outboundReceipts();
+    else if (testName == "ignored-client-flags")
+        ignoredClientFlags();
     else if (testName == "stale-receipt-abort")
         staleReceiptAbort();
     else if (testName == "terminal-partial-abort")

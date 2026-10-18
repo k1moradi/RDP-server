@@ -2493,3 +2493,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             PROPERTIES LABELS "packaging;linux;security;offline" TIMEOUT 30)
     endif()
 endif()
+
+# R1 opt-in LAN listener: production socket/interface validation without
+# creating a daemon, a second acceptor, SSL owner, or an OS admission lease.
+add_executable(test_lan_listener test_lan_listener.cpp)
+target_link_libraries(test_lan_listener PRIVATE rdp-server-protocol)
+if(MSVC)
+    target_compile_options(test_lan_listener PRIVATE /UNDEBUG)
+else()
+    target_compile_options(test_lan_listener PRIVATE -UNDEBUG)
+endif()
+add_test(NAME transport.lan-listener-native-bind-denials
+    COMMAND test_lan_listener)
+set_tests_properties(transport.lan-listener-native-bind-denials PROPERTIES
+    LABELS "protocol;transport;native;security" TIMEOUT 20)

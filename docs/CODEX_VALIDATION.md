@@ -1,3 +1,12 @@
+## R9 repair of malformed native-poll workflow (2026-10-17)
+
+Workflow SHA `3354c05f` failed structure validation because an authoring
+replacement expanded a shell regex end marker and corrupted the YAML.
+This correction rebuilds the sanitizer step from the last valid workflow,
+retaining the existing jobs, 28-test runtime-security gate and disabled
+SERVER-TEST producer/aggregate. The failed run cannot be called green;
+verify this corrective exact SHA in fresh hosted Actions.
+
 ## R1 R10-native-poll and TCP-reset review (2026-10-17)
 
 **Reviewed R10 source:** `10baf2c10d1b2335d8bfbed194e2f01f902d38af`.

@@ -1,3 +1,36 @@
+## R1 Connect Response transport audit (2026-10-17)
+
+**R10 source reviewed:** `b7f0ab66b91628ef4eb448021d102834097cd9fb`.
+Admitted R3 MCS Connect Response suffixes now pass only through the exact
+R1-owned nonblocking `SSL_write_ex` on the original SSL/BIO/socket.
+Pending TLS WANT_READ/WANT_WRITE takes precedence over new POLLOUT;
+R2 freshly authorizes both the R3 slice borrow and the exact positive
+plaintext-byte receipt before R3 advances its reply/write-slice sequence.
+Terminal I/O or stale R2 authority revokes the aggregate. No competing
+reader, writer or response-byte cache was found; no new R1 production
+correction was warranted by the source review.
+
+Existing real-loopback R1 cases
+`transport.tcp-owned-r3-connect-response-slice` and
+`transport.tcp-owned-tls-application-partial-write` cover bounded positive
+short TLS writes, suffix sequence identity and WANT retry without claiming
+a genuine R2 lease. The new R10
+`runtime.linux-connection-post-admission-mcs-response-denials` CTest
+covers no-lease and late-event denial. **R2 concurrently closed the
+missing sanitizer coverage** at `46405df80b07839e1f7018bc44d898dc6e054788`
+(30→31 cases), so R1 deliberately published no competing CI edit.
+
+R10 still revokes after delivered Connect Response. The next code gate
+is genuine Erect Domain, Attach User/Confirm, Channel Join/Confirm and
+Client Info serialization plus orderly native logind watcher retirement.
+R3's slow-path input parsing has landed, but native input must wait
+for a joined/Share-authorized session and R10 OS-owner composition.
+
+**Validation:** source review only; local build/CTest **NOT RUN** here,
+exact-head hosted sanitizer/full-CI **NOT VERIFIED** by this review.
+Owner-authorized Linux physical X11 seat0 Kerberos/PAM/NSS/logind and
+Microsoft-client genuine positive acceptance remain **BLOCKED / NOT RUN**.
+
 ## R9 new authenticated R3 slow-path input sanitizer sentinel (2026-10-18)
 
 R3 now parses complete slow-path Input PDUs, rejects malformed event/count

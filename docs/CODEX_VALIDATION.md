@@ -1,3 +1,26 @@
+## R8 R2-protected Linux runtime clipboard gateway seam (2026-10-18)
+
+Authoring parent `5103e8524943309d7f6fa382dbf26c21e3cca9df`. R10 has now landed genuine Share activation,
+Graphics DVC control and one R2-selected X11 owner/native watch. R8 therefore
+adds the narrow connection-local seam needed for later composition: visit the
+current R3 clipboard route, dispatch one complete TPKT through R3 reassembly,
+queue one complete CLIPRDR PDU, borrow the exact pending R3 write and commit only
+R1's exact positive accepted-byte receipt. All five operations re-enter the
+existing R2 broker and perform no TLS I/O, route generation, native selection or
+clipboard publication themselves.
+
+Dedicated ordinary CTest
+`runtime.linux-connection-personal-desktop-clipboard-gateway-denials` proves
+all five remain terminal without a genuine lease/policy lifetime and never
+invoke the supplied route/PDU callbacks. It is enrolled in R9's direct
+runtime-security sanitizer selector, expanding that inventory **38→39**. Local
+`~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. Live CLIPRDR remains
+**BLOCKED** on R10 keeping the R2-selected X11 owner and borrowed logind watch
+alive in one persistent post-Share application loop; the current runtime still
+disconnects that owner after one bounded poll cycle, so no `X11ClipboardAdapter`
+is constructed and no clipboard/FileContents capability is advertised.
+
 ## R9 Windows native package failure isolation and bounded smoke (2026-10-18)
 
 On exact `bdefd837eb8acd3cb7e83e8380befab4742e3a11`, all Windows CLANG64 Debug/Release compile and CTest work before the new package step succeeds, but `R9 package native Windows GUI and verify PE closure` fails. The next smoke step nevertheless starts because it was conditioned only on the Release build outcome, and `Invoke-OfflineMode` used unbounded `Start-Process -Wait`. The job therefore remains in progress after the package failure and GitHub does not expose the completed redirected log needed to diagnose the first package error.

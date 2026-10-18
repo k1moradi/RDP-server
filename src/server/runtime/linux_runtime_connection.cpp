@@ -3006,6 +3006,103 @@ bool LinuxRuntimeConnection::authorizePersonalDesktopApplicationTraffic(
     return true;
 }
 
+bool LinuxRuntimeConnection::visitPersonalDesktopClipboardChannel(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    rdp_server::server::transport::RdpClipboardChannelVisitor visitor) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !broker_->visitR3PersonalDesktopClipboardChannel(
+            &*lease_, acceptor_, connection_, session_, deploymentPolicy,
+            visitor))
+    {
+        revoke();
+        return false;
+    }
+    return true;
+}
+
+bool LinuxRuntimeConnection::dispatchPersonalDesktopClipboardTpkt(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt,
+    rdp_server::server::transport::RdpClipboardCompletePduSink sink) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !broker_->dispatchR3PersonalDesktopClipboardTpkt(
+            &*lease_, acceptor_, connection_, session_, deploymentPolicy,
+            completeTpkt, sink))
+    {
+        revoke();
+        return false;
+    }
+    return true;
+}
+
+std::optional<
+    rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+LinuxRuntimeConnection::queuePersonalDesktopClipboardPdu(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::span<const std::uint8_t> completePdu) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        personalDesktopPolicy_ != &deploymentPolicy)
+    {
+        revoke();
+        return std::nullopt;
+    }
+
+    auto pending = broker_->queueR3PersonalDesktopClipboardPdu(
+        &*lease_, acceptor_, connection_, session_, deploymentPolicy,
+        completePdu);
+    if (!pending)
+        revoke();
+    return pending;
+}
+
+std::optional<
+    rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+LinuxRuntimeConnection::pendingPersonalDesktopClipboardWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
+{
+    if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        personalDesktopPolicy_ != &deploymentPolicy)
+    {
+        revoke();
+        return std::nullopt;
+    }
+
+    auto pending = broker_->pendingR3PersonalDesktopClipboardWrite(
+        &*lease_, acceptor_, connection_, session_, deploymentPolicy);
+    if (!pending &&
+        session_.phase() ==
+            rdp_server::server::transport::McsSessionPhase::Closed)
+        revoke();
+    return pending;
+}
+
+rdp_server::server::transport::RdpClipboardWriteOutcome
+LinuxRuntimeConnection::completePersonalDesktopClipboardWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::uint64_t routeGeneration, std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept
+{
+    using Outcome =
+        rdp_server::server::transport::RdpClipboardWriteOutcome;
+
+    const auto outcome =
+        broker_ != nullptr && personalDesktopPolicy_ == &deploymentPolicy
+            ? broker_->completeR3PersonalDesktopClipboardWrite(
+                  lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+                  acceptor_, connection_, session_, deploymentPolicy,
+                  routeGeneration, replySequence, writeSliceSequence,
+                  acceptedBytes)
+            : Outcome::Rejected;
+    if (outcome == Outcome::Rejected)
+        revoke();
+    return outcome;
+}
+
 int LinuxRuntimeConnection::nativeChangeFd() const noexcept
 {
     return ready() && hasAdmissionLease() && broker_ &&

@@ -695,6 +695,33 @@ public:
     [[nodiscard]] bool authorizePersonalDesktopApplicationTraffic(
         const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 
+    // R8-facing post-Share gateway only. These methods perform no TLS I/O,
+    // native clipboard publication or scheduling. R10 must call them only from
+    // the serialized connection loop; every operation re-enters R2 before R3.
+    [[nodiscard]] bool visitPersonalDesktopClipboardChannel(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        rdp_server::server::transport::RdpClipboardChannelVisitor visitor)
+        noexcept;
+    [[nodiscard]] bool dispatchPersonalDesktopClipboardTpkt(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt,
+        rdp_server::server::transport::RdpClipboardCompletePduSink sink)
+        noexcept;
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+    queuePersonalDesktopClipboardPdu(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completePdu) noexcept;
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+    pendingPersonalDesktopClipboardWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpClipboardWriteOutcome
+    completePersonalDesktopClipboardWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint64_t routeGeneration, std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept;
+
     // Borrow the R2-owned logind monitor fd and libsystemd poll mask only
     // after genuine admission with a live lease. Both are -1 otherwise.
     // Neither value owns/duplicates a descriptor or grants authorization.

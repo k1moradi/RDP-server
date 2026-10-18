@@ -2713,6 +2713,100 @@ void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPersonalDesktopClipboardGatewayDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-desktop-clipboard-gateway.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(true, 3389U));
+
+    const auto routeVisitor =
+        [](void *context,
+           rdp_server::server::transport::RdpClipboardStaticChannelView)
+            noexcept {
+            *static_cast<bool *>(context) = true;
+            return true;
+        };
+    const auto pduSink =
+        [](void *context, std::span<const std::uint8_t>) noexcept {
+            *static_cast<bool *>(context) = true;
+            return true;
+        };
+    const std::array<std::uint8_t, 4> completeTpkt{3U, 0U, 0U, 4U};
+    const std::array<std::uint8_t, 8> completeClipboardPdu{};
+
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        bool invoked = false;
+        assert(!connection.visitPersonalDesktopClipboardChannel(
+            personalPolicy, {&invoked, routeVisitor}));
+        assert(!invoked && !connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        bool invoked = false;
+        assert(!connection.dispatchPersonalDesktopClipboardTpkt(
+            personalPolicy, completeTpkt, {&invoked, pduSink}));
+        assert(!invoked && !connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(!connection.queuePersonalDesktopClipboardPdu(
+            personalPolicy, completeClipboardPdu));
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(!connection.pendingPersonalDesktopClipboardWrite(
+            personalPolicy));
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(connection.completePersonalDesktopClipboardWrite(
+                   personalPolicy, 1U, 1U, 1U, 1U) ==
+               rdp_server::server::transport::
+                   RdpClipboardWriteOutcome::Rejected);
+        assert(!connection.ready());
+        connection.revoke();
+        assert(connection.completePersonalDesktopClipboardWrite(
+                   personalPolicy, 1U, 1U, 1U, 1U) ==
+               rdp_server::server::transport::
+                   RdpClipboardWriteOutcome::Rejected);
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPersonalDesktopR3AuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3159,6 +3253,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-valid-client-r1-write-denials")
     {
         testConnectionPersonalDesktopValidClientR1WriteDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-desktop-clipboard-gateway-denials")
+    {
+        testConnectionPersonalDesktopClipboardGatewayDenials(
             fixtureDirectory);
         return 0;
     }

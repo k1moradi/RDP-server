@@ -1,3 +1,16 @@
+## R8 Linux runtime clipboard gateway denial boundary (2026-10-18)
+
+The post-Share runtime may expose R8 only through the existing R2 broker's five
+CLIPRDR operations: route visit, complete-TPKT dispatch, application-PDU queue,
+pending-write borrow and exact accepted-byte completion. These connection
+wrappers perform no TLS I/O, native clipboard publication or scheduling and must
+fail terminally without the exact PersonalDesktop policy plus genuine current
+R2 lease. `runtime.linux-connection-personal-desktop-clipboard-gateway-denials`
+exercises all five operations without fabricating positive admission and is
+included in the direct runtime-security sanitizer selector, which grows from
+38 to 39 cases. A positive live test still requires owner-authorized physical
+seat0 credentials; ordinary CI must not synthesize that lease.
+
 ## R6 portable Windows canonical-runtime-name regression (2026-10-18)
 
 Portable GUI tests must not depend on the host filesystem being case-sensitive.

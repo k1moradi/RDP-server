@@ -1,3 +1,47 @@
+## R2 accepted Linux connection deadline security review (2026-10-17)
+
+**Reviewed upstream:** `10baf2c10d1b2335d8bfbed194e2f01f902d38af`
+(R10 serialized listener/X.224/TLS/CredSSP); `2599158096586365035bc1b29793622f4b17115c`
+(R1 real TLS and rejected CredSSP through native poll).
+R10 checks `CredentialsVerified` before `issueAdmission()`; the
+production broker independently requires final TLS-bound GSS/PAM credential
+proof, policy identity, NSS/logind `seat0` observation and active native
+session monitor before issuing any move-only lease. No authorization shortcut
+was identified. The service deliberately revokes the admitted connection at
+first MCS Connect Initial until R10 supplies the protected response/join writer.
+
+**New missing regression:** `runtime.linux-connection-native-poll-expiry-revocation`
+drives a real accepted loopback socket into pending X.224 HYBRID write,
+expires the production R10 native poll deadline, and requires ordered
+R3/R2/GSS/R1 revocation. Later poll, synthetic readiness and attempted
+admission must remain closed. No live credentials, desktop or positive lease.
+Include this and R1's existing pre-admission native-poll test in the
+R9 direct runtime-security sanitizer selection (28→30) with exact sentinels.
+
+Canonical owner command and focused test:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+-DRDP_SERVER_TEST_LINUX_GSSAPI=ON -DRDP_SERVER_TEST_LINUX_PAM=ON`;
+`cmake --build build --config Debug --parallel 2 --target
+test_runtime_linux_security`;
+`ctest --test-dir build -C Debug --output-on-failure
+-R '^runtime\\.linux-connection-(pre-admission-native-poll|native-poll-expiry-revocation)$'`.
+At authorship, local compile/CTest **NOT RUN** in connector environment,
+exact publication-SHA hosted CI **PENDING / NOT RUN**. Genuine TERMSRV/PAM/
+NSS/logind physical X11 `seat0` acceptance **BLOCKED / NOT RUN** until
+explicit owner approval. Next R10 gate: protected MCS Connect Response /
+AttachUser / ChannelJoin runtime composition.
+
+## R9 R10 native-poll sanitizer coverage (2026-10-17)
+
+R10 has landed a bounded production `LinuxRuntimeConnection` socket-readiness
+poll with centrally registered `runtime.linux-connection-pre-admission-native-poll`.
+R9 now runs this single real-socket test under Clang ASan/UBSan with an exact
+one-test registry assertion. It is deliberately **additive** to the existing
+28-test runtime-security selection: neither that count nor the established
+Graphics, R4, R5, R6, R7, or clipboard test gates change. The test cannot mint
+an R2 lease or establish live desktop authority. The next runtime graph edge
+is R10's post-Connect-Initial MCS Response/AttachUser/ChannelJoin composition.
+
 ## R4 external AVC420 zero-publication IDR recovery (2026-10-17)
 
 R3's production Graphics DATA owner can conclusively cancel a move-only

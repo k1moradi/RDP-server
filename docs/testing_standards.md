@@ -87,7 +87,18 @@ cover initial licensing, positive short-write suffix continuation, Valid Client,
 Share and Graphics writes, R1 WANT_READ/WANT_WRITE precedence, invalid retry
 direction, cancellation and terminal revocation without creating an admission
 lease or starting a listener. The R9 direct runtime-security sanitizer inventory
-is **28** cases.
+is **30** cases after including the two native-poll guards.
+
+## R2 serialized-connection poll expiry assurance (2026-10-17)
+
+The new production `runtime.linux-connection-native-poll-expiry-revocation`
+CTest uses real loopback HYBRID X.224 and a pending server write to prove
+the exact R10 native poll deadline revokes R3/R2/GSS/R1 before dispatch.
+A later deadline, stale readiness or an admission attempt cannot revive it.
+R1's expanded `runtime.linux-connection-pre-admission-native-poll`
+already tests actual TLS and rejected CredSSP. Both cases must be selected by
+R9's direct Linux runtime-security sanitizer preflight: 28→30.
+The tests mint no lease, run no PAM authentication and visit no desktop.
 
 ## R2 production preflight denial coverage (2026-10-17)
 

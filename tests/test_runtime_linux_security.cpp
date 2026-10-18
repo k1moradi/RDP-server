@@ -1466,6 +1466,64 @@ void testConnectionPreAdmissionNativePoll(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionNativePollExpiryRevocation(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPreAdmissionStepStatus;
+    using Poll = LinuxRuntimeSocketPollStatus;
+    using Clock = std::chrono::steady_clock;
+    using namespace std::chrono_literals;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-native-poll-expiry.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "native-poll-expiry");
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    // Even a genuinely pending HYBRID write cannot outlive the R10 deadline.
+    assert(sendSocketAll(clientDescriptor, kHybridNlaRequest));
+    const auto readReady =
+        connection.pollSocketReadinessOnce(Clock::now() + 2s, 25ms);
+    assert(readReady.status == Poll::Ready && readReady.readable);
+    auto step = connection.advancePreAdmission(
+        readReady.readable, readReady.writable, tlsContext);
+    assert(step.status == Step::NeedWrite);
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Write);
+
+    // Check expiry before permitting an otherwise writable socket to advance.
+    const auto expired =
+        connection.pollSocketReadinessOnce(Clock::now() - 1ms, 25ms);
+    assert(expired.status == Poll::Expired);
+    assert(!expired.readable && !expired.writable);
+    assert(!connection.ready());
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(connection.admissionState() ==
+           LinuxConsoleAdmissionState::Revoked);
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    const auto retry =
+        connection.pollSocketReadinessOnce(Clock::now() + 2s, 0ms);
+    assert(retry.status == Poll::Closed);
+    assert(!retry.readable && !retry.writable);
+    step = connection.advancePreAdmission(true, true, tlsContext);
+    assert(step.status == Step::Closed);
+    assert(step.plaintextBytesRead == 0U);
+    assert(step.plaintextBytesWritten == 0U);
+    assert(!connection.issueAdmission({}));
+    assert(!connection.hasAdmissionLease());
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionCredSspRevocationOrder(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2556,6 +2614,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-pre-admission-native-poll")
     {
         testConnectionPreAdmissionNativePoll(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-native-poll-expiry-revocation")
+    {
+        testConnectionNativePollExpiryRevocation(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-post-admission-mcs-framing-denials")

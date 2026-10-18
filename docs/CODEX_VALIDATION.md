@@ -6601,3 +6601,27 @@ bridge into the production executable. R10 intentionally does not invoke it
 yet: production still performs one zero-timeout native poll/event drain and
 then disconnects/revokes, pending a single R1 complete-TPKT post-Share router.
 No concrete `RuntimeHostControl` exists, so live Qt Start remains BLOCKED.
+
+### R7 macOS staged install-ID normalization (2026-10-18)
+
+Exact `a2b363600c1f` primary run `39131048090` is green in every job
+except `r7-macos-portable-gui`: Ubuntu/macOS/Windows protocol, R9 sanitizer,
+R5 Linux GUI ZIP, R6 Windows Clang23, both R2 runtime-security variants, both
+R7 native/sanitizer jobs, documentation and preview aggregate all PASS. The
+macOS package job builds the real app, PASSes the archive CTest, completes the
+minimal Cocoa `macdeployqt` deployment and PASSes the common R9
+PORTABLE-GUI verifier. Its final `otool -L` audit shows only absolute staged
+install-name entries for copied brotli and QtCore/QtGui/QtDBus binaries, then
+correctly fails on the Homebrew-prefix policy.
+
+This correction keeps that policy strict: absolute staged framework/plugin
+install IDs are rewritten to bundle-relative `@rpath` IDs after deployment,
+then the final preview app is ad-hoc signed so arm64 integrity covers the
+mutated bytes. Added
+`packaging.macos-portable-gui-install-id-normalization`. Local/native
+execution is NOT RUN here; publication-SHA Mach-O closure is PENDING.
+
+Dependency recheck: R5 now includes MouseX side-button mapping and R8 links
+its dormant clipboard bridge, but R10 still has no persistent single-reader
+post-Share TPKT router and no concrete `RuntimeHostControl`; live Qt Start
+remains BLOCKED at that authority boundary.

@@ -99,6 +99,12 @@ add_test(NAME packaging.macos-portable-gui-minimal-cocoa-deployment
         MacGuiBundleTests.test_macdeployqt_minimal_cocoa_deployment_command)
 set_tests_properties(packaging.macos-portable-gui-minimal-cocoa-deployment
     PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
+add_test(NAME packaging.macos-portable-gui-install-id-normalization
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_gui_bundle.py"
+        MacGuiBundleTests.test_absolute_install_ids_normalized_before_adhoc_signing)
+set_tests_properties(packaging.macos-portable-gui-install-id-normalization
+    PROPERTIES LABELS "macos;packaging;gui;security;offline" TIMEOUT 30)
 
 # R7 optional per-user LaunchAgent contract. Rendering is offline and refuses
 # implicit registration; tests never invoke a service manager or native APIs.

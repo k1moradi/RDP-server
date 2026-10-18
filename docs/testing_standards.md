@@ -4182,3 +4182,18 @@ VirtualKeyboard, PDF or SVG plugin closures.
 runner and proves the production command contains `-no-plugins`,
 `-no-codesign` and the exact staged Cocoa plugin, without invoking Qt,
 AppKit, codesign, TCC or networking.
+
+## macOS staged Mach-O install IDs are bundle-relative before ad-hoc signing (R7, 2026-10-18)
+
+The native package audit must not whitelist Homebrew prefixes simply because
+`otool -L` reports a staged framework or dylib's own install ID. After
+`macdeployqt` completes with signing disabled, the packager enumerates each
+unique Mach-O inside the staged app, reads its install ID with `otool -D`,
+and rewrites absolute framework/plugin IDs to a bundle-relative `@rpath`
+identity with `install_name_tool -id`. It then ad-hoc signs the completed
+development-preview app so arm64 code-directory integrity covers those final
+bytes. Trusted/release signing remains false and notarization remains false.
+
+`packaging.macos-portable-gui-install-id-normalization` injects tool
+execution and proves framework/Cocoa IDs are rewritten before the final
+ad-hoc sign without invoking AppKit, TCC, networking or a live server.

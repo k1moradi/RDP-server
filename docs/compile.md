@@ -1166,3 +1166,14 @@ archive unsigned as declared in its metadata and avoids dragging unrelated
 Homebrew Qt QML/VirtualKeyboard/PDF plugin trees into the package. Native CI
 still rejects any extracted Mach-O dependency that resolves to Homebrew or a
 runner-home path.
+
+## macOS staged install-ID normalization and ad-hoc preview signing (2026-10-18)
+
+Homebrew Qt may retain absolute install IDs even after `macdeployqt` has
+copied and patched the app. The R7 packager therefore normalizes staged
+framework/plugin Mach-O IDs to bundle-relative `@rpath` IDs after deployment,
+then runs `codesign --force --deep --sign -` on the finished app. This is
+only an ad-hoc arm64 execution signature; `SIGNING-TRUST.json` continues to
+report `signed=false` and `notarized=false` for release trust, with
+`ad_hoc_signed=true`. Native CI continues to reject any remaining
+Homebrew/runner dependency or install-name references.

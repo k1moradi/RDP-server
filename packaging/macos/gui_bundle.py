@@ -147,6 +147,74 @@ def query_qt_plugin_root(macdeployqt: Path, runner=subprocess.run) -> Path:
     return plugin_root
 
 
+def is_macho(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        with path.open("rb") as source:
+            return source.read(4) in MACHO_MAGICS
+    except OSError:
+        return False
+
+
+def unique_staged_machos(staged_app: Path) -> list[Path]:
+    root = staged_app.resolve(strict=True)
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for candidate in sorted(staged_app.rglob("*")):
+        if candidate.is_dir():
+            continue
+        try:
+            resolved = candidate.resolve(strict=True)
+        except OSError as error:
+            raise MacGuiBundleError(
+                "deployed app contains an unavailable entry") from error
+        require(inside(resolved, staged_app),
+                "deployed app contains an escaping link")
+        if resolved in seen or not is_macho(resolved):
+            continue
+        seen.add(resolved)
+        result.append(resolved)
+    return result
+
+
+def portable_install_id(path: Path, staged_app: Path) -> str | None:
+    relative = path.relative_to(staged_app.resolve(strict=True))
+    parts = relative.parts
+    if len(parts) >= 3 and parts[:2] == ("Contents", "Frameworks"):
+        return "@rpath/" + PurePosixPath(*parts[2:]).as_posix()
+    if len(parts) >= 4 and parts[:2] == ("Contents", "PlugIns"):
+        return "@rpath/" + path.name
+    return None
+
+
+def normalize_macho_install_ids(staged_app: Path,
+                                runner=subprocess.run) -> None:
+    for binary in unique_staged_machos(staged_app):
+        desired = portable_install_id(binary, staged_app)
+        if desired is None:
+            continue
+        result = runner(
+            ["otool", "-D", str(binary)], capture_output=True, text=True,
+            timeout=30, check=True, stdin=subprocess.DEVNULL)
+        lines = [line.strip() for line in result.stdout.splitlines()
+                 if line.strip()]
+        if len(lines) < 2:
+            continue
+        current = lines[1]
+        if not current.startswith("/"):
+            continue
+        runner(
+            ["install_name_tool", "-id", desired, str(binary)],
+            check=True, timeout=30, stdin=subprocess.DEVNULL)
+
+
+def adhoc_sign_app(staged_app: Path, runner=subprocess.run) -> None:
+    runner(
+        ["codesign", "--force", "--deep", "--sign", "-", str(staged_app)],
+        check=True, timeout=120, stdin=subprocess.DEVNULL)
+
+
 def deploy_with_macdeployqt(app: Path, staging: Path,
                             macdeployqt: Path, runner=subprocess.run) -> None:
     deployment_tool = resolve_macdeployqt(macdeployqt)
@@ -166,6 +234,8 @@ def deploy_with_macdeployqt(app: Path, staging: Path,
         [str(deployment_tool), str(staged_app), "-always-overwrite",
          "-no-plugins", "-no-codesign", f"-executable={staged_plugin}"],
         check=True, timeout=240, cwd=staging, stdin=subprocess.DEVNULL)
+    normalize_macho_install_ids(staged_app, runner)
+    adhoc_sign_app(staged_app, runner)
 
 
 def collect_files(staged_app: Path) -> dict[str, Path]:
@@ -252,7 +322,8 @@ def bundle(output: Path, app: Path, macdeployqt: Path, source_sha: str,
                 sort_keys=True, separators=(",", ":")).encode(),
             "metadata/SIGNING-TRUST.json": json.dumps(
                 {"signed": False, "notarized": False,
-                 "trust": "release signing/notarization not verified; development preview only"},
+                 "ad_hoc_signed": True,
+                 "trust": "ad-hoc signed for local arm64 execution only; release signing/notarization not verified"},
                 sort_keys=True, separators=(",", ":")).encode(),
         }
         dependencies = sorted(

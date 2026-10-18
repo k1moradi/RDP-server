@@ -108,6 +108,7 @@ class MacGuiBundleTests(unittest.TestCase):
             (extracted / "metadata/SIGNING-TRUST.json").read_text("utf-8"))
         self.assertFalse(signing["signed"])
         self.assertFalse(signing["notarized"])
+        self.assertTrue(signing["ad_hoc_signed"])
         shutil.rmtree(extracted)
         self.assertFalse(extracted.exists())
         self.assertTrue(self.app.is_dir())
@@ -207,6 +208,12 @@ class MacGuiBundleTests(unittest.TestCase):
             result = Result()
             if command[0] == str(qmake.resolve(strict=True)):
                 result.stdout = str((prefix / "plugins").resolve(strict=True)) + "\n"
+            elif command[:2] == ["otool", "-D"]:
+                result.stdout = f"{command[2]}:\n"
+                if command[2].endswith("libqcocoa.dylib"):
+                    result.stdout += (
+                        "/opt/homebrew/opt/qtbase/plugins/platforms/"
+                        "libqcocoa.dylib\n")
             return result
 
         staging = self.root / "staging"
@@ -217,16 +224,77 @@ class MacGuiBundleTests(unittest.TestCase):
         staged_plugin = staging / bundle.QT_PLATFORM
         self.assertTrue(staged_plugin.is_file())
         self.assertEqual(staged_plugin.read_bytes(), cocoa.read_bytes())
-        self.assertEqual(len(calls), 2)
+        commands = [call[0] for call in calls]
         self.assertEqual(
-            calls[0][0],
+            commands[0],
             [str(qmake.resolve(strict=True)), "-query", "QT_INSTALL_PLUGINS"])
-        deployment = calls[1][0]
+        deployment = commands[1]
         self.assertEqual(deployment[0], str(tool.resolve(strict=True)))
         self.assertIn("-no-plugins", deployment)
         self.assertIn("-no-codesign", deployment)
         self.assertIn(f"-executable={staged_plugin}", deployment)
         self.assertNotIn("-qmldir", " ".join(deployment))
+        self.assertIn(
+            ["install_name_tool", "-id", "@rpath/libqcocoa.dylib",
+             str(staged_plugin.resolve(strict=True))],
+            commands)
+        self.assertEqual(
+            commands[-1],
+            ["codesign", "--force", "--deep", "--sign", "-",
+             str((staging / bundle.APP_NAME))])
+
+    def test_absolute_install_ids_normalized_before_adhoc_signing(self):
+        staged = self.root / bundle.APP_NAME
+        framework = (
+            staged / "Contents/Frameworks/QtGui.framework/"
+            "Versions/A/QtGui")
+        framework.parent.mkdir(parents=True)
+        framework.write_bytes(b"\xcf\xfa\xed\xfeQtGui")
+        plugin = staged / "Contents/PlugIns/platforms/libqcocoa.dylib"
+        plugin.parent.mkdir(parents=True)
+        plugin.write_bytes(b"\xcf\xfa\xed\xfeCocoa")
+        executable = staged / "Contents/MacOS/rdp-server-desktop"
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(b"\xcf\xfa\xed\xfeGUI")
+        (staged / "Contents/Info.plist").write_bytes(plistlib.dumps({
+            "CFBundleExecutable": "rdp-server-desktop",
+            "CFBundlePackageType": "APPL",
+        }))
+
+        calls = []
+        class Result:
+            stdout = ""
+
+        def runner(command, **kwargs):
+            calls.append(command)
+            result = Result()
+            if command[:2] == ["otool", "-D"]:
+                result.stdout = f"{command[2]}:\n"
+                if command[2].endswith("/QtGui"):
+                    result.stdout += (
+                        "/opt/homebrew/opt/qtbase/lib/"
+                        "QtGui.framework/Versions/A/QtGui\n")
+                elif command[2].endswith("libqcocoa.dylib"):
+                    result.stdout += (
+                        "/opt/homebrew/opt/qtbase/plugins/platforms/"
+                        "libqcocoa.dylib\n")
+            return result
+
+        bundle.normalize_macho_install_ids(staged, runner)
+        bundle.adhoc_sign_app(staged, runner)
+
+        self.assertIn(
+            ["install_name_tool", "-id",
+             "@rpath/QtGui.framework/Versions/A/QtGui",
+             str(framework.resolve(strict=True))],
+            calls)
+        self.assertIn(
+            ["install_name_tool", "-id", "@rpath/libqcocoa.dylib",
+             str(plugin.resolve(strict=True))],
+            calls)
+        self.assertEqual(
+            calls[-1],
+            ["codesign", "--force", "--deep", "--sign", "-", str(staged)])
 
     def test_packager_has_no_host_activation_or_permission_mutator(self):
         source = (

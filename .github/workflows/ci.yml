@@ -626,10 +626,23 @@ jobs:
           python scripts/verify_windows_pe_closure.py \
             --root "$extracted" --objdump "$objdump"
       - name: R9 smoke extracted Windows GUI offline without sockets
+        id: r9_windows_gui_smoke
         if: ${{ always() && steps.r9_windows_gui_package.outcome == 'success' }}
         shell: pwsh
         run: |
           ./scripts/smoke_windows_portable_gui.ps1 -Root (Join-Path $PWD "build\Extracted PORTABLE GUI")
+      # Publish only after the extracted offline Windows smoke has passed.
+      # Keep PORTABLE-GUI separate from SDK and startup-disabled SERVER-TEST.
+      - name: Upload verified Windows x86_64 PORTABLE-GUI archive
+        if: ${{ always() && steps.r9_windows_gui_package.outcome == 'success' && steps.r9_windows_gui_smoke.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-portable-gui-windows-x86_64
+          path: |
+            build/rdp-server-portable-gui-*-windows-x86_64-*.zip
+            build/rdp-server-portable-gui-*-windows-x86_64-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
       - name: Reconfigure same root for R6 Windows sanitizers
         id: r6_windows_sanitizer_configure
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
@@ -1888,6 +1901,18 @@ jobs:
           set -euo pipefail
           python3 scripts/smoke_macos_gui_open.py \
             --app "build/Extracted macOS PORTABLE GUI/rdp-server-desktop.app"
+
+      # CI ad-hoc preview signing is not Developer ID signing or notarization.
+      # Publish only after extracted Cocoa launch, signature and Mach-O audits pass.
+      - name: Upload verified macOS arm64 PORTABLE-GUI archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-portable-gui-macos-arm64
+          path: |
+            build/rdp-server-portable-gui-*-macos-arm64-*.zip
+            build/rdp-server-portable-gui-*-macos-arm64-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
 
   r7-macos-session-sanitizers:
     needs: ci-workflow-structure

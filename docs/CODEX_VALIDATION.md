@@ -1,3 +1,28 @@
+## R2 gateway dependency reconciliation after R5 native bridge (2026-10-18)
+
+R5 publication `746bf766f68f38cd8d71fb67b24b6d7e604044c5` now consumes R2's
+`LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu()` through
+the stateless `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt`.
+The bridge retains no admission lease or second X11 owner: R2/R3 still
+reauthorizes the exact lease, GSS/TLS provenance, native evidence, negotiated
+input and permission immediately before every native callback, while R5 checks
+its current capture generation beside injection and retires no-post on denial.
+
+Hosted evidence has advanced beyond the earlier pending state. Descendants
+`b44fe41e`, `42e14927` and `746bf766` PASS both Linux R2 production
+runtime-security jobs (complete and missing-systemd); `746bf766` also PASSes
+Ubuntu protocol and the R9 security-protocol sanitizer lane. This is offline,
+fail-closed evidence only and does not prove a positive Kerberos/PAM/logind
+lease, XTEST delivery, or Microsoft-client acceptance.
+
+The remaining live dependency is outside R2: current production
+`main.cpp` does not invoke the authenticated R5 bridge. It performs one
+bounded R2-selected X11/logind poll/event-service pass, then disconnects the
+native owner and revokes. R10 must own the persistent post-Share R1/TLS read
+loop and frame/input/clipboard composition; R2 must not add a competing TLS
+reader or runtime owner. Concrete RuntimeHostControl Start/Stop also remains
+absent. Owner-authorized physical seat0 validation is still NOT RUN.
+
 ## R6 extracted Windows GUI command-mode QPA correction (2026-10-18)
 
 R6 recursive staging plus R9 system-DLL classification clears the previous

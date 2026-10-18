@@ -58,12 +58,13 @@ Receipt emit(GfxPresentationLifecycle &lifecycle, std::uint64_t gen,
     return receipt;
 }
 
-void mapped(GfxPresentationLifecycle &lifecycle, std::uint64_t gen)
+void mapped(GfxPresentationLifecycle &lifecycle, std::uint64_t gen,
+            PixelSize geometry = {640U, 480U})
 {
     assert(lifecycle.open(gen));
     assert(lifecycle.acceptCapabilities(gen, advertisement()));
     assert(lifecycle.completeCommand(emit(lifecycle, gen, std::byte{0x13}, 20), 20));
-    assert(lifecycle.configureSurface(gen, 7, {640, 480}));
+    assert(lifecycle.configureSurface(gen, 7, geometry));
     assert(lifecycle.completeCommand(emit(lifecycle, gen, std::byte{9}, 15), 15));
     assert(lifecycle.completeCommand(emit(lifecycle, gen, std::byte{15}, 20), 20));
     assert(lifecycle.stage() == GfxPresentationStage::Mapped);
@@ -185,28 +186,74 @@ void revocation()
 
 void backpressure()
 {
+    constexpr std::uint64_t generation = 501U;
     GfxPresentationLifecycle lifecycle;
-    mapped(lifecycle, 501);
-    for (std::uint32_t id = 1; id <= 64; ++id)
-        delivered(lifecycle, 501, id);
-    assert(lifecycle.outstandingFrames() == 64);
-    assert(!lifecycle.canSubmitFrame(501));
-    { GfxFrameDeliveryReceipt denied{}; assert(!lifecycle.beginFrameDelivery(501, 65, 128, denied)); }
+    // Keep the real ClearCodec publication test within a one-pixel arena.
+    mapped(lifecycle, generation, {1U, 1U});
+    for (std::uint32_t id = 1U; id <= 64U; ++id)
+        delivered(lifecycle, generation, id);
+    assert(lifecycle.outstandingFrames() == 64U);
+    assert(!lifecycle.canSubmitFrame(generation));
+    assert(!lifecycle.canReserveFrame(generation, 65U));
+
+    const std::array<std::byte, 4U> pixels{
+        std::byte{0x11}, std::byte{0x22},
+        std::byte{0x33}, std::byte{0xFF}};
+    const GfxClearCodecFrameRequest request{
+        7U, 65U, FramebufferView{pixels, 1U, 1U, 4U}};
+    std::array<std::byte, 96U> wire{};
+    wire.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt receipt{9U, 8U, 7U, 6U};
+    const auto unchangedReceipt = receipt;
+    // Saturation is a side-effect-free refusal, not a terminal generation.
+    assert(!lifecycle.prepareClearCodecFrame(
+        generation, request, wire, receipt));
+    assert(receipt == unchangedReceipt);
+    for (const std::byte byte : wire)
+        assert(byte == std::byte{0xA5});
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(lifecycle.outstandingFrames() == 64U);
+
     GfxFrameAckWindowResult result{};
-    assert(lifecycle.onFrameAcknowledge(501, ack(32, 10), result));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(32U, 10U), result));
     assert(result == GfxFrameAckWindowResult::Acknowledged);
-    delivered(lifecycle, 501, 65);
-    { GfxFrameDeliveryReceipt denied{}; assert(!lifecycle.beginFrameDelivery(501, 65, 128, denied)); }
-    assert(lifecycle.outstandingFrames() == 64);
-    assert(lifecycle.onFrameAcknowledge(501,
-        ack(99, kGfxSuspendFrameAcknowledgement), result));
+    assert(lifecycle.outstandingFrames() == 63U);
+    assert(lifecycle.canReserveFrame(generation, request.frameId));
+
+    // Zero outer-byte cancellation must return the reserved opportunity
+    // without advancing ClearCodec sequence or recording any client ACK.
+    assert(lifecycle.prepareClearCodecFrame(
+        generation, request, wire, receipt));
+    assert(receipt.frameId == 65U && receipt.bytes == 71U);
+    assert(wire[42U] == std::byte{0});
+    assert(lifecycle.outstandingFrames() == 63U);
+    assert(lifecycle.cancelUnwrittenFrameDelivery(receipt));
+    assert(lifecycle.outstandingFrames() == 63U);
+    assert(lifecycle.canReserveFrame(generation, request.frameId));
+
+    wire.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt retried{};
+    assert(lifecycle.prepareClearCodecFrame(
+        generation, request, wire, retried));
+    assert(retried.serial > receipt.serial);
+    assert(retried.bytes == 71U);
+    assert(wire[42U] == std::byte{0});
+    assert(lifecycle.completeFrameDelivery(retried, retried.bytes));
+    assert(lifecycle.outstandingFrames() == 64U);
+    assert(!lifecycle.canSubmitFrame(generation));
+    { GfxFrameDeliveryReceipt denied{}; assert(!lifecycle.beginFrameDelivery(generation, 65U, 128U, denied)); }
+
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(99U, kGfxSuspendFrameAcknowledgement), result));
     assert(result == GfxFrameAckWindowResult::Suspended);
-    assert(lifecycle.outstandingFrames() == 0);
-    delivered(lifecycle, 501, 1000);
-    assert(lifecycle.outstandingFrames() == 0);
-    assert(lifecycle.onFrameAcknowledge(501, ack(1000, 1), result));
-    delivered(lifecycle, 501, 1001);
-    assert(lifecycle.outstandingFrames() == 1);
+    assert(lifecycle.outstandingFrames() == 0U);
+    delivered(lifecycle, generation, 1000U);
+    assert(lifecycle.outstandingFrames() == 0U);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(1000U, 1U), result));
+    delivered(lifecycle, generation, 1001U);
+    assert(lifecycle.outstandingFrames() == 1U);
 }
 
 

@@ -1,3 +1,26 @@
+## R4 mapped ClearCodec ACK-capacity refusal/retry CTest (2026-10-18)
+
+R10's persistent post-Share X11/Graphics publication and R3's
+authenticated FRAME_ACK handoff are already in production source.
+R4 extends the **existing** production-linked
+`graphics.frame-publication-backpressure` CTest to test actual one-pixel
+ClearCodec preparation at the maximum 64 pending ACK entries. Full credit
+refuses before touching wire/receipt, does not tear down the mapped
+presentation, and leaves 64 pending. One accepted ACK creates exactly
+one slot. A zero-outer-byte cancellation then releases the reservation
+without advancing the ClearCodec sequence; a same-frame retry with
+complete R3-style delivery fills credit again. Suspension/resumption
+and duplicate frame ID checks remain in the same test.
+
+Only existing R4 test code and documentation change; no R1 reader, R3
+channel, R4 codec/ACK production state, R10 scheduler or CI inventory is
+modified. Owner-local full CTest **NOT RUN** (GitHub-only source access);
+hosted exact publication-SHA CI **PENDING**. R10/R3 must still compose an
+authorized pre-capture defer decision instead of invoking terminal
+publication on full ACK credit. Geometry/RandR and idle TLS poll
+backpressure, GUI LAN Start/Stop and authorized physical seat0 Windows
+client frame/ACK acceptance remain **BLOCKED/NOT RUN**.
+
 ## R10 selected LAN interface preflight (2026-10-18)
 
 Consolidated the GUI duplicated interface/address selection into the R10

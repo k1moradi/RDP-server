@@ -1,3 +1,16 @@
+## R4 mapped ClearCodec ACK-capacity nonmutation (2026-10-18)
+
+Keep the existing `graphics.frame-publication-backpressure` CTest
+production-backed and exercise the ClearCodec prepare boundary with a
+mapped tiny surface after 64 full deliveries, not merely the abstract
+ACK window. Saturation must not touch encoded bytes, receipt, codec
+sequence, mapped state or outstanding ACKs. A matching client ACK
+reclaims one reservation; zero-outer-write cancellation must not
+increment sequence; exact complete delivery then refills ACK credit.
+Preserve the fixed R9 test inventory. Offline credit correctness does
+not permit R10 to treat normal credit saturation as session revocation
+or substitute for genuine R2 admission and visible client acceptance.
+
 ## R10 shared GUI/runtime LAN selector boundary (2026-10-18)
 
 `runtime.host-control-selected-lan-interface-denials` is a new ordinary

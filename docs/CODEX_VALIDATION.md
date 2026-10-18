@@ -1,3 +1,27 @@
+## R10 protected genuine Client Info intake after joined MCS (2026-10-18)
+
+**Source parent `d81bcff7bdb7910f59a7b0ed290667dd6411910c`; publication-SHA CI PENDING, owner-local
+Debug and owner-host positive admission NOT RUN.**
+R10 now transitions from fully delivered, R3-confirmed negotiated
+user/I/O/static MCS joins into exactly one real Client Info TPKT. Every
+R1 TLS read is bounded to remaining frame bytes after fresh R2
+authorization of exact lease, immutable loopback PersonalDesktop policy,
+native session and R3 generation. The entire peer-provided packet is
+consumed only by `LinuxConsoleAdmissionBroker::authorizeR3ClientInfoPacket`
+and R3's existing private TS_INFO_PACKET parser. R10 never inspects,
+retains, logs, or fabricates Client Info strings. A successful intake
+alone advances R3 to AwaitServerLicenseRequest. The service deliberately
+closes afterward; it does not synthesize licensing/Share completion.
+
+Registered production negative CTest
+`runtime.linux-connection-post-admission-client-info-denials` refuses
+missing live R2 lease, plaintext I/O and stale readiness. Separate
+`runtime.linux-connection-client-info-bounded-tpkt-framing` asserts
+truncated/coalesced TLS TPKT segmentation cannot consume the next
+packet and terminal framing cannot be reset. Neither grants synthetic
+positive R2 authorization. Exact protected positive Client Info,
+licensing, Share and Microsoft-client acceptance **NOT RUN**.
+
 ## R3 CLIPRDR broker declaration CI correction (2026-10-18)
 
 The first R3 post-Share CLIPRDR publication `cd5dc6f3` failed its Linux R2 production target during compile: `linux_console_admission.cpp` defined five new public clipboard broker gateways that were accidentally omitted from the compiled `linux_console_admission.h`. This descendant restores the exact five declarations with unchanged production implementation and CTest coverage. The original check `r2-linux-production-runtime-security (complete)` is **FAIL** for that source SHA, not a passing integration receipt. The correction's hosted full CTest/sanitizer and cross-platform results are **NOT RUN / pending** until GitHub reports them. Owner-local and positive physical-seat0 Kerberos/PAM/NSS/logind/Microsoft-client tests remain **NOT RUN / BLOCKED**. CLIPRDR/FileContents runtime advertisement remains disabled.

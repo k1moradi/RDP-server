@@ -216,6 +216,21 @@ struct LinuxPostAdmissionMcsChannelJoinStepResult
         LinuxPostAdmissionMcsChannelJoinStepStatus::Closed};
 };
 
+// Client Info is an exact R1-owned TLS/TPKT intake only after every real
+// negotiated MCS channel has a confirmed R3 reply. Privacy stays in R2/R3.
+enum class LinuxPostAdmissionMcsClientInfoStepStatus : std::uint8_t
+{
+    Progress, NeedRead, NeedWrite, ClientInfoAccepted,
+    AdmissionDenied, Invalid, Closed,
+};
+
+struct LinuxPostAdmissionMcsClientInfoStepResult
+{
+    std::size_t plaintextBytesRead{};
+    LinuxPostAdmissionMcsClientInfoStepStatus status{
+        LinuxPostAdmissionMcsClientInfoStepStatus::Closed};
+};
+
 enum class LinuxPersonalDesktopLicenseWriteStepStatus : std::uint8_t
 {
     Progress,
@@ -542,6 +557,14 @@ public:
         const RuntimeDeploymentPolicy &deploymentPolicy,
         bool readable, bool writable) noexcept;
 
+    // Read only actual peer Client Info bytes, after all R3-confirmed joins.
+    // All sensitive fields are parsed privately by the existing R2/R3 API;
+    // no username or password leaves this synchronous admitted transition.
+    [[nodiscard]] LinuxPostAdmissionMcsClientInfoStepResult
+    advancePostAdmissionMcsClientInfo(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable) noexcept;
+
     // R10-facing personal-desktop security boundary. The immutable policy is
     // the only product-mode input; R2 keeps the lease and generation pair
     // private and freshly reauthorizes every operation below. R1 remains the
@@ -763,6 +786,9 @@ private:
     [[nodiscard]] bool credSspReplyPending() const noexcept;
     [[nodiscard]] bool postAdmissionMcsPolicyMatches(
         const RuntimeDeploymentPolicy &deploymentPolicy) const noexcept;
+    // Membership-only R3 inspection; call only after fresh R2 admission
+    // authorization. This never grants channel or desktop access.
+    [[nodiscard]] bool allNegotiatedMcsChannelsJoined() const noexcept;
     [[nodiscard]] bool reauthorizeExistingCalValidation() noexcept;
     [[nodiscard]] bool nativeChangeRegistrationMatches(
         const LinuxRuntimeNativeChangeRegistration &registration) const

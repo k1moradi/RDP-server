@@ -1077,6 +1077,86 @@ void testConnectionPostAdmissionChannelJoinDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPostAdmissionClientInfoDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsClientInfoStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-client-info-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy deploymentPolicy;
+    assert(deploymentPolicy.configurePersonalDesktop(true, 3389U));
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // Client Info bytes cannot be consumed without actual confirmed MCS joins
+    // and a fresh exact R2 admission lease; policy alone cannot authorize.
+    const auto denied =
+        connection.advancePostAdmissionMcsClientInfo(deploymentPolicy, true, true);
+    assert(denied.status == Step::AdmissionDenied);
+    assert(denied.plaintextBytesRead == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    const auto stale =
+        connection.advancePostAdmissionMcsClientInfo(deploymentPolicy, true, true);
+    assert(stale.status == Step::Closed);
+    assert(stale.plaintextBytesRead == 0U);
+    connection.revoke();
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
+void testConnectionClientInfoBoundedTpktFraming()
+{
+    using Status = LinuxRuntimeMcsTpktFrameStatus;
+    constexpr std::array<std::uint8_t, 8U> firstPacket{
+        0x03U, 0x00U, 0x00U, 0x08U, 0x02U, 0xf0U, 0x80U, 0x00U};
+    constexpr std::array<std::uint8_t, 8U> secondPacket{
+        0x03U, 0x00U, 0x00U, 0x08U, 0x02U, 0xf0U, 0x80U, 0x44U};
+    std::array<std::uint8_t, 16U> coalesced{};
+    std::copy(firstPacket.begin(), firstPacket.end(), coalesced.begin());
+    std::copy(secondPacket.begin(), secondPacket.end(),
+              coalesced.begin() + firstPacket.size());
+
+    LinuxRuntimeMcsTpktFrameReader frame;
+    auto framed = frame.consume(std::span{coalesced}.first(3U));
+    assert(framed.status == Status::NeedMore);
+    assert(framed.bytesConsumed == 3U);
+    assert(frame.bytesNeeded() == 1U);
+    framed = frame.consume(std::span{coalesced}.subspan(3U));
+    assert(framed.status == Status::Complete);
+    // The parser may consume only bytes through the first TPKT boundary,
+    // never a byte of the coalesced following TLS application record.
+    assert(framed.bytesConsumed == firstPacket.size() - 3U);
+    assert(std::equal(
+        frame.completeTpkt().begin(), frame.completeTpkt().end(),
+        firstPacket.begin(), firstPacket.end()));
+
+    assert(frame.reset());
+    framed = frame.consume(std::span{coalesced}.subspan(firstPacket.size()));
+    assert(framed.status == Status::Complete);
+    assert(framed.bytesConsumed == secondPacket.size());
+    assert(std::equal(
+        frame.completeTpkt().begin(), frame.completeTpkt().end(),
+        secondPacket.begin(), secondPacket.end()));
+    frame.close();
+    assert(frame.completeTpkt().empty());
+    assert(!frame.reset());
+}
+
 void testConnectionPostAdmissionAttachConfirmWriteDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2863,6 +2943,16 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-post-admission-channel-join-denials")
     {
         testConnectionPostAdmissionChannelJoinDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-post-admission-client-info-denials")
+    {
+        testConnectionPostAdmissionClientInfoDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-client-info-bounded-tpkt-framing")
+    {
+        testConnectionClientInfoBoundedTpktFraming();
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

@@ -1104,7 +1104,8 @@ struct LinuxServeAcceptContext final {
         rdp_server::server::runtime::LinuxPostAdmissionMcsChannelJoinStepStatus;
     readable = false;
     writable = false;
-    while (connection.ready()) {
+    bool allChannelsJoined = false;
+    while (connection.ready() && !allChannelsJoined) {
         const auto step = connection.advancePostAdmissionMcsChannelJoins(
             *context->policy, readable, writable);
         readable = false;
@@ -1130,13 +1131,57 @@ struct LinuxServeAcceptContext final {
             return true;
         }
         case JoinStep::AllChannelsJoined:
-            // A client's actual Info packet is the next separate R2/R3
-            // increment; joins alone grant no Share/desktop authority.
-            connection.revoke();
-            return true;
+            allChannelsJoined = true;
+            break;
         case JoinStep::AdmissionDenied:
         case JoinStep::Invalid:
         case JoinStep::Closed:
+            return true;
+        }
+    }
+    if (!allChannelsJoined || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    // Client Info is an actual protected client PDU, never fabricated by R10.
+    // R2/R3 consume the full TPKT and keep sensitive strings private.
+    using InfoStep =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsClientInfoStepStatus;
+    readable = false;
+    writable = false;
+    while (connection.ready()) {
+        const auto step = connection.advancePostAdmissionMcsClientInfo(
+            *context->policy, readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case InfoStep::Progress:
+            continue;
+        case InfoStep::NeedRead:
+        case InfoStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case InfoStep::ClientInfoAccepted:
+            // Do not claim licensing or Share before the separate existing
+            // PersonalDesktop license writer has been genuinely composed.
+            connection.revoke();
+            return true;
+        case InfoStep::AdmissionDenied:
+        case InfoStep::Invalid:
+        case InfoStep::Closed:
             return true;
         }
     }

@@ -133,6 +133,17 @@ first video/input Microsoft-client test.
 
 **R5 packaging P0 (2026-10-17):** Added a Linux test ZIP generator/installer for the actual existing `rdp-server` executable, manifest version/source SHA and file SHA-256, disabled `systemd --user` graphical-session-only unit, private example config and dedicated offline `packaging.linux-user-bundle-offline-lifecycle` CTest (install/verify/tamper/uninstall/symlink denials). **Canonical owner build/CTest NOT RUN**; hosted publication SHA **NOT RUN / pending**. R9's common SERVER-TEST path now verifies the built executable dependency closure, ABI and artifact SHA automatically; exact publication-SHA hosted evidence remains PENDING. SDK untouched. Live **M3 BLOCKED** on R10 sole admitted X11 owner + real `serve`, R3 graphics DATA receipts/input, owner-approved authentic seat0 Kerberos/PAM/NSS/logind/TLS and all three Microsoft-client receipts. See [Linux bundle contract](linux_server_test_bundle.md).
 
+**R9 first hosted failure (2026-10-17):** Exact SHA
+`4a42e7e32dcaa1db8999b3210ed426cbaf17fe6a` passed structure,
+documentation, R9 sanitizer and R7 focused gates, and the new portable
+SERVER-TEST contract CTest. All three ordinary Debug full CTests plus R6
+CLANG64 stopped on R7's message-only negative assertion
+(`architecture` vs production `unsupported bundle identity`) before
+SERVER-TEST Release packaging. The assertion is corrected without changing R7
+production behavior. Thus that SHA has **no server bundle acceptance receipt**;
+next exact-head hosted CI must produce the three disabled previews and aggregate
+same-SHA status before R9 can call the preview pipeline green.
+
 **R9 SERVER-TEST packaging P0 (2026-10-17):** The ordinary three-OS
 Release matrix now emits a distinct startup-disabled
 `rdp-server-test-<version>-<platform>-<architecture>-<short-sha>` ZIP from

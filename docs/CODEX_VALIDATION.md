@@ -1,3 +1,23 @@
+## R9 exact first-failure correction after SERVER-TEST publication (2026-10-17)
+
+The first exact-SHA R9 publication run for `4a42e7e32dcaa1db8999b3210ed426cbaf17fe6a`
+passed both workflow structure guards, documentation policy, the R9
+security/protocol sanitizer job, both R7 focused jobs, and the new
+`packaging.server-test-cross-platform-offline-contract` CTest. The ordinary
+Linux, Windows and macOS full Debug CTests all stopped on the same pre-existing
+R7 bundle assertion: `test_checksum_and_architecture_denials` expected an
+exception message containing `architecture`, while production correctly
+returned the broader fail-closed `unsupported bundle identity`. The R6
+CLANG64 full Debug CTest hit the same test.
+
+This correction changes only that test expectation to the exact production
+message; R7 archive validation behavior and SERVER-TEST code are unchanged.
+Because the three protocol jobs stopped before Release/package steps,
+SERVER-TEST binary artifacts/status aggregation for `4a42e7e3` were **NOT
+PRODUCED** and deployment remains **NOT VERIFIED / NOT CLAIMED**. The next
+exact-head run must reach all three real executable smoke steps and the
+cross-platform exact-SHA status job before R9 marks preview delivery green.
+
 ## R10 outbound scheduler interest correction (2026-10-17)
 
 **Reconciled shared-main parent:** `3b579c141114e89dfc06b3b0abf82b9163f1b1b1`.

@@ -49,7 +49,7 @@ class BundleTests(unittest.TestCase):
         self.manifest["architecture"] = "universal"
         self.write_archive()
         with zipfile.ZipFile(self.archive) as zipped:
-            with self.assertRaisesRegex(ValueError, "architecture"):
+            with self.assertRaisesRegex(ValueError, "unsupported bundle identity"):
                 bundle.validated_manifest(zipped)
 
     def test_idempotent_install_remove_without_activation(self):

@@ -254,7 +254,7 @@ class MacGuiBundleTests(unittest.TestCase):
         plugin.parent.mkdir(parents=True)
         plugin.write_bytes(b"\xcf\xfa\xed\xfeCocoa")
         executable = staged / "Contents/MacOS/rdp-server-desktop"
-        executable.parent.mkdir(parents=True)
+        executable.parent.mkdir(parents=True, exist_ok=True)
         executable.write_bytes(b"\xcf\xfa\xed\xfeGUI")
         (staged / "Contents/Info.plist").write_bytes(plistlib.dumps({
             "CFBundleExecutable": "rdp-server-desktop",

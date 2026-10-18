@@ -1,3 +1,9 @@
+## R9 repairs R7 install-ID fixture directory reuse (2026-10-18)
+
+R7 `19e4dfffa808fed3cda5aeffd9c4c915063cfff8` adds macOS staged install-ID normalization and ad-hoc preview signing. Its hosted primary reaches ordinary CTest on both Ubuntu and macOS but fails the new fixture before the normalization assertions run: shared `MacGuiBundleTests.setUp()` has already created `rdp-server-desktop.app/Contents/MacOS`, while `test_absolute_install_ids_normalized_before_adhoc_signing` calls `mkdir(parents=True)` on that same directory. Both jobs report `FileExistsError`, so this is a test-fixture defect rather than evidence against the packager.
+
+R9 changes only that fixture creation to `mkdir(parents=True, exist_ok=True)`. The test still writes the synthetic Mach-O executable, requires framework/Cocoa install IDs to be rewritten to `@rpath`, and requires the final ad-hoc `codesign --force --deep --sign -` call. No packaging allowlist, production code, runtime authority or native behavior is weakened. Exact correction-SHA CI: **PENDING**.
+
 ## R9 focused assurance for dormant production-linked native bridges (2026-10-18)
 
 R10 `fb02757297a20d6e6a14ffb7b7e68c1361a3809f` conditionally links the R5 protected slow-path input bridge into the production Linux server, and R8 `01440dbfe5f48d381df6e36a23a4f0fd7dd13eba` conditionally links the R3/X11 clipboard bridge after correcting its CMake comments. Both linkages are intentionally dormant: their source-level CTests require the dependencies while forbidding `main.cpp` from dispatching native input or constructing/dispatching clipboard state before R10 owns one persistent post-Share R1 complete-TPKT/TLS router and the same live X11/logind owner.

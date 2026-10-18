@@ -4201,3 +4201,7 @@ ad-hoc sign without invoking AppKit, TCC, networking or a live server.
 ## Dormant production native bridges need focused source-linkage sentinels (R9, 2026-10-18)
 
 A production-linked native bridge that is intentionally dormant until a later serialized runtime owner exists must have its source/build-graph denial CTest pinned explicitly in focused assurance, even when ordinary full CTest already runs it. Keep these CMake-script guards separate from sanitizer-instrumented executable counts. For the current Linux input and clipboard links, require both exact test names and an exact-two registry count; any premature `main.cpp` dispatch/construction must remain a hard failure.
+
+## Shared packaging fixtures must be idempotent with their class setup (R9, 2026-10-18)
+
+When a packaging behavior test reuses an app tree created by `setUp()`, directory preparation for that same tree must tolerate directories already created by the fixture. Use `exist_ok=True` only for expected fixture-owned directories; do not catch or suppress unexpected filesystem failures. This keeps the test focused on the packaging behavior under assertion rather than failing before it reaches that behavior.

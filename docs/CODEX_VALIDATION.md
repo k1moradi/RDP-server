@@ -1,3 +1,40 @@
+## R1 review of R10 Linux loopback listener (2026-10-17)
+
+**Reviewed R10 commit:** `4132fa7ee4e92892a7365e4edb884be76e195403`.
+The listener increment satisfies the R1 transport/lifetime requirements at its
+published scope: Linux creates a nonblocking/CLOEXEC stream socket, binds only
+exact `127.0.0.1` or `::1`, calls `listen()`, then verifies `SO_TYPE`,
+`SO_ACCEPTCONN` and the effective family/address/configured port with
+`getsockname()` before ownership is retained. IPv6 loopback is forced
+V6-only. The service reuses R1's existing
+`pollNonblockingTcpAcceptBatch()` with accept budget 1 and 25 ms bounded
+polling; accepted descriptors cross the callback as move-only
+`OwnedNativeTcpSocket` values. The callback performs only loopback transport
+candidate policy and lets RAII close the socket, so TCP acceptance remains
+strictly pre-authentication and creates no R2 admission or competing SSL
+reader/writer.
+
+No R1 transport correction was identified in this listener-only increment.
+The next requested end-to-end R1 audit is **still blocked on R10 connection
+composition**: current `src/server/runtime/main.cpp` contains no
+`LinuxRuntimeConnection`, `OwnedPreauthTcpConnection`, `attachServerTls`
+or `advancePreAdmission` use. Therefore an accepted `serve` socket is
+intentionally closed before X.224/TLS/CredSSP. R1 cannot yet validate, through
+the actual `serve` path, inbound X.224/TLS/CredSSP progress, WANT direction
+preservation, positive partial-write suffix scheduling, or terminal/late-event
+denial. Existing lower-level production-backed R1/R10 tests continue to cover
+those primitives independently.
+
+Dependency changes since the prior R1 review: R3 Graphics DATA and its compile
+correction remain landed; R4 now also has `c51570d6` proving frame delivery
+through R1 TLS; R2 `1a1f3531` adds production Linux-security build validation
+without tests but does not mint or prove a genuine native admission lease.
+The authorized physical Linux X11 seat0/Kerberos/PAM positive-client gate is
+therefore unchanged.
+
+Hosted exact-head status for `4132fa7e` is **NOT VERIFIED** through the
+available GitHub status interface (no commit-status entries returned).
+
 ## R10 fail-closed Linux loopback serve startup (2026-10-17)
 
 **Authored on current `main`; hosted CI pending.** This increment adds the

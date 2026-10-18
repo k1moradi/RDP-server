@@ -1,14 +1,17 @@
 # R6 Windows GUI and native admission boundary
 
-The optional Windows Qt6 Widgets target `rdp-server-windows-gui` creates
-`RDP-server.exe` as a windowed, unprivileged executable. It is **a
-fail-closed GUI shell**, not yet an operational LAN host. A normal double
-click opens LAN mode, address, sessions and disabled account/Start/Stop
-controls. No listener, service, firewall, task, autostart, download or
-native input is started or altered. The offline CTest
-`windows.gui-offline-no-side-effects` exercises its argument-mode startup
-without entering Qt or making OS changes. R7 replaces this temporary UI
-surface with the common Qt GUI; the target name is the integration seam.
+The optional Windows Qt6 Widgets target `rdp-server-windows-gui` now
+compiles R7's shared `DesktopWindow` into a windowed, unprivileged
+`RDP-server-GUI.exe`. It is a **fail-closed GUI shell**, not a LAN host.
+The distinct name avoids colliding with the existing startup-disabled
+`rdp-server.exe` CLI on case-insensitive Windows volumes. On double click,
+the common GUI shows onboarding, address/session status, and disabled
+credentials/Start/Stop until real host authority exists. No listener,
+service, firewall, task, autostart, download or native input is triggered.
+`windows.gui-offline-no-side-effects` and
+`windows.gui-start-denied-without-r2-r10` instantiate the actual R7
+window via Qt's offscreen plugin to check blocked controls and the production
+deny-only HostControl. They do not substitute for portable ZIP security tests.
 R9 owns staging a verified portable ZIP with all Qt platform plugins, Qt/CRT,
 OpenSSL and other non-system DLLs, a per-file integrity manifest and a
 double-clickable exe. No portable ZIP closure is claimed delivered here.

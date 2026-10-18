@@ -953,34 +953,42 @@ if(APPLE)
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# Windows-only R6 portable GUI shell; Qt is optional so protocol builds work
-# without a GUI SDK. No host control or network runtime is linked here.
+# Windows R6 launcher reuses R7's Qt DesktopWindow; no R2/R10 authority.
 if(WIN32)
-    find_package(Qt6 QUIET COMPONENTS Widgets)
+    find_package(Qt6 6.4 QUIET COMPONENTS Widgets)
     if(TARGET Qt6::Widgets)
         add_executable(rdp-server-windows-gui WIN32
-            src/windows/windows_gui_main.cpp)
+            src/windows/windows_gui_main.cpp
+            src/gui/desktop_window.cpp)
+        target_include_directories(rdp-server-windows-gui PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/gui")
         target_compile_features(rdp-server-windows-gui PRIVATE cxx_std_23)
         target_link_libraries(rdp-server-windows-gui PRIVATE Qt6::Widgets)
+        # The existing CLI rdp-server.exe is a different binary; avoid a
+        # case-insensitive file collision in the Windows build tree and ZIP.
         set_target_properties(rdp-server-windows-gui PROPERTIES
-            OUTPUT_NAME "RDP-server")
+            OUTPUT_NAME "RDP-server-GUI")
         if(MSVC)
-            target_compile_options(rdp-server-windows-gui PRIVATE /W4)
+            target_compile_options(rdp-server-windows-gui PRIVATE /W4 /WX)
         else()
             target_compile_options(rdp-server-windows-gui PRIVATE
                 -Wall -Wextra -Wpedantic -Werror)
         endif()
-        # R9 owns complete Qt/CRT/OpenSSL DLL closure and signed ZIP assembly.
-        # Export one predictable GUI target, without changing SERVER-TEST.
+        # R9 owns the complete Qt/CRT/OpenSSL/plugin ZIP dependency closure.
         if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
             add_test(NAME windows.gui-offline-no-side-effects
                 COMMAND $<TARGET_FILE:rdp-server-windows-gui>
                     --offline-self-test)
-            set_tests_properties(windows.gui-offline-no-side-effects
-                PROPERTIES LABELS "windows;gui;offline" TIMEOUT 10)
+            add_test(NAME windows.gui-start-denied-without-r2-r10
+                COMMAND $<TARGET_FILE:rdp-server-windows-gui>
+                    --offline-start-denial-test)
+            set_tests_properties(
+                windows.gui-offline-no-side-effects
+                windows.gui-start-denied-without-r2-r10
+                PROPERTIES LABELS "windows;gui;offline" TIMEOUT 15)
         endif()
     else()
-        message(STATUS "Windows Qt6 Widgets unavailable: GUI shell not built")
+        message(STATUS "Windows Qt6 Widgets unavailable: GUI launcher not built")
     endif()
 endif()
 

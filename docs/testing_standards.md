@@ -1,3 +1,15 @@
+## R10 shared Linux verified listener policy CTest (2026-10-18)
+
+`runtime.linux-serve-loopback-listener-exact-endpoint-denials` uses the
+**same production Linux listener** target linked by the CLI, but calls
+only its pure literal endpoint gate. It checks accepted loopback address
+families, nonzero port and denial of wildcard, alias, malformed, mapped
+IPv6, remote LAN and zero-port text. Compile-time checks make the real
+`LinuxListenerOwner` noncopyable/nonmovable; a harmless invalid descriptor
+is retired via RAII. The test must never bind/listen, authenticate an OS
+session, or invent a positive R2 lease. Live listener/GUI integration
+requires separate authorized evidence.
+
 ## R9 cross-owner GUI LAN selection validation (2026-10-18)
 
 For a GUI projection of the R10-selected LAN endpoint, native hosted

@@ -1,3 +1,17 @@
+## R10 reusable verified Linux listener lifetime (2026-10-18)
+
+From `eeea6b751e095028ba00cc5d25526eae85a7cdda`, the original production `openVerifiedLinuxLoopbackListener`
+implementation is factored unchanged in binding/listen/getsockname checks
+into one Linux-only noninstalled static component. CLI `serve` uses the
+same RAII `LinuxListenerOwner` after secure R2 preflight. Exactly one new
+production-linked CTest `runtime.linux-serve-loopback-listener-exact-endpoint-denials`
+uses pure loopback policy and nonmoving owner at compile/run time;
+no live listener, OS authentication, X11 or GUI sharing. Local approved
+`~/rdp-server/build` build/full CTest **NOT RUN** (checkout unavailable),
+exact published SHA CI **PENDING**, genuine Windows App/mstsc **NOT RUN**.
+Remaining gate: R10 concrete in-process HostControl, native selected-LAN
+binding/consent, R8 native clipboard and authorized real-client acceptance.
+
 ## R9 paired R10/R7 LAN choice CTest gate (2026-10-18)
 
 At earlier exact-green head `9a036d098bc183c051c02e4bb233733c89a33a3c`,

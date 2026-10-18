@@ -1,3 +1,14 @@
+## R10 one Linux runtime listener owner across CLI and future GUI (2026-10-18)
+
+Keep verified Linux native `socket`/`bind`/`listen` plus
+`SO_ACCEPTCONN`/`getsockname` validation in **one** noninstalled
+R10 component, with the sole noncopyable/nonmovable RAII descriptor
+owner. The CLI remains loopback-only and obtains the descriptor only
+*after* R2 pre-listener provisioning; moving the functions into a shared
+library does not confer GUI bind permission or enable LAN serving. A
+future GUI HostControl must reuse this owner rather than make a
+parallel listener or bypass R1 accepted-socket transfer.
+
 ## Qt status QLabel creation order (R7, 2026-10-18)
 
 Never supply R10-projected peer/interface/endpoint text to the

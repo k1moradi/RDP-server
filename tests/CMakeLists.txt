@@ -52,6 +52,22 @@ add_test(NAME security.ipv4-mapped-ipv6-peer-quota-identity
 set_tests_properties(security.ipv4-mapped-ipv6-peer-quota-identity
     PROPERTIES LABELS "security;credentials;offline")
 
+# R10 shared Linux listener: executable-backed offline policy and move-only
+# descriptor ownership. No positive bind, socket, GSS/OS lease or GUI Start.
+if(TARGET rdp-server-linux-serve-listener)
+    add_executable(test_linux_serve_listener test_linux_serve_listener.cpp)
+    target_link_libraries(test_linux_serve_listener PRIVATE
+        rdp-server-linux-serve-listener)
+    target_compile_options(test_linux_serve_listener PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME runtime.linux-serve-loopback-listener-exact-endpoint-denials
+        COMMAND test_linux_serve_listener
+            linux-serve-loopback-listener-exact-endpoint-denials)
+    set_tests_properties(
+        runtime.linux-serve-loopback-listener-exact-endpoint-denials
+        PROPERTIES LABELS "runtime;security;r10-listener;offline")
+endif()
+
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
 add_executable(test_runtime_host_control test_runtime_host_control.cpp)
 target_link_libraries(test_runtime_host_control PRIVATE rdp-server-protocol)

@@ -730,6 +730,19 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# The single R10 native Linux listener is available to both existing CLI
+# and a future in-process Qt HostControl. No listener is opened at build time,
+# and the standalone protocol SDK remains transport-independent.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_library(rdp-server-linux-serve-listener STATIC
+        src/server/runtime/linux_serve_listener.cpp)
+    target_compile_features(rdp-server-linux-serve-listener PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-linux-serve-listener PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_compile_options(rdp-server-linux-serve-listener PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 if(RDP_SERVER_BUILD_LINUX_GSSAPI)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
         message(FATAL_ERROR "Linux GSSAPI runtime security requires Linux")
@@ -836,7 +849,8 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
             RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER=1)
     endif()
     target_link_libraries(rdp-server PRIVATE
-        rdp-server-linux-runtime-security)
+        rdp-server-linux-runtime-security
+        rdp-server-linux-serve-listener)
     target_compile_definitions(rdp-server PRIVATE
         RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY=1)
     # R10 may construct the one R2-selected R5 desktop only when every native

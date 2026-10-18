@@ -1,3 +1,23 @@
+## R10 extracted one native Linux listener owner for GUI reuse (2026-10-18)
+
+R10 moved the existing verified, nonblocking/CLOEXEC, exact-bound
+loopback listener and its move-prohibited RAII descriptor owner out of
+CLI-private `main.cpp` into the noninstalled Linux-only
+`rdp-server-linux-serve-listener` component. The existing secure `serve`
+path now links and uses that **same** component after R2 pre-listener
+provisioning; no extra socket, thread, listener, read loop or binding mode
+was introduced. A future concrete in-process LAN HostControl must reuse
+this owner and additionally prove the selected physical interface/address
+and actual kernel bound endpoint before advertising sharing. The public
+pure `isEligibleLinuxLoopbackListenerEndpoint` retains exact literal
+loopback-only CLI policy. New ordinary offline executable CTest
+`runtime.linux-serve-loopback-listener-exact-endpoint-denials` checks
+this policy and noncopyable/nonmovable descriptor lifetime without bind.
+Parent `eeea6b751e095028ba00cc5d25526eae85a7cdda`. Owner checkout/full CTest: **NOT RUN**; hosted CI
+on publication commit: **PENDING**; real authorized LAN, seat0 and
+Microsoft-client trials: **NOT RUN**. GUI still denies Start/Stop via
+`UnavailableRuntimeHostControl` and native R8 clipboard remains disabled.
+
 ## R9 native macOS R10/R7 LAN policy-to-Qt paired CTests (2026-10-18)
 
 Exact earlier complete-green GitHub head:

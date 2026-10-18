@@ -41,6 +41,9 @@ public:
     AuthenticationAttemptLimiter &operator=(const AuthenticationAttemptLimiter &) = delete;
 
     // Accept only exact, already-validated IPv4 (4 bytes) or IPv6 (16 bytes).
+    // IPv4-mapped IPv6 (::ffff:a.b.c.d) is the same peer as native IPv4:
+    // keeping the two encodings separate would double the per-peer budget
+    // on dual-stack listeners. Unmapped IPv6 still keeps all 16 bytes.
     // A new address is rejected if all tracked slots are still live. Charged
     // attempts cannot be refunded by disconnect/retry, so a failed TLS/NTLM
     // exchange cannot escape its bound by reconnecting immediately.
@@ -51,10 +54,24 @@ public:
             !globalAttemptAvailable(now))
             return false;
 
+        // Canonicalize only the RFC 4291 IPv4-mapped IPv6 prefix, never
+        // arbitrary 16-byte IPv6 addresses. No allocation, shared cache or
+        // socket-family assumptions enter this R2 security boundary.
+        auto peer = address;
+        if (address.size() == 16U &&
+            std::all_of(address.begin(), address.begin() + 10,
+                        [](std::uint8_t octet) noexcept {
+                            return octet == 0U;
+                        }) &&
+            address[10] == 0xffU && address[11] == 0xffU)
+        {
+            peer = address.subspan(12U, 4U);
+        }
+
         auto *slot = findOrReuseSlot(
-            peers_, now, [address](const PeerSlot &entry) noexcept {
-                return entry.addressLength == address.size() &&
-                    std::equal(address.begin(), address.end(),
+            peers_, now, [peer](const PeerSlot &entry) noexcept {
+                return entry.addressLength == peer.size() &&
+                    std::equal(peer.begin(), peer.end(),
                                entry.address.begin());
             });
         if (slot == nullptr || slot->window.attempts >= kMaximumPeerAttempts)
@@ -62,8 +79,8 @@ public:
 
         if (slot->addressLength == 0U)
         {
-            std::copy(address.begin(), address.end(), slot->address.begin());
-            slot->addressLength = static_cast<std::uint8_t>(address.size());
+            std::copy(peer.begin(), peer.end(), slot->address.begin());
+            slot->addressLength = static_cast<std::uint8_t>(peer.size());
         }
 
         ++slot->window.attempts;

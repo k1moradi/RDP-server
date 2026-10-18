@@ -28,6 +28,27 @@ mstsc/Windows App visible frame/input/ACK are **NOT RUN**. Owner-local
 full CTest **NOT RUN** in the GitHub-only connector workspace;
 exact new publication-SHA CI **PENDING**.
 
+## R2 canonical dual-stack peer attempt budget (2026-10-18)
+
+A potential pre-NLA abuse gap was the same IPv4 address represented as
+native IPv4 and RFC 4291 IPv4-mapped IPv6, which the service's fixed
+peer table previously counted separately. The production header now
+canonicalizes only the exact mapped prefix before matching and
+storing the peer address; the existing table, 8-attempt window,
+global 128-attempt window, time regression and per-GSS-principal PAM
+budget are unchanged. New portable ordinary CTest
+`security.ipv4-mapped-ipv6-peer-quota-identity` exercises both
+reservation orders, shared cap, mapping-prefix distinction, ::1
+independence, distinct mapped endpoint, exact expiry, and regression
+denial. This test runs on the real limiter without networking,
+synthetic GSS tokens, OS admission or changing LAN bind policy.
+Local owner configure/build/full CTest: **NOT RUN** (no approved
+checkout); exact-SHA hosted workflow: **PENDING**. Full primary CI
+at the prior source SHA `9a036d098bc183c051c02e4bb233733c89a33a3c`
+**PASS** [39147713490](https://github.com/k1moradi/RDP-server/actions/runs/39147713490),
+but the new production code must earn its own green result.
+Owner seat0 and Microsoft clients: **BLOCKED / NOT RUN**.
+
 ## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
 
 The earlier R10 `abe17d32310cace7b611652e4085476bbc5ca8aa`

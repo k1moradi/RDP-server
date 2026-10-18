@@ -1,4 +1,4 @@
-## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
+docs/ROADMAP.md## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
 
 The earlier R10 `abe17d32310cace7b611652e4085476bbc5ca8aa`
 landed the pure authoritative `assessRuntimeSelectedLanEndpoint`

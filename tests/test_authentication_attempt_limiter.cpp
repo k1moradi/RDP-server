@@ -77,11 +77,68 @@ void testVerifiedAccountTableExhaustion()
     assert(limiter.reservePeerAuthenticationAttempt(peer, start));
 }
 
+void testIpv4MappedIpv6PeerQuotaIdentity()
+{
+    using Limit = AuthenticationAttemptLimiter;
+    const Limit::TimePoint start{};
+    constexpr std::array<std::uint8_t, 4> nativeIpv4{
+        192U, 0U, 2U, 41U};
+    constexpr std::array<std::uint8_t, 16> mappedIpv6{
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0xffU, 0xffU, 192U, 0U, 2U, 41U};
+    constexpr std::array<std::uint8_t, 16> ipv6Loopback{
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 1U};
+    constexpr std::array<std::uint8_t, 16> distinctMappedIpv6{
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0xffU, 0xffU, 192U, 0U, 2U, 42U};
+    constexpr std::array<std::uint8_t, 16> notMappedIpv6{
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0xffU, 0xfeU, 192U, 0U, 2U, 41U};
+
+    Limit forward;
+    // Native IPv4 and mapped IPv6 share one eight-attempt identity.
+    for (std::size_t i = 0; i < Limit::kMaximumPeerAttempts; ++i)
+    {
+        assert(forward.reservePeerAuthenticationAttempt(
+            (i % 2U) == 0U
+                ? std::span<const std::uint8_t>{nativeIpv4}
+                : std::span<const std::uint8_t>{mappedIpv6},
+            start));
+    }
+    assert(!forward.reservePeerAuthenticationAttempt(nativeIpv4, start));
+    assert(!forward.reservePeerAuthenticationAttempt(mappedIpv6, start));
+    assert(forward.reservePeerAuthenticationAttempt(ipv6Loopback, start));
+    assert(forward.reservePeerAuthenticationAttempt(distinctMappedIpv6, start));
+    assert(forward.reservePeerAuthenticationAttempt(notMappedIpv6, start));
+
+    // The mapped-first direction must also canonicalize to four octets.
+    Limit reverse;
+    assert(reverse.reservePeerAuthenticationAttempt(mappedIpv6, start));
+    for (std::size_t i = 1; i < Limit::kMaximumPeerAttempts; ++i)
+        assert(reverse.reservePeerAuthenticationAttempt(nativeIpv4, start));
+    assert(!reverse.reservePeerAuthenticationAttempt(mappedIpv6, start));
+    assert(reverse.reservePeerAuthenticationAttempt(
+        nativeIpv4, start + Limit::kAttemptWindow));
+    assert(reverse.reservePeerAuthenticationAttempt(
+        mappedIpv6, start + Limit::kAttemptWindow));
+
+    // The existing peer and global budgets must not be bypassed on
+    // reconnect or time regression through either address encoding.
+    assert(!reverse.reservePeerAuthenticationAttempt(
+        mappedIpv6, start - std::chrono::seconds{1}));
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 2 || argv[1] == nullptr)
         return 2;
 
+    if (std::string_view(argv[1]) == "ipv4-mapped-ipv6-peer-quota-identity")
+    {
+        testIpv4MappedIpv6PeerQuotaIdentity();
+        return 0;
+    }
     if (std::string_view(argv[1]) == "verified-account-table-exhaustion")
     {
         testVerifiedAccountTableExhaustion();

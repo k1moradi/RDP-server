@@ -44,6 +44,14 @@ add_test(NAME security.verified-account-table-exhaustion
 set_tests_properties(security.verified-account-table-exhaustion
     PROPERTIES LABELS "security;credentials;offline")
 
+# One R2 peer quota must be shared by IPv4 and its IPv4-mapped IPv6 form,
+# without merging arbitrary IPv6 addresses or bypassing global protection.
+add_test(NAME security.ipv4-mapped-ipv6-peer-quota-identity
+    COMMAND test_authentication_attempt_limiter
+        ipv4-mapped-ipv6-peer-quota-identity)
+set_tests_properties(security.ipv4-mapped-ipv6-peer-quota-identity
+    PROPERTIES LABELS "security;credentials;offline")
+
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
 add_executable(test_runtime_host_control test_runtime_host_control.cpp)
 target_link_libraries(test_runtime_host_control PRIVATE rdp-server-protocol)

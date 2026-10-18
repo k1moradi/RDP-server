@@ -12,6 +12,21 @@ resize/surface recreation evidence; never silently crop, stretch, forge a
 lease or conflate TLS write receipts with client-visible pixels. Retain
 the four-case R9 ClearCodec sanitizer selection.
 
+## R2 IPv4-mapped IPv6 shares native IPv4 attempt identity (2026-10-18)
+
+The same transport peer must not gain additional pre-CredSSP attempts
+merely by changing from a native four-octet IPv4 socket address to the
+16-octet mapped prefix `::ffff:a.b.c.d`. Canonicalize only the
+RFC 4291 ten-zero, two-0xff mapped prefix into four octets before
+matching the service's existing peer slots. Do not coalesce ordinary
+IPv6, IPv6 loopback, different mapped addresses, or arbitrary
+transitional IPv6; global attempt overload and monotonic expiry
+remain unchanged. Keep
+`security.ipv4-mapped-ipv6-peer-quota-identity` in ordinary cross-host
+CTest on the exact production limiter rather than opening a real
+listener or duplicating authentication-window state. This change
+does not imply an authorized LAN Start or real R2 session.
+
 ## R7 shared R10 LAN selection projection (2026-10-18)
 
 The R7 GUI must enumerate native interface choices once per status

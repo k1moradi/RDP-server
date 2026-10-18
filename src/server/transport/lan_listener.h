@@ -18,6 +18,7 @@ enum class LanListenerError : std::uint8_t {
     CertificateMismatch
 };
 
+struct LanListenerResult;
 struct LanListenerRequest {
     std::string_view interfaceName;
     std::string_view numericAddress; // numeric IPv4 or IPv6, no DNS resolution
